@@ -16,7 +16,8 @@
     "generate_test_qrcode",
     "add_test_whitelist",
     "get_ad_config",
-    "get_debug_feedbacks"
+    "get_debug_feedbacks",
+    "achievement"
   ],
   "tools": [
     {
@@ -779,6 +780,108 @@
           }
         },
         "required": []
+      }
+    },
+    {
+      "name": "achievement",
+      "description": "Manage TapTap Maker achievements for the current bound project through one tool and an op field. First read maker://status or maker_status_lite, resolve exactly one bound Maker project, then keep that same target_dir. App, developer, and client identity come from the remote project workspace and server environment. Do not pass app_id, developer_id, client_id, or managementId. Call op=\"sync_achievements\" after the user authorizes this management target. Sync writes the remote workspace lock at .project/achievements.lock.json; it is not a read-only query. For query-only requests without write authorization, explain that side effect first and do not sync. get_achievement may also refresh that remote lock when the mapping is missing or invalid. Do not treat missing local taptap_publish as proof the remote identity is missing. Call sync first; only if sync reports missing remote project config or TapTap identity, show the missing item and reuse the existing authorized build or generate_test_qrcode flow. Do not guess IDs or loop builds. If the service is not enabled, show the returned developer-center URL, wait for the user, and do not file an MCP issue report. If a returned app_id or developer_id conflicts with the user-specified target or known local publish identity, stop later writes and reconcile before continuing. Use developer achievement_id for ordinary achievements. image_url accepts HTTP(S) URLs only; local paths and data URLs are not uploaded. Reuse a trusted previously generated Maker asset URL when one exists. Ordinary publish_achievements and check_publish_achievements apply to the whole app, not only the achievement just edited. check_publish is not publish authorization. Require explicit user authorization for publish, delete, cancel audit, reset_achievement, and reset_achievement_test_user. reset_achievement clears ordinary achievement player data; reset_achievement_test_user clears one test user. Do not describe either as a local-file cleanup. A platinum achievement is an app-level singleton. Create only after the user asks. Upstream enforces ordinary-achievement count and published-state gates; check_publish_platinum_achievement is not publish authorization. If success=false, treat the call as a business failure and do not continue definition changes. If success=true, remote_applied=true, and lock_sync.synced=false, the platform write succeeded; recover with sync_achievements only and do not replay the original write. lock_sync.path is a remote workspace relative path, not a local file, download URL, or Git path to edit. This is a management tool. Gameplay unlock or progress code requires the project Runtime SDK documentation; do not invent Lua APIs or reuse minigame/H5 achievement SDKs. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "sync_achievements",
+              "get_achievement",
+              "create_achievement",
+              "update_achievement",
+              "delete_achievement",
+              "set_achievement_order",
+              "check_publish_achievements",
+              "publish_achievements",
+              "get_platinum_achievement",
+              "create_platinum_achievement",
+              "update_platinum_achievement",
+              "delete_platinum_achievement",
+              "check_publish_platinum_achievement",
+              "publish_platinum_achievement",
+              "cancel_platinum_achievement_audit",
+              "add_achievement_test_users",
+              "reset_achievement",
+              "list_achievement_test_users",
+              "reset_achievement_test_user"
+            ],
+            "description": "成就高层操作"
+          },
+          "achievement_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,40}$",
+            "description": "普通成就开发者侧 ID"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "sub_title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "image_url": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "成就图标 HTTP(S) URL"
+          },
+          "is_hidden": {
+            "type": "boolean",
+            "description": "仅普通成就创建和更新可用；白金成就固定为非隐藏"
+          },
+          "blocks_platinum": {
+            "type": "boolean"
+          },
+          "total_steps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          },
+          "list_order": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          },
+          "page_num": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "user_id": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d{0,19})$",
+            "description": "TapTap 用户 uint64 ID，使用十进制字符串；list_achievement_test_users 允许 0，reset_achievement_test_user 必须大于 0"
+          },
+          "user_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "description": "TapTap 用户 uint64 ID 列表",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,19}$"
+            }
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. When omitted, Maker MCP uses one unambiguous MCP Roots workspace and process cwd only as the final fallback. Pass it explicitly when Roots are unavailable or ambiguous, or when the fallback is not the intended project. This local-only value is not persisted in user-level MCP config and is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": [
+          "op"
+        ]
       }
     }
   ]

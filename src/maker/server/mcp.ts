@@ -114,6 +114,11 @@ import {
 } from '../projectSettings.js';
 import { inspectMakerQrcodePreflight } from '../qrcodePreflight.js';
 import {
+  ACHIEVEMENT_BUSINESS_FAILURE_NEXT_ACTION,
+  ACHIEVEMENT_PROXY_TOOL_NAME,
+  normalizeAchievementProxyResult,
+} from './achievementProxy.js';
+import {
   CREATE_3D_ASSET_PROXY_TOOL_NAME,
   RemoteProxyToolCallError,
   RemoteProxyToolResultError,
@@ -188,6 +193,7 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'add_test_whitelist',
   'get_ad_config',
   'get_debug_feedbacks',
+  ACHIEVEMENT_PROXY_TOOL_NAME,
 ];
 
 const MAKER_BUILD_MULTIPLAYER_SCHEMA = {
@@ -544,10 +550,17 @@ export async function callRemoteProxyTool(options: {
         }
       };
   const result = await callTool();
+  const normalizedResult =
+    options.name === ACHIEVEMENT_PROXY_TOOL_NAME
+      ? normalizeAchievementProxyResult(
+          result,
+          typeof finalArgs.op === 'string' ? finalArgs.op : ''
+        )
+      : result;
   return await materializeRemoteProxyToolAssets({
     toolName: options.name,
     targetDir: proxy.projectRoot,
-    result,
+    result: normalizedResult,
   });
 }
 
@@ -4148,17 +4161,25 @@ export function formatToolException(toolName: string, error: unknown): string {
       flattenNestedMcpErrorPrefixes(error.result) as typeof error.result
     );
     const remoteMessage = extractRemoteProxyErrorMessage(displayResult);
+    const achievementBusinessFailure =
+      toolName === ACHIEVEMENT_PROXY_TOOL_NAME && isAchievementBusinessFailureResult(displayResult);
     return [
       '✗ Maker MCP proxy tool failed',
       '',
       `- tool: ${toolName}`,
-      '- reason: remote_proxy_tool_result_error',
+      `- reason: ${
+        achievementBusinessFailure
+          ? 'achievement_business_failure'
+          : 'remote_proxy_tool_result_error'
+      }`,
       `- error_name: ${error.name}`,
       `- message: ${remoteMessage ?? firstLine(error.message)}`,
       '',
       formatRemoteProxyToolResult(displayResult),
       '',
-      'next_action: 远端 proxy tool 已返回失败结果；请把完整、已脱敏的 remote_result 反馈给开发者，方便排查 server 返回内容。',
+      achievementBusinessFailure
+        ? `next_action: ${ACHIEVEMENT_BUSINESS_FAILURE_NEXT_ACTION}`
+        : 'next_action: 远端 proxy tool 已返回失败结果；请把完整、已脱敏的 remote_result 反馈给开发者，方便排查 server 返回内容。',
     ].join('\n');
   }
 
@@ -4238,6 +4259,30 @@ function flattenNestedMcpErrorPrefixes(value: unknown): unknown {
     );
   }
   return value;
+}
+
+function isAchievementBusinessFailureResult(result: unknown): boolean {
+  if (!isPlainRecord(result)) {
+    return false;
+  }
+  const structured = result.structuredContent;
+  if (isPlainRecord(structured) && structured.success === false) {
+    return true;
+  }
+  if (!Array.isArray(result.content)) {
+    return false;
+  }
+  return result.content.some((item) => {
+    if (!isPlainRecord(item) || typeof item.text !== 'string') {
+      return false;
+    }
+    try {
+      const parsed = JSON.parse(item.text) as unknown;
+      return isPlainRecord(parsed) && parsed.success === false;
+    } catch {
+      return item.text.includes(ACHIEVEMENT_BUSINESS_FAILURE_NEXT_ACTION);
+    }
+  });
 }
 
 function extractRemoteProxyErrorMessage(result: unknown): string | undefined {

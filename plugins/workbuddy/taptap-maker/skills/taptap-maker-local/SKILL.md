@@ -96,6 +96,7 @@ active plugin's marketplace instead of installing or upgrading a standalone Make
 | bare preview / run / check game result                    | Resolve local vs remote from explicit context; if ambiguous ask, never silently commit.                                                                                                                               |
 | generic code validation / tests / lint                    | Do not use Maker remote build without an explicit remote build request.                                                                                                                                               |
 | MCP unavailable / proxy timeout / unexpected server error | Diagnose first; offer one consent-gated GitHub issue report when the evidence suggests an MCP, proxy, client integration, or service defect.                                                                          |
+| achievement / 成就 / 成就管理 / 接入成就 / 发布成就 / 白金成就 | Follow Maker Achievement Workflow below. Do not invent Lua APIs or reuse minigame/H5 achievement SDKs.                                                                                                                |
 
 ## Local Web Console
 
@@ -297,9 +298,12 @@ supports it. Follow the selected tool schema when one of these tools is used.
   to generate test QR code metadata, then call `get_ad_config` again. Do not use publish-only tools
   for this recovery path.
 - If status or doctor reports `Maker project initialization` with `missing_project_json` or
-  `missing_taptap_identity`, follow that `next_action` before using tools that depend on remote
-  project config. `.project` directory presence alone is never proof of initialization; empty,
-  voice-mapping-only, and primary-config-incomplete directories remain buildable new-project state.
+  `missing_taptap_identity`, follow that `next_action` before using ads, QR, or whitelist tools
+  that depend on remote project config. Do not apply that local-identity gate to `achievement`;
+  achievement management calls `sync_achievements` first and treats missing local
+  `taptap_publish` as a clue only. `.project` directory presence alone is never proof of
+  initialization; empty, voice-mapping-only, and primary-config-incomplete directories remain
+  buildable new-project state.
 - For the current Maker game's online player feedback, including player-submitted game bug reports,
   real-device game logs, or screenshots, or server/Lua logs for a specified game session,
   call the Maker proxy `get_debug_feedbacks` tool only when it is exposed by the current Maker tool list.
@@ -437,7 +441,7 @@ If the user is in a bound Maker project but `generate_image`, `batch_generate_im
 `create_video_task`, `query_video_task`, `text_to_music`, `text_to_sound_effect`,
 `batch_sound_effects`, `text_to_dialogue`, `audition_voices_for_character`,
 `confirm_character_voice`, `create_3d_asset`,
-`generate_test_qrcode`, `get_ad_config`, or `get_debug_feedbacks` are missing from the current AI
+`generate_test_qrcode`, `get_ad_config`, `get_debug_feedbacks`, or `achievement` are missing from the current AI
 tool list, do not diagnose project cwd as the registration cause. Current Maker MCP registers every
 whitelisted proxy tool from local definitions before resolving cwd, project binding, auth, or the
 remote proxy:
@@ -945,3 +949,51 @@ Maker users may not understand Git terminology. Prefer concrete wording:
 - "冲突文件" instead of "unmerged paths"
 
 Always explain the next irreversible step before taking it.
+
+## Maker Achievement Workflow
+
+Use this workflow for achievement, 成就, 成就管理, 接入成就, 发布成就, or 白金成就
+requests. Keep generated files and ads/QR recovery in the Creative Asset Tool Policy;
+achievement identity and sync order live here.
+
+1. Read `maker://status`, or call `maker_status_lite` if resources are unavailable. Resolve
+   exactly one bound Maker project and keep that same `target_dir`.
+2. Confirm `achievement` is exposed. If the current Maker version has not registered it, stop
+   and do not invent a hidden call.
+3. Do not pass `app_id`, `developer_id`, `client_id`, or `managementId`. Identity comes from the
+   remote workspace and server environment. Missing local `taptap_publish` is only a clue; do
+   not treat a local `missing_taptap_identity` status as proof the remote identity is missing,
+   and do not start `generate_test_qrcode` or a build just because local publish config is absent.
+4. Query-only requests without write authorization: explain that `sync_achievements` writes the
+   remote workspace lock and is not a read-only query. Do not sync until the user authorizes that
+   side effect. Do not claim a read-only achievement query.
+5. After the user authorizes the current management target, call `achievement` with
+   `op="sync_achievements"`. `get_achievement` may also refresh the remote workspace lock when
+   the mapping is missing or invalid. Do not download, edit, or delete that lock locally.
+6. If sync reports missing remote project config or TapTap identity, show the missing item.
+   Only then reuse the existing authorized `maker_build_current_directory` or
+   `generate_test_qrcode` flow; explain upload side effects and wait. If a developer choice is
+   required, show the real candidates. Do not guess IDs or loop builds.
+7. If the service is not enabled, show the returned developer-center URL, wait for the user,
+   and do not file an MCP issue report. If a returned `app_id` or `developer_id` conflicts with
+   the user-specified target or known local publish identity, stop later writes and reconcile.
+8. Use developer `achievement_id` for ordinary achievements. `image_url` accepts HTTP(S) URLs
+   only. Reuse a trusted previously generated Maker asset URL when the registry key or
+   `localPath` matches exactly. Local paths and data URLs are not uploaded.
+9. Ordinary `check_publish_achievements` and `publish_achievements` apply to the whole app, not
+   only the achievement just edited. A check is not publish authorization. Require explicit
+   authorization for publish, delete, cancel audit, `reset_achievement`, and
+   `reset_achievement_test_user`. `reset_achievement` clears ordinary achievement player data;
+   `reset_achievement_test_user` clears one test user.
+10. Platinum / 白金 is optional and app-level. Create it only after the user asks. Upstream
+    enforces ordinary-achievement count and published-state gates. Check first, then wait for
+    publish authorization.
+11. If `success=false`, treat it as a business failure and do not continue definition changes.
+    If `success=true`, `remote_applied=true`, and `lock_sync.synced=false`, recover with
+    `sync_achievements` only and do not replay the original write. A request interruption leaves
+    execution unknown; verify remote state before the user decides.
+12. This is a management tool. Gameplay unlock or progress code requires the project Runtime SDK
+    documentation. If that documentation is missing, continue management-tool work but stop
+    generating concrete SDK calls. Do not invent Lua APIs or reuse minigame/H5 achievement SDKs.
+
+Details: `docs/MAKER_ACHIEVEMENTS.md`.

@@ -645,9 +645,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `edit_image`、`create_video_task`、`query_video_task`、`text_to_music`、
   `text_to_sound_effect`、`batch_sound_effects`、`text_to_dialogue`、
   `audition_voices_for_character`、`confirm_character_voice`、
-  `create_3d_asset`、`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config`
-  和 `get_debug_feedbacks`，
-  用于试用图片/视频/音乐/音效/配音/3D 模型生成、广告配置同步和远端玩家反馈查询链路，
+  `create_3d_asset`、`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config`、
+  `get_debug_feedbacks` 和 `achievement`，
+  用于试用图片/视频/音乐/音效/配音/3D 模型生成、广告配置同步、远端玩家反馈查询和成就管理链路，
   本地保留远端 input schema、参数语义和成功返回值；完整公开定义固定在
   `src/maker/server/remoteProxyToolSnapshot.json`，description 使用已审核的本地内容，避免远端通用
   教程与 Maker 本地确认门、素材落盘和恢复工作流冲突。提交前用已绑定 Maker 项目运行
@@ -677,6 +677,15 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 统一项目健康检查保持只读，不自动移动、覆盖或重建 `.project` 配置。不得用 `.project` 目录是否存在判断项目已经初始化；`.project` 为空、只含音色 mapping/其它本地文件、只含 `resources.json`，或缺少 `project.json` / `settings.json` 时，都按具体文件状态保持新项目可构建。只有规范位置的配置文件实际存在且内容错误时才进入校验/修复路径：`settings.json` 仍可解析为 object 时，可在用户确认后补入缺失的 schema/build 默认字段，并保留 `@runtime`、`asset_ignores` 与未知字段。`sources.*.tag` 是锁定字段，只能从完整副本恢复；不要凭默认值生成项目身份、版本、发布元数据或资源分组。`entry=main.lua` 也必须先确认项目实际入口。
 - 当前目录是已绑定 Maker 项目时，调用 `generate_test_qrcode` 应先不传方向参数。本地 MCP 会读取 `.project/project.json`：已有合法 `taptap_publish.screen_orientation` 时直接沿用，不再询问用户，且后续输入不能覆盖；只有该字段从未设置时，才单独发起一次对话，让用户明确选择横屏（`landscape`）或竖屏（`portrait`），禁止推断或默认。用户选择后重试并传本地私有参数 `confirmed_screen_orientation`，本地 MCP 只在首次缺失时写入该值，不会把私有参数转发给远端。二维码生成并建立应用身份后，只有用户明确提供 TapTap `user_id` 时才调用 `add_test_whitelist`，不要猜测账号 ID。
 - 当前目录是已绑定 Maker 项目时，只要用户消息涉及广告（包括“广告”、激励视频、播放广告、广告 ID、广告位、`ShowRewardVideoAd`、广告配置、广告开通状态等），先阅读 `maker://ads-integration-guide`，再按其中流程检查 Maker 项目状态、调用 `get_ad_config` 并阅读项目内 `engine-docs/recipes/sdk.md`。主配置未初始化时，本地 preflight 会保持广告能力不可用且不调用远端 `get_ad_config`；仅在用户明确要求构建时调用 `maker_build_current_directory`。构建后本地配置仍缺失时直接说明当前已知限制，不要自动重复构建。配置就绪后再调用 `get_ad_config` 获取广告开通状态和配置；若返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`。不要先查 `.maker-mcp/config.json` 或用运行回调推断广告是否开通，也不要为这个恢复流程调用发布类工具。
+- 当前目录是已绑定 Maker 项目时，用户请求管理或接入成就，先读 `maker://status` 或调用
+  `maker_status_lite`，解析唯一项目后固定 `target_dir`，再调用 `achievement`。只查询且没有写入
+  授权时，先说明 `sync_achievements` 会写远端 workspace lock，不要宣称只读。不要把本地缺少
+  `taptap_publish` 当成远端必然缺失，成就先 sync，不要套用广告/二维码的本地身份前置门。身份来自远端
+  workspace，不要传入 `app_id`、`developer_id`、`client_id` 或 managementId。图标只接受 HTTP(S) URL；
+  发布作用于整个应用。`success=false` 是业务失败，展示开通指引并等待，不要当成 MCP 连接故障上报；
+  平台写成功但 `lock_sync.synced=false` 时只再 sync，不重放原写操作。白金仅在用户明确要求时进入。
+  管理工具可用不代表游戏运行时已接入，不要编造 Lua API 或借用小游戏/H5 成就 SDK。
+  详见 `docs/MAKER_ACHIEVEMENTS.md`。
 - 当前目录是已绑定 Maker 项目时，只有用户明确询问当前 Maker 游戏的线上玩家反馈（包括玩家提交的游戏故障、真机游戏日志或截图），或指定游戏会话的服务端/Lua 日志时，才调用 Maker MCP tool `get_debug_feedbacks`；Cindy 等 AI 客户端、插件、通用开发工具或其它产品的问题反馈/问题上报不属于该工具。本地 runtime log 只用于当前本地构建/运行会话，不要用本地日志替代线上玩家提交的反馈。
 - `get_debug_feedbacks` 会拉取线上玩家反馈，并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`；调用后优先使用返回的 `local_dir`、`local_log_paths`、`local_screenshot_paths` 读取日志和查看截图。附件路径以 tool 返回的 `local_*` 字段为准；没有 `local_*` 字段时，不要把附件当成本地文件读取。
 - 当前目录是已绑定 Maker 项目时，用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 远端预览 / 远端跑一下 / 查看远端结果 / 看看远端效果 / 验证远端游戏效果”时，都调用 `maker_build_current_directory`。本地控制台或本地预览走对应 CLI，不提交、不推送、不启动远端构建。普通“验证代码 / 跑测试 / lint / 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求远端构建、运行或预览。普通远端构建会先 push 再 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒远端服务；push 成功后才远端 build。
@@ -922,6 +931,7 @@ const allModules = [..., yourFeatureModule];
 - **部署指南**：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - 三种传输协议、环境变量、MCP 集成配置
 - **CI/CD 流程**：[docs/CI_CD.md](docs/CI_CD.md) - GitHub Flow、Semantic Release、手动发布
 - **路径解析**：[docs/PATH_RESOLUTION.md](docs/PATH_RESOLUTION.md) - 路径处理问题、最佳实践
+- **Maker 成就管理**：[docs/MAKER_ACHIEVEMENTS.md](docs/MAKER_ACHIEVEMENTS.md) - 成就工具前置条件、部分成功恢复和验收边界
 
 ### Proxy 相关文档
 

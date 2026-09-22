@@ -195,6 +195,9 @@ describe('Maker AI dev kit install', () => {
       'Local proxy may convert resolvable local reference media to data URLs'
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
+    expect(agentsGuide).toContain('Maker achievement workflow:');
+    expect(agentsGuide).toContain('Query-only requests without write authorization');
+    expect(agentsGuide).toContain('Do not treat missing local `taptap_publish`');
     expect(agentsGuide).toContain(
       'Only call `create_video_task` after the user explicitly requests video generation'
     );
@@ -499,6 +502,9 @@ describe('Maker AI dev kit install', () => {
       'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs'
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
+    expect(agentsGuide).toContain('Maker achievement workflow:');
+    expect(agentsGuide).toContain('Query-only requests without write authorization');
+    expect(agentsGuide).toContain('Do not treat missing local `taptap_publish`');
     expect(agentsGuide).toContain('`text_to_sound_effect` for one sound effect');
     expect(agentsGuide).toContain('`batch_sound_effects` for multiple sound effects');
     expect(agentsGuide).toContain('`text_to_dialogue` for final character dialogue');

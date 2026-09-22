@@ -136,6 +136,20 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
     'Downloaded feedback attachments are saved in the local project. Read only the returned local_dir, local_log_paths, and local_screenshot_paths; do not treat remote attachment paths as local files.',
     'Session-log mode returns its own saved paths and progress information; use the returned result to continue when more history is available.',
   ].join(' '),
+  achievement: [
+    'Manage TapTap Maker achievements for the current bound project through one tool and an op field.',
+    'First read maker://status or maker_status_lite, resolve exactly one bound Maker project, then keep that same target_dir.',
+    'App, developer, and client identity come from the remote project workspace and server environment. Do not pass app_id, developer_id, client_id, or managementId.',
+    'Call op="sync_achievements" after the user authorizes this management target. Sync writes the remote workspace lock at .project/achievements.lock.json; it is not a read-only query. For query-only requests without write authorization, explain that side effect first and do not sync. get_achievement may also refresh that remote lock when the mapping is missing or invalid.',
+    'Do not treat missing local taptap_publish as proof the remote identity is missing. Call sync first; only if sync reports missing remote project config or TapTap identity, show the missing item and reuse the existing authorized build or generate_test_qrcode flow. Do not guess IDs or loop builds. If the service is not enabled, show the returned developer-center URL, wait for the user, and do not file an MCP issue report.',
+    'If a returned app_id or developer_id conflicts with the user-specified target or known local publish identity, stop later writes and reconcile before continuing.',
+    'Use developer achievement_id for ordinary achievements. image_url accepts HTTP(S) URLs only; local paths and data URLs are not uploaded. Reuse a trusted previously generated Maker asset URL when one exists.',
+    'Ordinary publish_achievements and check_publish_achievements apply to the whole app, not only the achievement just edited. check_publish is not publish authorization.',
+    'Require explicit user authorization for publish, delete, cancel audit, reset_achievement, and reset_achievement_test_user. reset_achievement clears ordinary achievement player data; reset_achievement_test_user clears one test user. Do not describe either as a local-file cleanup.',
+    'A platinum achievement is an app-level singleton. Create only after the user asks. Upstream enforces ordinary-achievement count and published-state gates; check_publish_platinum_achievement is not publish authorization.',
+    'If success=false, treat the call as a business failure and do not continue definition changes. If success=true, remote_applied=true, and lock_sync.synced=false, the platform write succeeded; recover with sync_achievements only and do not replay the original write. lock_sync.path is a remote workspace relative path, not a local file, download URL, or Git path to edit.',
+    'This is a management tool. Gameplay unlock or progress code requires the project Runtime SDK documentation; do not invent Lua APIs or reuse minigame/H5 achievement SDKs.',
+  ].join(' '),
 };
 
 const MAKER_REMOTE_PROXY_RETRY_GUIDANCE = [

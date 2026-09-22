@@ -9,7 +9,7 @@
 
 CLI 功能指南：[本地控制台](MAKER_CONSOLE.md)、
 [Runtime 安装与本地预览](MAKER_LOCAL_PREVIEW.md)。两者复用现有 CLI，不新增 MCP tool；
-本地预览与提交、远端构建流程分离。
+本地预览与提交、远端构建流程分离。成就管理工具边界见 [Maker 成就管理](MAKER_ACHIEVEMENTS.md)。
 
 `taptap-maker` 由独立 npm 包 `@taptap/maker` 提供：
 
@@ -21,8 +21,9 @@ CLI 功能指南：[本地控制台](MAKER_CONSOLE.md)、
   `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
   `query_video_task`、`text_to_music`、`text_to_sound_effect`、`batch_sound_effects`、
   `text_to_dialogue`、`audition_voices_for_character`、`confirm_character_voice`、
-  `create_3d_asset`、`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks`，用于试用
-  图片/视频/音乐/音效/配音/3D 模型生成、测试二维码生成、广告配置同步和远端玩家反馈查询链路。
+  `create_3d_asset`、`generate_test_qrcode`、`get_ad_config`、`get_debug_feedbacks` 和
+  `achievement`，用于试用图片/视频/音乐/音效/配音/3D 模型生成、测试二维码生成、广告配置同步、
+  远端玩家反馈查询和成就管理链路。
 - Maker MCP 启动时复用 PAT 换取 TapTap MAC 凭据的现有接口执行一次账号访问检查。只有接口明确返回
   `BLACKLISTED` 时，`tools/list` 才只保留 `maker_status_lite`，所有 tool call 和
   `maker://status` 直接返回限制提示，不执行项目状态、构建或远端 proxy 逻辑。PAT 缺失、过期、
@@ -835,8 +836,8 @@ maker_build_current_directory()
 当前只把 `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
 `query_video_task`、`text_to_music`、`text_to_sound_effect`、`batch_sound_effects`、
 `text_to_dialogue`、`audition_voices_for_character`、`confirm_character_voice`、
-`create_3d_asset`、`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config` 和
-`get_debug_feedbacks` 作为白名单公开；
+`create_3d_asset`、`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config`、
+`get_debug_feedbacks` 和 `achievement` 作为白名单公开；
 本地 MCP 保留远端 tools 的 input schema、参数语义和成功返回值。当前公开 tools 的完整定义固定在
 `src/maker/server/remoteProxyToolSnapshot.json`，description 使用已审核的本地内容，避免远端通用
 教程与 Maker 本地确认门、素材落盘和恢复工作流冲突。schema 或白名单变化必须随本地 MCP 版本更新发布。
@@ -891,6 +892,12 @@ ElevenLabs，对话使用 Eleven v3 的 `stability` 与表演标签，角色试�
 `confirmed_screen_orientation=landscape|portrait`。本地 MCP 只在首次缺失时写入该值，参数不转发远端。
 二维码已经生成并写入应用身份后，
 只有用户明确提供 TapTap `user_id` 时才调用 `add_test_whitelist`，不要猜测账号 ID。
+`achievement` 用于当前绑定项目的成就管理。身份来自远端 workspace，不要传入 `app_id`、
+`developer_id`、`client_id` 或 managementId。`sync_achievements` 会写远端 workspace lock，
+不是只读查询；图标只接受 HTTP(S) URL。业务失败按 `success=false` 处理；平台写成功但 lock
+未同步时只再 sync，不重放原写操作。管理流程、部分成功恢复和运行时验收边界见
+`docs/MAKER_ACHIEVEMENTS.md`。
+
 `get_debug_feedbacks` 会拉取线上玩家反馈；当日志或截图可下载时，本地会保存到当前 Maker 项目的
 `logs/feed_back/feedback_<id>/`，并在结果里补充 `local_dir`、`local_log_paths`、
 `local_screenshot_paths`、`local_download_paths`、`artifacts_downloaded` 和

@@ -75,6 +75,11 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain('Voice audition previews are not saved to the project');
     expect(status).toContain('Local MCP does not transcode generated audio to OGG');
     expect(status).toContain('Use create_3d_asset with start/query/continue/post_process');
+    expect(status).toContain('Maker achievement workflow');
+    expect(status).toContain(`${MAKER_LOCAL_SKILL_NAME} > Maker Achievement Workflow`);
+    expect(status).toContain('Query-only requests without write authorization');
+    expect(status).toContain('Do not treat missing local taptap_publish');
+    expect(status).toContain('image_url accepts HTTP(S) URLs only');
     expect(status).toContain('first read `maker://ads-integration-guide`, then follow it');
     expect(status.indexOf('maker://ads-integration-guide')).toBeLessThan(
       status.indexOf('get_ad_config')
@@ -185,6 +190,13 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Voice audition previews are not saved to the project');
     expect(skillText).toContain('Local MCP does not transcode generated audio to OGG');
     expect(skillText).toContain('Use `create_3d_asset` for the complete 3D asset lifecycle');
+    expect(skillText).toContain('Maker Achievement Workflow');
+    expect(skillText).toContain('achievement / 成就 / 成就管理 / 接入成就');
+    expect(skillText).toContain('Query-only requests without write authorization');
+    expect(skillText).toContain('`missing_taptap_identity` status as proof');
+    expect(skillText).toContain('Do not apply that local-identity gate to `achievement`');
+    expect(skillText).toContain('Do not invent Lua APIs or reuse minigame/H5 achievement SDKs');
+    expect(skillText).not.toContain('upstream local lock');
     expect(skillText).toContain('action="continue"');
     expect(skillText).toContain('local_delivery.status');
     expect(skillText.replace(/\s+/gu, ' ')).toContain(

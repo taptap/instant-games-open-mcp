@@ -210,8 +210,8 @@ describe('maker MCP version status integration', () => {
     expect(handler).toBeDefined();
     const firstList = await listHandler({}, {});
     const secondList = await listHandler({}, {});
-    expect(firstList.tools).toHaveLength(18);
-    expect(secondList.tools).toHaveLength(18);
+    expect(firstList.tools).toHaveLength(19);
+    expect(secondList.tools).toHaveLength(19);
 
     const result = await handler(
       {
@@ -355,6 +355,7 @@ describe('maker MCP version status integration', () => {
     expect(instructions).toContain('maker_build_current_directory');
     expect(instructions).toContain('Local preview: taptap-maker preview --target-dir');
     expect(instructions).toContain('Never revive stopped sessions');
+    expect(instructions).not.toContain('Clarify ambiguous run intent');
     expect(instructions).toContain('打开make mcp控制台');
     expect(instructions).toContain(
       'active distribution CLI `console open --target-dir <project> --json`'
@@ -363,7 +364,7 @@ describe('maker MCP version status integration', () => {
     expect(instructions).toContain('taptap-maker-local');
     expect(instructions).toContain('generate_test_qrcode');
     expect(instructions).toContain(
-      'Ads: read maker://ads-integration-guide before any ad-related work.'
+      'Ads: read maker://ads-integration-guide before ad-related work.'
     );
     expect((instructions as string).match(/^- Ads:/gmu)).toHaveLength(1);
     expect(instructions).toContain('get_debug_feedbacks');
@@ -373,10 +374,13 @@ describe('maker MCP version status integration', () => {
     expect(instructions).toContain('exposed by the current Maker tool list');
     expect(instructions).toContain('MCP/proxy infrastructure failure');
     expect(instructions).toContain('ask once for user consent');
-    expect(instructions).toContain("active client's exact Maker command/args with `mcp report`");
+    expect(instructions).toContain("active client's Maker command/args with `mcp report`");
     expect(instructions).toContain('never use an unversioned npm package');
-    expect(instructions).toContain('Do not report expected project or business errors');
+    expect(instructions).toContain('Do not report expected business errors');
     expect(instructions).toContain('image, video, music, sound-effect');
+    expect(instructions).toContain(
+      'Achievements: after status, use achievement; see MAKER_ACHIEVEMENTS.md.'
+    );
     expect((instructions as string).length).toBeLessThanOrEqual(1200);
     expect(instructions).not.toMatch(
       /agents update|global memory|~\/.(?:codex|claude|workbuddy)/iu
@@ -502,7 +506,7 @@ describe('maker MCP version status integration', () => {
     const result = await listHandler({}, {});
     const names = result.tools.map((tool: { name: string }) => tool.name);
 
-    expect(names).toHaveLength(18);
+    expect(names).toHaveLength(19);
     expect(names).toEqual(
       expect.arrayContaining([
         'maker_status_lite',

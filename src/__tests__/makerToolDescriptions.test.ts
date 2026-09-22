@@ -15,6 +15,7 @@ const REMOTE_TOOL_NAMES = [
   'add_test_whitelist',
   'get_ad_config',
   'get_debug_feedbacks',
+  'achievement',
 ] as const;
 
 describe('Maker non-audio tool descriptions', () => {
@@ -258,6 +259,25 @@ describe('Maker non-audio tool descriptions', () => {
     );
     expect(descriptions.get_debug_feedbacks).not.toContain('├──');
     expect(descriptions.get_debug_feedbacks).not.toContain('/opt/log/server/');
+
+    expect(descriptions.achievement).toMatch(/one tool.{0,40}op field/iu);
+    expect(descriptions.achievement).toMatch(/sync_achievements.{0,220}not a read-only query/iu);
+    expect(descriptions.achievement).toMatch(/query-only requests without write authorization/iu);
+    expect(descriptions.achievement).toMatch(
+      /Do not treat missing local taptap_publish as proof the remote identity is missing/iu
+    );
+    expect(descriptions.achievement).toMatch(/do not file an MCP issue report/iu);
+    expect(descriptions.achievement).toMatch(/Create only after the user asks/iu);
+    expect(descriptions.achievement).toMatch(/remote workspace lock/iu);
+    expect(descriptions.achievement).not.toMatch(/upstream local lock/iu);
+    expect(descriptions.achievement).toMatch(/Do not pass app_id.{0,40}developer_id.{0,40}client_id/iu);
+    expect(descriptions.achievement).toMatch(/image_url accepts HTTP\(S\) URLs only/iu);
+    expect(descriptions.achievement).toMatch(/whole app/iu);
+    expect(descriptions.achievement).toMatch(/reset_achievement clears ordinary achievement player data/iu);
+    expect(descriptions.achievement).toMatch(/reset_achievement_test_user clears one test user/iu);
+    expect(descriptions.achievement).toMatch(/lock_sync\.synced=false.{0,80}sync_achievements only/iu);
+    expect(descriptions.achievement).toMatch(/do not invent Lua APIs/iu);
+    expect(descriptions.achievement).toMatch(/do not invent Lua APIs or reuse minigame\/H5 achievement SDKs/iu);
   });
 
   async function listDescriptions(): Promise<Record<(typeof REMOTE_TOOL_NAMES)[number], string>> {

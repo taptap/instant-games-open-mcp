@@ -7,6 +7,10 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { extractZip } from '../cli/devKit.js';
+import {
+  ACHIEVEMENT_PROXY_TOOL_NAME,
+  prepareAchievementProxyToolArgs,
+} from './achievementProxy.js';
 import { sanitizeRemoteDiagnosticValue } from './diagnosticRedaction.js';
 
 type RemoteProxyToolResult = Awaited<ReturnType<Client['callTool']>>;
@@ -127,6 +131,12 @@ export function prepareRemoteProxyToolArgs(options: {
   }
   if (options.toolName === 'text_to_dialogue') {
     return rewriteTextToDialogueArgs(options.targetDir, options.args);
+  }
+  if (options.toolName === ACHIEVEMENT_PROXY_TOOL_NAME) {
+    return prepareAchievementProxyToolArgs({
+      targetDir: options.targetDir,
+      args: options.args,
+    });
   }
   return options.args;
 }

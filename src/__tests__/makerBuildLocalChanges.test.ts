@@ -1748,6 +1748,15 @@ describe('maker build local-change guard', () => {
           },
         },
         {
+          name: 'achievement',
+          description: 'Manage Maker achievements',
+          inputSchema: {
+            type: 'object',
+            properties: { op: { type: 'string' } },
+            required: ['op'],
+          },
+        },
+        {
           name: 'build',
           description: 'Hidden remote build tool',
           inputSchema: { type: 'object' },
@@ -1927,6 +1936,10 @@ describe('maker build local-change guard', () => {
     expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toMatch(
       /local_dir.{0,80}local_log_paths.{0,80}local_screenshot_paths/iu
     );
+    const achievementTool = result.tools.find((item) => item.name === 'achievement');
+    expect(achievementTool?.inputSchema.required).toEqual(['op']);
+    expect(achievementTool?.inputSchema.properties).toHaveProperty('target_dir');
+    expect(achievementTool?.description).toMatch(/sync_achievements.{0,220}not a read-only query/iu);
   });
 
   test('remote proxy private target_dir is stripped before forwarding upstream', () => {

@@ -339,11 +339,13 @@ Maker MCP 也提供部分远端 proxy 能力，当前包括 `generate_image`、`
 `edit_image`、`create_video_task`、`query_video_task`、`text_to_music`、
 `text_to_sound_effect`、`batch_sound_effects`、`text_to_dialogue`、
 `audition_voices_for_character`、`confirm_character_voice`、`create_3d_asset`、
-`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config` 和 `get_debug_feedbacks`；具体参数以 MCP 客户端展示的
+`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config`、`get_debug_feedbacks` 和 `achievement`；具体参数以 MCP 客户端展示的
 tool schema 为准。
 这些 proxy tools 为 Maker 项目提供素材生成和平台工作流能力；其中 `get_debug_feedbacks` 会拉取线上玩家反馈，
 并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`，
-返回 `local_dir` / `local_log_paths` / `local_screenshot_paths` 等本地路径。代理转发、错误透出和白名单细节见
+返回 `local_dir` / `local_log_paths` / `local_screenshot_paths` 等本地路径。`achievement` 用于当前绑定项目的成就管理；
+首次 `sync_achievements` 会写远端 workspace lock，不是只读查询，图标只接受 HTTP(S) URL。管理流程见
+[Maker 成就接入](docs/MAKER_ACHIEVEMENTS.md)。代理转发、错误透出和白名单细节见
 [TapTap Maker 本地开发](docs/MAKER.md)。
 `create_video_task` 仅响应用户明确的视频生成请求；长于 10 秒或使用 Seedance 2.5 时，会先返回积分粗估，
 用户明确确认后才携带 `user_confirmed=true` 创建任务。
@@ -364,7 +366,8 @@ Windows 是默认优先级：CLI 只把当前进程可用的绝对 `node.exe` �
 并要求安装选项允许命令行和第三方工具通过 PATH 找到 Git。macOS 用户可通过 `git --version`
 触发 Xcode Command Line Tools，或安装官方 Git。
 
-详见：[TapTap Maker 本地开发](docs/MAKER.md)。面向团队介绍的功能总览见
+详见：[TapTap Maker 本地开发](docs/MAKER.md)。成就管理边界见
+[Maker 成就管理](docs/MAKER_ACHIEVEMENTS.md)。面向团队介绍的功能总览见
 [Maker CLI + MCP + Skill Rework Overview](docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md)。
 
 本地 Maker MCP 会透明上报本地开发活跃事件，复用 `tapmaker_mcp_call` 并在
