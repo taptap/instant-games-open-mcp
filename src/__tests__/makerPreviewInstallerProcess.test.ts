@@ -38,14 +38,12 @@ async function helperStarted(): Promise<void> {
   throw new Error('Helper did not start');
 }
 
-async function expectProcessGone(pid: number): Promise<void> {
-  for (let i = 0; i < 150; i++) {
-    try {
-      process.kill(pid, 0);
-    } catch {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 20));
+function expectProcessGone(pid: number): void {
+  try {
+    process.kill(pid, 0);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return;
+    throw error;
   }
   throw new Error(`Helper process ${pid} is still alive`);
 }
@@ -69,7 +67,7 @@ pythonTest('cancellation reaps an installer child before returning', async () =>
   await helperStarted();
   abort.abort();
   await rejected;
-  await expectProcessGone(helperPid!);
+  expectProcessGone(helperPid!);
   helperPid = undefined;
 });
 
@@ -78,7 +76,7 @@ pythonTest('timeout reaps descendants and reports TIMEOUT', async () => {
   const rejected = expect(task).rejects.toThrow('TIMEOUT');
   await helperStarted();
   await rejected;
-  await expectProcessGone(helperPid!);
+  expectProcessGone(helperPid!);
   helperPid = undefined;
 });
 
@@ -141,7 +139,7 @@ pythonTest('Windows branch accepts cleanup only after the guard reaps children',
     await helperStarted();
     abort.abort();
     await rejected;
-    await expectProcessGone(helperPid!);
+    expectProcessGone(helperPid!);
     helperPid = undefined;
   } finally {
     Object.defineProperty(process, 'platform', descriptor);
