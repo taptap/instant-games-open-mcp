@@ -272,7 +272,7 @@ export function setupMakerLuaLspEnvironment(
 }
 
 /**
- * Local Lua diagnostics through a project-scoped LSP MCP session.
+ * 通过项目级 LSP MCP session 获取本地 Lua diagnostics。
  */
 export async function checkMakerLuaLspProject(
   project: string,

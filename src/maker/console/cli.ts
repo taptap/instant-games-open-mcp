@@ -400,9 +400,8 @@ async function ensureSession(): Promise<Session> {
       if (launch.exited()) break;
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
-    // Reap only our unadvertised startup child. A published session may already
-    // be serving another opener and must not be terminated on a probe failure.
-    // Windows wrapper PID is not session.pid; never kill after session.json exists.
+    // 只回收本次未发布的启动子进程。已发布的 session 可能正在服务其他调用方，
+    // 探测失败时不能终止它。Windows wrapper PID 不是 session.pid，已有 session.json 时不得回收。
     const published = readSession();
     if (!published || (launch.expectedPid && published.pid !== launch.expectedPid)) {
       launch.stopUnpublished();
