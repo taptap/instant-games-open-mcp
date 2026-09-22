@@ -24,7 +24,7 @@ function isUnrelatedPortDenied(error: NodeJS.ErrnoException): boolean {
   return error.code === 'EACCES';
 }
 
-/** OS-released mutex; collisions fail closed without probing or stopping the peer. */
+/** 由 OS 自动释放的互斥锁；发生碰撞时 fail closed，不探测或停止占用方。 */
 export function claimRecoveryMutex(
   filename: string,
   busyError: (port: number) => Error
