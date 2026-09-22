@@ -15,6 +15,7 @@ import {
 import { MAKER_QR_CATEGORIES, inspectMakerQrcodePreparation } from '../qrcodePreflight.js';
 import { isDeveloperId } from '../qrcodeInteraction.js';
 import { getGitCommand } from '../system/git.js';
+import { pullConsoleGit, type ConsoleGitPullResult } from './gitPull.js';
 import { ConsoleError, type ConsoleProject } from './types.js';
 
 const exec = promisify(execFile);
@@ -62,6 +63,7 @@ async function git(
 
 export class ConsoleProjects {
   private readonly registry: MakerProjectRegistry;
+  private readonly projectWork = new Set<string>();
 
   constructor(
     readonly filename: string,
@@ -244,6 +246,42 @@ export class ConsoleProjects {
       if (/[RC]/.test(raw[i].slice(0, 2))) i++;
     }
     return result;
+  }
+
+  /**
+   * 占用项目的 Git 写入。拉取和构建必须共用这把锁，避免同时改索引。
+   */
+  claimProjectWork(key: string): void {
+    if (this.projectWork.has(key)) {
+      throw new ConsoleError('该项目正在执行其它操作，请等待结束。', 409);
+    }
+    this.projectWork.add(key);
+  }
+
+  /** 释放 claimProjectWork 占用的项目锁。重复释放无效果。 */
+  releaseProjectWork(key: string): void {
+    this.projectWork.delete(key);
+  }
+
+  /**
+   * 拉取当前登记项目的远端 main。浏览器不能指定远端、分支或 Git 参数。
+   */
+  async pullGit(key: string, signal?: AbortSignal): Promise<ConsoleGitPullResult> {
+    this.claimProjectWork(key);
+    try {
+      const project = this.resolve(key);
+      return await pullConsoleGit({
+        projectPath: project.path,
+        signal,
+        ensureProject: () => {
+          if (this.resolve(key).path !== project.path) {
+            throw new ConsoleError('项目目录已变化，已停止拉取。', 409);
+          }
+        },
+      });
+    } finally {
+      this.releaseProjectWork(key);
+    }
   }
 
   async git(key: string, skip: number, signal?: AbortSignal) {

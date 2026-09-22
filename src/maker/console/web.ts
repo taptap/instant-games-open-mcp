@@ -95,6 +95,15 @@ export function getConsoleHtml(): string {
     <div class="actions"><button value="cancel" autofocus>取消</button><button id="qrcode-accept" class="primary" value="accept">生成二维码</button></div>
   </form>
 </dialog>
+<dialog id="git-pull-conflict" aria-labelledby="git-pull-conflict-title">
+  <h2 id="git-pull-conflict-title">这些文件两边都改过</h2>
+  <p id="git-pull-conflict-summary"></p>
+  <textarea id="git-pull-conflict-prompt" readonly aria-label="交给 AI 的提示词"></textarea>
+  <div class="actions">
+    <button id="git-pull-conflict-copy" type="button">复制给 AI</button>
+    <form method="dialog"><button value="close">关闭</button></form>
+  </div>
+</dialog>
 <dialog id="qrcode-result" aria-labelledby="qrcode-result-title">
   <h2 id="qrcode-result-title">扫码测试</h2>
   <p id="qrcode-result-project"></p>

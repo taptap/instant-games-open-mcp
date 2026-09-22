@@ -269,6 +269,13 @@ export async function startConsoleServer(options: {
         json(200, ready);
       } else if (request.method === 'GET' && !suffix) {
         json(200, await read(() => options.registry.detail(key, readAbort.signal)));
+      } else if (request.method === 'POST' && suffix === 'git/pull') {
+        await bodyForMutation();
+        if (tasks.busy(key)) throw new ConsoleError('项目任务执行中，请结束后再拉取。', 409);
+        request.setTimeout(150000);
+        touch();
+        json(200, sanitizeDiagnosticValue(await read(() => options.registry.pullGit(key))));
+        touch();
       } else if (request.method === 'GET' && suffix === 'git') {
         json(
           200,

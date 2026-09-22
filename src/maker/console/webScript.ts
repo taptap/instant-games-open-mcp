@@ -406,6 +406,9 @@ function renderConsoleLogs() {
 let git = null;
 let gitError = '';
 let gitLoading = false;
+let gitPull = null;
+let gitPulling = false;
+let gitPullRequest = 0;
 let commitRequest = 0;
 let pollTimer;
 let activityTimer;
@@ -625,8 +628,16 @@ function projectKeyFromQuery(query) {
   if (checkout) return matches.find(p => p.key === checkout)?.key || '';
   return matches.length === 1 ? matches[0].key : '';
 }
+function clearGitPullState() {
+  gitPull = null;
+  gitPulling = false;
+  gitPullRequest++;
+  const dialog = $('git-pull-conflict');
+  if (dialog?.open) dialog.close();
+}
 function chooseProject(key, updateUrl = true) {
   if ($('qrcode-result')?.open) $('qrcode-result').close();
+  clearGitPullState();
   const project = state.projects.find(p => p.key === key);
   selected = key;
   selectionEpoch++;
@@ -1175,7 +1186,7 @@ function qrcodeImageSource(task) {
   return null;
 }
 function consoleDialogOpen() {
-  return ['confirm','qrcode-confirm','selection-dialog','qrcode-result'].some(id => $(id)?.open);
+  return ['confirm','qrcode-confirm','selection-dialog','qrcode-result','git-pull-conflict'].some(id => $(id)?.open);
 }
 function explainQrcode(title, message) {
   if (consoleDialogOpen()) return;
@@ -1875,11 +1886,55 @@ function graphLayout(commits) {
   });
   return {nodes,edges};
 }
+function renderGitPullNote() {
+  if (!gitPull?.message) return null;
+  const note = node('div',undefined,'git-pull-note');
+  note.append(node('p',gitPull.message,gitPull.outcome === 'updated' || gitPull.outcome === 'up_to_date' ? 'good' : 'bad'));
+  if (gitPull.prompt) {
+    const box = node('textarea');
+    box.readOnly = true;
+    box.value = gitPull.prompt;
+    box.setAttribute('aria-label','交给 AI 的提示词');
+    note.append(box,button('复制给 AI',() => void copyGitPrompt(gitPull.prompt),{icon:'copy'}));
+  }
+  if (gitPull.detail) {
+    const details = node('details');
+    details.dataset.key = 'git-pull-detail';
+    details.append(node('summary','诊断信息'),node('pre',gitPull.detail));
+    note.append(details);
+  }
+  return note;
+}
+async function copyGitPrompt(prompt) {
+  const boxes = [$('git-pull-conflict-prompt'), document.querySelector('.git-pull-note textarea')].filter(Boolean);
+  try {
+    await navigator.clipboard.writeText(prompt);
+    announce('提示词已复制');
+  } catch (_) {
+    const box = boxes.find(item => item.value === prompt) || boxes[0];
+    if (box) { box.value = prompt; box.focus(); box.select(); }
+    notify('无法访问剪贴板，请复制已选中的提示词');
+  }
+}
+function showGitPullDialog(result) {
+  const dialog = $('git-pull-conflict');
+  if (!dialog || !result?.prompt || consoleDialogOpen()) return;
+  $('git-pull-conflict-summary').textContent = result.message;
+  $('git-pull-conflict-prompt').value = result.prompt;
+  dialog.showModal();
+}
 function renderGit() {
   const title = heading('Git 历史',currentProject().path);
-  title.append(button('刷新历史',() => void loadGit(false),{icon:'refresh',disabled:gitLoading}));
+  const actions = node('div',undefined,'actions');
+  actions.append(
+    button('刷新本地历史',() => void loadGit(false),{icon:'refresh',disabled:gitLoading || gitPulling}),
+    button(gitPulling ? '正在拉取' : '拉取远端代码',() => void pullGit(),{disabled:gitLoading || gitPulling})
+  );
+  title.append(actions);
   const elements = [title];
   if (gitError) elements.push(node('p',gitError,'bad'));
+  const pullNote = renderGitPullNote();
+  if (pullNote) elements.push(pullNote);
   if (!git) {
     elements.push(node('p',gitLoading ? '正在读取 Git 历史' : '暂无历史数据','empty'));
     replace($('view'),elements); return;
@@ -1923,6 +1978,29 @@ function renderGit() {
   if (git.hasMore) elements.push(button(gitLoading ? '正在读取' : '加载更多提交',() => void loadGit(true),{disabled:gitLoading}));
   const commitDetail = node('section',undefined,'git-detail'); commitDetail.id = 'commit-detail';
   elements.push(commitDetail); replace($('view'),elements);
+}
+async function pullGit() {
+  if (gitPulling || gitLoading || !currentProject()?.valid) return;
+  const key = selected, epoch = selectionEpoch, request = ++gitPullRequest;
+  gitPulling = true; gitError = '';
+  if (page === 'git') renderGit();
+  try {
+    const result = await api(projectPath(key,'/git/pull'),{method:'POST',body:{},timeoutMs:150000});
+    if (!selectionMatches(key,epoch) || request !== gitPullRequest) return;
+    gitPull = result;
+    if (result.dialog && result.prompt) showGitPullDialog(result);
+    if (result.outcome === 'updated') {
+      git = null;
+      void loadGit(false);
+    }
+  } catch (error) {
+    if (selectionMatches(key,epoch) && request === gitPullRequest) {
+      gitPull = {outcome:'unavailable',message:error.message,dialog:false};
+    }
+  } finally {
+    if (request === gitPullRequest) gitPulling = false;
+    if (selectionMatches(key,epoch) && request === gitPullRequest && page === 'git') renderGit();
+  }
 }
 async function loadGit(more) {
   if (gitLoading || !currentProject()?.valid) return;
@@ -2034,6 +2112,7 @@ async function pollState() {
   lastStateError = '';
   if (selected && !currentProject()?.valid && (page !== 'projects' || first || priorProjects !== JSON.stringify(state.projects))) {
     selectionEpoch++; viewEpoch++; detail = null; preview = null;
+    clearGitPullState();
     page = 'projects';
     render();
   } else {
@@ -2063,6 +2142,7 @@ async function poll() {
   }
 }
 document.addEventListener('DOMContentLoaded',async () => {
+  $('git-pull-conflict-copy')?.addEventListener('click',() => void copyGitPrompt($('git-pull-conflict-prompt').value));
   let makerMarkClicks = 0;
   let makerMarkTimer;
   $('maker-mark').addEventListener('click',() => {
