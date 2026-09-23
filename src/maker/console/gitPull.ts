@@ -12,7 +12,6 @@ const MAX_PATH_LENGTH = 180;
 const MAX_DETAIL_LENGTH = 2000;
 const INSPECT_TIMEOUT_MS = 15000;
 const FETCH_TIMEOUT_MS = 60000;
-const UPDATE_TIMEOUT_MS = 60000;
 
 /** 控制台 Git 拉取的固定结果。提示词只在同一文件两边都改过时出现。 */
 export interface ConsoleGitPullResult {
@@ -209,7 +208,8 @@ async function updateByFastForward(
 ): Promise<ConsoleGitPullResult> {
   options.ensureProject?.();
   try {
-    await run(['-c', 'merge.ff=only', 'merge', '--ff-only', 'origin/main'], UPDATE_TIMEOUT_MS);
+    // 快进不设杀进程超时。中途杀掉 Git 会留下 index.lock，之后按钮会一直拒绝。
+    await run(['-c', 'merge.ff=only', 'merge', '--ff-only', 'origin/main'], 0);
   } catch (error) {
     if (await pathExists(root, run, 'MERGE_HEAD')) {
       await abortOwnOperation(run, ['merge', '--abort']);
@@ -316,10 +316,9 @@ async function git(
       {
         cwd: root,
         encoding: 'utf8',
-        timeout,
+        ...(timeout > 0 ? { timeout, killSignal: 'SIGTERM' as const } : {}),
         maxBuffer: 1024 * 1024,
         signal: options.signal,
-        killSignal: 'SIGKILL',
         env: {
           ...process.env,
           GIT_OPTIONAL_LOCKS: '0',
