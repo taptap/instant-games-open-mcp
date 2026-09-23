@@ -129,6 +129,8 @@ export class ConsoleTasks {
     const project = this.projects.resolve(task.projectKey);
     if (task.projectPath !== project.path || task.projectid !== project.projectid)
       throw new ConsoleError('Project binding changed since this operation.');
+    if (this.busy(task.projectKey))
+      throw new ConsoleError('This project already has an operation in progress.', 409);
     if (this.running.size + this.occupied.size >= 4)
       throw new ConsoleError('Too many active operations.', 409);
     task.report = { status: 'running' };
