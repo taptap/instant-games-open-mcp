@@ -15,6 +15,7 @@ import {
 import { MAKER_QR_CATEGORIES, inspectMakerQrcodePreparation } from '../qrcodePreflight.js';
 import { isDeveloperId } from '../qrcodeInteraction.js';
 import { getGitCommand } from '../system/git.js';
+import { pullConsoleGit, type ConsoleGitPullResult } from './gitPull.js';
 import { ConsoleError, type ConsoleProject } from './types.js';
 
 const exec = promisify(execFile);
@@ -244,6 +245,23 @@ export class ConsoleProjects {
       if (/[RC]/.test(raw[i].slice(0, 2))) i++;
     }
     return result;
+  }
+
+  /**
+   * 拉取当前登记项目的远端 main。浏览器不能指定远端、分支或 Git 参数。
+   * 不创建或持有 Git 锁；并发写入由 Git 自己的 index.lock 拒绝。
+   */
+  async pullGit(key: string, signal?: AbortSignal): Promise<ConsoleGitPullResult> {
+    const project = this.resolve(key);
+    return pullConsoleGit({
+      projectPath: project.path,
+      signal,
+      ensureProject: () => {
+        if (this.resolve(key).path !== project.path) {
+          throw new ConsoleError('项目目录已变化，已停止拉取。', 409);
+        }
+      },
+    });
   }
 
   async git(key: string, skip: number, signal?: AbortSignal) {

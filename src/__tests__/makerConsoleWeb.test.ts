@@ -98,6 +98,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
       acceptedCount: () => acceptedTasks.size,
       offline: () => offline,
       current: () => selected, detail: () => detail, chooseProject, busy,
+      getCurrentProject, onProjectChange, page: () => page, setPage: value => { page = value; },
       setProjectQuery, projectKeyFromQuery,
       changeSelection: (key) => { selected = key; selectionEpoch++; },
       setup: (projects, hooks) => {
@@ -1385,6 +1386,43 @@ describe('Maker console standalone UI', () => {
     announce: jest.fn(),
   });
   const response = (data: unknown) => ({ ok: true, status: 200, json: async () => data });
+
+  it('refreshes the open page when the project changes and drops the previous response', async () => {
+    const { api, fetch } = harness();
+    const seen: Array<string | null> = [];
+    api.onProjectChange((project: { key?: string } | null) => seen.push(project?.key || null));
+    const ui = hooks();
+    api.setup([project, { ...project, key: 'beta', name: 'B', path: '/tmp/b' }], {
+      ...ui,
+      loadProject: jest.fn(),
+    });
+    api.setPage('build');
+    let resolve!: (value: unknown) => void;
+    fetch.mockImplementationOnce(
+      () =>
+        new Promise((resolveRequest) => {
+          resolve = resolveRequest;
+        }) as never
+    );
+    const loading = api.loadProject();
+    api.chooseProject('beta');
+    expect(api.page()).toBe('build');
+    expect(api.getCurrentProject()).toMatchObject({ key: 'beta', path: '/tmp/b', valid: true });
+    expect(seen).toEqual(['beta']);
+    expect(ui.refresh).toHaveBeenCalled();
+    resolve(response({ project, config: { version: '1' } }));
+    await loading;
+    expect(api.detail()).toBeNull();
+    api.chooseProject('beta');
+    expect(seen).toEqual(['beta']);
+    api.setPage('documents');
+    api.chooseProject('missing');
+    expect(api.page()).toBe('documents');
+    expect(api.getCurrentProject()).toBeNull();
+    api.setPage('git');
+    api.chooseProject('missing');
+    expect(api.page()).toBe('projects');
+  });
 
   it('allows switching away from a busy project without unlocking its task', () => {
     const { api } = harness();

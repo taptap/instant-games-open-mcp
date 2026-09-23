@@ -210,6 +210,9 @@ summary{cursor:pointer;overflow-wrap:anywhere}
 .git-row code{color:var(--accent)}
 .git-row time{font-size:12px;text-align:right}
 .git-meta{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.git-pull-note{margin:0 0 16px}
+.git-pull-note textarea,#git-pull-conflict textarea{width:100%;min-height:180px;resize:vertical;margin-top:8px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+#git-pull-conflict{width:min(640px,calc(100% - 32px))}
 .git-detail{margin-top:24px;border-top:1px solid var(--border);padding-top:20px}
 .file-list{padding-left:22px;overflow-wrap:anywhere}
 footer{border-top:1px solid var(--border);font-size:11px;align-items:center;gap:12px}

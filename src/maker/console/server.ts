@@ -269,6 +269,19 @@ export async function startConsoleServer(options: {
         json(200, ready);
       } else if (request.method === 'GET' && !suffix) {
         json(200, await read(() => options.registry.detail(key, readAbort.signal)));
+      } else if (request.method === 'POST' && suffix === 'git/pull') {
+        await bodyForMutation();
+        const release = tasks.occupy(key);
+        request.setTimeout(150000);
+        touch();
+        try {
+          // 不把关闭信号传给快进。中途取消会留下 index.lock。
+          // 占用期间关闭请求会被拒绝；已开始的拉取由 readers 等到自然结束。
+          json(200, sanitizeDiagnosticValue(await read(() => options.registry.pullGit(key))));
+          touch();
+        } finally {
+          release();
+        }
       } else if (request.method === 'GET' && suffix === 'git') {
         json(
           200,

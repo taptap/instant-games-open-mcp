@@ -22,7 +22,7 @@
 **NPM**: [@taptap/instant-games-open-mcp](https://www.npmjs.com/package/@taptap/instant-games-open-mcp)
 **Maker NPM**: [@taptap/maker](https://www.npmjs.com/package/@taptap/maker)
 
-Maker 支持[本地控制台](docs/MAKER_CONSOLE.md)管理项目、构建和 Git 历史；项目页可查看所有项目
+Maker 支持[本地控制台](docs/MAKER_CONSOLE.md)管理项目、构建和 Git 历史，并在文件不冲突时拉取远端代码；项目页可查看所有项目
 共用的本机 Runtime 与独立 Lua LSP 安装状态，构建页可单独检查 Lua，构建前默认可选检查。构建失败信息
 默认展开。构建与本地预览快捷操作会自动切换到对应工作页。构建页按当前阶段显示真实进度，
 构建详情与 Runtime 日志使用整行宽度；

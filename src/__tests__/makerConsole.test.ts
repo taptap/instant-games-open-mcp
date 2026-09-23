@@ -110,6 +110,9 @@ describe('Maker console project isolation', () => {
     const task = tasks.start(a.key, 'preview.start');
     await tasks.settled();
     expect(tasks.get(task.id).reportOffer?.category).toBe('runtime');
+    const release = tasks.occupy(a.key);
+    expect(() => tasks.report(task.id, true)).toThrow('operation in progress');
+    release();
     expect(() => tasks.report(task.id, false)).toThrow('consent');
     expect(execute).toHaveBeenCalledTimes(1);
     expect(tasks.report(task.id, true).report?.status).toBe('running');
