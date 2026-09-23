@@ -10,6 +10,7 @@ let selected = projectid ? '' : initialQuery.get('project') || '';
 let page = selected ? 'overview' : 'projects';
 let selectionEpoch = 0;
 let viewEpoch = 0;
+let projectNotice = '';
 let state = {projects: [], tasks: []};
 let loaded = false;
 let fortuneTimer;
@@ -599,6 +600,45 @@ function actionBusy(action, key = selected) {
     tasksFor(key).some(task => task.action === action && task.status === 'running');
 }
 function selectionMatches(key, epoch) { return key === selected && epoch === selectionEpoch; }
+function getCurrentProject() {
+  const project = currentProject();
+  if (!project) return null;
+  return {
+    key: project.key,
+    projectid: project.projectid || '',
+    name: project.name,
+    path: project.path,
+    valid: project.valid === true,
+    epoch: selectionEpoch
+  };
+}
+const projectListeners = [];
+function onProjectChange(listener) { projectListeners.push(listener); }
+function currentProjectNotice() {
+  const project = currentProject();
+  if (!selected) return '';
+  if (!project) return 'missing:' + selected;
+  return [project.key, project.projectid || '', project.path || '', project.valid ? '1' : '0'].join('\0');
+}
+function publishProjectChange() {
+  const notice = currentProjectNotice();
+  if (notice === projectNotice) return false;
+  projectNotice = notice;
+  selectionEpoch++;
+  viewEpoch++;
+  commitRequest++;
+  $('feedback').hidden = true;
+  for (const id of ['confirm','qrcode-confirm','selection-dialog','qrcode-result','git-pull-conflict']) {
+    const dialog = $(id);
+    if (dialog?.open) dialog.close();
+  }
+  const project = getCurrentProject();
+  for (const listener of projectListeners) {
+    try { listener(project); }
+    catch (error) { notify(error.message); }
+  }
+  return true;
+}
 function notify(message, tone = 'error') {
   $('feedback-text').textContent = text(message);
   $('feedback').dataset.tone = tone;
@@ -636,21 +676,13 @@ function clearGitPullState() {
   if (dialog?.open) dialog.close();
 }
 function chooseProject(key, updateUrl = true) {
-  if ($('qrcode-result')?.open) $('qrcode-result').close();
-  clearGitPullState();
   const project = state.projects.find(p => p.key === key);
   selected = key;
-  selectionEpoch++;
-  viewEpoch++;
-  commitRequest++;
-  detail = null; preview = null; previewError = ''; git = null; gitError = '';
-  gitLoading = false;
-  page = project?.valid ? 'overview' : 'projects';
+  if (!project?.valid && page !== 'projects' && page !== 'documents') page = 'projects';
   if (updateUrl) setProjectQuery();
-  $('feedback').hidden = true;
+  publishProjectChange();
   if (key && !project) notify('所选项目未登记，请从本地项目列表选择。');
   render();
-  if (project?.valid) void loadProject();
 }
 function updateChrome() {
   updatePluginTabs();
@@ -2041,6 +2073,7 @@ function navigate(next) {
   if (!currentProject()?.valid && next !== 'projects' && next !== 'documents') return;
   viewEpoch++; commitRequest++; gitLoading = false; page = next;
   render();
+  if (next === 'overview' && !detail) void loadProject();
   if (next === 'git' && !git) void loadGit(false);
   if (next === 'build') void refreshPreview();
 }
@@ -2110,12 +2143,12 @@ async function pollState() {
   $('connection').title = '最近连接：' + new Date().toLocaleTimeString('zh-CN');
   $('connection').className = 'good';
   lastStateError = '';
-  if (selected && !currentProject()?.valid && (page !== 'projects' || first || priorProjects !== JSON.stringify(state.projects))) {
-    selectionEpoch++; viewEpoch++; detail = null; preview = null;
-    clearGitPullState();
-    page = 'projects';
-    render();
-  } else {
+  if (selected && !currentProject()?.valid && page !== 'projects' && page !== 'documents') page = 'projects';
+  let projectChanged = false;
+  if (first && projectNotice === '') projectNotice = currentProjectNotice();
+  else projectChanged = publishProjectChange();
+  if (projectChanged) render();
+  else {
     updateChrome();
     if (page === 'projects' && (first || priorProjects !== JSON.stringify(state.projects))) renderProjects();
     if (page === 'build' && priorTasks !== JSON.stringify(tasksFor(selected))) updateBuild();
@@ -2141,6 +2174,30 @@ async function poll() {
     if (!document.hidden && !offline && !disposed) pollTimer = setTimeout(() => void poll(),5000);
   }
 }
+// 子页面在这里绑定切换：清掉自己的当前数据；正打开本页时再拉取。
+onProjectChange(project => {
+  detail = null;
+  if (page === 'overview' && project?.valid) void loadProject();
+});
+onProjectChange(project => {
+  preview = null;
+  previewError = '';
+  previewLoading = false;
+  if (page === 'build' && project?.valid) void refreshPreview();
+});
+onProjectChange(project => {
+  clearGitPullState();
+  git = null;
+  gitError = '';
+  gitLoading = false;
+  if (page === 'git' && project?.valid) void loadGit(false);
+});
+onProjectChange(() => {
+  documentItems = [];
+  documentSelected = '';
+  documentRequest++;
+  documentDirectoryRequest++;
+});
 document.addEventListener('DOMContentLoaded',async () => {
   $('git-pull-conflict-copy')?.addEventListener('click',() => void copyGitPrompt($('git-pull-conflict-prompt').value));
   let makerMarkClicks = 0;
