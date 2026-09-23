@@ -49,7 +49,7 @@ class GitCommandError extends Error {
 
 /**
  * 在已校验的 Maker 项目目录执行控制台拉取。
- * 只允许 main 上的快进，或工作区干净且文件不相交时的 rebase。
+ * 只允许 main 上、且文件不相交时的快进。有本地提交时不改写历史。
  */
 export async function pullConsoleGit(
   options: PullConsoleGitOptions
@@ -151,20 +151,18 @@ async function pullConsoleGitUnsafe(options: PullConsoleGitOptions): Promise<Con
 
   const remoteCommitPaths = await changedPaths(root, run, 'HEAD...origin/main');
   const localCommitPaths = await changedPaths(root, run, 'origin/main...HEAD');
-  const commitOverlap = overlappingPaths(localCommitPaths, remoteCommitPaths);
-  const overlap = uniquePaths([...commitOverlap, ...dirtyOverlap]);
+  const overlap = uniquePaths([
+    ...overlappingPaths(localCommitPaths, remoteCommitPaths),
+    ...dirtyOverlap,
+  ]);
   if (overlap.length > 0) {
     return conflictResult(root, counts, localChanges.count, overlap);
   }
-  if (localChanges.count > 0) {
-    return {
-      outcome: 'blocked',
-      message:
-        '本地还有未提交修改，同时本地和远端都有新提交。控制台没有修改游戏文件，请让 AI 处理。',
-      ...base,
-    };
-  }
-  return updateByRebase(root, run, options, counts);
+  return {
+    outcome: 'blocked',
+    message: '本地有未推送提交，远端也有新提交。控制台不会改写历史，请让 AI 处理。',
+    ...base,
+  };
 }
 
 /** 组装交给 AI 的固定提示词。不包含差异、命令或凭证。 */
@@ -216,6 +214,18 @@ async function updateByFastForward(
     if (await pathExists(root, run, 'MERGE_HEAD')) {
       await abortOwnOperation(run, ['merge', '--abort']);
     }
+    if (await pathExists(root, run, 'MERGE_HEAD')) {
+      return {
+        outcome: 'blocked',
+        message: '拉取未完成。请让 AI 检查当前 Git 状态，不要再次点击拉取。',
+        detail: gitDetail(error),
+        dialog: false,
+        aheadCount: counts.aheadCount,
+        behindCount: counts.behindCount,
+        localChangeCount,
+        conflictFiles: [],
+      };
+    }
     const files = overwrittenFiles(error instanceof GitCommandError ? error.stderr : '');
     if (files.length > 0) return conflictResult(root, counts, localChangeCount, files);
     return {
@@ -237,61 +247,6 @@ async function updateByFastForward(
     aheadCount: counts.aheadCount,
     behindCount: counts.behindCount,
     localChangeCount,
-    conflictFiles: [],
-  };
-}
-
-async function updateByRebase(
-  root: string,
-  run: (args: string[], timeout: number) => Promise<string>,
-  options: PullConsoleGitOptions,
-  counts: { aheadCount: number; behindCount: number }
-): Promise<ConsoleGitPullResult> {
-  options.ensureProject?.();
-  try {
-    await run(['rebase', 'origin/main'], UPDATE_TIMEOUT_MS);
-  } catch (error) {
-    if (await rebaseInProgress(root, run)) {
-      const files = await unmergedPaths(root, run);
-      const aborted = await abortOwnOperation(run, ['rebase', '--abort']);
-      if (!aborted || (await rebaseInProgress(root, run))) {
-        return {
-          outcome: 'blocked',
-          message:
-            '拉取未完成，且未能撤销这次 rebase。请让 AI 检查当前 Git 状态，不要再次点击拉取。',
-          detail: gitDetail(error),
-          dialog: false,
-          aheadCount: counts.aheadCount,
-          behindCount: counts.behindCount,
-          localChangeCount: 0,
-          conflictFiles: files,
-        };
-      }
-      return conflictResult(
-        root,
-        counts,
-        0,
-        files.length > 0 ? files : ['未能列出具体文件，请检查 git status']
-      );
-    }
-    return {
-      outcome: 'blocked',
-      message: '这次不能安全更新代码。请让 AI 检查当前 Git 状态。控制台没有改用其它合并方式。',
-      detail: gitDetail(error),
-      dialog: false,
-      aheadCount: counts.aheadCount,
-      behindCount: counts.behindCount,
-      localChangeCount: 0,
-      conflictFiles: [],
-    };
-  }
-  return {
-    outcome: 'updated',
-    message: `已将 ${counts.aheadCount} 个本地提交接到远端更新之后。`,
-    dialog: false,
-    aheadCount: counts.aheadCount,
-    behindCount: counts.behindCount,
-    localChangeCount: 0,
     conflictFiles: [],
   };
 }
@@ -355,8 +310,6 @@ async function git(
         'core.quotePath=false',
         '-c',
         'gc.auto=0',
-        '-c',
-        'rebase.autoStash=false',
         '--no-pager',
         ...args,
       ],
@@ -403,15 +356,6 @@ async function gitOperationInProgress(
     if (await pathExists(root, run, name)) return true;
   }
   return false;
-}
-
-async function rebaseInProgress(
-  root: string,
-  run: (args: string[], timeout: number) => Promise<string>
-): Promise<boolean> {
-  return (
-    (await pathExists(root, run, 'rebase-merge')) || (await pathExists(root, run, 'rebase-apply'))
-  );
 }
 
 async function pathExists(
@@ -497,18 +441,6 @@ async function changedPaths(
     }
   }
   return paths;
-}
-
-async function unmergedPaths(
-  root: string,
-  run: (args: string[], timeout: number) => Promise<string>
-): Promise<string[]> {
-  try {
-    const raw = await run(['diff', '--name-only', '--diff-filter=U', '-z'], INSPECT_TIMEOUT_MS);
-    return raw.split('\0').filter(Boolean);
-  } catch {
-    return [];
-  }
 }
 
 function overlappingPaths(local: string[], incoming: string[]): string[] {

@@ -108,7 +108,7 @@ describe('Maker console git pull', () => {
     expect(commands.some((args) => args[0] === 'merge' || args.includes('merge'))).toBe(false);
   });
 
-  test('rebases clean disjoint commits and stops when commits touch the same file', async () => {
+  test('does not rewrite history when local commits exist', async () => {
     const origin = repo('origin');
     const local = repo('local');
     git(local, ['remote', 'add', 'origin', origin]);
@@ -116,23 +116,25 @@ describe('Maker console git pull', () => {
     commit(origin, 'remote a');
     fs.writeFileSync(path.join(local, 'b.txt'), 'local commit\n');
     commit(local, 'local b');
+    const head = git(local, ['rev-parse', 'HEAD']);
 
-    const rebased = await pull(local);
-    expect(rebased.outcome).toBe('updated');
-    expect(git(local, ['log', '--oneline']).split('\n')[0]).toContain('local b');
-    expect(fs.readFileSync(path.join(local, 'a.txt'), 'utf8')).toBe('remote\n');
+    const stopped = await pull(local);
+    expect(stopped.outcome).toBe('blocked');
+    expect(stopped.dialog).toBe(false);
+    expect(git(local, ['rev-parse', 'HEAD'])).toBe(head);
+    expect(fs.readFileSync(path.join(local, 'a.txt'), 'utf8')).toBe('base\n');
+    expect(commands.some((args) => args.includes('rebase') || args.includes('merge'))).toBe(false);
 
     fs.writeFileSync(path.join(origin, 'b.txt'), 'remote b\n');
     commit(origin, 'remote b');
     fs.writeFileSync(path.join(local, 'b.txt'), 'another local\n');
     commit(local, 'local b again');
-    const head = git(local, ['rev-parse', 'HEAD']);
+    const conflictHead = git(local, ['rev-parse', 'HEAD']);
     const conflict = await pull(local);
     expect(conflict.outcome).toBe('conflict');
     expect(conflict.dialog).toBe(true);
     expect(conflict.conflictFiles).toContain('b.txt');
-    expect(git(local, ['rev-parse', 'HEAD'])).toBe(head);
-    expect(fs.existsSync(path.join(local, '.git/rebase-merge'))).toBe(false);
+    expect(git(local, ['rev-parse', 'HEAD'])).toBe(conflictHead);
   });
 
   test('does not stash when local commits and uncommitted edits do not overlap', async () => {

@@ -11,7 +11,7 @@ Git 页增加「拉取远端代码」。Maker 只使用 `main`。当前不在 `m
 在 `main` 上先 `git fetch origin`，再按文件路径判断：
 
 - 远端有新提交，本地没有自己的提交，本地改动和远端要更新的文件不重叠：`git merge --ff-only origin/main`。远端代码进来，本地未提交修改留在原地。
-- 本地已有未推送提交，工作区干净，两边没有改到同一批文件：`git rebase origin/main`。若 rebase 仍然冲突，立刻 `git rebase --abort` 撤销这次操作，再按冲突交接。
+- 本地已有自己的提交：不改写历史，不 rebase。页面说明后交给 AI。文件相交时仍弹出可复制提示词。
 - 同一文件两边都改过：不拉取，不 stash，不合并内容。弹出对话框，给出可复制给 AI 的提示词。
 
 不自动提交、推送或构建。不使用 reset、checkout、stash 或 autostash。
