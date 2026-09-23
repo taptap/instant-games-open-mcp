@@ -225,11 +225,8 @@ export class ConsoleTasks {
     }
     if (this.busy(key))
       throw new ConsoleError('This project already has an operation in progress.', 409);
-    this.projects.claimProjectWork(key);
-    if (this.running.size >= 4) {
-      this.projects.releaseProjectWork(key);
+    if (this.running.size >= 4)
       throw new ConsoleError('Too many active operations. Wait for one to finish.', 409);
-    }
     const task: ConsoleTask = {
       id: randomUUID(),
       projectKey: key,
@@ -248,7 +245,6 @@ export class ConsoleTasks {
       this.persist();
     } catch (error) {
       this.tasks.delete(task.id);
-      this.projects.releaseProjectWork(key);
       throw error;
     }
     const operation = Promise.resolve().then(async () => {
@@ -309,7 +305,6 @@ export class ConsoleTasks {
           )
         ).slice(0, 8192);
       } finally {
-        this.projects.releaseProjectWork(key);
         task.finishedAt = new Date().toISOString();
         this.onSettled();
         try {

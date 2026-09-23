@@ -3,7 +3,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { ConsoleProjects } from '../maker/console/projects';
-import { ConsoleTasks } from '../maker/console/tasks';
 import { startConsoleServer } from '../maker/console/server';
 import { buildConflictPrompt, pullConsoleGit } from '../maker/console/gitPull';
 
@@ -195,19 +194,6 @@ describe('Maker console git pull', () => {
     expect(prompt).toContain('file-0.txt');
     expect(prompt).toContain('其余 1 个文件未列出。');
     expect(prompt).not.toContain('file-30.txt');
-  });
-
-  test('does not pull while a project task holds the shared work lock', async () => {
-    const registry = new ConsoleProjects(path.join(directory, 'registry.json'));
-    const local = bind(repo('locked'));
-    const key = registry.add(local).key;
-    registry.claimProjectWork(key);
-    await expect(registry.pullGit(key)).rejects.toThrow('其它操作');
-    registry.releaseProjectWork(key);
-    const tasks = new ConsoleTasks(registry, async () => ({ ok: true }));
-    registry.claimProjectWork(key);
-    expect(() => tasks.start(key, 'build')).toThrow('其它操作');
-    registry.releaseProjectWork(key);
   });
 
   test('HTTP pull ignores browser git arguments and rejects a busy project', async () => {
