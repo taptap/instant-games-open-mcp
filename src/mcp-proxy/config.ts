@@ -7,7 +7,7 @@
  * 3. 标准输入：echo '{"server":{...}}' | node index.js
  */
 
-import type { ProxyConfig } from './types.js';
+import { hasMcpProof, type ProxyConfig } from './types.js';
 
 export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -94,7 +94,7 @@ export async function loadConfig(): Promise<ProxyConfig> {
 /**
  * 验证配置完整性
  */
-function validateConfig(config: ProxyConfig): void {
+export function validateConfig(config: ProxyConfig): void {
   const errors: string[] = [];
 
   // 验证 server
@@ -135,17 +135,23 @@ function validateConfig(config: ProxyConfig): void {
   if (!config.auth) {
     errors.push('- Missing required field: auth');
   } else {
-    if (!config.auth.kid) {
-      errors.push('- Missing required field: auth.kid');
-    }
-    if (!config.auth.mac_key) {
-      errors.push('- Missing required field: auth.mac_key');
-    }
-    if (config.auth.token_type !== 'mac') {
-      errors.push('- Invalid auth.token_type: must be "mac"');
-    }
-    if (config.auth.mac_algorithm !== 'hmac-sha-1') {
-      errors.push('- Invalid auth.mac_algorithm: must be "hmac-sha-1"');
+    if (hasMcpProof(config.auth)) {
+      if (config.auth.token_type !== 'mcp-proof') {
+        errors.push('- Invalid auth.token_type: must be "mcp-proof" when auth.mcp_proof is set');
+      }
+    } else {
+      if (!config.auth.kid) {
+        errors.push('- Missing required field: auth.kid');
+      }
+      if (!config.auth.mac_key) {
+        errors.push('- Missing required field: auth.mac_key');
+      }
+      if (config.auth.token_type !== 'mac') {
+        errors.push('- Invalid auth.token_type: must be "mac"');
+      }
+      if (config.auth.mac_algorithm !== 'hmac-sha-1') {
+        errors.push('- Invalid auth.mac_algorithm: must be "hmac-sha-1"');
+      }
     }
   }
 

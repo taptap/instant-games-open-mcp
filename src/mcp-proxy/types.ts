@@ -17,6 +17,19 @@ export interface MacToken {
   mac_algorithm: 'hmac-sha-1';
 }
 
+/** MAC 或 Maker 签发的 mcp-proof。有证明时 kid/mac_key 可缺。 */
+export interface ProxyAuth {
+  kid?: string;
+  mac_key?: string;
+  token_type?: 'mac' | 'mcp-proof';
+  mac_algorithm?: 'hmac-sha-1';
+  mcp_proof?: string;
+}
+
+export function hasMcpProof(auth: ProxyAuth | undefined): boolean {
+  return typeof auth?.mcp_proof === 'string' && auth.mcp_proof.trim().length > 0;
+}
+
 /**
  * 日志配置
  */
@@ -92,7 +105,7 @@ export interface ProxyConfig {
   };
 
   /** 认证配置（MAC Token） */
-  auth: MacToken;
+  auth: ProxyAuth;
 
   /** 可选配置 */
   options?: {

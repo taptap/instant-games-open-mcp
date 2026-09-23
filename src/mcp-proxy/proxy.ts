@@ -12,7 +12,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
-import type { ProxyConfig, PendingRequest, ProxyRuntimeOptions } from './types.js';
+import { hasMcpProof, type ProxyConfig, type PendingRequest, type ProxyRuntimeOptions } from './types.js';
 import { CookieJar, createCookieFetch } from './cookieJar.js';
 import { LogWriter, type LogLevel } from '../core/utils/logWriter.js';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from './config.js';
@@ -207,7 +207,7 @@ export class TapTapMCPProxy {
     if (user_id && project_id) {
       // 有 user_id 和 project_id，使用它们
       logDir = path.join(logRoot, 'proxy', user_id, project_id);
-    } else {
+    } else if (this.config.auth.kid) {
       // 无 user_id/project_id，使用 kid 的 hash
       const kidHash = crypto
         .createHash('sha256')
@@ -215,6 +215,9 @@ export class TapTapMCPProxy {
         .digest('hex')
         .substring(0, 8);
       logDir = path.join(logRoot, 'proxy', kidHash);
+    } else {
+      // 只有 mcp-proof 时不把证明写进路径
+      logDir = path.join(logRoot, 'proxy', 'mcp-proof');
     }
 
     return new LogWriter({
@@ -264,7 +267,7 @@ export class TapTapMCPProxy {
     if (this.config.tenant.project_id) {
       this.log('info', `Project ID: ${this.config.tenant.project_id}`);
     }
-    this.log('info', `Token kid: ${this.config.auth.kid.substring(0, 12)}...`);
+    this.logAuthIdentity();
     this.log('info', `Cookie sticky: ${this.config.options?.enable_cookie_sticky ?? true}`);
 
     // 显示文件日志配置
@@ -306,6 +309,15 @@ export class TapTapMCPProxy {
    * - X-TapTap-Custom-Fields: 业务自定义字段（JSON）
    * - X-TapTap-Tag: 调用来源标记，仅在嵌入入口显式启用时发送
    */
+  private logAuthIdentity(): void {
+    if (hasMcpProof(this.config.auth)) {
+      this.log('info', 'Auth: mcp-proof');
+      return;
+    }
+    const kid = this.config.auth.kid ?? '';
+    this.log('info', `Token kid: ${kid.substring(0, 12)}...`);
+  }
+
   private buildSessionHeaders(): Record<string, string> {
     const headers: Record<string, string> = {};
     if (this.sourceTag !== undefined) {
@@ -323,8 +335,11 @@ export class TapTapMCPProxy {
       headers['X-TapTap-Project-Path'] = this.config.tenant.project_path;
     }
 
-    // 认证令牌（JSON 序列化）
-    headers['X-TapTap-Mac-Token'] = JSON.stringify(this.config.auth);
+    if (hasMcpProof(this.config.auth)) {
+      headers['X-Tapcode-Mcp-Proof'] = this.config.auth.mcp_proof!.trim();
+    } else {
+      headers['X-TapTap-Mac-Token'] = JSON.stringify(this.config.auth);
+    }
 
     // 业务自定义字段（JSON 序列化）
     if (
@@ -354,8 +369,11 @@ export class TapTapMCPProxy {
   private injectPrivateParams(args: Record<string, unknown> | undefined): Record<string, unknown> {
     const injected: Record<string, unknown> = { ...(args || {}) };
 
-    // 注入 MAC Token（必需）
-    injected._mac_token = this.config.auth;
+    if (hasMcpProof(this.config.auth)) {
+      injected._mcp_proof = this.config.auth.mcp_proof!.trim();
+    } else {
+      injected._mac_token = this.config.auth;
+    }
     if (this.sourceTag !== undefined) {
       injected._tag = this.sourceTag;
     }
