@@ -18,6 +18,7 @@ import {
 export class ConsoleTasks {
   private readonly tasks = new Map<string, ConsoleTask>();
   private readonly running = new Set<Promise<void>>();
+  private readonly occupied = new Set<string>();
   constructor(
     private readonly projects: ConsoleProjects,
     private readonly execute: ConsoleExecutor,
@@ -90,13 +91,33 @@ export class ConsoleTasks {
     return this.describe(task);
   }
   busy(key: string): boolean {
-    return this.list().some(
-      (task) =>
-        task.projectKey === key && (task.status === 'running' || task.report?.status === 'running')
+    return (
+      this.occupied.has(key) ||
+      this.list().some(
+        (task) =>
+          task.projectKey === key &&
+          (task.status === 'running' || task.report?.status === 'running')
+      )
     );
   }
+  /**
+   * 拉取占用该项目的任务名额，直到操作结束才释放。
+   * 这不是 Git 锁；并发 Git 写入仍由 index.lock 拒绝。
+   */
+  occupy(key: string): () => void {
+    if (this.busy(key)) throw new ConsoleError('项目任务执行中，请结束后再拉取。', 409);
+    if (this.running.size + this.occupied.size >= 4)
+      throw new ConsoleError('Too many active operations. Wait for one to finish.', 409);
+    this.occupied.add(key);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.occupied.delete(key);
+    };
+  }
   get active(): boolean {
-    return this.running.size > 0;
+    return this.running.size > 0 || this.occupied.size > 0;
   }
   report(id: string, consent: unknown): ConsoleTask {
     if (consent !== true) throw new ConsoleError('Explicit report consent is required.');
@@ -108,7 +129,8 @@ export class ConsoleTasks {
     const project = this.projects.resolve(task.projectKey);
     if (task.projectPath !== project.path || task.projectid !== project.projectid)
       throw new ConsoleError('Project binding changed since this operation.');
-    if (this.running.size >= 4) throw new ConsoleError('Too many active operations.', 409);
+    if (this.running.size + this.occupied.size >= 4)
+      throw new ConsoleError('Too many active operations.', 409);
     task.report = { status: 'running' };
     try {
       this.persist();
@@ -225,7 +247,7 @@ export class ConsoleTasks {
     }
     if (this.busy(key))
       throw new ConsoleError('This project already has an operation in progress.', 409);
-    if (this.running.size >= 4)
+    if (this.running.size + this.occupied.size >= 4)
       throw new ConsoleError('Too many active operations. Wait for one to finish.', 409);
     const task: ConsoleTask = {
       id: randomUUID(),

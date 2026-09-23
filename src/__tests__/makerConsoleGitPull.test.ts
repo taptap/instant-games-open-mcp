@@ -51,6 +51,14 @@ describe('Maker console git pull', () => {
     return root;
   }
 
+  function cloneFrom(origin: string, name: string): string {
+    git(directory, ['clone', origin, name]);
+    const root = path.join(directory, name);
+    git(root, ['config', 'user.name', 'Console Test']);
+    git(root, ['config', 'user.email', 'test@example.invalid']);
+    return root;
+  }
+
   function bind(root: string): string {
     fs.mkdirSync(path.join(root, '.maker-mcp'), { recursive: true });
     fs.writeFileSync(path.join(root, '.maker-mcp/config.json'), '{"project_id":"app"}');
@@ -69,8 +77,7 @@ describe('Maker console git pull', () => {
 
   test('keeps disjoint local edits while fast-forwarding', async () => {
     const origin = repo('origin');
-    const local = repo('local');
-    git(local, ['remote', 'add', 'origin', origin]);
+    const local = cloneFrom(origin, 'local');
     fs.writeFileSync(path.join(origin, 'a.txt'), 'remote\n');
     commit(origin, 'remote a');
     fs.writeFileSync(path.join(local, 'b.txt'), 'local\n');
@@ -87,8 +94,7 @@ describe('Maker console git pull', () => {
 
   test('does not merge when the same file changed on both sides', async () => {
     const origin = repo('origin');
-    const local = repo('local');
-    git(local, ['remote', 'add', 'origin', origin]);
+    const local = cloneFrom(origin, 'local');
     fs.writeFileSync(path.join(origin, 'a.txt'), 'remote\n');
     commit(origin, 'remote a');
     fs.writeFileSync(path.join(local, 'a.txt'), 'local\n');
@@ -110,8 +116,7 @@ describe('Maker console git pull', () => {
 
   test('does not rewrite history when local commits exist', async () => {
     const origin = repo('origin');
-    const local = repo('local');
-    git(local, ['remote', 'add', 'origin', origin]);
+    const local = cloneFrom(origin, 'local');
     fs.writeFileSync(path.join(origin, 'a.txt'), 'remote\n');
     commit(origin, 'remote a');
     fs.writeFileSync(path.join(local, 'b.txt'), 'local commit\n');
@@ -139,8 +144,7 @@ describe('Maker console git pull', () => {
 
   test('does not stash when local commits and uncommitted edits do not overlap', async () => {
     const origin = repo('origin');
-    const local = repo('local');
-    git(local, ['remote', 'add', 'origin', origin]);
+    const local = cloneFrom(origin, 'local');
     fs.writeFileSync(path.join(origin, 'a.txt'), 'remote\n');
     commit(origin, 'remote a');
     fs.writeFileSync(path.join(local, 'b.txt'), 'committed\n');
@@ -200,9 +204,8 @@ describe('Maker console git pull', () => {
 
   test('HTTP pull ignores browser git arguments and rejects a busy project', async () => {
     const registry = new ConsoleProjects(path.join(directory, 'registry.json'));
-    const local = bind(repo('http'));
     const origin = repo('http-origin');
-    git(local, ['remote', 'add', 'origin', origin]);
+    const local = bind(cloneFrom(origin, 'http'));
     const key = registry.add(local).key;
     let release!: (value: { ok: boolean }) => void;
     const server = await startConsoleServer({
@@ -221,6 +224,19 @@ describe('Maker console git pull', () => {
           headers: { 'Content-Type': 'application/json', Origin: server.origin },
           body: JSON.stringify(body),
         });
+      const releasePull = server.tasks.occupy(key);
+      expect(server.tasks.busy(key)).toBe(true);
+      expect(server.tasks.active).toBe(true);
+      const blockedShutdown = await fetch(server.origin + '/api/shutdown', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: server.origin },
+        body: '{}',
+      });
+      expect(blockedShutdown.status).toBe(409);
+      expect((await post({})).status).toBe(409);
+      releasePull();
+      expect(server.tasks.busy(key)).toBe(false);
+
       const idle = await post({ remote: 'evil', branch: 'evil', prompt: 'injected prompt' });
       expect(idle.status).toBe(200);
       expect(await idle.json()).toMatchObject({ outcome: 'up_to_date' });
