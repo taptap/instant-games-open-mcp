@@ -43,10 +43,12 @@ const DATA_URL_MIME_BY_EXTENSION: Record<DataUrlMediaKind, Record<string, string
     '.jpg': 'image/jpeg',
     '.png': 'image/png',
     '.webp': 'image/webp',
+    '.bmp': 'image/bmp',
   },
   video: {
     '.mov': 'video/quicktime',
     '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
   },
   audio: {
     '.aac': 'audio/aac',
@@ -127,6 +129,9 @@ export function prepareRemoteProxyToolArgs(options: {
   }
   if (options.toolName === 'text_to_dialogue') {
     return rewriteTextToDialogueArgs(options.targetDir, options.args);
+  }
+  if (options.toolName === 'text_to_music') {
+    return rewriteTextToMusicArgs(options.targetDir, options.args);
   }
   return options.args;
 }
@@ -1928,6 +1933,47 @@ function normalizeBatchImageReferenceAssetArgs(
       isRecord(item) ? normalizeImageReferenceAssetArgs(targetDir, item) : item
     ),
   };
+}
+
+function rewriteTextToMusicArgs(
+  targetDir: string,
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const registry = readGeneratedAssetRegistry(targetDir);
+  return {
+    ...args,
+    imageUrls: rewriteStringReferenceArray(targetDir, args.imageUrls, registry, {
+      assetDirs: IMAGE_ASSET_DIRS,
+      mediaKind: 'image',
+      maxBytes: IMAGE_REFERENCE_MAX_BYTES,
+    }),
+    videoUrls: rewriteStringReferenceArray(targetDir, args.videoUrls, registry, {
+      assetDirs: VIDEO_ASSET_DIRS,
+      mediaKind: 'video',
+      maxBytes: VIDEO_REFERENCE_MAX_BYTES,
+    }),
+    audioUrls: rewriteStringReferenceArray(targetDir, args.audioUrls, registry, {
+      assetDirs: AUDIO_ASSET_DIRS,
+      mediaKind: 'audio',
+      maxBytes: AUDIO_REFERENCE_MAX_BYTES,
+    }),
+  };
+}
+
+function rewriteStringReferenceArray(
+  targetDir: string,
+  value: unknown,
+  registry: GeneratedAssetRegistry,
+  options: {
+    assetDirs: string[];
+    mediaKind: DataUrlMediaKind;
+    maxBytes: number;
+  }
+): unknown {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+  return value.map((item) => rewriteGeneratedAssetReference(targetDir, item, registry, options));
 }
 
 function rewriteVideoReferenceAssetArgs(

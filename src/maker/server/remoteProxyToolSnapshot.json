@@ -319,7 +319,7 @@
     },
     {
       "name": "text_to_music",
-      "description": "Generate AI music for a Maker game, including background music or vocal tracks; do not use this tool for sound effects. The remote call polls server-side every 20 seconds and may wait up to 50 minutes. If generation is still running when the call times out, the result includes the task ID for operational tracking. Simple and custom generation controls are defined by the input schema. The local proxy attempts to materialize successful audio and metadata into the Maker project and record them for later Maker references; use returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
+      "description": "Generate AI music for a Maker game, including background music or vocal tracks; do not use this tool for sound effects. The remote call polls server-side every 20 seconds and may wait up to 50 minutes. If generation is still running when the call times out, the result includes the task ID for operational tracking. Simple and custom generation controls are defined by the input schema. Simple mode also accepts imageUrls, videoUrls, and audioUrls as public URLs or project files. Do not combine those references with custom mode. The local proxy attempts to materialize successful audio and metadata into the Maker project and record them for later Maker references; use returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -358,6 +358,24 @@
           "vocalGender": {
             "type": "string",
             "description": "Preferred vocal gender when instrumental=false. Use \"m\" for male, \"f\" for female."
+          },
+          "imageUrls": {
+            "type": "array",
+            "description": "Simple-mode image references. Up to 5 public http(s) URLs or project file paths. jpeg, png, webp, or bmp. Each file must be 10 MB or less. Requires customMode false.",
+            "items": { "type": "string" },
+            "maxItems": 5
+          },
+          "videoUrls": {
+            "type": "array",
+            "description": "Simple-mode video reference. One public http(s) URL or project file path. mp4, mov, or webm, 100 MB or less, 241 seconds or less. Requires customMode false.",
+            "items": { "type": "string" },
+            "maxItems": 1
+          },
+          "audioUrls": {
+            "type": "array",
+            "description": "Simple-mode audio references. Public http(s) URLs or project file paths. Each file must be between 6 seconds and 30 minutes and 500 MB or less. Requires customMode false.",
+            "items": { "type": "string" },
+            "maxItems": 10
           },
           "target_dir": {
             "type": "string",

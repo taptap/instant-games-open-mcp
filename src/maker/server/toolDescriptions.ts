@@ -67,7 +67,7 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
   text_to_music: [
     'Generate AI music for a Maker game, including background music or vocal tracks; do not use this tool for sound effects.',
     'The remote call polls server-side every 20 seconds and may wait up to 50 minutes. If generation is still running when the call times out, the result includes the task ID for operational tracking.',
-    'Simple and custom generation controls are defined by the input schema.',
+    'Simple and custom generation controls are defined by the input schema. Simple mode also accepts imageUrls, videoUrls, and audioUrls as public URLs or project files. Do not combine those references with custom mode.',
     'The local proxy attempts to materialize successful audio and metadata into the Maker project and record them for later Maker references; use returned local paths when present.',
   ].join(' '),
   text_to_sound_effect: [

@@ -16,6 +16,29 @@ describe('Maker audio proxy tools', () => {
 
   afterEach(() => fs.rmSync(targetDir, { recursive: true, force: true }));
 
+  test('converts music reference files to data URLs before the remote call', () => {
+    fs.mkdirSync(path.join(targetDir, 'assets/image'), { recursive: true });
+    const source = Buffer.from('png-source');
+    fs.writeFileSync(path.join(targetDir, 'assets/image/scene.png'), source);
+    const remoteUrl = 'https://cdn.example.com/scene.mp4';
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'text_to_music',
+      targetDir,
+      args: {
+        prompt: 'Score this scene',
+        imageUrls: ['assets/image/scene.png'],
+        videoUrls: [remoteUrl],
+      },
+    });
+
+    expect(args).toEqual({
+      prompt: 'Score this scene',
+      imageUrls: [`data:image/png;base64,${source.toString('base64')}`],
+      videoUrls: [remoteUrl],
+    });
+  });
+
   test('forwards an ElevenLabs voice audition without a Doubao voice profile', () => {
     const args = {
       character_name: '暗影刺客',

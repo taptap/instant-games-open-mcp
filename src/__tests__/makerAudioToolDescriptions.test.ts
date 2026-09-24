@@ -73,6 +73,7 @@ describe('Maker audio tool descriptions', () => {
     expect(description('text_to_music')).toMatch(/music.{0,120}not.{0,40}sound effects/iu);
     expect(description('text_to_music')).toMatch(/wait.{0,80}50 minutes/iu);
     expect(description('text_to_music')).toMatch(/attempts to materialize.{0,100}Maker project/iu);
+    expect(description('text_to_music')).toMatch(/imageUrls/);
 
     expect(description('text_to_sound_effect')).toMatch(/Doubao Seed Audio/iu);
     expect(description('text_to_sound_effect')).toMatch(/120 seconds.{0,100}does not stitch/iu);
