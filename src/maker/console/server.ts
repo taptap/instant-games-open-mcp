@@ -1,4 +1,5 @@
 import http from 'node:http';
+import fs from 'node:fs';
 import type { Socket } from 'node:net';
 import { createHash } from 'node:crypto';
 import { ConsoleProjects } from './projects.js';
@@ -12,6 +13,26 @@ import { ConsoleUpdates } from './updates.js';
 import { ConsoleDocuments } from './documents.js';
 import { chooseProjectDirectory } from './folderPicker.js';
 import { discoverConsoleProjects } from './projectDiscovery.js';
+import { handleCanvasProjectRoute } from './canvasRoutes.js';
+import { getCanvasPageHtml } from '../canvas/page.js';
+import { writePrivateJson } from '../system/privateJson.js';
+
+function readSelectedProjectKey(filename?: string): string | null {
+  if (!filename) return null;
+  try {
+    const stat = fs.lstatSync(filename);
+    if (!stat.isFile() || stat.size > 16 * 1024) return null;
+    const value = JSON.parse(fs.readFileSync(filename, 'utf8')) as {
+      schema?: unknown;
+      selectedProjectKey?: unknown;
+    };
+    return value.schema === 1 && typeof value.selectedProjectKey === 'string'
+      ? value.selectedProjectKey
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function startConsoleServer(options: {
   registry: ConsoleProjects;
@@ -21,6 +42,7 @@ export async function startConsoleServer(options: {
   distribution?: string;
   packageRoot?: string;
   historyFile?: string;
+  preferencesFile?: string;
   instanceId?: string;
   idleMs?: number;
   now?: () => number;
@@ -38,6 +60,7 @@ export async function startConsoleServer(options: {
   const plugins = new ConsolePlugins(options.registry, options.plugins);
   const updates = new ConsoleUpdates(options.version, options.distribution);
   const documents = new ConsoleDocuments(options.packageRoot || '');
+  let selectedProjectKey = readSelectedProjectKey(options.preferencesFile);
   let luaLspCache: { at: number; value: Record<string, unknown> } | undefined;
   const luaLspStatus = (): Record<string, unknown> => {
     if (luaLspCache && now() - luaLspCache.at < 30_000) return luaLspCache.value;
@@ -127,10 +150,65 @@ export async function startConsoleServer(options: {
         response.end(options.html);
         return;
       }
+      if (request.method === 'GET' && url.pathname === '/canvas') {
+        const html = getCanvasPageHtml();
+        const source = html.match(/<script>([\s\S]*?)<\/script>/i)?.[1] ?? '';
+        const hash = createHash('sha256').update(source).digest('base64');
+        response.setHeader(
+          'Content-Security-Policy',
+          [
+            "default-src 'none'",
+            `script-src 'sha256-${hash}'`,
+            "style-src 'unsafe-inline'",
+            "img-src 'self' data:",
+            "media-src 'self'",
+            "connect-src 'self'",
+            "base-uri 'none'",
+            "form-action 'none'",
+            "frame-ancestors 'self'",
+          ].join('; ')
+        );
+        response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        response.end(html);
+        return;
+      }
       if (request.method !== 'GET' && request.headers.origin !== origin)
         throw new ConsoleError('Same-origin writes are required.', 403);
       if (request.method === 'GET' && url.pathname === '/api/health') {
         json(200, { instanceId: options.instanceId, draining });
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/api/console-preferences') {
+        const project = selectedProjectKey
+          ? options.registry.list().find((item) => item.key === selectedProjectKey && item.valid)
+          : undefined;
+        json(200, { selectedProjectKey: project?.key || null });
+        return;
+      }
+      if (request.method === 'PUT' && url.pathname === '/api/console-preferences') {
+        const body = await bodyForMutation();
+        const value = body.selectedProjectKey;
+        if (value !== null && (typeof value !== 'string' || value.length > 128)) {
+          throw new ConsoleError('Invalid selected project preference.');
+        }
+        if (typeof value === 'string') {
+          const project = options.registry.resolve(value);
+          if (!project.valid)
+            throw new ConsoleError('The selected project is no longer valid.', 409);
+        }
+        if (options.preferencesFile) {
+          try {
+            writePrivateJson(options.preferencesFile, {
+              schema: 1,
+              selectedProjectKey: value,
+            });
+          } catch {
+            throw new ConsoleError('Could not save the console project preference.', 500);
+          }
+        }
+        selectedProjectKey = typeof value === 'string' ? value : null;
+        touch();
+        json(200, { ok: true });
         return;
       }
       if (request.method === 'POST' && url.pathname === '/api/activity') {
@@ -326,6 +404,18 @@ export async function startConsoleServer(options: {
             return { ...result, server_changes };
           })
         );
+      } else if (
+        await handleCanvasProjectRoute({
+          request,
+          response,
+          method: request.method || 'GET',
+          suffix,
+          searchParams: url.searchParams,
+          key,
+          registry: options.registry,
+        })
+      ) {
+        touch();
       } else {
         throw new ConsoleError('Not found.', 404);
       }

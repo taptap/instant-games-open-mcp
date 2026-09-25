@@ -6,7 +6,8 @@ export const consoleScript = String.raw`
 const iconNodes = ${JSON.stringify(consoleIcons)};
 const initialQuery = new URLSearchParams(location.search);
 let projectid = initialQuery.get('projectid') || '';
-let selected = projectid ? '' : initialQuery.get('project') || '';
+let selected = initialQuery.get('project') || '';
+const hasExplicitProject = initialQuery.has('projectid') || initialQuery.has('project');
 let page = selected ? 'overview' : 'projects';
 let selectionEpoch = 0;
 let viewEpoch = 0;
@@ -680,6 +681,9 @@ function chooseProject(key, updateUrl = true) {
   selected = key;
   if (!project?.valid && page !== 'projects' && page !== 'documents') page = 'projects';
   if (updateUrl) setProjectQuery();
+  if (updateUrl) void api('/api/console-preferences', {
+    method:'PUT',body:{selectedProjectKey:key || null}
+  }).catch(() => {});
   publishProjectChange();
   if (key && !project) notify('所选项目未登记，请从本地项目列表选择。');
   render();
@@ -2069,6 +2073,70 @@ async function loadCommit(hash) {
     if (selectionMatches(key,epoch) && view === viewEpoch && request === commitRequest) replace($('commit-detail'),[node('p',error.message,'bad')]);
   }
 }
+const canvasFrames = new Map();
+const closedCanvasFrames = new Set();
+const CANVAS_FRAME_LIMIT = 8;
+function canvasUnsaved(frame) {
+  try { return frame.contentWindow && frame.contentWindow.makerCanvasUnsaved === true; }
+  catch { return true; }
+}
+function canvasPending(frame) {
+  try { return frame.contentWindow && frame.contentWindow.makerCanvasPendingImport === true; }
+  catch { return true; }
+}
+function closeCurrentCanvas() {
+  const key = selected;
+  const frame = canvasFrames.get(key);
+  if (!frame) return;
+  if (canvasPending(frame)) {
+    notify('图片导入尚未完成，请等待导入结束后再关闭画布。', 'warning');
+    return;
+  }
+  if (canvasUnsaved(frame) && !window.confirm('此项目画布有未保存编辑。关闭后这些编辑会丢失，已保存内容仍在项目里。确定关闭？')) return;
+  frame.remove();
+  canvasFrames.delete(key);
+  closedCanvasFrames.add(key);
+  renderCanvas();
+}
+function openCurrentCanvas() {
+  closedCanvasFrames.delete(selected);
+  renderCanvas();
+}
+function renderCanvas() {
+  const host = $('canvas-views');
+  host.hidden = false;
+  $('view').hidden = true;
+  $('plugin-views').hidden = true;
+  pluginSessions.forEach(session => { session.element.hidden = true; });
+  let bar = document.getElementById('canvas-toolbar');
+  if (!bar) {
+    bar = node('div', undefined, 'canvas-toolbar');
+    bar.id = 'canvas-toolbar';
+    host.prepend(bar);
+  }
+  const key = selected;
+  if (!key || !currentProject()?.valid) return;
+  if (closedCanvasFrames.has(key)) {
+    bar.replaceChildren(button('打开当前项目画布', openCurrentCanvas));
+    canvasFrames.forEach((item, itemKey) => { item.hidden = itemKey !== key; });
+    return;
+  }
+  bar.replaceChildren(button('关闭当前项目画布', closeCurrentCanvas));
+  if (canvasFrames.size >= CANVAS_FRAME_LIMIT && !canvasFrames.has(key)) {
+    notify('已打开 ' + CANVAS_FRAME_LIMIT + ' 个项目画布。请先打开其中一个并点击「关闭当前项目画布」。有未保存编辑时会先确认，不会静默丢掉。', 'warning');
+    return;
+  }
+  let frame = canvasFrames.get(key);
+  if (!frame) {
+    frame = node('iframe', undefined, 'canvas-frame');
+    frame.title = '创作画布';
+    frame.referrerPolicy = 'origin';
+    frame.src = '/canvas?project=' + encodeURIComponent(key);
+    canvasFrames.set(key, frame);
+    host.append(frame);
+  }
+  canvasFrames.forEach((item, itemKey) => { item.hidden = itemKey !== key; });
+}
 function navigate(next) {
   if (!currentProject()?.valid && next !== 'projects' && next !== 'documents') return;
   viewEpoch++; commitRequest++; gitLoading = false; page = next;
@@ -2081,9 +2149,11 @@ function render() {
   updateChrome();
   $('view').setAttribute('aria-busy','false');
   const plugin = currentProject()?.valid && pluginDescriptors().find(item => page === 'plugin:' + item.id);
-  $('view').hidden = Boolean(plugin);
+  $('view').hidden = Boolean(plugin) || page === 'canvas';
   $('plugin-views').hidden = !plugin;
+  $('canvas-views').hidden = page !== 'canvas';
   pluginSessions.forEach(session => { session.element.hidden = true; });
+  if (page === 'canvas') { renderCanvas(); return; }
   if (plugin) { renderPlugin(plugin); return; }
   if (page === 'documents') { void renderDocuments(); return; }
   if (page === 'projects' || !currentProject()?.valid) renderProjects();
@@ -2124,6 +2194,23 @@ async function pollState() {
     selected = projectKeyFromQuery(initialQuery);
     page = currentProject()?.valid ? 'overview' : 'projects';
     if (!selected) notify('请从项目列表选择对应的本地目录：项目未登记或有多个本地副本。','warning');
+    else void api('/api/console-preferences', {method:'PUT',body:{selectedProjectKey:selected}}).catch(() => {});
+  } else if (first && hasExplicitProject) {
+    const requested = projectKeyFromQuery(initialQuery);
+    selected = state.projects.some(project => project.key === requested && project.valid) ? requested : '';
+    page = selected ? 'overview' : 'projects';
+    if (!selected) notify('链接中的项目未登记或已失效，请从项目列表选择。','warning');
+    else void api('/api/console-preferences', {method:'PUT',body:{selectedProjectKey:selected}}).catch(() => {});
+  } else if (first) {
+    try {
+      const preference = await api('/api/console-preferences');
+      const project = state.projects.find(item => item.key === preference.selectedProjectKey && item.valid);
+      selected = project ? project.key : '';
+      page = selected ? 'overview' : 'projects';
+    } catch {
+      selected = '';
+      page = 'projects';
+    }
   }
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);

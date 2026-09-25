@@ -165,6 +165,7 @@ export async function runConsoleSupervisor(): Promise<void> {
       packageRoot: path.dirname(path.dirname(path.resolve(process.argv[1]))),
       distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
       historyFile: path.join(home(), 'tasks.json'),
+      preferencesFile: path.join(home(), 'preferences.json'),
       instanceId,
       execute: createConsoleExecutor({ entry: process.argv[1] }),
       onDraining: () => {

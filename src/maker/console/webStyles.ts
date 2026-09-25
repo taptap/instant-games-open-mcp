@@ -227,6 +227,8 @@ nav{overflow-x:auto;white-space:nowrap}
 .plugin-status{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:12px 28px;border-bottom:1px solid var(--border)}
 .plugin-status p{margin:0;overflow-wrap:anywhere}
 .plugin-frame{display:block;width:100%;height:calc(100dvh - 205px);min-height:520px;border:0;background:var(--bg)}
+.canvas-frame{display:block;width:100%;height:calc(100dvh - 205px);min-height:520px;border:0;background:#101114}
+.canvas-toolbar{display:flex;gap:8px;padding:8px 12px;background:#16181d}
 [hidden]{display:none!important}
 @media(max-width:720px){
 .top,main{padding:18px 16px}.navigation{padding-inline:16px;gap:0;flex-wrap:wrap}nav{gap:24px;width:100%;flex:auto}.context,footer{padding-inline:16px}

@@ -1,0 +1,647 @@
+/// <reference lib="dom" />
+import type { CanvasDocument, CanvasNode } from './model.js';
+import type { CanvasDocumentStore } from './store.js';
+import {
+  defaultSequenceSettings,
+  estimateSequenceFrameCount,
+  maxSequenceFrameCount,
+  renderSequenceCard,
+  type FrameSetInfo,
+  type SequenceFrame,
+  type SequenceRunView,
+  type SequenceSettings,
+} from './sequence.js';
+import { createSequenceProcessor } from './sequence.js';
+
+export interface SequenceUiOptions {
+  store: CanvasDocumentStore;
+  processor: ReturnType<typeof createSequenceProcessor>;
+  renderCard: typeof renderSequenceCard;
+  getDocument: () => CanvasDocument | null;
+  createId: () => string;
+  nextPlacement: (type: string) => { x: number; y: number };
+  video: HTMLVideoElement;
+  remember: () => void;
+  markDirty: () => void;
+  flush: (allowSequenceCommit?: boolean) => Promise<boolean>;
+  render: () => void;
+  refreshCard: (nodeId: string) => void;
+  publishState: () => void;
+  setError: (message: string) => void;
+  onChange?: (nodeId: string) => void;
+  onOpen?: (nodeId: string) => void;
+  onAnimation?: (nodeId: string) => void;
+  defaultSettings: typeof defaultSequenceSettings;
+  estimateFrameCount: typeof estimateSequenceFrameCount;
+  maxFrameCount: typeof maxSequenceFrameCount;
+  maxInputFrameCount: (width: number, height: number) => number;
+}
+
+type SequenceRun = SequenceRunView & {
+  sourceFrames: SequenceFrame[];
+  outputPath?: string;
+  atlas?: { blob: Blob; info: FrameSetInfo };
+};
+
+export function createSequenceUiController(options: SequenceUiOptions) {
+  const runs = new Map<string, SequenceRun>();
+  const controllers = new Map<string, AbortController>();
+  const drafts = new Map<string, CanvasNode>();
+
+  function refresh(nodeId: string): void {
+    options.refreshCard(nodeId);
+    options.onChange?.(nodeId);
+  }
+
+  function persistedNode(nodeId: string): CanvasNode | undefined {
+    return documentState()?.nodes.find((node) => node.id === nodeId && node.type === 'sequence');
+  }
+
+  function beginEdit(nodeId: string): void {
+    const node = persistedNode(nodeId);
+    if (!node || drafts.has(nodeId)) return;
+    drafts.set(nodeId, { ...node, sequenceSettings: { ...node.sequenceSettings! } });
+  }
+
+  function documentState(): CanvasDocument | null {
+    return options.getDocument();
+  }
+
+  function sequenceNode(nodeId: string): CanvasNode | undefined {
+    return drafts.get(nodeId) || persistedNode(nodeId);
+  }
+
+  function findSource(node: CanvasNode): CanvasNode | undefined {
+    return documentState()?.nodes.find(
+      (item) => item.id === node.sourceVideoId && item.type === 'video-source'
+    );
+  }
+
+  function getRun(nodeId: string): SequenceRun {
+    let run = runs.get(nodeId);
+    if (!run) {
+      run = {
+        status: 'ready',
+        stage: 'extract',
+        progress: 0,
+        total: 0,
+        frames: [],
+        sourceFrames: [],
+        candidates: [],
+        removed: [],
+      };
+      runs.set(nodeId, run);
+    }
+    return run;
+  }
+
+  function clearRun(nodeId: string): void {
+    const run = runs.get(nodeId);
+    if (run) {
+      options.processor.dispose(run.frames);
+      options.processor.dispose(run.sourceFrames);
+    }
+    runs.delete(nodeId);
+    options.publishState();
+    refresh(nodeId);
+  }
+
+  async function loadVideo(source: CanvasNode, signal: AbortSignal): Promise<HTMLVideoElement> {
+    if (!source.assetPath) throw new Error('视频素材路径缺失。');
+    const url = options.store.mediaUrl(source.assetPath);
+    const video = options.video;
+    if (video.dataset.assetPath === source.assetPath && video.readyState >= 1) return video;
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => finish(new Error('读取视频信息超时。')), 15000);
+      const cleanup = () => {
+        window.clearTimeout(timeout);
+        video.removeEventListener('loadedmetadata', onLoaded);
+        video.removeEventListener('error', onError);
+        signal.removeEventListener('abort', onAbort);
+      };
+      const finish = (error?: Error) => {
+        cleanup();
+        if (error) reject(error);
+        else resolve();
+      };
+      const onLoaded = () => finish();
+      const onError = () =>
+        finish(new Error('浏览器无法读取该视频，请使用 MP4/H.264、WebM 或 MOV。'));
+      const onAbort = () => finish(new DOMException('处理已取消。', 'AbortError'));
+      video.addEventListener('loadedmetadata', onLoaded, { once: true });
+      video.addEventListener('error', onError, { once: true });
+      signal.addEventListener('abort', onAbort, { once: true });
+      video.dataset.assetPath = source.assetPath;
+      video.preload = 'metadata';
+      video.src = url;
+      video.load();
+    });
+    return video;
+  }
+
+  function renderCard(card: HTMLElement, node: CanvasNode, source?: CanvasNode): void {
+    if (node.type !== 'sequence' || !node.sequenceSettings) return;
+    const run = runs.get(node.id);
+    options.renderCard(
+      card,
+      {
+        title: node.title,
+        sequenceSettings: node.sequenceSettings,
+        frameSetInfo: node.frameSetInfo,
+        assetPath: node.assetPath,
+      },
+      source || findSource(node),
+      run,
+      node.assetPath ? options.store.mediaUrl(node.assetPath) : undefined,
+      (key, value) => updateSetting(node.id, key, value),
+      (action, value) => {
+        if (action === 'edit') options.onOpen?.(node.id);
+        else if (action === 'animation') options.onAnimation?.(node.id);
+        else void actionSequence(node.id, action, value);
+      }
+    );
+  }
+
+  function createFromVideo(sourceId: string): void {
+    const document = documentState();
+    const source = document?.nodes.find(
+      (node) => node.id === sourceId && node.type === 'video-source'
+    );
+    if (!document || !source) return;
+    options.remember();
+    const position = options.nextPlacement('sequence');
+    const settings = options.defaultSettings(
+      source.videoInfo?.duration || 0,
+      source.videoInfo?.width || 512,
+      source.videoInfo?.height || 512
+    );
+    const node: CanvasNode = {
+      id: options.createId(),
+      type: 'sequence',
+      x: position.x,
+      y: position.y,
+      width: 480,
+      height: 300,
+      title: '视频转序列帧',
+      sourceVideoId: source.id,
+      sequenceSettings: settings,
+    };
+    document.nodes.push(node);
+    document.edges.push({
+      id: options.createId(),
+      from: source.id,
+      to: node.id,
+      kind: 'sequence-source',
+    });
+    options.markDirty();
+    options.render();
+    options.onOpen?.(node.id);
+  }
+
+  async function runStage(
+    nodeId: string,
+    stage: SequenceRunView['stage'],
+    operation: (run: SequenceRun, signal: AbortSignal) => Promise<void>
+  ): Promise<void> {
+    if (controllers.size) {
+      options.setError('已有拆帧步骤正在运行。');
+      return;
+    }
+    const node = sequenceNode(nodeId);
+    if (!node) return;
+    const run = getRun(nodeId);
+    const controller = new AbortController();
+    controllers.set(nodeId, controller);
+    run.status = 'running';
+    run.stage = stage;
+    run.progress = 0;
+    run.total = 0;
+    run.error = undefined;
+    options.publishState();
+    refresh(nodeId);
+    try {
+      await operation(run, controller.signal);
+      if (runs.get(nodeId) !== run) return;
+      if (run.status === 'running') run.status = 'ready';
+    } catch (error) {
+      run.status =
+        error instanceof DOMException && error.name === 'AbortError' ? 'cancelled' : 'failed';
+      run.error = error instanceof Error ? error.message : '序列帧处理失败。';
+      if (stage === 'extract') run.previewFrame = undefined;
+    } finally {
+      if (controllers.get(nodeId) === controller) controllers.delete(nodeId);
+      if (runs.get(nodeId) === run) {
+        options.publishState();
+        refresh(nodeId);
+      }
+    }
+  }
+
+  async function startExtraction(nodeId: string): Promise<void> {
+    const node = sequenceNode(nodeId);
+    const source = node && findSource(node);
+    if (!node || !source) return;
+    if (controllers.size) {
+      options.setError('已有拆帧步骤正在运行。');
+      return;
+    }
+    const run = getRun(nodeId);
+    options.processor.dispose(run.frames);
+    options.processor.dispose(run.sourceFrames);
+    run.frames = [];
+    run.sourceFrames = [];
+    run.originalFrames = [];
+    run.candidates = [];
+    run.removed = [];
+    run.atlas = undefined;
+    run.outputPath = undefined;
+    await runStage(nodeId, 'extract', async (activeRun, signal) => {
+      const video = await loadVideo(source, signal);
+      if (signal.aborted || sequenceNode(nodeId) !== node)
+        throw new DOMException('处理已取消。', 'AbortError');
+      if (!Number.isFinite(video.duration) || video.duration <= 0)
+        throw new Error('视频时长无效。');
+      const hadVideoInfo = Boolean(source.videoInfo);
+      if (
+        !source.videoInfo ||
+        source.videoInfo.duration !== video.duration ||
+        source.videoInfo.width !== video.videoWidth ||
+        source.videoInfo.height !== video.videoHeight
+      ) {
+        options.remember();
+        source.videoInfo = {
+          duration: video.duration,
+          width: video.videoWidth,
+          height: video.videoHeight,
+        };
+        options.markDirty();
+      }
+      if (!node.sequenceSettings)
+        node.sequenceSettings = options.defaultSettings(
+          video.duration,
+          video.videoWidth,
+          video.videoHeight
+        );
+      else if (!hadVideoInfo) {
+        const defaults = options.defaultSettings(
+          video.duration,
+          video.videoWidth,
+          video.videoHeight
+        );
+        node.sequenceSettings = {
+          ...node.sequenceSettings,
+          end: node.sequenceSettings.end <= 0 ? defaults.end : node.sequenceSettings.end,
+        };
+      }
+      const start = Math.min(node.sequenceSettings.start, video.duration);
+      const end =
+        node.sequenceSettings.end <= start || node.sequenceSettings.end > video.duration
+          ? video.duration
+          : node.sequenceSettings.end;
+      if (start >= video.duration) throw new Error('起始时间必须早于视频结束时间。');
+      if (start !== node.sequenceSettings.start || end !== node.sequenceSettings.end) {
+        if (!drafts.has(nodeId)) options.remember();
+        node.sequenceSettings = { ...node.sequenceSettings, start, end };
+        if (!drafts.has(nodeId)) options.markDirty();
+      }
+      const settings = node.sequenceSettings;
+      const count = options.estimateFrameCount(settings.start, settings.end, settings.fps);
+      const atlasCapacity = options.maxFrameCount(settings.width, settings.height);
+      const inputCapacity = options.maxInputFrameCount(video.videoWidth, video.videoHeight);
+      const capacity = Math.min(atlasCapacity, inputCapacity);
+      if (count > capacity) {
+        throw new Error(
+          '当前视频尺寸与输出图集最多处理 ' + capacity + ' 帧；请缩短区间、降低帧率或缩小输出尺寸。'
+        );
+      }
+      activeRun.total = count;
+      activeRun.frames = await options.processor.extract(
+        video,
+        settings.start,
+        settings.end,
+        settings.fps,
+        signal,
+        (current, total, _time, preview) => {
+          activeRun.progress = current;
+          activeRun.total = total;
+          activeRun.previewFrame = preview;
+          if (current === total || current % 3 === 0) refresh(nodeId);
+        }
+      );
+      activeRun.sourceFrames = activeRun.frames.slice();
+      activeRun.originalFrames = activeRun.frames.slice();
+      activeRun.previewFrame = undefined;
+      activeRun.stage = 'cutout';
+    });
+  }
+
+  async function actionSequence(nodeId: string, action: string, value?: number): Promise<void> {
+    if (action !== 'create') beginEdit(nodeId);
+    const node = sequenceNode(nodeId);
+    if (!node) return;
+    const run = runs.get(nodeId);
+    if (action === 'extract') return startExtraction(nodeId);
+    if (action === 'cancel') {
+      if (run?.uploading) {
+        options.setError('图集正在写入项目文件，不能在写入中中断。');
+        return;
+      }
+      controllers.get(nodeId)?.abort();
+      return;
+    }
+    if (action === 'create') return createFromVideo(nodeId);
+    if (action === 'discard') {
+      if (controllers.has(nodeId)) return;
+      clearRun(nodeId);
+      return;
+    }
+    if (action === 'reset') {
+      if (controllers.has(nodeId)) return;
+      clearRun(nodeId);
+      delete node.frameSetInfo;
+      delete node.assetPath;
+      refresh(nodeId);
+      return;
+    }
+    if (!run) return;
+    if (action === 'remove-frame') {
+      if (
+        controllers.size ||
+        !['cutout', 'dedupe', 'dedupe-review', 'resize'].includes(run.stage) ||
+        !Number.isInteger(value) ||
+        value! < 0 ||
+        value! >= run.frames.length ||
+        run.frames.length < 2
+      )
+        return;
+      const removed = run.frames[value!];
+      run.frames = run.frames.filter((_frame, index) => index !== value);
+      run.sourceFrames = run.sourceFrames.filter((frame) => frame.time !== removed.time);
+      run.candidates = [];
+      run.removed = [];
+      if (run.stage === 'dedupe-review') run.stage = 'dedupe';
+      run.status = 'ready';
+      run.error = undefined;
+      refresh(nodeId);
+      return;
+    }
+    if (action === 'toggle-duplicate' && typeof value === 'number') {
+      run.removed = run.removed.includes(value)
+        ? run.removed.filter((index) => index !== value)
+        : [...run.removed, value];
+      refresh(nodeId);
+      return;
+    }
+    if (action === 'skip-cutout') {
+      options.processor.dispose(run.sourceFrames);
+      run.sourceFrames = [];
+      run.stage = 'dedupe';
+      run.status = 'ready';
+      refresh(nodeId);
+      return;
+    }
+    if (action === 'cutout') {
+      return runStage(nodeId, 'cutout', async (activeRun, signal) => {
+        activeRun.frames = await options.processor.cutout(
+          activeRun.sourceFrames.length ? activeRun.sourceFrames : activeRun.frames,
+          node.sequenceSettings!.backgroundColor,
+          node.sequenceSettings!.tolerance,
+          signal,
+          (current, total) => {
+            activeRun.progress = current;
+            activeRun.total = total;
+            if (current === total || current % 3 === 0) refresh(nodeId);
+          }
+        );
+        options.processor.dispose(activeRun.sourceFrames);
+        activeRun.sourceFrames = [];
+        activeRun.stage = 'dedupe';
+      });
+    }
+    if (action === 'dedupe') {
+      return runStage(nodeId, 'dedupe', async (activeRun, signal) => {
+        activeRun.candidates = await options.processor.findDuplicates(
+          activeRun.frames,
+          node.sequenceSettings!.duplicateThreshold,
+          signal,
+          (current, total) => {
+            activeRun.progress = current;
+            activeRun.total = total;
+            if (current === total || current % 3 === 0) refresh(nodeId);
+          }
+        );
+        activeRun.removed = activeRun.candidates.map((candidate) => candidate.index);
+        options.processor.dispose(activeRun.sourceFrames);
+        activeRun.sourceFrames = [];
+        activeRun.stage = 'dedupe-review';
+      });
+    }
+    if (action === 'apply-dedupe' || action === 'keep-all') {
+      if (action === 'apply-dedupe') {
+        const removed = new Set(run.removed);
+        run.frames = run.frames.filter((_frame, index) => !removed.has(index));
+      }
+      run.candidates = [];
+      run.removed = [];
+      run.stage = 'resize';
+      run.status = 'ready';
+      refresh(nodeId);
+      return;
+    }
+    if (action === 'resize') {
+      return runStage(nodeId, 'resize', async (activeRun, signal) => {
+        activeRun.frames = await options.processor.resize(
+          activeRun.frames,
+          node.sequenceSettings!.width,
+          node.sequenceSettings!.height,
+          node.sequenceSettings!.fit,
+          node.sequenceSettings!.pixel,
+          signal,
+          (current, total) => {
+            activeRun.progress = current;
+            activeRun.total = total;
+            if (current === total || current % 3 === 0) refresh(nodeId);
+          }
+        );
+        activeRun.stage = 'save';
+      });
+    }
+    if (action === 'save') {
+      return runStage(nodeId, 'save', async (activeRun, signal) => {
+        if (!activeRun.frames.length) throw new Error('没有可保存的帧。');
+        const document = documentState();
+        if (!document) throw new Error('画布已关闭。');
+        activeRun.atlas ??= await options.processor.packAtlas(
+          activeRun.frames,
+          node.sequenceSettings!.fps,
+          signal,
+          (current, total) => {
+            activeRun.progress = current;
+            activeRun.total = total;
+            if (current === total || current % 4 === 0) refresh(nodeId);
+          }
+        );
+        if (signal.aborted) throw new DOMException('处理已取消。', 'AbortError');
+        if (!activeRun.outputPath) {
+          activeRun.uploading = true;
+          options.publishState();
+          refresh(nodeId);
+          try {
+            const saved = await options.store.importImage(
+              document.id,
+              await activeRun.atlas.blob.arrayBuffer(),
+              'image/png'
+            );
+            activeRun.outputPath = saved.relativePath;
+          } finally {
+            activeRun.uploading = false;
+            options.publishState();
+          }
+        }
+        const current = persistedNode(nodeId);
+        if (!current) throw new Error('画布节点已不存在。');
+        const previous = {
+          assetPath: current.assetPath,
+          frameSetInfo: current.frameSetInfo,
+          sequenceSettings: current.sequenceSettings,
+        };
+        activeRun.uploading = true;
+        options.publishState();
+        try {
+          if (!(await options.flush())) throw new Error('请先解决画布保存错误，再重试保存帧集。');
+          current.assetPath = activeRun.outputPath;
+          current.frameSetInfo = activeRun.atlas.info;
+          current.sequenceSettings = { ...node.sequenceSettings! };
+          if (!(await options.flush(true))) throw new Error('画布保存失败，请重试；原结果仍保留。');
+        } catch (error) {
+          Object.assign(current, previous);
+          throw error;
+        } finally {
+          activeRun.uploading = false;
+        }
+        const committed = {
+          assetPath: current.assetPath,
+          frameSetInfo: current.frameSetInfo,
+          sequenceSettings: current.sequenceSettings,
+        };
+        Object.assign(current, previous);
+        options.remember();
+        Object.assign(current, committed);
+        node.assetPath = current.assetPath;
+        node.frameSetInfo = current.frameSetInfo;
+        options.processor.dispose(activeRun.frames);
+        options.processor.dispose(activeRun.sourceFrames);
+        activeRun.frames = [];
+        activeRun.sourceFrames = [];
+        activeRun.atlas = undefined;
+        activeRun.originalFrames = [];
+        activeRun.status = 'complete';
+        activeRun.stage = 'complete';
+      });
+    }
+  }
+
+  function updateSetting(nodeId: string, key: keyof SequenceSettings, value: unknown): void {
+    beginEdit(nodeId);
+    const node = sequenceNode(nodeId);
+    if (!node || controllers.size || !node.sequenceSettings) return;
+    const run = runs.get(nodeId);
+    if (node.frameSetInfo) return;
+    if (run?.frames.length) {
+      const stage = run.stage;
+      const allowed =
+        stage === 'cutout'
+          ? key === 'backgroundColor' || key === 'tolerance' || key === 'cutout'
+          : stage === 'dedupe' || stage === 'dedupe-review'
+            ? key === 'duplicateThreshold'
+            : stage === 'resize'
+              ? key === 'width' || key === 'height' || key === 'fit' || key === 'pixel'
+              : false;
+      if (!allowed) return;
+    }
+    if (typeof value === 'number' && !Number.isFinite(value)) return;
+    if (!drafts.has(nodeId)) options.remember();
+    node.sequenceSettings = { ...node.sequenceSettings, [key]: value };
+    if (run && key === 'duplicateThreshold' && run.stage === 'dedupe-review') {
+      run.candidates = [];
+      run.removed = [];
+      run.stage = 'dedupe';
+      run.status = 'ready';
+    }
+    if (!drafts.has(nodeId)) options.markDirty();
+    options.publishState();
+    refresh(nodeId);
+  }
+
+  function deleteNodes(nodeIds: string[]): boolean {
+    if (nodeIds.some((id) => controllers.has(id))) return false;
+    for (const id of nodeIds) {
+      const run = runs.get(id);
+      if (run) {
+        options.processor.dispose(run.frames);
+        options.processor.dispose(run.sourceFrames);
+      }
+      runs.delete(id);
+      drafts.delete(id);
+    }
+    return true;
+  }
+
+  function clear(): void {
+    for (const controller of controllers.values()) controller.abort();
+    for (const run of runs.values()) {
+      options.processor.dispose(run.frames);
+      options.processor.dispose(run.sourceFrames);
+    }
+    controllers.clear();
+    runs.clear();
+    drafts.clear();
+  }
+
+  return {
+    beginEdit,
+    view(nodeId: string) {
+      const node = sequenceNode(nodeId);
+      return { node, source: node && findSource(node), run: runs.get(nodeId) };
+    },
+    discardEdit(nodeId: string): boolean {
+      if (controllers.has(nodeId)) return false;
+      drafts.delete(nodeId);
+      clearRun(nodeId);
+      options.publishState();
+      return true;
+    },
+    hasDraft(nodeId: string): boolean {
+      const draft = drafts.get(nodeId);
+      const original = persistedNode(nodeId);
+      const run = runs.get(nodeId);
+      return (
+        Boolean(run && run.status !== 'complete') ||
+        Boolean(
+          draft &&
+            original &&
+            JSON.stringify(draft.sequenceSettings) !== JSON.stringify(original.sequenceSettings)
+        )
+      );
+    },
+    renderCard,
+    createFromVideo,
+    updateSetting,
+    action: actionSequence,
+    deleteNodes,
+    clear,
+    get isBusy() {
+      return controllers.size > 0;
+    },
+    get hasUnsavedFrames() {
+      return (
+        [...runs.values()].some((run) => run.status !== 'complete') ||
+        [...drafts].some(
+          ([id, node]) =>
+            JSON.stringify(node.sequenceSettings) !==
+            JSON.stringify(persistedNode(id)?.sequenceSettings)
+        )
+      );
+    },
+  };
+}
