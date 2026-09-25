@@ -113,24 +113,18 @@ describe('Maker tool description override coverage', () => {
     const guide = fs.readFileSync(path.resolve('docs/MAKER_ACHIEVEMENTS.md'), 'utf8');
 
     for (const text of [description, skill, guide]) {
-      expect(text).toMatch(/query-only|只查询/iu);
-      expect(text).toMatch(/not a read-only query|is not read-only|不是纯只读|不是只读查询/iu);
-      expect(text).toMatch(
-        /missing local taptap_publish|本地缺少 `taptap_publish`|missing local `taptap_publish`/iu
-      );
-      expect(text).toMatch(/developer-center URL|开发者中心/iu);
-      expect(text).toMatch(/whole app|整个应用|作用于整个应用/iu);
-      expect(text).toMatch(/lock_sync\.synced=false/iu);
-      expect(text).toMatch(/HTTP\(S\)/iu);
-      expect(text).toMatch(/user_ids|测试账户|test user/iu);
-      expect(text).toMatch(/platinum|白金/iu);
+      expect(text).toMatch(/achievement/iu);
+      expect(text).toMatch(/sync_achievements|\.project\/project\.json|taptap_publish/iu);
     }
 
-    expect(description).toMatch(/do not file an MCP issue report/iu);
+    expect(description).toMatch(/不允许调用方传入/u);
+    expect(description).toMatch(/不读写本机 \.project/u);
     expect(skill).toContain('Maker Achievement Workflow');
-    expect(skill).toContain('Do not apply that local-identity gate to `achievement`');
-    expect(guide).toContain('只查询且无写入授权');
-    expect(guide).toContain('白金（仅用户明确要求时）');
+    expect(skill).toContain('forwards those arguments and the remote result unchanged');
+    expect(skill).toContain('do not replay the original write');
+    expect(guide).toContain('不要重放原来的写操作');
+    expect(guide).toContain('原样转发');
+    expect(guide).toContain('achievements.lock.json');
   });
 
   test('keeps the reviewed static schemas authoritative over supplied remote definitions', async () => {

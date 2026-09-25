@@ -123,9 +123,16 @@ Runtime 缺失或 Node 版本。
   默认配置只写入副本。preflight 的 preparation_reason 说明本轮分流依据。
 
 - 符合直读条件的单机项目在 macOS 和 Windows 都由 Runtime 直接读取原项目目录。
-- 需要 prepare 的项目在 Windows 使用受管理副本的本地 manifest；macOS 使用受管理副本
-  生成的 client manifest 和受保护的 loopback asset server。两种路径都不使用 junction、
+- 所有需要 prepare 的项目在 Windows/macOS 均使用受管理副本生成的 client manifest 和受保护的
+  loopback asset server，通过 game_url 加载；不按平台或单机/联机选择不同资源加载方式。
+  单机只加载资源，不申请测试服。准备路径不再依赖 Windows Runtime 对 tapcode_dir 的
+  manifest 支持。仅挂载松散 scripts/assets 的 Runtime 会找不到生成的 settings.json，
+  即使 WebSocket 已连接也可能返回 IsNetworkMode=false。两种平台都不使用 junction、
   软链接或 `subst`，不会改写游戏原目录。
+- Windows 所有需要 prepare 的预览使用每轮独占的 TEMP/maker-cache-\* 下载缓存，避免项目哈希、会话 ID 和下载
+  临时文件名叠加超过 Runtime 路径限制。正常退出、刷新和启动失败时在确认进程退出后清理；
+  无法确认退出或缓存根被替换时保留，不清理原项目或共享 Runtime 资源。每轮缓存不复用，
+  公共资源可能需要重新下载；异常强杀 supervisor 时可能遗留临时缓存。
 - Windows 预览 supervisor 与控制台复用 PowerShell/CIM 后台启动器，避免依赖 AI IDE
   短命令的进程生命周期；macOS/Linux 保留 detached 启动。状态中的 `supervisor_log_path`
   指向项目预览目录下的 supervisor 错误日志。
@@ -153,6 +160,35 @@ Runtime 缺失或 Node 版本。
 
 ## 维护约束
 
+### Builder 重复来源诊断
+
+公共索引可能同时在 engine-res 定义资源、在 official-res 通过 source=engine-res 转引它。
+固定 Builder 会为这类重复路径输出 ERROR，但仍继续生成产物。Maker 仅在完整诊断与本轮
+导入日志记录的精确 client/server hash 索引均可核验时，将同一路径、同 UUID、唯一真实来源且
+内容元数据一致的转引降为可见警告；不通过扫描旧缓存或只比较 UUID 放行。
+这包括 Techniques/PBR/PBRDiff.xml、Models/Plane.mdl，但实现不依赖这两个具体路径。
+
+原始 prepare.log 不改写，因此可能仍包含这些已核验的 ERROR；CLI 返回 warnings 标明核验结果。
+缺索引、诊断截断、不同 UUID/内容、多个独立定义、来源循环以及其他 stdout/stderr ERROR 仍失败。
+Builder 非零退出、manifest 或本地产物校验失败仍阻止启动。无需修改游戏引用、公共资源或 Builder 快照。
+
+### Windows 联机兼容性验证
+
+本机同一个 Runtime、同一个“测试匹配”1.0.4 项目对照显示：原 tapcode_dir 启动只执行
+DirectConnect/Ready，运行时配置虽已存在于 manifest，Ready 仍找不到 settings.json。
+改用 loopback manifest 后，IsNetworkMode=true，MatchProbeClient 初始化并收到游戏服版本回包；
+启动、刷新均验证。世界杯足球夜也在启动、刷新后收到房间人数、玩家资料和聊天回包。
+该轮验证中 Windows 单机入口尚保持原行为，铁壁要塞完成启动/停止回归，不以进程存活替代业务证据。
+后续统一所有 prepare 项目的加载入口；Windows 缺配置新项目及资源索引单机需要补做
+启动、刷新、资源显示和停止后的缓存清理实机验收，不沿用此前单机入口的验收结论。
+
+仅切换 game_url 而保留深层缓存目录时，本机曾因 manifest 下载临时路径过长而写入失败；
+每轮短缓存解决该问题，并在停止后确认目录被移除。强制退出或特别长的 TEMP 仍需单独排查。
+上述验证未升级 Runtime、未修改游戏或 Builder，不代表不同平台二进制版本一致；本机安装记录
+版本为 unknown，PE 版本为占位值 9.999.999.0，缺少 macOS 构建标识，不能据此断言版本差异。
+
+### 资源与生命周期
+
 - Builder 快照由 `scripts/snapshot-maker-preview-builder.js <UrhoX绝对目录>` 生成。
   来源版本以 `src/maker/preview/builderSource.ts` 和返回的 `builder_commit` 为准，
   不在文档重复维护 commit。生成器逐字节核对固定 Git 输入，拒绝修改、未跟踪、
@@ -160,7 +196,7 @@ Runtime 缺失或 Node 版本。
 - 执行 Builder 前校验标准配置和版本路径：版本须为跨平台安全的单个目录名，
   允许 `{x}` 模板，禁止路径跳转和 Windows 保留名；不得允许配置回退绕过校验。
   只对受管理副本执行构建及输出清理，保留原项目 UUID 和资源引用语义。
-- macOS 资源服务归独立 supervisor 管理，使用动态 loopback 端口、随机访问路径及
+- Windows/macOS 资源服务归独立 supervisor 管理，使用动态 loopback 端口、随机访问路径及
   client manifest 文件白名单，校验 Host 并拒绝浏览器跨源请求，不暴露源码和 server 产物。
   停止、刷新、启动失败或窗口退出时关闭，不依赖控制台存活。
 - 缓存只清理 Maker 管理且已确认无活跃引用的目录，不跟随链接、不清理外部 Runtime

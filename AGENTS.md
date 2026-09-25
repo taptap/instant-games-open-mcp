@@ -678,12 +678,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 当前目录是已绑定 Maker 项目时，调用 `generate_test_qrcode` 应先不传方向参数。本地 MCP 会读取 `.project/project.json`：已有合法 `taptap_publish.screen_orientation` 时直接沿用，不再询问用户，且后续输入不能覆盖；只有该字段从未设置时，才单独发起一次对话，让用户明确选择横屏（`landscape`）或竖屏（`portrait`），禁止推断或默认。用户选择后重试并传本地私有参数 `confirmed_screen_orientation`，本地 MCP 只在首次缺失时写入该值，不会把私有参数转发给远端。二维码生成并建立应用身份后，只有用户明确提供 TapTap `user_id` 时才调用 `add_test_whitelist`，不要猜测账号 ID。
 - 当前目录是已绑定 Maker 项目时，只要用户消息涉及广告（包括“广告”、激励视频、播放广告、广告 ID、广告位、`ShowRewardVideoAd`、广告配置、广告开通状态等），先阅读 `maker://ads-integration-guide`，再按其中流程检查 Maker 项目状态、调用 `get_ad_config` 并阅读项目内 `engine-docs/recipes/sdk.md`。主配置未初始化时，本地 preflight 会保持广告能力不可用且不调用远端 `get_ad_config`；仅在用户明确要求构建时调用 `maker_build_current_directory`。构建后本地配置仍缺失时直接说明当前已知限制，不要自动重复构建。配置就绪后再调用 `get_ad_config` 获取广告开通状态和配置；若返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`。不要先查 `.maker-mcp/config.json` 或用运行回调推断广告是否开通，也不要为这个恢复流程调用发布类工具。
 - 当前目录是已绑定 Maker 项目时，用户请求管理或接入成就，先读 `maker://status` 或调用
-  `maker_status_lite`，解析唯一项目后固定 `target_dir`，再调用 `achievement`。只查询且没有写入
-  授权时，先说明 `sync_achievements` 会写远端 workspace lock，不要宣称只读。不要把本地缺少
-  `taptap_publish` 当成远端必然缺失，成就先 sync，不要套用广告/二维码的本地身份前置门。身份来自远端
-  workspace，不要传入 `app_id`、`developer_id`、`client_id` 或 managementId。图标只接受 HTTP(S) URL；
-  发布作用于整个应用。`success=false` 是业务失败，展示开通指引并等待，不要当成 MCP 连接故障上报；
-  平台写成功但 `lock_sync.synced=false` 时只再 sync，不重放原写操作。白金仅在用户明确要求时进入。
+  `maker_status_lite`，解析唯一项目后固定 `target_dir`，再按工具 schema 调用 `achievement`。
+  本地代理原样转发参数和返回，不读写本机 `.project/`。`sync_achievements` 由远端 maker-tools 读取远端
+  `.project/project.json` 的 `taptap_publish`，并读写远端 `.project/achievements.lock.json`。
   管理工具可用不代表游戏运行时已接入，不要编造 Lua API 或借用小游戏/H5 成就 SDK。
   详见 `docs/MAKER_ACHIEVEMENTS.md`。
 - 当前目录是已绑定 Maker 项目时，只有用户明确询问当前 Maker 游戏的线上玩家反馈（包括玩家提交的游戏故障、真机游戏日志或截图），或指定游戏会话的服务端/Lua 日志时，才调用 Maker MCP tool `get_debug_feedbacks`；Cindy 等 AI 客户端、插件、通用开发工具或其它产品的问题反馈/问题上报不属于该工具。本地 runtime log 只用于当前本地构建/运行会话，不要用本地日志替代线上玩家提交的反馈。
@@ -931,7 +928,7 @@ const allModules = [..., yourFeatureModule];
 - **部署指南**：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - 三种传输协议、环境变量、MCP 集成配置
 - **CI/CD 流程**：[docs/CI_CD.md](docs/CI_CD.md) - GitHub Flow、Semantic Release、手动发布
 - **路径解析**：[docs/PATH_RESOLUTION.md](docs/PATH_RESOLUTION.md) - 路径处理问题、最佳实践
-- **Maker 成就管理**：[docs/MAKER_ACHIEVEMENTS.md](docs/MAKER_ACHIEVEMENTS.md) - 成就工具前置条件、部分成功恢复和验收边界
+- **Maker 成就管理**：[docs/MAKER_ACHIEVEMENTS.md](docs/MAKER_ACHIEVEMENTS.md) - 成就工具纯代理，远端读写 workspace 配置和 lock
 
 ### Proxy 相关文档
 

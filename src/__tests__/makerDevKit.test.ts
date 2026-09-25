@@ -196,8 +196,9 @@ describe('Maker AI dev kit install', () => {
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
     expect(agentsGuide).toContain('Maker achievement workflow:');
-    expect(agentsGuide).toContain('Query-only requests without write authorization');
-    expect(agentsGuide).toContain('Do not treat missing local `taptap_publish`');
+    expect(agentsGuide).toContain('forwards arguments and results unchanged');
+    expect(agentsGuide).toContain('do not replay the original write');
+    expect(agentsGuide).toContain('achievements.lock.json');
     expect(agentsGuide).toContain(
       'Only call `create_video_task` after the user explicitly requests video generation'
     );
@@ -503,8 +504,9 @@ describe('Maker AI dev kit install', () => {
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
     expect(agentsGuide).toContain('Maker achievement workflow:');
-    expect(agentsGuide).toContain('Query-only requests without write authorization');
-    expect(agentsGuide).toContain('Do not treat missing local `taptap_publish`');
+    expect(agentsGuide).toContain('forwards arguments and results unchanged');
+    expect(agentsGuide).toContain('do not replay the original write');
+    expect(agentsGuide).toContain('achievements.lock.json');
     expect(agentsGuide).toContain('`text_to_sound_effect` for one sound effect');
     expect(agentsGuide).toContain('`batch_sound_effects` for multiple sound effects');
     expect(agentsGuide).toContain('`text_to_dialogue` for final character dialogue');

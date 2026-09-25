@@ -141,16 +141,11 @@ describe('Maker public documentation', () => {
     }
 
     const guide = fs.readFileSync(path.resolve('docs/MAKER_ACHIEVEMENTS.md'), 'utf8');
-    expect(guide).toContain('远端 workspace lock');
+    expect(guide).toContain('原样转发');
+    expect(guide).toContain('taptap_publish.app_id');
+    expect(guide).toContain('achievements.lock.json');
+    expect(guide).toContain('不要编造 Lua API');
     expect(guide).not.toContain('上游本地 lock');
-    expect(guide).toContain('HTTP(S)');
-    expect(guide).toContain('lock_sync.synced=false');
-    expect(guide).toContain('游戏运行时接入未验收');
-    expect(guide).toContain('禁止编造 Lua API');
-    expect(guide).toContain('只查询且无写入授权');
-    expect(guide).toContain('白金（仅用户明确要求时）');
-    expect(guide).toContain('不要套用广告/二维码的本地身份前置门');
-    expect(guide).toContain('这是业务失败，不是 MCP 连接故障');
   });
 
   test('documents the QR orientation gate and test whitelist proxy workflow', () => {

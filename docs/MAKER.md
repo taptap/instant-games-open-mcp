@@ -892,11 +892,9 @@ ElevenLabs，对话使用 Eleven v3 的 `stability` 与表演标签，角色试�
 `confirmed_screen_orientation=landscape|portrait`。本地 MCP 只在首次缺失时写入该值，参数不转发远端。
 二维码已经生成并写入应用身份后，
 只有用户明确提供 TapTap `user_id` 时才调用 `add_test_whitelist`，不要猜测账号 ID。
-`achievement` 用于当前绑定项目的成就管理。身份来自远端 workspace，不要传入 `app_id`、
-`developer_id`、`client_id` 或 managementId。`sync_achievements` 会写远端 workspace lock，
-不是只读查询；图标只接受 HTTP(S) URL。业务失败按 `success=false` 处理；平台写成功但 lock
-未同步时只再 sync，不重放原写操作。管理流程、部分成功恢复和运行时验收边界见
-`docs/MAKER_ACHIEVEMENTS.md`。
+`achievement` 原样转发给远端 maker-tools。本地不改参数、不改返回，也不读写本机 `.project/`。
+`sync_achievements` 由远端读取 `.project/project.json` 的 `taptap_publish`，并读写远端
+`.project/achievements.lock.json`。说明见 `docs/MAKER_ACHIEVEMENTS.md`。
 
 `get_debug_feedbacks` 会拉取线上玩家反馈；当日志或截图可下载时，本地会保存到当前 Maker 项目的
 `logs/feed_back/feedback_<id>/`，并在结果里补充 `local_dir`、`local_log_paths`、

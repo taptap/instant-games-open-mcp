@@ -260,24 +260,13 @@ describe('Maker non-audio tool descriptions', () => {
     expect(descriptions.get_debug_feedbacks).not.toContain('├──');
     expect(descriptions.get_debug_feedbacks).not.toContain('/opt/log/server/');
 
-    expect(descriptions.achievement).toMatch(/one tool.{0,40}op field/iu);
-    expect(descriptions.achievement).toMatch(/sync_achievements.{0,220}not a read-only query/iu);
-    expect(descriptions.achievement).toMatch(/query-only requests without write authorization/iu);
-    expect(descriptions.achievement).toMatch(
-      /Do not treat missing local taptap_publish as proof the remote identity is missing/iu
-    );
-    expect(descriptions.achievement).toMatch(/do not file an MCP issue report/iu);
-    expect(descriptions.achievement).toMatch(/Create only after the user asks/iu);
-    expect(descriptions.achievement).toMatch(/remote workspace lock/iu);
-    expect(descriptions.achievement).not.toMatch(/upstream local lock/iu);
-    expect(descriptions.achievement).toMatch(/Do not pass app_id.{0,40}developer_id.{0,40}client_id/iu);
-    expect(descriptions.achievement).toMatch(/image_url accepts HTTP\(S\) URLs only/iu);
-    expect(descriptions.achievement).toMatch(/whole app/iu);
-    expect(descriptions.achievement).toMatch(/reset_achievement clears ordinary achievement player data/iu);
-    expect(descriptions.achievement).toMatch(/reset_achievement_test_user clears one test user/iu);
-    expect(descriptions.achievement).toMatch(/lock_sync\.synced=false.{0,80}sync_achievements only/iu);
-    expect(descriptions.achievement).toMatch(/do not invent Lua APIs/iu);
-    expect(descriptions.achievement).toMatch(/do not invent Lua APIs or reuse minigame\/H5 achievement SDKs/iu);
+    expect(descriptions.achievement).toMatch(/TapTap V4 成就管理 MCP 工具/u);
+    expect(descriptions.achievement).toMatch(/sync_achievements/u);
+    expect(descriptions.achievement).toMatch(/不允许调用方传入/u);
+    expect(descriptions.achievement).toMatch(/不读写本机 \.project/u);
+    expect(descriptions.achievement).toMatch(/lock_sync\.synced=false/u);
+    expect(descriptions.achievement).toMatch(/不要重放原来的写操作/u);
+    expect(descriptions.achievement).toMatch(/not retried automatically/iu);
   });
 
   async function listDescriptions(): Promise<Record<(typeof REMOTE_TOOL_NAMES)[number], string>> {
