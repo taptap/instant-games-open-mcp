@@ -1,0 +1,6 @@
+{
+  "method": "TypeScript compiler diagnostics comparing HEAD tracked TS sources vs working tree; new validation module excluded only for baseline",
+  "baseline_errors": 312,
+  "current_errors": 312,
+  "added": []
+}

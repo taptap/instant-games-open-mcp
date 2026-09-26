@@ -1,6 +1,6 @@
 ---
 name: taptap-maker-local
-description: Guide TapTap Maker local development workflows, including the official trigger “打开make mcp控制台”, local web console, local preview, and automatic refresh after each related code-edit batch. Use for Maker initialization, clone, project status, console, preview start/refresh/stop and evidence, MCP diagnostics, pull, submit, push, or Git conflicts.
+description: 指导 TapTap Maker 本地开发流程，支持“打开make mcp控制台”、初始化、同步项目、状态检查、提交构建和故障诊断。
 ---
 
 # TapTap Maker Local Workflow
@@ -92,7 +92,7 @@ active plugin's marketplace instead of installing or upgrading a standalone Make
 | conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing.                                                                                    |
 | build / submit / push / explicitly remote Web preview     | Use `maker_build_current_directory`; preserve its original authorization and remote log watcher.                                                                                                                      |
 | local preview / refresh preview / stop preview            | Follow Local Window Preview below; use CLI with explicit project path, never remote build.                                                                                                                            |
-| finish a related code-edit batch                          | Query real local preview status; automatically refresh only a live session, then collect evidence.                                                                                                                    |
+| finish a related code-edit batch                          | Query real local preview status; automatically refresh only a live session, then collect logs/check. For explicit one-shot validation, use `preview validate` with one mode: `validate`, `screenshot`, or `both`.     |
 | bare preview / run / check game result                    | Resolve local vs remote from explicit context; if ambiguous ask, never silently commit.                                                                                                                               |
 | generic code validation / tests / lint                    | Do not use Maker remote build without an explicit remote build request.                                                                                                                                               |
 | MCP unavailable / proxy timeout / unexpected server error | Diagnose first; offer one consent-gated GitHub issue report when the evidence suggests an MCP, proxy, client integration, or service defect.                                                                          |
@@ -137,7 +137,8 @@ remote test version; it never builds or uploads server code automatically.
    installation recovery and cache behavior are documented in `docs/MAKER_LOCAL_PREVIEW.md`.
 
 2. Run `taptap-maker preview start --target-dir <PROJECT> --json`. Report process launch only,
-   not game readiness. Never substitute validate/headless mode or remote build.
+   not game readiness. For explicit one-shot validation use the section below; never implicitly
+   stop a live preview or discard its in-memory state.
 3. After **each batch of related code/resource changes**, actually run preview status again.
    If `process_alive=true`, automatically run preview refresh and collect logs/check.
    This includes a failed-but-live Runtime after Lua fixes. Do not merely remind the user to refresh.
@@ -152,6 +153,28 @@ remote test version; it never builds or uploads server code automatically.
    the same `--target-dir`. Incremental logs use the returned `--session-id`, `--reload-id`,
    `--cursor` and optionally `--limit` (1–500). Reset cursor after a reload. Keep local evidence
    separate from `.maker/logs/runtime/`, which belongs to the remote watcher.
+
+### One-shot Validation (macOS)
+
+Use the project's installed `run-lua-validate` skill for explicit runtime/visual validation.
+If missing, update the project's dev kit through the current distribution; do not manually
+copy a global skill or switch to an unrelated/latest CLI. macOS is verified; Windows is not.
+
+1. Query `preview status --target-dir <PROJECT> --json`. A live or unknown preview blocks
+   validation. Ask before stopping it; never kill processes or delete locks to bypass ownership.
+2. Use the current distribution's CLI with exactly one mode:
+   `preview validate --target-dir <PROJECT> --mode both --json`.
+   `validate` produces an engine JSON report; `screenshot` produces a PNG; `both` produces both.
+   Missing Runtime requires the normal `preview install` flow. Explicit custom-Runtime tests
+   may supply `--runtime <ABSOLUTE_EXECUTABLE>`; do not silently replace the installed Runtime.
+3. Read the returned `report`, `log_path`, `invocation_path` and `artifacts`.
+   Keep the original verdict and investigate errors; missing files, unsupported Runtime,
+   cancellation and timeout are not PASS. Never use artifacts from a previous run.
+4. Open every screenshot with an image tool and check the actual game, not just loading or
+   a nonempty file. JSON PASS is a bounded runtime smoke test, not gameplay acceptance.
+5. When authorized, fix the game, rerun the same validation, then read the new logs and images.
+   Report before/after evidence and unresolved failures. Multiplayer/server projects are unsupported;
+   do not alter networking configuration or remotely build to bypass that restriction.
 
 ### Windows Node 与后台启动诊断
 
@@ -214,8 +237,9 @@ This console recovery does not start preview.
 Never kill by process name. Never use a stored PID without matching session identity. Stop with
 `preview stop` or `console stop`. Closing the browser or CLI does not stop an independent Runtime.
 
-Process launch and clean logs do not prove gameplay or visual correctness. Do not promise
-screenshots, input automation or cloud/server emulation; these are not supported.
+Process launch and clean logs do not prove gameplay or visual correctness. A one-shot validate
+command is required for JSON or PNG evidence; input automation and cloud/server emulation remain
+unsupported.
 
 Only an AI authorized to modify the game may fix it. Bound automatic fixes to two attempts and an
 agreed time budget, permit cancellation, refresh after each attempt, and return remaining failures

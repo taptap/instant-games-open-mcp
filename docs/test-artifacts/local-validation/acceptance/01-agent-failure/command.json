@@ -1,0 +1,20 @@
+{
+  "command": "/opt/homebrew/Cellar/node/25.9.0_2/bin/node",
+  "args": [
+    "/Users/liangdong/Documents/Mcp/taptap_minigame_open_mcp/bin/taptap-maker",
+    "preview",
+    "validate",
+    "--target-dir",
+    "/tmp/maker-local-validation-acceptance-20260926",
+    "--runtime",
+    "/Users/liangdong/Documents/Maker/urhox_dev/macos_agent_local_validate/bin/UrhoXRuntime.app/Contents/MacOS/UrhoXRuntime",
+    "--mode",
+    "both",
+    "--json"
+  ],
+  "cwd": "/Users/liangdong/Documents/Mcp/taptap_minigame_open_mcp",
+  "started": "2026-09-26T14:46:37.957Z",
+  "finished": "2026-09-26T14:46:45.303Z",
+  "exit_code": 1,
+  "signal": null
+}

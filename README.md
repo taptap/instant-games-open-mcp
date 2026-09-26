@@ -161,6 +161,12 @@ WorkBuddy 旧独立 MCP 的迁移使用 `--client workbuddy`，只把旧注册�
 
 ## 🛠️ TapTap Maker 本地开发（CLI-first）
 
+macOS 单机项目可使用 `preview validate --target-dir <项目绝对路径> --mode both --json`
+一次性产出引擎验证报告、运行日志和真实截图；须先结束常驻预览，并使用支持
+`-screenshot-after-start` 的 Runtime。项目 `run-lua-validate` Skill 随更新后的 ai-dev-kit
+安装，Windows 与多人/server 验证尚未验收；源码支持不代表当前线上包已发布。
+详见[本地验证说明](docs/MAKER_LOCAL_PREVIEW.md#一次性验证与-skill)。
+
 Maker 本地开发独立发布为 `@taptap/maker`。首次配置推荐直接运行：
 
 ```bash

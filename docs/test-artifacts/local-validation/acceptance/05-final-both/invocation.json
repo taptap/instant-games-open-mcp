@@ -1,0 +1,24 @@
+{
+  "executable": "/Users/liangdong/Documents/Maker/urhox_dev/macos_agent_local_validate/bin/UrhoXRuntime.app/Contents/MacOS/UrhoXRuntime",
+  "args": [
+    "-game_url=http://127.0.0.1:60602/56aa930be5a90037af46839caac968ba488647558082c69c3a4df25d8582feaa/",
+    "-game_path=/private/var/folders/sv/16tkrjmx2q38zqj2gxktcqmw0000gn/T/maker-validate-tZq2bT",
+    "-skip_login",
+    "-log",
+    "info",
+    "-w",
+    "-width=1080",
+    "-height=1920",
+    "-validate",
+    "-validate-frames=200",
+    "-validate-timeout=100",
+    "-validate-output=/Users/liangdong/.taptap-maker/preview/a6d0834cb4374b24855d95b749a6a33362426a52d4bbf0372cd2c35c97d44e88/sessions/1ba8a31d-547b-47b4-a41a-cb3373b4e5eb/0/validate.json",
+    "-screenshot=/Users/liangdong/.taptap-maker/preview/a6d0834cb4374b24855d95b749a6a33362426a52d4bbf0372cd2c35c97d44e88/sessions/1ba8a31d-547b-47b4-a41a-cb3373b4e5eb/0/a6a14f5b-c90d-4dcd-9e3d-c3d8d89b28fe.png",
+    "-screenshot-frame=120",
+    "-screenshot-after-start"
+  ],
+  "cwd": "/Users/liangdong/.taptap-maker/preview/a6d0834cb4374b24855d95b749a6a33362426a52d4bbf0372cd2c35c97d44e88/sessions/1ba8a31d-547b-47b4-a41a-cb3373b4e5eb/0/source",
+  "mode": "both",
+  "started_at": "2026-09-26T15:07:26.650Z",
+  "runtime_pid": 96935
+}

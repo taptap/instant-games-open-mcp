@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"01a0de41-591f-7cf1-9153-b4d20c221e3b"}
+{"type":"turn.started"}
+{"type":"error","message":"You hit your spend cap set by the owner of your workspace. Ask an owner to increase your spend cap to continue."}
+{"type":"turn.failed","error":{"message":"You hit your spend cap set by the owner of your workspace. Ask an owner to increase your spend cap to continue."}}

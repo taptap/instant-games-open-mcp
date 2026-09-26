@@ -382,6 +382,12 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- 一次性验证使用 `preview validate --mode validate|screenshot|both`，与常驻预览共享项目锁；
+  不自动停止窗口、不远端构建、不修改项目原目录。报告必须明确 PASS 且检查错误/资源字段，
+  PNG 校验格式并由 Agent 看图；截图要求 Runtime 确认 `-screenshot-after-start`，不支持时明确
+  返回 UNSUPPORTED，不能用加载页或旧产物代替。日志、调用参数和失败报告随会话保留。
+  macOS 的 `run-lua-validate` 分发修正在 UrhoX ai-dev-kit，Windows 仍未实机验收。
+
 - 预览创建 Runtime 前必须持久化 runtime_launch_pending，取得 PID 后立即登记。
   已发布端点的 starting 会话只有在 supervisor 确认不存在且 Runtime 创建结果明确时才能恢复；
   缺少阶段标记的旧记录、创建结果未知和权限未知均不得凭零 PID 自动回收。

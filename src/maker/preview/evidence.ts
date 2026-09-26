@@ -43,7 +43,14 @@ export function trimPreviewEvidence(
         if (
           file.isFile() &&
           (/^[0-9a-f-]{36}\.png$/.test(file.name) ||
-            ['runtime.log', 'runtime.log.1', 'prepare.log', 'result.json'].includes(file.name))
+            [
+              'runtime.log',
+              'runtime.log.1',
+              'prepare.log',
+              'validate.json',
+              'result.json',
+              'invocation.json',
+            ].includes(file.name))
         ) {
           fs.unlinkSync(path.join(roundDir, file.name));
         }

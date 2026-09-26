@@ -24,6 +24,7 @@ import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { readStoredPreviewLogs } from '../preview/evidence.js';
 import { preparePreviewProject, previewPreparationDirectory } from '../preview/prepare.js';
 import { launchPreviewSupervisorProcess } from '../preview/processLauncher.js';
+import { runPreviewValidation, type PreviewValidationMode } from '../preview/validation.js';
 
 const ACTIONS = [
   'install',
@@ -34,6 +35,7 @@ const ACTIONS = [
   'stop',
   'logs',
   'screenshot',
+  'validate',
   'check',
 ];
 
@@ -67,7 +69,7 @@ export async function runPreviewCli(
   try {
     if (!action || !ACTIONS.includes(action))
       throw new Error(
-        'Use preview install|prepare|start|status|refresh|stop|logs|screenshot|check.'
+        'Use preview install|prepare|start|status|refresh|stop|logs|screenshot|validate|check.'
       );
     if (options.script)
       throw new Error(
@@ -81,7 +83,30 @@ export async function runPreviewCli(
         preparePreviewProject(project, previewPreparationDirectory(project), controller.signal)
       );
     else if (action === 'status') result = await previewStatus(project);
-    else if (action === 'install') {
+    else if (action === 'validate') {
+      const status = await previewStatus(project);
+      if (status.process_alive !== false)
+        throw new Error('Stop the active local preview before running one-shot validation.');
+      const installation = previewInstallation(project);
+      const externalRuntime = typeof options.runtime === 'string';
+      const configured =
+        typeof options.runtime === 'string' ? options.runtime : installation.executable;
+      if (!configured)
+        throw new Error('Runtime is missing. Run taptap-maker preview install before validation.');
+      if (!path.isAbsolute(configured))
+        throw new Error('--runtime must be an absolute executable path.');
+      const executable = fs.realpathSync(configured);
+      if (!externalRuntime) ensurePreviewRuntimeResources(executable);
+      const rawMode = typeof options.mode === 'string' ? options.mode : 'validate';
+      if (rawMode !== 'validate' && rawMode !== 'screenshot' && rawMode !== 'both')
+        throw new Error('--mode must be validate, screenshot, or both.');
+      result = await runPreviewValidation(
+        executable,
+        project,
+        rawMode as PreviewValidationMode,
+        controller.signal
+      );
+    } else if (action === 'install') {
       result = await withPreviewLock(project, () =>
         withRuntimeInstallLock(async () => {
           const state = await previewStatus(project);

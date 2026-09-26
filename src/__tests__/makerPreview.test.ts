@@ -10,7 +10,10 @@ import {
 } from '../maker/preview/protocol.js';
 import { probeRuntime, preflightPreview, previewWindow } from '../maker/preview/runtime.js';
 import { PreviewSession, previewStatus } from '../maker/preview/session.js';
+import * as previewSessionModule from '../maker/preview/session.js';
+import { runPreviewValidation } from '../maker/preview/validation.js';
 import { PreviewLogs } from '../maker/preview/evidence.js';
+import { withPreviewLock } from '../maker/preview/installation.js';
 import {
   readPreviewWindowSettings,
   savePreviewWindowSettings,
@@ -271,6 +274,147 @@ fixtureTest(
     expect(await session.handle('check')).toMatchObject({ result: 'UNDETERMINED', ready: false });
   }
 );
+
+fixtureTest('one-shot validation returns only real report and screenshot artifacts', async () => {
+  const result = await runPreviewValidation(executable, project, 'both');
+  expect(result).toMatchObject({ ok: true, result: 'PASS', mode: 'both' });
+  expect(result.artifacts).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ kind: 'validate-report', bytes: expect.any(Number) }),
+      expect.objectContaining({ kind: 'screenshot', bytes: expect.any(Number) }),
+    ])
+  );
+  for (const item of result.artifacts as { path: string }[])
+    expect(fs.statSync(item.path).size).toBeGreaterThan(0);
+});
+
+fixtureTest('one-shot screenshot succeeds without a validation report', async () => {
+  const result = await runPreviewValidation(executable, project, 'screenshot');
+  expect(result).toMatchObject({ ok: true, result: 'PASS', mode: 'screenshot' });
+  expect(result.artifacts).toEqual([
+    expect.objectContaining({ kind: 'screenshot', bytes: expect.any(Number) }),
+  ]);
+});
+
+fixtureTest('one-shot validation fails when the Runtime reports a Lua error', async () => {
+  fs.writeFileSync(path.join(project, '.project', 'fixture.json'), JSON.stringify({ error: true }));
+  const result = await runPreviewValidation(executable, project, 'validate');
+  expect(result).toMatchObject({ ok: false, result: 'FAIL', mode: 'validate' });
+  expect(JSON.stringify(result.report)).toContain('FAIL');
+});
+
+fixtureTest.each([
+  {},
+  { result: 'PASS' },
+  { result: 'PASS', frames_completed: 0, summary: { total_errors: 0 } },
+  {
+    version: 2,
+    result: 'PASS',
+    frames_completed: 60,
+    summary: { lua_errors: 1, resource_errors: 0, engine_errors: 0, total_errors: 1 },
+    missing_resources: [],
+  },
+])('one-shot validation rejects incomplete or contradictory reports %j', async (report) => {
+  fs.writeFileSync(path.join(project, '.project', 'fixture.json'), JSON.stringify({ report }));
+  expect(await runPreviewValidation(executable, project, 'validate')).toMatchObject({
+    ok: false,
+    result: 'FAIL',
+  });
+});
+
+fixtureTest('one-shot validation rejects a non-PNG screenshot', async () => {
+  fs.writeFileSync(path.join(project, '.project', 'fixture.json'), '{"invalidPng":true}');
+  expect(await runPreviewValidation(executable, project, 'screenshot')).toMatchObject({
+    ok: false,
+    result: 'FAIL',
+  });
+});
+
+fixtureTest('an old Runtime must not silently pass screenshot readiness', async () => {
+  fs.writeFileSync(path.join(project, '.project', 'fixture.json'), '{"legacyScreenshot":true}');
+  const result = await runPreviewValidation(executable, project, 'both');
+  expect(result).toMatchObject({
+    ok: false,
+    result: 'UNSUPPORTED',
+    error: expect.stringContaining('screenshot-after-start'),
+    upgrade_required: true,
+    required_capabilities: ['screenshot-after-start'],
+    runtime_capabilities: { 'screenshot-after-start': false },
+  });
+  expect(result.artifacts).toEqual(
+    expect.arrayContaining([expect.objectContaining({ kind: 'validate-report' })])
+  );
+  expect(result.report).toMatchObject({ result: 'PASS' });
+});
+
+fixtureTest(
+  'missing screenshot preserves the report and diagnostics instead of dropping evidence',
+  async () => {
+    fs.writeFileSync(path.join(project, '.project', 'fixture.json'), '{"missingScreenshot":true}');
+    const result = await runPreviewValidation(executable, project, 'both');
+    expect(result).toMatchObject({ ok: false, result: 'FAIL' });
+    expect(result.artifacts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: 'validate-report' })])
+    );
+    expect(fs.existsSync(String(result.log_path))).toBe(true);
+  }
+);
+
+fixtureTest('one-shot validation shares the existing preview operation lock', async () => {
+  await withPreviewLock(project, async () => {
+    await expect(runPreviewValidation(executable, project, 'validate')).rejects.toThrow(
+      /preview operation|ownership/
+    );
+  });
+});
+
+fixtureTest.each(['starting', 'reloading', 'stopping', 'unknown'])(
+  'one-shot validation refuses transitional %s even between Runtime processes',
+  async (state) => {
+    const status = jest.spyOn(previewSessionModule, 'previewStatus').mockResolvedValue({
+      state,
+      process_alive: false,
+    });
+    try {
+      await expect(runPreviewValidation(executable, project, 'validate')).rejects.toThrow(
+        /active local preview/
+      );
+    } finally {
+      status.mockRestore();
+    }
+  }
+);
+
+fixtureTest('one-shot validation rejects server projects without starting Runtime', async () => {
+  fs.writeFileSync(path.join(project, 'scripts', 'server.lua'), '-- server fixture');
+  const result = await runPreviewValidation(executable, project, 'both');
+  expect(result).toMatchObject({ ok: false, result: 'UNSUPPORTED' });
+  expect(result.artifacts).toEqual([]);
+});
+
+fixtureTest.each([{ missingReport: true }, { invalidJson: true }])(
+  'one-shot validation fails closed without a usable report %j',
+  async (options) => {
+    fs.writeFileSync(path.join(project, '.project', 'fixture.json'), JSON.stringify(options));
+    expect(await runPreviewValidation(executable, project, 'validate')).toMatchObject({
+      ok: false,
+      result: 'FAIL',
+    });
+  }
+);
+
+fixtureTest('one-shot validation cancels and releases the project lock', async () => {
+  fs.writeFileSync(path.join(project, '.project', 'fixture.json'), '{"waitForAbort":true}');
+  const controller = new AbortController();
+  const pending = runPreviewValidation(executable, project, 'both', controller.signal);
+  const timer = setTimeout(() => controller.abort(), 500);
+  try {
+    expect(await pending).toMatchObject({ ok: false, result: 'CANCELLED' });
+  } finally {
+    clearTimeout(timer);
+  }
+  await expect(withPreviewLock(project, async () => true)).resolves.toBe(true);
+});
 
 fixtureTest(
   'early exit fails startup and resource errors remain visible without blocking the process',

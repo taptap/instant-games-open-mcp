@@ -117,7 +117,7 @@ function printHelp(): void {
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker user-skills pull [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
-      '  taptap-maker preview install|prepare|start|status|refresh|stop|logs|screenshot|check',
+      '  taptap-maker preview install|prepare|start|status|refresh|stop|logs|screenshot|validate|check',
       '                       --target-dir PROJECT_ABSOLUTE_PATH [--json]',
       '                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]',
       '                       [--cursor N --session-id ID --reload-id N] [--limit 1..500]',

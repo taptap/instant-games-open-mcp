@@ -3230,7 +3230,7 @@ function printHelp(): void {
       '  taptap-maker console status|stop [--json]',
       '  taptap-maker build --target-dir PROJECT_ABSOLUTE_PATH [--json]',
       '  taptap-maker qrcode --target-dir PROJECT_ABSOLUTE_PATH [--confirmed-screen-orientation landscape|portrait] [--json]',
-      '  taptap-maker preview install|prepare|start|status|refresh|stop|logs|screenshot|check',
+      '  taptap-maker preview install|prepare|start|status|refresh|stop|logs|screenshot|validate|check',
       '                       --target-dir PROJECT_ABSOLUTE_PATH [--json]',
       '                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]',
       '                       [--cursor N --session-id ID --reload-id N] [--limit 1..500]',

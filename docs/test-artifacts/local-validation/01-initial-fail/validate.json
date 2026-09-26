@@ -1,0 +1,95 @@
+{
+    "version": 2,
+    "script": "main.lua",
+    "result": "FAIL",
+    "duration_ms": 1182,
+    "frames_completed": 60,
+    "phases": {
+        "load": {
+            "result": "FAIL",
+            "errors": [
+                {
+                    "category": "resource",
+                    "message": "[2026-09-26 16_32_24_924][3] ERROR: Could not find resource Fonts/MiSans-Regular.ttf",
+                    "frame": 0
+                }
+            ]
+        },
+        "init": {
+            "result": "FAIL",
+            "errors": [
+                {
+                    "category": "engine",
+                    "message": "[2026-09-26 16_32_24_933][3] ERROR: nvgCreateFontUrho: Failed to load font: Fonts/MiSans-Regular.ttf",
+                    "frame": 0
+                }
+            ]
+        },
+        "run": {
+            "result": "PASS",
+            "errors": []
+        },
+        "scene": {
+            "result": "PASS",
+            "errors": [],
+            "node_count": 0,
+            "component_count": 0,
+            "scene_exists": false
+        }
+    },
+    "state_snapshots": [
+        {
+            "frame": 1,
+            "phase": "init",
+            "nodes": 0,
+            "components": 0,
+            "hash": 0,
+            "frame_time_ms": 21.628000259399415
+        },
+        {
+            "frame": 10,
+            "phase": "run",
+            "nodes": 0,
+            "components": 0,
+            "hash": 0,
+            "frame_time_ms": 20.115999221801759
+        },
+        {
+            "frame": 30,
+            "phase": "run",
+            "nodes": 0,
+            "components": 0,
+            "hash": 0,
+            "frame_time_ms": 20.118999481201173
+        },
+        {
+            "frame": 60,
+            "phase": "run",
+            "nodes": 0,
+            "components": 0,
+            "hash": 0,
+            "frame_time_ms": 18.641000747680665
+        }
+    ],
+    "scene_stalled": true,
+    "max_frame_time_ms": 20.253999710083009,
+    "update_defined": false,
+    "component_census": {},
+    "test_result": "NOT_RUN",
+    "test_assertions": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0
+    },
+    "test_issues": [],
+    "missing_resources": [
+        "Fonts/MiSans-Regular.ttf"
+    ],
+    "missing_engine_resources": [],
+    "summary": {
+        "lua_errors": 0,
+        "resource_errors": 1,
+        "engine_errors": 1,
+        "total_errors": 2
+    }
+}

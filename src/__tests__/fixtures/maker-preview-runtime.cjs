@@ -42,7 +42,53 @@ async function main() {
     options = JSON.parse(fs.readFileSync(path.join(project, '.project', 'fixture.json'), 'utf8'));
   }
   if (options.exitEarly) process.exit(2);
+  if (options.waitForAbort) {
+    console.log('WAITING_FOR_ABORT');
+    setInterval(() => {}, 1000);
+    return;
+  }
   if (options.error) console.error('ERROR: fixture Lua failure');
+  const validateOutput = args
+    .find((value) => value.startsWith('-validate-output='))
+    ?.slice('-validate-output='.length);
+  const screenshotOutput = args
+    .find((value) => value.startsWith('-screenshot='))
+    ?.slice('-screenshot='.length);
+  if (validateOutput) {
+    if (!options.missingReport)
+      fs.writeFileSync(
+        validateOutput,
+        options.invalidJson
+          ? '{'
+          : JSON.stringify(
+              options.report ?? {
+                version: 2,
+                result: options.error ? 'FAIL' : 'PASS',
+                frames_completed: 60,
+                summary: {
+                  lua_errors: options.error ? 1 : 0,
+                  resource_errors: 0,
+                  engine_errors: 0,
+                  total_errors: options.error ? 1 : 0,
+                },
+                missing_resources: [],
+              }
+            )
+      );
+  }
+  if (screenshotOutput && !options.missingScreenshot)
+    fs.writeFileSync(
+      screenshotOutput,
+      options.invalidPng
+        ? 'not-a-png'
+        : Buffer.from(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+            'base64'
+          )
+    );
+  if (screenshotOutput && !options.legacyScreenshot)
+    console.log('[Screenshot] after-start enabled');
+  if (validateOutput || screenshotOutput) process.exit(options.error ? 1 : 0);
   setInterval(() => {}, 1000);
 }
 main().catch((error) => {

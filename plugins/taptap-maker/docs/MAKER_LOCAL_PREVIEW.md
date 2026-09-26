@@ -29,6 +29,9 @@ taptap-maker preview status --target-dir <PROJECT> --json
 taptap-maker preview start --target-dir <PROJECT> --json
 taptap-maker preview refresh --target-dir <PROJECT> --json
 taptap-maker preview logs --target-dir <PROJECT> --json
+taptap-maker preview validate --target-dir <PROJECT> --mode validate --json
+taptap-maker preview validate --target-dir <PROJECT> --mode screenshot --json
+taptap-maker preview validate --target-dir <PROJECT> --mode both --json
 taptap-maker preview check --target-dir <PROJECT> --json
 taptap-maker preview stop --target-dir <PROJECT> --json
 ```
@@ -46,7 +49,39 @@ taptap-maker preview stop --target-dir <PROJECT> --json
 刷新会先关闭旧窗口，重新读取原项目并启动，丢失内存状态；新项目 prepare 失败不启动
 Runtime，也不运行旧 dist。
 停止或手动关闭后不自动复活。`process_alive=true` 只证明进程存活，`check` 不代表玩法通过。
-截图、输入脚本、Server/云模拟和游戏存档隔离尚不支持，停止也不保证保存游戏。
+常驻窗口截图、输入脚本、Server/云模拟和游戏存档隔离尚不支持，停止也不保证保存游戏。
+`preview validate` 是一次性验证流程，不复用常驻窗口：`validate` 运行引擎的 JSON 验证模式，
+`screenshot` 运行引擎的真实渲染截图模式，`both` 同时生成两类证据。验证前必须停止常驻预览，
+并且多人及 server 项目不支持 `run-lua-validate`。
+只有实际生成的 `validate.json` 和通过格式检查的 PNG 才会作为验证证据返回；进程退出码、日志或
+“captured” 文本本身不能替代文件检查。
+
+### 一次性验证与 Skill
+
+本轮已在 macOS 验证；Windows 保留安装过滤，不能沿用 macOS 的验收结论。
+`run-lua-validate` 由 UrhoX ai-dev-kit 分发，在更新后的 macOS 过滤配置中开放；
+已有项目必须通过当前渠道执行 `dev-kit update`，仅重跑旧安装脚本无法恢复已经被过滤删除的源文件。
+Maker 安装器继续同步 `.agents/skills` 等发现目录，当前会话是否需要重新加载由宿主决定。
+不从源码仓手工修改用户的全局 Skill，不用另一份 npm/插件替代当前渠道。
+
+`validate` 使用引擎 headless 检查；`screenshot` / `both` 使用真实桌面渲染。
+截图要求 Runtime 支持 `-screenshot-after-start`，从游戏脚本及 `Start()` 成功后计帧，
+避免 manifest 下载期间提前截到加载页；旧 Runtime 未确认该能力时返回 `UNSUPPORTED`，
+通过当前渠道更新 Runtime，不能把旧加载页当作验证通过。普通 `preview start/refresh` 不使用此参数。
+Web/直接 Runtime 默认的绝对帧截图语义不变，不修改 validate JSON 协议。
+
+所有一次性验证持有项目操作锁，与 start/prepare/install 和另一轮验证互斥；不自动停止现有窗口。
+失败、Ctrl-C 或超时先终止并等待本轮 Runtime 退出，再关闭资源服务、清理临时下载缓存。
+使用受管理副本的源文件与准备日志跟随本轮证据保留，不改写游戏原目录。
+
+结果返回 `report`、`artifacts`、`log_path`、`invocation_path`、`evidence_directory`、
+起止时间与退出码。`invocation.json` 记录实际参数与工作目录，`runtime.log` 为有界、脱敏的
+stdout/stderr JSON 行；原始 Runtime 另有安装目录中的 `logs/game` 与 `logs/lua`。
+`prepare-log` 为构建副本日志，`validate-report` 为原始引擎报告，`screenshot` 含像素尺寸。
+报告缺失、缺少成功字段、错误计数不为零、缺资源、断言失败、截图格式错误均不能通过；
+截图失败也保留已生成的验证报告。引擎 FAIL 不通过批量过滤“噪音”改写为 PASS。
+Agent 必须打开本轮图片检查画面，按错误修复游戏并复测；有限帧报告及单张截图不证明
+完整交互、胜负逻辑或游戏内自行延迟加载的资源正确。
 
 ## 联网项目
 

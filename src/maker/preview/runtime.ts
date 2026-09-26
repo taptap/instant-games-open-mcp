@@ -12,6 +12,7 @@ import { startPreviewAssetServer, type PreviewAssetServer } from './assets.js';
 import { previewWindow, type PreviewWindow } from './windowSettings.js';
 import { preparePreviewServer, previewNetworkArgs } from './network.js';
 export { previewWindow } from './windowSettings.js';
+export { requireManifestPreviewPlatform } from './prepare.js';
 
 export const PREVIEW_TIMEOUT_MS = 30000;
 const RUNTIME_STARTUP_SETTLE_MS = 3000;
@@ -152,7 +153,6 @@ export class PreviewRuntime {
           ...runtimeArgs,
           '-skip_login',
           ...(server ? previewNetworkArgs(server) : []),
-          '-p=Res',
           '-w',
           '-width=' + window.width,
           '-height=' + window.height,
