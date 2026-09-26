@@ -93,6 +93,26 @@ describe('sequence workflow recovery', () => {
     };
   }
 
+  test('frame edit undo and redo remain isolated in the draft', async () => {
+    const { controller, node } = editorFixture();
+    const before = JSON.stringify(node);
+    await controller.action(node.id, 'reset');
+    await controller.action(node.id, 'extract');
+    const original = controller.view(node.id).run!.frames[0].blob;
+    const edited = new Blob(['edited']);
+    controller.replaceFrames(node.id, [{ time: 0, blob: edited }]);
+    expect(controller.view(node.id).run!.frames[0].blob).toBe(edited);
+    controller.undoFrames(node.id);
+    expect(controller.view(node.id).run!.frames[0].blob).toBe(original);
+    controller.undoFrames(node.id, true);
+    expect(controller.view(node.id).run!.frames[0].blob).toBe(edited);
+    controller.replaceFrames(node.id, []);
+    expect(controller.view(node.id).run!.frames).toHaveLength(1);
+    expect(JSON.stringify(node)).toBe(before);
+    controller.discardEdit(node.id);
+    expect(JSON.stringify(node)).toBe(before);
+  });
+
   test('re-edit settings and discarded frames never replace the saved result', async () => {
     const { controller, node, document } = editorFixture();
     const before = JSON.stringify(document);

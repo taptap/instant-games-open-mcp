@@ -32,7 +32,7 @@ export function renderGenerationResult(
   label.className = 'generation-result-label';
   const source = nodes.find((item) => item.id === node.generation!.sourceImageId);
   label.textContent =
-    node.type === 'image' ? '生图结果' : '图生视频 · 首帧：' + (source?.title || '来源卡已删除');
+    node.type === 'image' ? '生图结果' : '图生视频 · 来源图：' + (source?.title || '来源卡已删除');
   const details = document.createElement('details');
   details.className = 'generation-result-details';
   const summary = document.createElement('summary');

@@ -33,6 +33,7 @@ export interface SequenceRunView {
   candidates: Array<{ index: number; similarity: number }>;
   removed: number[];
   error?: string;
+  boundaryFrames?: number[];
 }
 
 export interface SequenceCardSource {
@@ -571,6 +572,69 @@ export async function removeConnectedBackgroundPixels(
   return write;
 }
 
+export async function removeChromaBackgroundPixels(
+  data: Uint8ClampedArray,
+  color: readonly [number, number, number],
+  tolerance: number,
+  signal: AbortSignal,
+  yieldControl: () => Promise<void>
+): Promise<void> {
+  if (data.length % 4 !== 0) throw new Error('帧像素尺寸无效。');
+  const high = [0, 1, 2].filter((channel) => color[channel] >= 128);
+  const low = [0, 1, 2].filter((channel) => color[channel] < 128);
+  const keyDifference =
+    high.length && low.length
+      ? Math.min(...high.map((channel) => color[channel])) -
+        Math.max(...low.map((channel) => color[channel]))
+      : 0;
+  const limit = Math.max(0, Math.min(255, tolerance));
+  for (let offset = 0; offset < data.length; offset += 4) {
+    if (offset % 131072 === 0) {
+      if (signal.aborted) throw new DOMException('处理已取消。', 'AbortError');
+      await yieldControl();
+    }
+    if (!data[offset + 3]) continue;
+    const distance = Math.max(
+      ...[0, 1, 2].map((channel) => Math.abs(data[offset + channel] - color[channel]))
+    );
+    if (distance <= limit) {
+      data.fill(0, offset, offset + 4);
+      continue;
+    }
+    if (keyDifference < 32) continue;
+    const difference =
+      Math.min(...high.map((channel) => data[offset + channel])) -
+      Math.max(...low.map((channel) => data[offset + channel]));
+    const spill = Math.max(0, Math.min(1, difference / keyDifference));
+    const alpha = 1 - spill;
+    if (alpha <= 0.01) {
+      data.fill(0, offset, offset + 4);
+      continue;
+    }
+    for (let channel = 0; channel < 3; channel++) {
+      data[offset + channel] = Math.max(
+        0,
+        Math.min(255, (data[offset + channel] - color[channel] * spill) / alpha)
+      );
+    }
+    data[offset + 3] = Math.round(data[offset + 3] * alpha);
+  }
+}
+
+export function hasOpaqueBoundary(data: Uint8ClampedArray, width: number, height: number): boolean {
+  if (data.length !== width * height * 4 || width < 1 || height < 1) return false;
+  let count = 0;
+  for (let column = 0; column < width; column++) {
+    if (data[column * 4 + 3] > 80) count++;
+    if (data[((height - 1) * width + column) * 4 + 3] > 80) count++;
+  }
+  for (let row = 1; row < height - 1; row++) {
+    if (data[row * width * 4 + 3] > 80) count++;
+    if (data[(row * width + width - 1) * 4 + 3] > 80) count++;
+  }
+  return count >= 3;
+}
+
 export function createSequenceProcessor(options: SequenceProcessorOptions) {
   function delayFrame(): Promise<void> {
     return new Promise((resolve) => window.setTimeout(resolve, 0));
@@ -578,7 +642,7 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
 
   async function seek(video: HTMLVideoElement, time: number, signal: AbortSignal): Promise<void> {
     if (signal.aborted) throw new DOMException('处理已取消。', 'AbortError');
-    const target = Math.min(video.duration, Math.max(0, time));
+    const target = Math.min(video.duration, Math.max(0.001, time));
     if (!video.seeking && video.readyState >= 2 && Math.abs(video.currentTime - target) < 0.001)
       return;
     await new Promise<void>((resolve, reject) => {
@@ -665,7 +729,8 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
     colorHex: string,
     tolerance: number,
     signal: AbortSignal,
-    onProgress: (current: number, total: number) => void
+    onProgress: (current: number, total: number) => void,
+    mode: 'connected' | 'chroma' = 'connected'
   ): Promise<SequenceFrame[]> {
     const color = parseColor(colorHex);
     const output: SequenceFrame[] = [];
@@ -680,15 +745,18 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
         if (!context) throw new Error('无法处理帧图像。');
         context.drawImage(source, 0, 0);
         const image = context.getImageData(0, 0, canvas.width, canvas.height);
-        await removeConnectedBackgroundPixels(
-          image.data,
-          canvas.width,
-          canvas.height,
-          color,
-          tolerance,
-          signal,
-          delayFrame
-        );
+        if (mode === 'chroma')
+          await removeChromaBackgroundPixels(image.data, color, tolerance, signal, delayFrame);
+        else
+          await removeConnectedBackgroundPixels(
+            image.data,
+            canvas.width,
+            canvas.height,
+            color,
+            tolerance,
+            signal,
+            delayFrame
+          );
         context.putImageData(image, 0, 0);
         const blob = await new Promise<Blob>((resolve, reject) => {
           canvas.toBlob(
@@ -868,5 +936,32 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
     frames.length = 0;
   }
 
-  return { extract, cutout, findDuplicates, resize, packAtlas, dispose };
+  async function boundaryFrames(frames: SequenceFrame[], signal: AbortSignal): Promise<number[]> {
+    const indices: number[] = [];
+    for (let index = 0; index < frames.length; index++) {
+      if (signal.aborted) throw new DOMException('处理已取消。', 'AbortError');
+      const bitmap = await createImageBitmap(frames[index].blob);
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const context = canvas.getContext('2d')!;
+        context.drawImage(bitmap, 0, 0);
+        if (
+          hasOpaqueBoundary(
+            context.getImageData(0, 0, canvas.width, canvas.height).data,
+            canvas.width,
+            canvas.height
+          )
+        )
+          indices.push(index);
+      } finally {
+        bitmap.close();
+      }
+      await delayFrame();
+    }
+    return indices;
+  }
+
+  return { extract, cutout, findDuplicates, resize, packAtlas, dispose, boundaryFrames };
 }

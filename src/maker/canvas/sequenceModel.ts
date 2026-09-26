@@ -4,12 +4,15 @@ export const MAX_SEQUENCE_SOURCE_SIDE = 1024;
 export const MAX_SEQUENCE_PIXEL_BUDGET = 48_000_000;
 export const MAX_ATLAS_SIDE = 4096;
 export const DEFAULT_SEQUENCE_SIDE = 512;
+export const DEFAULT_SEQUENCE_FPS = 4;
+export const DEFAULT_SEQUENCE_DURATION = 3;
 
 export interface SequenceSettings {
   start: number;
   end: number;
   fps: number;
   cutout: boolean;
+  cutoutMode?: 'connected' | 'chroma';
   backgroundColor: string;
   tolerance: number;
   duplicateThreshold: number;
@@ -48,9 +51,10 @@ export function defaultSequenceSettings(duration = 0, width = 512, height = 512)
   const scale = Math.min(1, DEFAULT_SEQUENCE_SIDE / Math.max(1, width, height));
   return {
     start: 0,
-    end: Math.max(0, duration),
-    fps: 8,
-    cutout: false,
+    end: duration > 0 ? Math.min(duration, DEFAULT_SEQUENCE_DURATION) : DEFAULT_SEQUENCE_DURATION,
+    fps: DEFAULT_SEQUENCE_FPS,
+    cutout: true,
+    cutoutMode: 'chroma',
     backgroundColor: '#00ff00',
     tolerance: 48,
     duplicateThreshold: 0.985,

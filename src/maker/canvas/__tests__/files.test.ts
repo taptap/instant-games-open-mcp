@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { MakerCanvasFiles } from '../files.js';
 import { CanvasStoreError, createId, emptyDocument } from '../model.js';
+import type { SequenceSettings } from '../sequenceModel.js';
 
 function project(name: string): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), name));
@@ -173,6 +174,75 @@ describe('Maker canvas files', () => {
     expect(
       execFileSync('git', ['check-ignore', '-q', '--', imported.relativePath], { cwd: root })
     ).toBeDefined();
+  });
+
+  test('preserves explicit chroma mode and keeps legacy mode absent', async () => {
+    const root = project('maker-canvas-mode-');
+    gitignore(root);
+    const files = new MakerCanvasFiles(root);
+    let canvas = await files.create();
+    const bytes = Buffer.alloc(16);
+    bytes.write('ftyp', 4, 'ascii');
+    bytes.write('isom', 8, 'ascii');
+    const media = await files.importVideo(canvas.id, bytes, 'video/mp4');
+    const videoId = createId();
+    const sequenceId = createId();
+    const settings: SequenceSettings = {
+      start: 0,
+      end: 3,
+      fps: 4,
+      cutout: true,
+      backgroundColor: '#ff00ff',
+      tolerance: 24,
+      duplicateThreshold: 0.985,
+      width: 256,
+      height: 256,
+      fit: 'contain',
+      pixel: false,
+    };
+    canvas.nodes = [
+      {
+        id: videoId,
+        type: 'video-source',
+        title: 'video',
+        x: 0,
+        y: 0,
+        width: 200,
+        height: 200,
+        assetPath: media.relativePath,
+      },
+      {
+        id: sequenceId,
+        type: 'sequence',
+        title: 'sequence',
+        x: 300,
+        y: 0,
+        width: 480,
+        height: 300,
+        sourceVideoId: videoId,
+        sequenceSettings: settings,
+      },
+    ];
+    canvas.edges = [{ id: createId(), from: videoId, to: sequenceId, kind: 'sequence-source' }];
+    canvas = await files.save(canvas.id, canvas, canvas.revision);
+    expect(canvas.nodes[1].sequenceSettings?.cutoutMode).toBeUndefined();
+    canvas.nodes[1].sequenceSettings!.cutoutMode = 'chroma';
+    canvas = await files.save(canvas.id, canvas, canvas.revision);
+    expect((await files.load(canvas.id)).nodes[1].sequenceSettings?.cutoutMode).toBe('chroma');
+    await expect(
+      files.save(
+        canvas.id,
+        {
+          ...canvas,
+          nodes: canvas.nodes.map((node) =>
+            node.type === 'sequence'
+              ? { ...node, sequenceSettings: { ...node.sequenceSettings, cutoutMode: 'invalid' } }
+              : node
+          ),
+        },
+        canvas.revision
+      )
+    ).rejects.toMatchObject({ code: 'INVALID_DOCUMENT' });
   });
 
   test('saves each canvas independently and conflicts without overwriting', async () => {

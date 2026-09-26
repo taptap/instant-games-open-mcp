@@ -1,4 +1,7 @@
 import {
+  defaultSequenceSettings,
+  removeChromaBackgroundPixels,
+  hasOpaqueBoundary,
   duplicateIndicesFromSignatures,
   estimateSequenceFrameCount,
   maxSequenceFrameCount,
@@ -9,6 +12,52 @@ import {
 } from '../sequence.js';
 
 describe('sequence processing', () => {
+  test('chroma removes magenta and its translucent spill without deleting neutral foreground', async () => {
+    const pixels = new Uint8ClampedArray([
+      255, 0, 255, 255, 255, 128, 255, 255, 128, 128, 128, 255, 0, 0, 255, 255,
+    ]);
+    await removeChromaBackgroundPixels(
+      pixels,
+      [255, 0, 255],
+      24,
+      new AbortController().signal,
+      async () => {}
+    );
+    expect(Array.from(pixels.slice(0, 4))).toEqual([0, 0, 0, 0]);
+    expect(Array.from(pixels.slice(4, 8))).toEqual([255, 255, 255, 128]);
+    expect(Array.from(pixels.slice(8))).toEqual([128, 128, 128, 255, 0, 0, 255, 255]);
+  });
+
+  test('chroma preserves existing alpha and responds to cancellation', async () => {
+    const pixels = new Uint8ClampedArray([255, 128, 255, 128]);
+    await removeChromaBackgroundPixels(
+      pixels,
+      [255, 0, 255],
+      24,
+      new AbortController().signal,
+      async () => {}
+    );
+    expect(pixels[3]).toBe(64);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      removeChromaBackgroundPixels(pixels, [255, 0, 255], 24, controller.signal, async () => {})
+    ).rejects.toThrow('取消');
+  });
+
+  test('boundary warning distinguishes padded content from edge contact', () => {
+    const pixels = new Uint8ClampedArray(5 * 5 * 4);
+    pixels[(2 * 5 + 2) * 4 + 3] = 255;
+    expect(hasOpaqueBoundary(pixels, 5, 5)).toBe(false);
+    for (let column = 0; column < 3; column++) pixels[column * 4 + 3] = 255;
+    expect(hasOpaqueBoundary(pixels, 5, 5)).toBe(true);
+  });
+  test('defaults to three seconds at four FPS with cleanup enabled', () => {
+    const settings = defaultSequenceSettings(10);
+    expect(settings).toMatchObject({ start: 0, end: 3, fps: 4, cutout: true });
+    expect(estimateSequenceFrameCount(settings.start, settings.end, settings.fps)).toBe(12);
+    expect(defaultSequenceSettings(1).end).toBe(1);
+  });
   test('estimates sampled frames and rejects excessive work before decoding', () => {
     expect(estimateSequenceFrameCount(0, 1, 8)).toBe(8);
     expect(() => estimateSequenceFrameCount(0, 100, 30)).toThrow(String(MAX_SEQUENCE_FRAMES));

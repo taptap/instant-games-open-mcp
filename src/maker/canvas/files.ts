@@ -502,7 +502,10 @@ export class MakerCanvasFiles {
       typeof settings.pixel !== 'boolean' ||
       typeof settings.backgroundColor !== 'string' ||
       !/^#[0-9a-f]{6}$/i.test(settings.backgroundColor) ||
-      (settings.fit !== 'contain' && settings.fit !== 'cover' && settings.fit !== 'stretch')
+      (settings.fit !== 'contain' && settings.fit !== 'cover' && settings.fit !== 'stretch') ||
+      (settings.cutoutMode !== undefined &&
+        settings.cutoutMode !== 'connected' &&
+        settings.cutoutMode !== 'chroma')
     ) {
       fail('拆帧参数无效。', 400, 'INVALID_DOCUMENT');
     }
@@ -511,6 +514,9 @@ export class MakerCanvasFiles {
       end: numberIn(settings.end, 0, 86400, '结束时间'),
       fps: numberIn(settings.fps, 1, 30, '帧率'),
       cutout: settings.cutout,
+      ...(settings.cutoutMode === undefined
+        ? {}
+        : { cutoutMode: settings.cutoutMode as 'connected' | 'chroma' }),
       backgroundColor: settings.backgroundColor,
       tolerance: numberIn(settings.tolerance, 0, 255, '抠图容差'),
       duplicateThreshold: numberIn(settings.duplicateThreshold, 0.8, 0.999, '重复帧阈值'),

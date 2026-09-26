@@ -41,6 +41,8 @@ type SequenceRun = SequenceRunView & {
   sourceFrames: SequenceFrame[];
   outputPath?: string;
   atlas?: { blob: Blob; info: FrameSetInfo };
+  editPast?: SequenceFrame[][];
+  editFuture?: SequenceFrame[][];
 };
 
 export function createSequenceUiController(options: SequenceUiOptions) {
@@ -211,6 +213,10 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     if (!node) return;
     const run = getRun(nodeId);
     const controller = new AbortController();
+    if (stage !== 'save') {
+      run.atlas = undefined;
+      run.outputPath = undefined;
+    }
     controllers.set(nodeId, controller);
     run.status = 'running';
     run.stage = stage;
@@ -251,10 +257,13 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     run.frames = [];
     run.sourceFrames = [];
     run.originalFrames = [];
+    run.boundaryFrames = undefined;
     run.candidates = [];
     run.removed = [];
     run.atlas = undefined;
     run.outputPath = undefined;
+    run.editPast = [];
+    run.editFuture = [];
     await runStage(nodeId, 'extract', async (activeRun, signal) => {
       const video = await loadVideo(source, signal);
       if (signal.aborted || sequenceNode(nodeId) !== node)
@@ -364,6 +373,14 @@ export function createSequenceUiController(options: SequenceUiOptions) {
       return;
     }
     if (!run) return;
+    if (action === 'organize-cutout' || action === 'organize-dedupe') {
+      if (controllers.size || !run.frames.length) return;
+      run.stage = action === 'organize-cutout' ? 'cutout' : 'dedupe';
+      run.status = 'ready';
+      run.error = undefined;
+      refresh(nodeId);
+      return;
+    }
     if (action === 'remove-frame') {
       if (
         controllers.size ||
@@ -375,7 +392,14 @@ export function createSequenceUiController(options: SequenceUiOptions) {
       )
         return;
       const removed = run.frames[value!];
+      run.editPast ??= [];
+      run.editPast.push(run.frames.slice());
+      if (run.editPast.length > 12) run.editPast.shift();
+      run.editFuture = [];
       run.frames = run.frames.filter((_frame, index) => index !== value);
+      run.boundaryFrames = run.boundaryFrames
+        ?.filter((index) => index !== value)
+        .map((index) => (index > value! ? index - 1 : index));
       run.sourceFrames = run.sourceFrames.filter((frame) => frame.time !== removed.time);
       run.candidates = [];
       run.removed = [];
@@ -411,8 +435,12 @@ export function createSequenceUiController(options: SequenceUiOptions) {
             activeRun.progress = current;
             activeRun.total = total;
             if (current === total || current % 3 === 0) refresh(nodeId);
-          }
+          },
+          node.sequenceSettings!.cutoutMode || 'connected'
         );
+        activeRun.boundaryFrames = options.processor.boundaryFrames
+          ? await options.processor.boundaryFrames(activeRun.frames, signal)
+          : undefined;
         options.processor.dispose(activeRun.sourceFrames);
         activeRun.sourceFrames = [];
         activeRun.stage = 'dedupe';
@@ -438,7 +466,16 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     }
     if (action === 'apply-dedupe' || action === 'keep-all') {
       if (action === 'apply-dedupe') {
+        run.editPast ??= [];
+        run.editPast.push(run.frames.slice());
+        if (run.editPast.length > 12) run.editPast.shift();
+        run.editFuture = [];
         const removed = new Set(run.removed);
+        const boundaries = new Set(run.boundaryFrames || []);
+        run.boundaryFrames = run.frames
+          .map((_frame, index) => index)
+          .filter((index) => !removed.has(index))
+          .flatMap((index, position) => (boundaries.has(index) ? [position] : []));
         run.frames = run.frames.filter((_frame, index) => !removed.has(index));
       }
       run.candidates = [];
@@ -464,6 +501,9 @@ export function createSequenceUiController(options: SequenceUiOptions) {
           }
         );
         activeRun.stage = 'save';
+        activeRun.boundaryFrames = options.processor.boundaryFrames
+          ? await options.processor.boundaryFrames(activeRun.frames, signal)
+          : undefined;
       });
     }
     if (action === 'save') {
@@ -535,6 +575,8 @@ export function createSequenceUiController(options: SequenceUiOptions) {
         activeRun.sourceFrames = [];
         activeRun.atlas = undefined;
         activeRun.originalFrames = [];
+        activeRun.editPast = [];
+        activeRun.editFuture = [];
         activeRun.status = 'complete';
         activeRun.stage = 'complete';
       });
@@ -551,7 +593,10 @@ export function createSequenceUiController(options: SequenceUiOptions) {
       const stage = run.stage;
       const allowed =
         stage === 'cutout'
-          ? key === 'backgroundColor' || key === 'tolerance' || key === 'cutout'
+          ? key === 'backgroundColor' ||
+            key === 'tolerance' ||
+            key === 'cutout' ||
+            key === 'cutoutMode'
           : stage === 'dedupe' || stage === 'dedupe-review'
             ? key === 'duplicateThreshold'
             : stage === 'resize'
@@ -598,7 +643,105 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     drafts.clear();
   }
 
+  function replaceFrames(nodeId: string, frames: SequenceFrame[]): void {
+    const run = runs.get(nodeId);
+    const node = sequenceNode(nodeId);
+    if (!run || !node || controllers.size || !frames.length) return;
+    run.editPast ??= [];
+    run.editPast.push(run.frames.slice());
+    if (run.editPast.length > 12) run.editPast.shift();
+    run.editFuture = [];
+    run.frames = frames.slice();
+    invalidateEditedRun(node, run);
+    options.publishState();
+    refresh(nodeId);
+  }
+
+  function invalidateEditedRun(node: CanvasNode, run: SequenceRun): void {
+    run.boundaryFrames = undefined;
+    delete node.frameSetInfo;
+    delete node.assetPath;
+    run.sourceFrames = [];
+    run.candidates = [];
+    run.removed = [];
+    run.atlas = undefined;
+    run.outputPath = undefined;
+    run.stage = 'resize';
+    run.status = 'ready';
+    run.error = undefined;
+  }
+
+  function undoFrames(nodeId: string, redo = false): void {
+    const run = runs.get(nodeId);
+    const node = sequenceNode(nodeId);
+    if (!run || !node || controllers.size) return;
+    const source = redo ? run.editFuture : run.editPast;
+    const previous = source?.pop();
+    if (!previous) return;
+    const target = redo ? (run.editPast ??= []) : (run.editFuture ??= []);
+    target.push(run.frames.slice());
+    run.frames = previous;
+    invalidateEditedRun(node, run);
+    options.publishState();
+    refresh(nodeId);
+  }
+
+  async function editableFrames(nodeId: string): Promise<SequenceFrame[]> {
+    beginEdit(nodeId);
+    if (controllers.size) return [];
+    const node = sequenceNode(nodeId);
+    if (!node) return [];
+    const existing = runs.get(nodeId);
+    if (existing?.frames.length) return existing.frames;
+    if (!node.frameSetInfo || !node.assetPath) return [];
+    const info = node.frameSetInfo;
+    const path = node.assetPath;
+    await runStage(nodeId, 'save', async (run, signal) => {
+      const response = await fetch(options.store.mediaUrl(path), { signal });
+      if (!response.ok) throw new Error('无法读取已保存图集。');
+      const bitmap = await createImageBitmap(await response.blob());
+      const frames: SequenceFrame[] = [];
+      try {
+        for (const frame of info.frames) {
+          if (signal.aborted) throw new DOMException('处理已取消。', 'AbortError');
+          const canvas = document.createElement('canvas');
+          canvas.width = frame.width;
+          canvas.height = frame.height;
+          canvas
+            .getContext('2d')!
+            .drawImage(
+              bitmap,
+              frame.x,
+              frame.y,
+              frame.width,
+              frame.height,
+              0,
+              0,
+              frame.width,
+              frame.height
+            );
+          const blob = await new Promise<Blob>((resolve, reject) =>
+            canvas.toBlob(
+              (value) => (value ? resolve(value) : reject(new Error('读取帧失败。'))),
+              'image/png'
+            )
+          );
+          frames.push({ time: frame.time, blob });
+        }
+      } finally {
+        bitmap.close();
+      }
+      run.frames = frames;
+      run.originalFrames = frames.slice();
+      invalidateEditedRun(node, run);
+    });
+    return runs.get(nodeId)?.frames || [];
+  }
+
   return {
+    editableFrames,
+    replaceFrames,
+    undoFrames,
     beginEdit,
     view(nodeId: string) {
       const node = sequenceNode(nodeId);

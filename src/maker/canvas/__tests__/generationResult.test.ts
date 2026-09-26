@@ -3,8 +3,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { MakerCanvasFiles } from '../files.js';
 import { createId } from '../model.js';
-import { recordGeneratedVideo } from '../generationResult.js';
+import { recordGeneratedVideo, renderGenerationResult } from '../generationResult.js';
 import { removeNodes } from '../edit.js';
+
+test('labels image provenance without claiming the reference is a locked first frame', () => {
+  expect(renderGenerationResult.toString()).toContain('图生视频 · 来源图：');
+  expect(renderGenerationResult.toString()).not.toContain('图生视频 · 首帧：');
+});
 
 test('persists image-to-video provenance, rejects wrong sources, and retains output after source deletion', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-generation-result-'));

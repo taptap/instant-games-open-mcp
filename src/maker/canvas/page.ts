@@ -8,6 +8,8 @@ import {
   maxSequenceFrameCount,
   maxSequenceInputFrameCount,
   removeConnectedBackgroundPixels,
+  removeChromaBackgroundPixels,
+  hasOpaqueBoundary,
   sequenceActionsForCard,
   signatureSimilarity,
   DEFAULT_SEQUENCE_SIDE,
@@ -22,6 +24,8 @@ import { createSequenceEditor, renderSequenceResult } from './sequenceEditor.js'
 import { SEQUENCE_EDITOR_STYLES } from './sequenceEditorStyles.js';
 import { appendAnimation, createAnimationCards } from './animation.js';
 import { renderGenerationResult } from './generationResult.js';
+import { DEFAULT_SEQUENCE_FPS, DEFAULT_SEQUENCE_DURATION } from './sequenceModel.js';
+import { applyFrameOperations, openFrameEditor } from './frameEditor.js';
 
 export const CANVAS_PAGE_MARKER = 'maker-canvas-page';
 
@@ -36,6 +40,10 @@ const template =
 
 export function getCanvasPageHtml(): string {
   const helpers = [
+    'const DEFAULT_SEQUENCE_FPS = ' + DEFAULT_SEQUENCE_FPS + ';',
+    'const DEFAULT_SEQUENCE_DURATION = ' + DEFAULT_SEQUENCE_DURATION + ';',
+    applyFrameOperations.toString(),
+    openFrameEditor.toString(),
     'function __name(target) { return target; }',
     'const MAX_SEQUENCE_FRAMES = ' + MAX_SEQUENCE_FRAMES + ';',
     'const MAX_SEQUENCE_SIDE = ' + MAX_SEQUENCE_SIDE + ';',
@@ -51,6 +59,8 @@ export function getCanvasPageHtml(): string {
     defaultSequenceSettings.toString(),
     sequenceActionsForCard.toString(),
     removeConnectedBackgroundPixels.toString(),
+    removeChromaBackgroundPixels.toString(),
+    hasOpaqueBoundary.toString(),
     sequenceActionsForCard.toString(),
     createSequenceProcessor.toString(),
     renderSequenceResult.toString(),
@@ -773,7 +783,7 @@ export function getCanvasPageHtml(): string {
   );
   page = page.replace(
     '  void boot().catch',
-    '  sequenceEditor = createSequenceEditor({ controller: sequenceUi, mediaUrl: store.mediaUrl, actions: sequenceActionsForCard }); void boot().catch'
+    '  sequenceEditor = createSequenceEditor({ controller: sequenceUi, openFrameEditor, mediaUrl: store.mediaUrl, actions: sequenceActionsForCard }); void boot().catch'
   );
   page = page.replace(
     "window.addEventListener('keydown', function (event) {",

@@ -66,7 +66,40 @@ export const SEQUENCE_EDITOR_STYLES = String.raw`
 .sequence-editor-actions { display: flex; gap: 8px; }
 .sequence-confirm { position: absolute; inset: 0; z-index: 2; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; align-content: center; padding: 30px; gap: 14px; background: #12191aee; }
 .sequence-confirm p { width: 100%; text-align: center; line-height: 1.8; }
+.sequence-editor { width: min(1520px,96vw); }
+.sequence-editor-body { grid-template-columns: minmax(0,1.65fr) minmax(320px,1fr); }
+.sequence-grid-area { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 20px; border-right: 1px solid var(--seq-line); }
+.sequence-grid-tools, .sequence-editor-tabs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.sequence-grid-tools strong { margin-right: auto; font-size: 13px; color: var(--seq-muted); }
+.sequence-grid-tools button { padding: 6px 10px; font-size: 12px; }
+.sequence-editor-strip { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); align-content: start; flex: 1; min-height: 0; max-height: none; overflow: auto; gap: 12px; }
+.sequence-editor-tile { min-width: 0; }
+.sequence-editor-tile canvas { width: 100%; height: 130px; }
+.sequence-editor-tile.active button { box-shadow: 0 0 0 1px var(--seq-accent); }
+.sequence-editor-preview { padding: 18px; }
+.sequence-preview-controls { flex-wrap: wrap; }
+.sequence-editor-panel { max-height: 160px; flex: 0 1 auto; border: 0; padding: 14px; border-radius: 8px; }
+.sequence-editor-panel h3 { margin-bottom: 12px; }
+.sequence-editor-field { margin-bottom: 12px; }
+.sequence-editor-stage { min-height: 160px; }
+.sequence-boundary-warning { color: #f1bb84; border: 1px solid #775332; background: #34271e; padding: 10px; margin: 0; border-radius: 8px; font-size: 12px; line-height: 1.5; }
+.sequence-editor-tabs button { padding: 7px 16px; font-size: 13px; }
+.sequence-editor-header { padding: 14px 24px 10px; }
+.sequence-editor-header h2 { margin: 4px 0; font-size: 22px; }
+.sequence-editor-tabs { margin-bottom: 0; }
+.sequence-editor-steps { padding-top: 10px; padding-bottom: 10px; }
+.frame-editor { display: none; }
+.frame-editor[open] { display: flex; flex-direction: column; }
+.frame-editor-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 14px 22px; border-bottom: 1px solid var(--seq-line); font-size: 12px; }
+.frame-editor-toolbar button { padding: 6px 10px; }
+.frame-editor-toolbar input[type=range] { width: 80px; }
+.frame-editor-toolbar input[type=color] { width: 32px; }
+.frame-editor-stage { min-height: 0; flex: 1; margin: 16px; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+.frame-editor-stage canvas { max-width: 100%; max-height: 100%; object-fit: contain; touch-action: none; cursor: crosshair; }
 @media (max-width: 700px) {
+  .sequence-grid-area { height: 38dvh; padding: 12px; }
+  .sequence-editor-tile canvas { height: 90px; }
+  .sequence-editor-panel { max-height: none; }
   .sequence-editor { width: 96vw; height: 94dvh; border-radius: 12px; }
   .sequence-editor-header { padding: 14px; }
   .sequence-editor-header h2 { font-size: 20px; }

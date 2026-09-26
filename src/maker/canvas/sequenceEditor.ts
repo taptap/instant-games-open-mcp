@@ -1,6 +1,7 @@
 import type { CanvasNode } from './model.js';
 import type { SequenceRunView, SequenceSettings, SequenceCardSource } from './sequence.js';
 import type { createSequenceUiController } from './sequenceUi.js';
+import type { openFrameEditor } from './frameEditor.js';
 
 export function renderSequenceResult(
   card: HTMLElement,
@@ -84,6 +85,7 @@ export function renderSequenceResult(
 }
 
 export function createSequenceEditor(options: {
+  openFrameEditor: typeof openFrameEditor;
   controller: ReturnType<typeof createSequenceUiController>;
   mediaUrl: (path: string) => string;
   actions: (
@@ -99,6 +101,7 @@ export function createSequenceEditor(options: {
   let pendingClose = false;
   let restoreFocus: HTMLElement | null = null;
   let lockRatio = true;
+  let tab: 'edit' | 'organize' = 'edit';
   const dialog = document.createElement('dialog');
   dialog.className = 'sequence-editor';
   dialog.setAttribute('aria-label', '序列帧编辑');
@@ -199,7 +202,7 @@ export function createSequenceEditor(options: {
     stopPlayback();
     const version = ++renderVersion;
     const settings = node.sequenceSettings;
-    const saved = Boolean(node.frameSetInfo && (!run || run.status === 'complete'));
+    const saved = Boolean(node.frameSetInfo && !run?.frames.length);
     const stage = saved ? 'complete' : run?.stage || 'extract';
     const busy = run?.status === 'running';
     const stageIndex =
@@ -227,6 +230,28 @@ export function createSequenceEditor(options: {
     const close = button('关闭', requestClose);
     close.disabled = Boolean(run?.uploading);
     header.append(heading, close);
+
+    const tabs = document.createElement('nav');
+    tabs.className = 'sequence-editor-tabs';
+    tabs.append(
+      button(
+        '帧编辑',
+        () => {
+          tab = 'edit';
+          render();
+        },
+        tab === 'edit' ? 'primary' : ''
+      ),
+      button(
+        '整理与输出',
+        () => {
+          tab = 'organize';
+          render();
+        },
+        tab === 'organize' ? 'primary' : ''
+      )
+    );
+    heading.append(tabs);
 
     const steps = document.createElement('nav');
     steps.className = 'sequence-editor-steps';
@@ -355,6 +380,64 @@ export function createSequenceEditor(options: {
     });
     play.disabled = frames.length < 2 || busy;
     controls.append(play, frameLabel);
+    if (frames.length && !busy) {
+      controls.append(
+        button('编辑当前帧', () => {
+          stopPlayback();
+          const nodeId = activeId!;
+          const index = selectedFrame;
+          void options.controller.editableFrames(nodeId).then((editable) => {
+            if (!editable.length || activeId !== nodeId) return;
+            return options.openFrameEditor({
+              frames: editable,
+              index,
+              apply: (result) => options.controller.replaceFrames(nodeId, result),
+            });
+          });
+        })
+      );
+    }
+    const gridArea = document.createElement('section');
+    gridArea.className = 'sequence-grid-area';
+    const gridTools = document.createElement('div');
+    gridTools.className = 'sequence-grid-tools';
+    const count = document.createElement('strong');
+    count.textContent = '全部帧 / ' + frames.length;
+    gridTools.append(count);
+    if (run?.frames.length && !busy) {
+      gridTools.append(
+        button('撤销帧编辑', () => options.controller.undoFrames(activeId!)),
+        button('重做', () => options.controller.undoFrames(activeId!, true))
+      );
+      if (tab === 'organize') {
+        gridTools.append(
+          button('去除背景', () => {
+            void options.controller.action(activeId!, 'organize-cutout');
+          }),
+          button('检查重复帧', () => {
+            void options.controller.action(activeId!, 'organize-dedupe');
+          })
+        );
+        gridTools.append(
+          button('倒序', () =>
+            options.controller.replaceFrames(activeId!, [...run.frames].reverse())
+          ),
+          button('隔帧精简', () =>
+            options.controller.replaceFrames(
+              activeId!,
+              run.frames.filter((_frame, index) => index % 2 === 0)
+            )
+          )
+        );
+      }
+    }
+    gridArea.append(gridTools, strip);
+    if (saved && !busy && tab === 'organize')
+      gridTools.append(
+        button('整理已保存帧', () => {
+          void options.controller.editableFrames(activeId!);
+        })
+      );
     if (
       !saved &&
       !busy &&
@@ -377,6 +460,24 @@ export function createSequenceEditor(options: {
         select.setAttribute('aria-label', '查看第 ' + (index + 1) + ' 帧');
         select.prepend(thumb);
         tile.append(select);
+        tile.draggable = !saved && !busy;
+        tile.addEventListener('dragstart', (event) => {
+          event.dataTransfer?.setData('text/plain', String(index));
+        });
+        tile.addEventListener('dragover', (event) => event.preventDefault());
+        tile.addEventListener('drop', (event) => {
+          event.preventDefault();
+          if (!run?.frames.length || busy) return;
+          const value = event.dataTransfer?.getData('text/plain');
+          if (!value) return;
+          const from = Number(value);
+          if (!Number.isInteger(from) || from < 0 || from >= run.frames.length || from === index)
+            return;
+          const reordered = [...run.frames];
+          const [frame] = reordered.splice(from, 1);
+          reordered.splice(index, 0, frame);
+          options.controller.replaceFrames(activeId!, reordered);
+        });
         const candidate = run?.candidates.find((item) => item.index === index);
         if (candidate) {
           const label = document.createElement('label');
@@ -467,8 +568,30 @@ export function createSequenceEditor(options: {
       field('抽帧 FPS', 'fps', 'number', 1, 30);
     } else if (stage === 'cutout') {
       const hint = document.createElement('p');
-      hint.textContent = '点击左侧预览中的背景取色，统一应用到全部帧。复杂背景暂不支持。';
+      hint.textContent =
+        '点击右侧背景取色。色差抠图处理封闭区域及半透明溢色；背景必须与角色/特效不同色，否则会误删同色内容。';
       panel.append(hint);
+      const modeLabel = document.createElement('label');
+      modeLabel.className = 'sequence-editor-field';
+      modeLabel.append('抠图方式');
+      const mode = document.createElement('select');
+      mode.setAttribute('aria-label', '抠图方式');
+      mode.disabled = busy;
+      for (const [value, label] of [
+        ['chroma', '色差抠图与去溢色'],
+        ['connected', '仅边缘连通背景'],
+      ]) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        mode.append(option);
+      }
+      mode.value = settings.cutoutMode || 'connected';
+      mode.addEventListener('change', () =>
+        options.controller.updateSetting(activeId!, 'cutoutMode', mode.value)
+      );
+      modeLabel.append(mode);
+      panel.append(modeLabel);
       field('背景色', 'backgroundColor', 'color');
       field('颜色容差', 'tolerance', 'range', 0, 255);
       check('统一去除背景', settings.cutout, (checked) =>
@@ -607,8 +730,18 @@ export function createSequenceEditor(options: {
       compare.disabled = busy;
       controls.append(compare);
     }
-    previewArea.append(stageArea, controls, strip);
-    body.append(previewArea, panel);
+    if (run?.boundaryFrames?.length) {
+      const warning = document.createElement('p');
+      warning.className = 'sequence-boundary-warning';
+      warning.setAttribute('role', 'status');
+      warning.textContent =
+        '贴边风险：处理帧 ' +
+        run.boundaryFrames.map((index) => index + 1).join('、') +
+        ' 的可见内容接触边界。可能是源视频裁断或背景残留，请逐帧检查；缩放无法补回缺失内容。';
+      previewArea.append(warning);
+    }
+    previewArea.append(stageArea, controls, panel);
+    body.append(gridArea, previewArea);
     const footer = document.createElement('footer');
     footer.className = 'sequence-editor-footer';
     const status = document.createElement('div');
