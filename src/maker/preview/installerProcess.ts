@@ -11,6 +11,8 @@ _cancelled = False
 _Popen = subprocess.Popen
 class OwnedPopen(_Popen):
     def __init__(self, *args, **kwargs):
+        if len(args) < 4 and kwargs.get("stdin") is None:
+            kwargs["stdin"] = subprocess.DEVNULL
         with _lock:
             if _cancelled:
                 raise KeyboardInterrupt()

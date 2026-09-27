@@ -14,12 +14,22 @@ let helperPid: number | undefined;
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-installer-process-'));
 });
-afterEach(() => {
+afterEach(async () => {
   if (helperPid) {
     try {
       process.kill(helperPid, 'SIGKILL');
-    } catch {
-      /* Already reaped. */
+      for (let attempt = 0; attempt < 150; attempt++) {
+        try {
+          process.kill(helperPid, 0);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ESRCH') break;
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expectProcessGone(helperPid);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
     }
   }
   helperPid = undefined;
@@ -83,8 +93,18 @@ pythonTest('timeout reaps descendants and reports TIMEOUT', async () => {
 pythonTest('returns complete output on ordinary completion', async () => {
   const filename = script('import sys\nprint("installed")\nprint("diagnostic", file=sys.stderr)\n');
   expect(await runPreviewInstaller(python!, [filename], { cwd: root })).toEqual({
-    stdout: 'installed\n',
-    stderr: 'diagnostic\n',
+    stdout: 'installed' + os.EOL,
+    stderr: 'diagnostic' + os.EOL,
+  });
+});
+
+pythonTest('installer helpers do not inherit the cancellation input channel', async () => {
+  const filename = script(
+    'import subprocess, sys\nsubprocess.run([sys.executable, "-c", "import sys; print(len(sys.stdin.read()), flush=True)"], check=True)\n'
+  );
+  expect(await runPreviewInstaller(python!, [filename], { cwd: root, timeoutMs: 5000 })).toEqual({
+    stdout: '0' + os.EOL,
+    stderr: '',
   });
 });
 

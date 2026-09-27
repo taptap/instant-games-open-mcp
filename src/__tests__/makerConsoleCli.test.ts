@@ -5,6 +5,8 @@ import { createServer } from 'node:net';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { createConsoleExecutor } from '../maker/console/executor';
+import * as consoleLauncher from '../maker/console/processLauncher';
+import { PreviewOwner } from '../maker/preview/owner';
 import { executeBuildCommand } from '../maker/cli/build';
 import {
   claimConsoleServerLock,
@@ -662,7 +664,7 @@ describe('Maker console CLI adapters', () => {
     } as Response);
     const output = jest.spyOn(process.stdout, 'write').mockReturnValue(true);
     try {
-      await runConsoleCli('open', { no_open: true, json: true });
+      await runConsoleCli('open', { no_open: true, json: true, legacy_wmi: true });
       expect(JSON.parse(String(output.mock.calls[0][0])).url).toBe('http://127.0.0.1:54321/');
       await runConsoleCli('status', { json: true });
       await runConsoleCli('stop', { json: true });
@@ -702,5 +704,75 @@ describe('Maker console CLI adapters', () => {
     });
     expect(result.ok).toBe(false);
     expect(result.unknown).toBe(false);
+  });
+  test('Windows console open attempts direct launch without requiring a user Host', async () => {
+    if (process.platform !== 'win32') return;
+    const previousHome = process.env.TAPTAP_MAKER_HOME;
+    const previousToken = process.env.TAPTAP_MCP_MAC_TOKEN;
+    const previousExitCode = process.exitCode;
+    const output = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const isolatedHome = path.join(directory, 'without-host');
+    process.env.TAPTAP_MAKER_HOME = isolatedHome;
+    process.env.TAPTAP_MCP_MAC_TOKEN = 'private-secret';
+    const launch = jest
+      .spyOn(consoleLauncher, 'launchConsoleServerProcess')
+      .mockRejectedValueOnce(new Error('NATIVE_LAUNCH_FAILED: EACCES'));
+    try {
+      await runConsoleCli('open', { no_open: true, json: true });
+      const result = JSON.parse(output.mock.calls.map(([value]) => String(value)).join(''));
+      expect(result).toMatchObject({
+        ok: false,
+        error: expect.stringContaining('NATIVE_LAUNCH_FAILED'),
+      });
+      expect(result.error).not.toContain('private-secret');
+      expect(process.exitCode).toBe(1);
+      expect(launch).toHaveBeenCalledTimes(1);
+      expect(launch).toHaveBeenCalledWith(expect.objectContaining({ legacy: false }));
+      expect(fs.existsSync(path.join(isolatedHome, 'console', 'server.log'))).toBe(false);
+    } finally {
+      launch.mockRestore();
+      output.mockRestore();
+      process.exitCode = previousExitCode;
+      if (previousHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
+      else process.env.TAPTAP_MAKER_HOME = previousHome;
+      if (previousToken === undefined) delete process.env.TAPTAP_MCP_MAC_TOKEN;
+      else process.env.TAPTAP_MCP_MAC_TOKEN = previousToken;
+    }
+  });
+  test('legacy console preview opts in to WMI only for its own start task', async () => {
+    const fixture = path.join(directory, 'preview-launch-mode.cjs');
+    fs.writeFileSync(fixture, 'console.log(JSON.stringify({ok:true,args:process.argv.slice(2)}))');
+    const request = { project: directory, action: 'preview.start' as const, onOutput: () => {} };
+    const legacy = await createConsoleExecutor({
+      entry: fixture,
+      execArgv: [],
+      legacyPreviewLaunch: true,
+    })(request);
+    expect(legacy.args).toContain('--legacy-wmi');
+    const host = await createConsoleExecutor({
+      entry: fixture,
+      execArgv: [],
+      hostInstanceId: '123e4567-e89b-12d3-a456-426614174000',
+    })(request);
+    expect(host.args).not.toContain('--legacy-wmi');
+  });
+  test('console preview status executes in process without loading a CLI entry', async () => {
+    const previousHome = process.env.TAPTAP_MAKER_HOME;
+    process.env.TAPTAP_MAKER_HOME = path.join(directory, 'direct-home');
+    const owner = new PreviewOwner();
+    try {
+      const result = await createConsoleExecutor({ entry: 'nonexistent-cli', previewOwner: owner })(
+        {
+          project: directory,
+          action: 'preview.status',
+          onOutput: () => {},
+        }
+      );
+      expect(result).toMatchObject({ ok: true, state: 'stopped', process_alive: false });
+    } finally {
+      await owner.close();
+      if (previousHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
+      else process.env.TAPTAP_MAKER_HOME = previousHome;
+    }
   });
 });

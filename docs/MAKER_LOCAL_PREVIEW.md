@@ -32,11 +32,12 @@ taptap-maker preview logs --target-dir <PROJECT> --json
 taptap-maker preview validate --target-dir <PROJECT> --mode validate --json
 taptap-maker preview validate --target-dir <PROJECT> --mode screenshot --json
 taptap-maker preview validate --target-dir <PROJECT> --mode both --json
+taptap-maker preview logs --target-dir <PROJECT> --tail --json
 taptap-maker preview check --target-dir <PROJECT> --json
 taptap-maker preview stop --target-dir <PROJECT> --json
 ```
 
-安装使用 Python/curl，遵循宿主授权。已有 Runtime 可在 start 时传
+安装使用 Python/curl，遵循宿主授权。外部 Runtime 可在 run 或 validate 时传
 `--runtime <绝对可执行文件路径>`。start/refresh 根据项目加载需求选择原目录或自动 prepare；
 单独排查产物可运行 `preview prepare --target-dir <PROJECT> --json`。
 新项目缺少 `.project` 配置时，prepare 仅在受管理副本补齐 project/resources/settings，
@@ -46,9 +47,14 @@ taptap-maker preview stop --target-dir <PROJECT> --json
 已有配置及资源元数据保持优先；配置损坏不以默认值掩盖。
 不支持 JSONC/旧根目录配置或外部 `asset_dirs`。
 
+安装器的 stdin 仅用于取消通知；下载等子进程默认使用空输入，不继承取消管道，避免 Windows
+子进程卡住或争用取消信号。超时与取消必须等待本轮子进程回收，未确认回收时保留失败状态。
+
 刷新会先关闭旧窗口，重新读取原项目并启动，丢失内存状态；新项目 prepare 失败不启动
 Runtime，也不运行旧 dist。
 停止或手动关闭后不自动复活。`process_alive=true` 只证明进程存活，`check` 不代表玩法通过。
+停止标记只针对读取并核验过的 session 与 owner；旧会话的停止请求不会取消并发的新预览。
+没有已登记会话时，stop 不创建可影响后续启动的标记；启动前探测由发起任务的取消信号中止。
 常驻窗口截图、输入脚本、Server/云模拟和游戏存档隔离尚不支持，停止也不保证保存游戏。
 `preview validate` 是一次性验证流程，不复用常驻窗口：`validate` 运行引擎的 JSON 验证模式，
 `screenshot` 运行引擎的真实渲染截图模式，`both` 同时生成两类证据。验证前必须停止常驻预览，
@@ -76,12 +82,19 @@ Web/直接 Runtime 默认的绝对帧截图语义不变，不修改 validate JSO
 
 结果返回 `report`、`artifacts`、`log_path`、`invocation_path`、`evidence_directory`、
 起止时间与退出码。`invocation.json` 记录实际参数与工作目录，`runtime.log` 为有界、脱敏的
-stdout/stderr JSON 行；原始 Runtime 另有安装目录中的 `logs/game` 与 `logs/lua`。
+stdout/stderr JSON 行，并复用常驻预览的 `PreviewLuaLog` 收集本轮 Runtime 公布的 Lua 文件日志。
+退出时先排空 Lua 日志再判定结果；Lua ERROR 或收集不完整不能被 PASS 报告掩盖。
+原始 Runtime 另有安装目录中的 `logs/game` 与 `logs/lua`。
 `prepare-log` 为构建副本日志，`validate-report` 为原始引擎报告，`screenshot` 含像素尺寸。
 报告缺失、缺少成功字段、错误计数不为零、缺资源、断言失败、截图格式错误均不能通过；
 截图失败也保留已生成的验证报告。引擎 FAIL 不通过批量过滤“噪音”改写为 PASS。
 Agent 必须打开本轮图片检查画面，按错误修复游戏并复测；有限帧报告及单张截图不证明
 完整交互、胜负逻辑或游戏内自行延迟加载的资源正确。
+
+与 `preview run/start` 一样，一次性验证由当前 Node 直接持有 Runtime，
+显式使用 `shell:false`、`detached:false`，Windows 复用同一环境变量白名单。
+它不启动控制台、不使用 WMI，也不登记或接管常驻会话；已有常驻预览必须显式停止，
+校验结束只回收自己创建的 Runtime 与临时资源。
 
 ## 联网项目
 
@@ -135,20 +148,34 @@ Maker 启动本地预览时优先复用当前宿主进程的 Node.js；只有宿
 Node.js。系统 Node 本身不是失败证据，不要仅因为路径来自系统或 WorkBuddy 之外就要求用户切换
 Node、修改 PATH 或重装环境。
 
-Windows 预览失败时，先按证据区分四层问题：Node 版本与直接执行能力、Runtime 文件与资源、
-supervisor/后台启动链路、Runtime 本体与游戏加载。依次核对实际 `process.execPath`、Node 版本、
-Runtime 可执行文件、`supervisor_log_path`、Runtime 日志和 control channel 结果；不要把
-“Runtime 文件存在”或“WMI 返回 PID/请求成功”当作 Runtime 已经真正启动。若 supervisor 日志为空
-且 control channel 超时，应优先记录为 Windows 后台启动链路的待确认问题，不要直接归因于游戏代码、
-Runtime 缺失或 Node 版本。本地 AI 按 `skills/taptap-maker-local/SKILL.md` 的
-“AI Local Preview Launch Playbook”处理：目标是打开本机 `UrhoXRuntime`，不要改 PATH 或切 Node。
-`Local prepare failed` 只表示 Python/ProjectBuilder 未写出完整 manifest，Runtime 尚未启动，
-应读本轮 `prepare.log`。空 supervisor 日志加控制通道超时，通常是 CIM Hidden EncodedCommand
-被拦截；可重试 `preview start`。不要在 start 返回后再跑 `__maker-preview-supervisor`。
-锁恢复互斥口 `EACCES` 时改试邻近口，`EADDRINUSE` 视为互斥占用并 fail closed，不结束占用进程。
-启动失败且控制通道未发布时，Windows 只在当前 PID 命令行仍是本次 EncodedCommand 时回收包装进程，
-不按历史 PID 误杀。
+正常路径只用 Node 启动 Runtime，不调用 WMI/CIM、隐藏 PowerShell 或 EncodedCommand。
 
+```text
+AI 调试 -> 前台 Node 会话 -> Runtime -> 收集日志 -> 停止本轮游戏
+用户预览 -> 控制台 Node -> Runtime -> 用户关闭或停止 -> 清理本轮资源
+```
+
+- 调试：`preview run --target-dir <项目> --json` 在前台持有游戏。stderr 的
+  `preview.started` 事件提供会话信息；其它 CLI 可按 session 查询 logs/status/check 或 stop。
+  默认最多运行 10 分钟，`--duration-ms 1000..600000` 可指定较短的冒烟测试。
+  结束时 stdout 返回最终状态和日志摘要，不把会话 JSON 当作游戏断言通过。
+- 用户预览：`preview start` 自动连接或直接启动同版本控制台，经已有项目任务接口发起预览。
+  `console open` 打开页面后点击预览也走同一流程。无需先手动启动 Host。
+  请求 CLI 结束后游戏继续由控制台管理；不承诺退出整个 IDE 后仍能保活。
+  需要独立于整个 IDE 时，可由用户在外部终端运行可选的 `console serve`。
+- 两入口在各自 Node 进程内复用 PreviewSession、资源准备和日志代码，不再启动预览 CLI
+  或独立 supervisor 子进程。保留兼容字段 `supervisor_pid`，其值现在是持有会话的 Node PID。
+- Runtime 明确使用 `shell:false`、`detached:false`；Windows 环境变量使用白名单。
+  正常退出等待 Runtime 结束。Windows 强杀清理利用 Node/libuv 对非 detached 子进程的
+  Job 管理，并需实机验收；不新增 breakaway、WMI 或按进程名清理的兜底。
+- `logs` 合并 stdout/stderr 与本轮 Runtime 公布的 Lua 日志。Lua 文件只允许来自当前
+  Runtime 的固定 logs/lua 目录（macOS `.app` 也允许同一 bundle 的
+  `Contents/Resources/logs/lua`），校验文件身份、拒绝链接、有界增量读取，不扫描其它项目日志。
+- 常驻窗口截图、输入注入和游戏断言 JSON 协议仍未实现，返回不支持或 UNDETERMINED。
+  一次性 `preview validate` 单独提供引擎报告与截图，不接管常驻会话；
+  游戏加载、画面和业务正确性不能用进程存活代替。
+- 只有显式 `--legacy-wmi` 使用旧后台入口；正常失败不自动重试。先区分创建失败、
+  Runtime 自行退出、主动停止及宿主回收，不因空日志就断言杀软拦截。
 - 后台进程已登记控制端点、但在启动完成前退出时，只有明确确认 supervisor 已退出，且
   Runtime 尚未尝试创建或已记录的 Runtime 也已退出，才允许重新启动。创建 Runtime 前先持久化
   启动意图，拿到 PID 后立即登记；如果中断发生在这两步之间，结果未知，不自动清理或重复启动。
@@ -175,11 +202,9 @@ Runtime 缺失或 Node 版本。本地 AI 按 `skills/taptap-maker-local/SKILL.m
   临时文件名叠加超过 Runtime 路径限制。正常退出、刷新和启动失败时在确认进程退出后清理；
   无法确认退出或缓存根被替换时保留，不清理原项目或共享 Runtime 资源。每轮缓存不复用，
   公共资源可能需要重新下载；异常强杀 supervisor 时可能遗留临时缓存。
-- Windows 预览 supervisor 与控制台复用 PowerShell/CIM 后台启动器，避免依赖 AI IDE
-  短命令的进程生命周期；macOS/Linux 保留 detached 启动。状态中的 `supervisor_log_path`
-  指向项目预览目录下的 supervisor 错误日志。
-  Windows 包装脚本的准备步骤失败即停止；Node 的 stderr 警告写入日志，不作为启动失败，
-  最终保留 Node 退出码。self runtime 同时携带 `package.json` 的 ESM 模块声明。
+- 控制台与 Agent 前台会话在各自进程内直接持有 Runtime，共用准备、manifest、联网和日志逻辑。
+  不再另外启动 supervisor 进程。Windows Runtime 子进程不 detached，环境变量使用白名单；
+  legacy WMI 不是自动回退。
 - 失败先查看 status、logs 和返回的 `log_path`；Runtime 原始日志位于安装目录
   `logs/game`、`logs/lua`，需按本轮时间判断。进程启动不能代替资源、画面或云能力验收。
 - 安装取消、超时或 CLI 断连后，守卫停止并等待下载辅助进程。无法确认退出时保留带
@@ -238,13 +263,38 @@ DirectConnect/Ready，运行时配置虽已存在于 manifest，Ready 仍找不�
 - 执行 Builder 前校验标准配置和版本路径：版本须为跨平台安全的单个目录名，
   允许 `{x}` 模板，禁止路径跳转和 Windows 保留名；不得允许配置回退绕过校验。
   只对受管理副本执行构建及输出清理，保留原项目 UUID 和资源引用语义。
-- Windows/macOS 资源服务归独立 supervisor 管理，使用动态 loopback 端口、随机访问路径及
+- Windows/macOS 资源服务归本轮持有者管理，使用动态 loopback 端口、随机访问路径及
   client manifest 文件白名单，校验 Host 并拒绝浏览器跨源请求，不暴露源码和 server 产物。
-  停止、刷新、启动失败或窗口退出时关闭，不依赖控制台存活。
+  停止、刷新、启动失败或窗口退出时关闭。控制台只清理自己的会话，不影响独立 Agent 调试。
 - 缓存只清理 Maker 管理且已确认无活跃引用的目录，不跟随链接、不清理外部 Runtime
   或公共缓存。独立 prepare 保留最近 3 份；本机 Runtime 安装保留当前与上一份，
   被任一项目活跃会话引用的版本额外保留；
   证据保留最近 3 个会话、每会话 5 轮。活跃引用和清理未确认目录额外保留。
   这是数量限制，不是磁盘配额。
-- 强杀 supervisor 可能遗留 Runtime 和下载缓存，不在所有权未知时强行清理。
-  Windows 安装器的取消测试不能替代实机辅助进程回收验证。
+- 正常结束等待 Runtime 退出和资源清理；强杀 Node 时 Windows 子进程清理依赖 libuv Job 行为。
+  特殊宿主限制、进程创建瞬间被强杀、非 Windows 强杀等边界不作绝对保证，临时下载缓存可能保留。
+  未确认所有权或退出时不强行清理、不宣称无孤儿；安装器取消测试不替代实机进程回收测试。
+
+Windows 启动链路迁移阶段 A 的独立探针、操作方法和未完成验收项见 [启动方式探针](MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md)。空 supervisor 日志只说明未观察到 supervisor 写日志，不能单凭此确认是火绒、WMI 或 Runtime 故障；先结合杀软事件与本轮启动结果排查。
+
+隔离新用户目录完成 Runtime 安装、Agent 前台取数及控制台 Host 预览；受限 Job 退出测试证明 Agent 会清理，独立 Host 持有的窗口仍存活。旧 breakaway 实验路径已撤回。详情见 [启动方式探针](MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md)。
+
+## Preparation and final evidence
+
+Real-game acceptance results and remaining blockers: see the 2026-09-28 section in
+[Windows launch verification](MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md).
+
+Python probes and setup in the preview path run asynchronously with bounded output and timeouts.
+Cancellation waits for the owned child process cleanup; sequential asynchronous copying preserves
+project isolation and rejects links. Existing synchronous Python commands are unchanged.
+After cancellation or timeout, Python command cleanup has a six-second drain deadline. If a
+Windows parent has already exited, its PID is not reused for tree termination. Unverifiable
+cleanup is reported explicitly as failure; closing inherited pipes is not proof of child cleanup.
+
+Agent runs continue through reloading. Stop/cancel still wins, and final evidence is selected only
+after owned-session cleanup and identity verification, using the final reload ID. Runtime close
+drains remaining Lua output in 64 KiB chunks, yielding between chunks, up to the existing 64 MiB
+file limit. Truncation or incomplete collection is reported as an error rather than hidden.
+
+These checks do not prove game rendering, interaction, or server connectivity. Real-game acceptance
+must include inspected window screenshots and representative input, separately from process checks.

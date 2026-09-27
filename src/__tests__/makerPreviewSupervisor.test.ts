@@ -12,7 +12,7 @@ import {
   writePrivateJson,
   type PreviewRecord,
 } from '../maker/preview/protocol.js';
-import { preflightPreview, PreviewRuntime } from '../maker/preview/runtime.js';
+import { preflightPreview, PreviewRuntime, probeRuntime } from '../maker/preview/runtime.js';
 import { ensurePreviewRuntimeResources } from '../maker/preview/runtimeResources.js';
 import { buildWindowsPreviewLaunchScripts } from '../maker/preview/processLauncher.js';
 import {
@@ -21,7 +21,8 @@ import {
   requestPreview,
   runPreviewSupervisor,
 } from '../maker/preview/session.js';
-import { runPreviewCli } from '../maker/cli/preview.js';
+import { runPreviewCli, executePreviewOperation } from '../maker/cli/preview.js';
+import { PreviewOwner } from '../maker/preview/owner.js';
 
 jest.mock('node:child_process', () => ({
   ...jest.requireActual('node:child_process'),
@@ -197,6 +198,7 @@ async function callCli(
   try {
     await runPreviewCli(action, {
       target_dir: project,
+      legacy_wmi: true,
       ...(runtimePath ? { runtime: runtimePath } : {}),
       json: true,
     });
@@ -1146,4 +1148,244 @@ test.each([
     supervisor_retired: false,
     ok: false,
   });
+});
+
+test('user preview rejects external executables before creating a console session', async () => {
+  if (process.platform !== 'win32') return;
+  const output = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  const previousExitCode = process.exitCode;
+  try {
+    await runPreviewCli('start', {
+      target_dir: project,
+      runtime: path.join(root, 'runtime'),
+      json: true,
+    });
+    const result = JSON.parse(output.mock.calls.map(([value]) => String(value)).join(''));
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('preview run') });
+    expect(readPreviewRecord(project)).toBeUndefined();
+    expect(spawn).not.toHaveBeenCalled();
+  } finally {
+    output.mockRestore();
+    process.exitCode = previousExitCode;
+  }
+});
+
+test('Agent run owns a bounded preview and returns evidence after stopping it', async () => {
+  runtime.mode = 'running';
+  const output = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  const previousExitCode = process.exitCode;
+  try {
+    await runPreviewCli('run', {
+      target_dir: project,
+      runtime: path.join(root, 'runtime'),
+      duration_ms: '1000',
+      json: true,
+    });
+    const result = JSON.parse(output.mock.calls.map(([value]) => String(value)).join(''));
+    expect(result).toMatchObject({
+      ok: true,
+      mode: 'agent',
+      state: 'stopped',
+      process_alive: false,
+      result: 'UNDETERMINED',
+      started: { state: 'running' },
+    });
+    expect(readPreviewRecord(project)?.state).toBe('stopped');
+    expect(spawn).not.toHaveBeenCalled();
+  } finally {
+    output.mockRestore();
+    process.exitCode = previousExitCode;
+  }
+});
+
+test('Agent waits through refresh and returns evidence from the final reload', async () => {
+  runtime.mode = 'running';
+  let started = false;
+  const stderr = jest.spyOn(process.stderr, 'write').mockImplementation((value) => {
+    if (String(value).includes('preview.started')) started = true;
+    return true;
+  });
+  const controller = new AbortController();
+  const run = executePreviewOperation(
+    'run',
+    {
+      target_dir: project,
+      runtime: path.join(root, 'runtime'),
+      duration_ms: '10000',
+    },
+    controller.signal
+  );
+  try {
+    await waitUntil(() => started);
+    const initial = readPreviewRecord(project)!;
+    fs.writeFileSync(
+      path.join(previewRoundDirectory(initial), 'runtime.log'),
+      JSON.stringify({ cursor: 1, text: 'old round' }) + '\n'
+    );
+    runtime.holdStop = true;
+    const refresh = requestPreview(initial, 'refresh');
+    await waitUntil(() => Boolean(runtime.instances[0].releaseStop));
+    await new Promise((resolve) => setTimeout(resolve, 1300));
+    expect(readPreviewRecord(project)?.state).toBe('reloading');
+    runtime.holdStop = false;
+    runtime.instances[0].releaseStop?.();
+    expect(await refresh).toMatchObject({ ok: true, state: 'running', reload_id: 1 });
+    const latest = readPreviewRecord(project)!;
+    fs.writeFileSync(
+      path.join(previewRoundDirectory(latest), 'runtime.log'),
+      JSON.stringify({ cursor: 1, text: 'new round' }) + '\n'
+    );
+    await requestPreview(latest, 'stop');
+    const result = await run;
+    expect(result).toMatchObject({
+      state: 'stopped',
+      reload_id: 1,
+      evidence: { logs: [{ cursor: 1, text: 'new round' }] },
+    });
+  } finally {
+    runtime.holdStop = false;
+    runtime.instances.forEach((instance) => instance.releaseStop?.());
+    controller.abort();
+    await run;
+    stderr.mockRestore();
+  }
+});
+
+test('a forged Host marker cannot authorize an external user preview executable', async () => {
+  if (process.platform !== 'win32') return;
+  const instanceId = randomUUID();
+  writePrivateJson(path.join(root, 'home', 'console', 'session.json'), {
+    instanceId,
+    pid: process.ppid,
+    userHost: true,
+  });
+  const previousMarker = process.env.TAPTAP_MAKER_CONSOLE_HOST_ID;
+  const output = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  const previousExitCode = process.exitCode;
+  process.env.TAPTAP_MAKER_CONSOLE_HOST_ID = instanceId;
+  try {
+    await runPreviewCli('start', {
+      target_dir: project,
+      runtime: path.join(root, 'runtime'),
+      json: true,
+    });
+    const response = JSON.parse(output.mock.calls.map(([value]) => String(value)).join(''));
+    expect(response.error).toContain('preview run');
+    expect(readPreviewRecord(project)).toBeUndefined();
+    expect(spawn).not.toHaveBeenCalled();
+  } finally {
+    output.mockRestore();
+    process.exitCode = previousExitCode;
+    if (previousMarker === undefined) delete process.env.TAPTAP_MAKER_CONSOLE_HOST_ID;
+    else process.env.TAPTAP_MAKER_CONSOLE_HOST_ID = previousMarker;
+  }
+});
+
+test('an Agent supervisor rejects a disconnected owner before opening a control channel', async () => {
+  const previousMarker = process.env.TAPTAP_MAKER_AGENT_OWNER;
+  const previousConnected = Object.getOwnPropertyDescriptor(process, 'connected');
+  process.env.TAPTAP_MAKER_AGENT_OWNER = '1';
+  Object.defineProperty(process, 'connected', {
+    configurable: true,
+    enumerable: true,
+    value: false,
+    writable: true,
+  });
+  try {
+    await expect(runPreviewSupervisor(project, randomUUID())).rejects.toThrow('owner disconnected');
+    expect(readPreviewRecord(project)).toBeUndefined();
+  } finally {
+    if (previousMarker === undefined) delete process.env.TAPTAP_MAKER_AGENT_OWNER;
+    else process.env.TAPTAP_MAKER_AGENT_OWNER = previousMarker;
+    if (previousConnected) Object.defineProperty(process, 'connected', previousConnected);
+    else Reflect.deleteProperty(process, 'connected');
+  }
+});
+
+test('in-process console ownership has no launcher and waits for Runtime cleanup', async () => {
+  runtime.mode = 'running';
+  const owner = new PreviewOwner();
+  try {
+    const result = await executePreviewOperation(
+      'start',
+      {
+        target_dir: project,
+        runtime: path.join(root, 'runtime'),
+      },
+      undefined,
+      owner
+    );
+    expect(result).toMatchObject({ ok: true, state: 'running', supervisor_pid: process.pid });
+    expect(spawn).not.toHaveBeenCalled();
+    expect(owner.active).toBe(true);
+    await owner.close();
+    expect(runtime.instances.at(-1)?.processAlive).toBe(false);
+    expect(owner.active).toBe(false);
+    expect((await previewStatus(project)).state).toBe('stopped');
+  } finally {
+    await owner.close();
+  }
+});
+
+test('a stale stop identity cannot write a cancellation marker for a newer session', async () => {
+  await boot();
+  const marker = path.join(previewDirectory(project), 'stop.json');
+  const result = await executePreviewOperation('stop', {
+    target_dir: project,
+    session_id: randomUUID(),
+  });
+  expect(result.ok).toBe(false);
+  expect(fs.existsSync(marker)).toBe(false);
+  expect((await requestPreview(record, 'status')).session_id).toBe(record.session_id);
+});
+
+test('stopping an old session during the next probe does not cancel the new preview', async () => {
+  runtime.mode = 'running';
+  record = { ...pendingRecord(), state: 'stopped' };
+  writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  const previousSession = record.session_id;
+  const probe = jest.mocked(probeRuntime).getMockImplementation()!;
+  jest.mocked(probeRuntime).mockImplementationOnce(async (...args) => {
+    const stopped = await executePreviewOperation('stop', {
+      target_dir: project,
+      session_id: previousSession,
+    });
+    expect(stopped.ok).toBe(true);
+    return probe(...args);
+  });
+  const owner = new PreviewOwner();
+  try {
+    const started = await executePreviewOperation(
+      'start',
+      { target_dir: project, runtime: path.join(root, 'runtime') },
+      undefined,
+      owner
+    );
+    expect(started).toMatchObject({ ok: true, state: 'running' });
+    expect(started.session_id).not.toBe(previousSession);
+  } finally {
+    await owner.close();
+  }
+});
+
+test('stop without a session does not create a cancellation marker', async () => {
+  const result = await executePreviewOperation('stop', { target_dir: project });
+  expect(result.ok).toBe(true);
+  expect(fs.existsSync(path.join(previewDirectory(project), 'stop.json'))).toBe(false);
+});
+
+test('a stop marker for the launching session still cancels legacy startup', async () => {
+  const launch = jest.mocked(spawn).getMockImplementation()!;
+  jest.mocked(spawn).mockImplementationOnce((...args) => {
+    const pending = readPreviewRecord(project)!;
+    writePrivateJson(path.join(previewDirectory(project), 'stop.json'), {
+      request_id: randomUUID(),
+      session_id: pending.session_id,
+      supervisor_id: pending.supervisor_id,
+    });
+    return launch(...args);
+  });
+  const result = await callCli('start');
+  expect(result).toMatchObject({ ok: false, error: expect.stringContaining('CANCELLED') });
+  expect(runtime.instances).toHaveLength(0);
 });

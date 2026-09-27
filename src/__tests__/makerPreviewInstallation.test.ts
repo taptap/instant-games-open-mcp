@@ -12,14 +12,14 @@ import {
 import { probeRuntime } from '../maker/preview/runtime.js';
 import { ensurePreviewRuntimeResources } from '../maker/preview/runtimeResources.js';
 import { previewDirectory, runtimeDirectory, writePrivateJson } from '../maker/preview/protocol.js';
-import { checkMakerPythonEnvironment } from '../maker/system/python.js';
+import { checkMakerPythonEnvironmentAsync } from '../maker/system/python.js';
 
 jest.mock('../maker/preview/installerProcess.js', () => ({ runPreviewInstaller: jest.fn() }));
 jest.mock('../maker/preview/runtime.js', () => ({ probeRuntime: jest.fn() }));
 jest.mock('../maker/preview/runtimeResources.js', () => ({
   ensurePreviewRuntimeResources: jest.fn(),
 }));
-jest.mock('../maker/system/python.js', () => ({ checkMakerPythonEnvironment: jest.fn() }));
+jest.mock('../maker/system/python.js', () => ({ checkMakerPythonEnvironmentAsync: jest.fn() }));
 
 const info = {
   protocol_version: 1,
@@ -40,9 +40,9 @@ beforeEach(() => {
   platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
   Object.defineProperty(process, 'platform', { value: 'darwin' });
   jest
-    .mocked(checkMakerPythonEnvironment)
-    .mockReturnValue({ ready: true, python: '/python', status: 'ready' } as ReturnType<
-      typeof checkMakerPythonEnvironment
+    .mocked(checkMakerPythonEnvironmentAsync)
+    .mockResolvedValue({ ready: true, python: '/python', status: 'ready' } as Awaited<
+      ReturnType<typeof checkMakerPythonEnvironmentAsync>
     >);
   jest.mocked(probeRuntime).mockResolvedValue(info);
   jest.mocked(ensurePreviewRuntimeResources).mockReturnValue({
@@ -161,8 +161,10 @@ test('download failure preserves the old pointer and missing Python gives a depe
   await expect(installPreviewRuntime(root, undefined, true)).rejects.toThrow('download failed');
   expect(previewInstallation(root).executable).toBe(previous);
   jest
-    .mocked(checkMakerPythonEnvironment)
-    .mockReturnValue({ ready: false } as ReturnType<typeof checkMakerPythonEnvironment>);
+    .mocked(checkMakerPythonEnvironmentAsync)
+    .mockResolvedValue({ ready: false } as Awaited<
+      ReturnType<typeof checkMakerPythonEnvironmentAsync>
+    >);
   await expect(installPreviewRuntime(root, undefined, true)).rejects.toThrow('Python and curl');
 });
 

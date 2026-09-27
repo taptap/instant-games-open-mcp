@@ -6,8 +6,12 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { getMakerHome, loadProjectConfig } from '../storage.js';
 import { previewEntryName, readPreviewConfiguration } from './configuration.js';
-import { checkMakerPythonEnvironment, setupMakerPythonEnvironment } from '../system/python.js';
+import {
+  checkMakerPythonEnvironmentAsync,
+  setupMakerPythonEnvironmentAsync,
+} from '../system/python.js';
 import { previewDirectory } from './protocol.js';
+import { withRuntimeInstallLock } from './installation.js';
 import {
   PREVIEW_BUILDER_SOURCE,
   PREVIEW_BUILDER_DIGEST,
@@ -46,21 +50,23 @@ function inside(root: string, relative: string): string {
   return filename;
 }
 
-function copyTree(source: string, target: string, signal?: AbortSignal): void {
+async function copyTree(source: string, target: string, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) throw new Error('CANCELLED');
-  const stat = fs.lstatSync(source);
+  const stat = await fs.promises.lstat(source);
   if (stat.isSymbolicLink())
     throw new Error(`Local prepare does not support symbolic links: ${source}`);
   if (stat.isDirectory()) {
-    fs.mkdirSync(target, { recursive: true, mode: 0o700 });
-    for (const name of fs.readdirSync(source)) {
-      copyTree(path.join(source, name), path.join(target, name), signal);
+    await fs.promises.mkdir(target, { recursive: true, mode: 0o700 });
+    for (const name of await fs.promises.readdir(source)) {
+      await copyTree(path.join(source, name), path.join(target, name), signal);
     }
     return;
   }
   if (!stat.isFile()) throw new Error(`Local prepare does not support special files: ${source}`);
-  fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
-  fs.copyFileSync(source, target);
+  await fs.promises.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
+  if (signal?.aborted) throw new Error('CANCELLED');
+  await fs.promises.copyFile(source, target);
+  if (signal?.aborted) throw new Error('CANCELLED');
 }
 
 function validateProjectVersion(source: string): void {
@@ -179,7 +185,7 @@ async function prepareProjectCopy(
   fs.mkdirSync(source, { recursive: true, mode: 0o700 });
   for (const name of ['scripts', 'assets', '.project']) {
     const original = path.join(project, name);
-    if (fs.existsSync(original)) copyTree(original, path.join(source, name), signal);
+    if (fs.existsSync(original)) await copyTree(original, path.join(source, name), signal);
   }
   const configDirectory = path.join(source, '.project');
   fs.mkdirSync(configDirectory, { recursive: true });
@@ -221,15 +227,18 @@ async function prepareProjectCopy(
     );
   configuration.build = { ...configuration.build, output_dir: '../dist' };
   fs.writeFileSync(path.join(source, '.project', 'settings.json'), JSON.stringify(configuration));
-  let python = checkMakerPythonEnvironment();
-  if (!python.ready) python = setupMakerPythonEnvironment().environment;
+  let python = await checkMakerPythonEnvironmentAsync(signal);
+  if (!python.ready)
+    python = await withRuntimeInstallLock(
+      async () => (await setupMakerPythonEnvironmentAsync(signal)).environment
+    );
   if (!python.ready || !python.python)
     throw new Error('Could not prepare the managed Python environment.');
   const builder = materializePreviewBuilder();
   const args = [builder, '--project', source, '--force-enhanced-refs', '--no-7z', '--no-compress'];
   const cache = path.join(previewDirectory(project), 'public-index-cache');
   const roundCache = path.join(source, '.build', 'manifest_cache');
-  if (fs.existsSync(cache)) copyTree(cache, roundCache, signal);
+  if (fs.existsSync(cache)) await copyTree(cache, roundCache, signal);
   const log = path.join(directory, 'prepare.log');
   try {
     const output = await promisify(execFile)(python.python, args, {
@@ -247,7 +256,7 @@ async function prepareProjectCopy(
       throw new Error('Public source index download failed.');
     const diagnosticWarnings = previewBuilderWarnings(source, output.stdout, output.stderr);
     const result = validatePreparedPreview(source);
-    if (fs.existsSync(roundCache)) copyTree(roundCache, cache, signal);
+    if (fs.existsSync(roundCache)) await copyTree(roundCache, cache, signal);
     return {
       ok: true,
       source_directory: source,

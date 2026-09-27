@@ -357,7 +357,11 @@ async function main() {
     join(pluginRoot, 'docs', 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
     'Maker MCP troubleshooting guide'
   );
-  for (const guide of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+  for (const guide of [
+    'MAKER_LOCAL_PREVIEW.md',
+    'MAKER_CONSOLE.md',
+    'MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md',
+  ]) {
     copyRequiredFile(
       join(projectRoot, 'docs', guide),
       join(pluginRoot, 'docs', guide),

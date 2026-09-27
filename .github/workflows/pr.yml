@@ -92,8 +92,6 @@ jobs:
 
       - name: Run tests
         run: npm test
-        continue-on-error: true
-        # 如果测试失败，继续执行但标记为失败
 
   # Commit 消息检查
   commitlint:

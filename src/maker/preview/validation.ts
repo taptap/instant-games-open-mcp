@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { StringDecoder } from 'node:string_decoder';
 import { previewDirectory, previewRoundDirectory, writePrivateJson } from './protocol.js';
 import { PreviewLogs, trimPreviewEvidence } from './evidence.js';
 import { withPreviewLock } from './installation.js';
@@ -13,6 +14,8 @@ import { classifyPreviewProject } from './configuration.js';
 import { startPreviewAssetServer, type PreviewAssetServer } from './assets.js';
 import { preparePreviewServer } from './network.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
+import { PreviewLuaLog } from './luaLog.js';
+import { selectWindowsBackgroundEnvironment } from '../system/backgroundProcess.js';
 
 export type PreviewValidationMode = 'validate' | 'screenshot' | 'both';
 
@@ -43,10 +46,26 @@ function validationResult(
   };
 }
 
-function appendOutput(logs: PreviewLogs, chunk: Buffer | string): void {
-  for (const line of String(chunk).split(/\r?\n/)) {
-    if (line) logs.append(line.slice(0, 65536));
-  }
+function consumeOutput(stream: NodeJS.ReadableStream, append: (line: string) => void): void {
+  const decoder = new StringDecoder('utf8');
+  let pending = '';
+  stream.on('data', (chunk: Buffer) => {
+    pending += decoder.write(chunk);
+    let newline: number;
+    while ((newline = pending.indexOf('\n')) >= 0) {
+      append(pending.slice(0, newline).replace(/\r$/, '').slice(0, 65536));
+      pending = pending.slice(newline + 1);
+    }
+    if (pending.length > 65536) {
+      append(pending.slice(0, 65536));
+      pending = '';
+    }
+  });
+  stream.on('end', () => {
+    pending += decoder.end();
+    if (pending) append(pending.slice(0, 65536));
+    pending = '';
+  });
 }
 
 function readJsonFile(filename: string): Record<string, unknown> | undefined {
@@ -152,6 +171,12 @@ async function runValidation(
   const directory = previewRoundDirectory(identity);
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   const logs = new PreviewLogs(directory);
+  const luaErrors: string[] = [];
+  const luaLog = new PreviewLuaLog(executable, (line) => {
+    logs.append(line);
+    if (/\bERROR:|stack traceback:/.test(line) && luaErrors.length < 20)
+      luaErrors.push(String(sanitizeDiagnosticValue(line.slice(0, 16384))));
+  });
   const reportPath = path.join(directory, 'validate.json');
   const screenshotPath = path.join(directory, `${randomUUID()}.png`);
   let assets: PreviewAssetServer | undefined;
@@ -160,7 +185,6 @@ async function runValidation(
   let timedOut = false;
   let cancelled = false;
   let screenshotAfterStartSupported = false;
-  let outputTail = '';
   let report: Record<string, unknown> | undefined;
   let unsupportedCapability: string | undefined;
   const artifacts: Record<string, unknown>[] = [];
@@ -179,6 +203,7 @@ async function runValidation(
         clearTimeout(timer);
       }
     }
+    await luaLog.finish();
     await assets?.close();
     if (temporaryCache && fs.existsSync(temporaryCache)) {
       if (fs.lstatSync(temporaryCache).isSymbolicLink())
@@ -257,6 +282,12 @@ async function runValidation(
       cwd: source,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: false,
+      detached: false,
+      shell: false,
+      env:
+        process.platform === 'win32'
+          ? selectWindowsBackgroundEnvironment(process.env)
+          : process.env,
     });
     // Keep spawn errors handled even if persisting invocation evidence throws first.
     child.on('error', () => {});
@@ -269,15 +300,13 @@ async function runValidation(
       started_at: startedAt,
       runtime_pid: child.pid,
     });
-    const output = (chunk: Buffer): void => {
-      outputTail = outputTail + String(chunk);
-      if (outputTail.includes('[Screenshot] after-start enabled'))
-        screenshotAfterStartSupported = true;
-      outputTail = outputTail.slice(-128);
-      appendOutput(logs, chunk);
+    const output = (line: string): void => {
+      if (line.includes('[Screenshot] after-start enabled')) screenshotAfterStartSupported = true;
+      luaLog.observe(line);
+      if (line) logs.append(assets ? line.split(assets.url).join('[local-preview]/') : line);
     };
-    child.stdout?.on('data', output);
-    child.stderr?.on('data', output);
+    if (child.stdout) consumeOutput(child.stdout, output);
+    if (child.stderr) consumeOutput(child.stderr, output);
 
     exitCode = await new Promise<number | null>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -303,6 +332,7 @@ async function runValidation(
       });
       if (signal?.aborted) onAbort();
     });
+    await luaLog.finish();
 
     report = mode === 'validate' || mode === 'both' ? readJsonFile(reportPath) : undefined;
     if ((mode === 'validate' || mode === 'both') && !report)
@@ -325,6 +355,7 @@ async function runValidation(
     }
     const passed =
       exitCode === 0 &&
+      luaErrors.length === 0 &&
       (mode === 'screenshot'
         ? artifacts.some((item) => item.kind === 'screenshot')
         : !!report && reportPassed(report));
@@ -334,6 +365,7 @@ async function runValidation(
       {
         mode,
         report,
+        errors: luaErrors,
         artifacts,
         log_path: path.join(directory, 'runtime.log'),
         preflight,

@@ -372,11 +372,20 @@ export async function requestPreview(
   });
 }
 
-export async function runPreviewSupervisor(project: string, sessionId?: string): Promise<void> {
+export async function runPreviewSupervisor(
+  project: string,
+  sessionId?: string,
+  owner?: { register: (stop: () => Promise<void>) => () => void }
+): Promise<void> {
+  const requiresOwner = !owner && process.env.TAPTAP_MAKER_AGENT_OWNER === '1';
+  if (requiresOwner && !process.connected)
+    throw new Error('Agent preview owner disconnected before startup.');
   const record = readPreviewRecord(project);
   if (!record || record.port || record.supervisor_pid)
     throw new Error('No pending preview supervisor launch.');
   const validateLaunch = (): void => {
+    if (requiresOwner && !process.connected)
+      throw new Error('Agent preview owner disconnected before startup.');
     const current = readPreviewRecord(project);
     if (
       !current ||
@@ -394,8 +403,17 @@ export async function runPreviewSupervisor(project: string, sessionId?: string):
   };
   validateLaunch();
   const session = new PreviewSession(record);
+  let unregister: (() => void) | undefined;
   let shuttingDown = false;
-  const shutdown = async (retireFailure = false): Promise<void> => {
+  let shutdownTask: Promise<void> | undefined;
+  const shutdown = (retireFailure = false): Promise<void> => {
+    if (shutdownTask) return shutdownTask;
+    shutdownTask = performShutdown(retireFailure).finally(() => {
+      shutdownTask = undefined;
+    });
+    return shutdownTask;
+  };
+  const performShutdown = async (retireFailure: boolean): Promise<void> => {
     if (shuttingDown || (retireFailure && !session.canRetireFailure)) return;
     shuttingDown = true;
     try {
@@ -413,6 +431,8 @@ export async function runPreviewSupervisor(project: string, sessionId?: string):
       });
       process.removeListener('SIGINT', onSignal);
       process.removeListener('SIGTERM', onSignal);
+      process.removeListener('disconnect', onSignal);
+      unregister?.();
       if (retireFailure && session.canRetireFailure) {
         try {
           const current = readPreviewRecord(project);
@@ -518,7 +538,12 @@ export async function runPreviewSupervisor(project: string, sessionId?: string):
   record.supervisor_pid = process.pid;
   record.runtime_pid = 0;
   record.runtime_launch_pending = false;
-  writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  try {
+    writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  } catch (error) {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    throw error;
+  }
   const idleTimer = setInterval(() => {
     if (record.state === 'stopped') void shutdown();
     else if (session.canRetireFailure) void shutdown(true);
@@ -526,8 +551,21 @@ export async function runPreviewSupervisor(project: string, sessionId?: string):
   const closeTimer = setTimeout(() => {
     if (record.state === 'starting' && !session.status().runtime_pid) void shutdown();
   }, 360000);
-  process.once('SIGINT', onSignal);
-  process.once('SIGTERM', onSignal);
+  if (owner) {
+    try {
+      unregister = owner.register(() => shutdown());
+    } catch (error) {
+      await shutdown();
+      throw error;
+    }
+  } else {
+    process.once('SIGINT', onSignal);
+    process.once('SIGTERM', onSignal);
+  }
+  if (requiresOwner) {
+    if (process.connected) process.once('disconnect', onSignal);
+    else void shutdown();
+  }
 }
 
 export async function previewStatus(project: string): Promise<Record<string, unknown>> {

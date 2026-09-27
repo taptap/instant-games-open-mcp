@@ -15,6 +15,7 @@ export type PreviewProcessLaunchOptions = {
   env: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   signal?: AbortSignal;
+  mode?: 'direct' | 'attached';
 };
 
 export function buildWindowsPreviewLaunchScripts(options: PreviewProcessLaunchOptions): {
@@ -55,5 +56,6 @@ export function launchPreviewSupervisorProcess(
     env: options.env,
     platform: options.platform,
     signal: options.signal,
+    mode: options.mode,
   });
 }

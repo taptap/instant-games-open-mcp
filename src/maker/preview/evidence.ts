@@ -64,7 +64,8 @@ export function trimPreviewEvidence(
 export function readStoredPreviewLogs(
   directory: string,
   cursor = 0,
-  limit = 100
+  limit = 100,
+  tail = false
 ): Record<string, unknown> {
   if (
     !Number.isSafeInteger(cursor) ||
@@ -91,19 +92,21 @@ export function readStoredPreviewLogs(
   }
   const selected: typeof rows = [];
   let bytes = 0;
-  for (const row of rows) {
+  for (const row of tail ? [...rows].reverse() : rows) {
     if (row.cursor <= cursor) continue;
     const size = Buffer.byteLength(JSON.stringify(row));
     if (selected.length >= limit || bytes + size > 65536) break;
     selected.push(row);
     bytes += size;
   }
+  if (tail) selected.reverse();
   const next = selected[selected.length - 1]?.cursor ?? cursor;
   return {
     available: fs.existsSync(directory),
     logs: selected,
     next_cursor: next,
     truncated:
+      (tail && selected.length < rows.filter((row) => row.cursor > cursor).length) ||
       !fs.existsSync(directory) ||
       cursor < (rows[0]?.cursor ?? 1) - 1 ||
       next < (rows[rows.length - 1]?.cursor ?? 0),

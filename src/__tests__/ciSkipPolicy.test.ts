@@ -51,6 +51,17 @@ This commit runs checks normally.`);
     );
   });
 
+  it('does not allow PR test failures to be ignored', () => {
+    const workflow = readFileSync(join(process.cwd(), '.github', 'workflows', 'pr.yml'), 'utf8');
+    const testJob = workflow.slice(
+      workflow.indexOf('# 测试'),
+      workflow.indexOf('# Commit 消息检查')
+    );
+
+    expect(testJob).toContain('run: npm test');
+    expect(testJob).not.toContain('continue-on-error: true');
+  });
+
   it('does not ignore skip-ci commits in commitlint config', () => {
     const config = nodeRequire('../../.commitlintrc.cjs');
     const message = 'feat: add guarded workflow [skip ci]';

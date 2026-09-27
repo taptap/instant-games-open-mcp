@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import childProcess from 'node:child_process';
 import {
   previewDirectory,
   previewProject,
@@ -12,8 +13,11 @@ import { probeRuntime, preflightPreview, previewWindow } from '../maker/preview/
 import { PreviewSession, previewStatus } from '../maker/preview/session.js';
 import * as previewSessionModule from '../maker/preview/session.js';
 import { runPreviewValidation } from '../maker/preview/validation.js';
-import { PreviewLogs } from '../maker/preview/evidence.js';
 import { withPreviewLock } from '../maker/preview/installation.js';
+import { PreviewLogs, readStoredPreviewLogs } from '../maker/preview/evidence.js';
+import { executePreviewOperation } from '../maker/cli/preview.js';
+import { PreviewOwner } from '../maker/preview/owner.js';
+import { preparePreviewProject } from '../maker/preview/prepare.js';
 import {
   readPreviewWindowSettings,
   savePreviewWindowSettings,
@@ -288,6 +292,125 @@ fixtureTest('one-shot validation returns only real report and screenshot artifac
     expect(fs.statSync(item.path).size).toBeGreaterThan(0);
 });
 
+fixtureTest('one-shot validation drains announced Lua logs before returning evidence', async () => {
+  fs.writeFileSync(path.join(project, '.project', 'fixture.json'), '{"luaLog":true}');
+  const result = await executePreviewOperation('validate', {
+    target_dir: project,
+    runtime: executable,
+    mode: 'both',
+  });
+  expect(result).toMatchObject({ ok: true, result: 'PASS' });
+  const logs = fs.readFileSync(String(result.log_path), 'utf8');
+  expect(logs).toContain('[lua] Lua final output 1999');
+});
+
+fixtureTest('a final Lua file error cannot be hidden by a PASS report', async () => {
+  fs.writeFileSync(
+    path.join(project, '.project', 'fixture.json'),
+    '{"luaLog":true,"luaError":true}'
+  );
+  const result = await runPreviewValidation(executable, project, 'both');
+  expect(result).toMatchObject({
+    ok: false,
+    result: 'FAIL',
+    report: { result: 'PASS' },
+    errors: [expect.stringContaining('[lua] ERROR: Lua final output 1999')],
+  });
+});
+
+fixtureTest(
+  'cancellation after asynchronous prepare never launches a validation Runtime',
+  async () => {
+    const controller = new AbortController();
+    const prepare = jest.mocked(preparePreviewProject).getMockImplementation()!;
+    jest.mocked(preparePreviewProject).mockImplementationOnce(async (...args) => {
+      const result = await prepare(...args);
+      controller.abort();
+      return result;
+    });
+    const spawn = jest.spyOn(childProcess, 'spawn');
+    try {
+      expect(
+        await runPreviewValidation(executable, project, 'both', controller.signal)
+      ).toMatchObject({
+        ok: false,
+        result: 'CANCELLED',
+      });
+      expect(spawn).not.toHaveBeenCalled();
+      await expect(withPreviewLock(project, async () => true)).resolves.toBe(true);
+    } finally {
+      spawn.mockRestore();
+    }
+  }
+);
+
+fixtureTest(
+  'validation does not take over an in-process owner and works after it stops',
+  async () => {
+    const owner = new PreviewOwner();
+    try {
+      expect(
+        await executePreviewOperation(
+          'start',
+          { target_dir: project, runtime: executable },
+          undefined,
+          owner
+        )
+      ).toMatchObject({ ok: true, state: 'running', supervisor_pid: process.pid });
+      expect(
+        await executePreviewOperation('validate', {
+          target_dir: project,
+          runtime: executable,
+          mode: 'both',
+        })
+      ).toMatchObject({
+        ok: false,
+        error: expect.stringContaining('Stop the active local preview'),
+      });
+      expect((await previewStatus(project)).process_alive).toBe(true);
+    } finally {
+      await owner.close();
+    }
+    expect(
+      await executePreviewOperation('validate', {
+        target_dir: project,
+        runtime: executable,
+        mode: 'both',
+      })
+    ).toMatchObject({ ok: true, result: 'PASS' });
+    expect(owner.active).toBe(false);
+    expect((await previewStatus(project)).state).toBe('stopped');
+  }
+);
+
+fixtureTest('validation uses the Windows environment allowlist and an attached child', async () => {
+  const spawn = jest.spyOn(childProcess, 'spawn');
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  Object.defineProperty(process, 'platform', { ...platform, value: 'win32' });
+  const oldToken = process.env.TAPTAP_MCP_MAC_TOKEN;
+  process.env.TAPTAP_MCP_MAC_TOKEN = 'validation-fixture-secret';
+  try {
+    expect(await runPreviewValidation(executable, project, 'both')).toMatchObject({
+      ok: true,
+      result: 'PASS',
+    });
+    expect(spawn).toHaveBeenCalledWith(
+      executable,
+      expect.any(Array),
+      expect.objectContaining({
+        detached: false,
+        shell: false,
+        env: expect.not.objectContaining({ TAPTAP_MCP_MAC_TOKEN: expect.anything() }),
+      })
+    );
+  } finally {
+    spawn.mockRestore();
+    Object.defineProperty(process, 'platform', platform);
+    if (oldToken === undefined) delete process.env.TAPTAP_MCP_MAC_TOKEN;
+    else process.env.TAPTAP_MCP_MAC_TOKEN = oldToken;
+  }
+});
+
 fixtureTest('one-shot screenshot succeeds without a validation report', async () => {
   const result = await runPreviewValidation(executable, project, 'screenshot');
   expect(result).toMatchObject({ ok: true, result: 'PASS', mode: 'screenshot' });
@@ -463,4 +586,33 @@ test('logs remain bounded and have an incremental cursor', () => {
   const second = logs.read(Number(first.next_cursor), 1);
   expect(JSON.stringify(second)).toContain('second');
   expect(() => logs.read(-1, 1)).toThrow();
+});
+
+test('stored log tail includes game output after verbose startup without changing pagination', () => {
+  const directory = path.join(root, 'tail-logs');
+  const logs = new PreviewLogs(directory);
+  for (let index = 0; index < 120; index++) logs.append('startup ' + index);
+  logs.append('USER_FLOW_READY');
+  expect(readStoredPreviewLogs(directory, 0, 100)).toMatchObject({ next_cursor: 100 });
+  const tail = readStoredPreviewLogs(directory, 0, 100, true);
+  expect(tail).toMatchObject({ next_cursor: 121, truncated: true });
+  expect((tail.logs as { cursor: number; text: string }[]).at(-1)?.text).toBe('USER_FLOW_READY');
+  expect(readStoredPreviewLogs(directory, 120, 100)).toMatchObject({
+    logs: [{ cursor: 121, text: 'USER_FLOW_READY' }],
+    truncated: false,
+  });
+});
+
+test('stored log tail stays byte bounded and preserves chronological order', () => {
+  const directory = path.join(root, 'large-tail-logs');
+  const logs = new PreviewLogs(directory);
+  for (let index = 0; index < 150; index++) logs.append(String(index) + 'x'.repeat(16000));
+  const result = readStoredPreviewLogs(directory, 0, 100, true);
+  const rows = result.logs as { cursor: number; text: string }[];
+  expect(rows.at(-1)?.cursor).toBe(150);
+  expect(rows.length).toBeLessThan(5);
+  expect(rows.map((row) => row.cursor)).toEqual(
+    rows.map((row) => row.cursor).sort((left, right) => left - right)
+  );
+  expect(result.truncated).toBe(true);
 });

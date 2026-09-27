@@ -42,6 +42,23 @@ async function main() {
     options = JSON.parse(fs.readFileSync(path.join(project, '.project', 'fixture.json'), 'utf8'));
   }
   if (options.exitEarly) process.exit(2);
+  if (options.luaLog) {
+    const filename = path.join(__dirname, 'logs', 'lua', 'lua-2026-09-28.log');
+    fs.mkdirSync(path.dirname(filename), { recursive: true });
+    fs.writeFileSync(
+      filename,
+      Array.from({ length: 2000 }, (_, index) =>
+        JSON.stringify({
+          l: options.luaError && index === 1999 ? 'ERROR' : 'INFO',
+          m: 'Lua final output ' + index + 'x'.repeat(40),
+        })
+      ).join('\n') + '\n'
+    );
+    const announcement = 'INFO: Lua official log file initialized: ' + filename + '\n';
+    process.stdout.write(announcement.slice(0, 20));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    process.stdout.write(announcement.slice(20));
+  }
   if (options.waitForAbort) {
     console.log('WAITING_FOR_ABORT');
     setInterval(() => {}, 1000);

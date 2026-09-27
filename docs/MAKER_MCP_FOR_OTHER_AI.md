@@ -6,7 +6,8 @@
 
 本次 Maker MCP 已经在当前仓库的分支 `fix/local-validation-phase-one` 完成并推送，功能提交为 `2062d2b`，后续文档提交为 `8fa3360`。
 
-本机 Codex 使用的是插件内置 Maker MCP，不是另一个需要重新安装的普通全局 MCP：
+以下插件路径是此前交付记录，不保证当前仍安装或加载该版本；先核对文件与当前客户端配置，
+不要把本分支合并后的源码等同于已安装插件。此前 Codex 插件目录：
 
 ```text
 /Users/liangdong/.codex/plugins/cache/taptap-maker/taptap-maker/0.0.3
@@ -36,7 +37,9 @@
 }
 ```
 
-**插件文件存在，不等于当前 AI 会话已经加载 MCP。** 如果工具列表中没有 `maker_status_lite`、`preview` 等 Maker 工具，应重新加载或重启当前插件会话；不要重复安装或重新编译。
+**插件文件存在，不等于当前 AI 会话已经加载 MCP。** `maker_status_lite` 可用于核对
+MCP 连接；`preview` 和 `validate` 是 CLI 子命令，不是 MCP tool，不能因工具列表没有它们
+就要求重装插件。先按当前插件的本地开发 Skill 定位其内置 CLI。
 
 ## 检查当前会话
 
@@ -75,7 +78,7 @@ node "/Users/liangdong/.codex/plugins/cache/taptap-maker/taptap-maker/0.0.3/dist
 
 令 `GAME` 为当前游戏项目的绝对路径。不要使用占位字符串，也不要把 MCP 仓库路径当作游戏项目路径。
 
-通过当前会话的 Maker MCP 执行：
+通过当前渠道的 Maker CLI 执行（不是调用同名 MCP tool）：
 
 ```text
 preview validate
@@ -83,12 +86,12 @@ preview validate
 
 参数含义：
 
-- `targetDir`：当前游戏项目绝对路径。
+- `--target-dir`：当前游戏项目绝对路径。
 - `mode=validate`：运行并获取 JSON 验证报告、stdout/stderr 和 Runtime 日志。
 - `mode=screenshot`：运行并获取截图。
 - `mode=both`：同时获取验证报告和截图，优先使用这个模式。
 
-如果只能调用 CLI，使用：
+由 Agent 的终端能力调用 CLI：
 
 ```bash
 CLI="/Users/liangdong/.codex/plugins/cache/taptap-maker/taptap-maker/0.0.3/dist/maker.js"
