@@ -5,7 +5,7 @@ import { ConsoleProjects } from './projects.js';
 import { ConsoleTasks } from './tasks.js';
 import { ConsoleError, type ConsoleAction, type ConsoleExecutor } from './types.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
-import { checkMakerLuaLspEnvironment } from '../system/luaLsp.js';
+import { checkMakerLuaLspEnvironmentAsync } from '../system/luaLsp.js';
 import { ConsolePlugins, type ConsolePlugin } from './plugins.js';
 import { readPreviewWindowSettings, savePreviewWindowSettings } from '../preview/windowSettings.js';
 import { ConsoleUpdates } from './updates.js';
@@ -41,18 +41,39 @@ export async function startConsoleServer(options: {
   const updates = new ConsoleUpdates(options.version, options.distribution);
   const documents = new ConsoleDocuments(options.packageRoot || '');
   let luaLspCache: { at: number; value: Record<string, unknown> } | undefined;
+  let luaLspPending: Promise<void> | undefined;
   const luaLspStatus = (): Record<string, unknown> => {
     if (luaLspCache && now() - luaLspCache.at < 30_000) return luaLspCache.value;
-    const environment = checkMakerLuaLspEnvironment();
-    const value = {
-      ready: environment.ready,
-      status: environment.status,
-      version: environment.version || null,
-      nextAction: environment.nextAction,
-      error: environment.error ? environment.error.slice(0, 512) : null,
-    };
-    luaLspCache = { at: now(), value };
-    return value;
+    luaLspPending ??= checkMakerLuaLspEnvironmentAsync(readAbort.signal)
+      .then((environment) => {
+        luaLspCache = {
+          at: now(),
+          value: {
+            ready: environment.ready,
+            status: environment.status,
+            version: environment.version || null,
+            nextAction: environment.nextAction,
+            error: environment.error ? environment.error.slice(0, 512) : null,
+          },
+        };
+      })
+      .catch((error) => {
+        luaLspCache = {
+          at: now(),
+          value: {
+            ready: false,
+            status: 'setup_failed',
+            version: null,
+            error: String(
+              sanitizeDiagnosticValue(error instanceof Error ? error.message : error)
+            ).slice(0, 512),
+          },
+        };
+      })
+      .finally(() => {
+        luaLspPending = undefined;
+      });
+    return luaLspCache?.value || { ready: false, status: 'checking', version: null };
   };
   const previewsActive = (): boolean => {
     try {
@@ -394,6 +415,7 @@ export async function startConsoleServer(options: {
       /* A full/read-only disk must not prevent an otherwise clean shutdown. */
     }
     closePromise = (async () => {
+      await luaLspPending;
       await plugins.close();
       await tasks.settled();
       await options.closePreviews?.();

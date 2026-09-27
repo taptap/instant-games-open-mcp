@@ -44,7 +44,7 @@ export class PreviewLuaLog {
     }
   }
 
-  poll(): void {
+  poll(limit = 64 * 1024 * 1024): void {
     if (!this.filename) return;
     let descriptor: number | undefined;
     try {
@@ -64,8 +64,8 @@ export class PreviewLuaLog {
         stat.birthtimeMs !== this.identity.birthtimeMs
       )
         return;
-      if (stat.size < this.offset || stat.size > 64 * 1024 * 1024) return;
-      const buffer = Buffer.alloc(Math.min(65536, stat.size - this.offset));
+      if (stat.size < this.offset || this.offset >= limit) return;
+      const buffer = Buffer.alloc(Math.min(65536, stat.size - this.offset, limit - this.offset));
       const bytes = fs.readSync(descriptor, buffer, 0, buffer.length, this.offset);
       this.offset += bytes;
       this.pending += this.decoder.write(buffer.subarray(0, bytes));
@@ -93,5 +93,27 @@ export class PreviewLuaLog {
   close(): void {
     clearInterval(this.timer);
     this.poll();
+  }
+
+  async finish(): Promise<void> {
+    clearInterval(this.timer);
+    if (!this.filename) return;
+    try {
+      const size = fs.statSync(this.filename).size;
+      const limit = Math.min(size, 64 * 1024 * 1024);
+      while (this.offset < limit) {
+        const before = this.offset;
+        this.poll(limit);
+        if (this.offset === before) {
+          this.append('[lua] ERROR: Final Lua log collection is incomplete.');
+          return;
+        }
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      if (size > limit || this.pending.length)
+        this.append('[lua] ERROR: Final Lua log collection was truncated.');
+    } catch {
+      this.append('[lua] ERROR: Final Lua log collection failed.');
+    }
   }
 }

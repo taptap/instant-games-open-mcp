@@ -282,7 +282,11 @@ async function runAgentPreview(
     while (!signal.aborted && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, Math.min(1000, deadline - Date.now())));
       current = await previewStatus(project);
-      if (current.session_id !== record.session_id || current.state !== 'running') break;
+      if (
+        current.session_id !== record.session_id ||
+        !['running', 'reloading'].includes(String(current.state))
+      )
+        break;
     }
   } finally {
     try {
@@ -291,12 +295,24 @@ async function runAgentPreview(
       await owner.close();
     }
   }
+  const final = await previewStatus(project);
+  if (final.session_id !== record!.session_id || final.supervisor_id !== record!.supervisor_id)
+    throw new Error('Agent preview session changed; refusing unrelated final evidence.');
+  current = final;
   return {
     ...current,
     protocol_version: 1,
     mode: 'agent',
     started,
-    evidence: readStoredPreviewLogs(previewRoundDirectory(record!), 0, 100, true),
+    evidence: readStoredPreviewLogs(
+      previewRoundDirectory({
+        ...record!,
+        reload_id: Number(current?.reload_id ?? record!.reload_id),
+      }),
+      0,
+      100,
+      true
+    ),
     result: signal.aborted
       ? 'CANCELLED'
       : current?.state === 'failed' || (Array.isArray(current?.errors) && current.errors.length > 0)

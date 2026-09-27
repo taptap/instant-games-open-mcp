@@ -234,3 +234,20 @@ DirectConnect/Ready，运行时配置虽已存在于 manifest，Ready 仍找不�
 Windows 启动链路迁移阶段 A 的独立探针、操作方法和未完成验收项见 [启动方式探针](MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md)。空 supervisor 日志只说明未观察到 supervisor 写日志，不能单凭此确认是火绒、WMI 或 Runtime 故障；先结合杀软事件与本轮启动结果排查。
 
 隔离新用户目录完成 Runtime 安装、Agent 前台取数及控制台 Host 预览；受限 Job 退出测试证明 Agent 会清理，独立 Host 持有的窗口仍存活。旧 breakaway 实验路径已撤回。详情见 [启动方式探针](MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md)。
+
+## Preparation and final evidence
+
+Real-game acceptance results and remaining blockers: see the 2026-09-28 section in
+[Windows launch verification](MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md).
+
+Python probes and setup in the preview path run asynchronously with bounded output and timeouts.
+Cancellation waits for the owned child process cleanup; sequential asynchronous copying preserves
+project isolation and rejects links. Existing synchronous Python commands are unchanged.
+
+Agent runs continue through reloading. Stop/cancel still wins, and final evidence is selected only
+after owned-session cleanup and identity verification, using the final reload ID. Runtime close
+drains remaining Lua output in 64 KiB chunks, yielding between chunks, up to the existing 64 MiB
+file limit. Truncation or incomplete collection is reported as an error rather than hidden.
+
+These checks do not prove game rendering, interaction, or server connectivity. Real-game acceptance
+must include inspected window screenshots and representative input, separately from process checks.

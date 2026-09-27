@@ -37,6 +37,29 @@ test('reads only the announced file incrementally and flushes on close', () => {
   expect(lines).toHaveLength(2);
 });
 
+test('drains a final burst without losing the final error and yields between chunks', async () => {
+  reader.observe(announce(filename));
+  const row = JSON.stringify({ m: 'x'.repeat(1000), l: 'RAW' }) + '\n';
+  fs.appendFileSync(filename, row.repeat(300) + '{"m":"final failure","l":"ERROR"}\n');
+  let yielded = false;
+  setImmediate(() => {
+    yielded = true;
+  });
+  await reader.finish();
+  expect(yielded).toBe(true);
+  expect(lines).toHaveLength(301);
+  expect(lines.at(-1)).toBe('[lua] ERROR: final failure');
+  await reader.finish();
+  expect(lines).toHaveLength(301);
+});
+
+test('reports an incomplete final file instead of silently dropping it', async () => {
+  reader.observe(announce(filename));
+  fs.appendFileSync(filename, '{"m":"incomplete');
+  await reader.finish();
+  expect(lines).toContain('[lua] ERROR: Final Lua log collection was truncated.');
+});
+
 test('ignores unrelated files and a second announcement', () => {
   const foreign = path.join(root, 'secret.log');
   fs.writeFileSync(foreign, '{"m":"secret"}\n');

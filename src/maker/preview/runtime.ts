@@ -180,8 +180,12 @@ export class PreviewRuntime {
     this.child = child;
     this.closed = new Promise((resolve) =>
       child.once('close', () => {
-        this.luaLog?.close();
         void (async () => {
+          try {
+            await this.luaLog?.finish();
+          } catch (error) {
+            this.recordError(String(error));
+          }
           try {
             await this.assets?.close();
             this.clearAssetCache();
@@ -344,6 +348,7 @@ export class PreviewRuntime {
     this.stopping = true;
     this.abort.abort();
     if (!this.processAlive) {
+      await this.closed;
       await this.assets?.close();
       this.clearAssetCache();
       return;

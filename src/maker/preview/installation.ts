@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { checkMakerPythonEnvironment } from '../system/python.js';
+import { checkMakerPythonEnvironmentAsync } from '../system/python.js';
 import {
   previewDirectory,
   runtimeDirectory,
@@ -253,7 +253,7 @@ export async function installPreviewRuntime(
         path.join(directory, unresolved.name)
     );
   }
-  const python = checkMakerPythonEnvironment();
+  const python = await checkMakerPythonEnvironmentAsync(signal);
   if (!python.ready || !python.python) {
     throw new Error(
       'Runtime installation needs Python and curl. Run taptap-maker python setup with host approval, then retry.'

@@ -1163,6 +1163,7 @@ async function shutdownConsole() {
   }
 }
 function luaLspPresentation(status) {
+  if (status?.status === 'checking') return {label:'检测中',status:'检测中',detail:'正在检查本机 Lua 诊断环境',tone:'muted'};
   if (!status) return {label:'待检测',status:'未提供',detail:'打开控制台后读取本机安装状态',tone:'muted'};
   if (status.ready) return {
     label: '已安装',

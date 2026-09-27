@@ -1198,6 +1198,59 @@ test('Agent run owns a bounded preview and returns evidence after stopping it', 
   }
 });
 
+test('Agent waits through refresh and returns evidence from the final reload', async () => {
+  runtime.mode = 'running';
+  let started = false;
+  const stderr = jest.spyOn(process.stderr, 'write').mockImplementation((value) => {
+    if (String(value).includes('preview.started')) started = true;
+    return true;
+  });
+  const controller = new AbortController();
+  const run = executePreviewOperation(
+    'run',
+    {
+      target_dir: project,
+      runtime: path.join(root, 'runtime'),
+      duration_ms: '10000',
+    },
+    controller.signal
+  );
+  try {
+    await waitUntil(() => started);
+    const initial = readPreviewRecord(project)!;
+    fs.writeFileSync(
+      path.join(previewRoundDirectory(initial), 'runtime.log'),
+      JSON.stringify({ cursor: 1, text: 'old round' }) + '\n'
+    );
+    runtime.holdStop = true;
+    const refresh = requestPreview(initial, 'refresh');
+    await waitUntil(() => Boolean(runtime.instances[0].releaseStop));
+    await new Promise((resolve) => setTimeout(resolve, 1300));
+    expect(readPreviewRecord(project)?.state).toBe('reloading');
+    runtime.holdStop = false;
+    runtime.instances[0].releaseStop?.();
+    expect(await refresh).toMatchObject({ ok: true, state: 'running', reload_id: 1 });
+    const latest = readPreviewRecord(project)!;
+    fs.writeFileSync(
+      path.join(previewRoundDirectory(latest), 'runtime.log'),
+      JSON.stringify({ cursor: 1, text: 'new round' }) + '\n'
+    );
+    await requestPreview(latest, 'stop');
+    const result = await run;
+    expect(result).toMatchObject({
+      state: 'stopped',
+      reload_id: 1,
+      evidence: { logs: [{ cursor: 1, text: 'new round' }] },
+    });
+  } finally {
+    runtime.holdStop = false;
+    runtime.instances.forEach((instance) => instance.releaseStop?.());
+    controller.abort();
+    await run;
+    stderr.mockRestore();
+  }
+});
+
 test('a forged Host marker cannot authorize an external user preview executable', async () => {
   if (process.platform !== 'win32') return;
   const instanceId = randomUUID();

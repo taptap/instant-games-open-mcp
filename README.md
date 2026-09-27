@@ -844,3 +844,7 @@ Windows 本地预览分两种：AI 调试用 `taptap-maker preview run --target-
 给用户预览用 `preview start` 或 `console open` 后点击预览；控制台自动启动并直接管理游戏，
 不再要求手动启动 Host。两种用途共用准备、日志和停止逻辑，截图及游戏断言 JSON 尚不支持。
 正常路径不调用 WMI；仅显式 `--legacy-wmi` 使用旧入口。详见 docs/MAKER_LOCAL_PREVIEW.md。
+
+Preview preparation now runs asynchronously without changing launch ownership. Agent refresh keeps
+the session alive and returns final-round evidence; Runtime exit drains pending Lua logs within
+bounds. Process/window creation alone does not establish that a game loaded or is playable.

@@ -29018,7 +29018,7 @@ var require_cross_spawn = __commonJS({
     var cp = __require("child_process");
     var parse4 = require_parse();
     var enoent = require_enoent();
-    function spawn11(command, args, options3) {
+    function spawn12(command, args, options3) {
       const parsed = parse4(command, args, options3);
       const spawned = cp.spawn(parsed.command, parsed.args, parsed.options);
       enoent.hookChildProcess(spawned, parsed);
@@ -29030,8 +29030,8 @@ var require_cross_spawn = __commonJS({
       result.error = result.error || enoent.verifyENOENTSync(result.status, parsed);
       return result;
     }
-    module.exports = spawn11;
-    module.exports.spawn = spawn11;
+    module.exports = spawn12;
+    module.exports.spawn = spawn12;
     module.exports.sync = spawnSync10;
     module.exports._parse = parse4;
     module.exports._enoent = enoent;
@@ -34413,7 +34413,7 @@ var init_patTap = __esm({
 });
 
 // src/maker/system/python.ts
-import { spawnSync as spawnSync4 } from "node:child_process";
+import { spawn as spawn4, spawnSync as spawnSync4 } from "node:child_process";
 import fs14 from "node:fs";
 import path15 from "node:path";
 function getMakerPythonConfigPath() {
@@ -34561,6 +34561,227 @@ function setupMakerPythonEnvironment(options3 = {}) {
     try {
       savePythonSetupFailure(error2);
     } catch {
+    }
+    throw error2;
+  }
+}
+async function runPythonCommand(command, args, signal, env = process.env, timeout = 3e4) {
+  if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED: Python preparation.");
+  return new Promise((resolve, reject) => {
+    const grouped = process.platform !== "win32";
+    const child = spawn4(command, args, {
+      env,
+      shell: false,
+      detached: grouped,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "", stderr = "";
+    let failure;
+    let spawnError;
+    let bytes = 0;
+    let cleanup;
+    const stop = (reason) => {
+      if (failure) return;
+      failure ??= new Error(reason);
+      if (!child.pid || child.exitCode !== null && child.exitCode !== void 0) {
+        child.kill("SIGKILL");
+      } else if (grouped) {
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch {
+          child.kill("SIGKILL");
+        }
+      } else {
+        cleanup = new Promise((done) => {
+          const killer = spawn4("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], {
+            windowsHide: true,
+            shell: false,
+            stdio: "ignore"
+          });
+          killer.on("error", () => {
+            failure = new Error(reason + " Process-tree cleanup could not be verified.");
+            child.kill("SIGKILL");
+          });
+          const deadline = setTimeout(() => killer.kill("SIGKILL"), 5e3);
+          killer.once("close", (code) => {
+            clearTimeout(deadline);
+            if (code !== 0)
+              failure = new Error(reason + " Process-tree cleanup could not be verified.");
+            child.kill("SIGKILL");
+            done();
+          });
+        });
+      }
+    };
+    const abort = () => stop("CANCELLED: Python preparation.");
+    const timer = setTimeout(() => stop("TIMEOUT: Python preparation."), timeout);
+    signal == null ? void 0 : signal.addEventListener("abort", abort, { once: true });
+    child.on("error", (error2) => {
+      spawnError = error2;
+    });
+    const append = (chunk, output2) => {
+      bytes += Buffer.byteLength(chunk);
+      if (bytes > 1024 * 1024) {
+        stop("Python preparation output exceeded its limit.");
+        return;
+      }
+      if (output2) stdout += chunk;
+      else stderr += chunk;
+    };
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => append(chunk, true));
+    child.stderr.on("data", (chunk) => append(chunk, false));
+    child.once("close", async (status) => {
+      clearTimeout(timer);
+      signal == null ? void 0 : signal.removeEventListener("abort", abort);
+      await cleanup;
+      if (failure) reject(failure);
+      else resolve({ status, stdout, stderr, error: spawnError });
+    });
+    if (signal == null ? void 0 : signal.aborted) abort();
+  });
+}
+async function inspectPythonCandidateAsync(candidate, signal) {
+  const info = await runPythonCommand(
+    candidate.command,
+    [...candidate.argsPrefix || [], "-c", PYTHON_INFO_SCRIPT],
+    signal
+  );
+  const parsed = info.status === 0 ? parsePythonInfo(info.stdout) : void 0;
+  if (!parsed) return void 0;
+  const pip = await runPythonCommand(parsed.executable, ["-m", "pip", "--version"], signal);
+  return {
+    ...parsed,
+    provider: candidate.provider,
+    pipVersion: pip.status === 0 ? pip.stdout.trim() : void 0
+  };
+}
+async function checkMakerPythonEnvironmentAsync(signal) {
+  const platform = process.platform;
+  const uvPath = getMakerUvPath(platform);
+  const installed = fs14.existsSync(uvPath);
+  const uv = installed ? await runPythonCommand(uvPath, ["--version"], signal) : void 0;
+  const base = {
+    platform,
+    configPath: getMakerPythonConfigPath(),
+    setupCommand: "taptap-maker python setup",
+    pathCommand: "taptap-maker python path",
+    uv: { path: uvPath, installed, version: (uv == null ? void 0 : uv.status) === 0 ? uv.stdout.trim() : void 0 }
+  };
+  const configured = process.env.TAPTAP_MAKER_PYTHON_BIN;
+  const saved = loadPythonRuntimeConfig();
+  const preferred = [
+    ...configured ? [{ provider: "configured", command: configured }] : [],
+    ...(saved == null ? void 0 : saved.python) ? [{ provider: saved.provider || "configured", command: saved.python }] : []
+  ];
+  for (const candidate of preferred) {
+    const result = await inspectPythonCandidateAsync(candidate, signal);
+    if (result && !isUnsupportedSystemPython(platform, result.executable, result.provider))
+      return resultToEnvironment(result, base);
+  }
+  const where = platform === "win32" ? await runPythonCommand("where.exe", ["python"], signal) : void 0;
+  const candidates = createPythonCandidates(platform, () => where);
+  let fallback;
+  for (const candidate of candidates) {
+    if (candidate.command === "__windows_store_alias__") continue;
+    const result = await inspectPythonCandidateAsync(candidate, signal);
+    if (!result || isUnsupportedSystemPython(platform, result.executable, result.provider))
+      continue;
+    const environment = resultToEnvironment(result, base);
+    if (environment.ready) return environment;
+    fallback ??= environment;
+  }
+  if (fallback) return fallback;
+  const status = (saved == null ? void 0 : saved.status) === "setup_failed" ? "setup_failed" : candidates.some((candidate) => candidate.command === "__windows_store_alias__") ? "store_alias_only" : "missing";
+  return {
+    ...base,
+    ready: false,
+    status,
+    missing: ["python"],
+    error: saved == null ? void 0 : saved.error,
+    nextAction: "Run taptap-maker python setup to prepare Python and pip."
+  };
+}
+async function setupMakerPythonEnvironmentAsync(signal) {
+  const before = await checkMakerPythonEnvironmentAsync(signal);
+  if (before.ready) {
+    savePythonRuntimeConfig(before);
+    return { changed: false, environment: before, uvInstalled: before.uv.installed };
+  }
+  try {
+    const uvPath = getMakerUvPath();
+    if (!fs14.existsSync(uvPath)) {
+      await fs14.promises.mkdir(getMakerUvInstallRoot(), { recursive: true });
+      const env2 = {
+        ...process.env,
+        INSTALLER_NO_MODIFY_PATH: "1",
+        UV_INSTALL_DIR: getMakerUvInstallRoot()
+      };
+      const installed2 = process.platform === "win32" ? await runPythonCommand(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "ByPass",
+          "-Command",
+          "irm https://astral.sh/uv/install.ps1 | iex"
+        ],
+        signal,
+        env2,
+        12e4
+      ) : await runPythonCommand(
+        "sh",
+        ["-c", "curl -LsSf https://astral.sh/uv/install.sh | sh"],
+        signal,
+        env2,
+        12e4
+      );
+      if (installed2.status !== 0) throw new Error("uv installer failed: " + installed2.stderr);
+      if (!fs14.existsSync(uvPath)) {
+        const nested = path15.join(getMakerUvInstallRoot(), "bin", path15.basename(uvPath));
+        if (fs14.existsSync(nested)) await fs14.promises.copyFile(nested, uvPath);
+        else throw new Error("uv installer did not create its executable.");
+      }
+    }
+    const env = createUvPythonEnv();
+    const installed = await runPythonCommand(
+      uvPath,
+      ["python", "install", DEFAULT_PYTHON_VERSION, "--managed-python"],
+      signal,
+      env,
+      3e5
+    );
+    if (installed.status !== 0) throw new Error("uv python install failed: " + installed.stderr);
+    const found = await runPythonCommand(
+      uvPath,
+      ["python", "find", DEFAULT_PYTHON_VERSION],
+      signal,
+      env
+    );
+    if (found.status !== 0 || !found.stdout.trim())
+      throw new Error("uv python find failed: " + found.stderr);
+    const result = await inspectPythonCandidateAsync(
+      { provider: "uv-managed", command: found.stdout.trim().split(/\r?\n/)[0] },
+      signal
+    );
+    if (!(result == null ? void 0 : result.pipVersion)) throw new Error("Python was installed, but pip is not available.");
+    const uvVersion = await runPythonCommand(uvPath, ["--version"], signal);
+    const environment = resultToEnvironment(result, {
+      ...before,
+      uv: { path: uvPath, installed: true, version: uvVersion.stdout.trim() }
+    });
+    if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED: Python preparation.");
+    savePythonRuntimeConfig(environment);
+    return { changed: true, environment, uvInstalled: true };
+  } catch (error2) {
+    if (!(signal == null ? void 0 : signal.aborted)) {
+      try {
+        savePythonSetupFailure(error2);
+      } catch {
+        throw error2;
+      }
     }
     throw error2;
   }
@@ -35003,6 +35224,94 @@ function checkMakerLuaLspEnvironment(options3 = {}) {
     scriptsDir: resolved.scriptsDir,
     missing: [LUA_LSP_PACKAGE],
     nextAction: "未检测到 maker-lua-lsp。请运行 `taptap-maker lua-lsp setup`，或运行 `taptap-maker python setup` 自动准备完整本地 Lua 诊断环境。"
+  };
+}
+async function checkMakerLuaLspEnvironmentAsync(signal) {
+  const python = await checkMakerPythonEnvironmentAsync(signal);
+  const platform = process.platform;
+  const base = createLuaLspBase(platform);
+  if (!python.ready || !python.python)
+    return {
+      ...base,
+      ready: false,
+      status: "python_missing",
+      missing: ["python"],
+      error: python.error,
+      nextAction: python.nextAction
+    };
+  const versionOf = async (command2) => {
+    const version3 = await runPythonCommand(
+      command2,
+      ["--version"],
+      signal,
+      process.env,
+      LUA_LSP_PROBE_TIMEOUT_MS
+    );
+    if (version3.status === 0) return version3.stdout.trim() || "installed";
+    const help = await runPythonCommand(
+      command2,
+      ["--help"],
+      signal,
+      process.env,
+      LUA_LSP_PROBE_TIMEOUT_MS
+    );
+    return help.status === 0 ? "installed" : void 0;
+  };
+  const ready = (command2, version3, scriptsDir2, interpreter = python.python) => ({
+    ...base,
+    ready: true,
+    status: "ready",
+    command: command2,
+    version: version3,
+    scriptsDir: scriptsDir2,
+    python: interpreter,
+    missing: [],
+    nextAction: "maker-lua-lsp is installed; local Lua diagnostics are available."
+  });
+  const saved = loadLuaLspRuntimeConfig();
+  if (saved == null ? void 0 : saved.command) {
+    const version3 = await versionOf(saved.command);
+    if (version3)
+      return ready(
+        saved.command,
+        version3,
+        path16.dirname(saved.command),
+        saved.python || python.python
+      );
+  }
+  let command;
+  let scriptsDir;
+  const venv = getLuaLspVenvCommand(platform);
+  if (fs15.existsSync(venv)) {
+    command = venv;
+    scriptsDir = path16.dirname(venv);
+  } else {
+    const scripts = await runPythonCommand(
+      python.python,
+      ["-c", PYTHON_SCRIPTS_DIR_SCRIPT],
+      signal
+    );
+    if (scripts.status === 0) scriptsDir = scripts.stdout.trim().split(/\r?\n/)[0] || void 0;
+    if (scriptsDir) {
+      const candidate = path16.join(
+        scriptsDir,
+        platform === "win32" ? "maker-lua-lsp.exe" : LUA_LSP_PACKAGE
+      );
+      if (fs15.existsSync(candidate)) command = candidate;
+    }
+  }
+  const version2 = await versionOf(command || LUA_LSP_PACKAGE);
+  if (version2) return ready(command || LUA_LSP_PACKAGE, version2, scriptsDir);
+  return {
+    ...base,
+    ready: false,
+    status: (saved == null ? void 0 : saved.status) === "setup_failed" ? "setup_failed" : "missing",
+    command: (saved == null ? void 0 : saved.status) === "setup_failed" ? saved.command || command : command,
+    python: python.python,
+    scriptsDir,
+    missing: [LUA_LSP_PACKAGE],
+    error: saved == null ? void 0 : saved.error,
+    nextAction: "Run taptap-maker lua-lsp setup to prepare local Lua diagnostics."
   };
 }
 function setupMakerLuaLspEnvironment(options3 = {}) {
@@ -39841,7 +40150,7 @@ __export(mcp_exports, {
   stopExistingRuntimeLogWatcher: () => stopExistingRuntimeLogWatcher,
   tools: () => tools
 });
-import { execFileSync as execFileSync2, spawn as spawn4 } from "node:child_process";
+import { execFileSync as execFileSync2, spawn as spawn5 } from "node:child_process";
 import fs21 from "node:fs";
 import path22 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
@@ -41763,7 +42072,7 @@ async function startRuntimeLogWatch(buildResult) {
     };
   }
   try {
-    const child = spawn4(command.command, command.args, {
+    const child = spawn5(command.command, command.args, {
       cwd: buildResult.projectRoot,
       detached: true,
       env: mergeStringEnv2(process.env, { TAPTAP_MCP_ENV: buildResult.env }),
@@ -43554,21 +43863,23 @@ function inside(root2, relative) {
     throw new Error("Prepared manifest path escapes its output directory.");
   return filename2;
 }
-function copyTree(source, target, signal) {
+async function copyTree(source, target, signal) {
   if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED");
-  const stat = fs27.lstatSync(source);
+  const stat = await fs27.promises.lstat(source);
   if (stat.isSymbolicLink())
     throw new Error(`Local prepare does not support symbolic links: ${source}`);
   if (stat.isDirectory()) {
-    fs27.mkdirSync(target, { recursive: true, mode: 448 });
-    for (const name of fs27.readdirSync(source)) {
-      copyTree(path28.join(source, name), path28.join(target, name), signal);
+    await fs27.promises.mkdir(target, { recursive: true, mode: 448 });
+    for (const name of await fs27.promises.readdir(source)) {
+      await copyTree(path28.join(source, name), path28.join(target, name), signal);
     }
     return;
   }
   if (!stat.isFile()) throw new Error(`Local prepare does not support special files: ${source}`);
-  fs27.mkdirSync(path28.dirname(target), { recursive: true, mode: 448 });
-  fs27.copyFileSync(source, target);
+  await fs27.promises.mkdir(path28.dirname(target), { recursive: true, mode: 448 });
+  if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED");
+  await fs27.promises.copyFile(source, target);
+  if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED");
 }
 function validateProjectVersion(source) {
   const filename2 = path28.join(source, ".project", "project.json");
@@ -43652,7 +43963,7 @@ async function prepareProjectCopy(project, directory, signal) {
   fs27.mkdirSync(source, { recursive: true, mode: 448 });
   for (const name of ["scripts", "assets", ".project"]) {
     const original = path28.join(project, name);
-    if (fs27.existsSync(original)) copyTree(original, path28.join(source, name), signal);
+    if (fs27.existsSync(original)) await copyTree(original, path28.join(source, name), signal);
   }
   const configDirectory = path28.join(source, ".project");
   fs27.mkdirSync(configDirectory, { recursive: true });
@@ -43687,15 +43998,18 @@ async function prepareProjectCopy(project, directory, signal) {
     );
   configuration.build = { ...configuration.build, output_dir: "../dist" };
   fs27.writeFileSync(path28.join(source, ".project", "settings.json"), JSON.stringify(configuration));
-  let python = checkMakerPythonEnvironment();
-  if (!python.ready) python = setupMakerPythonEnvironment().environment;
+  let python = await checkMakerPythonEnvironmentAsync(signal);
+  if (!python.ready)
+    python = await withRuntimeInstallLock(
+      async () => (await setupMakerPythonEnvironmentAsync(signal)).environment
+    );
   if (!python.ready || !python.python)
     throw new Error("Could not prepare the managed Python environment.");
   const builder = materializePreviewBuilder();
   const args = [builder, "--project", source, "--force-enhanced-refs", "--no-7z", "--no-compress"];
   const cache = path28.join(previewDirectory(project), "public-index-cache");
   const roundCache = path28.join(source, ".build", "manifest_cache");
-  if (fs27.existsSync(cache)) copyTree(cache, roundCache, signal);
+  if (fs27.existsSync(cache)) await copyTree(cache, roundCache, signal);
   const log = path28.join(directory, "prepare.log");
   try {
     const output2 = await promisify(execFile)(python.python, args, {
@@ -43713,7 +44027,7 @@ async function prepareProjectCopy(project, directory, signal) {
       throw new Error("Public source index download failed.");
     const diagnosticWarnings = previewBuilderWarnings(source, output2.stdout, output2.stderr);
     const result = validatePreparedPreview(source);
-    if (fs27.existsSync(roundCache)) copyTree(roundCache, cache, signal);
+    if (fs27.existsSync(roundCache)) await copyTree(roundCache, cache, signal);
     return {
       ok: true,
       source_directory: source,
@@ -43765,6 +44079,7 @@ var init_prepare = __esm({
     init_configuration();
     init_python();
     init_protocol2();
+    init_installation();
     init_builderSource();
     init_diagnosticRedaction();
     init_cache();
@@ -44027,7 +44342,7 @@ var init_luaLog = __esm({
           return;
         }
       }
-      poll() {
+      poll(limit = 64 * 1024 * 1024) {
         if (!this.filename) return;
         let descriptor;
         try {
@@ -44039,8 +44354,8 @@ var init_luaLog = __esm({
           this.identity ??= { dev: stat.dev, ino: stat.ino, birthtimeMs: stat.birthtimeMs };
           if (!stat.isFile() || stat.dev !== this.identity.dev || stat.ino !== this.identity.ino || stat.birthtimeMs !== this.identity.birthtimeMs)
             return;
-          if (stat.size < this.offset || stat.size > 64 * 1024 * 1024) return;
-          const buffer = Buffer.alloc(Math.min(65536, stat.size - this.offset));
+          if (stat.size < this.offset || this.offset >= limit) return;
+          const buffer = Buffer.alloc(Math.min(65536, stat.size - this.offset, limit - this.offset));
           const bytes = fs30.readSync(descriptor, buffer, 0, buffer.length, this.offset);
           this.offset += bytes;
           this.pending += this.decoder.write(buffer.subarray(0, bytes));
@@ -44068,6 +44383,27 @@ var init_luaLog = __esm({
         clearInterval(this.timer);
         this.poll();
       }
+      async finish() {
+        clearInterval(this.timer);
+        if (!this.filename) return;
+        try {
+          const size = fs30.statSync(this.filename).size;
+          const limit = Math.min(size, 64 * 1024 * 1024);
+          while (this.offset < limit) {
+            const before = this.offset;
+            this.poll(limit);
+            if (this.offset === before) {
+              this.append("[lua] ERROR: Final Lua log collection is incomplete.");
+              return;
+            }
+            await new Promise((resolve) => setImmediate(resolve));
+          }
+          if (size > limit || this.pending.length)
+            this.append("[lua] ERROR: Final Lua log collection was truncated.");
+        } catch {
+          this.append("[lua] ERROR: Final Lua log collection failed.");
+        }
+      }
     };
   }
 });
@@ -44089,7 +44425,7 @@ var init_processPresence = __esm({
 });
 
 // src/maker/system/backgroundProcess.ts
-import { spawn as spawn5, spawnSync as spawnSync7 } from "node:child_process";
+import { spawn as spawn6, spawnSync as spawnSync7 } from "node:child_process";
 import fs31 from "node:fs";
 import path32 from "node:path";
 function openBackgroundProcessLog(filename2) {
@@ -44140,7 +44476,7 @@ async function launchBackgroundProcess(options3) {
     return directLaunch(options3);
   fs31.closeSync(openBackgroundProcessLog(options3.logFile));
   const scripts = buildWindowsBackgroundLaunchScripts(options3);
-  const broker = spawn5(
+  const broker = spawn6(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", scripts.broker],
     {
@@ -44235,7 +44571,7 @@ function directLaunch(options3) {
   delete environment.TAPTAP_MAKER_AGENT_OWNER;
   if (options3.mode === "attached") environment.TAPTAP_MAKER_AGENT_OWNER = "1";
   try {
-    child = spawn5(options3.command, options3.args, {
+    child = spawn6(options3.command, options3.args, {
       cwd: options3.cwd,
       detached: options3.mode !== "attached",
       windowsHide: true,
@@ -55822,7 +56158,7 @@ var init_network = __esm({
 import fs33 from "node:fs";
 import path34 from "node:path";
 import os5 from "node:os";
-import { spawn as spawn6 } from "node:child_process";
+import { spawn as spawn7 } from "node:child_process";
 import { StringDecoder as StringDecoder2 } from "node:string_decoder";
 async function probeRuntime(executable, signal) {
   if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED");
@@ -55948,7 +56284,7 @@ var init_runtime = __esm({
         try {
           this.launching();
           const runtimeArgs = this.assets ? ["-game_url=" + this.assets.url, "-game_path=" + cacheRoot] : [entry, "-tapcode_dir=" + source];
-          child = spawn6(
+          child = spawn7(
             this.executable,
             [
               ...runtimeArgs,
@@ -55976,12 +56312,15 @@ var init_runtime = __esm({
         this.child = child;
         this.closed = new Promise(
           (resolve) => child.once("close", () => {
-            var _a4;
-            (_a4 = this.luaLog) == null ? void 0 : _a4.close();
             void (async () => {
-              var _a5;
+              var _a4, _b2;
               try {
-                await ((_a5 = this.assets) == null ? void 0 : _a5.close());
+                await ((_a4 = this.luaLog) == null ? void 0 : _a4.finish());
+              } catch (error2) {
+                this.recordError(String(error2));
+              }
+              try {
+                await ((_b2 = this.assets) == null ? void 0 : _b2.close());
                 this.clearAssetCache();
               } catch (error2) {
                 this.recordError(String(error2));
@@ -56130,6 +56469,7 @@ var init_runtime = __esm({
         this.stopping = true;
         this.abort.abort();
         if (!this.processAlive) {
+          await this.closed;
           await ((_a3 = this.assets) == null ? void 0 : _a3.close());
           this.clearAssetCache();
           return;
@@ -56243,7 +56583,7 @@ var init_installerSource = __esm({
 });
 
 // src/maker/preview/installerProcess.ts
-import { spawn as spawn7 } from "node:child_process";
+import { spawn as spawn8 } from "node:child_process";
 import { randomBytes as randomBytes2 } from "node:crypto";
 async function runPreviewInstaller(python, args, options3) {
   var _a3;
@@ -56253,7 +56593,7 @@ async function runPreviewInstaller(python, args, options3) {
     const grouped = process.platform !== "win32";
     const token = randomBytes2(16).toString("hex");
     const marker = "\0maker-installer-cleaned:" + token + "\0";
-    const child = spawn7(
+    const child = spawn8(
       python,
       ["-c", INSTALLER_GUARD.replace("__CLEANUP_TOKEN__", token), ...args],
       {
@@ -56673,7 +57013,7 @@ async function installPreviewRuntime(project, signal, update = false) {
       "The previous installer cleanup is unverified. Confirm its processes have exited before removing only the marked directory: " + path36.join(directory, unresolved.name)
     );
   }
-  const python = checkMakerPythonEnvironment();
+  const python = await checkMakerPythonEnvironmentAsync(signal);
   if (!python.ready || !python.python) {
     throw new Error(
       "Runtime installation needs Python and curl. Run taptap-maker python setup with host approval, then retry."
@@ -58079,7 +58419,7 @@ var init_projects2 = __esm({
 });
 
 // src/maker/console/executor.ts
-import { spawn as spawn8 } from "node:child_process";
+import { spawn as spawn9 } from "node:child_process";
 function createConsoleExecutor(options3) {
   return async ({
     project,
@@ -58155,7 +58495,7 @@ function createConsoleExecutor(options3) {
       "--json"
     ];
     return new Promise((resolve) => {
-      const child = spawn8(process.execPath, args, {
+      const child = spawn9(process.execPath, args, {
         cwd: project,
         detached: ownsProcessGroup,
         windowsHide: true,
@@ -58771,7 +59111,7 @@ var init_tasks = __esm({
 import fs41 from "node:fs";
 import path42 from "node:path";
 import { pathToFileURL } from "node:url";
-import { spawn as spawn9 } from "node:child_process";
+import { spawn as spawn10 } from "node:child_process";
 var FramecrateLauncher;
 var init_framecrate = __esm({
   "src/maker/console/integrations/framecrate.ts"() {
@@ -58849,7 +59189,7 @@ var init_framecrate = __esm({
             409
           );
         }
-        const child = spawn9(
+        const child = spawn10(
           process.execPath,
           [
             "--import",
@@ -61838,18 +62178,36 @@ async function startConsoleServer(options3) {
   const updates = new ConsoleUpdates(options3.version, options3.distribution);
   const documents = new ConsoleDocuments(options3.packageRoot || "");
   let luaLspCache;
+  let luaLspPending;
   const luaLspStatus = () => {
     if (luaLspCache && now() - luaLspCache.at < 3e4) return luaLspCache.value;
-    const environment = checkMakerLuaLspEnvironment();
-    const value = {
-      ready: environment.ready,
-      status: environment.status,
-      version: environment.version || null,
-      nextAction: environment.nextAction,
-      error: environment.error ? environment.error.slice(0, 512) : null
-    };
-    luaLspCache = { at: now(), value };
-    return value;
+    luaLspPending ??= checkMakerLuaLspEnvironmentAsync(readAbort.signal).then((environment) => {
+      luaLspCache = {
+        at: now(),
+        value: {
+          ready: environment.ready,
+          status: environment.status,
+          version: environment.version || null,
+          nextAction: environment.nextAction,
+          error: environment.error ? environment.error.slice(0, 512) : null
+        }
+      };
+    }).catch((error2) => {
+      luaLspCache = {
+        at: now(),
+        value: {
+          ready: false,
+          status: "setup_failed",
+          version: null,
+          error: String(
+            sanitizeDiagnosticValue(error2 instanceof Error ? error2.message : error2)
+          ).slice(0, 512)
+        }
+      };
+    }).finally(() => {
+      luaLspPending = void 0;
+    });
+    return (luaLspCache == null ? void 0 : luaLspCache.value) || { ready: false, status: "checking", version: null };
   };
   const previewsActive = () => {
     var _a3;
@@ -62170,6 +62528,7 @@ async function startConsoleServer(options3) {
     }
     closePromise = (async () => {
       var _a4;
+      await luaLspPending;
       await plugins.close();
       await tasks.settled();
       await ((_a4 = options3.closePreviews) == null ? void 0 : _a4.call(options3));
@@ -63503,6 +63862,7 @@ async function shutdownConsole() {
   }
 }
 function luaLspPresentation(status) {
+  if (status?.status === 'checking') return {label:'检测中',status:'检测中',detail:'正在检查本机 Lua 诊断环境',tone:'muted'};
   if (!status) return {label:'待检测',status:'未提供',detail:'打开控制台后读取本机安装状态',tone:'muted'};
   if (status.ready) return {
     label: '已安装',
@@ -65026,7 +65386,7 @@ __export(cli_exports, {
 });
 import fs46 from "node:fs";
 import path48 from "node:path";
-import { spawn as spawn10 } from "node:child_process";
+import { spawn as spawn11 } from "node:child_process";
 import { createHash as createHash9, randomUUID as randomUUID7 } from "node:crypto";
 function home() {
   return path48.join(getMakerHome(), "console");
@@ -65410,7 +65770,7 @@ async function startConsolePreview(projectPath, signal) {
 }
 function openBrowser2(url2) {
   const [command, args] = process.platform === "win32" ? ["rundll32.exe", ["url.dll,FileProtocolHandler", url2]] : process.platform === "darwin" ? ["open", [url2]] : ["xdg-open", [url2]];
-  const child = spawn10(command, [...args], {
+  const child = spawn11(command, [...args], {
     stdio: "ignore",
     detached: true,
     windowsHide: true,
@@ -65701,7 +66061,8 @@ async function runAgentPreview(project, options3, signal) {
     while (!signal.aborted && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, Math.min(1e3, deadline - Date.now())));
       current = await previewStatus(project);
-      if (current.session_id !== record2.session_id || current.state !== "running") break;
+      if (current.session_id !== record2.session_id || !["running", "reloading"].includes(String(current.state)))
+        break;
     }
   } finally {
     try {
@@ -65710,12 +66071,24 @@ async function runAgentPreview(project, options3, signal) {
       await owner.close();
     }
   }
+  const final = await previewStatus(project);
+  if (final.session_id !== record2.session_id || final.supervisor_id !== record2.supervisor_id)
+    throw new Error("Agent preview session changed; refusing unrelated final evidence.");
+  current = final;
   return {
     ...current,
     protocol_version: 1,
     mode: "agent",
     started,
-    evidence: readStoredPreviewLogs(previewRoundDirectory(record2), 0, 100, true),
+    evidence: readStoredPreviewLogs(
+      previewRoundDirectory({
+        ...record2,
+        reload_id: Number((current == null ? void 0 : current.reload_id) ?? record2.reload_id)
+      }),
+      0,
+      100,
+      true
+    ),
     result: signal.aborted ? "CANCELLED" : (current == null ? void 0 : current.state) === "failed" || Array.isArray(current == null ? void 0 : current.errors) && current.errors.length > 0 ? "FAIL" : "UNDETERMINED",
     scope: "runtime_evidence_only",
     game_assertions_supported: false

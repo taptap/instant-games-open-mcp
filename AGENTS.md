@@ -382,6 +382,14 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- Preview preparation must await asynchronous Python probes/setup and sequential asynchronous copies.
+  Cancellation and timeout wait for owned subprocess cleanup before returning; never launch Runtime
+  after cancellation. Keep the synchronous Python API for unrelated callers.
+- Agent preview treats reloading as an active transition. After owner cleanup, verify session and
+  supervisor identity and read logs from the final reload, not the initial launch snapshot.
+- Runtime close drains the final announced Lua log in bounded chunks before publishing terminal
+  evidence; incomplete collection must be explicit. A visible window is not gameplay acceptance.
+
 - `preview stop` 的取消标记必须绑定已核验的 session_id 与 supervisor_id，不能用项目级文件变化
   取消任意新会话。无会话不写标记；旧停止请求与新启动并发必须有回归测试。
 - 插件生成前使用锁文件依赖（`npm ci`），禁止混入本地漂移的版本。CodeQL 扫描第一方源码，
