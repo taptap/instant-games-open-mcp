@@ -243,6 +243,9 @@ Real-game acceptance results and remaining blockers: see the 2026-09-28 section 
 Python probes and setup in the preview path run asynchronously with bounded output and timeouts.
 Cancellation waits for the owned child process cleanup; sequential asynchronous copying preserves
 project isolation and rejects links. Existing synchronous Python commands are unchanged.
+After cancellation or timeout, Python command cleanup has a six-second drain deadline. If a
+Windows parent has already exited, its PID is not reused for tree termination. Unverifiable
+cleanup is reported explicitly as failure; closing inherited pipes is not proof of child cleanup.
 
 Agent runs continue through reloading. Stop/cancel still wins, and final evidence is selected only
 after owned-session cleanup and identity verification, using the final reload ID. Runtime close

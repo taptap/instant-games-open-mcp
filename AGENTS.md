@@ -382,6 +382,10 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- Python 异步命令取消/超时后的输出排空最多等待 6 秒；POSIX 回收进程组不依赖组长仍存活。
+  Windows 父进程已退出时禁止拿旧 PID 执行 taskkill，无法验证回收必须明确报错，
+  不得将关闭管道等同于后代已回收。
+
 - Preview preparation must await asynchronous Python probes/setup and sequential asynchronous copies.
   Cancellation and timeout wait for owned subprocess cleanup before returning; never launch Runtime
   after cancellation. Keep the synchronous Python API for unrelated callers.

@@ -290,17 +290,43 @@ export async function runPythonCommand(
     let spawnError: Error | undefined;
     let bytes = 0;
     let cleanup: Promise<void> | undefined;
+    let finished = false;
+    let drainDeadline: ReturnType<typeof setTimeout> | undefined;
+    const finish = (status: number | null): void => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      clearTimeout(drainDeadline);
+      signal?.removeEventListener('abort', abort);
+      if (failure) reject(failure);
+      else resolve({ status, stdout, stderr, error: spawnError });
+    };
+    const unverified = (reason: string): void => {
+      failure = Object.assign(new Error(reason + ' Process-tree cleanup could not be verified.'), {
+        cleanupVerified: false,
+      });
+    };
     const stop = (reason: string): void => {
-      if (failure) return;
+      if (failure || finished) return;
       failure ??= new Error(reason);
-      if (!child.pid || (child.exitCode !== null && child.exitCode !== undefined)) {
+      drainDeadline = setTimeout(() => {
+        unverified(reason);
+        child.stdout.destroy();
+        child.stderr.destroy();
+        child.unref();
+        finish(child.exitCode);
+      }, 6000);
+      if (!child.pid) {
         child.kill('SIGKILL');
       } else if (grouped) {
         try {
           process.kill(-child.pid, 'SIGKILL');
-        } catch {
-          child.kill('SIGKILL');
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ESRCH') unverified(reason);
+          if (child.exitCode == null && child.signalCode == null) child.kill('SIGKILL');
         }
+      } else if (child.exitCode != null || child.signalCode != null) {
+        unverified(reason);
       } else {
         cleanup = new Promise<void>((done) => {
           const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
@@ -309,14 +335,13 @@ export async function runPythonCommand(
             stdio: 'ignore',
           });
           killer.on('error', () => {
-            failure = new Error(reason + ' Process-tree cleanup could not be verified.');
+            unverified(reason);
             child.kill('SIGKILL');
           });
           const deadline = setTimeout(() => killer.kill('SIGKILL'), 5000);
           killer.once('close', (code) => {
             clearTimeout(deadline);
-            if (code !== 0)
-              failure = new Error(reason + ' Process-tree cleanup could not be verified.');
+            if (code !== 0) unverified(reason);
             child.kill('SIGKILL');
             done();
           });
@@ -330,6 +355,7 @@ export async function runPythonCommand(
       spawnError = error;
     });
     const append = (chunk: string, output: boolean): void => {
+      if (finished || failure) return;
       bytes += Buffer.byteLength(chunk);
       if (bytes > 1024 * 1024) {
         stop('Python preparation output exceeded its limit.');
@@ -343,11 +369,8 @@ export async function runPythonCommand(
     child.stdout.on('data', (chunk: string) => append(chunk, true));
     child.stderr.on('data', (chunk: string) => append(chunk, false));
     child.once('close', async (status) => {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', abort);
       await cleanup;
-      if (failure) reject(failure);
-      else resolve({ status, stdout, stderr, error: spawnError });
+      finish(status);
     });
     if (signal?.aborted) abort();
   });
