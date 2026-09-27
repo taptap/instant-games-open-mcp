@@ -1283,13 +1283,22 @@ test('a forged Host marker cannot authorize an external user preview executable'
 
 test('an Agent supervisor rejects a disconnected owner before opening a control channel', async () => {
   const previousMarker = process.env.TAPTAP_MAKER_AGENT_OWNER;
+  const previousConnected = Object.getOwnPropertyDescriptor(process, 'connected');
   process.env.TAPTAP_MAKER_AGENT_OWNER = '1';
+  Object.defineProperty(process, 'connected', {
+    configurable: true,
+    enumerable: true,
+    value: false,
+    writable: true,
+  });
   try {
     await expect(runPreviewSupervisor(project, randomUUID())).rejects.toThrow('owner disconnected');
     expect(readPreviewRecord(project)).toBeUndefined();
   } finally {
     if (previousMarker === undefined) delete process.env.TAPTAP_MAKER_AGENT_OWNER;
     else process.env.TAPTAP_MAKER_AGENT_OWNER = previousMarker;
+    if (previousConnected) Object.defineProperty(process, 'connected', previousConnected);
+    else Reflect.deleteProperty(process, 'connected');
   }
 });
 
