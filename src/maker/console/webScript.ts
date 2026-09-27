@@ -1632,7 +1632,7 @@ async function loadLogs() {
   try {
     const logs = await api(projectPath(key,'/preview/logs'));
     entry.runtimeId = String(logs.session_id || '') + ':' + String(logs.reload_id || 0);
-    entry.runtime = Array.isArray(logs.logs) ? logs.logs.map(row => text(row.text,'')).join('\n') : text(logs);
+    entry.runtime = (logs.truncated ? '仅显示最近日志，完整分页记录可通过 preview logs 读取。\n' : '') + (Array.isArray(logs.logs) ? logs.logs.map(row => text(row.text,'')).join('\n') : text(logs));
   } catch (error) {
     entry.runtime = '日志读取失败：' + error.message;
   } finally {
@@ -1650,7 +1650,7 @@ function confirmAction(action, name, startAfterInstall = false) {
     $('confirm-accept').textContent = actionLabels[action];
     if (action === 'console.shutdown') {
       $('confirm-title').textContent = '关闭Maker控制台？';
-      $('confirm-message').textContent = '将关闭本机 Maker 控制台服务，所有已打开的控制台页面都会断开连接。不会删除项目文件；已启动的独立本地预览不受影响。';
+      $('confirm-message').textContent = '将关闭本机 Maker 控制台服务，所有已打开的控制台页面都会断开连接。不会删除项目文件；有正在运行的预览时，请先停止预览再关闭控制台。';
       $('confirm-accept').textContent = '确认关闭';
     }
     dialog.returnValue = 'cancel';

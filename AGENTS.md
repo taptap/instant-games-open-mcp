@@ -459,10 +459,16 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 - 本地服务仅监听 loopback；控制台页面存活时使用每分钟页面租约续期，焦点或可见性恢复时立即续期；
   普通状态轮询和健康检查不续期。页面租约停止且无任务约 30 分钟后退出，不增加常驻唤醒进程。
   同一 Maker 版本跨 Codex、WorkBuddy 和独立 CLI 复用用户级控制台，实例身份不得绑定插件路径或
-  distribution。Windows 通过 PowerShell/CIM 系统代理启动服务，不能只依赖 Node detached/unref
-  脱离 AI IDE 的受管进程树；启动命令不得转发 PAT、MAC token 或 client secret。
-  self runtime 必须复制 `package.json`，保留 ESM 声明；PowerShell 准备步骤保持 fail-fast，
-  仅 native 调用阶段允许 stderr 错误流继续写日志，使用真实退出码，不以警告判定失败。
+  distribution。console open 自动复用或普通 Node 直启同版本控制台，不要求手动 Host。
+  控制台预览直接在控制台进程内运行 PreviewSession，不经 CLI 或独立 supervisor 子进程；
+  preview start 通过已有项目登记和任务 API 提交预览，调用方结束不停止用户游戏。
+  Agent 用 preview run 前台直接持有 Runtime，可按会话读取日志、状态并停止；默认上限 10 分钟，
+  --duration-ms 可缩短。正常收尾等待自己持有的 Runtime 退出，不接管别人的调试会话。
+  控制台日志和 Agent 最终证据读取有界末尾（最多 100 行、64 KiB），显示截断信息；
+  CLI logs 保留从头分页及 session/reload 增量校验，--tail 显式读取最近输出。
+  整个 IDE 回收进程树仍可结束预览；外部 console serve 仅为可选独立入口，不自动 breakaway。
+  截图与游戏断言 JSON 尚不支持；会话状态不能视作游戏验证通过。仅显式 --legacy-wmi 保留旧入口。
+  启动命令不得转发 PAT、MAC token 或 client secret，Windows 直启子进程只继承白名单环境。
   控制台不生成、保存或校验访问 token，页面和 CLI 请求不携带 Bearer；loopback 地址只用于本机
   访问，不应被描述为带凭证的远程会话链接；
   链接包含本机 origin 和可选 projectid（真实项目 ID），多副本时用 checkout 区分目录；
@@ -470,6 +476,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   保留 no-store、Host/Origin 校验、跨站拒绝及写操作精确同源要求，不改 Maker PAT 或插件凭证。
   保留访问校验、空闲退出和有界资源管理。
   预览与控制台独立管理；只清理已确认所有权的进程和缓存，不把未知结果当作失败自动重试。
+- Runtime 安装器 stdin 是专用取消通道，默认不得传给下载等子进程；子进程使用 DEVNULL，
+  明确传入的 PIPE 等输入保持原意。取消、超时及失败要等待已登记的子进程回收。
 - 本地预览启动 Runtime 前必须先分类项目：满足前述直读条件的单机项目直接运行原目录；
   `@runtime.multiplayer`、`@runtime.max_players`、持久世界配置、`entry@server`、
   `scripts/server_main.lua` 或 `scripts/server.lua` 均进入受管理副本；缺少标准配置的新项目
@@ -493,10 +501,12 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   预览窗口设置由 `src/maker/preview/windowSettings.ts` 统一解析，按项目保存在用户预览缓存中；
   横竖屏默认跟随发布配置，缺失时横屏，允许手动覆盖；保存不自动重启，启动或刷新时应用，
   不得写回项目发布配置。控制台与 CLI 共用窗口设置，运行中尺寸以启动时的 preflight 为准。
-  Windows 控制台与预览 supervisor 共用 `src/maker/system/backgroundProcess.ts` 的 CIM 启动器。
-  启动失败且控制通道未发布时，只回收命令行仍匹配本次 EncodedCommand 的包装进程，不按历史 PID 误杀。
-  锁恢复互斥口 EACCES 时改试邻近口，EADDRINUSE 视为互斥占用。空 supervisor/server 日志加超时按
-  CIM EncodedCommand 拦截处理，不改 PATH；AI 排障见 skills/taptap-maker-local/SKILL.md。
+  Windows 预览由控制台或 Agent Node 直接 spawn Runtime，shell:false、detached:false；
+  共享 PreviewOwner 跟踪进程内会话，保留 supervisor_pid 字段兼容但不另开 supervisor 进程。
+  Agent 在项目锁内确认无活动会话；stop 在写取消标记前验证 session，禁止影响其它会话。
+  Windows 强杀清理依赖 Node/libuv 非 detached 子进程 Job 行为并进行实测，不新增本地 Native
+  安装器或绕过宿主管理。Lua 日志仅跟随本轮公布的固定目录文件，校验文件身份、拒绝链接并有界读取。
+  旧 CIM 仅作显式 --legacy-wmi 兼容排障，空日志不得凭猜测自动重试或改 PATH。
   预览离线恢复必须确认会话证据匹配且两个进程都不存在；状态查询不写回会话，避免覆盖并发启动。
   Builder 快照须逐字节匹配固定 Git 提交；不修改引擎、公共资源或游戏原目录来掩盖预览错误。
   Builder 多 source 重复引用仅由 preview/builderDiagnostics.ts 校验本轮精确 hash 对应的缓存索引后

@@ -3226,14 +3226,15 @@ function printHelp(): void {
   process.stdout.write(
     [
       'Usage:',
+      '  taptap-maker console serve  # launch from outside the AI IDE on Windows',
       '  taptap-maker console open [--target-dir PROJECT_ABSOLUTE_PATH] [--no-open] [--json]',
       '  taptap-maker console status|stop [--json]',
       '  taptap-maker build --target-dir PROJECT_ABSOLUTE_PATH [--json]',
       '  taptap-maker qrcode --target-dir PROJECT_ABSOLUTE_PATH [--confirmed-screen-orientation landscape|portrait] [--json]',
-      '  taptap-maker preview install|prepare|start|status|refresh|stop|logs|screenshot|check',
-      '                       --target-dir PROJECT_ABSOLUTE_PATH [--json]',
+      '  taptap-maker preview install|prepare|start|run|status|refresh|stop|logs|screenshot|check',
+      '                       --target-dir PROJECT_ABSOLUTE_PATH [--json] [--duration-ms 1000..600000]',
       '                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]',
-      '                       [--cursor N --session-id ID --reload-id N] [--limit 1..500]',
+      '                       [--cursor N --session-id ID --reload-id N] [--limit 1..500] [--tail]',
       '  Local preview never commits, pushes, or remotely builds; refresh restarts and loses memory state.',
       '  taptap-maker                         Start MCP server mode',
       '  taptap-maker init [--app-id ID] [--target-dir DIR] [--pat PAT]',

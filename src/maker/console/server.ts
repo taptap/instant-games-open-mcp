@@ -23,9 +23,11 @@ export async function startConsoleServer(options: {
   historyFile?: string;
   instanceId?: string;
   idleMs?: number;
+  hasActivePreview?: () => boolean;
   now?: () => number;
   drainMs?: number;
   onDraining?: () => void;
+  closePreviews?: () => Promise<void>;
   plugins?: readonly ConsolePlugin[];
 }) {
   const now = options.now || Date.now;
@@ -51,6 +53,13 @@ export async function startConsoleServer(options: {
     };
     luaLspCache = { at: now(), value };
     return value;
+  };
+  const previewsActive = (): boolean => {
+    try {
+      return options.hasActivePreview?.() ?? false;
+    } catch {
+      return true;
+    }
   };
   let origin = '';
   let draining = false;
@@ -233,8 +242,11 @@ export async function startConsoleServer(options: {
       }
       if (request.method === 'POST' && url.pathname === '/api/shutdown') {
         await bodyForMutation();
-        if (selectingFolder || updates.job.status === 'running' || tasks.active)
-          throw new ConsoleError('Wait for active tasks before stopping the console.', 409);
+        if (selectingFolder || updates.job.status === 'running' || tasks.active || previewsActive())
+          throw new ConsoleError(
+            'Stop the active preview or wait for running tasks before stopping the console.',
+            409
+          );
         json(200, { ok: true });
         setImmediate(() => void close());
         return;
@@ -363,7 +375,8 @@ export async function startConsoleServer(options: {
         !selectingFolder &&
         updates.job.status !== 'running' &&
         !tasks.active &&
-        !plugins.active
+        !plugins.active &&
+        !previewsActive()
       )
         void close();
     },
@@ -383,6 +396,7 @@ export async function startConsoleServer(options: {
     closePromise = (async () => {
       await plugins.close();
       await tasks.settled();
+      await options.closePreviews?.();
       await new Promise<void>((resolve) => {
         const timer = setTimeout(() => {
           for (const socket of sockets) socket.destroy();

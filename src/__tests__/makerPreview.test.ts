@@ -10,7 +10,7 @@ import {
 } from '../maker/preview/protocol.js';
 import { probeRuntime, preflightPreview, previewWindow } from '../maker/preview/runtime.js';
 import { PreviewSession, previewStatus } from '../maker/preview/session.js';
-import { PreviewLogs } from '../maker/preview/evidence.js';
+import { PreviewLogs, readStoredPreviewLogs } from '../maker/preview/evidence.js';
 import {
   readPreviewWindowSettings,
   savePreviewWindowSettings,
@@ -319,4 +319,33 @@ test('logs remain bounded and have an incremental cursor', () => {
   const second = logs.read(Number(first.next_cursor), 1);
   expect(JSON.stringify(second)).toContain('second');
   expect(() => logs.read(-1, 1)).toThrow();
+});
+
+test('stored log tail includes game output after verbose startup without changing pagination', () => {
+  const directory = path.join(root, 'tail-logs');
+  const logs = new PreviewLogs(directory);
+  for (let index = 0; index < 120; index++) logs.append('startup ' + index);
+  logs.append('USER_FLOW_READY');
+  expect(readStoredPreviewLogs(directory, 0, 100)).toMatchObject({ next_cursor: 100 });
+  const tail = readStoredPreviewLogs(directory, 0, 100, true);
+  expect(tail).toMatchObject({ next_cursor: 121, truncated: true });
+  expect((tail.logs as { cursor: number; text: string }[]).at(-1)?.text).toBe('USER_FLOW_READY');
+  expect(readStoredPreviewLogs(directory, 120, 100)).toMatchObject({
+    logs: [{ cursor: 121, text: 'USER_FLOW_READY' }],
+    truncated: false,
+  });
+});
+
+test('stored log tail stays byte bounded and preserves chronological order', () => {
+  const directory = path.join(root, 'large-tail-logs');
+  const logs = new PreviewLogs(directory);
+  for (let index = 0; index < 150; index++) logs.append(String(index) + 'x'.repeat(16000));
+  const result = readStoredPreviewLogs(directory, 0, 100, true);
+  const rows = result.logs as { cursor: number; text: string }[];
+  expect(rows.at(-1)?.cursor).toBe(150);
+  expect(rows.length).toBeLessThan(5);
+  expect(rows.map((row) => row.cursor)).toEqual(
+    rows.map((row) => row.cursor).sort((left, right) => left - right)
+  );
+  expect(result.truncated).toBe(true);
 });

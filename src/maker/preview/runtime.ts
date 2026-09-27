@@ -10,6 +10,8 @@ import { preparePreviewProject, requireManifestPreviewPlatform } from './prepare
 import { classifyPreviewProject } from './configuration.js';
 import { startPreviewAssetServer, type PreviewAssetServer } from './assets.js';
 import { previewWindow, type PreviewWindow } from './windowSettings.js';
+import { PreviewLuaLog } from './luaLog.js';
+import { selectWindowsBackgroundEnvironment } from '../system/backgroundProcess.js';
 import { preparePreviewServer, previewNetworkArgs } from './network.js';
 export { previewWindow } from './windowSettings.js';
 
@@ -48,6 +50,7 @@ export async function preflightPreview(
 }
 
 export class PreviewRuntime {
+  private luaLog?: PreviewLuaLog;
   private child?: ChildProcessWithoutNullStreams;
   private stopping = false;
   private readonly abort = new AbortController();
@@ -157,7 +160,17 @@ export class PreviewRuntime {
           '-width=' + window.width,
           '-height=' + window.height,
         ],
-        { cwd: source, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: false }
+        {
+          cwd: source,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          windowsHide: false,
+          detached: false,
+          shell: false,
+          env:
+            process.platform === 'win32'
+              ? selectWindowsBackgroundEnvironment(process.env)
+              : process.env,
+        }
       );
     } catch (error) {
       await this.assets?.close();
@@ -167,6 +180,7 @@ export class PreviewRuntime {
     this.child = child;
     this.closed = new Promise((resolve) =>
       child.once('close', () => {
+        this.luaLog?.close();
         void (async () => {
           try {
             await this.assets?.close();
@@ -192,6 +206,7 @@ export class PreviewRuntime {
         this.recordError(String(persistenceError));
       }
     });
+    this.luaLog = new PreviewLuaLog(this.executable, (line) => this.appendLog(line));
     this.consume(child.stdout);
     this.consume(child.stderr);
     try {
@@ -209,7 +224,15 @@ export class PreviewRuntime {
           reject(error);
         };
         const exited = (): void =>
-          failed(new Error('Runtime exited during startup. Read preview logs.'));
+          failed(
+            new Error(
+              'Runtime exited during startup (exit code: ' +
+                child.exitCode +
+                ', signal: ' +
+                child.signalCode +
+                '). Read preview logs.'
+            )
+          );
         const deadline = setTimeout(
           () => failed(new Error('TIMEOUT: Runtime process did not start.')),
           this.timeout
@@ -277,13 +300,18 @@ export class PreviewRuntime {
     }
   }
 
+  private appendLog(line: string): void {
+    if (this.assets) line = line.split(this.assets.url).join('[local-preview]/');
+    this.logs.append(line);
+    if (/\bERROR:|stack traceback:/.test(line)) this.recordError(line);
+  }
+
   private consume(stream: NodeJS.ReadableStream): void {
     const decoder = new StringDecoder('utf8');
     let buffer = '';
     const append = (line: string): void => {
-      if (this.assets) line = line.split(this.assets.url).join('[local-preview]/');
-      this.logs.append(line);
-      if (/\bERROR:|stack traceback:/.test(line)) this.recordError(line);
+      this.luaLog?.observe(line);
+      this.appendLog(line);
     };
     stream.on('data', (chunk: Buffer) => {
       buffer += decoder.write(chunk);

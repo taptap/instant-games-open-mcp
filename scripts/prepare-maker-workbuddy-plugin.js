@@ -132,7 +132,7 @@ function copyVersionedRootSkill(source, target, pluginVersion, makerVersion) {
 }
 
 function setFrontmatterDescription(filePath, description) {
-  const content = readFileSync(filePath, 'utf8');
+  const content = readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n');
   if (!content.startsWith('---\n')) {
     throw new Error(`Missing YAML frontmatter in ${filePath}`);
   }
@@ -322,7 +322,11 @@ async function main() {
     join(pluginRoot, 'docs', 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
     'Maker MCP troubleshooting guide'
   );
-  for (const guide of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+  for (const guide of [
+    'MAKER_LOCAL_PREVIEW.md',
+    'MAKER_CONSOLE.md',
+    'MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md',
+  ]) {
     copyRequiredFile(
       join(projectRoot, 'docs', guide),
       join(pluginRoot, 'docs', guide),

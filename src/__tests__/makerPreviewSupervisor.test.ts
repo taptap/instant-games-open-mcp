@@ -21,7 +21,8 @@ import {
   requestPreview,
   runPreviewSupervisor,
 } from '../maker/preview/session.js';
-import { runPreviewCli } from '../maker/cli/preview.js';
+import { runPreviewCli, executePreviewOperation } from '../maker/cli/preview.js';
+import { PreviewOwner } from '../maker/preview/owner.js';
 
 jest.mock('node:child_process', () => ({
   ...jest.requireActual('node:child_process'),
@@ -197,6 +198,7 @@ async function callCli(
   try {
     await runPreviewCli(action, {
       target_dir: project,
+      legacy_wmi: true,
       ...(runtimePath ? { runtime: runtimePath } : {}),
       json: true,
     });
@@ -1146,4 +1148,131 @@ test.each([
     supervisor_retired: false,
     ok: false,
   });
+});
+
+test('user preview rejects external executables before creating a console session', async () => {
+  if (process.platform !== 'win32') return;
+  const output = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  const previousExitCode = process.exitCode;
+  try {
+    await runPreviewCli('start', {
+      target_dir: project,
+      runtime: path.join(root, 'runtime'),
+      json: true,
+    });
+    const result = JSON.parse(output.mock.calls.map(([value]) => String(value)).join(''));
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('preview run') });
+    expect(readPreviewRecord(project)).toBeUndefined();
+    expect(spawn).not.toHaveBeenCalled();
+  } finally {
+    output.mockRestore();
+    process.exitCode = previousExitCode;
+  }
+});
+
+test('Agent run owns a bounded preview and returns evidence after stopping it', async () => {
+  runtime.mode = 'running';
+  const output = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  const previousExitCode = process.exitCode;
+  try {
+    await runPreviewCli('run', {
+      target_dir: project,
+      runtime: path.join(root, 'runtime'),
+      duration_ms: '1000',
+      json: true,
+    });
+    const result = JSON.parse(output.mock.calls.map(([value]) => String(value)).join(''));
+    expect(result).toMatchObject({
+      ok: true,
+      mode: 'agent',
+      state: 'stopped',
+      process_alive: false,
+      result: 'UNDETERMINED',
+      started: { state: 'running' },
+    });
+    expect(readPreviewRecord(project)?.state).toBe('stopped');
+    expect(spawn).not.toHaveBeenCalled();
+  } finally {
+    output.mockRestore();
+    process.exitCode = previousExitCode;
+  }
+});
+
+test('a forged Host marker cannot authorize an external user preview executable', async () => {
+  if (process.platform !== 'win32') return;
+  const instanceId = randomUUID();
+  writePrivateJson(path.join(root, 'home', 'console', 'session.json'), {
+    instanceId,
+    pid: process.ppid,
+    userHost: true,
+  });
+  const previousMarker = process.env.TAPTAP_MAKER_CONSOLE_HOST_ID;
+  const output = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  const previousExitCode = process.exitCode;
+  process.env.TAPTAP_MAKER_CONSOLE_HOST_ID = instanceId;
+  try {
+    await runPreviewCli('start', {
+      target_dir: project,
+      runtime: path.join(root, 'runtime'),
+      json: true,
+    });
+    const response = JSON.parse(output.mock.calls.map(([value]) => String(value)).join(''));
+    expect(response.error).toContain('preview run');
+    expect(readPreviewRecord(project)).toBeUndefined();
+    expect(spawn).not.toHaveBeenCalled();
+  } finally {
+    output.mockRestore();
+    process.exitCode = previousExitCode;
+    if (previousMarker === undefined) delete process.env.TAPTAP_MAKER_CONSOLE_HOST_ID;
+    else process.env.TAPTAP_MAKER_CONSOLE_HOST_ID = previousMarker;
+  }
+});
+
+test('an Agent supervisor rejects a disconnected owner before opening a control channel', async () => {
+  const previousMarker = process.env.TAPTAP_MAKER_AGENT_OWNER;
+  process.env.TAPTAP_MAKER_AGENT_OWNER = '1';
+  try {
+    await expect(runPreviewSupervisor(project, randomUUID())).rejects.toThrow('owner disconnected');
+    expect(readPreviewRecord(project)).toBeUndefined();
+  } finally {
+    if (previousMarker === undefined) delete process.env.TAPTAP_MAKER_AGENT_OWNER;
+    else process.env.TAPTAP_MAKER_AGENT_OWNER = previousMarker;
+  }
+});
+
+test('in-process console ownership has no launcher and waits for Runtime cleanup', async () => {
+  runtime.mode = 'running';
+  const owner = new PreviewOwner();
+  try {
+    const result = await executePreviewOperation(
+      'start',
+      {
+        target_dir: project,
+        runtime: path.join(root, 'runtime'),
+      },
+      undefined,
+      owner
+    );
+    expect(result).toMatchObject({ ok: true, state: 'running', supervisor_pid: process.pid });
+    expect(spawn).not.toHaveBeenCalled();
+    expect(owner.active).toBe(true);
+    await owner.close();
+    expect(runtime.instances.at(-1)?.processAlive).toBe(false);
+    expect(owner.active).toBe(false);
+    expect((await previewStatus(project)).state).toBe('stopped');
+  } finally {
+    await owner.close();
+  }
+});
+
+test('a stale stop identity cannot write a cancellation marker for a newer session', async () => {
+  await boot();
+  const marker = path.join(previewDirectory(project), 'stop.json');
+  const result = await executePreviewOperation('stop', {
+    target_dir: project,
+    session_id: randomUUID(),
+  });
+  expect(result.ok).toBe(false);
+  expect(fs.existsSync(marker)).toBe(false);
+  expect((await requestPreview(record, 'status')).session_id).toBe(record.session_id);
 });

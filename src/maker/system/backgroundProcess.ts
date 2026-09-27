@@ -42,6 +42,7 @@ export type BackgroundProcessLaunch = {
   failure: () => Error | undefined;
   exited: () => boolean;
   stopUnpublished: () => boolean;
+  releaseOwner?: () => void;
 };
 
 export type BackgroundProcessLaunchOptions = {
@@ -52,6 +53,7 @@ export type BackgroundProcessLaunchOptions = {
   env: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   signal?: AbortSignal;
+  mode?: 'direct' | 'attached';
 };
 
 export function openBackgroundProcessLog(filename: string): number {
@@ -106,7 +108,8 @@ export async function launchBackgroundProcess(
   options: BackgroundProcessLaunchOptions
 ): Promise<BackgroundProcessLaunch> {
   if (options.signal?.aborted) throw new Error('CANCELLED: background launch.');
-  if ((options.platform ?? process.platform) !== 'win32') return directLaunch(options);
+  if ((options.platform ?? process.platform) !== 'win32' || options.mode)
+    return directLaunch(options);
 
   fs.closeSync(openBackgroundProcessLog(options.logFile));
   const scripts = buildWindowsBackgroundLaunchScripts(options);
@@ -199,27 +202,47 @@ function stopWindowsWrapperIfOwned(pid: number, encodedCommand: string): boolean
 function directLaunch(options: BackgroundProcessLaunchOptions): BackgroundProcessLaunch {
   const stderr = openBackgroundProcessLog(options.logFile);
   let child: ChildProcess;
+  const environment = {
+    ...((options.platform ?? process.platform) === 'win32'
+      ? selectWindowsBackgroundEnvironment(options.env)
+      : options.env),
+  };
+  delete environment.TAPTAP_MAKER_AGENT_OWNER;
+  if (options.mode === 'attached') environment.TAPTAP_MAKER_AGENT_OWNER = '1';
   try {
     child = spawn(options.command, options.args, {
       cwd: options.cwd,
-      detached: true,
+      detached: options.mode !== 'attached',
       windowsHide: true,
-      stdio: ['ignore', 'ignore', stderr],
-      env: options.env,
+      stdio:
+        options.mode === 'attached'
+          ? ['ignore', 'ignore', stderr, 'ipc']
+          : ['ignore', 'ignore', stderr],
+      env: environment,
     });
   } finally {
     fs.closeSync(stderr);
   }
   let launchFailure: Error | undefined;
   child.once('error', (error) => {
-    launchFailure = error;
+    const code = (error as NodeJS.ErrnoException).code || 'unknown';
+    launchFailure = new Error(
+      'NATIVE_LAUNCH_FAILED: Node could not create the background process (' + code + ').'
+    );
   });
-  child.unref();
+  if (options.mode !== 'attached') child.unref();
   return {
     expectedPid: child.pid,
+    releaseOwner:
+      options.mode === 'attached'
+        ? () => {
+            if (child.connected) child.disconnect();
+          }
+        : undefined,
     failure: () => launchFailure,
     exited: () => child.exitCode !== null,
     stopUnpublished: () => {
+      if (launchFailure && !child.pid) return true;
       if (child.exitCode !== null || child.signalCode !== null) return true;
       if (child.exitCode === null) child.kill('SIGTERM');
       return false;

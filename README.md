@@ -53,9 +53,13 @@ Lua 检查开关与构建结果集中在远端构建区域，窗口设置默认�
 未配置时使用横屏，也可随时手动选择。设置按项目保存，下次启动或刷新预览时生效，不修改发布配置。
 受管理 Runtime 在安装和启动时会自动补齐引擎所需目录与中文兜底字体；项目自带字体仍按项目隔离，
 不会写入所有项目共用的 Runtime。
-相同 Maker 版本从不同 AI IDE 打开时复用同一个用户级控制台；Windows 使用系统进程代理启动，
-避免 AI 命令结束时连带关闭控制台服务。本地预览 supervisor 共用该启动方式；
-意外断开后确认两个预览进程均已退出时，可直接重新启动，无需手动删除会话文件。
+相同 Maker 版本从不同 AI IDE 打开时复用同一个控制台，由 Node 直接启动，不要求手动打开 Host。
+用户预览由控制台直接持有 Runtime，发起请求的 AI 命令结束不影响游戏；AI 调试则由前台
+Node 会话直接持有 Runtime，结束后清理本轮进程。正常路径没有 WMI/CIM 或预览中转进程。
+控制台和 AI 调试结果显示最近的游戏日志；需要完整分页时使用 preview logs，
+读取末尾可加 --tail。日志错误会保留，不把窗口启动成功当成游戏验证通过。
+Windows 安装器已隔离下载子进程与取消通道，避免子进程等待输入导致安装卡住。
+退出整个 IDE 仍可能触发宿主的进程树回收；不自动绕过这一边界。
 FrameCrate 控制台集成已改为通用插件注册与持久内嵌标签页（2026-09-16，本地验证及独立复核完成），
 不再以独立浏览器标签作为控制台入口。显式设置 `FRAMECRATE_STUDIO_DIR` 指向已安装的
 framepacker Studio，按已登记项目嵌入完整本地编辑器与 AI 工作流；切换项目或标签应保留编辑现场。
@@ -833,3 +837,9 @@ MIT
 - [官方 API 文档](https://developer.taptap.cn/minigameapidoc/dev/api/open-api/leaderboard/)
 - [MCP 协议规范](https://modelcontextprotocol.io/)
 - [Issues](https://github.com/taptap/instant-games-open-mcp/issues)
+
+Windows 本地预览分两种：AI 调试用 `taptap-maker preview run --target-dir <项目绝对路径> --json`，
+保持前台会话，按 session 查询日志或停止；默认最多 10 分钟，`--duration-ms` 可缩短。
+给用户预览用 `preview start` 或 `console open` 后点击预览；控制台自动启动并直接管理游戏，
+不再要求手动启动 Host。两种用途共用准备、日志和停止逻辑，截图及游戏断言 JSON 尚不支持。
+正常路径不调用 WMI；仅显式 `--legacy-wmi` 使用旧入口。详见 docs/MAKER_LOCAL_PREVIEW.md。
