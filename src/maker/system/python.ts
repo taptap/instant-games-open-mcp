@@ -2,7 +2,7 @@
  * Maker Python runtime detection and uv-managed bootstrap helpers.
  */
 
-import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
+import { spawn, spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getMakerHome } from '../storage.js';
@@ -260,6 +260,278 @@ export function setupMakerPythonEnvironment(
       savePythonSetupFailure(error);
     } catch {
       // Keep the original Python setup error; persistence is best-effort.
+    }
+    throw error;
+  }
+}
+
+type AsyncPythonResult = { status: number | null; stdout: string; stderr: string; error?: Error };
+
+export async function runPythonCommand(
+  command: string,
+  args: string[],
+  signal?: AbortSignal,
+  env: NodeJS.ProcessEnv = process.env,
+  timeout = 30000
+): Promise<AsyncPythonResult> {
+  if (signal?.aborted) throw new Error('CANCELLED: Python preparation.');
+  return new Promise((resolve, reject) => {
+    const grouped = process.platform !== 'win32';
+    const child = spawn(command, args, {
+      env,
+      shell: false,
+      detached: grouped,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '',
+      stderr = '';
+    let failure: Error | undefined;
+    let spawnError: Error | undefined;
+    let bytes = 0;
+    let cleanup: Promise<void> | undefined;
+    let finished = false;
+    let drainDeadline: ReturnType<typeof setTimeout> | undefined;
+    const finish = (status: number | null): void => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      clearTimeout(drainDeadline);
+      signal?.removeEventListener('abort', abort);
+      if (failure) reject(failure);
+      else resolve({ status, stdout, stderr, error: spawnError });
+    };
+    const unverified = (reason: string): void => {
+      failure = Object.assign(new Error(reason + ' Process-tree cleanup could not be verified.'), {
+        cleanupVerified: false,
+      });
+    };
+    const stop = (reason: string): void => {
+      if (failure || finished) return;
+      failure ??= new Error(reason);
+      drainDeadline = setTimeout(() => {
+        unverified(reason);
+        child.stdout.destroy();
+        child.stderr.destroy();
+        child.unref();
+        finish(child.exitCode);
+      }, 6000);
+      if (!child.pid) {
+        child.kill('SIGKILL');
+      } else if (grouped) {
+        try {
+          process.kill(-child.pid, 'SIGKILL');
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ESRCH') unverified(reason);
+          if (child.exitCode == null && child.signalCode == null) child.kill('SIGKILL');
+        }
+      } else if (child.exitCode != null || child.signalCode != null) {
+        unverified(reason);
+      } else {
+        cleanup = new Promise<void>((done) => {
+          const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+            windowsHide: true,
+            shell: false,
+            stdio: 'ignore',
+          });
+          killer.on('error', () => {
+            unverified(reason);
+            child.kill('SIGKILL');
+          });
+          const deadline = setTimeout(() => killer.kill('SIGKILL'), 5000);
+          killer.once('close', (code) => {
+            clearTimeout(deadline);
+            if (code !== 0) unverified(reason);
+            child.kill('SIGKILL');
+            done();
+          });
+        });
+      }
+    };
+    const abort = (): void => stop('CANCELLED: Python preparation.');
+    const timer = setTimeout(() => stop('TIMEOUT: Python preparation.'), timeout);
+    signal?.addEventListener('abort', abort, { once: true });
+    child.on('error', (error) => {
+      spawnError = error;
+    });
+    const append = (chunk: string, output: boolean): void => {
+      if (finished || failure) return;
+      bytes += Buffer.byteLength(chunk);
+      if (bytes > 1024 * 1024) {
+        stop('Python preparation output exceeded its limit.');
+        return;
+      }
+      if (output) stdout += chunk;
+      else stderr += chunk;
+    };
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => append(chunk, true));
+    child.stderr.on('data', (chunk: string) => append(chunk, false));
+    child.once('close', async (status) => {
+      await cleanup;
+      finish(status);
+    });
+    if (signal?.aborted) abort();
+  });
+}
+
+async function inspectPythonCandidateAsync(candidate: PythonCandidate, signal?: AbortSignal) {
+  const info = await runPythonCommand(
+    candidate.command,
+    [...(candidate.argsPrefix || []), '-c', PYTHON_INFO_SCRIPT],
+    signal
+  );
+  const parsed = info.status === 0 ? parsePythonInfo(info.stdout) : undefined;
+  if (!parsed) return undefined;
+  const pip = await runPythonCommand(parsed.executable, ['-m', 'pip', '--version'], signal);
+  return {
+    ...parsed,
+    provider: candidate.provider,
+    pipVersion: pip.status === 0 ? pip.stdout.trim() : undefined,
+  };
+}
+
+export async function checkMakerPythonEnvironmentAsync(
+  signal?: AbortSignal
+): Promise<MakerPythonEnvironment> {
+  const platform = process.platform;
+  const uvPath = getMakerUvPath(platform);
+  const installed = fs.existsSync(uvPath);
+  const uv = installed ? await runPythonCommand(uvPath, ['--version'], signal) : undefined;
+  const base = {
+    platform,
+    configPath: getMakerPythonConfigPath(),
+    setupCommand: 'taptap-maker python setup',
+    pathCommand: 'taptap-maker python path',
+    uv: { path: uvPath, installed, version: uv?.status === 0 ? uv.stdout.trim() : undefined },
+  };
+  const configured = process.env.TAPTAP_MAKER_PYTHON_BIN;
+  const saved = loadPythonRuntimeConfig();
+  const preferred: PythonCandidate[] = [
+    ...(configured ? [{ provider: 'configured' as const, command: configured }] : []),
+    ...(saved?.python
+      ? [{ provider: saved.provider || ('configured' as const), command: saved.python }]
+      : []),
+  ];
+  for (const candidate of preferred) {
+    const result = await inspectPythonCandidateAsync(candidate, signal);
+    if (result && !isUnsupportedSystemPython(platform, result.executable, result.provider))
+      return resultToEnvironment(result, base);
+  }
+  const where =
+    platform === 'win32' ? await runPythonCommand('where.exe', ['python'], signal) : undefined;
+  const candidates = createPythonCandidates(platform, () => where as SpawnSyncReturns<string>);
+  let fallback: MakerPythonEnvironment | undefined;
+  for (const candidate of candidates) {
+    if (candidate.command === '__windows_store_alias__') continue;
+    const result = await inspectPythonCandidateAsync(candidate, signal);
+    if (!result || isUnsupportedSystemPython(platform, result.executable, result.provider))
+      continue;
+    const environment = resultToEnvironment(result, base);
+    if (environment.ready) return environment;
+    fallback ??= environment;
+  }
+  if (fallback) return fallback;
+  const status =
+    saved?.status === 'setup_failed'
+      ? 'setup_failed'
+      : candidates.some((candidate) => candidate.command === '__windows_store_alias__')
+        ? 'store_alias_only'
+        : 'missing';
+  return {
+    ...base,
+    ready: false,
+    status,
+    missing: ['python'],
+    error: saved?.error,
+    nextAction: 'Run taptap-maker python setup to prepare Python and pip.',
+  };
+}
+
+export async function setupMakerPythonEnvironmentAsync(
+  signal?: AbortSignal
+): Promise<MakerPythonSetupResult> {
+  const before = await checkMakerPythonEnvironmentAsync(signal);
+  if (before.ready) {
+    savePythonRuntimeConfig(before);
+    return { changed: false, environment: before, uvInstalled: before.uv.installed };
+  }
+  try {
+    const uvPath = getMakerUvPath();
+    if (!fs.existsSync(uvPath)) {
+      await fs.promises.mkdir(getMakerUvInstallRoot(), { recursive: true });
+      const env = {
+        ...process.env,
+        INSTALLER_NO_MODIFY_PATH: '1',
+        UV_INSTALL_DIR: getMakerUvInstallRoot(),
+      };
+      const installed =
+        process.platform === 'win32'
+          ? await runPythonCommand(
+              'powershell.exe',
+              [
+                '-NoProfile',
+                '-ExecutionPolicy',
+                'ByPass',
+                '-Command',
+                'irm https://astral.sh/uv/install.ps1 | iex',
+              ],
+              signal,
+              env,
+              120000
+            )
+          : await runPythonCommand(
+              'sh',
+              ['-c', 'curl -LsSf https://astral.sh/uv/install.sh | sh'],
+              signal,
+              env,
+              120000
+            );
+      if (installed.status !== 0) throw new Error('uv installer failed: ' + installed.stderr);
+      if (!fs.existsSync(uvPath)) {
+        const nested = path.join(getMakerUvInstallRoot(), 'bin', path.basename(uvPath));
+        if (fs.existsSync(nested)) await fs.promises.copyFile(nested, uvPath);
+        else throw new Error('uv installer did not create its executable.');
+      }
+    }
+    const env = createUvPythonEnv();
+    const installed = await runPythonCommand(
+      uvPath,
+      ['python', 'install', DEFAULT_PYTHON_VERSION, '--managed-python'],
+      signal,
+      env,
+      300000
+    );
+    if (installed.status !== 0) throw new Error('uv python install failed: ' + installed.stderr);
+    const found = await runPythonCommand(
+      uvPath,
+      ['python', 'find', DEFAULT_PYTHON_VERSION],
+      signal,
+      env
+    );
+    if (found.status !== 0 || !found.stdout.trim())
+      throw new Error('uv python find failed: ' + found.stderr);
+    const result = await inspectPythonCandidateAsync(
+      { provider: 'uv-managed', command: found.stdout.trim().split(/\r?\n/)[0] },
+      signal
+    );
+    if (!result?.pipVersion) throw new Error('Python was installed, but pip is not available.');
+    const uvVersion = await runPythonCommand(uvPath, ['--version'], signal);
+    const environment = resultToEnvironment(result, {
+      ...before,
+      uv: { path: uvPath, installed: true, version: uvVersion.stdout.trim() },
+    });
+    if (signal?.aborted) throw new Error('CANCELLED: Python preparation.');
+    savePythonRuntimeConfig(environment);
+    return { changed: true, environment, uvInstalled: true };
+  } catch (error) {
+    if (!signal?.aborted) {
+      try {
+        savePythonSetupFailure(error);
+      } catch {
+        throw error;
+      }
     }
     throw error;
   }

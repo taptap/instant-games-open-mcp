@@ -1,6 +1,6 @@
 ---
 name: taptap-maker-local
-description: Guide TapTap Maker local development workflows, including the official trigger “打开make mcp控制台”, local web console, local preview, and automatic refresh after each related code-edit batch. Use for Maker initialization, clone, project status, console, preview start/refresh/stop and evidence, MCP diagnostics, pull, submit, push, or Git conflicts.
+description: 指导 TapTap Maker 本地开发流程，支持“打开make mcp控制台”、初始化、同步项目、状态检查、提交构建和故障诊断。
 ---
 
 # TapTap Maker Local Workflow
@@ -166,8 +166,9 @@ Windows 预览失败时，先收集并区分以下证据，再决定修复方向
 2. Runtime 可执行文件、资源准备结果、supervisor 状态和 `supervisor_log_path`。
 3. Runtime 原始日志、control channel 发布/超时结果，以及 Windows 后台启动器的返回信息。
 
-WMI/CIM 返回已受理、返回 PID 或请求成功，只证明后台启动请求被接受，不证明 supervisor 或
-Runtime 已执行。若 supervisor 日志为空且 control channel 超时，先归类为 Windows 后台启动链路
+仅在显式 legacy 模式下，WMI/CIM 返回已受理或 PID 只证明请求被接受，不证明 Runtime 已执行。
+正常进程内模式不要求生成独立 supervisor.log，优先读取所属 Node 的 stderr、status 和本轮 logs。
+legacy 模式若 supervisor 日志为空且 control channel 超时，先归类为 Windows 后台启动链路
 的待确认问题；不要直接改 PATH、切换 Node、修改游戏代码，或把问题归因于 Runtime 文件缺失。
 Issue/反馈中附上上述脱敏证据，让后续处理基于实际环境，而不是把某一次 Windows 兼容性问题写死
 成所有项目的结论。
@@ -178,15 +179,25 @@ Goal: open the shared local `UrhoXRuntime` window for the current bound Maker pr
 commit, push, or remote-build. Do not rewrite PATH, switch Node, or disable antivirus unless the
 collected evidence names that cause.
 
-Launch chain:
+Launch chain (normal paths):
 
-1. Active-distribution CLI `taptap-maker preview start --target-dir <PROJECT> --json`.
-2. Windows only: CLI Node → PowerShell broker → CIM `Win32_Process.Create` → Hidden PowerShell
-   `-EncodedCommand` wrapper → `__maker-preview-supervisor`.
-3. Supervisor publishes a loopback control channel, then spawns `UrhoXRuntime.exe`.
-4. Projects that need prepare run managed Python `project_builder.py` before Runtime starts.
-
-Evidence files, all under Maker home preview/runtime directories returned by status/start JSON:
+1. Agent debugging: keep CLI `preview run --target-dir <PROJECT> --json` running in the
+   foreground. It directly owns Runtime, emits a preview.started event on stderr and returns
+   final JSON on stdout. Query logs/status/check or stop using its session identity. Default
+   safety limit is 10 minutes; --duration-ms 1000..600000 selects a shorter smoke test.
+2. User preview: `preview start` submits the registered project to the same console task
+   used by the browser. `console open` automatically starts/reuses the console with Node.
+   The console directly owns Runtime; finishing the request CLI does not stop the game.
+3. No intermediate preview CLI or supervisor process. Existing session/control-channel,
+   project classification, prepare and manifest code remain shared in process. The legacy
+   supervisor_pid field identifies the owning Node. Normal paths never invoke WMI/CIM.
+4. An entire IDE process-tree teardown can still terminate preview. Optional external
+   `console serve` is for that separate requirement, not a mandatory first-use step.
+5. Runtime logs include bounded, identity-checked current-round Lua logs. Screenshots and
+   game assertion JSON remain unsupported; process status JSON is not gameplay validation.
+6. Never auto-retry an unknown launch or disable antivirus. Only explicit --legacy-wmi
+   selects the old launcher. Never kill by process name or an unverified historical PID.
+   Evidence files, all under Maker home preview/runtime directories returned by status/start JSON:
 
 - `supervisor.log`
 - current-round `prepare.log`
@@ -195,24 +206,22 @@ Evidence files, all under Maker home preview/runtime directories returned by sta
 
 Classify from evidence, then act:
 
-| Evidence                                                         | Meaning                                                                   | Next action                                                                                                                                                                                                                        |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `install_state: missing`                                         | Runtime not installed                                                     | Host-approved `preview install`, then start                                                                                                                                                                                        |
-| `Local prepare failed` + Python/Builder/timeout in `prepare.log` | Manifest/copy failed; Runtime was not started                             | Read `prepare.log`. Retry `preview prepare --json`. Do not treat as CIM/antivirus. Public-index download and managed Python must be ready                                                                                          |
-| Empty `supervisor.log` + control-channel TIMEOUT                 | Wrapper never reached Node; often antivirus blocked Hidden EncodedCommand | Retry `preview start` once. Do not run `__maker-preview-supervisor` after start has returned; that entry only accepts a live pending starting record. If CIM stays blocked, report EncodedCommand interception. Do not change PATH |
-| `supervisor exit is unverified`                                  | CIM wrapper PID could not be proven owned                                 | Do not taskkill by historical PID or process name. Inspect `supervisor.log` and status                                                                                                                                             |
-| `preferred loopback port` / recovery ports in use                | Lock-recovery mutex collided with another local bind                      | Retry the same CLI. Do not kill the occupying process                                                                                                                                                                              |
-| Runtime PID exists / window opened                               | Launch succeeded                                                          | Report process launch only; use `preview logs` / `preview check` for evidence                                                                                                                                                      |
+| Evidence                                                         | Meaning                                              | Next action                                                                                                                               |
+| ---------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `install_state: missing`                                         | Runtime not installed                                | Host-approved `preview install`, then start                                                                                               |
+| `Local prepare failed` + Python/Builder/timeout in `prepare.log` | Manifest/copy failed; Runtime was not started        | Read `prepare.log`. Retry `preview prepare --json`. Do not treat as CIM/antivirus. Public-index download and managed Python must be ready |
+| NATIVE_LAUNCH_FAILED + EACCES                                    | Node background process creation was denied          | Check the security product event for this exact process; do not disable protection or switch back to WMI automatically.                   |
+| Empty supervisor.log + control-channel TIMEOUT                   | Only meaningful for an explicit legacy launcher      | Normal in-process preview uses owner stderr and status; an absent standalone log is not evidence of antivirus blocking.                   |
+| supervisor exit is unverified                                    | Process ownership is unknown                         | Do not kill by PID or name; inspect session identity and logs.                                                                            |
+| `preferred loopback port` / recovery ports in use                | Lock-recovery mutex collided with another local bind | Retry the same CLI. Do not kill the occupying process                                                                                     |
+| Runtime PID exists / window opened                               | Launch succeeded                                     | Report process launch only; use `preview logs` / `preview check` for evidence                                                             |
 
-Console open uses the same Windows CIM wrapper with `__maker-console-server`. An empty
-`server.log` plus “Console did not start” is the same wrapper/antivirus class, not a preview
-Runtime missing. Retry `console open` once. If CIM stays blocked and no session.json exists,
-run the same Maker `node` + `maker.js` with `__maker-console-server`; that entry starts the
-HTTP service and publishes a session that later `console open` can reuse. Do not change PATH.
-This console recovery does not start preview.
-
+Console open starts/reuses a Node console automatically; no mandatory manual Host step.
+Stop an incompatible older console explicitly after its previews are stopped. A separate browser
+window does not prove that its service will survive the entire IDE shutting down. Only that
+separate requirement calls for the optional external console serve entry.
 Never kill by process name. Never use a stored PID without matching session identity. Stop with
-`preview stop` or `console stop`. Closing the browser or CLI does not stop an independent Runtime.
+`preview stop` or `console stop`. Closing the browser does not stop a Host-owned Runtime; ending Agent preview run stops only its owned Runtime.
 
 Process launch and clean logs do not prove gameplay or visual correctness. Do not promise
 screenshots, input automation or cloud/server emulation; these are not supported.
@@ -995,3 +1004,10 @@ Maker users may not understand Git terminology. Prefer concrete wording:
 - "冲突文件" instead of "unmerged paths"
 
 Always explain the next irreversible step before taking it.
+
+Windows 启动验收与受限 Job 回归参考 `docs/MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md` 的隔离探针；它只验证 Node 进程心跳，不代表 Runtime 可见或退出 IDE 后继续存活。空 supervisor 日志不单独证明是 EncodedCommand 被拦截，需结合安全软件事件确认。
+
+Windows 两种用途分别由 Agent 前台 Node 和控制台 Node 直接持有 Runtime。
+不承诺退出整个 IDE 后仍保活，不使用 breakaway 绕过宿主管理。
+实测与兼容边界见 `docs/MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md` 的最新记录；
+仍需产品经理杀软环境复验，不自动重试未知启动或按进程名清理。

@@ -16,6 +16,7 @@ export type ConsoleProcessLaunchOptions = {
   logFile: string;
   env: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
+  legacy?: boolean;
 };
 
 export const openConsoleLog = openBackgroundProcessLog;
@@ -46,5 +47,6 @@ export function launchConsoleServerProcess(
     logFile: options.logFile,
     env: options.env,
     platform: options.platform,
+    mode: options.legacy ? undefined : 'direct',
   });
 }

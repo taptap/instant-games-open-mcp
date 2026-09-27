@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
-import { checkMakerPythonEnvironment } from '../maker/system/python.js';
+import { checkMakerPythonEnvironmentAsync } from '../maker/system/python.js';
 import {
   validatePreparedPreview,
   requireManifestPreviewPlatform,
@@ -14,8 +14,8 @@ import { previewDirectory } from '../maker/preview/protocol.js';
 
 jest.mock('node:child_process', () => ({ execFile: jest.fn() }));
 jest.mock('../maker/system/python.js', () => ({
-  checkMakerPythonEnvironment: jest.fn(),
-  setupMakerPythonEnvironment: jest.fn(),
+  checkMakerPythonEnvironmentAsync: jest.fn(),
+  setupMakerPythonEnvironmentAsync: jest.fn(),
 }));
 
 let root: string;
@@ -125,10 +125,10 @@ test('prepares missing config only in the managed copy with official source defa
   fs.mkdirSync(path.join(project, '.maker-mcp'));
   fs.writeFileSync(path.join(project, 'scripts/main.lua'), 'print("hello")');
   fs.writeFileSync(path.join(project, '.maker-mcp/config.json'), '{"project_id":"bound-game"}');
-  jest.mocked(checkMakerPythonEnvironment).mockReturnValue({
+  jest.mocked(checkMakerPythonEnvironmentAsync).mockResolvedValue({
     ready: true,
     python: '/python',
-  } as ReturnType<typeof checkMakerPythonEnvironment>);
+  } as Awaited<ReturnType<typeof checkMakerPythonEnvironmentAsync>>);
   jest.mocked(execFile).mockImplementation((...args: unknown[]) => {
     (args[args.length - 1] as (error: Error) => void)(new Error('fixture builder reached'));
     return {} as ReturnType<typeof execFile>;
@@ -176,9 +176,9 @@ test.each([
   fs.mkdirSync(path.join(project, '.project'), { recursive: true });
   fs.writeFileSync(path.join(project, '.project', 'project.json'), JSON.stringify({ version }));
   jest
-    .mocked(checkMakerPythonEnvironment)
-    .mockReturnValue({ ready: true, python: '/python' } as ReturnType<
-      typeof checkMakerPythonEnvironment
+    .mocked(checkMakerPythonEnvironmentAsync)
+    .mockResolvedValue({ ready: true, python: '/python' } as Awaited<
+      ReturnType<typeof checkMakerPythonEnvironmentAsync>
     >);
   jest.mocked(execFile).mockImplementation((...args: unknown[]) => {
     (args[args.length - 1] as (error: Error) => void)(new Error('builder should not run'));
@@ -197,9 +197,9 @@ test.each(['1', '1.2.3', '1.0.{x}', '0.{x}.{x}', '1.2.3-beta.1+build', 'dev'])(
     fs.mkdirSync(path.join(project, '.project'), { recursive: true });
     fs.writeFileSync(path.join(project, '.project', 'project.json'), JSON.stringify({ version }));
     jest
-      .mocked(checkMakerPythonEnvironment)
-      .mockReturnValue({ ready: true, python: '/python' } as ReturnType<
-        typeof checkMakerPythonEnvironment
+      .mocked(checkMakerPythonEnvironmentAsync)
+      .mockResolvedValue({ ready: true, python: '/python' } as Awaited<
+        ReturnType<typeof checkMakerPythonEnvironmentAsync>
       >);
     jest.mocked(execFile).mockImplementation((...args: unknown[]) => {
       (args[args.length - 1] as (error: Error) => void)(new Error('fixture builder reached'));
@@ -223,9 +223,9 @@ test.each([undefined, '../../outside'])(
     fs.mkdirSync(path.join(project, '.project'), { recursive: true });
     fs.writeFileSync(path.join(project, '.project', 'project.jsonc'), JSON.stringify({ version }));
     jest
-      .mocked(checkMakerPythonEnvironment)
-      .mockReturnValue({ ready: true, python: '/python' } as ReturnType<
-        typeof checkMakerPythonEnvironment
+      .mocked(checkMakerPythonEnvironmentAsync)
+      .mockResolvedValue({ ready: true, python: '/python' } as Awaited<
+        ReturnType<typeof checkMakerPythonEnvironmentAsync>
       >);
     jest.mocked(execFile).mockImplementation((...args: unknown[]) => {
       (args[args.length - 1] as (error: Error) => void)(new Error('builder must not run'));
@@ -247,9 +247,9 @@ test('builder failure retains diagnostics and never uses old project dist', asyn
   fs.writeFileSync(path.join(project, '.project', 'project.json'), '{}');
   fs.writeFileSync(path.join(project, 'dist', 'latest.json'), 'old');
   jest
-    .mocked(checkMakerPythonEnvironment)
-    .mockReturnValue({ ready: true, python: '/python' } as ReturnType<
-      typeof checkMakerPythonEnvironment
+    .mocked(checkMakerPythonEnvironmentAsync)
+    .mockResolvedValue({ ready: true, python: '/python' } as Awaited<
+      ReturnType<typeof checkMakerPythonEnvironmentAsync>
     >);
   jest.mocked(execFile).mockImplementation((...args: unknown[]) => {
     const callback = args[args.length - 1] as (
@@ -283,9 +283,9 @@ test('exit zero without a complete manifest still fails', async () => {
   fs.writeFileSync(path.join(project, '.project', 'settings.json'), '{}');
   fs.writeFileSync(path.join(project, '.project', 'project.json'), '{}');
   jest
-    .mocked(checkMakerPythonEnvironment)
-    .mockReturnValue({ ready: true, python: '/python' } as ReturnType<
-      typeof checkMakerPythonEnvironment
+    .mocked(checkMakerPythonEnvironmentAsync)
+    .mockResolvedValue({ ready: true, python: '/python' } as Awaited<
+      ReturnType<typeof checkMakerPythonEnvironmentAsync>
     >);
   jest.mocked(execFile).mockImplementation((...args: unknown[]) => {
     (args[args.length - 1] as (error: null, stdout: string, stderr: string) => void)(
@@ -321,10 +321,10 @@ test.each(['valid', 'missing-asset', 'nonzero-exit', 'stderr-error'])(
     const output = path.join(root, 'output');
     fs.mkdirSync(path.join(project, 'scripts'), { recursive: true });
     fs.writeFileSync(path.join(project, 'scripts/main.lua'), 'abc');
-    jest.mocked(checkMakerPythonEnvironment).mockReturnValue({
+    jest.mocked(checkMakerPythonEnvironmentAsync).mockResolvedValue({
       ready: true,
       python: '/python',
-    } as ReturnType<typeof checkMakerPythonEnvironment>);
+    } as Awaited<ReturnType<typeof checkMakerPythonEnvironmentAsync>>);
     jest.mocked(execFile).mockImplementation((...args: unknown[]) => {
       const source = path.join(output, 'source');
       const cache = path.join(source, '.build/manifest_cache');
