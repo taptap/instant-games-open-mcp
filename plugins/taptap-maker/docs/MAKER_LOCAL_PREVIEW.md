@@ -50,6 +50,8 @@ taptap-maker preview stop --target-dir <PROJECT> --json
 刷新会先关闭旧窗口，重新读取原项目并启动，丢失内存状态；新项目 prepare 失败不启动
 Runtime，也不运行旧 dist。
 停止或手动关闭后不自动复活。`process_alive=true` 只证明进程存活，`check` 不代表玩法通过。
+停止标记只针对读取并核验过的 session 与 owner；旧会话的停止请求不会取消并发的新预览。
+没有已登记会话时，stop 不创建可影响后续启动的标记；启动前探测由发起任务的取消信号中止。
 截图、输入脚本、Server/云模拟和游戏存档隔离尚不支持，停止也不保证保存游戏。
 
 ## 联网项目

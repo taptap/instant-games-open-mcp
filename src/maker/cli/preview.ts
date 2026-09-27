@@ -45,15 +45,15 @@ function isRetiredFailure(
 ): boolean {
   return Boolean(
     status &&
-    record &&
-    status.state === 'failed' &&
-    status.process_alive === false &&
-    status.supervisor_retired === true &&
-    samePreviewIdentity(status, record) &&
-    status.supervisor_id === record.supervisor_id &&
-    status.supervisor_pid === record.supervisor_pid &&
-    status.started_at === record.started_at &&
-    status.executable === record.executable
+      record &&
+      status.state === 'failed' &&
+      status.process_alive === false &&
+      status.supervisor_retired === true &&
+      samePreviewIdentity(status, record) &&
+      status.supervisor_id === record.supervisor_id &&
+      status.supervisor_pid === record.supervisor_pid &&
+      status.started_at === record.started_at &&
+      status.executable === record.executable
   );
 }
 
@@ -136,9 +136,11 @@ export async function executePreviewOperation(
       const cursor = options.cursor === undefined ? 0 : Number(options.cursor);
       if (options.session_id && options.session_id !== record?.session_id)
         throw new Error('Preview session changed. Read status again.');
-      if (action === 'stop') {
+      if (action === 'stop' && record) {
         writePrivateJson(path.join(previewDirectory(project), 'stop.json'), {
           request_id: randomUUID(),
+          session_id: record.session_id,
+          supervisor_id: record.supervisor_id,
         });
       }
       if (
@@ -328,11 +330,14 @@ async function startPreview(
   owner?: PreviewOwner
 ): Promise<Record<string, unknown>> {
   if (!owner && options.legacy_wmi !== true) throw new Error('A preview owner is required.');
+  const sessionId = randomUUID();
+  const supervisorId = randomUUID();
   const stopFile = path.join(previewDirectory(project), 'stop.json');
-  const readStop = (): string => (fs.existsSync(stopFile) ? fs.readFileSync(stopFile, 'utf8') : '');
-  const stopGeneration = readStop();
   const checkCancelled = (): void => {
-    if (signal.aborted || readStop() !== stopGeneration)
+    const stop = fs.existsSync(stopFile)
+      ? (JSON.parse(fs.readFileSync(stopFile, 'utf8')) as Record<string, unknown>)
+      : undefined;
+    if (signal.aborted || (stop?.session_id === sessionId && stop.supervisor_id === supervisorId))
       throw new Error('CANCELLED: preview start was stopped.');
   };
   const status = await previewStatus(project);
@@ -384,9 +389,9 @@ async function startPreview(
   const record: PreviewRecord = {
     protocol_version: 1,
     project_realpath: project,
-    session_id: randomUUID(),
+    session_id: sessionId,
     reload_id: 0,
-    supervisor_id: randomUUID(),
+    supervisor_id: supervisorId,
     supervisor_pid: 0,
     runtime_pid: 0,
     started_at: new Date().toISOString(),

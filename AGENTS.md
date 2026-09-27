@@ -382,6 +382,11 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- `preview stop` 的取消标记必须绑定已核验的 session_id 与 supervisor_id，不能用项目级文件变化
+  取消任意新会话。无会话不写标记；旧停止请求与新启动并发必须有回归测试。
+- 插件生成前使用锁文件依赖（`npm ci`），禁止混入本地漂移的版本。CodeQL 扫描第一方源码，
+  仅排除两个包含第三方依赖的生成 bundle；不得关闭源码查询以绕过告警。
+
 - 预览创建 Runtime 前必须持久化 runtime_launch_pending，取得 PID 后立即登记。
   已发布端点的 starting 会话只有在 supervisor 确认不存在且 Runtime 创建结果明确时才能恢复；
   缺少阶段标记的旧记录、创建结果未知和权限未知均不得凭零 PID 自动回收。

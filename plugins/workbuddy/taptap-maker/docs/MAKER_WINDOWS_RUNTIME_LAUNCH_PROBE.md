@@ -1,5 +1,28 @@
 # Windows 预览启动方式探针（迁移阶段 A）
 
+## PR #532 审核修复复验（2026-09-27）
+
+- 复现旧会话 stop 与新会话 Runtime 探测并发导致错误取消；修复后标记匹配 session_id
+  和 supervisor_id，无会话 stop 不写标记，保留本会话启动期间的取消能力。
+- 新增三个回归用例；七套相关测试共 191 项通过，格式与 ESLint 全量检查通过。
+  首轮 Windows 进程恢复用例有一次失败，单独复跑及完整七套复跑均通过，未修改其断言。
+- 使用 npm ci 恢复锁文件依赖后生成双插件，Zod 恢复为 4.3.6，Prettier 为 3.6.2；
+  不改锁文件，不使用 npm audit fix。安装审计仍报告 47 项依赖漏洞，需另行分级处理，
+  本次不能作为全部依赖安全通过的证明。
+- Codex 原目录直读和 WorkBuddy 受管理副本各通过九组真实 Runtime 流程：窗口与 Lua 日志、
+  Agent 互斥、错误 session 拒绝、刷新、停止、owner 强杀后退出与重启、控制台跨站拒绝。
+  启动期间分别重放旧停止标记 225 次和 442 次，新 Runtime 正常启动且最终退出。
+  记录分别为 .maker/direct-preview-1d618ae0-5b0e-4a21-bb97-271dc709bc4a/evidence.json
+  和 .maker/direct-preview-db8f48d4-9c60-4055-8741-cee9e1bd8156/evidence.json。
+- 本轮双插件 maker.js SHA256 均为
+  40489BA2FBF806419D5D3104FECACA82317FBA1AA006FC2980F94DF3A91A4F33。
+  本轮复用已有安装，不宣称重新完成首次下载或产品经理杀软环境验收。
+- CodeQL 对生成 bundle 中 Markdown 词法解析表达式的告警不等于存在 HTML 执行入口；
+  已有大小写 SCRIPT、异常注释闭合与 javascript 链接安全渲染测试均通过。仅排除两个
+  第三方依赖聚合 bundle 的重复扫描，第一方源码与构建脚本继续扫描，不关闭安全查询。
+- 上轮代码审核指出的同步准备阻塞控制台、退出时大批 Lua 日志未排空、刷新后 Agent
+  证据轮次混用，仍是本轮范围之外的待修复项。不能把本次 PR 评论修复等同于整体发布验收。
+
 ## 提交前复验（2026-09-27）
 
 提交检查要求将 Agent 停止校验提取为独立函数，保留原有归属校验和 finally 中的所有者清理，
@@ -89,7 +112,7 @@ node scripts/verify-maker-preview-ownership.mjs dist/maker.js <installation.json
 
 脚本验证 Agent 直接持有、Lua 标记读取、按 session 停止、只强杀 Agent 后 Runtime 退出、
 自动控制台在请求 CLI 结束后继续预览、刷新更换 Runtime、停止回收、只强杀控制台后
-Runtime 退出，以及故障后重新预览。结果写入 .maker/direct-preview-*/evidence.json。
+Runtime 退出，以及故障后重新预览。结果写入 .maker/direct-preview-\*/evidence.json。
 2026-09-27 第一轮完整通过记录：direct-preview-7d26467b-8be3-4304-85f4-de798f3850d7。
 Codex 插件自包含 bundle 的原目录直读流程也完成相同 5 组验证，项目路径包含中文、空格、
 单引号和 &；记录 direct-preview-c0f53b4c-b16a-4502-b9b5-4a69e50ece88。

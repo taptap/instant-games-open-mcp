@@ -12,7 +12,7 @@ import {
   writePrivateJson,
   type PreviewRecord,
 } from '../maker/preview/protocol.js';
-import { preflightPreview, PreviewRuntime } from '../maker/preview/runtime.js';
+import { preflightPreview, PreviewRuntime, probeRuntime } from '../maker/preview/runtime.js';
 import { ensurePreviewRuntimeResources } from '../maker/preview/runtimeResources.js';
 import { buildWindowsPreviewLaunchScripts } from '../maker/preview/processLauncher.js';
 import {
@@ -1275,4 +1275,55 @@ test('a stale stop identity cannot write a cancellation marker for a newer sessi
   expect(result.ok).toBe(false);
   expect(fs.existsSync(marker)).toBe(false);
   expect((await requestPreview(record, 'status')).session_id).toBe(record.session_id);
+});
+
+test('stopping an old session during the next probe does not cancel the new preview', async () => {
+  runtime.mode = 'running';
+  record = { ...pendingRecord(), state: 'stopped' };
+  writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  const previousSession = record.session_id;
+  const probe = jest.mocked(probeRuntime).getMockImplementation()!;
+  jest.mocked(probeRuntime).mockImplementationOnce(async (...args) => {
+    const stopped = await executePreviewOperation('stop', {
+      target_dir: project,
+      session_id: previousSession,
+    });
+    expect(stopped.ok).toBe(true);
+    return probe(...args);
+  });
+  const owner = new PreviewOwner();
+  try {
+    const started = await executePreviewOperation(
+      'start',
+      { target_dir: project, runtime: path.join(root, 'runtime') },
+      undefined,
+      owner
+    );
+    expect(started).toMatchObject({ ok: true, state: 'running' });
+    expect(started.session_id).not.toBe(previousSession);
+  } finally {
+    await owner.close();
+  }
+});
+
+test('stop without a session does not create a cancellation marker', async () => {
+  const result = await executePreviewOperation('stop', { target_dir: project });
+  expect(result.ok).toBe(true);
+  expect(fs.existsSync(path.join(previewDirectory(project), 'stop.json'))).toBe(false);
+});
+
+test('a stop marker for the launching session still cancels legacy startup', async () => {
+  const launch = jest.mocked(spawn).getMockImplementation()!;
+  jest.mocked(spawn).mockImplementationOnce((...args) => {
+    const pending = readPreviewRecord(project)!;
+    writePrivateJson(path.join(previewDirectory(project), 'stop.json'), {
+      request_id: randomUUID(),
+      session_id: pending.session_id,
+      supervisor_id: pending.supervisor_id,
+    });
+    return launch(...args);
+  });
+  const result = await callCli('start');
+  expect(result).toMatchObject({ ok: false, error: expect.stringContaining('CANCELLED') });
+  expect(runtime.instances).toHaveLength(0);
 });

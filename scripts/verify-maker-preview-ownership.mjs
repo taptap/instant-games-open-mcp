@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 const bundle = path.resolve(process.argv[2] || 'dist/maker.js');
 const installationFile = process.argv[3];
@@ -238,6 +238,45 @@ try {
     name: 'auto-console-survives-client-exit-refresh-stop',
     owner: user.supervisor_pid,
   });
+  console.log('Checking delayed old-session stop markers during real Runtime startup...');
+  const stopFile = path.join(
+    home,
+    'preview',
+    createHash('sha256').update(fs.realpathSync(project)).digest('hex'),
+    'stop.json'
+  );
+  let replayError;
+  let replayCount = 0;
+  const replay = setInterval(() => {
+    try {
+      json(stopFile + '.replay', {
+        request_id: randomUUID(),
+        session_id: refreshed.session_id,
+        supervisor_id: refreshed.supervisor_id,
+      });
+      fs.renameSync(stopFile + '.replay', stopFile);
+      replayCount++;
+    } catch (error) {
+      replayError = error;
+    }
+  }, 10);
+  let restarted;
+  try {
+    restarted = await preview('start');
+  } finally {
+    clearInterval(replay);
+  }
+  assert.equal(replayError, undefined);
+  assert.ok(replayCount > 0);
+  assert.equal(restarted.ok, true, JSON.stringify(restarted));
+  assert.notEqual(restarted.session_id, refreshed.session_id);
+  assert.equal(alive(restarted.runtime_pid), true);
+  assert.equal((await preview('stop')).process_alive, false);
+  await waitFor(
+    () => alive(restarted.runtime_pid),
+    (value) => !value
+  );
+  evidence.scenarios.push({ name: 'old-stop-markers-cannot-cancel-new-runtime', replayCount });
   await shutdownConsole();
   console.log('Checking forced console exit and recovery...');
 
