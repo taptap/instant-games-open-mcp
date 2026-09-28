@@ -82,11 +82,48 @@ export class HiddenStdioClientTransport implements Transport {
   }
 
   async close(): Promise<void> {
-    this.abortController.abort();
+    const child = this.process;
     this.process = undefined;
     this.readBuffer.clear();
+    if (!child || child.exitCode !== null || child.signalCode !== null) {
+      this.abortController.abort();
+      return;
+    }
+    const exited = new Promise<void>((resolve) => {
+      child.once('close', () => resolve());
+    });
+    const wait = (ms: number) =>
+      Promise.race([
+        exited,
+        new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, ms);
+          timer.unref?.();
+        }),
+      ]);
+    try {
+      child.stdin?.end();
+    } catch {
+      // A closed stdin still falls through to termination.
+    }
+    await wait(2000);
+    if (child.exitCode === null && child.signalCode === null) {
+      try {
+        child.kill('SIGTERM');
+      } catch {
+        // The process may already have exited.
+      }
+      await wait(2000);
+    }
+    if (child.exitCode === null && child.signalCode === null) {
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        // The process may already have exited.
+      }
+      await wait(2000);
+    }
+    this.abortController.abort();
   }
-
   async send(message: JSONRPCMessage): Promise<void> {
     const stdin = this.process?.stdin;
     if (!stdin) {

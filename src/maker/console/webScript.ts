@@ -326,6 +326,9 @@ let detail = null;
 let preview = null;
 let previewError = '';
 let previewLoading = false;
+let previewProbeFailures = 0;
+const PREVIEW_PROBE_RETRY_LIMIT = 3;
+const settledTaskRefresh = new Set();
 const logViews = new Map();
 function logView() {
   if (!logViews.has(selected)) logViews.set(selected,{tab:'build',runtime:'',loading:false,wrap:false,cleared:{}});
@@ -1605,6 +1608,7 @@ async function refreshPreview(options = {}) {
   const key = selected, epoch = selectionEpoch;
   if (!key || !currentProject()?.valid) return;
   const quiet = options.quiet === true;
+  if (!quiet) previewProbeFailures = 0;
   if (!quiet) {
     previewLoading = true;
     if (page === 'build') updateBuild();
@@ -1614,11 +1618,14 @@ async function refreshPreview(options = {}) {
     if (!selectionMatches(key,epoch)) return;
     const changed = JSON.stringify(preview) !== JSON.stringify(result) || previewError;
     preview = result; previewError = '';
+    previewProbeFailures = 0;
     if (changed && page === 'overview') renderOverview();
     if (changed && page === 'build') updateBuild();
   } catch (error) {
     if (!selectionMatches(key,epoch)) return;
-    preview = null; previewError = error.message;
+    previewError = error.message;
+    previewProbeFailures++;
+    if (preview?.process_alive !== true) preview = null;
     if (page === 'build') updateBuild();
     if (page === 'overview') renderOverview();
   } finally {
@@ -1873,6 +1880,21 @@ function runProjectAction(action) {
   navigate('build');
   return runAction(action, {startAfterInstall:action === 'preview.install'});
 }
+function shouldQuietProbePreview() {
+  return previewProbeFailures < PREVIEW_PROBE_RETRY_LIMIT &&
+    (preview?.process_alive === true || previewProbeFailures > 0);
+}
+async function refreshSettledTask(task) {
+  const key = selected, epoch = selectionEpoch;
+  if (!task || task.status === 'running' || settledTaskRefresh.has(task.id)) return;
+  settledTaskRefresh.add(task.id);
+  if (settledTaskRefresh.size > 100) settledTaskRefresh.delete(settledTaskRefresh.values().next().value);
+  announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
+  await refreshPreview();
+  if (!selectionMatches(key,epoch)) return;
+  if (task.action === 'build' || task.action === 'qrcode') await loadProject({preview:false});
+  if (selectionMatches(key,epoch)) handleQrcodeCompletion(task);
+}
 async function pollTask(id,key,epoch) {
   try {
     const prior = tasksFor(key).find(t => t.id === id);
@@ -1884,12 +1906,7 @@ async function pollTask(id,key,epoch) {
     if (index >= 0) state.tasks[index] = task; else state.tasks.push(task);
     if (!selectionMatches(key,epoch)) return task;
     updateChrome(); updateBuild();
-    if (task.status !== 'running' && prior?.status === 'running') {
-      announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
-      await refreshPreview();
-      if (task.action === 'build' || task.action === 'qrcode') await loadProject({preview:false});
-      if (selectionMatches(key,epoch)) handleQrcodeCompletion(task);
-    }
+    if (task.status !== 'running' && prior?.status === 'running') await refreshSettledTask(task);
     showPendingIssueReport();
     return task;
   } catch (error) { if (selectionMatches(key,epoch)) notify(error.message); }
@@ -2131,6 +2148,7 @@ async function pollState() {
     page = currentProject()?.valid ? 'overview' : 'projects';
     if (!selected) notify('请从项目列表选择对应的本地目录：项目未登记或有多个本地副本。','warning');
   }
+  const settled = [];
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
     if (prior?.status !== 'running' && task.status === 'running' && prior?.finishedAt) {
@@ -2138,8 +2156,7 @@ async function pollState() {
     } else if (prior) rememberTask(task);
     if (task.projectKey === selected && previousTasks.get(task.id) === 'running' && task.status !== 'running') {
       offerIssueReport(task);
-      announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
-      handleQrcodeCompletion(task);
+      settled.push(task);
     }
   });
   showPendingIssueReport();
@@ -2160,6 +2177,7 @@ async function pollState() {
     if (page === 'build' && priorTasks !== JSON.stringify(tasksFor(selected))) updateBuild();
     if (page === 'overview' && detail && priorLua !== JSON.stringify(state.luaLsp)) renderOverview();
   }
+  for (const task of settled) await refreshSettledTask(task);
 }
 async function poll() {
   if (polling || document.hidden || offline || disposed) return;
@@ -2171,7 +2189,7 @@ async function poll() {
     if (page === 'overview' && !detail && currentProject()?.valid) {
       render();
       await loadProject();
-    } else if (preview?.process_alive === true) await refreshPreview({quiet:true});
+    } else if (shouldQuietProbePreview()) await refreshPreview({quiet:true});
     for (const task of tasksFor(selected).filter(t => t.status === 'running')) {
       if (document.hidden) break;
       await pollTask(task.id,selected,selectionEpoch);
