@@ -53,6 +53,17 @@ export interface MakerPythonSetupResult {
   uvInstalled: boolean;
 }
 
+function spawnSyncHidden(
+  command: string,
+  args: string[],
+  options: { encoding?: BufferEncoding; env?: NodeJS.ProcessEnv; timeout?: number } = {}
+): SpawnSyncReturns<string> {
+  return spawnSync(command, args, {
+    ...options,
+    encoding: options.encoding ?? 'utf8',
+    windowsHide: true,
+  });
+}
 type SpawnRunner = (
   command: string,
   args: string[],
@@ -108,7 +119,7 @@ export function checkMakerPythonEnvironment(
   options: MakerPythonRuntimeOptions = {}
 ): MakerPythonEnvironment {
   const platform = options.platform || process.platform;
-  const runner = options.spawn || spawnSync;
+  const runner = options.spawn || spawnSyncHidden;
   const env = options.env || process.env;
   const uvPath = getMakerUvPath(platform);
   const setupCommand = 'taptap-maker python setup';
@@ -213,7 +224,7 @@ export function setupMakerPythonEnvironment(
   }
 
   const platform = options.platform || process.platform;
-  const runner = options.spawn || spawnSync;
+  const runner = options.spawn || spawnSyncHidden;
   try {
     const uvPath = ensureUvInstalled(platform, runner);
     const uvEnv = createUvPythonEnv();

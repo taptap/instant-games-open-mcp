@@ -63,6 +63,17 @@ export interface MakerLuaLspCheckResult {
   nextAction: string;
 }
 
+function spawnSyncHidden(
+  command: string,
+  args: string[],
+  options: { encoding?: BufferEncoding; env?: NodeJS.ProcessEnv; timeout?: number } = {}
+): SpawnSyncReturns<string> {
+  return spawnSync(command, args, {
+    ...options,
+    encoding: options.encoding ?? 'utf8',
+    windowsHide: true,
+  });
+}
 type SpawnRunner = (
   command: string,
   args: string[],
@@ -98,7 +109,7 @@ export function getMakerLuaLspVenvDir(): string {
 export function checkMakerLuaLspEnvironment(
   options: MakerLuaLspRuntimeOptions = {}
 ): MakerLuaLspEnvironment {
-  const runner = options.spawn || spawnSync;
+  const runner = options.spawn || spawnSyncHidden;
   const python = options.pythonEnvironment || checkMakerPythonEnvironment(options);
   const platform = options.platform || python.platform || process.platform;
   const base = createLuaLspBase(platform);
@@ -277,7 +288,7 @@ export async function checkMakerLuaLspEnvironmentAsync(
 export function setupMakerLuaLspEnvironment(
   options: MakerLuaLspRuntimeOptions = {}
 ): MakerLuaLspSetupResult {
-  const runner = options.spawn || spawnSync;
+  const runner = options.spawn || spawnSyncHidden;
   const python = options.pythonEnvironment || ensurePythonForLuaLsp(options);
   const platform = options.platform || python.platform || process.platform;
 
