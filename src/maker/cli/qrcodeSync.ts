@@ -21,6 +21,7 @@ export async function withQrcodeFastForward(
       maxBuffer: 2 * 1024 * 1024,
       env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', ...(index ? { GIT_INDEX_FILE: index } : {}) },
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
   const head = git(['rev-parse', 'HEAD']).trim();
   const remote = git(['rev-parse', remoteRef]).trim();

@@ -1,5 +1,5 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { HiddenStdioClientTransport } from '../server/hiddenStdioTransport.js';
 
 export async function queryMakerLuaDiagnostics(options: {
   command: string;
@@ -8,7 +8,7 @@ export async function queryMakerLuaDiagnostics(options: {
   outputDir: string;
   signal?: AbortSignal;
 }): Promise<{ errorCount: number; issues: string[] }> {
-  const transport = new StdioClientTransport({
+  const transport = new HiddenStdioClientTransport({
     command: options.command,
     args: [
       '--mode',

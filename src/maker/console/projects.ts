@@ -55,6 +55,7 @@ async function git(
       maxBuffer: 1024 * 1024,
       signal,
       killSignal: 'SIGKILL',
+      windowsHide: true,
       env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' },
     }
   );

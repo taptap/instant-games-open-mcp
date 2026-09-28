@@ -883,6 +883,12 @@ describe('Maker console standalone UI', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it('loads a selected project once, then keeps the heartbeat free of git', () => {
+    const source = script();
+    expect(source).toContain("page === 'overview' && !detail && currentProject()?.valid");
+    expect(source).not.toContain('if (currentProject()?.valid) await loadProject()');
+  });
+
   it('caps browser task retention during a long session', () => {
     const { api } = harness();
     api.rememberTask({ id: 'running', projectKey: 'alpha', status: 'running' });

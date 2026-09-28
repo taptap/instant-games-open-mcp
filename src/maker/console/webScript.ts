@@ -1601,11 +1601,14 @@ function updateBuild() {
   tasks.forEach(task => history.push(taskBlock(task)));
   replace($('task-history'),history);
 }
-async function refreshPreview() {
+async function refreshPreview(options = {}) {
   const key = selected, epoch = selectionEpoch;
   if (!key || !currentProject()?.valid) return;
-  previewLoading = true;
-  if (page === 'build') updateBuild();
+  const quiet = options.quiet === true;
+  if (!quiet) {
+    previewLoading = true;
+    if (page === 'build') updateBuild();
+  }
   try {
     const result = await api(projectPath(key,'/preview'));
     if (!selectionMatches(key,epoch)) return;
@@ -1619,7 +1622,7 @@ async function refreshPreview() {
     if (page === 'build') updateBuild();
     if (page === 'overview') renderOverview();
   } finally {
-    if (selectionMatches(key,epoch)) {
+    if (!quiet && selectionMatches(key,epoch)) {
       previewLoading = false;
       if (page === 'build') updateBuild();
     }
@@ -1884,6 +1887,7 @@ async function pollTask(id,key,epoch) {
     if (task.status !== 'running' && prior?.status === 'running') {
       announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
       await refreshPreview();
+      if (task.action === 'build' || task.action === 'qrcode') await loadProject({preview:false});
       if (selectionMatches(key,epoch)) handleQrcodeCompletion(task);
     }
     showPendingIssueReport();
@@ -2025,6 +2029,7 @@ async function pullGit() {
     if (result.outcome === 'updated') {
       git = null;
       void loadGit(false);
+      void loadProject({preview:false});
     }
   } catch (error) {
     if (selectionMatches(key,epoch) && request === gitPullRequest) {
@@ -2092,7 +2097,7 @@ function render() {
   else if (page === 'git') renderGit();
   else renderOverview();
 }
-async function loadProject() {
+async function loadProject(options = {}) {
   const key = selected, epoch = selectionEpoch;
   try {
     const result = await api(projectPath(key));
@@ -2109,7 +2114,7 @@ async function loadProject() {
         button('重试',() => void loadProject())]);
     }
   }
-  if (selectionMatches(key,epoch)) await refreshPreview();
+  if (options.preview !== false && selectionMatches(key,epoch)) await refreshPreview();
 }
 async function pollState() {
   const result = await api('/api/state');
@@ -2162,7 +2167,11 @@ async function poll() {
   try {
     await pollState();
     if (offline || disposed) return;
-    if (currentProject()?.valid) await loadProject();
+    // 首屏在状态返回后才选定项目，这里只补一次详情。之后的心跳不再读 Git。
+    if (page === 'overview' && !detail && currentProject()?.valid) {
+      render();
+      await loadProject();
+    } else if (preview?.process_alive === true) await refreshPreview({quiet:true});
     for (const task of tasksFor(selected).filter(t => t.status === 'running')) {
       if (document.hidden) break;
       await pollTask(task.id,selected,selectionEpoch);

@@ -33,6 +33,7 @@ export function checkGitEnvironment(): MakerGitEnvironment {
   const verifyCommand = `${command} --version`;
   const result = spawnSync(command, ['--version'], {
     encoding: 'utf8',
+    windowsHide: true,
   });
 
   const version = result.stdout?.trim();
