@@ -103,14 +103,14 @@ export class HiddenStdioClientTransport implements Transport {
     try {
       child.stdin?.end();
     } catch {
-      // A closed stdin still falls through to termination.
+      // 关闭 stdin 后继续进入终止流程。
     }
     await wait(2000);
     if (child.exitCode === null && child.signalCode === null) {
       try {
         child.kill('SIGTERM');
       } catch {
-        // The process may already have exited.
+        // 进程可能已经退出。
       }
       await wait(2000);
     }
@@ -118,7 +118,7 @@ export class HiddenStdioClientTransport implements Transport {
       try {
         child.kill('SIGKILL');
       } catch {
-        // The process may already have exited.
+        // 进程可能已经退出。
       }
       await wait(2000);
     }

@@ -1053,7 +1053,7 @@ async function reportMakerMcpStartupFromPromise(
   }
 }
 
-const MAKER_SERVER_SHUTDOWN_TIMEOUT_MS = 3000;
+const MAKER_SERVER_SHUTDOWN_TIMEOUT_MS = 7000;
 
 export function installMakerServerExitHandlers(remoteProxyManager?: MakerRemoteProxyManager): void {
   let exiting = false;

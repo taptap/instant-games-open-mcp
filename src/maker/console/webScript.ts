@@ -329,6 +329,7 @@ let previewLoading = false;
 let previewProbeFailures = 0;
 const PREVIEW_PROBE_RETRY_LIMIT = 3;
 const settledTaskRefresh = new Set();
+const settledTaskPending = new Map();
 const logViews = new Map();
 function logView() {
   if (!logViews.has(selected)) logViews.set(selected,{tab:'build',runtime:'',loading:false,wrap:false,cleared:{}});
@@ -1886,14 +1887,34 @@ function shouldQuietProbePreview() {
 }
 async function refreshSettledTask(task) {
   const key = selected, epoch = selectionEpoch;
+  if (task?.projectKey !== selected) {
+    if (task) settledTaskPending.set(task.id,task);
+    return;
+  }
   if (!task || task.status === 'running' || settledTaskRefresh.has(task.id)) return;
   settledTaskRefresh.add(task.id);
   if (settledTaskRefresh.size > 100) settledTaskRefresh.delete(settledTaskRefresh.values().next().value);
   announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
   await refreshPreview();
-  if (!selectionMatches(key,epoch)) return;
+  if (!selectionMatches(key,epoch)) {
+    settledTaskPending.set(task.id,task);
+    settledTaskRefresh.delete(task.id);
+    return;
+  }
   if (task.action === 'build' || task.action === 'qrcode') await loadProject({preview:false});
-  if (selectionMatches(key,epoch)) handleQrcodeCompletion(task);
+  if (!selectionMatches(key,epoch)) {
+    settledTaskPending.set(task.id,task);
+    settledTaskRefresh.delete(task.id);
+    return;
+  }
+  settledTaskPending.delete(task.id);
+  settledTaskRefresh.delete(task.id);
+  handleQrcodeCompletion(task);
+}
+async function refreshPendingSettledTasks(projectKey) {
+  for (const task of [...settledTaskPending.values()]) {
+    if (task.projectKey === projectKey) await refreshSettledTask(task);
+  }
 }
 async function pollTask(id,key,epoch) {
   try {
@@ -2204,6 +2225,7 @@ async function poll() {
 }
 // 子页面在这里绑定切换：清掉自己的当前数据；正打开本页时再拉取。
 onProjectChange(project => {
+  if (project?.key) void refreshPendingSettledTasks(project.key);
   detail = null;
   if (page === 'overview' && project?.valid) void loadProject();
 });

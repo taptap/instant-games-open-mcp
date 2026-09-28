@@ -943,6 +943,58 @@ describe('Maker console standalone UI', () => {
     api.dispose();
   });
 
+  it('retries settled task handling after switching back to its project', async () => {
+    const { api, fetch } = harness();
+    const projects = [
+      { key: 'alpha', valid: true, name: 'Alpha' },
+      { key: 'beta', valid: true, name: 'Beta' },
+    ];
+    let release!: () => void;
+    const refresh = jest.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        })
+    );
+    api.setup(projects, {
+      render: jest.fn(),
+      refresh,
+      notify: jest.fn(),
+      announce: jest.fn(),
+    });
+    api.setPage('projects');
+    let polls = 0;
+    fetch.mockImplementation(async (path: string) => ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        path === '/api/state'
+          ? {
+              projects,
+              tasks: [
+                {
+                  id: 'qrcode-1',
+                  projectKey: 'alpha',
+                  projectName: 'Alpha',
+                  action: 'qrcode',
+                  status: polls++ === 0 ? 'running' : 'succeeded',
+                },
+              ],
+            }
+          : {},
+    }));
+    await api.pollState();
+    const completion = api.pollState();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    api.chooseProject('beta');
+    release();
+    await completion;
+    api.chooseProject('alpha');
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
   it('caps browser task retention during a long session', () => {
     const { api } = harness();
     api.rememberTask({ id: 'running', projectKey: 'alpha', status: 'running' });
