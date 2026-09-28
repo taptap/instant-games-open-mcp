@@ -6,10 +6,10 @@
 
 两个仓库都使用同名分支：
 
-| 仓库 | 远端 | 分支 | 本次提交 |
-| --- | --- | --- | --- |
-| Maker MCP | `git@github.com:taptap/instant-games-open-mcp.git` | `fix/local-validation-phase-one` | `2062d2bcbe84e15ff16c4646b72b3f658a391455` |
-| UrhoXRuntime | `git@github.com:taptap/urhox.git` | `fix/local-validation-phase-one` | `ecb76d38847652b866a5380aff8aee4afd1342ef` |
+| 仓库         | 远端                                               | 分支                             | 至少应包含的提交                    |
+| ------------ | -------------------------------------------------- | -------------------------------- | ----------------------------------- |
+| Maker MCP    | `git@github.com:taptap/instant-games-open-mcp.git` | `fix/local-validation-phase-one` | `e51ef2a`（已同步 main 预览流程）   |
+| UrhoXRuntime | `git@github.com:taptap/urhox.git`                  | `fix/local-validation-phase-one` | `d832f8bfa`（已开放 Windows Skill） |
 
 在两个仓库分别执行：
 
@@ -20,7 +20,9 @@ git pull --ff-only origin fix/local-validation-phase-one
 git rev-parse HEAD
 ```
 
-`git rev-parse HEAD` 必须分别得到上表中的提交号。不要在 `main` 上测试，也不要把两个仓库的分支混用。
+使用各分支最新提交，不要固定检出旧版本；分别执行
+`git merge-base --is-ancestor <上表对应提交> HEAD`，退出码须为 0，
+确认已包含必要改动。不要在 `main` 上测试，也不要把两个仓库的分支混用。
 
 ## 2. 本次改动内容
 
@@ -143,31 +145,32 @@ taptap-maker preview validate `
 
 验收标准：
 
-| 场景 | 预期 |
-| --- | --- |
-| 新 Runtime + `validate` | `PASS`，有有效 `validate.json` |
-| 新 Runtime + `screenshot` | `PASS`，有非空有效 PNG |
-| 新 Runtime + `both` | `PASS`，同时有报告和 PNG |
-| 旧 Runtime + `validate` | 只要旧 Runtime 原有 validate 能力正常，可以通过 |
-| 旧 Runtime + `screenshot` / `both` | `UNSUPPORTED`，不能伪造 `PASS`，并提示升级 Runtime |
-| 多人或 server 项目 | `UNSUPPORTED`，不能降级成离线验证 |
-| Lua 错误、资源错误、缺报告、损坏截图 | `FAIL`，不能改写成 `PASS` |
+| 场景                                 | 预期                                               |
+| ------------------------------------ | -------------------------------------------------- |
+| 新 Runtime + `validate`              | `PASS`，有有效 `validate.json`                     |
+| 新 Runtime + `screenshot`            | `PASS`，有非空有效 PNG                             |
+| 新 Runtime + `both`                  | `PASS`，同时有报告和 PNG                           |
+| 旧 Runtime + `validate`              | 只要旧 Runtime 原有 validate 能力正常，可以通过    |
+| 旧 Runtime + `screenshot` / `both`   | `UNSUPPORTED`，不能伪造 `PASS`，并提示升级 Runtime |
+| 多人或 server 项目                   | `UNSUPPORTED`，不能降级成离线验证                  |
+| Lua 错误、资源错误、缺报告、损坏截图 | `FAIL`，不能改写成 `PASS`                          |
 
 ## 5. Windows Skill 边界
 
-当前 UrhoXRuntime 的 `.installer/local-skill-filter.json` 仍然把以下 Skill 排除在 Windows 外：
+UrhoXRuntime 分支的 `.installer/local-skill-filter.json` 已解除 Windows 与 macOS 的
+`run-lua-validate` 排除；以下 Skill 仍保持排除：
 
 ```text
 run-lua-headless
-run-lua-validate
 ```
 
-这是当前分支的明确配置，不是安装失败。Windows 验收时：
+Windows 与 macOS 使用相同的本地 Maker CLI 路由。Windows 验收时：
 
-- 不要手工修改过滤名单。
+- 使用包含此修改的 ai-dev-kit 安装或更新，确认 Agent 可发现 `run-lua-validate`。
 - 不要把 macOS 的 Skill 分发测试结果当成 Windows 支持结论。
 - 可以直接使用 MCP CLI 和构建出的 Runtime 验证 MCP 逻辑。
-- 如果产品要求 Windows 也能自动安装 `run-lua-validate`，那是另一个需求，需要单独修改过滤配置并重新做 Windows Runtime 验收。
+- Skill 已开放安装不等于 Windows Runtime 实机验收完成；仍须执行上述新旧 Runtime、
+  报告、日志和截图测试，截图测试需要可打开窗口的桌面会话。
 
 ## 6. 验收结果回报格式
 
