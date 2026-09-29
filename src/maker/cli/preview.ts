@@ -20,11 +20,13 @@ import {
 import { probeRuntime } from '../preview/runtime.js';
 import { ensurePreviewRuntimeResources } from '../preview/runtimeResources.js';
 import { previewStatus, requestPreview, runPreviewSupervisor } from '../preview/session.js';
+import { requireNoActiveValidationRuntime } from '../preview/validationHistory.js';
 import { PreviewOwner } from '../preview/owner.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { readStoredPreviewLogs } from '../preview/evidence.js';
 import { preparePreviewProject, previewPreparationDirectory } from '../preview/prepare.js';
 import { launchPreviewSupervisorProcess } from '../preview/processLauncher.js';
+import { runSkillValidation } from '../preview/validation.js';
 
 const ACTIONS = [
   'install',
@@ -36,6 +38,7 @@ const ACTIONS = [
   'stop',
   'logs',
   'screenshot',
+  'validate',
   'check',
 ];
 
@@ -91,7 +94,7 @@ export async function executePreviewOperation(
     if (controller.signal.aborted) throw new Error('CANCELLED');
     if (!action || !ACTIONS.includes(action))
       throw new Error(
-        'Use preview install|prepare|start|run|status|refresh|stop|logs|screenshot|check.'
+        'Use preview install|prepare|start|run|status|refresh|stop|logs|screenshot|validate|check.'
       );
     if (options.script)
       throw new Error(
@@ -105,6 +108,8 @@ export async function executePreviewOperation(
         preparePreviewProject(project, previewPreparationDirectory(project), controller.signal)
       );
     else if (action === 'status') result = await previewStatus(project);
+    else if (action === 'validate')
+      result = await runSkillValidation(project, options, controller.signal);
     else if (action === 'install') {
       result = await withPreviewLock(project, () =>
         withRuntimeInstallLock(async () => {
@@ -346,6 +351,7 @@ async function startPreview(
   owner?: PreviewOwner
 ): Promise<Record<string, unknown>> {
   if (!owner && options.legacy_wmi !== true) throw new Error('A preview owner is required.');
+  await requireNoActiveValidationRuntime(project);
   const sessionId = randomUUID();
   const supervisorId = randomUUID();
   const stopFile = path.join(previewDirectory(project), 'stop.json');

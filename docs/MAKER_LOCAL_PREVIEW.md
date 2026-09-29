@@ -34,7 +34,7 @@ taptap-maker preview check --target-dir <PROJECT> --json
 taptap-maker preview stop --target-dir <PROJECT> --json
 ```
 
-安装使用 Python/curl，遵循宿主授权。已有 Runtime 可在 start 时传
+安装使用 Python/curl，遵循宿主授权。已有 Runtime 可在 run 或 validate 时传
 `--runtime <绝对可执行文件路径>`。start/refresh 根据项目加载需求选择原目录或自动 prepare；
 单独排查产物可运行 `preview prepare --target-dir <PROJECT> --json`。
 新项目缺少 `.project` 配置时，prepare 仅在受管理副本补齐 project/resources/settings，
@@ -52,7 +52,86 @@ Runtime，也不运行旧 dist。
 停止或手动关闭后不自动复活。`process_alive=true` 只证明进程存活，`check` 不代表玩法通过。
 停止标记只针对读取并核验过的 session 与 owner；旧会话的停止请求不会取消并发的新预览。
 没有已登记会话时，stop 不创建可影响后续启动的标记；启动前探测由发起任务的取消信号中止。
-截图、输入脚本、Server/云模拟和游戏存档隔离尚不支持，停止也不保证保存游戏。
+常驻窗口的即时截图、输入脚本、Server/云模拟和游戏存档隔离尚不支持，停止也不保证保存游戏。
+`run-lua-validate` 的一次性验证使用下方独立入口。
+
+## run-lua-validate 本地接入
+
+验证方法、报告判读、视觉检查及修复复测使用 UrhoX ai-dev-kit 的 `run-lua-validate` Skill。
+Maker 只负责本地执行适配：复用预览的 Runtime 安装、项目分类、准备与资源加载，收集本轮证据。
+仅支持单机；不修改引擎、不提交或远端构建、不改写游戏代码和发布配置。
+
+插件用户使用 `taptap-maker-local` 指定的当前插件 CLI；不要切换另一份全局 CLI。
+先执行 `preview status`，有活动预览须经用户同意停止，验证不会自动接管窗口。
+若上次验证命令异常退出，启动检查仍会读取遗留验证记录；Runtime 存活、创建结果未知或
+记录无法核验时，拒绝新的 validate/start/run，并提示核对对应记录和进程，不自动停止或接管。
+Skill 缺失时通过当前渠道执行 `dev-kit update`；Runtime 缺失用 `preview install`。
+Skill 分发由 UrhoX ai-dev-kit 维护。Maker 在安装 Skill 及执行验证时，若检测到本机规则仍
+排除 `run-lua-validate`，先通过 stderr 提示，再仅移除当前平台的该项；其它平台、其它
+排除项和原 Skill 正文不变，结果中的 `warnings` 保留处理信息。已开放时不改文件。
+若旧安装器已删除原 Skill 文件，明确提示通过当前渠道执行 `dev-kit update` 恢复；
+不会把修正名单当作 Skill 已安装，不自动下载升级。配置损坏或不可写时保留告警，
+不因此阻断 Runtime 验证。
+本地调用映射由 `taptap-maker-local` 和项目 Maker 指引提供。
+
+以下为独立调用示例，不是一段顺序运行的脚本；项目参数使用绝对路径：
+
+```sh
+taptap-maker preview validate --target-dir "/absolute/game" --json
+taptap-maker preview validate --target-dir "/absolute/game" --mode both --screenshot-frame 600 --json
+taptap-maker preview validate --target-dir "/absolute/game" --validate-test check.lua --json
+```
+
+| 本地参数                                      | 对应原有 Skill / Runtime 能力                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `--mode validate`（默认）                     | headless 运行，取得原始 JSON 报告与日志                                              |
+| `--mode screenshot` / `both`                  | 渲染截图 / 同时取得报告；macOS、Windows 需要桌面渲染环境                             |
+| `--screenshot-frame N`                        | 原有 `-screenshot-frame`；截图时必须选择，无固定截图帧                               |
+| `--validate-frames N`                         | 验证帧数，默认 60；both 默认截图帧 + 80，至少预留 3 帧回读时间                       |
+| `--validate-timeout S`                        | 秒数 1–580，逻辑默认 45、截图默认 100；进程预算再加 20 秒                            |
+| `--validate-test check.lua`                   | 加载 `scripts/` 下已有断言脚本，使用原有 `V` helpers，不生成断言                     |
+| `--entry state.lua`                           | 选择 `scripts/` 下受控测试入口；manifest 项目只调整受管理副本的入口                  |
+| `--width W --height H`                        | 本轮尺寸 100–4096，默认复用预览窗口设置，不保存或改发布配置                          |
+| `--validate-spike-threshold MS` / `--nosound` | 原有帧耗时阈值 / 静音选项，仅显式传入时启用                                          |
+| `--output-dir /absolute/acceptance`           | 每轮结束将证据复制到该目录下独立的 run ID 子目录；须在受管理预览缓存之外，不自动清理 |
+
+600 只是示例，不保证加载完成。截图数量、受控状态和拼图仍由 Skill/Agent 决定；
+每轮重新启动 Runtime，不是同一窗口连续抓帧。按原 Skill 生成临时测试脚本后，可用
+`--entry` 选择入口；验证命令不会改写脚本，测试结束后由 Agent 清理临时文件。
+
+CLI 返回 `report`、`exit_code`、`exit_signal`、`artifacts`、`log_path`、`invocation_path` 和
+`evidence_directory`。`COMPLETED/ok:true` 只表示执行和证据收集完成，不是游戏 PASS。
+按原 Skill 读取原始报告与日志、打开每张 PNG、修复后复测；MCP 不复制噪音过滤或游戏判级规则。
+有效 FAIL 报告和 Runtime exit 1 可完成收集，异常退出、取消、超时、无效或缺失产物不能完成。
+报告与截图独立收集，失败仍保留已取得的部分证据。
+运行日志写入失败同样属于采集失败，不得返回 `COMPLETED`；已有报告、截图及正常回收流程保留。
+
+不依赖 `-screenshot-after-start` 或新增引擎协议，不要求 Computer Use 截屏。
+无 PNG 时检查日志、文件权限和桌面环境，不凭一条 captured 日志判成功或断言版本过旧；
+确认缺少能力后才按当前渠道升级 Runtime。不自动换引擎或重试，不影响正常预览入口。
+
+### 本地多轮验证与过程可见性
+
+Agent 根据验收目标决定入口、断言、截图时机和轮数，顺序重复调用同一命令即可；
+不固定“一张图”或限制为几轮，也不新增批量测试框架。每轮重新启动 Runtime，
+不支持对常驻窗口连续抓帧。大量截图应按状态选择代表性画面检查，不把数量当作覆盖率。
+
+CLI 在准备开始前向 stderr 输出 `validation.started`，包含 `run_id`、`evidence_directory`、
+`log_path`、`invocation_path`。可在命令运行中读取该目录的 `run.json` 和日志尾部，
+不必等最终 stdout JSON，也不应为了轮询进度再启动 Runtime。记录覆盖准备、启动、运行、
+完成；早期失败也会留档。进程意外退出、缺少最终记录时展示“结果待确认”，不能判为 PASS。
+
+控制台“构建与测试 → 日志 → Validate”只读取这些文件，控制台未启动也不影响验证。
+按轮次查看调用参数、准备日志、合并的 stdout/stderr/Lua 日志、JSON 报告和已完整收集的 PNG；
+执行收集结果与游戏报告结果分别展示。控制台不代替 Agent 看图，也不记录 Agent 内部推理。
+
+证据位于 Maker user home 的 `preview/<项目 realpath 哈希>/validation/<run ID>/`，
+独立于普通预览的最近几轮清理。完成后保留 7 天，下次验证时清理过期且确认不再使用的记录；
+活跃或进程归属未知的记录不自动删除。单项目超过 5 GiB 只告警，不为满足配额删除近期证据。
+验收材料需长期保留时指定 `--output-dir`，结果中的 `archive_directory` 表示实际归档位置；
+归档包含调用参数、日志、原始报告、截图和最终结果，不包含准备副本源码。
+归档结果中的证据路径指向归档副本，不随缓存到期失效；实际执行过的调用参数保持原样。
+归档失败仍保留本机缓存并明确报错。显式归档目录不参与自动清理。
 
 ## 联网项目
 
@@ -128,7 +207,8 @@ AI 调试 -> 前台 Node 会话 -> Runtime -> 收集日志 -> 停止本轮游戏
   Job 管理，并需实机验收；不新增 breakaway、WMI 或按进程名清理的兜底。
 - `logs` 合并 stdout/stderr 与本轮 Runtime 公布的 Lua 日志。Lua 文件只允许来自当前
   Runtime 的固定 logs/lua 目录，校验文件身份、拒绝链接、有界增量读取，不扫描其它项目日志。
-- 截图、输入注入、游戏断言 JSON 协议仍未实现，必须明确返回不支持或 UNDETERMINED。
+- 常驻预览的即时截图、输入注入、游戏断言 JSON 协议仍未实现，必须明确返回不支持或 UNDETERMINED。
+  一次性报告和截图使用 `preview validate`，不能把常驻会话状态当成验证报告。
   游戏加载、画面和业务正确性不能用进程存活代替。
 - 只有显式 `--legacy-wmi` 使用旧后台入口；正常失败不自动重试。先区分创建失败、
   Runtime 自行退出、主动停止及宿主回收，不因空日志就断言杀软拦截。
@@ -225,7 +305,8 @@ DirectConnect/Ready，运行时配置虽已存在于 manifest，Ready 仍找不�
 - 缓存只清理 Maker 管理且已确认无活跃引用的目录，不跟随链接、不清理外部 Runtime
   或公共缓存。独立 prepare 保留最近 3 份；本机 Runtime 安装保留当前与上一份，
   被任一项目活跃会话引用的版本额外保留；
-  证据保留最近 3 个会话、每会话 5 轮。活跃引用和清理未确认目录额外保留。
+  普通预览证据保留最近 3 个会话、每会话 5 轮；validate 独立保留 7 天，见前文。
+  活跃引用和清理未确认目录额外保留。
   这是数量限制，不是磁盘配额。
 - 正常结束等待 Runtime 退出和资源清理；强杀 Node 时 Windows 子进程清理依赖 libuv Job 行为。
   特殊宿主限制、进程创建瞬间被强杀、非 Windows 强杀等边界不作绝对保证，临时下载缓存可能保留。

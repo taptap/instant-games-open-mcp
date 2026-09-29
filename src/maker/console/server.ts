@@ -8,6 +8,13 @@ import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { checkMakerLuaLspEnvironmentAsync } from '../system/luaLsp.js';
 import { ConsolePlugins, type ConsolePlugin } from './plugins.js';
 import { readPreviewWindowSettings, savePreviewWindowSettings } from '../preview/windowSettings.js';
+import {
+  listValidationRuns,
+  readValidationRun,
+  readValidationLogs,
+  readValidationPreparation,
+  readValidationArtifact,
+} from '../preview/validationHistory.js';
 import { ConsoleUpdates } from './updates.js';
 import { ConsoleDocuments } from './documents.js';
 import { chooseProjectDirectory } from './folderPicker.js';
@@ -288,6 +295,9 @@ export async function startConsoleServer(options: {
       if (!project) throw new ConsoleError('Not found.', 404);
       const [, key, suffix] = project;
       const plugin = suffix?.match(/^plugins\/([a-z][a-z0-9-]{0,47})\/open$/);
+      const validation = suffix?.match(
+        /^validation(?:\/([^/]+)(?:\/(logs|prepare|screenshot\.png))?)?$/
+      );
       if (request.method === 'DELETE' && !suffix) {
         await bodyForMutation();
         if (tasks.busy(key)) throw new ConsoleError('Project has an active task.', 409);
@@ -302,6 +312,39 @@ export async function startConsoleServer(options: {
         json(200, ready);
       } else if (request.method === 'GET' && !suffix) {
         json(200, await read(() => options.registry.detail(key, readAbort.signal)));
+      } else if (request.method === 'GET' && validation) {
+        await read(async () => {
+          const directory = options.registry.resolve(key).path;
+          const [, id, artifact] = validation;
+          if (!id) {
+            const cursors = url.searchParams.getAll('before');
+            if (
+              cursors.length > 1 ||
+              (cursors.length === 1 &&
+                !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(cursors[0]))
+            )
+              throw new ConsoleError('Invalid history cursor.');
+            json(200, await listValidationRuns(directory, cursors[0]));
+          } else if (artifact === 'logs') {
+            const cursors = url.searchParams.getAll('cursor');
+            const cursor = cursors[0] ?? '0';
+            if (
+              cursors.length > 1 ||
+              !/^(0|[1-9][0-9]*)$/.test(cursor) ||
+              !Number.isSafeInteger(Number(cursor))
+            )
+              throw new ConsoleError('Invalid log cursor.');
+            json(200, await readValidationLogs(directory, id, Number(cursor)));
+          } else if (artifact === 'prepare') {
+            json(200, await readValidationPreparation(directory, id));
+          } else if (artifact === 'screenshot.png') {
+            const bytes = await readValidationArtifact(directory, id, 'screenshot.png');
+            response.writeHead(200, { 'Content-Type': 'image/png' });
+            response.end(bytes);
+          } else {
+            json(200, await readValidationRun(directory, id));
+          }
+        });
       } else if (request.method === 'POST' && suffix === 'git/pull') {
         await bodyForMutation();
         const release = tasks.occupy(key);

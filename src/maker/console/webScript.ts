@@ -331,6 +331,295 @@ const PREVIEW_PROBE_RETRY_LIMIT = 3;
 const settledTaskRefresh = new Set();
 const settledTaskPending = new Map();
 const logViews = new Map();
+const validationViews = new Map();
+let validationTimer;
+const validationRunId = value => typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+function validationView() {
+  if (!validationViews.has(selected)) validationViews.set(selected,{
+    runs:[],selectedRun:'',entries:new Map(),nextCursor:'',paged:false,
+    initialized:false,listRequest:0,request:0,loading:false,detailLoading:false,warnings:[],error:''
+  });
+  return validationViews.get(selected);
+}
+function validationEntry(view = validationView()) {
+  if (!view.selectedRun) return null;
+  if (!view.entries.has(view.selectedRun)) view.entries.set(view.selectedRun,{
+    cursor:0,runtime:'',prepare:'',json:'',truncated:false,errors:[],clearedPrepare:'',clearedJson:''
+  });
+  return view.entries.get(view.selectedRun);
+}
+function validationActive() {
+  return !disposed && !offline && !document.hidden && page === 'build' &&
+    currentProject()?.valid && logView().tab === 'validate';
+}
+function syncValidationPolling() {
+  if (!validationActive()) {
+    clearTimeout(validationTimer); validationTimer = undefined;
+    return;
+  }
+  if (validationTimer !== undefined) return;
+  validationTimer = setTimeout(async () => {
+    validationTimer = undefined;
+    if (!validationActive()) return;
+    await refreshValidation();
+    syncValidationPolling();
+  },5000);
+}
+function boundedValidationText(value) {
+  const original = String(value || '');
+  const tail = original.slice(-65536).split('\n').slice(-1000).join('\n');
+  return {text:tail,truncated:tail.length < original.length};
+}
+function validationStatus(run) {
+  return ({running:'采集中',finished:'已结束',incomplete:'不完整'})[run?.status] || '未知';
+}
+function validationVisibleText(entry) {
+  if (!entry) return '';
+  const prepare = entry.clearedPrepare && entry.prepare.startsWith(entry.clearedPrepare)
+    ? entry.prepare.slice(entry.clearedPrepare.length) : entry.prepare;
+  const json = entry.json === entry.clearedJson ? '' : entry.json;
+  return [
+    entry.truncated ? '日志已截断，仅显示有界片段。' : '',
+    ...entry.errors,
+    prepare ? '准备日志\n' + prepare : '',
+    entry.runtime ? 'Runtime / Lua 日志\n' + entry.runtime : '',
+    json ? 'JSON\n' + json : ''
+  ].filter(Boolean).join('\n\n');
+}
+async function refreshValidation(options = {}) {
+  if (!validationActive()) return;
+  const key = selected, epoch = selectionEpoch, viewEpochAtStart = viewEpoch;
+  const view = validationView();
+  if (view.loading && view.listEpoch === epoch) return;
+  if (options.more && !view.nextCursor) return;
+  const request = ++view.listRequest;
+  const matches = () => selectionMatches(key,epoch) && viewEpoch === viewEpochAtStart &&
+    validationActive() && request === view.listRequest;
+  view.loading = true; view.listEpoch = epoch; view.error = '';
+  renderConsoleLogs();
+  try {
+    const result = await api(projectPath(key,'/validation') +
+      (options.more ? '?before=' + encodeURIComponent(view.nextCursor) : ''));
+    if (!matches()) return;
+    if (!Array.isArray(result.runs)) throw new Error('Validate 历史格式无效');
+    const incoming = result.runs.filter(run => validationRunId(run.run_id));
+    const merged = new Map((options.more ? [...view.runs,...incoming] : [...incoming,...view.runs])
+      .map(run => [run.run_id,run]));
+    // Refresh current summaries without changing history order or the user's selection.
+    incoming.forEach(run => merged.set(run.run_id,run));
+    view.runs = Array.from(merged.values());
+    if (options.more || !view.paged) view.nextCursor = validationRunId(result.next_cursor) ? result.next_cursor : '';
+    if (options.more) view.paged = true;
+    view.warnings = Array.isArray(result.warnings) ? result.warnings : [];
+    view.initialized = true;
+    if (!view.selectedRun && view.runs.length) view.selectedRun = view.runs[0].run_id;
+    if (view.selectedRun) await loadValidationEvidence();
+  } catch (error) {
+    if (matches()) {
+      view.error = error.message;
+      if (options.more) view.paged = false;
+    }
+  } finally {
+    if (request === view.listRequest) view.loading = false;
+    if (matches()) renderConsoleLogs();
+  }
+}
+async function loadValidationEvidence() {
+  if (!validationActive()) return;
+  const key = selected, epoch = selectionEpoch, viewAtStart = viewEpoch;
+  const view = validationView(), id = view.selectedRun, entry = validationEntry(view);
+  if (!entry || !validationRunId(id)) return;
+  if (view.detailLoading && view.detailEpoch === epoch) return;
+  const request = ++view.request;
+  const matches = () => selectionMatches(key,epoch) && viewEpoch === viewAtStart &&
+    validationActive() && view.selectedRun === id && view.request === request;
+  const base = projectPath(key,'/validation/' + encodeURIComponent(id));
+  view.detailLoading = true; view.detailEpoch = epoch;
+  renderConsoleLogs();
+  try {
+    const results = await Promise.allSettled([
+      api(base), api(base + '/prepare'), api(base + '/logs?cursor=' + entry.cursor)
+    ]);
+    if (!matches()) return;
+    entry.errors = [];
+    const [detail,prepare,logs] = results;
+    results.forEach((result,index) => {
+      if (result.status === 'rejected') entry.errors.push(
+        ['详情','准备日志','Runtime / Lua 日志'][index] + '读取失败：' + result.reason.message);
+    });
+    if (detail.status === 'fulfilled') {
+      const data = detail.value;
+      if (data.run?.run_id !== id || data.run.project_realpath !== currentProject()?.path) {
+        entry.errors.push('Validate 详情与当前调用或项目不一致');
+      } else {
+        entry.data = data;
+        const bounded = boundedValidationText(JSON.stringify({
+          invocation:data.invocation,result:data.result,report:data.report
+        },null,2));
+        entry.json = (bounded.truncated ? 'JSON 已截断\n' : '') + bounded.text;
+        view.runs = view.runs.map(run => run.run_id === id ? data.run : run);
+      }
+    }
+    if (prepare.status === 'fulfilled') {
+      const bounded = boundedValidationText(prepare.value.text);
+      entry.prepare = bounded.text;
+      entry.truncated ||= bounded.truncated || Boolean(prepare.value.truncated);
+    }
+    if (logs.status === 'fulfilled') {
+      const data = logs.value;
+      if (Array.isArray(data.logs) && Number.isSafeInteger(data.next_cursor) && data.next_cursor >= entry.cursor) {
+        const added = data.logs.filter(row => Number.isSafeInteger(row.cursor) && row.cursor > entry.cursor)
+          .map(row => String(row.text || '')).join('\n');
+        const bounded = boundedValidationText([entry.runtime,added].filter(Boolean).join('\n'));
+        entry.runtime = bounded.text;
+        entry.truncated ||= bounded.truncated || Boolean(data.truncated);
+        entry.cursor = data.next_cursor;
+      } else entry.errors.push('Runtime / Lua 日志游标无效');
+    }
+  } finally {
+    if (request === view.request) view.detailLoading = false;
+    if (matches()) renderConsoleLogs();
+  }
+}
+async function chooseValidationRun(id) {
+  const view = validationView();
+  if (!view.runs.some(run => run.run_id === id)) return;
+  view.request++; view.detailLoading = false;
+  view.selectedRun = id;
+  renderConsoleLogs();
+  await loadValidationEvidence();
+}
+function clearValidationDisplay() {
+  const view = validationView(), entry = validationEntry(view);
+  view.listRequest++; view.loading = false;
+  view.request++; view.detailLoading = false;
+  if (!entry) return;
+  entry.runtime = ''; entry.clearedPrepare = entry.prepare; entry.clearedJson = entry.json;
+  entry.imageCleared = Boolean(entry.data?.artifacts?.some(artifact =>
+    artifact.kind === 'screenshot' && artifact.id === 'screenshot.png'));
+  entry.truncated = false; entry.errors = []; entry.image = null; entry.imageError = false;
+}
+function validationSection(entry, id, title, open) {
+  entry.sections ||= new Map();
+  if (!entry.sections.has(id)) {
+    const section = node('details',undefined,'task validation-evidence');
+    section.dataset.key = selected + ':' + validationView().selectedRun + ':' + id;
+    section.dataset.evidence = id;
+    section.open = open;
+    section.append(node('summary',title));
+    const body = node('div',undefined,'validation-evidence-body');
+    section.append(body);
+    entry.sections.set(id,{section,body});
+  }
+  return entry.sections.get(id);
+}
+function renderValidationEvidence(entry, run) {
+  const feed = node('div',undefined,'validation-feed');
+  if (!entry) return feed;
+  if (entry.truncated) feed.append(node('p','日志已截断，仅显示有界片段。','pending'));
+  entry.errors.forEach(error => feed.append(node('p',error,'bad')));
+  const log = (id,title,value,open) => {
+    if (!value) return;
+    const block = validationSection(entry,id,title,open);
+    if (!block.output) {
+      block.output = node('pre');
+      block.output.addEventListener('scroll',() => {
+        if (!block.output.isConnected || !block.section.open) return;
+        block.scrollTop = block.output.scrollTop; block.scrollLeft = block.output.scrollLeft;
+      });
+      block.body.append(block.output);
+    }
+    if (block.value !== value) {
+      const top = block.output.scrollTop, left = block.output.scrollLeft;
+      block.output.replaceChildren(renderLogLines(value));
+      block.output.scrollTop = top; block.output.scrollLeft = left;
+      block.value = value;
+    }
+    block.output.className = 'validation-log' + (logView().wrap ? ' wrap' : '');
+    feed.append(block.section);
+  };
+  const prepare = entry.clearedPrepare && entry.prepare.startsWith(entry.clearedPrepare)
+    ? entry.prepare.slice(entry.clearedPrepare.length) : entry.prepare;
+  log('prepare','准备日志',prepare,false);
+  log('runtime','Runtime / Lua 日志',entry.runtime,false);
+  const screenshot = validationSection(entry,'screenshot','截图',true);
+  const data = entry.data;
+  const available = data?.run.status !== 'running' &&
+    data?.artifacts?.some(artifact => artifact.kind === 'screenshot' && artifact.id === 'screenshot.png');
+  const key = selected, id = run.run_id;
+  const visible = () => selected === key && validationView().selectedRun === id && validationActive();
+  if (available && !entry.image && !entry.imageError && !entry.imageCleared) {
+    const image = node('img');
+    image.alt = 'Validate 截图'; image.className = 'validation-screenshot'; image.loading = 'lazy';
+    image.addEventListener('error',() => {
+      if (entry.image !== image) return;
+      entry.image = null; entry.imageError = true;
+      if (visible()) renderConsoleLogs();
+    });
+    image.src = projectPath(key,'/validation/' + encodeURIComponent(id) + '/screenshot.png');
+    entry.image = image;
+  }
+  const content = [];
+  if (available && entry.image) {
+    const link = node('a');
+    link.href = entry.image.src; link.target = '_blank'; link.rel = 'noopener noreferrer';
+    link.setAttribute('aria-label','查看截图原图'); link.append(entry.image);
+    content.push(link);
+  } else {
+    const message = entry.imageCleared ? '截图已清理显示' : entry.imageError ? '截图读取失败' :
+      data?.result?.mode === 'validate' ? '本轮未请求截图' :
+      run.status === 'running' ? '等待截图采集完成' :
+      !data ? '截图记录尚未读取' : '本轮未收集到截图';
+    content.push(node('p',message,entry.imageError ? 'bad' : 'muted'));
+    if (available && (entry.imageError || entry.imageCleared)) {
+      content.push(button('重载截图',() => {
+        if (!visible()) return;
+        entry.imageError = false; entry.imageCleared = false; renderConsoleLogs();
+      },{icon:'refresh'}));
+    }
+  }
+  screenshot.body.replaceChildren(...content);
+  feed.append(screenshot.section);
+  log('json','调用参数与原始 JSON',entry.json === entry.clearedJson ? '' : entry.json,false);
+  return feed;
+}
+function renderValidationPanel() {
+  const view = validationView(), entry = validationEntry(view);
+  const panel = node('div',undefined,'validation-panel');
+  const history = node('div',undefined,'validation-history');
+  const label = node('label','调用历史');
+  const picker = node('select');
+  picker.setAttribute('aria-label','Validate 调用历史'); picker.dataset.focus = 'validation-run';
+  if (!view.runs.length) {
+    const option = node('option',view.loading ? '读取中…' : '暂无 Validate 调用'); option.value = ''; picker.append(option);
+  }
+  view.runs.forEach(run => {
+    const option = node('option',run.started_at + ' · ' + validationStatus(run) + ' · ' + run.run_id);
+    option.value = run.run_id; picker.append(option);
+  });
+  picker.value = view.selectedRun; picker.disabled = !view.runs.length;
+  picker.addEventListener('change',event => void chooseValidationRun(event.target.value));
+  label.append(picker); history.append(label);
+  if (view.nextCursor) history.append(button('加载更多',
+    () => void refreshValidation({more:true}),{disabled:view.loading,loading:view.loading}));
+  panel.append(history);
+  if (view.error) panel.append(node('p',view.error,'bad'));
+  const warnings = [view.warnings,entry?.data?.warnings,entry?.data?.result?.warnings]
+    .flatMap(items => Array.isArray(items) ? items : []);
+  if (warnings.length) panel.append(node('p',boundedValidationText(warnings.join('\n')).text,'pending'));
+  const run = view.runs.find(run => run.run_id === view.selectedRun) || entry?.data?.run;
+  if (!run) return panel;
+  const status = node('div',undefined,'validation-status');
+  status.append(node('span','采集状态：' + validationStatus(run),run.status === 'incomplete' ? 'pending' : 'muted'),
+    node('span','阶段：' + text(run.phase)),
+    node('span','游戏结果：' + text(run.game_result,'未提供')));
+  panel.append(status);
+  if (run.result) panel.append(node('p','采集结果：' + run.result,'muted'));
+  if (run.finished_at) panel.append(node('p','结束时间：' + run.finished_at,'muted'));
+  panel.append(renderValidationEvidence(entry,run));
+  return panel;
+}
 function logView() {
   if (!logViews.has(selected)) logViews.set(selected,{tab:'build',runtime:'',loading:false,wrap:false,cleared:{}});
   return logViews.get(selected);
@@ -338,6 +627,8 @@ function logView() {
 function selectLog(tab) {
   logView().tab = tab;
   renderConsoleLogs();
+  syncValidationPolling();
+  if (tab === 'validate') void refreshValidation();
   $('console-logs')?.scrollIntoView({block:'nearest'});
 }
 function consoleLogSnapshot() {
@@ -351,10 +642,15 @@ function consoleLogSnapshot() {
 }
 function clearConsoleLogs() {
   const view = logView();
+  if (view.tab === 'validate') {
+    clearValidationDisplay(); renderConsoleLogs(); return;
+  }
   view.cleared[view.tab] = consoleLogSnapshot();
   renderConsoleLogs();
 }
 function consoleLogText() {
+  if (logView().tab === 'validate') return validationVisibleText(validationEntry()) ||
+    (validationView().selectedRun ? '暂无显示内容' : '暂无 Validate 调用');
   const view = logView(), snapshot = consoleLogSnapshot(), cleared = view.cleared[view.tab];
   if (view.tab === 'runtime' && view.loading) return '正在读取运行时日志…';
   let {output,details} = snapshot;
@@ -387,8 +683,8 @@ function renderConsoleLogs() {
   const toolbar = node('div',undefined,'console-log-toolbar');
   const tabs = node('div',undefined,'console-log-tabs');
   tabs.setAttribute('role','tablist');
-  [['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志'],['qrcode','二维码']].forEach(([id,label]) => {
-    const tab = button(label,() => { view.tab = id; renderConsoleLogs(); if (id === 'runtime' && !view.runtime && !view.loading) void loadLogs(); });
+  [['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志'],['qrcode','二维码'],['validate','Validate']].forEach(([id,label]) => {
+    const tab = button(label,() => { selectLog(id); if (id === 'runtime' && !view.runtime && !view.loading) void loadLogs(); });
     tab.setAttribute('role','tab'); tab.setAttribute('aria-selected',String(view.tab === id));
     tab.setAttribute('aria-controls','console-log-output'); tabs.append(tab);
   });
@@ -396,17 +692,24 @@ function renderConsoleLogs() {
   const wrap = node('label','自动换行','theme');
   const checkbox = node('input'); checkbox.type = 'checkbox'; checkbox.checked = view.wrap;
   checkbox.addEventListener('change',() => { view.wrap = checkbox.checked; renderConsoleLogs(); }); wrap.append(checkbox);
-  actions.append(wrap,button(view.loading ? '读取中' : '刷新',() => { if(view.tab === 'runtime') void loadLogs(); else void pollState().then(renderConsoleLogs).catch(e=>notify(e.message)); },{icon:'refresh',iconOnly:true,className:'icon-button',loading:view.loading,disabled:offline || view.loading}),
-    button('清理日志',clearConsoleLogs,{icon:'trash',iconOnly:true,className:'icon-button',disabled:view.loading}),
+  const loading = view.tab === 'validate' ? validationView().loading || validationView().detailLoading : view.loading;
+  actions.append(wrap,button(loading ? '读取中' : '刷新',() => { if(view.tab === 'validate') void refreshValidation(); else if(view.tab === 'runtime') void loadLogs(); else void pollState().then(renderConsoleLogs).catch(e=>notify(e.message)); },{icon:'refresh',iconOnly:true,className:'icon-button',loading,disabled:offline || loading}),
+    button('清理日志',clearConsoleLogs,{icon:'trash',iconOnly:true,className:'icon-button',disabled:loading}),
     button('复制',async () => { try { await navigator.clipboard.writeText(consoleLogText()); announce('日志已复制'); } catch (_) { notify('复制失败，请手动选择日志复制'); } },{icon:'copy',iconOnly:true,className:'icon-button'}));
   toolbar.append(node('h2','日志'),actions);
-  const output = node('pre',undefined,'console-log-output' + (view.wrap ? ' wrap' : ''));
-  output.append(renderLogLines(consoleLogText()));
+  const output = view.tab === 'validate' ? renderValidationPanel() :
+    node('pre',undefined,'console-log-output' + (view.wrap ? ' wrap' : ''));
+  if (view.tab !== 'validate') output.append(renderLogLines(consoleLogText()));
   output.id = 'console-log-output'; output.setAttribute('role','tabpanel'); output.tabIndex = 0;
   const previous = $('console-log-output');
   const top = previous?.scrollTop || 0, left = previous?.scrollLeft || 0;
   replace(host,[toolbar,tabs,output]);
   output.scrollTop = top; output.scrollLeft = left;
+  if (view.tab === 'validate') validationEntry()?.sections?.forEach(block => {
+    if (!block.output?.isConnected || !block.section.open) return;
+    block.output.scrollTop = block.scrollTop || 0; block.output.scrollLeft = block.scrollLeft || 0;
+  });
+  syncValidationPolling();
 }
 let git = null;
 let gitError = '';
@@ -585,6 +888,7 @@ function dispose() {
   offline = true;
   disposed = true;
   clearTimeout(pollTimer);
+  clearTimeout(validationTimer); validationTimer = undefined;
   clearInterval(activityTimer);
   activityTimer = undefined;
   requests.forEach(controller => controller.abort());
@@ -1541,6 +1845,7 @@ function renderBuild() {
   const history = node('section',undefined,'task-history'); history.id = 'task-history';
   replace($('view'),[title,columns,logs,history]);
   updateBuild();
+  if (logView().tab === 'validate' && !validationView().initialized) void refreshValidation();
 }
 function updateBuild() {
   if (page !== 'build' || !$('build-panel')) return;
@@ -2122,6 +2427,7 @@ function navigate(next) {
   if (next === 'build') void refreshPreview();
 }
 function render() {
+  syncValidationPolling();
   updateChrome();
   $('view').setAttribute('aria-busy','false');
   const plugin = currentProject()?.valid && pluginDescriptors().find(item => page === 'plugin:' + item.id);
@@ -2243,6 +2549,9 @@ onProjectChange(project => {
   if (page === 'git' && project?.valid) void loadGit(false);
 });
 onProjectChange(() => {
+  syncValidationPolling();
+});
+onProjectChange(() => {
   documentItems = [];
   documentSelected = '';
   documentRequest++;
@@ -2321,6 +2630,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   });
   document.addEventListener('visibilitychange',() => {
     clearTimeout(pollTimer);
+    syncValidationPolling();
     if (!document.hidden) { void sendActivity(); void poll(); }
   });
   render();

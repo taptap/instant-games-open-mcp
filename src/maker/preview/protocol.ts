@@ -111,11 +111,13 @@ export function samePreviewIdentity(
   );
 }
 
-export function projectEntry(project: string): string {
-  const entry = previewEntryName(
-    readPreviewConfiguration(project, 'project'),
-    readPreviewConfiguration(project, 'resources')
-  );
+export function projectEntry(project: string, override?: string): string {
+  const entry =
+    override ??
+    previewEntryName(
+      readPreviewConfiguration(project, 'project'),
+      readPreviewConfiguration(project, 'resources')
+    );
   if (typeof entry !== 'string' || !entry.endsWith('.lua') || path.isAbsolute(entry)) {
     throw new Error('Local preview needs a Lua entry in .project/project.json or resources.json.');
   }
