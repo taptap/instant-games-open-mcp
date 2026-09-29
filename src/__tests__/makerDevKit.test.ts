@@ -131,6 +131,9 @@ describe('Maker AI dev kit install', () => {
     (platform) => {
       const descriptor = Object.getOwnPropertyDescriptor(process, 'platform')!;
       const filterPath = path.join(targetDir, '.installer/local-skill-filter.json');
+      const skill = path.join(targetDir, 'skills/run-lua-validate/SKILL.md');
+      fs.mkdirSync(path.dirname(skill), { recursive: true });
+      fs.writeFileSync(skill, '# original');
       fs.mkdirSync(path.dirname(filterPath), { recursive: true });
       const config = {
         exclude_skills: {
@@ -159,7 +162,7 @@ describe('Maker AI dev kit install', () => {
           );
           expect(JSON.parse(fs.readFileSync(filterPath, 'utf8'))).toEqual(expected);
           expect(warnings[0]).toMatch(/run-lua-validate/);
-          expect(warnings.join('\n')).toMatch(/dev-kit update/);
+          expect(warnings.join('\n')).toMatch(/files are retained/);
           expect(repairLocalValidationSkillFilter(targetDir, notify)).toEqual([]);
         }
       } finally {
@@ -193,9 +196,26 @@ describe('Maker AI dev kit install', () => {
     }
   });
 
+  test.each(['absent', 'not-excluded'])(
+    'warns when the original validation Skill is missing and filter is %s',
+    (filter) => {
+      if (process.platform !== 'darwin' && process.platform !== 'win32') return;
+      const filename = path.join(targetDir, '.installer/local-skill-filter.json');
+      fs.mkdirSync(path.dirname(filename), { recursive: true });
+      if (filter === 'not-excluded')
+        fs.writeFileSync(filename, JSON.stringify({ exclude_skills: { [process.platform]: [] } }));
+      const warnings = repairLocalValidationSkillFilter(targetDir, () => {});
+      expect(warnings.join('\n')).toMatch(/original run-lua-validate Skill files are missing/);
+      expect(warnings.join('\n')).toMatch(/dev-kit update/);
+    }
+  );
+
   test('does not follow an external Skill filter symlink', () => {
     if (process.platform !== 'darwin') return;
     const external = path.join(sourceDir, 'filter.json');
+    const skill = path.join(targetDir, 'skills/run-lua-validate/SKILL.md');
+    fs.mkdirSync(path.dirname(skill), { recursive: true });
+    fs.writeFileSync(skill, '# original');
     const original = '{"exclude_skills":{"darwin":["run-lua-validate"]}}';
     fs.writeFileSync(external, original);
     fs.mkdirSync(path.join(targetDir, '.installer'), { recursive: true });

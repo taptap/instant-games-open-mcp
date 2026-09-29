@@ -35,6 +35,8 @@ beforeEach(() => {
   fs.writeFileSync(path.join(project, '.project/settings.json'), '{}');
   fs.writeFileSync(path.join(project, 'scripts/main.lua'), '-- game');
   fs.writeFileSync(path.join(project, 'scripts/check.lua'), '-- assertion');
+  fs.mkdirSync(path.join(project, 'skills/run-lua-validate'), { recursive: true });
+  fs.writeFileSync(path.join(project, 'skills/run-lua-validate/SKILL.md'), '# original');
   runtime = path.join(root, 'Runtime');
   fs.writeFileSync(
     runtime,
@@ -84,7 +86,7 @@ nativeTest.each([true, false])(
     expect(JSON.parse(fs.readFileSync(filterPath, 'utf8'))).toEqual({
       exclude_skills: { [process.platform]: repairs ? [] : excluded ? ['run-lua-validate'] : [] },
     });
-    if (repairs) expect((result.warnings as string[]).join('\n')).toMatch(/dev-kit update/);
+    if (repairs) expect((result.warnings as string[]).join('\n')).toMatch(/files are retained/);
     else expect(result.warnings).toEqual([]);
   }
 );
@@ -155,6 +157,21 @@ nativeTest('missing screenshot is an execution failure but preserves the report'
     expect.arrayContaining([expect.objectContaining({ kind: 'validate-report' })])
   );
   expect(result.error).toMatch(/screenshot/i);
+});
+
+nativeTest('archived result includes the final history cleanup warning', async () => {
+  const prior = await createValidationRun(project);
+  const file = fs.openSync(path.join(prior.directory, 'large-cache'), 'w');
+  fs.ftruncateSync(file, 5 * 1024 ** 3 + 1);
+  fs.closeSync(file);
+  const result = await validate({ output_dir: path.join(root, 'acceptance') });
+  const archived = JSON.parse(
+    fs.readFileSync(path.join(String(result.archive_directory), 'result.json'), 'utf8')
+  );
+  expect(result.warnings).toEqual(expect.arrayContaining([expect.stringContaining('5 GiB')]));
+  expect(archived.warnings).toEqual(expect.arrayContaining([expect.stringContaining('5 GiB')]));
+  const local = (await readValidationRun(project, String(result.run_id))).result;
+  expect(local?.archive_directory).toBe(result.archive_directory);
 });
 
 nativeTest('missing report preserves an independently produced screenshot', async () => {

@@ -196,6 +196,31 @@ test('launch guard allows confirmed exited Runtime without deleting its evidence
   await expect(requireNoActiveValidationRuntime(project)).resolves.toBeUndefined();
 });
 
+test('launch guard scans beyond history pagination without treating volume as unknown ownership', async () => {
+  const last = await createValidationRun(project);
+  const root = path.dirname(last.directory);
+  for (let i = 0; i < 5000; i++) {
+    const id = `${i.toString(16).padStart(8, '0')}-0000-4000-8000-000000000000`;
+    const directory = path.join(root, id);
+    fs.mkdirSync(directory);
+    fs.writeFileSync(
+      path.join(directory, 'run.json'),
+      JSON.stringify({
+        run_id: id,
+        project_realpath: project,
+        started_at: new Date().toISOString(),
+        phase: 'finished',
+        owner_pid: process.pid,
+        finished_at: new Date().toISOString(),
+      })
+    );
+  }
+  finishValidationRun(last, { result: 'COMPLETED' });
+  await expect(requireNoActiveValidationRuntime(project)).resolves.toBeUndefined();
+  updateValidationRun(last, { phase: 'running', finished_at: undefined, runtime_pid: process.pid });
+  await expect(requireNoActiveValidationRuntime(project)).rejects.toThrow(last.run_id);
+});
+
 test('launch guard rejects unreadable ownership rather than treating it as no Runtime', async () => {
   const run = await createValidationRun(project);
   fs.writeFileSync(path.join(run.directory, 'run.json'), '{partial');

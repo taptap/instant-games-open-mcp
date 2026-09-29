@@ -384,7 +384,7 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 - `preview validate` 是 `run-lua-validate` Skill 的本地执行适配，不实现第二套判级或测试框架。
   Skill 分发由 UrhoX ai-dev-kit 维护；安装及验证时检测到本机仍排除该 Skill，先提示再仅移除
-  当前平台的该项，其它平台和排除项不变。原 Skill 文件缺失须明确提示更新 ai-dev-kit；
+  当前平台的该项，其它平台和排除项不变。独立检查原 Skill 文件，缺失须明确提示更新 ai-dev-kit；
   不自动升级、不修改 Skill 正文、不阻断 Runtime 验证。
   MCP 与项目指引先路由到 taptap-maker-local 获取本地调用映射。
   复用 Runtime、项目准备、manifest 加载、日志和项目锁；保留原始报告及失败证据，
@@ -397,6 +397,7 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   结构化结果。多轮验证由 Agent 依照原 Skill 顺序调用，不新增批量测试框架或引擎协议。
   证据独立存于项目 realpath 哈希下的 `validation/<run ID>`，完成后保留 7 天；
   活跃及进程未知记录不删除，5 GiB 仅告警，显式 `--output-dir` 归档不参与自动清理。
+  启动安全检查核验全部记录，不受控制台列表的 5000 轮分页上限影响；归档保留最终清理告警。
   控制台 Validate 页签只读固定证据文件，不调用验证、不依赖推送；按项目隔离选择和日志游标，
   隐藏时停止轮询、图片按需读取。原始游戏结果与证据收集结果分开，未完成记录不得视作 PASS。
 

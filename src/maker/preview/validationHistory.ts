@@ -178,7 +178,10 @@ export function finishValidationRun(run: ValidationHandle, result: Record<string
   });
 }
 
-async function records(project: string): Promise<{ runs: ValidationRun[]; warnings: string[] }> {
+async function records(
+  project: string,
+  limit = 5000
+): Promise<{ runs: ValidationRun[]; warnings: string[] }> {
   const warnings: string[] = [];
   let entries: fs.Dirent[];
   try {
@@ -191,9 +194,9 @@ async function records(project: string): Promise<{ runs: ValidationRun[]; warnin
   entries
     .filter((item) => UUID.test(item.name) && !item.isDirectory())
     .forEach((item) => warnings.push(`Invalid validation run directory: ${item.name}`));
-  if (ids.length > 5000) warnings.push('History scan limited to 5000 runs; archive old evidence.');
+  if (ids.length > limit) warnings.push('History scan limited to 5000 runs; archive old evidence.');
   const runs: ValidationRun[] = [];
-  for (const item of ids.slice(0, 5000)) {
+  for (const item of ids.slice(0, limit)) {
     try {
       runs.push(await record(project, item.name));
     } catch {
@@ -209,7 +212,7 @@ export async function requireNoActiveValidationRuntime(
   project: string,
   currentRun?: string
 ): Promise<void> {
-  const { runs, warnings } = await records(project);
+  const { runs, warnings } = await records(project, Infinity);
   if (warnings.length)
     throw new Error(
       'Validation Runtime ownership is unverified. Inspect ' +
@@ -354,7 +357,7 @@ export async function readValidationPreparation(project: string, id: string) {
 }
 
 export async function cleanValidationHistory(project: string): Promise<string[]> {
-  const { runs, warnings } = await records(project);
+  const { runs, warnings } = await records(project, Infinity);
   let bytes = 0;
   let count = 0;
   for (const run of runs) {

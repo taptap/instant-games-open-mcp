@@ -171,6 +171,7 @@ WorkBuddy 旧独立 MCP 的迁移使用 `--client workbuddy`，只把旧注册�
 执行，不修改引擎。参数、运行条件与失败处理见 [本地验证说明](docs/MAKER_LOCAL_PREVIEW.md#run-lua-validate-本地接入)。
 控制台日志区的 Validate 页签可查看每轮调用、日志、JSON 与截图；验证不依赖控制台运行。
 支持 Agent 按需求重复验证，证据按项目保留 7 天，`--output-dir` 可长期归档验收材料。
+原 Skill 文件缺失时，即使本地未配置排除规则也会提示更新 ai-dev-kit；归档保留最终清理告警。
 
 Maker 本地开发独立发布为 `@taptap/maker`。首次配置推荐直接运行：
 

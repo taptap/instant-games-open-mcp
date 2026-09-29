@@ -30539,19 +30539,34 @@ function repairLocalValidationSkillFilter(targetDir, onWarning = (message) => pr
   if (process.platform !== "darwin" && process.platform !== "win32") return [];
   const installerDir = path8.join(targetDir, ".installer");
   const filename2 = path8.join(installerDir, "local-skill-filter.json");
-  if (!fs7.existsSync(filename2)) return [];
   const warnings = [];
   const warn = (message) => {
     warnings.push(message);
     onWarning(message);
   };
+  const hasSource = ["skills", ".installer/skills"].some(
+    (directory) => fs7.existsSync(path8.join(targetDir, directory, "run-lua-validate", "SKILL.md"))
+  );
+  const warnIfMissing = () => {
+    if (!hasSource)
+      warn(
+        "The original run-lua-validate Skill files are missing. Use the current Maker distribution CLI: dev-kit update --target-dir " + JSON.stringify(path8.resolve(targetDir)) + ". Removing an exclusion alone does not restore deleted Skill files."
+      );
+  };
+  if (!fs7.existsSync(filename2)) {
+    warnIfMissing();
+    return warnings;
+  }
   try {
     const stat = fs7.lstatSync(filename2);
     if (fs7.lstatSync(installerDir).isSymbolicLink() || !stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024)
       throw new Error("Invalid local Skill filter file.");
     const config2 = JSON.parse(fs7.readFileSync(filename2, "utf8"));
     const excluded = (_a3 = config2 == null ? void 0 : config2.exclude_skills) == null ? void 0 : _a3[process.platform];
-    if (!Array.isArray(excluded) || !excluded.includes("run-lua-validate")) return warnings;
+    if (!Array.isArray(excluded) || !excluded.includes("run-lua-validate")) {
+      warnIfMissing();
+      return warnings;
+    }
     warn(
       "The installed ai-dev-kit still excludes run-lua-validate. Applying a local compatibility fix for this platform only; other exclusions and Skill content will not change."
     );
@@ -30559,16 +30574,16 @@ function repairLocalValidationSkillFilter(targetDir, onWarning = (message) => pr
       (name) => name !== "run-lua-validate"
     );
     fs7.writeFileSync(filename2, JSON.stringify(config2, null, 2) + "\n");
-    const hasSource = ["skills", ".installer/skills"].some(
-      (directory) => fs7.existsSync(path8.join(targetDir, directory, "run-lua-validate", "SKILL.md"))
-    );
-    warn(
-      hasSource ? "The run-lua-validate exclusion was removed. Existing ai-dev-kit Skill files are retained." : "The run-lua-validate exclusion was removed, but its original Skill files are missing. Use the current Maker distribution CLI: dev-kit update --target-dir " + JSON.stringify(path8.resolve(targetDir)) + ". Removing an exclusion alone does not restore deleted Skill files."
-    );
+    if (hasSource)
+      warn(
+        "The run-lua-validate exclusion was removed. Existing ai-dev-kit Skill files are retained."
+      );
+    else warnIfMissing();
   } catch {
     warn(
       "The ai-dev-kit Skill exclusion configuration could not be repaired. Check file permissions/format or update ai-dev-kit through the current Maker distribution. Runtime validation can continue."
     );
+    warnIfMissing();
   }
   return warnings;
 }
@@ -57892,7 +57907,7 @@ function finishValidationRun(run, result) {
     runtime_launch_pending: false
   });
 }
-async function records(project) {
+async function records(project, limit = 5e3) {
   const warnings = [];
   let entries;
   try {
@@ -57903,9 +57918,9 @@ async function records(project) {
   }
   const ids = entries.filter((item) => UUID2.test(item.name) && item.isDirectory());
   entries.filter((item) => UUID2.test(item.name) && !item.isDirectory()).forEach((item) => warnings.push(`Invalid validation run directory: ${item.name}`));
-  if (ids.length > 5e3) warnings.push("History scan limited to 5000 runs; archive old evidence.");
+  if (ids.length > limit) warnings.push("History scan limited to 5000 runs; archive old evidence.");
   const runs = [];
-  for (const item of ids.slice(0, 5e3)) {
+  for (const item of ids.slice(0, limit)) {
     try {
       runs.push(await record2(project, item.name));
     } catch {
@@ -57916,7 +57931,7 @@ async function records(project) {
   return { runs, warnings };
 }
 async function requireNoActiveValidationRuntime(project, currentRun) {
-  const { runs, warnings } = await records(project);
+  const { runs, warnings } = await records(project, Infinity);
   if (warnings.length)
     throw new Error(
       "Validation Runtime ownership is unverified. Inspect " + path38.join(previewDirectory(project), "validation") + ": " + warnings.join("; ")
@@ -58023,7 +58038,7 @@ async function readValidationPreparation(project, id) {
   };
 }
 async function cleanValidationHistory(project) {
-  const { runs, warnings } = await records(project);
+  const { runs, warnings } = await records(project, Infinity);
   let bytes = 0;
   let count = 0;
   for (const run of runs) {
@@ -58252,18 +58267,6 @@ async function runSkillValidation(project, options3, signal) {
     finished_at: (/* @__PURE__ */ new Date()).toISOString()
   };
   finishValidationRun(run, output2);
-  if (typeof options3.output_dir === "string") {
-    try {
-      output2.archive_directory = await archiveValidationRun(run, options3.output_dir);
-    } catch (error2) {
-      output2.ok = false;
-      output2.result = "FAIL";
-      output2.error = [
-        output2.error,
-        "Evidence archive failed: " + String(sanitizeDiagnosticValue(String(error2)))
-      ].filter(Boolean).join("\n");
-    }
-  }
   try {
     output2.warnings = [
       ...Array.isArray(output2.warnings) ? output2.warnings : [],
@@ -58276,6 +58279,19 @@ async function runSkillValidation(project, options3, signal) {
     ];
   }
   finishValidationRun(run, output2);
+  if (typeof options3.output_dir === "string") {
+    try {
+      output2.archive_directory = await archiveValidationRun(run, options3.output_dir);
+    } catch (error2) {
+      output2.ok = false;
+      output2.result = "FAIL";
+      output2.error = [
+        output2.error,
+        "Evidence archive failed: " + String(sanitizeDiagnosticValue(String(error2)))
+      ].filter(Boolean).join("\n");
+    }
+    finishValidationRun(run, output2);
+  }
   return output2;
 }
 async function executeSkillValidation(project, options3, signal, run) {

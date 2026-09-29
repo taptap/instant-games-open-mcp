@@ -120,20 +120,6 @@ export async function runSkillValidation(
     finished_at: new Date().toISOString(),
   };
   finishValidationRun(run, output);
-  if (typeof options.output_dir === 'string') {
-    try {
-      output.archive_directory = await archiveValidationRun(run, options.output_dir);
-    } catch (error) {
-      output.ok = false;
-      output.result = 'FAIL';
-      output.error = [
-        output.error,
-        'Evidence archive failed: ' + String(sanitizeDiagnosticValue(String(error))),
-      ]
-        .filter(Boolean)
-        .join('\n');
-    }
-  }
   // Retention is best effort; it must not obscure this run's diagnostics.
   try {
     output.warnings = [
@@ -147,6 +133,21 @@ export async function runSkillValidation(
     ];
   }
   finishValidationRun(run, output);
+  if (typeof options.output_dir === 'string') {
+    try {
+      output.archive_directory = await archiveValidationRun(run, options.output_dir);
+    } catch (error) {
+      output.ok = false;
+      output.result = 'FAIL';
+      output.error = [
+        output.error,
+        'Evidence archive failed: ' + String(sanitizeDiagnosticValue(String(error))),
+      ]
+        .filter(Boolean)
+        .join('\n');
+    }
+    finishValidationRun(run, output);
+  }
   return output;
 }
 

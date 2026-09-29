@@ -620,12 +620,27 @@ export function repairLocalValidationSkillFilter(
   if (process.platform !== 'darwin' && process.platform !== 'win32') return [];
   const installerDir = path.join(targetDir, '.installer');
   const filename = path.join(installerDir, 'local-skill-filter.json');
-  if (!fs.existsSync(filename)) return [];
   const warnings: string[] = [];
   const warn = (message: string): void => {
     warnings.push(message);
     onWarning(message);
   };
+  const hasSource = ['skills', '.installer/skills'].some((directory) =>
+    fs.existsSync(path.join(targetDir, directory, 'run-lua-validate', 'SKILL.md'))
+  );
+  const warnIfMissing = (): void => {
+    if (!hasSource)
+      warn(
+        'The original run-lua-validate Skill files are missing. ' +
+          'Use the current Maker distribution CLI: dev-kit update --target-dir ' +
+          JSON.stringify(path.resolve(targetDir)) +
+          '. Removing an exclusion alone does not restore deleted Skill files.'
+      );
+  };
+  if (!fs.existsSync(filename)) {
+    warnIfMissing();
+    return warnings;
+  }
   try {
     const stat = fs.lstatSync(filename);
     if (
@@ -637,7 +652,10 @@ export function repairLocalValidationSkillFilter(
       throw new Error('Invalid local Skill filter file.');
     const config = JSON.parse(fs.readFileSync(filename, 'utf8'));
     const excluded: unknown = config?.exclude_skills?.[process.platform];
-    if (!Array.isArray(excluded) || !excluded.includes('run-lua-validate')) return warnings;
+    if (!Array.isArray(excluded) || !excluded.includes('run-lua-validate')) {
+      warnIfMissing();
+      return warnings;
+    }
     warn(
       'The installed ai-dev-kit still excludes run-lua-validate. Applying a local compatibility ' +
         'fix for this platform only; other exclusions and Skill content will not change.'
@@ -646,23 +664,18 @@ export function repairLocalValidationSkillFilter(
       (name) => name !== 'run-lua-validate'
     );
     fs.writeFileSync(filename, JSON.stringify(config, null, 2) + '\n');
-    const hasSource = ['skills', '.installer/skills'].some((directory) =>
-      fs.existsSync(path.join(targetDir, directory, 'run-lua-validate', 'SKILL.md'))
-    );
-    warn(
-      hasSource
-        ? 'The run-lua-validate exclusion was removed. Existing ai-dev-kit Skill files are retained.'
-        : 'The run-lua-validate exclusion was removed, but its original Skill files are missing. ' +
-            'Use the current Maker distribution CLI: dev-kit update --target-dir ' +
-            JSON.stringify(path.resolve(targetDir)) +
-            '. Removing an exclusion alone does not restore deleted Skill files.'
-    );
+    if (hasSource)
+      warn(
+        'The run-lua-validate exclusion was removed. Existing ai-dev-kit Skill files are retained.'
+      );
+    else warnIfMissing();
   } catch {
     warn(
       'The ai-dev-kit Skill exclusion configuration could not be repaired. ' +
         'Check file permissions/format or update ai-dev-kit through the current Maker distribution. ' +
         'Runtime validation can continue.'
     );
+    warnIfMissing();
   }
   return warnings;
 }
