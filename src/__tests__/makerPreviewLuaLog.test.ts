@@ -45,7 +45,7 @@ test('drains a final burst without losing the final error and yields between chu
   setImmediate(() => {
     yielded = true;
   });
-  await reader.finish();
+  expect(await reader.finish()).toBe(true);
   expect(yielded).toBe(true);
   expect(lines).toHaveLength(301);
   expect(lines.at(-1)).toBe('[lua] ERROR: final failure');
@@ -56,8 +56,22 @@ test('drains a final burst without losing the final error and yields between chu
 test('reports an incomplete final file instead of silently dropping it', async () => {
   reader.observe(announce(filename));
   fs.appendFileSync(filename, '{"m":"incomplete');
-  await reader.finish();
+  expect(await reader.finish()).toBe(false);
   expect(lines).toContain('[lua] ERROR: Final Lua log collection was truncated.');
+});
+
+test('reads the announced Lua log from a macOS app bundle', async () => {
+  executable = path.join(root, 'Runtime.app/Contents/MacOS/Runtime');
+  filename = path.join(
+    root,
+    'Runtime.app/Contents/Resources/logs/lua/lua-2026-09-29 12_00_00_001.log'
+  );
+  fs.mkdirSync(path.dirname(filename), { recursive: true });
+  fs.writeFileSync(filename, '{"m":"app log"}\n');
+  reader = new PreviewLuaLog(executable, (line) => lines.push(line));
+  reader.observe(announce(filename));
+  expect(await reader.finish()).toBe(true);
+  expect(lines).toEqual(['[lua] app log']);
 });
 
 test('ignores unrelated files and a second announcement', () => {

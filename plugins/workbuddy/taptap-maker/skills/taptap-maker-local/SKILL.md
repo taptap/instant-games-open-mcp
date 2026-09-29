@@ -153,6 +153,48 @@ remote test version; it never builds or uploads server code automatically.
    `--cursor` and optionally `--limit` (1–500). Reset cursor after a reload. Keep local evidence
    separate from `.maker/logs/runtime/`, which belongs to the remote watcher.
 
+### Local run-lua-validate
+
+Use the project's `run-lua-validate` Skill for runtime checks, screenshots, assertions and
+controlled-state visual verification. Keep its review/fix/retest workflow; Maker supplies the
+local execution adapter, not another test framework.
+
+On a bound macOS/Windows Maker project, use this distribution's CLI instead of the Skill's
+standalone Runtime installer/launch commands. Query `preview status` first; an active preview
+must be explicitly stopped with user authorization. For the command mapping and options read
+`docs/MAKER_LOCAL_PREVIEW.md` section `run-lua-validate 本地接入`.
+Example: `preview validate --target-dir <PROJECT> --mode both --screenshot-frame <N> --json`,
+where N is selected for the current test, not a fixed readiness guarantee.
+Use the returned report/log/artifact paths with the original Skill's review rules.
+`COMPLETED` means evidence collected, not game PASS. Preserve failures and inspect partial
+evidence. No Computer Use capture, engine modification or remote-build fallback is required.
+If the project Skill is missing, update the dev kit through the current distribution.
+Skill distribution belongs to UrhoX ai-dev-kit. Maker detects legacy exclusions, warns before
+removing only this Skill from the current platform's list, and preserves all other entries.
+If original Skill files were already deleted, guide the user to `dev-kit update` through the
+current distribution; a repaired exclusion is not proof of an installed Skill. Do not rewrite
+the Skill, auto-upgrade, or block Runtime execution because compatibility repair failed.
+
+Local iterations are Agent-controlled: choose test states, assertion scripts, screenshot timing
+and the number of runs from the acceptance goal. Repeat `preview validate` sequentially as needed;
+each invocation launches its own Runtime, not a capture of an existing preview window. Do not
+add a fixed frame/count policy or interpret loading-screen captures as acceptance. Inspect the
+collected JSON/logs/images, then fix and rerun using the original Skill's rules.
+
+The stderr `validation.started` event returns `run_id`, `evidence_directory`, `log_path` and
+`invocation_path` before preparation. Poll the returned run's `run.json` and bounded log tails
+while the CLI is running; do not start another Runtime to poll progress. The final stdout JSON
+remains the command result. Missing final evidence means incomplete/unknown, never PASS.
+The Maker console's Build/Test > Validate tab reads the same local evidence and does not launch
+or control validation. It shows collected evidence, not proof the Agent inspected an image.
+
+Validation evidence is project-realpath isolated and retained for seven days after completion,
+independently of normal preview cleanup. For durable acceptance output, pass
+`--output-dir <ABSOLUTE_DIRECTORY_OUTSIDE_PREVIEW_CACHE>` on each invocation: completed or failed
+run artifacts are copied into a unique run subdirectory, never automatically cleaned. Verify
+`archive_directory` in the result; archive failures remain explicit. Prepared game source is not
+part of the archive. A 5 GiB cache warning is not permission to delete recent acceptance evidence.
+
 ### Windows Node 与后台启动诊断
 
 Maker 预览优先使用当前宿主进程的 `process.execPath`；宿主 Node 不可用时才回退系统 Node。
@@ -193,8 +235,9 @@ Launch chain (normal paths):
    supervisor_pid field identifies the owning Node. Normal paths never invoke WMI/CIM.
 4. An entire IDE process-tree teardown can still terminate preview. Optional external
    `console serve` is for that separate requirement, not a mandatory first-use step.
-5. Runtime logs include bounded, identity-checked current-round Lua logs. Screenshots and
-   game assertion JSON remain unsupported; process status JSON is not gameplay validation.
+5. Runtime logs include bounded, identity-checked current-round Lua logs. Live-window screenshots
+   and game assertion JSON remain unsupported in run/start/check; use `preview validate` for
+   the original Skill's one-shot evidence. Process status JSON is not gameplay validation.
 6. Never auto-retry an unknown launch or disable antivirus. Only explicit --legacy-wmi
    selects the old launcher. Never kill by process name or an unverified historical PID.
    Evidence files, all under Maker home preview/runtime directories returned by status/start JSON:
@@ -224,7 +267,8 @@ Never kill by process name. Never use a stored PID without matching session iden
 `preview stop` or `console stop`. Closing the browser does not stop a Host-owned Runtime; ending Agent preview run stops only its owned Runtime.
 
 Process launch and clean logs do not prove gameplay or visual correctness. Do not promise
-screenshots, input automation or cloud/server emulation; these are not supported.
+live-window screenshots, input automation or cloud/server emulation. One-shot validation
+screenshots use the separate `preview validate` adapter.
 
 Only an AI authorized to modify the game may fix it. Bound automatic fixes to two attempts and an
 agreed time budget, permit cancellation, refresh after each attempt, and return remaining failures

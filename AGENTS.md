@@ -382,6 +382,24 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- `preview validate` 是 `run-lua-validate` Skill 的本地执行适配，不实现第二套判级或测试框架。
+  Skill 分发由 UrhoX ai-dev-kit 维护；安装及验证时检测到本机仍排除该 Skill，先提示再仅移除
+  当前平台的该项，其它平台和排除项不变。原 Skill 文件缺失须明确提示更新 ai-dev-kit；
+  不自动升级、不修改 Skill 正文、不阻断 Runtime 验证。
+  MCP 与项目指引先路由到 taptap-maker-local 获取本地调用映射。
+  复用 Runtime、项目准备、manifest 加载、日志和项目锁；保留原始报告及失败证据，
+  validate/start/run 在项目锁内核验遗留验证 Runtime，存活或创建结果未知不得重复启动；
+  日志落盘失败必须反映到采集结果，不得因报告有效就返回 COMPLETED。
+  `COMPLETED` 只表示收集完成，游戏结论由 Skill/Agent 给出。截图帧显式选择，测试入口与断言
+  使用原有 Runtime 能力；不改引擎、不自动停止常驻窗口、不改游戏代码或发布配置。
+  正式参数和限制统一见 `docs/MAKER_LOCAL_PREVIEW.md`，插件副本通过生成脚本同步。
+- Validate 在准备前记录 run ID 和证据路径，stderr 发出 `validation.started`，最终 stdout 保持
+  结构化结果。多轮验证由 Agent 依照原 Skill 顺序调用，不新增批量测试框架或引擎协议。
+  证据独立存于项目 realpath 哈希下的 `validation/<run ID>`，完成后保留 7 天；
+  活跃及进程未知记录不删除，5 GiB 仅告警，显式 `--output-dir` 归档不参与自动清理。
+  控制台 Validate 页签只读固定证据文件，不调用验证、不依赖推送；按项目隔离选择和日志游标，
+  隐藏时停止轮询、图片按需读取。原始游戏结果与证据收集结果分开，未完成记录不得视作 PASS。
+
 - Python 异步命令取消/超时后的输出排空最多等待 6 秒；POSIX 回收进程组不依赖组长仍存活。
   Windows 父进程已退出时禁止拿旧 PID 执行 taskkill，无法验证回收必须明确报错，
   不得将关闭管道等同于后代已回收。
@@ -484,7 +502,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   控制台日志和 Agent 最终证据读取有界末尾（最多 100 行、64 KiB），显示截断信息；
   CLI logs 保留从头分页及 session/reload 增量校验，--tail 显式读取最近输出。
   整个 IDE 回收进程树仍可结束预览；外部 console serve 仅为可选独立入口，不自动 breakaway。
-  截图与游戏断言 JSON 尚不支持；会话状态不能视作游戏验证通过。仅显式 --legacy-wmi 保留旧入口。
+  常驻窗口截图与游戏断言 JSON 尚不支持；一次性验证用 preview validate，
+  会话状态不能视作游戏验证通过。仅显式 --legacy-wmi 保留旧入口。
   启动命令不得转发 PAT、MAC token 或 client secret，Windows 直启子进程只继承白名单环境。
   控制台不生成、保存或校验访问 token，页面和 CLI 请求不携带 Bearer；loopback 地址只用于本机
   访问，不应被描述为带凭证的远程会话链接；

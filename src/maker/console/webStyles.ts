@@ -157,9 +157,21 @@ pre{white-space:pre-wrap;tab-size:2;margin:10px 0 0;background:var(--code);paddi
 .console-log-tabs [aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
 .console-logs .console-log-output{height:360px;max-height:60vh;width:100%;max-width:100%;overflow:auto;white-space:pre;overflow-wrap:normal;word-break:normal;margin:0;border-top:0;border-radius:0 0 4px 4px;line-height:1.9}
 .console-logs .console-log-output.wrap{white-space:pre-wrap;overflow-wrap:anywhere}
-.console-log-output .log-line{color:var(--text)}
-.console-log-output .log-error{color:var(--red)}
-.console-log-output .log-warning{color:var(--yellow)}
+.console-logs .log-line{color:var(--text)}
+.console-logs .log-error{color:var(--red)}
+.console-logs .log-warning{color:var(--yellow)}
+.validation-panel{border:1px solid var(--border);border-top:0;padding:12px 16px;min-width:0}
+.validation-history,.validation-status{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
+.validation-history label{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.validation-history select{min-width:0;max-width:100%;flex:1}
+.validation-status{margin-top:12px;font-size:12px;overflow-wrap:anywhere}
+.validation-panel p{white-space:pre-wrap;overflow-wrap:anywhere;margin:8px 0}
+.validation-feed{display:grid;gap:12px;margin-top:16px;min-width:0}
+.validation-evidence{border:1px solid var(--border);border-radius:4px;background:var(--top);padding:6px 12px;max-width:100%}
+.validation-evidence-body{min-width:0}
+.validation-evidence-body .validation-log{margin:0 0 6px;max-height:280px;white-space:pre;overflow-wrap:normal;word-break:normal}
+.validation-evidence-body .validation-log.wrap{white-space:pre-wrap;overflow-wrap:anywhere}
+.validation-screenshot{display:block;width:auto;height:auto;max-width:100%;max-height:480px;object-fit:contain;margin:6px auto 12px}
 button.link.bad{color:var(--red)}button.link.good{color:var(--green)}button.link.pending{color:var(--accent)}
 .preview-status-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;min-height:32px;font-size:13px}
 .preview-status-summary button{margin-left:auto}

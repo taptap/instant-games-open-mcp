@@ -108,6 +108,7 @@ export interface AiDevKitSkillInstallerResult {
   summary: string;
   reason?: string;
   error?: string;
+  warnings?: string[];
 }
 
 export interface AiDevKitSkillInstallerStart {
@@ -586,6 +587,7 @@ export function installAiDevKitSkills(
   targetDir: string,
   options: { onStart?: (event: AiDevKitSkillInstallerStart) => void } = {}
 ): AiDevKitSkillInstallerResult {
+  const warnings = repairLocalValidationSkillFilter(targetDir);
   let result: AiDevKitSkillInstallerResult;
   try {
     result = runAiDevKitSkillScript(targetDir, options);
@@ -607,7 +609,62 @@ export function installAiDevKitSkills(
 
   // Older dev kits do not know about .agents; also fill it when their script is absent.
   syncProjectSkills(targetDir, { client: '.agents' });
+  if (warnings.length) result.warnings = warnings;
   return result;
+}
+
+export function repairLocalValidationSkillFilter(
+  targetDir: string,
+  onWarning: (message: string) => void = (message) => process.stderr.write(`[Maker] ${message}\n`)
+): string[] {
+  if (process.platform !== 'darwin' && process.platform !== 'win32') return [];
+  const installerDir = path.join(targetDir, '.installer');
+  const filename = path.join(installerDir, 'local-skill-filter.json');
+  if (!fs.existsSync(filename)) return [];
+  const warnings: string[] = [];
+  const warn = (message: string): void => {
+    warnings.push(message);
+    onWarning(message);
+  };
+  try {
+    const stat = fs.lstatSync(filename);
+    if (
+      fs.lstatSync(installerDir).isSymbolicLink() ||
+      !stat.isFile() ||
+      stat.isSymbolicLink() ||
+      stat.size > 1024 * 1024
+    )
+      throw new Error('Invalid local Skill filter file.');
+    const config = JSON.parse(fs.readFileSync(filename, 'utf8'));
+    const excluded: unknown = config?.exclude_skills?.[process.platform];
+    if (!Array.isArray(excluded) || !excluded.includes('run-lua-validate')) return warnings;
+    warn(
+      'The installed ai-dev-kit still excludes run-lua-validate. Applying a local compatibility ' +
+        'fix for this platform only; other exclusions and Skill content will not change.'
+    );
+    config.exclude_skills[process.platform] = excluded.filter(
+      (name) => name !== 'run-lua-validate'
+    );
+    fs.writeFileSync(filename, JSON.stringify(config, null, 2) + '\n');
+    const hasSource = ['skills', '.installer/skills'].some((directory) =>
+      fs.existsSync(path.join(targetDir, directory, 'run-lua-validate', 'SKILL.md'))
+    );
+    warn(
+      hasSource
+        ? 'The run-lua-validate exclusion was removed. Existing ai-dev-kit Skill files are retained.'
+        : 'The run-lua-validate exclusion was removed, but its original Skill files are missing. ' +
+            'Use the current Maker distribution CLI: dev-kit update --target-dir ' +
+            JSON.stringify(path.resolve(targetDir)) +
+            '. Removing an exclusion alone does not restore deleted Skill files.'
+    );
+  } catch {
+    warn(
+      'The ai-dev-kit Skill exclusion configuration could not be repaired. ' +
+        'Check file permissions/format or update ai-dev-kit through the current Maker distribution. ' +
+        'Runtime validation can continue.'
+    );
+  }
+  return warnings;
 }
 
 function runAiDevKitSkillScript(

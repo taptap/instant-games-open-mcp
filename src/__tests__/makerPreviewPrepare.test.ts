@@ -156,6 +156,34 @@ test('prepares missing config only in the managed copy with official source defa
   expect(fs.existsSync(path.join(project, '.project'))).toBe(false);
 });
 
+test('validation entry overrides only the managed copy and rejects outside scripts', async () => {
+  const project = path.join(root, 'game');
+  fs.mkdirSync(path.join(project, 'scripts'), { recursive: true });
+  fs.mkdirSync(path.join(project, '.project'));
+  const config = '{"entry":"main.lua","entry@client":"main.lua","version":"1"}';
+  fs.writeFileSync(path.join(project, '.project/project.json'), config);
+  fs.writeFileSync(path.join(project, 'scripts/state.lua'), '-- controlled state');
+  jest.mocked(checkMakerPythonEnvironmentAsync).mockResolvedValue({
+    ready: true,
+    python: '/python',
+  } as Awaited<ReturnType<typeof checkMakerPythonEnvironmentAsync>>);
+  jest.mocked(execFile).mockImplementation((...args: unknown[]) => {
+    (args.at(-1) as (error: Error) => void)(new Error('fixture builder reached'));
+    return {} as ReturnType<typeof execFile>;
+  });
+  await expect(
+    preparePreviewProject(project, path.join(root, 'output'), undefined, 'state.lua')
+  ).rejects.toThrow('fixture builder reached');
+  expect(
+    JSON.parse(fs.readFileSync(path.join(root, 'output/source/.project/project.json'), 'utf8'))
+  ).toMatchObject({ 'entry@client': 'state.lua' });
+  expect(fs.readFileSync(path.join(project, '.project/project.json'), 'utf8')).toBe(config);
+  await expect(
+    preparePreviewProject(project, path.join(root, 'unsafe'), undefined, '../outside.lua')
+  ).rejects.toThrow();
+  expect(fs.existsSync(path.join(root, 'unsafe'))).toBe(false);
+});
+
 test.each([
   '/tmp/outside',
   '../../outside',

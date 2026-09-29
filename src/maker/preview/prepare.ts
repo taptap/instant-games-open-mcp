@@ -10,7 +10,7 @@ import {
   checkMakerPythonEnvironmentAsync,
   setupMakerPythonEnvironmentAsync,
 } from '../system/python.js';
-import { previewDirectory } from './protocol.js';
+import { previewDirectory, projectEntry } from './protocol.js';
 import { withRuntimeInstallLock } from './installation.js';
 import {
   PREVIEW_BUILDER_SOURCE,
@@ -154,11 +154,13 @@ export function validatePreparedPreview(source: string): Record<string, unknown>
 export async function preparePreviewProject(
   project: string,
   directory: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  entry?: string
 ): Promise<Record<string, unknown>> {
   let result: Record<string, unknown> | undefined;
   try {
-    result = await prepareProjectCopy(project, directory, signal);
+    if (entry !== undefined) projectEntry(project, entry);
+    result = await prepareProjectCopy(project, directory, signal, entry);
     return result;
   } finally {
     const preparations = path.join(previewDirectory(project), 'preparations');
@@ -174,7 +176,8 @@ export async function preparePreviewProject(
 async function prepareProjectCopy(
   project: string,
   directory: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  entry?: string
 ): Promise<Record<string, unknown>> {
   if (signal?.aborted) throw new Error('CANCELLED');
   const projectConfig = readPreviewConfiguration(project, 'project');
@@ -197,6 +200,7 @@ async function prepareProjectCopy(
   // Defaults exist only in this preparation; publishing files and existing resource IDs stay untouched.
   if (projectDefaults['entry@client'] === undefined && projectDefaults.entry === undefined)
     projectDefaults.entry = previewEntryName(projectConfig, resourcesConfig);
+  if (entry !== undefined) projectDefaults['entry@client'] = entry;
   fs.writeFileSync(path.join(configDirectory, 'project.json'), JSON.stringify(projectDefaults));
   if (!resourcesConfig)
     fs.writeFileSync(

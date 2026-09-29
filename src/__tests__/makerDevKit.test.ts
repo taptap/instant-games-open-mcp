@@ -17,6 +17,7 @@ import {
   readAiDevKitVersionMetadata,
   resolveAiDevKitDownload,
   resolveDefaultAiDevKitUrl,
+  repairLocalValidationSkillFilter,
   writeAiDevKitVersionMetadata,
 } from '../maker/cli/devKit';
 import {
@@ -29,6 +30,14 @@ test('routes the official Maker console trigger through MCP and project policy',
   expect(MAKER_PROJECT_POLICY_ROUTING_INDEX).toContain('打开make mcp控制台');
   expect(MAKER_CAPABILITY_ROUTING_INDEX).toContain('taptap-maker-local');
   expect(MAKER_CAPABILITY_ROUTING_INDEX).toContain('console open');
+});
+
+test('routes local validation through the Maker adapter before the original Skill', () => {
+  for (const index of [MAKER_CAPABILITY_ROUTING_INDEX, MAKER_PROJECT_POLICY_ROUTING_INDEX]) {
+    expect(index).toContain('run-lua-validate');
+    expect(index).toContain('preview validate');
+    expect(index).toContain('taptap-maker-local');
+  }
 });
 
 describe('Maker AI dev kit install', () => {
@@ -115,6 +124,86 @@ describe('Maker AI dev kit install', () => {
 
   afterEach(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test.each(['darwin', 'win32', 'linux'])(
+    'warns before repairing only the current platform validation exclusion on %s',
+    (platform) => {
+      const descriptor = Object.getOwnPropertyDescriptor(process, 'platform')!;
+      const filterPath = path.join(targetDir, '.installer/local-skill-filter.json');
+      fs.mkdirSync(path.dirname(filterPath), { recursive: true });
+      const config = {
+        exclude_skills: {
+          darwin: ['run-lua-validate', 'blender'],
+          win32: ['run-lua-headless', 'run-lua-validate'],
+          linux: ['run-lua-validate'],
+        },
+        custom: { keep: true },
+      };
+      const original = JSON.stringify(config);
+      fs.writeFileSync(filterPath, original);
+      const notify: jest.Mock<void, [string]> = jest.fn<void, [string]>(() => {
+        if (notify.mock.calls.length === 1)
+          expect(fs.readFileSync(filterPath, 'utf8')).toBe(original);
+      });
+      try {
+        Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+        const warnings = repairLocalValidationSkillFilter(targetDir, notify);
+        if (platform === 'linux') {
+          expect(warnings).toEqual([]);
+          expect(fs.readFileSync(filterPath, 'utf8')).toBe(original);
+        } else {
+          const expected = JSON.parse(original);
+          expected.exclude_skills[platform] = expected.exclude_skills[platform].filter(
+            (name: string) => name !== 'run-lua-validate'
+          );
+          expect(JSON.parse(fs.readFileSync(filterPath, 'utf8'))).toEqual(expected);
+          expect(warnings[0]).toMatch(/run-lua-validate/);
+          expect(warnings.join('\n')).toMatch(/dev-kit update/);
+          expect(repairLocalValidationSkillFilter(targetDir, notify)).toEqual([]);
+        }
+      } finally {
+        Object.defineProperty(process, 'platform', descriptor);
+      }
+    }
+  );
+
+  test('repairs only the installed dev-kit copy and preserves original Skill content', async () => {
+    const filterPath = path.join(sourceDir, '.installer/local-skill-filter.json');
+    const sourceSkill = path.join(sourceDir, 'skills/run-lua-validate/SKILL.md');
+    fs.mkdirSync(path.dirname(filterPath), { recursive: true });
+    fs.mkdirSync(path.dirname(sourceSkill), { recursive: true });
+    const filter = JSON.stringify({
+      exclude_skills: { darwin: ['run-lua-validate'], win32: ['run-lua-validate'] },
+    });
+    fs.writeFileSync(filterPath, filter);
+    fs.writeFileSync(sourceSkill, '# Original validation Skill\n');
+    const result = await installAiDevKit({ sourceDir, targetDir });
+    expect(result.skillInstaller?.ok).toBe(true);
+    expect(fs.readFileSync(filterPath, 'utf8')).toBe(filter);
+    expect(fs.readFileSync(path.join(targetDir, 'skills/run-lua-validate/SKILL.md'), 'utf8')).toBe(
+      '# Original validation Skill\n'
+    );
+    if (process.platform === 'darwin' || process.platform === 'win32') {
+      const installed = JSON.parse(
+        fs.readFileSync(path.join(targetDir, '.installer/local-skill-filter.json'), 'utf8')
+      );
+      expect(installed.exclude_skills[process.platform]).toEqual([]);
+      expect(result.skillInstaller?.warnings?.join('\n')).toContain('files are retained');
+    }
+  });
+
+  test('does not follow an external Skill filter symlink', () => {
+    if (process.platform !== 'darwin') return;
+    const external = path.join(sourceDir, 'filter.json');
+    const original = '{"exclude_skills":{"darwin":["run-lua-validate"]}}';
+    fs.writeFileSync(external, original);
+    fs.mkdirSync(path.join(targetDir, '.installer'), { recursive: true });
+    fs.symlinkSync(external, path.join(targetDir, '.installer/local-skill-filter.json'));
+    expect(repairLocalValidationSkillFilter(targetDir, () => {})).toEqual([
+      expect.stringMatching(/could not be repaired/),
+    ]);
+    expect(fs.readFileSync(external, 'utf8')).toBe(original);
   });
 
   test('installs dev kit but skips top-level scripts', async () => {
