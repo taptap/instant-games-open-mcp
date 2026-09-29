@@ -73,6 +73,11 @@ Skill 分发由 UrhoX ai-dev-kit 维护。Maker 在安装 Skill 及执行验证�
 不会把修正名单当作 Skill 已安装，不自动下载升级。配置损坏或不可写时保留告警，
 不因此阻断 Runtime 验证。
 本地调用映射由 `taptap-maker-local` 和项目 Maker 指引提供。
+用户请求 Validate 但 AI 尚不可用该 Skill 时，由 AI 按 `taptap-maker-local` 先检查本地
+`skills/` 或 `.installer/skills/` 原文件，告知并解除当前平台排除，再运行项目原安装脚本。
+旧安装器未提供 Codex `.agents/skills` 时，AI 仅补齐该 Skill 的完整目录，不覆盖已有文件；
+确认安装文件可读后读取原 Skill 执行。仅原文件缺失才引导更新 ai-dev-kit。
+此引导不新增安装命令；`preview validate` 本身仍只修正过滤规则，不负责安装 Skill。
 
 以下为独立调用示例，不是一段顺序运行的脚本；项目参数使用绝对路径：
 

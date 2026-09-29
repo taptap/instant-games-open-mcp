@@ -168,7 +168,34 @@ where N is selected for the current test, not a fixed readiness guarantee.
 Use the returned report/log/artifact paths with the original Skill's review rules.
 `COMPLETED` means evidence collected, not game PASS. Preserve failures and inspect partial
 evidence. No Computer Use capture, engine modification or remote-build fallback is required.
-If the project Skill is missing, update the dev kit through the current distribution.
+When the user requests Validate and the project Skill is unavailable, the Agent must first
+enable/install the existing local Skill; do not immediately download or update ai-dev-kit:
+
+1. Check `<PROJECT>/skills/run-lua-validate/SKILL.md` and
+   `<PROJECT>/.installer/skills/run-lua-validate/SKILL.md`. If neither exists, explain that
+   the source is missing and guide `dev-kit update --target-dir <PROJECT>` through this
+   distribution. Do not invent or rewrite the original Skill.
+2. If source exists, inspect `<PROJECT>/.installer/local-skill-filter.json` as JSON.
+   When `exclude_skills.win32` (Windows) or `exclude_skills.darwin` (macOS) contains
+   `run-lua-validate`, tell the user before removing only that entry for this platform.
+   Preserve all other values. A missing filter needs no repair; malformed/unwritable
+   configuration must be reported, not replaced with an empty configuration.
+3. Run the existing project installer: Windows uses
+   `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "<PROJECT>/tools/install-skills.ps1" all`;
+   macOS uses `bash "<PROJECT>/tools/install-skills.sh" all`.
+   Check its exit status and the installed Skill file, not just its success message.
+4. For Codex, ensure `<PROJECT>/.agents/skills/run-lua-validate/SKILL.md` is readable.
+   If the old installer only installs `.codex`, copy the original Skill directory, including
+   supporting files, from `.installer/skills` (or `skills` if still there) into the missing
+   `.agents/skills/run-lua-validate` directory. If the installer is absent, likewise install
+   only this Skill into the current host's documented project Skill directory.
+   Do not overwrite an existing directory or broken link; inspect/report conflicts first.
+5. Read the installed `SKILL.md` and its needed references, then continue validation using
+   the local mapping below. If the host needs a Skill refresh/new session for discovery,
+   explain that; do not claim the current session has loaded it merely because installation
+   succeeded. Report permission/install failures rather than pretending the Skill is ready.
+
+These are Agent-executed local setup steps, not a new CLI command or automatic download.
 Skill distribution belongs to UrhoX ai-dev-kit. Maker detects legacy exclusions, warns before
 removing only this Skill from the current platform's list, and preserves all other entries.
 If original Skill files were already deleted, guide the user to `dev-kit update` through the
