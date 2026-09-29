@@ -25,8 +25,19 @@ export class PreviewLuaLog {
     if (!match) return;
     const candidate = path.resolve(match[1]);
     if (this.announced.has(candidate)) return;
-    const root = path.join(path.dirname(this.executable), 'logs', 'lua');
-    if (path.dirname(candidate) !== root || !/^lua-[0-9 _-]+\.log$/.test(path.basename(candidate)))
+    const binary = path.dirname(this.executable);
+    const contents = path.dirname(binary);
+    const roots = [path.join(binary, 'logs', 'lua')];
+    if (
+      path.basename(binary) === 'MacOS' &&
+      path.basename(contents) === 'Contents' &&
+      path.dirname(contents).endsWith('.app')
+    )
+      roots.push(path.join(contents, 'Resources/logs/lua'));
+    if (
+      !roots.includes(path.dirname(candidate)) ||
+      !/^lua-[0-9 _-]+\.log$/.test(path.basename(candidate))
+    )
       return;
     try {
       this.close();
@@ -95,9 +106,9 @@ export class PreviewLuaLog {
     this.poll();
   }
 
-  async finish(): Promise<void> {
+  async finish(): Promise<boolean> {
     clearInterval(this.timer);
-    if (!this.filename) return;
+    if (!this.filename) return true;
     try {
       const size = fs.statSync(this.filename).size;
       const limit = Math.min(size, 64 * 1024 * 1024);
@@ -106,14 +117,18 @@ export class PreviewLuaLog {
         this.poll(limit);
         if (this.offset === before) {
           this.append('[lua] ERROR: Final Lua log collection is incomplete.');
-          return;
+          return false;
         }
         await new Promise<void>((resolve) => setImmediate(resolve));
       }
-      if (size > limit || this.pending.length)
+      if (size > limit || this.pending.length) {
         this.append('[lua] ERROR: Final Lua log collection was truncated.');
+        return false;
+      }
+      return true;
     } catch {
       this.append('[lua] ERROR: Final Lua log collection failed.');
+      return false;
     }
   }
 }
