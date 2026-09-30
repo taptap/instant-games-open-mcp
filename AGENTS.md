@@ -382,6 +382,35 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- `preview validate` 是 `run-lua-validate` Skill 的本地执行适配，不实现第二套判级或测试框架。
+  Skill 分发由 UrhoX ai-dev-kit 维护；安装及验证时检测到本机仍排除该 Skill，先提示再仅移除
+  当前平台的该项，其它平台和排除项不变。独立检查原 Skill 文件，缺失须明确提示更新 ai-dev-kit；
+  不自动升级、不修改 Skill 正文、不阻断 Runtime 验证。
+  MCP 与项目指引先路由到 taptap-maker-local 获取本地调用映射。
+  复用 Runtime、项目准备、manifest 加载、日志和项目锁；保留原始报告及失败证据，
+  validate/start/run 在项目锁内核验遗留验证 Runtime，存活或创建结果未知不得重复启动；
+  日志落盘失败必须反映到采集结果，不得因报告有效就返回 COMPLETED。
+  `COMPLETED` 只表示收集完成，游戏结论由 Skill/Agent 给出。截图帧显式选择，测试入口与断言
+  使用原有 Runtime 能力；不改引擎、不自动停止常驻窗口、不改游戏代码或发布配置。
+  正式参数和限制统一见 `docs/MAKER_LOCAL_PREVIEW.md`，插件副本通过生成脚本同步。
+- Validate 在准备前记录 run ID 和证据路径，stderr 发出 `validation.started`，最终 stdout 保持
+  结构化结果。多轮验证由 Agent 依照原 Skill 顺序调用，不新增批量测试框架或引擎协议。
+  证据独立存于项目 realpath 哈希下的 `validation/<run ID>`，完成后保留 7 天；
+  每轮结束检查当前项目的清理时间，成功清理后 24 小时内跳过历史及容量扫描，
+  时间记录存于该项目 `validation/cleanup.json`，失败不更新时间；复用项目锁，
+  不设后台定时任务、不联动控制台开关、不扫描其它项目。
+  活跃及进程未知记录不删除，5 GiB 仅告警，显式 `--output-dir` 归档不参与自动清理。
+  启动安全检查核验全部记录，不受控制台列表的 5000 轮分页上限影响；归档保留最终清理告警。
+  控制台 Validate 页签只读固定证据文件，不调用验证、不依赖推送；多轮按时间倒序滚动展示，最新结果在最上面，
+  向下分页加载更早记录，不用轮次下拉框；日志/JSON 缩起最多 3 行、截图为小图。按项目隔离历史、
+  滚动位置和各轮日志游标，已完成证据缓存，隐藏时停止轮询、图片按需读取。
+  原始游戏结果与证据收集结果分开，未完成记录不得视作 PASS。
+  截图检查仅识别接近全黑/透明和已观察到的 Bootstrap 未完成，保留无效截图及原始游戏报告；
+  安全完成且无实际运行错误时等 3 秒、延后截图帧，最多 2 次重试，逐轮留证、允许取消。
+  重试默认超时按帧数比例增加且不超过 580 秒，显式超时不变；按前轮 Runtime 耗时估算超限时
+  不启动重试并提示调整预算。历史翻页与证据读取解耦，未变化卡片复用，不提高读取并发。
+  不重试缺产物、崩溃、超时、取消或未知进程；任意游戏 loading 和玩法仍由 Agent 看图判定。
+
 - Python 异步命令取消/超时后的输出排空最多等待 6 秒；POSIX 回收进程组不依赖组长仍存活。
   Windows 父进程已退出时禁止拿旧 PID 执行 taskkill，无法验证回收必须明确报错，
   不得将关闭管道等同于后代已回收。
@@ -484,7 +513,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   控制台日志和 Agent 最终证据读取有界末尾（最多 100 行、64 KiB），显示截断信息；
   CLI logs 保留从头分页及 session/reload 增量校验，--tail 显式读取最近输出。
   整个 IDE 回收进程树仍可结束预览；外部 console serve 仅为可选独立入口，不自动 breakaway。
-  截图与游戏断言 JSON 尚不支持；会话状态不能视作游戏验证通过。仅显式 --legacy-wmi 保留旧入口。
+  常驻窗口截图与游戏断言 JSON 尚不支持；一次性验证用 preview validate，
+  会话状态不能视作游戏验证通过。仅显式 --legacy-wmi 保留旧入口。
   启动命令不得转发 PAT、MAC token 或 client secret，Windows 直启子进程只继承白名单环境。
   控制台不生成、保存或校验访问 token，页面和 CLI 请求不携带 Bearer；loopback 地址只用于本机
   访问，不应被描述为带凭证的远程会话链接；

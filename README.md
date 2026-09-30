@@ -166,6 +166,15 @@ WorkBuddy 旧独立 MCP 的迁移使用 `--client workbuddy`，只把旧注册�
 
 ## 🛠️ TapTap Maker 本地开发（CLI-first）
 
+本地 `run-lua-validate` Skill 可通过 `preview validate` 调用已有 Runtime 的报告、日志、
+截图和断言能力，复用本地预览的项目准备与资源加载。验证流程和游戏结论仍由 Skill/Agent
+执行，不修改引擎。参数、运行条件与失败处理见 [本地验证说明](docs/MAKER_LOCAL_PREVIEW.md#run-lua-validate-本地接入)。
+控制台 Validate 以可滚动过程列表展示多轮调用，最新结果在最上面，日志/JSON 缩起显示 3 行、截图显示小图；
+验证不依赖控制台运行。过早的黑屏/引擎加载截图可有界重试，游戏 loading 仍须 AI 看图确认。
+支持 Agent 按需求重复验证，证据按项目保留 7 天；验证结束触发清理检查，每个项目成功清理后
+24 小时内不重复扫描，无后台定时任务。`--output-dir` 可长期归档验收材料。
+原 Skill 文件缺失时，即使本地未配置排除规则也会提示更新 ai-dev-kit；归档保留最终清理告警。
+
 Maker 本地开发独立发布为 `@taptap/maker`。首次配置推荐直接运行：
 
 ```bash
@@ -842,7 +851,8 @@ MIT
 Windows 本地预览分两种：AI 调试用 `taptap-maker preview run --target-dir <项目绝对路径> --json`，
 保持前台会话，按 session 查询日志或停止；默认最多 10 分钟，`--duration-ms` 可缩短。
 给用户预览用 `preview start` 或 `console open` 后点击预览；控制台自动启动并直接管理游戏，
-不再要求手动启动 Host。两种用途共用准备、日志和停止逻辑，截图及游戏断言 JSON 尚不支持。
+不再要求手动启动 Host。两种用途共用准备、日志和停止逻辑；常驻窗口截图及游戏断言 JSON 尚不支持，
+一次性引擎验证报告和截图使用 `preview validate`，再按 `run-lua-validate` Skill 检查。
 正常路径不调用 WMI；仅显式 `--legacy-wmi` 使用旧入口。详见 docs/MAKER_LOCAL_PREVIEW.md。
 
 Preview preparation now runs asynchronously without changing launch ownership. Agent refresh keeps
