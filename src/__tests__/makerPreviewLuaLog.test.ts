@@ -1,0 +1,153 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { PreviewLuaLog } from '../maker/preview/luaLog.js';
+
+let root: string;
+let executable: string;
+let filename: string;
+let reader: PreviewLuaLog;
+let lines: string[];
+beforeEach(() => {
+  root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'maker-lua-log-')));
+  executable = path.join(root, 'runtime.exe');
+  filename = path.join(root, 'logs', 'lua', 'lua-2026-09-27 12_00_00_001.log');
+  fs.mkdirSync(path.dirname(filename), { recursive: true });
+  fs.writeFileSync(executable, '');
+  fs.writeFileSync(filename, '');
+  lines = [];
+  reader = new PreviewLuaLog(executable, (line) => lines.push(line));
+});
+afterEach(() => {
+  reader.close();
+  fs.rmSync(root, { recursive: true, force: true });
+});
+const announce = (filename: string): string =>
+  'INFO: Lua official log file initialized: ' + filename;
+
+test('reads only the announced file incrementally and flushes on close', () => {
+  reader.observe(announce(filename));
+  fs.appendFileSync(filename, '{"m":"hello","l":"RAW"}\n{"m":"par');
+  reader.poll();
+  expect(lines).toEqual(['[lua] hello']);
+  fs.appendFileSync(filename, 'tial","l":"ERROR"}\n');
+  reader.close();
+  expect(lines).toEqual(['[lua] hello', '[lua] ERROR: partial']);
+  reader.poll();
+  expect(lines).toHaveLength(2);
+});
+
+test('preserves structured Lua severity so console filters do not guess from message words', () => {
+  reader.observe(announce(filename));
+  const entries = [
+    { l: 'INFO', m: 'warning and error counters initialized' },
+    { l: 'WARNING', m: 'texture fallback' },
+    { l: 'WARN', m: 'retrying' },
+    { l: 'ERROR', m: 'bad field' },
+    { l: 'FATAL', m: 'shutdown' },
+    { l: 'DEBUG', m: 'debug trace' },
+    { l: 'RAW', m: 'plain print' },
+  ];
+  fs.appendFileSync(filename, entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n');
+  reader.poll();
+  expect(lines).toEqual([
+    '[lua] INFO: warning and error counters initialized',
+    '[lua] WARNING: texture fallback',
+    '[lua] WARN: retrying',
+    '[lua] ERROR: bad field',
+    '[lua] FATAL: shutdown',
+    '[lua] DEBUG: debug trace',
+    '[lua] plain print',
+  ]);
+});
+
+test('drains a final burst without losing the final error and yields between chunks', async () => {
+  reader.observe(announce(filename));
+  const row = JSON.stringify({ m: 'x'.repeat(1000), l: 'RAW' }) + '\n';
+  fs.appendFileSync(filename, row.repeat(300) + '{"m":"final failure","l":"ERROR"}\n');
+  let yielded = false;
+  setImmediate(() => {
+    yielded = true;
+  });
+  expect(await reader.finish()).toBe(true);
+  expect(yielded).toBe(true);
+  expect(lines).toHaveLength(301);
+  expect(lines.at(-1)).toBe('[lua] ERROR: final failure');
+  await reader.finish();
+  expect(lines).toHaveLength(301);
+});
+
+test('reports an incomplete final file instead of silently dropping it', async () => {
+  reader.observe(announce(filename));
+  fs.appendFileSync(filename, '{"m":"incomplete');
+  expect(await reader.finish()).toBe(false);
+  expect(lines).toContain('[lua] ERROR: Final Lua log collection was truncated.');
+});
+
+test('reads the announced Lua log from a macOS app bundle', async () => {
+  executable = path.join(root, 'Runtime.app/Contents/MacOS/Runtime');
+  filename = path.join(
+    root,
+    'Runtime.app/Contents/Resources/logs/lua/lua-2026-09-29 12_00_00_001.log'
+  );
+  fs.mkdirSync(path.dirname(filename), { recursive: true });
+  fs.writeFileSync(filename, '{"m":"app log"}\n');
+  reader = new PreviewLuaLog(executable, (line) => lines.push(line));
+  reader.observe(announce(filename));
+  expect(await reader.finish()).toBe(true);
+  expect(lines).toEqual(['[lua] app log']);
+});
+
+test('ignores unrelated files and a second announcement', () => {
+  const foreign = path.join(root, 'secret.log');
+  fs.writeFileSync(foreign, '{"m":"secret"}\n');
+  reader.observe(announce(foreign));
+  reader.poll();
+  expect(lines).toEqual([]);
+  reader.observe(announce(filename));
+  reader.observe(announce(foreign));
+  fs.appendFileSync(filename, '{"m":"owned"}\n');
+  reader.poll();
+  expect(lines).toEqual(['[lua] owned']);
+});
+
+test('does not read a replacement file', () => {
+  reader.observe(announce(filename));
+  fs.renameSync(filename, filename + '.old');
+  fs.writeFileSync(filename, '{"m":"replacement"}\n');
+  reader.poll();
+  expect(lines).toEqual([]);
+});
+
+test('follows a bounded engine-announced Lua VM log rotation', () => {
+  reader.observe(announce(filename));
+  fs.appendFileSync(filename, '{"m":"bootstrap"}\n');
+  const next = path.join(path.dirname(filename), 'lua-2026-09-27 12_00_01_002.log');
+  fs.writeFileSync(next, '{"m":"game"}\n');
+  reader.observe('[2026-09-27 12_00_01_002][31] ' + announce(next));
+  expect(lines).toEqual(['[lua] bootstrap', '[lua] game']);
+});
+
+test('ignores a log announcement embedded in game output', () => {
+  fs.appendFileSync(filename, '{"m":"not trusted"}\n');
+  reader.observe('[2026-09-27 12_00_01_002][31][Script] ' + announce(filename));
+  reader.poll();
+  expect(lines).toEqual([]);
+});
+
+test('waits for a log created lazily after its announcement', () => {
+  fs.unlinkSync(filename);
+  reader.observe(announce(filename));
+  reader.poll();
+  fs.writeFileSync(filename, '{"m":"late game output"}\n');
+  reader.poll();
+  expect(lines).toEqual(['[lua] late game output']);
+});
+
+test('bounds a malformed row and resumes after its newline', () => {
+  reader.observe(announce(filename));
+  fs.appendFileSync(filename, 'x'.repeat(70000) + '\n{"m":"valid"}\n');
+  reader.poll();
+  reader.poll();
+  expect(lines).toEqual(['[lua] valid']);
+});

@@ -319,6 +319,7 @@ async function git(
         ...(timeout > 0 ? { timeout, killSignal: 'SIGTERM' as const } : {}),
         maxBuffer: 1024 * 1024,
         signal: options.signal,
+        windowsHide: true,
         env: {
           ...process.env,
           GIT_OPTIONAL_LOCKS: '0',

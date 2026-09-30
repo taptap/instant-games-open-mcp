@@ -10,6 +10,8 @@ import { getMakerHome } from '../storage.js';
 import { queryMakerLuaDiagnostics } from './luaLspDiagnostics.js';
 import {
   checkMakerPythonEnvironment,
+  checkMakerPythonEnvironmentAsync,
+  runPythonCommand,
   setupMakerPythonEnvironment,
   type MakerPythonEnvironment,
   type MakerPythonRuntimeOptions,
@@ -61,6 +63,17 @@ export interface MakerLuaLspCheckResult {
   nextAction: string;
 }
 
+function spawnSyncHidden(
+  command: string,
+  args: string[],
+  options: { encoding?: BufferEncoding; env?: NodeJS.ProcessEnv; timeout?: number } = {}
+): SpawnSyncReturns<string> {
+  return spawnSync(command, args, {
+    ...options,
+    encoding: options.encoding ?? 'utf8',
+    windowsHide: true,
+  });
+}
 type SpawnRunner = (
   command: string,
   args: string[],
@@ -96,7 +109,7 @@ export function getMakerLuaLspVenvDir(): string {
 export function checkMakerLuaLspEnvironment(
   options: MakerLuaLspRuntimeOptions = {}
 ): MakerLuaLspEnvironment {
-  const runner = options.spawn || spawnSync;
+  const runner = options.spawn || spawnSyncHidden;
   const python = options.pythonEnvironment || checkMakerPythonEnvironment(options);
   const platform = options.platform || python.platform || process.platform;
   const base = createLuaLspBase(platform);
@@ -176,10 +189,106 @@ export function checkMakerLuaLspEnvironment(
   };
 }
 
+export async function checkMakerLuaLspEnvironmentAsync(
+  signal?: AbortSignal
+): Promise<MakerLuaLspEnvironment> {
+  const python = await checkMakerPythonEnvironmentAsync(signal);
+  const platform = process.platform;
+  const base = createLuaLspBase(platform);
+  if (!python.ready || !python.python)
+    return {
+      ...base,
+      ready: false,
+      status: 'python_missing',
+      missing: ['python'],
+      error: python.error,
+      nextAction: python.nextAction,
+    };
+  const versionOf = async (command: string): Promise<string | undefined> => {
+    const version = await runPythonCommand(
+      command,
+      ['--version'],
+      signal,
+      process.env,
+      LUA_LSP_PROBE_TIMEOUT_MS
+    );
+    if (version.status === 0) return version.stdout.trim() || 'installed';
+    const help = await runPythonCommand(
+      command,
+      ['--help'],
+      signal,
+      process.env,
+      LUA_LSP_PROBE_TIMEOUT_MS
+    );
+    return help.status === 0 ? 'installed' : undefined;
+  };
+  const ready = (
+    command: string,
+    version: string,
+    scriptsDir?: string,
+    interpreter = python.python
+  ): MakerLuaLspEnvironment => ({
+    ...base,
+    ready: true,
+    status: 'ready',
+    command,
+    version,
+    scriptsDir,
+    python: interpreter,
+    missing: [],
+    nextAction: 'maker-lua-lsp is installed; local Lua diagnostics are available.',
+  });
+  const saved = loadLuaLspRuntimeConfig();
+  if (saved?.command) {
+    const version = await versionOf(saved.command);
+    if (version)
+      return ready(
+        saved.command,
+        version,
+        path.dirname(saved.command),
+        saved.python || python.python
+      );
+  }
+  let command: string | undefined;
+  let scriptsDir: string | undefined;
+  const venv = getLuaLspVenvCommand(platform);
+  if (fs.existsSync(venv)) {
+    command = venv;
+    scriptsDir = path.dirname(venv);
+  } else {
+    const scripts = await runPythonCommand(
+      python.python,
+      ['-c', PYTHON_SCRIPTS_DIR_SCRIPT],
+      signal
+    );
+    if (scripts.status === 0) scriptsDir = scripts.stdout.trim().split(/\r?\n/)[0] || undefined;
+    if (scriptsDir) {
+      const candidate = path.join(
+        scriptsDir,
+        platform === 'win32' ? 'maker-lua-lsp.exe' : LUA_LSP_PACKAGE
+      );
+      if (fs.existsSync(candidate)) command = candidate;
+    }
+  }
+  const version = await versionOf(command || LUA_LSP_PACKAGE);
+  if (version) return ready(command || LUA_LSP_PACKAGE, version, scriptsDir);
+  return {
+    ...base,
+    ready: false,
+    status: saved?.status === 'setup_failed' ? 'setup_failed' : 'missing',
+    command: saved?.status === 'setup_failed' ? saved.command || command : command,
+    python: python.python,
+    scriptsDir,
+    missing: [LUA_LSP_PACKAGE],
+    error: saved?.error,
+    nextAction: 'Run taptap-maker lua-lsp setup to prepare local Lua diagnostics.',
+  };
+}
+
 export function setupMakerLuaLspEnvironment(
   options: MakerLuaLspRuntimeOptions = {}
 ): MakerLuaLspSetupResult {
-  const runner = options.spawn || spawnSync;
+  const runner = options.spawn || spawnSyncHidden;
   const python = options.pythonEnvironment || ensurePythonForLuaLsp(options);
   const platform = options.platform || python.platform || process.platform;
 

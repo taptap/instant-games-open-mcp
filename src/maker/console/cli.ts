@@ -16,10 +16,12 @@ import { launchConsoleServerProcess } from './processLauncher.js';
 export { openConsoleLog } from './processLauncher.js';
 import { startConsoleServer } from './server.js';
 import { ConsoleError } from './types.js';
+import { PreviewOwner } from '../preview/owner.js';
+import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ === 'undefined' ? 'dev' : __MAKER_VERSION__;
-const CONSOLE_PROTOCOL_VERSION = 2;
+const CONSOLE_PROTOCOL_VERSION = 3;
 type Session = {
   schema: 1;
   origin: string;
@@ -27,6 +29,7 @@ type Session = {
   launcher: string;
   pid: number;
   draining?: boolean;
+  userHost?: boolean;
 };
 function home(): string {
   return path.join(getMakerHome(), 'console');
@@ -73,7 +76,8 @@ function readSession(): Session | undefined {
     !Number.isInteger(session.pid) ||
     session.pid <= 0 ||
     typeof session.launcher !== 'string' ||
-    (session.draining !== undefined && typeof session.draining !== 'boolean')
+    (session.draining !== undefined && typeof session.draining !== 'boolean') ||
+    (session.userHost !== undefined && typeof session.userHost !== 'boolean')
   )
     throw new ConsoleError(
       'Invalid local console session. Refusing to contact an unknown service.'
@@ -158,8 +162,12 @@ export async function runConsoleSupervisor(): Promise<void> {
       legacyFilename: getLegacyMakerProjectRegistryPath(),
     });
     const instanceId = randomUUID();
+    const userHost = process.argv[2] === 'console' && process.argv[3] === 'serve';
+    const previewOwner = new PreviewOwner();
     const server = await startConsoleServer({
       registry,
+      hasActivePreview: () => previewOwner.active,
+      closePreviews: () => previewOwner.close(),
       html: getConsoleHtml(),
       version: VERSION,
       packageRoot: path.dirname(path.dirname(path.resolve(process.argv[1]))),
@@ -167,7 +175,10 @@ export async function runConsoleSupervisor(): Promise<void> {
       historyFile: path.join(home(), 'tasks.json'),
       preferencesFile: path.join(home(), 'preferences.json'),
       instanceId,
-      execute: createConsoleExecutor({ entry: process.argv[1] }),
+      execute: createConsoleExecutor({
+        entry: process.argv[1],
+        previewOwner,
+      }),
       onDraining: () => {
         const current = readSession();
         if (current?.instanceId === instanceId)
@@ -180,6 +191,7 @@ export async function runConsoleSupervisor(): Promise<void> {
       instanceId,
       pid: process.pid,
       launcher: launcherIdentity(),
+      userHost,
     };
     try {
       writePrivateJson(sessionPath(), record);
@@ -348,7 +360,7 @@ function removeOwnedFile(filename: string, identity: string): void {
   }
 }
 
-async function ensureSession(): Promise<Session> {
+async function ensureSession(allowLegacy = false): Promise<Session> {
   fs.mkdirSync(home(), { recursive: true, mode: 0o700 });
   const existing = await availableSession();
   if (existing) {
@@ -386,6 +398,7 @@ async function ensureSession(): Promise<Session> {
       cwd: home(),
       logFile: path.join(home(), 'server.log'),
       env: process.env,
+      legacy: allowLegacy,
     });
     for (let attempt = 0; attempt < 80; attempt++) {
       const failure = launch.failure();
@@ -408,11 +421,48 @@ async function ensureSession(): Promise<Session> {
       launch.stopUnpublished();
     }
     throw new ConsoleError(
-      'Console did not start. Inspect the Maker console server log. An empty log usually means the Windows CIM Hidden PowerShell wrapper never reached Node, often because antivirus blocked EncodedCommand. Read docs/MAKER_CONSOLE.md and skills/taptap-maker-local/SKILL.md.'
+      'Console did not start. Inspect the Maker console server log and launcher exit. Normal launch uses Node directly; no WMI fallback was attempted.'
     );
   } finally {
     releaseLaunch();
   }
+}
+
+export async function startConsolePreview(
+  projectPath: string,
+  signal: AbortSignal
+): Promise<Record<string, unknown>> {
+  const session = await ensureSession();
+  if (signal.aborted) throw new Error('CANCELLED');
+  const project = await request(session, '/api/projects', { path: projectPath });
+  if (signal.aborted) throw new Error('CANCELLED');
+  const task = await request(session, '/api/tasks', {
+    projectKey: project.key,
+    action: 'preview.start',
+  });
+  const deadline = Date.now() + 360000;
+  while (!signal.aborted && Date.now() < deadline) {
+    const state = await request(session, '/api/state');
+    const current = state.tasks.find((item: { id: string }) => item.id === task.id);
+    if (!current)
+      throw new Error('Preview task outcome unknown; inspect the console before retrying.');
+    if (current.status !== 'running')
+      return {
+        ...current.result,
+        ok: current.status === 'succeeded',
+        task_id: task.id,
+        console_url: session.origin,
+        ...(current.error ? { error: current.error } : {}),
+      };
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return {
+    ok: false,
+    result: 'UNDETERMINED',
+    task_id: task.id,
+    console_url: session.origin,
+    error: 'Preview request was submitted. Inspect the console; do not retry automatically.',
+  };
 }
 
 function openBrowser(url: string): void {
@@ -470,7 +520,20 @@ export async function runConsoleCli(
     const { previewProject } = await import('../preview/protocol.js');
     previewProject(target);
   }
-  const session = await ensureSession();
+  const session = await ensureSession(options.legacy_wmi === true).catch((error) => {
+    if (options.json === true) {
+      process.stdout.write(
+        JSON.stringify({
+          ok: false,
+          error: sanitizeDiagnosticValue(error instanceof Error ? error.message : String(error)),
+        }) + '\n'
+      );
+      process.exitCode = 1;
+      return undefined;
+    }
+    throw error;
+  });
+  if (!session) return;
   const project = target ? await request(session, '/api/projects', { path: target }) : undefined;
   await request(session, '/api/activity', {});
   const query = new URLSearchParams();

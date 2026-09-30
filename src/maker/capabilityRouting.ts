@@ -7,9 +7,9 @@ function formatMakerCapabilityRoutingIndex(options: { includeFeedback: boolean }
     '- Start/resume/status: maker://status; fallback maker_status_lite.',
     '- Build/remote Web preview/submit/push: check status, use maker_build_current_directory.',
     '- Local preview: taptap-maker preview --target-dir; no commit/remote build.',
-    '  After edits: status; refresh+evidence if alive. Never revive stopped sessions. Clarify ambiguous run intent.',
+    '  After edits: status; refresh+evidence if alive. Never revive stopped sessions. Clarify run intent.',
     '- 打开make mcp控制台: active distribution CLI `console open --target-dir <project> --json`; no web search.',
-    '  Console/preview steps: taptap-maker-local.',
+    '  run-lua-validate: preview validate via taptap-maker-local.',
     '- Ads: read maker://ads-integration-guide before any ad-related work.',
     options.includeFeedback
       ? "- Tap flows: test QR -> generate_test_qrcode; current Maker game's online player feedback"

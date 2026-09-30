@@ -2,11 +2,16 @@ import { spawn } from 'node:child_process';
 import { CONSOLE_ACTIONS, type ConsoleExecutor } from './types.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { checkMakerLuaLspProject } from '../system/luaLsp.js';
+import { executePreviewOperation } from '../cli/preview.js';
+import type { PreviewOwner } from '../preview/owner.js';
 
 export function createConsoleExecutor(options: {
   entry: string;
   execArgv?: string[];
   killGraceMs?: number;
+  hostInstanceId?: string;
+  legacyPreviewLaunch?: boolean;
+  previewOwner?: PreviewOwner;
 }): ConsoleExecutor {
   return async ({
     project,
@@ -23,6 +28,15 @@ export function createConsoleExecutor(options: {
       throw new Error('Unsupported console CLI action.');
     if (action === 'issue.report' && !reportContext) throw new Error('Report context is required.');
     if (signal?.aborted) return { ok: false, error: 'Console query cancelled before launch.' };
+    if (action.startsWith('preview.') && options.previewOwner) {
+      const result = await executePreviewOperation(
+        action.slice('preview.'.length),
+        { target_dir: project, ...(action === 'preview.logs' ? { tail: true } : {}) },
+        signal,
+        options.previewOwner
+      );
+      return { ...result, ok: result.ok === true };
+    }
     if (action === 'lua-lsp.check') {
       const result = await checkMakerLuaLspProject(project, { signal });
       onOutput(result.summary);
@@ -38,6 +52,8 @@ export function createConsoleExecutor(options: {
         : action === 'build' || action === 'qrcode'
           ? [action]
           : ['preview', action.slice('preview.'.length)];
+    if (action === 'preview.start' && options.legacyPreviewLaunch) command.push('--legacy-wmi');
+    if (action === 'preview.logs') command.push('--tail');
     if (action === 'qrcode' && confirmedOrientation)
       command.push('--confirmed-screen-orientation', confirmedOrientation);
     if (action === 'qrcode') {
@@ -83,7 +99,13 @@ export function createConsoleExecutor(options: {
         windowsHide: true,
         shell: false,
         stdio: [action === 'issue.report' ? 'pipe' : 'ignore', 'pipe', 'pipe', 'ipc'],
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+        env: {
+          ...process.env,
+          GIT_TERMINAL_PROMPT: '0',
+          ...(action === 'preview.start' && options.hostInstanceId
+            ? { TAPTAP_MAKER_CONSOLE_HOST_ID: options.hostInstanceId }
+            : {}),
+        },
       });
       if (action === 'issue.report') {
         child.stdin!.on('error', () => {

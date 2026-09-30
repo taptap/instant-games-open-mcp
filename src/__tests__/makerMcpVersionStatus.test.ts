@@ -361,6 +361,7 @@ describe('maker MCP version status integration', () => {
     );
     expect(instructions).toContain('no web search');
     expect(instructions).toContain('taptap-maker-local');
+    expect(instructions).toContain('run-lua-validate');
     expect(instructions).toContain('generate_test_qrcode');
     expect(instructions).toContain(
       'Ads: read maker://ads-integration-guide before any ad-related work.'

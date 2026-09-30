@@ -1218,6 +1218,7 @@ function pushGit(
     const child = spawn(gitCommand, args, {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
     let stdout = '';
     let stderr = '';
@@ -1806,6 +1807,7 @@ function readGitSync(args: string[]): string {
   const gitCommand = getGitCommand();
   const result = spawnSync(gitCommand, args, {
     encoding: 'utf8',
+    windowsHide: true,
   });
   if (result.status !== 0) {
     throw new Error(result.stderr || `${gitCommand} ${args.join(' ')} failed`);
@@ -1819,6 +1821,7 @@ function readGit(args: string[], cwd: string): Promise<string> {
     const child = spawn(gitCommand, args, {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
     let stdout = '';
     let stderr = '';
@@ -2017,6 +2020,7 @@ function runGitCapture(
     const child = spawn(gitCommand, args, {
       cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
     let stdout = '';
     let stderr = '';
@@ -2060,6 +2064,7 @@ function runGit(
     const child = spawn(gitCommand, args, {
       cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
     let stdout = '';
     let stderr = '';

@@ -26,7 +26,6 @@ import type {
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { identifyMakerProject, formatIdentifyHint } from './identify.js';
 import { HiddenStdioClientTransport } from './hiddenStdioTransport.js';
 import { closeTrackedMakerChildTransports, trackMakerChildTransport } from './childTransports.js';
@@ -429,7 +428,7 @@ async function listRemoteProxyTools(options: {
     exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
   });
   const transport = trackMakerChildTransport(
-    new StdioClientTransport({
+    new HiddenStdioClientTransport({
       command: proxy.command,
       args: proxy.args,
       env: mergeStringEnv(process.env, proxy.envVars),
@@ -506,7 +505,7 @@ export async function callRemoteProxyTool(options: {
     : async () => {
         proxy = createProxy();
         const transport = trackMakerChildTransport(
-          new StdioClientTransport({
+          new HiddenStdioClientTransport({
             command: proxy.command,
             args: proxy.args,
             env: mergeStringEnv(process.env, proxy.envVars),
@@ -1054,7 +1053,7 @@ async function reportMakerMcpStartupFromPromise(
   }
 }
 
-const MAKER_SERVER_SHUTDOWN_TIMEOUT_MS = 3000;
+const MAKER_SERVER_SHUTDOWN_TIMEOUT_MS = 7000;
 
 export function installMakerServerExitHandlers(remoteProxyManager?: MakerRemoteProxyManager): void {
   let exiting = false;
@@ -2812,7 +2811,7 @@ async function runRemoteBuildCurrentDirectory(
       }
     : async () => {
         const transport = trackMakerChildTransport(
-          new StdioClientTransport({
+          new HiddenStdioClientTransport({
             command: proxy.command,
             args: proxy.args,
             env: mergeStringEnv(process.env, proxy.envVars),

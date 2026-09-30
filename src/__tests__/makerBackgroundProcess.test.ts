@@ -134,7 +134,7 @@ test.each(['preview', 'console'])('%s uses the Windows broker at execution time'
     };
     const launch = await (kind === 'preview'
       ? launchPreviewSupervisorProcess(options)
-      : launchConsoleServerProcess(options));
+      : launchConsoleServerProcess({ ...options, legacy: true }));
     const [command, args, settings] = jest.mocked(spawn).mock.calls.at(-1)!;
     expect(command).toBe('powershell.exe');
     expect(args).toEqual(expect.arrayContaining([expect.stringContaining('Invoke-CimMethod')]));
@@ -177,6 +177,94 @@ test.each(['timeout', 'cancel'])('bounds a stalled Windows broker: %s', async (m
     expect(child.kill).toHaveBeenCalledTimes(1);
   } finally {
     jest.useRealTimers();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test.each(['direct', 'attached'] as const)(
+  'Windows %s preview launches Node without CIM or sensitive inherited environment',
+  async (mode) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-direct-launch-'));
+    const child = Object.assign(new EventEmitter(), {
+      pid: 12345,
+      exitCode: null,
+      signalCode: null,
+      connected: true,
+      disconnect: jest.fn(),
+      unref: jest.fn(),
+      kill: jest.fn(),
+    });
+    jest.mocked(spawn).mockReturnValueOnce(child as unknown as ReturnType<typeof spawn>);
+    try {
+      const launch = await launchPreviewSupervisorProcess({
+        execPath: 'C:/Program Files/node.exe',
+        execArgv: [],
+        entry: 'C:/Maker/maker.js',
+        project: root,
+        cwd: root,
+        logFile: path.join(root, 'supervisor.log'),
+        env: { TAPTAP_MCP_MAC_TOKEN: 'private-secret', TAPTAP_MAKER_HOME: root },
+        platform: 'win32',
+        mode,
+      });
+      const [command, args, settings] = jest.mocked(spawn).mock.calls.at(-1)!;
+      expect(command).toBe('C:/Program Files/node.exe');
+      expect(args).toContain('__maker-preview-supervisor');
+      expect(settings?.env?.TAPTAP_MAKER_HOME).toBe(root);
+      expect(JSON.stringify(settings)).not.toContain('private-secret');
+      expect(settings?.detached).toBe(mode === 'direct');
+      expect(settings?.stdio).toEqual(
+        mode === 'attached'
+          ? ['ignore', 'ignore', expect.any(Number), 'ipc']
+          : ['ignore', 'ignore', expect.any(Number)]
+      );
+      expect(launch.expectedPid).toBe(12345);
+      expect(child.unref).toHaveBeenCalledTimes(mode === 'direct' ? 1 : 0);
+      if (mode === 'attached') {
+        launch.releaseOwner?.();
+        expect(child.disconnect).toHaveBeenCalledTimes(1);
+      } else expect(launch.releaseOwner).toBeUndefined();
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+);
+
+test('blocked direct Windows spawn fails at the launcher stage without an unknown PID', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-blocked-launch-'));
+  const child = Object.assign(new EventEmitter(), {
+    pid: undefined,
+    exitCode: null,
+    signalCode: null,
+    unref: jest.fn(),
+    kill: jest.fn(),
+  });
+  jest.mocked(spawn).mockImplementationOnce(() => {
+    process.nextTick(() =>
+      child.emit('error', Object.assign(new Error('Access denied'), { code: 'EACCES' }))
+    );
+    return child as unknown as ReturnType<typeof spawn>;
+  });
+  try {
+    const launch = await launchPreviewSupervisorProcess({
+      execPath: 'C:/Program Files/node.exe',
+      execArgv: [],
+      entry: 'C:/Maker/maker.js',
+      project: root,
+      cwd: root,
+      logFile: path.join(root, 'supervisor.log'),
+      env: {},
+      platform: 'win32',
+      mode: 'direct',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(launch.failure()?.message).toContain('NATIVE_LAUNCH_FAILED');
+    expect(launch.failure()?.message).toContain('EACCES');
+    expect(launch.expectedPid).toBeUndefined();
+    expect(launch.stopUnpublished()).toBe(true);
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(jest.mocked(spawn).mock.calls.at(-1)![0]).not.toBe('powershell.exe');
+  } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

@@ -68,6 +68,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
         className: '',
         hidden: true,
         dataset: {},
+        contains: () => false,
         replaceChildren: jest.fn(),
         querySelectorAll: () => [],
         append: jest.fn(),
@@ -188,9 +189,10 @@ describe('Maker console standalone UI', () => {
 
   it('records a preview preflight failure so it can use the normal feedback flow', async () => {
     const { api, fetch } = harness();
+    const notify = jest.fn();
     api.setup([{ key: 'alpha', valid: true, name: 'Alpha', path: '/tmp/alpha' }], {
       render: jest.fn(),
-      notify: jest.fn(),
+      notify,
       announce: jest.fn(),
     });
     api.changeSelection('alpha');
@@ -635,6 +637,7 @@ describe('Maker console standalone UI', () => {
       confirm: jest.fn(),
       notify: jest.fn(),
       announce,
+      loadProject: jest.fn(),
     });
     const task = {
       id: 'build-1',
@@ -881,6 +884,115 @@ describe('Maker console standalone UI', () => {
     expect(signal.aborted).toBe(true);
     await api.poll();
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads a selected project once, then keeps the heartbeat free of git', () => {
+    const source = script();
+    expect(source).toContain("page === 'overview' && !detail && currentProject()?.valid");
+    expect(source).not.toContain('if (currentProject()?.valid) await loadProject()');
+  });
+
+  it('refreshes preview when the heartbeat first sees a running task finish', async () => {
+    const { api, fetch } = harness();
+    const refresh = jest.fn(async () => undefined);
+    const notify = jest.fn();
+    api.changeSelection('alpha');
+    api.setup([{ key: 'alpha', valid: true, name: 'Alpha' }], {
+      render: jest.fn(),
+      refresh,
+      notify,
+      announce: jest.fn(),
+    });
+    let polls = 0;
+    fetch.mockImplementation(async (path: string) => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        if (path === '/api/state') {
+          polls++;
+          return {
+            projects: [{ key: 'alpha', valid: true, name: 'Alpha' }],
+            tasks: [
+              {
+                id: 'task-1',
+                projectKey: 'alpha',
+                projectName: 'Alpha',
+                action: 'preview.start',
+                status: polls === 1 ? 'running' : 'succeeded',
+              },
+            ],
+            version: 'dev',
+            distribution: 'standalone',
+            platform: 'win32',
+          };
+        }
+        if (String(path).includes('/preview'))
+          return { process_alive: true, install_state: 'ready' };
+        return {
+          project: { key: 'alpha', valid: true, name: 'Alpha' },
+          config: {},
+          git: { branch: 'main', head: 'abc', changeCount: 0 },
+          health: { status: 'ready' },
+        };
+      },
+    }));
+    await api.pollState();
+    const afterFirst = refresh.mock.calls.length;
+    await api.pollState();
+    expect(refresh.mock.calls.length).toBeGreaterThan(afterFirst);
+    api.dispose();
+  });
+
+  it('retries settled task handling after switching back to its project', async () => {
+    const { api, fetch } = harness();
+    const projects = [
+      { key: 'alpha', valid: true, name: 'Alpha' },
+      { key: 'beta', valid: true, name: 'Beta' },
+    ];
+    let release!: () => void;
+    const refresh = jest.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        })
+    );
+    api.setup(projects, {
+      render: jest.fn(),
+      refresh,
+      notify: jest.fn(),
+      announce: jest.fn(),
+    });
+    api.setPage('projects');
+    let polls = 0;
+    fetch.mockImplementation(async (path: string) => ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        path === '/api/state'
+          ? {
+              projects,
+              tasks: [
+                {
+                  id: 'qrcode-1',
+                  projectKey: 'alpha',
+                  projectName: 'Alpha',
+                  action: 'qrcode',
+                  status: polls++ === 0 ? 'running' : 'succeeded',
+                },
+              ],
+            }
+          : {},
+    }));
+    await api.pollState();
+    const completion = api.pollState();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    api.chooseProject('beta');
+    release();
+    await completion;
+    api.chooseProject('alpha');
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 
   it('caps browser task retention during a long session', () => {

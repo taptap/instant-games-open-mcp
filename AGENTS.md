@@ -382,6 +382,52 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- `preview validate` 是 `run-lua-validate` Skill 的本地执行适配，不实现第二套判级或测试框架。
+  Skill 分发由 UrhoX ai-dev-kit 维护；安装及验证时检测到本机仍排除该 Skill，先提示再仅移除
+  当前平台的该项，其它平台和排除项不变。独立检查原 Skill 文件，缺失须明确提示更新 ai-dev-kit；
+  不自动升级、不修改 Skill 正文、不阻断 Runtime 验证。
+  MCP 与项目指引先路由到 taptap-maker-local 获取本地调用映射。
+  复用 Runtime、项目准备、manifest 加载、日志和项目锁；保留原始报告及失败证据，
+  validate/start/run 在项目锁内核验遗留验证 Runtime，存活或创建结果未知不得重复启动；
+  日志落盘失败必须反映到采集结果，不得因报告有效就返回 COMPLETED。
+  `COMPLETED` 只表示收集完成，游戏结论由 Skill/Agent 给出。截图帧显式选择，测试入口与断言
+  使用原有 Runtime 能力；不改引擎、不自动停止常驻窗口、不改游戏代码或发布配置。
+  正式参数和限制统一见 `docs/MAKER_LOCAL_PREVIEW.md`，插件副本通过生成脚本同步。
+- Validate 在准备前记录 run ID 和证据路径，stderr 发出 `validation.started`，最终 stdout 保持
+  结构化结果。多轮验证由 Agent 依照原 Skill 顺序调用，不新增批量测试框架或引擎协议。
+  证据独立存于项目 realpath 哈希下的 `validation/<run ID>`，完成后保留 7 天；
+  每轮结束检查当前项目的清理时间，成功清理后 24 小时内跳过历史及容量扫描，
+  时间记录存于该项目 `validation/cleanup.json`，失败不更新时间；复用项目锁，
+  不设后台定时任务、不联动控制台开关、不扫描其它项目。
+  活跃及进程未知记录不删除，5 GiB 仅告警，显式 `--output-dir` 归档不参与自动清理。
+  启动安全检查核验全部记录，不受控制台列表的 5000 轮分页上限影响；归档保留最终清理告警。
+  控制台 Validate 页签只读固定证据文件，不调用验证、不依赖推送；多轮按时间倒序滚动展示，最新结果在最上面，
+  向下分页加载更早记录，不用轮次下拉框；日志/JSON 缩起最多 3 行、截图为小图。按项目隔离历史、
+  滚动位置和各轮日志游标，已完成证据缓存，隐藏时停止轮询、图片按需读取。
+  原始游戏结果与证据收集结果分开，未完成记录不得视作 PASS。
+  截图检查仅识别接近全黑/透明和已观察到的 Bootstrap 未完成，保留无效截图及原始游戏报告；
+  安全完成且无实际运行错误时等 3 秒、延后截图帧，最多 2 次重试，逐轮留证、允许取消。
+  重试默认超时按帧数比例增加且不超过 580 秒，显式超时不变；按前轮 Runtime 耗时估算超限时
+  不启动重试并提示调整预算。历史翻页与证据读取解耦，未变化卡片复用，不提高读取并发。
+  不重试缺产物、崩溃、超时、取消或未知进程；任意游戏 loading 和玩法仍由 Agent 看图判定。
+
+- Python 异步命令取消/超时后的输出排空最多等待 6 秒；POSIX 回收进程组不依赖组长仍存活。
+  Windows 父进程已退出时禁止拿旧 PID 执行 taskkill，无法验证回收必须明确报错，
+  不得将关闭管道等同于后代已回收。
+
+- Preview preparation must await asynchronous Python probes/setup and sequential asynchronous copies.
+  Cancellation and timeout wait for owned subprocess cleanup before returning; never launch Runtime
+  after cancellation. Keep the synchronous Python API for unrelated callers.
+- Agent preview treats reloading as an active transition. After owner cleanup, verify session and
+  supervisor identity and read logs from the final reload, not the initial launch snapshot.
+- Runtime close drains the final announced Lua log in bounded chunks before publishing terminal
+  evidence; incomplete collection must be explicit. A visible window is not gameplay acceptance.
+
+- `preview stop` 的取消标记必须绑定已核验的 session_id 与 supervisor_id，不能用项目级文件变化
+  取消任意新会话。无会话不写标记；旧停止请求与新启动并发必须有回归测试。
+- 插件生成前使用锁文件依赖（`npm ci`），禁止混入本地漂移的版本。CodeQL 扫描第一方源码，
+  仅排除两个包含第三方依赖的生成 bundle；不得关闭源码查询以绕过告警。
+
 - 预览创建 Runtime 前必须持久化 runtime_launch_pending，取得 PID 后立即登记。
   已发布端点的 starting 会话只有在 supervisor 确认不存在且 Runtime 创建结果明确时才能恢复；
   缺少阶段标记的旧记录、创建结果未知和权限未知均不得凭零 PID 自动回收。
@@ -472,10 +518,17 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 - 本地服务仅监听 loopback；控制台页面存活时使用每分钟页面租约续期，焦点或可见性恢复时立即续期；
   普通状态轮询和健康检查不续期。页面租约停止且无任务约 30 分钟后退出，不增加常驻唤醒进程。
   同一 Maker 版本跨 Codex、WorkBuddy 和独立 CLI 复用用户级控制台，实例身份不得绑定插件路径或
-  distribution。Windows 通过 PowerShell/CIM 系统代理启动服务，不能只依赖 Node detached/unref
-  脱离 AI IDE 的受管进程树；启动命令不得转发 PAT、MAC token 或 client secret。
-  self runtime 必须复制 `package.json`，保留 ESM 声明；PowerShell 准备步骤保持 fail-fast，
-  仅 native 调用阶段允许 stderr 错误流继续写日志，使用真实退出码，不以警告判定失败。
+  distribution。console open 自动复用或普通 Node 直启同版本控制台，不要求手动 Host。
+  控制台预览直接在控制台进程内运行 PreviewSession，不经 CLI 或独立 supervisor 子进程；
+  preview start 通过已有项目登记和任务 API 提交预览，调用方结束不停止用户游戏。
+  Agent 用 preview run 前台直接持有 Runtime，可按会话读取日志、状态并停止；默认上限 10 分钟，
+  --duration-ms 可缩短。正常收尾等待自己持有的 Runtime 退出，不接管别人的调试会话。
+  控制台日志和 Agent 最终证据读取有界末尾（最多 100 行、64 KiB），显示截断信息；
+  CLI logs 保留从头分页及 session/reload 增量校验，--tail 显式读取最近输出。
+  整个 IDE 回收进程树仍可结束预览；外部 console serve 仅为可选独立入口，不自动 breakaway。
+  常驻窗口截图与游戏断言 JSON 尚不支持；一次性验证用 preview validate，
+  会话状态不能视作游戏验证通过。仅显式 --legacy-wmi 保留旧入口。
+  启动命令不得转发 PAT、MAC token 或 client secret，Windows 直启子进程只继承白名单环境。
   控制台不生成、保存或校验访问 token，页面和 CLI 请求不携带 Bearer；loopback 地址只用于本机
   访问，不应被描述为带凭证的远程会话链接；
   链接包含本机 origin 和可选 projectid（真实项目 ID），多副本时用 checkout 区分目录；
@@ -483,6 +536,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   保留 no-store、Host/Origin 校验、跨站拒绝及写操作精确同源要求，不改 Maker PAT 或插件凭证。
   保留访问校验、空闲退出和有界资源管理。
   预览与控制台独立管理；只清理已确认所有权的进程和缓存，不把未知结果当作失败自动重试。
+- Runtime 安装器 stdin 是专用取消通道，默认不得传给下载等子进程；子进程使用 DEVNULL，
+  明确传入的 PIPE 等输入保持原意。取消、超时及失败要等待已登记的子进程回收。
 - 本地预览启动 Runtime 前必须先分类项目：满足前述直读条件的单机项目直接运行原目录；
   `@runtime.multiplayer`、`@runtime.max_players`、持久世界配置、`entry@server`、
   `scripts/server_main.lua` 或 `scripts/server.lua` 均进入受管理副本；缺少标准配置的新项目
@@ -506,10 +561,12 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   预览窗口设置由 `src/maker/preview/windowSettings.ts` 统一解析，按项目保存在用户预览缓存中；
   横竖屏默认跟随发布配置，缺失时横屏，允许手动覆盖；保存不自动重启，启动或刷新时应用，
   不得写回项目发布配置。控制台与 CLI 共用窗口设置，运行中尺寸以启动时的 preflight 为准。
-  Windows 控制台与预览 supervisor 共用 `src/maker/system/backgroundProcess.ts` 的 CIM 启动器。
-  启动失败且控制通道未发布时，只回收命令行仍匹配本次 EncodedCommand 的包装进程，不按历史 PID 误杀。
-  锁恢复互斥口 EACCES 时改试邻近口，EADDRINUSE 视为互斥占用。空 supervisor/server 日志加超时按
-  CIM EncodedCommand 拦截处理，不改 PATH；AI 排障见 skills/taptap-maker-local/SKILL.md。
+  Windows 预览由控制台或 Agent Node 直接 spawn Runtime，shell:false、detached:false；
+  共享 PreviewOwner 跟踪进程内会话，保留 supervisor_pid 字段兼容但不另开 supervisor 进程。
+  Agent 在项目锁内确认无活动会话；stop 在写取消标记前验证 session，禁止影响其它会话。
+  Windows 强杀清理依赖 Node/libuv 非 detached 子进程 Job 行为并进行实测，不新增本地 Native
+  安装器或绕过宿主管理。Lua 日志仅跟随本轮公布的固定目录文件，校验文件身份、拒绝链接并有界读取。
+  旧 CIM 仅作显式 --legacy-wmi 兼容排障，空日志不得凭猜测自动重试或改 PATH。
   预览离线恢复必须确认会话证据匹配且两个进程都不存在；状态查询不写回会话，避免覆盖并发启动。
   Builder 快照须逐字节匹配固定 Git 提交；不修改引擎、公共资源或游戏原目录来掩盖预览错误。
   Builder 多 source 重复引用仅由 preview/builderDiagnostics.ts 校验本轮精确 hash 对应的缓存索引后

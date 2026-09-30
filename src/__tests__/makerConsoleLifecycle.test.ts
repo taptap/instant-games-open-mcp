@@ -247,4 +247,30 @@ describe('Maker console lifecycle', () => {
       }
     }
   );
+  test('user Host remains available while a verified preview is active', async () => {
+    let previewActive = true;
+    const server = await startConsoleServer({
+      registry,
+      html: '',
+      version: 'test',
+      execute: async () => ({ ok: true }),
+      idleMs: 100,
+      now: () => now,
+      hasActivePreview: () => previewActive,
+    });
+    servers.push(server);
+    now = 101;
+    await delay(250);
+    expect((await fetch(server.origin + '/api/health', { headers: headers(server) })).status).toBe(
+      200
+    );
+    const shutdown = await fetch(server.origin + '/api/shutdown', {
+      method: 'POST',
+      headers: headers(server),
+      body: '{}',
+    });
+    expect(shutdown.status).toBe(409);
+    previewActive = false;
+    await expectClosed(server);
+  });
 });

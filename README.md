@@ -53,9 +53,6 @@ Lua 检查开关与构建结果集中在远端构建区域，窗口设置默认�
 未配置时使用横屏，也可随时手动选择。设置按项目保存，下次启动或刷新预览时生效，不修改发布配置。
 受管理 Runtime 在安装和启动时会自动补齐引擎所需目录与中文兜底字体；项目自带字体仍按项目隔离，
 不会写入所有项目共用的 Runtime。
-相同 Maker 版本从不同 AI IDE 打开时复用同一个用户级控制台；Windows 使用系统进程代理启动，
-避免 AI 命令结束时连带关闭控制台服务。本地预览 supervisor 共用该启动方式；
-意外断开后确认两个预览进程均已退出时，可直接重新启动，无需手动删除会话文件。
 Maker 自有「创作画布」作为相对独立模块嵌入控制台；交互在浏览器完成，已保存的画布布局写入项目 `.maker/canvases/`，项目素材导入受控写入 `assets/image/`。首版支持本地视频抽帧、统一纯色背景去除、重复帧确认、缩放和图集保存，不调用付费生成。架构与边界见 [画布架构文档](docs/MAKER_CREATIVE_CANVAS.md)。
 首次进入与新建默认使用空白画布；顶部新建菜单另提供序列帧模板。新模板先编辑或替换首图，其他卡片仅展示示例；首图完成后确认一次，即按模板继续生成视频、抽帧、抠图、图集和动画。失败停在当前步骤，可继续，不自动重试付费任务；旧画布不自动改写。
 序列帧卡片仅展示视频来源和结果缩略图，选中后点击「编辑」进入大弹窗处理；参数与帧条不占用画布卡片。重新编辑保留旧结果，保存成功才替换，放弃草稿不影响已有帧集。
@@ -63,6 +60,14 @@ Maker 自有「创作画布」作为相对独立模块嵌入控制台；交互�
 画布卡片尽量只展示内容：空图片卡显示加号导入区，已有图片卡只显示图片；选中后菜单贴在卡片顶部，生成面板贴在卡片底部或侧边。普通快速编辑新增结果卡，模板首图则原位替换；视频面板点击空白处可关闭，只有点击「生成视频」才新建卡片。视频时长为 4～8 秒，超过 5 秒标红。任务记录独立保存，支持失败重试和原视频任务查询；页面不持有 PAT。
 序列帧编辑器支持左侧帧网格、右侧预览，单帧画笔/橡皮/透明填充及操作批量应用；新任务默认 3 秒、4 FPS，去背景后确认重复帧，再调整尺寸保存。新增色差抠图去溢色和疑似裁断的贴边提示；旧任务可保留连通抠图模式。构图防裁切建议、官方 Skill 参考结论与编辑说明见 [视频序列帧指南](docs/MAKER_SEQUENCE_GUIDE.md)。
 
+相同 Maker 版本从不同 AI IDE 打开时复用同一个控制台，由 Node 直接启动，不要求手动打开 Host。
+停止预览只针对当前已登记会话，不会误取消并发启动的新预览；无会话时不会留下停止标记。
+用户预览由控制台直接持有 Runtime，发起请求的 AI 命令结束不影响游戏；AI 调试则由前台
+Node 会话直接持有 Runtime，结束后清理本轮进程。正常路径没有 WMI/CIM 或预览中转进程。
+控制台和 AI 调试结果显示最近的游戏日志；需要完整分页时使用 preview logs，
+读取末尾可加 --tail。日志错误会保留，不把窗口启动成功当成游戏验证通过。
+Windows 安装器已隔离下载子进程与取消通道，避免子进程等待输入导致安装卡住。
+退出整个 IDE 仍可能触发宿主的进程树回收；不自动绕过这一边界。
 FrameCrate 控制台集成已改为通用插件注册与持久内嵌标签页（2026-09-16，本地验证及独立复核完成），
 不再以独立浏览器标签作为控制台入口。显式设置 `FRAMECRATE_STUDIO_DIR` 指向已安装的
 framepacker Studio，按已登记项目嵌入完整本地编辑器与 AI 工作流；切换项目或标签应保留编辑现场。
@@ -169,6 +174,15 @@ WorkBuddy 旧独立 MCP 的迁移使用 `--client workbuddy`，只把旧注册�
 - [OpenClaw Plugin 说明](docs/OPENCLAW_PLUGIN.md)
 
 ## 🛠️ TapTap Maker 本地开发（CLI-first）
+
+本地 `run-lua-validate` Skill 可通过 `preview validate` 调用已有 Runtime 的报告、日志、
+截图和断言能力，复用本地预览的项目准备与资源加载。验证流程和游戏结论仍由 Skill/Agent
+执行，不修改引擎。参数、运行条件与失败处理见 [本地验证说明](docs/MAKER_LOCAL_PREVIEW.md#run-lua-validate-本地接入)。
+控制台 Validate 以可滚动过程列表展示多轮调用，最新结果在最上面，日志/JSON 缩起显示 3 行、截图显示小图；
+验证不依赖控制台运行。过早的黑屏/引擎加载截图可有界重试，游戏 loading 仍须 AI 看图确认。
+支持 Agent 按需求重复验证，证据按项目保留 7 天；验证结束触发清理检查，每个项目成功清理后
+24 小时内不重复扫描，无后台定时任务。`--output-dir` 可长期归档验收材料。
+原 Skill 文件缺失时，即使本地未配置排除规则也会提示更新 ai-dev-kit；归档保留最终清理告警。
 
 Maker 本地开发独立发布为 `@taptap/maker`。首次配置推荐直接运行：
 
@@ -842,3 +856,14 @@ MIT
 - [官方 API 文档](https://developer.taptap.cn/minigameapidoc/dev/api/open-api/leaderboard/)
 - [MCP 协议规范](https://modelcontextprotocol.io/)
 - [Issues](https://github.com/taptap/instant-games-open-mcp/issues)
+
+Windows 本地预览分两种：AI 调试用 `taptap-maker preview run --target-dir <项目绝对路径> --json`，
+保持前台会话，按 session 查询日志或停止；默认最多 10 分钟，`--duration-ms` 可缩短。
+给用户预览用 `preview start` 或 `console open` 后点击预览；控制台自动启动并直接管理游戏，
+不再要求手动启动 Host。两种用途共用准备、日志和停止逻辑；常驻窗口截图及游戏断言 JSON 尚不支持，
+一次性引擎验证报告和截图使用 `preview validate`，再按 `run-lua-validate` Skill 检查。
+正常路径不调用 WMI；仅显式 `--legacy-wmi` 使用旧入口。详见 docs/MAKER_LOCAL_PREVIEW.md。
+
+Preview preparation now runs asynchronously without changing launch ownership. Agent refresh keeps
+the session alive and returns final-round evidence; Runtime exit drains pending Lua logs within
+bounds. Process/window creation alone does not establish that a game loaded or is playable.

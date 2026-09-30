@@ -6,9 +6,16 @@ import { ConsoleProjects } from './projects.js';
 import { ConsoleTasks } from './tasks.js';
 import { ConsoleError, type ConsoleAction, type ConsoleExecutor } from './types.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
-import { checkMakerLuaLspEnvironment } from '../system/luaLsp.js';
+import { checkMakerLuaLspEnvironmentAsync } from '../system/luaLsp.js';
 import { ConsolePlugins, type ConsolePlugin } from './plugins.js';
 import { readPreviewWindowSettings, savePreviewWindowSettings } from '../preview/windowSettings.js';
+import {
+  listValidationRuns,
+  readValidationRun,
+  readValidationLogs,
+  readValidationPreparation,
+  readValidationArtifact,
+} from '../preview/validationHistory.js';
 import { ConsoleUpdates } from './updates.js';
 import { ConsoleDocuments } from './documents.js';
 import { chooseProjectDirectory } from './folderPicker.js';
@@ -49,9 +56,11 @@ export async function startConsoleServer(options: {
   preferencesFile?: string;
   instanceId?: string;
   idleMs?: number;
+  hasActivePreview?: () => boolean;
   now?: () => number;
   drainMs?: number;
   onDraining?: () => void;
+  closePreviews?: () => Promise<void>;
   plugins?: readonly ConsolePlugin[];
   remoteProxyManager?: MakerRemoteProxyManager;
 }) {
@@ -68,18 +77,46 @@ export async function startConsoleServer(options: {
   const remoteProxyManager = options.remoteProxyManager || createMakerRemoteProxyManager();
   let selectedProjectKey = readSelectedProjectKey(options.preferencesFile);
   let luaLspCache: { at: number; value: Record<string, unknown> } | undefined;
+  let luaLspPending: Promise<void> | undefined;
   const luaLspStatus = (): Record<string, unknown> => {
     if (luaLspCache && now() - luaLspCache.at < 30_000) return luaLspCache.value;
-    const environment = checkMakerLuaLspEnvironment();
-    const value = {
-      ready: environment.ready,
-      status: environment.status,
-      version: environment.version || null,
-      nextAction: environment.nextAction,
-      error: environment.error ? environment.error.slice(0, 512) : null,
-    };
-    luaLspCache = { at: now(), value };
-    return value;
+    luaLspPending ??= checkMakerLuaLspEnvironmentAsync(readAbort.signal)
+      .then((environment) => {
+        luaLspCache = {
+          at: now(),
+          value: {
+            ready: environment.ready,
+            status: environment.status,
+            version: environment.version || null,
+            nextAction: environment.nextAction,
+            error: environment.error ? environment.error.slice(0, 512) : null,
+          },
+        };
+      })
+      .catch((error) => {
+        luaLspCache = {
+          at: now(),
+          value: {
+            ready: false,
+            status: 'setup_failed',
+            version: null,
+            error: String(
+              sanitizeDiagnosticValue(error instanceof Error ? error.message : error)
+            ).slice(0, 512),
+          },
+        };
+      })
+      .finally(() => {
+        luaLspPending = undefined;
+      });
+    return luaLspCache?.value || { ready: false, status: 'checking', version: null };
+  };
+  const previewsActive = (): boolean => {
+    try {
+      return options.hasActivePreview?.() ?? false;
+    } catch {
+      return true;
+    }
   };
   let origin = '';
   let draining = false;
@@ -317,8 +354,11 @@ export async function startConsoleServer(options: {
       }
       if (request.method === 'POST' && url.pathname === '/api/shutdown') {
         await bodyForMutation();
-        if (selectingFolder || updates.job.status === 'running' || tasks.active)
-          throw new ConsoleError('Wait for active tasks before stopping the console.', 409);
+        if (selectingFolder || updates.job.status === 'running' || tasks.active || previewsActive())
+          throw new ConsoleError(
+            'Stop the active preview or wait for running tasks before stopping the console.',
+            409
+          );
         json(200, { ok: true });
         setImmediate(() => void close());
         return;
@@ -339,6 +379,9 @@ export async function startConsoleServer(options: {
       if (!project) throw new ConsoleError('Not found.', 404);
       const [, key, suffix] = project;
       const plugin = suffix?.match(/^plugins\/([a-z][a-z0-9-]{0,47})\/open$/);
+      const validation = suffix?.match(
+        /^validation(?:\/([^/]+)(?:\/(logs|prepare|screenshot\.png))?)?$/
+      );
       if (request.method === 'DELETE' && !suffix) {
         await bodyForMutation();
         if (tasks.busy(key)) throw new ConsoleError('Project has an active task.', 409);
@@ -353,6 +396,39 @@ export async function startConsoleServer(options: {
         json(200, ready);
       } else if (request.method === 'GET' && !suffix) {
         json(200, await read(() => options.registry.detail(key, readAbort.signal)));
+      } else if (request.method === 'GET' && validation) {
+        await read(async () => {
+          const directory = options.registry.resolve(key).path;
+          const [, id, artifact] = validation;
+          if (!id) {
+            const cursors = url.searchParams.getAll('before');
+            if (
+              cursors.length > 1 ||
+              (cursors.length === 1 &&
+                !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(cursors[0]))
+            )
+              throw new ConsoleError('Invalid history cursor.');
+            json(200, await listValidationRuns(directory, cursors[0]));
+          } else if (artifact === 'logs') {
+            const cursors = url.searchParams.getAll('cursor');
+            const cursor = cursors[0] ?? '0';
+            if (
+              cursors.length > 1 ||
+              !/^(0|[1-9][0-9]*)$/.test(cursor) ||
+              !Number.isSafeInteger(Number(cursor))
+            )
+              throw new ConsoleError('Invalid log cursor.');
+            json(200, await readValidationLogs(directory, id, Number(cursor)));
+          } else if (artifact === 'prepare') {
+            json(200, await readValidationPreparation(directory, id));
+          } else if (artifact === 'screenshot.png') {
+            const bytes = await readValidationArtifact(directory, id, 'screenshot.png');
+            response.writeHead(200, { 'Content-Type': 'image/png' });
+            response.end(bytes);
+          } else {
+            json(200, await readValidationRun(directory, id));
+          }
+        });
       } else if (request.method === 'POST' && suffix === 'git/pull') {
         await bodyForMutation();
         const release = tasks.occupy(key);
@@ -460,7 +536,8 @@ export async function startConsoleServer(options: {
         !selectingFolder &&
         updates.job.status !== 'running' &&
         !tasks.active &&
-        !plugins.active
+        !plugins.active &&
+        !previewsActive()
       )
         void close();
     },
@@ -478,9 +555,11 @@ export async function startConsoleServer(options: {
       /* A full/read-only disk must not prevent an otherwise clean shutdown. */
     }
     closePromise = (async () => {
+      await luaLspPending;
       await plugins.close();
       await tasks.settled();
       await remoteProxyManager.closeAll();
+      await options.closePreviews?.();
       await new Promise<void>((resolve) => {
         const timer = setTimeout(() => {
           for (const socket of sockets) socket.destroy();

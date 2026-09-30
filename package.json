@@ -65,6 +65,7 @@
     "crypto-js": "^4.2.0",
     "dotenv": "17.2.3",
     "marked": "9.1.6",
+    "pngjs": "7.0.0",
     "protobufjs": "8.8.0",
     "qrcode": "1.5.4",
     "ws": "8.21.3",

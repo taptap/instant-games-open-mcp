@@ -1,0 +1,4 @@
+name: First-party sources
+paths-ignore:
+  - plugins/taptap-maker/dist/maker.js
+  - plugins/workbuddy/taptap-maker/dist/maker.js

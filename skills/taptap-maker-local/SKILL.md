@@ -153,6 +153,96 @@ remote test version; it never builds or uploads server code automatically.
    `--cursor` and optionally `--limit` (1–500). Reset cursor after a reload. Keep local evidence
    separate from `.maker/logs/runtime/`, which belongs to the remote watcher.
 
+### Local run-lua-validate
+
+Use the project's `run-lua-validate` Skill for runtime checks, screenshots, assertions and
+controlled-state visual verification. Keep its review/fix/retest workflow; Maker supplies the
+local execution adapter, not another test framework.
+
+On a bound macOS/Windows Maker project, use this distribution's CLI instead of the Skill's
+standalone Runtime installer/launch commands. Query `preview status` first; an active preview
+must be explicitly stopped with user authorization. For the command mapping and options read
+`docs/MAKER_LOCAL_PREVIEW.md` section `run-lua-validate 本地接入`.
+Example: `preview validate --target-dir <PROJECT> --mode both --screenshot-frame <N> --json`,
+where N is selected for the current test, not a fixed readiness guarantee.
+Use the returned report/log/artifact paths with the original Skill's review rules.
+`COMPLETED` means evidence collected, not game PASS. Preserve failures and inspect partial
+evidence. No Computer Use capture, engine modification or remote-build fallback is required.
+When the user requests Validate and the project Skill is unavailable, the Agent must first
+enable/install the existing local Skill; do not immediately download or update ai-dev-kit:
+
+1. Check `<PROJECT>/skills/run-lua-validate/SKILL.md` and
+   `<PROJECT>/.installer/skills/run-lua-validate/SKILL.md`. If neither exists, explain that
+   the source is missing and guide `dev-kit update --target-dir <PROJECT>` through this
+   distribution. Do not invent or rewrite the original Skill.
+2. If source exists, inspect `<PROJECT>/.installer/local-skill-filter.json` as JSON.
+   When `exclude_skills.win32` (Windows) or `exclude_skills.darwin` (macOS) contains
+   `run-lua-validate`, tell the user before removing only that entry for this platform.
+   Preserve all other values. A missing filter needs no repair; malformed/unwritable
+   configuration must be reported, not replaced with an empty configuration.
+3. Run the existing project installer: Windows uses
+   `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "<PROJECT>/tools/install-skills.ps1" all`;
+   macOS uses `bash "<PROJECT>/tools/install-skills.sh" all`.
+   Check its exit status and the installed Skill file, not just its success message.
+4. For Codex, ensure `<PROJECT>/.agents/skills/run-lua-validate/SKILL.md` is readable.
+   If the old installer only installs `.codex`, copy the original Skill directory, including
+   supporting files, from `.installer/skills` (or `skills` if still there) into the missing
+   `.agents/skills/run-lua-validate` directory. If the installer is absent, likewise install
+   only this Skill into the current host's documented project Skill directory.
+   Do not overwrite an existing directory or broken link; inspect/report conflicts first.
+5. Read the installed `SKILL.md` and its needed references, then continue validation using
+   the local mapping below. If the host needs a Skill refresh/new session for discovery,
+   explain that; do not claim the current session has loaded it merely because installation
+   succeeded. Report permission/install failures rather than pretending the Skill is ready.
+
+These are Agent-executed local setup steps, not a new CLI command or automatic download.
+Skill distribution belongs to UrhoX ai-dev-kit. Maker detects legacy exclusions, warns before
+removing only this Skill from the current platform's list, and preserves all other entries.
+If original Skill files were already deleted, guide the user to `dev-kit update` through the
+current distribution; a repaired exclusion is not proof of an installed Skill. Do not rewrite
+the Skill, auto-upgrade, or block Runtime execution because compatibility repair failed.
+
+Local iterations are Agent-controlled: choose test states, assertion scripts, screenshot timing
+and the number of runs from the acceptance goal. Repeat `preview validate` sequentially as needed;
+each invocation launches its own Runtime, not a capture of an existing preview window. Do not
+add a fixed frame/count policy or interpret loading-screen captures as acceptance. Inspect the
+collected JSON/logs/images, then fix and rerun using the original Skill's rules.
+
+For screenshots, Maker checks near-total black/transparent pixels and observed engine bootstrap
+ordering. An unsafe capture is marked `screenshot_assessment.status=NOT_READY`; when the run
+completed safely without actual runtime errors it waits three seconds and retries at a later
+frame, up to two retries. Each attempt keeps its own evidence/run ID; the final result includes
+`attempt_run_ids`. Do not overwrite earlier failed evidence or treat the raw game report as fixed.
+Automatic retries scale the default timeout with the frame count, capped at 580 seconds; an
+explicit `--validate-timeout` is never increased. If the next run's estimated Runtime duration
+exceeds the budget, no retry launches: inspect retained evidence and explicitly adjust the timeout.
+The estimate uses the preceding Runtime duration and is not a guarantee of future loading speed.
+`REVIEW_REQUIRED` only means these narrow checks found no issue, not that loading/gameplay passed.
+Open every PNG. If visual inspection still shows game-specific loading, wait three seconds,
+choose a later screenshot frame and adjust validate frames/timeout to cover it, then rerun the
+same test. Waiting before relaunch at the same early frame is not a readiness fix. Stop and inspect
+errors or repeated lack of progress; do not loop forever, change the engine, or hide a game FAIL.
+
+The stderr `validation.started` event returns `run_id`, `evidence_directory`, `log_path` and
+`invocation_path` before preparation. Poll the returned run's `run.json` and bounded log tails
+while the CLI is running; do not start another Runtime to poll progress. The final stdout JSON
+remains the command result. Missing final evidence means incomplete/unknown, never PASS.
+The Maker console's Build/Test > Validate tab reads the same local evidence and does not launch
+or control validation. All loaded rounds appear newest first in a scrollable process
+list; scrolling to the bottom loads older pages. Logs/JSON show a three-line collapsed preview,
+screenshots show thumbnails linked to the original. It shows collected evidence, not proof the
+Agent inspected an image.
+
+Validation evidence is project-realpath isolated and retained for seven days after completion,
+independently of normal preview cleanup. Each invocation checks cleanup eligibility after it
+finishes; successful cleanup is persisted per project and skips history/disk scans for 24 hours.
+Failures do not advance that timestamp or change the validation result. There is no background
+timer, console lifecycle trigger, or cross-project scan. For durable acceptance output, pass
+`--output-dir <ABSOLUTE_DIRECTORY_OUTSIDE_PREVIEW_CACHE>` on each invocation: completed or failed
+run artifacts are copied into a unique run subdirectory, never automatically cleaned. Verify
+`archive_directory` in the result; archive failures remain explicit. Prepared game source is not
+part of the archive. A 5 GiB cache warning is not permission to delete recent acceptance evidence.
+
 ### Windows Node 与后台启动诊断
 
 Maker 预览优先使用当前宿主进程的 `process.execPath`；宿主 Node 不可用时才回退系统 Node。
@@ -166,8 +256,9 @@ Windows 预览失败时，先收集并区分以下证据，再决定修复方向
 2. Runtime 可执行文件、资源准备结果、supervisor 状态和 `supervisor_log_path`。
 3. Runtime 原始日志、control channel 发布/超时结果，以及 Windows 后台启动器的返回信息。
 
-WMI/CIM 返回已受理、返回 PID 或请求成功，只证明后台启动请求被接受，不证明 supervisor 或
-Runtime 已执行。若 supervisor 日志为空且 control channel 超时，先归类为 Windows 后台启动链路
+仅在显式 legacy 模式下，WMI/CIM 返回已受理或 PID 只证明请求被接受，不证明 Runtime 已执行。
+正常进程内模式不要求生成独立 supervisor.log，优先读取所属 Node 的 stderr、status 和本轮 logs。
+legacy 模式若 supervisor 日志为空且 control channel 超时，先归类为 Windows 后台启动链路
 的待确认问题；不要直接改 PATH、切换 Node、修改游戏代码，或把问题归因于 Runtime 文件缺失。
 Issue/反馈中附上上述脱敏证据，让后续处理基于实际环境，而不是把某一次 Windows 兼容性问题写死
 成所有项目的结论。
@@ -178,15 +269,26 @@ Goal: open the shared local `UrhoXRuntime` window for the current bound Maker pr
 commit, push, or remote-build. Do not rewrite PATH, switch Node, or disable antivirus unless the
 collected evidence names that cause.
 
-Launch chain:
+Launch chain (normal paths):
 
-1. Active-distribution CLI `taptap-maker preview start --target-dir <PROJECT> --json`.
-2. Windows only: CLI Node → PowerShell broker → CIM `Win32_Process.Create` → Hidden PowerShell
-   `-EncodedCommand` wrapper → `__maker-preview-supervisor`.
-3. Supervisor publishes a loopback control channel, then spawns `UrhoXRuntime.exe`.
-4. Projects that need prepare run managed Python `project_builder.py` before Runtime starts.
-
-Evidence files, all under Maker home preview/runtime directories returned by status/start JSON:
+1. Agent debugging: keep CLI `preview run --target-dir <PROJECT> --json` running in the
+   foreground. It directly owns Runtime, emits a preview.started event on stderr and returns
+   final JSON on stdout. Query logs/status/check or stop using its session identity. Default
+   safety limit is 10 minutes; --duration-ms 1000..600000 selects a shorter smoke test.
+2. User preview: `preview start` submits the registered project to the same console task
+   used by the browser. `console open` automatically starts/reuses the console with Node.
+   The console directly owns Runtime; finishing the request CLI does not stop the game.
+3. No intermediate preview CLI or supervisor process. Existing session/control-channel,
+   project classification, prepare and manifest code remain shared in process. The legacy
+   supervisor_pid field identifies the owning Node. Normal paths never invoke WMI/CIM.
+4. An entire IDE process-tree teardown can still terminate preview. Optional external
+   `console serve` is for that separate requirement, not a mandatory first-use step.
+5. Runtime logs include bounded, identity-checked current-round Lua logs. Live-window screenshots
+   and game assertion JSON remain unsupported in run/start/check; use `preview validate` for
+   the original Skill's one-shot evidence. Process status JSON is not gameplay validation.
+6. Never auto-retry an unknown launch or disable antivirus. Only explicit --legacy-wmi
+   selects the old launcher. Never kill by process name or an unverified historical PID.
+   Evidence files, all under Maker home preview/runtime directories returned by status/start JSON:
 
 - `supervisor.log`
 - current-round `prepare.log`
@@ -195,27 +297,26 @@ Evidence files, all under Maker home preview/runtime directories returned by sta
 
 Classify from evidence, then act:
 
-| Evidence                                                         | Meaning                                                                   | Next action                                                                                                                                                                                                                        |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `install_state: missing`                                         | Runtime not installed                                                     | Host-approved `preview install`, then start                                                                                                                                                                                        |
-| `Local prepare failed` + Python/Builder/timeout in `prepare.log` | Manifest/copy failed; Runtime was not started                             | Read `prepare.log`. Retry `preview prepare --json`. Do not treat as CIM/antivirus. Public-index download and managed Python must be ready                                                                                          |
-| Empty `supervisor.log` + control-channel TIMEOUT                 | Wrapper never reached Node; often antivirus blocked Hidden EncodedCommand | Retry `preview start` once. Do not run `__maker-preview-supervisor` after start has returned; that entry only accepts a live pending starting record. If CIM stays blocked, report EncodedCommand interception. Do not change PATH |
-| `supervisor exit is unverified`                                  | CIM wrapper PID could not be proven owned                                 | Do not taskkill by historical PID or process name. Inspect `supervisor.log` and status                                                                                                                                             |
-| `preferred loopback port` / recovery ports in use                | Lock-recovery mutex collided with another local bind                      | Retry the same CLI. Do not kill the occupying process                                                                                                                                                                              |
-| Runtime PID exists / window opened                               | Launch succeeded                                                          | Report process launch only; use `preview logs` / `preview check` for evidence                                                                                                                                                      |
+| Evidence                                                         | Meaning                                              | Next action                                                                                                                               |
+| ---------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `install_state: missing`                                         | Runtime not installed                                | Host-approved `preview install`, then start                                                                                               |
+| `Local prepare failed` + Python/Builder/timeout in `prepare.log` | Manifest/copy failed; Runtime was not started        | Read `prepare.log`. Retry `preview prepare --json`. Do not treat as CIM/antivirus. Public-index download and managed Python must be ready |
+| NATIVE_LAUNCH_FAILED + EACCES                                    | Node background process creation was denied          | Check the security product event for this exact process; do not disable protection or switch back to WMI automatically.                   |
+| Empty supervisor.log + control-channel TIMEOUT                   | Only meaningful for an explicit legacy launcher      | Normal in-process preview uses owner stderr and status; an absent standalone log is not evidence of antivirus blocking.                   |
+| supervisor exit is unverified                                    | Process ownership is unknown                         | Do not kill by PID or name; inspect session identity and logs.                                                                            |
+| `preferred loopback port` / recovery ports in use                | Lock-recovery mutex collided with another local bind | Retry the same CLI. Do not kill the occupying process                                                                                     |
+| Runtime PID exists / window opened                               | Launch succeeded                                     | Report process launch only; use `preview logs` / `preview check` for evidence                                                             |
 
-Console open uses the same Windows CIM wrapper with `__maker-console-server`. An empty
-`server.log` plus “Console did not start” is the same wrapper/antivirus class, not a preview
-Runtime missing. Retry `console open` once. If CIM stays blocked and no session.json exists,
-run the same Maker `node` + `maker.js` with `__maker-console-server`; that entry starts the
-HTTP service and publishes a session that later `console open` can reuse. Do not change PATH.
-This console recovery does not start preview.
-
+Console open starts/reuses a Node console automatically; no mandatory manual Host step.
+Stop an incompatible older console explicitly after its previews are stopped. A separate browser
+window does not prove that its service will survive the entire IDE shutting down. Only that
+separate requirement calls for the optional external console serve entry.
 Never kill by process name. Never use a stored PID without matching session identity. Stop with
-`preview stop` or `console stop`. Closing the browser or CLI does not stop an independent Runtime.
+`preview stop` or `console stop`. Closing the browser does not stop a Host-owned Runtime; ending Agent preview run stops only its owned Runtime.
 
 Process launch and clean logs do not prove gameplay or visual correctness. Do not promise
-screenshots, input automation or cloud/server emulation; these are not supported.
+live-window screenshots, input automation or cloud/server emulation. One-shot validation
+screenshots use the separate `preview validate` adapter.
 
 Only an AI authorized to modify the game may fix it. Bound automatic fixes to two attempts and an
 agreed time budget, permit cancellation, refresh after each attempt, and return remaining failures
@@ -995,3 +1096,10 @@ Maker users may not understand Git terminology. Prefer concrete wording:
 - "冲突文件" instead of "unmerged paths"
 
 Always explain the next irreversible step before taking it.
+
+Windows 启动验收与受限 Job 回归参考 `docs/MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md` 的隔离探针；它只验证 Node 进程心跳，不代表 Runtime 可见或退出 IDE 后继续存活。空 supervisor 日志不单独证明是 EncodedCommand 被拦截，需结合安全软件事件确认。
+
+Windows 两种用途分别由 Agent 前台 Node 和控制台 Node 直接持有 Runtime。
+不承诺退出整个 IDE 后仍保活，不使用 breakaway 绕过宿主管理。
+实测与兼容边界见 `docs/MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md` 的最新记录；
+仍需产品经理杀软环境复验，不自动重试未知启动或按进程名清理。
