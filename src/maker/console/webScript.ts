@@ -333,21 +333,58 @@ const settledTaskPending = new Map();
 const logViews = new Map();
 const validationViews = new Map();
 let validationTimer;
+const validationImages = [];
+let validationImageLoading = null;
+const validationImageObserver = typeof IntersectionObserver === 'function' ?
+  new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      validationImageObserver.unobserve(entry.target);
+      if (entry.target.dataset.discarded || entry.target.src || entry.target.dataset.queued) return;
+      entry.target.dataset.queued = 'true';
+      validationImages.push(entry.target);
+    });
+    loadValidationImages();
+  },{rootMargin:'300px'}) : null;
+function loadValidationImages() {
+  if (validationImageLoading || !validationActive()) return;
+  while (validationImages.length) {
+    const image = validationImages.shift();
+    delete image.dataset.queued;
+    if (image.dataset.discarded) continue;
+    if (!image.isConnected || image.dataset.project !== selected) {
+      validationImageObserver?.observe(image);
+      continue;
+    }
+    validationImageLoading = image;
+    image.loading = 'eager';
+    image.src = image.dataset.source;
+    return;
+  }
+}
+function finishValidationImage(image) {
+  if (validationImageLoading === image) validationImageLoading = null;
+  loadValidationImages();
+}
 const validationRunId = value => typeof value === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 function validationView() {
   if (!validationViews.has(selected)) validationViews.set(selected,{
-    runs:[],selectedRun:'',entries:new Map(),nextCursor:'',paged:false,
+    runs:[],entries:new Map(),nextCursor:'',paged:false,scrollTop:0,
     initialized:false,listRequest:0,request:0,loading:false,detailLoading:false,warnings:[],error:''
   });
   return validationViews.get(selected);
 }
-function validationEntry(view = validationView()) {
-  if (!view.selectedRun) return null;
-  if (!view.entries.has(view.selectedRun)) view.entries.set(view.selectedRun,{
+function validationEntry(id, view = validationView()) {
+  if (!validationRunId(id)) return null;
+  if (!view.entries.has(id)) view.entries.set(id,{
     cursor:0,runtime:'',prepare:'',json:'',truncated:false,errors:[],clearedPrepare:'',clearedJson:''
   });
-  return view.entries.get(view.selectedRun);
+  return view.entries.get(id);
+}
+function validationChronology(view = validationView()) {
+  return [...view.runs].sort((a,b) => String(b.started_at).localeCompare(String(a.started_at)) ||
+    b.run_id.localeCompare(a.run_id));
 }
 function validationActive() {
   return !disposed && !offline && !document.hidden && page === 'build' &&
@@ -358,6 +395,7 @@ function syncValidationPolling() {
     clearTimeout(validationTimer); validationTimer = undefined;
     return;
   }
+  loadValidationImages();
   if (validationTimer !== undefined) return;
   validationTimer = setTimeout(async () => {
     validationTimer = undefined;
@@ -414,15 +452,14 @@ async function refreshValidation(options = {}) {
     const incoming = result.runs.filter(run => validationRunId(run.run_id));
     const merged = new Map((options.more ? [...view.runs,...incoming] : [...incoming,...view.runs])
       .map(run => [run.run_id,run]));
-    // Refresh current summaries without changing history order or the user's selection.
+    // Keep older loaded pages while refreshing the newest summaries.
     incoming.forEach(run => merged.set(run.run_id,run));
     view.runs = Array.from(merged.values());
     if (options.more || !view.paged) view.nextCursor = validationRunId(result.next_cursor) ? result.next_cursor : '';
     if (options.more) view.paged = true;
     view.warnings = Array.isArray(result.warnings) ? result.warnings : [];
     view.initialized = true;
-    if (!view.selectedRun && view.runs.length) view.selectedRun = view.runs[0].run_id;
-    if (view.selectedRun) await loadValidationEvidence();
+    await loadValidationEvidence();
   } catch (error) {
     if (matches()) {
       view.error = error.message;
@@ -436,16 +473,33 @@ async function refreshValidation(options = {}) {
 async function loadValidationEvidence() {
   if (!validationActive()) return;
   const key = selected, epoch = selectionEpoch, viewAtStart = viewEpoch;
-  const view = validationView(), id = view.selectedRun, entry = validationEntry(view);
-  if (!entry || !validationRunId(id)) return;
+  const view = validationView();
   if (view.detailLoading && view.detailEpoch === epoch) return;
   const request = ++view.request;
   const matches = () => selectionMatches(key,epoch) && viewEpoch === viewAtStart &&
-    validationActive() && view.selectedRun === id && view.request === request;
-  const base = projectPath(key,'/validation/' + encodeURIComponent(id));
+    validationActive() && view.request === request;
+  const pending = view.runs.filter(run => {
+    const entry = validationEntry(run.run_id,view);
+    return run.status === 'running' || entry.errors.length || entry.pendingLogs ||
+      entry.signature !== JSON.stringify(run);
+  });
   view.detailLoading = true; view.detailEpoch = epoch;
   renderConsoleLogs();
   try {
+    // Three evidence reads leave one slot for the console's other bounded queries.
+    while (pending.length && matches()) {
+      const run = pending.shift();
+      await loadValidationRound(key,view,run,matches);
+      if (matches()) renderConsoleLogs();
+    }
+  } finally {
+    if (request === view.request) view.detailLoading = false;
+    if (matches()) renderConsoleLogs();
+  }
+}
+async function loadValidationRound(key,view,run,matches) {
+  const id = run.run_id, entry = validationEntry(id,view);
+  const base = projectPath(key,'/validation/' + encodeURIComponent(id));
     const results = await Promise.allSettled([
       api(base), api(base + '/prepare'), api(base + '/logs?cursor=' + entry.cursor)
     ]);
@@ -483,42 +537,46 @@ async function loadValidationEvidence() {
         entry.runtime = bounded.text;
         entry.truncated ||= bounded.truncated || Boolean(data.truncated);
         entry.cursor = data.next_cursor;
+        entry.pendingLogs = Boolean(data.truncated) && added.length > 0;
       } else entry.errors.push('Runtime / Lua 日志游标无效');
     }
-  } finally {
-    if (request === view.request) view.detailLoading = false;
-    if (matches()) renderConsoleLogs();
-  }
-}
-async function chooseValidationRun(id) {
-  const view = validationView();
-  if (!view.runs.some(run => run.run_id === id)) return;
-  view.request++; view.detailLoading = false;
-  view.selectedRun = id;
-  renderConsoleLogs();
-  await loadValidationEvidence();
+    if (!entry.errors.length) entry.signature = JSON.stringify(view.runs.find(run => run.run_id === id));
 }
 function clearValidationDisplay() {
-  const view = validationView(), entry = validationEntry(view);
+  const view = validationView();
   view.listRequest++; view.loading = false;
   view.request++; view.detailLoading = false;
-  if (!entry) return;
-  entry.runtime = ''; entry.clearedPrepare = entry.prepare; entry.clearedJson = entry.json;
-  entry.imageCleared = Boolean(entry.data?.artifacts?.some(artifact =>
-    artifact.kind === 'screenshot' && artifact.id === 'screenshot.png'));
-  entry.truncated = false; entry.errors = []; entry.image = null; entry.imageError = false;
+  view.entries.forEach(entry => {
+    entry.runtime = ''; entry.clearedPrepare = entry.prepare; entry.clearedJson = entry.json;
+    entry.imageCleared = Boolean(entry.data?.artifacts?.some(artifact =>
+      artifact.kind === 'screenshot' && artifact.id === 'screenshot.png'));
+    if (entry.image) {
+      entry.image.dataset.discarded = 'true';
+      validationImageObserver?.unobserve(entry.image);
+    }
+    entry.truncated = false; entry.errors = []; entry.image = null; entry.imageError = false;
+  });
+  for (let i = validationImages.length - 1; i >= 0; i--) {
+    if (!validationImages[i].dataset.discarded) continue;
+    delete validationImages[i].dataset.queued;
+    validationImages.splice(i,1);
+  }
 }
-function validationSection(entry, id, title, open) {
+function validationSection(entry, runId, id, title) {
   entry.sections ||= new Map();
   if (!entry.sections.has(id)) {
-    const section = node('details',undefined,'task validation-evidence');
-    section.dataset.key = selected + ':' + validationView().selectedRun + ':' + id;
+    const section = node(id === 'screenshot' ? 'section' : 'details',undefined,'validation-evidence');
+    section.dataset.key = selected + ':' + runId + ':' + id;
     section.dataset.evidence = id;
-    section.open = open;
-    section.append(node('summary',title));
+    if (id !== 'screenshot') section.open = false;
+    const heading = node(id === 'screenshot' ? 'h3' : 'summary');
+    heading.append(node('span',title,'validation-evidence-title'));
+    const preview = node('span',undefined,'validation-preview');
+    if (id !== 'screenshot') heading.append(preview);
+    section.append(heading);
     const body = node('div',undefined,'validation-evidence-body');
     section.append(body);
-    entry.sections.set(id,{section,body});
+    entry.sections.set(id,{section,body,preview});
   }
   return entry.sections.get(id);
 }
@@ -527,11 +585,12 @@ function renderValidationEvidence(entry, run) {
   if (!entry) return feed;
   if (entry.truncated) feed.append(node('p','日志已截断，仅显示有界片段。','pending'));
   entry.errors.forEach(error => feed.append(node('p',error,'bad')));
-  const log = (id,title,value,open) => {
+  const log = (id,title,value) => {
     if (!value) return;
     const visible = id === 'json' ? value : filteredLogText(value);
     const display = visible || '当前筛选无匹配日志';
-    const block = validationSection(entry,id,title,open);
+    const block = validationSection(entry,run.run_id,id,title);
+    block.preview.textContent = display.trimEnd().split('\n').slice(-3).join('\n');
     if (!block.output) {
       block.output = node('pre');
       block.output.addEventListener('scroll',() => {
@@ -550,29 +609,34 @@ function renderValidationEvidence(entry, run) {
     feed.append(block.section);
   };
   const {prepare} = validationLogContent(entry);
-  log('prepare','准备日志',prepare,false);
-  log('runtime','Runtime / Lua 日志',entry.runtime,false);
-  const screenshot = validationSection(entry,'screenshot','截图',true);
+  log('prepare','准备日志',prepare);
+  log('runtime','Runtime / Lua 日志',entry.runtime);
+  const screenshot = validationSection(entry,run.run_id,'screenshot','截图');
   const data = entry.data;
   const available = data?.run.status !== 'running' &&
     data?.artifacts?.some(artifact => artifact.kind === 'screenshot' && artifact.id === 'screenshot.png');
   const key = selected, id = run.run_id;
-  const visible = () => selected === key && validationView().selectedRun === id && validationActive();
+  const visible = () => selected === key && validationActive();
   if (available && !entry.image && !entry.imageError && !entry.imageCleared) {
     const image = node('img');
     image.alt = 'Validate 截图'; image.className = 'validation-screenshot'; image.loading = 'lazy';
+    image.dataset.project = key;
+    image.dataset.source = projectPath(key,'/validation/' + encodeURIComponent(id) + '/screenshot.png');
+    image.addEventListener('load',() => finishValidationImage(image));
     image.addEventListener('error',() => {
+      finishValidationImage(image);
       if (entry.image !== image) return;
       entry.image = null; entry.imageError = true;
       if (visible()) renderConsoleLogs();
     });
-    image.src = projectPath(key,'/validation/' + encodeURIComponent(id) + '/screenshot.png');
     entry.image = image;
+    if (validationImageObserver) validationImageObserver.observe(image);
+    else image.src = image.dataset.source;
   }
   const content = [];
   if (available && entry.image) {
     const link = node('a');
-    link.href = entry.image.src; link.target = '_blank'; link.rel = 'noopener noreferrer';
+    link.href = entry.image.dataset.source; link.target = '_blank'; link.rel = 'noopener noreferrer';
     link.setAttribute('aria-label','查看截图原图'); link.append(entry.image);
     content.push(link);
   } else {
@@ -590,43 +654,50 @@ function renderValidationEvidence(entry, run) {
   }
   screenshot.body.replaceChildren(...content);
   feed.append(screenshot.section);
-  log('json','调用参数与原始 JSON',entry.json === entry.clearedJson ? '' : entry.json,false);
+  log('json','调用参数与原始 JSON',entry.json === entry.clearedJson ? '' : entry.json);
   return feed;
 }
 function renderValidationPanel() {
-  const view = validationView(), entry = validationEntry(view);
+  const view = validationView();
   const panel = node('div',undefined,'validation-panel');
+  panel.dataset.project = selected;
   const history = node('div',undefined,'validation-history');
-  const label = node('label','调用历史');
-  const picker = node('select');
-  picker.setAttribute('aria-label','Validate 调用历史'); picker.dataset.focus = 'validation-run';
-  if (!view.runs.length) {
-    const option = node('option',view.loading ? '读取中…' : '暂无 Validate 调用'); option.value = ''; picker.append(option);
-  }
-  view.runs.forEach(run => {
-    const option = node('option',run.started_at + ' · ' + validationStatus(run) + ' · ' + run.run_id);
-    option.value = run.run_id; picker.append(option);
-  });
-  picker.value = view.selectedRun; picker.disabled = !view.runs.length;
-  picker.addEventListener('change',event => void chooseValidationRun(event.target.value));
-  label.append(picker); history.append(label);
-  if (view.nextCursor) history.append(button('加载更多',
-    () => void refreshValidation({more:true}),{disabled:view.loading,loading:view.loading}));
+  history.append(node('span',view.runs.length ? view.runs.length + ' 轮 Validate' :
+    view.loading ? '读取中…' : '暂无 Validate 调用','muted'));
   panel.append(history);
   if (view.error) panel.append(node('p',view.error,'bad'));
-  const warnings = [view.warnings,entry?.data?.warnings,entry?.data?.result?.warnings]
-    .flatMap(items => Array.isArray(items) ? items : []);
-  if (warnings.length) panel.append(node('p',boundedValidationText(warnings.join('\n')).text,'pending'));
-  const run = view.runs.find(run => run.run_id === view.selectedRun) || entry?.data?.run;
-  if (!run) return panel;
-  const status = node('div',undefined,'validation-status');
-  status.append(node('span','采集状态：' + validationStatus(run),run.status === 'incomplete' ? 'pending' : 'muted'),
-    node('span','阶段：' + text(run.phase)),
-    node('span','游戏结果：' + text(run.game_result,'未提供')));
-  panel.append(status);
-  if (run.result) panel.append(node('p','采集结果：' + run.result,'muted'));
-  if (run.finished_at) panel.append(node('p','结束时间：' + run.finished_at,'muted'));
-  panel.append(renderValidationEvidence(entry,run));
+  if (view.warnings.length) panel.append(node('p',boundedValidationText(view.warnings.join('\n')).text,'pending'));
+  const runs = validationChronology(view);
+  panel.dataset.firstRun = runs[0]?.run_id || '';
+  runs.forEach(run => {
+    const entry = validationEntry(run.run_id,view);
+    const round = node('article',undefined,'validation-round');
+    round.dataset.validationRun = run.run_id;
+    const time = node('time',new Date(run.started_at).toLocaleString(),'validation-time');
+    time.dateTime = run.started_at; time.title = run.run_id;
+    round.append(time);
+    const status = node('div',undefined,'validation-status');
+    status.append(node('span','采集状态：' + validationStatus(run),run.status === 'incomplete' ? 'pending' : 'muted'),
+      node('span','阶段：' + text(run.phase)),
+      node('span','游戏结果：' + text(run.game_result,'未提供')));
+    round.append(status);
+    if (run.result) round.append(node('span','采集结果：' + run.result,'muted'));
+    const warnings = [entry.data?.warnings,entry.data?.result?.warnings]
+      .flatMap(items => Array.isArray(items) ? items : []);
+    if (warnings.length) round.append(node('p',boundedValidationText(warnings.join('\n')).text,'pending'));
+    round.append(renderValidationEvidence(entry,run));
+    panel.append(round);
+  });
+  if (view.nextCursor) panel.append(button('加载更早记录',
+    () => void refreshValidation({more:true}),{disabled:view.loading || view.detailLoading,loading:view.loading}));
+  const key = selected;
+  panel.addEventListener('scroll',() => {
+    if (selected !== key || !panel.isConnected) return;
+    view.scrollTop = panel.scrollTop;
+    if (panel.scrollHeight - panel.scrollTop - panel.clientHeight < 80 &&
+      view.nextCursor && !view.loading && !view.detailLoading)
+      void refreshValidation({more:true});
+  });
   return panel;
 }
 function logView() {
@@ -672,8 +743,10 @@ function consoleLogContent() {
 }
 function consoleLogText() {
   const view = logView();
-  if (view.tab === 'validate') return validationVisibleText(validationEntry()) ||
-    (validationView().selectedRun ? '暂无显示内容' : '暂无 Validate 调用');
+  if (view.tab === 'validate') return validationChronology().map(run => {
+    const output = validationVisibleText(validationEntry(run.run_id));
+    return output ? run.started_at + ' · ' + run.run_id + '\n' + output : '';
+  }).filter(Boolean).join('\n\n') || (validationView().runs.length ? '暂无显示内容' : '暂无 Validate 调用');
   if (view.tab === 'runtime' && view.loading) return '正在读取运行时日志…';
   const snapshot = consoleLogSnapshot(), cleared = view.cleared[view.tab];
   const notice = cleared?.id === snapshot.id && cleared.notice === snapshot.notice ? '' : snapshot.notice;
@@ -734,7 +807,8 @@ function renderLogFilters() {
   const group = node('div',undefined,'console-log-filters');
   group.setAttribute('role','group'); group.setAttribute('aria-label','日志类型筛选');
   const filters = logFilters(), counts = {info:0,warning:0,error:0};
-  const content = logView().tab === 'validate' ? Object.values(validationLogContent(validationEntry())) :
+  const content = logView().tab === 'validate' ? validationView().runs.flatMap(run =>
+    Object.values(validationLogContent(validationEntry(run.run_id)))) :
     [consoleLogContent()];
   content.forEach(output => logRows(output).forEach(row => {
     if (row.text.trim()) counts[row.severity]++;
@@ -766,6 +840,15 @@ function renderConsoleLogs() {
   const host = $('console-logs');
   if (!host) return;
   const view = logView();
+  const previous = $('console-log-output');
+  const sameProject = previous?.dataset.project === selected;
+  const top = previous?.scrollTop || 0, left = previous?.scrollLeft || 0;
+  // Keep the visible round stable even when earlier evidence is filled over several redraws.
+  const anchor = sameProject && top > 0 &&
+    Array.from(previous.querySelectorAll('[data-validation-run]'))
+      .find(round => round.getBoundingClientRect().bottom > previous.getBoundingClientRect().top);
+  const anchorOffset = anchor ?
+    anchor.getBoundingClientRect().top - previous.getBoundingClientRect().top : 0;
   const toolbar = node('div',undefined,'console-log-toolbar');
   const tabs = node('div',undefined,'console-log-tabs');
   tabs.setAttribute('role','tablist');
@@ -787,14 +870,22 @@ function renderConsoleLogs() {
     node('pre',undefined,'console-log-output' + (view.wrap ? ' wrap' : ''));
   if (view.tab !== 'validate') output.append(renderLogLines(consoleLogText()));
   output.id = 'console-log-output'; output.setAttribute('role','tabpanel'); output.tabIndex = 0;
-  const previous = $('console-log-output');
-  const top = previous?.scrollTop || 0, left = previous?.scrollLeft || 0;
   replace(host,[toolbar,tabs,renderLogFilters(),output]);
-  output.scrollTop = top; output.scrollLeft = left;
-  if (view.tab === 'validate') validationEntry()?.sections?.forEach(block => {
-    if (!block.output?.isConnected || !block.section.open) return;
-    block.output.scrollTop = block.scrollTop || 0; block.output.scrollLeft = block.scrollLeft || 0;
-  });
+  if (view.tab === 'validate') {
+    output.scrollTop = sameProject ? top : validationView().scrollTop;
+    if (anchor) {
+      const restored = Array.from(output.querySelectorAll('[data-validation-run]'))
+        .find(round => round.dataset.validationRun === anchor.dataset.validationRun);
+      if (restored)
+        output.scrollTop += restored.getBoundingClientRect().top -
+          output.getBoundingClientRect().top - anchorOffset;
+    }
+    validationView().entries.forEach(entry => entry.sections?.forEach(block => {
+      if (!block.output?.isConnected || !block.section.open) return;
+      block.output.scrollTop = block.scrollTop || 0; block.output.scrollLeft = block.scrollLeft || 0;
+    }));
+  } else output.scrollTop = top;
+  output.scrollLeft = left;
   syncValidationPolling();
 }
 let git = null;
@@ -975,6 +1066,7 @@ function dispose() {
   disposed = true;
   clearTimeout(pollTimer);
   clearTimeout(validationTimer); validationTimer = undefined;
+  validationImageObserver?.disconnect(); validationImages.length = 0;
   clearInterval(activityTimer);
   activityTimer = undefined;
   requests.forEach(controller => controller.abort());

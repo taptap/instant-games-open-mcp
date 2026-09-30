@@ -41,6 +41,7 @@ beforeEach(() => {
   fs.writeFileSync(
     runtime,
     `#!${process.execPath}\n` +
+      `const { PNG } = require(${JSON.stringify(require.resolve('pngjs'))});\n` +
       fs.readFileSync(path.join(__dirname, 'fixtures/maker-validation-runtime.cjs'), 'utf8'),
     { mode: 0o700 }
   );
@@ -157,7 +158,316 @@ nativeTest('missing screenshot is an execution failure but preserves the report'
     expect.arrayContaining([expect.objectContaining({ kind: 'validate-report' })])
   );
   expect(result.error).toMatch(/screenshot/i);
+  expect((await listValidationRuns(project)).runs).toHaveLength(1);
 });
+
+function fixture(options: Record<string, unknown>): void {
+  fs.writeFileSync(path.join(project, '.project/validation-fixture.json'), JSON.stringify(options));
+}
+
+function launches(): { frame: number; started: number }[] {
+  return fs
+    .readFileSync(path.join(project, '.project/validation-launches.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+}
+
+nativeTest(
+  'retries a pre-bootstrap screenshot after three seconds at a later frame',
+  async () => {
+    fixture({ passReport: true, bootstrapFrame: 1361 });
+    const result = await validate({
+      mode: 'both',
+      screenshot_frame: '120',
+      validate_frames: '300',
+      output_dir: path.join(root, 'acceptance'),
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      result: 'COMPLETED',
+      report: { result: 'PASS' },
+      screenshot_assessment: { status: 'REVIEW_REQUIRED' },
+      next_step: expect.stringMatching(/inspect every PNG.*in-game loading/i),
+    });
+    const attempts = result.attempt_run_ids as string[];
+    expect(attempts).toHaveLength(2);
+    expect(new Set(attempts).size).toBe(2);
+    expect(result.run_id).toBe(attempts[1]);
+    const first = await readValidationRun(project, attempts[0]);
+    expect(first.result).toMatchObject({
+      ok: false,
+      result: 'FAIL',
+      report: { result: 'PASS' },
+      screenshot_assessment: {
+        status: 'NOT_READY',
+        effective_visual_evidence: false,
+        reasons: ['bootstrap_incomplete'],
+        bootstrap_completed_frame: 1361,
+      },
+    });
+    const second = await readValidationRun(project, attempts[1]);
+    const args = second.invocation!.args as string[];
+    const frame = Number(args.find((arg) => arg.startsWith('-screenshot-frame='))!.split('=')[1]);
+    expect(frame).toBeGreaterThanOrEqual(1541);
+    expect(
+      Number(args.find((arg) => arg.startsWith('-validate-frames='))!.split('=')[1])
+    ).toBeGreaterThanOrEqual(frame + 3);
+    expect(launches()[1].started - launches()[0].started).toBeGreaterThanOrEqual(3000);
+    for (const id of attempts) {
+      const detail = await readValidationRun(project, id);
+      expect(detail.artifacts).toEqual([{ kind: 'screenshot', id: 'screenshot.png' }]);
+      for (const filename of [
+        'runtime.log',
+        'invocation.json',
+        'validate.json',
+        'screenshot.png',
+        'result.json',
+      ]) {
+        expect(fs.existsSync(path.join(String(detail.result!.evidence_directory), filename))).toBe(
+          true
+        );
+        expect(fs.existsSync(path.join(root, 'acceptance', id, filename))).toBe(true);
+      }
+    }
+  },
+  20000
+);
+
+nativeTest(
+  'retries a black screenshot using later frames until visible content appears',
+  async () => {
+    fixture({ blackUntilFrame: 600 });
+    const result = await validate({ mode: 'screenshot', screenshot_frame: '120' });
+    expect(result).toMatchObject({
+      ok: true,
+      result: 'COMPLETED',
+      screenshot_assessment: { status: 'REVIEW_REQUIRED' },
+    });
+    expect(result.attempt_run_ids).toHaveLength(3);
+    const frames = launches().map((launch) => launch.frame);
+    expect(frames[1]).toBeGreaterThanOrEqual(frames[0] + 180);
+    expect(frames[2]).toBeGreaterThanOrEqual(frames[1] + 180);
+  },
+  20000
+);
+
+nativeTest.each([{ black: true }, { transparent: true }, { almostBlack: true }])(
+  'rejects persistent blank visual evidence %j after exactly two retries',
+  async (options) => {
+    fixture({ ...options, passReport: true });
+    const result = await validate({ mode: 'both', screenshot_frame: '120' });
+    expect(result).toMatchObject({
+      ok: false,
+      result: 'FAIL',
+      report: { result: 'PASS' },
+      screenshot_assessment: {
+        status: 'NOT_READY',
+        effective_visual_evidence: false,
+        reasons: ['near_total_black_or_transparent'],
+      },
+      next_step: expect.stringMatching(/not effective visual evidence/i),
+    });
+    expect(result.attempt_run_ids).toHaveLength(3);
+    expect(launches()).toHaveLength(3);
+    expect((await listValidationRuns(project)).runs).toHaveLength(3);
+  },
+  20000
+);
+
+nativeTest(
+  'does not accept an arbitrary ready phrase while bootstrap remains incomplete',
+  async () => {
+    fixture({ bootstrapNever: true, arbitraryReady: true });
+    const result = await validate({ mode: 'screenshot', screenshot_frame: '120' });
+    expect(result).toMatchObject({
+      ok: false,
+      screenshot_assessment: { status: 'NOT_READY', reasons: ['bootstrap_incomplete'] },
+    });
+    expect(launches()).toHaveLength(3);
+  },
+  20000
+);
+
+nativeTest(
+  'a request before bootstrap completion stays not ready after delayed readback',
+  async () => {
+    fixture({ requestBeforeBootstrap: true, passReport: true });
+    const result = await validate({ mode: 'both', screenshot_frame: '120' });
+    expect(result.ok).toBe(false);
+    expect(result.screenshot_assessment).toMatchObject({
+      status: 'NOT_READY',
+      reasons: ['bootstrap_incomplete'],
+    });
+  },
+  20000
+);
+
+nativeTest('dark content with a meaningful foreground is retained for AI inspection', async () => {
+  fixture({ darkScene: true, noBootstrapLog: true });
+  const result = await validate({ mode: 'screenshot', screenshot_frame: '120' });
+  expect(result).toMatchObject({
+    ok: true,
+    screenshot_assessment: { status: 'REVIEW_REQUIRED', bootstrap_at_capture: 'unobserved' },
+    visual_check_required: true,
+    game_review_required: true,
+  });
+  expect(launches()).toHaveLength(1);
+});
+
+nativeTest.each([
+  { noPng: true },
+  { corruptPng: true },
+  { noReport: true },
+  { signal: true },
+  { exitCode: 2 },
+  { reportTimeout: true },
+  { luaErrors: true },
+  { passWithLuaErrors: true },
+  { ignoreTest: true },
+])('never retries blank screenshots alongside execution or game errors %j', async (options) => {
+  fixture({ black: true, passReport: true, ...options });
+  const result = await validate({
+    mode: 'both',
+    screenshot_frame: '120',
+    validate_test: 'check.lua',
+  });
+  expect(result.ok).toBe(false);
+  expect(launches()).toHaveLength(1);
+  expect((await listValidationRuns(project)).runs).toHaveLength(1);
+});
+
+nativeTest(
+  'a clean authoritative report allows visual retry despite earlier raw log errors',
+  async () => {
+    fixture({ passReport: true, logError: true, blackUntilFrame: 300 });
+    const result = await validate({
+      mode: 'both',
+      screenshot_frame: '120',
+      validate_test: 'check.lua',
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      result: 'COMPLETED',
+      report: {
+        result: 'PASS',
+        summary: { lua_errors: 0, resource_errors: 0, engine_errors: 0, total_errors: 0 },
+        test_result: 'PASSED',
+      },
+    });
+    expect(result.attempt_run_ids).toHaveLength(2);
+    for (const id of result.attempt_run_ids as string[]) {
+      const detail = await readValidationRun(project, id);
+      expect(detail.report?.result).toBe('PASS');
+      expect(fs.readFileSync(String(detail.result!.log_path), 'utf8')).toContain(
+        'ERROR: Lua execution failed'
+      );
+    }
+  }
+);
+
+nativeTest('screenshot-only remains conservative when Runtime logs contain an error', async () => {
+  fixture({ black: true, logError: true });
+  const result = await validate({ mode: 'screenshot', screenshot_frame: '120' });
+  expect(result).toMatchObject({ ok: false, result: 'FAIL' });
+  expect(launches()).toHaveLength(1);
+});
+
+nativeTest(
+  'an authoritative FAIL report is preserved and never retried for a blank screenshot',
+  async () => {
+    fixture({ black: true });
+    const result = await validate({ mode: 'both', screenshot_frame: '120' });
+    expect(result).toMatchObject({
+      ok: false,
+      result: 'FAIL',
+      report: { result: 'FAIL', summary: { engine_errors: 1 } },
+    });
+    expect(launches()).toHaveLength(1);
+    expect((await readValidationRun(project, String(result.run_id))).report?.result).toBe('FAIL');
+  }
+);
+
+nativeTest('a blank screenshot with failed log persistence is never retried', async () => {
+  fixture({ black: true, passReport: true });
+  const append = jest.spyOn(PreviewLogs.prototype, 'append').mockImplementationOnce(() => {
+    throw new Error('fixture disk full');
+  });
+  try {
+    const result = await validate({ mode: 'both', screenshot_frame: '120' });
+    expect(result).toMatchObject({ ok: false, result: 'FAIL' });
+    expect(result.error).toMatch(/log.*fixture disk full/);
+    expect(launches()).toHaveLength(1);
+  } finally {
+    append.mockRestore();
+  }
+});
+
+nativeTest('does not retry an archive failure or replace its retained screenshot', async () => {
+  fixture({ black: true });
+  const outputDir = path.join(root, 'acceptance');
+  fs.writeFileSync(outputDir, 'not a directory');
+  const result = await validate({
+    mode: 'screenshot',
+    screenshot_frame: '120',
+    output_dir: outputDir,
+  });
+  expect(result).toMatchObject({ ok: false, result: 'FAIL' });
+  expect(result.error).toMatch(/archive failed/i);
+  expect(launches()).toHaveLength(1);
+  expect(fs.existsSync(path.join(String(result.evidence_directory), 'screenshot.png'))).toBe(true);
+});
+
+nativeTest('cancels the three-second retry delay without launching another Runtime', async () => {
+  fixture({ black: true });
+  const abort = new AbortController();
+  const pending = validate({ mode: 'screenshot', screenshot_frame: '120' }, abort.signal);
+  try {
+    for (let i = 0; i < 300; i++) {
+      const runs = await listValidationRuns(project);
+      if (runs.runs[0]?.status === 'finished') break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    abort.abort();
+    const result = await pending;
+    expect(result).toMatchObject({ ok: false, result: 'CANCELLED' });
+    expect(result.attempt_run_ids).toHaveLength(1);
+    expect(launches()).toHaveLength(1);
+    expect(result.artifacts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: 'screenshot' })])
+    );
+    expect((await readValidationRun(project, String(result.run_id))).result?.result).toBe(
+      'CANCELLED'
+    );
+  } finally {
+    abort.abort();
+    await pending;
+  }
+});
+
+nativeTest(
+  'rechecks Runtime ownership before a retry and leaves an unrelated session alone',
+  async () => {
+    fixture({ black: true });
+    const pending = validate({ mode: 'screenshot', screenshot_frame: '120' });
+    for (let i = 0; i < 300; i++) {
+      const runs = await listValidationRuns(project);
+      if (runs.runs[0]?.status === 'finished') break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    const orphan = await createValidationRun(project);
+    updateValidationRun(orphan, {
+      phase: 'running',
+      runtime_pid: process.pid,
+      runtime_launch_pending: false,
+    });
+    const result = await pending;
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/validation.*Runtime.*active or unverified/i);
+    expect(launches()).toHaveLength(1);
+    expect((await readValidationRun(project, orphan.run_id)).run.runtime_pid).toBe(process.pid);
+  }
+);
 
 nativeTest('archived result includes the final history cleanup warning', async () => {
   const prior = await createValidationRun(project);

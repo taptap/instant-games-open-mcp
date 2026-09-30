@@ -13,7 +13,7 @@ const run = (run_id = first, status = 'finished') => ({
 });
 
 // Execute the shipped inline script, as in makerConsoleWeb.test.ts.
-function harness() {
+function harness(options: { observeImages?: boolean } = {}) {
   function element(tag = 'div'): any {
     const listeners = new Map<string, (event?: any) => any>();
     const result: any = {
@@ -40,7 +40,7 @@ function harness() {
   const document = {
     hidden: false,
     documentElement: { dataset: {} },
-    getElementById: (id: string) => elements.get(id),
+    getElementById: (id: string) => elements.get(id) || all().find((node) => node.id === id),
     createElement: element,
     createElementNS: (_namespace: string, tag: string) => element(tag),
     createTextNode: (textContent: string) => ({ textContent }),
@@ -56,6 +56,22 @@ function harness() {
   const timers = new Map<number, { callback: () => any; delay: number }>();
   let timerId = 0;
   const clipboard = jest.fn(async (_text: string) => undefined);
+  const observedImages = new Set<any>();
+  let intersect: (entries: any[]) => void;
+  class ImageObserver {
+    constructor(callback: (entries: any[]) => void) {
+      intersect = callback;
+    }
+    observe(image: any) {
+      observedImages.add(image);
+    }
+    unobserve(image: any) {
+      observedImages.delete(image);
+    }
+    disconnect() {
+      observedImages.clear();
+    }
+  }
   const context = {
     fetch,
     document,
@@ -71,6 +87,7 @@ function harness() {
     },
     clearTimeout: (id: number) => timers.delete(id),
     clearInterval: jest.fn(),
+    ...(options.observeImages ? { IntersectionObserver: ImageObserver } : {}),
   };
   const source = getConsoleHtml().match(/<script>([\s\S]*?)<\/script>/i)![1];
   const api = runInNewContext(
@@ -78,7 +95,6 @@ function harness() {
       /\}\)\(\);\s*$/,
       `return {
         refreshValidation: typeof refreshValidation === 'function' ? refreshValidation : undefined,
-        chooseValidationRun: typeof chooseValidationRun === 'function' ? chooseValidationRun : undefined,
         validationView: typeof validationView === 'function' ? validationView : undefined,
         syncValidationPolling: typeof syncValidationPolling === 'function' ? syncValidationPolling : undefined,
         renderConsoleLogs, consoleLogText, clearConsoleLogs, logView, selectLog, dispose,
@@ -125,10 +141,201 @@ function harness() {
   function all(root = elements.get('console-logs')): any[] {
     return [root, ...(root?.children || []).flatMap((child: any) => all(child))];
   }
-  return { api, fetch, document, timers, clipboard, respond, reply, all };
+  return {
+    api,
+    fetch,
+    document,
+    timers,
+    clipboard,
+    respond,
+    reply,
+    all,
+    observedImages,
+    intersect: (images: any[]) =>
+      intersect(images.map((target) => ({ target, isIntersecting: true }))),
+  };
 }
 
 describe('Maker console passive Validate UI', () => {
+  it('shows every loaded round newest first instead of a run dropdown', async () => {
+    const h = harness();
+    const runs = Array.from({ length: 40 }, (_, index) => ({
+      ...run(`${String(index + 1).padStart(8, '0')}-1111-4111-8111-111111111111`),
+      started_at: new Date(Date.UTC(2026, 8, 30, 10, index)).toISOString(),
+    })).reverse();
+    h.respond(runs);
+    await h.api.refreshValidation();
+    const rounds = h.all().filter((node) => node.dataset?.validationRun);
+    expect(rounds.map((node) => node.dataset.validationRun)).toEqual(
+      runs.map((item) => item.run_id)
+    );
+    expect(h.all().some((node) => node.tagName === 'select')).toBe(false);
+    expect(h.all().filter((node) => node.tagName === 'img')).toHaveLength(40);
+    expect(h.api.consoleLogText()).toContain('Lua runtime output');
+  });
+
+  it('keeps the latest round at the top when polling adds a newer result', async () => {
+    const h = harness();
+    h.respond([run()]);
+    await h.api.refreshValidation();
+    const panel = h.all().find((node) => node.id === 'console-log-output');
+    panel.scrollTop = 0;
+    panel.scrollHeight = 1000;
+    panel.clientHeight = 400;
+    h.respond([{ ...run(second), started_at: '2026-09-29T11:00:00Z' }]);
+    await h.api.refreshValidation();
+    expect(
+      h
+        .all()
+        .filter((node) => node.dataset?.validationRun)
+        .map((node) => node.dataset.validationRun)
+    ).toEqual([second, first]);
+    expect(h.all().find((node) => node.id === 'console-log-output').scrollTop).toBe(0);
+  });
+
+  it('preserves a small nonzero scroll position on ordinary redraws', async () => {
+    const h = harness();
+    h.respond();
+    await h.api.refreshValidation();
+    h.all().find((node) => node.id === 'console-log-output').scrollTop = 27;
+    h.api.renderConsoleLogs();
+    expect(h.all().find((node) => node.id === 'console-log-output').scrollTop).toBe(27);
+  });
+
+  it('anchors the visible round while evidence above it fills in', async () => {
+    const h = harness();
+    h.respond([run()]);
+    await h.api.refreshValidation();
+    const root = h.all()[0];
+    const panel = h.all().find((node) => node.id === 'console-log-output');
+    panel.scrollTop = 100;
+    panel.getBoundingClientRect = () => ({ top: 0 });
+    const current = h.all().find((node) => node.dataset?.validationRun === first);
+    current.getBoundingClientRect = () => ({ top: -20, bottom: 300 });
+    panel.querySelectorAll = () => [current];
+    const originalReplace = root.replaceChildren;
+    let heightAbove = 220;
+    root.replaceChildren = (...children: any[]) => {
+      originalReplace(...children);
+      const next = h.all().find((node) => node.id === 'console-log-output');
+      next.getBoundingClientRect = () => ({ top: 0 });
+      next.querySelectorAll = () => h.all().filter((node) => node.dataset?.validationRun);
+      for (const round of next.querySelectorAll()) {
+        const offset = round.dataset.validationRun === first ? heightAbove : 0;
+        const height = round.dataset.validationRun === first ? 300 : heightAbove;
+        round.getBoundingClientRect = () => ({
+          top: offset - next.scrollTop,
+          bottom: offset - next.scrollTop + height,
+        });
+      }
+    };
+    h.api.validationView().runs.unshift({
+      ...run(second),
+      started_at: '2026-09-29T11:00:00Z',
+    });
+    h.api.renderConsoleLogs();
+    expect(h.all().find((node) => node.id === 'console-log-output').scrollTop).toBe(240);
+    heightAbove = 460;
+    h.api.renderConsoleLogs();
+    expect(h.all().find((node) => node.id === 'console-log-output').scrollTop).toBe(480);
+  });
+
+  it('discards cleared image queue entries even after in-flight completion or late observation', async () => {
+    const h = harness({ observeImages: true });
+    h.respond([run(), run(second), run(third)]);
+    await h.api.refreshValidation();
+    const images = h.all().filter((node) => node.tagName === 'img');
+    images.forEach((image) => (image.isConnected = true));
+    h.intersect(images);
+    expect(images.filter((image) => image.src)).toHaveLength(1);
+    h.api.clearConsoleLogs();
+    h.intersect(images.slice(1));
+    images[0].fire('load');
+    expect(h.observedImages.size).toBe(0);
+    expect(images.slice(1).every((image) => !image.src)).toBe(true);
+  });
+
+  it('loads older history at the bottom, not at the top', async () => {
+    const h = harness();
+    h.respond([run()], { next_cursor: first });
+    await h.api.refreshValidation();
+    const panel = h.all().find((node) => node.id === 'console-log-output');
+    panel.isConnected = true;
+    panel.scrollTop = 0;
+    panel.scrollHeight = 1000;
+    panel.clientHeight = 400;
+    h.fetch.mockClear();
+    panel.fire('scroll');
+    expect(h.fetch).not.toHaveBeenCalled();
+    panel.scrollTop = 600;
+    panel.fire('scroll');
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(h.fetch.mock.calls.map(([url]) => url)).toContain(
+      '/api/projects/alpha/validation?before=' + first
+    );
+  });
+
+  it('shows the last three log lines while collapsed and keeps full text in the disclosure', async () => {
+    const h = harness();
+    h.respond();
+    const fallback = h.fetch.getMockImplementation()!;
+    h.fetch.mockImplementation(async (url, options) =>
+      url.includes('/logs?')
+        ? h.reply({
+            logs: [{ cursor: 1, text: 'line 1\nline 2\nline 3\nline 4\nline 5' }],
+            next_cursor: 1,
+          })
+        : fallback(url, options)
+    );
+    await h.api.refreshValidation();
+    const section = h.all().find((node) => node.dataset?.evidence === 'runtime');
+    expect(section.open).toBe(false);
+    const preview = h.all(section).find((node) => node.className === 'validation-preview');
+    expect(preview?.textContent).toBe('line 3\nline 4\nline 5');
+    const full = h.all(section).find((node) => node.tagName === 'pre');
+    expect(
+      h
+        .all(full)
+        .map((node) => node.textContent)
+        .join('')
+    ).toContain('line 1');
+    const image = h.all().find((node) => node.tagName === 'img');
+    expect(image.className).toBe('validation-screenshot');
+    expect(h.all().find((node) => node.dataset?.evidence === 'screenshot').tagName).toBe('section');
+  });
+
+  it('caches finished evidence but continues reading active rounds with their own cursors', async () => {
+    const h = harness();
+    h.respond([run(), run(second, 'running')]);
+    await h.api.refreshValidation();
+    h.fetch.mockClear();
+    await h.api.refreshValidation();
+    const calls = h.fetch.mock.calls.map(([url]) => url);
+    expect(calls.some((url) => url.includes('/validation/' + first))).toBe(false);
+    expect(calls).toContain('/api/projects/alpha/validation/' + second + '/logs?cursor=1');
+  });
+
+  it('keeps multi-round evidence reads within three slots of the four-reader server limit', async () => {
+    const h = harness();
+    h.respond([run(), run(second), run(third)]);
+    const fallback = h.fetch.getMockImplementation()!;
+    let active = 0;
+    let maximum = 0;
+    h.fetch.mockImplementation(async (url, options) => {
+      if (!url.includes('/validation/')) return fallback(url, options);
+      maximum = Math.max(maximum, ++active);
+      await new Promise((resolve) => setImmediate(resolve));
+      try {
+        return await fallback(url, options);
+      } finally {
+        active--;
+      }
+    });
+    await h.api.refreshValidation();
+    expect(maximum).toBe(3);
+    expect(h.all().filter((node) => node.dataset?.validationRun)).toHaveLength(3);
+  });
+
   const runtimeText = [
     '[2026-09-30 12:00:00][1] INFO: warning and error counters initialized',
     '[lua] WARNING: texture fallback',
@@ -325,17 +532,17 @@ describe('Maker console passive Validate UI', () => {
     expect(text).toContain('<script>bad()</script>');
     expect(nodes.filter((node) => node.tagName === 'img')).toHaveLength(1);
     const sections = nodes.filter((node) => node.tagName === 'details');
-    expect(sections).toHaveLength(4);
+    expect(sections).toHaveLength(3);
     expect(sections.find((node) => node.dataset.evidence === 'json').open).toBe(false);
     expect(sections.find((node) => node.dataset.evidence === 'runtime').open).toBe(false);
     expect(sections.find((node) => node.dataset.evidence === 'prepare').open).toBe(false);
-    expect(sections.find((node) => node.dataset.evidence === 'screenshot').open).toBe(true);
+    expect(nodes.find((node) => node.dataset.evidence === 'screenshot').tagName).toBe('section');
     expect(nodes.filter((node) => node.tagName === 'script')).toHaveLength(0);
     expect(h.fetch.mock.calls.every(([, options]) => options.method === 'GET')).toBe(true);
     expect(h.fetch.mock.calls.some(([url]) => /actions|preview|build/.test(url))).toBe(false);
   });
 
-  it('loads history pages without stealing selection or losing the older-page cursor on refresh', async () => {
+  it('keeps all loaded history pages and their disclosure state when new rounds arrive', async () => {
     const h = harness();
     expect(h.api.refreshValidation).toEqual(expect.any(Function));
     h.respond([run()], { next_cursor: first });
@@ -343,22 +550,24 @@ describe('Maker console passive Validate UI', () => {
     h.respond([run(second)], { next_cursor: second });
     await h.api.refreshValidation({ more: true });
     expect(h.fetch.mock.calls.some(([url]) => url.endsWith('?before=' + first))).toBe(true);
-    await h.api.chooseValidationRun(second);
+    const oldSection = h.api.validationView().entries.get(second).sections.get('runtime').section;
+    oldSection.open = true;
     h.respond([run(third), run()], { next_cursor: first });
     await h.api.refreshValidation();
-    expect(h.api.validationView().selectedRun).toBe(second);
     expect(h.api.validationView().runs.map((item: any) => item.run_id)).toEqual([
       third,
       first,
       second,
     ]);
     expect(h.api.validationView().nextCursor).toBe(second);
+    expect(h.all().some((node) => node === oldSection)).toBe(true);
+    expect(oldSection.open).toBe(true);
   });
 
-  it('keeps per-project selection and incremental cursors and bounds runtime display', async () => {
+  it('keeps per-project entries and incremental cursors and bounds runtime display', async () => {
     const h = harness();
     expect(h.api.refreshValidation).toEqual(expect.any(Function));
-    h.respond();
+    h.respond([run(first, 'running')]);
     await h.api.refreshValidation();
     const fallback = h.fetch.getMockImplementation()!;
     h.fetch.mockImplementation(async (url, options) =>
@@ -377,18 +586,18 @@ describe('Maker console passive Validate UI', () => {
     expect(h.api.consoleLogText()).toContain('截断');
     h.api.project('beta');
     h.api.logView().tab = 'validate';
-    expect(h.api.validationView().selectedRun).toBe('');
+    expect(h.api.validationView().entries.size).toBe(0);
     h.api.project('alpha');
-    expect(h.api.validationView().selectedRun).toBe(first);
+    expect(h.api.validationView().runs[0].run_id).toBe(first);
     expect(h.api.validationView().entries.get(first).cursor).toBe(2);
   });
 
-  it.each(['project', 'run', 'clear'])(
+  it.each(['project', 'tab', 'clear'])(
     'discards stale evidence after %s changes',
     async (change) => {
       const h = harness();
       expect(h.api.refreshValidation).toEqual(expect.any(Function));
-      h.respond([run(), run(second)]);
+      h.respond([run(first, 'running'), run(second, 'running')]);
       await h.api.refreshValidation();
       let release!: (value: any) => void;
       const fallback = h.fetch.getMockImplementation()!;
@@ -403,14 +612,13 @@ describe('Maker console passive Validate UI', () => {
       if (change === 'project') {
         h.api.project('beta');
         h.api.project('alpha'); // Same key is insufficient: selectionEpoch must also match.
-      } else if (change === 'run') await h.api.chooseValidationRun(second);
+      } else if (change === 'tab') h.api.selectLog('runtime');
       else h.api.clearConsoleLogs();
       release(
         h.reply({ run: run(), report: { stale: 'stale response' }, artifacts: [], warnings: [] })
       );
       await pending;
       expect(h.api.consoleLogText()).not.toContain('stale response');
-      if (change === 'run') expect(h.api.validationView().selectedRun).toBe(second);
     }
   );
 
@@ -446,7 +654,7 @@ describe('Maker console passive Validate UI', () => {
   it('clears only displayed evidence and appends new runtime output without resetting the cursor', async () => {
     const h = harness();
     expect(h.api.refreshValidation).toEqual(expect.any(Function));
-    h.respond();
+    h.respond([run(first, 'running')]);
     await h.api.refreshValidation();
     h.fetch.mockClear();
     h.api.clearConsoleLogs();
@@ -492,7 +700,7 @@ describe('Maker console passive Validate UI', () => {
   });
 
   it.each([true, false])(
-    'preserves log disclosure (%s) and scroll state across polling and run switches',
+    'preserves log disclosure (%s) and scroll state across polling and project switches',
     async (open) => {
       const h = harness();
       h.respond([run(), run(second)]);
@@ -506,8 +714,10 @@ describe('Maker console passive Validate UI', () => {
       expect(h.all().find((node) => node.dataset?.evidence === 'runtime')).toBe(section);
       expect(section.open).toBe(open);
       expect(output.scrollTop).toBe(120);
-      await h.api.chooseValidationRun(second);
-      await h.api.chooseValidationRun(first);
+      h.api.project('beta');
+      h.api.renderConsoleLogs();
+      h.api.project('alpha');
+      h.api.renderConsoleLogs();
       expect(h.all().find((node) => node.dataset?.evidence === 'runtime')).toBe(section);
       expect(section.open).toBe(open);
     }
@@ -694,13 +904,12 @@ describe('Maker console passive Validate UI', () => {
     ).toContain('游戏结果：PASS');
   });
 
-  it('recovers an expired history cursor on refresh while preserving the selected run', async () => {
+  it('recovers an expired history cursor on refresh while preserving already loaded rounds', async () => {
     const h = harness();
     h.respond([run()], { next_cursor: first });
     await h.api.refreshValidation();
     h.respond([run(second)], { next_cursor: second });
     await h.api.refreshValidation({ more: true });
-    await h.api.chooseValidationRun(second);
     h.fetch.mockResolvedValue({
       ok: false,
       status: 400,
@@ -710,6 +919,6 @@ describe('Maker console passive Validate UI', () => {
     h.respond([run(third)], { next_cursor: third });
     await h.api.refreshValidation();
     expect(h.api.validationView().nextCursor).toBe(third);
-    expect(h.api.validationView().selectedRun).toBe(second);
+    expect(h.api.validationView().runs.some((item: any) => item.run_id === second)).toBe(true);
   });
 });

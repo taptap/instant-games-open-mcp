@@ -5,9 +5,11 @@ import { previewDirectory, writePrivateJson } from './protocol.js';
 import { getMakerHome } from '../storage.js';
 import { processPresence } from '../system/processPresence.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
+import { withPreviewLock } from './installation.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const RETENTION_MS = 7 * 86400000;
+const CLEANUP_INTERVAL_MS = 86400000;
 const BUDGET_BYTES = 5 * 1024 ** 3;
 const LIMITS: Record<string, number> = {
   'run.json': 16384,
@@ -64,8 +66,11 @@ async function runDirectory(project: string, id: string): Promise<string> {
   return directory;
 }
 
-async function artifact(directory: string, name: string): Promise<Buffer | undefined> {
-  const max = LIMITS[name];
+async function artifact(
+  directory: string,
+  name: string,
+  max = LIMITS[name]
+): Promise<Buffer | undefined> {
   if (!max) throw new Error('Unknown validation artifact.');
   const filename = path.join(directory, name);
   let file: fs.promises.FileHandle | undefined;
@@ -357,42 +362,68 @@ export async function readValidationPreparation(project: string, id: string) {
 }
 
 export async function cleanValidationHistory(project: string): Promise<string[]> {
-  const { runs, warnings } = await records(project, Infinity);
-  let bytes = 0;
-  let count = 0;
-  for (const run of runs) {
-    const directory = await runDirectory(project, run.run_id);
-    const expired = Date.now() - Date.parse(run.finished_at || run.started_at) > RETENTION_MS;
-    const inactive =
-      run.finished_at ||
-      (processPresence(run.owner_pid) === 'missing' &&
-        !run.runtime_launch_pending &&
-        (!run.runtime_pid || processPresence(run.runtime_pid) === 'missing'));
-    if (expired && inactive) {
-      await fs.promises.rm(directory, { recursive: true, force: true });
-      continue;
-    }
-    // Include prepared source in the warning budget, but never follow its links.
-    const pending = [directory];
-    while (pending.length && count < 50000) {
-      const current = pending.pop()!;
-      for (const entry of await fs.promises.readdir(current, { withFileTypes: true })) {
-        if (count >= 50000) break;
-        count++;
-        const filename = path.join(current, entry.name);
-        const stat = await fs.promises.lstat(filename);
-        if (stat.isSymbolicLink()) continue;
-        if (stat.isDirectory()) pending.push(filename);
-        else if (stat.isFile()) bytes += stat.size;
+  let root: string;
+  try {
+    root = await historyRoot(project);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
+  // Reuse the project lock so concurrent commands cannot scan or delete the same history.
+  return withPreviewLock(project, async () => {
+    const previous = await artifact(root, 'cleanup.json', 1024);
+    let completedAt = NaN;
+    if (previous) {
+      try {
+        const state = JSON.parse(previous.toString('utf8'));
+        if (typeof state?.completed_at === 'string') completedAt = Date.parse(state.completed_at);
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
       }
     }
-  }
-  if (count >= 50000) warnings.push('Validation disk usage scan truncated at 50000 entries.');
-  if (bytes > BUDGET_BYTES)
-    warnings.push(
-      'Validation cache exceeds 5 GiB. Archive needed evidence before manually removing completed runs; recent runs were not deleted.'
-    );
-  return warnings;
+    const elapsed = Date.now() - completedAt;
+    if (elapsed >= 0 && elapsed < CLEANUP_INTERVAL_MS) return [];
+
+    const { runs, warnings } = await records(project, Infinity);
+    let bytes = 0;
+    let count = 0;
+    for (const run of runs) {
+      const directory = await runDirectory(project, run.run_id);
+      const expired = Date.now() - Date.parse(run.finished_at || run.started_at) > RETENTION_MS;
+      const inactive =
+        run.finished_at ||
+        (processPresence(run.owner_pid) === 'missing' &&
+          !run.runtime_launch_pending &&
+          (!run.runtime_pid || processPresence(run.runtime_pid) === 'missing'));
+      if (expired && inactive) {
+        await fs.promises.rm(directory, { recursive: true, force: true });
+        continue;
+      }
+      // Include prepared source in the warning budget, but never follow its links.
+      const pending = [directory];
+      while (pending.length && count < 50000) {
+        const current = pending.pop()!;
+        for (const entry of await fs.promises.readdir(current, { withFileTypes: true })) {
+          if (count >= 50000) break;
+          count++;
+          const filename = path.join(current, entry.name);
+          const stat = await fs.promises.lstat(filename);
+          if (stat.isSymbolicLink()) continue;
+          if (stat.isDirectory()) pending.push(filename);
+          else if (stat.isFile()) bytes += stat.size;
+        }
+      }
+    }
+    if (count >= 50000) warnings.push('Validation disk usage scan truncated at 50000 entries.');
+    if (bytes > BUDGET_BYTES)
+      warnings.push(
+        'Validation cache exceeds 5 GiB. Archive needed evidence before manually removing completed runs; recent runs were not deleted.'
+      );
+    writePrivateJson(path.join(root, 'cleanup.json'), {
+      completed_at: new Date(Date.now()).toISOString(),
+    });
+    return warnings;
+  });
 }
 
 export async function archiveValidationRun(
