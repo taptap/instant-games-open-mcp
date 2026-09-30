@@ -169,8 +169,10 @@ WorkBuddy 旧独立 MCP 的迁移使用 `--client workbuddy`，只把旧注册�
 本地 `run-lua-validate` Skill 可通过 `preview validate` 调用已有 Runtime 的报告、日志、
 截图和断言能力，复用本地预览的项目准备与资源加载。验证流程和游戏结论仍由 Skill/Agent
 执行，不修改引擎。参数、运行条件与失败处理见 [本地验证说明](docs/MAKER_LOCAL_PREVIEW.md#run-lua-validate-本地接入)。
-控制台日志区的 Validate 页签可查看每轮调用、日志、JSON 与截图；验证不依赖控制台运行。
-支持 Agent 按需求重复验证，证据按项目保留 7 天，`--output-dir` 可长期归档验收材料。
+控制台 Validate 以可滚动过程列表展示多轮调用，最新结果在最上面，日志/JSON 缩起显示 3 行、截图显示小图；
+验证不依赖控制台运行。过早的黑屏/引擎加载截图可有界重试，游戏 loading 仍须 AI 看图确认。
+支持 Agent 按需求重复验证，证据按项目保留 7 天；验证结束触发清理检查，每个项目成功清理后
+24 小时内不重复扫描，无后台定时任务。`--output-dir` 可长期归档验收材料。
 原 Skill 文件缺失时，即使本地未配置排除规则也会提示更新 ai-dev-kit；归档保留最终清理告警。
 
 Maker 本地开发独立发布为 `@taptap/maker`。首次配置推荐直接运行：

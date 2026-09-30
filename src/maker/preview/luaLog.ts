@@ -87,8 +87,16 @@ export class PreviewLuaLog {
         if (row.length > 65536) continue;
         try {
           const entry = JSON.parse(row) as { m?: unknown; l?: unknown };
-          if (typeof entry.m === 'string')
-            this.append('[lua] ' + (entry.l === 'ERROR' ? 'ERROR: ' : '') + entry.m);
+          if (typeof entry.m === 'string') {
+            const level =
+              typeof entry.l === 'string' &&
+              /^(?:INFO|DEBUG|TRACE|NOTICE|LOG|WARN|WARNING|ERROR|FATAL|CRITICAL|PANIC)$/i.test(
+                entry.l
+              )
+                ? entry.l.toUpperCase() + ': '
+                : '';
+            this.append('[lua] ' + level + entry.m);
+          }
         } catch {
           continue;
         }

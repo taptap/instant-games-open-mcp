@@ -16,6 +16,7 @@ import {
 import * as presence from '../maker/system/processPresence.js';
 import { previewDirectory, writePrivateJson } from '../maker/preview/protocol.js';
 import { PreviewLogs } from '../maker/preview/evidence.js';
+import { withPreviewLock } from '../maker/preview/installation.js';
 
 let root: string;
 let project: string;
@@ -28,6 +29,7 @@ beforeEach(() => {
   fs.mkdirSync(project);
 });
 afterEach(() => {
+  jest.restoreAllMocks();
   if (home === undefined) delete process.env.TAPTAP_MAKER_HOME;
   else process.env.TAPTAP_MAKER_HOME = home;
   fs.rmSync(root, { recursive: true, force: true });
@@ -134,12 +136,106 @@ test('retains recent and active evidence, expires only old finished evidence', a
   oldRecord.finished_at = new Date(Date.now() - 8 * 86400000).toISOString();
   writePrivateJson(path.join(old.directory, 'run.json'), oldRecord);
   const active = await createValidationRun(project);
+  updateValidationRun(active, {
+    started_at: new Date(Date.now() - 8 * 86400000).toISOString(),
+  });
   const recent = await createValidationRun(project);
   finishValidationRun(recent, { result: 'COMPLETED' });
   await cleanValidationHistory(project);
   expect(fs.existsSync(old.directory)).toBe(false);
   expect(fs.existsSync(active.directory)).toBe(true);
   expect(fs.existsSync(recent.directory)).toBe(true);
+});
+
+async function expiredFinishedRun(target = project) {
+  const run = await createValidationRun(target);
+  finishValidationRun(run, { result: 'COMPLETED' });
+  updateValidationRun(run, {
+    finished_at: new Date(Date.now() - 8 * 86400000).toISOString(),
+  });
+  return run;
+}
+
+test('persists cleanup time and skips history scans for the next 24 hours', async () => {
+  const now = Date.now();
+  const clock = jest.spyOn(Date, 'now').mockReturnValue(now);
+  const first = await expiredFinishedRun();
+  await cleanValidationHistory(project);
+  expect(fs.existsSync(first.directory)).toBe(false);
+  const state = path.join(previewDirectory(project), 'validation', 'cleanup.json');
+  expect(JSON.parse(fs.readFileSync(state, 'utf8')).completed_at).toBe(new Date(now).toISOString());
+
+  const later = await expiredFinishedRun();
+  clock.mockReturnValue(now + 86400000 - 1);
+  const scan = jest.spyOn(fs.promises, 'readdir');
+  await cleanValidationHistory(project);
+  expect(scan).not.toHaveBeenCalled();
+  expect(fs.existsSync(later.directory)).toBe(true);
+  clock.mockReturnValue(now + 86400000);
+  await cleanValidationHistory(project);
+  expect(scan).toHaveBeenCalled();
+  expect(fs.existsSync(later.directory)).toBe(false);
+});
+
+test('cleanup intervals are isolated by project', async () => {
+  await createValidationRun(project);
+  await cleanValidationHistory(project);
+  const other = path.join(root, 'other');
+  fs.mkdirSync(other);
+  const expired = await expiredFinishedRun(other);
+  await cleanValidationHistory(other);
+  expect(fs.existsSync(expired.directory)).toBe(false);
+});
+
+test.each(['{partial', '{"completed_at":"invalid"}', '{"completed_at":"2099-01-01"}'])(
+  'invalid or future cleanup state does not prevent cleanup: %s',
+  async (contents) => {
+    const expired = await expiredFinishedRun();
+    const state = path.join(previewDirectory(project), 'validation', 'cleanup.json');
+    fs.writeFileSync(state, contents);
+    await cleanValidationHistory(project);
+    expect(fs.existsSync(expired.directory)).toBe(false);
+    expect(
+      Number.isFinite(Date.parse(JSON.parse(fs.readFileSync(state, 'utf8')).completed_at))
+    ).toBe(true);
+    expect(Date.parse(JSON.parse(fs.readFileSync(state, 'utf8')).completed_at)).toBeLessThanOrEqual(
+      Date.now()
+    );
+  }
+);
+
+test('failed cleanup does not defer the next attempt', async () => {
+  const expired = await expiredFinishedRun();
+  const state = path.join(previewDirectory(project), 'validation', 'cleanup.json');
+  const remove = jest.spyOn(fs.promises, 'rm').mockRejectedValueOnce(new Error('disk busy'));
+  await expect(cleanValidationHistory(project)).rejects.toThrow('disk busy');
+  expect(fs.existsSync(state)).toBe(false);
+  remove.mockRestore();
+  await cleanValidationHistory(project);
+  expect(fs.existsSync(expired.directory)).toBe(false);
+});
+
+test('busy project cleanup does not record success or interfere with the operation', async () => {
+  const expired = await expiredFinishedRun();
+  const state = path.join(previewDirectory(project), 'validation', 'cleanup.json');
+  await withPreviewLock(project, async () => {
+    await expect(cleanValidationHistory(project)).rejects.toThrow(/in progress|active/);
+    expect(fs.existsSync(state)).toBe(false);
+    expect(fs.existsSync(expired.directory)).toBe(true);
+  });
+  await cleanValidationHistory(project);
+  expect(fs.existsSync(expired.directory)).toBe(false);
+});
+
+test('linked cleanup state is rejected without deleting evidence or touching its target', async () => {
+  const expired = await expiredFinishedRun();
+  const outside = path.join(root, 'outside.json');
+  fs.writeFileSync(outside, '{"completed_at":"2000-01-01"}');
+  const state = path.join(previewDirectory(project), 'validation', 'cleanup.json');
+  fs.symlinkSync(outside, state);
+  await expect(cleanValidationHistory(project)).rejects.toThrow();
+  expect(fs.existsSync(expired.directory)).toBe(true);
+  expect(fs.readFileSync(outside, 'utf8')).toBe('{"completed_at":"2000-01-01"}');
 });
 
 test('unfinished records with dead owners are incomplete, never successful', async () => {

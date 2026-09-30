@@ -37,6 +37,30 @@ test('reads only the announced file incrementally and flushes on close', () => {
   expect(lines).toHaveLength(2);
 });
 
+test('preserves structured Lua severity so console filters do not guess from message words', () => {
+  reader.observe(announce(filename));
+  const entries = [
+    { l: 'INFO', m: 'warning and error counters initialized' },
+    { l: 'WARNING', m: 'texture fallback' },
+    { l: 'WARN', m: 'retrying' },
+    { l: 'ERROR', m: 'bad field' },
+    { l: 'FATAL', m: 'shutdown' },
+    { l: 'DEBUG', m: 'debug trace' },
+    { l: 'RAW', m: 'plain print' },
+  ];
+  fs.appendFileSync(filename, entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n');
+  reader.poll();
+  expect(lines).toEqual([
+    '[lua] INFO: warning and error counters initialized',
+    '[lua] WARNING: texture fallback',
+    '[lua] WARN: retrying',
+    '[lua] ERROR: bad field',
+    '[lua] FATAL: shutdown',
+    '[lua] DEBUG: debug trace',
+    '[lua] plain print',
+  ]);
+});
+
 test('drains a final burst without losing the final error and yields between chunks', async () => {
   reader.observe(announce(filename));
   const row = JSON.stringify({ m: 'x'.repeat(1000), l: 'RAW' }) + '\n';

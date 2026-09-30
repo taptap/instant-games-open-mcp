@@ -17,6 +17,11 @@ import { selectWindowsBackgroundEnvironment } from '../system/backgroundProcess.
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { repairLocalValidationSkillFilter } from '../cli/devKit.js';
 import {
+  laterScreenshotFrame,
+  ValidationScreenshot,
+  type ScreenshotAssessment,
+} from './validationScreenshot.js';
+import {
   archiveValidationRun,
   cleanValidationHistory,
   createValidationRun,
@@ -73,82 +78,177 @@ function readArtifact(filename: string, max: number): Buffer {
   return fs.readFileSync(filename);
 }
 
+export function screenshotRetryTimeout(
+  options: Options,
+  nextFrame: number,
+  runtimeMs: number,
+  explicitTimeout = options.validate_timeout !== undefined
+): number | undefined {
+  const frame = Number(options.screenshot_frame);
+  const frames = Number(options.validate_frames ?? frame + 80);
+  const ratio =
+    options.mode === 'both' ? Math.max(frames, nextFrame + 80) / frames : nextFrame / frame;
+  const timeout = Number(options.validate_timeout ?? 100);
+  const budget = !explicitTimeout ? Math.min(580, Math.ceil(timeout * ratio)) : timeout;
+  // Use observed Runtime time, not preparation time or an assumed frame rate.
+  return Number.isFinite(runtimeMs) && runtimeMs * ratio < budget * 1000 ? budget : undefined;
+}
+
 export async function runSkillValidation(
   project: string,
   options: Options,
   signal: AbortSignal
 ): Promise<Record<string, unknown>> {
-  const run = await createValidationRun(project);
-  const paths = {
-    run_id: run.run_id,
-    evidence_directory: run.directory,
-    log_path: path.join(run.directory, 'runtime.log'),
-    invocation_path: path.join(run.directory, 'invocation.json'),
-    started_at: run.started_at,
-  };
-  process.stderr.write(JSON.stringify({ event: 'validation.started', ...paths }) + '\n');
-  let output: Record<string, unknown>;
-  try {
-    writePrivateJson(paths.invocation_path, {
-      requested_options: sanitizeDiagnosticValue(options),
-    });
-    if (
-      options.output_dir !== undefined &&
-      (typeof options.output_dir !== 'string' || !path.isAbsolute(options.output_dir))
-    )
-      throw new Error('--output-dir must be an absolute directory.');
-    output = await executeSkillValidation(project, options, signal, run);
-  } catch (error) {
-    output = {
-      ok: false,
-      result: signal.aborted ? 'CANCELLED' : 'FAIL',
-      error: sanitizeDiagnosticValue(error instanceof Error ? error.message : String(error)),
+  const attemptRunIds: string[] = [];
+  let attemptOptions = options;
+  for (let attempt = 0; ; attempt++) {
+    const run = await createValidationRun(project);
+    attemptRunIds.push(run.run_id);
+    const paths = {
+      run_id: run.run_id,
+      evidence_directory: run.directory,
+      log_path: path.join(run.directory, 'runtime.log'),
+      invocation_path: path.join(run.directory, 'invocation.json'),
+      started_at: run.started_at,
     };
+    process.stderr.write(JSON.stringify({ event: 'validation.started', ...paths }) + '\n');
+    let output: Record<string, unknown>;
     try {
-      new PreviewLogs(run.directory).append(String(output.error));
-    } catch (logError) {
-      output.error =
-        String(output.error) +
-        '\nValidation error log could not be saved: ' +
-        String(sanitizeDiagnosticValue(String(logError)));
-    }
-  }
-  output = {
-    ...output,
-    ...paths,
-    project_realpath: project,
-    finished_at: new Date().toISOString(),
-  };
-  finishValidationRun(run, output);
-  // Retention is best effort; it must not obscure this run's diagnostics.
-  try {
-    output.warnings = [
-      ...(Array.isArray(output.warnings) ? output.warnings : []),
-      ...(await cleanValidationHistory(project)),
-    ];
-  } catch (error) {
-    output.warnings = [
-      ...(Array.isArray(output.warnings) ? output.warnings : []),
-      'Validation history cleanup skipped: ' + String(sanitizeDiagnosticValue(String(error))),
-    ];
-  }
-  finishValidationRun(run, output);
-  if (typeof options.output_dir === 'string') {
-    try {
-      output.archive_directory = await archiveValidationRun(run, options.output_dir);
+      writePrivateJson(paths.invocation_path, {
+        requested_options: sanitizeDiagnosticValue(attemptOptions),
+      });
+      if (
+        options.output_dir !== undefined &&
+        (typeof options.output_dir !== 'string' || !path.isAbsolute(options.output_dir))
+      )
+        throw new Error('--output-dir must be an absolute directory.');
+      output = await executeSkillValidation(project, attemptOptions, signal, run);
     } catch (error) {
-      output.ok = false;
-      output.result = 'FAIL';
-      output.error = [
-        output.error,
-        'Evidence archive failed: ' + String(sanitizeDiagnosticValue(String(error))),
-      ]
-        .filter(Boolean)
-        .join('\n');
+      output = {
+        ok: false,
+        result: signal.aborted ? 'CANCELLED' : 'FAIL',
+        error: sanitizeDiagnosticValue(error instanceof Error ? error.message : String(error)),
+      };
+      try {
+        new PreviewLogs(run.directory).append(String(output.error));
+      } catch (logError) {
+        output.error =
+          String(output.error) +
+          '\nValidation error log could not be saved: ' +
+          String(sanitizeDiagnosticValue(String(logError)));
+      }
+    }
+    const {
+      _screenshot_retry_eligible: retryEligible,
+      _runtime_duration_ms: runtimeMs,
+      ...collected
+    } = output;
+    const assessment = output.screenshot_assessment as ScreenshotAssessment | undefined;
+    const nextFrame = assessment && laterScreenshotFrame(assessment);
+    let retry = retryEligible === true && attempt < 2 && nextFrame !== undefined;
+    const retryTimeout = retry
+      ? screenshotRetryTimeout(
+          attemptOptions,
+          nextFrame!,
+          Number(runtimeMs),
+          options.validate_timeout !== undefined
+        )
+      : undefined;
+    const budgetExceeded = retry && retryTimeout === undefined;
+    if (budgetExceeded) retry = false;
+    output = {
+      ...collected,
+      ...paths,
+      project_realpath: project,
+      finished_at: new Date().toISOString(),
+      ...(options.mode === 'screenshot' || options.mode === 'both'
+        ? {
+            attempt_run_ids: [...attemptRunIds],
+            next_step:
+              'AI must inspect every PNG for arbitrary in-game loading and gameplay; automatic checks only detect near-total black/transparent pixels and known bootstrap ordering.' +
+              (assessment?.status === 'NOT_READY'
+                ? ' This screenshot is not effective visual evidence. ' +
+                  (retry
+                    ? `Waiting 3 seconds before a new Runtime launch at screenshot frame ${nextFrame}.`
+                    : budgetExceeded
+                      ? 'Automatic retry skipped: the estimated later-frame runtime exceeds the timeout budget. Inspect retained evidence and explicitly choose a suitable --validate-timeout before retrying.'
+                      : 'Automatic retries are exhausted or unsafe. Inspect all attempt logs and the raw game report; choose a later frame or a controlled entry after resolving the cause.')
+                : ''),
+          }
+        : {}),
+    };
+    finishValidationRun(run, output);
+    if (retry) {
+      await new Promise<void>((resolve) => {
+        const done = (): void => {
+          clearTimeout(timer);
+          signal.removeEventListener('abort', done);
+          resolve();
+        };
+        const timer = setTimeout(done, 3000);
+        signal.addEventListener('abort', done, { once: true });
+        if (signal.aborted) done();
+      });
+      if (signal.aborted) {
+        retry = false;
+        output.ok = false;
+        output.result = 'CANCELLED';
+        output.error = [
+          output.error,
+          'Cancelled during screenshot retry delay; no new Runtime was launched.',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        output.next_step =
+          'Screenshot retry cancelled. Retained PNGs require AI inspection and are not effective visual evidence.';
+      }
+    }
+    // Retention is best effort; it must not obscure this run's diagnostics.
+    try {
+      output.warnings = [
+        ...(Array.isArray(output.warnings) ? output.warnings : []),
+        ...(await cleanValidationHistory(project)),
+      ];
+    } catch (error) {
+      output.warnings = [
+        ...(Array.isArray(output.warnings) ? output.warnings : []),
+        'Validation history cleanup skipped: ' + String(sanitizeDiagnosticValue(String(error))),
+      ];
     }
     finishValidationRun(run, output);
+    if (typeof options.output_dir === 'string') {
+      try {
+        output.archive_directory = await archiveValidationRun(run, options.output_dir);
+      } catch (error) {
+        output.ok = false;
+        output.result = 'FAIL';
+        retry = false;
+        output.error = [
+          output.error,
+          'Evidence archive failed: ' + String(sanitizeDiagnosticValue(String(error))),
+        ]
+          .filter(Boolean)
+          .join('\n');
+        if (options.mode === 'screenshot' || options.mode === 'both')
+          output.next_step =
+            'Evidence archive failed; no screenshot retry was launched. Inspect the retained local PNGs and resolve the archive error before retrying.';
+      }
+      finishValidationRun(run, output);
+    }
+    if (!retry) return output;
+    attemptOptions = {
+      ...options,
+      screenshot_frame: String(nextFrame),
+      validate_timeout: String(retryTimeout),
+      ...(options.mode === 'both'
+        ? {
+            validate_frames: String(
+              Math.max(Number(options.validate_frames ?? 0), nextFrame! + 80)
+            ),
+          }
+        : {}),
+    };
   }
-  return output;
 }
 
 async function executeSkillValidation(
@@ -232,9 +332,13 @@ async function executeSkillValidation(
     };
     const directory = run.directory;
     const logs = new PreviewLogs(directory);
+    const screenshot = capture ? new ValidationScreenshot(frame!) : undefined;
     const failures: string[] = [];
     let logWriteFailed = false;
+    let runtimeErrorObserved = false;
     const appendLog = (line: string): void => {
+      if (/\b(?:ERROR|FATAL|CRITICAL|PANIC):|stack traceback:/.test(line))
+        runtimeErrorObserved = true;
       try {
         logs.append(line);
       } catch (error) {
@@ -251,12 +355,14 @@ async function executeSkillValidation(
     const artifacts: Record<string, unknown>[] = [];
     const warnings = repairLocalValidationSkillFilter(project);
     let report: Record<string, unknown> | undefined;
+    let screenshotAssessment: ScreenshotAssessment | undefined;
     let preparation: Record<string, unknown> | undefined;
     let assets: PreviewAssetServer | undefined;
     let cache: string | undefined;
     let exitCode: number | null = null;
     let exitSignal: NodeJS.Signals | null = null;
     let timedOut = false;
+    let runtimeDurationMs: number | undefined;
     const started = run.started_at;
     const invocationPath = path.join(directory, 'invocation.json');
 
@@ -303,6 +409,7 @@ async function executeSkillValidation(
         cwd: source,
       });
       updateValidationRun(run, { phase: 'starting', runtime_launch_pending: true });
+      const runtimeStarted = performance.now();
       const child = spawn(executable, args, {
         cwd: source,
         shell: false,
@@ -315,6 +422,7 @@ async function executeSkillValidation(
             : process.env,
       });
       const append = (line: string): void => {
+        screenshot?.observe(line);
         lua.observe(line);
         appendLog(assets ? line.split(assets.url).join('[local-preview]/') : line);
       };
@@ -360,6 +468,7 @@ async function executeSkillValidation(
         }
         if (signal.aborted) stop();
       });
+      runtimeDurationMs = performance.now() - runtimeStarted;
     } catch (error) {
       failures.push(
         String(sanitizeDiagnosticValue(error instanceof Error ? error.message : error))
@@ -409,12 +518,15 @@ async function executeSkillValidation(
         const png = readArtifact(pngPath, 128 * 1024 * 1024);
         if (!isCompleteValidationPng(png))
           throw new Error('Runtime did not produce a complete PNG.');
+        const assessed = screenshot!.assess(png);
+        screenshotAssessment = assessed;
         artifacts.push({
           kind: 'screenshot',
           path: pngPath,
           frame,
-          width: png.readUInt32BE(16),
-          height: png.readUInt32BE(20),
+          width: assessed.width,
+          height: assessed.height,
+          effective_visual_evidence: assessed.effective_visual_evidence,
         });
       } catch (error) {
         failures.push(
@@ -428,13 +540,33 @@ async function executeSkillValidation(
     if (fs.existsSync(prepareLog)) artifacts.push({ kind: 'prepare-log', path: prepareLog });
     if (exitCode !== 0 && !(exitCode === 1 && report?.result === 'FAIL'))
       failures.push('Runtime did not complete normally; inspect its logs and original report.');
-    const result = signal.aborted
+    const collectionResult = signal.aborted
       ? 'CANCELLED'
       : timedOut || report?.result === 'TIMEOUT'
         ? 'TIMEOUT'
         : failures.length
           ? 'FAIL'
           : 'COMPLETED';
+    const visuallyNotReady = screenshotAssessment?.status === 'NOT_READY';
+    const retryEligible =
+      collectionResult === 'COMPLETED' &&
+      visuallyNotReady &&
+      // A complete report is authoritative; do not reclassify its raw startup/game logs.
+      (report
+        ? report.result === 'PASS' &&
+          ['lua_errors', 'resource_errors', 'engine_errors', 'total_errors'].every(
+            (key) => (report.summary as Record<string, unknown>)[key] === 0
+          ) &&
+          (report.missing_resources as unknown[]).length === 0 &&
+          report.test_result !== 'FAILED'
+        : !runtimeErrorObserved);
+    if (visuallyNotReady)
+      failures.push(
+        'Screenshot is not effective visual evidence: ' +
+          screenshotAssessment!.reasons.join(', ') +
+          '. Inspect the retained PNG and logs; the raw game report is unchanged.'
+      );
+    const result = collectionResult === 'COMPLETED' && visuallyNotReady ? 'FAIL' : collectionResult;
     const output = {
       ...identity,
       protocol_version: 1,
@@ -443,6 +575,9 @@ async function executeSkillValidation(
       mode,
       game_review_required: true,
       visual_check_required: capture,
+      screenshot_assessment: screenshotAssessment,
+      _screenshot_retry_eligible: retryEligible,
+      _runtime_duration_ms: runtimeDurationMs,
       report,
       artifacts,
       preparation,
