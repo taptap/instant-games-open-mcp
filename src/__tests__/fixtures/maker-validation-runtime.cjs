@@ -6,6 +6,8 @@ const config = path.join(process.cwd(), '.project/validation-fixture.json');
 const options = fs.existsSync(config) ? JSON.parse(fs.readFileSync(config, 'utf8')) : {};
 if (args.includes('-screenshot-after-start')) process.exit(90);
 const frame = Number(value('-screenshot-frame'));
+if (frame >= 300 && Number(value('-validate-timeout')) < options.minRetryTimeout)
+  options.reportTimeout = true;
 fs.appendFileSync(
   path.join(process.cwd(), '.project/validation-launches.jsonl'),
   JSON.stringify({ frame, started: Date.now() }) + '\n'

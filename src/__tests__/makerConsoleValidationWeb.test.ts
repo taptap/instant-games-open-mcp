@@ -315,7 +315,7 @@ describe('Maker console passive Validate UI', () => {
     expect(calls).toContain('/api/projects/alpha/validation/' + second + '/logs?cursor=1');
   });
 
-  it('keeps multi-round evidence reads within three slots of the four-reader server limit', async () => {
+  it('reserves reader slots for both pagination and a thumbnail', async () => {
     const h = harness();
     h.respond([run(), run(second), run(third)]);
     const fallback = h.fetch.getMockImplementation()!;
@@ -332,8 +332,51 @@ describe('Maker console passive Validate UI', () => {
       }
     });
     await h.api.refreshValidation();
-    expect(maximum).toBe(3);
+    expect(maximum).toBe(2);
     expect(h.all().filter((node) => node.dataset?.validationRun)).toHaveLength(3);
+  });
+
+  it('allows pagination and summary polling while a round evidence request is slow', async () => {
+    const h = harness();
+    h.respond([run()], { next_cursor: first });
+    const fallback = h.fetch.getMockImplementation()!;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    h.fetch.mockImplementation(async (url, options) => {
+      if (url.endsWith('/' + first)) await gate;
+      if (url.includes('?before=')) return h.reply({ runs: [run(second)], warnings: [] });
+      return fallback(url, options);
+    });
+    const pending = h.api.refreshValidation();
+    await new Promise((resolve) => setImmediate(resolve));
+    try {
+      expect(h.api.validationView().loading).toBe(false);
+      expect(h.api.validationView().detailLoading).toBe(true);
+      await h.api.refreshValidation({ more: true });
+      expect(h.api.validationView().runs).toHaveLength(2);
+      await h.api.refreshValidation();
+      expect(h.fetch.mock.calls.filter(([url]) => url.endsWith('/validation'))).toHaveLength(2);
+    } finally {
+      release();
+      await pending;
+    }
+    expect(h.fetch.mock.calls.some(([url]) => url.endsWith('/' + second + '/prepare'))).toBe(true);
+  });
+
+  it('reuses unchanged round cards and refreshes only changed evidence', async () => {
+    const h = harness();
+    h.respond([run()]);
+    await h.api.refreshValidation();
+    const card = h.all().find((node) => node.dataset?.validationRun === first);
+    const feed = card.children[card.children.length - 1];
+    await h.api.refreshValidation();
+    expect(h.all().find((node) => node.dataset?.validationRun === first)).toBe(card);
+    expect(card.children[card.children.length - 1]).toBe(feed);
+    h.api.clearConsoleLogs();
+    h.api.renderConsoleLogs();
+    expect(h.api.consoleLogText()).not.toContain('Lua runtime output');
   });
 
   const runtimeText = [
@@ -607,7 +650,7 @@ describe('Maker console passive Validate UI', () => {
         return fallback(url, options);
       });
       const pending = h.api.refreshValidation();
-      for (let i = 0; i < 20 && !release; i++) await Promise.resolve();
+      await new Promise((resolve) => setImmediate(resolve));
       expect(release).toEqual(expect.any(Function));
       if (change === 'project') {
         h.api.project('beta');

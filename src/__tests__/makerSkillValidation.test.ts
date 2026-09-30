@@ -10,6 +10,7 @@ import {
 } from '../maker/preview/validationHistory.js';
 import { PreviewLogs } from '../maker/preview/evidence.js';
 import { PreviewOwner } from '../maker/preview/owner.js';
+import { screenshotRetryTimeout } from '../maker/preview/validation.js';
 import { previewDirectory, writePrivateJson } from '../maker/preview/protocol.js';
 
 jest.mock('../maker/preview/prepare.js', () => ({
@@ -54,6 +55,29 @@ afterEach(() => {
 });
 
 const nativeTest = process.platform === 'win32' ? test.skip : test;
+test('budgets later screenshots without overriding explicit timeout limits', () => {
+  const options = { mode: 'both', screenshot_frame: '120' };
+  expect(screenshotRetryTimeout(options, 300, 90000)).toBe(190);
+  expect(
+    screenshotRetryTimeout({ ...options, validate_timeout: '100' }, 300, 90000)
+  ).toBeUndefined();
+  expect(screenshotRetryTimeout({ ...options, validate_timeout: '100' }, 300, 10000)).toBe(100);
+  expect(screenshotRetryTimeout(options, 2000, 90000)).toBeUndefined();
+  expect(screenshotRetryTimeout(options, 2000, 10000)).toBe(580);
+  expect(screenshotRetryTimeout({ ...options, validate_frames: '1000' }, 300, 90000)).toBe(100);
+  expect(screenshotRetryTimeout({ mode: 'screenshot', screenshot_frame: '120' }, 300, 90000)).toBe(
+    250
+  );
+  expect(
+    screenshotRetryTimeout(
+      { ...options, screenshot_frame: '300', validate_frames: '380', validate_timeout: '190' },
+      600,
+      150000,
+      false
+    )
+  ).toBe(340);
+});
+
 const validate = (options: Record<string, string | boolean> = {}, signal?: AbortSignal) =>
   executePreviewOperation('validate', { target_dir: project, runtime, ...options }, signal);
 
@@ -250,6 +274,24 @@ nativeTest(
     expect(frames[2]).toBeGreaterThanOrEqual(frames[1] + 180);
   },
   20000
+);
+
+nativeTest.each<{ options: Record<string, string | boolean>; timeout: string }>([
+  { options: {}, timeout: '-validate-timeout=190' },
+  { options: { validate_timeout: '250' }, timeout: '-validate-timeout=250' },
+])(
+  'passes the retry timeout budget to Runtime: %j',
+  async ({ options, timeout }) => {
+    fixture({ blackUntilFrame: 300, passReport: true, minRetryTimeout: 150 });
+    const result = await validate({ mode: 'both', screenshot_frame: '120', ...options });
+    expect(result.result).toBe('COMPLETED');
+    expect(result.attempt_run_ids).toHaveLength(2);
+    const invocation = JSON.parse(fs.readFileSync(String(result.invocation_path), 'utf8'));
+    expect(invocation.args).toContain(timeout);
+    expect(invocation.args).toContain('-validate-frames=380');
+    expect(result).not.toHaveProperty('_runtime_duration_ms');
+  },
+  15000
 );
 
 nativeTest.each([{ black: true }, { transparent: true }, { almostBlack: true }])(

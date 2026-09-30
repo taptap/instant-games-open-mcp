@@ -213,6 +213,10 @@ ordering. An unsafe capture is marked `screenshot_assessment.status=NOT_READY`; 
 completed safely without actual runtime errors it waits three seconds and retries at a later
 frame, up to two retries. Each attempt keeps its own evidence/run ID; the final result includes
 `attempt_run_ids`. Do not overwrite earlier failed evidence or treat the raw game report as fixed.
+Automatic retries scale the default timeout with the frame count, capped at 580 seconds; an
+explicit `--validate-timeout` is never increased. If the next run's estimated Runtime duration
+exceeds the budget, no retry launches: inspect retained evidence and explicitly adjust the timeout.
+The estimate uses the preceding Runtime duration and is not a guarantee of future loading speed.
 `REVIEW_REQUIRED` only means these narrow checks found no issue, not that loading/gameplay passed.
 Open every PNG. If visual inspection still shows game-specific loading, wait three seconds,
 choose a later screenshot frame and adjust validate frames/timeout to cover it, then rerun the

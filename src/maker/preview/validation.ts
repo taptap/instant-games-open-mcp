@@ -78,6 +78,22 @@ function readArtifact(filename: string, max: number): Buffer {
   return fs.readFileSync(filename);
 }
 
+export function screenshotRetryTimeout(
+  options: Options,
+  nextFrame: number,
+  runtimeMs: number,
+  explicitTimeout = options.validate_timeout !== undefined
+): number | undefined {
+  const frame = Number(options.screenshot_frame);
+  const frames = Number(options.validate_frames ?? frame + 80);
+  const ratio =
+    options.mode === 'both' ? Math.max(frames, nextFrame + 80) / frames : nextFrame / frame;
+  const timeout = Number(options.validate_timeout ?? 100);
+  const budget = !explicitTimeout ? Math.min(580, Math.ceil(timeout * ratio)) : timeout;
+  // Use observed Runtime time, not preparation time or an assumed frame rate.
+  return Number.isFinite(runtimeMs) && runtimeMs * ratio < budget * 1000 ? budget : undefined;
+}
+
 export async function runSkillValidation(
   project: string,
   options: Options,
@@ -122,10 +138,24 @@ export async function runSkillValidation(
           String(sanitizeDiagnosticValue(String(logError)));
       }
     }
-    const { _screenshot_retry_eligible: retryEligible, ...collected } = output;
+    const {
+      _screenshot_retry_eligible: retryEligible,
+      _runtime_duration_ms: runtimeMs,
+      ...collected
+    } = output;
     const assessment = output.screenshot_assessment as ScreenshotAssessment | undefined;
     const nextFrame = assessment && laterScreenshotFrame(assessment);
     let retry = retryEligible === true && attempt < 2 && nextFrame !== undefined;
+    const retryTimeout = retry
+      ? screenshotRetryTimeout(
+          attemptOptions,
+          nextFrame!,
+          Number(runtimeMs),
+          options.validate_timeout !== undefined
+        )
+      : undefined;
+    const budgetExceeded = retry && retryTimeout === undefined;
+    if (budgetExceeded) retry = false;
     output = {
       ...collected,
       ...paths,
@@ -140,7 +170,9 @@ export async function runSkillValidation(
                 ? ' This screenshot is not effective visual evidence. ' +
                   (retry
                     ? `Waiting 3 seconds before a new Runtime launch at screenshot frame ${nextFrame}.`
-                    : 'Automatic retries are exhausted or unsafe. Inspect all attempt logs and the raw game report; choose a later frame or a controlled entry after resolving the cause.')
+                    : budgetExceeded
+                      ? 'Automatic retry skipped: the estimated later-frame runtime exceeds the timeout budget. Inspect retained evidence and explicitly choose a suitable --validate-timeout before retrying.'
+                      : 'Automatic retries are exhausted or unsafe. Inspect all attempt logs and the raw game report; choose a later frame or a controlled entry after resolving the cause.')
                 : ''),
           }
         : {}),
@@ -207,6 +239,7 @@ export async function runSkillValidation(
     attemptOptions = {
       ...options,
       screenshot_frame: String(nextFrame),
+      validate_timeout: String(retryTimeout),
       ...(options.mode === 'both'
         ? {
             validate_frames: String(
@@ -329,6 +362,7 @@ async function executeSkillValidation(
     let exitCode: number | null = null;
     let exitSignal: NodeJS.Signals | null = null;
     let timedOut = false;
+    let runtimeDurationMs: number | undefined;
     const started = run.started_at;
     const invocationPath = path.join(directory, 'invocation.json');
 
@@ -375,6 +409,7 @@ async function executeSkillValidation(
         cwd: source,
       });
       updateValidationRun(run, { phase: 'starting', runtime_launch_pending: true });
+      const runtimeStarted = performance.now();
       const child = spawn(executable, args, {
         cwd: source,
         shell: false,
@@ -433,6 +468,7 @@ async function executeSkillValidation(
         }
         if (signal.aborted) stop();
       });
+      runtimeDurationMs = performance.now() - runtimeStarted;
     } catch (error) {
       failures.push(
         String(sanitizeDiagnosticValue(error instanceof Error ? error.message : error))
@@ -541,6 +577,7 @@ async function executeSkillValidation(
       visual_check_required: capture,
       screenshot_assessment: screenshotAssessment,
       _screenshot_retry_eligible: retryEligible,
+      _runtime_duration_ms: runtimeDurationMs,
       report,
       artifacts,
       preparation,
