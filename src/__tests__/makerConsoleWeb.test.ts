@@ -445,7 +445,9 @@ describe('Maker console standalone UI', () => {
     expect(script()).toContain('function beginFortuneLoad(reload)');
     expect(script()).not.toContain('setTimeout(revealFortune,3000)');
     expect(script()).not.toContain('fortunePreloadTimer = setTimeout');
-    expect(script()).toContain("transformOrigin = 'left bottom'");
+    expect(script()).not.toContain('const height = 820');
+    expect(script()).not.toContain("transformOrigin = 'left bottom'");
+    expect(script()).toContain('window.innerWidth - margin * 2');
     expect(script()).toContain('scheduleCloseFortune');
     expect(script()).toContain(
       'if (panel.parentElement !== document.body) document.body.append(panel);'

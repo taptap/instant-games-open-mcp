@@ -454,7 +454,7 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 - 控制台紧凑布局把 Lua 检查放回构建区域，窗口设置默认折叠但保留按项目草稿；
   轮询不得收起用户已展开的设置或丢失未保存值。历史任务默认摘要化，运行中及最新失败、
   未知结果保持展开；二维码查看与开发者选择入口不得藏进原始结果。Markdown 实体只解码一次，
-  解码结果通过 textContent 插入，不作为 HTML 执行。日签保持在页脚版本旁的小号淡黄色入口，弹出区域只显示内嵌内容。
+  解码结果通过 textContent 插入，不作为 HTML 执行。
 - 控制台插件集成纠正（2026-09-16，本地验证及独立复核完成）：使用
   `src/maker/console/plugins.ts` 的类型化可信注册表，FrameCrate 启动适配位于
   `src/maker/console/integrations/framecrate.ts`。`GET /api/state` 只公开插件元数据，

@@ -29,16 +29,14 @@ function positionFortune() {
   const panel = $('fortune-panel');
   if (!toggle || !panel || !fortuneIsOpen()) return;
   const anchor = toggle.getBoundingClientRect();
-  const width = 320;
-  const height = 820;
-  const scale = Math.max(0.1, Math.min(0.78, (window.innerWidth - 24) / width, (anchor.top - 12) / height, 1));
+  const margin = 12;
+  const width = Math.max(160, Math.min(360, window.innerWidth - margin * 2));
+  const height = Math.max(160, Math.min(anchor.top - margin, window.innerHeight - margin * 2));
   panel.style.width = width + 'px';
   panel.style.height = height + 'px';
-  panel.style.transform = 'scale(' + scale + ')';
-  panel.style.transformOrigin = 'left bottom';
-  const visualWidth = width * scale;
-  panel.style.left = Math.max(12, Math.min(anchor.left, window.innerWidth - visualWidth - 12)) + 'px';
-  panel.style.bottom = Math.max(8, window.innerHeight - anchor.top - 4) + 'px';
+  panel.style.transform = 'none';
+  panel.style.left = Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin)) + 'px';
+  panel.style.bottom = Math.max(8, window.innerHeight - anchor.top + 4) + 'px';
 }
 function closeFortune() {
   clearTimeout(fortuneTimer);
@@ -63,9 +61,15 @@ function loadFortuneFrame(reload) {
 }
 function revealFortune() {
   fortuneReady = true;
-  $('fortune-panel').hidden = true;
-  $('fortune-panel').classList.remove('fortune-preload');
+  const panel = $('fortune-panel');
+  panel.hidden = true;
+  panel.classList.remove('fortune-preload');
   $('fortune-corner').hidden = false;
+}
+function handleFortuneMessage(event) {
+  const frame = $('fortune-frame');
+  if (event.source !== frame?.contentWindow || event.origin !== 'https://liangdong-ttm.github.io') return;
+  if (event.data && event.data.type === 'gdev-fortune:escape') closeFortune();
 }
 function beginFortuneLoad(reload) {
   fortuneReady = false;
@@ -2297,6 +2301,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   fortunePanel.classList.add('fortune-preload');
   fortunePanel.hidden = true;
   fortuneFrame.addEventListener('load',revealFortune);
+  window.addEventListener('message',handleFortuneMessage);
   fortuneFrame.addEventListener('error',() => {
     fortuneReady = false;
     $('fortune-corner').hidden = true;
