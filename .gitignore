@@ -199,3 +199,4 @@ native/node_modules/
 .npm-cache
 docs/superpowers
 .workbuddy
+/test-reports/maker-canvas-ui/

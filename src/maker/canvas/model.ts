@@ -1,19 +1,41 @@
 import { randomUUID } from 'node:crypto';
 import type { FrameSetInfo, SequenceSettings, VideoInfo } from './sequenceModel.js';
+import type { CanvasSourceSnapshot } from './dependencies.js';
 
 export const HISTORY_LIMIT = 60;
 
-export type CanvasNodeType = 'image' | 'video' | 'note' | 'video-source' | 'sequence' | 'animation';
+export type CanvasNodeType =
+  | 'image'
+  | 'video'
+  | 'note'
+  | 'video-source'
+  | 'sequence'
+  | 'animation'
+  | 'section';
 export type CanvasEdgeKind =
   | 'first-frame'
   | 'image-to-video'
+  | 'image-variant'
   | 'sequence-source'
   | 'sequence-animation';
 
+export type CanvasCreateTemplate = 'starter' | 'empty' | 'sequence';
+
+export type CanvasImageOperation = 'generate' | 'variant' | 'outpaint';
+
 export interface CanvasGenerationResult {
   prompt: string;
+  operation?: CanvasImageOperation;
   taskId?: string;
+  attemptId?: string;
   sourceImageId?: string;
+  sourceImageIds?: string[];
+}
+
+export interface CanvasGenerationDraft {
+  operation: CanvasImageOperation;
+  sourceImageId?: string;
+  prompt?: string;
 }
 
 export interface Viewport {
@@ -30,8 +52,11 @@ export interface CanvasNode {
   width: number;
   height: number;
   title: string;
+  sectionId?: string;
   text?: string;
   assetPath?: string;
+  generationDraft?: CanvasGenerationDraft;
+  sourceSnapshot?: CanvasSourceSnapshot;
   videoInfo?: VideoInfo;
   sourceVideoId?: string;
   sequenceSettings?: SequenceSettings;
@@ -53,6 +78,17 @@ export interface CanvasDocument {
   viewport: Viewport;
   nodes: CanvasNode[];
   edges: CanvasEdge[];
+  templateFlow?: CanvasTemplateFlow;
+  deletedGenerationIds?: string[];
+}
+
+export interface CanvasTemplateFlow {
+  imageId: string;
+  videoId: string;
+  sequenceId: string;
+  animationId?: string;
+  duration: number;
+  stage: 'image' | 'ready' | 'video' | 'sequence' | 'animation' | 'complete';
 }
 
 export interface CanvasSummary {
@@ -110,7 +146,10 @@ export function cloneDocument(document: CanvasDocument): CanvasDocument {
   return {
     ...document,
     viewport: { ...document.viewport },
-    nodes: document.nodes.map((node) => ({ ...node })),
+    nodes: document.nodes.map((node) => ({
+      ...node,
+      ...(node.sourceSnapshot ? { sourceSnapshot: { ...node.sourceSnapshot } } : {}),
+    })),
     edges: document.edges.map((edge) => ({ ...edge })),
   };
 }

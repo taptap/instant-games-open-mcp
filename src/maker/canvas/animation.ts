@@ -1,4 +1,5 @@
 import type { CanvasDocument, CanvasNode } from './model.js';
+import { isCanvasNodeStale, snapshotCanvasSource } from './dependencies.js';
 
 export function appendAnimation(
   document: CanvasDocument,
@@ -21,13 +22,36 @@ export function appendAnimation(
       ...source.frameSetInfo,
       frames: source.frameSetInfo.frames.map((frame) => ({ ...frame })),
     },
+    sourceSnapshot: snapshotCanvasSource(source),
   };
   document.nodes.push(node);
   document.edges.push({ id: edgeId, from: source.id, to: node.id, kind: 'sequence-animation' });
   return node;
 }
 
-export function createAnimationCards(mediaUrl: (path: string) => string) {
+export function refreshAnimationFromSource(document: CanvasDocument, animationId: string): boolean {
+  const animation = document.nodes.find(
+    (node) => node.id === animationId && node.type === 'animation'
+  );
+  const edge = document.edges.find(
+    (item) => item.kind === 'sequence-animation' && item.to === animationId
+  );
+  const source =
+    edge && document.nodes.find((node) => node.id === edge.from && node.type === 'sequence');
+  if (!animation || !source?.assetPath || !source.frameSetInfo) return false;
+  animation.assetPath = source.assetPath;
+  animation.frameSetInfo = {
+    ...source.frameSetInfo,
+    frames: source.frameSetInfo.frames.map((frame) => ({ ...frame })),
+  };
+  animation.sourceSnapshot = snapshotCanvasSource(source);
+  return true;
+}
+
+export function createAnimationCards(
+  mediaUrl: (path: string) => string,
+  onRefresh?: (animationId: string) => void
+) {
   const playing = new Set<string>();
   const mounted = new Map<
     string,
@@ -57,7 +81,7 @@ export function createAnimationCards(mediaUrl: (path: string) => string) {
       for (const id of playing)
         if (!nodes.some((node) => node.id === id && node.type === 'animation')) playing.delete(id);
     },
-    render(card: HTMLElement, node: CanvasNode) {
+    render(card: HTMLElement, node: CanvasNode, source?: CanvasNode) {
       const info = node.frameSetInfo;
       if (!info || !node.assetPath || !info.frames.length) return;
       const version = generation;
@@ -75,6 +99,20 @@ export function createAnimationCards(mediaUrl: (path: string) => string) {
       play.disabled = true;
       controls.append(play, label);
       card.append(canvas, controls);
+      if (source && isCanvasNodeStale(node, source)) {
+        const stale = document.createElement('small');
+        stale.className = 'generation-status generation-status-stale';
+        stale.textContent = '序列帧已变化，动画仍保留当前版本';
+        const refresh = document.createElement('button');
+        refresh.type = 'button';
+        refresh.textContent = '刷新动画';
+        refresh.className = 'generation-action generation-action-primary';
+        refresh.addEventListener('click', (event) => {
+          event.stopPropagation();
+          onRefresh?.(node.id);
+        });
+        controls.append(stale, refresh);
+      }
       const atlas = new Image();
       let current = -1;
       const draw = (index: number) => {

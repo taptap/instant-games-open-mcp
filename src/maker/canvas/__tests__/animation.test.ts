@@ -1,4 +1,4 @@
-import { appendAnimation } from '../animation.js';
+import { appendAnimation, refreshAnimationFromSource } from '../animation.js';
 import { createId, emptyDocument } from '../model.js';
 import { MakerCanvasFiles } from '../files.js';
 import fs from 'node:fs';
@@ -39,7 +39,37 @@ describe('animation output cards', () => {
     source.assetPath = 'assets/image/changed.png';
     expect(animation.frameSetInfo?.frames[0].width).toBe(64);
     expect(animation.assetPath).toBe('assets/image/atlas.png');
+    expect(animation.sourceSnapshot).toBeDefined();
     expect(appendAnimation(document, 'missing', createId(), createId())).toBeUndefined();
+  });
+
+  test('refreshes an animation only from its linked saved sequence', () => {
+    const document = emptyDocument();
+    const source = {
+      id: createId(),
+      type: 'sequence' as const,
+      title: 'source',
+      x: 0,
+      y: 0,
+      width: 480,
+      height: 300,
+      assetPath: 'assets/image/atlas-1.png',
+      frameSetInfo: {
+        fps: 8,
+        frameCount: 1,
+        width: 64,
+        height: 64,
+        columns: 1,
+        rows: 1,
+        frames: [{ index: 0, time: 0, x: 0, y: 0, width: 64, height: 64 }],
+      },
+    };
+    document.nodes.push(source);
+    const animation = appendAnimation(document, source.id, createId(), createId())!;
+    source.assetPath = 'assets/image/atlas-2.png';
+    expect(refreshAnimationFromSource(document, animation.id)).toBe(true);
+    expect(animation.assetPath).toBe(source.assetPath);
+    expect(animation.sourceSnapshot?.nodeId).toBe(source.id);
   });
 
   test('persists standalone animation snapshots and rejects invalid references', async () => {

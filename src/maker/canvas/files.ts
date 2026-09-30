@@ -6,7 +6,9 @@ import { promisify } from 'node:util';
 import { getGitCommand } from '../system/git.js';
 import {
   CanvasStoreError,
+  emptyDocument,
   starterDocument,
+  type CanvasCreateTemplate,
   type CanvasDocument,
   type CanvasEdge,
   type CanvasNode,
@@ -15,6 +17,8 @@ import {
 import { MAX_SEQUENCE_FRAMES } from './sequenceModel.js';
 import { STARTER_IMAGE_BASE64 } from './starterImages.js';
 import type { FrameSetInfo, SequenceSettings, VideoInfo } from './sequenceModel.js';
+import { snapshotCanvasSource, type CanvasSourceSnapshot } from './dependencies.js';
+import { parseTemplateFlow } from './templateWorkflow.js';
 
 const execFileAsync = promisify(execFile);
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -57,6 +61,42 @@ export class MakerCanvasFiles {
     this.root = root;
   }
 
+  assertWritable(): void {
+    this.assertStorageShape();
+  }
+
+  async assertWritableForGeneration(): Promise<void> {
+    this.assertStorageShape();
+    await this.assertIgnored();
+  }
+
+  importGeneratedImage(sourceRelativePath: string): string {
+    this.assertStorageShape();
+    if (!/^assets\/image\/[^/]+\.(?:png|jpg|jpeg|webp)$/i.test(sourceRelativePath)) {
+      fail('生成图片路径无效。', 400, 'UNSAFE_PATH');
+    }
+    const source = this.safeProjectFile(sourceRelativePath);
+    const extension = path.extname(source).toLowerCase().slice(1) || 'png';
+    const name = `canvas-${randomUUID()}.${extension === 'jpeg' ? 'jpg' : extension}`;
+    const folder = this.ensureDir(path.join(this.root, 'assets', 'image'));
+    this.atomicWrite(folder, name, fs.readFileSync(source));
+    return `assets/image/${name}`;
+  }
+
+  importGeneratedVideo(canvasId: string, sourceRelativePath: string): string {
+    this.assertStorageShape();
+    if (!/^assets\/video\/[^/]+\.(?:mp4|mov|webm)$/i.test(sourceRelativePath)) {
+      fail('生成视频路径无效。', 400, 'UNSAFE_PATH');
+    }
+    const source = this.safeProjectFile(sourceRelativePath);
+    if (!ID.test(canvasId)) fail('画布标识无效。', 400, 'INVALID_ID');
+    const extension = path.extname(source).toLowerCase().slice(1);
+    const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', canvasId, 'videos'));
+    const name = `video-${randomUUID()}.${extension}`;
+    this.atomicWrite(folder, name, fs.readFileSync(source));
+    return `.maker/canvases/${canvasId}/videos/${name}`;
+  }
+
   async list(): Promise<CanvasSummary[]> {
     const folder = this.canvasDir(false);
     if (!folder) return [];
@@ -80,24 +120,192 @@ export class MakerCanvasFiles {
     return rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id));
   }
 
-  async create(title?: string): Promise<CanvasDocument> {
+  async create(title?: string, template: CanvasCreateTemplate = 'empty'): Promise<CanvasDocument> {
     this.assertStorageShape();
     await this.assertIgnored();
-    const document = starterDocument(title);
-    const folder = this.ensureDir(path.join(this.root, 'assets', 'image'));
+    const sequenceTemplate = template === 'sequence' ? this.findSequenceTemplate(title) : undefined;
+    if (template === 'sequence' && !sequenceTemplate) {
+      fail(
+        '当前项目没有可复用的已保存序列帧示例，请先完成并保存一条序列帧流程。',
+        409,
+        'TEMPLATE_UNAVAILABLE'
+      );
+    }
+    const document =
+      sequenceTemplate ?? (template === 'empty' ? emptyDocument(title) : starterDocument(title));
+    const folder =
+      template === 'empty' ? undefined : this.ensureDir(path.join(this.root, 'assets', 'image'));
     const written: string[] = [];
     try {
-      document.nodes.forEach((node, index) => {
-        const name = path.basename(node.assetPath!);
-        this.atomicWrite(folder, name, Buffer.from(STARTER_IMAGE_BASE64[index], 'base64'));
-        written.push(path.join(folder, name));
-      });
+      if (!sequenceTemplate && template !== 'empty') {
+        document.nodes.forEach((node, index) => {
+          const name = path.basename(node.assetPath!);
+          this.atomicWrite(folder!, name, Buffer.from(STARTER_IMAGE_BASE64[index], 'base64'));
+          written.push(path.join(folder!, name));
+        });
+      }
       this.write(document);
     } catch (error) {
       for (const filename of written) fs.rmSync(filename, { force: true });
+      if (sequenceTemplate) {
+        fs.rmSync(path.join(this.root, '.maker', 'canvases', document.id), {
+          recursive: true,
+          force: true,
+        });
+      }
       throw error;
     }
     return document;
+  }
+
+  private findSequenceTemplate(title?: string): CanvasDocument | undefined {
+    const folder = this.canvasDir(false);
+    if (!folder) return undefined;
+    const candidates = fs
+      .readdirSync(folder)
+      .filter((name) => /^[0-9a-f-]{36}\.json$/i.test(name))
+      .map((name) => {
+        try {
+          const id = name.slice(0, -5);
+          const document = this.read(id);
+          if (!document.nodes.some((node) => node.type === 'sequence')) return undefined;
+          return { document, updatedAt: fs.statSync(path.join(folder, name)).mtimeMs };
+        } catch {
+          return undefined;
+        }
+      })
+      .filter((value): value is { document: CanvasDocument; updatedAt: number } => Boolean(value))
+      .sort((left, right) => right.updatedAt - left.updatedAt);
+    const source = candidates[0]?.document;
+    if (!source) return undefined;
+
+    const sequenceNodes = source.nodes.filter((node) => node.type === 'sequence');
+    const sequence = sequenceNodes
+      .slice()
+      .sort(
+        (left, right) =>
+          Number(Boolean(right.frameSetInfo && right.assetPath)) -
+            Number(Boolean(left.frameSetInfo && left.assetPath)) ||
+          left.y - right.y ||
+          left.x - right.x ||
+          left.id.localeCompare(right.id)
+      )[0];
+    if (!sequence?.sourceVideoId) return undefined;
+
+    const sourceVideo = source.nodes.find(
+      (node) => node.id === sequence.sourceVideoId && node.type === 'video-source'
+    );
+    if (!sourceVideo) return undefined;
+
+    const keepIds = new Set<string>([sequence.id, sourceVideo.id]);
+    const sourceImageIds = source.edges
+      .filter((edge) => edge.kind === 'image-to-video' && edge.to === sourceVideo.id)
+      .map((edge) => edge.from)
+      .filter((id) => source.nodes.some((node) => node.id === id && node.type === 'image'));
+    if (sourceVideo.generation?.sourceImageId)
+      sourceImageIds.push(sourceVideo.generation.sourceImageId);
+    const sourceImageId = sourceImageIds.find((id) =>
+      source.nodes.some((node) => node.id === id && node.type === 'image')
+    );
+    if (sourceImageId) keepIds.add(sourceImageId);
+
+    const animationEdge = source.edges.find(
+      (edge) => edge.kind === 'sequence-animation' && edge.from === sequence.id
+    );
+    if (
+      animationEdge &&
+      source.nodes.some((node) => node.id === animationEdge.to && node.type === 'animation')
+    ) {
+      keepIds.add(animationEdge.to);
+    }
+
+    const sectionIds = new Set(
+      source.nodes
+        .filter((node) => keepIds.has(node.id) && node.sectionId)
+        .map((node) => node.sectionId!)
+    );
+    sectionIds.forEach((id) => {
+      if (source.nodes.some((node) => node.id === id && node.type === 'section')) keepIds.add(id);
+    });
+
+    const canvasId = randomUUID();
+    const ids = new Map([...keepIds].map((id) => [id, randomUUID()]));
+    const videoFolder = this.ensureDir(
+      path.join(this.root, '.maker', 'canvases', canvasId, 'videos')
+    );
+    const nodes = source.nodes
+      .filter((node) => keepIds.has(node.id))
+      .map((node) => {
+        const copy: CanvasNode = JSON.parse(JSON.stringify(node));
+        copy.id = ids.get(node.id)!;
+        if (copy.sectionId) {
+          copy.sectionId = ids.get(copy.sectionId);
+          if (!copy.sectionId) delete copy.sectionId;
+        }
+        if (copy.sourceVideoId) copy.sourceVideoId = ids.get(copy.sourceVideoId);
+        if (copy.generation?.sourceImageId) {
+          copy.generation.sourceImageId = ids.get(copy.generation.sourceImageId);
+          if (!copy.generation.sourceImageId) delete copy.generation.sourceImageId;
+        }
+        if (copy.generation?.sourceImageIds) {
+          copy.generation.sourceImageIds = copy.generation.sourceImageIds.flatMap((id) => {
+            const mapped = ids.get(id);
+            return mapped ? [mapped] : [];
+          });
+        }
+        if (copy.generationDraft?.sourceImageId) {
+          copy.generationDraft.sourceImageId = ids.get(copy.generationDraft.sourceImageId);
+          if (!copy.generationDraft.sourceImageId) delete copy.generationDraft.sourceImageId;
+        }
+        if (copy.sourceSnapshot) {
+          copy.sourceSnapshot.nodeId =
+            ids.get(copy.sourceSnapshot.nodeId) || copy.sourceSnapshot.nodeId;
+        }
+        if (copy.type === 'video-source' && copy.assetPath) {
+          const sourceFile = this.readMedia(copy.assetPath).file;
+          const extension = path.extname(sourceFile).toLowerCase().slice(1);
+          const name = 'video-' + randomUUID() + '.' + extension;
+          const destination = path.join(videoFolder, name);
+          fs.copyFileSync(sourceFile, destination);
+          copy.assetPath = '.maker/canvases/' + canvasId + '/videos/' + name;
+        }
+        return copy;
+      });
+    for (const copy of nodes) {
+      if (!copy.sourceSnapshot) continue;
+      const sourceNode = nodes.find((node) => node.id === copy.sourceSnapshot?.nodeId);
+      copy.sourceSnapshot = snapshotCanvasSource(sourceNode);
+    }
+    const edges = source.edges
+      .filter((edge) => keepIds.has(edge.from) && keepIds.has(edge.to))
+      .map((edge) => ({
+        ...edge,
+        id: randomUUID(),
+        from: ids.get(edge.from)!,
+        to: ids.get(edge.to)!,
+      }));
+    return {
+      id: canvasId,
+      title: title?.slice(0, 80) || '序列帧模板画布',
+      ...(sourceImageId
+        ? {
+            templateFlow: {
+              imageId: ids.get(sourceImageId)!,
+              videoId: ids.get(sourceVideo.id)!,
+              sequenceId: ids.get(sequence.id)!,
+              ...(animationEdge && ids.has(animationEdge.to)
+                ? { animationId: ids.get(animationEdge.to)! }
+                : {}),
+              duration: Math.min(8, Math.max(4, Math.round(sourceVideo.videoInfo?.duration || 4))),
+              stage: 'image' as const,
+            },
+          }
+        : {}),
+      revision: 0,
+      viewport: { ...source.viewport },
+      nodes,
+      edges,
+    };
   }
 
   async load(id: string): Promise<CanvasDocument> {
@@ -203,6 +411,18 @@ export class MakerCanvasFiles {
               ? 'video/quicktime'
               : 'video/mp4';
     return { file: real, type };
+  }
+
+  private safeProjectFile(relativePath: string): string {
+    const target = path.join(this.root, relativePath);
+    if (!fs.existsSync(target) || fs.lstatSync(target).isSymbolicLink()) {
+      fail('生成素材不存在或不允许使用链接。', 404, 'UNSAFE_PATH');
+    }
+    const real = fs.realpathSync(target);
+    if (!inside(this.root, real) || !fs.statSync(real).isFile()) {
+      fail('生成素材超出当前项目。', 400, 'UNSAFE_PATH');
+    }
+    return real;
   }
 
   private assertStorageShape(): void {
@@ -354,11 +574,27 @@ export class MakerCanvasFiles {
       if (nodeIds.has(node.id)) fail('画布节点标识重复。', 400, 'INVALID_DOCUMENT');
       nodeIds.add(node.id);
     }
+    for (const node of nodes) {
+      if (!node.sectionId) continue;
+      const section = nodes.find((candidate) => candidate.id === node.sectionId);
+      if (!section || section.type !== 'section' || node.type === 'section') {
+        fail('节点分区归属无效。', 400, 'INVALID_DOCUMENT');
+      }
+    }
+    for (const node of nodes) {
+      const sourceId = node.generationDraft?.sourceImageId;
+      if (!sourceId) continue;
+      const source = nodes.find((candidate) => candidate.id === sourceId);
+      if (!source || source.type !== 'image' || !source.assetPath) {
+        fail('图片生成草稿必须引用已保存的图片来源。', 400, 'INVALID_DOCUMENT');
+      }
+    }
     const edges = input.edges.map((item) => this.parseEdge(item, nodes));
     for (const node of nodes) {
       const sourceId = node.generation?.sourceImageId;
       if (
         sourceId &&
+        node.type === 'video-source' &&
         nodes.some((source) => source.id === sourceId) &&
         !edges.some(
           (edge) => edge.kind === 'image-to-video' && edge.from === sourceId && edge.to === node.id
@@ -375,10 +611,23 @@ export class MakerCanvasFiles {
       if (seen.has(edge.to)) fail('一张视频卡只能有一条首帧线。', 400, 'INVALID_EDGE');
       seen.add(edge.to);
     }
+    if (
+      input.deletedGenerationIds !== undefined &&
+      (!Array.isArray(input.deletedGenerationIds) ||
+        input.deletedGenerationIds.some((value) => typeof value !== 'string' || !ID.test(value)))
+    ) {
+      fail('已删除生成记录标识无效。', 400, 'INVALID_DOCUMENT');
+    }
     return {
       id,
       title: text(input.title, 80, '标题', '创作画布'),
+      ...(Array.isArray(input.deletedGenerationIds) && input.deletedGenerationIds.length
+        ? { deletedGenerationIds: [...new Set(input.deletedGenerationIds as string[])] }
+        : {}),
       revision: numberIn(input.revision, 0, 1_000_000, 'revision'),
+      ...(input.templateFlow === undefined
+        ? {}
+        : { templateFlow: parseTemplateFlow(input.templateFlow, { nodes, edges }) }),
       viewport: {
         x: numberIn(viewport.x, -100000, 100000, '视口'),
         y: numberIn(viewport.y, -100000, 100000, '视口'),
@@ -400,7 +649,8 @@ export class MakerCanvasFiles {
       node.type !== 'note' &&
       node.type !== 'video-source' &&
       node.type !== 'sequence' &&
-      node.type !== 'animation'
+      node.type !== 'animation' &&
+      node.type !== 'section'
     ) {
       fail('节点类型无效。', 400, 'INVALID_DOCUMENT');
     }
@@ -427,6 +677,24 @@ export class MakerCanvasFiles {
     }
     const sourceVideoId =
       node.sourceVideoId === undefined ? undefined : text(node.sourceVideoId, 36, '视频来源标识');
+    const sectionId =
+      node.sectionId === undefined ? undefined : text(node.sectionId, 36, '分区标识');
+    let sourceSnapshot: CanvasSourceSnapshot | undefined;
+    if (node.sourceSnapshot !== undefined) {
+      if (
+        !node.sourceSnapshot ||
+        typeof node.sourceSnapshot !== 'object' ||
+        Array.isArray(node.sourceSnapshot) ||
+        !['image', 'video-source', 'sequence', 'animation'].includes(String(node.type))
+      ) {
+        fail('来源快照只能附在派生图片、视频、序列帧或动画卡上。', 400, 'INVALID_DOCUMENT');
+      }
+      const input = node.sourceSnapshot as Record<string, unknown>;
+      const nodeId = text(input.nodeId, 36, '来源节点标识');
+      const version = text(input.version, 10000, '来源版本');
+      if (!ID.test(nodeId) || !version) fail('来源快照无效。', 400, 'INVALID_DOCUMENT');
+      sourceSnapshot = { nodeId, version };
+    }
     const sequenceSettings =
       node.sequenceSettings === undefined
         ? undefined
@@ -451,13 +719,67 @@ export class MakerCanvasFiles {
         input.sourceImageId === undefined
           ? undefined
           : text(input.sourceImageId, 36, '图片来源标识');
-      if (sourceImageId && (node.type !== 'video-source' || !ID.test(sourceImageId))) {
+      const sourceImageIds =
+        input.sourceImageIds === undefined
+          ? undefined
+          : Array.isArray(input.sourceImageIds)
+            ? input.sourceImageIds.map((sourceId) => text(sourceId, 36, '图片来源标识'))
+            : fail('图片来源标识列表无效。', 400, 'INVALID_DOCUMENT');
+      const operation =
+        input.operation === undefined
+          ? undefined
+          : input.operation === 'generate' ||
+              input.operation === 'variant' ||
+              input.operation === 'outpaint'
+            ? input.operation
+            : fail('图片生成操作无效。', 400, 'INVALID_DOCUMENT');
+      if (sourceImageId && !ID.test(sourceImageId)) {
         fail('图生视频图片来源无效。', 400, 'INVALID_DOCUMENT');
+      }
+      if (sourceImageIds && new Set(sourceImageIds).size !== sourceImageIds.length) {
+        fail('图片来源标识不能重复。', 400, 'INVALID_DOCUMENT');
       }
       generation = {
         prompt: text(input.prompt, 8000, '生成提示词'),
+        ...(operation ? { operation } : {}),
         ...(input.taskId === undefined ? {} : { taskId: text(input.taskId, 160, '生成任务标识') }),
+        ...(input.attemptId === undefined
+          ? {}
+          : { attemptId: text(input.attemptId, 36, '生成尝试标识') }),
         ...(sourceImageId ? { sourceImageId } : {}),
+        ...(sourceImageIds?.length ? { sourceImageIds } : {}),
+      };
+    }
+    let generationDraft: CanvasNode['generationDraft'];
+    if (node.generationDraft !== undefined) {
+      if (
+        node.type !== 'image' ||
+        assetPath ||
+        !node.generationDraft ||
+        typeof node.generationDraft !== 'object' ||
+        Array.isArray(node.generationDraft)
+      ) {
+        fail('图片生成草稿只能附在没有结果素材的图片槽上。', 400, 'INVALID_DOCUMENT');
+      }
+      const input = node.generationDraft as Record<string, unknown>;
+      const operation =
+        input.operation === 'generate' ||
+        input.operation === 'variant' ||
+        input.operation === 'outpaint'
+          ? input.operation
+          : fail('图片生成草稿操作无效。', 400, 'INVALID_DOCUMENT');
+      const sourceImageId =
+        input.sourceImageId === undefined
+          ? undefined
+          : text(input.sourceImageId, 36, '图片来源标识');
+      if (sourceImageId && !ID.test(sourceImageId))
+        fail('图片生成草稿来源无效。', 400, 'INVALID_DOCUMENT');
+      const prompt =
+        input.prompt === undefined ? undefined : text(input.prompt, 8000, '生成草稿提示词');
+      generationDraft = {
+        operation,
+        ...(sourceImageId ? { sourceImageId } : {}),
+        ...(prompt ? { prompt } : {}),
       };
     }
     if (videoInfo && node.type !== 'video-source')
@@ -482,6 +804,8 @@ export class MakerCanvasFiles {
       width: numberIn(node.width, 48, 2000, '尺寸'),
       height: numberIn(node.height, 36, 1600, '尺寸'),
       title: text(node.title, 80, '标题', '未命名'),
+      ...(sectionId ? { sectionId } : {}),
+      ...(sourceSnapshot ? { sourceSnapshot } : {}),
       ...(node.text === undefined ? {} : { text: text(node.text, 4000, '文字') }),
       ...(assetPath ? { assetPath } : {}),
       ...(videoInfo ? { videoInfo } : {}),
@@ -489,6 +813,7 @@ export class MakerCanvasFiles {
       ...(sequenceSettings ? { sequenceSettings } : {}),
       ...(frameSetInfo ? { frameSetInfo } : {}),
       ...(generation ? { generation } : {}),
+      ...(generationDraft ? { generationDraft } : {}),
     };
   }
 
@@ -592,6 +917,7 @@ export class MakerCanvasFiles {
     if (
       edge.kind !== 'first-frame' &&
       edge.kind !== 'image-to-video' &&
+      edge.kind !== 'image-variant' &&
       edge.kind !== 'sequence-source' &&
       edge.kind !== 'sequence-animation'
     ) {
@@ -629,6 +955,16 @@ export class MakerCanvasFiles {
         to.generation?.sourceImageId !== from.id)
     ) {
       fail('图生视频关系必须对应真实结果记录中的来源图片。', 400, 'INVALID_EDGE');
+    }
+    if (
+      edge.kind === 'image-variant' &&
+      (from?.type !== 'image' ||
+        !from.assetPath ||
+        to?.type !== 'image' ||
+        !to.assetPath ||
+        !to.generation?.sourceImageIds?.includes(from.id))
+    ) {
+      fail('图片派生关系必须对应真实结果记录中的来源图片。', 400, 'INVALID_EDGE');
     }
     if (
       edge.kind === 'sequence-animation' &&

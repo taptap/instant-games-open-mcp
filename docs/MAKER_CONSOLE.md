@@ -172,6 +172,8 @@ Maker 全仓 tsc 仍有 287 项基线错误，控制台范围无诊断；FrameCr
   `integrations/framecrate.ts` 只实现 FrameCrate 启动与进程适配，不承载编辑或 AI 业务。
 - `GET /api/state` 的 `plugins` 提供公开插件元数据，不含 Studio token、启动命令或私有环境。
   页面按元数据展示插件标签，而非硬编码 FrameCrate 专属启动按钮。
+  配置了 `FRAMECRATE_STUDIO_DIR` 后，主导航显示「创作画布」标签，插件 id 仍是 `framecrate`，
+  打开的仍是同一个 Studio 页面，默认进入创作画布。
 - `POST /api/projects/:key/plugins/:id/open` 只打开注册表中的可信插件，复用 Host、Origin
   校验，并在每次打开或复用前检查登记项目的 realpath 和 Maker 绑定。
   浏览器不能提交启动命令、安装路径或任意目标 URL；不增加 MCP tool。
@@ -192,6 +194,9 @@ FrameCrate 子进程启动契约为：
 
 这是同一条命令，使用明确 Node、`shell: false` 和 Studio 根目录作为 `cwd`；
 继承受信启动环境，不从游戏目录解析 Studio 模块，不触发生成、构建、提交或发布。
+控制台由已安装的 dist/maker.js 运行时，把固定的自身 bundle 路径作为
+FRAMECRATE_MAKER_ENTRY 交给 Studio，用于画布生图与视频能力；显式配置的
+FRAMECRATE_MAKER_ENTRY 优先，不传 PAT，也不从游戏项目目录寻找可执行文件。
 `--host-origin` 必须是当前控制台的精确本机 HTTP origin（含端口，无路径），
 不能替换成通配符、另一端口或仅因同属 loopback 就信任的地址。
 

@@ -22,10 +22,20 @@ import {
 import { createSequenceUiController } from './sequenceUi.js';
 import { createSequenceEditor, renderSequenceResult } from './sequenceEditor.js';
 import { SEQUENCE_EDITOR_STYLES } from './sequenceEditorStyles.js';
-import { appendAnimation, createAnimationCards } from './animation.js';
+import { appendAnimation, createAnimationCards, refreshAnimationFromSource } from './animation.js';
 import { renderGenerationResult } from './generationResult.js';
 import { DEFAULT_SEQUENCE_FPS, DEFAULT_SEQUENCE_DURATION } from './sequenceModel.js';
 import { applyFrameOperations, openFrameEditor } from './frameEditor.js';
+import { createCanvasGenerationUi } from './generationUi.js';
+import { downloadCanvasImage } from './imageExport.js';
+import { createTemplateWorkflow } from './templateWorkflow.js';
+import {
+  canvasNodeVersion,
+  isCanvasNodeStale,
+  isCanvasSourceCurrent,
+  metadataVersion,
+  snapshotCanvasSource,
+} from './dependencies.js';
 
 export const CANVAS_PAGE_MARKER = 'maker-canvas-page';
 
@@ -66,8 +76,17 @@ export function getCanvasPageHtml(): string {
     renderSequenceResult.toString(),
     createSequenceEditor.toString(),
     appendAnimation.toString(),
+    refreshAnimationFromSource.toString(),
     createAnimationCards.toString(),
     renderGenerationResult.toString(),
+    createCanvasGenerationUi.toString(),
+    createTemplateWorkflow.toString(),
+    downloadCanvasImage.toString(),
+    metadataVersion.toString(),
+    canvasNodeVersion.toString(),
+    isCanvasNodeStale.toString(),
+    isCanvasSourceCurrent.toString(),
+    snapshotCanvasSource.toString(),
     createSequenceUiController.toString(),
     createBrowserCanvasDocumentStore.toString(),
     dispatchCanvasStoreRequest.toString(),
@@ -89,12 +108,12 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '<strong>创作画布</strong>',
-    '<strong id="canvas-title">创作画布</strong>'
+    '<span class="canvas-heading"><strong id="canvas-title">创作画布</strong><button id="rename-canvas" type="button" title="修改画布名称" aria-label="修改画布名称"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/></svg></button></span>'
   );
   page = replaceCanvasPageText(
     page,
     '  <button id="new-canvas" type="button">新建</button>',
-    '  <button id="new-canvas" type="button">新建</button>\n  <button id="rename-canvas" type="button">重命名</button>\n  <button id="fit-canvas" type="button">适配内容</button>\n  <button id="delete-selected" type="button">删除选中</button>'
+    '  <button id="new-canvas" type="button">新建</button>\n  <button id="add-generation" type="button">图片生成卡</button>\n  <button id="fit-canvas" type="button">适配内容</button>\n  <button id="create-section" type="button">新建分区</button>\n  <button id="duplicate-selected" type="button">复制选中</button>\n  <button id="delete-selected" type="button">删除选中</button>\n  <button id="export-canvas" type="button">导出 PNG</button>'
   );
   page = replaceCanvasPageText(
     page,
@@ -107,7 +126,51 @@ export function getCanvasPageHtml(): string {
     [
       '  const store = createBrowserCanvasDocumentStore(key);',
       '  const sequenceProcessor = createSequenceProcessor({ maxSourceSide: MAX_SEQUENCE_SOURCE_SIDE, maxOutputSide: MAX_SEQUENCE_SIDE, maxAtlasSide: MAX_ATLAS_SIDE, estimateFrameCount: estimateSequenceFrameCount, maxAtlasFrameCount: maxSequenceFrameCount, duplicateFrameIndices: duplicateIndicesFromSignatures });',
-      '  let sequenceUi = null;',
+      '  let sequenceUi = null; let generationUi = null;',
+      "  const selectionToolbar = document.getElementById('selection-toolbar');",
+      "  const selectionMenu = document.getElementById('selection-menu');",
+      "  let selectionAction = '';",
+      '  [selectionToolbar, selectionMenu].forEach(function (surface) {',
+      "    surface.addEventListener('pointerdown', function (event) { event.stopPropagation(); });",
+      "    surface.addEventListener('wheel', function (event) { event.stopPropagation(); }, { passive: true });",
+      "    surface.addEventListener('contextmenu', function (event) { event.stopPropagation(); });",
+      '  });',
+      '  function positionSelectionToolbar() {',
+      '    if (selectionMenu.hidden && selectionToolbar.hidden) return;',
+      "    const card = world.querySelector('.card.selected');",
+      '    if (!card) { selectionMenu.hidden = true; selectionToolbar.hidden = true; return; }',
+      '    const bounds = board.getBoundingClientRect();',
+      '    const anchor = card.getBoundingClientRect();',
+      '    const gap = 12;',
+      '    const cardLeft = anchor.left - bounds.left;',
+      '    const cardTop = anchor.top - bounds.top;',
+      '    selectionMenu.style.maxWidth = Math.max(0, bounds.width - gap * 2) + "px";',
+      '    const menuWidth = selectionMenu.offsetWidth;',
+      '    const menuHeight = selectionMenu.offsetHeight;',
+      '    const menuLeft = cardLeft + (anchor.width - menuWidth) / 2;',
+      '    selectionMenu.style.left = Math.max(gap, Math.min(menuLeft, bounds.width - menuWidth - gap)) + "px";',
+      '    selectionMenu.style.top = Math.max(gap, cardTop - menuHeight - gap) + "px";',
+      '    if (selectionToolbar.hidden) return;',
+      '    selectionToolbar.style.width = Math.min(440, Math.max(0, bounds.width - gap * 2)) + "px";',
+      '    selectionToolbar.style.maxHeight = Math.max(0, bounds.height - gap * 2) + "px";',
+      '    const width = selectionToolbar.offsetWidth;',
+      '    const height = selectionToolbar.offsetHeight;',
+      '    let left = cardLeft;',
+      '    let top = anchor.bottom - bounds.top + gap;',
+      '    if (top + height > bounds.height - gap) {',
+      '      if (anchor.right - bounds.left + gap + width <= bounds.width - gap) {',
+      '        left = anchor.right - bounds.left + gap; top = cardTop;',
+      '      } else if (cardLeft - gap - width >= gap) {',
+      '        left = cardLeft - gap - width; top = cardTop;',
+      '      } else { top = cardTop - menuHeight - gap * 2 - height; }',
+      '    }',
+      '    selectionToolbar.style.left = Math.max(gap, Math.min(left, bounds.width - width - gap)) + "px";',
+      '    selectionToolbar.style.top = Math.max(gap, Math.min(top, bounds.height - height - gap)) + "px";',
+      '  }',
+      '  const selectionResize = new ResizeObserver(positionSelectionToolbar);',
+      "  selectionResize.observe(document.getElementById('board'));",
+      '  selectionResize.observe(selectionToolbar);',
+      '  selectionResize.observe(selectionMenu);',
     ].join('\n')
   );
   page = replaceCanvasPageText(
@@ -118,7 +181,7 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '  const selected = new Set();',
-    '  const selected = new Set();\n  let pendingAssetImports = 0;\n  const pendingImportWaiters = [];\n  window.makerCanvasSequenceRunning = false;'
+    '  const selected = new Set();\n  let pendingAssetImports = 0;\n  let pendingImageImport = null;\n  let pendingVideoImport = null;\n  const pendingImportWaiters = [];\n  window.makerCanvasSequenceRunning = false;'
   );
   page = replaceCanvasPageText(
     page,
@@ -179,7 +242,7 @@ export function getCanvasPageHtml(): string {
       '          card.append(preview);',
       '        }',
       "        const hint = document.createElement('p');",
-      "        hint.textContent = source ? '首帧：' + source.title : '拖入已导入图片作为首帧。生视频将在下一阶段接入。';",
+      "        hint.textContent = source ? '首帧：' + source.title : '拖入已导入图片作为首帧，然后在卡片内生成视频。';",
       '        card.append(hint);',
       '        if (edge) {',
       "          const disconnect = document.createElement('button');",
@@ -224,8 +287,7 @@ export function getCanvasPageHtml(): string {
       "        port.addEventListener('pointerdown', function (event) { startWire(event, node.id); });",
       "            port.addEventListener('click', function (event) {",
       '              event.stopPropagation();',
-      "              add('video', { x: node.x + node.width + 48, y: node.y }, true);",
-      '              connect(node.id, selected.values().next().value, false);',
+      '              createImageSlot(node);',
       '            });',
     ].join('\n')
   );
@@ -266,7 +328,9 @@ export function getCanvasPageHtml(): string {
     page,
     "    const node = documentState.nodes.find(function (item) { return item.id === id; });\n    drag = { kind: 'move', id: id, x: event.clientX, y: event.clientY, ox: node.x, oy: node.y, moved: false };",
     [
-      '    const positions = documentState.nodes.filter(function (item) { return selected.has(item.id); }).map(function (item) { return { id: item.id, x: item.x, y: item.y }; });',
+      '    const dragged = documentState.nodes.find(function (item) { return item.id === id; });',
+      "    const dragIds = dragged && dragged.type === 'section' ? documentState.nodes.filter(function (item) { return item.sectionId === id || item.id === id; }).map(function (item) { return item.id; }) : Array.from(selected);",
+      '    const positions = documentState.nodes.filter(function (item) { return dragIds.indexOf(item.id) >= 0; }).map(function (item) { return { id: item.id, x: item.x, y: item.y }; });',
       '    if (!positions.some(function (item) { return item.id === id; })) return;',
       "    drag = { kind: 'move', x: event.clientX, y: event.clientY, positions: positions, moved: false };",
     ].join('\n')
@@ -341,6 +405,27 @@ export function getCanvasPageHtml(): string {
     page,
     '  function add(type, point) {\n    remember();',
     [
+      '  function createImageSlot(source) {',
+      "    add('image', { x: source.x + source.width + 48, y: source.y }, true);",
+      '    const slot = documentState.nodes.find(function (item) { return selected.has(item.id); });',
+      '    if (!slot) return;',
+      "    slot.title = '图片变体 · 待生成';",
+      "    slot.generationDraft = { operation: 'variant', sourceImageId: source.id };",
+      "    setError('已创建图片生成槽：填写提示词后点击“生成”。');",
+      '    render();',
+      '  }',
+      '  function createVideoSlot(source) {',
+      "    if (!documentState || !source || !source.assetPath) { setError('请先选择一张已保存的图片。'); return; }",
+      "    selectionAction = selectionAction === 'video' ? '' : 'video'; render();",
+      '  }',
+      '  function createBlankImageSlot() {',
+      "    add('image', nextPlacement('image'), true);",
+      '    const slot = documentState.nodes.find(function (item) { return selected.has(item.id); });',
+      '    if (!slot) return;',
+      "    slot.title = '图片生成槽 · 待生成';",
+      "    slot.generationDraft = { operation: 'generate' };",
+      '    render();',
+      '  }',
       '  function nextPlacement(type) {',
       "    const width = type === 'sequence' ? 480 : type === 'note' ? 180 : type === 'video' ? 220 : 240;",
       "    const height = type === 'sequence' ? 300 : type === 'note' ? 120 : type === 'video' ? 150 : type === 'video-source' ? 210 : 190;",
@@ -408,7 +493,7 @@ export function getCanvasPageHtml(): string {
     '  function publishDirty() {\n    window.makerCanvasUnsaved = dirty();\n  }',
     [
       '  function publishDirty() {',
-      '    const sequenceRunning = Boolean(sequenceUi && sequenceUi.isBusy);',
+      '    const sequenceRunning = Boolean((sequenceUi && sequenceUi.isBusy) || (templateWorkflow && templateWorkflow.isBusy) || (generationUi && generationUi.isBusy));',
       '    const pendingFrames = Boolean(sequenceUi && sequenceUi.hasUnsavedFrames);',
       '    window.makerCanvasSequenceRunning = sequenceRunning;',
       '    window.makerCanvasUnsaved = dirty() || pendingAssetImports > 0 || sequenceRunning || pendingFrames;',
@@ -431,12 +516,61 @@ export function getCanvasPageHtml(): string {
     [
       '  function deleteSelected() {',
       '    if (!documentState || !selected.size) return;',
+      '    if (protectTemplateSelection()) return;',
       "    if (!sequenceUi.deleteNodes(Array.from(selected))) { setError('拆帧任务运行中，请先取消后再删除。'); return; }",
       '    remember();',
       '    documentState = removeNodes(documentState, Array.from(selected));',
+      '    if (documentState.templateFlow && documentState.templateFlow.stage === "complete") delete documentState.templateFlow;',
       '    selected.clear();',
       '    markDirty();',
       '    render();',
+      '  }',
+      '  function createSection() {',
+      "    const members = documentState && documentState.nodes.filter(function (node) { return selected.has(node.id) && node.type !== 'section'; });",
+      "    if (!members || !members.length) { setError('请先选择要放入分区的卡片。'); return; }",
+      '    const padding = 28;',
+      '    const left = Math.min.apply(null, members.map(function (node) { return node.x; })) - padding;',
+      '    const top = Math.min.apply(null, members.map(function (node) { return node.y; })) - padding - 28;',
+      '    const right = Math.max.apply(null, members.map(function (node) { return node.x + node.width; })) + padding;',
+      '    const bottom = Math.max.apply(null, members.map(function (node) { return node.y + node.height; })) + padding;',
+      '    remember();',
+      "    const section = { id: crypto.randomUUID(), type: 'section', x: left, y: top, width: Math.max(240, right - left), height: Math.max(160, bottom - top), title: '新分区' };",
+      '    documentState.nodes.push(section);',
+      '    members.forEach(function (node) { node.sectionId = section.id; });',
+      '    selected.clear(); selected.add(section.id); markDirty(); render();',
+      '  }',
+      '  function duplicateSelected() {',
+      '    if (protectTemplateSelection()) return;',
+      "    if (!documentState || !selected.size) { setError('请先选择要复制的卡片。'); return; }",
+      "    const copies = documentState.nodes.filter(function (node) { return selected.has(node.id) && node.type !== 'section'; }).map(function (node) {",
+      '      const copy = JSON.parse(JSON.stringify(node));',
+      '      copy.id = crypto.randomUUID(); copy.x += 36; copy.y += 36; delete copy.sectionId;',
+      "      if (copy.generation) copy.generation = { prompt: copy.generation.prompt, operation: 'generate' };",
+      '      return copy;',
+      '    });',
+      "    if (!copies.length) { setError('当前选择没有可复制的卡片。'); return; }",
+      '    remember(); documentState.nodes.push.apply(documentState.nodes, copies); selected.clear(); copies.forEach(function (node) { selected.add(node.id); }); markDirty(); render();',
+      '  }',
+      '  async function exportCanvasPng() {',
+      '    if (!documentState) return;',
+      "    const nodes = documentState.nodes.filter(function (node) { return node.type !== 'section'; });",
+      "    if (!nodes.length) { setError('画布没有可导出的内容。'); return; }",
+      '    const left = Math.min.apply(null, nodes.map(function (node) { return node.x; })) - 32;',
+      '    const top = Math.min.apply(null, nodes.map(function (node) { return node.y; })) - 32;',
+      '    const right = Math.max.apply(null, nodes.map(function (node) { return node.x + node.width; })) + 32;',
+      '    const bottom = Math.max.apply(null, nodes.map(function (node) { return node.y + node.height; })) + 32;',
+      '    const scale = Math.min(2, 2400 / Math.max(1, right - left), 1600 / Math.max(1, bottom - top));',
+      "    const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round((right - left) * scale)); canvas.height = Math.max(1, Math.round((bottom - top) * scale));",
+      "    const context = canvas.getContext('2d'); context.fillStyle = '#101114'; context.fillRect(0, 0, canvas.width, canvas.height); context.font = '14px sans-serif';",
+      '    for (const node of nodes) {',
+      '      const x = (node.x - left) * scale; const y = (node.y - top) * scale; const width = node.width * scale; const height = node.height * scale;',
+      "      context.fillStyle = '#1a1d24'; context.strokeStyle = '#3d4250'; context.lineWidth = Math.max(1, scale); context.fillRect(x, y, width, height); context.strokeRect(x, y, width, height);",
+      "      context.fillStyle = '#f4f1ea'; context.fillText(node.title || '未命名', x + 8 * scale, y + 18 * scale);",
+      "      if (node.assetPath && media[node.assetPath] && (node.type === 'image' || node.type === 'sequence')) {",
+      '        await new Promise(function (resolve) { const image = new Image(); image.onload = function () { const ratio = Math.min((width - 16 * scale) / image.naturalWidth, (height - 32 * scale) / image.naturalHeight); const drawWidth = image.naturalWidth * ratio; const drawHeight = image.naturalHeight * ratio; context.drawImage(image, x + (width - drawWidth) / 2, y + 24 * scale + (height - 24 * scale - drawHeight) / 2, drawWidth, drawHeight); resolve(); }; image.onerror = resolve; image.src = media[node.assetPath]; });',
+      "      } else { context.fillStyle = '#b7b1a6'; context.fillText(node.type === 'video-source' ? '视频结果' : node.type === 'animation' ? '序列帧动画' : node.text || '', x + 8 * scale, y + 42 * scale); }",
+      '    }',
+      "    const link = document.createElement('a'); link.download = (documentState.title || 'canvas') + '.png'; link.href = canvas.toDataURL('image/png'); link.click();",
       '  }',
       '  async function saveOnce() {',
     ].join('\n')
@@ -479,13 +613,15 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     "    setError('');\n    render();\n  }\n  async function leaveCurrent() {",
-    "    setError('');\n    void persistActiveCanvas(id).catch(function (caught) { if (opening === token) setError(caught.message); });\n    render();\n  }\n  async function leaveCurrent() {"
+    "    if (generationUi) await generationUi.restore().catch(function () {});\n    setError('');\n    void persistActiveCanvas(id).catch(function (caught) { if (opening === token) setError(caught.message); });\n    render();\n  }\n  async function leaveCurrent() {"
   );
   page = replaceCanvasPageText(
     page,
     '    const id = documentState && documentState.id;\n    const ok = await flush();',
     [
       '    const id = documentState && documentState.id;',
+      '    if (generationUi && generationUi.isBusy) { setError("生成任务正在运行，请等待完成后再切换画布。"); return false; }',
+      "    if (templateWorkflow && templateWorkflow.isBusy) { setError('模板流程正在运行，请等待本轮完成。'); return false; }",
       "    if (sequenceUi.isBusy) { setError('拆帧正在运行，请先等待或取消当前步骤。'); return false; }",
       "    if (sequenceUi.hasUnsavedFrames) { setError('帧集尚未保存，请先保存帧集或放弃本次处理。'); return false; }",
       '    await waitForPendingAssets();',
@@ -507,10 +643,15 @@ export function getCanvasPageHtml(): string {
       '    documentState.title = title;',
       '    select.options[select.selectedIndex].textContent = title;',
       "    document.getElementById('canvas-title').textContent = title;",
+      "    setError('');",
       '    markDirty();',
       '  });',
       "  document.getElementById('fit-canvas').addEventListener('click', fitAll);",
+      "  document.getElementById('add-generation').addEventListener('click', createBlankImageSlot);",
+      "  document.getElementById('create-section').addEventListener('click', createSection);",
+      "  document.getElementById('duplicate-selected').addEventListener('click', duplicateSelected);",
       "  document.getElementById('delete-selected').addEventListener('click', deleteSelected);",
+      "  document.getElementById('export-canvas').addEventListener('click', function () { void exportCanvasPng(); });",
       "  document.getElementById('new-canvas').addEventListener('click', function () {",
     ].join('\n')
   );
@@ -541,6 +682,22 @@ export function getCanvasPageHtml(): string {
       '.sequence-output-frames { display: flex; flex-wrap: nowrap; gap: 4px; overflow-x: auto; min-height: 58px; }',
       '.sequence-output-frames canvas { width: 48px; height: 48px; background: #090a0c; object-fit: contain; }',
       '.sequence-content { min-height: 0; }',
+      '.generation-panel { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }',
+      '.generation-prompt { width: 100%; box-sizing: border-box; background: #11141a; color: inherit; border: 1px solid #3a3f4a; border-radius: 5px; padding: 5px 6px; }',
+      '.generation-mode { width: 100%; box-sizing: border-box; background: #11141a; color: inherit; border: 1px solid #3a3f4a; border-radius: 5px; padding: 5px 6px; }',
+      '.generation-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; }',
+      '.generation-action { min-width: 0; background: #20242d; color: #e8e3d8; border: 1px solid #414957; border-radius: 7px; padding: 6px 5px; font-size: 11px; cursor: pointer; }',
+      '.generation-action:hover { background: #2b313d; border-color: #d1a75e; }',
+      '.generation-action-primary { background: #5b4728; border-color: #c99649; color: #fff1cf; }',
+      '.generation-action:disabled { cursor: wait; opacity: .55; }',
+      '.generation-status { color: #b7b1a6; font-size: 12px; }',
+      '.generation-status-failed, .generation-status-unknown { color: #ff9c8a; }',
+      '.generation-status-succeeded { color: #b9f0d3; }',
+      '.generation-status-running { color: #f1d18f; }',
+      '.generation-error { color: #ffb2a5; font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }',
+      '.card.section { background: rgba(92,76,43,.18); border: 1px dashed #b58c4a; z-index: 0; }',
+      '.card.section strong { color: #f1d18f; }',
+      '.card.section p { color: #c5b58e; }',
       '</style>',
     ].join(String.fromCharCode(10))
   );
@@ -562,47 +719,78 @@ export function getCanvasPageHtml(): string {
   page = page.replace(
     fileHandler[0],
     [
-      '  async function importImageFile(chosen, point) {',
-      '    if (!chosen || !documentState) return;',
-      "    if (chosen.size > 20 * 1024 * 1024) { setError('图片不能超过 20 MiB。'); return; }",
-      "    if (chosen.type && !['image/png', 'image/jpeg', 'image/webp'].includes(chosen.type)) { setError('只接受 PNG、JPEG 或 WebP。'); return; }",
-      '    const canvasId = documentState.id;',
+      '  function requestImageImport(nodeId) {',
+      '    if (!documentState) return;',
+      '    if (generationUi && generationUi.isBusy) { setError("请等待当前生成完成后再替换图片。"); return; }',
+      '    pendingImageImport = { canvasId: documentState.id, nodeId: nodeId };',
+      '    file.click();',
+      '  }',
+      '  async function importImageFile(chosen, request) {',
+      '    if (!chosen || !request || !documentState) return;',
+      '    if (chosen.size > 20 * 1024 * 1024) { setError("图片不能超过 20 MiB。"); return; }',
+      '    if (chosen.type && ["image/png", "image/jpeg", "image/webp"].indexOf(chosen.type) < 0) { setError("只接受 PNG、JPEG 或 WebP。"); return; }',
       '    pendingAssetImports += 1;',
       '    publishDirty();',
       '    try {',
-      "      const result = await store.importImage(canvasId, await chosen.arrayBuffer(), chosen.type || 'application/octet-stream');",
-      "      if (!documentState || documentState.id !== canvasId) { setError('已离开原画布。图片已写入当前项目，但没有放进其他画布。'); return; }",
+      '      const saved = await store.importImage(request.canvasId, await chosen.arrayBuffer(), chosen.type || "application/octet-stream");',
+      '      if (!documentState || documentState.id !== request.canvasId) {',
+      '        setError("已离开原画布。图片已写入当前项目，但没有放进其他画布。");',
+      '        return;',
+      '      }',
+      '      const node = documentState.nodes.find(function (item) { return item.id === request.nodeId && item.type === "image"; });',
+      '      if (!node || (node.assetPath && !templateWorkflow.canEditImage(node.id))) { setError("图片卡已被修改，导入结果未挂载。"); return; }',
       '      remember();',
-      "      const node = { id: crypto.randomUUID(), type: 'image', x: point.x, y: point.y, width: 220, height: 160, title: (chosen.name.replace(/\\.[^.]+$/, '') || '图片').slice(0, 80), assetPath: result.relativePath };",
-      '      documentState.nodes.push(node);',
-      '      await loadMedia(result.relativePath);',
-      '      if (!documentState || documentState.id !== canvasId) return;',
+      '      node.title = (chosen.name.replace(/\\.[^.]+$/, "") || "图片").slice(0, 80);',
+      '      node.assetPath = saved.relativePath;',
+      '      delete node.generationDraft;',
+      '      delete node.generation;',
+      '      delete node.sourceSnapshot;',
+      '      await loadMedia(saved.relativePath);',
       '      selected.clear();',
       '      selected.add(node.id);',
-      "      setError('');",
+      '      setError("");',
       '      markDirty();',
       '      render();',
-      "    } catch (caught) { setError(caught.message || '导入失败'); } finally { finishAssetImport(); }",
+      '    } catch (caught) { setError(caught.message || "图片导入失败"); return; } finally { finishAssetImport(); }',
+      '    selectionAction = "";',
+      '    await templateWorkflow.headChanged(request.nodeId);',
       '  }',
-      "  file.addEventListener('change', function () {",
+      '  file.addEventListener("change", function () {',
       '    const chosen = file.files && file.files[0];',
-      "    file.value = '';",
-      "    if (chosen) void importImageFile(chosen, nextPlacement('image'));",
+      '    file.value = "";',
+      '    const request = pendingImageImport;',
+      '    pendingImageImport = null;',
+      '    if (chosen) void importImageFile(chosen, request);',
       '  });',
-      '  async function importVideoFile(chosen, pointOverride) {',
+      '  function requestVideoImport(nodeId) {',
+      '    if (!documentState) return;',
+      '    pendingVideoImport = { canvasId: documentState.id, nodeId: nodeId };',
+      '    videoFile.click();',
+      '  }',
+      '  async function importVideoFile(chosen, request) {',
       '    if (!chosen || !documentState) return;',
       "    if (chosen.size > 100 * 1024 * 1024) { setError('视频不能超过 100 MiB。'); return; }",
       "    if (chosen.type && !['video/mp4', 'video/quicktime', 'video/webm'].includes(chosen.type)) { setError('只接受 MP4、MOV 或 WebM 视频。'); return; }",
-      '    const canvasId = documentState.id;',
+      '    const canvasId = request && request.canvasId ? request.canvasId : documentState.id;',
       '    pendingAssetImports += 1;',
       '    publishDirty();',
       '    try {',
       "      const saved = await store.importVideo(canvasId, chosen, chosen.type || '');",
       "      if (!documentState || documentState.id !== canvasId) { setError('已离开原画布。视频已写入项目，但没有添加到其他画布。'); return; }",
-      "      const point = pointOverride || nextPlacement('video-source');",
-      "      const node = { id: crypto.randomUUID(), type: 'video-source', x: point.x, y: point.y, width: 240, height: 210, title: (chosen.name.replace(/\\.[^.]+$/, '') || '视频').slice(0, 80), assetPath: saved.relativePath };",
+      '      const target = request && request.nodeId ? documentState.nodes.find(function (item) { return item.id === request.nodeId && item.type === "video"; }) : null;',
+      "      const point = request && request.point ? request.point : nextPlacement('video-source');",
+      "      const node = target || { id: crypto.randomUUID(), type: 'video-source', x: point.x, y: point.y, width: 240, height: 210, title: (chosen.name.replace(/\\.[^.]+$/, '') || '视频').slice(0, 80), assetPath: saved.relativePath };",
       '      remember();',
-      '      documentState.nodes.push(node);',
+      "      node.type = 'video-source';",
+      '      node.width = 240;',
+      '      node.height = 210;',
+      "      node.title = (chosen.name.replace(/\\.[^.]+$/, '') || '视频').slice(0, 80);",
+      '      node.assetPath = saved.relativePath;',
+      '      delete node.generationDraft;',
+      '      delete node.generation;',
+      '      delete node.sourceSnapshot;',
+      '      documentState.edges = documentState.edges.filter(function (edge) { return edge.to !== node.id; });',
+      '      if (!target) documentState.nodes.push(node);',
       '      selected.clear();',
       '      selected.add(node.id);',
       "      setError('');",
@@ -610,23 +798,12 @@ export function getCanvasPageHtml(): string {
       '      render();',
       "    } catch (caught) { setError(caught.message || '视频导入失败'); } finally { finishAssetImport(); }",
       '  }',
-      "  document.getElementById('add-video-source').addEventListener('click', function () { videoFile.click(); });",
-      "  videoFile.addEventListener('change', function () { const chosen = videoFile.files && videoFile.files[0]; videoFile.value = ''; if (chosen) void importVideoFile(chosen); });",
-      "  board.addEventListener('dragover', function (event) {",
-      "    if (!event.dataTransfer || !Array.from(event.dataTransfer.types || []).includes('Files')) return;",
-      '    event.preventDefault();',
-      "    board.classList.add('drop-target');",
-      '  });',
-      "  board.addEventListener('dragleave', function (event) {",
-      "    if (!event.relatedTarget || !board.contains(event.relatedTarget)) board.classList.remove('drop-target');",
-      '  });',
-      "  board.addEventListener('drop', function (event) {",
-      '    const files = Array.from(event.dataTransfer && event.dataTransfer.files || []);',
-      '    if (!files.length) return;',
-      '    event.preventDefault();',
-      "    board.classList.remove('drop-target');",
-      '    const point = worldPoint(event);',
-      "    files.forEach(function (chosen, index) { const target = { x: point.x + index * 24, y: point.y + index * 24 }; if ((chosen.type && chosen.type.startsWith('video/')) || /\\.(mp4|mov|webm)$/i.test(chosen.name)) void importVideoFile(chosen, target); else void importImageFile(chosen, target); });",
+      '  videoFile.addEventListener("change", function () {',
+      '    const chosen = videoFile.files && videoFile.files[0];',
+      '    videoFile.value = "";',
+      '    const request = pendingVideoImport;',
+      '    pendingVideoImport = null;',
+      '    if (chosen) void importVideoFile(chosen, request);',
       '  });',
     ].join('\n')
   );
@@ -679,7 +856,7 @@ export function getCanvasPageHtml(): string {
     ].join('\n'),
     [
       "        if (event.target.closest('textarea, input, select, button, video')) return;",
-      '        if (space || event.button === 1) return;',
+      '        if (space || event.button !== 0) return;',
       '        selectNode(node.id, event.shiftKey || event.metaKey || event.ctrlKey);',
       '        startDrag(event, node.id);',
     ].join('\n')
@@ -761,13 +938,43 @@ export function getCanvasPageHtml(): string {
       '    maxFrameCount: maxSequenceFrameCount,',
       '    maxInputFrameCount: maxSequenceInputFrameCount,',
       '  });',
+      '  generationUi = createCanvasGenerationUi({',
+      '    store: store,',
+      '    getDocument: function () { return documentState; },',
+      '    getSelected: function () { return selected; },',
+      '    remember: remember,',
+      '    markDirty: markDirty,',
+      '    flush: flush,',
+      '    render: render,',
+      '    nextPlacement: nextPlacement,',
+      '    loadMedia: loadMedia,',
+      '    requestImageImport: requestImageImport,',
+      '    requestVideoImport: requestVideoImport,',
+      '    setError: setError,',
+      '    createId: function () { return crypto.randomUUID(); },',
+      '    replaceImage: function (id) { return templateWorkflow.canEditImage(id); },',
+      '    onVideoCreated: function (id) { selected.clear(); selected.add(id); selectionAction = "video"; },',
+      '    onGenerated: async function (id, kind) { selectionAction = ""; selected.clear(); selected.add(id); render(); if (kind === "image") await templateWorkflow.headChanged(id); },',
+      '  });',
+      '  templateWorkflow = createTemplateWorkflow({',
+      '    getDocument: function () { return documentState; }, save: flush, changed: markDirty, render: render, error: setError,',
+      '    confirm: function (message) { return window.confirm(message); },',
+      '    video: generationUi.runTemplateVideo, sequence: sequenceUi.runTemplate, importImage: requestImageImport,',
+      '    select: function (id) { selected.clear(); selected.add(id); render(); },',
+      '    animation: function (flow) {',
+      '      past = []; future = [];',
+      '      if (flow.animationId) { if (!refreshAnimationFromSource(documentState, flow.animationId)) throw new Error("动画来源图集尚未就绪。"); }',
+      '      else flow.animationId = appendAnimation(documentState, flow.sequenceId, crypto.randomUUID(), crypto.randomUUID()).id;',
+      '      markDirty();',
+      '    }',
+      '  });',
       "  document.getElementById('save').addEventListener('click', function () { void flush(); });",
     ].join(String.fromCharCode(10))
   );
   page = replaceCanvasPageText(
     page,
-    '  let sequenceUi = null;',
-    '  let sequenceUi = null; let sequenceEditor;'
+    '  let sequenceUi = null; let generationUi = null;',
+    '  let sequenceUi = null; let generationUi = null; let sequenceEditor; let templateWorkflow = null;'
   );
   page = replaceCanvasPageText(
     page,
@@ -793,7 +1000,16 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '  const store = createBrowserCanvasDocumentStore(key);',
-    '  const store = createBrowserCanvasDocumentStore(key); const animationCards = createAnimationCards(store.mediaUrl);'
+    [
+      '  const store = createBrowserCanvasDocumentStore(key);',
+      '  const animationCards = createAnimationCards(store.mediaUrl, function (animationId) {',
+      '    if (!documentState) return;',
+      '    remember();',
+      "    if (!refreshAnimationFromSource(documentState, animationId)) { setError('序列帧来源不存在，无法刷新动画。'); return; }",
+      '    markDirty();',
+      '    render();',
+      '  });',
+    ].join(String.fromCharCode(10))
   );
   page = replaceCanvasPageText(
     page,
@@ -803,16 +1019,217 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     "      if (node.type === 'sequence') {",
-    "      if (node.type === 'animation') animationCards.render(card, node);\n      if (node.type === 'sequence') {"
+    "      if (node.type === 'animation') animationCards.render(card, node, documentState.nodes.find(function (source) { return documentState.edges.some(function (edge) { return edge.kind === 'sequence-animation' && edge.from === source.id && edge.to === node.id; }) && source.type === 'sequence'; }));\n      if (node.type === 'sequence') {"
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    for (const node of documentState.nodes) {',
+    "    const orderedNodes = documentState.nodes.slice().sort(function (left, right) { return (left.type === 'section' ? -1 : 0) - (right.type === 'section' ? -1 : 0); });\n    for (const node of orderedNodes) {"
   );
   page = page.replace('/*__HELPERS__*/', helpers);
   page = replaceCanvasPageText(
     page,
     '      card.append(title);',
-    '      card.append(title); renderGenerationResult(card, node, documentState.nodes);'
+    "      if (node.type !== 'image' || !node.assetPath) card.append(title); if (node.type === 'section') { const info = document.createElement('p'); info.textContent = documentState.nodes.filter(function (item) { return item.sectionId === node.id; }).length + ' 个节点'; card.append(info); } if (node.type === 'image' && !node.assetPath) { const empty = document.createElement('button'); empty.type = 'button'; empty.className = 'image-empty'; empty.setAttribute('aria-label', '导入图片'); empty.innerHTML = '<span>＋</span><small>图片</small>'; empty.addEventListener('click', function (event) { event.stopPropagation(); selectNode(node.id, false); requestImageImport(node.id); }); card.append(empty); }"
+  );
+  page = replaceCanvasPageText(
+    page,
+    '      world.append(card);\n    }\n    wires.setAttribute',
+    [
+      '      world.append(card);',
+      '    }',
+      '    function renderSelectionToolbar() {',
+      '      selectionToolbar.replaceChildren();',
+      '      selectionMenu.replaceChildren();',
+      '      const chosen = documentState.nodes.filter(function (item) { return selected.has(item.id); });',
+      "      if (chosen.length !== 1 || !generationUi || !['image', 'video', 'video-source'].includes(chosen[0].type)) { selectionMenu.hidden = true; selectionToolbar.hidden = true; return; }",
+      '      const node = chosen[0];',
+      '      if (templateWorkflow && templateWorkflow.locked(node.id)) { selectionMenu.hidden = true; selectionToolbar.hidden = true; return; }',
+      "      const emptyImage = node.type === 'image' && !node.assetPath;",
+      '      selectionMenu.hidden = emptyImage;',
+      '      const panelOpen = emptyImage || Boolean(selectionAction);',
+      '      selectionToolbar.hidden = !panelOpen;',
+      "      const actions = document.createElement('div'); actions.className = 'selection-actions';",
+      "      function actionButton(text, action, active, unavailable) { const button = document.createElement('button'); button.type = 'button'; button.textContent = text; if (active) button.className = 'active'; if (unavailable) { button.disabled = true; button.title = unavailable; } button.addEventListener('click', function (event) { event.stopPropagation(); action(); }); actions.append(button); }",
+      "      if (node.type === 'image' && !emptyImage) {",
+      "        actionButton('快速编辑', function () { selectionAction = selectionAction === 'image' ? '' : 'image'; render(); }, selectionAction === 'image');",
+      "        actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video', templateWorkflow.canEditImage(node.id) ? '请先完成首图，随后按模板继续生成' : undefined);",
+      "        actionButton('一键抠图', null, false, '图片一键抠图尚未接入');",
+      "        actionButton('智能扩图', function () { selectionAction = selectionAction === 'outpaint' ? '' : 'outpaint'; render(); }, selectionAction === 'outpaint');",
+      "        actionButton('局部修改', null, false, '图片区域选择与局部重绘尚未接入');",
+      "        const download = document.createElement('details'); download.className = 'image-download';",
+      "        const trigger = document.createElement('summary'); trigger.setAttribute('aria-label', '下载图片'); trigger.title = '下载图片'; trigger.innerHTML = '<svg width=18 height=18 viewBox=\"0 0 24 24\" fill=none stroke=currentColor stroke-width=1.8 aria-hidden=true><path d=\"M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5\"/></svg>';",
+      "        const formats = document.createElement('div'); formats.className = 'image-download-options';",
+      "        ['png', 'jpg'].forEach(function (format) {",
+      "          const item = document.createElement('button'); item.type = 'button'; item.textContent = '导出为 ' + format.toUpperCase();",
+      "          item.addEventListener('click', function () { download.open = false; void downloadCanvasImage(store.mediaUrl(node.assetPath), node.title || '图片', format).catch(function (caught) { setError(caught.message || '图片导出失败，请重试。'); }); });",
+      '          formats.append(item);',
+      '        });',
+      "        download.addEventListener('toggle', function () { if (!download.open) return; const rect = trigger.getBoundingClientRect(); formats.style.left = Math.max(8, rect.right - 144) + 'px'; formats.style.top = rect.bottom + 6 + 'px'; });",
+      '        download.append(trigger, formats); actions.append(download);',
+      '      }',
+      "      else if (node.type !== 'image') { actionButton('生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); }",
+      '      selectionMenu.append(actions);',
+      "      if (panelOpen) { const panel = document.createElement('div'); panel.className = 'selection-panel'; const panelNode = node.type === 'image' && selectionAction === 'video' ? { id: 'video-draft:' + node.id, type: 'video', draftSourceId: node.id } : node; generationUi.render(panel, panelNode, documentState.nodes, selectionAction === 'outpaint' ? 'outpaint' : undefined); selectionToolbar.append(panel); }",
+      '      positionSelectionToolbar();',
+      '    }',
+      '    renderSelectionToolbar();',
+      '    wires.setAttribute',
+    ].join('\n')
   );
   page = page
     .split("event.target.closest('textarea, input, select, button, video')")
     .join("event.target.closest('textarea, input, select, button, video, details')");
+  page = page.replace(
+    '  <button id="new-canvas" type="button">新建</button>',
+    '  <select id="new-canvas" aria-label="新建画布"><option value="">新建画布…</option><option value="empty">新建空白画布</option><option value="sequence">新建序列帧模板画布</option></select>'
+  );
+  page = page.replace(
+    '<div id="board"><svg id="wires"></svg><div id="world"></div><div id="marquee" hidden></div></div>',
+    '<div id="board"><div id="selection-menu" role="toolbar" aria-label="卡片功能菜单" hidden></div><div id="selection-toolbar" role="region" aria-label="卡片生成面板" hidden></div><svg id="wires"></svg><div id="world"></div><div id="marquee" hidden></div></div>\n<div id="canvas-context-menu" hidden role="menu"><button type="button" data-canvas-action="add-generation" data-menu-scope="blank">新建图片卡片</button><button type="button" data-canvas-action="add-video" data-menu-scope="blank">新建视频卡片</button><button type="button" data-canvas-action="duplicate" data-menu-scope="card">复制卡片</button><button type="button" data-canvas-action="delete" data-menu-scope="card">删除卡片</button></div>'
+  );
+  page = page.replace(
+    '</style>',
+    '.canvas-heading { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: min(280px, 100%); }\n#canvas-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n#rename-canvas { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 30px; width: 30px; height: 30px; padding: 0; border-color: transparent; background: transparent; color: #b7b1a6; cursor: pointer; }\n#rename-canvas:hover { background: #2c333e; color: #e6b15c; }\n#rename-canvas:focus-visible { outline: 2px solid #e6b15c; outline-offset: 2px; }\n#canvas-context-menu { position: fixed; z-index: 30; min-width: 168px; padding: 6px; border: 1px solid #4a5260; border-radius: 10px; background: #171a20; box-shadow: 0 12px 32px rgba(0,0,0,.38); }\n#canvas-context-menu button { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; cursor: pointer; }\n#canvas-context-menu button:hover { background: #2c333e; }\n#add-image, #add-video-source, #add-video, #add-note, #undo, #redo, #add-generation, #fit-canvas, #create-section, #duplicate-selected, #delete-selected, #export-canvas { display: none !important; }\n.card { cursor: grab; user-select: none; }\n.card:active { cursor: grabbing; }\n.card img { user-select: none; -webkit-user-drag: none; }\n</style>'
+  );
+  page = page.replace(
+    '</style>',
+    '#selection-toolbar { position: absolute; z-index: 20; box-sizing: border-box; display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; border: 1px solid #414957; border-radius: 12px; background: #17191f; box-shadow: 0 12px 32px rgba(0,0,0,.4); overflow: auto; overscroll-behavior: contain; }\n#selection-menu { position: absolute; z-index: 21; box-sizing: border-box; width: max-content; padding: 6px; border: 1px solid #414957; border-radius: 10px; background: #202228; box-shadow: 0 6px 20px rgba(0,0,0,.35); overflow-x: auto; overscroll-behavior: contain; }\n#selection-menu .selection-actions { flex-wrap: nowrap; }\n#selection-menu button { white-space: nowrap; border-color: transparent; background: transparent; font-weight: 600; }\n#selection-menu button:hover, #selection-menu button.active { background: #5b4728; border-color: #c99649; }\n#selection-menu button:disabled { opacity: .4; cursor: not-allowed; background: transparent; border-color: transparent; }\n.image-download summary { display: flex; align-items: center; justify-content: center; width: 34px; height: 32px; cursor: pointer; border-left: 1px solid #414957; list-style: none; }\n.image-download summary::-webkit-details-marker { display: none; }\n.image-download-options { position: fixed; z-index: 40; width: 144px; padding: 5px; box-sizing: border-box; border: 1px solid #414957; border-radius: 8px; background: #202228; box-shadow: 0 8px 24px rgba(0,0,0,.4); }\n.image-download-options button { display: block; width: 100%; text-align: left; }\n#selection-menu[hidden], #selection-toolbar[hidden] { display: none; }\n.selection-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }\n.selection-actions button { background: #20242d; color: #e8e3d8; border: 1px solid #414957; border-radius: 7px; padding: 7px 10px; cursor: pointer; }\n.selection-actions button:hover, .selection-actions button.active { background: #5b4728; border-color: #c99649; color: #fff1cf; }\n.selection-label { color: #b7b1a6; font-size: 12px; margin-right: 4px; }\n.selection-panel { min-width: 0; }\n.image-empty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 84px; height: 84px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 0; background: #1a1d24; color: #aaa79f; cursor: pointer; }\n.image-empty:hover { background: #232832; color: #e6b15c; }\n.image-empty span { font-size: 30px; line-height: 1; }\n.image-empty small { font-size: 12px; }\n.card.image { padding: 0; min-width: 280px; min-height: 220px; }\n.card.image > img { display: block; width: 100%; height: 100%; object-fit: contain; }\n.card.image > strong, .card.video > strong, .card.video-source > strong { display: none; }\n.port { display: none !important; }\n.generation-panel { margin-top: 0; display: grid; grid-template-columns: minmax(0,1fr); align-items: end; gap: 8px; }\n.generation-panel > .generation-prompt { min-height: 96px; resize: vertical; font: inherit; font-size: 13px; line-height: 1.5; padding: 10px; }\n.generation-references { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }\n.generation-references:empty { display: none; }\n.generation-reference { position: relative; width: 68px; display: flex; flex-direction: column; gap: 4px; text-align: center; }\n.generation-reference img { display: block; width: 68px; height: 60px; object-fit: contain; border: 1px solid #414957; border-radius: 6px; background: #101114; }\n.generation-reference small { font-size: 10px; color: #b7b1a6; }\n.generation-reference-remove { position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1px solid #616875; background: #303640; color: white; cursor: pointer; }\n.generation-reference-remove:disabled { opacity: .4; cursor: wait; }\n.generation-fields { display: grid; grid-template-columns: repeat(3,minmax(80px,1fr)); gap: 6px; }\n.generation-field { display: flex; flex-direction: column; gap: 3px; color: #aaa79f; font-size: 11px; }\n.generation-field .generation-mode { width: 100%; }\n.generation-actions { display: flex; justify-content: flex-end; gap: 6px; }\n.generation-actions .generation-action { white-space: nowrap; }\n@media (max-width: 760px) { .generation-panel { grid-template-columns: 1fr; } .generation-fields { grid-template-columns: repeat(2,minmax(80px,1fr)); } }\n</style>'
+  );
+  page = page.replace(
+    '        card.append(img);',
+    "        img.draggable = false; img.addEventListener('dragstart', function (event) { event.preventDefault(); });\n        card.append(img);"
+  );
+  page = page.replace(
+    "      card.addEventListener('pointerdown', function (event) {",
+    "      card.addEventListener('dragstart', function (event) { event.preventDefault(); });\n      card.addEventListener('pointerdown', function (event) {"
+  );
+  page = page.replace(
+    "port.title = '拖到视频输入卡，保存为首帧';",
+    "port.title = '点击创建图片变体；拖到视频输入卡可设置首帧';"
+  );
+  page = page.replace(
+    'if (chosen) void importVideoFile(chosen);',
+    'if (chosen) void importVideoFile(chosen, pendingPlacement || undefined); pendingPlacement = null;'
+  );
+  page = page.replace(
+    / {2}document\.getElementById\('new-canvas'\)\.addEventListener\('click', function \(\) \{[\s\S]*?\n {2}\}\);\n {2}document\.getElementById\('add-note'\)/,
+    [
+      "  document.getElementById('new-canvas').addEventListener('change', function (event) {",
+      '    const template = event.target.value;',
+      "    event.target.value = '';",
+      '    if (!template) return;',
+      '    void leaveCurrent().then(async function (ok) {',
+      '      if (!ok || (documentState && dirty())) return;',
+      "      const title = template === 'sequence' ? '序列帧模板画布' : '空白画布';",
+      "      const created = await request('/canvases', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: title, template: template }) });",
+      "      const option = document.createElement('option');",
+      '      option.value = created.id; option.textContent = created.title; select.append(option);',
+      '      await openDocument(created.id);',
+      "    }).catch(function (caught) { setError(caught.message || '新建画布失败。'); });",
+      '  });',
+      "  document.getElementById('add-note')",
+    ].join('\n')
+  );
+  page = page.replace(
+    "  document.getElementById('add-note').addEventListener('click', function () { add('note', nextPlacement('note')); });",
+    [
+      '  let pendingPlacement = null;',
+      "  const contextMenu = document.getElementById('canvas-context-menu');",
+      '  function hideContextMenu() { contextMenu.hidden = true; }',
+      '  function showContextMenu(event) {',
+      '    event.preventDefault();',
+      "    const card = event.target.closest && event.target.closest('.card[data-id]');",
+      "    const blankActions = contextMenu.querySelectorAll('[data-menu-scope=blank]');",
+      "    const cardActions = contextMenu.querySelectorAll('[data-menu-scope=card]');",
+      '    blankActions.forEach(function (item) { item.hidden = Boolean(card); });',
+      '    cardActions.forEach(function (item) { item.hidden = !card; });',
+      '    if (card && !selected.has(card.dataset.id)) selectNode(card.dataset.id, false);',
+      '    if (!card) { selected.clear(); render(); }',
+      '    pendingPlacement = documentState ? worldPoint(event) : null;',
+      '    contextMenu.hidden = false;',
+      "    contextMenu.style.left = Math.min(event.clientX, window.innerWidth - 190) + 'px';",
+      "    contextMenu.style.top = Math.min(event.clientY, window.innerHeight - 300) + 'px';",
+      '  }',
+      "  board.addEventListener('contextmenu', showContextMenu);",
+      "  contextMenu.addEventListener('click', function (event) {",
+      "    const action = event.target.closest && event.target.closest('[data-canvas-action]');",
+      '    if (!action) return;',
+      '    const value = action.dataset.canvasAction;',
+      '    hideContextMenu();',
+      "    if (value === 'add-video') { add('video', pendingPlacement || nextPlacement('video')); pendingPlacement = null; return; }",
+      "    if (value === 'add-generation') { createBlankImageSlot(); return; }",
+      "    if (value === 'duplicate') { duplicateSelected(); return; }",
+      "    if (value === 'delete') deleteSelected();",
+      '  });',
+      "  document.addEventListener('pointerdown', function (event) { if (!contextMenu.hidden && !contextMenu.contains(event.target)) hideContextMenu(); });",
+      "  document.getElementById('add-note').addEventListener('click', function () { add('note', nextPlacement('note')); });",
+    ].join('\n')
+  );
+  page = replaceCanvasPageText(page, '</header>', '</header><div id="template-flow" hidden></div>');
+  page = replaceCanvasPageText(
+    page,
+    '</style>',
+    '#canvas-context-menu button[hidden] { display: none; }</style>'
+  );
+  page = replaceCanvasPageText(
+    page,
+    "  board.addEventListener('pointerdown', function (event) {",
+    "  board.addEventListener('pointerdown', function (event) {\n    if (event.button === 2) return;"
+  );
+  page = replaceCanvasPageText(
+    page,
+    '</style>',
+    '#template-flow:not([hidden]) { display:flex; gap:16px; align-items:center; padding:10px 16px; background:#25251f; color:#e6c18a; font-size:13px; } #template-flow button { margin-left:auto; } .template-locked button, .template-locked input, .template-locked select { pointer-events:none; opacity:.35; } .template-example { position:absolute; top:8px; left:8px; padding:3px 7px; background:#222c; color:#ddd; border-radius:4px; font-size:11px; pointer-events:none; }</style>'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  function render() {\n    if (!documentState) return;',
+    [
+      '  function protectTemplateSelection() {',
+      '    const flow = documentState && documentState.templateFlow;',
+      '    if (!flow || flow.stage === "complete") return false;',
+      '    if (![flow.imageId, flow.videoId, flow.sequenceId, flow.animationId].some(function (id) { return selected.has(id); })) return false;',
+      '    setError("模板流程完成前请保留流程卡片；首图可快速编辑或替换。"); return true;',
+      '  }',
+      '  function render() {',
+      '    if (!documentState) return;',
+      '    if (templateWorkflow) templateWorkflow.render(document.getElementById("template-flow"));',
+      '    publishDirty();',
+    ].join('\n')
+  );
+  page = replaceCanvasPageText(
+    page,
+    '      world.append(card);',
+    [
+      '      if (templateWorkflow && templateWorkflow.locked(node.id)) {',
+      '        card.classList.add("template-locked");',
+      '        card.querySelectorAll("button,input,select,textarea").forEach(function (control) { control.disabled = true; });',
+      '        const label = document.createElement("span"); label.className = "template-example"; label.textContent = "模板流程 · 暂不可编辑"; card.append(label);',
+      '        card.addEventListener("dblclick", function (event) { event.stopImmediatePropagation(); }, true);',
+      '      }',
+      '      world.append(card);',
+    ].join('\n')
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  function selectNode(id, shift) {',
+    '  function selectNode(id, shift) {\n    if (!selected.has(id)) selectionAction = "";'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    if (event.target !== board && event.target !== world) return;',
+    "    if (event.target !== board && event.target !== world) return;\n    selectionAction = ''; "
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    const previous = past.pop();',
+    '    if (documentState && documentState.templateFlow && documentState.templateFlow.stage !== "complete") { setError("模板流程中暂不撤销，以免回退已提交的生成任务。"); return; }\n    const previous = past.pop();'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    const next = future.shift();',
+    '    if (documentState && documentState.templateFlow && documentState.templateFlow.stage !== "complete") return;\n    const next = future.shift();'
+  );
   return page;
 }

@@ -77,10 +77,25 @@ export function nodeOf(document: CanvasDocument, id: string): CanvasNode | undef
 
 export function removeNodes(document: CanvasDocument, nodeIds: readonly string[]): CanvasDocument {
   const removed = new Set(nodeIds);
+  const deletedGenerationIds = [
+    ...new Set([
+      ...(document.deletedGenerationIds || []),
+      ...document.nodes.flatMap((node) =>
+        removed.has(node.id) && node.generation?.attemptId ? [node.generation.attemptId] : []
+      ),
+    ]),
+  ];
   return {
     ...document,
+    ...(deletedGenerationIds.length ? { deletedGenerationIds } : {}),
     viewport: { ...document.viewport },
-    nodes: document.nodes.filter((node) => !removed.has(node.id)).map((node) => ({ ...node })),
+    nodes: document.nodes
+      .filter((node) => !removed.has(node.id))
+      .map((node) => {
+        const copy = { ...node };
+        if (copy.sectionId && removed.has(copy.sectionId)) delete copy.sectionId;
+        return copy;
+      }),
     edges: document.edges
       .filter((edge) => !removed.has(edge.from) && !removed.has(edge.to))
       .map((edge) => ({ ...edge })),

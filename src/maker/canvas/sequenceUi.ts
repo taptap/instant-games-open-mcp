@@ -12,6 +12,7 @@ import {
   type SequenceSettings,
 } from './sequence.js';
 import { createSequenceProcessor } from './sequence.js';
+import { isCanvasNodeStale, snapshotCanvasSource } from './dependencies.js';
 
 export interface SequenceUiOptions {
   store: CanvasDocumentStore;
@@ -151,6 +152,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
         sequenceSettings: node.sequenceSettings,
         frameSetInfo: node.frameSetInfo,
         assetPath: node.assetPath,
+        sourceStale: isCanvasNodeStale(node, source || undefined),
       },
       source || findSource(node),
       run,
@@ -367,10 +369,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     if (action === 'reset') {
       if (controllers.has(nodeId)) return;
       clearRun(nodeId);
-      delete node.frameSetInfo;
-      delete node.assetPath;
-      refresh(nodeId);
-      return;
+      return startExtraction(nodeId);
     }
     if (!run) return;
     if (action === 'organize-cutout' || action === 'organize-dedupe') {
@@ -511,6 +510,8 @@ export function createSequenceUiController(options: SequenceUiOptions) {
         if (!activeRun.frames.length) throw new Error('没有可保存的帧。');
         const document = documentState();
         if (!document) throw new Error('画布已关闭。');
+        const source = findSource(node);
+        if (!source) throw new Error('视频来源已不存在，无法保存序列帧。');
         activeRun.atlas ??= await options.processor.packAtlas(
           activeRun.frames,
           node.sequenceSettings!.fps,
@@ -544,6 +545,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
           assetPath: current.assetPath,
           frameSetInfo: current.frameSetInfo,
           sequenceSettings: current.sequenceSettings,
+          sourceSnapshot: current.sourceSnapshot,
         };
         activeRun.uploading = true;
         options.publishState();
@@ -552,6 +554,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
           current.assetPath = activeRun.outputPath;
           current.frameSetInfo = activeRun.atlas.info;
           current.sequenceSettings = { ...node.sequenceSettings! };
+          current.sourceSnapshot = snapshotCanvasSource(source);
           if (!(await options.flush(true))) throw new Error('画布保存失败，请重试；原结果仍保留。');
         } catch (error) {
           Object.assign(current, previous);
@@ -563,12 +566,14 @@ export function createSequenceUiController(options: SequenceUiOptions) {
           assetPath: current.assetPath,
           frameSetInfo: current.frameSetInfo,
           sequenceSettings: current.sequenceSettings,
+          sourceSnapshot: current.sourceSnapshot,
         };
         Object.assign(current, previous);
         options.remember();
         Object.assign(current, committed);
         node.assetPath = current.assetPath;
         node.frameSetInfo = current.frameSetInfo;
+        node.sourceSnapshot = current.sourceSnapshot;
         options.processor.dispose(activeRun.frames);
         options.processor.dispose(activeRun.sourceFrames);
         activeRun.frames = [];
@@ -661,6 +666,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     run.boundaryFrames = undefined;
     delete node.frameSetInfo;
     delete node.assetPath;
+    delete node.sourceSnapshot;
     run.sourceFrames = [];
     run.candidates = [];
     run.removed = [];
@@ -739,6 +745,30 @@ export function createSequenceUiController(options: SequenceUiOptions) {
   }
 
   return {
+    async runTemplate(nodeId: string): Promise<void> {
+      if (controllers.size) throw new Error('已有序列帧处理正在运行，请等待完成。');
+      beginEdit(nodeId);
+      const settings = sequenceNode(nodeId)?.sequenceSettings;
+      if (!settings) throw new Error('模板缺少序列帧设置。');
+      for (const action of [
+        'extract',
+        settings.cutout ? 'cutout' : 'skip-cutout',
+        'dedupe',
+        'keep-all',
+        'resize',
+        'save',
+      ]) {
+        await actionSequence(nodeId, action);
+        const run = runs.get(nodeId);
+        if (!run || run.status === 'failed' || run.status === 'cancelled')
+          throw new Error(run?.error || '模板序列帧处理未完成。');
+      }
+      if (runs.get(nodeId)?.status !== 'complete') throw new Error('模板图集未保存，流程已停止。');
+      if (runs.get(nodeId)?.boundaryFrames?.length)
+        options.setError(
+          '检测到部分帧内容接触边缘，请检查动画是否裁切；检测结果不代表视觉验收通过。'
+        );
+    },
     editableFrames,
     replaceFrames,
     undoFrames,

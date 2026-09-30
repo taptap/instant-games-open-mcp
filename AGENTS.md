@@ -398,11 +398,16 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 - 控制台复用 CLI 业务，不新增 MCP tool；操作必须显式绑定已校验的项目 realpath，
   不依赖全局当前项目或 cwd。项目登记共用 `src/maker/projectRegistry.ts`，
   登记失败不得改变 init/clone 的成功结果。
-  Maker 自有创作画布在 `src/maker/canvas/` 保持独立模块：页面与文档编辑只依赖画布 Store 端口；控制台仅提供导航、项目 key 解析和受控文件路由，不接管节点状态或编辑历史。`sequenceModel.ts` 存放持久数据契约，`sequence.ts`/`sequenceUi.ts` 在浏览器执行本地抽帧、简化统一抠图、去重确认、缩放与图集保存；服务端只受控导入视频/图集和保存文档。第一阶段不调用付费生成；FrameCrate 仅作只读流程参考，不嵌入页面或导入旧仓服务。
-  新建画布以三张真实示例图片初始化，仅 create 写入一次；示例字节内嵌 Maker bundle，素材按现有受控图片路径落盘。load/save 不补卡，不覆盖旧文档或用户清空后保存的画布。
+  Maker 自有创作画布在 `src/maker/canvas/` 保持独立模块：页面与文档编辑只依赖画布 Store 端口；控制台仅提供导航、项目 key 解析、受控文件路由和画布生成适配器，不接管节点状态或编辑历史。`sequenceModel.ts` 存放持久数据契约，`sequence.ts`/`sequenceUi.ts` 在浏览器执行本地抽帧、简化统一抠图、去重确认、缩放与图集保存；服务端只受控导入视频/图集、保存文档，并通过现有 Maker remote proxy 提交画布内明确发起的生成。生成尝试独立保存，不写入画布布局或持有 PAT。图片和视频卡片保持内容优先，生成参数放在选中后的顶部面板，不能把生成表单常驻在卡片内。FrameCrate 仅作只读流程参考，不嵌入页面或导入旧仓服务。
+  默认新建画布为空白，不写入示例图；顶部新建菜单另提供序列帧模板。load/save 不补卡，不覆盖旧文档或用户清空后保存的画布。
+  templateWorkflow.ts 管理新序列帧模板的首图锁定与分阶段接续：首图原位替换后经用户确认，依次处理视频、抽帧/图集及动画；保留旧结果，失败停在当前阶段。未知任务只按原 taskId 查询，不自动重试付费生成，流程状态随文档保存。视频面板本身是临时草稿，点击生成才创建 first-frame 输入卡；成功才写 image-to-video 结果关系，不放宽来源校验。画布视频时长限定 4～8 秒，超过 5 秒标红。
+  画布交互修改后主动运行 npm run test:maker:canvas-ui，在临时项目使用真实页面、受控素材路由和落盘校验，返回报告与截图；付费生成只模拟远端结果。删除生成结果须记录 deletedGenerationIds，恢复时不得复活已删除节点。
   序列帧卡只显示来源和已保存结果；编辑在同页 sequenceEditor 大弹窗中完成。sequenceUi 持有临时草稿，保存成功才替换节点并记录一次撤销；失败保留旧结果与重试草稿。页面保存请求串行，编辑器不另起服务、不改变 Store 或持久化协议。
   animation.ts 负责独立动画卡：只复制已保存图集路径和帧索引，不复制图片字节，不引用可变处理草稿。sequence-animation 是来源关系，不是实时绑定；删除源卡只删除连线，已创建动画仍可播放。播放状态不落盘，重载默认暂停；重绘时回收旧渲染实例和动画调度。
-  generationResult.ts 只接入已有生成结果及 image-to-video 来源，不提交生成任务；不得把客户端记录当成服务端任务状态或付款凭据。媒体路由在既有项目/path 校验后支持单 Range 读取，保持 206/416 与长度一致，真实动作视频用于抽帧回归，不能只用静态视频证明流程正常。
+  派生卡的 sourceSnapshot 由 dependencies.ts 统一计算和校验；上游变化只标记过期，不自动触发生成或覆盖下游结果，图片/视频、序列帧和动画均由卡片内明确刷新。失败时保留旧结果，不能把刷新判断重新塞回 page.ts。
+  frameEditor.ts 在浏览器记录单帧操作并按归一化坐标批量重放，全部处理成功才交给 sequenceUi 替换草稿；不得复制同一帧代替批量处理，不做隐式智能跟踪。新任务时长与帧率集中在 sequenceModel.ts 的 DEFAULT_SEQUENCE_DURATION / DEFAULT_SEQUENCE_FPS，旧存档不迁移；已保存图集可解帧编辑。画布页面内联函数必须显式传入跨模块依赖，并以实际打包页面验收。
+  sequenceSettings.cutoutMode 可选 connected/chroma，旧文档省略时保持 connected；新任务用 chroma 色差抠图去溢色。边界扫描仅报告风险，不证明视觉通过；源视频裁断只能重新构图生成，禁止用缩放掩盖。颜色与前景冲突时不能保证抠图无损。
+  generationResult.ts 负责生成结果节点与 image-to-video 来源关系；`generationUi.ts` 只从卡片内发起明确的生成动作，`console/canvasGeneration.ts` 通过现有 remote proxy 调用 Maker MCP。尝试记录位于 `.maker/canvases/attempts/`，与画布 JSON 分离；unknown 结果禁止自动重试，有 taskId 才能查询原视频任务，页面不持有 PAT 或付款凭据。媒体路由在既有项目/path 校验后支持单 Range 读取，保持 206/416 与长度一致，真实动作视频用于抽帧回归，不能只用静态视频证明流程正常。
   Git 页「拉取远端代码」只在 `main` 上、本地没有自己的提交且文件不相交时快进。已有本地提交或
   同一文件两边都改过时不改写历史；文件相交时弹出可复制提示词交给 AI。不在 `main` 时只提示。
   拉取全程占用该项目的控制台任务名额，阻止同期任务和关闭；快进不中途取消。
@@ -448,7 +453,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   `src/maker/console/integrations/framecrate.ts`。`GET /api/state` 只公开插件元数据，
   `POST /api/projects/:key/plugins/:id/open` 校验已注册插件、项目 realpath 与绑定；
   不提供任意命令、路径或 URL 启动接口，不新增 MCP tool。
-- FrameCrate 必须在控制台持久标签页中嵌入完整编辑器与 AI 工作流，不以新浏览器标签替代。
+- 配置 `FRAMECRATE_STUDIO_DIR` 后，控制台主导航显示「创作画布」标签，插件 id 仍是 `framecrate`。
+  该标签必须持久内嵌同一个 Studio 页面，默认进入创作画布，不以新浏览器标签替代。
   iframe 按项目与插件保存，最多 8 个；切换标签或项目仅切换可见性，保留 DOM，
   达上限明确拒绝新增，禁止静默淘汰未保存编辑。sandbox 仅允许
   `allow-scripts allow-same-origin allow-downloads allow-modals`，不允许弹窗或顶层导航。
@@ -459,6 +465,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   `maker-console:plugin-activity`、`maker-console:theme`，双方校验 origin 与窗口来源，
   主题仅接受 `light`/`dark` 并由插件跟随控制台，不传 PAT 或业务执行命令。
   用户显式关闭控制台只回收自己启动的 Studio，不修改 MCP 配置。
+  控制台从自身正在运行的 dist/maker.js 推导画布 Maker 入口并传给 Studio；显式
+  FRAMECRATE_MAKER_ENTRY 优先，不从项目目录找可执行文件，也不传 PAT。
   ready 子进程正常关闭等待 drain、不设强制超时；永久挂起时关闭持续等待，优先避免截断写入。
   生命周期与真实 AI、计价、付费、Windows 未验收边界见 `docs/MAKER_CONSOLE.md`。
 - 本地服务仅监听 loopback；控制台页面存活时使用每分钟页面租约续期，焦点或可见性恢复时立即续期；

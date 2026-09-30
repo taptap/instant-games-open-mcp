@@ -16,6 +16,10 @@ import { discoverConsoleProjects } from './projectDiscovery.js';
 import { handleCanvasProjectRoute } from './canvasRoutes.js';
 import { getCanvasPageHtml } from '../canvas/page.js';
 import { writePrivateJson } from '../system/privateJson.js';
+import {
+  createMakerRemoteProxyManager,
+  type MakerRemoteProxyManager,
+} from '../server/remoteProxyManager.js';
 
 function readSelectedProjectKey(filename?: string): string | null {
   if (!filename) return null;
@@ -49,6 +53,7 @@ export async function startConsoleServer(options: {
   drainMs?: number;
   onDraining?: () => void;
   plugins?: readonly ConsolePlugin[];
+  remoteProxyManager?: MakerRemoteProxyManager;
 }) {
   const now = options.now || Date.now;
   const idleMs = options.idleMs ?? 30 * 60 * 1000;
@@ -60,6 +65,7 @@ export async function startConsoleServer(options: {
   const plugins = new ConsolePlugins(options.registry, options.plugins);
   const updates = new ConsoleUpdates(options.version, options.distribution);
   const documents = new ConsoleDocuments(options.packageRoot || '');
+  const remoteProxyManager = options.remoteProxyManager || createMakerRemoteProxyManager();
   let selectedProjectKey = readSelectedProjectKey(options.preferencesFile);
   let luaLspCache: { at: number; value: Record<string, unknown> } | undefined;
   const luaLspStatus = (): Record<string, unknown> => {
@@ -413,6 +419,7 @@ export async function startConsoleServer(options: {
           searchParams: url.searchParams,
           key,
           registry: options.registry,
+          remoteProxyManager,
         })
       ) {
         touch();
@@ -473,6 +480,7 @@ export async function startConsoleServer(options: {
     closePromise = (async () => {
       await plugins.close();
       await tasks.settled();
+      await remoteProxyManager.closeAll();
       await new Promise<void>((resolve) => {
         const timer = setTimeout(() => {
           for (const socket of sockets) socket.destroy();

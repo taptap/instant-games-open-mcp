@@ -1,15 +1,39 @@
 import {
   cloneDocument,
+  emptyDocument,
   starterDocument,
+  type CanvasCreateTemplate,
   type CanvasDocument,
   type CanvasSummary,
 } from './model.js';
 import { CanvasStoreError } from './model.js';
 
+export interface CanvasGenerationAttempt {
+  id: string;
+  canvasId: string;
+  kind: 'image' | 'video';
+  toolName: 'generate_image' | 'create_video_task';
+  status: 'running' | 'pending' | 'succeeded' | 'failed' | 'unknown' | 'canceled';
+  prompt: string;
+  operation?: 'generate' | 'variant' | 'outpaint';
+  taskId?: string;
+  sourceImagePath?: string;
+  sourceImageId?: string;
+  sourceImagePaths?: string[];
+  sourceImageIds?: string[];
+  referenceImagePaths?: string[];
+  targetNodeId?: string;
+  resultAssetPath?: string;
+  error?: string;
+  executionState?: 'not_executed' | 'unknown';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CanvasDocumentStore {
   list(): Promise<CanvasSummary[]>;
   load(canvasId: string): Promise<CanvasDocument>;
-  create(title?: string): Promise<CanvasDocument>;
+  create(title?: string, template?: CanvasCreateTemplate): Promise<CanvasDocument>;
   save(document: CanvasDocument): Promise<CanvasDocument>;
   importImage(
     canvasId: string,
@@ -20,6 +44,38 @@ export interface CanvasDocumentStore {
   mediaUrl(assetPath: string): string;
   getActiveCanvasId(): Promise<string | undefined>;
   setActiveCanvasId(canvasId: string): Promise<void>;
+  listGeneration(canvasId: string): Promise<CanvasGenerationAttempt[]>;
+  generateImage(
+    canvasId: string,
+    input: {
+      prompt: string;
+      name?: string;
+      targetSize?: string;
+      aspectRatio?: string;
+      operation?: 'generate' | 'variant' | 'outpaint';
+      sourceImagePath?: string;
+      sourceImageId?: string;
+      sourceImagePaths?: string[];
+      sourceImageIds?: string[];
+      referenceImagePaths?: string[];
+      targetNodeId?: string;
+    }
+  ): Promise<CanvasGenerationAttempt>;
+  createVideo(
+    canvasId: string,
+    input: {
+      prompt: string;
+      sourceImagePath: string;
+      sourceImageId?: string;
+      targetNodeId?: string;
+      duration?: number;
+    }
+  ): Promise<CanvasGenerationAttempt>;
+  generationAction(
+    canvasId: string,
+    attemptId: string,
+    action: 'query' | 'retry' | 'cancel'
+  ): Promise<CanvasGenerationAttempt>;
 }
 
 export interface CanvasStoreResponse {
@@ -46,8 +102,11 @@ export async function dispatchCanvasStoreRequest(
     const method = options?.method || 'GET';
     if (requestPath === '/canvases' && method === 'GET') return success(await store.list());
     if (requestPath === '/canvases' && method === 'POST') {
-      const body = JSON.parse(String(options?.body || '{}')) as { title?: string };
-      return success(await store.create(body.title), 201);
+      const body = JSON.parse(String(options?.body || '{}')) as {
+        title?: string;
+        template?: CanvasCreateTemplate;
+      };
+      return success(await store.create(body.title, body.template), 201);
     }
     if (requestPath === '/canvases/active' && method === 'GET') {
       return success({ canvasId: await store.getActiveCanvasId() });
@@ -101,11 +160,11 @@ export function createBrowserCanvasDocumentStore(
   return {
     list: () => request<CanvasSummary[]>('/canvases'),
     load: (canvasId: string) => request<CanvasDocument>('/canvases/' + canvasId),
-    create: (title?: string) =>
+    create: (title?: string, template?: CanvasCreateTemplate) =>
       request<CanvasDocument>('/canvases', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ title, template }),
       }),
     save: (document: CanvasDocument) =>
       request<CanvasDocument>('/canvases/' + document.id, {
@@ -151,6 +210,25 @@ export function createBrowserCanvasDocumentStore(
         body: JSON.stringify({ canvasId }),
       });
     },
+    listGeneration: (canvasId: string) =>
+      request<CanvasGenerationAttempt[]>('/canvases/' + canvasId + '/generation'),
+    generateImage: (canvasId, input) =>
+      request<CanvasGenerationAttempt>('/canvases/' + canvasId + '/generation/image', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      }),
+    createVideo: (canvasId, input) =>
+      request<CanvasGenerationAttempt>('/canvases/' + canvasId + '/generation/video', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      }),
+    generationAction: (canvasId, attemptId, action) =>
+      request<CanvasGenerationAttempt>(
+        '/canvases/' + canvasId + '/generation/' + attemptId + '/' + action,
+        { method: 'POST' }
+      ),
   };
 }
 
@@ -171,8 +249,8 @@ export class MemoryCanvasDocumentStore implements CanvasDocumentStore {
     if (!document) throw new CanvasStoreError('画布不存在。', 404, 'NOT_FOUND');
     return cloneDocument(document);
   }
-  async create(title?: string): Promise<CanvasDocument> {
-    const document = starterDocument(title);
+  async create(title?: string, template: CanvasCreateTemplate = 'empty'): Promise<CanvasDocument> {
+    const document = template === 'starter' ? starterDocument(title) : emptyDocument(title);
     this.documents.set(document.id, document);
     return cloneDocument(document);
   }
@@ -201,5 +279,17 @@ export class MemoryCanvasDocumentStore implements CanvasDocumentStore {
   async setActiveCanvasId(canvasId: string): Promise<void> {
     if (!this.documents.has(canvasId)) throw new CanvasStoreError('画布不存在。', 404, 'NOT_FOUND');
     this.activeCanvasId = canvasId;
+  }
+  async listGeneration(): Promise<CanvasGenerationAttempt[]> {
+    return [];
+  }
+  async generateImage(): Promise<CanvasGenerationAttempt> {
+    throw new Error('Memory canvas store does not call Maker MCP.');
+  }
+  async createVideo(): Promise<CanvasGenerationAttempt> {
+    throw new Error('Memory canvas store does not call Maker MCP.');
+  }
+  async generationAction(): Promise<CanvasGenerationAttempt> {
+    throw new Error('Memory canvas store does not call Maker MCP.');
   }
 }

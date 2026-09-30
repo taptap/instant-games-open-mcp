@@ -5,6 +5,7 @@ import path from 'node:path';
 import { MakerCanvasFiles } from '../files.js';
 import { CanvasStoreError, createId, emptyDocument } from '../model.js';
 import type { SequenceSettings } from '../sequenceModel.js';
+import { snapshotCanvasSource } from '../dependencies.js';
 
 function project(name: string): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), name));
@@ -17,6 +18,221 @@ function gitignore(root: string): void {
 }
 
 describe('Maker canvas files', () => {
+  test('persists deleted generation IDs and rejects invalid deletion markers', async () => {
+    const root = project('maker-canvas-deletions-');
+    try {
+      gitignore(root);
+      const files = new MakerCanvasFiles(root);
+      const document = await files.create();
+      const attemptId = createId();
+      const saved = await files.save(
+        document.id,
+        { ...document, deletedGenerationIds: [attemptId] },
+        document.revision
+      );
+      expect((await files.load(document.id)).deletedGenerationIds).toEqual([attemptId]);
+      await expect(
+        files.save(saved.id, { ...saved, deletedGenerationIds: ['bad-id'] }, saved.revision)
+      ).rejects.toThrow('已删除生成记录');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('creates a truly empty canvas only when the empty template is selected', async () => {
+    const root = project('maker-canvas-empty-template-');
+    gitignore(root);
+    const files = new MakerCanvasFiles(root);
+    const created = await files.create('空白画布', 'empty');
+    expect(created.title).toBe('空白画布');
+    expect(created.nodes).toEqual([]);
+    expect(fs.existsSync(path.join(root, 'assets', 'image'))).toBe(false);
+  });
+
+  test('does not fake a sequence template when the project has no saved sequence example', async () => {
+    const root = project('maker-canvas-sequence-template-missing-');
+    gitignore(root);
+    const files = new MakerCanvasFiles(root);
+    await expect(files.create('序列帧模板画布', 'sequence')).rejects.toMatchObject({
+      code: 'TEMPLATE_UNAVAILABLE',
+    });
+  });
+
+  test('copies only one complete sequence demo from a canvas with multiple flows', async () => {
+    const root = project('maker-canvas-sequence-template-one-demo-');
+    gitignore(root);
+    const files = new MakerCanvasFiles(root);
+    let source = await files.create('多个流程');
+    const videoBytes = Buffer.alloc(16);
+    videoBytes.write('ftyp', 4, 'ascii');
+    videoBytes.write('isom', 8, 'ascii');
+    const firstVideo = await files.importVideo(source.id, videoBytes, 'video/mp4');
+    const secondVideo = await files.importVideo(source.id, videoBytes, 'video/mp4');
+    const settings: SequenceSettings = {
+      start: 0,
+      end: 3,
+      fps: 4,
+      cutout: true,
+      backgroundColor: '#ff00ff',
+      tolerance: 24,
+      duplicateThreshold: 0.985,
+      width: 256,
+      height: 256,
+      fit: 'contain',
+      pixel: false,
+    };
+    const firstVideoId = createId();
+    const secondVideoId = createId();
+    const firstSequenceId = createId();
+    const secondSequenceId = createId();
+    source = await files.save(
+      source.id,
+      {
+        ...source,
+        nodes: [
+          {
+            id: firstVideoId,
+            type: 'video-source',
+            title: '攻击视频',
+            x: 0,
+            y: 0,
+            width: 240,
+            height: 210,
+            assetPath: firstVideo.relativePath,
+          },
+          {
+            id: firstSequenceId,
+            type: 'sequence',
+            title: '攻击序列帧',
+            x: 300,
+            y: 0,
+            width: 480,
+            height: 300,
+            sourceVideoId: firstVideoId,
+            sequenceSettings: settings,
+          },
+          {
+            id: secondVideoId,
+            type: 'video-source',
+            title: '跑步视频',
+            x: 0,
+            y: 400,
+            width: 240,
+            height: 210,
+            assetPath: secondVideo.relativePath,
+          },
+          {
+            id: secondSequenceId,
+            type: 'sequence',
+            title: '跑步序列帧',
+            x: 300,
+            y: 400,
+            width: 480,
+            height: 300,
+            sourceVideoId: secondVideoId,
+            sequenceSettings: settings,
+          },
+        ],
+        edges: [
+          { id: createId(), from: firstVideoId, to: firstSequenceId, kind: 'sequence-source' },
+          { id: createId(), from: secondVideoId, to: secondSequenceId, kind: 'sequence-source' },
+        ],
+      },
+      source.revision
+    );
+
+    const template = await files.create('单个序列帧 Demo', 'sequence');
+    expect(template.nodes.filter((node) => node.type === 'sequence')).toHaveLength(1);
+    expect(template.nodes.filter((node) => node.type === 'video-source')).toHaveLength(1);
+    expect(template.edges).toHaveLength(1);
+    expect(template.nodes.map((node) => node.title)).toEqual(['攻击视频', '攻击序列帧']);
+    expect(
+      template.nodes.every((node) => !source.nodes.some((sourceNode) => sourceNode.id === node.id))
+    ).toBe(true);
+  });
+
+  test('persists reusable template progress and rejects broken flow references', async () => {
+    const root = project('maker-template-progress-');
+    try {
+      gitignore(root);
+      const files = new MakerCanvasFiles(root);
+      let source = await files.create('首图模板', 'starter');
+      const bytes = Buffer.alloc(16);
+      bytes.write('ftyp', 4, 'ascii');
+      bytes.write('isom', 8, 'ascii');
+      const video = await files.importVideo(source.id, bytes, 'video/mp4');
+      const image = source.nodes[0];
+      const videoId = createId();
+      const sequenceId = createId();
+      source = await files.save(
+        source.id,
+        {
+          ...source,
+          nodes: [
+            image,
+            {
+              id: videoId,
+              type: 'video-source',
+              title: '示例视频',
+              x: 400,
+              y: 0,
+              width: 300,
+              height: 240,
+              assetPath: video.relativePath,
+              generation: { sourceImageId: image.id, prompt: '挥剑' },
+            },
+            {
+              id: sequenceId,
+              type: 'sequence',
+              title: '序列帧',
+              x: 800,
+              y: 0,
+              width: 480,
+              height: 300,
+              sourceVideoId: videoId,
+              sequenceSettings: {
+                start: 0,
+                end: 3,
+                fps: 4,
+                cutout: true,
+                backgroundColor: '#ff00ff',
+                tolerance: 24,
+                duplicateThreshold: 0.985,
+                width: 256,
+                height: 256,
+                fit: 'contain',
+                pixel: false,
+              },
+            },
+          ],
+          edges: [
+            { id: createId(), from: image.id, to: videoId, kind: 'image-to-video' },
+            { id: createId(), from: videoId, to: sequenceId, kind: 'sequence-source' },
+          ],
+        },
+        source.revision
+      );
+      const copied = await files.create('复用', 'sequence');
+      expect(copied.templateFlow?.stage).toBe('image');
+      expect(copied.templateFlow?.imageId).not.toBe(image.id);
+      const saved = await files.save(
+        copied.id,
+        { ...copied, templateFlow: { ...copied.templateFlow!, stage: 'ready' } },
+        copied.revision
+      );
+      expect((await files.load(saved.id)).templateFlow?.stage).toBe('ready');
+      await expect(
+        files.save(
+          saved.id,
+          { ...saved, templateFlow: { ...saved.templateFlow!, videoId: 'missing' } },
+          saved.revision
+        )
+      ).rejects.toThrow('模板流程');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('creates three persisted local example images only in the initial revision', async () => {
     const root = project('maker-canvas-starter-');
     gitignore(root);
@@ -111,6 +327,100 @@ describe('Maker canvas files', () => {
     expect(await restarted.load(user.id)).toEqual(user);
     await restarted.create('另一张画布');
     expect(fs.readFileSync(file, 'utf8')).toBe(before);
+  });
+
+  test('persists sections and image derivation edges without changing asset ownership', async () => {
+    const root = project('maker-canvas-structure-');
+    gitignore(root);
+    const files = new MakerCanvasFiles(root);
+    const created = await files.create();
+    const sectionId = createId();
+    const resultId = createId();
+    const section = {
+      id: sectionId,
+      type: 'section' as const,
+      x: -20,
+      y: -20,
+      width: 700,
+      height: 460,
+      title: '角色迭代',
+    };
+    const result = {
+      ...created.nodes[0],
+      id: resultId,
+      x: 260,
+      title: '变体结果',
+      sectionId,
+      generation: {
+        prompt: '保留角色并升级装备',
+        operation: 'variant' as const,
+        sourceImageId: created.nodes[0].id,
+        sourceImageIds: [created.nodes[0].id],
+      },
+      sourceSnapshot: snapshotCanvasSource(created.nodes[0]),
+    };
+    const saved = await files.save(
+      created.id,
+      {
+        ...created,
+        nodes: [section, created.nodes[0], result],
+        edges: [
+          {
+            id: createId(),
+            from: created.nodes[0].id,
+            to: resultId,
+            kind: 'image-variant' as const,
+          },
+        ],
+      },
+      created.revision
+    );
+    expect((await files.load(saved.id)).nodes).toEqual(saved.nodes);
+    expect((await files.load(saved.id)).edges).toEqual(saved.edges);
+  });
+
+  test('persists an image generation slot and validates its saved source', async () => {
+    const root = project('maker-canvas-generation-slot-');
+    gitignore(root);
+    const files = new MakerCanvasFiles(root);
+    const created = await files.create();
+    const source = created.nodes[0];
+    const slot = {
+      id: createId(),
+      type: 'image' as const,
+      x: source.x + source.width + 48,
+      y: source.y,
+      width: 260,
+      height: 220,
+      title: '图片变体 · 待生成',
+      generationDraft: {
+        operation: 'variant' as const,
+        sourceImageId: source.id,
+        prompt: '角色向右挥剑，保留完整武器和身体',
+      },
+    };
+    const saved = await files.save(
+      created.id,
+      { ...created, nodes: [...created.nodes, slot] },
+      created.revision
+    );
+    expect((await files.load(saved.id)).nodes.at(-1)).toEqual(slot);
+    await expect(
+      files.save(
+        created.id,
+        {
+          ...created,
+          nodes: [
+            ...created.nodes,
+            {
+              ...slot,
+              generationDraft: { operation: 'variant' as const, sourceImageId: createId() },
+            },
+          ],
+        },
+        saved.revision
+      )
+    ).rejects.toMatchObject({ code: 'INVALID_DOCUMENT' });
   });
 
   test('rejects a git repo until .maker is ignored and does not edit gitignore', async () => {

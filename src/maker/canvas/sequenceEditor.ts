@@ -5,7 +5,7 @@ import type { openFrameEditor } from './frameEditor.js';
 
 export function renderSequenceResult(
   card: HTMLElement,
-  node: { frameSetInfo?: CanvasNode['frameSetInfo'] },
+  node: { frameSetInfo?: CanvasNode['frameSetInfo']; sourceStale?: boolean },
   source: SequenceCardSource | undefined,
   run: SequenceRunView | undefined,
   atlasUrl: string | undefined,
@@ -15,6 +15,12 @@ export function renderSequenceResult(
   const label = document.createElement('div');
   label.className = 'sequence-source-label';
   label.textContent = source ? '视频源：' + source.title : '视频来源缺失';
+  if (node.sourceStale && node.frameSetInfo) {
+    const stale = document.createElement('small');
+    stale.className = 'generation-status generation-status-stale';
+    stale.textContent = '视频源已变化，当前序列帧仍保留；点击编辑后重新处理。';
+    card.append(stale);
+  }
   const grid = document.createElement('div');
   grid.className = 'sequence-result-grid';
   grid.addEventListener('wheel', (event) => {

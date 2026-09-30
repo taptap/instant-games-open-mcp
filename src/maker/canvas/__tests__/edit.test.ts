@@ -85,6 +85,29 @@ describe('canvas edit acknowledgements', () => {
     });
   });
 
+  test('deletion records generated results without changing the undo snapshot', () => {
+    const document = emptyDocument();
+    document.nodes = [
+      {
+        id: 'image',
+        type: 'image',
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        title: 'generated',
+        generation: { attemptId: 'attempt', prompt: 'image' },
+      },
+    ];
+    const removed = removeNodes(document, ['image']);
+    expect(removed.deletedGenerationIds).toEqual(['attempt']);
+    expect(document.deletedGenerationIds).toBeUndefined();
+    expect(removeNodes(removed, ['image']).deletedGenerationIds).toEqual(['attempt']);
+    expect(
+      undoHistory({ past: [document], future: [] }, removed)?.document.deletedGenerationIds
+    ).toBeUndefined();
+  });
+
   test('ships the selection and save guards in the page script', () => {
     const html = getCanvasPageHtml();
     expect(html).toContain('function saveAcknowledgement');
@@ -100,7 +123,7 @@ describe('canvas edit acknowledgements', () => {
     expect(html).toContain('previous.viewport = { ...documentState.viewport }');
     expect(html).toContain('next.viewport = { ...documentState.viewport }');
     expect(html).toContain("'/canvas-media?path=' + encodeURIComponent(assetPath)");
-    expect(html).not.toContain('URL.createObjectURL');
+    expect(html).toContain('URL.revokeObjectURL');
     expect(html).not.toContain('generate_image');
   });
 });

@@ -30,6 +30,7 @@
     "maker:proxy-schema:update": "tsx scripts/sync-maker-proxy-tool-snapshot.ts --write",
     "docker:npm": "cd docker/npm && docker-compose -p taptap-mcp up -d",
     "test": "jest",
+    "test:maker:canvas-ui": "node scripts/test-maker-canvas-ui.mjs",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\"",

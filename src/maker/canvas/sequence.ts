@@ -51,7 +51,8 @@ export interface SequenceActionOption {
 export function sequenceActionsForCard(
   run: SequenceRunView | undefined,
   hasSavedFrameSet: boolean,
-  cutoutEnabled: boolean
+  cutoutEnabled: boolean,
+  sourceStale = false
 ): SequenceActionOption[] {
   if (run?.status === 'running') {
     return [
@@ -63,7 +64,7 @@ export function sequenceActionsForCard(
     ];
   }
   if (hasSavedFrameSet && (!run || run.status === 'complete')) {
-    return [{ label: '从源视频重新处理', action: 'reset' }];
+    return [{ label: sourceStale ? '刷新序列帧' : '从源视频重新处理', action: 'reset' }];
   }
   if (!run) return [{ label: '开始抽帧', action: 'extract' }];
 
@@ -112,6 +113,7 @@ export function renderSequenceCard(
     sequenceSettings: SequenceSettings;
     frameSetInfo?: FrameSetInfo;
     assetPath?: string;
+    sourceStale?: boolean;
   },
   source: SequenceCardSource | undefined,
   run: SequenceRunView | undefined,
@@ -168,6 +170,12 @@ export function renderSequenceCard(
               : '等待开始';
   heading.append(status);
   content.append(heading);
+  if (node.sourceStale && node.frameSetInfo && (!run || run.status === 'complete')) {
+    const stale = document.createElement('p');
+    stale.className = 'sequence-error';
+    stale.textContent = '视频源已变化，当前帧集仍保留；点击“刷新序列帧”后重新处理。';
+    content.append(stale);
+  }
 
   const stageIds = ['extract', 'cutout', 'dedupe', 'resize', 'save'];
   const stageLabels = ['分帧', '统一抠图', '重复帧确认', '尺寸统一', '预览/保存'];
@@ -500,7 +508,12 @@ export function renderSequenceCard(
     });
     actions.append(button);
   };
-  for (const action of sequenceActionsForCard(run, Boolean(node.frameSetInfo), settings.cutout)) {
+  for (const action of sequenceActionsForCard(
+    run,
+    Boolean(node.frameSetInfo),
+    settings.cutout,
+    Boolean(node.sourceStale)
+  )) {
     addButton(action.label, action.action, action.disabled);
   }
   content.append(actions);

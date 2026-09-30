@@ -93,6 +93,22 @@ describe('sequence workflow recovery', () => {
     };
   }
 
+  test('template runs extraction through atlas save without a manual editor', async () => {
+    const { controller, node, upload } = editorFixture();
+    node.sequenceSettings!.cutout = false;
+    await controller.runTemplate(node.id);
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(node.assetPath).toBe('assets/image/new.png');
+  });
+
+  test('template keeps old atlas when saving fails', async () => {
+    const { controller, node, flush } = editorFixture();
+    node.sequenceSettings!.cutout = false;
+    flush.mockResolvedValue(false);
+    await expect(controller.runTemplate(node.id)).rejects.toThrow();
+    expect(node.assetPath).toBe('assets/image/original.png');
+  });
+
   test('frame edit undo and redo remain isolated in the draft', async () => {
     const { controller, node } = editorFixture();
     const before = JSON.stringify(node);
@@ -217,6 +233,16 @@ describe('sequence workflow recovery', () => {
         mediaUrl: (value) => value,
         getActiveCanvasId: async () => document.id,
         setActiveCanvasId: async () => {},
+        listGeneration: async () => [],
+        generateImage: async () => {
+          throw new Error('not used');
+        },
+        createVideo: async () => {
+          throw new Error('not used');
+        },
+        generationAction: async () => {
+          throw new Error('not used');
+        },
       },
       processor,
       renderCard: ((_, __, ___, run) => {

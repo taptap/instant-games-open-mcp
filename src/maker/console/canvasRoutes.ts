@@ -5,6 +5,8 @@ import { CanvasStoreError } from '../canvas/model.js';
 import { MakerCanvasFiles } from '../canvas/files.js';
 import { ConsoleError } from './types.js';
 import type { ConsoleProjects } from './projects.js';
+import { CanvasGenerationService } from './canvasGeneration.js';
+import type { MakerRemoteProxyManager } from '../server/remoteProxyManager.js';
 
 async function readBytes(request: IncomingMessage, limit: number): Promise<Buffer> {
   let size = 0;
@@ -22,6 +24,13 @@ function send(response: ServerResponse, status: number, value: unknown): void {
   response.end(JSON.stringify(value));
 }
 
+function stringList(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string'))
+    throw new ConsoleError('参考图列表无效。');
+  return value;
+}
+
 export async function handleCanvasProjectRoute(options: {
   request: IncomingMessage;
   response: ServerResponse;
@@ -30,6 +39,7 @@ export async function handleCanvasProjectRoute(options: {
   searchParams: URLSearchParams;
   key: string;
   registry: ConsoleProjects;
+  remoteProxyManager?: MakerRemoteProxyManager;
 }): Promise<boolean> {
   const { request, response, method, suffix, searchParams, key, registry } = options;
   if (!suffix || (!suffix.startsWith('canvases') && suffix !== 'canvas-media')) return false;
@@ -91,12 +101,126 @@ export async function handleCanvasProjectRoute(options: {
     if (method === 'POST' && suffix === 'canvases') {
       const body = JSON.parse((await readBytes(request, 16_384)).toString('utf8') || '{}') as {
         title?: string;
+        template?: 'starter' | 'empty' | 'sequence';
       };
+      if (
+        body.template !== undefined &&
+        !['starter', 'empty', 'sequence'].includes(body.template)
+      ) {
+        throw new ConsoleError('画布模板无效。');
+      }
       send(
         response,
         201,
-        await files.create(typeof body.title === 'string' ? body.title : undefined)
+        await files.create(
+          typeof body.title === 'string' ? body.title : undefined,
+          body.template || 'empty'
+        )
       );
+      return true;
+    }
+    const generationList = suffix.match(/^canvases\/([0-9a-f-]{36})\/generation$/i);
+    if (generationList && method === 'GET') {
+      if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
+      const service = new CanvasGenerationService(project.path, options.remoteProxyManager);
+      send(response, 200, service.list(generationList[1]));
+      return true;
+    }
+    const generationImage = suffix.match(/^canvases\/([0-9a-f-]{36})\/generation\/image$/i);
+    if (generationImage && method === 'POST') {
+      if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
+      const body = JSON.parse(
+        (await readBytes(request, 64 * 1024)).toString('utf8') || '{}'
+      ) as Record<string, unknown>;
+      if (typeof body.prompt !== 'string' || !body.prompt.trim())
+        throw new ConsoleError('缺少图片生成提示词。');
+      const attempt = await new CanvasGenerationService(
+        project.path,
+        options.remoteProxyManager
+      ).generateImage({
+        canvasId: generationImage[1],
+        prompt: body.prompt,
+        name: typeof body.name === 'string' ? body.name : undefined,
+        targetSize: typeof body.targetSize === 'string' ? body.targetSize : undefined,
+        aspectRatio: typeof body.aspectRatio === 'string' ? body.aspectRatio : undefined,
+        model: typeof body.model === 'string' ? body.model : undefined,
+        resolution: typeof body.resolution === 'string' ? body.resolution : undefined,
+        operation:
+          body.operation === 'generate' ||
+          body.operation === 'variant' ||
+          body.operation === 'outpaint'
+            ? body.operation
+            : undefined,
+        sourceImagePath:
+          typeof body.sourceImagePath === 'string' ? body.sourceImagePath : undefined,
+        referenceImagePaths: stringList(body.referenceImagePaths),
+        sourceImageId: typeof body.sourceImageId === 'string' ? body.sourceImageId : undefined,
+        sourceImagePaths:
+          body.sourceImagePaths === undefined
+            ? undefined
+            : Array.isArray(body.sourceImagePaths) &&
+                body.sourceImagePaths.every((value) => typeof value === 'string')
+              ? body.sourceImagePaths
+              : (() => {
+                  throw new ConsoleError('图片来源素材列表无效。');
+                })(),
+        sourceImageIds:
+          body.sourceImageIds === undefined
+            ? undefined
+            : Array.isArray(body.sourceImageIds) &&
+                body.sourceImageIds.every((value) => typeof value === 'string')
+              ? body.sourceImageIds
+              : (() => {
+                  throw new ConsoleError('图片来源节点列表无效。');
+                })(),
+        targetNodeId: typeof body.targetNodeId === 'string' ? body.targetNodeId : undefined,
+      });
+      send(response, 200, attempt);
+      return true;
+    }
+    const generationVideo = suffix.match(/^canvases\/([0-9a-f-]{36})\/generation\/video$/i);
+    if (generationVideo && method === 'POST') {
+      if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
+      const body = JSON.parse(
+        (await readBytes(request, 64 * 1024)).toString('utf8') || '{}'
+      ) as Record<string, unknown>;
+      if (typeof body.prompt !== 'string' || !body.prompt.trim())
+        throw new ConsoleError('缺少视频生成提示词。');
+      if (typeof body.sourceImagePath !== 'string') throw new ConsoleError('缺少视频来源图片。');
+      const attempt = await new CanvasGenerationService(
+        project.path,
+        options.remoteProxyManager
+      ).createVideo({
+        canvasId: generationVideo[1],
+        prompt: body.prompt,
+        sourceImagePath: body.sourceImagePath,
+        sourceImageId: typeof body.sourceImageId === 'string' ? body.sourceImageId : undefined,
+        targetNodeId: typeof body.targetNodeId === 'string' ? body.targetNodeId : undefined,
+        duration: typeof body.duration === 'number' ? body.duration : undefined,
+        model: typeof body.model === 'string' ? body.model : undefined,
+        resolution: typeof body.resolution === 'string' ? body.resolution : undefined,
+        ratio: typeof body.ratio === 'string' ? body.ratio : undefined,
+        userConfirmed: body.userConfirmed === true,
+        sourceImagePaths: stringList(body.sourceImagePaths),
+        sourceImageIds: stringList(body.sourceImageIds),
+      });
+      send(response, 200, attempt);
+      return true;
+    }
+    const generationAction = suffix.match(
+      /^canvases\/([0-9a-f-]{36})\/generation\/([0-9a-f-]{36})\/(query|retry|cancel)$/i
+    );
+    if (generationAction && method === 'POST') {
+      if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
+      const service = new CanvasGenerationService(project.path, options.remoteProxyManager);
+      const action = generationAction[3].toLowerCase();
+      const attempt =
+        action === 'query'
+          ? await service.queryVideo(generationAction[2], generationAction[1])
+          : action === 'retry'
+            ? await service.retry(generationAction[2], generationAction[1])
+            : service.cancel(generationAction[2], generationAction[1]);
+      send(response, 200, attempt);
       return true;
     }
     const one = suffix.match(/^canvases\/([0-9a-f-]{36})$/i);
