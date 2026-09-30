@@ -55,7 +55,7 @@ function harness() {
   );
   const timers = new Map<number, { callback: () => any; delay: number }>();
   let timerId = 0;
-  const clipboard = jest.fn(async () => undefined);
+  const clipboard = jest.fn(async (_text: string) => undefined);
   const context = {
     fetch,
     document,
@@ -82,6 +82,8 @@ function harness() {
         validationView: typeof validationView === 'function' ? validationView : undefined,
         syncValidationPolling: typeof syncValidationPolling === 'function' ? syncValidationPolling : undefined,
         renderConsoleLogs, consoleLogText, clearConsoleLogs, logView, selectLog, dispose,
+        logFilters: typeof logFilters === 'function' ? logFilters : undefined,
+        logLineClass, rememberTask, loadLogs,
         setup: () => {
           page = 'build'; loaded = true;
           state.projects = [{key:'alpha',valid:true,path:'/tmp/alpha'}, {key:'beta',valid:true,path:'/tmp/beta'}];
@@ -127,6 +129,187 @@ function harness() {
 }
 
 describe('Maker console passive Validate UI', () => {
+  const runtimeText = [
+    '[2026-09-30 12:00:00][1] INFO: warning and error counters initialized',
+    '[lua] WARNING: texture fallback',
+    '[lua] ERROR: bad field',
+    'stack traceback:',
+    '\tscripts/main.lua:12: in function update',
+    '[lua] INFO: game ready',
+  ].join('\n');
+
+  function runtimeHarness() {
+    const h = harness();
+    h.api.logView().tab = 'runtime';
+    h.api.logView().runtime = runtimeText;
+    h.api.renderConsoleLogs();
+    return h;
+  }
+
+  function toggle(h: ReturnType<typeof harness>, level: string) {
+    const control = h.all().find((node) => node.dataset?.level === level);
+    expect(control).toBeDefined();
+    control.fire('click');
+  }
+
+  it.each(Array.from({ length: 8 }, (_, mask) => mask))(
+    'independently toggles all severity combinations (%i), including multiline error stacks',
+    (mask) => {
+      const h = runtimeHarness();
+      const levels = ['info', 'warning', 'error'];
+      levels.forEach((level, index) => {
+        if (!(mask & (1 << index))) toggle(h, level);
+      });
+      const visible = h.api.consoleLogText();
+      const expected = runtimeText.split('\n').filter((_, index) => {
+        const severity = index === 1 ? 1 : index >= 2 && index <= 4 ? 2 : 0;
+        return mask & (1 << severity);
+      });
+      expect(visible).toBe(expected.length ? expected.join('\n') : '当前筛选无匹配日志');
+      const output = h.all().find((node) => node.tagName === 'pre');
+      const rendered = h
+        .all(output)
+        .filter((node) => node.tagName === 'span')
+        .map((node) => node.textContent);
+      expect(rendered).toEqual(expected.length ? expected : ['当前筛选无匹配日志']);
+      expect(h.fetch).not.toHaveBeenCalled();
+    }
+  );
+
+  it('shows counts before filtering and exposes independent pressed states in a secondary group', () => {
+    const h = runtimeHarness();
+    const filters = h.all().find((node) => node.attributes?.['aria-label'] === '日志类型筛选');
+    expect(filters?.attributes.role).toBe('group');
+    expect(filters.children.map((node: any) => node.attributes['aria-pressed'])).toEqual([
+      'true',
+      'true',
+      'true',
+    ]);
+    expect(
+      h
+        .all()
+        .filter((node) => node.className === 'log-count')
+        .map((node) => node.textContent)
+    ).toEqual(['2', '1', '3']);
+    toggle(h, 'info');
+    const info = h.all().find((node) => node.dataset?.level === 'info');
+    expect(info.attributes['aria-pressed']).toBe('false');
+    expect(info.dataset.focus).toBe('log-filter-info');
+    expect(
+      h
+        .all()
+        .filter((node) => node.className === 'log-count')
+        .map((node) => node.textContent)
+    ).toEqual(['2', '1', '3']);
+  });
+
+  it('preserves filters on refresh, isolates projects and source tabs, and copies only visible logs', async () => {
+    const h = runtimeHarness();
+    toggle(h, 'info');
+    const filters = h.api.logFilters();
+    h.api.selectLog('build');
+    expect(h.api.logFilters().info).toBe(true);
+    h.api.selectLog('runtime');
+    expect(h.api.logFilters()).toBe(filters);
+    h.api.project('beta');
+    h.api.logView().tab = 'runtime';
+    expect(h.api.logFilters().info).toBe(true);
+    h.api.project('alpha');
+    h.fetch.mockResolvedValue(
+      h.reply({ session_id: 'session-a', reload_id: 0, logs: [{ text: runtimeText }] })
+    );
+    await h.api.loadLogs();
+    expect(h.api.logFilters().info).toBe(false);
+    await h
+      .all()
+      .find((node) => node.attributes?.['aria-label'] === '复制')
+      .fire('click');
+    expect(h.clipboard).toHaveBeenCalledWith(h.api.consoleLogText());
+    expect(h.clipboard.mock.calls[0][0]).not.toContain('game ready');
+    expect(h.api.logView().runtime).toBe(runtimeText);
+  });
+
+  it('clears all displayed levels without resetting filters or discarding later output', () => {
+    const h = runtimeHarness();
+    toggle(h, 'info');
+    h.api.clearConsoleLogs();
+    expect(h.api.consoleLogText()).toBe('日志已清理');
+    h.api.logView().runtime += '\nINFO: new frame\nWARNING: new warning';
+    h.api.renderConsoleLogs();
+    expect(h.api.consoleLogText()).toBe('WARNING: new warning');
+    toggle(h, 'info');
+    expect(h.api.consoleLogText()).toContain('INFO: new frame');
+    expect(h.api.consoleLogText()).not.toContain('game ready');
+    expect(h.fetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps truncation and read failures visible even when all log levels are hidden', async () => {
+    const h = runtimeHarness();
+    for (const level of ['info', 'warning', 'error']) toggle(h, level);
+    h.fetch.mockResolvedValue(
+      h.reply({
+        session_id: 'session-a',
+        reload_id: 0,
+        truncated: true,
+        logs: [{ text: runtimeText }],
+      })
+    );
+    await h.api.loadLogs();
+    expect(h.api.consoleLogText()).toContain('仅显示最近日志');
+    expect(h.api.consoleLogText()).toContain('当前筛选无匹配日志');
+    expect(
+      h
+        .all()
+        .filter((node) => node.className === 'log-count')
+        .map((node) => node.textContent)
+    ).toEqual(['2', '1', '3']);
+    h.fetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: '日志暂不可用' }),
+    });
+    await h.api.loadLogs();
+    expect(h.api.consoleLogText()).toContain('日志读取失败：日志暂不可用');
+  });
+
+  it.each([
+    ['[lua] WARNING: an error will be retried', 'log-line log-warning'],
+    ['{"l":"INFO","m":"error counts initialized"}', 'log-line'],
+    ['{"l":"WARN","m":"fallback"}', 'log-line log-warning'],
+    ['{"l":"FATAL","m":"shutdown"}', 'log-line log-error'],
+    ['[2026-09-30 12:00:00][1] INFO: error counts initialized', 'log-line'],
+    ['资源加载失败，请检查路径', 'log-line log-error'],
+    ['警告：资源缺失', 'log-line log-warning'],
+    ['ERROR: <script>alert(1)</script>', 'log-line log-error'],
+  ])('classifies explicit severity before message keywords: %s', (line, expected) => {
+    expect(harness().api.logLineClass(line)).toBe(expected);
+  });
+
+  it('filters Validate prepare/runtime logs without hiding JSON, screenshots or collection warnings', async () => {
+    const h = harness();
+    h.respond([run()], { warnings: ['Evidence cache budget exceeded'] });
+    const fallback = h.fetch.getMockImplementation()!;
+    h.fetch.mockImplementation(async (url, options) =>
+      url.endsWith('/prepare')
+        ? h.reply({ text: 'INFO: preparing\nWARNING: prepare fallback' })
+        : url.includes('/logs?')
+          ? h.reply({ logs: [{ cursor: 1, text: runtimeText }], next_cursor: 1 })
+          : fallback(url, options)
+    );
+    await h.api.refreshValidation();
+    const runtimeSection = h.all().find((node) => node.dataset?.evidence === 'runtime');
+    runtimeSection.open = true;
+    toggle(h, 'info');
+    expect(h.api.consoleLogText()).not.toContain('game ready');
+    expect(h.api.consoleLogText()).not.toContain('INFO: preparing');
+    expect(h.api.consoleLogText()).toContain('WARNING: prepare fallback');
+    expect(h.api.consoleLogText()).toContain('<script>bad()</script>');
+    expect(h.all().some((node) => node.tagName === 'img')).toBe(true);
+    expect(h.all().some((node) => node.textContent.includes('Evidence cache budget'))).toBe(true);
+    expect(h.all().find((node) => node.dataset?.evidence === 'runtime')).toBe(runtimeSection);
+    expect(runtimeSection.open).toBe(true);
+  });
+
   it('renders a passive tab, collection status separately from game result, and inert JSON', async () => {
     const h = harness();
     expect(h.api.refreshValidation).toEqual(expect.any(Function));

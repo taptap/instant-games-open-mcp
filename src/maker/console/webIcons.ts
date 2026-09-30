@@ -1,6 +1,6 @@
 /**
  * Selected icon-node definitions from lucide-vue-next v1.0.0,
- * with copy/link from lucide v0.468.0.
+ * with copy/link and severity icons from lucide v0.468.0.
  * ISC License
  *
  * Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2026
@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-export const consoleIconLicense = `Lucide icon-node snapshot: lucide-vue-next v1.0.0; copy/link: lucide v0.468.0
+export const consoleIconLicense = `Lucide icon-node snapshot: lucide-vue-next v1.0.0; copy/link/severity: lucide v0.468.0
 ISC License
 Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2026 as part
 of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2026.
@@ -74,6 +74,21 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.`;
 
 export const consoleIcons = {
+  info: [
+    ['circle', { cx: '12', cy: '12', r: '10' }],
+    ['path', { d: 'M12 16v-4' }],
+    ['path', { d: 'M12 8h.01' }],
+  ],
+  warning: [
+    ['path', { d: 'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3' }],
+    ['path', { d: 'M12 9v4' }],
+    ['path', { d: 'M12 17h.01' }],
+  ],
+  error: [
+    ['circle', { cx: '12', cy: '12', r: '10' }],
+    ['line', { x1: '12', x2: '12', y1: '8', y2: '12' }],
+    ['line', { x1: '12', x2: '12.01', y1: '16', y2: '16' }],
+  ],
   copy: [
     ['rect', { width: '14', height: '14', x: '8', y: '8', rx: '2', ry: '2' }],
     ['path', { d: 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2' }],

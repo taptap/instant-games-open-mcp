@@ -376,16 +376,24 @@ function validationStatus(run) {
 }
 function validationVisibleText(entry) {
   if (!entry) return '';
-  const prepare = entry.clearedPrepare && entry.prepare.startsWith(entry.clearedPrepare)
-    ? entry.prepare.slice(entry.clearedPrepare.length) : entry.prepare;
+  const logs = validationLogContent(entry);
+  const prepare = filteredLogText(logs.prepare), runtime = filteredLogText(logs.runtime);
   const json = entry.json === entry.clearedJson ? '' : entry.json;
   return [
     entry.truncated ? '日志已截断，仅显示有界片段。' : '',
     ...entry.errors,
     prepare ? '准备日志\n' + prepare : '',
-    entry.runtime ? 'Runtime / Lua 日志\n' + entry.runtime : '',
+    runtime ? 'Runtime / Lua 日志\n' + runtime : '',
     json ? 'JSON\n' + json : ''
   ].filter(Boolean).join('\n\n');
+}
+function validationLogContent(entry) {
+  if (!entry) return {prepare:'',runtime:''};
+  return {
+    prepare:entry.clearedPrepare && entry.prepare.startsWith(entry.clearedPrepare)
+      ? entry.prepare.slice(entry.clearedPrepare.length) : entry.prepare,
+    runtime:entry.runtime
+  };
 }
 async function refreshValidation(options = {}) {
   if (!validationActive()) return;
@@ -521,6 +529,8 @@ function renderValidationEvidence(entry, run) {
   entry.errors.forEach(error => feed.append(node('p',error,'bad')));
   const log = (id,title,value,open) => {
     if (!value) return;
+    const visible = id === 'json' ? value : filteredLogText(value);
+    const display = visible || '当前筛选无匹配日志';
     const block = validationSection(entry,id,title,open);
     if (!block.output) {
       block.output = node('pre');
@@ -530,17 +540,16 @@ function renderValidationEvidence(entry, run) {
       });
       block.body.append(block.output);
     }
-    if (block.value !== value) {
+    if (block.value !== display) {
       const top = block.output.scrollTop, left = block.output.scrollLeft;
-      block.output.replaceChildren(renderLogLines(value));
+      block.output.replaceChildren(renderLogLines(display));
       block.output.scrollTop = top; block.output.scrollLeft = left;
-      block.value = value;
+      block.value = display;
     }
     block.output.className = 'validation-log' + (logView().wrap ? ' wrap' : '');
     feed.append(block.section);
   };
-  const prepare = entry.clearedPrepare && entry.prepare.startsWith(entry.clearedPrepare)
-    ? entry.prepare.slice(entry.clearedPrepare.length) : entry.prepare;
+  const {prepare} = validationLogContent(entry);
   log('prepare','准备日志',prepare,false);
   log('runtime','Runtime / Lua 日志',entry.runtime,false);
   const screenshot = validationSection(entry,'screenshot','截图',true);
@@ -621,8 +630,12 @@ function renderValidationPanel() {
   return panel;
 }
 function logView() {
-  if (!logViews.has(selected)) logViews.set(selected,{tab:'build',runtime:'',loading:false,wrap:false,cleared:{}});
+  if (!logViews.has(selected)) logViews.set(selected,{tab:'build',runtime:'',loading:false,wrap:false,cleared:{},filters:{}});
   return logViews.get(selected);
+}
+function logFilters() {
+  const view = logView();
+  return view.filters[view.tab] ||= {info:true,warning:true,error:true};
 }
 function selectLog(tab) {
   logView().tab = tab;
@@ -633,7 +646,7 @@ function selectLog(tab) {
 }
 function consoleLogSnapshot() {
   const view = logView();
-  if (view.tab === 'runtime') return {id:view.runtimeId || 'runtime',output:view.runtime,details:''};
+  if (view.tab === 'runtime') return {id:view.runtimeId || 'runtime',output:view.runtime,details:'',notice:view.runtimeNotice || ''};
   const task = tasksFor(selected).find(t => t.action === (view.tab === 'lua' ? 'lua-lsp.check' : view.tab === 'qrcode' ? 'qrcode' : 'build'));
   if (!task) return {id:'',output:'',details:''};
   const result = nestedResult(task);
@@ -648,31 +661,104 @@ function clearConsoleLogs() {
   view.cleared[view.tab] = consoleLogSnapshot();
   renderConsoleLogs();
 }
-function consoleLogText() {
-  if (logView().tab === 'validate') return validationVisibleText(validationEntry()) ||
-    (validationView().selectedRun ? '暂无显示内容' : '暂无 Validate 调用');
+function consoleLogContent() {
   const view = logView(), snapshot = consoleLogSnapshot(), cleared = view.cleared[view.tab];
-  if (view.tab === 'runtime' && view.loading) return '正在读取运行时日志…';
   let {output,details} = snapshot;
   if (cleared && cleared.id === snapshot.id) {
     if (output.startsWith(cleared.output)) output = output.slice(cleared.output.length);
     if (details === cleared.details) details = '';
-    return [output,details].filter(Boolean).join('\n\n') || '日志已清理';
   }
-  return [output,details].filter(Boolean).join('\n\n') ||
-    (view.tab === 'runtime' ? '点击刷新读取运行时日志' : snapshot.id ? '等待任务输出' : '暂无日志');
+  return [output,details].filter(Boolean).join('\n\n');
+}
+function consoleLogText() {
+  const view = logView();
+  if (view.tab === 'validate') return validationVisibleText(validationEntry()) ||
+    (validationView().selectedRun ? '暂无显示内容' : '暂无 Validate 调用');
+  if (view.tab === 'runtime' && view.loading) return '正在读取运行时日志…';
+  const snapshot = consoleLogSnapshot(), cleared = view.cleared[view.tab];
+  const notice = cleared?.id === snapshot.id && cleared.notice === snapshot.notice ? '' : snapshot.notice;
+  const content = consoleLogContent();
+  if (content) return [notice,filteredLogText(content) || '当前筛选无匹配日志'].filter(Boolean).join('\n');
+  if (notice) return notice;
+  if (view.cleared[view.tab]?.id === snapshot.id) return '日志已清理';
+  return view.tab === 'runtime' ? '点击刷新读取运行时日志' : snapshot.id ? '等待任务输出' : '暂无日志';
+}
+function explicitLogLevel(line) {
+  const level = value => {
+    if (typeof value !== 'string') return null;
+    if (/^(?:error|fatal|critical|panic)$/i.test(value)) return 'error';
+    if (/^warn(?:ing)?$/i.test(value)) return 'warning';
+    if (/^(?:info|debug|trace|notice|log)$/i.test(value)) return 'info';
+    return null;
+  };
+  const prefix = /^\s*(?:\[(?!(?:ERROR|FATAL|CRITICAL|PANIC|WARN|WARNING|INFO|DEBUG|TRACE|NOTICE|LOG)\])[^\]\r\n]+\]\s*)*/i;
+  const message = line.replace(prefix,'');
+  if (message.startsWith('{')) {
+    try {
+      const entry = JSON.parse(message);
+      const structured = level(entry?.l ?? entry?.level ?? entry?.severity);
+      if (structured) return structured;
+    } catch (_) {}
+  }
+  const marker = /^(?:\[(ERROR|FATAL|CRITICAL|PANIC|WARN|WARNING|INFO|DEBUG|TRACE|NOTICE|LOG)\]|(ERROR|FATAL|CRITICAL|PANIC|WARN|WARNING|INFO|DEBUG|TRACE|NOTICE|LOG)(?=\s|:|\||$))/i.exec(message);
+  return level(marker?.[1] || marker?.[2]);
+}
+function logLineSeverity(line) {
+  const explicit = explicitLogLevel(line);
+  if (explicit) return explicit;
+  if (/\b(?:error|fatal)\b|失败|错误|异常/i.test(line)) return 'error';
+  if (/\bwarn(?:ing)?\b|警告|注意/i.test(line)) return 'warning';
+  return 'info';
 }
 function logLineClass(line) {
-  if (/(?:^|\b)(?:error|fatal|失败|错误|异常)(?:\b|$)/i.test(line)) return 'log-line log-error';
-  if (/(?:^|\b)(?:warn(?:ing)?|警告|注意)(?:\b|$)/i.test(line)) return 'log-line log-warning';
-  return 'log-line';
+  const severity = logLineSeverity(line);
+  return 'log-line' + (severity === 'info' ? '' : ' log-' + severity);
+}
+function logRows(output) {
+  if (!output) return [];
+  let previous = 'info';
+  return String(output).split('\n').map(text => {
+    // Keep traceback continuations with their preceding severity when filtering.
+    const severity = explicitLogLevel(text) ||
+      (/^\s*$|^\s+|^stack traceback:|^at \S/.test(text) ? previous : logLineSeverity(text));
+    previous = severity;
+    return {text,severity};
+  });
+}
+function filteredLogText(output) {
+  const filters = logFilters();
+  const rows = logRows(output).filter(row => filters[row.severity]);
+  return rows.some(row => row.text.trim()) ? rows.map(row => row.text).join('\n') : '';
+}
+function renderLogFilters() {
+  const group = node('div',undefined,'console-log-filters');
+  group.setAttribute('role','group'); group.setAttribute('aria-label','日志类型筛选');
+  const filters = logFilters(), counts = {info:0,warning:0,error:0};
+  const content = logView().tab === 'validate' ? Object.values(validationLogContent(validationEntry())) :
+    [consoleLogContent()];
+  content.forEach(output => logRows(output).forEach(row => {
+    if (row.text.trim()) counts[row.severity]++;
+  }));
+  [['info','普通'],['warning','警告'],['error','错误']].forEach(([level,label]) => {
+    const control = button(label,() => {
+      filters[level] = !filters[level]; renderConsoleLogs();
+    },{icon:level,className:'log-filter log-filter-' + level,focus:'log-filter-' + level});
+    control.dataset.level = level;
+    control.setAttribute('aria-label',label + '日志');
+    control.setAttribute('aria-pressed',String(filters[level]));
+    control.setAttribute('aria-controls','console-log-output');
+    control.title = (filters[level] ? '隐藏' : '显示') + label + '日志（' + counts[level] + ' 行）';
+    control.append(node('span',String(counts[level]),'log-count'));
+    group.append(control);
+  });
+  return group;
 }
 function renderLogLines(output) {
   const fragment = document.createDocumentFragment();
-  const lines = String(output || '').split('\n');
-  lines.forEach((line,index) => {
-    fragment.append(node('span',line,logLineClass(line)));
-    if (index < lines.length - 1) fragment.append(document.createTextNode('\n'));
+  const rows = logRows(output);
+  rows.forEach((row,index) => {
+    fragment.append(node('span',row.text,'log-line' + (row.severity === 'info' ? '' : ' log-' + row.severity)));
+    if (index < rows.length - 1) fragment.append(document.createTextNode('\n'));
   });
   return fragment;
 }
@@ -703,7 +789,7 @@ function renderConsoleLogs() {
   output.id = 'console-log-output'; output.setAttribute('role','tabpanel'); output.tabIndex = 0;
   const previous = $('console-log-output');
   const top = previous?.scrollTop || 0, left = previous?.scrollLeft || 0;
-  replace(host,[toolbar,tabs,output]);
+  replace(host,[toolbar,tabs,renderLogFilters(),output]);
   output.scrollTop = top; output.scrollLeft = left;
   if (view.tab === 'validate') validationEntry()?.sections?.forEach(block => {
     if (!block.output?.isConnected || !block.section.open) return;
@@ -1949,9 +2035,11 @@ async function loadLogs() {
   try {
     const logs = await api(projectPath(key,'/preview/logs'));
     entry.runtimeId = String(logs.session_id || '') + ':' + String(logs.reload_id || 0);
-    entry.runtime = (logs.truncated ? '仅显示最近日志，完整分页记录可通过 preview logs 读取。\n' : '') + (Array.isArray(logs.logs) ? logs.logs.map(row => text(row.text,'')).join('\n') : text(logs));
+    entry.runtimeNotice = logs.truncated ? '仅显示最近日志，完整分页记录可通过 preview logs 读取。' : '';
+    entry.runtime = Array.isArray(logs.logs) ? logs.logs.map(row => text(row.text,'')).join('\n') : text(logs);
   } catch (error) {
-    entry.runtime = '日志读取失败：' + error.message;
+    entry.runtime = '';
+    entry.runtimeNotice = '日志读取失败：' + error.message;
   } finally {
     entry.loading = false;
     if (selectionMatches(key,epoch) && view === viewEpoch) renderConsoleLogs();
