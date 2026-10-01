@@ -18,7 +18,13 @@ export const SEQUENCE_EDITOR_STYLES = String.raw`
 .generation-result-details { color: #a6afaf; font-size: 11px; margin: 6px 0; max-height: 110px; overflow: auto; }
 .generation-result-details summary { cursor: pointer; }
 .generation-result-details p { font-size: 11px; white-space: pre-wrap; }
-.card.video-source .video-source-preview { height: calc(100% - 110px); min-height: 80px; }
+.card.video-source .video-source-preview { height: 100%; min-height: 0; }
+.prompt-editor { display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; max-height: 320px; overflow-y: auto; padding: 12px; border: 1px solid #3a3f4a; border-radius: 6px; background: #11141a; }
+.prompt-editor > textarea[hidden] { display: none; }
+.prompt-section { display: block; }
+.prompt-heading { display: block; margin-bottom: 4px; color: #edc78c; font-size: 13px; font-weight: 700; }
+.prompt-section-input { display: block; box-sizing: border-box; width: 100%; min-height: 42px; padding: 0; border: 0; border-radius: 2px; background: transparent; color: #e8e3d8; font: inherit; font-size: 13px; line-height: 1.65; resize: none; overflow: hidden; }
+.prompt-section-input:focus-visible { outline: 1px solid #6d5b3b; outline-offset: 2px; }
 .sequence-editor-field select { padding: 9px; border: 1px solid #41494e; border-radius: 6px; background: #13191e; color: #eef3eb; }
 .sequence-editor { --seq-bg: #171b20; --seq-line: #343a40; --seq-muted: #a6afaf; --seq-accent: #edc78c; padding: 0; width: min(1240px,94vw); height: min(900px,92dvh); max-width: 96vw; max-height: 96dvh; border: 1px solid #49504f; border-radius: 18px; color: #f1f2ed; background: var(--seq-bg); box-shadow: 0 28px 100px #0009; overflow: hidden; font-family: 'Avenir Next','PingFang SC','Microsoft YaHei',sans-serif; }
 .sequence-editor::backdrop { background: #070b11ba; backdrop-filter: blur(6px); }
@@ -76,6 +82,24 @@ export const SEQUENCE_EDITOR_STYLES = String.raw`
 .sequence-editor-tile { min-width: 0; }
 .sequence-editor-tile canvas { width: 100%; height: 130px; }
 .sequence-editor-tile.active button { box-shadow: 0 0 0 1px var(--seq-accent); }
+.sequence-editor-tile.chosen { border-radius: 8px; outline: 2px solid var(--seq-accent); background: #594b33; }
+.sequence-grid-tools { max-height: 180px; overflow-y: auto; flex-shrink: 0; }
+.sequence-preview-controls select { background: #252c32; color: inherit; border: 1px solid #414a50; padding: 5px; border-radius: 6px; }
+.sequence-preview-controls input[type=range] { width: 90px; }
+.background-editor, .atlas-compare { display: none; }
+.background-editor[open], .atlas-compare[open] { display: flex; flex-direction: column; }
+.background-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; flex: 1; min-height: 0; padding: 24px; }
+.background-body > canvas { width: 100%; height: 100%; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; align-self: center; justify-self: center; }
+.background-body > aside { overflow: auto; }
+.background-body p, .atlas-compare > p { font-size: 13px; line-height: 1.7; color: var(--seq-muted); }
+.background-body select { max-width: 100%; padding: 8px; margin: 12px 0; background: #252c32; color: inherit; }
+.atlas-compare > p { margin: 10px 24px; }
+.atlas-compare-list { flex: 0 1 auto; max-height: 220px; overflow: auto; padding: 0 24px; }
+.atlas-compare-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; padding: 8px; align-items: center; }
+.atlas-compare-row label { font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.atlas-compare-row input[type=number] { width: 65px; background: #252c32; color: inherit; border: 1px solid #414a50; border-radius: 4px; padding: 5px; }
+.atlas-compare-stage { min-height: 160px; flex: 1; overflow: auto; margin: 12px 24px; display: flex; align-items: center; justify-content: center; }
+.atlas-compare-stage canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
 .sequence-editor-preview { padding: 18px; }
 .sequence-preview-controls { flex-wrap: wrap; }
 .sequence-editor-panel { max-height: 160px; flex: 0 1 auto; border: 0; padding: 14px; border-radius: 8px; }
@@ -97,6 +121,9 @@ export const SEQUENCE_EDITOR_STYLES = String.raw`
 .frame-editor-stage { min-height: 0; flex: 1; margin: 16px; display: flex; justify-content: center; align-items: center; overflow: hidden; }
 .frame-editor-stage canvas { max-width: 100%; max-height: 100%; object-fit: contain; touch-action: none; cursor: crosshair; }
 @media (max-width: 700px) {
+  .background-body { display: flex; flex-direction: column; overflow: auto; padding: 12px; }
+  .background-body > canvas { max-height: 35dvh; flex-shrink: 0; }
+  .background-body > aside { overflow: visible; }
   .sequence-grid-area { height: 38dvh; padding: 12px; }
   .sequence-editor-tile canvas { height: 90px; }
   .sequence-editor-panel { max-height: none; }

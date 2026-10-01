@@ -13,6 +13,7 @@ import {
 } from './sequence.js';
 import { createSequenceProcessor } from './sequence.js';
 import { isCanvasNodeStale, snapshotCanvasSource } from './dependencies.js';
+import type { TemplateOutputDecision } from './templateWorkflow.js';
 
 export interface SequenceUiOptions {
   store: CanvasDocumentStore;
@@ -31,6 +32,8 @@ export interface SequenceUiOptions {
   setError: (message: string) => void;
   onChange?: (nodeId: string) => void;
   onOpen?: (nodeId: string) => void;
+  resolveTarget?: (sourceId: string, type: 'sequence') => TemplateOutputDecision | undefined;
+  onSaved?: (nodeId: string) => Promise<void>;
   onAnimation?: (nodeId: string) => void;
   defaultSettings: typeof defaultSequenceSettings;
   estimateFrameCount: typeof estimateSequenceFrameCount;
@@ -40,6 +43,7 @@ export interface SequenceUiOptions {
 
 type SequenceRun = SequenceRunView & {
   sourceFrames: SequenceFrame[];
+  backgroundFrames?: SequenceFrame[];
   outputPath?: string;
   atlas?: { blob: Blob; info: FrameSetInfo };
   editPast?: SequenceFrame[][];
@@ -172,6 +176,40 @@ export function createSequenceUiController(options: SequenceUiOptions) {
       (node) => node.id === sourceId && node.type === 'video-source'
     );
     if (!document || !source) return;
+    if (controllers.size) {
+      options.setError('已有拆帧步骤正在运行，请等待完成。');
+      return;
+    }
+    const decision = options.resolveTarget?.(sourceId, 'sequence');
+    if (decision?.kind === 'blocked') {
+      options.setError(decision.message);
+      return;
+    }
+    const targets = document.nodes.filter(
+      (node) =>
+        node.type === 'sequence' &&
+        node.sourceVideoId === sourceId &&
+        document.edges.some(
+          (edge) => edge.kind === 'sequence-source' && edge.from === sourceId && edge.to === node.id
+        )
+    );
+    const pending =
+      decision?.kind === 'reuse'
+        ? targets.find((node) => node.id === decision.nodeId)
+        : decision?.kind === 'create'
+          ? undefined
+          : targets.find((node) => !node.assetPath && !node.frameSetInfo);
+    if (pending) {
+      if (!drafts.has(pending.id) && !runs.has(pending.id)) {
+        beginEdit(pending.id);
+        const draft = drafts.get(pending.id)!;
+        delete draft.assetPath;
+        delete draft.frameSetInfo;
+        delete draft.sourceSnapshot;
+      }
+      options.onOpen?.(pending.id);
+      return;
+    }
     options.remember();
     const position = options.nextPlacement('sequence');
     const settings = options.defaultSettings(
@@ -187,6 +225,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
       width: 480,
       height: 300,
       title: '视频转序列帧',
+      ...(source.sectionId ? { sectionId: source.sectionId } : {}),
       sourceVideoId: source.id,
       sequenceSettings: settings,
     };
@@ -259,6 +298,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     run.frames = [];
     run.sourceFrames = [];
     run.originalFrames = [];
+    run.backgroundFrames = undefined;
     run.boundaryFrames = undefined;
     run.candidates = [];
     run.removed = [];
@@ -372,9 +412,18 @@ export function createSequenceUiController(options: SequenceUiOptions) {
       return startExtraction(nodeId);
     }
     if (!run) return;
-    if (action === 'organize-cutout' || action === 'organize-dedupe') {
+    if (
+      action === 'organize-cutout' ||
+      action === 'organize-dedupe' ||
+      action === 'organize-resize'
+    ) {
       if (controllers.size || !run.frames.length) return;
-      run.stage = action === 'organize-cutout' ? 'cutout' : 'dedupe';
+      run.stage =
+        action === 'organize-cutout'
+          ? 'cutout'
+          : action === 'organize-dedupe'
+            ? 'dedupe'
+            : 'resize';
       run.status = 'ready';
       run.error = undefined;
       refresh(nodeId);
@@ -396,6 +445,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
       if (run.editPast.length > 12) run.editPast.shift();
       run.editFuture = [];
       run.frames = run.frames.filter((_frame, index) => index !== value);
+      run.backgroundFrames = run.backgroundFrames?.filter((_frame, index) => index !== value);
       run.boundaryFrames = run.boundaryFrames
         ?.filter((index) => index !== value)
         .map((index) => (index > value! ? index - 1 : index));
@@ -425,8 +475,11 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     }
     if (action === 'cutout') {
       return runStage(nodeId, 'cutout', async (activeRun, signal) => {
+        const baseline =
+          activeRun.backgroundFrames ||
+          (activeRun.sourceFrames.length ? activeRun.sourceFrames : activeRun.frames);
         activeRun.frames = await options.processor.cutout(
-          activeRun.sourceFrames.length ? activeRun.sourceFrames : activeRun.frames,
+          baseline,
           node.sequenceSettings!.backgroundColor,
           node.sequenceSettings!.tolerance,
           signal,
@@ -437,6 +490,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
           },
           node.sequenceSettings!.cutoutMode || 'connected'
         );
+        activeRun.backgroundFrames = baseline.slice();
         activeRun.boundaryFrames = options.processor.boundaryFrames
           ? await options.processor.boundaryFrames(activeRun.frames, signal)
           : undefined;
@@ -476,6 +530,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
           .filter((index) => !removed.has(index))
           .flatMap((index, position) => (boundaries.has(index) ? [position] : []));
         run.frames = run.frames.filter((_frame, index) => !removed.has(index));
+        run.backgroundFrames = run.backgroundFrames?.filter((_frame, index) => !removed.has(index));
       }
       run.candidates = [];
       run.removed = [];
@@ -580,10 +635,12 @@ export function createSequenceUiController(options: SequenceUiOptions) {
         activeRun.sourceFrames = [];
         activeRun.atlas = undefined;
         activeRun.originalFrames = [];
+        activeRun.backgroundFrames = undefined;
         activeRun.editPast = [];
         activeRun.editFuture = [];
         activeRun.status = 'complete';
         activeRun.stage = 'complete';
+        await options.onSaved?.(nodeId);
       });
     }
   }
@@ -605,11 +662,20 @@ export function createSequenceUiController(options: SequenceUiOptions) {
           : stage === 'dedupe' || stage === 'dedupe-review'
             ? key === 'duplicateThreshold'
             : stage === 'resize'
-              ? key === 'width' || key === 'height' || key === 'fit' || key === 'pixel'
+              ? key === 'width' ||
+                key === 'height' ||
+                key === 'fit' ||
+                key === 'pixel' ||
+                key === 'fps'
               : false;
       if (!allowed) return;
     }
     if (typeof value === 'number' && !Number.isFinite(value)) return;
+    if (
+      key === 'fps' &&
+      (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 30)
+    )
+      return;
     if (!drafts.has(nodeId)) options.remember();
     node.sequenceSettings = { ...node.sequenceSettings, [key]: value };
     if (run && key === 'duplicateThreshold' && run.stage === 'dedupe-review') {
@@ -652,6 +718,17 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     const run = runs.get(nodeId);
     const node = sequenceNode(nodeId);
     if (!run || !node || controllers.size || !frames.length) return;
+    const settings = node.sequenceSettings!;
+    const source = findSource(node);
+    const limit = Math.min(
+      options.maxFrameCount(settings.width, settings.height),
+      options.maxInputFrameCount(
+        source?.videoInfo?.width || settings.width,
+        source?.videoInfo?.height || settings.height
+      )
+    );
+    if (frames.length > limit)
+      throw new Error('帧数超过当前图集或处理容量上限（' + limit + ' 帧）。');
     run.editPast ??= [];
     run.editPast.push(run.frames.slice());
     if (run.editPast.length > 12) run.editPast.shift();
@@ -663,6 +740,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
   }
 
   function invalidateEditedRun(node: CanvasNode, run: SequenceRun): void {
+    run.backgroundFrames = undefined;
     run.boundaryFrames = undefined;
     delete node.frameSetInfo;
     delete node.assetPath;
@@ -745,6 +823,24 @@ export function createSequenceUiController(options: SequenceUiOptions) {
   }
 
   return {
+    backgroundInput(nodeId: string): SequenceFrame[] | undefined {
+      return runs.get(nodeId)?.backgroundFrames;
+    },
+    replaceBackgroundFrames(
+      nodeId: string,
+      frames: SequenceFrame[],
+      baseline: SequenceFrame[]
+    ): void {
+      replaceFrames(nodeId, frames);
+      const run = runs.get(nodeId);
+      if (
+        run &&
+        !controllers.size &&
+        run.frames.length === frames.length &&
+        run.frames.every((frame, index) => frame === frames[index])
+      )
+        run.backgroundFrames = baseline.slice();
+    },
     async runTemplate(nodeId: string): Promise<void> {
       if (controllers.size) throw new Error('已有序列帧处理正在运行，请等待完成。');
       beginEdit(nodeId);
@@ -799,6 +895,9 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     },
     renderCard,
     createFromVideo,
+    isNodeBusy(nodeId: string) {
+      return controllers.has(nodeId);
+    },
     updateSetting,
     action: actionSequence,
     deleteNodes,

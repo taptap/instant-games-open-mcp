@@ -203,7 +203,7 @@ export async function startConsoleServer(options: {
             "default-src 'none'",
             `script-src 'sha256-${hash}'`,
             "style-src 'unsafe-inline'",
-            "img-src 'self' data:",
+            "img-src 'self' data: blob:",
             "media-src 'self'",
             "connect-src 'self'",
             "base-uri 'none'",

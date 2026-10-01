@@ -5,14 +5,29 @@ export function appendAnimation(
   document: CanvasDocument,
   sourceId: string,
   nodeId: string,
-  edgeId: string
+  edgeId: string,
+  targetId?: string
 ): CanvasNode | undefined {
   const source = document.nodes.find((node) => node.id === sourceId && node.type === 'sequence');
   if (!source?.assetPath || !source.frameSetInfo) return;
+  if (targetId) {
+    const target = document.nodes.find((node) => node.id === targetId && node.type === 'animation');
+    if (
+      !target ||
+      !document.edges.some(
+        (edge) =>
+          edge.kind === 'sequence-animation' && edge.from === sourceId && edge.to === targetId
+      )
+    )
+      return;
+    if (!refreshAnimationFromSource(document, targetId)) return;
+    return target;
+  }
   const node: CanvasNode = {
     id: nodeId,
     type: 'animation',
     title: '序列帧动画',
+    ...(source.sectionId ? { sectionId: source.sectionId } : {}),
     x: source.x + source.width + 64,
     y: source.y,
     width: 280,
@@ -45,6 +60,7 @@ export function refreshAnimationFromSource(document: CanvasDocument, animationId
     frames: source.frameSetInfo.frames.map((frame) => ({ ...frame })),
   };
   animation.sourceSnapshot = snapshotCanvasSource(source);
+  delete animation.templatePending;
   return true;
 }
 

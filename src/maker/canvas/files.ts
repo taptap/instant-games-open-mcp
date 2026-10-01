@@ -19,6 +19,14 @@ import { STARTER_IMAGE_BASE64 } from './starterImages.js';
 import type { FrameSetInfo, SequenceSettings, VideoInfo } from './sequenceModel.js';
 import { snapshotCanvasSource, type CanvasSourceSnapshot } from './dependencies.js';
 import { parseTemplateFlow } from './templateWorkflow.js';
+import {
+  createCanvasTemplateModel,
+  isBuiltinCanvasTemplate,
+  templateCoverSource,
+  type CanvasWorkflowTemplate,
+} from './templates.js';
+import { builtinCanvasTemplates, canvasPresets } from './presets.js';
+import { readTemplatePage } from './templateCatalog.js';
 
 const execFileAsync = promisify(execFile);
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -118,6 +126,177 @@ export class MakerCanvasFiles {
       }
     }
     return rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id));
+  }
+
+  async listTemplates(): Promise<CanvasWorkflowTemplate[]> {
+    this.assertStorageShape();
+    const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'templates'));
+    return [
+      ...builtinCanvasTemplates(),
+      ...fs
+        .readdirSync(folder)
+        .filter(
+          (name) =>
+            ID.test(name.slice(0, -5)) &&
+            name.endsWith('.json') &&
+            !isBuiltinCanvasTemplate(name.slice(0, -5))
+        )
+        .map((name) => this.readTemplate(name.slice(0, -5))),
+    ];
+  }
+
+  async prepareTemplate(id: string, canvasId: string): Promise<CanvasWorkflowTemplate> {
+    this.assertStorageShape();
+    await this.assertIgnored();
+    await this.load(canvasId);
+    const preset = canvasPresets().find((template) => template.id === id);
+    if (!preset) fail('预设模板不存在。', 404, 'NOT_FOUND');
+    const template: CanvasWorkflowTemplate = JSON.parse(
+      JSON.stringify(builtinCanvasTemplates().find((template) => template.id === id))
+    );
+    const paths = new Map<string, string>();
+    try {
+      for (const [source, asset] of Object.entries(preset.assets)) {
+        const bytes = Buffer.from(asset.data, 'base64');
+        const imported =
+          asset.type === 'video/mp4'
+            ? await this.importVideo(canvasId, bytes, asset.type)
+            : await this.importImage(bytes);
+        paths.set(source, imported.relativePath);
+      }
+      for (const node of template.nodes) {
+        if (node.assetPath) node.assetPath = paths.get(node.assetPath)!;
+        if (node.generation?.referenceImagePaths)
+          node.generation.referenceImagePaths = node.generation.referenceImagePaths.map(
+            (source) => paths.get(source)!
+          );
+      }
+      for (const node of template.nodes) {
+        if (node.sourceSnapshot)
+          node.sourceSnapshot = snapshotCanvasSource(
+            template.nodes.find((source) => source.id === node.sourceSnapshot!.nodeId)
+          );
+      }
+      const parsed = this.parseTemplate(template);
+      this.assertAssets({ nodes: parsed.nodes } as CanvasDocument);
+      return { ...parsed, builtin: true };
+    } catch (error) {
+      for (const imported of paths.values())
+        fs.rmSync(this.safeProjectFile(imported), { force: true });
+      throw error;
+    }
+  }
+
+  async listTemplatePage(page = 1, query = '') {
+    this.assertStorageShape();
+    const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'templates'));
+    return readTemplatePage(folder, (id) => this.readTemplate(id), page, query.slice(0, 80));
+  }
+
+  getTemplate(id: string): CanvasWorkflowTemplate {
+    this.assertStorageShape();
+    const preset = builtinCanvasTemplates().find((template) => template.id === id);
+    return preset ? JSON.parse(JSON.stringify(preset)) : this.readTemplate(id);
+  }
+
+  readTemplateCover(
+    id: string,
+    revision: number
+  ): { bytes: Buffer; type: string; source: boolean } {
+    const template = this.getTemplate(id);
+    if (template.revision !== revision) fail('模板已更新，请刷新列表。', 409, 'CONFLICT');
+    const relative = '.maker/canvases/templates/' + id + '-cover-' + revision + '.png';
+    if (fs.existsSync(path.join(this.root, relative))) {
+      const file = this.safeProjectFile(relative);
+      if (fs.statSync(file).size > 300 * 1024) fail('缩略图过大。', 413, 'STORAGE_LIMIT');
+      return { bytes: fs.readFileSync(file), type: 'image/png', source: false };
+    }
+    const sourcePath = templateCoverSource(template);
+    if (!sourcePath) fail('模板没有图片。', 404, 'NOT_FOUND');
+    if (template.builtin) {
+      const asset = canvasPresets().find((preset) => preset.id === id)!.assets[sourcePath];
+      return { bytes: Buffer.from(asset.data, 'base64'), type: asset.type, source: true };
+    }
+    const media = this.readMedia(sourcePath);
+    if (fs.statSync(media.file).size > 20 * 1024 * 1024)
+      fail('图片超过 20 MiB。', 413, 'STORAGE_LIMIT');
+    return { bytes: fs.readFileSync(media.file), type: media.type, source: true };
+  }
+
+  saveTemplateCover(id: string, revision: number, bytes: Buffer): void {
+    const template = this.getTemplate(id);
+    if (template.revision !== revision) fail('模板已更新，请刷新列表。', 409, 'CONFLICT');
+    if (
+      bytes.length < 24 ||
+      bytes.length > 300 * 1024 ||
+      !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
+      bytes.toString('ascii', 12, 16) !== 'IHDR' ||
+      bytes.readUInt32BE(16) < 1 ||
+      bytes.readUInt32BE(16) > 256 ||
+      bytes.readUInt32BE(20) < 1 ||
+      bytes.readUInt32BE(20) > 256
+    )
+      fail('缩略图必须为不超过 256 像素的 PNG。', 400, 'INVALID_IMAGE');
+    const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'templates'));
+    this.atomicWrite(folder, id + '-cover-' + revision + '.png', bytes);
+  }
+
+  private removeTemplateCover(id: string, revision: number): void {
+    const relative = '.maker/canvases/templates/' + id + '-cover-' + revision + '.png';
+    if (fs.existsSync(path.join(this.root, relative)))
+      fs.unlinkSync(this.safeProjectFile(relative));
+  }
+
+  private readTemplate(id: string): CanvasWorkflowTemplate {
+    if (!ID.test(id)) fail('模板标识无效。', 400, 'INVALID_ID');
+    const file = this.safeProjectFile('.maker/canvases/templates/' + id + '.json');
+    if (fs.statSync(file).size > 1024 * 1024) fail('模板过大。', 413, 'STORAGE_LIMIT');
+    return this.parseTemplate(JSON.parse(fs.readFileSync(file, 'utf8')));
+  }
+
+  private parseTemplate(input: CanvasWorkflowTemplate): CanvasWorkflowTemplate {
+    if (!input || !ID.test(input.id)) fail('模板标识无效。', 400, 'INVALID_ID');
+    const name = text(input.name, 80, '模板名称').trim();
+    if (!name) fail('请输入模板名称。', 400, 'INVALID_DOCUMENT');
+    const parsed = this.parse(
+      { ...input, title: name, viewport: { x: 0, y: 0, scale: 1 } },
+      input.id
+    );
+    const template = createCanvasTemplateModel(randomUUID).snapshot(
+      parsed,
+      parsed.nodes.map((node) => node.id),
+      name
+    );
+    return { ...template, id: input.id, revision: parsed.revision };
+  }
+
+  async saveTemplate(input: CanvasWorkflowTemplate): Promise<CanvasWorkflowTemplate> {
+    if (isBuiltinCanvasTemplate(input?.id))
+      fail('预设模板不能覆盖，请保存为新模板。', 403, 'READ_ONLY_TEMPLATE');
+    this.assertStorageShape();
+    await this.assertIgnored();
+    const template = this.parseTemplate(input);
+    const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'templates'));
+    const exists = fs.existsSync(path.join(folder, template.id + '.json'));
+    const revision = exists ? this.readTemplate(template.id).revision : 0;
+    if (revision !== template.revision)
+      fail('模板已被修改或删除，请重新打开模板列表。', 409, 'CONFLICT');
+    this.assertAssets({ nodes: template.nodes } as CanvasDocument);
+    const saved = { ...template, revision: revision + 1 };
+    const bytes = Buffer.from(JSON.stringify(saved));
+    if (bytes.length > 1024 * 1024) fail('模板过大。', 413, 'STORAGE_LIMIT');
+    this.atomicWrite(folder, template.id + '.json', bytes);
+    this.removeTemplateCover(template.id, revision);
+    return saved;
+  }
+
+  async deleteTemplate(id: string, revision: number): Promise<void> {
+    if (isBuiltinCanvasTemplate(id)) fail('预设模板不能删除。', 403, 'READ_ONLY_TEMPLATE');
+    this.assertStorageShape();
+    const template = this.readTemplate(id);
+    if (template.revision !== revision) fail('模板已被修改，请重新打开模板列表。', 409, 'CONFLICT');
+    fs.unlinkSync(this.safeProjectFile('.maker/canvases/templates/' + id + '.json'));
+    this.removeTemplateCover(id, revision);
   }
 
   async create(title?: string, template: CanvasCreateTemplate = 'empty'): Promise<CanvasDocument> {
@@ -429,6 +608,7 @@ export class MakerCanvasFiles {
     for (const relative of [
       '.maker',
       path.join('.maker', 'canvases'),
+      path.join('.maker', 'canvases', 'templates'),
       path.join('assets', 'image'),
     ]) {
       const full = path.join(this.root, relative);
@@ -550,6 +730,7 @@ export class MakerCanvasFiles {
 
   private assertAssets(document: CanvasDocument): void {
     for (const node of document.nodes) {
+      for (const reference of node.generation?.referenceImagePaths || []) this.readMedia(reference);
       if (!node.assetPath) continue;
       this.readMedia(node.assetPath);
     }
@@ -679,6 +860,18 @@ export class MakerCanvasFiles {
       node.sourceVideoId === undefined ? undefined : text(node.sourceVideoId, 36, '视频来源标识');
     const sectionId =
       node.sectionId === undefined ? undefined : text(node.sectionId, 36, '分区标识');
+    if (
+      node.templateId !== undefined &&
+      (node.type !== 'section' || typeof node.templateId !== 'string' || !ID.test(node.templateId))
+    )
+      fail('模板分组标识无效。', 400, 'INVALID_DOCUMENT');
+    if (node.templateRevision !== undefined)
+      numberIn(node.templateRevision, 1, 1_000_000, '模板版本');
+    if (
+      node.templatePending !== undefined &&
+      (typeof node.templatePending !== 'boolean' || node.type === 'section' || !sectionId)
+    )
+      fail('模板待处理状态无效。', 400, 'INVALID_DOCUMENT');
     let sourceSnapshot: CanvasSourceSnapshot | undefined;
     if (node.sourceSnapshot !== undefined) {
       if (
@@ -739,8 +932,24 @@ export class MakerCanvasFiles {
       if (sourceImageIds && new Set(sourceImageIds).size !== sourceImageIds.length) {
         fail('图片来源标识不能重复。', 400, 'INVALID_DOCUMENT');
       }
+      const referenceImagePaths = input.referenceImagePaths;
+      if (
+        referenceImagePaths !== undefined &&
+        (!Array.isArray(referenceImagePaths) ||
+          referenceImagePaths.length > 14 ||
+          referenceImagePaths.some(
+            (value) => typeof value !== 'string' || value.length > 240 || !RELATIVE.test(value)
+          ))
+      )
+        fail('参考图片路径无效。', 400, 'UNSAFE_PATH');
       generation = {
         prompt: text(input.prompt, 8000, '生成提示词'),
+        ...(referenceImagePaths === undefined
+          ? {}
+          : { referenceImagePaths: [...(referenceImagePaths as string[])] }),
+        ...(input.parameters === undefined
+          ? {}
+          : { parameters: this.parseGenerationParameters(input.parameters) }),
         ...(operation ? { operation } : {}),
         ...(input.taskId === undefined ? {} : { taskId: text(input.taskId, 160, '生成任务标识') }),
         ...(input.attemptId === undefined
@@ -801,10 +1010,13 @@ export class MakerCanvasFiles {
       type: node.type,
       x: numberIn(node.x, -100000, 100000, '坐标'),
       y: numberIn(node.y, -100000, 100000, '坐标'),
-      width: numberIn(node.width, 48, 2000, '尺寸'),
-      height: numberIn(node.height, 36, 1600, '尺寸'),
+      width: numberIn(node.width, 48, node.type === 'section' ? 100000 : 2000, '尺寸'),
+      height: numberIn(node.height, 36, node.type === 'section' ? 100000 : 1600, '尺寸'),
       title: text(node.title, 80, '标题', '未命名'),
       ...(sectionId ? { sectionId } : {}),
+      ...(node.templateId ? { templateId: node.templateId as string } : {}),
+      ...(node.templateRevision ? { templateRevision: node.templateRevision as number } : {}),
+      ...(node.templatePending ? { templatePending: true } : {}),
       ...(sourceSnapshot ? { sourceSnapshot } : {}),
       ...(node.text === undefined ? {} : { text: text(node.text, 4000, '文字') }),
       ...(assetPath ? { assetPath } : {}),
@@ -814,6 +1026,27 @@ export class MakerCanvasFiles {
       ...(frameSetInfo ? { frameSetInfo } : {}),
       ...(generation ? { generation } : {}),
       ...(generationDraft ? { generationDraft } : {}),
+    };
+  }
+
+  private parseGenerationParameters(
+    value: unknown
+  ): NonNullable<CanvasNode['generation']>['parameters'] {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      fail('生成参数无效。', 400, 'INVALID_DOCUMENT');
+    const input = value as Record<string, unknown>;
+    return {
+      ...(input.model === undefined ? {} : { model: text(input.model, 80, '模型') }),
+      ...(input.resolution === undefined
+        ? {}
+        : { resolution: text(input.resolution, 20, '分辨率') }),
+      ...(input.aspectRatio === undefined
+        ? {}
+        : { aspectRatio: text(input.aspectRatio, 20, '图片比例') }),
+      ...(input.ratio === undefined ? {} : { ratio: text(input.ratio, 20, '视频比例') }),
+      ...(input.duration === undefined
+        ? {}
+        : { duration: numberIn(input.duration, 4, 8, '视频时长') }),
     };
   }
 

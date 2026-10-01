@@ -126,6 +126,7 @@ export async function applyFrameOperations(
 export async function openFrameEditor(options: {
   frames: readonly SequenceFrame[];
   index: number;
+  navigate?: (index: number) => void;
   apply: (frames: SequenceFrame[]) => void;
 }) {
   const original = options.frames[options.index];
@@ -171,7 +172,7 @@ export async function openFrameEditor(options: {
     for (const element of Array.from(
       dialog.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button,input')
     ))
-      element.disabled = value;
+      element.disabled = value || element.dataset.boundary === 'true';
     cancel.disabled = false;
   }
   async function repaint() {
@@ -211,6 +212,25 @@ export async function openFrameEditor(options: {
   }
   header.append(title);
   const cancel = button('取消', close, header);
+  if (options.navigate) {
+    for (const [label, target] of [
+      ['上一帧', options.index - 1],
+      ['下一帧', options.index + 1],
+    ] as const) {
+      const navigate = button(
+        label,
+        () => {
+          if (busy || (operations.length && !window.confirm('放弃当前帧未应用的修改并切换？')))
+            return;
+          dialog.close();
+          dialog.remove();
+          options.navigate!(target);
+        },
+        header
+      );
+      navigate.dataset.boundary = target < 0 || target >= options.frames.length ? 'true' : 'false';
+    }
+  }
   for (const [label, value] of [
     ['画笔', 'brush'],
     ['橡皮', 'erase'],
@@ -245,7 +265,30 @@ export async function openFrameEditor(options: {
   tolerance.max = '150';
   tolerance.value = '48';
   tolerance.setAttribute('aria-label', '填充容差');
-  toolbar.append('颜色', color, '笔刷', size, '容差', tolerance);
+  toolbar.append('画笔颜色', color, '笔刷', size, '局部去背景容差', tolerance);
+  const zoom = document.createElement('select');
+  zoom.setAttribute('aria-label', '单帧缩放');
+  for (const [value, label] of [
+    ['fit', '适配窗口'],
+    ['1', '100%'],
+    ['2', '200%'],
+    ['4', '400%'],
+  ]) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    zoom.append(option);
+  }
+  zoom.addEventListener('change', () => {
+    const fit = zoom.value === 'fit';
+    canvas.style.maxWidth = canvas.style.maxHeight = fit ? '100%' : 'none';
+    canvas.style.width = fit ? '' : canvas.width * Number(zoom.value) + 'px';
+    canvas.style.height = fit ? '' : canvas.height * Number(zoom.value) + 'px';
+    canvas.style.flexShrink = '0';
+    stage.style.overflow = 'auto';
+    stage.style.alignItems = stage.style.justifyContent = fit ? 'center' : 'flex-start';
+  });
+  toolbar.append('查看缩放', zoom);
   for (const [label, type, amount] of [
     ['水平翻转', 'flip-x', 0],
     ['垂直翻转', 'flip-y', 0],

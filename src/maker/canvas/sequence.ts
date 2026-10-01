@@ -521,6 +521,7 @@ export function renderSequenceCard(
 }
 
 export interface SequenceProcessorOptions {
+  backgroundRemoval?: ReturnType<typeof import('./backgroundRemoval.js').createBackgroundRemoval>;
   maxSourceSide: number;
   maxOutputSide: number;
   maxAtlasSide: number;
@@ -745,6 +746,39 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
     onProgress: (current: number, total: number) => void,
     mode: 'connected' | 'chroma' = 'connected'
   ): Promise<SequenceFrame[]> {
+    if (options.backgroundRemoval) {
+      const output: SequenceFrame[] = [];
+      let color: [number, number, number] | undefined;
+      for (let index = 0; index < frames.length; index++) {
+        try {
+          const result = await options.backgroundRemoval.apply(
+            frames[index].blob,
+            {
+              automatic: true,
+              color,
+              tolerance,
+              softness: 24,
+              despill: 0.5,
+              mode: mode === 'connected' ? 'connected' : 'all',
+            },
+            signal
+          );
+          color ??= result.color;
+          output.push({ ...frames[index], blob: result.blob });
+          onProgress(index + 1, frames.length);
+          await delayFrame();
+        } catch (error) {
+          if (signal.aborted) throw error;
+          throw new Error(
+            '第 ' +
+              (index + 1) +
+              ' 帧：' +
+              (error instanceof Error ? error.message : '自动去背景失败')
+          );
+        }
+      }
+      return output;
+    }
     const color = parseColor(colorHex);
     const output: SequenceFrame[] = [];
     for (let index = 0; index < frames.length; index += 1) {

@@ -83,7 +83,10 @@ function executionError(error: unknown): {
   if (error instanceof RemoteProxyToolCallError)
     return { message: error.message, state: error.executionState };
   if (error instanceof RemoteProxyToolResultError)
-    return { message: error.message, state: 'not_executed' };
+    return {
+      message: error.message,
+      state: resultPayload(error.result).execution_state === 'unknown' ? 'unknown' : 'not_executed',
+    };
   return { message: error instanceof Error ? error.message : String(error) };
 }
 
@@ -419,7 +422,7 @@ export class CanvasGenerationService {
           const value = JSON.parse(
             fs.readFileSync(path.join(this.attemptsDir, name), 'utf8')
           ) as CanvasGenerationAttempt;
-          return !canvasId || value.canvasId === canvasId ? [value] : [];
+          return !canvasId || value.canvasId === canvasId ? [this.normalizeAttempt(value)] : [];
         } catch {
           return [];
         }
@@ -467,6 +470,20 @@ export class CanvasGenerationService {
       throw new Error('生成尝试不存在。');
     const value = JSON.parse(fs.readFileSync(filename, 'utf8')) as CanvasGenerationAttempt;
     if (value.id !== id) throw new Error('生成尝试标识不匹配。');
+    return this.normalizeAttempt(value);
+  }
+
+  private normalizeAttempt(value: CanvasGenerationAttempt): CanvasGenerationAttempt {
+    const marker = value.error?.indexOf('remote_result:') ?? -1;
+    if (value.status === 'failed' && marker >= 0) {
+      try {
+        const result = JSON.parse(value.error!.slice(marker + 'remote_result:'.length));
+        if (resultPayload(result).execution_state === 'unknown')
+          return { ...value, status: 'unknown', executionState: 'unknown' };
+      } catch {
+        return value;
+      }
+    }
     return value;
   }
 

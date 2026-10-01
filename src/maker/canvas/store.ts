@@ -7,6 +7,11 @@ import {
   type CanvasSummary,
 } from './model.js';
 import { CanvasStoreError } from './model.js';
+import type {
+  CanvasTemplatePage,
+  CanvasTemplateStore,
+  CanvasWorkflowTemplate,
+} from './templates.js';
 
 export interface CanvasGenerationAttempt {
   id: string;
@@ -31,6 +36,7 @@ export interface CanvasGenerationAttempt {
 }
 
 export interface CanvasDocumentStore {
+  templates?: CanvasTemplateStore;
   list(): Promise<CanvasSummary[]>;
   load(canvasId: string): Promise<CanvasDocument>;
   create(title?: string, template?: CanvasCreateTemplate): Promise<CanvasDocument>;
@@ -158,6 +164,49 @@ export function createBrowserCanvasDocumentStore(
     return body as T;
   }
   return {
+    templates: {
+      prepareTemplate: (id, canvasId) =>
+        request<CanvasWorkflowTemplate>('/canvases/templates/' + id + '/prepare', {
+          method: 'POST',
+          body: JSON.stringify({ canvasId }),
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      listTemplatePage: (page, query) =>
+        request<CanvasTemplatePage>(
+          '/canvases/templates?page=' + page + '&q=' + encodeURIComponent(query)
+        ),
+      getTemplate: (id) => request<CanvasWorkflowTemplate>('/canvases/templates/' + id),
+      getCover: async (id, revision, signal) => {
+        const response = await fetcher(
+          base + '/canvases/templates/' + id + '/cover?revision=' + revision,
+          { signal }
+        );
+        if (!response.ok) throw new Error('缩略图加载失败');
+        return {
+          blob: await response.blob(),
+          source: response.headers.get('X-Template-Cover-Source') === '1',
+        };
+      },
+      saveCover: async (id, revision, blob, signal) => {
+        await request('/canvases/templates/' + id + '/cover?revision=' + revision, {
+          method: 'PUT',
+          body: blob,
+          signal,
+        });
+      },
+      saveTemplate: (template) =>
+        request<CanvasWorkflowTemplate>('/canvases/templates/' + template.id, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(template),
+        }),
+      deleteTemplate: (id, revision) =>
+        request<void>('/canvases/templates/' + id, {
+          method: 'DELETE',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ revision }),
+        }),
+    },
     list: () => request<CanvasSummary[]>('/canvases'),
     load: (canvasId: string) => request<CanvasDocument>('/canvases/' + canvasId),
     create: (title?: string, template?: CanvasCreateTemplate) =>

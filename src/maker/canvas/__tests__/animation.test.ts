@@ -40,6 +40,22 @@ describe('animation output cards', () => {
     expect(animation.frameSetInfo?.frames[0].width).toBe(64);
     expect(animation.assetPath).toBe('assets/image/atlas.png');
     expect(animation.sourceSnapshot).toBeDefined();
+    const originalId = animation.id;
+    const edgeId = document.edges[0].id;
+    const position = {
+      x: animation.x,
+      y: animation.y,
+      width: animation.width,
+      height: animation.height,
+    };
+    const reused = appendAnimation(document, source.id, createId(), createId(), animation.id)!;
+    expect(reused.id).toBe(originalId);
+    expect(reused).toMatchObject(position);
+    expect(reused.assetPath).toBe(source.assetPath);
+    expect(document.nodes).toHaveLength(2);
+    expect(document.edges).toHaveLength(1);
+    expect(document.edges[0].id).toBe(edgeId);
+    expect(appendAnimation(document, source.id, createId(), createId(), 'missing')).toBeUndefined();
     expect(appendAnimation(document, 'missing', createId(), createId())).toBeUndefined();
   });
 

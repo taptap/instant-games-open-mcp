@@ -25,6 +25,14 @@ export type CanvasImageOperation = 'generate' | 'variant' | 'outpaint';
 
 export interface CanvasGenerationResult {
   prompt: string;
+  referenceImagePaths?: string[];
+  parameters?: {
+    model?: string;
+    resolution?: string;
+    aspectRatio?: string;
+    ratio?: string;
+    duration?: number;
+  };
   operation?: CanvasImageOperation;
   taskId?: string;
   attemptId?: string;
@@ -53,6 +61,9 @@ export interface CanvasNode {
   height: number;
   title: string;
   sectionId?: string;
+  templateId?: string;
+  templateRevision?: number;
+  templatePending?: boolean;
   text?: string;
   assetPath?: string;
   generationDraft?: CanvasGenerationDraft;

@@ -93,7 +93,10 @@ export function removeNodes(document: CanvasDocument, nodeIds: readonly string[]
       .filter((node) => !removed.has(node.id))
       .map((node) => {
         const copy = { ...node };
-        if (copy.sectionId && removed.has(copy.sectionId)) delete copy.sectionId;
+        if (copy.sectionId && removed.has(copy.sectionId)) {
+          delete copy.sectionId;
+          delete copy.templatePending;
+        }
         return copy;
       }),
     edges: document.edges

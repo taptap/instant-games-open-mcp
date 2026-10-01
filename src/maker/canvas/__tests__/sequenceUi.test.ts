@@ -78,6 +78,8 @@ describe('sequence workflow recovery', () => {
       refreshCard: jest.fn(),
       publishState: jest.fn(),
       setError: jest.fn(),
+      onOpen: jest.fn(),
+      resolveTarget: jest.fn(() => undefined),
       defaultSettings: defaultSequenceSettings,
       estimateFrameCount: () => 1,
       maxFrameCount: () => 10,
@@ -90,8 +92,119 @@ describe('sequence workflow recovery', () => {
       upload,
       flush,
       snapshots,
+      options,
     };
   }
+
+  test('retains cutout input for parameter changes without altering the saved node', async () => {
+    const { controller, node } = editorFixture();
+    const originalPath = node.assetPath;
+    await controller.action(node.id, 'extract');
+    const original = { time: 0, blob: new Blob(['original']) };
+    const processed = { time: 0, blob: new Blob(['transparent']) };
+    controller.replaceBackgroundFrames(node.id, [processed], [original]);
+    expect(controller.backgroundInput(node.id)).toEqual([original]);
+    expect(controller.view(node.id).run?.frames).toEqual([processed]);
+    expect(node.assetPath).toBe(originalPath);
+    controller.replaceFrames(node.id, [{ ...processed, blob: new Blob(['brush']) }]);
+    expect(controller.backgroundInput(node.id)).toBeUndefined();
+    controller.undoFrames(node.id);
+    expect(controller.view(node.id).run?.frames).toEqual([processed]);
+  });
+
+  test('cutout input stays aligned when deleting a copied frame with the same source time', async () => {
+    const { controller, node } = editorFixture();
+    await controller.action(node.id, 'extract');
+    const originals = [0, 0].map((time, index) => ({ time, blob: new Blob(['original' + index]) }));
+    const processed = originals.map((frame) => ({ ...frame, blob: new Blob(['processed']) }));
+    controller.replaceBackgroundFrames(node.id, processed, originals);
+    await controller.action(node.id, 'remove-frame', 0);
+    expect(controller.backgroundInput(node.id)).toEqual([originals[1]]);
+    expect(controller.view(node.id).run?.frames).toEqual([processed[1]]);
+  });
+
+  test('rejects oversized copies and invalid output FPS without losing a draft', async () => {
+    const { controller, node, options } = editorFixture();
+    await controller.action(node.id, 'extract');
+    const frame = { time: 0, blob: new Blob(['draft']) };
+    controller.replaceFrames(node.id, [frame]);
+    options.maxFrameCount = () => 1;
+    expect(() => controller.replaceFrames(node.id, [frame, { ...frame }])).toThrow('容量上限');
+    expect(controller.view(node.id).run?.frames).toEqual([frame]);
+    controller.updateSetting(node.id, 'fps', 8);
+    controller.updateSetting(node.id, 'fps', 0);
+    controller.updateSetting(node.id, 'fps', 1.5);
+    expect(controller.view(node.id).node?.sequenceSettings?.fps).toBe(8);
+    expect(node.sequenceSettings?.fps).not.toBe(8);
+  });
+
+  test('reuses a linked pending template card, preserving its saved result and animation edge', () => {
+    const { controller, document, node, options, snapshots } = editorFixture();
+    document.edges = [
+      { id: 'vs', from: 'video', to: node.id, kind: 'sequence-source' },
+      { id: 'sa', from: node.id, to: 'animation', kind: 'sequence-animation' },
+    ];
+    options.resolveTarget = () => ({ kind: 'reuse', nodeId: node.id });
+    const before = JSON.stringify(document);
+    controller.createFromVideo('video');
+    expect(options.onOpen).toHaveBeenCalledWith(node.id);
+    expect(JSON.stringify(document)).toBe(before);
+    expect(snapshots).toHaveLength(0);
+    expect(options.markDirty).not.toHaveBeenCalled();
+    expect(controller.view(node.id).node?.assetPath).toBeUndefined();
+    expect(controller.view(node.id).node?.sequenceSettings).toEqual(node.sequenceSettings);
+    controller.updateSetting(node.id, 'fps', 3);
+    controller.createFromVideo('video');
+    expect(controller.view(node.id).node?.sequenceSettings?.fps).toBe(3);
+    controller.discardEdit(node.id);
+    expect(JSON.stringify(document)).toBe(before);
+  });
+
+  test('saving a reused pending card updates it in place without changing downstream links', async () => {
+    const { controller, document, node, options } = editorFixture();
+    node.sequenceSettings!.cutout = false;
+    document.edges = [{ id: 'vs', from: 'video', to: node.id, kind: 'sequence-source' }];
+    options.resolveTarget = () => ({ kind: 'reuse', nodeId: node.id });
+    controller.createFromVideo('video');
+    await controller.runTemplate(node.id);
+    expect(document.nodes).toHaveLength(2);
+    expect(document.edges).toEqual([
+      { id: 'vs', from: 'video', to: node.id, kind: 'sequence-source' },
+    ]);
+    expect(node.assetPath).toBe('assets/image/new.png');
+  });
+
+  test('reuses a connected empty target on repeated clicks', () => {
+    const { controller, document, node, options } = editorFixture();
+    delete node.assetPath;
+    delete node.frameSetInfo;
+    document.edges = [{ id: 'vs', from: 'video', to: node.id, kind: 'sequence-source' }];
+    controller.createFromVideo('video');
+    controller.createFromVideo('video');
+    expect(document.nodes).toHaveLength(2);
+    expect(document.edges).toHaveLength(1);
+    expect(options.onOpen).toHaveBeenLastCalledWith(node.id);
+  });
+
+  test.each(['finished', 'disconnected', 'other-source', 'wrong-edge'])(
+    'creates a new target instead of reusing %s',
+    (reason) => {
+      const { controller, document, node, options } = editorFixture();
+      document.edges = [{ id: 'vs', from: 'video', to: node.id, kind: 'sequence-source' }];
+      if (reason === 'disconnected') document.edges = [];
+      if (reason === 'other-source') node.sourceVideoId = 'another-video';
+      if (reason === 'wrong-edge') document.edges[0].kind = 'image-to-video';
+      const original = JSON.stringify(node);
+      controller.createFromVideo('video');
+      expect(document.nodes).toHaveLength(3);
+      expect(JSON.stringify(node)).toBe(original);
+      const created = document.nodes[2];
+      expect(options.onOpen).toHaveBeenLastCalledWith(created.id);
+      expect(created.sourceVideoId).toBe('video');
+      controller.createFromVideo('video');
+      expect(document.nodes).toHaveLength(3);
+    }
+  );
 
   test('template runs extraction through atlas save without a manual editor', async () => {
     const { controller, node, upload } = editorFixture();

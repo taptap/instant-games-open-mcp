@@ -1,4 +1,4 @@
-import type { CanvasNode } from './model.js';
+import type { CanvasDocument, CanvasNode } from './model.js';
 
 export interface CanvasSourceSnapshot {
   nodeId: string;
@@ -38,4 +38,50 @@ export function isCanvasSourceCurrent(
 
 export function isCanvasNodeStale(node: CanvasNode, source: CanvasNode | undefined): boolean {
   return Boolean(node.sourceSnapshot) && !isCanvasSourceCurrent(node.sourceSnapshot, source);
+}
+
+export function canvasReferences(document: CanvasDocument, nodeId: string): CanvasNode[] {
+  const ids = new Set(document.edges.filter((edge) => edge.to === nodeId).map((edge) => edge.from));
+  return document.nodes.filter((node) => ids.has(node.id));
+}
+
+export function canvasDependents(document: CanvasDocument, nodeId: string): CanvasNode[] {
+  const visited = new Set([nodeId]);
+  const queue = [nodeId];
+  for (let index = 0; index < queue.length; index++) {
+    for (const edge of document.edges) {
+      if (edge.from !== queue[index] || visited.has(edge.to)) continue;
+      visited.add(edge.to);
+      queue.push(edge.to);
+    }
+  }
+  return queue.slice(1).flatMap((id) => document.nodes.filter((node) => node.id === id));
+}
+
+export function canvasNeedsProcessing(
+  document: CanvasDocument,
+  node: CanvasNode,
+  visiting = new Set<string>()
+): boolean {
+  if (node.templatePending) return true;
+  if (visiting.has(node.id)) return true;
+  if (
+    isCanvasNodeStale(
+      node,
+      document.nodes.find((source) => source.id === node.sourceSnapshot?.nodeId)
+    )
+  )
+    return true;
+  visiting.add(node.id);
+  const pending = canvasReferences(document, node.id).some((source) =>
+    canvasNeedsProcessing(document, source, visiting)
+  );
+  visiting.delete(node.id);
+  return pending;
+}
+
+export function invalidateCanvasDependents(document: CanvasDocument, nodeId: string): void {
+  for (const node of canvasDependents(document, nodeId)) {
+    if (node.sectionId && node.type !== 'section') node.templatePending = true;
+  }
 }

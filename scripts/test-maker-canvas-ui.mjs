@@ -31,12 +31,23 @@ const reportDir = path.join(reportRoot, runStamp);
 const reportHtml = path.join(reportRoot, 'maker-canvas-ui-' + runStamp + '.html');
 fs.mkdirSync(reportRoot, { recursive: true });
 fs.mkdirSync(reportDir, { recursive: true });
-const report = { checks: [], browserErrors: [], paidRequests: 0, simulatedGenerations: 0, reportDir, reportHtml, startedAt: new Date().toISOString() };
+const report = { checks: [], browserErrors: [], paidRequests: 0, simulatedGenerations: 0, generationRequests: { image: 0, video: 0 }, reportDir, reportHtml, startedAt: new Date().toISOString() };
 let browser;
 let server;
 let page;
+function resolvePlaywrightModule() {
+  if (process.env.PLAYWRIGHT_MODULE) {
+    return pathToFileURL(path.resolve(process.env.PLAYWRIGHT_MODULE)).href;
+  }
+  try {
+    const globalRoot = execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim();
+    const globalModule = path.join(globalRoot, 'playwright', 'index.mjs');
+    if (fs.existsSync(globalModule)) return pathToFileURL(globalModule).href;
+  } catch {}
+  return 'playwright';
+}
 try {
-  const playwright = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(path.resolve(process.env.PLAYWRIGHT_MODULE)).href : 'playwright');
+  const playwright = await import(resolvePlaywrightModule());
   const bundle = path.join(temporary, 'harness.mjs');
   await build({
     stdin: { contents: 'export { startConsoleServer } from "./src/maker/console/server.ts"; export { ConsoleProjects } from "./src/maker/console/projects.ts"; export { MakerCanvasFiles } from "./src/maker/canvas/files.ts";', resolveDir: repo },
@@ -74,6 +85,30 @@ try {
     fs.mkdirSync(directory, { recursive: true });
     fs.writeFileSync(path.join(directory, attempt.id + '.json'), JSON.stringify(attempt));
     report.simulatedGenerations++;
+    report.generationRequests.image++;
+    await route.fulfill({ json: attempt });
+  });
+  await page.route('**/generation/video', async route => {
+    const input = route.request().postDataJSON();
+    const resultAssetPath = files.importGeneratedVideo(canvas.id, ensureVideoAsset());
+    const attempt = {
+      ...input,
+      id: randomUUID(),
+      canvasId: canvas.id,
+      kind: 'video',
+      toolName: 'create_video_task',
+      status: 'succeeded',
+      taskId: 'simulated-video-' + randomUUID(),
+      resultAssetPath,
+      sourceImageId: input.sourceImageId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const directory = path.join(project, '.maker/canvases/attempts');
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(path.join(directory, attempt.id + '.json'), JSON.stringify(attempt));
+    report.simulatedGenerations++;
+    report.generationRequests.video++;
     await route.fulfill({ json: attempt });
   });
   await page.goto(server.origin + '/canvas?project=' + entry.key);
@@ -82,11 +117,25 @@ try {
   let imagePath;
   let generatedId;
   let variantId;
+  let videoId;
+  function ensureVideoAsset() {
+    const relativePath = 'assets/video/generated.mp4';
+    const target = path.join(project, relativePath);
+    if (!fs.existsSync(target)) {
+      if (!imagePath) throw new Error('视频验收缺少来源图片。');
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      execFileSync('ffmpeg', [
+        '-y', '-loglevel', 'error', '-loop', '1', '-i', path.join(project, imagePath),
+        '-t', '1', '-r', '1', '-pix_fmt', 'yuv420p', target,
+      ], { stdio: 'ignore' });
+    }
+    return relativePath;
+  }
   async function createImage() {
     await board.click({ button: 'right', position: { x: 200, y: 100 } });
     assert.equal(await page.locator('[data-canvas-action=delete]').isVisible(), false);
     await page.locator('[data-canvas-action=add-generation]').click();
-    await page.getByPlaceholder('描述要生成的图片…').waitFor();
+    await page.getByPlaceholder('描述要生成的游戏角色、道具或怪物…').waitFor();
   }
   async function deleteCard(id) {
     await page.locator('.card[data-id="' + id + '"]').click({ button: 'right' });
@@ -152,7 +201,7 @@ try {
     ['文本生图结果落盘（远端模拟）', async () => {
       await createImage();
       generatedId = (await saved()).nodes[0].id;
-      await page.getByPlaceholder('描述要生成的图片…').fill('蓝色游戏角色');
+      await page.getByPlaceholder('描述要生成的游戏角色、道具或怪物…').fill('蓝银轻甲剑士，二次元动作游戏角色立绘，完整身体，持单手剑，纯色背景');
       await page.getByRole('button', { name: '生成', exact: true }).click();
       await page.locator('.card.image img').waitFor();
       assert.ok((await saved()).nodes[0].generation.attemptId);
@@ -170,7 +219,7 @@ try {
       assert.equal(await page.getByAltText('导入的参考图 1', { exact: true }).count(), 0);
     }],
     ['快速编辑新建变体和来源连线（远端模拟）', async () => {
-      await page.getByPlaceholder('描述动作、武器或战甲变化…').fill('修改配色');
+      await page.getByPlaceholder('描述角色动作、武器、技能或外观变化…').fill('保留剑士身份，改为双手持剑的攻击姿势，增加蓝色能量剑光，保持完整身体');
       await page.getByRole('button', { name: '生成', exact: true }).click();
       await page.waitForFunction(() => document.querySelectorAll('.card.image').length === 2);
       const document = await saved();
@@ -199,9 +248,30 @@ try {
       assert.equal(await page.locator('.generation-prompt').count(), 0);
       assert.equal((await saved()).nodes.length, 1);
     }],
+    ['实际提交图生视频并生成结果卡', async () => {
+      await page.locator('.card.image').click();
+      await page.getByRole('button', { name: '视频生成', exact: true }).click();
+      await page.getByPlaceholder('描述游戏角色动作、镜头和特效…').fill('剑士向右挥剑并释放蓝色剑气，保持完整身体，镜头稳定，适合动作游戏战斗演示');
+      await page.getByLabel('时长（秒）').selectOption('4');
+      await page.getByRole('button', { name: '生成视频', exact: true }).click();
+      await page.locator('.card.video-source').waitFor();
+      const document = await saved();
+      const video = document.nodes.find(node => node.type === 'video-source');
+      videoId = video.id;
+      assert.ok(video.assetPath);
+      assert.ok(video.generation?.attemptId);
+      assert.ok(video.generation?.taskId);
+      assert.ok(document.edges.some(edge => edge.from === generatedId && edge.to === videoId && edge.kind === 'image-to-video'));
+      assert.equal(report.generationRequests.video, 1);
+      await page.screenshot({ path: path.join(reportDir, 'video-result.png') });
+      await page.reload();
+      await page.getByText('已保存', { exact: true }).waitFor();
+      assert.equal(await page.locator('.card.video-source').count(), 1);
+      assert.equal((await files.load(canvas.id)).nodes.find(node => node.id === videoId).type, 'video-source');
+    }],
     ['拖动卡片后保存和刷新保持位置', async () => {
       const before = (await files.load(canvas.id)).nodes[0];
-      const bounds = await page.locator('.card').boundingBox();
+      const bounds = await page.locator('.card.image').boundingBox();
       await page.mouse.move(bounds.x + 50, bounds.y + 50);
       await page.mouse.down(); await page.mouse.move(bounds.x + 140, bounds.y + 110, { steps: 5 }); await page.mouse.up();
       const after = (await saved()).nodes[0];
@@ -211,7 +281,7 @@ try {
     }],
     ['PNG和JPG导出为真实对应格式', async () => {
       await page.evaluate(() => { window.showSaveFilePicker = undefined; });
-      await page.locator('.card').click();
+      await page.locator('.card.image').click();
       for (const format of ['PNG', 'JPG']) {
         await page.getByLabel('下载图片', { exact: true }).click();
         const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '导出为 ' + format }).click()]);
@@ -220,7 +290,10 @@ try {
         assert.equal(bytes.subarray(0, format === 'PNG' ? 4 : 3).toString('hex'), format === 'PNG' ? '89504e47' : 'ffd8ff');
       }
     }],
-    ['删除文本生图卡后刷新不会复活', async () => {
+    ['删除生成结果和源卡后刷新不会复活', async () => {
+      await deleteCard(videoId); await saved();
+      await page.reload(); await page.getByText('已保存', { exact: true }).waitFor();
+      assert.equal(await page.locator('.card').count(), 1);
       await deleteCard(generatedId); await saved();
       await page.reload(); await page.getByText('已保存', { exact: true }).waitFor();
       assert.equal(await page.locator('.card').count(), 0);

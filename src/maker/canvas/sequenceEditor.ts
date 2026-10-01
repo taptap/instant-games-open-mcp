@@ -91,6 +91,10 @@ export function renderSequenceResult(
 }
 
 export function createSequenceEditor(options: {
+  maxFrames: number;
+  frameCollection: ReturnType<typeof import('./frameCollection.js').createFrameCollection>;
+  backgroundRemoval: ReturnType<typeof import('./backgroundRemoval.js').createBackgroundRemoval>;
+  openBackgroundEditor: typeof import('./backgroundUi.js').openBackgroundEditor;
   openFrameEditor: typeof openFrameEditor;
   controller: ReturnType<typeof createSequenceUiController>;
   mediaUrl: (path: string) => string;
@@ -108,6 +112,13 @@ export function createSequenceEditor(options: {
   let restoreFocus: HTMLElement | null = null;
   let lockRatio = true;
   let tab: 'edit' | 'organize' = 'edit';
+  let selected = new Set<number>();
+  let anchor = 0;
+  let speed = 1;
+  let onion = false;
+  let onionOpacity = 0.25;
+  let localError = '';
+  let loadingEdit = false;
   const dialog = document.createElement('dialog');
   dialog.className = 'sequence-editor';
   dialog.setAttribute('aria-label', '序列帧编辑');
@@ -210,7 +221,7 @@ export function createSequenceEditor(options: {
     const settings = node.sequenceSettings;
     const saved = Boolean(node.frameSetInfo && !run?.frames.length);
     const stage = saved ? 'complete' : run?.stage || 'extract';
-    const busy = run?.status === 'running';
+    const busy = run?.status === 'running' || loadingEdit;
     const stageIndex =
       stage === 'complete'
         ? 4
@@ -277,7 +288,7 @@ export function createSequenceEditor(options: {
     stageArea.className = 'sequence-editor-stage checkerboard';
     const canvas = document.createElement('canvas');
     canvas.className = 'sequence-editor-canvas';
-    canvas.setAttribute('aria-label', '当前帧预览，抠图步骤可点击背景取色');
+    canvas.setAttribute('aria-label', '当前帧预览');
     stageArea.append(canvas);
     const controls = document.createElement('div');
     controls.className = 'sequence-preview-controls';
@@ -299,6 +310,7 @@ export function createSequenceEditor(options: {
       : (run?.frames || []).map((frame) => frame.blob);
     if (!frames.length && run?.previewFrame) frames = [run.previewFrame.blob];
     selectedFrame = Math.min(selectedFrame, Math.max(0, frames.length - 1));
+    selected = new Set([...selected].filter((index) => index < frames.length));
     let comparing = false;
     let drawSequence = 0;
     const frameLabel = document.createElement('span');
@@ -367,10 +379,114 @@ export function createSequenceEditor(options: {
     }
     function selectFrame(index: number) {
       selectedFrame = index;
-      void draw(index, canvas);
-      frameLabel.textContent = index + 1 + ' / ' + frames.length + ' 帧';
+      void drawPreview(index);
+      frameLabel.textContent =
+        index +
+        1 +
+        ' / ' +
+        frames.length +
+        ' 帧 · 输出 ' +
+        (frames.length / settings.fps).toFixed(2) +
+        ' 秒';
       for (const tile of Array.from(strip.children))
         tile.classList.toggle('active', Number((tile as HTMLElement).dataset.index) === index);
+    }
+    async function drawPreview(index: number) {
+      const ticket = ++drawSequence;
+      const layers: Array<{ image: CanvasImageSource; index: number; alpha: number }> = [];
+      const positions = onion ? [index - 1, index + 1, index] : [index];
+      try {
+        for (const position of positions) {
+          if (position < 0 || position >= frames.length) continue;
+          const image = await bitmapAt(position);
+          if (image)
+            layers.push({ image, index: position, alpha: position === index ? 1 : onionOpacity });
+        }
+        if (ticket !== drawSequence || version !== renderVersion || !layers.length) return;
+        const reference = layers[layers.length - 1];
+        const bounds = atlas ? node!.frameSetInfo!.frames[index] : undefined;
+        canvas.width = bounds?.width || (reference.image as ImageBitmap).width;
+        canvas.height = bounds?.height || (reference.image as ImageBitmap).height;
+        const context = canvas.getContext('2d')!;
+        for (const layer of layers) {
+          context.globalAlpha = layer.alpha;
+          const crop = atlas ? node!.frameSetInfo!.frames[layer.index] : undefined;
+          if (crop)
+            context.drawImage(
+              layer.image,
+              crop.x,
+              crop.y,
+              crop.width,
+              crop.height,
+              0,
+              0,
+              crop.width,
+              crop.height
+            );
+          else context.drawImage(layer.image, 0, 0);
+        }
+        context.globalAlpha = 1;
+      } catch {
+        frameLabel.textContent = '帧预览读取失败，请重试。';
+      }
+    }
+    async function withEditable(
+      action: (
+        editable: import('./sequence.js').SequenceFrame[],
+        id: string
+      ) => void | Promise<void>
+    ) {
+      if (loadingEdit || options.controller.isBusy || !activeId) return;
+      const id = activeId;
+      stopPlayback();
+      loadingEdit = true;
+      localError = '';
+      try {
+        const editable = await options.controller.editableFrames(id);
+        if (id === activeId && editable.length) await action(editable, id);
+      } catch (error) {
+        localError = error instanceof Error ? error.message : '编辑失败，请重试。';
+      } finally {
+        loadingEdit = false;
+        if (id === activeId) render();
+      }
+    }
+    function editFrame(index: number) {
+      void withEditable((editable, id) =>
+        options.openFrameEditor({
+          frames: editable,
+          index,
+          navigate: editFrame,
+          apply: (result) => options.controller.replaceFrames(id, result),
+        })
+      );
+    }
+    function removeBackground() {
+      void withEditable((editable, id) => {
+        const baseline = options.controller.backgroundInput(id) || editable;
+        return options.openBackgroundEditor({
+          frames: baseline,
+          currentFrames: editable,
+          index: selectedFrame,
+          removal: options.backgroundRemoval,
+          apply: (result) => options.controller.replaceBackgroundFrames(id, result, baseline),
+        });
+      });
+    }
+    function changeCollection(action: 'delete' | 'duplicate' | 'reverse' | 'reduce') {
+      const chosen = new Set(selected);
+      void withEditable((editable, id) => {
+        const result = options.frameCollection.change(editable, chosen, action, options.maxFrames);
+        const baseline = options.controller.backgroundInput(id);
+        if (baseline)
+          options.controller.replaceBackgroundFrames(
+            id,
+            result,
+            options.frameCollection.change(baseline, chosen, action, options.maxFrames)
+          );
+        else options.controller.replaceFrames(id, result);
+        selected.clear();
+      });
     }
     const play = button('播放', () => {
       if (playback) {
@@ -381,25 +497,55 @@ export function createSequenceEditor(options: {
       play.textContent = '暂停';
       playback = setInterval(
         () => selectFrame((selectedFrame + 1) % frames.length),
-        1000 / settings.fps
+        1000 / (settings.fps * speed)
       );
     });
     play.disabled = frames.length < 2 || busy;
     controls.append(play, frameLabel);
-    if (frames.length && !busy) {
+    const previous = button('上一帧', () => selectFrame(Math.max(0, selectedFrame - 1)));
+    const next = button('下一帧', () =>
+      selectFrame(Math.min(frames.length - 1, selectedFrame + 1))
+    );
+    previous.disabled = next.disabled = !frames.length || busy;
+    controls.append(previous, next);
+    const speedSelect = document.createElement('select');
+    speedSelect.setAttribute('aria-label', '预览速度');
+    for (const value of [0.25, 0.5, 1, 1.5, 2]) {
+      const option = document.createElement('option');
+      option.value = String(value);
+      option.textContent = value + '×';
+      speedSelect.append(option);
+    }
+    speedSelect.value = String(speed);
+    speedSelect.addEventListener('change', () => {
+      speed = Number(speedSelect.value);
+      render();
+    });
+    const onionLabel = document.createElement('label');
+    const onionInput = document.createElement('input');
+    onionInput.type = 'checkbox';
+    onionInput.checked = onion;
+    onionInput.addEventListener('change', () => {
+      onion = onionInput.checked;
+      void drawPreview(selectedFrame);
+    });
+    onionLabel.append(onionInput, '前后帧叠影');
+    const opacity = document.createElement('input');
+    opacity.type = 'range';
+    opacity.min = '0.05';
+    opacity.max = '0.8';
+    opacity.step = '0.05';
+    opacity.value = String(onionOpacity);
+    opacity.setAttribute('aria-label', '叠影透明度');
+    opacity.addEventListener('input', () => {
+      onionOpacity = Number(opacity.value);
+      if (onion) void drawPreview(selectedFrame);
+    });
+    controls.append('预览速度（不改输出）', speedSelect, onionLabel, opacity);
+    if (frames.length && !busy && tab === 'edit') {
       controls.append(
         button('编辑当前帧', () => {
-          stopPlayback();
-          const nodeId = activeId!;
-          const index = selectedFrame;
-          void options.controller.editableFrames(nodeId).then((editable) => {
-            if (!editable.length || activeId !== nodeId) return;
-            return options.openFrameEditor({
-              frames: editable,
-              index,
-              apply: (result) => options.controller.replaceFrames(nodeId, result),
-            });
-          });
+          editFrame(selectedFrame);
         })
       );
     }
@@ -408,44 +554,64 @@ export function createSequenceEditor(options: {
     const gridTools = document.createElement('div');
     gridTools.className = 'sequence-grid-tools';
     const count = document.createElement('strong');
-    count.textContent = '全部帧 / ' + frames.length;
+    count.textContent =
+      '全部帧 / ' +
+      frames.length +
+      (tab === 'organize' ? ' · 已选 ' + selected.size : ' · 点击帧编辑画面');
     gridTools.append(count);
-    if (run?.frames.length && !busy) {
+    if (frames.length && !busy) gridTools.append(button('自动去背景 / 调整参数', removeBackground));
+    if (frames.length && !busy && tab === 'organize') {
       gridTools.append(
-        button('撤销帧编辑', () => options.controller.undoFrames(activeId!)),
-        button('重做', () => options.controller.undoFrames(activeId!, true))
-      );
-      if (tab === 'organize') {
-        gridTools.append(
-          button('去除背景', () => {
-            void options.controller.action(activeId!, 'organize-cutout');
-          }),
-          button('检查重复帧', () => {
-            void options.controller.action(activeId!, 'organize-dedupe');
-          })
-        );
-        gridTools.append(
-          button('倒序', () =>
-            options.controller.replaceFrames(activeId!, [...run.frames].reverse())
-          ),
-          button('隔帧精简', () =>
-            options.controller.replaceFrames(
-              activeId!,
-              run.frames.filter((_frame, index) => index % 2 === 0)
-            )
-          )
-        );
-      }
-    }
-    gridArea.append(gridTools, strip);
-    if (saved && !busy && tab === 'organize')
-      gridTools.append(
-        button('整理已保存帧', () => {
-          void options.controller.editableFrames(activeId!);
+        button('全选', () => {
+          selected = new Set(frames.map((_frame, index) => index));
+          render();
+        }),
+        button('反选', () => {
+          selected = new Set(
+            frames.map((_frame, index) => index).filter((index) => !selected.has(index))
+          );
+          render();
+        }),
+        button('取消选择', () => {
+          selected.clear();
+          render();
         })
       );
+      const remove = button('删除所选帧（' + selected.size + '）', () =>
+        changeCollection('delete')
+      );
+      remove.disabled = !selected.size || selected.size === frames.length;
+      const duplicate = button('复制所选帧', () => changeCollection('duplicate'));
+      duplicate.disabled = !selected.size;
+      gridTools.append(
+        remove,
+        duplicate,
+        button('倒序', () => changeCollection('reverse')),
+        button('隔帧精简', () => changeCollection('reduce')),
+        button('检查重复帧', () => {
+          void withEditable((_editable, id) => options.controller.action(id, 'organize-dedupe'));
+        }),
+        button('调整输出尺寸与帧率', () => {
+          void withEditable((_editable, id) => options.controller.action(id, 'organize-resize'));
+        })
+      );
+    }
+    if (run?.frames.length && !busy) {
+      gridTools.append(
+        button('撤销帧编辑', () => {
+          selected.clear();
+          options.controller.undoFrames(activeId!);
+        }),
+        button('重做', () => {
+          selected.clear();
+          options.controller.undoFrames(activeId!, true);
+        })
+      );
+    }
+    gridArea.append(gridTools, strip);
     if (
       !saved &&
+      tab === 'organize' &&
       !busy &&
       run?.frames.length &&
       ['cutout', 'dedupe', 'dedupe-review', 'resize'].includes(stage)
@@ -462,30 +628,70 @@ export function createSequenceEditor(options: {
         tile.className = 'sequence-editor-tile';
         tile.dataset.index = String(index);
         const thumb = document.createElement('canvas');
-        const select = button(String(index + 1), () => selectFrame(index));
+        const select = button(String(index + 1), () => {
+          if (tab === 'edit' && !busy) editFrame(index);
+        });
+        select.addEventListener('click', (event) => {
+          if (tab !== 'organize' || busy) return;
+          selected = options.frameCollection.select(
+            selected,
+            index,
+            anchor,
+            event.shiftKey,
+            event.ctrlKey || event.metaKey
+          );
+          if (!event.shiftKey) anchor = index;
+          selectedFrame = index;
+          render();
+        });
         select.setAttribute('aria-label', '查看第 ' + (index + 1) + ' 帧');
         select.prepend(thumb);
         tile.append(select);
-        tile.draggable = !saved && !busy;
+        if (tab === 'organize') {
+          tile.classList.toggle('chosen', selected.has(index));
+          const label = document.createElement('label');
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = selected.has(index);
+          checkbox.disabled = busy;
+          checkbox.setAttribute('aria-label', '选择第 ' + (index + 1) + ' 帧');
+          checkbox.addEventListener('change', () => {
+            selected = options.frameCollection.select(selected, index, anchor, false, true);
+            anchor = index;
+            selectedFrame = index;
+            render();
+          });
+          label.append(checkbox, '选择');
+          tile.append(label);
+        }
+        tile.draggable = tab === 'organize' && !busy;
         tile.addEventListener('dragstart', (event) => {
           event.dataTransfer?.setData('text/plain', String(index));
         });
         tile.addEventListener('dragover', (event) => event.preventDefault());
         tile.addEventListener('drop', (event) => {
           event.preventDefault();
-          if (!run?.frames.length || busy) return;
+          if (tab !== 'organize' || busy) return;
           const value = event.dataTransfer?.getData('text/plain');
           if (!value) return;
           const from = Number(value);
-          if (!Number.isInteger(from) || from < 0 || from >= run.frames.length || from === index)
+          if (!Number.isInteger(from) || from < 0 || from >= frames.length || from === index)
             return;
-          const reordered = [...run.frames];
-          const [frame] = reordered.splice(from, 1);
-          reordered.splice(index, 0, frame);
-          options.controller.replaceFrames(activeId!, reordered);
+          void withEditable((editable, id) => {
+            const reordered = [...editable];
+            const [frame] = reordered.splice(from, 1);
+            reordered.splice(index, 0, frame);
+            const baseline = options.controller.backgroundInput(id)?.slice();
+            if (baseline) {
+              const [original] = baseline.splice(from, 1);
+              baseline.splice(index, 0, original);
+              options.controller.replaceBackgroundFrames(id, reordered, baseline);
+            } else options.controller.replaceFrames(id, reordered);
+            selected.clear();
+          });
         });
         const candidate = run?.candidates.find((item) => item.index === index);
-        if (candidate) {
+        if (candidate && tab === 'organize') {
           const label = document.createElement('label');
           const checkbox = document.createElement('input');
           checkbox.type = 'checkbox';
@@ -575,68 +781,20 @@ export function createSequenceEditor(options: {
     } else if (stage === 'cutout') {
       const hint = document.createElement('p');
       hint.textContent =
-        '点击右侧背景取色。色差抠图处理封闭区域及半透明溢色；背景必须与角色/特效不同色，否则会误删同色内容。';
-      panel.append(hint);
-      const modeLabel = document.createElement('label');
-      modeLabel.className = 'sequence-editor-field';
-      modeLabel.append('抠图方式');
-      const mode = document.createElement('select');
-      mode.setAttribute('aria-label', '抠图方式');
-      mode.disabled = busy;
-      for (const [value, label] of [
-        ['chroma', '色差抠图与去溢色'],
-        ['connected', '仅边缘连通背景'],
-      ]) {
-        const option = document.createElement('option');
-        option.value = value;
-        option.textContent = label;
-        mode.append(option);
-      }
-      mode.value = settings.cutoutMode || 'connected';
-      mode.addEventListener('change', () =>
-        options.controller.updateSetting(activeId!, 'cutoutMode', mode.value)
+        '默认自动识别每帧的大面积纯色背景；可打开参数预览调整容差与边缘处理。识别不可靠时保留原帧，不猜测颜色。';
+      panel.append(hint, button('预览并调整去背景', removeBackground));
+    } else if (tab === 'edit') {
+      panelTitle.textContent = '编辑画面';
+      const hint = document.createElement('p');
+      hint.textContent =
+        '点击缩略图修整单帧，或使用自动去背景。选择、删除、复制、排序和输出设置在「整理与输出」。';
+      panel.append(
+        hint,
+        button('前往整理与输出', () => {
+          tab = 'organize';
+          render();
+        })
       );
-      modeLabel.append(mode);
-      panel.append(modeLabel);
-      field('背景色', 'backgroundColor', 'color');
-      field('颜色容差', 'tolerance', 'range', 0, 255);
-      check('统一去除背景', settings.cutout, (checked) =>
-        options.controller.updateSetting(activeId!, 'cutout', checked)
-      );
-      canvas.addEventListener('pointerdown', (event) => {
-        if (busy) return;
-        const rect = canvas.getBoundingClientRect();
-        const pixel = canvas
-          .getContext('2d')!
-          .getImageData(
-            Math.max(
-              0,
-              Math.min(
-                canvas.width - 1,
-                Math.floor(((event.clientX - rect.left) / rect.width) * canvas.width)
-              )
-            ),
-            Math.max(
-              0,
-              Math.min(
-                canvas.height - 1,
-                Math.floor(((event.clientY - rect.top) / rect.height) * canvas.height)
-              )
-            ),
-            1,
-            1
-          ).data;
-        if (pixel[3] < 16) return;
-        options.controller.updateSetting(
-          activeId!,
-          'backgroundColor',
-          '#' +
-            Array.from(pixel.slice(0, 3))
-              .map((channel) => channel.toString(16).padStart(2, '0'))
-              .join('')
-        );
-        options.controller.updateSetting(activeId!, 'cutout', true);
-      });
     } else if (stage.startsWith('dedupe')) {
       const hint = document.createElement('p');
       hint.textContent = run?.candidates.length
@@ -651,6 +809,7 @@ export function createSequenceEditor(options: {
       advanced.append(panel.lastElementChild!);
       panel.append(advanced);
     } else if (stage === 'resize') {
+      field('播放 FPS', 'fps', 'number', 1, 30);
       field('输出宽', 'width', 'number', 1, 2048);
       field('输出高', 'height', 'number', 1, 2048);
       check('保持当前比例', lockRatio, (checked) => {
@@ -753,35 +912,40 @@ export function createSequenceEditor(options: {
     const status = document.createElement('div');
     status.className = run?.error ? 'sequence-editor-error' : 'sequence-editor-status';
     status.textContent =
+      localError ||
       run?.error ||
       (saved
         ? '已保存到画布'
         : busy
-          ? run.uploading
+          ? run?.uploading
             ? '正在保存，请稍候…'
-            : '处理中 · ' + run.progress + ' / ' + run.total + ' 帧'
+            : '处理中 · ' + (run?.progress || 0) + ' / ' + (run?.total || 0) + ' 帧'
           : '修改仅在保存成功后应用到卡片');
     status.setAttribute('aria-live', 'polite');
     if (busy) {
       const progress = document.createElement('progress');
-      progress.max = Math.max(1, run.total);
-      progress.value = run.progress;
+      progress.max = Math.max(1, run?.total || 0);
+      progress.value = run?.progress || 0;
       status.append(progress);
     }
     const actions = document.createElement('div');
     actions.className = 'sequence-editor-actions';
     const choices = options
       .actions(run, saved, settings.cutout)
-      .filter((item) => item.action !== 'discard');
+      .filter((item) => item.action !== 'discard')
+      .filter(
+        () => tab === 'organize' || stage === 'extract' || stage === 'cutout' || busy || saved
+      );
     choices.forEach((choice, index) => {
       const action = button(
         choice.label,
         () => {
+          if (choice.action === 'dedupe') tab = 'organize';
           void options.controller.action(activeId!, choice.action);
         },
         index === 0 ? 'primary' : ''
       );
-      action.disabled = Boolean(choice.disabled) || !source;
+      action.disabled = Boolean(choice.disabled) || !source || loadingEdit;
       actions.append(action);
     });
     if (saved) actions.append(button('完成并返回画布', finishClose, 'primary'));
@@ -799,6 +963,12 @@ export function createSequenceEditor(options: {
       options.controller.beginEdit(nodeId);
       activeId = nodeId;
       selectedFrame = 0;
+      selected.clear();
+      anchor = 0;
+      localError = '';
+      tab = 'edit';
+      speed = 1;
+      onion = false;
       lockRatio = true;
       render();
       dialog.showModal();

@@ -12,6 +12,7 @@ import { callRemoteProxyTool } from '../../server/mcp.js';
 import { MakerCanvasFiles } from '../../canvas/files.js';
 import { createId } from '../../canvas/model.js';
 import { CanvasGenerationService } from '../canvasGeneration.js';
+import { RemoteProxyToolResultError } from '../../server/proxyAssets.js';
 
 const callRemoteProxyToolMock = jest.mocked(callRemoteProxyTool);
 
@@ -44,6 +45,28 @@ describe('CanvasGenerationService', () => {
 
   afterEach(() => {
     fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test('keeps structured unknown errors and previously mislabeled attempts non-retryable', async () => {
+    const files = new MakerCanvasFiles(root);
+    const document = await files.create('结果未知', 'empty');
+    const error = new RemoteProxyToolResultError('generate_image', {
+      isError: true,
+      content: [{ type: 'text', text: 'execution state is unknown' }],
+      structuredContent: { execution_state: 'unknown', automatic_retry: false },
+    });
+    callRemoteProxyToolMock.mockRejectedValue(error);
+    const service = new CanvasGenerationService(root, {} as any);
+    const attempt = await service.generateImage({ canvasId: document.id, prompt: '游戏角色' });
+    expect(attempt.status).toBe('unknown');
+    const filename = path.join(root, '.maker/canvases/attempts', attempt.id + '.json');
+    fs.writeFileSync(
+      filename,
+      JSON.stringify({ ...attempt, status: 'failed', executionState: 'not_executed' })
+    );
+    expect(service.list(document.id)[0].status).toBe('unknown');
+    await expect(service.retry(attempt.id, document.id)).rejects.toThrow();
+    expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(1);
   });
 
   test('passes imported reference assets without creating or replacing canvas cards, including retry', async () => {

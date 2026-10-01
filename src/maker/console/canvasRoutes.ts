@@ -46,6 +46,61 @@ export async function handleCanvasProjectRoute(options: {
   const project = registry.resolve(key);
   const files = new MakerCanvasFiles(project.path);
   try {
+    if (suffix === 'canvases/templates' && method === 'GET') {
+      send(
+        response,
+        200,
+        await files.listTemplatePage(
+          Number(searchParams.get('page') || 1),
+          searchParams.get('q') || ''
+        )
+      );
+      return true;
+    }
+    const template = suffix.match(/^canvases\/templates\/([0-9a-f-]{36})$/i);
+    const preset = suffix.match(/^canvases\/templates\/([0-9a-f-]{36})\/prepare$/i);
+    if (preset && method === 'POST') {
+      const body = JSON.parse((await readBytes(request, 4096)).toString('utf8'));
+      if (!body || typeof body.canvasId !== 'string')
+        throw new ConsoleError('请选择添加模板的画布。');
+      send(response, 200, await files.prepareTemplate(preset[1], body.canvasId));
+      return true;
+    }
+    const cover = suffix.match(/^canvases\/templates\/([0-9a-f-]{36})\/cover$/i);
+    if (cover && (method === 'GET' || method === 'PUT')) {
+      const revision = Number(searchParams.get('revision'));
+      if (!Number.isSafeInteger(revision) || revision < 1) throw new ConsoleError('模板版本无效。');
+      if (method === 'GET') {
+        const result = files.readTemplateCover(cover[1], revision);
+        response.writeHead(200, {
+          'Content-Type': result.type,
+          'Content-Length': result.bytes.length,
+          'X-Content-Type-Options': 'nosniff',
+          'X-Template-Cover-Source': result.source ? '1' : '0',
+        });
+        response.end(result.bytes);
+      } else {
+        files.saveTemplateCover(cover[1], revision, await readBytes(request, 300 * 1024));
+        send(response, 200, { ok: true });
+      }
+      return true;
+    }
+    if (template && method === 'GET') {
+      send(response, 200, files.getTemplate(template[1]));
+      return true;
+    }
+    if (template && (method === 'PUT' || method === 'DELETE')) {
+      const body = JSON.parse((await readBytes(request, 1024 * 1024)).toString('utf8'));
+      if (!body || typeof body !== 'object') throw new ConsoleError('模板内容无效。');
+      if (method === 'PUT') {
+        if (body.id !== template[1]) throw new ConsoleError('模板标识不匹配。');
+        send(response, 200, await files.saveTemplate(body));
+      } else {
+        await files.deleteTemplate(template[1], body.revision);
+        send(response, 200, { ok: true });
+      }
+      return true;
+    }
     if (method === 'GET' && suffix === 'canvas-media') {
       const media = files.readMedia(searchParams.get('path') || '');
       response.setHeader('Content-Type', media.type);
