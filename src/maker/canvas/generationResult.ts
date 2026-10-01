@@ -1,4 +1,5 @@
 import type { CanvasDocument, CanvasGenerationResult, CanvasNode } from './model.js';
+import { snapshotCanvasSource } from './dependencies.js';
 
 export function recordGeneratedVideo(
   document: CanvasDocument,
@@ -17,9 +18,28 @@ export function recordGeneratedVideo(
   if (video.generation?.sourceImageId && video.generation.sourceImageId !== imageId) {
     throw new Error('已生成视频不能改绑另一张首帧图；请创建新的生成结果。');
   }
-  video.generation = { ...generation, sourceImageId: imageId };
+  const sourceIds = Array.from(new Set([imageId, ...(generation.sourceImageIds || [])]));
+  if (
+    sourceIds.some(
+      (id) =>
+        !document.nodes.some((node) => node.id === id && node.type === 'image' && node.assetPath)
+    )
+  )
+    throw new Error('记录图生视频来源需要已保存的图片。');
+  video.generation = { ...generation, sourceImageId: imageId, sourceImageIds: sourceIds };
+  video.sourceSnapshots = sourceIds.map(
+    (id) => snapshotCanvasSource(document.nodes.find((node) => node.id === id))!
+  );
+  video.sourceSnapshot = video.sourceSnapshots[0];
   document.edges = document.edges.filter((edge) => edge.to !== videoId);
-  document.edges.push({ id: edgeId, from: imageId, to: videoId, kind: 'image-to-video' });
+  sourceIds.forEach((id, index) => {
+    document.edges.push({
+      id: index === 0 ? edgeId : crypto.randomUUID(),
+      from: id,
+      to: videoId,
+      kind: 'image-to-video',
+    });
+  });
 }
 
 export function renderGenerationResult(
@@ -30,9 +50,19 @@ export function renderGenerationResult(
   if (!node.generation) return;
   const label = document.createElement('div');
   label.className = 'generation-result-label';
-  const source = nodes.find((item) => item.id === node.generation!.sourceImageId);
+  const sourceIds = Array.from(
+    new Set([
+      ...(node.generation.sourceImageId ? [node.generation.sourceImageId] : []),
+      ...(node.generation.sourceImageIds || []),
+    ])
+  );
+  const sources = sourceIds.map(
+    (id) => nodes.find((item) => item.id === id)?.title || '来源卡已删除'
+  );
   label.textContent =
-    node.type === 'image' ? '生图结果' : '图生视频 · 来源图：' + (source?.title || '来源卡已删除');
+    node.type === 'image'
+      ? '生图结果'
+      : '图生视频 · 来源图：' + (sources.join('、') || '来源卡已删除');
   const details = document.createElement('details');
   details.className = 'generation-result-details';
   const summary = document.createElement('summary');

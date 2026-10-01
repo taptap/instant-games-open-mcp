@@ -84,6 +84,10 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
         throw new Error('抽帧卡依赖选区外的视频，请一起选中后保存。');
       if (node.sourceSnapshot && !selected.has(node.sourceSnapshot.nodeId))
         delete node.sourceSnapshot;
+      if (node.sourceSnapshots)
+        node.sourceSnapshots = node.sourceSnapshots.filter((snapshot) =>
+          selected.has(snapshot.nodeId)
+        );
       if (
         node.generationDraft?.sourceImageId &&
         !selected.has(node.generationDraft.sourceImageId)
@@ -102,21 +106,22 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       }
     }
     for (const node of nodes) {
-      if (node.sourceSnapshot) {
-        const source = document.nodes.find((item) => item.id === node.sourceSnapshot!.nodeId);
-        const copy = nodes.find((item) => item.id === node.sourceSnapshot!.nodeId);
+      for (const snapshot of [
+        ...(node.sourceSnapshots || []),
+        ...(node.sourceSnapshot ? [node.sourceSnapshot] : []),
+      ]) {
+        const source = document.nodes.find((item) => item.id === snapshot.nodeId);
+        const copy = nodes.find((item) => item.id === snapshot.nodeId);
         if (source && copy && source.generation?.attemptId) {
           const oldVersion = [
             source.type,
             source.assetPath || 'missing-asset',
             source.generation.attemptId,
           ].join('|');
-          if (node.sourceSnapshot.version === oldVersion)
-            node.sourceSnapshot.version = [
-              copy.type,
-              copy.assetPath || 'missing-asset',
-              'manual-asset',
-            ].join('|');
+          if (snapshot.version === oldVersion)
+            snapshot.version = [copy.type, copy.assetPath || 'missing-asset', 'manual-asset'].join(
+              '|'
+            );
         }
       }
     }
@@ -150,6 +155,8 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       node.y += position.y;
       if (node.sourceVideoId) node.sourceVideoId = ids.get(node.sourceVideoId);
       if (node.sourceSnapshot) node.sourceSnapshot.nodeId = ids.get(node.sourceSnapshot.nodeId)!;
+      for (const snapshot of node.sourceSnapshots || [])
+        snapshot.nodeId = ids.get(snapshot.nodeId)!;
       if (node.generationDraft?.sourceImageId)
         node.generationDraft.sourceImageId = ids.get(node.generationDraft.sourceImageId);
       if (node.generation?.sourceImageId)

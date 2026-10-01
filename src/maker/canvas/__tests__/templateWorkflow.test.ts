@@ -1,6 +1,7 @@
 import { createTemplateWorkflow, parseTemplateFlow } from '../templateWorkflow.js';
 import { emptyDocument } from '../model.js';
-import { canvasNeedsProcessing, snapshotCanvasSource } from '../dependencies.js';
+import { snapshotCanvasSource } from '../dependencies.js';
+import { canvasNeedsProcessing } from '../templateWorkflow.js';
 
 function fixture() {
   const document = emptyDocument();

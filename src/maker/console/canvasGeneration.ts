@@ -36,6 +36,7 @@ export interface CanvasGenerationAttempt {
   referenceImagePaths?: string[];
   targetNodeId?: string;
   sourceSnapshot?: CanvasSourceSnapshot;
+  sourceSnapshots?: CanvasSourceSnapshot[];
   parameters?: {
     model?: string;
     resolution?: string;
@@ -44,6 +45,7 @@ export interface CanvasGenerationAttempt {
     duration?: number;
     ratio?: string;
     userConfirmed?: boolean;
+    mode?: 'first_frame' | 'first_last_frame' | 'multi_modal_reference';
   };
   resultAssetPath?: string;
   error?: string;
@@ -228,6 +230,8 @@ export class CanvasGenerationService {
     userConfirmed?: boolean;
     sourceImagePaths?: string[];
     sourceImageIds?: string[];
+    referenceImagePaths?: string[];
+    mode?: string;
   }): Promise<CanvasGenerationAttempt> {
     const files = new MakerCanvasFiles(this.projectRoot);
     await files.assertWritableForGeneration();
@@ -241,6 +245,16 @@ export class CanvasGenerationService {
         ? [options.sourceImageId]
         : [];
     const model = options.model || '2.0';
+    const referenceImagePaths = options.referenceImagePaths || [];
+    const imagePaths = [...sourceImagePaths, ...referenceImagePaths];
+    const mode =
+      options.mode || (imagePaths.length === 1 ? 'first_frame' : 'multi_modal_reference');
+    if (!['first_frame', 'first_last_frame', 'multi_modal_reference'].includes(mode))
+      throw new Error('视频输入模式无效。');
+    if (mode === 'first_frame' && imagePaths.length !== 1)
+      throw new Error('首帧模式需要一张图片。');
+    if (mode === 'first_last_frame' && imagePaths.length !== 2)
+      throw new Error('首尾帧模式需要两张图片，顺序为首帧、尾帧。');
     const duration = options.duration ?? 4;
     const ratio = options.ratio || 'adaptive';
     if (!['2.0', '2.5'].includes(model)) throw new Error('视频模型无效。');
@@ -250,13 +264,17 @@ export class CanvasGenerationService {
       throw new Error('视频时长超出当前模型支持范围。');
     if (!['adaptive', '16:9', '4:3', '1:1', '3:4', '9:16', '21:9'].includes(ratio))
       throw new Error('视频比例无效。');
-    if (model === '2.5' && sourceImagePaths.length === 1 && ratio !== 'adaptive')
+    if (model === '2.5' && mode !== 'multi_modal_reference' && ratio !== 'adaptive')
       throw new Error('Seedance 2.5 首帧生成只能使用自动比例。');
     if (model === '2.5' && options.userConfirmed !== true)
       throw new Error('请先确认视频积分粗估；实际按上游 token 扣费。');
-    if (!sourceImagePaths.length || sourceImagePaths.length > (model === '2.5' ? 30 : 9))
+    if (!imagePaths.length || imagePaths.length > (model === '2.5' ? 30 : 9))
       throw new Error('视频参考图数量超出当前模型支持范围。');
     this.assertImageSources(document, sourceImageIds, sourceImagePaths, files);
+    for (const referencePath of referenceImagePaths) {
+      if (!files.readMedia(referencePath).type.startsWith('image/'))
+        throw new Error('视频参考素材必须是图片。');
+    }
     if (options.targetNodeId) {
       const target = document.nodes.find((node) => node.id === options.targetNodeId);
       if (!target || (target.type !== 'video' && target.type !== 'video-source')) {
@@ -272,6 +290,7 @@ export class CanvasGenerationService {
       sourceImageId: options.sourceImageId,
       sourceImagePaths,
       sourceImageIds,
+      referenceImagePaths,
       targetNodeId: options.targetNodeId,
     });
     attempt.sourceImagePath = sourceImagePaths[0];
@@ -279,7 +298,12 @@ export class CanvasGenerationService {
     attempt.sourceSnapshot = snapshotCanvasSource(
       document.nodes.find((node) => node.id === sourceImageIds[0])
     );
+    attempt.sourceSnapshots = sourceImageIds.flatMap((id) => {
+      const snapshot = snapshotCanvasSource(document.nodes.find((node) => node.id === id));
+      return snapshot ? [snapshot] : [];
+    });
     attempt.parameters = {
+      mode: mode as 'first_frame' | 'first_last_frame' | 'multi_modal_reference',
       model,
       resolution: options.resolution,
       duration,
@@ -293,11 +317,18 @@ export class CanvasGenerationService {
         name: 'create_video_task',
         manager: this.remoteProxyManager,
         args: {
-          mode: sourceImagePaths.length === 1 ? 'first_frame' : 'multi_modal_reference',
+          mode,
           prompt: options.prompt,
-          images: sourceImagePaths.map((url) => ({
+          images: imagePaths.map((url, index) => ({
             url,
-            role: sourceImagePaths.length === 1 ? 'first_frame' : 'reference_image',
+            role:
+              mode === 'first_frame'
+                ? 'first_frame'
+                : mode === 'first_last_frame'
+                  ? index === 0
+                    ? 'first_frame'
+                    : 'last_frame'
+                  : 'reference_image',
           })),
           duration,
           ratio,
@@ -396,6 +427,7 @@ export class CanvasGenerationService {
       targetNodeId: previous.targetNodeId,
       sourceImagePaths: previous.sourceImagePaths,
       sourceImageIds: previous.sourceImageIds,
+      referenceImagePaths: previous.referenceImagePaths,
       ...previous.parameters,
     });
   }

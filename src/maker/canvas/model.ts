@@ -22,6 +22,7 @@ export type CanvasEdgeKind =
 export type CanvasCreateTemplate = 'starter' | 'empty' | 'sequence';
 
 export type CanvasImageOperation = 'generate' | 'variant' | 'outpaint';
+export type CanvasVideoMode = 'first_frame' | 'first_last_frame' | 'multi_modal_reference';
 
 export interface CanvasGenerationResult {
   prompt: string;
@@ -32,6 +33,7 @@ export interface CanvasGenerationResult {
     aspectRatio?: string;
     ratio?: string;
     duration?: number;
+    mode?: CanvasVideoMode;
   };
   operation?: CanvasImageOperation;
   taskId?: string;
@@ -68,6 +70,7 @@ export interface CanvasNode {
   assetPath?: string;
   generationDraft?: CanvasGenerationDraft;
   sourceSnapshot?: CanvasSourceSnapshot;
+  sourceSnapshots?: CanvasSourceSnapshot[];
   videoInfo?: VideoInfo;
   sourceVideoId?: string;
   sequenceSettings?: SequenceSettings;

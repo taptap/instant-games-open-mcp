@@ -66,7 +66,7 @@ export function connectFirstFrame(
   if (to.type !== 'video') {
     throw new CanvasStoreError('首帧只能连到未提交的视频输入卡。', 400, 'INVALID_EDGE');
   }
-  const edges = document.edges.filter((edge) => !(edge.kind === 'first-frame' && edge.to === toId));
+  const edges = document.edges.filter((edge) => !(edge.from === fromId && edge.to === toId));
   edges.push({ id: createId(), from: fromId, to: toId, kind: 'first-frame' });
   return { ...document, edges };
 }

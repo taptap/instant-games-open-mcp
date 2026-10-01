@@ -47,6 +47,83 @@ describe('CanvasGenerationService', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
+  test('first-last video submits explicit roles and retains both source snapshots through retry', async () => {
+    const files = new MakerCanvasFiles(root);
+    const document = await files.create('首尾帧契约验证', 'starter');
+    const sources = document.nodes.slice(0, 2);
+    const service = new CanvasGenerationService(root, {} as any);
+    callRemoteProxyToolMock.mockRejectedValueOnce(new Error('explicit failure')).mockResolvedValue({
+      content: [
+        { type: 'text', text: JSON.stringify({ task_id: 'two-frame-task', status: 'pending' }) },
+      ],
+    } as any);
+    const attempt = await service.createVideo({
+      canvasId: document.id,
+      prompt: '灰狼变身狼王',
+      sourceImageId: sources[0].id,
+      sourceImagePath: sources[0].assetPath!,
+      sourceImageIds: sources.map((node) => node.id),
+      sourceImagePaths: sources.map((node) => node.assetPath!),
+      mode: 'first_last_frame',
+      duration: 5,
+    });
+    expect(attempt.sourceSnapshots?.map((snapshot) => snapshot.nodeId)).toEqual(
+      sources.map((node) => node.id)
+    );
+    expect(attempt.parameters?.mode).toBe('first_last_frame');
+    expect(callRemoteProxyToolMock.mock.calls[0][0].args).toMatchObject({
+      mode: 'first_last_frame',
+      images: [
+        { url: sources[0].assetPath, role: 'first_frame' },
+        { url: sources[1].assetPath, role: 'last_frame' },
+      ],
+    });
+    await service.retry(attempt.id, document.id);
+    expect(callRemoteProxyToolMock.mock.calls[1][0].args).toMatchObject({
+      mode: 'first_last_frame',
+      images: [
+        { url: sources[0].assetPath, role: 'first_frame' },
+        { url: sources[1].assetPath, role: 'last_frame' },
+      ],
+    });
+    await expect(
+      service.createVideo({
+        canvasId: document.id,
+        prompt: '缺少尾帧',
+        sourceImageId: sources[0].id,
+        sourceImagePath: sources[0].assetPath!,
+        mode: 'first_last_frame',
+      })
+    ).rejects.toThrow('两张');
+    expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(2);
+  });
+
+  test('two references do not imply first-last mode, and imported references reach video submission', async () => {
+    const files = new MakerCanvasFiles(root);
+    const document = await files.create('多图参考契约验证', 'starter');
+    const [head, reference] = document.nodes;
+    callRemoteProxyToolMock.mockResolvedValue({
+      content: [
+        { type: 'text', text: JSON.stringify({ task_id: 'reference-task', status: 'pending' }) },
+      ],
+    } as any);
+    const attempt = await new CanvasGenerationService(root, {} as any).createVideo({
+      canvasId: document.id,
+      prompt: '狼王动作',
+      sourceImageId: head.id,
+      sourceImagePath: head.assetPath!,
+      referenceImagePaths: [reference.assetPath!],
+    });
+    expect(attempt.parameters?.mode).toBe('multi_modal_reference');
+    expect(callRemoteProxyToolMock.mock.calls[0][0].args).toMatchObject({
+      mode: 'multi_modal_reference',
+      images: [
+        { url: head.assetPath, role: 'reference_image' },
+        { url: reference.assetPath, role: 'reference_image' },
+      ],
+    });
+  });
+
   test('keeps structured unknown errors and previously mislabeled attempts non-retryable', async () => {
     const files = new MakerCanvasFiles(root);
     const document = await files.create('结果未知', 'empty');

@@ -133,7 +133,7 @@ try {
     } else throw new Error('非预期请求（禁止生成）: ' + url.pathname);
     return route.fulfill({ json: response });
   });
-  await page.goto('http://canvas.test/canvas?project=status-test');
+  await page.goto('http://127.0.0.1/canvas?project=status-test');
   await page.locator('.card-state-overlay').nth(5).waitFor();
   assert.deepEqual(
     await page
@@ -260,6 +260,43 @@ try {
     await page.screenshot({ path: process.env.MAKER_WORKFLOW_ACTIONS_SCREENSHOT });
   }
   assert.deepEqual(errors, []);
+  attempts.splice(0);
+  const tail = { ...head, id: randomUUID(), title: '尾帧狼王', assetPath: 'assets/image/fixture-tail.jpg', x: 60, y: 420 };
+  const start = { ...head, title: '首帧灰狼', x: 60, y: 60 };
+  const twoFrameVideo = { ...video, title: '首尾帧变身视频', x: 430, y: 100, templatePending: true,
+    generation: { prompt: '灰狼连续变身为狼王', sourceImageId: start.id, sourceImageIds: [start.id, tail.id], parameters: { duration: 5 } } };
+  canvas.nodes = [canvas.nodes.find(node => node.type === 'section'), tail, start, twoFrameVideo];
+  canvas.edges = [
+    { id: randomUUID(), from: tail.id, to: twoFrameVideo.id, kind: 'first-frame' },
+    { id: randomUUID(), from: start.id, to: twoFrameVideo.id, kind: 'first-frame' },
+  ];
+  videoResponseStatus = 'failed';
+  await page.reload();
+  const twoFrameCard = page.locator('.card[data-id="' + twoFrameVideo.id + '"]');
+  await twoFrameCard.getByRole('button', { name: '调整参数' }).click();
+  const panel = page.locator('#selection-toolbar');
+  assert.equal(await panel.locator('.generation-reference img').count(), 2);
+  const mode = panel.locator('.generation-field').filter({ hasText: '输入方式' }).locator('select');
+  assert.equal(await mode.inputValue(), 'select_mode');
+  await mode.selectOption('first_last_frame');
+  assert.match(await panel.locator('.generation-reference').nth(0).textContent(), /首帧.*灰狼/);
+  assert.match(await panel.locator('.generation-reference').nth(1).textContent(), /尾帧.*狼王/);
+  assert((await panel.locator('.generation-reference img').nth(0).getAttribute('src')).includes(encodeURIComponent(start.assetPath)));
+  assert((await panel.locator('.generation-reference img').nth(1).getAttribute('src')).includes(encodeURIComponent(tail.assetPath)));
+  if (process.env.MAKER_MULTI_REFERENCE_SCREENSHOT) await page.screenshot({ path: process.env.MAKER_MULTI_REFERENCE_SCREENSHOT });
+  const previousSubmissions = submissions.length;
+  await panel.getByRole('button', { name: '应用并继续' }).click();
+  await twoFrameCard.locator('.card-state-failed').waitFor();
+  assert.equal(submissions.length, previousSubmissions + 1);
+  const submitted = submissions.at(-1).input;
+  assert.deepEqual(submitted.sourceImageIds, [start.id, tail.id]);
+  assert.deepEqual(submitted.sourceImagePaths, [start.assetPath, tail.assetPath]);
+  assert.equal(submitted.mode, 'first_last_frame');
+  assert.equal(submitted.targetNodeId, twoFrameVideo.id);
+  assert.equal(canvas.nodes.filter(node => node.type === 'video').length, 1);
+  assert.equal(await panel.isVisible(), false);
+  assert.deepEqual(errors, []);
+  console.log('PASS 双图编辑显示两个当前引用，首尾顺序不受节点/边排列影响，显式选择模式，提交双图并复用当前卡，失败不新建节点。');
   console.log(
     'PASS 五种遮罩状态、全卡覆盖、旋转动画、加载阻止点击、待处理可编辑、查询原任务、减少动效、完成移除遮罩。'
   );

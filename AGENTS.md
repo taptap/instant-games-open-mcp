@@ -471,7 +471,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   animation.ts 负责独立动画卡：只复制已保存图集路径和帧索引，不复制图片字节，不引用可变处理草稿。sequence-animation 是来源关系，不是实时绑定；删除源卡只删除连线，已创建动画仍可播放。播放状态不落盘，重载默认暂停；重绘时回收旧渲染实例和动画调度。
   添加模板库内置普通序列帧和角色四方向预设，素材在 presets.ts/presetData.json 随包提供；列表不传字节，显式添加时通过既有受控导入后复用模板实例化。保留四方向分支，不依赖用户项目已有示例，不自动生成。内置模板只读，修改实例可另存用户模板。
   模板列表只返回24条分页摘要，templateCatalog.ts缓存文件指纹与摘要，不把完整工作流传给列表；完整定义按ID读取。首图封面由templateCovers.ts按需缩小并按模板版本缓存，最多2并发，翻页/关闭释放资源，不加载视频。无模板总数硬上限，仍保留单文件和封面尺寸限制。
-  派生卡的 sourceSnapshot 由 dependencies.ts 统一计算和校验；上游变化只标记过期，不自动触发生成或覆盖下游结果，图片/视频、序列帧和动画均由卡片内明确刷新。失败时保留旧结果，不能把刷新判断重新塞回 page.ts。
+  派生卡的 sourceSnapshot/sourceSnapshots 由 dependencies.ts 统一计算和校验；该模块只负责关系与版本查询，模板待处理传播由 templateWorkflow.ts 负责。上游变化只标记过期，不自动触发生成或覆盖下游结果，图片/视频、序列帧和动画均由卡片内明确刷新。失败时保留旧结果，不能把刷新判断重新塞回 page.ts。
+  视频当前引用以 edges 为准，generation 来源仅为历史记录和稳定顺序；videoInputs.ts 解析当前来源，首尾角色与输入模式只在视频业务层解释。每张来源在提交时记录快照，恢复任务不得补回已断开的引用或用当前版本覆盖历史证据。旧多图未保存 mode 时由用户明确选择，不猜测首尾角色、不自动付费重提。
   frameEditor.ts 在浏览器记录单帧操作并按归一化坐标批量重放，全部处理成功才交给 sequenceUi 替换草稿；不得复制同一帧代替批量处理，不做隐式智能跟踪。新任务时长与帧率集中在 sequenceModel.ts 的 DEFAULT_SEQUENCE_DURATION / DEFAULT_SEQUENCE_FPS，旧存档不迁移；已保存图集可解帧编辑。画布页面内联函数必须显式传入跨模块依赖，并以实际打包页面验收。
   帧编辑页负责画面，整理与输出页负责集合与输出；frameCollection.ts 处理选择、删除和复制等集合变换。
   backgroundRemoval.ts 独立实现有边界支持的大面积纯色识别及像素处理，backgroundUi.ts 提供参数预览；

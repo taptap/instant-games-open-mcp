@@ -1,17 +1,35 @@
 /// <reference lib="dom" />
 import type {
   CanvasDocument,
+  CanvasNode,
   CanvasTemplateFlow,
   CanvasNodeType,
   CanvasEdgeKind,
 } from './model.js';
 import { CanvasStoreError } from './model.js';
-import {
-  canvasReferences,
-  canvasDependents,
-  canvasNeedsProcessing,
-  invalidateCanvasDependents,
-} from './dependencies.js';
+import { canvasReferences, canvasDependents, isCanvasNodeStale } from './dependencies.js';
+
+export function canvasNeedsProcessing(
+  document: CanvasDocument,
+  node: CanvasNode,
+  visiting = new Set<string>()
+): boolean {
+  if (node.templatePending) return true;
+  if (visiting.has(node.id)) return true;
+  if (isCanvasNodeStale(node, canvasReferences(document, node.id))) return true;
+  visiting.add(node.id);
+  const pending = canvasReferences(document, node.id).some((source) =>
+    canvasNeedsProcessing(document, source, visiting)
+  );
+  visiting.delete(node.id);
+  return pending;
+}
+
+export function invalidateCanvasDependents(document: CanvasDocument, nodeId: string): void {
+  for (const node of canvasDependents(document, nodeId)) {
+    if (node.sectionId && node.type !== 'section') node.templatePending = true;
+  }
+}
 
 export type TemplateOutputDecision =
   | { kind: 'reuse'; nodeId: string }

@@ -44,13 +44,16 @@ import { createFrameCollection } from './frameCollection.js';
 import { openAtlasCompare } from './atlasCompare.js';
 import { createCanvasGenerationUi, imageEditSources } from './generationUi.js';
 import { downloadCanvasImage } from './imageExport.js';
-import { createTemplateWorkflow } from './templateWorkflow.js';
+import {
+  createTemplateWorkflow,
+  canvasNeedsProcessing,
+  invalidateCanvasDependents,
+} from './templateWorkflow.js';
+import { videoInputSources, videoAttemptMatchesSources } from './videoInputs.js';
 import {
   canvasNodeVersion,
   canvasReferences,
   canvasDependents,
-  canvasNeedsProcessing,
-  invalidateCanvasDependents,
   isCanvasNodeStale,
   isCanvasSourceCurrent,
   metadataVersion,
@@ -126,6 +129,8 @@ export function getCanvasPageHtml(): string {
     canvasReferences.toString(),
     canvasDependents.toString(),
     canvasNeedsProcessing.toString(),
+    videoInputSources.toString(),
+    videoAttemptMatchesSources.toString(),
     invalidateCanvasDependents.toString(),
     createSequenceUiController.toString(),
     createBrowserCanvasDocumentStore.toString(),
@@ -447,7 +452,7 @@ export function getCanvasPageHtml(): string {
     [
       "    if (documentState.edges.some(function (edge) { return edge.to === toId && edge.from === fromId; })) { setError(''); return; }",
       '    if (shouldRemember !== false) remember();',
-      '    documentState.edges = documentState.edges.filter(function (edge) { return edge.to !== toId; });',
+      '    documentState.edges = documentState.edges.filter(function (edge) { return !(edge.to === toId && edge.from === fromId); });',
     ].join('\n')
   );
   page = replaceCanvasPageText(
@@ -794,6 +799,7 @@ export function getCanvasPageHtml(): string {
       '      delete node.generationDraft;',
       '      delete node.generation;',
       '      delete node.sourceSnapshot;',
+      '      delete node.sourceSnapshots;',
       '      await loadMedia(saved.relativePath);',
       '      selected.clear();',
       '      selected.add(node.id);',

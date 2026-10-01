@@ -1,4 +1,6 @@
 import { createCanvasGenerationUi } from '../generationUi.js';
+import { snapshotCanvasSource } from '../dependencies.js';
+import { canvasNeedsProcessing } from '../templateWorkflow.js';
 
 function fixture(status = 'succeeded') {
   const document: any = {
@@ -53,6 +55,149 @@ test('template recovers an existing successful attempt without new paid generati
   expect(options.store.createVideo).not.toHaveBeenCalled();
   expect(document.nodes[1].assetPath).toBe('new.mp4');
   expect(document.edges).toHaveLength(1);
+});
+
+test('restoring a two-image video keeps both source links without paid regeneration', async () => {
+  const { document, attempt, options, ui } = fixture();
+  document.nodes.push({
+    id: 'tail',
+    type: 'image',
+    assetPath: 'assets/image/tail.png',
+    x: 0,
+    y: 300,
+    width: 300,
+  });
+  document.edges.push({ id: 'tail-edge', from: 'tail', to: 'video', kind: 'image-to-video' });
+  Object.assign(attempt, {
+    sourceImageIds: ['head', 'tail'],
+    sourceImagePaths: ['assets/image/new.png', 'assets/image/tail.png'],
+  });
+  expect(await ui.runTemplateVideo('video', 4)).toBe(true);
+  expect(document.nodes[1].generation.sourceImageIds).toEqual(['head', 'tail']);
+  expect(document.edges.map((edge: any) => edge.from)).toEqual(['head', 'tail']);
+  expect(options.store.createVideo).not.toHaveBeenCalled();
+});
+
+function twoFrameFixture() {
+  const fixtureResult = fixture();
+  const { document, options } = fixtureResult;
+  delete document.templateFlow;
+  const head = document.nodes[0];
+  const video = document.nodes[1];
+  const tail = { ...head, id: 'tail', assetPath: 'assets/image/tail.png' };
+  document.nodes.unshift(tail);
+  document.edges.unshift({ id: 'tail-edge', from: tail.id, to: video.id, kind: 'image-to-video' });
+  video.generation = {
+    prompt: '从灰狼变为狼王',
+    sourceImageId: head.id,
+    sourceImageIds: [head.id, tail.id],
+    parameters: { mode: 'first_last_frame' },
+  };
+  options.store.listGeneration.mockResolvedValue([]);
+  options.store.createVideo.mockImplementation(async (canvasId, input) => ({
+    ...fixtureResult.attempt,
+    ...input,
+    canvasId,
+    parameters: { mode: input.mode },
+    sourceSnapshots: input.sourceImageIds.map((id: string) =>
+      snapshotCanvasSource(document.nodes.find((node: any) => node.id === id))
+    ),
+  }));
+  return { ...fixtureResult, head, tail, video };
+}
+
+test('two-frame workflow submits all current references in role order and invalidates on tail changes', async () => {
+  const { document, ui, options, tail, video } = twoFrameFixture();
+  expect(await ui.runTemplateVideo('video', 4)).toBe(true);
+  expect(options.store.createVideo).toHaveBeenCalledWith(
+    'canvas',
+    expect.objectContaining({
+      mode: 'first_last_frame',
+      sourceImageIds: ['head', 'tail'],
+      sourceImagePaths: ['assets/image/new.png', 'assets/image/tail.png'],
+      targetNodeId: 'video',
+    })
+  );
+  expect(video.generation.parameters.mode).toBe('first_last_frame');
+  expect(video.sourceSnapshots).toHaveLength(2);
+  expect(canvasNeedsProcessing(document, video)).toBe(false);
+  tail.assetPath = 'assets/image/changed-tail.png';
+  expect(canvasNeedsProcessing(document, video)).toBe(true);
+  expect(video.assetPath).toBe('new.mp4');
+});
+
+test('a missing tail never silently degrades into a paid single-image request', async () => {
+  const { document, ui, options } = twoFrameFixture();
+  document.edges = document.edges.filter((edge: any) => edge.from !== 'tail');
+  expect(await ui.runTemplateVideo('video', 4)).toBe(false);
+  expect(options.store.createVideo).not.toHaveBeenCalled();
+  expect(options.setError).toHaveBeenCalledWith(expect.stringContaining('两张'));
+});
+
+test('unsettled video from an old tail blocks resubmission even when the first frame is unchanged', async () => {
+  const { ui, options, attempt } = twoFrameFixture();
+  options.store.listGeneration.mockResolvedValue([
+    {
+      ...attempt,
+      status: 'unknown',
+      sourceImageIds: ['head', 'tail'],
+      sourceImagePaths: ['assets/image/new.png', 'assets/image/old-tail.png'],
+      parameters: { mode: 'first_last_frame' },
+    } as any,
+  ]);
+  expect(await ui.runTemplateVideo('video', 4)).toBe(false);
+  expect(options.store.createVideo).not.toHaveBeenCalled();
+});
+
+test.each(['head', 'tail'])(
+  'restoring a result does not reconnect the removed %s reference',
+  async (removedId) => {
+    const { ui, document, options, attempt, head, tail, video } = twoFrameFixture();
+    Object.assign(attempt, {
+      sourceImageIds: [head.id, tail.id],
+      sourceImagePaths: [head.assetPath, tail.assetPath],
+      sourceSnapshots: [snapshotCanvasSource(head), snapshotCanvasSource(tail)],
+    });
+    delete video.assetPath;
+    document.edges = document.edges.filter((edge: any) => edge.from !== removedId);
+    const edgesBefore = structuredClone(document.edges);
+    options.store.listGeneration.mockResolvedValue([attempt]);
+    await ui.restore();
+    expect(video.assetPath).toBe(attempt.resultAssetPath);
+    expect(document.edges).toEqual(edgesBefore);
+    expect(canvasNeedsProcessing(document, video)).toBe(true);
+    expect(options.store.createVideo).not.toHaveBeenCalled();
+  }
+);
+
+test('legacy multi-image recovery retains missing source evidence instead of accepting the remaining head', async () => {
+  const { ui, document, options, attempt, head, tail, video } = twoFrameFixture();
+  Object.assign(attempt, {
+    sourceImageIds: [head.id, tail.id],
+    sourceImagePaths: [head.assetPath, tail.assetPath],
+    sourceSnapshot: snapshotCanvasSource(head),
+  });
+  delete video.assetPath;
+  document.nodes = document.nodes.filter((node: any) => node.id !== tail.id);
+  document.edges = document.edges.filter((edge: any) => edge.from !== tail.id);
+  options.store.listGeneration.mockResolvedValue([attempt]);
+  await ui.restore();
+  expect(video.sourceSnapshots.map((snapshot: any) => snapshot.nodeId)).toEqual([head.id, tail.id]);
+  expect(canvasNeedsProcessing(document, video)).toBe(true);
+  expect(options.store.createVideo).not.toHaveBeenCalled();
+});
+
+test('tail changes during generation keep the completed video stale and preserve task input snapshots', async () => {
+  const { ui, document, options, attempt, head, tail, video } = twoFrameFixture();
+  const snapshots = [snapshotCanvasSource(head), snapshotCanvasSource(tail)];
+  options.store.createVideo.mockImplementation(async (canvasId, input) => {
+    tail.assetPath = 'assets/image/changed-during-generation.png';
+    return { ...attempt, ...input, canvasId, sourceSnapshots: snapshots };
+  });
+  await ui.runTemplateVideo(video.id, 4);
+  expect(video.sourceSnapshots).toEqual(snapshots);
+  expect(canvasNeedsProcessing(document, video)).toBe(true);
+  expect(options.store.createVideo).toHaveBeenCalledTimes(1);
 });
 
 test('template queries pending task at 120 seconds without resubmitting', async () => {

@@ -176,6 +176,23 @@ export class MakerCanvasFiles {
           node.sourceSnapshot = snapshotCanvasSource(
             template.nodes.find((source) => source.id === node.sourceSnapshot!.nodeId)
           );
+        if (node.sourceSnapshots)
+          node.sourceSnapshots = node.sourceSnapshots.flatMap((snapshot) => {
+            const oldSource = preset.nodes.find((source) => source.id === snapshot.nodeId);
+            const newSource = template.nodes.find((source) => source.id === snapshot.nodeId);
+            const next = snapshotCanvasSource(newSource);
+            return next
+              ? [
+                  {
+                    ...next,
+                    version:
+                      snapshot.version === snapshotCanvasSource(oldSource)?.version
+                        ? next.version
+                        : snapshot.version,
+                  },
+                ]
+              : [];
+          });
       }
       const parsed = this.parseTemplate(template);
       this.assertAssets({ nodes: parsed.nodes } as CanvasDocument);
@@ -386,7 +403,7 @@ export class MakerCanvasFiles {
     const sourceImageId = sourceImageIds.find((id) =>
       source.nodes.some((node) => node.id === id && node.type === 'image')
     );
-    if (sourceImageId) keepIds.add(sourceImageId);
+    for (const id of sourceImageIds) keepIds.add(id);
 
     const animationEdge = source.edges.find(
       (edge) => edge.kind === 'sequence-animation' && edge.from === sequence.id
@@ -440,6 +457,8 @@ export class MakerCanvasFiles {
           copy.sourceSnapshot.nodeId =
             ids.get(copy.sourceSnapshot.nodeId) || copy.sourceSnapshot.nodeId;
         }
+        for (const snapshot of copy.sourceSnapshots || [])
+          snapshot.nodeId = ids.get(snapshot.nodeId) || snapshot.nodeId;
         if (copy.type === 'video-source' && copy.assetPath) {
           const sourceFile = this.readMedia(copy.assetPath).file;
           const extension = path.extname(sourceFile).toLowerCase().slice(1);
@@ -451,9 +470,15 @@ export class MakerCanvasFiles {
         return copy;
       });
     for (const copy of nodes) {
-      if (!copy.sourceSnapshot) continue;
-      const sourceNode = nodes.find((node) => node.id === copy.sourceSnapshot?.nodeId);
-      copy.sourceSnapshot = snapshotCanvasSource(sourceNode);
+      for (const snapshot of [
+        ...(copy.sourceSnapshots || []),
+        ...(copy.sourceSnapshot ? [copy.sourceSnapshot] : []),
+      ]) {
+        const oldSource = source.nodes.find((node) => ids.get(node.id) === snapshot.nodeId);
+        const newSource = nodes.find((node) => node.id === snapshot.nodeId);
+        if (snapshot.version === snapshotCanvasSource(oldSource)?.version && newSource)
+          snapshot.version = snapshotCanvasSource(newSource)!.version;
+      }
     }
     const edges = source.edges
       .filter((edge) => keepIds.has(edge.from) && keepIds.has(edge.to))
@@ -771,26 +796,16 @@ export class MakerCanvasFiles {
       }
     }
     const edges = input.edges.map((item) => this.parseEdge(item, nodes));
-    for (const node of nodes) {
-      const sourceId = node.generation?.sourceImageId;
-      if (
-        sourceId &&
-        node.type === 'video-source' &&
-        nodes.some((source) => source.id === sourceId) &&
-        !edges.some(
-          (edge) => edge.kind === 'image-to-video' && edge.from === sourceId && edge.to === node.id
-        )
-      ) {
-        fail('图生视频结果必须保留对应的图片来源关系。', 400, 'INVALID_EDGE');
-      }
-    }
     const seen = new Set<string>();
     const edgeIds = new Set<string>();
     for (const edge of edges) {
       if (edgeIds.has(edge.id)) fail('画布连线标识重复。', 400, 'INVALID_EDGE');
       edgeIds.add(edge.id);
-      if (seen.has(edge.to)) fail('一张视频卡只能有一条首帧线。', 400, 'INVALID_EDGE');
-      seen.add(edge.to);
+      const connection = ['image-to-video', 'first-frame', 'image-variant'].includes(edge.kind)
+        ? edge.to + ':' + edge.from
+        : edge.to;
+      if (seen.has(connection)) fail('画布来源连线不能重复。', 400, 'INVALID_EDGE');
+      seen.add(connection);
     }
     if (
       input.deletedGenerationIds !== undefined &&
@@ -888,6 +903,27 @@ export class MakerCanvasFiles {
       if (!ID.test(nodeId) || !version) fail('来源快照无效。', 400, 'INVALID_DOCUMENT');
       sourceSnapshot = { nodeId, version };
     }
+    let sourceSnapshots: CanvasSourceSnapshot[] | undefined;
+    if (node.sourceSnapshots !== undefined) {
+      if (
+        !Array.isArray(node.sourceSnapshots) ||
+        node.sourceSnapshots.length > 30 ||
+        !['image', 'video-source', 'sequence', 'animation'].includes(String(node.type))
+      )
+        fail('来源快照列表无效。', 400, 'INVALID_DOCUMENT');
+      sourceSnapshots = node.sourceSnapshots.map((value) => {
+        if (!value || typeof value !== 'object') fail('来源快照无效。', 400, 'INVALID_DOCUMENT');
+        const input = value as Record<string, unknown>;
+        const nodeId = text(input.nodeId, 36, '来源节点标识');
+        const version = text(input.version, 10000, '来源版本');
+        if (!ID.test(nodeId) || !version) fail('来源快照无效。', 400, 'INVALID_DOCUMENT');
+        return { nodeId, version };
+      });
+      if (
+        new Set(sourceSnapshots.map((snapshot) => snapshot.nodeId)).size !== sourceSnapshots.length
+      )
+        fail('来源快照重复。', 400, 'INVALID_DOCUMENT');
+    }
     const sequenceSettings =
       node.sequenceSettings === undefined
         ? undefined
@@ -931,6 +967,9 @@ export class MakerCanvasFiles {
       }
       if (sourceImageIds && new Set(sourceImageIds).size !== sourceImageIds.length) {
         fail('图片来源标识不能重复。', 400, 'INVALID_DOCUMENT');
+      }
+      if (sourceImageIds?.some((id) => !ID.test(id))) {
+        fail('图片来源标识列表无效。', 400, 'INVALID_DOCUMENT');
       }
       const referenceImagePaths = input.referenceImagePaths;
       if (
@@ -1018,6 +1057,7 @@ export class MakerCanvasFiles {
       ...(node.templateRevision ? { templateRevision: node.templateRevision as number } : {}),
       ...(node.templatePending ? { templatePending: true } : {}),
       ...(sourceSnapshot ? { sourceSnapshot } : {}),
+      ...(sourceSnapshots ? { sourceSnapshots } : {}),
       ...(node.text === undefined ? {} : { text: text(node.text, 4000, '文字') }),
       ...(assetPath ? { assetPath } : {}),
       ...(videoInfo ? { videoInfo } : {}),
@@ -1035,7 +1075,15 @@ export class MakerCanvasFiles {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       fail('生成参数无效。', 400, 'INVALID_DOCUMENT');
     const input = value as Record<string, unknown>;
+    if (
+      input.mode !== undefined &&
+      !['first_frame', 'first_last_frame', 'multi_modal_reference'].includes(String(input.mode))
+    )
+      fail('视频输入模式无效。', 400, 'INVALID_DOCUMENT');
     return {
+      ...(input.mode === undefined
+        ? {}
+        : { mode: input.mode as 'first_frame' | 'first_last_frame' | 'multi_modal_reference' }),
       ...(input.model === undefined ? {} : { model: text(input.model, 80, '模型') }),
       ...(input.resolution === undefined
         ? {}
@@ -1181,13 +1229,9 @@ export class MakerCanvasFiles {
     }
     if (
       edge.kind === 'image-to-video' &&
-      (from?.type !== 'image' ||
-        !from.assetPath ||
-        to?.type !== 'video-source' ||
-        !to.assetPath ||
-        to.generation?.sourceImageId !== from.id)
+      (from?.type !== 'image' || !from.assetPath || to?.type !== 'video-source' || !to.assetPath)
     ) {
-      fail('图生视频关系必须对应真实结果记录中的来源图片。', 400, 'INVALID_EDGE');
+      fail('图生视频引用必须连接已保存的图片与视频卡。', 400, 'INVALID_EDGE');
     }
     if (
       edge.kind === 'image-variant' &&

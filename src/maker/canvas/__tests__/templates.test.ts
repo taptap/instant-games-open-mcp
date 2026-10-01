@@ -4,16 +4,52 @@ import path from 'node:path';
 import { createId, emptyDocument, type CanvasDocument } from '../model.js';
 import { createCanvasTemplateModel } from '../templates.js';
 import { MakerCanvasFiles } from '../files.js';
-import {
-  snapshotCanvasSource,
-  isCanvasNodeStale,
-  invalidateCanvasDependents,
-} from '../dependencies.js';
-import { createTemplateWorkflow } from '../templateWorkflow.js';
+import { snapshotCanvasSource, isCanvasNodeStale } from '../dependencies.js';
+import { createTemplateWorkflow, invalidateCanvasDependents } from '../templateWorkflow.js';
 import { defaultSequenceSettings } from '../sequence.js';
 import { imageEditSources } from '../generationUi.js';
 
 const model = createCanvasTemplateModel();
+
+test('two-source snapshots and video input mode survive independent template copies', () => {
+  const document = fixture();
+  const tail = { ...document.nodes[0], id: createId(), assetPath: 'assets/image/tail.png' };
+  document.nodes.push(tail);
+  document.nodes[1].generation!.sourceImageIds = [document.nodes[0].id, tail.id];
+  document.nodes[1].generation!.parameters = { mode: 'first_last_frame' };
+  document.nodes[1].sourceSnapshots = [
+    snapshotCanvasSource(document.nodes[0])!,
+    snapshotCanvasSource(tail)!,
+  ];
+  document.edges.push({
+    id: createId(),
+    from: tail.id,
+    to: document.nodes[1].id,
+    kind: 'image-to-video',
+  });
+  const template = model.snapshot(
+    document,
+    document.nodes.map((node) => node.id),
+    '首尾帧'
+  );
+  const copy = model.instantiate(template, { x: 0, y: 0 });
+  const video = copy.nodes.find((node) => node.type === 'video-source')!;
+  expect(video.generation?.parameters?.mode).toBe('first_last_frame');
+  expect(video.sourceSnapshots?.map((snapshot) => snapshot.nodeId)).toEqual(
+    video.generation?.sourceImageIds
+  );
+  expect(
+    video.sourceSnapshots?.every((snapshot) =>
+      copy.nodes.some((node) => node.id === snapshot.nodeId)
+    )
+  ).toBe(true);
+  expect(
+    isCanvasNodeStale(
+      video,
+      copy.nodes.filter((node) => video.generation?.sourceImageIds?.includes(node.id))
+    )
+  ).toBe(false);
+});
 
 function fixture(): CanvasDocument {
   const document = emptyDocument('游戏角色工作流');

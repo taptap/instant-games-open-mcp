@@ -258,6 +258,8 @@ export async function handleCanvasProjectRoute(options: {
         userConfirmed: body.userConfirmed === true,
         sourceImagePaths: stringList(body.sourceImagePaths),
         sourceImageIds: stringList(body.sourceImageIds),
+        referenceImagePaths: stringList(body.referenceImagePaths),
+        mode: typeof body.mode === 'string' ? body.mode : undefined,
       });
       send(response, 200, attempt);
       return true;
