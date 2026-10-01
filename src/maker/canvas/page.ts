@@ -41,7 +41,6 @@ import { applyFrameOperations, openFrameEditor } from './frameEditor.js';
 import { createBackgroundRemoval } from './backgroundRemoval.js';
 import { openBackgroundEditor } from './backgroundUi.js';
 import { createFrameCollection } from './frameCollection.js';
-import { openAtlasCompare } from './atlasCompare.js';
 import { createCanvasGenerationUi, imageEditSources } from './generationUi.js';
 import { downloadCanvasImage } from './imageExport.js';
 import {
@@ -88,7 +87,6 @@ export function getCanvasPageHtml(): string {
     createBackgroundRemoval.toString(),
     openBackgroundEditor.toString(),
     createFrameCollection.toString(),
-    openAtlasCompare.toString(),
     'function __name(target) { return target; }',
     'const MAX_SEQUENCE_FRAMES = ' + MAX_SEQUENCE_FRAMES + ';',
     'const MAX_SEQUENCE_SIDE = ' + MAX_SEQUENCE_SIDE + ';',
@@ -745,6 +743,7 @@ export function getCanvasPageHtml(): string {
       '.generation-action-primary { background: #5b4728; border-color: #c99649; color: #fff1cf; }',
       '.generation-action:disabled { cursor: wait; opacity: .55; }',
       '.generation-status { color: #b7b1a6; font-size: 12px; }',
+      '.generation-credits { position:absolute; top:8px; right:8px; max-width:calc(100% - 16px); box-sizing:border-box; padding:3px 7px; border-radius:5px; background:#171b24dc; color:#e5dfd2; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }',
       '.generation-status-failed, .generation-status-unknown { color: #ff9c8a; }',
       '.generation-status-succeeded { color: #b9f0d3; }',
       '.generation-status-running { color: #f1d18f; }',
@@ -1059,7 +1058,7 @@ export function getCanvasPageHtml(): string {
   );
   page = page.replace(
     '  void boot().catch',
-    '  const compareButton = document.createElement("button"); compareButton.type = "button"; compareButton.id = "compare-atlases"; compareButton.textContent = "图集对比"; compareButton.addEventListener("click", function () { openAtlasCompare({ nodes: documentState ? documentState.nodes : [], mediaUrl: store.mediaUrl }); }); document.getElementById("status").before(compareButton); sequenceEditor = createSequenceEditor({ maxFrames: MAX_SEQUENCE_FRAMES, controller: sequenceUi, frameCollection, backgroundRemoval, openBackgroundEditor, openFrameEditor, mediaUrl: store.mediaUrl, actions: sequenceActionsForCard }); void boot().catch'
+    '  sequenceEditor = createSequenceEditor({ maxFrames: MAX_SEQUENCE_FRAMES, controller: sequenceUi, frameCollection, backgroundRemoval, openBackgroundEditor, openFrameEditor, mediaUrl: store.mediaUrl, actions: sequenceActionsForCard }); void boot().catch'
   );
   page = page.replace(
     "window.addEventListener('keydown', function (event) {",
@@ -1298,6 +1297,7 @@ export function getCanvasPageHtml(): string {
     '      world.append(card);',
     [
       '      const templateStatus = templateWorkflow && templateWorkflow.status(node.id);',
+      '      const creditsLabel = generationUi && generationUi.creditsLabel(node); if (creditsLabel) { const credits = document.createElement("small"); credits.className = "generation-credits"; credits.textContent = creditsLabel; credits.title = "当前结果的 MCP 返回积分，不是累计消耗或余额；未返回不代表免费，最终扣费以账单为准。"; card.append(credits); }',
       '      const nodeBusy = Boolean((generationUi && generationUi.isNodeBusy(node.id)) || (templateWorkflow && templateWorkflow.isNodeLoading(node.id)));',
       '      const generationState = generationUi && generationUi.nodeState(node.id);',
       '      const sequenceState = node.type === "sequence" && sequenceUi.view(node.id).run;',
@@ -1391,5 +1391,8 @@ export function getCanvasPageHtml(): string {
     '</style>',
     CANVAS_CARD_STATUS_STYLES + CANVAS_LOG_STYLES + '</style>'
   );
-  return page;
+  return page.replace(
+    '<title data-maker-canvas="maker-canvas-page">创作画布</title>',
+    '<title data-maker-canvas="maker-canvas-page">序列帧动画</title>'
+  );
 }

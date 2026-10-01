@@ -47,6 +47,93 @@ describe('CanvasGenerationService', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
+  test.each([
+    { task_id: 'failed-task', error: '内容校验失败', expected: '内容校验失败' },
+    { task_id: 'failed-task', error: { message: '上游生成失败' }, expected: '上游生成失败' },
+    { agent_instruction: '任务失败：请调整输入', expected: '任务失败：请调整输入' },
+  ])('keeps a terminal video failure instead of displaying pending: %j', async (failure) => {
+    const files = new MakerCanvasFiles(root);
+    const document = await files.create('视频失败状态', 'starter');
+    const source = document.nodes[0];
+    callRemoteProxyToolMock.mockResolvedValue({
+      structuredContent: { ...failure, status: 'failed' },
+      content: [],
+    } as any);
+    const service = new CanvasGenerationService(root, {} as any);
+    const attempt = await service.createVideo({
+      canvasId: document.id,
+      prompt: '游戏角色动作',
+      sourceImageId: source.id,
+      sourceImagePath: source.assetPath!,
+      duration: 4,
+    });
+    expect(attempt.status).toBe('failed');
+    expect(attempt.error).toBe(failure.expected);
+    expect(service.list(document.id)[0].status).toBe('failed');
+    if (attempt.taskId) {
+      const queried = await service.queryVideo(attempt.id, document.id);
+      expect(queried.status).toBe('failed');
+      expect(queried.error).toBe(failure.expected);
+    }
+  });
+
+  test.each([undefined, -1, '20', 0, 20.5])(
+    'records only returned numeric credits: %s',
+    async (credits) => {
+      const files = new MakerCanvasFiles(root);
+      const document = await files.create('积分记录', 'starter');
+      fs.writeFileSync(path.join(root, 'assets/image/generated.png'), Buffer.from('generated'));
+      callRemoteProxyToolMock.mockResolvedValue({
+        structuredContent: {
+          localPath: 'assets/image/generated.png',
+          credits,
+          estimated_credits: 100,
+        },
+        content: [],
+      } as any);
+      const service = new CanvasGenerationService(root, {} as any);
+      const attempt = await service.generateImage({ canvasId: document.id, prompt: '游戏角色' });
+      expect(attempt.status).toBe('succeeded');
+      expect(service.list(document.id)[0].credits).toBe(
+        typeof credits === 'number' && credits >= 0 ? credits : undefined
+      );
+    }
+  );
+
+  test('retains returned video credits across completion, reload and queries without credits', async () => {
+    const files = new MakerCanvasFiles(root);
+    const document = await files.create('视频积分记录', 'starter');
+    const source = document.nodes[0];
+    fs.mkdirSync(path.join(root, 'assets/video'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'assets/video/generated.mp4'), Buffer.from('video'));
+    const payload = {
+      task_id: 'credits-task',
+      status: 'succeeded',
+      localPath: 'assets/video/generated.mp4',
+    };
+    callRemoteProxyToolMock.mockResolvedValueOnce({
+      content: [{ type: 'text', text: JSON.stringify({ ...payload, credits: 605 }) }],
+    } as any);
+    const service = new CanvasGenerationService(root, {} as any);
+    const attempt = await service.createVideo({
+      canvasId: document.id,
+      prompt: '游戏角色动作',
+      sourceImageId: source.id,
+      sourceImagePath: source.assetPath!,
+      duration: 5,
+    });
+    expect(attempt.status).toBe('succeeded');
+    expect(attempt.credits).toBe(605);
+    callRemoteProxyToolMock.mockResolvedValue({ structuredContent: payload, content: [] } as any);
+    expect((await service.queryVideo(attempt.id, document.id)).credits).toBe(605);
+    expect(new CanvasGenerationService(root, {} as any).list(document.id)[0].credits).toBe(605);
+    callRemoteProxyToolMock.mockResolvedValue({
+      structuredContent: { ...payload, credits: 606 },
+      content: [],
+    } as any);
+    expect((await service.queryVideo(attempt.id, document.id)).credits).toBe(606);
+  });
+
   test('first-last video submits explicit roles and retains both source snapshots through retry', async () => {
     const files = new MakerCanvasFiles(root);
     const document = await files.create('首尾帧契约验证', 'starter');

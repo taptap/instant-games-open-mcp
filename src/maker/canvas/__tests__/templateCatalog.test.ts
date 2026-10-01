@@ -3,7 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { MakerCanvasFiles } from '../files.js';
 import { createId } from '../model.js';
-import { templateCoverSource } from '../templates.js';
+import { templateCoverSource, templateCoverAnimation } from '../templates.js';
+const { PNG } = require('pngjs');
 import { readTemplatePage } from '../templateCatalog.js';
 
 let root: string;
@@ -31,7 +32,7 @@ test('500 templates use paged summaries, cached parsing, global search and no co
   const first = await readTemplatePage(folder, read, 1, '');
   expect(first.total).toBe(500);
   expect(first.items).toHaveLength(24);
-  expect(first.presets).toHaveLength(2);
+  expect(first.presets).toHaveLength(3);
   expect(first.items.every((item) => !('nodes' in item) && !('edges' in item))).toBe(true);
   expect(read).toHaveBeenCalledTimes(500);
   const second = await readTemplatePage(folder, read, 2, '');
@@ -64,7 +65,7 @@ test('bad files and symbolic links do not break the library or expose outside te
   const result = await files.listTemplatePage();
   expect(result.skipped).toBe(2);
   expect(result.items).toEqual([]);
-  expect(result.presets).toHaveLength(2);
+  expect(result.presets).toHaveLength(3);
 });
 
 test('cover source chooses a starting image, falling back to a stable image or no cover', async () => {
@@ -82,17 +83,64 @@ test('cover source chooses a starting image, falling back to a stable image or n
   expect(templateCoverSource({ ...workflow, nodes: [] })).toBeUndefined();
 });
 
+test('covers prefer animation then saved frames, sampling the whole action within a bounded preview', async () => {
+  const template = (await files.listTemplates())[2];
+  const animation = template.nodes.find((node) => node.type === 'animation')!;
+  expect(templateCoverSource(template)).toBe(animation.assetPath);
+  const preview = templateCoverAnimation(template)!;
+  expect(preview.frames).toHaveLength(32);
+  expect(preview.frames[0]).toEqual(
+    expect.objectContaining({
+      x: animation.frameSetInfo!.frames[0].x,
+      y: animation.frameSetInfo!.frames[0].y,
+    })
+  );
+  expect(preview.frames.at(-1)).toEqual(
+    expect.objectContaining({
+      x: animation.frameSetInfo!.frames.at(-1)!.x,
+      y: animation.frameSetInfo!.frames.at(-1)!.y,
+    })
+  );
+  expect(preview.frames.length / preview.fps).toBeCloseTo(5);
+  const packed = templateCoverAnimation(template, true)!;
+  expect(
+    packed.frames.every(
+      (frame) => frame.width === 128 && frame.height === 128 && frame.x < 1024 && frame.y < 512
+    )
+  ).toBe(true);
+  const withoutAnimation = {
+    ...template,
+    nodes: template.nodes.filter((node) => node.type !== 'animation'),
+  };
+  expect(templateCoverSource(withoutAnimation)).toBe(
+    template.nodes.find((node) => node.type === 'sequence')!.assetPath
+  );
+  const imagesOnly = { ...template, nodes: template.nodes.filter((node) => node.type === 'image') };
+  expect(templateCoverAnimation(imagesOnly)).toBeUndefined();
+  expect(templateCoverSource(imagesOnly)).toBe(imagesOnly.nodes[0].assetPath);
+});
+
 test('revision-bound thumbnails are small, isolated, invalidate on replace and reject unsafe paths', async () => {
   const builtin = (await files.listTemplates())[0];
   const source = files.readTemplateCover(builtin.id, builtin.revision);
   expect(source.source).toBe(true);
-  const png = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==',
-    'base64'
+  const count = templateCoverAnimation(builtin)!.frames.length;
+  const png = PNG.sync.write(
+    new PNG({ width: Math.min(8, count) * 128, height: Math.ceil(count / 8) * 128 })
   );
+  const oldCache = path.join(
+    root,
+    '.maker/canvases/templates',
+    builtin.id + '-cover-' + builtin.revision + '.png'
+  );
+  fs.writeFileSync(oldCache, png);
+  expect(files.readTemplateCover(builtin.id, builtin.revision).source).toBe(true);
   files.saveTemplateCover(builtin.id, builtin.revision, png);
   expect(files.readTemplateCover(builtin.id, builtin.revision).bytes).toEqual(png);
   expect(files.readTemplateCover(builtin.id, builtin.revision).source).toBe(false);
+  expect(files.readTemplateCover(builtin.id, builtin.revision).animation).toEqual(
+    templateCoverAnimation(builtin, true)
+  );
   expect(() => files.saveTemplateCover('../outside', 1, png)).toThrow();
   expect(() => files.saveTemplateCover(builtin.id, 999, png)).toThrow('更新');
   expect(() => files.saveTemplateCover(builtin.id, 1, Buffer.alloc(400000))).toThrow();
@@ -113,14 +161,14 @@ test('revision-bound thumbnails are small, isolated, invalidate on replace and r
       path.join(
         root,
         '.maker/canvases/templates',
-        replaced.id + '-cover-' + replaced.revision + '.png'
+        replaced.id + '-cover-v2-' + replaced.revision + '.png'
       )
     )
   ).toBe(false);
   const cache = path.join(
     root,
     '.maker/canvases/templates',
-    builtin.id + '-cover-' + builtin.revision + '.png'
+    builtin.id + '-cover-v2-' + builtin.revision + '.png'
   );
   fs.unlinkSync(cache);
   const external = path.join(root, 'outside.png');

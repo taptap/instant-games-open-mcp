@@ -16,11 +16,16 @@ export interface CanvasTemplateStore {
     id: string,
     revision: number,
     signal?: AbortSignal
-  ): Promise<{ blob: Blob; source: boolean }>;
+  ): Promise<{ blob: Blob; source: boolean; animation?: CanvasTemplateCoverAnimation }>;
   saveCover(id: string, revision: number, blob: Blob, signal?: AbortSignal): Promise<void>;
   saveTemplate(template: CanvasWorkflowTemplate): Promise<CanvasWorkflowTemplate>;
   deleteTemplate(id: string, revision: number): Promise<void>;
   prepareTemplate?(id: string, canvasId: string): Promise<CanvasWorkflowTemplate>;
+}
+
+export interface CanvasTemplateCoverAnimation {
+  fps: number;
+  frames: Array<{ x: number; y: number; width: number; height: number }>;
 }
 
 export interface CanvasTemplateSummary {
@@ -42,17 +47,48 @@ export interface CanvasTemplatePage {
   skipped: number;
 }
 
-export function templateCoverSource(template: CanvasWorkflowTemplate): string | undefined {
+export function templateCoverNode(template: CanvasWorkflowTemplate): CanvasNode | undefined {
+  const results = template.nodes
+    .filter((node) => node.assetPath && node.frameSetInfo?.frames.length)
+    .sort((left, right) => left.x - right.x || left.y - right.y || left.id.localeCompare(right.id));
+  const animation =
+    results.find((node) => node.type === 'animation') ||
+    results.find((node) => node.type === 'sequence');
+  if (animation) return animation;
   const images = template.nodes
     .filter((node) => node.type === 'image' && node.assetPath)
     .sort((left, right) => left.x - right.x || left.y - right.y || left.id.localeCompare(right.id));
-  return (images.find((node) => !template.edges.some((edge) => edge.to === node.id)) || images[0])
-    ?.assetPath;
+  return images.find((node) => !template.edges.some((edge) => edge.to === node.id)) || images[0];
+}
+
+export function templateCoverSource(template: CanvasWorkflowTemplate): string | undefined {
+  return templateCoverNode(template)?.assetPath;
+}
+
+export function templateCoverAnimation(
+  template: CanvasWorkflowTemplate,
+  compact = false
+): CanvasTemplateCoverAnimation | undefined {
+  const info = templateCoverNode(template)?.frameSetInfo;
+  if (!info?.frames.length) return;
+  const count = Math.min(32, info.frames.length);
+  return {
+    fps: (info.fps * count) / info.frames.length,
+    frames: Array.from({ length: count }, (_, index) => {
+      if (compact)
+        return { x: (index % 8) * 128, y: Math.floor(index / 8) * 128, width: 128, height: 128 };
+      const frame =
+        info.frames[count === 1 ? 0 : Math.round((index * (info.frames.length - 1)) / (count - 1))];
+      return { x: frame.x, y: frame.y, width: frame.width, height: frame.height };
+    }),
+  };
 }
 
 export function isBuiltinCanvasTemplate(id: string): boolean {
   return (
-    id === '7e1cb6ad-732f-4dc3-a951-000000000001' || id === '7e1cb6ad-732f-4dc3-a951-000000000002'
+    id === '7e1cb6ad-732f-4dc3-a951-000000000001' ||
+    id === '7e1cb6ad-732f-4dc3-a951-000000000002' ||
+    id === '7e1cb6ad-732f-4dc3-a951-000000000003'
   );
 }
 

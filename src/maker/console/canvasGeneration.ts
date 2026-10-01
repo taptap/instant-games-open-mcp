@@ -48,6 +48,7 @@ export interface CanvasGenerationAttempt {
     mode?: 'first_frame' | 'first_last_frame' | 'multi_modal_reference';
   };
   resultAssetPath?: string;
+  credits?: number;
   error?: string;
   executionState?: RemoteProxyExecutionState;
   createdAt: string;
@@ -60,6 +61,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function returnedCredits(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function videoTaskError(payload: Record<string, unknown>): string | undefined {
+  return (
+    stringField(payload.error) ||
+    (isRecord(payload.error) ? stringField(payload.error.message) : undefined) ||
+    (payload.status === 'failed'
+      ? stringField(payload.agent_instruction) || '视频生成失败。'
+      : undefined)
+  );
 }
 
 function resultPayload(result: unknown): Record<string, unknown> {
@@ -204,6 +219,7 @@ export class CanvasGenerationService {
       });
       const payload = resultPayload(result);
       const source = stringField(payload.localPath);
+      attempt.credits = returnedCredits(payload.credits);
       if (!source || !source.startsWith('assets/image/'))
         throw new Error('Maker MCP 已返回，但没有可用于画布的本地图片素材。');
       attempt.resultAssetPath = files.importGeneratedImage(source);
@@ -340,8 +356,16 @@ export class CanvasGenerationService {
       });
       const payload = resultPayload(result);
       attempt.taskId = stringField(payload.task_id);
+      attempt.credits = returnedCredits(payload.credits);
       attempt.status =
-        payload.status === 'succeeded' ? 'succeeded' : attempt.taskId ? 'pending' : 'unknown';
+        payload.status === 'succeeded'
+          ? 'succeeded'
+          : payload.status === 'failed'
+            ? 'failed'
+            : attempt.taskId
+              ? 'pending'
+              : 'unknown';
+      attempt.error = videoTaskError(payload);
       if (attempt.status === 'unknown') {
         attempt.error = '视频任务尚未完成，但响应没有提供可查询的 taskId。';
       }
@@ -374,13 +398,14 @@ export class CanvasGenerationService {
         args: { task_id: attempt.taskId, suppress_preview_links: true },
       });
       const payload = resultPayload(result);
+      attempt.credits = returnedCredits(payload.credits) ?? attempt.credits;
       attempt.status =
         payload.status === 'succeeded'
           ? 'succeeded'
           : payload.status === 'failed'
             ? 'failed'
             : 'pending';
-      attempt.error = stringField(payload.error);
+      attempt.error = videoTaskError(payload);
       if (attempt.status === 'succeeded' && !attempt.resultAssetPath) {
         const source = stringField(payload.localPath);
         if (!source || !source.startsWith('assets/video/'))

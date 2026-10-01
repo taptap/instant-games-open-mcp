@@ -154,17 +154,8 @@ try {
     await page.reload(); await open(); assert.equal(await count(), 18);
     await editor.getByRole('button', { name: '完成并返回画布', exact: true }).click();
   });
-  await check('图集独立叠加与并排、临时偏移不写入文档', async () => {
-    const before = JSON.stringify(await files.load(document.id));
-    await page.getByRole('button', { name: '图集对比', exact: true }).click();
-    const compare = page.getByRole('dialog', { name: '图集位置对比' });
-    await compare.getByText('相同像素比例', { exact: false }).waitFor();
-    await compare.getByLabel('动作 B X 偏移', { exact: true }).fill('12');
-    await compare.getByLabel('动作 B X 偏移', { exact: true }).press('Tab');
-    await screenshot('04-atlas-overlay');
-    await compare.getByLabel('图集对比模式', { exact: true }).selectOption('side'); await screenshot('05-atlas-side');
-    await compare.getByRole('button', { name: '关闭', exact: true }).click();
-    assert.equal(JSON.stringify(await files.load(document.id)), before);
+  await check('隐藏图集对比入口', async () => {
+    assert.equal(await page.getByRole('button', { name: '图集对比', exact: true }).count(), 0);
   });
   await check('运动视频真实抽帧、自动抠图和保存流程', async () => {
     await open(second.id);

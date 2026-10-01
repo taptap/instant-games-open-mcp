@@ -23,6 +23,7 @@ import {
   createCanvasTemplateModel,
   isBuiltinCanvasTemplate,
   templateCoverSource,
+  templateCoverAnimation,
   type CanvasWorkflowTemplate,
 } from './templates.js';
 import { builtinCanvasTemplates, canvasPresets } from './presets.js';
@@ -219,49 +220,72 @@ export class MakerCanvasFiles {
   readTemplateCover(
     id: string,
     revision: number
-  ): { bytes: Buffer; type: string; source: boolean } {
+  ): {
+    bytes: Buffer;
+    type: string;
+    source: boolean;
+    animation?: ReturnType<typeof templateCoverAnimation>;
+  } {
     const template = this.getTemplate(id);
     if (template.revision !== revision) fail('模板已更新，请刷新列表。', 409, 'CONFLICT');
-    const relative = '.maker/canvases/templates/' + id + '-cover-' + revision + '.png';
+    const animation = templateCoverAnimation(template);
+    const relative = '.maker/canvases/templates/' + id + '-cover-v2-' + revision + '.png';
     if (fs.existsSync(path.join(this.root, relative))) {
       const file = this.safeProjectFile(relative);
-      if (fs.statSync(file).size > 300 * 1024) fail('缩略图过大。', 413, 'STORAGE_LIMIT');
-      return { bytes: fs.readFileSync(file), type: 'image/png', source: false };
+      if (fs.statSync(file).size > (animation ? 2 * 1024 * 1024 : 300 * 1024))
+        fail('缩略图过大。', 413, 'STORAGE_LIMIT');
+      return {
+        bytes: fs.readFileSync(file),
+        type: 'image/png',
+        source: false,
+        animation: templateCoverAnimation(template, true),
+      };
     }
     const sourcePath = templateCoverSource(template);
     if (!sourcePath) fail('模板没有图片。', 404, 'NOT_FOUND');
     if (template.builtin) {
       const asset = canvasPresets().find((preset) => preset.id === id)!.assets[sourcePath];
-      return { bytes: Buffer.from(asset.data, 'base64'), type: asset.type, source: true };
+      return {
+        bytes: Buffer.from(asset.data, 'base64'),
+        type: asset.type,
+        source: true,
+        animation,
+      };
     }
     const media = this.readMedia(sourcePath);
     if (fs.statSync(media.file).size > 20 * 1024 * 1024)
       fail('图片超过 20 MiB。', 413, 'STORAGE_LIMIT');
-    return { bytes: fs.readFileSync(media.file), type: media.type, source: true };
+    return { bytes: fs.readFileSync(media.file), type: media.type, source: true, animation };
   }
 
   saveTemplateCover(id: string, revision: number, bytes: Buffer): void {
     const template = this.getTemplate(id);
     if (template.revision !== revision) fail('模板已更新，请刷新列表。', 409, 'CONFLICT');
+    const animation = templateCoverAnimation(template, true);
+    const width = animation ? Math.min(8, animation.frames.length) * 128 : 256;
+    const height = animation ? Math.ceil(animation.frames.length / 8) * 128 : 256;
     if (
       bytes.length < 24 ||
-      bytes.length > 300 * 1024 ||
+      bytes.length > (animation ? 2 * 1024 * 1024 : 300 * 1024) ||
       !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
       bytes.toString('ascii', 12, 16) !== 'IHDR' ||
       bytes.readUInt32BE(16) < 1 ||
-      bytes.readUInt32BE(16) > 256 ||
+      bytes.readUInt32BE(16) > width ||
       bytes.readUInt32BE(20) < 1 ||
-      bytes.readUInt32BE(20) > 256
+      bytes.readUInt32BE(20) > height ||
+      (animation && (bytes.readUInt32BE(16) !== width || bytes.readUInt32BE(20) !== height))
     )
-      fail('缩略图必须为不超过 256 像素的 PNG。', 400, 'INVALID_IMAGE');
+      fail('缩略图 PNG 尺寸或大小不符合预览规格。', 400, 'INVALID_IMAGE');
     const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'templates'));
-    this.atomicWrite(folder, id + '-cover-' + revision + '.png', bytes);
+    this.atomicWrite(folder, id + '-cover-v2-' + revision + '.png', bytes);
   }
 
   private removeTemplateCover(id: string, revision: number): void {
-    const relative = '.maker/canvases/templates/' + id + '-cover-' + revision + '.png';
-    if (fs.existsSync(path.join(this.root, relative)))
-      fs.unlinkSync(this.safeProjectFile(relative));
+    for (const marker of ['-cover-', '-cover-v2-']) {
+      const relative = '.maker/canvases/templates/' + id + marker + revision + '.png';
+      if (fs.existsSync(path.join(this.root, relative)))
+        fs.unlinkSync(this.safeProjectFile(relative));
+    }
   }
 
   private readTemplate(id: string): CanvasWorkflowTemplate {

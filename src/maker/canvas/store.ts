@@ -185,6 +185,8 @@ export function createBrowserCanvasDocumentStore(
         return {
           blob: await response.blob(),
           source: response.headers.get('X-Template-Cover-Source') === '1',
+          animation:
+            JSON.parse(response.headers.get('X-Template-Cover-Animation') || 'null') || undefined,
         };
       },
       saveCover: async (id, revision, blob, signal) => {

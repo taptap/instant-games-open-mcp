@@ -2672,7 +2672,7 @@ function renderCanvas() {
   let frame = canvasFrames.get(key);
   if (!frame) {
     frame = node('iframe', undefined, 'canvas-frame');
-    frame.title = '创作画布';
+    frame.title = '序列帧动画';
     frame.referrerPolicy = 'origin';
     frame.src = '/canvas?project=' + encodeURIComponent(key);
     canvasFrames.set(key, frame);

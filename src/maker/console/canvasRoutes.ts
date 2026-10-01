@@ -77,10 +77,13 @@ export async function handleCanvasProjectRoute(options: {
           'Content-Length': result.bytes.length,
           'X-Content-Type-Options': 'nosniff',
           'X-Template-Cover-Source': result.source ? '1' : '0',
+          ...(result.animation
+            ? { 'X-Template-Cover-Animation': JSON.stringify(result.animation) }
+            : {}),
         });
         response.end(result.bytes);
       } else {
-        files.saveTemplateCover(cover[1], revision, await readBytes(request, 300 * 1024));
+        files.saveTemplateCover(cover[1], revision, await readBytes(request, 2 * 1024 * 1024));
         send(response, 200, { ok: true });
       }
       return true;

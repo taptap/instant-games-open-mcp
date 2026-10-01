@@ -81,6 +81,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     workflow?: CanvasWorkflowEdit
   ): void;
   restore(): Promise<void>;
+  creditsLabel(node: any): string | undefined;
   runTemplateVideo(nodeId: string, duration: number): Promise<boolean>;
   runTemplateImage(nodeId: string): Promise<boolean>;
   isNodeBusy(nodeId: string): boolean;
@@ -734,6 +735,18 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     if (decision?.kind === 'reuse') {
       const target = documentState.nodes.find((item: any) => item.id === decision.nodeId);
       if (!target || inFlight.has(target.id)) return false;
+      if (
+        target.id !== node.id &&
+        (JSON.stringify(videoInputSources(documentState, target).map((item) => item.id)) !==
+          JSON.stringify(sources.map((item) => item.id)) ||
+          currentVideoMode(target) !== mode ||
+          JSON.stringify(referencePaths(target)) !== JSON.stringify(importedReferences))
+      ) {
+        options.setError(
+          '待处理视频卡的引用或输入方式与当前面板不同，请选择该视频卡「调整参数」后生成；不会新增卡片或覆盖原结果。'
+        );
+        return false;
+      }
       node = target;
       drafts.set(node.id, prompt);
     } else if (node.draftSourceId || decision?.kind === 'create') {
@@ -1339,6 +1352,14 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   return {
     render,
     restore,
+    creditsLabel(node: any) {
+      if (!node.assetPath || !node.generation?.attemptId) return;
+      const attempt = attempts.get(node.generation.attemptId);
+      const credits = attempt?.canvasId === options.getDocument()?.id ? attempt.credits : undefined;
+      return typeof credits === 'number' && Number.isFinite(credits) && credits >= 0
+        ? '积分：' + credits.toLocaleString('zh-CN')
+        : '积分：未返回';
+    },
     runTemplateVideo,
     runTemplateImage,
     nodeState(nodeId: string) {

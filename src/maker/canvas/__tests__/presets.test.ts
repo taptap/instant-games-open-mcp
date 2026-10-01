@@ -17,25 +17,29 @@ beforeEach(() => {
 
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
-test('lists both portable presets without importing assets or creating a canvas', async () => {
+test('lists portable presets without importing assets or creating a canvas', async () => {
   const templates = await files.listTemplates();
-  expect(templates.map((template) => template.name)).toEqual(['序列帧动画', '角色四方向']);
+  expect(templates.map((template) => template.name)).toEqual([
+    '序列帧动画',
+    '角色四方向',
+    '首尾帧变身 · 灰狼→狼王',
+  ]);
   expect(templates.every((template) => template.builtin && !('assets' in template))).toBe(true);
   expect(await files.list()).toEqual([]);
   expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
 });
 
-test.each([0, 1])(
+test.each([0, 1, 2])(
   'prepares, duplicates and persists preset %i with independent internal references',
   async (index) => {
     const listed = (await files.listTemplates())[index];
     const original = JSON.stringify(listed);
     const canvas = await files.create('预设验证');
     const prepared = await files.prepareTemplate(listed.id, canvas.id);
-    expect(prepared.nodes).toHaveLength(index === 0 ? 4 : 13);
-    expect(prepared.edges).toHaveLength(index === 0 ? 3 : 12);
+    expect(prepared.nodes).toHaveLength([4, 13, 5][index]);
+    expect(prepared.edges).toHaveLength([3, 12, 4][index]);
     expect(prepared.nodes.filter((node) => node.type === 'video-source')).toHaveLength(
-      index === 0 ? 1 : 4
+      index === 1 ? 4 : 1
     );
     if (index === 1) {
       for (const direction of ['前', '后', '左', '右'])
@@ -76,7 +80,34 @@ test.each([0, 1])(
       canvas.revision
     );
     expect((await files.load(canvas.id)).nodes).toEqual(saved.nodes);
-    expect(first.nodes.filter((node) => node.templatePending)).toHaveLength(index === 0 ? 3 : 12);
+    expect(first.nodes.filter((node) => node.templatePending)).toHaveLength(index === 1 ? 12 : 3);
+    if (index === 2) {
+      const video = first.nodes.find((node) => node.type === 'video-source')!;
+      const images = first.nodes.filter((node) => node.type === 'image');
+      expect(video.generation?.parameters?.mode).toBe('first_last_frame');
+      expect(video.generation?.sourceImageIds).toEqual(images.map((node) => node.id));
+      expect(video.sourceSnapshots?.map((snapshot) => snapshot.nodeId)).toEqual(
+        images.map((node) => node.id)
+      );
+      expect(
+        first.edges
+          .filter((edge) => edge.to === video.id)
+          .map((edge) => edge.from)
+          .sort()
+      ).toEqual(images.map((node) => node.id).sort());
+      expect(images.every((node) => !node.templatePending && node.generation?.prompt)).toBe(true);
+      expect(isCanvasNodeStale(video, images)).toBe(false);
+      const previousPath = images[1].assetPath;
+      images[1].assetPath = 'assets/image/changed-tail.png';
+      expect(isCanvasNodeStale(video, images)).toBe(true);
+      images[1].assetPath = previousPath;
+      await expect(files.deleteTemplate(listed.id, listed.revision)).rejects.toMatchObject({
+        code: 'READ_ONLY_TEMPLATE',
+      });
+      await expect(files.saveTemplate({ ...prepared, name: '覆盖预设' })).rejects.toMatchObject({
+        code: 'READ_ONLY_TEMPLATE',
+      });
+    }
     const custom = await files.saveTemplate(
       model.snapshot(saved, [first.section.id], '我的预设副本')
     );

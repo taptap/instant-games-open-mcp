@@ -57,6 +57,28 @@ test('template recovers an existing successful attempt without new paid generati
   expect(document.edges).toHaveLength(1);
 });
 
+test('credits belong to the displayed result, not its source or a later attempt', async () => {
+  const { document, attempt, ui } = fixture();
+  Object.assign(attempt, { credits: 605 });
+  await ui.restore();
+  expect(ui.creditsLabel(document.nodes[0])).toBeUndefined();
+  expect(ui.creditsLabel(document.nodes[1])).toBe('积分：605');
+  document.nodes[1].generation.attemptId = 'another-attempt';
+  expect(ui.creditsLabel(document.nodes[1])).toBe('积分：未返回');
+});
+
+test.each([undefined, -1, '20', NaN, Infinity, 0, 20])(
+  'credits display does not treat missing or invalid values as free: %s',
+  async (credits) => {
+    const { document, attempt, ui } = fixture();
+    Object.assign(attempt, { credits });
+    await ui.restore();
+    expect(ui.creditsLabel(document.nodes[1])).toBe(
+      credits === 0 || credits === 20 ? '积分：' + credits : '积分：未返回'
+    );
+  }
+);
+
 test('restoring a two-image video keeps both source links without paid regeneration', async () => {
   const { document, attempt, options, ui } = fixture();
   document.nodes.push({

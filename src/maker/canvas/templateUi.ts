@@ -278,9 +278,11 @@ export function createCanvasTemplateUi(options: {
       const description = document.createElement('small');
       description.className = 'template-description';
       description.textContent = summary.builtin
-        ? summary.nodeCount > 4
-          ? '前 · 后 · 左 · 右，四向动作'
-          : '图片 → 视频 → 抽帧 → 动画'
+        ? summary.id === '7e1cb6ad-732f-4dc3-a951-000000000003'
+          ? '首尾双图 → 变身视频 → 抽帧 → 动画'
+          : summary.id === '7e1cb6ad-732f-4dc3-a951-000000000002'
+            ? '前 · 后 · 左 · 右，四向动作'
+            : '图片 → 视频 → 抽帧 → 动画'
         : '自定义工作流';
       const actions = document.createElement('div');
       actions.className = 'template-card-actions';

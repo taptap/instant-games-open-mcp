@@ -24,6 +24,10 @@ export const TEMPLATE_LIBRARY_STYLES = `
 .workflow-template-row:has(details[open]) { z-index:2; }
 .template-cover { flex:0 0 88px; width:88px; height:100px; display:flex; align-items:center; justify-content:center; border-radius:8px; overflow:hidden; background:#1a1c22; color:#777c8a; font-size:11px; }
 .template-cover img { display:block; width:100%; height:100%; object-fit:contain; }
+.template-cover.cover-animation { position:relative; background-color:#22252c; background-image:conic-gradient(#2c3038 25%,transparent 0 50%,#2c3038 0 75%,transparent 0); background-size:12px 12px; }
+.template-cover canvas { display:block; width:100%; height:100%; object-fit:contain; }
+.template-cover canvas:focus-visible { outline:2px solid #d8b55b; outline-offset:-2px; }
+.template-animation-hint { position:absolute; bottom:3px; padding:2px 5px; border-radius:4px; background:#14161bcc; color:#d9dce3; font-size:10px; pointer-events:none; }
 .template-cover.cover-loading { animation:template-cover-pulse 1.3s ease-in-out infinite alternate; }
 @keyframes template-cover-pulse { to { opacity:.45; } }
 .template-card-content { min-width:0; flex:1; display:flex; flex-direction:column; justify-content:space-between; padding:3px 0; }

@@ -469,8 +469,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   画布交互修改后主动运行 npm run test:maker:canvas-ui，在临时项目使用真实页面、受控素材路由和落盘校验，返回报告与截图；付费生成只模拟远端结果。删除生成结果须记录 deletedGenerationIds，恢复时不得复活已删除节点。
   序列帧卡只显示来源和已保存结果；编辑在同页 sequenceEditor 大弹窗中完成。sequenceUi 持有临时草稿，保存成功才替换节点并记录一次撤销；失败保留旧结果与重试草稿。页面保存请求串行，编辑器不另起服务、不改变 Store 或持久化协议。
   animation.ts 负责独立动画卡：只复制已保存图集路径和帧索引，不复制图片字节，不引用可变处理草稿。sequence-animation 是来源关系，不是实时绑定；删除源卡只删除连线，已创建动画仍可播放。播放状态不落盘，重载默认暂停；重绘时回收旧渲染实例和动画调度。
-  添加模板库内置普通序列帧和角色四方向预设，素材在 presets.ts/presetData.json 随包提供；列表不传字节，显式添加时通过既有受控导入后复用模板实例化。保留四方向分支，不依赖用户项目已有示例，不自动生成。内置模板只读，修改实例可另存用户模板。
-  模板列表只返回24条分页摘要，templateCatalog.ts缓存文件指纹与摘要，不把完整工作流传给列表；完整定义按ID读取。首图封面由templateCovers.ts按需缩小并按模板版本缓存，最多2并发，翻页/关闭释放资源，不加载视频。无模板总数硬上限，仍保留单文件和封面尺寸限制。
+  添加模板库内置普通序列帧、角色四方向和首尾帧变身预设，素材在 presets.ts/presetData.json 随包提供；列表不传字节，显式添加时通过既有受控导入后复用模板实例化。保留四方向分支、首尾帧双来源与显式 mode，不依赖用户项目已有示例，不自动生成。内置模板只读，修改实例可另存用户模板。
+  模板列表只返回24条分页摘要，templateCatalog.ts缓存文件指纹与摘要，不把完整工作流传给列表；完整定义按ID读取。templateCovers.ts优先展示动画/帧集结果，无结果再用静态图片；预览最多32帧、每帧128px，帧信息随封面接口按需读取并按模板版本缓存。最多2并发、仅悬停或聚焦的一张播放，翻页/关闭释放位图与调度，不加载视频。无模板总数硬上限，仍保留单文件和封面尺寸限制。
   派生卡的 sourceSnapshot/sourceSnapshots 由 dependencies.ts 统一计算和校验；该模块只负责关系与版本查询，模板待处理传播由 templateWorkflow.ts 负责。上游变化只标记过期，不自动触发生成或覆盖下游结果，图片/视频、序列帧和动画均由卡片内明确刷新。失败时保留旧结果，不能把刷新判断重新塞回 page.ts。
   视频当前引用以 edges 为准，generation 来源仅为历史记录和稳定顺序；videoInputs.ts 解析当前来源，首尾角色与输入模式只在视频业务层解释。每张来源在提交时记录快照，恢复任务不得补回已断开的引用或用当前版本覆盖历史证据。旧多图未保存 mode 时由用户明确选择，不猜测首尾角色、不自动付费重提。
   frameEditor.ts 在浏览器记录单帧操作并按归一化坐标批量重放，全部处理成功才交给 sequenceUi 替换草稿；不得复制同一帧代替批量处理，不做隐式智能跟踪。新任务时长与帧率集中在 sequenceModel.ts 的 DEFAULT_SEQUENCE_DURATION / DEFAULT_SEQUENCE_FPS，旧存档不迁移；已保存图集可解帧编辑。画布页面内联函数必须显式传入跨模块依赖，并以实际打包页面验收。
@@ -478,7 +478,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   backgroundRemoval.ts 独立实现有边界支持的大面积纯色识别及像素处理，backgroundUi.ts 提供参数预览；
   默认自动识别，不要求点击取色。逐帧背景匹配不等于运动跟踪，低可信/失败/取消不得部分替换。
   同次编辑保留抠图前输入以免重复处理累积损伤，不新增持久原图协议；保存后不承诺恢复已删除像素。
-  atlasCompare.ts 只读比较当前画布已保存图集，统一像素比例，临时偏移和叠影/预览速度不写入文档。
+  atlasCompare.ts 保留只读比较实现，但页面不提供图集对比入口。控制台页签名为「序列帧动画」，内部 canvas 标识和用户画布名称不改写。
+  生成积分只保存上游明确返回的非负有限数值 credits 到独立 attempt；卡片按当前 generation.attemptId 查询展示，不写布局或模板、不累计、不用估价代替。缺失显示未返回，不补查旧任务或触发扣费。
   修改这些模块运行 npm run test:maker:sequence-ui 与现有 canvas-ui 验收，禁止通过付费生成测试。
   sequenceSettings.cutoutMode 可选 connected/chroma，旧文档省略时保持 connected；新任务用 chroma 色差抠图去溢色。边界扫描仅报告风险，不证明视觉通过；源视频裁断只能重新构图生成，禁止用缩放掩盖。颜色与前景冲突时不能保证抠图无损。
   generationResult.ts 负责生成结果节点与 image-to-video 来源关系；`generationUi.ts` 只从卡片内发起明确的生成动作，`console/canvasGeneration.ts` 通过现有 remote proxy 调用 Maker MCP。尝试记录位于 `.maker/canvases/attempts/`，与画布 JSON 分离；unknown 结果禁止自动重试，有 taskId 才能查询原视频任务，页面不持有 PAT 或付款凭据。媒体路由在既有项目/path 校验后支持单 Range 读取，保持 206/416 与长度一致，真实动作视频用于抽帧回归，不能只用静态视频证明流程正常。
