@@ -122,6 +122,7 @@ try {
   }
   await page.goto(server.origin + '/canvas?project=' + entry.key);
   assert.equal(await page.title(), '序列帧动画');
+  assert.equal(await page.locator('#new-canvas option[value="sequence"]').count(), 0);
   assert.equal(await page.getByRole('button', { name: '图集对比', exact: true }).count(), 0);
   await card(image.id).locator('.generation-credits').getByText('积分：20', { exact: true }).waitFor();
   await page.reload();
@@ -225,6 +226,13 @@ try {
   canvas = await files.create('内置预设验证');
   await files.setActiveCanvasId(canvas.id);
   await page.reload();
+  await page.evaluate(() => {
+    window.templateSaveWarnings = [];
+    new MutationObserver(() => {
+      const message = document.getElementById('error').textContent;
+      if (message.includes('分组尚未保存')) window.templateSaveWarnings.push(message);
+    }).observe(document.getElementById('error'), { childList: true, characterData: true, subtree: true });
+  });
   const presetNames = ['序列帧动画', '角色四方向', '首尾帧变身 · 灰狼→狼王'];
   for (const name of presetNames) {
     await page.getByRole('button', { name: '添加模板', exact: true }).click();
@@ -235,7 +243,11 @@ try {
     assert.equal(await row.getByRole('button').count(), 1);
     await row.getByRole('button', { name: '添加', exact: true }).click();
     await until(async () => (await saved()).nodes.filter(node => node.type === 'section').length === presetNames.indexOf(name) + 1);
+    await until(() => page.locator('.card video').evaluateAll(videos => videos.every(video => video.readyState >= 1)));
+    await until(() => page.evaluate(() => document.getElementById('status').textContent === '已保存' && !window.makerCanvasUnsaved));
+    assert.deepEqual(await page.evaluate(() => window.templateSaveWarnings), [], '视频尺寸自动适配后应收敛保存，不能误报分组未保存');
   }
+  console.log('PASS 三个预设保存包含视频元数据加载后的尺寸变化，不误报分组未保存');
   document = await saved();
   assert.equal(document.nodes.length, 25);
   assert.equal(document.edges.length, 19);

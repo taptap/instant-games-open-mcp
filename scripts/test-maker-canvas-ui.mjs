@@ -212,14 +212,14 @@ try {
       const before = await files.load(canvas.id);
       const [picker] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: '导入参考图', exact: true }).click()]);
       await picker.setFiles(path.join(project, imagePath));
-      await page.getByAltText('导入的参考图 1', { exact: true }).waitFor();
+      await page.getByAltText('参考图 1', { exact: true }).waitFor();
       assert.equal((await saved()).nodes[0].assetPath, before.nodes[0].assetPath);
       assert.equal(await page.locator('.card').count(), 1);
       await page.getByRole('button', { name: '移除参考图 1', exact: true }).click();
-      assert.equal(await page.getByAltText('导入的参考图 1', { exact: true }).count(), 0);
+      assert.equal(await page.getByAltText('参考图 1', { exact: true }).count(), 0);
     }],
     ['快速编辑新建变体和来源连线（远端模拟）', async () => {
-      await page.getByPlaceholder('描述角色动作、武器、技能或外观变化…').fill('保留剑士身份，改为双手持剑的攻击姿势，增加蓝色能量剑光，保持完整身体');
+      await page.locator('.generation-panel textarea:visible').first().fill('保留剑士身份，改为双手持剑的攻击姿势，增加蓝色能量剑光，保持完整身体');
       await page.getByRole('button', { name: '生成', exact: true }).click();
       await page.waitForFunction(() => document.querySelectorAll('.card.image').length === 2);
       const document = await saved();
@@ -248,10 +248,10 @@ try {
       assert.equal(await page.locator('.generation-prompt').count(), 0);
       assert.equal((await saved()).nodes.length, 1);
     }],
-    ['实际提交图生视频并生成结果卡', async () => {
+    ['图生视频结果卡与来源连线（远端模拟）', async () => {
       await page.locator('.card.image').click();
       await page.getByRole('button', { name: '视频生成', exact: true }).click();
-      await page.getByPlaceholder('描述游戏角色动作、镜头和特效…').fill('剑士向右挥剑并释放蓝色剑气，保持完整身体，镜头稳定，适合动作游戏战斗演示');
+      await page.locator('.generation-panel textarea:visible').first().fill('剑士向右挥剑并释放蓝色剑气，保持完整身体，镜头稳定，适合动作游戏战斗演示');
       await page.getByLabel('时长（秒）').selectOption('4');
       await page.getByRole('button', { name: '生成视频', exact: true }).click();
       await page.locator('.card.video-source').waitFor();

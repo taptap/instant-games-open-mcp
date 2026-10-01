@@ -1056,6 +1056,7 @@ export function getCanvasPageHtml(): string {
       '  async function saveSnapshot() {',
     ].join(String.fromCharCode(10))
   );
+  page = replaceCanvasPageText(page, '      return !ack.pending;', '      return true;');
   page = page.replace(
     '  void boot().catch',
     '  sequenceEditor = createSequenceEditor({ maxFrames: MAX_SEQUENCE_FRAMES, controller: sequenceUi, frameCollection, backgroundRemoval, openBackgroundEditor, openFrameEditor, mediaUrl: store.mediaUrl, actions: sequenceActionsForCard }); void boot().catch'
@@ -1171,7 +1172,7 @@ export function getCanvasPageHtml(): string {
     .join("event.target.closest('textarea, input, select, button, video, details')");
   page = page.replace(
     '  <button id="new-canvas" type="button">新建</button>',
-    '  <select id="new-canvas" aria-label="新建画布"><option value="">新建画布…</option><option value="empty">新建空白画布</option><option value="sequence">新建序列帧模板画布</option></select>'
+    '  <select id="new-canvas" aria-label="新建画布"><option value="">新建画布…</option><option value="empty">新建空白画布</option></select>'
   );
   page = page.replace(
     '<div id="board"><svg id="wires"></svg><div id="world"></div><div id="marquee" hidden></div></div>',

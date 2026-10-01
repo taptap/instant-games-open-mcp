@@ -341,6 +341,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     caption.textContent = label;
     const select = document.createElement('select');
     select.className = 'generation-mode';
+    select.setAttribute('aria-label', label);
     values.forEach((value) => {
       const option = document.createElement('option');
       option.value = value;
@@ -1159,6 +1160,13 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       fields.append(videoMode, videoModel, videoResolution, videoDuration, videoRatio);
       panel.append(fields);
     }
+    const capabilityHint = document.createElement('small');
+    capabilityHint.className = 'generation-status';
+    capabilityHint.textContent =
+      node.type === 'image'
+        ? '分辨率与比例是生成目标，模型可能返回不同尺寸，请以实际图片为准。'
+        : '参考图来自已连接的图片卡；暂不支持在此面板额外导入本地参考图。';
+    panel.append(capabilityHint);
     async function submitGeneration(): Promise<void> {
       if (workflow && !workflow.canSubmit) return;
       const execute = async () => {

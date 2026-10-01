@@ -39,15 +39,18 @@ describe('Maker canvas files', () => {
     }
   });
 
-  test('creates a truly empty canvas only when the empty template is selected', async () => {
-    const root = project('maker-canvas-empty-template-');
-    gitignore(root);
-    const files = new MakerCanvasFiles(root);
-    const created = await files.create('空白画布', 'empty');
-    expect(created.title).toBe('空白画布');
-    expect(created.nodes).toEqual([]);
-    expect(fs.existsSync(path.join(root, 'assets', 'image'))).toBe(false);
-  });
+  test.each([undefined, 'empty'] as const)(
+    'creates a truly empty canvas with template %s',
+    async (template) => {
+      const root = project('maker-canvas-empty-template-');
+      gitignore(root);
+      const files = new MakerCanvasFiles(root);
+      const created = await files.create('空白画布', template);
+      expect(created.title).toBe('空白画布');
+      expect(created.nodes).toEqual([]);
+      expect(fs.existsSync(path.join(root, 'assets', 'image'))).toBe(false);
+    }
+  );
 
   test('does not fake a sequence template when the project has no saved sequence example', async () => {
     const root = project('maker-canvas-sequence-template-missing-');
@@ -239,7 +242,7 @@ describe('Maker canvas files', () => {
     const files = new MakerCanvasFiles(root);
     expect(await files.list()).toEqual([]);
     expect(emptyDocument().nodes).toEqual([]);
-    const created = await files.create();
+    const created = await files.create(undefined, 'starter');
     expect(created.revision).toBe(0);
     expect(created.nodes).toHaveLength(3);
     expect(new Set(created.nodes.map((node) => node.id)).size).toBe(3);
@@ -271,7 +274,7 @@ describe('Maker canvas files', () => {
     gitignore(root);
     fs.mkdirSync(path.join(root, '.maker'));
     fs.writeFileSync(path.join(root, '.maker', 'canvases'), 'not a directory');
-    await expect(new MakerCanvasFiles(root).create()).rejects.toThrow();
+    await expect(new MakerCanvasFiles(root).create(undefined, 'starter')).rejects.toThrow();
     expect(fs.readdirSync(path.join(root, 'assets', 'image'))).toEqual([]);
   });
 
@@ -279,7 +282,7 @@ describe('Maker canvas files', () => {
     const root = project('maker-canvas-cleared-');
     gitignore(root);
     const files = new MakerCanvasFiles(root);
-    const created = await files.create();
+    const created = await files.create(undefined, 'starter');
     const cleared = await files.save(created.id, { ...created, nodes: [] }, 0);
     const legacy = emptyDocument('旧空画布');
     fs.writeFileSync(
@@ -333,7 +336,7 @@ describe('Maker canvas files', () => {
     const root = project('maker-canvas-structure-');
     gitignore(root);
     const files = new MakerCanvasFiles(root);
-    const created = await files.create();
+    const created = await files.create(undefined, 'starter');
     const sectionId = createId();
     const resultId = createId();
     const section = {
@@ -383,7 +386,7 @@ describe('Maker canvas files', () => {
     const root = project('maker-canvas-generation-slot-');
     gitignore(root);
     const files = new MakerCanvasFiles(root);
-    const created = await files.create();
+    const created = await files.create(undefined, 'starter');
     const source = created.nodes[0];
     const slot = {
       id: createId(),

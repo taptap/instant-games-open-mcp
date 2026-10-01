@@ -338,7 +338,7 @@ describe('CanvasGenerationService', () => {
 
   test('materializes a successful image attempt into a project asset', async () => {
     const files = new MakerCanvasFiles(root);
-    const document = await files.create();
+    const document = await files.create(undefined, 'starter');
     fs.writeFileSync(path.join(root, 'assets/image/generated.png'), Buffer.from('png'));
     callRemoteProxyToolMock.mockResolvedValue(successfulImageResult());
 
@@ -356,7 +356,7 @@ describe('CanvasGenerationService', () => {
 
   test('keeps the target node when retrying an explicitly failed attempt', async () => {
     const files = new MakerCanvasFiles(root);
-    const document = await files.create();
+    const document = await files.create(undefined, 'starter');
     fs.writeFileSync(path.join(root, 'assets/image/generated.png'), Buffer.from('png'));
     callRemoteProxyToolMock
       .mockRejectedValueOnce(new Error('temporary failure'))
@@ -378,7 +378,7 @@ describe('CanvasGenerationService', () => {
 
   test('preserves a single-image variant operation and its source on retry', async () => {
     const files = new MakerCanvasFiles(root);
-    const document = await files.create();
+    const document = await files.create(undefined, 'starter');
     fs.writeFileSync(path.join(root, 'assets/image/generated.png'), Buffer.from('png'));
     callRemoteProxyToolMock
       .mockRejectedValueOnce(new Error('temporary failure'))
@@ -404,7 +404,7 @@ describe('CanvasGenerationService', () => {
 
   test('allows a generated video card to be refreshed after its first result', async () => {
     const files = new MakerCanvasFiles(root);
-    const document = await files.create();
+    const document = await files.create(undefined, 'starter');
     const source = document.nodes[0];
     const videoBytes = Buffer.alloc(16);
     videoBytes.write('ftyp', 4, 'ascii');
@@ -452,7 +452,7 @@ describe('CanvasGenerationService', () => {
 
   test('rejects an attempt used through another canvas route', async () => {
     const files = new MakerCanvasFiles(root);
-    const first = await files.create('first');
+    const first = await files.create('first', 'starter');
     const second = await files.create('second');
     callRemoteProxyToolMock.mockRejectedValue(new Error('temporary failure'));
 

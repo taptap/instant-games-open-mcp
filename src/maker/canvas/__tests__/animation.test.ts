@@ -92,7 +92,7 @@ describe('animation output cards', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-animation-'));
     try {
       const files = new MakerCanvasFiles(root);
-      const document = await files.create();
+      const document = await files.create(undefined, 'starter');
       const image = document.nodes[0];
       const node = {
         ...image,
