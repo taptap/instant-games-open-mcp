@@ -21,8 +21,11 @@ function fixture(status = 'succeeded') {
     sourceImagePath: 'assets/image/new.png',
     createdAt: new Date(Date.now()).toISOString(),
     status,
-    taskId: 'task',
-    resultAssetPath: 'new.mp4',
+    taskId: 'task' as string | undefined,
+    resultAssetPath: 'new.mp4' as string | undefined,
+    toolName: 'create_video_task',
+    executionState: undefined as string | undefined,
+    error: undefined as string | undefined,
     targetAssetPath: 'old.mp4',
     sourceSnapshots: [snapshotCanvasSource(document.nodes[0])],
   };
@@ -794,6 +797,59 @@ test.each(['unknown', 'failed', 'canceled'])(
     expect(options.store.createVideo).toHaveBeenCalledTimes(1);
     expect(options.store.generationAction).not.toHaveBeenCalled();
     expect(options.onGenerated).not.toHaveBeenCalled();
+  }
+);
+
+test('confirmed queue retries an unsent local video failure and keeps the submission error', async () => {
+  const { ui, options, attempt } = fixture('failed');
+  attempt.taskId = undefined;
+  attempt.executionState = 'not_executed';
+  attempt.error = 'Cannot resolve user_id';
+  attempt.resultAssetPath = undefined;
+  await ui.restore();
+  expect(ui.nodeState('video')).toEqual({ status: 'failed', canQuery: false });
+  expect(ui.queueBlockReason('video')).toBeUndefined();
+  const retry = {
+    ...attempt,
+    id: 'retry',
+    createdAt: new Date(Date.now() + 1000).toISOString(),
+  };
+  options.store.listGeneration.mockResolvedValue([attempt]);
+  options.store.createVideo.mockImplementation(async () => {
+    options.store.listGeneration.mockResolvedValue([retry, attempt]);
+    return retry;
+  });
+  expect(await ui.runTemplateVideo('video', 4, true)).toBe(false);
+  expect(options.store.createVideo).toHaveBeenCalledTimes(1);
+  expect(options.store.generationAction).not.toHaveBeenCalled();
+  const messages = options.setError.mock.calls.map((call) => String(call[0]));
+  expect(messages.join('\n')).toContain('Cannot resolve user_id');
+  expect(messages.join('\n')).not.toContain('视频结果未确认');
+});
+
+test('a remote failed video still blocks the confirmed queue', async () => {
+  const { ui } = fixture('failed');
+  await ui.restore();
+  expect(ui.queueBlockReason('video')).toContain('卡片结果未确认');
+  expect(ui.nodeState('video')).toEqual({ status: 'failed', canQuery: true });
+});
+
+test.each(['项目授权失败', 'reference=-326001', 'MCP error -32600: 项目授权失败'])(
+  'unknown image result stays locked despite diagnostic text %s',
+  async (error) => {
+    const { ui, attempt, document, options } = fixture('unknown');
+    attempt.kind = 'image';
+    attempt.toolName = 'generate_image';
+    attempt.taskId = undefined;
+    attempt.executionState = 'unknown';
+    attempt.targetNodeId = 'head';
+    attempt.error = error;
+    document.nodes[0].templatePending = true;
+    await ui.restore();
+    expect(ui.queueBlockReason('head')).toBeDefined();
+    expect(ui.hasUnsettledResult('head')).toBe(true);
+    await ui.runTemplateImage('head');
+    expect(options.store.generateImage).not.toHaveBeenCalled();
   }
 );
 

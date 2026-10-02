@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 import type { FrameSetFrame, FrameSetInfo, SequenceSettings } from './sequenceModel.js';
+import { backgroundColorsDiffer, stableBackgroundColor } from './backgroundRemoval.js';
 export {
   DEFAULT_SEQUENCE_SIDE,
   MAX_ATLAS_SIDE,
@@ -664,6 +665,7 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
       const cleanup = () => {
         window.clearTimeout(timeout);
         video.removeEventListener('seeked', onSeeked);
+        video.removeEventListener('loadeddata', onLoaded);
         video.removeEventListener('error', onError);
         signal.removeEventListener('abort', onAbort);
       };
@@ -672,13 +674,22 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
         if (error) reject(error);
         else resolve();
       };
-      const onSeeked = () => finish();
-      const onError = () => finish(new Error('视频无法解码当前帧。'));
+      const onLoaded = () => {
+        if (!video.seeking && video.readyState >= 2) finish();
+      };
+      const onSeeked = () => onLoaded();
+      const onError = () =>
+        finish(new Error('视频当前帧无法解码；请尝试转为 MP4（H.264、yuv420p）后重新导入。'));
       const onAbort = () => finish(new DOMException('处理已取消。', 'AbortError'));
       video.addEventListener('seeked', onSeeked, { once: true });
+      video.addEventListener('loadeddata', onLoaded);
       video.addEventListener('error', onError, { once: true });
       signal.addEventListener('abort', onAbort, { once: true });
-      video.currentTime = target;
+      try {
+        video.currentTime = target;
+      } catch {
+        finish(new Error('无法定位视频帧；请重新导入可播放的视频。'));
+      }
     });
   }
 
@@ -690,6 +701,17 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
     signal: AbortSignal,
     onProgress: (current: number, total: number, time: number, preview: SequenceFrame) => void
   ): Promise<SequenceFrame[]> {
+    if (
+      !Number.isFinite(video.duration) ||
+      video.duration <= 0 ||
+      !Number.isFinite(video.videoWidth) ||
+      video.videoWidth <= 0 ||
+      !Number.isFinite(video.videoHeight) ||
+      video.videoHeight <= 0
+    )
+      throw new Error(
+        '视频没有有效画面或时长；请检查视频轨道，或转为 MP4（H.264、yuv420p）后重新导入。'
+      );
     const count = options.estimateFrameCount(start, end, fps);
     const canvas = document.createElement('canvas');
     const scale = Math.min(
@@ -747,14 +769,52 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
     mode: 'connected' | 'chroma' = 'connected'
   ): Promise<SequenceFrame[]> {
     if (options.backgroundRemoval) {
+      const detected: Array<{ color: [number, number, number]; coverage: number } | undefined> = [];
+      for (const frame of frames) {
+        if (signal.aborted) throw new DOMException('处理已取消。', 'AbortError');
+        detected.push(await options.backgroundRemoval.identify(frame.blob));
+      }
+      const stable = stableBackgroundColor(detected.map((sample) => sample?.color));
+      if (!stable) {
+        throw new Error('未可靠识别到大面积纯色背景，可能已经透明或背景过于复杂；原帧集未改变。');
+      }
+      let startIndex = 0;
+      while (startIndex < frames.length - 1) {
+        const sample = detected[startIndex];
+        if (!sample || !backgroundColorsDiffer(sample.color, stable)) break;
+        const neutral = Math.max(...sample.color) - Math.min(...sample.color) <= 12;
+        const blank =
+          sample.color.every((channel) => channel >= 240) ||
+          sample.color.every((channel) => channel <= 16);
+        if (
+          !neutral ||
+          !blank ||
+          sample.coverage < 0.995 ||
+          frames[startIndex].time - frames[0].time >= 0.5
+        )
+          break;
+        startIndex++;
+      }
+      for (let index = startIndex; index < frames.length; index++) {
+        const sample = detected[index];
+        if (!sample || backgroundColorsDiffer(sample.color, stable)) {
+          throw new Error(
+            '第 ' +
+              (index + 1) +
+              ' 帧背景无法可靠识别或发生明显变化；原帧集未改变，请在编辑器调整背景或跳过抠图。'
+          );
+        }
+      }
+      const selected = frames.slice(startIndex);
       const output: SequenceFrame[] = [];
-      let color: [number, number, number] | undefined;
-      for (let index = 0; index < frames.length; index++) {
+      for (let index = 0; index < selected.length; index++) {
+        if (signal.aborted) throw new DOMException('处理已取消。', 'AbortError');
+        const color = detected[startIndex + index]!.color;
         try {
           const result = await options.backgroundRemoval.apply(
-            frames[index].blob,
+            selected[index].blob,
             {
-              automatic: true,
+              automatic: false,
               color,
               tolerance,
               softness: 24,
@@ -763,15 +823,14 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
             },
             signal
           );
-          color ??= result.color;
-          output.push({ ...frames[index], blob: result.blob });
-          onProgress(index + 1, frames.length);
+          output.push({ ...selected[index], blob: result.blob });
+          onProgress(index + 1, selected.length);
           await delayFrame();
         } catch (error) {
           if (signal.aborted) throw error;
           throw new Error(
             '第 ' +
-              (index + 1) +
+              (startIndex + index + 1) +
               ' 帧：' +
               (error instanceof Error ? error.message : '自动去背景失败')
           );

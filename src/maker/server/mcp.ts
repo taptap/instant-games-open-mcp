@@ -454,6 +454,12 @@ async function listRemoteProxyTools(options: {
   }
 }
 
+function remoteProxyFailureState(dispatched: boolean, error: unknown): 'unknown' | 'not_executed' {
+  if (error instanceof McpError && error.code === ErrorCode.InvalidRequest && !error.data)
+    return 'not_executed';
+  return dispatched ? 'unknown' : 'not_executed';
+}
+
 export async function callRemoteProxyTool(options: {
   targetDir: string;
   name: string;
@@ -506,7 +512,7 @@ export async function callRemoteProxyTool(options: {
         } catch (error) {
           throw new RemoteProxyToolCallError(
             options.name,
-            dispatched ? 'unknown' : 'not_executed',
+            remoteProxyFailureState(dispatched, error),
             error
           );
         }
@@ -543,7 +549,7 @@ export async function callRemoteProxyTool(options: {
         } catch (error) {
           throw new RemoteProxyToolCallError(
             options.name,
-            dispatched ? 'unknown' : 'not_executed',
+            remoteProxyFailureState(dispatched, error),
             error
           );
         } finally {

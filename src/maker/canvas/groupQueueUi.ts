@@ -12,7 +12,7 @@ export const GROUP_QUEUE_STYLES = [
   '.group-queue .group-queue-task { max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-color:#514939; color:#cbc4b6; background:#302c25; cursor:grab; }',
   '.group-queue-task[data-drop] { border-left:3px solid #ffce76; } .group-queue-count { font-variant-numeric:tabular-nums; color:#a99d86; white-space:nowrap; }',
   '.group-queue-spinner { flex:none; width:12px; height:12px; border:2px solid #715c35; border-top-color:#f0c273; border-radius:50%; animation:group-queue-spin 1s linear infinite; }',
-  '.group-queue[data-phase=paused] { border-color:#886143; } @keyframes group-queue-spin { to { transform:rotate(360deg); } }',
+  '.group-queue[data-phase=paused] { flex-wrap:wrap; align-items:flex-start; border-color:#886143; } .group-queue[data-confirming=true] { flex-wrap:wrap; border-color:#e6b15c; background:#3a2e1c; } .group-queue .group-queue-status.group-queue-detail { flex:1 0 100%; white-space:normal; overflow:visible; text-overflow:unset; color:#f0c273; line-height:1.45; } @keyframes group-queue-spin { to { transform:rotate(360deg); } }',
   '@media(prefers-reduced-motion:reduce) { .group-queue-spinner { animation:none; } }',
 ].join('\n');
 
@@ -23,6 +23,7 @@ export function createCanvasGroupQueueUi(options: {
   scale?(): number;
 }) {
   const views = new Map<string, HTMLElement>();
+  const confirming = new Set<string>();
   let dragged: { groupId: string; nodeId: string } | undefined;
   function title(id: string): string {
     const node = options.node(id);
@@ -51,6 +52,7 @@ export function createCanvasGroupQueueUi(options: {
     root.replaceChildren();
     const state = options.queue.view(groupId);
     root.dataset.phase = state?.phase || 'idle';
+    root.dataset.confirming = confirming.has(groupId) ? 'true' : 'false';
     function button(label: string, action: () => void, className = '') {
       const element = document.createElement('button');
       element.type = 'button';
@@ -80,11 +82,31 @@ export function createCanvasGroupQueueUi(options: {
       done.className = 'group-queue-count';
       done.textContent = '✓ 已完成';
       root.append(done);
+    } else if (!active && confirming.has(groupId)) {
+      root.append(
+        button('确认执行', () => {
+          confirming.delete(groupId);
+          options.queue.start(groupId, true);
+        }),
+        button('取消', () => {
+          confirming.delete(groupId);
+          paint(root, groupId);
+        })
+      );
+      const hint = document.createElement('span');
+      hint.className = 'group-queue-status group-queue-detail';
+      hint.textContent =
+        '生图和视频会消耗积分，Seedance 2.5 按较高费用计费。执行中不逐张确认参考图；失败会暂停，不自动重试。请保持页面打开。';
+      root.append(hint);
     } else {
       root.append(
         button(
           active ? state!.message : state?.phase === 'paused' ? '继续剩余流程' : '▶ 完成剩余流程',
-          () => options.queue.start(groupId)
+          () => {
+            if (active) return;
+            confirming.add(groupId);
+            paint(root, groupId);
+          }
         )
       );
       (root.firstElementChild as HTMLButtonElement).disabled = Boolean(active);
@@ -169,6 +191,12 @@ export function createCanvasGroupQueueUi(options: {
         hint.textContent = '已暂停';
         hint.title = state.message;
         root.append(hint);
+        if (state.message) {
+          const detail = document.createElement('span');
+          detail.className = 'group-queue-status group-queue-detail';
+          detail.textContent = state.message;
+          root.append(detail);
+        }
       }
     }
     if (active) {

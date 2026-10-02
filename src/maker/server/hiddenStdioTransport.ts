@@ -21,6 +21,8 @@ export class HiddenStdioClientTransport implements Transport {
   private readonly abortController = new AbortController();
   private readonly readBuffer = new ReadBuffer();
   private readonly stderrStream: PassThrough | null;
+  private closeNotified = false;
+  private closing = false;
 
   onclose?: () => void;
   onerror?: (error: Error) => void;
@@ -37,6 +39,8 @@ export class HiddenStdioClientTransport implements Transport {
     if (this.process) {
       throw new Error('HiddenStdioClientTransport already started.');
     }
+    this.closeNotified = false;
+    this.closing = false;
 
     await new Promise<void>((resolve, reject) => {
       this.process = spawn(this.serverParams.command, this.serverParams.args ?? [], {
@@ -50,19 +54,21 @@ export class HiddenStdioClientTransport implements Transport {
 
       this.process.on('error', (error) => {
         if (error.name === 'AbortError') {
-          this.onclose?.();
+          this.notifyClose();
           return;
         }
         reject(error);
         this.onerror?.(error);
       });
       this.process.on('spawn', () => resolve());
+      this.process.on('exit', () => this.notifyClose());
       this.process.on('close', () => {
         this.process = undefined;
-        this.onclose?.();
+        this.notifyClose();
       });
       this.process.stdin?.on('error', (error) => this.onerror?.(error));
       this.process.stdout?.on('data', (chunk: Buffer) => {
+        if (this.closeNotified) return;
         this.readBuffer.append(chunk);
         this.processReadBuffer();
       });
@@ -82,10 +88,10 @@ export class HiddenStdioClientTransport implements Transport {
   }
 
   async close(): Promise<void> {
+    this.closing = true;
     const child = this.process;
-    this.process = undefined;
     this.readBuffer.clear();
-    if (!child || child.exitCode !== null || child.signalCode !== null) {
+    if (!child) {
       this.abortController.abort();
       return;
     }
@@ -126,7 +132,7 @@ export class HiddenStdioClientTransport implements Transport {
   }
   async send(message: JSONRPCMessage): Promise<void> {
     const stdin = this.process?.stdin;
-    if (!stdin) {
+    if (!stdin || this.closing || this.closeNotified) {
       throw new Error('Not connected');
     }
     const json = serializeMessage(message);
@@ -134,6 +140,13 @@ export class HiddenStdioClientTransport implements Transport {
       return;
     }
     await new Promise<void>((resolve) => stdin.once('drain', resolve));
+  }
+
+  private notifyClose(): void {
+    if (this.closeNotified) return;
+    this.closeNotified = true;
+    this.readBuffer.clear();
+    this.onclose?.();
   }
 
   private processReadBuffer(): void {

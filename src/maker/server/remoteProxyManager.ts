@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { HiddenStdioClientTransport } from './hiddenStdioTransport.js';
 import { ErrorCode, type CallToolResult, type Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
@@ -102,8 +102,11 @@ function isConnectionClosedError(error: unknown): boolean {
 }
 
 function createDefaultTransport(context: RemoteProxyContext): Transport {
+  // The console server is launched detached and has no console. The SDK transport only
+  // sets windowsHide for Electron, so a normal Node parent allocates a visible console
+  // for this persistent proxy. Closing that window kills the child and stalls the canvas.
   return trackMakerChildTransport(
-    new StdioClientTransport({
+    new HiddenStdioClientTransport({
       command: context.command,
       args: context.args,
       env: mergeStringEnv(process.env, context.envVars),

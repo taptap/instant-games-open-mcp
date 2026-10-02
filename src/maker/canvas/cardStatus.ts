@@ -32,6 +32,7 @@ export function renderCanvasCardStatus(
     waitingForSource?: boolean;
     stoppedWaiting?: boolean;
     waitTimedOut?: boolean;
+    detail?: string;
   } = {}
 ): void {
   if (!state) return;
@@ -127,6 +128,7 @@ export function renderCanvasCardStatus(
   }
   if (options.resume && ['waiting', 'paused', 'failed'].includes(state)) {
     hint.textContent = '使用当前引用和已保存参数，更新此卡及后续待处理卡片';
+    if (state === 'failed' && options.detail) hint.textContent = options.detail;
     const resume = document.createElement('button');
     resume.type = 'button';
     resume.className = 'card-state-query card-state-resume';

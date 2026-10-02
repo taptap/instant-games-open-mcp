@@ -29,7 +29,7 @@ export interface SequenceUiOptions {
   render: () => void;
   refreshCard: (nodeId: string) => void;
   publishState: () => void;
-  setError: (message: string) => void;
+  setError: (message: string, level?: 'info' | 'warning' | 'error') => void;
   onChange?: (nodeId: string) => void;
   onOpen?: (nodeId: string) => void;
   resolveTarget?: (sourceId: string, type: 'sequence') => TemplateOutputDecision | undefined;
@@ -117,7 +117,8 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     if (!source.assetPath) throw new Error('视频素材路径缺失。');
     const url = options.store.mediaUrl(source.assetPath);
     const video = options.video;
-    if (video.dataset.assetPath === source.assetPath && video.readyState >= 1) return video;
+    if (video.dataset.assetPath === source.assetPath && video.readyState >= 1 && !video.error)
+      return video;
     await new Promise<void>((resolve, reject) => {
       const timeout = window.setTimeout(() => finish(new Error('读取视频信息超时。')), 15000);
       const cleanup = () => {
@@ -133,7 +134,11 @@ export function createSequenceUiController(options: SequenceUiOptions) {
       };
       const onLoaded = () => finish();
       const onError = () =>
-        finish(new Error('浏览器无法读取该视频，请使用 MP4/H.264、WebM 或 MOV。'));
+        finish(
+          new Error(
+            '当前浏览器无法解码该视频；请转为 MP4（H.264、yuv420p）后重新导入，仅修改扩展名无效。'
+          )
+        );
       const onAbort = () => finish(new DOMException('处理已取消。', 'AbortError'));
       video.addEventListener('loadedmetadata', onLoaded, { once: true });
       video.addEventListener('error', onError, { once: true });
@@ -312,6 +317,8 @@ export function createSequenceUiController(options: SequenceUiOptions) {
         throw new DOMException('处理已取消。', 'AbortError');
       if (!Number.isFinite(video.duration) || video.duration <= 0)
         throw new Error('视频时长无效。');
+      if (!video.videoWidth || !video.videoHeight)
+        throw new Error('视频没有可解码的画面轨道；请转为 MP4（H.264、yuv420p）后重新导入。');
       const hadVideoInfo = Boolean(source.videoInfo);
       if (
         !source.videoInfo ||
@@ -491,6 +498,13 @@ export function createSequenceUiController(options: SequenceUiOptions) {
           node.sequenceSettings!.cutoutMode || 'connected'
         );
         activeRun.backgroundFrames = baseline.slice();
+        if (activeRun.frames.length < baseline.length)
+          options.setError(
+            '已跳过片头 ' +
+              (baseline.length - activeRun.frames.length) +
+              ' 帧近乎纯白或纯黑的闪帧；原视频保留，结果请预览确认。',
+            'warning'
+          );
         activeRun.boundaryFrames = options.processor.boundaryFrames
           ? await options.processor.boundaryFrames(activeRun.frames, signal)
           : undefined;

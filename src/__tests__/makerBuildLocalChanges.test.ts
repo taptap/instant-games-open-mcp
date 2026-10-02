@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import * as makerMcp from '../maker/server/mcp';
 import proxySnapshot from '../maker/server/remoteProxyToolSnapshot.json';
 import {
@@ -2571,6 +2572,62 @@ describe('maker build local-change guard', () => {
     });
     expect(callTool).toHaveBeenCalledTimes(1);
   });
+
+  test.each([
+    [new McpError(ErrorCode.InvalidRequest, '项目授权失败'), 'not_executed'],
+    [new Error('MCP error -32600: 项目授权失败'), 'unknown'],
+    [new McpError(ErrorCode.InternalError, 'reference=-326001'), 'unknown'],
+    [
+      new McpError(ErrorCode.InvalidRequest, '项目授权失败', { execution_state: 'unknown' }),
+      'unknown',
+    ],
+  ])(
+    'uses structured rejection evidence after dispatch: %s',
+    async (networkError, expectedState) => {
+      saveTapAuth({
+        kid: 'rnd-kid',
+        mac_key: 'rnd-mac-key',
+        token_type: 'mac',
+        mac_algorithm: 'hmac-sha-256',
+      });
+      const callTool = jest.fn(
+        async (
+          _context: unknown,
+          _request: unknown,
+          _options: unknown,
+          onDispatch?: () => void
+        ) => {
+          onDispatch?.();
+          throw networkError;
+        }
+      );
+      const manager = {
+        callTool,
+        listTools: jest.fn(),
+        getCachedTools: jest.fn(),
+        closeAll: jest.fn(),
+      } as unknown as MakerRemoteProxyManager;
+      const callRemoteProxyTool = (
+        makerMcp as typeof makerMcp & {
+          callRemoteProxyTool: (options: Record<string, unknown>) => Promise<unknown>;
+        }
+      ).callRemoteProxyTool;
+
+      await expect(
+        callRemoteProxyTool({
+          targetDir: tempDir,
+          name: 'generate_image',
+          args: {},
+          extra: { sendNotification: jest.fn() },
+          manager,
+        })
+      ).rejects.toMatchObject({
+        executionState: expectedState,
+        automaticRetry: false,
+      });
+      expect(callTool).toHaveBeenCalledTimes(1);
+    }
+  );
 
   test('does not retry MCP business errors with remote diagnostics', async () => {
     let attempts = 0;

@@ -1,6 +1,7 @@
 import { ErrorCode, McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { HiddenStdioClientTransport } from '../maker/server/hiddenStdioTransport.js';
 import {
   createMakerRemoteProxyManager,
   type MakerRemoteProxyClient,
@@ -90,6 +91,27 @@ function createHarness(options: { connect?: () => Promise<void> } = {}) {
 }
 
 describe('MakerRemoteProxyManager', () => {
+  test('uses the hidden stdio transport for the persistent console proxy', async () => {
+    const transports: Transport[] = [];
+    const manager = createMakerRemoteProxyManager({
+      createClient: () =>
+        ({
+          connect: async (transport: Transport) => {
+            transports.push(transport);
+            throw new Error('stop-before-start');
+          },
+          listTools: async () => ({ tools: [] }),
+          callTool: async () => ({ content: [] }),
+          close: async () => undefined,
+        }) as MakerRemoteProxyClient,
+    });
+
+    await expect(manager.listTools(createContext())).rejects.toThrow('stop-before-start');
+
+    expect(transports).toHaveLength(1);
+    expect(transports[0]).toBeInstanceOf(HiddenStdioClientTransport);
+    expect(transports[0].constructor.name).not.toBe('StdioClientTransport');
+  });
   test('reuses one connection for repeated calls in one project and isolates another project', async () => {
     const harness = createHarness();
     const contextA = createContext();

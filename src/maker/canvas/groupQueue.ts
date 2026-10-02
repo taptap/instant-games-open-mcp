@@ -54,7 +54,7 @@ export function createCanvasGroupQueue(options: {
       )
     );
   }
-  function start(groupId: string) {
+  function start(groupId: string, alreadyConfirmed = false) {
     sync();
     if (!documentState || (queues.get(groupId) && executing(queues.get(groupId)!))) return;
     const previous = queues.get(groupId)?.pending || [];
@@ -85,6 +85,7 @@ export function createCanvasGroupQueue(options: {
       return;
     }
     if (
+      !alreadyConfirmed &&
       !options.confirm(
         '按当前参数完成此分组剩余 ' +
           pending.length +
@@ -211,10 +212,12 @@ export function createCanvasGroupQueue(options: {
           state.message = '正在执行';
           options.changed();
           let success = false;
+          let failure = '';
           try {
             success = await options.run(id);
           } catch (error) {
-            options.error(error instanceof Error ? error.message : String(error));
+            failure = error instanceof Error ? error.message : String(error);
+            options.error(failure);
           }
           if (success) state.completed++;
           else state.pending.unshift(id);
@@ -223,7 +226,7 @@ export function createCanvasGroupQueue(options: {
           state.phase =
             !success || state.stopping ? 'paused' : state.pending.length ? 'queued' : 'complete';
           state.message = !success
-            ? '已暂停，请查看当前卡片及运行日志'
+            ? failure || '已暂停，请查看当前卡片及运行日志'
             : state.stopping
               ? '已停止后续'
               : state.pending.length

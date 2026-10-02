@@ -675,6 +675,7 @@ export class MakerCanvasFiles {
         ['rev-parse', '--is-inside-work-tree'],
         {
           cwd: this.root,
+          windowsHide: true,
         }
       );
       insideRepo = stdout.trim() === 'true';
@@ -688,6 +689,7 @@ export class MakerCanvasFiles {
         ['check-ignore', '-q', '--', '.maker/canvases/check.json'],
         {
           cwd: this.root,
+          windowsHide: true,
         }
       );
     } catch (error) {

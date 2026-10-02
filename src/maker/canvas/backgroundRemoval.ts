@@ -7,6 +7,47 @@ export interface BackgroundOptions {
   color?: [number, number, number];
 }
 
+export function backgroundColorsDiffer(
+  left: [number, number, number],
+  right: [number, number, number],
+  limit = 60
+): boolean {
+  return left.some((channel, index) => Math.abs(channel - right[index]) > limit);
+}
+
+export function stableBackgroundColor(
+  colors: Array<[number, number, number] | undefined>,
+  limit = 60
+): [number, number, number] | undefined {
+  const groups: {
+    anchor: [number, number, number];
+    sum: [number, number, number];
+    count: number;
+    last: number;
+  }[] = [];
+  colors.forEach((color, index) => {
+    if (!color) return;
+    const group = groups.find((item) => !backgroundColorsDiffer(item.anchor, color, limit));
+    if (!group) {
+      groups.push({ anchor: color, sum: [...color], count: 1, last: index });
+      return;
+    }
+    group.count += 1;
+    group.last = index;
+    color.forEach((channel, channelIndex) => {
+      group.sum[channelIndex] += channel;
+    });
+  });
+  groups.sort((left, right) => right.count - left.count || right.last - left.last);
+  const chosen = groups[0];
+  if (!chosen) return;
+  return chosen.sum.map((channel) => Math.round(channel / chosen.count)) as [
+    number,
+    number,
+    number,
+  ];
+}
+
 export function createBackgroundRemoval() {
   function detect(data: Uint8ClampedArray, width: number, height: number) {
     const buckets = new Map<string, { count: number; color: number[] }>();

@@ -1,4 +1,8 @@
-import { createBackgroundRemoval, type BackgroundOptions } from '../backgroundRemoval.js';
+import {
+  createBackgroundRemoval,
+  stableBackgroundColor,
+  type BackgroundOptions,
+} from '../backgroundRemoval.js';
 
 const removal = createBackgroundRemoval();
 const defaults: BackgroundOptions = {
@@ -63,4 +67,21 @@ describe('automatic solid background removal', () => {
     expect(data[3]).toBeGreaterThan(0);
     expect(data[3]).toBeLessThan(255);
   });
+});
+
+test('stable background ignores a leading flash and small frame-to-frame shifts', () => {
+  expect(
+    stableBackgroundColor([
+      [253, 251, 252],
+      [153, 3, 84],
+      [151, 4, 82],
+      [149, 2, 80],
+    ])
+  ).toEqual([151, 3, 82]);
+  expect(
+    stableBackgroundColor([
+      [10, 20, 30],
+      [200, 10, 40],
+    ])
+  ).toEqual([200, 10, 40]);
 });
