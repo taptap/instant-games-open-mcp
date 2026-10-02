@@ -5,6 +5,7 @@ import { MakerCanvasFiles } from '../files.js';
 import { createId } from '../model.js';
 import { createCanvasTemplateModel } from '../templates.js';
 import { isCanvasNodeStale } from '../dependencies.js';
+import { canvasPresets } from '../presets.js';
 
 let root: string;
 let files: MakerCanvasFiles;
@@ -36,8 +37,8 @@ test.each([0, 1, 2])(
     const original = JSON.stringify(listed);
     const canvas = await files.create('预设验证');
     const prepared = await files.prepareTemplate(listed.id, canvas.id);
-    expect(prepared.nodes).toHaveLength([4, 13, 5][index]);
-    expect(prepared.edges).toHaveLength([3, 12, 4][index]);
+    expect(prepared.nodes).toHaveLength([4, 17, 5][index]);
+    expect(prepared.edges).toHaveLength([3, 16, 4][index]);
     expect(prepared.nodes.filter((node) => node.type === 'video-source')).toHaveLength(
       index === 1 ? 4 : 1
     );
@@ -80,7 +81,7 @@ test.each([0, 1, 2])(
       canvas.revision
     );
     expect((await files.load(canvas.id)).nodes).toEqual(saved.nodes);
-    expect(first.nodes.filter((node) => node.templatePending)).toHaveLength(index === 1 ? 12 : 3);
+    expect(first.nodes.filter((node) => node.templatePending)).toHaveLength(index === 1 ? 16 : 3);
     if (index === 2) {
       const video = first.nodes.find((node) => node.type === 'video-source')!;
       const images = first.nodes.filter((node) => node.type === 'image');
@@ -131,4 +132,86 @@ test('protects builtins and rejects invalid preparation before importing media',
     code: 'NOT_FOUND',
   });
   expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+});
+
+test('four directions use distinct empty neutral references and keep old results explicitly pending', () => {
+  const preset = canvasPresets()[1];
+  const images = preset.nodes.filter((node) => node.type === 'image');
+  const head = images.find((node) => node.assetPath)!;
+  expect(images).toHaveLength(5);
+  const references = images.filter((node) => node !== head);
+  expect(new Set(references.map((node) => node.generationDraft?.prompt)).size).toBe(4);
+  for (const reference of references) {
+    expect(reference.assetPath).toBeUndefined();
+    expect(reference.generationDraft?.prompt).toContain('calm neutral standing idle pose');
+    expect(reference.generation).toBeUndefined();
+    expect(reference.generationDraft).toMatchObject({
+      operation: 'variant',
+      sourceImageId: head.id,
+    });
+    expect(preset.edges).toContainEqual(
+      expect.objectContaining({
+        from: head.id,
+        to: reference.id,
+        kind: 'image-variant',
+      })
+    );
+    const videos = preset.nodes.filter((node) => node.generation?.sourceImageId === reference.id);
+    expect(videos).toHaveLength(1);
+    expect(videos[0].generation?.parameters?.mode).toBe('first_frame');
+    expect(videos[0].generation?.prompt).toContain(
+      'same viewpoint and facing as the reference image'
+    );
+    expect(preset.edges).toContainEqual(
+      expect.objectContaining({
+        from: reference.id,
+        to: videos[0].id,
+        kind: 'image-to-video',
+      })
+    );
+  }
+  const instance = model.instantiate(preset, { x: 0, y: 0 });
+  const instanceHead = instance.nodes.find((node) => node.type === 'image' && node.assetPath)!;
+  for (const node of instance.nodes.filter(
+    (node) => node.type !== 'section' && node !== instanceHead
+  )) {
+    expect(node.templatePending).toBe(true);
+    if (node.type !== 'image') {
+      expect(node.assetPath).toBeTruthy();
+      expect(node.title).toContain('初始为旧示例');
+    }
+  }
+  expect(preset.edges.some((edge) => edge.from === head.id && edge.kind === 'image-to-video')).toBe(
+    false
+  );
+});
+
+test('preparing prompt metadata never mutates future templates', () => {
+  const first = canvasPresets();
+  const before = JSON.stringify(first);
+  first[1].nodes[0].title = 'changed';
+  expect(JSON.stringify(canvasPresets())).toBe(before);
+});
+
+test('pending reference links still reject missing or mismatched draft sources', async () => {
+  const canvas = await files.create();
+  const preset = await files.prepareTemplate(canvasPresets()[1].id, canvas.id);
+  const instance = model.instantiate(preset, { x: 0, y: 0 });
+  const reference = instance.nodes.find((node) => node.generationDraft)!;
+  const draft = reference.generationDraft!;
+  delete reference.generationDraft;
+  await expect(
+    files.save(canvas.id, { ...canvas, ...instance }, canvas.revision)
+  ).rejects.toMatchObject({ code: 'INVALID_EDGE' });
+  reference.generationDraft = { ...draft, sourceImageId: createId() };
+  await expect(
+    files.save(canvas.id, { ...canvas, ...instance }, canvas.revision)
+  ).rejects.toMatchObject({ code: 'INVALID_DOCUMENT' });
+  reference.generationDraft = { ...draft, operation: 'outpaint' };
+  await expect(
+    files.save(canvas.id, { ...canvas, ...instance }, canvas.revision)
+  ).rejects.toMatchObject({ code: 'INVALID_EDGE' });
+  reference.generationDraft = draft;
+  const saved = await files.save(canvas.id, { ...canvas, ...instance }, canvas.revision);
+  expect(saved.nodes.find((node) => node.id === reference.id)?.assetPath).toBeUndefined();
 });

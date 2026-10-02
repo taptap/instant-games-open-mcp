@@ -1253,19 +1253,26 @@ export class MakerCanvasFiles {
     }
     if (
       edge.kind === 'image-to-video' &&
-      (from?.type !== 'image' || !from.assetPath || to?.type !== 'video-source' || !to.assetPath)
+      (from?.type !== 'image' ||
+        (!from.assetPath && !from.generationDraft?.sourceImageId) ||
+        to?.type !== 'video-source' ||
+        !to.assetPath)
     ) {
-      fail('图生视频引用必须连接已保存的图片与视频卡。', 400, 'INVALID_EDGE');
+      fail('图生视频引用必须连接已保存图片或有来源的图片草稿与已保存视频卡。', 400, 'INVALID_EDGE');
     }
     if (
       edge.kind === 'image-variant' &&
       (from?.type !== 'image' ||
         !from.assetPath ||
         to?.type !== 'image' ||
-        !to.assetPath ||
-        !to.generation?.sourceImageIds?.includes(from.id))
+        (to.assetPath
+          ? !to.generation?.sourceImageIds?.includes(from.id) &&
+            to.sourceSnapshot?.nodeId !== from.id &&
+            !to.sourceSnapshots?.some((snapshot) => snapshot.nodeId === from.id)
+          : to.generationDraft?.operation !== 'variant' ||
+            to.generationDraft.sourceImageId !== from.id))
     ) {
-      fail('图片派生关系必须对应真实结果记录中的来源图片。', 400, 'INVALID_EDGE');
+      fail('图片派生关系必须对应真实结果或变体草稿中的已保存来源图片。', 400, 'INVALID_EDGE');
     }
     if (
       edge.kind === 'sequence-animation' &&

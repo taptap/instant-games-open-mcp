@@ -142,7 +142,7 @@ test('persists two video sources, rejects invalid and duplicate edges, and keeps
     expect(loaded.nodes.at(-1)?.generation?.parameters?.mode).toBe('first_last_frame');
     const invalid = structuredClone(saved);
     invalid.edges[1].from = createId();
-    await expect(files.save(saved.id, invalid, saved.revision)).rejects.toThrow('图片与视频卡');
+    await expect(files.save(saved.id, invalid, saved.revision)).rejects.toThrow('图生视频引用');
     const duplicate = structuredClone(saved);
     duplicate.edges.push({ ...duplicate.edges[1], id: createId() });
     await expect(files.save(saved.id, duplicate, saved.revision)).rejects.toThrow('连线不能重复');

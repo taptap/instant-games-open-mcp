@@ -2,7 +2,7 @@
   {
     "id": "7e1cb6ad-732f-4dc3-a951-000000000001",
     "name": "序列帧动画",
-    "revision": 1,
+    "revision": 2,
     "nodes": [
       {
         "id": "8410bf2b-2b77-4e7d-8be6-d3c84fb8ae57",
@@ -27,7 +27,7 @@
         "title": "02 向右挥剑 · 视频",
         "assetPath": ".maker/canvases/a5aa6aee-40f9-4b55-b07e-80bedca305ec/videos/video-c04e17f0-05f3-4497-bcbd-c2d66638ce17.mp4",
         "generation": {
-          "prompt": "保持输入首帧的主体大小、左置位置、纯 #ff00ff 方形背景和固定远景构图。蓝银盔甲战士用朴素物理短剑向画面右侧做一次斜下挥砍：前段蓄力，中段1-2秒出现攻击峰值，随后完整回到预备姿势。剑身只产生一段紧贴刀刃的短小弧形拖影，动作清楚、连续、有真实挥砍速度；整个人物、剑尖和拖影全程远离边界。无魔法爆发、无光束、无巨大光环、无镜头放大、无镜头位移。",
+          "prompt": "The character swings the reference weapon in one explosive lightning-fast slash with full-body follow-through, then returns to the reference pose.",
           "sourceImageId": "8410bf2b-2b77-4e7d-8be6-d3c84fb8ae57",
           "parameters": {
             "model": "2.0",
@@ -323,7 +323,7 @@
   {
     "id": "7e1cb6ad-732f-4dc3-a951-000000000002",
     "name": "角色四方向",
-    "revision": 1,
+    "revision": 2,
     "nodes": [
       {
         "id": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
@@ -341,32 +341,33 @@
       {
         "id": "282ec863-929e-41b5-9e3d-313a1bf32e40",
         "type": "video-source",
-        "x": 320,
+        "x": 660,
         "y": 0,
         "width": 290,
         "height": 300,
-        "title": "02 向前跑步 · 视频",
-        "assetPath": ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-112120c3-9716-4c34-b210-0120b4f7bb18.mp4",
+        "title": "03 向前跑步 · 视频（初始为旧示例）",
         "generation": {
-          "prompt": "同一位蓝银金属盔甲、红围巾、深色靴子、银色长剑的卡通二次元战士，角色正面朝向镜头，清楚呈现脸、胸甲、双肩和双腿正面；做4秒真正的原地跑步循环，连续交替抬腿、摆臂和身体上下起伏，至少完成两次自然步态循环，始终保持正面方向，不转身、不侧身、不镜像冒充。剑收在身体侧边并完整可见但不攻击。固定远景正交镜头，人物连同脚和剑只占画面约45%-50%，四周保持宽阔留白，完整头脚武器全程不出框。纯色 #ff00ff 平坦背景，无地面、无阴影、无纹理、无渐变、无镜头缩放/位移/跟随、无额外角色、无文字、水印、裁切、冻结或静帧伪造。",
-          "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+          "prompt": "The character runs in place with exaggerated bouncy strides and clear alternating leg and arm motion.",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000010",
           "parameters": {
             "model": "2.0",
             "resolution": "720p",
             "duration": 4,
-            "ratio": "adaptive"
-          }
-        }
+            "ratio": "adaptive",
+            "mode": "first_frame"
+          },
+          "sourceImageIds": ["7e1cb6ad-732f-4dc3-a951-000000000010"]
+        },
+        "assetPath": ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-112120c3-9716-4c34-b210-0120b4f7bb18.mp4"
       },
       {
         "id": "71af41b1-5050-4202-8496-84018fee11f6",
         "type": "sequence",
-        "x": 670,
+        "x": 1010,
         "y": 0,
         "width": 480,
         "height": 300,
-        "title": "03 向前跑步 · 序列帧",
-        "assetPath": "assets/image/canvas-af514697-a190-4119-89d5-168f247001f1.png",
+        "title": "03 向前跑步 · 序列帧（初始为旧示例）",
         "sourceVideoId": "282ec863-929e-41b5-9e3d-313a1bf32e40",
         "sequenceSettings": {
           "start": 0,
@@ -382,6 +383,7 @@
           "fit": "contain",
           "pixel": false
         },
+        "assetPath": "assets/image/canvas-af514697-a190-4119-89d5-168f247001f1.png",
         "frameSetInfo": {
           "fps": 4,
           "frameCount": 12,
@@ -492,32 +494,33 @@
       {
         "id": "95bfb500-703b-4f8d-ab7c-0dd5d1fc5676",
         "type": "video-source",
-        "x": 320,
+        "x": 660,
         "y": 340,
         "width": 290,
         "height": 300,
-        "title": "02 向后跑步 · 视频",
-        "assetPath": ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-41fc0007-3f84-4838-a7cc-c8a7a1f78a14.mp4",
+        "title": "03 向后跑步 · 视频（初始为旧示例）",
         "generation": {
-          "prompt": "同一位蓝银金属盔甲、红围巾、深色靴子、银色长剑的卡通二次元战士，角色背面朝向镜头，清楚呈现后脑、后颈、背甲、披带/围巾背面和双腿背面；做4秒真正的原地跑步循环，连续交替抬腿、摆臂和身体上下起伏，至少完成两次自然步态循环，始终保持背面方向，不转身、不侧身、不镜像冒充。剑收在身体侧边并完整可见但不攻击。固定远景正交镜头，人物连同脚和剑只占画面约45%-50%，四周保持宽阔留白，完整头脚武器全程不出框。纯色 #ff00ff 平坦背景，无地面、无阴影、无纹理、无渐变、无镜头缩放/位移/跟随、无额外角色、无文字、水印、裁切、冻结或静帧伪造。",
-          "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+          "prompt": "The character runs in place with exaggerated bouncy strides and clear alternating leg and arm motion.",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000011",
           "parameters": {
             "model": "2.0",
             "resolution": "720p",
             "duration": 4,
-            "ratio": "adaptive"
-          }
-        }
+            "ratio": "adaptive",
+            "mode": "first_frame"
+          },
+          "sourceImageIds": ["7e1cb6ad-732f-4dc3-a951-000000000011"]
+        },
+        "assetPath": ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-41fc0007-3f84-4838-a7cc-c8a7a1f78a14.mp4"
       },
       {
         "id": "8e0426f3-2b7c-4f89-a418-0703f2428fc9",
         "type": "sequence",
-        "x": 670,
+        "x": 1010,
         "y": 340,
         "width": 480,
         "height": 300,
-        "title": "03 向后跑步 · 序列帧",
-        "assetPath": "assets/image/canvas-e201ed5e-2592-43a0-8d52-d8590809f048.png",
+        "title": "03 向后跑步 · 序列帧（初始为旧示例）",
         "sourceVideoId": "95bfb500-703b-4f8d-ab7c-0dd5d1fc5676",
         "sequenceSettings": {
           "start": 0,
@@ -533,6 +536,7 @@
           "fit": "contain",
           "pixel": false
         },
+        "assetPath": "assets/image/canvas-e201ed5e-2592-43a0-8d52-d8590809f048.png",
         "frameSetInfo": {
           "fps": 4,
           "frameCount": 12,
@@ -643,32 +647,33 @@
       {
         "id": "ed988c2c-e851-487f-ac77-5714c9c52fc4",
         "type": "video-source",
-        "x": 320,
+        "x": 660,
         "y": 680,
         "width": 290,
         "height": 300,
-        "title": "02 向左跑步 · 视频",
-        "assetPath": ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-612711a5-e9a5-4cdf-adb0-f11ca2523e7d.mp4",
+        "title": "03 向左跑步 · 视频（初始为旧示例）",
         "generation": {
-          "prompt": "同一位蓝银金属盔甲、红围巾、深色靴子、银色长剑的卡通二次元战士，角色左侧面朝向画面左侧，清楚呈现左脸/左肩、左侧胸甲、左臂和双腿的左侧姿态；做4秒真正的原地跑步循环，连续交替抬腿、摆臂和身体上下起伏，至少完成两次自然步态循环，始终保持左侧方向，不转身、不正面、不右侧面、不镜像冒充。剑收在身体侧边并完整可见但不攻击。固定远景正交镜头，人物连同脚和剑只占画面约45%-50%，四周保持宽阔留白，完整头脚武器全程不出框。纯色 #ff00ff 平坦背景，无地面、无阴影、无纹理、无渐变、无镜头缩放/位移/跟随、无额外角色、无文字、水印、裁切、冻结或静帧伪造。",
-          "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+          "prompt": "The character runs in place with exaggerated bouncy strides and clear alternating leg and arm motion.",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000012",
           "parameters": {
             "model": "2.0",
             "resolution": "720p",
             "duration": 4,
-            "ratio": "adaptive"
-          }
-        }
+            "ratio": "adaptive",
+            "mode": "first_frame"
+          },
+          "sourceImageIds": ["7e1cb6ad-732f-4dc3-a951-000000000012"]
+        },
+        "assetPath": ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-612711a5-e9a5-4cdf-adb0-f11ca2523e7d.mp4"
       },
       {
         "id": "46bf7b9a-44bc-4c88-a473-d7f93b3c4588",
         "type": "sequence",
-        "x": 670,
+        "x": 1010,
         "y": 680,
         "width": 480,
         "height": 300,
-        "title": "03 向左跑步 · 序列帧",
-        "assetPath": "assets/image/canvas-786d578b-d7d8-42af-b3f5-3b8680dd1cc7.png",
+        "title": "03 向左跑步 · 序列帧（初始为旧示例）",
         "sourceVideoId": "ed988c2c-e851-487f-ac77-5714c9c52fc4",
         "sequenceSettings": {
           "start": 0,
@@ -684,6 +689,7 @@
           "fit": "contain",
           "pixel": false
         },
+        "assetPath": "assets/image/canvas-786d578b-d7d8-42af-b3f5-3b8680dd1cc7.png",
         "frameSetInfo": {
           "fps": 4,
           "frameCount": 12,
@@ -794,32 +800,33 @@
       {
         "id": "201966e7-e280-4559-bd5d-f146803e2ee7",
         "type": "video-source",
-        "x": 320,
+        "x": 660,
         "y": 1020,
         "width": 290,
         "height": 300,
-        "title": "02 向右跑步 · 视频",
-        "assetPath": ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-8f07365a-90c5-4ceb-9407-55de5e4bfb8d.mp4",
+        "title": "03 向右跑步 · 视频（初始为旧示例）",
         "generation": {
-          "prompt": "同一位蓝银金属盔甲、红围巾、深色靴子、银色长剑的卡通二次元战士，角色右侧面朝向画面右侧，清楚呈现右脸/右肩、右侧胸甲、右臂和双腿的右侧姿态；做4秒真正的原地跑步循环，连续交替抬腿、摆臂和身体上下起伏，至少完成两次自然步态循环，始终保持右侧方向，不转身、不正面、不左侧面、不镜像冒充。剑收在身体侧边并完整可见但不攻击。固定远景正交镜头，人物连同脚和剑只占画面约45%-50%，四周保持宽阔留白，完整头脚武器全程不出框。纯色 #ff00ff 平坦背景，无地面、无阴影、无纹理、无渐变、无镜头缩放/位移/跟随、无额外角色、无文字、水印、裁切、冻结或静帧伪造。",
-          "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+          "prompt": "The character runs in place with exaggerated bouncy strides and clear alternating leg and arm motion.",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000013",
           "parameters": {
             "model": "2.0",
             "resolution": "720p",
             "duration": 4,
-            "ratio": "adaptive"
-          }
-        }
+            "ratio": "adaptive",
+            "mode": "first_frame"
+          },
+          "sourceImageIds": ["7e1cb6ad-732f-4dc3-a951-000000000013"]
+        },
+        "assetPath": ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-8f07365a-90c5-4ceb-9407-55de5e4bfb8d.mp4"
       },
       {
         "id": "60468243-f6e2-45c6-861e-65c9d87572ef",
         "type": "sequence",
-        "x": 670,
+        "x": 1010,
         "y": 1020,
         "width": 480,
         "height": 300,
-        "title": "03 向右跑步 · 序列帧",
-        "assetPath": "assets/image/canvas-07726790-2ae9-415d-8d63-09500f0e76d3.png",
+        "title": "03 向右跑步 · 序列帧（初始为旧示例）",
         "sourceVideoId": "201966e7-e280-4559-bd5d-f146803e2ee7",
         "sequenceSettings": {
           "start": 0,
@@ -835,6 +842,7 @@
           "fit": "contain",
           "pixel": false
         },
+        "assetPath": "assets/image/canvas-07726790-2ae9-415d-8d63-09500f0e76d3.png",
         "frameSetInfo": {
           "fps": 4,
           "frameCount": 12,
@@ -945,11 +953,11 @@
       {
         "id": "93e67dbc-7281-4a73-9c9c-038557ba54dd",
         "type": "animation",
-        "x": 1214,
+        "x": 1554,
         "y": 0,
         "width": 280,
         "height": 300,
-        "title": "序列帧动画",
+        "title": "序列帧动画（初始为旧示例）",
         "assetPath": "assets/image/canvas-af514697-a190-4119-89d5-168f247001f1.png",
         "frameSetInfo": {
           "fps": 4,
@@ -1061,11 +1069,11 @@
       {
         "id": "bdabf1b2-9280-46f9-a5b9-034482ecd1cd",
         "type": "animation",
-        "x": 1214,
+        "x": 1554,
         "y": 340,
         "width": 280,
         "height": 300,
-        "title": "序列帧动画",
+        "title": "序列帧动画（初始为旧示例）",
         "assetPath": "assets/image/canvas-e201ed5e-2592-43a0-8d52-d8590809f048.png",
         "frameSetInfo": {
           "fps": 4,
@@ -1177,11 +1185,11 @@
       {
         "id": "9a44ea3c-2b32-48de-a8c3-1a6891b9be22",
         "type": "animation",
-        "x": 1214,
+        "x": 1554,
         "y": 680,
         "width": 280,
         "height": 300,
-        "title": "序列帧动画",
+        "title": "序列帧动画（初始为旧示例）",
         "assetPath": "assets/image/canvas-786d578b-d7d8-42af-b3f5-3b8680dd1cc7.png",
         "frameSetInfo": {
           "fps": 4,
@@ -1293,11 +1301,11 @@
       {
         "id": "ab2b6e43-8fd2-4e23-b239-65f923008195",
         "type": "animation",
-        "x": 1214,
+        "x": 1554,
         "y": 1020,
         "width": 280,
         "height": 300,
-        "title": "序列帧动画",
+        "title": "序列帧动画（初始为旧示例）",
         "assetPath": "assets/image/canvas-07726790-2ae9-415d-8d63-09500f0e76d3.png",
         "frameSetInfo": {
           "fps": 4,
@@ -1405,12 +1413,64 @@
             }
           ]
         }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000010",
+        "type": "image",
+        "x": 320,
+        "y": 0,
+        "width": 280,
+        "height": 300,
+        "title": "02 正面 · 站姿参考（待确认）",
+        "generationDraft": {
+          "operation": "variant",
+          "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000011",
+        "type": "image",
+        "x": 320,
+        "y": 340,
+        "width": 280,
+        "height": 300,
+        "title": "02 背面 · 站姿参考（待确认）",
+        "generationDraft": {
+          "operation": "variant",
+          "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000012",
+        "type": "image",
+        "x": 320,
+        "y": 680,
+        "width": 280,
+        "height": 300,
+        "title": "02 左侧 · 站姿参考（待确认）",
+        "generationDraft": {
+          "operation": "variant",
+          "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000013",
+        "type": "image",
+        "x": 320,
+        "y": 1020,
+        "width": 280,
+        "height": 300,
+        "title": "02 右侧 · 站姿参考（待确认）",
+        "generationDraft": {
+          "operation": "variant",
+          "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00"
+        }
       }
     ],
     "edges": [
       {
         "id": "cdc8a8dd-8a04-4175-9fac-cb464762162f",
-        "from": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000010",
         "to": "282ec863-929e-41b5-9e3d-313a1bf32e40",
         "kind": "image-to-video"
       },
@@ -1422,7 +1482,7 @@
       },
       {
         "id": "cc58d1f2-5132-45f6-a599-eea79d0165b1",
-        "from": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000011",
         "to": "95bfb500-703b-4f8d-ab7c-0dd5d1fc5676",
         "kind": "image-to-video"
       },
@@ -1434,7 +1494,7 @@
       },
       {
         "id": "04a1e885-f85f-4b9a-a201-48170775ff6a",
-        "from": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000012",
         "to": "ed988c2c-e851-487f-ac77-5714c9c52fc4",
         "kind": "image-to-video"
       },
@@ -1446,7 +1506,7 @@
       },
       {
         "id": "7ee4ea9e-ff4d-46cd-8af5-c989aa5df49b",
-        "from": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000013",
         "to": "201966e7-e280-4559-bd5d-f146803e2ee7",
         "kind": "image-to-video"
       },
@@ -1479,6 +1539,30 @@
         "from": "60468243-f6e2-45c6-861e-65c9d87572ef",
         "to": "ab2b6e43-8fd2-4e23-b239-65f923008195",
         "kind": "sequence-animation"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000020",
+        "from": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000010",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000021",
+        "from": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000011",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000022",
+        "from": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000012",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000023",
+        "from": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000013",
+        "kind": "image-variant"
       }
     ],
     "assets": {
@@ -1523,7 +1607,7 @@
   {
     "id": "7e1cb6ad-732f-4dc3-a951-000000000003",
     "name": "首尾帧变身 · 灰狼→狼王",
-    "revision": 1,
+    "revision": 2,
     "nodes": [
       {
         "id": "4238be48-31dc-4a25-b472-f0e729af02e8",
@@ -1558,7 +1642,7 @@
         "y": 0,
         "width": 360,
         "height": 360,
-        "title": "首尾帧变身视频 · 5 秒",
+        "title": "首尾帧变身视频",
         "assetPath": ".maker/canvases/88406a8e-a1fd-4cfa-ae6a-827e1d04daea/videos/video-76bd9305-5dbf-4b1a-a753-6be859fc7d40.mp4",
         "videoInfo": {
           "duration": 5.041667,
@@ -1566,7 +1650,7 @@
           "height": 384
         },
         "generation": {
-          "prompt": "变身动作：游戏Boss原地变身动作，严格从首帧的四足灰狼连续变身到尾帧的直立人形狼王。同一只灰黑毛发、琥珀眼睛的狼，面朝左前方三分之四视角。前0.5秒四足狼伏低蓄力，然后后腿蹬起、脊背向上伸展，胸肩和前肢逐渐变得强壮，前爪逐渐伸展为人形长臂利爪，躯干抬起，最终双足直立、张口咆哮、双爪向外张开，最后0.8秒稳定在尾帧姿态。变形必须有明显的躯体形变和连续动作，不要仅做交叉淡入淡出，不要叠加第二个角色。\n\n镜头构图：固定机位、固定焦距、固定正交视角，禁止镜头平移旋转缩放或切镜。主体完整留在画面内，脚底基准保持稳定，只允许角色本体运动。\n\n背景约束：全程背景严格为均匀纯绿色#00FF00，不出现地面、环境、阴影、平台、雾、烟、粒子、光晕、文字或新物体。背景不渐变不闪烁，毛皮保持灰黑色，不被绿色背景染色。",
+          "prompt": "The subject transforms continuously from the first reference pose into the last reference pose, with clear physical deformation, not a crossfade or an added subject.",
           "parameters": {
             "model": "2.0",
             "ratio": "adaptive",

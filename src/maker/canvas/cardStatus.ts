@@ -7,6 +7,7 @@ export function canvasCardStatus(input: {
   template?: string;
 }): CanvasCardStatus | undefined {
   if (input.busy) return 'loading';
+  if (input.generation === 'timedout') return 'paused';
   if (input.generation === 'unknown') return 'unknown';
   if (input.generation === 'failed' || input.sequence === 'failed') return 'failed';
   if (input.generation === 'canceled' || input.sequence === 'cancelled') return 'paused';
@@ -30,6 +31,7 @@ export function renderCanvasCardStatus(
     adjust?: () => void;
     waitingForSource?: boolean;
     stoppedWaiting?: boolean;
+    waitTimedOut?: boolean;
   } = {}
 ): void {
   if (!state) return;
@@ -66,6 +68,10 @@ export function renderCanvasCardStatus(
   if (options.stoppedWaiting) {
     title.textContent = '已停止等待';
     hint.textContent = '远端任务可能仍在运行，请查询原任务';
+  }
+  if (options.waitTimedOut) {
+    title.textContent = '等待超时';
+    hint.textContent = '已解除本地占用；可调整参数生成新视频，旧任务保留在视频历史中';
   }
   if (options.waitingForSource && ['waiting', 'failed', 'paused'].includes(state)) {
     hint.textContent = options.adjust

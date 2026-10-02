@@ -81,8 +81,8 @@ try {
               kind: index === 5 ? 'video' : 'image',
               status,
               prompt: '状态回归夹具，不提交生成',
-              createdAt: '2026-10-01T00:00:00Z',
-              updatedAt: '2026-10-01T00:00:00Z',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
               ...(index === 5 ? { taskId: 'fixture-task', sourceImageId: nodes[0].id } : {}),
             },
           ]
@@ -94,6 +94,8 @@ try {
   let workflowFixture = false;
   let videoResponseStatus = 'failed';
   let releaseImage;
+  let releaseRetry;
+  let retries = 0;
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1150, height: 930 } });
   page.setDefaultTimeout(6000);
@@ -109,6 +111,7 @@ try {
     let response;
     if (url.pathname.endsWith('/canvases')) response = [{ id: canvasId, title: canvas.title }];
     else if (url.pathname.endsWith('/canvases/active')) response = { canvasId };
+    else if (url.pathname.endsWith('/canvases/video-history')) response = { items: attempts.filter(item => item.kind === 'video'), total: attempts.filter(item => item.kind === 'video').length };
     else if (url.pathname.endsWith('/canvases/' + canvasId)) {
       if (route.request().method() === 'PUT')
         canvas = { ...route.request().postDataJSON(), revision: canvas.revision + 1 };
@@ -125,6 +128,13 @@ try {
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
       attempts.push(response);
+    } else if (url.pathname.endsWith('/retry')) {
+      retries++;
+      const original = attempts.find(attempt => attempt.id === url.pathname.split('/').at(-2));
+      response = { ...original, id: randomUUID(), status: 'running', createdAt: new Date().toISOString() };
+      attempts.push(response);
+      await new Promise(resolve => { releaseRetry = resolve; });
+      Object.assign(response, { status: 'succeeded', resultAssetPath: 'assets/video/late.mp4' });
     } else if (url.pathname.endsWith('/generation')) response = attempts;
     else if (url.pathname.endsWith('/query')) {
       queries++;
@@ -133,6 +143,7 @@ try {
     } else throw new Error('非预期请求（禁止生成）: ' + url.pathname);
     return route.fulfill({ json: response });
   });
+  await page.clock.install({ time: new Date() });
   await page.goto('http://127.0.0.1/canvas?project=status-test');
   await page.locator('.card-state-overlay').nth(5).waitFor();
   assert.deepEqual(
@@ -180,6 +191,29 @@ try {
       .evaluate((element) => getComputedStyle(element).animationName),
     'none'
   );
+  const pendingVideo = page.locator('.card[data-id="' + nodes[5].id + '"]');
+  const callsBeforeTimeout = queries;
+  await page.getByRole('button', { name: '视频历史', exact: true }).click();
+  const history = page.getByRole('dialog', { name: '视频历史', exact: true });
+  await history.getByRole('button', { name: '查询并取回', exact: true }).waitFor();
+  await page.clock.fastForward(600_001);
+  await history.getByText('等待超时', { exact: false }).waitFor();
+  assert.equal(queries, callsBeforeTimeout);
+  await history.getByRole('button', { name: '关闭', exact: true }).click();
+  await pendingVideo.getByText('等待超时', { exact: true }).waitFor();
+  assert.equal(await pendingVideo.getByRole('button', { name: '处理并继续', exact: true }).count(), 0);
+  assert.equal(await pendingVideo.getByRole('button', { name: '查询原任务', exact: true }).isVisible(), true);
+  await page.getByRole('button', { name: '视频历史', exact: true }).click();
+  await history.getByRole('button', { name: '查询并取回', exact: true }).waitFor();
+  await page.clock.fastForward(21_000_001);
+  const expiredQuery = history.getByRole('button', { name: '已超过查询期限', exact: true });
+  await expiredQuery.waitFor();
+  assert.equal(await expiredQuery.isDisabled(), true);
+  await history.getByRole('button', { name: '关闭', exact: true }).click();
+  assert.equal(await pendingVideo.getByRole('button', { name: '查询原任务', exact: true }).count(), 0);
+  assert.equal(queries, callsBeforeTimeout);
+  assert.equal(submissions.length, 0);
+  await page.clock.setSystemTime(new Date());
   attempts.splice(0);
   canvas.nodes.forEach((node) => {
     delete node.templatePending;
@@ -188,6 +222,11 @@ try {
   await page.locator('.card').nth(6).waitFor();
   assert.equal(await page.locator('.card-state-overlay').count(), 0);
   workflowFixture = true;
+  const referenceConfirmations = [];
+  page.on('dialog', async dialog => {
+    referenceConfirmations.push(dialog.message());
+    await dialog.accept();
+  });
   const head = canvas.nodes.find(node => node.id === nodes[0].id);
   const image = canvas.nodes.find(node => node.id === nodes[1].id);
   const video = canvas.nodes.find(node => node.id === nodes[5].id);
@@ -210,7 +249,15 @@ try {
   assert.equal(await page.locator('#selection-menu').isVisible(), false);
   while (!releaseImage) await page.waitForTimeout(20);
   releaseImage();
+  await page.locator('#template-flow').filter({ hasText: '请先核对朝向、站姿与完整构图' }).waitFor();
+  assert.equal(await imageCard.locator('.card-state-overlay').count(), 0);
+  assert.deepEqual(submissions.map(item => item.kind), ['image']);
+  assert.equal(referenceConfirmations.length, 0);
+  if (process.env.MAKER_REFERENCE_REVIEW_SCREENSHOT)
+    await page.screenshot({ path: process.env.MAKER_REFERENCE_REVIEW_SCREENSHOT });
+  await videoCard.getByRole('button', { name: '处理并继续', exact: true }).click();
   await videoCard.locator('.card-state-failed').waitFor();
+  assert.match(referenceConfirmations[0], /核对来源参考图的朝向、稳定站姿/);
   assert.equal(await imageCard.locator('.card-state-overlay').count(), 0);
   assert.deepEqual(submissions.map(item => item.kind), ['image', 'video']);
   assert.equal(submissions[0].input.sourceImagePath, head.assetPath);
@@ -296,6 +343,20 @@ try {
   assert.equal(canvas.nodes.filter(node => node.type === 'video').length, 1);
   assert.equal(await panel.isVisible(), false);
   assert.deepEqual(errors, []);
+  await twoFrameCard.getByRole('button', { name: '调整参数' }).click();
+  await panel.getByRole('button', { name: '重新生成（消耗积分）', exact: true }).click();
+  await twoFrameCard.locator('.card-state-loading').waitFor();
+  while (!releaseRetry) await page.waitForTimeout(20);
+  assert.equal(retries, 1);
+  assert.equal(await panel.isVisible(), false);
+  await page.clock.fastForward(600_001);
+  await twoFrameCard.getByText('等待超时', { exact: true }).waitFor();
+  releaseRetry();
+  await page.waitForTimeout(100);
+  assert.equal(canvas.nodes.find(node => node.id === twoFrameVideo.id).assetPath, undefined);
+  assert.equal(retries, 1);
+  assert.deepEqual(errors, []);
+  console.log('PASS 10 分钟解除卡片与历史占用、6 小时禁查询；显式视频重试超时后解锁，迟到结果不回写或推进流程。');
   console.log('PASS 双图编辑显示两个当前引用，首尾顺序不受节点/边排列影响，显式选择模式，提交双图并复用当前卡，失败不新建节点。');
   console.log(
     'PASS 五种遮罩状态、全卡覆盖、旋转动画、加载阻止点击、待处理可编辑、查询原任务、减少动效、完成移除遮罩。'

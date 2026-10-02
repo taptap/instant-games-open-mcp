@@ -12,7 +12,7 @@ import { callRemoteProxyTool } from '../../server/mcp.js';
 import { MakerCanvasFiles } from '../../canvas/files.js';
 import { createId } from '../../canvas/model.js';
 import { CanvasGenerationService } from '../canvasGeneration.js';
-import { RemoteProxyToolResultError } from '../../server/proxyAssets.js';
+import { RemoteProxyToolResultError, RemoteProxyToolCallError } from '../../server/proxyAssets.js';
 
 const callRemoteProxyToolMock = jest.mocked(callRemoteProxyTool);
 
@@ -36,15 +36,20 @@ function successfulImageResult(): any {
 
 describe('CanvasGenerationService', () => {
   let root: string;
+  let originalMakerHome: string | undefined;
 
   beforeEach(() => {
     root = project();
+    originalMakerHome = process.env.TAPTAP_MAKER_HOME;
+    process.env.TAPTAP_MAKER_HOME = path.join(root, 'maker-home');
     callRemoteProxyToolMock.mockReset();
     fs.writeFileSync(path.join(root, 'placeholder'), '');
   });
 
   afterEach(() => {
     fs.rmSync(root, { recursive: true, force: true });
+    if (originalMakerHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
+    else process.env.TAPTAP_MAKER_HOME = originalMakerHome;
   });
 
   test.each([
@@ -139,11 +144,19 @@ describe('CanvasGenerationService', () => {
     const document = await files.create('首尾帧契约验证', 'starter');
     const sources = document.nodes.slice(0, 2);
     const service = new CanvasGenerationService(root, {} as any);
-    callRemoteProxyToolMock.mockRejectedValueOnce(new Error('explicit failure')).mockResolvedValue({
-      content: [
-        { type: 'text', text: JSON.stringify({ task_id: 'two-frame-task', status: 'pending' }) },
-      ],
-    } as any);
+    callRemoteProxyToolMock
+      .mockRejectedValueOnce(
+        new RemoteProxyToolCallError(
+          'create_video_task',
+          'not_executed',
+          new Error('explicit failure')
+        )
+      )
+      .mockResolvedValue({
+        content: [
+          { type: 'text', text: JSON.stringify({ task_id: 'two-frame-task', status: 'pending' }) },
+        ],
+      } as any);
     const attempt = await service.createVideo({
       canvasId: document.id,
       prompt: '灰狼变身狼王',
@@ -329,7 +342,9 @@ describe('CanvasGenerationService', () => {
       expect(attempt.status).toBe('pending');
       expect(callRemoteProxyToolMock.mock.calls[0][0].args).toMatchObject({ duration });
       callRemoteProxyToolMock.mockRejectedValue(new Error('query network error'));
+      const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 120_001);
       const queried = await service.queryVideo(attempt.id, document.id);
+      clock.mockRestore();
       expect(queried.status).toBe('unknown');
       expect(queried.taskId).toBe('video-task');
       await expect(service.retry(queried.id, document.id)).rejects.toThrow('不能自动重试');
@@ -446,8 +461,9 @@ describe('CanvasGenerationService', () => {
       sourceImageId: source.id,
       targetNodeId: videoId,
     });
-    expect(attempt.status).toBe('failed');
+    expect(attempt.status).toBe('unknown');
     expect(attempt.targetNodeId).toBe(videoId);
+    expect(attempt.targetAssetPath).toBe(importedVideo.relativePath);
   });
 
   test('rejects an attempt used through another canvas route', async () => {

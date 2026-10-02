@@ -249,10 +249,22 @@ try {
   }
   console.log('PASS 三个预设保存包含视频元数据加载后的尺寸变化，不误报分组未保存');
   document = await saved();
-  assert.equal(document.nodes.length, 25);
-  assert.equal(document.edges.length, 19);
+  assert.equal(document.nodes.length, 29);
+  assert.equal(document.edges.length, 23);
   const presetGroups = document.nodes.filter(node => node.type === 'section');
-  assert.deepEqual(presetGroups.map(group => document.nodes.filter(node => node.sectionId === group.id).length), [4, 13, 5]);
+  assert.deepEqual(presetGroups.map(group => document.nodes.filter(node => node.sectionId === group.id).length), [4, 17, 5]);
+  const directional = document.nodes.filter(node => node.sectionId === presetGroups[1].id);
+  const directionalReferences = directional.filter(node => node.type === 'image' && !node.assetPath);
+  assert.equal(directionalReferences.length, 4);
+  for (const reference of directionalReferences) {
+    assert.equal(reference.templatePending, true);
+    assert.equal(reference.generationDraft.operation, 'variant');
+    assert.match(reference.generationDraft.prompt, /calm neutral standing idle pose/);
+    const video = directional.find(node => node.generation?.sourceImageId === reference.id);
+    assert(video && video.templatePending);
+    assert(document.edges.some(edge => edge.from === reference.id && edge.to === video.id));
+  }
+  console.log('PASS 四方向各自引用空白站姿草稿，四分支默认待处理，旧示例不冒充验收结果');
   const transformation = document.nodes.filter(node => node.sectionId === presetGroups[2].id);
   const transformationVideo = transformation.find(node => node.type === 'video-source');
   assert.equal(transformationVideo.generation.parameters.mode, 'first_last_frame');
@@ -281,21 +293,26 @@ try {
     });
     const panel = document.createElement('div');
     ui.render(panel, { id: 'video-draft:' + source.id, type: 'video', draftSourceId: source.id }, canvas.nodes);
+    const draftPrompt = panel.querySelector('.generation-prompt');
+    draftPrompt.value = '只根据参考图执行动作。';
+    draftPrompt.dispatchEvent(new Event('input', { bubbles: true }));
     panel.querySelector('.generation-action-primary').click();
     await new Promise(resolve => setTimeout(resolve, 0));
     const blocked = requests.length === 0 && messages.some(message => message.includes('调整参数'));
     const unchanged = JSON.stringify(canvas) === before;
     const targetPanel = document.createElement('div');
     ui.render(targetPanel, target, canvas.nodes, undefined, { canSubmit: true, submit: execute => execute() });
+    const displayedPrompt = targetPanel.querySelector('.generation-prompt').value;
     targetPanel.querySelector('.generation-action-primary').click();
     await new Promise(resolve => setTimeout(resolve, 0));
-    return { blocked, unchanged, requests, sourceIds: target.generation.sourceImageIds };
+    return { blocked, unchanged, requests, displayedPrompt, sourceIds: target.generation.sourceImageIds };
   }, document);
   assert.equal(reuseCheck.blocked, true);
   assert.equal(reuseCheck.unchanged, true);
   assert.equal(reuseCheck.requests.length, 1);
   assert.deepEqual(reuseCheck.requests[0].sourceImageIds, reuseCheck.sourceIds);
   assert.equal(reuseCheck.requests[0].mode, 'first_last_frame');
+  assert.equal(reuseCheck.requests[0].prompt, reuseCheck.displayedPrompt);
   console.log('PASS 首图单图面板不覆盖双图目标；直接编辑目标仍携带首尾两图（契约测试，不提交生成）');
   for (const node of document.nodes.filter(node => node.assetPath))
     assert(fs.statSync(files.readMedia(node.assetPath).file).size > 0);
@@ -324,7 +341,7 @@ try {
   assert.deepEqual(errors, []);
   if (process.env.MAKER_TEMPLATE_SCREENSHOT)
     await page.screenshot({ path: process.env.MAKER_TEMPLATE_SCREENSHOT });
-  console.log('PASS 三个内置预设实际添加并刷新保留：25卡/19连线，六段示例视频可解码，首尾帧双图关系及模式保留，预设不能覆盖');
+  console.log('PASS 三个内置预设实际添加并刷新保留：29卡/23连线，六段旧示例视频可解码，四方向草稿与首尾帧双图关系保留，预设不能覆盖');
   await page.keyboard.press('Escape');
   const demo = await files.prepareTemplate('7e1cb6ad-732f-4dc3-a951-000000000001', canvas.id);
   for (let index = 0; index < 500; index++) {

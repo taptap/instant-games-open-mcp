@@ -461,6 +461,8 @@ export async function callRemoteProxyTool(options: {
   progressToken?: ProgressToken;
   extra?: RequestHandlerExtra<ServerRequest, ServerNotification>;
   onProgress?: (progress: { progress: number; total?: number; message?: string }) => void;
+  onRawResult?: (result: Awaited<ReturnType<Client['callTool']>>) => void | Promise<void>;
+  retryExpiredAuth?: boolean;
   manager?: MakerRemoteProxyManager;
 }): Promise<Awaited<ReturnType<Client['callTool']>>> {
   const createProxy = (): RemoteProxyContext =>
@@ -468,24 +470,31 @@ export async function callRemoteProxyTool(options: {
       targetDir: options.targetDir,
       exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
     });
-  let proxy = createProxy();
-  const finalArgs = await prepareRemoteProxyToolArgsAsync({
-    toolName: options.name,
-    targetDir: proxy.projectRoot,
-    args: options.args,
-  });
-  const requestOptions = options.extra
-    ? createRemoteProxyCallToolOptions(options.progressToken, options.extra)
-    : {
-        timeout: MAKER_TOOL_CALL_TIMEOUT_MS,
-        resetTimeoutOnProgress: true,
-        onprogress: options.onProgress || (() => {}),
-      };
+  let proxy: RemoteProxyContext;
+  let finalArgs: Record<string, unknown>;
+  let requestOptions: ReturnType<typeof createRemoteProxyCallToolOptions>;
+  try {
+    proxy = createProxy();
+    finalArgs = await prepareRemoteProxyToolArgsAsync({
+      toolName: options.name,
+      targetDir: proxy.projectRoot,
+      args: options.args,
+    });
+    requestOptions = options.extra
+      ? createRemoteProxyCallToolOptions(options.progressToken, options.extra)
+      : {
+          timeout: MAKER_TOOL_CALL_TIMEOUT_MS,
+          resetTimeoutOnProgress: true,
+          onprogress: options.onProgress || (() => {}),
+        };
+  } catch (error) {
+    throw new RemoteProxyToolCallError(options.name, 'not_executed', error);
+  }
   const callTool = options.manager
     ? async () => {
-        proxy = createProxy();
         let dispatched = false;
         try {
+          proxy = createProxy();
           return await options.manager!.callTool(
             proxy,
             { name: options.name, arguments: finalArgs },
@@ -503,31 +512,24 @@ export async function callRemoteProxyTool(options: {
         }
       }
     : async () => {
-        proxy = createProxy();
-        const transport = trackMakerChildTransport(
-          new HiddenStdioClientTransport({
-            command: proxy.command,
-            args: proxy.args,
-            env: mergeStringEnv(process.env, proxy.envVars),
-            stderr: 'pipe',
-          })
-        );
-        const client = new Client(
-          {
-            name: 'taptap-maker-tool-call-forwarder',
-            version: VERSION,
-          },
-          {
-            capabilities: {},
-          }
-        );
+        let dispatched = false;
+        let client: Client | undefined;
         try {
+          proxy = createProxy();
+          const transport = trackMakerChildTransport(
+            new HiddenStdioClientTransport({
+              command: proxy.command,
+              args: proxy.args,
+              env: mergeStringEnv(process.env, proxy.envVars),
+              stderr: 'pipe',
+            })
+          );
+          client = new Client(
+            { name: 'taptap-maker-tool-call-forwarder', version: VERSION },
+            { capabilities: {} }
+          );
           await client.connect(transport);
-        } catch (error) {
-          await client.close().catch(() => {});
-          throw new RemoteProxyToolCallError(options.name, 'not_executed', error);
-        }
-        try {
+          dispatched = true;
           return await client.callTool(
             {
               name: options.name,
@@ -539,30 +541,37 @@ export async function callRemoteProxyTool(options: {
             }
           );
         } catch (error) {
-          throw new RemoteProxyToolCallError(options.name, 'unknown', error);
+          throw new RemoteProxyToolCallError(
+            options.name,
+            dispatched ? 'unknown' : 'not_executed',
+            error
+          );
         } finally {
-          await client.close().catch(() => {});
+          await client?.close().catch(() => {});
         }
       };
   const materialize = async (
     result: Awaited<ReturnType<Client['callTool']>>
-  ): Promise<Awaited<ReturnType<Client['callTool']>>> =>
-    await materializeRemoteProxyToolAssets({
+  ): Promise<Awaited<ReturnType<Client['callTool']>>> => {
+    await options.onRawResult?.(result);
+    return await materializeRemoteProxyToolAssets({
       toolName: options.name,
       targetDir: proxy.projectRoot,
       result,
     });
+  };
 
+  let result: Awaited<ReturnType<Client['callTool']>> | undefined;
   try {
-    const result = await callTool();
-    if (!isMakerMacExpiredFailure(result)) {
-      return await materialize(result);
-    }
+    result = await callTool();
   } catch (error) {
-    if (!isMakerMacExpiredFailure(error)) {
+    if (options.retryExpiredAuth === false || !isMakerMacExpiredFailure(error)) {
       throw error;
     }
   }
+  if (result && (options.retryExpiredAuth === false || !isMakerMacExpiredFailure(result)))
+    return await materialize(result);
+  if (result) await options.onRawResult?.(result);
 
   // 远端 MAC 失效属于本地凭证问题。用 PAT 刷新一次后重建 proxy，重试请求使用新的 kid/mac_key。
   await requestTapAuthWithPat(undefined, getMakerEnvironment(undefined, proxy.projectRoot));

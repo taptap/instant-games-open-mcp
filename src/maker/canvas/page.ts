@@ -43,6 +43,12 @@ import { openBackgroundEditor } from './backgroundUi.js';
 import { createFrameCollection } from './frameCollection.js';
 import { createCanvasGenerationUi, imageEditSources } from './generationUi.js';
 import { downloadCanvasImage } from './imageExport.js';
+import { imageSizeLabel, renderImageInfo } from './imageInfo.js';
+import { createImageEditing } from './imageEditing.js';
+import { applyLocalImageResult } from './localImageResult.js';
+import { createVideoHistoryUi } from './videoHistoryUi.js';
+import { createVideoPrompts } from './videoPrompts.js';
+import { videoTaskTiming } from './videoTaskTiming.js';
 import {
   createTemplateWorkflow,
   canvasNeedsProcessing,
@@ -119,6 +125,13 @@ export function getCanvasPageHtml(): string {
     imageEditSources.toString(),
     createTemplateWorkflow.toString(),
     downloadCanvasImage.toString(),
+    imageSizeLabel.toString(),
+    renderImageInfo.toString(),
+    createImageEditing.toString(),
+    applyLocalImageResult.toString(),
+    createVideoHistoryUi.toString(),
+    createVideoPrompts.toString(),
+    videoTaskTiming.toString(),
     metadataVersion.toString(),
     canvasNodeVersion.toString(),
     isCanvasNodeStale.toString(),
@@ -545,7 +558,7 @@ export function getCanvasPageHtml(): string {
     '  function publishDirty() {\n    window.makerCanvasUnsaved = dirty();\n  }',
     [
       '  function publishDirty() {',
-      '    const sequenceRunning = Boolean((sequenceUi && sequenceUi.isBusy) || (templateWorkflow && templateWorkflow.isBusy) || (generationUi && generationUi.isBusy));',
+      '    const sequenceRunning = Boolean((imageEditing && imageEditing.isBusy) || (videoHistory && videoHistory.isBusy) || (sequenceUi && sequenceUi.isBusy) || (templateWorkflow && templateWorkflow.isBusy) || (generationUi && generationUi.isBusy));',
       '    const pendingFrames = Boolean(sequenceUi && sequenceUi.hasUnsavedFrames);',
       '    window.makerCanvasSequenceRunning = sequenceRunning;',
       '    window.makerCanvasUnsaved = dirty() || pendingAssetImports > 0 || sequenceRunning || pendingFrames;',
@@ -673,6 +686,7 @@ export function getCanvasPageHtml(): string {
     [
       '    const id = documentState && documentState.id;',
       '    if (generationUi && generationUi.isBusy) { setError("生成任务正在运行，请等待完成后再切换画布。"); return false; }',
+      '    if (imageEditing && imageEditing.isBusy || videoHistory && videoHistory.isBusy) { setError("请先完成或关闭当前编辑／查询。"); return false; }',
       "    if (templateWorkflow && templateWorkflow.isBusy) { setError('模板流程正在运行，请等待本轮完成。'); return false; }",
       "    if (sequenceUi.isBusy) { setError('拆帧正在运行，请先等待或取消当前步骤。'); return false; }",
       "    if (sequenceUi.hasUnsavedFrames) { setError('帧集尚未保存，请先保存帧集或放弃本次处理。'); return false; }",
@@ -744,6 +758,7 @@ export function getCanvasPageHtml(): string {
       '.generation-action:disabled { cursor: wait; opacity: .55; }',
       '.generation-status { color: #b7b1a6; font-size: 12px; }',
       '.generation-credits { position:absolute; top:8px; right:8px; max-width:calc(100% - 16px); box-sizing:border-box; padding:3px 7px; border-radius:5px; background:#171b24dc; color:#e5dfd2; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }',
+      '.image-size-info { position:absolute; left:6px; bottom:6px; max-width:calc(100% - 24px); padding:3px 6px; border-radius:4px; background:#171b24dc; color:#d8d4ca; font-size:10px; pointer-events:none; }',
       '.generation-status-failed, .generation-status-unknown { color: #ff9c8a; }',
       '.generation-status-succeeded { color: #b9f0d3; }',
       '.generation-status-running { color: #f1d18f; }',
@@ -1042,7 +1057,7 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '  let sequenceUi = null; let generationUi = null;',
-    '  let sequenceUi = null; let generationUi = null; let sequenceEditor; let templateWorkflow = null;'
+    '  let sequenceUi = null; let generationUi = null; let sequenceEditor; let templateWorkflow = null; let imageEditing = null; let videoHistory = null;'
   );
   page = replaceCanvasPageText(
     page,
@@ -1065,7 +1080,12 @@ export function getCanvasPageHtml(): string {
     "window.addEventListener('keydown', function (event) {",
     "window.addEventListener('keydown', function (event) { if (sequenceEditor && sequenceEditor.isOpen) return;"
   );
-  page = page.replace('</style>', SEQUENCE_EDITOR_STYLES + '</style>');
+  page = page.replace(
+    '</style>',
+    SEQUENCE_EDITOR_STYLES +
+      '.sequence-editor[aria-label="本地图片编辑"] { width: min(560px, calc(100vw - 32px)); height: auto; padding: 20px; box-sizing: border-box; }' +
+      '</style>'
+  );
   page = replaceCanvasPageText(
     page,
     '  const store = createBrowserCanvasDocumentStore(key);',
@@ -1122,6 +1142,7 @@ export function getCanvasPageHtml(): string {
     '      world.append(card);\n    }\n    wires.setAttribute',
     [
       '      world.append(card);',
+      '      if (node.type === "image" && node.assetPath) renderImageInfo(card, generationUi.imageTarget(node));',
       '    }',
       '    function renderSelectionToolbar() {',
       '      selectionToolbar.replaceChildren();',
@@ -1132,7 +1153,7 @@ export function getCanvasPageHtml(): string {
       '      const nodeBusy = Boolean((generationUi && generationUi.isNodeBusy(node.id)) || (templateWorkflow && templateWorkflow.isNodeLoading(node.id)));',
       '      const remoteState = generationUi.nodeState(node.id);',
       '      const workflowMember = templateWorkflow.isMember(node.id);',
-      '      const restricted = workflowMember && (templateWorkflow.status(node.id) === "pending" || remoteState && ["failed", "unknown", "canceled"].includes(remoteState.status));',
+      '      const restricted = workflowMember && (templateWorkflow.status(node.id) === "pending" || remoteState && ["failed", "unknown", "canceled", "timedout"].includes(remoteState.status));',
       '      const adjusting = selectionAction === "workflow" && templateWorkflow.canAdjust(node.id);',
       '      if (nodeBusy || remoteState && ["running", "pending", "unknown", "canceled"].includes(remoteState.status) || templateWorkflow.locked(node.id) && !adjusting) { selectionMenu.hidden = true; selectionToolbar.hidden = true; return; }',
       "      const emptyImage = node.type === 'image' && !node.assetPath;",
@@ -1144,9 +1165,9 @@ export function getCanvasPageHtml(): string {
       "      if (node.type === 'image' && !emptyImage) {",
       "        actionButton('快速编辑', function () { selectionAction = selectionAction === 'image' ? '' : 'image'; render(); }, selectionAction === 'image');",
       "        actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video');",
-      "        actionButton('一键抠图', null, false, '图片一键抠图尚未接入');",
-      "        actionButton('智能扩图', function () { selectionAction = selectionAction === 'outpaint' ? '' : 'outpaint'; render(); }, selectionAction === 'outpaint');",
-      "        actionButton('局部修改', null, false, '图片区域选择与局部重绘尚未接入');",
+      "        actionButton('去纯色背景', function () { void openLocalImage(node, 'cutout'); });",
+      "        actionButton('扩展画面（AI）', function () { selectionAction = selectionAction === 'outpaint' ? '' : 'outpaint'; render(); }, selectionAction === 'outpaint');",
+      "        actionButton('本地编辑', function () { void openLocalImage(node, 'edit'); });",
       "        const download = document.createElement('details'); download.className = 'image-download';",
       "        const trigger = document.createElement('summary'); trigger.setAttribute('aria-label', '下载图片'); trigger.title = '下载图片'; trigger.innerHTML = '<svg width=18 height=18 viewBox=\"0 0 24 24\" fill=none stroke=currentColor stroke-width=1.8 aria-hidden=true><path d=\"M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5\"/></svg>';",
       "        const formats = document.createElement('div'); formats.className = 'image-download-options';",
@@ -1310,7 +1331,7 @@ export function getCanvasPageHtml(): string {
       '        card.querySelectorAll("button,input,select,textarea").forEach(function (control) { control.disabled = true; });',
       '        card.addEventListener("dblclick", function (event) { event.stopImmediatePropagation(); }, true);',
       '      }',
-      '      renderCanvasCardStatus(card, overlayState, { waitingForSource: templateWorkflow.waitingForSource(node.id), adjust: templateWorkflow.canAdjust(node.id) ? function () { selected.clear(); selected.add(node.id); if (node.type === "sequence") { sequenceUi.beginEdit(node.id); sequenceEditor.open(node.id); } else { selectionAction = "workflow"; render(); } } : undefined, resume: templateWorkflow.canContinue(node.id) ? function () { selectionAction = ""; return templateWorkflow.runFrom(node.id); } : undefined, stoppedWaiting: generationState && generationState.status === "canceled", query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
+      '      renderCanvasCardStatus(card, overlayState, { waitingForSource: templateWorkflow.waitingForSource(node.id), adjust: templateWorkflow.canAdjust(node.id) ? function () { selected.clear(); selected.add(node.id); if (node.type === "sequence") { sequenceUi.beginEdit(node.id); sequenceEditor.open(node.id); } else { selectionAction = "workflow"; render(); } } : undefined, waitTimedOut: generationState && generationState.status === "timedout", resume: (!generationState || generationState.status !== "timedout") && templateWorkflow.canContinue(node.id) ? function () { selectionAction = ""; return templateWorkflow.runFrom(node.id); } : undefined, stoppedWaiting: generationState && generationState.status === "canceled", query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
       '      world.append(card);',
     ].join('\n')
   );
@@ -1337,7 +1358,7 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '<button id="create-section"',
-    '<button id="add-template" type="button">添加模板</button><button id="create-section"'
+    '<button id="add-template" type="button">添加模板</button><button id="video-history" type="button">视频历史</button><button id="create-section"'
   );
   page = replaceCanvasPageText(page, '</style>', TEMPLATE_LIBRARY_STYLES + '</style>');
   page = replaceCanvasPageText(
@@ -1354,6 +1375,33 @@ export function getCanvasPageHtml(): string {
       '    reveal: function (group) { const scale = Math.min(1, Math.max(.15, Math.min((board.clientWidth - 100) / group.width, (board.clientHeight - 100) / group.height))); documentState.viewport = { scale: scale, x: (board.clientWidth - group.width * scale) / 2 - group.x * scale, y: (board.clientHeight - group.height * scale) / 2 - group.y * scale }; },',
       '  });',
       '  document.getElementById("add-template").addEventListener("click", function () { void templateUi.library(); });',
+      '  videoHistory = createVideoHistoryUi({ store: store, onBusyChange: publishDirty, recover: function (attempt) { return generationUi.recoverVideo(attempt); } });',
+      '  document.getElementById("video-history").addEventListener("click", function () { void videoHistory.open(); });',
+      '  let videoTimingState = "";',
+      '  setInterval(function () { if (!documentState || !generationUi) return; const next = documentState.id + documentState.nodes.filter(function (node) { return node.type === "video" || node.type === "video-source"; }).map(function (node) { const state = generationUi.nodeState(node.id); return node.id + (state ? state.status + state.canQuery : ""); }).join("|"); if (videoTimingState !== next) render(); videoTimingState = next; }, 1000);',
+      '  async function openLocalImage(node, action) {',
+      '    if (imageEditing && imageEditing.isBusy) return;',
+      '    const current = documentState;',
+      '    const decision = templateWorkflow.resolveTarget(node.id, "image", node.id);',
+      '    if (decision && decision.kind === "blocked") { setError(decision.message); return; }',
+      '    const targetId = decision && decision.kind === "reuse" ? decision.nodeId : undefined;',
+      '    imageEditing = createImageEditing({',
+      '      load: async function (source, signal) { const response = await fetch(store.mediaUrl(source.assetPath), { signal: signal }); if (!response.ok) throw new Error("图片读取失败"); return response.blob(); },',
+      '      save: async function (blob) { if (documentState !== current) throw new Error("画布已切换"); return store.importImage(current.id, await blob.arrayBuffer(), "image/png"); },',
+      '      onSaved: async function (result, source) {',
+      '        if (documentState !== current) throw new Error("画布已切换，未覆盖原卡片");',
+      '        if (!(await flush())) throw new Error("请先解决画布保存错误，再重试");',
+      '        const previous = { nodes: structuredClone(current.nodes), edges: structuredClone(current.edges) };',
+      '        let applied;',
+      '        try { applied = applyLocalImageResult(current, source, result.relativePath, targetId, function () { return crypto.randomUUID(); }); invalidateCanvasDependents(current, applied.id); if (!(await flush())) throw new Error("画布保存失败，原结果仍保留，可重试保存"); }',
+      '        catch (caught) { Object.assign(current, previous); render(); throw caught; }',
+      '        const committed = { nodes: current.nodes, edges: current.edges }; Object.assign(current, previous); remember(); Object.assign(current, committed);',
+      '        selected.clear(); selected.add(applied.id); selectionAction = ""; render();',
+      '      },',
+      '      onBusyChange: publishDirty, backgroundRemoval: backgroundRemoval, openBackgroundEditor: openBackgroundEditor, openFrameEditor: openFrameEditor,',
+      '    });',
+      '    try { await imageEditing.open(node, action); } catch (caught) { setError(caught.message); }',
+      '  }',
       '  void boot().catch(function (caught) { setError(caught.message); });',
     ].join('\n')
   );

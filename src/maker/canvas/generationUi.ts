@@ -6,6 +6,8 @@ import {
   snapshotCanvasSource,
 } from './dependencies.js';
 import { createPromptEditor, formatBuiltinPrompt } from './promptEditor.js';
+import { createVideoPrompts } from './videoPrompts.js';
+import { videoTaskTiming } from './videoTaskTiming.js';
 import type { TemplateOutputDecision } from './templateWorkflow.js';
 import type { CanvasDocument, CanvasNode } from './model.js';
 import { videoInputSources, videoAttemptMatchesSources } from './videoInputs.js';
@@ -41,6 +43,7 @@ export interface CanvasGenerationUiOptions {
     ): Promise<{ relativePath: string }>;
     mediaUrl(path: string): string;
     listGeneration(canvasId: string): Promise<any[]>;
+    videoHistory?(offset?: number, limit?: number): Promise<{ busy?: { reason?: string } }>;
     generateImage(canvasId: string, input: Record<string, unknown>): Promise<any>;
     createVideo(canvasId: string, input: Record<string, unknown>): Promise<any>;
     generationAction(
@@ -88,26 +91,20 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   hasUnsettledResult(nodeId: string): boolean;
   nodeState(nodeId: string): { status: string; canQuery: boolean } | undefined;
   queryNode(nodeId: string): Promise<void>;
+  recoverVideo(attempt: any): Promise<boolean>;
+  imageTarget(node: any): string | undefined;
   readonly isBusy: boolean;
 } {
   const GAME_ASSET_CONSTRAINTS =
     '游戏素材约束：单个主体、完整不裁切、四周保留动作空间；背景均匀纯色；不出现地面、地砖、站台、展示台、底座、台阶、接触阴影、投影、反射、文字、Logo、水印或其他角色。';
-  const DEFAULT_VIDEO_PROMPT =
-    '动作描述：只根据参考图中的游戏角色或游戏素材生成动作，保持外观、比例和构图稳定；\n\n镜头构图：主体完整、动作清晰、固定镜头，不新增环境物体或大面积特效。';
-  const TEMPLATE_VIDEO_PROMPT =
-    '角色动作：参考图中的游戏角色进行一次夸张、干脆的战斗动作；动作有短暂蓄力、快速爆发和明确收招。';
+  const videoPrompts = createVideoPrompts();
 
   function withGameAssetConstraints(prompt: string): string {
     return prompt.includes('游戏素材约束：') ? prompt : prompt + '\n\n' + GAME_ASSET_CONSTRAINTS;
   }
 
   function templateVideoPrompt(prompt: unknown): string {
-    const action = formatBuiltinPrompt(String(prompt || '').trim()) || TEMPLATE_VIDEO_PROMPT;
-    if (action.includes('视频约束：')) return action;
-    return (
-      action +
-      '\n\n视频约束：只控制参考图中的动作，不重复设计角色外观；固定镜头，主体居中，位置和比例稳定，完整留在画面内；不新增地面、地砖、站台、展示台、底座、环境、文字或视觉特效。'
-    );
+    return videoPrompts.prepare(String(prompt || ''));
   }
 
   const attempts = new Map<string, any>();
@@ -115,6 +112,41 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   const drafts = new Map<string, string>();
   const references = new Map<string, string[]>();
   const importingReferences = new Set<string>();
+  async function waitVideoRequest(request: Promise<any>, canvasId: string, createdAt: string) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const remaining = Math.max(
+        0,
+        (videoTaskTiming({ createdAt }).waitUntil || Date.now()) - Date.now()
+      );
+      const result = await Promise.race([
+        request,
+        new Promise<undefined>((resolve) => {
+          timer = setTimeout(() => resolve(undefined), remaining);
+        }),
+      ]);
+      if (result !== undefined) return result;
+      void options.store
+        .listGeneration(canvasId)
+        .then((list: any[]) => {
+          for (const attempt of list) attempts.set(attempt.id, attempt);
+          if (options.getDocument()?.id === canvasId) options.render();
+        })
+        .catch(() =>
+          options.setError(
+            '本地等待已结束，但历史记录暂时读取失败；请在视频历史中刷新查看。',
+            'warning'
+          )
+        );
+      options.setError(
+        '等待超时，已结束本地等待；远端任务不会取消，迟到结果可在视频历史中取回。',
+        'warning'
+      );
+      return;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   const imageSettings = new Map<
     string,
     { model: string; resolution: string; aspectRatio: string }
@@ -146,13 +178,14 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       !current ||
       !file ||
       current.id !== canvasId ||
-      !current.nodes.some((item: any) => item.id === node.id)
+      !current.nodes.some((item: any) => item.id === (node.draftSourceId || node.id))
     )
       return;
     const key = referenceKey(node);
     if (importingReferences.has(key) || inFlight.has(node.id)) return;
-    if (file.size > 20 * 1024 * 1024) {
-      options.setError('参考图片不能超过 20 MiB。');
+    const maxBytes = (node.type === 'image' ? 10 : 20) * 1024 * 1024;
+    if (file.size > maxBytes) {
+      options.setError('参考图片不能超过 ' + maxBytes / 1024 / 1024 + ' MiB。');
       return;
     }
     if (file.type && !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
@@ -163,8 +196,24 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       node.type === 'image'
         ? Number(Boolean(node.assetPath || node.generationDraft?.sourceImageId))
         : videoInputSources(current, node).length;
-    if (referencePaths(node).length + implicitCount >= 14) {
-      options.setError('最多支持 14 张参考图（包含当前图片）。');
+    const mode = currentVideoMode(node);
+    const model = videoSettings.get(key)?.model || node.generation?.parameters?.model || '2.0';
+    const limit =
+      node.type === 'image'
+        ? 14
+        : mode === 'first_frame'
+          ? 1
+          : mode === 'first_last_frame'
+            ? 2
+            : model === '2.5'
+              ? 30
+              : 9;
+    if (referencePaths(node).length + implicitCount >= limit) {
+      options.setError(
+        '当前输入方式最多支持 ' +
+          limit +
+          ' 张图片（包含已连接的来源图），请调整输入方式或移除参考图。'
+      );
       return;
     }
     importingReferences.add(key);
@@ -177,7 +226,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       );
       if (
         options.getDocument()?.id !== current.id ||
-        !options.getDocument().nodes.some((item: any) => item.id === node.id)
+        !options
+          .getDocument()
+          .nodes.some((item: any) => item.id === (node.draftSourceId || node.id))
       ) {
         options.setError('已离开原卡片，参考图未添加到其他卡片。');
         return;
@@ -304,6 +355,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     input.value = formatBuiltinPrompt(
       drafts.get(node.id) ?? node.generationDraft?.prompt ?? node.generation?.prompt ?? ''
     );
+    if (node.type !== 'image') input.value = videoPrompts.prepare(input.value);
     input.placeholder = placeholder;
     input.className = 'generation-prompt';
     input.addEventListener('pointerdown', (event: any) => event.stopPropagation());
@@ -696,7 +748,11 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         return false;
       settings.userConfirmed = true;
     }
-    const prompt = input.value.trim() || DEFAULT_VIDEO_PROMPT;
+    const prompt = videoPrompts.prepare(input.value);
+    if (!prompt.trim()) {
+      options.setError('请填写视频动作描述；不会自动添加隐藏提示词。');
+      return false;
+    }
     input.value = prompt;
     drafts.set(node.id, prompt);
     const sources = videoInputSources(documentState, node);
@@ -708,6 +764,11 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       return false;
     }
     const imageCount = sources.length + importedReferences.length;
+    const maxImages = settings.model === '2.5' ? 30 : 9;
+    if (mode === 'multi_modal_reference' && imageCount > maxImages) {
+      options.setError('当前视频模型最多支持 ' + maxImages + ' 张参考图，请移除多余引用。');
+      return false;
+    }
     if (
       (mode === 'first_frame' && imageCount !== 1) ||
       (mode === 'first_last_frame' && imageCount !== 2)
@@ -726,6 +787,22 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       return false;
     }
     const requesterId = node.id;
+    if (options.store.videoHistory) {
+      inFlight.add(requesterId);
+      try {
+        const history = await options.store.videoHistory(0, 1);
+        if (history.busy) {
+          options.setError(history.busy.reason || '已有视频尚未完成，请在视频历史中查询原任务。');
+          return false;
+        }
+        if (options.getDocument() !== documentState) return false;
+      } catch (error) {
+        options.setError('无法确认视频占用状态：' + String(error));
+        return false;
+      } finally {
+        inFlight.delete(requesterId);
+      }
+    }
     const decision = settings.templateRun
       ? { kind: 'reuse' as const, nodeId: node.id }
       : options.resolveTarget?.(source.id, 'video', node.draftSourceId ? undefined : node.id);
@@ -780,32 +857,38 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     try {
       if (!(await options.flush()) || options.getDocument()?.id !== documentState.id) return false;
       options.log?.(node.title + '：开始生成视频', 'info');
-      const attempt = await options.store.createVideo(documentState.id, {
-        prompt,
-        sourceImagePath: source.assetPath,
-        sourceImageId: source.id,
-        sourceImageIds: sources.map((item) => item.id),
-        sourceImagePaths: sources.map((item) => item.assetPath),
-        referenceImagePaths: importedReferences,
-        mode,
-        targetNodeId: node.id,
-        duration: settings.duration || 4,
-        model: settings.model || '2.0',
-        resolution: settings.resolution || '720p',
-        ratio: settings.ratio || 'adaptive',
-        userConfirmed: settings.userConfirmed === true,
-      });
+      const submittedAt = new Date(Date.now()).toISOString();
+      const attempt = await waitVideoRequest(
+        options.store.createVideo(documentState.id, {
+          prompt,
+          sourceImagePath: source.assetPath,
+          sourceImageId: source.id,
+          sourceImageIds: sources.map((item) => item.id),
+          sourceImagePaths: sources.map((item) => item.assetPath),
+          referenceImagePaths: importedReferences,
+          mode,
+          targetNodeId: node.id,
+          duration: settings.duration || 4,
+          model: settings.model || '2.0',
+          resolution: settings.resolution || '720p',
+          ratio: settings.ratio || 'adaptive',
+          userConfirmed: settings.userConfirmed === true,
+        }),
+        documentState.id,
+        submittedAt
+      );
+      if (!attempt) return false;
       attempts.set(attempt.id, attempt);
       if (options.getDocument()?.id !== documentState.id) return false;
       if (attempt.status === 'succeeded') {
         options.log?.(node.title + '：视频生成完成', 'info');
-        applyAttempt(attempt, true, Boolean(node.assetPath));
-        if (await options.flush()) {
+        if (await recoverVideo(attempt)) {
           inFlight.delete(requesterId);
           inFlight.delete(node.id);
           await options.onGenerated?.(node.id, 'video');
           return true;
         }
+        options.setError('视频已保存本地；当前卡片或引用已变化，未覆盖或推进后续流程。', 'info');
       } else {
         options.setError(
           attempt.error ||
@@ -904,7 +987,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       list.some(
         (item: any) =>
           item.targetNodeId === nodeId &&
-          ['pending', 'running', 'unknown', 'canceled'].includes(item.status) &&
+          !videoTaskTiming(item).waitExpired &&
+          (['pending', 'running', 'unknown', 'canceled'].includes(item.status) ||
+            (item.status === 'failed' && item.taskId)) &&
           !matchesInputs(item)
       )
     ) {
@@ -922,8 +1007,21 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       (item: any) => item.id === node.generation?.attemptId && item.targetNodeId === nodeId
     );
     if (
+      attempt &&
+      attempt.status !== 'succeeded' &&
+      attempt.remoteStatus !== 'failed' &&
+      !(attempt.executionState === 'not_executed' && !attempt.taskId) &&
+      videoTaskTiming(attempt).waitExpired
+    ) {
+      options.setError(
+        '等待超时，已解除本地占用。请调整参数后明确生成新视频；旧任务保留在视频历史中。',
+        'warning'
+      );
+      return false;
+    }
+    if (
       !attempt ||
-      attempt.status === 'failed' ||
+      (attempt.status === 'failed' && !attempt.taskId) ||
       (attempt.status === 'succeeded' && attempt.id === node.generation?.attemptId)
     ) {
       const prompt = templateVideoPrompt(
@@ -955,35 +1053,90 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         )
         .pop();
     }
+    if (attempt?.status === 'failed' && attempt.taskId) {
+      const next = await waitVideoRequest(
+        options.store.generationAction(current.id, attempt.id, 'query'),
+        current.id,
+        attempt.createdAt
+      );
+      if (!next) return false;
+      attempt = next;
+      attempts.set(attempt.id, attempt);
+    }
     while (
       attempt &&
       ['pending', 'running', 'canceled', 'unknown'].includes(attempt.status) &&
       attempt.taskId
     ) {
+      if (videoTaskTiming(attempt).waitExpired) break;
       options.setError('视频正在生成，完成后自动处理序列帧；请保持页面打开。');
-      await new Promise((resolve) => setTimeout(resolve, 120000));
+      const remaining = (videoTaskTiming(attempt).waitUntil || Date.now()) - Date.now();
+      await new Promise((resolve) => setTimeout(resolve, Math.min(120000, Math.max(0, remaining))));
       if (options.getDocument()?.id !== current.id) return false;
-      attempt = await options.store.generationAction(current.id, attempt.id, 'query');
+      if (videoTaskTiming(attempt).waitExpired) break;
+      const next = await waitVideoRequest(
+        options.store.generationAction(current.id, attempt.id, 'query'),
+        current.id,
+        attempt.createdAt
+      );
+      if (!next) return false;
+      attempt = next;
       attempts.set(attempt.id, attempt);
-      if (attempt.status === 'unknown') break;
+      if (attempt.status === 'unknown' || attempt.status === 'failed') break;
     }
     if (attempt?.status !== 'succeeded') {
       options.setError(
-        attempt?.error || '视频尚未完成，已停止后续流程；可继续查询原任务，不会自动重新付费生成。'
+        attempt && videoTaskTiming(attempt).waitExpired
+          ? '等待超时，已解除本地占用；后续不自动执行。可在视频历史查询旧任务，或明确发起新视频。'
+          : attempt?.error ||
+              '视频尚未完成，已停止后续流程；可继续查询原任务，不会自动重新付费生成。'
       );
       return false;
     }
     if (options.getDocument()?.id !== current.id) return false;
-    applyAttempt(attempt, true, true);
+    if (!(await recoverVideo(attempt))) {
+      options.setError('视频已保存本地；当前卡片或引用已变化，未覆盖或推进后续流程。', 'info');
+      return false;
+    }
     options.setError('');
-    return options.flush();
+    return true;
   }
 
   async function action(attempt: any, actionName: 'query' | 'retry' | 'cancel'): Promise<void> {
+    const videoRetry = actionName === 'retry' && attempt.kind === 'video';
+    const targetId = videoRetry ? attempt.targetNodeId : undefined;
+    if (targetId && inFlight.has(targetId)) return;
+    if (targetId) {
+      inFlight.add(targetId);
+      options.onGenerateStart?.();
+      options.render();
+    }
     try {
-      const next = await options.store.generationAction(attempt.canvasId, attempt.id, actionName);
+      if (actionName === 'query' && videoTaskTiming(attempt).queryExpired)
+        throw new Error('已超过提交后 6 小时的查询期限；历史记录和本地结果仍保留。');
+      const startedAt = new Date(Date.now()).toISOString();
+      const request = options.store.generationAction(attempt.canvasId, attempt.id, actionName);
+      const next = videoRetry
+        ? await waitVideoRequest(request, attempt.canvasId, startedAt)
+        : await request;
+      if (!next) return;
       attempts.set(next.id, next);
       if (options.getDocument()?.id !== attempt.canvasId) return;
+      if (next.kind === 'video') {
+        const applied = await recoverVideo(next);
+        if (next.status === 'succeeded' && !applied)
+          options.setError(
+            '视频已保存到本地；当前卡片或引用已变化，未覆盖画布，请在视频记录中查看。',
+            'info'
+          );
+        else if (next.error) options.setError(next.error, 'warning');
+        if (videoRetry && applied && next.targetNodeId) {
+          if (targetId) inFlight.delete(targetId);
+          await options.onGenerated?.(next.targetNodeId, 'video');
+        }
+        options.render();
+        return;
+      }
       if (next.status === 'succeeded') {
         const target = next.targetNodeId
           ? options.getDocument()?.nodes.find((node: any) => node.id === next.targetNodeId)
@@ -998,6 +1151,11 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       } else options.render();
     } catch (error) {
       options.setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (targetId) {
+        inFlight.delete(targetId);
+        options.render();
+      }
     }
   }
 
@@ -1021,15 +1179,20 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const status = document.createElement('small');
     status.className = 'generation-status generation-status-' + relevant.status;
     status.textContent =
-      relevant.status === 'pending' || relevant.status === 'running'
-        ? '生成中…'
-        : relevant.status === 'unknown'
-          ? '结果未知，需查询原任务'
-          : relevant.status === 'failed'
-            ? '生成失败'
-            : relevant.status === 'canceled'
-              ? '已停止本地等待'
-              : '已完成';
+      relevant.kind === 'video' &&
+      relevant.remoteStatus !== 'failed' &&
+      !(relevant.executionState === 'not_executed' && !relevant.taskId) &&
+      videoTaskTiming(relevant).waitExpired
+        ? '等待超时，已解除本地占用；可明确生成新视频'
+        : relevant.status === 'pending' || relevant.status === 'running'
+          ? '生成中…'
+          : relevant.status === 'unknown'
+            ? '结果未知，需查询原任务'
+            : relevant.status === 'failed'
+              ? '生成失败'
+              : relevant.status === 'canceled'
+                ? '已停止本地等待'
+                : '已完成';
     container.append(status);
     if (relevant.error) {
       const detail = document.createElement('small');
@@ -1037,18 +1200,23 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       detail.textContent = relevant.error;
       container.append(detail);
     }
+    if (relevant.kind === 'video' && relevant.taskId)
+      container.append(
+        button(
+          videoTaskTiming(relevant).queryExpired ? '已超过查询期限' : '查询并取回',
+          () => action(relevant, 'query'),
+          { disabled: videoTaskTiming(relevant).queryExpired }
+        )
+      );
     if (
-      (relevant.status === 'pending' || relevant.status === 'running') &&
-      relevant.kind === 'video' &&
-      relevant.taskId
+      relevant.status === 'failed' &&
+      (relevant.kind !== 'video' || !relevant.taskId || relevant.remoteStatus === 'failed')
     )
-      container.append(button('查询', () => action(relevant, 'query')));
-    else if (relevant.status === 'unknown' && relevant.kind === 'video' && relevant.taskId)
-      container.append(button('查询原任务', () => action(relevant, 'query')));
-    else if (relevant.status === 'failed')
-      container.append(button('重试', () => action(relevant, 'retry')));
-    else if (relevant.status === 'canceled' && relevant.kind === 'video' && relevant.taskId)
-      container.append(button('查询原任务', () => action(relevant, 'query')));
+      container.append(
+        button(relevant.kind === 'video' ? '重新生成（消耗积分）' : '重试', () =>
+          action(relevant, 'retry')
+        )
+      );
   }
 
   function render(
@@ -1165,7 +1333,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     capabilityHint.textContent =
       node.type === 'image'
         ? '分辨率与比例是生成目标，模型可能返回不同尺寸，请以实际图片为准。'
-        : '参考图来自已连接的图片卡；暂不支持在此面板额外导入本地参考图。';
+        : '已连接图片与导入参考图按显示顺序提交；首帧需1张，首尾帧需2张，多图参考按模型限制。';
     panel.append(capabilityHint);
     async function submitGeneration(): Promise<void> {
       if (workflow && !workflow.canSubmit) return;
@@ -1270,6 +1438,22 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     } else {
       const actions = document.createElement('div');
       actions.className = 'generation-actions';
+      actions.append(
+        button(
+          '导入参考图',
+          () => {
+            const canvasId = options.getDocument().id;
+            const picker = document.createElement('input');
+            picker.type = 'file';
+            picker.accept = 'image/png,image/jpeg,image/webp';
+            picker.addEventListener('change', () => {
+              void importReference(node, picker.files?.[0], canvasId);
+            });
+            picker.click();
+          },
+          { className: 'generation-action', title: '添加视频参考，不替换来源图片', disabled: busy }
+        )
+      );
       if (node.type === 'video' && !node.draftSourceId && !workflow) {
         actions.append(
           button('导入视频', () => options.requestVideoImport(node.id), {
@@ -1344,7 +1528,10 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       }
       const flow = documentState.templateFlow;
       if (flow && [flow.imageId, flow.videoId].includes(attempt.targetNodeId)) continue;
-      restored = applyAttempt(attempt, false) || restored;
+      restored =
+        (attempt.kind === 'video'
+          ? await recoverVideo(attempt, list, false)
+          : applyAttempt(attempt, false)) || restored;
     }
     if (restored) await options.flush();
     options.render();
@@ -1357,9 +1544,60 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
   }
 
+  async function recoverVideo(attempt: any, knownList?: any[], persist = true): Promise<boolean> {
+    attempts.set(attempt.id, attempt);
+    const current = options.getDocument();
+    if (current?.id !== attempt.canvasId || attempt.kind !== 'video') return false;
+    if (attempt.status !== 'succeeded' || !attempt.resultAssetPath) {
+      options.render();
+      return false;
+    }
+    const list = knownList || (await options.store.listGeneration(current.id));
+    if (options.getDocument() !== current) return false;
+    const latest = list
+      .filter((item: any) => item.targetNodeId === attempt.targetNodeId)
+      .sort((left: any, right: any) => right.createdAt.localeCompare(left.createdAt))[0];
+    const target = current.nodes.find((node: any) => node.id === attempt.targetNodeId);
+    if (!target || latest?.id !== attempt.id || !['video', 'video-source'].includes(target.type))
+      return false;
+    if (target.generation?.attemptId === attempt.id) return true;
+    if ((target.assetPath || '') !== (attempt.targetAssetPath ?? '')) return false;
+    const sources = videoInputSources(current, target);
+    if (!videoAttemptMatchesSources(attempt, sources)) return false;
+    if (
+      JSON.stringify(referencePaths(target)) !== JSON.stringify(attempt.referenceImagePaths || [])
+    )
+      return false;
+    if (attempt.parameters?.mode && currentVideoMode(target) !== attempt.parameters.mode)
+      return false;
+    const snapshots = attempt.sourceSnapshots?.length
+      ? attempt.sourceSnapshots
+      : [attempt.sourceSnapshot];
+    if (
+      snapshots.length !== sources.length ||
+      snapshots.some(
+        (snapshot: any) =>
+          !snapshot ||
+          !isCanvasSourceCurrent(
+            snapshot,
+            sources.find((source: any) => source.id === snapshot.nodeId)
+          )
+      )
+    )
+      return false;
+    if (!applyAttempt(attempt, persist, Boolean(target.assetPath))) return false;
+    return persist ? options.flush() : true;
+  }
+
   return {
     render,
     restore,
+    imageTarget(node: any) {
+      const attempt = attempts.get(node.generation?.attemptId);
+      if (attempt?.canvasId !== options.getDocument()?.id) return;
+      return attempt.parameters?.targetSize;
+    },
+    recoverVideo,
     creditsLabel(node: any) {
       if (!node.assetPath || !node.generation?.attemptId) return;
       const attempt = attempts.get(node.generation.attemptId);
@@ -1393,11 +1631,18 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           return;
       }
       return {
-        status: attempt.status,
+        status:
+          attempt.kind === 'video' &&
+          videoTaskTiming(attempt).waitExpired &&
+          !(attempt.executionState === 'not_executed' && !attempt.taskId) &&
+          attempt.remoteStatus !== 'failed'
+            ? 'timedout'
+            : attempt.status,
         canQuery:
           attempt.kind === 'video' &&
           Boolean(attempt.taskId) &&
-          ['running', 'pending', 'unknown', 'canceled'].includes(attempt.status),
+          !videoTaskTiming(attempt).queryExpired &&
+          ['running', 'pending', 'unknown', 'canceled', 'failed'].includes(attempt.status),
       };
     },
     async queryNode(nodeId: string) {
@@ -1409,6 +1654,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         (attempt) =>
           attempt.canvasId === options.getDocument()?.id &&
           attempt.targetNodeId === nodeId &&
+          !(attempt.kind === 'video' && videoTaskTiming(attempt).waitExpired) &&
           ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status)
       );
     },

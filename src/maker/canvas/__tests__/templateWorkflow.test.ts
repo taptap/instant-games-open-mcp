@@ -284,6 +284,42 @@ function userTemplate() {
   return { document, options, executions, refreshAnimation, flow };
 }
 
+test('a derived reference stops after saving so the user can inspect it before video generation', async () => {
+  const { document, options } = userTemplate();
+  const reference = document.nodes[0];
+  reference.templatePending = true;
+  const flow = createTemplateWorkflow({
+    ...options,
+    image: async () => {
+      reference.assetPath = 'new-reference';
+      return true;
+    },
+  });
+  await flow.runFrom(reference.id);
+  expect(options.video).not.toHaveBeenCalled();
+  expect(options.select).toHaveBeenCalledWith(reference.id);
+  expect(reference.templatePending).toBeUndefined();
+  expect(document.nodes[1].templatePending).toBe(true);
+});
+
+test('a direction reference requires explicit confirmation before continuing to video', async () => {
+  const { document, options, flow } = userTemplate();
+  const master = { ...document.nodes[0], id: 'master' };
+  delete master.sourceSnapshot;
+  document.nodes.push(master);
+  document.edges.push({ id: 'reference', from: 'master', to: 'image', kind: 'image-variant' });
+  document.nodes[0].sourceSnapshot = snapshotCanvasSource(master);
+  await flow.nodeChanged('image');
+  options.confirm.mockReturnValue(false);
+  await flow.runFrom('video');
+  expect(options.confirm).toHaveBeenCalledWith(expect.stringContaining('稳定站姿'));
+  expect(options.video).not.toHaveBeenCalled();
+  expect(document.nodes[1].templatePending).toBe(true);
+  options.confirm.mockReturnValue(true);
+  await flow.runFrom('video');
+  expect(options.video).toHaveBeenCalledTimes(1);
+});
+
 test('changing a reference marks all downstream cards pending, survives reload and never generates implicitly', async () => {
   const { document, options, flow } = userTemplate();
   document.nodes[0].assetPath = 'new-head';

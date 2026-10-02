@@ -436,6 +436,16 @@ export function createTemplateWorkflow(options: {
           throw new Error('请先完成此卡片的上游待处理步骤，再继续。');
         if (options.isNodeBusy?.(node.id) || options.hasUnsettledResult?.(node.id))
           throw new Error('卡片存在未确认任务，请先查询原任务，不会重复生成。');
+        if (
+          ['video', 'video-source'].includes(node.type) &&
+          sources.some(
+            (source) => source.type === 'image' && canvasReferences(document, source.id).length > 0
+          ) &&
+          !options.confirm(
+            '请核对来源参考图的朝向、稳定站姿及完整构图。确认这些图片正确，并继续生成视频吗？'
+          )
+        )
+          return;
         activeNodeId = node.id;
         options.render();
         if (node.id === id && firstStep) {
@@ -470,6 +480,10 @@ export function createTemplateWorkflow(options: {
         options.changed();
         if (!(await options.save())) throw new Error('结果保存失败，已停止后续步骤，请先保存。');
         activeNodeId = undefined;
+        if (node.type === 'image') {
+          options.select(node.id);
+          return;
+        }
       }
       options.select(ordered[ordered.length - 1].id);
     } catch (error) {
@@ -483,14 +497,34 @@ export function createTemplateWorkflow(options: {
   }
   function render(container: HTMLElement): void {
     container.replaceChildren();
-    const flow = options.getDocument()?.templateFlow;
+    const documentState = options.getDocument();
+    const flow = documentState?.templateFlow;
     const headBusy = Boolean(flow && options.isNodeBusy?.(flow.imageId));
     container.hidden = !flow || flow.stage === 'complete';
-    if (!flow) return;
+    if (!flow || flow.stage === 'complete') {
+      const readyImage =
+        !running &&
+        documentState?.nodes.some(
+          (node) =>
+            node.type === 'image' &&
+            node.assetPath &&
+            isMember(node.id) &&
+            status(node.id) === 'complete' &&
+            documentState.edges.some((edge) => edge.from === node.id && canContinue(edge.to))
+        );
+      if (readyImage) {
+        container.hidden = false;
+        const hint = document.createElement('span');
+        hint.textContent =
+          '图片已就绪。请先核对朝向、站姿与完整构图，再点击下游待处理卡片的「处理并继续」。';
+        container.append(hint);
+      }
+      return;
+    }
     const label = document.createElement('span');
     const labels = {
       image: '可编辑首图或视频动作；后续卡片会在确认后按模板生成',
-      ready: '首图已完成，后续卡片暂为待定',
+      ready: '首图已完成，请核对图片后点击「继续后续流程」；后续卡片暂为待定',
       video: '第 2 步：生成视频',
       sequence: '第 3 步：抽帧、抠图和图集',
       animation: '第 4 步：更新序列帧动画',

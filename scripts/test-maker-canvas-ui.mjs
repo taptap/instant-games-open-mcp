@@ -50,12 +50,12 @@ try {
   const playwright = await import(resolvePlaywrightModule());
   const bundle = path.join(temporary, 'harness.mjs');
   await build({
-    stdin: { contents: 'export { startConsoleServer } from "./src/maker/console/server.ts"; export { ConsoleProjects } from "./src/maker/console/projects.ts"; export { MakerCanvasFiles } from "./src/maker/canvas/files.ts";', resolveDir: repo },
+    stdin: { contents: 'export { startConsoleServer } from "./src/maker/console/server.ts"; export { ConsoleProjects } from "./src/maker/console/projects.ts"; export { MakerCanvasFiles } from "./src/maker/canvas/files.ts"; export { snapshotCanvasSource } from "./src/maker/canvas/dependencies.ts";', resolveDir: repo },
     bundle: true, platform: 'node', format: 'esm', outfile: bundle,
     external: ['./native/index.js'], logLevel: 'silent',
     banner: { js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);' },
   });
-  const { startConsoleServer, ConsoleProjects, MakerCanvasFiles } = await import(pathToFileURL(bundle).href);
+  const { startConsoleServer, ConsoleProjects, MakerCanvasFiles, snapshotCanvasSource } = await import(pathToFileURL(bundle).href);
   const project = path.join(temporary, 'project');
   fs.mkdirSync(path.join(project, '.maker-mcp'), { recursive: true });
   fs.mkdirSync(path.join(project, '.project'), { recursive: true });
@@ -90,6 +90,7 @@ try {
   });
   await page.route('**/generation/video', async route => {
     const input = route.request().postDataJSON();
+    const current = await files.load(canvas.id);
     const resultAssetPath = files.importGeneratedVideo(canvas.id, ensureVideoAsset());
     const attempt = {
       ...input,
@@ -101,6 +102,9 @@ try {
       taskId: 'simulated-video-' + randomUUID(),
       resultAssetPath,
       sourceImageId: input.sourceImageId,
+      targetAssetPath: current.nodes.find(node => node.id === input.targetNodeId)?.assetPath || '',
+      sourceSnapshots: input.sourceImageIds.map(id => snapshotCanvasSource(current.nodes.find(node => node.id === id))),
+      parameters: { mode: input.mode, model: input.model, duration: input.duration, resolution: input.resolution, ratio: input.ratio },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -248,6 +252,20 @@ try {
       assert.equal(await page.locator('.generation-prompt').count(), 0);
       assert.equal((await saved()).nodes.length, 1);
     }],
+    ['视频导入的是额外参考图，不替换图片卡', async () => {
+      const before = (await files.load(canvas.id)).nodes.find(node => node.id === generatedId).assetPath;
+      await page.locator('.card.image').click();
+      await page.getByRole('button', { name: '视频生成', exact: true }).click();
+      await page.getByLabel('输入方式').selectOption('first_last_frame');
+      const [picker] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: '导入参考图', exact: true }).click()]);
+      await picker.setFiles(path.join(project, imagePath));
+      await page.getByLabel('移除参考图 1', { exact: true }).waitFor();
+      assert.equal(await page.locator('.generation-reference img').count(), 2);
+      assert.equal((await files.load(canvas.id)).nodes.find(node => node.id === generatedId).assetPath, before);
+      await page.getByLabel('移除参考图 1', { exact: true }).click();
+      await page.getByLabel('输入方式').selectOption('first_frame');
+      await board.click({ position: { x: 30, y: 40 } });
+    }],
     ['图生视频结果卡与来源连线（远端模拟）', async () => {
       await page.locator('.card.image').click();
       await page.getByRole('button', { name: '视频生成', exact: true }).click();
@@ -268,6 +286,57 @@ try {
       await page.getByText('已保存', { exact: true }).waitFor();
       assert.equal(await page.locator('.card.video-source').count(), 1);
       assert.equal((await files.load(canvas.id)).nodes.find(node => node.id === videoId).type, 'video-source');
+    }],
+    ['视频历史读取本地记录并可关闭，不提交生成', async () => {
+      await page.getByRole('button', { name: '视频历史', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: '视频历史', exact: true });
+      await dialog.getByText('已取回本地', { exact: false }).waitFor();
+      assert.equal(await dialog.getByRole('link', { name: '下载本地视频' }).count(), 1);
+      const video = (await files.load(canvas.id)).nodes.find(node => node.id === videoId);
+      const attempt = JSON.parse(fs.readFileSync(path.join(project, '.maker/canvases/attempts', video.generation.attemptId + '.json'), 'utf8'));
+      let queries = 0;
+      await page.route('**/generation/' + attempt.id + '/query', route => {
+        queries++;
+        return route.fulfill({ json: attempt });
+      });
+      await dialog.getByRole('button', { name: '查询并取回', exact: true }).click();
+      await dialog.getByText('视频已取回并更新原卡片。', { exact: true }).waitFor();
+      assert.equal(queries, 1);
+      assert.equal(report.generationRequests.video, 1);
+      await dialog.getByRole('button', { name: '关闭', exact: true }).click();
+    }],
+    ['实际尺寸与本地抠图保存接入画布，不调用远端', async () => {
+      const original = (await files.load(canvas.id)).nodes.find(node => node.id === generatedId);
+      await page.locator('.card.image').click();
+      assert.match(await page.locator('.image-size-info').textContent(), /实际尺寸：320 × 240/);
+      const count = report.simulatedGenerations;
+      await page.getByRole('button', { name: '去纯色背景', exact: true }).click();
+      const editor = page.getByRole('dialog', { name: '自动去背景', exact: true });
+      await editor.getByRole('button', { name: '应用到当前帧', exact: true }).click();
+      const local = page.getByRole('dialog', { name: '本地图片编辑', exact: true });
+      let rejectSave = true;
+      const saveRoute = '**/canvases/' + canvas.id;
+      await page.route(saveRoute, route => {
+        if (route.request().method() === 'PUT' && rejectSave) {
+          rejectSave = false;
+          return route.fulfill({ status: 503, json: { error: '模拟保存失败，验证原结果保留' } });
+        }
+        return route.continue();
+      });
+      await local.getByRole('button', { name: '保存本地 PNG', exact: true }).click();
+      await local.getByText('原结果仍保留', { exact: false }).waitFor();
+      assert.equal((await files.load(canvas.id)).nodes.length, 2);
+      assert.equal(await page.locator('.card.image').count(), 1);
+      await page.unroute(saveRoute);
+      await local.getByRole('button', { name: '保存本地 PNG', exact: true }).click();
+      await local.waitFor({ state: 'detached' });
+      const result = await saved();
+      assert.equal(result.nodes.find(node => node.id === generatedId).assetPath, original.assetPath);
+      const edited = result.nodes.find(node => node.type === 'image' && node.id !== generatedId);
+      assert.ok(edited && fs.existsSync(path.join(project, edited.assetPath)));
+      assert.equal(report.simulatedGenerations, count);
+      await deleteCard(edited.id);
+      await saved();
     }],
     ['拖动卡片后保存和刷新保持位置', async () => {
       const before = (await files.load(canvas.id)).nodes[0];

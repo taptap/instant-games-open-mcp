@@ -28,6 +28,8 @@ export interface CanvasGenerationAttempt {
   sourceImageIds?: string[];
   referenceImagePaths?: string[];
   targetNodeId?: string;
+  targetAssetPath?: string;
+  remoteStatus?: string;
   resultAssetPath?: string;
   error?: string;
   executionState?: 'not_executed' | 'unknown';
@@ -37,6 +39,7 @@ export interface CanvasGenerationAttempt {
 
 export interface CanvasDocumentStore {
   templates?: CanvasTemplateStore;
+  videoHistory?(offset?: number, limit?: number): Promise<CanvasVideoHistory>;
   list(): Promise<CanvasSummary[]>;
   load(canvasId: string): Promise<CanvasDocument>;
   create(title?: string, template?: CanvasCreateTemplate): Promise<CanvasDocument>;
@@ -82,6 +85,19 @@ export interface CanvasDocumentStore {
     attemptId: string,
     action: 'query' | 'retry' | 'cancel'
   ): Promise<CanvasGenerationAttempt>;
+}
+
+export interface CanvasVideoHistory {
+  items: CanvasGenerationAttempt[];
+  total: number;
+  busy?: {
+    canvasId: string;
+    attemptId: string;
+    taskId?: string;
+    createdAt: string;
+    projectLabel?: string;
+    reason?: string;
+  };
 }
 
 export interface CanvasStoreResponse {
@@ -164,6 +180,8 @@ export function createBrowserCanvasDocumentStore(
     return body as T;
   }
   return {
+    videoHistory: (offset = 0, limit = 30) =>
+      request<CanvasVideoHistory>('/canvases/video-history?offset=' + offset + '&limit=' + limit),
     templates: {
       prepareTemplate: (id, canvasId) =>
         request<CanvasWorkflowTemplate>('/canvases/templates/' + id + '/prepare', {

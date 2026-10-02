@@ -46,6 +46,18 @@ export async function handleCanvasProjectRoute(options: {
   const project = registry.resolve(key);
   const files = new MakerCanvasFiles(project.path);
   try {
+    if (suffix === 'canvases/video-history' && method === 'GET') {
+      if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
+      send(
+        response,
+        200,
+        new CanvasGenerationService(project.path, options.remoteProxyManager).history(
+          Number(searchParams.get('offset') ?? 0),
+          Number(searchParams.get('limit') ?? 30)
+        )
+      );
+      return true;
+    }
     if (suffix === 'canvases/templates' && method === 'GET') {
       send(
         response,
