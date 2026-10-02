@@ -473,6 +473,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   画布交互修改后主动运行 npm run test:maker:canvas-ui，在临时项目使用真实页面、受控素材路由和落盘校验，返回报告与截图；付费生成只模拟远端结果。删除生成结果须记录 deletedGenerationIds，恢复时不得复活已删除节点。
   序列帧卡只显示来源和已保存结果；编辑在同页 sequenceEditor 大弹窗中完成。sequenceUi 持有临时草稿，保存成功才替换节点并记录一次撤销；失败保留旧结果与重试草稿。页面保存请求串行，编辑器不另起服务、不改变 Store 或持久化协议。
   animation.ts 负责独立动画卡：只复制已保存图集路径和帧索引，不复制图片字节，不引用可变处理草稿。sequence-animation 是来源关系，不是实时绑定；删除源卡只删除连线，已创建动画仍可播放。播放状态不落盘，重载默认暂停；重绘时回收旧渲染实例和动画调度。
+  resourceExport.ts 统一提供资源卡片右键导出：图片复用 imageExport.ts 编码，视频保留原字节；sequenceExport.ts 校验实际 PNG 尺寸与帧坐标，仅输出 Maker 图集包（spritesheet.png＋匹配 SpriteSheet 读取器的 spritesheet.json）或单图包（连续 PNG＋animation.lua 数据配置），均含接入 README。菜单循环选项仅影响本次导出，方向作为动画名 front/back/left/right，无方向用 default；禁止把朝向写入播放顺序 direction，后者固定 forward。不再输出自有 maker-sequence JSON，不另写播放器。zipArchive.ts 仅封装 UTF-8 STORE ZIP，最多 122 文件（120 帧＋配置＋说明）、128 MiB；单帧保留尺寸与透明边距，不裁边、不旋转、不重新缩放；只读结果快照和 Store 受控媒体 URL，不写画布、不触发生成、不新增服务端接口；空结果和待生成示例不导出。
+  exportNaming.ts 在导出时只读查询引用链，组合首图短名、方向、类型与时间短码，含扩展名不超过 15 字符；多来源优先明确首帧，歧义回退当前标题，不猜提示词。exportDirection 仅为可选命名元数据，由 files.ts 校验、模板保存复制保留，不参与生成或引用失效判断；图片顶部下载和右键共用导出入口。
   视频 taskId 在 remote proxy 素材下载前持久化，单视频占用跨控制台页面与项目；未知结果不自动重提。
   videoTaskTiming.ts 按 createdAt 统一计算本地 10 分钟占用与 6 小时查询期限，查询不续期；
   无 taskId 的未知任务同样超时释放。释放不取消远端、不改写失败、不自动重提；历史和本地结果保留。

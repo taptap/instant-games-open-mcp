@@ -14,7 +14,10 @@ test.each([
 test('bundles an independent collapsible log and preserves the hidden compatibility error field', () => {
   const page = getCanvasPageHtml();
   expect(page).toContain(CANVAS_LOG_STYLES);
-  expect(page).toContain("createCanvasLog(document.getElementById('canvas-log'))");
+  expect(page).toContain(
+    "createCanvasLog(document.getElementById('canvas-log'), [videoHistoryButton])"
+  );
+  expect(page).not.toContain('<button id="video-history"');
   expect(page).toContain('<p id="error" hidden aria-hidden="true">');
   expect(page).toContain('canvasLogs.setContext(documentState.id)');
 });

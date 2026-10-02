@@ -34,6 +34,7 @@ try {
   let holdNext = true;
   let failNext = false;
   let confirmations = 0;
+  let importedImages = 0;
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1200, height: 880 } });
   page.setDefaultTimeout(10000);
@@ -47,6 +48,7 @@ try {
     if (url.pathname.endsWith('/canvases')) response = [{ id: canvasId, title: canvas.title }];
     else if (url.pathname.endsWith('/canvases/active')) response = { canvasId };
     else if (url.pathname.endsWith('/video-history')) response = { items: [], total: 0 };
+    else if (url.pathname.endsWith('/images')) response = { relativePath: 'assets/image/imported-' + (++importedImages) + '.jpg' };
     else if (url.pathname.endsWith('/canvases/' + canvasId)) {
       if (route.request().method() === 'PUT') canvas = { ...route.request().postDataJSON(), revision: canvas.revision + 1 };
       response = canvas;
@@ -98,6 +100,81 @@ try {
   await queue.getByText('已暂停', { exact: true }).waitFor();
   assert.equal(calls.length, 7);
   assert.deepEqual(errors, []);
+  for (const scenario of ['text', 'import', 'linked', 'unknown']) {
+    attempts.splice(0);
+    const target = scenario === 'linked'
+      ? { ...references[0], templatePending: true }
+      : { ...master };
+    canvas = {
+      ...canvas,
+      nodes: [group, ...(scenario === 'linked' ? [{ ...master }] : []), target],
+      edges: scenario === 'linked'
+        ? [{ id: randomUUID(), from: master.id, to: target.id, kind: 'image-variant' }]
+        : [],
+    };
+    await page.reload();
+    const targetCard = page.locator('.card[data-id="' + target.id + '"]');
+    await targetCard.click();
+    if (scenario === 'linked') {
+      await targetCard.getByRole('button', { name: '调整参数', exact: true }).click();
+    } else {
+      await page.getByRole('button', { name: '快速编辑', exact: true }).click();
+    }
+    const prompt = page.locator('.generation-panel textarea').first();
+    await prompt.fill('游戏怪物：一只可爱的橘色猫咪，全身完整，纯色背景');
+    assert.equal(await page.locator('.generation-reference-remove').count(), scenario === 'linked' ? 2 : 1);
+    while (await page.locator('.generation-reference-remove').count()) {
+      await page.locator('.generation-reference-remove').first().click();
+    }
+    assert.match(await prompt.inputValue(), /橘色猫咪/);
+    await page.getByText('未使用参考图，将仅根据提示词生成。', { exact: true }).waitFor();
+    const addReference = page.locator('.generation-references').getByRole('button', { name: '导入参考图', exact: true });
+    assert.equal(await addReference.isVisible(), true);
+    assert.equal(await page.locator('.generation-actions').getByRole('button', { name: '导入参考图', exact: true }).count(), 0);
+    assert.equal(canvas.nodes.find(node => node.id === target.id).assetPath, target.assetPath);
+    if (scenario === 'import') {
+      const [picker] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        page.getByRole('button', { name: '导入参考图', exact: true }).click(),
+      ]);
+      assert.equal(picker.isMultiple(), true);
+      await picker.setFiles(Array.from({ length: 14 }, (_, index) => ({ name: 'reference-' + index + '.jpg', mimeType: 'image/jpeg', buffer: image })));
+      await page.getByAltText('参考图 14', { exact: true }).waitFor();
+      assert.equal(await addReference.isDisabled(), true);
+      const strip = page.locator('.generation-references');
+      assert.equal(await strip.evaluate(element => element.scrollWidth > element.clientWidth), true);
+      assert.equal(await strip.evaluate(element => getComputedStyle(element).flexWrap), 'nowrap');
+      await page.getByRole('button', { name: '移除参考图 1', exact: true }).click();
+      assert.equal(await addReference.isEnabled(), true);
+      assert.equal(await page.locator('.generation-reference img').count(), 13);
+      if (process.env.MAKER_REFERENCE_STRIP_SCREENSHOT) {
+        await addReference.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: process.env.MAKER_REFERENCE_STRIP_SCREENSHOT });
+      }
+      assert.equal(await page.getByAltText('当前图片', { exact: true }).count(), 0);
+    }
+    failNext = scenario === 'unknown';
+    await page.getByRole('button', { name: '应用并继续', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('.card-state-loading'));
+    const submitted = attempts.at(-1);
+    assert.equal(submitted.targetNodeId, target.id);
+    assert.equal(submitted.operation, 'generate');
+    assert.equal(submitted.sourceImagePath, undefined);
+    assert.equal(submitted.sourceImageIds, undefined);
+    assert.equal(submitted.sourceImagePaths, undefined);
+    assert.deepEqual(submitted.referenceImagePaths, scenario === 'import' ? Array.from({ length: 13 }, (_, index) => 'assets/image/imported-' + (index + 2) + '.jpg') : []);
+    assert.match(submitted.prompt, /橘色猫咪/);
+    assert.equal(canvas.nodes.length, scenario === 'linked' ? 3 : 2);
+    if (scenario === 'unknown') {
+      assert.equal(canvas.nodes.find(node => node.id === target.id).assetPath, target.assetPath);
+    } else {
+      assert.notEqual(canvas.nodes.find(node => node.id === target.id).assetPath, target.assetPath);
+      assert.equal(canvas.edges.filter(edge => edge.to === target.id).length, 0);
+    }
+  }
+  assert.deepEqual(errors, []);
+  console.log('PASS 模板图片参考可全部移除，文本草稿保留，纯文本/仅导入图生成不隐式携带旧图或上游图，原位更新且未知结果保留旧图。');
+  console.log('PASS 横向参考图列表：空态加号、多选14张、横向滚动、达到上限禁用、删除后恢复添加，底部不再有导入按钮。');
   console.log('PASS Group 底部队列：一次确认接续图/视频、拖拽排序、拒绝倒置依赖、停止后续、完成跳过、刷新不恢复付费任务、unknown 不重提。');
   console.log('使用真实打包页面与本地媒体、远端响应夹具；不提交付费生成，不生成 HTML 报告。');
 } finally {

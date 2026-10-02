@@ -8,7 +8,7 @@ export function canvasLogLevel(message: string): CanvasLogLevel {
   return 'info';
 }
 
-export function createCanvasLog(root: HTMLElement) {
+export function createCanvasLog(root: HTMLElement, actions: HTMLElement[] = []) {
   type Entry = { message: string; level: CanvasLogLevel; time: string };
   const entries: Entry[] = [];
   const enabled = new Set<CanvasLogLevel>(['error', 'warning', 'info']);
@@ -47,7 +47,7 @@ export function createCanvasLog(root: HTMLElement) {
     entries.length = 0;
     render();
   });
-  filters.append(clear);
+  filters.append(...actions, clear);
   details.append(summary, filters, list);
   root.replaceChildren(details, preview);
   details.addEventListener('toggle', () => {

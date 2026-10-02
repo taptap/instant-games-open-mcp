@@ -28,7 +28,10 @@ templateWorkflow.runQueued 复用单步骤执行、来源检查、下游过期�
 
 视频恢复保持独立：attempt 在素材下载前保存上游结构化 taskId，区分远端明确失败与查询／下载失败。
 控制台共享单视频占用，不依赖某个网页请求是否结束，不自动重发未知付费任务。
-顶部「视频历史」通过 Store 分页读取当前项目记录，显示时间、taskId、状态和下载入口。
+展开运行日志后，筛选栏中的「视频历史」通过 Store 分页读取当前项目记录，显示时间、taskId、状态和下载入口；日志收起时隐藏该按钮。
+
+图片编辑框内的当前图片、来源图片和导入参考图均可通过缩略图右上角移除；删空后仅按提示词生图，不再隐式提交旧图。移除只调整当前编辑草稿，生成成功前保留原图和连线；模板内成功生成后仍更新原卡片，并按实际使用的来源更新引用。
+图片与视频编辑框使用单行横向滚动的参考图列表，末尾常驻「＋」导入位，支持多选图片；空列表也显示导入位，不再在底部重复显示导入按钮。导入期间或达到当前模型／模式的图片数量上限时禁用添加，删除参考后可继续添加。
 查询成功仅在当前画布、最新尝试、目标未替换且引用快照一致时回填卡片；否则只保存本地结果，
 不覆盖新内容、不自动执行下游。不从诊断文本猜测 taskId。
 videoTaskTiming.ts 统一按 createdAt 计算期限：本地占用最多 10 分钟（包括无 ID 未知任务），
@@ -148,6 +151,33 @@ node scripts/test-maker-canvas-card-status.mjs，使用明确状态夹具，不�
 - 新建菜单的「空白画布」是真正零节点文档；旧 sequence 创建接口（页面入口已移除）从当前项目最近一张已保存的序列帧流程中只复制一条完整 Demo（视频源、一个拆帧卡及其一个动画结果），并重建节点/画布 id。不会把同一画布里的多个序列帧流程一起复制；没有可复用示例时不伪造序列帧结果，创建会明确失败。
 
 ## 真实页面自动验收
+
+资源卡片右键统一提供「导出资源」子菜单：图片为 PNG/JPG，视频保存 MP4/MOV/WebM 原文件；序列帧和动画提供「Maker 图集包（推荐）」及「Maker 单图包」，均一次下载 ZIP。菜单「循环播放」默认勾选，取消后导出播放一次、停在末帧的配置，只影响本次导出，不修改画布或原资源。只导出已完成保存的结果，不含处理草稿，不自动重新生成或更新上游；空卡和待生成示例禁用入口。PNG 保留透明度，JPG 使用白底；不提供序列帧转 GIF/APNG/视频编码。
+
+导出文件统一按「主体短名＋方向＋类型＋6 位时间短码」命名，包含扩展名不超过 15 个字符。
+主体沿当前引用链查找首图，首尾帧优先明确的首帧；多来源无法确定时使用当前卡片名称，不解析提示词猜测。
+主体最多 3 字，去掉序号与参考图说明；方向采用预设的 exportDirection 或旧卡片明确方向标题，没有则省略。
+类型以图／视／集／帧区分图片、视频、图集包、单帧包；WebM 因扩展名较长自动缩短主体。
+时间短码使用从 2020 年起的秒数转 36 进制，同秒导出递增；浏览器本地保存上次编号，支持 Web Locks 时跨页互斥。
+浏览器禁用存储时仅在当前页面保留去重编号；用户手动改名覆盖仍由保存窗口确认。
+图片顶部下载与右键共用规则；不修改原卡片标题、不触发生成。ZIP 内根目录与 ZIP 文件主名一致：
+
+- Maker 图集包：spritesheet.png（原图集字节）、spritesheet.json 与 README.md。
+- Maker 单图包：animation.lua、README.md 和 frames/frame_0001.png、frame_0002.png 等；按当前帧列表的播放顺序连续编号，不沿用被删帧留下的编号空洞。
+- 两种包的单帧尺寸均沿用已保存结果，不裁透明边、不旋转、不重新缩放。实际 PNG 尺寸、帧数、帧率、帧坐标和统一尺寸不合法时停止导出，禁止静默裁断或少导帧。导出最多 120 帧、4096×4096 图集、4800 万帧像素和 128 MiB 包内文件数据；处理分步让出主线程，日志显示打包进度。
+
+只面向 Maker，不再输出自有 maker-sequence / animation.json。图集 JSON 匹配 Maker urhox-libs/Sprite/SpriteSheet.lua 的读取契约：
+
+- meta.image 固定 spritesheet.png，meta.size.w/h 为实际图集尺寸；帧矩形使用 x/y/w/h，坐标为左上角起算的像素。
+- frames 数组按播放顺序连续命名 filename（如 left_0001）；animations[].frames 显式引用这些 key，不沿用源视频索引作为播放顺序。
+- sourceSize 与 spriteSourceSize 使用 w/h，完整帧偏移为 0，trimmed / rotated 均为 false。duration 为毫秒，取 1000/fps，不丢失非整数时长。
+- animations[].name 为 front/back/left/right，无明确方向时为 default；播放顺序 direction 固定 forward，不与角色朝向混用。repeat 为 0（循环）或 1（播放一次）；fps 为当前保存帧率。
+- 将包目录放入 assets/image/ 后，用 UI.Sprite 的 src 引用 image/<目录>/spritesheet.json；项目需具备 Sprite 模块。四方向图集可通过 animations 映射注册并按同名 Play 切换，无需合并 PNG。相同 default 动作共用一个组件时，在各 JSON 内改成不同动画名。
+- 单图的 animation.lua 返回数据表 name/framePattern/frameCount/fps/loop/width/height。默认资源根为 image/<导出目录>/frames，编号从 1 开始；配置移到 scripts/animations/<导出目录>.lua 后通过 require 加载，接入已有换图播放器，不是新的官方自动播放组件。目录移动或改名需同步修改路径。
+- 接入说明随每个包输出；不嵌入模型提示词、凭据或电脑绝对路径，不修改游戏代码或引擎库。旧 Maker 环境缺少 UI.Sprite 时采用单图方式。
+
+运行 node scripts/test-maker-canvas-export.mjs 可验证实际下载解压的两种 Maker ZIP、PNG 尺寸与透明像素、视频／图集原字节、配置与播放顺序、循环选项；损坏的尺寸记录不得下载，不调用付费生成，不生成 HTML 报告。
+可设置 MAKER_SPRITE_DIR 指向本机开发库的 urhox-libs/Sprite、MAKER_DOG_ANIMATOR 指向 DogSpriteAnimator.lua，脚本会用本机 lua 执行真实 SpriteSheet/SpriteAnimator 和单图播放器，验证导出配置的帧路径、坐标、时长及循环／单次播放。JSON 解码与文件读取由测试适配，像素另由浏览器下载测试校验；这不是引擎 GPU 渲染或 Windows 实机验收。缺少路径时明确跳过此项。
 
 运行 npm run test:maker:canvas-ui。脚本在临时项目启动真实控制台服务和 Chromium，
 使用真实画布页面、素材导入、文档校验、保存与刷新；不读写用户项目，不接管用户浏览器。

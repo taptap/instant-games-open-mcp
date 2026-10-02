@@ -111,6 +111,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   const inFlight = new Set<string>();
   const drafts = new Map<string, string>();
   const references = new Map<string, string[]>();
+  const removedImageSources = new Map<string, Map<string, string>>();
   const importingReferences = new Set<string>();
   async function waitVideoRequest(request: Promise<any>, canvasId: string, createdAt: string) {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -162,6 +163,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   function referencePaths(node: any): string[] {
     return references.get(referenceKey(node)) || node.generation?.referenceImagePaths || [];
   }
+  function includesImageSource(node: any, source: any): boolean {
+    return removedImageSources.get(referenceKey(node))?.get(source.id) !== source.assetPath;
+  }
   function currentVideoMode(node: any): string {
     return (
       videoSettings.get(referenceKey(node))?.mode ||
@@ -172,11 +176,24 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     );
   }
 
-  async function importReference(node: any, file: any, canvasId: string): Promise<void> {
+  function referenceLimit(node: any): number {
+    if (node.type === 'image') return 14;
+    const mode = currentVideoMode(node);
+    const model =
+      videoSettings.get(referenceKey(node))?.model || node.generation?.parameters?.model || '2.0';
+    return mode === 'first_frame' ? 1 : mode === 'first_last_frame' ? 2 : model === '2.5' ? 30 : 9;
+  }
+
+  async function importReferences(
+    node: any,
+    files: any[],
+    canvasId: string,
+    workflow?: CanvasWorkflowEdit
+  ): Promise<void> {
     const current = options.getDocument();
     if (
       !current ||
-      !file ||
+      !files.length ||
       current.id !== canvasId ||
       !current.nodes.some((item: any) => item.id === (node.draftSourceId || node.id))
     )
@@ -184,31 +201,21 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const key = referenceKey(node);
     if (importingReferences.has(key) || inFlight.has(node.id)) return;
     const maxBytes = (node.type === 'image' ? 10 : 20) * 1024 * 1024;
-    if (file.size > maxBytes) {
+    if (files.some((file) => file.size > maxBytes)) {
       options.setError('参考图片不能超过 ' + maxBytes / 1024 / 1024 + ' MiB。');
       return;
     }
-    if (file.type && !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    if (
+      files.some(
+        (file) => file.type && !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)
+      )
+    ) {
       options.setError('参考图只接受 PNG、JPEG 或 WebP。');
       return;
     }
-    const implicitCount =
-      node.type === 'image'
-        ? Number(Boolean(node.assetPath || node.generationDraft?.sourceImageId))
-        : videoInputSources(current, node).length;
-    const mode = currentVideoMode(node);
-    const model = videoSettings.get(key)?.model || node.generation?.parameters?.model || '2.0';
-    const limit =
-      node.type === 'image'
-        ? 14
-        : mode === 'first_frame'
-          ? 1
-          : mode === 'first_last_frame'
-            ? 2
-            : model === '2.5'
-              ? 30
-              : 9;
-    if (referencePaths(node).length + implicitCount >= limit) {
+    const implicitCount = referenceSources(node, Boolean(workflow)).length;
+    const limit = referenceLimit(node);
+    if (referencePaths(node).length + implicitCount + files.length > limit) {
       options.setError(
         '当前输入方式最多支持 ' +
           limit +
@@ -219,21 +226,23 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     importingReferences.add(key);
     options.render();
     try {
-      const saved = await options.store.importImage(
-        current.id,
-        await file.arrayBuffer(),
-        file.type || 'application/octet-stream'
-      );
-      if (
-        options.getDocument()?.id !== current.id ||
-        !options
-          .getDocument()
-          .nodes.some((item: any) => item.id === (node.draftSourceId || node.id))
-      ) {
-        options.setError('已离开原卡片，参考图未添加到其他卡片。');
-        return;
+      for (const file of files) {
+        const saved = await options.store.importImage(
+          current.id,
+          await file.arrayBuffer(),
+          file.type || 'application/octet-stream'
+        );
+        if (
+          options.getDocument()?.id !== current.id ||
+          !options
+            .getDocument()
+            .nodes.some((item: any) => item.id === (node.draftSourceId || node.id))
+        ) {
+          options.setError('已离开原卡片，参考图未添加到其他卡片。');
+          return;
+        }
+        references.set(key, [...referencePaths(node), saved.relativePath]);
       }
-      references.set(key, [...referencePaths(node), saved.relativePath]);
       options.setError('');
     } catch (error) {
       options.setError(error instanceof Error ? error.message : '参考图片导入失败，请重试。');
@@ -243,28 +252,46 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     }
   }
 
-  function renderReferences(panel: any, node: any, nodes: any[], busy: boolean): void {
-    const key = referenceKey(node);
+  function referenceSources(node: any, reuseTarget = false): any[] {
+    const current = options.getDocument();
+    if (node.type !== 'image') return videoInputSources(current, node);
     const sourceId =
       node.draftSourceId ||
       node.generationDraft?.sourceImageId ||
       node.generation?.sourceImageId ||
-      options.getDocument().edges.find((edge: any) => edge.to === node.id)?.from;
+      current.edges.find((edge: any) => edge.to === node.id)?.from;
     const source =
       node.type === 'image' && node.assetPath
         ? node
-        : nodes.find((item: any) => item.id === sourceId);
-    const sources =
+        : current.nodes.find((item: any) => item.id === sourceId);
+    const decision =
       node.type === 'image'
-        ? source?.assetPath
-          ? [source]
-          : []
-        : videoInputSources(options.getDocument(), node);
+        ? reuseTarget
+          ? { kind: 'reuse', nodeId: node.id }
+          : options.resolveTarget?.(source?.id || node.id, 'image', node.id)
+        : undefined;
+    return source?.assetPath
+      ? imageEditSources(
+          current,
+          source,
+          decision?.kind === 'reuse' ? decision.nodeId : undefined
+        ).filter((item) => includesImageSource(node, item))
+      : [];
+  }
+
+  function renderReferences(
+    panel: any,
+    node: any,
+    busy: boolean,
+    workflow?: CanvasWorkflowEdit
+  ): void {
+    const key = referenceKey(node);
+    const sources = referenceSources(node, Boolean(workflow));
     const paths = referencePaths(node);
     const mode = node.type === 'image' ? undefined : currentVideoMode(node);
     const strip = document.createElement('div');
     strip.className = 'generation-references';
-    function thumbnail(path: string, labelText: string, index?: number): void {
+    function thumbnail(path: string, labelText: string, index?: number, source?: any): void {
       const tile = document.createElement('div');
       tile.className = 'generation-reference';
       const preview = document.createElement('img');
@@ -273,23 +300,30 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       const label = document.createElement('small');
       label.textContent = labelText;
       tile.append(preview, label);
-      if (index !== undefined) {
+      if (index !== undefined || source) {
+        const removeLabel = source ? '移除' + labelText + '参考' : '移除参考图 ' + (index! + 1);
         const remove = button(
           '×',
           () => {
-            references.set(
-              key,
-              referencePaths(node).filter((_, position) => position !== index)
-            );
+            if (source) {
+              const removed = removedImageSources.get(key) || new Map<string, string>();
+              removed.set(source.id, source.assetPath);
+              removedImageSources.set(key, removed);
+            } else {
+              references.set(
+                key,
+                referencePaths(node).filter((_, position) => position !== index)
+              );
+            }
             options.render();
           },
           {
             className: 'generation-reference-remove',
-            title: '移除参考图 ' + (index + 1),
+            title: removeLabel,
             disabled: busy,
           }
         );
-        remove.setAttribute('aria-label', '移除参考图 ' + (index + 1));
+        remove.setAttribute('aria-label', removeLabel);
         tile.append(remove);
       }
       strip.append(tile);
@@ -309,7 +343,13 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       if (item.assetPath)
         thumbnail(
           item.assetPath,
-          node.type === 'image' ? '当前图片' : referenceLabel(index) + ' · ' + item.title
+          node.type === 'image'
+            ? item.id === node.id
+              ? '当前图片'
+              : '来源图片 · ' + item.title
+            : referenceLabel(index) + ' · ' + item.title,
+          undefined,
+          node.type === 'image' ? item : undefined
         );
     });
     paths.forEach((path, index) =>
@@ -319,12 +359,40 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         index
       )
     );
+    const full = sources.length + paths.length >= referenceLimit(node);
+    const add = button(
+      '+',
+      () => {
+        const canvasId = options.getDocument().id;
+        const picker = document.createElement('input');
+        picker.type = 'file';
+        picker.accept = 'image/png,image/jpeg,image/webp';
+        picker.multiple = true;
+        picker.addEventListener('change', () => {
+          void importReferences(node, Array.from(picker.files || []), canvasId, workflow);
+        });
+        picker.click();
+      },
+      {
+        className: 'generation-reference-add',
+        title: full ? '已达到当前模式的参考图上限' : '添加参考图（可多选）',
+        disabled: busy || full,
+      }
+    );
+    add.setAttribute('aria-label', '导入参考图');
+    strip.append(add);
+    panel.append(strip);
+    if (node.type === 'image' && !sources.length && !paths.length) {
+      const hint = document.createElement('small');
+      hint.className = 'generation-reference-hint';
+      hint.textContent = '未使用参考图，将仅根据提示词生成。';
+      panel.append(hint);
+    }
     if (importingReferences.has(key)) {
       const status = document.createElement('small');
       status.textContent = '参考图导入中…';
       strip.append(status);
     }
-    panel.append(strip);
   }
 
   function button(
@@ -637,9 +705,10 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const documentState = options.getDocument();
     if (!documentState || inFlight.has(node.id) || importingReferences.has(referenceKey(node)))
       return;
-    const selectedOperation = node.generationDraft?.operation || operation;
+    let selectedOperation = node.generationDraft?.operation || operation;
+    const refreshUpstream = Boolean(settings.templateRun && settings.refreshSource);
     const sourceImageId =
-      node.assetPath && !settings.refreshSource
+      node.assetPath && !refreshUpstream
         ? node.id
         : node.generationDraft?.sourceImageId ||
           node.generation?.sourceImageId ||
@@ -647,11 +716,6 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const source = sourceImageId
       ? documentState.nodes.find((item: any) => item.id === sourceImageId && item.type === 'image')
       : node;
-    const prompt = promptFor(node, input, selectedOperation);
-    if (selectedOperation !== 'generate' && !source?.assetPath) {
-      options.setError('变体或扩展画面需要一张已保存的来源图片。');
-      return;
-    }
     const decision = settings.templateRun
       ? { kind: 'reuse' as const, nodeId: node.id }
       : options.resolveTarget?.(source?.id || node.id, 'image', node.id);
@@ -661,16 +725,23 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     }
     const targetId =
       decision?.kind === 'reuse' ? decision.nodeId : !node.assetPath ? node.id : undefined;
-    const sourceNodes =
-      settings.templateRun &&
-      settings.refreshSource &&
-      canvasReferences(documentState, node.id).length
+    const sourceNodes = refreshUpstream
+      ? canvasReferences(documentState, node.id).length
         ? canvasReferences(documentState, node.id).filter(
             (source) => source.type === 'image' && source.assetPath
           )
-        : selectedOperation !== 'generate'
+        : selectedOperation !== 'generate' && source?.assetPath
           ? imageEditSources(documentState, source, targetId)
-          : [];
+          : []
+      : referenceSources(node, Boolean(settings.templateRun));
+    if (!refreshUpstream && !sourceNodes.length && removedImageSources.has(referenceKey(node))) {
+      selectedOperation = 'generate';
+    }
+    if (selectedOperation !== 'generate' && !sourceNodes.length) {
+      options.setError('变体或扩展画面需要一张已保存的来源图片。');
+      return;
+    }
+    const prompt = promptFor(node, input, selectedOperation);
     inFlight.add(node.id);
     if (targetId) inFlight.add(targetId);
     options.render();
@@ -1258,7 +1329,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         : '描述游戏角色动作、镜头和特效…'
     );
     panel.append(createPromptEditor(input));
-    renderReferences(panel, node, _nodes, busy);
+    renderReferences(panel, node, busy, workflow);
     let imageModel: any;
     let imageResolution: any;
     let imageRatio: any;
@@ -1334,7 +1405,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           mode: videoMode.value,
         });
         panel.querySelector('.generation-references')?.remove();
-        renderReferences(panel, node, _nodes, busy);
+        renderReferences(panel, node, busy, workflow);
         panel.insertBefore(panel.querySelector('.generation-references'), fields);
       });
       fields.append(videoMode, videoModel, videoResolution, videoDuration, videoRatio);
@@ -1422,24 +1493,6 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       const actions = document.createElement('div');
       actions.className = 'generation-actions';
       actions.append(
-        button(
-          '导入参考图',
-          () => {
-            const canvasId = options.getDocument().id;
-            const picker = document.createElement('input');
-            picker.type = 'file';
-            picker.accept = 'image/png,image/jpeg,image/webp';
-            picker.addEventListener('change', () => {
-              void importReference(node, picker.files?.[0], canvasId);
-            });
-            picker.click();
-          },
-          {
-            className: 'generation-action',
-            title: '导入生图参考，不替换当前卡片图片',
-            disabled: busy,
-          }
-        ),
         button(workflow ? '应用并继续' : '生成', submitGeneration, {
           className: 'generation-action generation-action-primary',
           title: '在当前图片槽中生成结果',
@@ -1450,22 +1503,6 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     } else {
       const actions = document.createElement('div');
       actions.className = 'generation-actions';
-      actions.append(
-        button(
-          '导入参考图',
-          () => {
-            const canvasId = options.getDocument().id;
-            const picker = document.createElement('input');
-            picker.type = 'file';
-            picker.accept = 'image/png,image/jpeg,image/webp';
-            picker.addEventListener('change', () => {
-              void importReference(node, picker.files?.[0], canvasId);
-            });
-            picker.click();
-          },
-          { className: 'generation-action', title: '添加视频参考，不替换来源图片', disabled: busy }
-        )
-      );
       if (node.type === 'video' && !node.draftSourceId && !workflow) {
         actions.append(
           button('导入视频', () => options.requestVideoImport(node.id), {

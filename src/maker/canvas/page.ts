@@ -43,6 +43,23 @@ import { openBackgroundEditor } from './backgroundUi.js';
 import { createFrameCollection } from './frameCollection.js';
 import { createCanvasGenerationUi, imageEditSources } from './generationUi.js';
 import { downloadCanvasImage } from './imageExport.js';
+import {
+  canvasExportIdentity,
+  canvasExportFilename,
+  nextCanvasExportCode,
+} from './exportNaming.js';
+import { createCanvasZip } from './zipArchive.js';
+import {
+  sequenceExportManifest,
+  sequenceExportLua,
+  sequenceExportInstructions,
+  createSequenceExport,
+} from './sequenceExport.js';
+import {
+  canvasExportFormats,
+  downloadCanvasResource,
+  createCanvasResourceExport,
+} from './resourceExport.js';
 import { imageSizeLabel, renderImageInfo } from './imageInfo.js';
 import { createImageEditing } from './imageEditing.js';
 import { applyLocalImageResult } from './localImageResult.js';
@@ -127,6 +144,17 @@ export function getCanvasPageHtml(): string {
     imageEditSources.toString(),
     createTemplateWorkflow.toString(),
     downloadCanvasImage.toString(),
+    createCanvasZip.toString(),
+    sequenceExportManifest.toString(),
+    sequenceExportLua.toString(),
+    sequenceExportInstructions.toString(),
+    createSequenceExport.toString(),
+    canvasExportFormats.toString(),
+    canvasExportFilename.toString(),
+    canvasExportIdentity.toString(),
+    nextCanvasExportCode.toString(),
+    downloadCanvasResource.toString(),
+    createCanvasResourceExport.toString(),
     imageSizeLabel.toString(),
     renderImageInfo.toString(),
     createImageEditing.toString(),
@@ -1181,7 +1209,7 @@ export function getCanvasPageHtml(): string {
       "        const formats = document.createElement('div'); formats.className = 'image-download-options';",
       "        ['png', 'jpg'].forEach(function (format) {",
       "          const item = document.createElement('button'); item.type = 'button'; item.textContent = '导出为 ' + format.toUpperCase();",
-      "          item.addEventListener('click', function () { download.open = false; void downloadCanvasImage(store.mediaUrl(node.assetPath), node.title || '图片', format).catch(function (caught) { setError(caught.message || '图片导出失败，请重试。'); }); });",
+      "          item.addEventListener('click', function () { download.open = false; void resourceExport.download(node, format); });",
       '          formats.append(item);',
       '        });',
       "        download.addEventListener('toggle', function () { if (!download.open) return; const rect = trigger.getBoundingClientRect(); formats.style.left = Math.max(8, rect.right - 144) + 'px'; formats.style.top = rect.bottom + 6 + 'px'; });",
@@ -1213,7 +1241,7 @@ export function getCanvasPageHtml(): string {
   );
   page = page.replace(
     '</style>',
-    '#selection-toolbar { position: absolute; z-index: 20; box-sizing: border-box; display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; border: 1px solid #414957; border-radius: 12px; background: #17191f; box-shadow: 0 12px 32px rgba(0,0,0,.4); overflow: auto; overscroll-behavior: contain; }\n#selection-menu { position: absolute; z-index: 21; box-sizing: border-box; width: max-content; padding: 6px; border: 1px solid #414957; border-radius: 10px; background: #202228; box-shadow: 0 6px 20px rgba(0,0,0,.35); overflow-x: auto; overscroll-behavior: contain; }\n#selection-menu .selection-actions { flex-wrap: nowrap; }\n#selection-menu button { white-space: nowrap; border-color: transparent; background: transparent; font-weight: 600; }\n#selection-menu button:hover, #selection-menu button.active { background: #5b4728; border-color: #c99649; }\n#selection-menu button:disabled { opacity: .4; cursor: not-allowed; background: transparent; border-color: transparent; }\n.image-download summary { display: flex; align-items: center; justify-content: center; width: 34px; height: 32px; cursor: pointer; border-left: 1px solid #414957; list-style: none; }\n.image-download summary::-webkit-details-marker { display: none; }\n.image-download-options { position: fixed; z-index: 40; width: 144px; padding: 5px; box-sizing: border-box; border: 1px solid #414957; border-radius: 8px; background: #202228; box-shadow: 0 8px 24px rgba(0,0,0,.4); }\n.image-download-options button { display: block; width: 100%; text-align: left; }\n#selection-menu[hidden], #selection-toolbar[hidden] { display: none; }\n.selection-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }\n.selection-actions button { background: #20242d; color: #e8e3d8; border: 1px solid #414957; border-radius: 7px; padding: 7px 10px; cursor: pointer; }\n.selection-actions button:hover, .selection-actions button.active { background: #5b4728; border-color: #c99649; color: #fff1cf; }\n.selection-label { color: #b7b1a6; font-size: 12px; margin-right: 4px; }\n.selection-panel { min-width: 0; }\n.image-empty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 84px; height: 84px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 0; background: #1a1d24; color: #aaa79f; cursor: pointer; }\n.image-empty:hover { background: #232832; color: #e6b15c; }\n.image-empty span { font-size: 30px; line-height: 1; }\n.image-empty small { font-size: 12px; }\n.card.image { padding: 0; min-width: 280px; min-height: 220px; }\n.card.image > img { display: block; width: 100%; height: 100%; object-fit: contain; }\n.card.image > strong, .card.video > strong, .card.video-source > strong { display: none; }\n.port { display: none !important; }\n.generation-panel { margin-top: 0; display: grid; grid-template-columns: minmax(0,1fr); align-items: end; gap: 8px; }\n.generation-panel > .generation-prompt { min-height: 96px; resize: vertical; font: inherit; font-size: 13px; line-height: 1.5; padding: 10px; }\n.generation-references { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }\n.generation-references:empty { display: none; }\n.generation-reference { position: relative; width: 68px; display: flex; flex-direction: column; gap: 4px; text-align: center; }\n.generation-reference img { display: block; width: 68px; height: 60px; object-fit: contain; border: 1px solid #414957; border-radius: 6px; background: #101114; }\n.generation-reference small { font-size: 10px; color: #b7b1a6; }\n.generation-reference-remove { position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1px solid #616875; background: #303640; color: white; cursor: pointer; }\n.generation-reference-remove:disabled { opacity: .4; cursor: wait; }\n.generation-fields { display: grid; grid-template-columns: repeat(3,minmax(80px,1fr)); gap: 6px; }\n.generation-field { display: flex; flex-direction: column; gap: 3px; color: #aaa79f; font-size: 11px; }\n.generation-field .generation-mode { width: 100%; }\n.generation-actions { display: flex; justify-content: flex-end; gap: 6px; }\n.generation-actions .generation-action { white-space: nowrap; }\n@media (max-width: 760px) { .generation-panel { grid-template-columns: 1fr; } .generation-fields { grid-template-columns: repeat(2,minmax(80px,1fr)); } }\n</style>'
+    '#selection-toolbar { position: absolute; z-index: 20; box-sizing: border-box; display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; border: 1px solid #414957; border-radius: 12px; background: #17191f; box-shadow: 0 12px 32px rgba(0,0,0,.4); overflow: auto; overscroll-behavior: contain; }\n#selection-menu { position: absolute; z-index: 21; box-sizing: border-box; width: max-content; padding: 6px; border: 1px solid #414957; border-radius: 10px; background: #202228; box-shadow: 0 6px 20px rgba(0,0,0,.35); overflow-x: auto; overscroll-behavior: contain; }\n#selection-menu .selection-actions { flex-wrap: nowrap; }\n#selection-menu button { white-space: nowrap; border-color: transparent; background: transparent; font-weight: 600; }\n#selection-menu button:hover, #selection-menu button.active { background: #5b4728; border-color: #c99649; }\n#selection-menu button:disabled { opacity: .4; cursor: not-allowed; background: transparent; border-color: transparent; }\n.image-download summary { display: flex; align-items: center; justify-content: center; width: 34px; height: 32px; cursor: pointer; border-left: 1px solid #414957; list-style: none; }\n.image-download summary::-webkit-details-marker { display: none; }\n.image-download-options { position: fixed; z-index: 40; width: 144px; padding: 5px; box-sizing: border-box; border: 1px solid #414957; border-radius: 8px; background: #202228; box-shadow: 0 8px 24px rgba(0,0,0,.4); }\n.image-download-options button { display: block; width: 100%; text-align: left; }\n#selection-menu[hidden], #selection-toolbar[hidden] { display: none; }\n.selection-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }\n.selection-actions button { background: #20242d; color: #e8e3d8; border: 1px solid #414957; border-radius: 7px; padding: 7px 10px; cursor: pointer; }\n.selection-actions button:hover, .selection-actions button.active { background: #5b4728; border-color: #c99649; color: #fff1cf; }\n.selection-label { color: #b7b1a6; font-size: 12px; margin-right: 4px; }\n.selection-panel { min-width: 0; }\n.image-empty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 84px; height: 84px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 0; background: #1a1d24; color: #aaa79f; cursor: pointer; }\n.image-empty:hover { background: #232832; color: #e6b15c; }\n.image-empty span { font-size: 30px; line-height: 1; }\n.image-empty small { font-size: 12px; }\n.card.image { padding: 0; min-width: 280px; min-height: 220px; }\n.card.image > img { display: block; width: 100%; height: 100%; object-fit: contain; }\n.card.image > strong, .card.video > strong, .card.video-source > strong { display: none; }\n.port { display: none !important; }\n.generation-panel { margin-top: 0; display: grid; grid-template-columns: minmax(0,1fr); align-items: end; gap: 8px; }\n.generation-panel > .generation-prompt { min-height: 96px; resize: vertical; font: inherit; font-size: 13px; line-height: 1.5; padding: 10px; }\n.generation-references { display: flex; align-items: flex-start; gap: 10px; flex-wrap: nowrap; overflow-x: auto; min-width: 0; max-width: 100%; padding: 6px 6px 4px; box-sizing: border-box; overscroll-behavior-x: contain; scrollbar-width: thin; }\n.generation-references:empty { display: none; }\n.generation-reference { position: relative; flex: 0 0 68px; width: 68px; display: flex; flex-direction: column; gap: 4px; text-align: center; }\n.generation-reference img { display: block; width: 68px; height: 60px; object-fit: contain; border: 1px solid #414957; border-radius: 6px; background: #101114; }\n.generation-reference small { font-size: 10px; color: #b7b1a6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.generation-reference-remove { position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1px solid #616875; background: #303640; color: white; cursor: pointer; }\n.generation-reference-add { flex: 0 0 68px; height: 62px; display: grid; place-items: center; padding: 0; border: 1px dashed #616875; border-radius: 6px; background: #161a21; color: #aeb8cb; font-size: 28px; cursor: pointer; } .generation-reference-add:hover:not(:disabled), .generation-reference-add:focus-visible { border-color: #e6b15c; color: #e6b15c; background: #252320; } .generation-reference-add:disabled { opacity: .45; cursor: not-allowed; } .generation-reference-hint { color: #aaa79f; font-size: 11px; }\n.generation-reference-remove:disabled { opacity: .4; cursor: wait; }\n.generation-fields { display: grid; grid-template-columns: repeat(3,minmax(80px,1fr)); gap: 6px; }\n.generation-field { display: flex; flex-direction: column; gap: 3px; color: #aaa79f; font-size: 11px; }\n.generation-field .generation-mode { width: 100%; }\n.generation-actions { display: flex; justify-content: flex-end; gap: 6px; }\n.generation-actions .generation-action { white-space: nowrap; }\n@media (max-width: 760px) { .generation-panel { grid-template-columns: 1fr; } .generation-fields { grid-template-columns: repeat(2,minmax(80px,1fr)); } }\n</style>'
   );
   page = page.replace(
     '        card.append(img);',
@@ -1255,6 +1283,7 @@ export function getCanvasPageHtml(): string {
     [
       '  let pendingPlacement = null;',
       "  const contextMenu = document.getElementById('canvas-context-menu');",
+      '  const resourceExport = createCanvasResourceExport({ getDocument: function () { return documentState; }, mediaUrl: function (path) { return store.mediaUrl(path); }, error: setError, progress: function (message) { setError(message, "info"); } });',
       '  function hideContextMenu() { contextMenu.hidden = true; }',
       '  function showContextMenu(event) {',
       '    event.preventDefault();',
@@ -1266,6 +1295,7 @@ export function getCanvasPageHtml(): string {
       '    if (card && !selected.has(card.dataset.id)) selectNode(card.dataset.id, false);',
       '    if (!card && selected.size < 2) { selected.clear(); render(); }',
       '    templateUi.context(contextMenu);',
+      '    resourceExport.context(contextMenu, card && selected.size === 1 ? documentState.nodes.find(function (node) { return node.id === card.dataset.id; }) : undefined);',
       '    pendingPlacement = documentState ? worldPoint(event) : null;',
       '    contextMenu.hidden = false;',
       "    contextMenu.style.left = Math.min(event.clientX, window.innerWidth - 190) + 'px';",
@@ -1366,7 +1396,7 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '<button id="create-section"',
-    '<button id="add-template" type="button">添加模板</button><button id="video-history" type="button">视频历史</button><button id="create-section"'
+    '<button id="add-template" type="button">添加模板</button><button id="create-section"'
   );
   page = replaceCanvasPageText(page, '</style>', TEMPLATE_LIBRARY_STYLES + '</style>');
   page = replaceCanvasPageText(
@@ -1431,7 +1461,12 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     "  const error = document.getElementById('error');",
-    "  const error = document.getElementById('error');\n  const canvasLogs = createCanvasLog(document.getElementById('canvas-log'));"
+    [
+      "  const error = document.getElementById('error');",
+      "  const videoHistoryButton = document.createElement('button');",
+      "  videoHistoryButton.id = 'video-history'; videoHistoryButton.type = 'button'; videoHistoryButton.textContent = '视频历史';",
+      "  const canvasLogs = createCanvasLog(document.getElementById('canvas-log'), [videoHistoryButton]);",
+    ].join('\n')
   );
   page = replaceCanvasPageText(
     page,

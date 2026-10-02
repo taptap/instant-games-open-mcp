@@ -193,6 +193,9 @@ try {
   );
   const pendingVideo = page.locator('.card[data-id="' + nodes[5].id + '"]');
   const callsBeforeTimeout = queries;
+  assert.equal(await page.locator('#video-history').isVisible(), false);
+  assert.equal(await page.locator('#canvas-log #video-history').count(), 1);
+  await page.locator('#canvas-log summary').click();
   await page.getByRole('button', { name: '视频历史', exact: true }).click();
   const history = page.getByRole('dialog', { name: '视频历史', exact: true });
   await history.getByRole('button', { name: '查询并取回', exact: true }).waitFor();
@@ -210,6 +213,8 @@ try {
   await expiredQuery.waitFor();
   assert.equal(await expiredQuery.isDisabled(), true);
   await history.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.locator('#canvas-log summary').click();
+  assert.equal(await page.locator('#video-history').isVisible(), false);
   assert.equal(await pendingVideo.getByRole('button', { name: '查询原任务', exact: true }).count(), 0);
   assert.equal(queries, callsBeforeTimeout);
   assert.equal(submissions.length, 0);

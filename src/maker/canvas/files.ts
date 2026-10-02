@@ -900,6 +900,11 @@ export class MakerCanvasFiles {
     const sectionId =
       node.sectionId === undefined ? undefined : text(node.sectionId, 36, '分区标识');
     if (
+      node.exportDirection !== undefined &&
+      !['front', 'back', 'left', 'right'].includes(node.exportDirection as string)
+    )
+      fail('导出方向无效。', 400, 'INVALID_DOCUMENT');
+    if (
       node.templateId !== undefined &&
       (node.type !== 'section' || typeof node.templateId !== 'string' || !ID.test(node.templateId))
     )
@@ -1077,6 +1082,9 @@ export class MakerCanvasFiles {
       height: numberIn(node.height, 36, node.type === 'section' ? 100000 : 1600, '尺寸'),
       title: text(node.title, 80, '标题', '未命名'),
       ...(sectionId ? { sectionId } : {}),
+      ...(node.exportDirection
+        ? { exportDirection: node.exportDirection as CanvasNode['exportDirection'] }
+        : {}),
       ...(node.templateId ? { templateId: node.templateId as string } : {}),
       ...(node.templateRevision ? { templateRevision: node.templateRevision as number } : {}),
       ...(node.templatePending ? { templatePending: true } : {}),

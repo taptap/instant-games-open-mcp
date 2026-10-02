@@ -60,6 +60,125 @@ function fixture(status = 'succeeded') {
   return { document, attempt, options, ui: createCanvasGenerationUi(options) };
 }
 
+describe('image reference drafts and refresh', () => {
+  const globals = globalThis as any;
+  const originalDocument = globals.document;
+  let elements: any[];
+
+  beforeEach(() => {
+    elements = [];
+    globals.document = {
+      createElement: (tag: string) => {
+        const element: any = {
+          tag,
+          value: '',
+          events: {},
+          append: jest.fn(),
+          setAttribute: jest.fn(),
+          addEventListener(event: string, callback: (event: any) => void) {
+            this.events[event] = callback;
+          },
+        };
+        elements.push(element);
+        return element;
+      },
+    };
+  });
+
+  afterEach(() => {
+    if (originalDocument === undefined) delete globals.document;
+    else globals.document = originalDocument;
+  });
+
+  function imageFixture(imported = false) {
+    const result = fixture();
+    const { document, options } = result;
+    delete document.templateFlow;
+    const source = document.nodes[0];
+    const image = {
+      ...source,
+      id: 'image',
+      title: '派生图片',
+      assetPath: 'assets/image/result.png',
+      generation: {
+        prompt: '角色挥剑',
+        operation: 'variant',
+        sourceImageId: source.id,
+        referenceImagePaths: imported ? ['assets/image/imported.png'] : [],
+      },
+      sourceSnapshot: snapshotCanvasSource({ ...source, assetPath: 'assets/image/old.png' }),
+    };
+    document.nodes = [source, image];
+    document.edges = [{ id: 'edge', from: source.id, to: image.id, kind: 'image-variant' }];
+    options.store.listGeneration.mockResolvedValue([]);
+    options.store.generateImage.mockResolvedValue({ id: 'image-attempt', status: 'failed' });
+    return { ...result, image, source };
+  }
+
+  function displayedPaths() {
+    return elements.filter((element) => element.tag === 'img').map((element) => element.src);
+  }
+
+  test.each([
+    { remove: false, imported: false },
+    { remove: true, imported: false },
+    { remove: true, imported: true },
+  ])('manual refresh submits the displayed draft: %j', async ({ remove, imported }) => {
+    const { document, options, ui, image } = imageFixture(imported);
+    const before = structuredClone(document);
+    const card = { append: jest.fn() };
+    ui.render(card, image, document.nodes);
+    expect(displayedPaths()).toEqual([image.assetPath, ...image.generation.referenceImagePaths]);
+    if (remove) {
+      elements
+        .find((element) => element.title === '移除当前图片参考')
+        .events.click({
+          stopPropagation() {},
+        });
+      elements = [];
+      ui.render(card, image, document.nodes);
+      expect(displayedPaths()).toEqual(image.generation.referenceImagePaths);
+    }
+    elements
+      .find((element) => element.textContent === '刷新结果')
+      .events.click({
+        stopPropagation() {},
+      });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+    const input = options.store.generateImage.mock.calls[0][1];
+    expect(input.operation).toBe(remove ? 'generate' : 'variant');
+    expect(input.sourceImageIds).toEqual(remove ? undefined : [image.id]);
+    expect(input.sourceImagePaths).toEqual(remove ? undefined : [image.assetPath]);
+    expect(input.referenceImagePaths).toEqual(image.generation.referenceImagePaths);
+    expect(document).toEqual(before);
+  });
+
+  test('automatic template refresh uses current upstream despite manual draft removals', async () => {
+    const { document, options, ui, image, source } = imageFixture();
+    ui.render({ append: jest.fn() }, image, document.nodes, undefined, {
+      canSubmit: true,
+      submit: async (execute) => {
+        await execute();
+      },
+    });
+    expect(displayedPaths()).toEqual([source.assetPath, image.assetPath]);
+    elements
+      .filter((element) => element.className === 'generation-reference-remove')
+      .forEach((element) => element.events.click({ stopPropagation() {} }));
+    await ui.runTemplateImage(image.id);
+    expect(options.store.generateImage).toHaveBeenCalledWith(
+      document.id,
+      expect.objectContaining({
+        targetNodeId: image.id,
+        operation: 'variant',
+        sourceImageIds: [source.id],
+        sourceImagePaths: [source.assetPath],
+      })
+    );
+  });
+});
+
 test('template recovers an existing successful attempt without new paid generation', async () => {
   const { document, options, ui } = fixture();
   expect(await ui.runTemplateVideo('video', 4)).toBe(true);

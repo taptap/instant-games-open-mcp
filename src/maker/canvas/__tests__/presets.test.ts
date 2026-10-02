@@ -81,6 +81,10 @@ test.each([0, 1, 2])(
       canvas.revision
     );
     expect((await files.load(canvas.id)).nodes).toEqual(saved.nodes);
+    if (index === 1) {
+      expect(saved.nodes.filter((node) => node.exportDirection)).toHaveLength(8);
+      expect(new Set(saved.nodes.map((node) => node.exportDirection).filter(Boolean)).size).toBe(4);
+    }
     expect(first.nodes.filter((node) => node.templatePending)).toHaveLength(index === 1 ? 16 : 3);
     if (index === 2) {
       const video = first.nodes.find((node) => node.type === 'video-source')!;

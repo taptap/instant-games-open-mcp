@@ -29,6 +29,7 @@ export function canvasPresets(): CanvasPreset[] {
           (node) => node.id === '7e1cb6ad-732f-4dc3-a951-00000000001' + directionIndex
         );
         if (reference) {
+          reference.exportDirection = direction;
           reference.generationDraft = {
             operation: 'variant',
             sourceImageId: reference.generationDraft?.sourceImageId,

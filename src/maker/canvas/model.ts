@@ -63,6 +63,7 @@ export interface CanvasNode {
   height: number;
   title: string;
   sectionId?: string;
+  exportDirection?: 'front' | 'back' | 'left' | 'right';
   templateId?: string;
   templateRevision?: number;
   templatePending?: boolean;
