@@ -269,8 +269,8 @@ Studio 就绪 JSON 交付本机 URL 和匹配的 `projectPath`，URL fragment �
 - 启动失败、断连、显式重连、空闲及关闭的归属清理已完成本轮回归与独立复核。
   付费生成仍需单独预算确认；测试桩不得冒充真实 AI 验收。
 
-实际内嵌浏览器证据持久保存在
-`/Users/liangdong/Documents/MakerTools/framecrate-review-evidence/console-plugin-20260916/report.json`，
+实际内嵌浏览器证据保存在验收者的本地证据目录，不随安装包分发；
+对应报告为 `console-plugin-20260916/report.json`，
 报告 9 步全部通过，包含自刷新 200、重连、项目隔离、PNG/工程输出及窄屏验证；
 外部请求、生成请求和付费调用均为 0。独立工作台追加 smoke 的 1 次 fixture 提交不是付费生成。
 
