@@ -49,6 +49,8 @@ import { applyLocalImageResult } from './localImageResult.js';
 import { createVideoHistoryUi } from './videoHistoryUi.js';
 import { createVideoPrompts } from './videoPrompts.js';
 import { videoTaskTiming } from './videoTaskTiming.js';
+import { createCanvasGroupQueue } from './groupQueue.js';
+import { createCanvasGroupQueueUi, GROUP_QUEUE_STYLES } from './groupQueueUi.js';
 import {
   createTemplateWorkflow,
   canvasNeedsProcessing,
@@ -132,6 +134,8 @@ export function getCanvasPageHtml(): string {
     createVideoHistoryUi.toString(),
     createVideoPrompts.toString(),
     videoTaskTiming.toString(),
+    createCanvasGroupQueue.toString(),
+    createCanvasGroupQueueUi.toString(),
     metadataVersion.toString(),
     canvasNodeVersion.toString(),
     isCanvasNodeStale.toString(),
@@ -558,7 +562,7 @@ export function getCanvasPageHtml(): string {
     '  function publishDirty() {\n    window.makerCanvasUnsaved = dirty();\n  }',
     [
       '  function publishDirty() {',
-      '    const sequenceRunning = Boolean((imageEditing && imageEditing.isBusy) || (videoHistory && videoHistory.isBusy) || (sequenceUi && sequenceUi.isBusy) || (templateWorkflow && templateWorkflow.isBusy) || (generationUi && generationUi.isBusy));',
+      '    const sequenceRunning = Boolean((groupQueue && groupQueue.isBusy) || (imageEditing && imageEditing.isBusy) || (videoHistory && videoHistory.isBusy) || (sequenceUi && sequenceUi.isBusy) || (templateWorkflow && templateWorkflow.isBusy) || (generationUi && generationUi.isBusy));',
       '    const pendingFrames = Boolean(sequenceUi && sequenceUi.hasUnsavedFrames);',
       '    window.makerCanvasSequenceRunning = sequenceRunning;',
       '    window.makerCanvasUnsaved = dirty() || pendingAssetImports > 0 || sequenceRunning || pendingFrames;',
@@ -581,6 +585,7 @@ export function getCanvasPageHtml(): string {
     [
       '  function deleteSelected() {',
       '    if (!documentState || !selected.size) return;',
+      '    if (groupQueue && groupQueue.isBusy) { setError("请先停止分组队列并等待当前步骤结束，再删除卡片。"); return; }',
       '    if (protectTemplateSelection()) return;',
       "    if (!sequenceUi.deleteNodes(Array.from(selected))) { setError('拆帧任务运行中，请先取消后再删除。'); return; }",
       '    remember();',
@@ -593,6 +598,7 @@ export function getCanvasPageHtml(): string {
       '  function createSection() {',
       "    const members = documentState && documentState.nodes.filter(function (node) { return selected.has(node.id) && node.type !== 'section'; });",
       "    if (!members || !members.length) { setError('请先选择要放入分区的卡片。'); return; }",
+      '    if (groupQueue && members.some(function (node) { return groupQueue.protects(node.id); })) { setError("请先停止相关队列，再调整分组。"); return; }',
       '    const padding = 28;',
       '    const left = Math.min.apply(null, members.map(function (node) { return node.x; })) - padding;',
       '    const top = Math.min.apply(null, members.map(function (node) { return node.y; })) - padding - 28;',
@@ -686,6 +692,7 @@ export function getCanvasPageHtml(): string {
     [
       '    const id = documentState && documentState.id;',
       '    if (generationUi && generationUi.isBusy) { setError("生成任务正在运行，请等待完成后再切换画布。"); return false; }',
+      '    if (groupQueue && groupQueue.isBusy) { setError("请先停止分组队列，再切换画布。"); return false; }',
       '    if (imageEditing && imageEditing.isBusy || videoHistory && videoHistory.isBusy) { setError("请先完成或关闭当前编辑／查询。"); return false; }',
       "    if (templateWorkflow && templateWorkflow.isBusy) { setError('模板流程正在运行，请等待本轮完成。'); return false; }",
       "    if (sequenceUi.isBusy) { setError('拆帧正在运行，请先等待或取消当前步骤。'); return false; }",
@@ -1038,6 +1045,7 @@ export function getCanvasPageHtml(): string {
       '    confirm: function (message) { return window.confirm(message); },',
       '    isNodeBusy: function (id) { return generationUi.isNodeBusy(id) || sequenceUi.isNodeBusy(id); },',
       '    hasUnsettledResult: function (id) { return generationUi.hasUnsettledResult(id); },',
+      '    isQueued: function (id) { return Boolean(groupQueue && groupQueue.protects(id)); },',
       '    hasFailure: function (id) { return generationUi.nodeState(id)?.status === "failed" || sequenceUi.view(id).run?.status === "failed"; },',
       '    video: generationUi.runTemplateVideo, sequence: sequenceUi.runTemplate, importImage: requestImageImport,',
       '    image: generationUi.runTemplateImage,',
@@ -1057,7 +1065,7 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '  let sequenceUi = null; let generationUi = null;',
-    '  let sequenceUi = null; let generationUi = null; let sequenceEditor; let templateWorkflow = null; let imageEditing = null; let videoHistory = null;'
+    '  let sequenceUi = null; let generationUi = null; let sequenceEditor; let templateWorkflow = null; let imageEditing = null; let videoHistory = null; let groupQueue = null; let groupQueueUi = null;'
   );
   page = replaceCanvasPageText(
     page,
@@ -1326,7 +1334,7 @@ export function getCanvasPageHtml(): string {
       '      const overlayState = node.type !== "section" ? canvasCardStatus({ busy: nodeBusy || sequenceUi.isNodeBusy(node.id), generation: generationState && generationState.status, sequence: sequenceState && sequenceState.status, template: templateStatus }) : undefined;',
       '      if (templateStatus === "pending") card.classList.add("template-pending");',
       '      if (templateStatus === "loading" || nodeBusy) card.classList.add("template-loading");',
-      '      if (templateWorkflow && templateWorkflow.locked(node.id) || nodeBusy || templateWorkflow.isMember(node.id) && overlayState) {',
+      '      if (node.type !== "section" && (templateWorkflow && templateWorkflow.locked(node.id) || nodeBusy || templateWorkflow.isMember(node.id) && overlayState)) {',
       '        card.classList.add("template-locked");',
       '        card.querySelectorAll("button,input,select,textarea").forEach(function (control) { control.disabled = true; });',
       '        card.addEventListener("dblclick", function (event) { event.stopImmediatePropagation(); }, true);',
@@ -1369,7 +1377,7 @@ export function getCanvasPageHtml(): string {
       '  const templateUi = createCanvasTemplateUi({',
       '    store: store.templates, model: templateModel, getDocument: function () { return documentState; }, selected: selected,',
       '    remember: remember, changed: markDirty, render: render, save: flush, error: setError,',
-      '    busy: function (id) { return pendingAssetImports > 0 || sequenceUi.isBusy || generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || templateWorkflow.isNodeLoading(id); },',
+      '    busy: function (id) { return pendingAssetImports > 0 || Boolean(groupQueue && groupQueue.protects(id)) || sequenceUi.isBusy || generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || templateWorkflow.isNodeLoading(id); },',
       '    placement: function () { const nodes = documentState.nodes; return nodes.length ? { x: Math.max.apply(null, nodes.map(function (node) { return node.x + node.width; })) + 80, y: Math.min.apply(null, nodes.map(function (node) { return node.y; })) + 56 } : { x: 80, y: 80 }; },',
       '    deleteSelected: deleteSelected, loadMedia: loadMedia,',
       '    reveal: function (group) { const scale = Math.min(1, Math.max(.15, Math.min((board.clientWidth - 100) / group.width, (board.clientHeight - 100) / group.height))); documentState.viewport = { scale: scale, x: (board.clientWidth - group.width * scale) / 2 - group.x * scale, y: (board.clientHeight - group.height * scale) / 2 - group.y * scale }; },',
@@ -1438,7 +1446,48 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '</style>',
-    CANVAS_CARD_STATUS_STYLES + CANVAS_LOG_STYLES + '</style>'
+    CANVAS_CARD_STATUS_STYLES + CANVAS_LOG_STYLES + GROUP_QUEUE_STYLES + '</style>'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    const previous = past.pop();',
+    '    if (groupQueue && groupQueue.isBusy) { setError("请先停止队列并等待当前步骤结束，再撤销。"); return; }\n    const previous = past.pop();'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    const next = future.pop();',
+    '    if (groupQueue && groupQueue.isBusy) { setError("请先停止队列并等待当前步骤结束，再重做。"); return; }\n    const next = future.pop();'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  function connect(fromId, toId, shouldRemember) {',
+    '  function connect(fromId, toId, shouldRemember) {\n    if (groupQueue && (groupQueue.protects(fromId) || groupQueue.protects(toId))) { setError("请先停止相关队列，再修改引用连线。"); return; }'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '      world.append(card);',
+    '      if (node.type === "section" && node.templateId && groupQueueUi) groupQueueUi.render(card, node);\n      world.append(card);'
+  );
+  page = replaceCanvasPageText(
+    page,
+    "  document.getElementById('save').addEventListener",
+    [
+      '  groupQueue = createCanvasGroupQueue({',
+      '    getDocument: function () { return documentState; },',
+      '    needs: function (id) { return templateWorkflow.status(id) === "pending"; },',
+      '    problem: function (id) { if (sequenceUi.hasDraft(id)) return "此卡片有未保存的帧处理，请先保存或放弃后再继续队列。"; const state = generationUi.nodeState(id); return state && ["failed", "unknown", "timedout", "canceled"].includes(state.status) ? "卡片结果未确认或已失败，请先在卡片或视频历史中处理，再继续队列。" : undefined; },',
+      '    busy: function () { return templateWorkflow.isBusy || generationUi.isBusy || sequenceUi.isBusy || Boolean(sequenceEditor && sequenceEditor.isOpen) || Boolean(imageEditing && imageEditing.isBusy) || Boolean(videoHistory && videoHistory.isBusy) || pendingAssetImports > 0; },',
+      '    videoBusy: async function () { return Boolean((await store.videoHistory(0, 1)).busy); },',
+      '    run: function (id) { return templateWorkflow.runQueued(id); },',
+      '    confirm: function (message) { return window.confirm(message); }, error: setError,',
+      '    changed: function () { if (groupQueueUi) groupQueueUi.refresh(); publishDirty(); },',
+      '  });',
+      '  groupQueueUi = createCanvasGroupQueueUi({ queue: groupQueue, node: function (id) { return documentState && documentState.nodes.find(function (node) { return node.id === id; }); }, scale: function () { return documentState && documentState.viewport.scale || 1; },',
+      '    focus: function (id) { const node = documentState && documentState.nodes.find(function (node) { return node.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + (node.height || 200) / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; render(); },',
+      '  });',
+      '  setInterval(function () { groupQueueUi.tick(); }, 1000);',
+      "  document.getElementById('save').addEventListener",
+    ].join('\n')
   );
   return page.replace(
     '<title data-maker-canvas="maker-canvas-page">创作画布</title>',

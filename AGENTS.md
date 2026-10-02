@@ -461,6 +461,10 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   .maker/canvases/templates/<id>.json，使用 revision 冲突检查和原子写入；不携带任务身份。
   templateId/templateRevision 只关联实例分组，templatePending 只标记实例待处理结果；
   同画布多实例按分组隔离。替换/删除模板不得回写或删除旧实例及素材，跨项目复制不在此版范围。
+  groupQueue.ts 仅管理当前页面分组队列，groupQueueUi.ts 提供底边单行控件；不复制引用或新增持久协议。
+  队列通过 templateWorkflow.runQueued 复用单卡执行和保存，不通过成功回调隐式续跑；失败/未知暂停。
+  排序不得倒置依赖，异步视频占用检查后重验队首；复用现有串行执行及跨项目视频占用，不自动重提。
+  停止只阻止下一步，刷新不恢复付费任务；运行中保护引用/卡片、删除/撤销和离开操作。
   模板手动入口统一调用 templateWorkflow.resolveTarget，根据真实出边、目标类型和待定状态返回复用、新建或阻止操作。
   图片、视频、序列帧与动画不得各自另写模板目标判断；待编辑首图保留原位更新，已完成目标不得隐式覆盖。
   手动保存结果后由 nodeChanged 推进剩余阶段；自动接续显式使用既定节点，不重复应用手动分支规则。

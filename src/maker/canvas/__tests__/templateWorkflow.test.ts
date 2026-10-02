@@ -1,6 +1,7 @@
 import { createTemplateWorkflow, parseTemplateFlow } from '../templateWorkflow.js';
 import { emptyDocument } from '../model.js';
 import { snapshotCanvasSource } from '../dependencies.js';
+import { createCanvasGroupQueue } from '../groupQueue.js';
 import { canvasNeedsProcessing } from '../templateWorkflow.js';
 
 function fixture() {
@@ -340,11 +341,59 @@ test('explicit continuation reads current references, updates existing cards and
   await flow.nodeChanged('image');
   await flow.runFrom('video');
   expect(options.error).not.toHaveBeenCalled();
-  expect(options.video).toHaveBeenCalledWith('video', 6);
+  expect(options.video).toHaveBeenCalledWith('video', 6, false);
   expect(executions).toEqual(['video', 'sequence', 'animation']);
   expect(document.nodes.map((node) => node.id)).toEqual(ids);
   for (const node of document.nodes.slice(1, 4))
     expect(canvasNeedsProcessing(document, node)).toBe(false);
+});
+
+test('queue execution runs only its requested step without another reference confirmation', async () => {
+  const { document, options, executions } = userTemplate();
+  const master = { ...document.nodes[0], id: 'master' };
+  document.nodes.push(master);
+  document.edges.push({ id: 'reference', from: 'master', to: 'image', kind: 'image-variant' });
+  document.nodes[0].sourceSnapshot = snapshotCanvasSource(master);
+  const flow = createTemplateWorkflow({ ...options, isQueued: () => true });
+  await flow.nodeChanged('image');
+  expect(await flow.runFrom('video')).toBe(false);
+  expect(flow.canAdjust('video')).toBe(false);
+  expect(await flow.runQueued('video')).toBe(true);
+  expect(executions).toEqual(['video']);
+  expect(options.confirm).not.toHaveBeenCalled();
+  expect(options.video).toHaveBeenCalledWith('video', 4, true);
+  expect(document.nodes.find((node) => node.id === 'sequence')?.templatePending).toBe(true);
+});
+
+test('queue step failure or a save failure never reports success', async () => {
+  const { options, flow } = userTemplate();
+  await flow.nodeChanged('image');
+  options.video.mockResolvedValue(false);
+  expect(await flow.runQueued('video')).toBe(false);
+  expect(options.sequence).not.toHaveBeenCalled();
+  options.save.mockResolvedValue(false);
+  expect(await flow.runQueued('video')).toBe(false);
+});
+
+test('group queue uses saved single steps to finish video, frames and animation once', async () => {
+  const { options, flow, executions } = userTemplate();
+  await flow.nodeChanged('image');
+  const queue = createCanvasGroupQueue({
+    getDocument: options.getDocument,
+    needs: (id) => flow.status(id) === 'pending',
+    busy: () => flow.isBusy,
+    videoBusy: async () => false,
+    run: flow.runQueued,
+    confirm: () => true,
+    changed: jest.fn(),
+    error: options.error,
+  });
+  queue.start('group');
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(executions).toEqual(['video', 'sequence', 'animation']);
+  expect(queue.view('group')).toMatchObject({ phase: 'complete', completed: 3, total: 3 });
+  expect(options.error).not.toHaveBeenCalled();
+  expect(options.confirm).not.toHaveBeenCalled();
 });
 
 test('editing the middle card continues only its descendants, not its siblings or other groups', async () => {

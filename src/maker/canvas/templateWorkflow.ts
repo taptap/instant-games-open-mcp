@@ -90,7 +90,7 @@ export function createTemplateWorkflow(options: {
   render(): void;
   error(message: string): void;
   confirm(message: string): boolean;
-  video(nodeId: string, duration: number): Promise<boolean>;
+  video(nodeId: string, duration: number, userConfirmed?: boolean): Promise<boolean>;
   sequence(nodeId: string): Promise<void>;
   animation(flow: CanvasTemplateFlow): void;
   select(nodeId: string): void;
@@ -100,6 +100,7 @@ export function createTemplateWorkflow(options: {
   hasFailure?(nodeId: string): boolean;
   image?(nodeId: string): Promise<boolean>;
   refreshAnimation?(nodeId: string): void;
+  isQueued?(nodeId: string): boolean;
 }) {
   let running = false;
   let activeNodeId: string | undefined;
@@ -123,6 +124,7 @@ export function createTemplateWorkflow(options: {
         ['image', 'video', 'video-source', 'sequence'].includes(node.type) &&
         (node.type !== 'sequence' || !waitingForSource(id)) &&
         !running &&
+        !options.isQueued?.(id) &&
         !options.isNodeBusy?.(id) &&
         !options.hasUnsettledResult?.(id)
     );
@@ -180,6 +182,7 @@ export function createTemplateWorkflow(options: {
     );
   }
   function locked(id: string): boolean {
+    if (options.isQueued?.(id)) return true;
     if (protectedNodes.has(id)) return true;
     const flow = options.getDocument()?.templateFlow;
     if (!flow || flow.stage === 'complete') return false;
@@ -289,7 +292,14 @@ export function createTemplateWorkflow(options: {
   async function run(): Promise<void> {
     const document = options.getDocument();
     const flow = document?.templateFlow;
-    if (!document || !flow || running || flow.stage === 'image' || flow.stage === 'complete')
+    if (
+      !document ||
+      !flow ||
+      running ||
+      options.isQueued?.(flow.videoId) ||
+      flow.stage === 'image' ||
+      flow.stage === 'complete'
+    )
       return;
     if (
       [flow.imageId, flow.videoId, flow.sequenceId, flow.animationId].some(
@@ -390,11 +400,16 @@ export function createTemplateWorkflow(options: {
         !options.hasUnsettledResult?.(id)
     );
   }
-  async function runFrom(id: string, firstStep?: () => Promise<boolean>): Promise<void> {
+  async function runFrom(
+    id: string,
+    firstStep?: () => Promise<boolean>,
+    automatic = false
+  ): Promise<boolean> {
     const document = options.getDocument();
     const start = document?.nodes.find((node) => node.id === id);
-    if (!document || !start || !(firstStep ? canAdjust(id) : canContinue(id, false))) return;
-    const candidates = [start, ...canvasDependents(document, id)].filter(
+    if (!automatic && options.isQueued?.(id)) return false;
+    if (!document || !start || !(firstStep ? canAdjust(id) : canContinue(id, false))) return false;
+    const candidates = [start, ...(automatic ? [] : canvasDependents(document, id))].filter(
       (node) => node.sectionId === start.sectionId
     );
     const remaining = new Set(candidates.map((node) => node.id));
@@ -407,7 +422,7 @@ export function createTemplateWorkflow(options: {
       );
       if (!next) {
         options.error('引用关系存在循环，请调整连线后继续。');
-        return;
+        return false;
       }
       ordered.push(next);
       remaining.delete(next.id);
@@ -437,6 +452,7 @@ export function createTemplateWorkflow(options: {
         if (options.isNodeBusy?.(node.id) || options.hasUnsettledResult?.(node.id))
           throw new Error('卡片存在未确认任务，请先查询原任务，不会重复生成。');
         if (
+          !automatic &&
           ['video', 'video-source'].includes(node.type) &&
           sources.some(
             (source) => source.type === 'image' && canvasReferences(document, source.id).length > 0
@@ -445,21 +461,22 @@ export function createTemplateWorkflow(options: {
             '请核对来源参考图的朝向、稳定站姿及完整构图。确认这些图片正确，并继续生成视频吗？'
           )
         )
-          return;
+          return false;
         activeNodeId = node.id;
         options.render();
         if (node.id === id && firstStep) {
-          if (!(await firstStep())) return;
+          if (!(await firstStep())) return false;
         } else if (node.type === 'video' || node.type === 'video-source') {
           if (
             !(await options.video(
               node.id,
-              node.generation?.parameters?.duration || document.templateFlow?.duration || 4
+              node.generation?.parameters?.duration || document.templateFlow?.duration || 4,
+              automatic
             ))
           )
-            return;
+            return false;
         } else if (node.type === 'image' && options.image) {
-          if (!(await options.image(node.id))) return;
+          if (!(await options.image(node.id))) return false;
         } else if (node.type === 'sequence') await options.sequence(node.id);
         else if (node.type === 'animation' && options.refreshAnimation)
           options.refreshAnimation(node.id);
@@ -482,12 +499,14 @@ export function createTemplateWorkflow(options: {
         activeNodeId = undefined;
         if (node.type === 'image') {
           options.select(node.id);
-          return;
+          return true;
         }
       }
       options.select(ordered[ordered.length - 1].id);
+      return true;
     } catch (error) {
       options.error(error instanceof Error ? error.message : '处理未完成，已保留旧结果。');
+      return false;
     } finally {
       activeNodeId = undefined;
       protectedNodes.clear();
@@ -557,6 +576,7 @@ export function createTemplateWorkflow(options: {
     resolveTarget,
     canContinue,
     runFrom,
+    runQueued: (id: string) => runFrom(id, undefined, true),
     nodeChanged,
     canEditImage,
     canEditVideo,

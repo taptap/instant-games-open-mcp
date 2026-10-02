@@ -666,6 +666,18 @@ test('an in-flight workflow query stops at the original deadline and cannot over
   }
 });
 
+test.each(['unknown', 'failed', 'canceled'])(
+  'automatic group pauses a first %s video response even with task ID',
+  async (status) => {
+    const { ui, options } = fixture(status);
+    options.store.listGeneration.mockResolvedValueOnce([]);
+    expect(await ui.runTemplateVideo('video', 4, true)).toBe(false);
+    expect(options.store.createVideo).toHaveBeenCalledTimes(1);
+    expect(options.store.generationAction).not.toHaveBeenCalled();
+    expect(options.onGenerated).not.toHaveBeenCalled();
+  }
+);
+
 test('overlay queries an existing video task without submitting generation', async () => {
   const { ui, options } = fixture('unknown');
   await ui.restore();

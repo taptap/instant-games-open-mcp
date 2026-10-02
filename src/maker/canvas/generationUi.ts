@@ -85,7 +85,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   ): void;
   restore(): Promise<void>;
   creditsLabel(node: any): string | undefined;
-  runTemplateVideo(nodeId: string, duration: number): Promise<boolean>;
+  runTemplateVideo(nodeId: string, duration: number, userConfirmed?: boolean): Promise<boolean>;
   runTemplateImage(nodeId: string): Promise<boolean>;
   isNodeBusy(nodeId: string): boolean;
   hasUnsettledResult(nodeId: string): boolean;
@@ -951,7 +951,11 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     );
   }
 
-  async function runTemplateVideo(nodeId: string, duration: number): Promise<boolean> {
+  async function runTemplateVideo(
+    nodeId: string,
+    duration: number,
+    userConfirmed = false
+  ): Promise<boolean> {
     const current = options.getDocument();
     const node = current?.nodes.find((item: any) => item.id === nodeId);
     const sources = current && node ? videoInputSources(current, node) : [];
@@ -1042,6 +1046,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
             ...node.generation?.parameters,
             ...(attempt?.status === 'failed' ? generationParameters(attempt) : {}),
             templateRun: true,
+            userConfirmed,
           }
         )
       )
@@ -1052,6 +1057,13 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
             item.canvasId === current.id && item.targetNodeId === nodeId && matchesInputs(item)
         )
         .pop();
+    }
+    if (userConfirmed && attempt && ['unknown', 'failed', 'canceled'].includes(attempt.status)) {
+      options.setError(
+        '视频结果未确认或已失败，已暂停队列；请在视频历史核实原任务，不自动查询或重新生成。',
+        'warning'
+      );
+      return false;
     }
     if (attempt?.status === 'failed' && attempt.taskId) {
       const next = await waitVideoRequest(
