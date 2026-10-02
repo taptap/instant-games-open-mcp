@@ -69,6 +69,7 @@ try {
   const queue = page.getByRole('group', { name: group.title + '执行队列', exact: true });
   await queue.getByRole('button', { name: '▶ 完成剩余流程', exact: true }).click();
   await page.locator('.card-state-loading').waitFor();
+  await page.locator('.canvas-group-state[data-state=loading]').waitFor();
   assert.equal(confirmations, 1);
   const chip = id => queue.locator('[data-node-id="' + id + '"]');
   await chip(references[2].id).dragTo(chip(references[1].id));
@@ -79,9 +80,11 @@ try {
   await queue.getByRole('button', { name: '停止后续', exact: true }).click();
   release();
   await queue.getByText('已暂停', { exact: true }).waitFor();
+  await page.locator('.canvas-group-state[data-state=paused]').waitFor();
   assert.deepEqual(calls, [references[0].id]);
   await queue.getByRole('button', { name: '继续剩余流程', exact: true }).click();
   await queue.getByText('已完成', { exact: true }).waitFor();
+  await page.locator('.canvas-group-state[data-state=ready]').waitFor();
   assert.deepEqual(calls.slice(0, 3), [references[0].id, references[2].id, references[1].id]);
   assert.equal(calls.length, 6);
   assert.equal(confirmations, 2);
@@ -96,6 +99,7 @@ try {
   await queue.getByRole('button', { name: '▶ 完成剩余流程', exact: true }).click();
   await queue.getByText('已暂停', { exact: true }).waitFor();
   assert.equal(calls.length, 7);
+  await page.locator('.canvas-group-state[data-state=unknown]').waitFor();
   await queue.getByRole('button', { name: '继续剩余流程', exact: true }).click();
   await queue.getByText('已暂停', { exact: true }).waitFor();
   assert.equal(calls.length, 7);

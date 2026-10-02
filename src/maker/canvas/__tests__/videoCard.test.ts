@@ -8,9 +8,9 @@ describe('video card layout', () => {
     [1080, 1920],
     [1024, 1024],
     [2520, 1080],
-  ])('matches the content ratio for %s × %s without a footer', (width, height) => {
+  ])('matches the media ratio for %s × %s below the title', (width, height) => {
     const size = videoCardSize(320, width, height)!;
-    expect((size.width - 2) / (size.height - 2)).toBeCloseTo(width / height, 10);
+    expect((size.width - 2) / (size.height - 42)).toBeCloseTo(width / height, 10);
     expect(size.width).toBe(320);
     expect(videoCardSize(size.width, width, height)).toEqual(size);
   });
@@ -18,7 +18,7 @@ describe('video card layout', () => {
   test('bounds tall cards without stretching their contents', () => {
     const size = videoCardSize(2000, 1080, 1920)!;
     expect(size.height).toBe(1600);
-    expect((size.width - 2) / (size.height - 2)).toBeCloseTo(1080 / 1920, 10);
+    expect((size.width - 2) / (size.height - 42)).toBeCloseTo(1080 / 1920, 10);
   });
 
   test.each([

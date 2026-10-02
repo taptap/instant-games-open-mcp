@@ -2658,13 +2658,14 @@ function renderCanvas() {
     host.prepend(bar);
   }
   const key = selected;
+  $('close-canvas').hidden = !canvasFrames.has(key);
+  bar.hidden = !closedCanvasFrames.has(key);
   if (!key || !currentProject()?.valid) return;
   if (closedCanvasFrames.has(key)) {
     bar.replaceChildren(button('打开当前项目画布', openCurrentCanvas));
     canvasFrames.forEach((item, itemKey) => { item.hidden = itemKey !== key; });
     return;
   }
-  bar.replaceChildren(button('关闭当前项目画布', closeCurrentCanvas));
   if (canvasFrames.size >= CANVAS_FRAME_LIMIT && !canvasFrames.has(key)) {
     notify('已打开 ' + CANVAS_FRAME_LIMIT + ' 个项目画布。请先打开其中一个并点击「关闭当前项目画布」。有未保存编辑时会先确认，不会静默丢掉。', 'warning');
     return;
@@ -2678,6 +2679,7 @@ function renderCanvas() {
     canvasFrames.set(key, frame);
     host.append(frame);
   }
+  $('close-canvas').hidden = false;
   canvasFrames.forEach((item, itemKey) => { item.hidden = itemKey !== key; });
 }
 function navigate(next) {
@@ -2689,6 +2691,8 @@ function navigate(next) {
   if (next === 'build') void refreshPreview();
 }
 function render() {
+  document.body.classList.toggle('canvas-mode', page === 'canvas');
+  $('close-canvas').hidden = true;
   syncValidationPolling();
   updateChrome();
   $('view').setAttribute('aria-busy','false');
@@ -2902,6 +2906,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   window.addEventListener('resize',() => { if (!$('fortune-panel').hidden) positionFortune(); });
   document.addEventListener('keydown',event => { if (event.key === 'Escape') closeFortune(); });
   $('projects-button').addEventListener('click',() => navigate('projects'));
+  $('close-canvas').addEventListener('click',closeCurrentCanvas);
   $('project-picker').addEventListener('change',event => chooseProject(event.target.value));
   $('maker-version-picker').addEventListener('change',selectMakerVersion);
   $('dismiss').addEventListener('click',() => { $('feedback').hidden = true; });

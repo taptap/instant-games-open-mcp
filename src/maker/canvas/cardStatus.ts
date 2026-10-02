@@ -47,6 +47,18 @@ export function renderCanvasCardStatus(
   overlay.dataset.state = state;
   overlay.setAttribute('role', 'status');
   overlay.setAttribute('aria-live', 'polite');
+  const cardTitle = card.querySelector('.canvas-card-title');
+  if (cardTitle) {
+    const caption = document.createElement('span');
+    caption.className = 'card-state-caption';
+    caption.textContent = cardTitle.textContent;
+    caption.title = cardTitle.textContent || '';
+    overlay.append(caption);
+  }
+  overlay.addEventListener('wheel', (event) => {
+    if (!event.ctrlKey && !event.metaKey && overlay.scrollHeight > overlay.clientHeight)
+      event.stopPropagation();
+  });
   const icon = document.createElement('span');
   icon.className = 'card-state-icon';
   icon.setAttribute('aria-hidden', 'true');

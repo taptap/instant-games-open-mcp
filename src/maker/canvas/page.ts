@@ -9,6 +9,13 @@ import {
   CANVAS_CARD_STATUS_STYLES,
 } from './cardStatus.js';
 import { createCanvasLog, canvasLogLevel, CANVAS_LOG_STYLES } from './logUi.js';
+import { createCanvasWorkspace, CANVAS_WORKSPACE_STYLES } from './workspaceUi.js';
+import {
+  decorateCanvasCard,
+  refreshCanvasGroupHeaders,
+  canvasGroupState,
+  CANVAS_CARD_UI_STYLES,
+} from './cardUi.js';
 import { createBrowserCanvasDocumentStore, dispatchCanvasStoreRequest } from './store.js';
 import {
   createSequenceProcessor,
@@ -97,6 +104,10 @@ const template =
 
 export function getCanvasPageHtml(): string {
   const helpers = [
+    decorateCanvasCard.toString(),
+    refreshCanvasGroupHeaders.toString(),
+    canvasGroupState.toString(),
+    createCanvasWorkspace.toString(),
     createCanvasLog.toString(),
     canvasLogLevel.toString(),
     canvasCardStatus.toString(),
@@ -1237,7 +1248,7 @@ export function getCanvasPageHtml(): string {
   );
   page = page.replace(
     '</style>',
-    '.canvas-heading { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: min(280px, 100%); }\n#canvas-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n#rename-canvas { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 30px; width: 30px; height: 30px; padding: 0; border-color: transparent; background: transparent; color: #b7b1a6; cursor: pointer; }\n#rename-canvas:hover { background: #2c333e; color: #e6b15c; }\n#rename-canvas:focus-visible { outline: 2px solid #e6b15c; outline-offset: 2px; }\n#canvas-context-menu { position: fixed; z-index: 30; min-width: 168px; padding: 6px; border: 1px solid #4a5260; border-radius: 10px; background: #171a20; box-shadow: 0 12px 32px rgba(0,0,0,.38); }\n#canvas-context-menu button { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; cursor: pointer; }\n#canvas-context-menu button:hover { background: #2c333e; }\n#add-image, #add-video-source, #add-video, #add-note, #undo, #redo, #add-generation, #fit-canvas, #create-section, #duplicate-selected, #delete-selected, #export-canvas { display: none !important; }\n.card { cursor: grab; user-select: none; }\n.card:active { cursor: grabbing; }\n.card img { user-select: none; -webkit-user-drag: none; }\n</style>'
+    '.canvas-heading { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: min(280px, 100%); }\n#canvas-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n#rename-canvas { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 30px; width: 30px; height: 30px; padding: 0; border-color: transparent; background: transparent; color: #b7b1a6; cursor: pointer; }\n#rename-canvas:hover { background: #2c333e; color: #e6b15c; }\n#rename-canvas:focus-visible { outline: 2px solid #e6b15c; outline-offset: 2px; }\n#canvas-context-menu { position: fixed; z-index: 30; min-width: 168px; padding: 6px; border: 1px solid #4a5260; border-radius: 10px; background: #171a20; box-shadow: 0 12px 32px rgba(0,0,0,.38); }\n#canvas-context-menu button { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; cursor: pointer; }\n#canvas-context-menu button:hover { background: #2c333e; }\n.card { cursor: grab; user-select: none; }\n.card:active { cursor: grabbing; }\n.card img { user-select: none; -webkit-user-drag: none; }\n</style>'
   );
   page = page.replace(
     '</style>',
@@ -1287,6 +1298,9 @@ export function getCanvasPageHtml(): string {
       '  function hideContextMenu() { contextMenu.hidden = true; }',
       '  function showContextMenu(event) {',
       '    event.preventDefault();',
+      "    const anchor = event.type === 'click' && event.target.closest('.canvas-card-menu');",
+      '    const bounds = anchor && anchor.getBoundingClientRect();',
+      '    const position = bounds ? { clientX: bounds.left, clientY: bounds.bottom } : event;',
       "    const card = event.target.closest && event.target.closest('.card[data-id]');",
       "    const blankActions = contextMenu.querySelectorAll('[data-menu-scope=blank]');",
       "    const cardActions = contextMenu.querySelectorAll('[data-menu-scope=card]');",
@@ -1298,8 +1312,8 @@ export function getCanvasPageHtml(): string {
       '    resourceExport.context(contextMenu, card && selected.size === 1 ? documentState.nodes.find(function (node) { return node.id === card.dataset.id; }) : undefined);',
       '    pendingPlacement = documentState ? worldPoint(event) : null;',
       '    contextMenu.hidden = false;',
-      "    contextMenu.style.left = Math.min(event.clientX, window.innerWidth - 190) + 'px';",
-      "    contextMenu.style.top = Math.min(event.clientY, window.innerHeight - 300) + 'px';",
+      "    contextMenu.style.left = Math.min(position.clientX, window.innerWidth - 190) + 'px';",
+      "    contextMenu.style.top = Math.min(position.clientY, window.innerHeight - 300) + 'px';",
       '  }',
       "  board.addEventListener('contextmenu', showContextMenu);",
       "  contextMenu.addEventListener('click', function (event) {",
@@ -1356,6 +1370,7 @@ export function getCanvasPageHtml(): string {
     page,
     '      world.append(card);',
     [
+      '      decorateCanvasCard(card, node, title, showContextMenu);',
       '      const templateStatus = templateWorkflow && templateWorkflow.status(node.id);',
       '      const creditsLabel = generationUi && generationUi.creditsLabel(node); if (creditsLabel) { const credits = document.createElement("small"); credits.className = "generation-credits"; credits.textContent = creditsLabel; credits.title = "当前结果的 MCP 返回积分，不是累计消耗或余额；未返回不代表免费，最终扣费以账单为准。"; card.append(credits); }',
       '      const nodeBusy = Boolean((generationUi && generationUi.isNodeBusy(node.id)) || (templateWorkflow && templateWorkflow.isNodeLoading(node.id)));',
@@ -1490,8 +1505,8 @@ export function getCanvasPageHtml(): string {
   );
   page = replaceCanvasPageText(
     page,
-    '    const next = future.pop();',
-    '    if (groupQueue && groupQueue.isBusy) { setError("请先停止队列并等待当前步骤结束，再重做。"); return; }\n    const next = future.pop();'
+    '    const next = future.shift();',
+    '    if (groupQueue && groupQueue.isBusy) { setError("请先停止队列并等待当前步骤结束，再重做。"); return; }\n    const next = future.shift();'
   );
   page = replaceCanvasPageText(
     page,
@@ -1515,13 +1530,90 @@ export function getCanvasPageHtml(): string {
       '    videoBusy: async function () { return Boolean((await store.videoHistory(0, 1)).busy); },',
       '    run: function (id) { return templateWorkflow.runQueued(id); },',
       '    confirm: function (message) { return window.confirm(message); }, error: setError,',
-      '    changed: function () { if (groupQueueUi) groupQueueUi.refresh(); publishDirty(); },',
+      '    changed: function () { if (groupQueueUi) groupQueueUi.refresh(); if (documentState) refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; }); publishDirty(); },',
       '  });',
       '  groupQueueUi = createCanvasGroupQueueUi({ queue: groupQueue, node: function (id) { return documentState && documentState.nodes.find(function (node) { return node.id === id; }); }, scale: function () { return documentState && documentState.viewport.scale || 1; },',
       '    focus: function (id) { const node = documentState && documentState.nodes.find(function (node) { return node.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + (node.height || 200) / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; render(); },',
       '  });',
       '  setInterval(function () { groupQueueUi.tick(); }, 1000);',
       "  document.getElementById('save').addEventListener",
+    ].join('\n')
+  );
+  page = replaceCanvasPageText(
+    page,
+    '</style>',
+    CANVAS_WORKSPACE_STYLES + CANVAS_CARD_UI_STYLES + '</style>'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    function renderSelectionToolbar() {',
+    '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; });\n    function renderSelectionToolbar() {'
+  );
+  page = replaceCanvasPageText(
+    page,
+    "  document.getElementById('add-image').addEventListener('click', function () { file.click(); });",
+    "  document.getElementById('add-image').addEventListener('click', function () { if (!documentState) return; pendingImageImport = { canvasId: documentState.id, create: true }; file.click(); });\n  document.getElementById('add-video-source').addEventListener('click', function () { if (!documentState) return; pendingVideoImport = { canvasId: documentState.id, point: nextPlacement('video-source') }; videoFile.click(); });"
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    if (chosen) void importImageFile(chosen, request);',
+    '    if (chosen && request && request.create && documentState && documentState.id === request.canvasId) { createBlankImageSlot(); request.nodeId = Array.from(selected)[0]; }\n    if (chosen) void importImageFile(chosen, request);'
+  );
+  page = replaceCanvasPageText(
+    page,
+    "  const sequenceVideo = document.getElementById('sequence-source');",
+    "  const sequenceVideo = document.getElementById('sequence-source');\n  let workspace = null;"
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  function render() {\n    if (!documentState) return;',
+    '  function render() {\n    if (!documentState) return;\n    if (workspace) workspace.sync();'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  function setStatus(text) { status.textContent = text; publishDirty(); }',
+    '  function setStatus(text) { status.textContent = text; status.dataset.state = text === "已保存" ? "saved" : text.includes("失败") ? "error" : "pending"; publishDirty(); if (workspace) workspace.sync(); }'
+  );
+  const switchStart = page.indexOf("  select.addEventListener('change', function () {");
+  const switchEnd = page.indexOf("  document.getElementById('rename-canvas')", switchStart);
+  if (switchStart < 0 || switchEnd < 0) throw new Error('Canvas switch binding is missing');
+  page =
+    page.slice(0, switchStart) +
+    "  select.addEventListener('change', function () { void workspace.activate(select.value); });\n" +
+    page.slice(switchEnd);
+  const newStart = page.indexOf("  document.getElementById('new-canvas').addEventListener");
+  const newEnd = page.indexOf('  let pendingPlacement = null;', newStart);
+  if (newStart < 0 || newEnd < 0) throw new Error('Canvas creation binding is missing');
+  page = page.slice(0, newStart) + page.slice(newEnd);
+  page = replaceCanvasPageText(
+    page,
+    '  void boot().catch',
+    [
+      '  workspace = createCanvasWorkspace({',
+      '    current: function () { return documentState; },',
+      '    activate: async function (id) {',
+      '      if (!documentState || documentState.id === id) return true;',
+      '      if (!(await leaveCurrent())) return false;',
+      '      await openDocument(id); return documentState.id === id;',
+      '    },',
+      '    create: async function () {',
+      '      if (!(await leaveCurrent())) return false;',
+      '      const created = await request("/canvases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "空白画布", template: "empty" }) });',
+      '      const option = document.createElement("option"); option.value = created.id; option.textContent = created.title; select.append(option);',
+      '      await openDocument(created.id); return documentState.id === created.id;',
+      '    },',
+      '    zoom: function (factor) {',
+      '      if (!documentState) return;',
+      '      const view = documentState.viewport; const scale = Math.max(0.15, Math.min(4, view.scale * factor));',
+      '      const centerX = board.clientWidth / 2; const centerY = board.clientHeight / 2;',
+      '      view.x = centerX - (centerX - view.x) * scale / view.scale;',
+      '      view.y = centerY - (centerY - view.y) * scale / view.scale;',
+      '      view.scale = scale; markDirty(); render();',
+      '    },',
+      '    error: setError',
+      '  });',
+      '  workspace.sync();',
+      '  void boot().catch',
     ].join('\n')
   );
   return page.replace(

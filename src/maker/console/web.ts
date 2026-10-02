@@ -48,6 +48,7 @@ export function getConsoleHtml(): string {
   <button data-page="canvas">序列帧动画</button>
   <span id="plugin-tabs" class="plugin-tabs"></span>
 </nav>
+<button id="close-canvas" type="button" hidden>关闭当前项目画布</button>
 <div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>
 </div>
 <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>

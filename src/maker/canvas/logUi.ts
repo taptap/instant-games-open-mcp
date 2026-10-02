@@ -75,7 +75,7 @@ export function createCanvasLog(root: HTMLElement, actions: HTMLElement[] = []) 
     summary.textContent =
       '运行日志 · ' + entries.length + (details.open ? ' · 点击收起' : ' · 点击展开');
     list.replaceChildren(...visible.map((entry) => row(entry, false)));
-    preview.replaceChildren(...visible.slice(-2).map((entry) => row(entry, true)));
+    preview.replaceChildren(...visible.slice(-1).map((entry) => row(entry, true)));
     if (!visible.length) {
       list.textContent = preview.textContent = entries.length
         ? '当前筛选无匹配日志'
