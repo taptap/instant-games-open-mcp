@@ -776,7 +776,9 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
       }
       const stable = stableBackgroundColor(detected.map((sample) => sample?.color));
       if (!stable) {
-        throw new Error('未可靠识别到大面积纯色背景，可能已经透明或背景过于复杂；原帧集未改变。');
+        throw new Error(
+          '视频已抽帧，但未可靠识别到纯色背景；原帧集未改变，请在编辑器手动取色或跳过抠图。'
+        );
       }
       let startIndex = 0;
       while (startIndex < frames.length - 1) {
@@ -797,11 +799,11 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
       }
       for (let index = startIndex; index < frames.length; index++) {
         const sample = detected[index];
-        if (!sample || backgroundColorsDiffer(sample.color, stable)) {
+        if (!sample) {
           throw new Error(
             '第 ' +
               (index + 1) +
-              ' 帧背景无法可靠识别或发生明显变化；原帧集未改变，请在编辑器调整背景或跳过抠图。'
+              ' 帧背景无法可靠识别；视频已抽帧，原帧集未改变，请在编辑器手动取色或跳过抠图。'
           );
         }
       }

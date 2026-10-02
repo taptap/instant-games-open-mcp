@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 import { PNG } from 'pngjs';
@@ -14,11 +14,13 @@ const errors = [];
 let browser;
 let server;
 try {
-  const globalRoot = execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim();
-  const { chromium } = await import(
-    pathToFileURL(process.env.PLAYWRIGHT_MODULE || path.join(globalRoot, 'playwright/index.mjs'))
-      .href
-  );
+  const playwrightModule =
+    process.env.PLAYWRIGHT_MODULE ||
+    path.join(
+      execSync('npm root -g', { encoding: 'utf8', windowsHide: true }).trim(),
+      'playwright/index.mjs'
+    );
+  const { chromium } = await import(pathToFileURL(playwrightModule).href);
   const bundle = path.join(temporary, 'harness.mjs');
   await build({
     stdin: {
@@ -127,17 +129,21 @@ try {
   ];
   for (const variant of variants) {
     const target = path.join(temporary, variant.name + '.' + variant.extension);
-    execFileSync('ffmpeg', [
-      '-y',
-      '-loglevel',
-      'error',
-      '-framerate',
-      '10',
-      '-i',
-      path.join(temporary, 'frame%02d.png'),
-      ...variant.flags,
-      target,
-    ]);
+    execFileSync(
+      'ffmpeg',
+      [
+        '-y',
+        '-loglevel',
+        'error',
+        '-framerate',
+        '10',
+        '-i',
+        path.join(temporary, 'frame%02d.png'),
+        ...variant.flags,
+        target,
+      ],
+      { windowsHide: true }
+    );
     const imported = await files.importVideo(document.id, fs.readFileSync(target), variant.type);
     variant.assetPath = imported.relativePath;
   }
@@ -147,6 +153,19 @@ try {
     assetPath: preset.nodes.find((node) => node.type === 'video-source').assetPath,
     real: true,
   });
+  if (process.env.MAKER_SEQUENCE_TEST_VIDEO) {
+    const imported = await files.importVideo(
+      document.id,
+      fs.readFileSync(process.env.MAKER_SEQUENCE_TEST_VIDEO),
+      'video/mp4'
+    );
+    variants.push({
+      name: '用户实际视频（边缘连通）',
+      assetPath: imported.relativePath,
+      real: true,
+      actual: true,
+    });
+  }
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1400, height: 960 } });
   page.on('pageerror', (error) => errors.push(error.message));
@@ -157,7 +176,7 @@ try {
   await page.locator('.workspace-add').waitFor();
   for (const variant of variants) {
     const result = await page.evaluate(
-      async ({ name, url, real }) => {
+      async ({ name, url, real, actual }) => {
         const video = document.createElement('video');
         video.muted = true;
         video.preload = 'auto';
@@ -187,12 +206,19 @@ try {
           const frames = await processor.extract(
             video,
             0,
-            Math.min(2, video.duration),
-            10,
+            Math.min(actual ? 3 : 2, video.duration),
+            actual ? 4 : 10,
             signal,
             () => {}
           );
-          const output = await processor.cutout(frames, '#ff00ff', 35, signal, () => {}, 'chroma');
+          const output = await processor.cutout(
+            frames,
+            '#ff00ff',
+            actual ? 48 : 35,
+            signal,
+            () => {},
+            actual ? 'connected' : 'chroma'
+          );
           const previews = [];
           for (const frame of output.slice(0, 5)) {
             const bitmap = await createImageBitmap(frame.blob);
@@ -234,6 +260,7 @@ try {
             times: output.map((frame) => frame.time),
             previews: previews.map(({ background, foreground }) => ({ background, foreground })),
             real,
+            actual,
           };
         } finally {
           video.removeAttribute('src');
@@ -243,6 +270,7 @@ try {
       {
         name: variant.name,
         real: variant.real,
+        actual: variant.actual,
         url:
           server.origin +
           '/api/projects/' +
@@ -263,18 +291,22 @@ try {
     console.log('PASS ' + variant.name);
   }
   const audioPath = path.join(temporary, 'audio-only.mp4');
-  execFileSync('ffmpeg', [
-    '-y',
-    '-loglevel',
-    'error',
-    '-f',
-    'lavfi',
-    '-i',
-    'sine=frequency=440:duration=1',
-    '-c:a',
-    'aac',
-    audioPath,
-  ]);
+  execFileSync(
+    'ffmpeg',
+    [
+      '-y',
+      '-loglevel',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440:duration=1',
+      '-c:a',
+      'aac',
+      audioPath,
+    ],
+    { windowsHide: true }
+  );
   const invalidVideos = [
     { name: '仅音轨', bytes: fs.readFileSync(audioPath) },
     {

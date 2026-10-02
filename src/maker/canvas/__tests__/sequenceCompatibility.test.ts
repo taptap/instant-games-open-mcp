@@ -67,9 +67,28 @@ describe('sequence video compatibility', () => {
     [{ color: [250, 250, 250], coverage: 0.85 }, pink, pink],
     [{ color: [0, 240, 0], coverage: 1 }, pink, pink],
     [pink, white, pink],
+    [pink, white, white, pink],
+  ] as Sample[][])(
+    'keeps subject frames when reliable backgrounds change %#',
+    async (...samples) => {
+      const { frames, processor, apply } = fixture(samples);
+      const output = await processor.cutout(
+        frames,
+        '#ff00ff',
+        32,
+        new AbortController().signal,
+        jest.fn()
+      );
+      expect(output).toHaveLength(samples.length);
+      expect(apply.mock.calls.map((call) => call[1].color)).toEqual(
+        samples.map((sample) => sample!.color)
+      );
+    }
+  );
+
+  test.each([
     [pink, undefined, pink],
     [undefined, undefined],
-    [white, white, white, pink, pink, pink, pink],
   ] as Sample[][])(
     'does not silently drop subjects or publish an unreliable batch %#',
     async (...samples) => {

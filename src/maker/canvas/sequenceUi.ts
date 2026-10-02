@@ -48,6 +48,8 @@ type SequenceRun = SequenceRunView & {
   atlas?: { blob: Blob; info: FrameSetInfo };
   editPast?: SequenceFrame[][];
   editFuture?: SequenceFrame[][];
+  extractionKey?: string;
+  inputSourceSnapshot?: CanvasNode['sourceSnapshot'];
 };
 
 export function createSequenceUiController(options: SequenceUiOptions) {
@@ -100,6 +102,25 @@ export function createSequenceUiController(options: SequenceUiOptions) {
       runs.set(nodeId, run);
     }
     return run;
+  }
+
+  function extractionKey(node: CanvasNode): string {
+    const settings = node.sequenceSettings;
+    return JSON.stringify([
+      snapshotCanvasSource(findSource(node)),
+      settings?.start,
+      settings?.end,
+      settings?.fps,
+    ]);
+  }
+
+  function assertExtractionCurrent(node: CanvasNode, run: SequenceRun): void {
+    if (
+      run.extractionKey &&
+      (run.extractionKey !== extractionKey(node) ||
+        persistedNode(node.id)?.sourceVideoId !== node.sourceVideoId)
+    )
+      throw new Error('视频来源或抽帧参数已变化，请重新抽帧；原结果仍保留。');
   }
 
   function clearRun(nodeId: string): void {
@@ -292,7 +313,11 @@ export function createSequenceUiController(options: SequenceUiOptions) {
   async function startExtraction(nodeId: string): Promise<void> {
     const node = sequenceNode(nodeId);
     const source = node && findSource(node);
-    if (!node || !source) return;
+    if (!node) return;
+    if (!source)
+      return runStage(nodeId, 'extract', async () => {
+        throw new Error('视频来源已不存在，请重新连接来源视频。');
+      });
     if (controllers.size) {
       options.setError('已有拆帧步骤正在运行。');
       return;
@@ -311,10 +336,18 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     run.outputPath = undefined;
     run.editPast = [];
     run.editFuture = [];
+    run.extractionKey = undefined;
+    run.inputSourceSnapshot = snapshotCanvasSource(source);
     await runStage(nodeId, 'extract', async (activeRun, signal) => {
       const video = await loadVideo(source, signal);
       if (signal.aborted || sequenceNode(nodeId) !== node)
         throw new DOMException('处理已取消。', 'AbortError');
+      if (
+        JSON.stringify(activeRun.inputSourceSnapshot) !==
+          JSON.stringify(snapshotCanvasSource(findSource(node))) ||
+        persistedNode(nodeId)?.sourceVideoId !== node.sourceVideoId
+      )
+        throw new Error('读取期间视频来源已变化，请重新抽帧；原结果仍保留。');
       if (!Number.isFinite(video.duration) || video.duration <= 0)
         throw new Error('视频时长无效。');
       if (!video.videoWidth || !video.videoHeight)
@@ -373,6 +406,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
         );
       }
       activeRun.total = count;
+      activeRun.extractionKey = extractionKey(node);
       activeRun.frames = await options.processor.extract(
         video,
         settings.start,
@@ -386,6 +420,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
           if (current === total || current % 3 === 0) refresh(nodeId);
         }
       );
+      assertExtractionCurrent(node, activeRun);
       activeRun.sourceFrames = activeRun.frames.slice();
       activeRun.originalFrames = activeRun.frames.slice();
       activeRun.previewFrame = undefined;
@@ -576,6 +611,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     }
     if (action === 'save') {
       return runStage(nodeId, 'save', async (activeRun, signal) => {
+        assertExtractionCurrent(node, activeRun);
         if (!activeRun.frames.length) throw new Error('没有可保存的帧。');
         const document = documentState();
         if (!document) throw new Error('画布已关闭。');
@@ -620,10 +656,11 @@ export function createSequenceUiController(options: SequenceUiOptions) {
         options.publishState();
         try {
           if (!(await options.flush())) throw new Error('请先解决画布保存错误，再重试保存帧集。');
+          assertExtractionCurrent(node, activeRun);
           current.assetPath = activeRun.outputPath;
           current.frameSetInfo = activeRun.atlas.info;
           current.sequenceSettings = { ...node.sequenceSettings! };
-          current.sourceSnapshot = snapshotCanvasSource(source);
+          current.sourceSnapshot = activeRun.inputSourceSnapshot;
           if (!(await options.flush(true))) throw new Error('画布保存失败，请重试；原结果仍保留。');
         } catch (error) {
           Object.assign(current, previous);
@@ -664,7 +701,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     const node = sequenceNode(nodeId);
     if (!node || controllers.size || !node.sequenceSettings) return;
     const run = runs.get(nodeId);
-    if (node.frameSetInfo) return;
+    if (node.frameSetInfo && !run?.frames.length) return;
     if (run?.frames.length) {
       const stage = run.stage;
       const allowed =
@@ -691,7 +728,10 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     )
       return;
     if (!drafts.has(nodeId)) options.remember();
+    const currentInput = run?.extractionKey === extractionKey(node);
     node.sequenceSettings = { ...node.sequenceSettings, [key]: value };
+    if (run && currentInput && key === 'fps' && run.stage === 'resize')
+      run.extractionKey = extractionKey(node);
     if (run && key === 'duplicateThreshold' && run.stage === 'dedupe-review') {
       run.candidates = [];
       run.removed = [];
@@ -794,6 +834,11 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     if (!node.frameSetInfo || !node.assetPath) return [];
     const info = node.frameSetInfo;
     const path = node.assetPath;
+    const inputSourceSnapshot = node.sourceSnapshot;
+    const inputKey =
+      inputSourceSnapshot && !isCanvasNodeStale(node, findSource(node))
+        ? extractionKey(node)
+        : undefined;
     await runStage(nodeId, 'save', async (run, signal) => {
       const response = await fetch(options.store.mediaUrl(path), { signal });
       if (!response.ok) throw new Error('无法读取已保存图集。');
@@ -831,6 +876,8 @@ export function createSequenceUiController(options: SequenceUiOptions) {
       }
       run.frames = frames;
       run.originalFrames = frames.slice();
+      run.inputSourceSnapshot = inputSourceSnapshot;
+      run.extractionKey = inputKey;
       invalidateEditedRun(node, run);
     });
     return runs.get(nodeId)?.frames || [];
@@ -858,16 +905,38 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     async runTemplate(nodeId: string): Promise<void> {
       if (controllers.size) throw new Error('已有序列帧处理正在运行，请等待完成。');
       beginEdit(nodeId);
-      const settings = sequenceNode(nodeId)?.sequenceSettings;
-      if (!settings) throw new Error('模板缺少序列帧设置。');
-      for (const action of [
-        'extract',
-        settings.cutout ? 'cutout' : 'skip-cutout',
-        'dedupe',
-        'keep-all',
-        'resize',
-        'save',
-      ]) {
+      const node = sequenceNode(nodeId);
+      if (!node?.sequenceSettings) throw new Error('模板缺少序列帧设置。');
+      const previous = runs.get(nodeId);
+      if (previous?.frames.length && !previous.extractionKey)
+        throw new Error(
+          '当前图集草稿缺少有效的视频来源记录，请先在编辑器保存修改，或明确重新抽帧。'
+        );
+      const sourceChanged = persistedNode(nodeId)?.sourceVideoId !== node.sourceVideoId;
+      if (sourceChanged) node.sourceVideoId = persistedNode(nodeId)?.sourceVideoId;
+      if (
+        !previous?.frames.length ||
+        previous.stage === 'extract' ||
+        sourceChanged ||
+        previous.extractionKey !== extractionKey(node)
+      ) {
+        await actionSequence(nodeId, 'extract');
+        const extracted = runs.get(nodeId);
+        if (!extracted || extracted.status === 'failed' || extracted.status === 'cancelled')
+          throw new Error(extracted?.error || '模板视频未完成抽帧。');
+      }
+      const actions: Record<string, string> = {
+        cutout: node.sequenceSettings.cutout ? 'cutout' : 'skip-cutout',
+        dedupe: 'dedupe',
+        'dedupe-review': 'keep-all',
+        resize: 'resize',
+        save: 'save',
+      };
+      for (let step = 0; step < 5; step++) {
+        const stage = runs.get(nodeId)?.stage;
+        if (stage === 'complete') break;
+        const action = stage && actions[stage];
+        if (!action) throw new Error('序列帧处理阶段无效，请重新抽帧。');
         await actionSequence(nodeId, action);
         const run = runs.get(nodeId);
         if (!run || run.status === 'failed' || run.status === 'cancelled')
