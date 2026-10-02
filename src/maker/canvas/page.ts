@@ -38,7 +38,11 @@ import { appendAnimation, createAnimationCards, refreshAnimationFromSource } fro
 import { renderGenerationResult } from './generationResult.js';
 import { DEFAULT_SEQUENCE_FPS, DEFAULT_SEQUENCE_DURATION } from './sequenceModel.js';
 import { applyFrameOperations, openFrameEditor } from './frameEditor.js';
-import { createBackgroundRemoval } from './backgroundRemoval.js';
+import {
+  backgroundColorsDiffer,
+  createBackgroundRemoval,
+  stableBackgroundColor,
+} from './backgroundRemoval.js';
 import { openBackgroundEditor } from './backgroundUi.js';
 import { createFrameCollection } from './frameCollection.js';
 import { createCanvasGenerationUi, imageEditSources } from './generationUi.js';
@@ -130,6 +134,8 @@ export function getCanvasPageHtml(): string {
     removeChromaBackgroundPixels.toString(),
     hasOpaqueBoundary.toString(),
     sequenceActionsForCard.toString(),
+    backgroundColorsDiffer.toString(),
+    stableBackgroundColor.toString(),
     createSequenceProcessor.toString(),
     renderSequenceResult.toString(),
     createSequenceEditor.toString(),
@@ -1369,7 +1375,7 @@ export function getCanvasPageHtml(): string {
       '        card.querySelectorAll("button,input,select,textarea").forEach(function (control) { control.disabled = true; });',
       '        card.addEventListener("dblclick", function (event) { event.stopImmediatePropagation(); }, true);',
       '      }',
-      '      renderCanvasCardStatus(card, overlayState, { waitingForSource: templateWorkflow.waitingForSource(node.id), adjust: templateWorkflow.canAdjust(node.id) ? function () { selected.clear(); selected.add(node.id); if (node.type === "sequence") { sequenceUi.beginEdit(node.id); sequenceEditor.open(node.id); } else { selectionAction = "workflow"; render(); } } : undefined, waitTimedOut: generationState && generationState.status === "timedout", resume: (!generationState || generationState.status !== "timedout") && templateWorkflow.canContinue(node.id) ? function () { selectionAction = ""; return templateWorkflow.runFrom(node.id); } : undefined, stoppedWaiting: generationState && generationState.status === "canceled", query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
+      '      renderCanvasCardStatus(card, overlayState, { waitingForSource: templateWorkflow.waitingForSource(node.id), adjust: templateWorkflow.canAdjust(node.id) ? function () { selected.clear(); selected.add(node.id); if (node.type === "sequence") { sequenceUi.beginEdit(node.id); sequenceEditor.open(node.id); } else { selectionAction = "workflow"; render(); } } : undefined, waitTimedOut: generationState && generationState.status === "timedout", resume: (!generationState || generationState.status !== "timedout") && templateWorkflow.canContinue(node.id) ? function () { selectionAction = ""; return templateWorkflow.runFrom(node.id); } : undefined, detail: sequenceState && sequenceState.error, stoppedWaiting: generationState && generationState.status === "canceled", query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
       '      world.append(card);',
     ].join('\n')
   );
@@ -1510,10 +1516,10 @@ export function getCanvasPageHtml(): string {
       '  groupQueue = createCanvasGroupQueue({',
       '    getDocument: function () { return documentState; },',
       '    needs: function (id) { return templateWorkflow.status(id) === "pending"; },',
-      '    problem: function (id) { if (sequenceUi.hasDraft(id)) return "此卡片有未保存的帧处理，请先保存或放弃后再继续队列。"; const state = generationUi.nodeState(id); return state && ["failed", "unknown", "timedout", "canceled"].includes(state.status) ? "卡片结果未确认或已失败，请先在卡片或视频历史中处理，再继续队列。" : undefined; },',
+      '    problem: function (id) { if (sequenceUi.hasDraft(id)) return "此卡片有未保存的帧处理，请先保存或放弃后再继续队列。"; return generationUi.queueBlockReason(id); },',
       '    busy: function () { return templateWorkflow.isBusy || generationUi.isBusy || sequenceUi.isBusy || Boolean(sequenceEditor && sequenceEditor.isOpen) || Boolean(imageEditing && imageEditing.isBusy) || Boolean(videoHistory && videoHistory.isBusy) || pendingAssetImports > 0; },',
       '    videoBusy: async function () { return Boolean((await store.videoHistory(0, 1)).busy); },',
-      '    run: function (id) { return templateWorkflow.runQueued(id); },',
+      '    run: async function (id) { error.textContent = ""; const ok = await templateWorkflow.runQueued(id); if (ok) return true; throw new Error(error.textContent || "步骤未完成，已暂停。请查看卡片状态和运行日志。"); },',
       '    confirm: function (message) { return window.confirm(message); }, error: setError,',
       '    changed: function () { if (groupQueueUi) groupQueueUi.refresh(); publishDirty(); },',
       '  });',

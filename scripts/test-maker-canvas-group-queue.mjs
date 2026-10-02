@@ -67,9 +67,13 @@ try {
   });
   await page.goto('http://127.0.0.1/canvas?project=group-test');
   const queue = page.getByRole('group', { name: group.title + '执行队列', exact: true });
-  await queue.getByRole('button', { name: '▶ 完成剩余流程', exact: true }).click();
+  async function startQueue(label) {
+    await queue.getByRole('button', { name: label, exact: true }).click();
+    await queue.getByRole('button', { name: '确认执行', exact: true }).click();
+  }
+  await startQueue('▶ 完成剩余流程');
   await page.locator('.card-state-loading').waitFor();
-  assert.equal(confirmations, 1);
+  assert.equal(confirmations, 0);
   const chip = id => queue.locator('[data-node-id="' + id + '"]');
   await chip(references[2].id).dragTo(chip(references[1].id));
   assert.equal(await queue.locator('.group-queue-task').first().getAttribute('data-node-id'), references[2].id);
@@ -80,11 +84,11 @@ try {
   release();
   await queue.getByText('已暂停', { exact: true }).waitFor();
   assert.deepEqual(calls, [references[0].id]);
-  await queue.getByRole('button', { name: '继续剩余流程', exact: true }).click();
+  await startQueue('继续剩余流程');
   await queue.getByText('已完成', { exact: true }).waitFor();
   assert.deepEqual(calls.slice(0, 3), [references[0].id, references[2].id, references[1].id]);
   assert.equal(calls.length, 6);
-  assert.equal(confirmations, 2);
+  assert.equal(confirmations, 0);
   assert.equal(canvas.nodes.length, 8);
   assert.equal(canvas.nodes.filter(node => node.templatePending).length, 0);
   await page.reload();
@@ -93,10 +97,10 @@ try {
   canvas.nodes.find(node => node.id === references[1].id).templatePending = true;
   failNext = true;
   await page.reload();
-  await queue.getByRole('button', { name: '▶ 完成剩余流程', exact: true }).click();
+  await startQueue('▶ 完成剩余流程');
   await queue.getByText('已暂停', { exact: true }).waitFor();
   assert.equal(calls.length, 7);
-  await queue.getByRole('button', { name: '继续剩余流程', exact: true }).click();
+  await startQueue('继续剩余流程');
   await queue.getByText('已暂停', { exact: true }).waitFor();
   assert.equal(calls.length, 7);
   assert.deepEqual(errors, []);

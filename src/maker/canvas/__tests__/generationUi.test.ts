@@ -797,6 +797,56 @@ test.each(['unknown', 'failed', 'canceled'])(
   }
 );
 
+test('confirmed queue retries an unsent local video failure and keeps the submission error', async () => {
+  const { ui, options, attempt } = fixture('failed');
+  delete attempt.taskId;
+  attempt.executionState = 'not_executed';
+  attempt.error = 'Cannot resolve user_id';
+  delete attempt.resultAssetPath;
+  await ui.restore();
+  expect(ui.nodeState('video')).toEqual({ status: 'failed', canQuery: false });
+  expect(ui.queueBlockReason('video')).toBeUndefined();
+  const retry = {
+    ...attempt,
+    id: 'retry',
+    createdAt: new Date(Date.now() + 1000).toISOString(),
+  };
+  options.store.listGeneration.mockResolvedValue([attempt]);
+  options.store.createVideo.mockImplementation(async () => {
+    options.store.listGeneration.mockResolvedValue([retry, attempt]);
+    return retry;
+  });
+  expect(await ui.runTemplateVideo('video', 4, true)).toBe(false);
+  expect(options.store.createVideo).toHaveBeenCalledTimes(1);
+  expect(options.store.generationAction).not.toHaveBeenCalled();
+  const messages = options.setError.mock.calls.map((call) => String(call[0]));
+  expect(messages.join('\n')).toContain('Cannot resolve user_id');
+  expect(messages.join('\n')).not.toContain('视频结果未确认');
+});
+
+test('a remote failed video still blocks the confirmed queue', async () => {
+  const { ui } = fixture('failed');
+  await ui.restore();
+  expect(ui.queueBlockReason('video')).toContain('卡片结果未确认');
+  expect(ui.nodeState('video')).toEqual({ status: 'failed', canQuery: true });
+});
+
+test('an authorization rejection without a task does not lock image continuation', async () => {
+  const { ui, attempt, document } = fixture('unknown');
+  attempt.kind = 'image';
+  attempt.toolName = 'generate_image';
+  attempt.taskId = undefined;
+  attempt.executionState = 'unknown';
+  attempt.targetNodeId = 'head';
+  attempt.error =
+    'Remote proxy tool generate_image failed with execution_state=unknown; MCP error -32600: ' +
+    '项目授权失败';
+  document.nodes[0].templatePending = true;
+  await ui.restore();
+  expect(ui.queueBlockReason('head')).toBeUndefined();
+  expect(ui.hasUnsettledResult('head')).toBe(false);
+});
+
 test('overlay queries an existing video task without submitting generation', async () => {
   const { ui, options } = fixture('unknown');
   await ui.restore();

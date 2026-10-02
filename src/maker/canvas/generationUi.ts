@@ -90,6 +90,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   isNodeBusy(nodeId: string): boolean;
   hasUnsettledResult(nodeId: string): boolean;
   nodeState(nodeId: string): { status: string; canQuery: boolean } | undefined;
+  queueBlockReason(nodeId: string): string | undefined;
   queryNode(nodeId: string): Promise<void>;
   recoverVideo(attempt: any): Promise<boolean>;
   imageTarget(node: any): string | undefined;
@@ -991,7 +992,8 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       list.some(
         (attempt: any) =>
           attempt.targetNodeId === nodeId &&
-          ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status)
+          ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status) &&
+          !explicitPreExecutionRejection(attempt)
       )
     ) {
       options.setError('图片存在未确认任务，请先核查原任务，不会重复生成。');
@@ -1129,7 +1131,12 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         )
         .pop();
     }
-    if (userConfirmed && attempt && ['unknown', 'failed', 'canceled'].includes(attempt.status)) {
+    if (
+      userConfirmed &&
+      attempt &&
+      ['unknown', 'failed', 'canceled'].includes(attempt.status) &&
+      !unsentLocalVideoFailure(attempt)
+    ) {
       options.setError(
         '视频结果未确认或已失败，已暂停队列；请在视频历史核实原任务，不自动查询或重新生成。',
         'warning'
@@ -1586,6 +1593,24 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     options.render();
   }
 
+  function explicitPreExecutionRejection(attempt: any): boolean {
+    if (!attempt || attempt.taskId) return false;
+    const message = String(attempt.error || '');
+    return (
+      attempt.executionState === 'not_executed' ||
+      message.includes('-32600') ||
+      message.includes('项目授权失败')
+    );
+  }
+  function unsentLocalVideoFailure(attempt: any): boolean {
+    return Boolean(
+      attempt &&
+        attempt.kind === 'video' &&
+        attempt.executionState === 'not_executed' &&
+        !attempt.taskId &&
+        attempt.status === 'failed'
+    );
+  }
   function latestNodeAttempt(nodeId: string) {
     const canvasId = options.getDocument()?.id;
     return [...attempts.values()]
@@ -1638,6 +1663,50 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     return persist ? options.flush() : true;
   }
 
+  function queueBlockReason(nodeId: string) {
+    const state = nodeState(nodeId);
+    if (!state || !['failed', 'unknown', 'timedout', 'canceled'].includes(state.status)) return;
+    const latest = latestNodeAttempt(nodeId);
+    if (unsentLocalVideoFailure(latest) || explicitPreExecutionRejection(latest)) return;
+    return '卡片结果未确认或已失败，请先在卡片或视频历史中处理，再继续队列。';
+  }
+  function nodeState(nodeId: string) {
+    const attempt = latestNodeAttempt(nodeId);
+    if (!attempt || attempt.status === 'succeeded') return;
+    if (attempt.status === 'failed') {
+      const current = options.getDocument();
+      const target = current?.nodes.find((item: any) => item.id === nodeId);
+      if (
+        attempt.kind === 'video' &&
+        target &&
+        !videoAttemptMatchesSources(attempt, videoInputSources(current, target))
+      )
+        return;
+      const source = current?.nodes.find((node: any) => node.id === attempt.sourceImageId);
+      if (source && attempt.sourceImagePath && source.assetPath !== attempt.sourceImagePath) return;
+      if (
+        source &&
+        attempt.sourceSnapshot &&
+        !isCanvasSourceCurrent(attempt.sourceSnapshot, source)
+      )
+        return;
+    }
+    return {
+      status:
+        attempt.kind === 'video' &&
+        videoTaskTiming(attempt).waitExpired &&
+        !(attempt.executionState === 'not_executed' && !attempt.taskId) &&
+        attempt.remoteStatus !== 'failed'
+          ? 'timedout'
+          : attempt.status,
+      canQuery:
+        attempt.kind === 'video' &&
+        Boolean(attempt.taskId) &&
+        !videoTaskTiming(attempt).queryExpired &&
+        ['running', 'pending', 'unknown', 'canceled', 'failed'].includes(attempt.status),
+    };
+  }
+
   return {
     render,
     restore,
@@ -1657,43 +1726,8 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     },
     runTemplateVideo,
     runTemplateImage,
-    nodeState(nodeId: string) {
-      const attempt = latestNodeAttempt(nodeId);
-      if (!attempt || attempt.status === 'succeeded') return;
-      if (attempt.status === 'failed') {
-        const current = options.getDocument();
-        const target = current?.nodes.find((item: any) => item.id === nodeId);
-        if (
-          attempt.kind === 'video' &&
-          target &&
-          !videoAttemptMatchesSources(attempt, videoInputSources(current, target))
-        )
-          return;
-        const source = current?.nodes.find((node: any) => node.id === attempt.sourceImageId);
-        if (source && attempt.sourceImagePath && source.assetPath !== attempt.sourceImagePath)
-          return;
-        if (
-          source &&
-          attempt.sourceSnapshot &&
-          !isCanvasSourceCurrent(attempt.sourceSnapshot, source)
-        )
-          return;
-      }
-      return {
-        status:
-          attempt.kind === 'video' &&
-          videoTaskTiming(attempt).waitExpired &&
-          !(attempt.executionState === 'not_executed' && !attempt.taskId) &&
-          attempt.remoteStatus !== 'failed'
-            ? 'timedout'
-            : attempt.status,
-        canQuery:
-          attempt.kind === 'video' &&
-          Boolean(attempt.taskId) &&
-          !videoTaskTiming(attempt).queryExpired &&
-          ['running', 'pending', 'unknown', 'canceled', 'failed'].includes(attempt.status),
-      };
-    },
+    queueBlockReason,
+    nodeState,
     async queryNode(nodeId: string) {
       const attempt = latestNodeAttempt(nodeId);
       if (attempt?.kind === 'video' && attempt.taskId) await action(attempt, 'query');
@@ -1703,6 +1737,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         (attempt) =>
           attempt.canvasId === options.getDocument()?.id &&
           attempt.targetNodeId === nodeId &&
+          !explicitPreExecutionRejection(attempt) &&
           !(attempt.kind === 'video' && videoTaskTiming(attempt).waitExpired) &&
           ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status)
       );

@@ -454,6 +454,12 @@ async function listRemoteProxyTools(options: {
   }
 }
 
+function remoteProxyFailureState(dispatched: boolean, error: unknown): 'unknown' | 'not_executed' {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('项目授权失败') || message.includes('-32600')) return 'not_executed';
+  return dispatched ? 'unknown' : 'not_executed';
+}
+
 export async function callRemoteProxyTool(options: {
   targetDir: string;
   name: string;
@@ -506,7 +512,7 @@ export async function callRemoteProxyTool(options: {
         } catch (error) {
           throw new RemoteProxyToolCallError(
             options.name,
-            dispatched ? 'unknown' : 'not_executed',
+            remoteProxyFailureState(dispatched, error),
             error
           );
         }
@@ -543,7 +549,7 @@ export async function callRemoteProxyTool(options: {
         } catch (error) {
           throw new RemoteProxyToolCallError(
             options.name,
-            dispatched ? 'unknown' : 'not_executed',
+            remoteProxyFailureState(dispatched, error),
             error
           );
         } finally {

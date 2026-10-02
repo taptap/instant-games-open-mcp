@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 import type { FrameSetFrame, FrameSetInfo, SequenceSettings } from './sequenceModel.js';
+import { backgroundColorsDiffer, stableBackgroundColor } from './backgroundRemoval.js';
 export {
   DEFAULT_SEQUENCE_SIDE,
   MAX_ATLAS_SIDE,
@@ -747,14 +748,44 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
     mode: 'connected' | 'chroma' = 'connected'
   ): Promise<SequenceFrame[]> {
     if (options.backgroundRemoval) {
+      const detected: Array<[number, number, number] | undefined> = [];
+      for (const frame of frames) {
+        if (signal.aborted) throw new DOMException('处理已取消。', 'AbortError');
+        detected.push((await options.backgroundRemoval.identify(frame.blob))?.color);
+      }
+      const stable = stableBackgroundColor(detected);
+      let fallback = stable;
+      if (!fallback) {
+        try {
+          fallback = parseColor(colorHex);
+        } catch {
+          fallback = undefined;
+        }
+      }
+      if (!fallback) {
+        throw new Error('未可靠识别到大面积纯色背景，可能已经透明或背景过于复杂；原帧集未改变。');
+      }
+      let startIndex = 0;
+      if (stable) {
+        while (
+          startIndex < frames.length - 1 &&
+          detected[startIndex] &&
+          backgroundColorsDiffer(detected[startIndex]!, stable)
+        ) {
+          startIndex++;
+        }
+      }
+      const selected = frames.slice(startIndex);
       const output: SequenceFrame[] = [];
-      let color: [number, number, number] | undefined;
-      for (let index = 0; index < frames.length; index++) {
+      for (let index = 0; index < selected.length; index++) {
+        if (signal.aborted) throw new DOMException('处理已取消。', 'AbortError');
+        const own = detected[startIndex + index];
+        const color = own && stable && !backgroundColorsDiffer(own, stable) ? own : fallback;
         try {
           const result = await options.backgroundRemoval.apply(
-            frames[index].blob,
+            selected[index].blob,
             {
-              automatic: true,
+              automatic: false,
               color,
               tolerance,
               softness: 24,
@@ -763,15 +794,14 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
             },
             signal
           );
-          color ??= result.color;
-          output.push({ ...frames[index], blob: result.blob });
-          onProgress(index + 1, frames.length);
+          output.push({ ...selected[index], blob: result.blob });
+          onProgress(index + 1, selected.length);
           await delayFrame();
         } catch (error) {
           if (signal.aborted) throw error;
           throw new Error(
             '第 ' +
-              (index + 1) +
+              (startIndex + index + 1) +
               ' 帧：' +
               (error instanceof Error ? error.message : '自动去背景失败')
           );

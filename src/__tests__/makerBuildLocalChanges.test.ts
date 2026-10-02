@@ -2572,6 +2572,46 @@ describe('maker build local-change guard', () => {
     expect(callTool).toHaveBeenCalledTimes(1);
   });
 
+  test('marks an authorization rejection after dispatch as not_executed', async () => {
+    saveTapAuth({
+      kid: 'rnd-kid',
+      token: 'rnd-token',
+      mac_key: 'rnd-mac-key',
+    });
+    const networkError = new Error('MCP error -32600: 项目授权失败');
+    const callTool = jest.fn(
+      async (_context: unknown, _request: unknown, _options: unknown, onDispatch?: () => void) => {
+        onDispatch?.();
+        throw networkError;
+      }
+    );
+    const manager = {
+      callTool,
+      listTools: jest.fn(),
+      getCachedTools: jest.fn(),
+      closeAll: jest.fn(),
+    } as unknown as MakerRemoteProxyManager;
+    const callRemoteProxyTool = (
+      makerMcp as typeof makerMcp & {
+        callRemoteProxyTool: (options: Record<string, unknown>) => Promise<unknown>;
+      }
+    ).callRemoteProxyTool;
+
+    await expect(
+      callRemoteProxyTool({
+        targetDir: tempDir,
+        name: 'generate_image',
+        args: {},
+        extra: { sendNotification: jest.fn() },
+        manager,
+      })
+    ).rejects.toMatchObject({
+      executionState: 'not_executed',
+      automaticRetry: false,
+    });
+    expect(callTool).toHaveBeenCalledTimes(1);
+  });
+
   test('does not retry MCP business errors with remote diagnostics', async () => {
     let attempts = 0;
     const buildError = Object.assign(
