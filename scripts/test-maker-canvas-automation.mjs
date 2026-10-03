@@ -446,10 +446,114 @@ try {
   await success('inspect');
   await success('rename', { title: 'CLI test' });
   await page.screenshot({ path: path.join(temporary, 'canvas-cli.png') });
+  await success('add-template', { id: '7e1cb6ad-732f-4dc3-a951-000000000004' });
+  const modelGroup = current.selectedIds[0];
+  const modelNodes = current.nodes.filter((node) => node.sectionId === modelGroup);
+  const character = modelNodes.find((node) => node.type === 'image');
+  const views = modelNodes.find((node) => node.type === 'model-views');
+  const model = modelNodes.find((node) => node.type === 'model');
+  assert.ok(character && views && model);
+  assert.equal((await command('run', { id: modelGroup }, { 'allow-paid': true })).status, 'failed');
+  assert.equal((await command('run', { id: views.id })).status, 'failed');
+  await success('update-nodes', {
+    nodes: [
+      { id: character.id, prompt: 'Test character' },
+      { id: views.id, modelQuality: 'high_quality' },
+    ],
+  });
+  await success('run', { id: character.id }, { 'allow-paid': true });
+  let modelAttempt;
+  let modelSubmissions = 0;
+  await page.route('**/canvases/' + canvas.id + '/models', async (route) => {
+    if (route.request().method() === 'GET')
+      return route.fulfill({ json: modelAttempt ? [modelAttempt] : [] });
+    const input = route.request().postDataJSON();
+    if (input.action === 'start') {
+      modelSubmissions++;
+      modelAttempt = {
+        id: randomUUID(),
+        canvasId: canvas.id,
+        nodeId: views.id,
+        sourceId: character.id,
+        sourceVersion: snapshotCanvasSource(current.nodes.find((node) => node.id === character.id))
+          .version,
+        quality: 'high_quality',
+        status: 'review',
+        phase: 'views',
+        assetId: 'mock-3d-asset',
+        stepId: 'multiview_review',
+        reviewId: 'review-token',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        previews: ['front', 'left', 'back', 'right'].map((view) => ({
+          view,
+          path: media.relativePath,
+        })),
+      };
+    } else if (input.action === 'confirm') {
+      assert.equal(input.reviewId, 'review-token');
+      modelSubmissions++;
+      modelAttempt = {
+        ...modelAttempt,
+        status: 'completed',
+        phase: 'model',
+        modelPath: 'assets/model/mock/Meshes/main.mdl',
+      };
+    }
+    await route.fulfill({ json: modelAttempt });
+  });
+  await success('run', { id: views.id }, { 'allow-paid': true });
+  assert.equal(current.nodes.find((node) => node.id === views.id).state.model.status, 'review');
+  assert.equal(
+    await page.locator('[data-id="' + views.id + '"] .model-views-gallery img').count(),
+    4
+  );
+  assert.equal(modelSubmissions, 1);
+  assert.equal((await command('run', { id: model.id }, { 'allow-paid': true })).status, 'failed');
+  assert.equal(
+    (await command('confirm-model', { id: model.id, reviewId: 'review-token' })).status,
+    'failed'
+  );
+  assert.equal(modelSubmissions, 1);
+  await page.reload();
+  await page.waitForTimeout(1200);
+  pageId = (await cli('pages')).pages.find((item) => item.id !== pageId)?.id || pageId;
+  await success('inspect');
+  assert.equal(
+    current.nodes.find((node) => node.id === views.id).state.model.assetId,
+    'mock-3d-asset'
+  );
+  await success('query', { id: views.id });
+  await page.screenshot({ path: path.join(temporary, 'canvas-model-review.png') });
+  await success(
+    'confirm-model',
+    { id: model.id, reviewId: 'review-token' },
+    { 'allow-paid': true }
+  );
+  assert.equal(current.nodes.find((node) => node.id === model.id).state.model.status, 'completed');
+  assert.equal(modelSubmissions, 2);
+  await page.route('**/models/export?*', (route) =>
+    route.fulfill({ contentType: 'application/zip', body: Buffer.from('PK-model-test') })
+  );
+  const modelExport = await command('export', { id: model.id, format: 'model' });
+  assert.equal(modelExport.status, 'succeeded', JSON.stringify(modelExport));
+  const modelDownload = await cli('download', {
+    'operation-id': modelExport.id,
+    'output-dir': temporary,
+  });
+  assert.equal(fs.readFileSync(modelDownload.outputPath).toString(), 'PK-model-test');
+  await success('update-nodes', { nodes: [{ id: views.id, modelQuality: 'balanced' }] });
+  assert.equal(current.nodes.find((node) => node.id === views.id).state.model.stale, true);
+  assert.equal((await command('export', { id: model.id, format: 'model' })).status, 'failed');
+  assert.equal((await cli('models', { 'canvas-id': canvas.id })).source, 'saved');
+  await success('add-node', { type: 'model-views', sourceId: importedImage.id });
+  const independentViews = current.selectedIds[0];
+  await success('add-node', { type: 'model', sourceId: independentViews });
+  assert.equal(current.nodes.find((node) => node.id === current.selectedIds[0]).type, 'model');
   assert.deepEqual(browserErrors, []);
   assert.equal(paidRequests, 0);
   console.log(
-    'PASS: CLI -> HTTP -> canvas -> disk; conflicts, paid guard, references, imports, sequence/animation and five export formats.'
+    'PASS: CLI -> HTTP -> canvas -> disk; conflicts, paid guard, references, imports, sequence/animation, five resource exports and reviewed model workflow (simulated upstream).'
   );
   console.log('Screenshot: ' + path.join(temporary, 'canvas-cli.png'));
 } finally {

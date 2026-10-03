@@ -872,6 +872,8 @@ export class MakerCanvasFiles {
       node.type !== 'video-source' &&
       node.type !== 'sequence' &&
       node.type !== 'animation' &&
+      node.type !== 'model-views' &&
+      node.type !== 'model' &&
       node.type !== 'section'
     ) {
       fail('节点类型无效。', 400, 'INVALID_DOCUMENT');
@@ -899,6 +901,12 @@ export class MakerCanvasFiles {
     }
     const sourceVideoId =
       node.sourceVideoId === undefined ? undefined : text(node.sourceVideoId, 36, '视频来源标识');
+    if (
+      node.modelQuality !== undefined &&
+      (node.type !== 'model-views' ||
+        !['fast', 'balanced', 'high_quality'].includes(String(node.modelQuality)))
+    )
+      fail('模型质量档位无效。', 400, 'INVALID_DOCUMENT');
     const sectionId =
       node.sectionId === undefined ? undefined : text(node.sectionId, 36, '分区标识');
     if (
@@ -1105,6 +1113,9 @@ export class MakerCanvasFiles {
       width: numberIn(node.width, 48, node.type === 'section' ? 100000 : 2000, '尺寸'),
       height: numberIn(node.height, 36, node.type === 'section' ? 100000 : 1600, '尺寸'),
       title: text(node.title, 80, '标题', '未命名'),
+      ...(node.modelQuality
+        ? { modelQuality: node.modelQuality as CanvasNode['modelQuality'] }
+        : {}),
       ...(sectionId ? { sectionId } : {}),
       ...(node.exportDirection
         ? { exportDirection: node.exportDirection as CanvasNode['exportDirection'] }
@@ -1257,6 +1268,8 @@ export class MakerCanvasFiles {
       edge.kind !== 'image-to-video' &&
       edge.kind !== 'image-variant' &&
       edge.kind !== 'sequence-source' &&
+      edge.kind !== 'character-views' &&
+      edge.kind !== 'views-model' &&
       edge.kind !== 'sequence-animation'
     ) {
       fail('画布连线类型无效。', 400, 'INVALID_EDGE');
@@ -1272,6 +1285,11 @@ export class MakerCanvasFiles {
     if (edge.from === edge.to) fail('不能把卡片连到自身。', 400, 'INVALID_EDGE');
     const from = nodes.find((node) => node.id === edge.from);
     const to = nodes.find((node) => node.id === edge.to);
+    if (
+      (edge.kind === 'character-views' && (from?.type !== 'image' || to?.type !== 'model-views')) ||
+      (edge.kind === 'views-model' && (from?.type !== 'model-views' || to?.type !== 'model'))
+    )
+      fail('模型依赖必须为角色图片、多视图、模型。', 400, 'INVALID_EDGE');
     if (
       edge.kind === 'first-frame' &&
       (!from?.assetPath || from.type !== 'image' || to?.type !== 'video')

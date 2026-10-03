@@ -11,12 +11,16 @@ export type CanvasNodeType =
   | 'video-source'
   | 'sequence'
   | 'animation'
+  | 'model-views'
+  | 'model'
   | 'section';
 export type CanvasEdgeKind =
   | 'first-frame'
   | 'image-to-video'
   | 'image-variant'
   | 'sequence-source'
+  | 'character-views'
+  | 'views-model'
   | 'sequence-animation';
 
 export type CanvasCreateTemplate = 'starter' | 'empty' | 'sequence';
@@ -64,6 +68,7 @@ export interface CanvasNode {
   height: number;
   title: string;
   sectionId?: string;
+  modelQuality?: 'fast' | 'balanced' | 'high_quality';
   exportDirection?: 'front' | 'back' | 'left' | 'right';
   templateId?: string;
   templateRevision?: number;

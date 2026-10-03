@@ -10,6 +10,7 @@ import { downloadCanvasImage } from './imageExport.js';
 import { createSequenceExport } from './sequenceExport.js';
 
 export function canvasExportFormats(node?: CanvasNode): Array<{ format: string; label: string }> {
+  if (node?.type === 'model') return [{ format: 'model', label: 'Maker 模型包（含材质贴图）' }];
   if (!node || !['image', 'video', 'video-source', 'sequence', 'animation'].includes(node.type))
     return [];
   if (node.type === 'image')
@@ -136,6 +137,7 @@ export function createCanvasResourceExport(options: {
   mediaUrl(path: string): string;
   error(message: string): void;
   progress?(message: string): void;
+  model?: { ready(id: string): boolean; download(id: string): Promise<void> };
 }) {
   let busy = false;
   async function download(node: CanvasNode, format: string, loop = true) {
@@ -143,6 +145,11 @@ export function createCanvasResourceExport(options: {
     busy = true;
     const saved = structuredClone(node);
     try {
+      if (saved.type === 'model') {
+        if (!options.model || format !== 'model') throw new Error('模型导出尚未就绪。');
+        await options.model.download(saved.id);
+        return;
+      }
       const identity = canvasExportIdentity(options.getDocument(), saved);
       await downloadCanvasResource(
         saved,
@@ -173,9 +180,11 @@ export function createCanvasResourceExport(options: {
       toggle.setAttribute('aria-expanded', 'false');
       toggle.disabled =
         busy ||
-        !saved.assetPath ||
-        Boolean(saved.templatePending) ||
-        (['sequence', 'animation'].includes(saved.type) && !saved.frameSetInfo?.frames.length);
+        (saved.type === 'model'
+          ? !options.model?.ready(saved.id)
+          : !saved.assetPath ||
+            Boolean(saved.templatePending) ||
+            (['sequence', 'animation'].includes(saved.type) && !saved.frameSetInfo?.frames.length));
       toggle.title = busy
         ? '资源正在导出，请稍候'
         : toggle.disabled

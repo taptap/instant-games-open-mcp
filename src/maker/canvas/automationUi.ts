@@ -13,6 +13,7 @@ import {
   type CanvasReferencesInput,
 } from './automationReferences.js';
 import type { createCanvasGroupQueue } from './groupQueue.js';
+import { canvasModelGroup } from './model3d.js';
 
 export function createCanvasAutomationUi(options: {
   current(): CanvasDocument | null;
@@ -28,7 +29,8 @@ export function createCanvasAutomationUi(options: {
   open(id: string): Promise<void>;
   create(title: string): Promise<void>;
   add(type: string): void;
-  addDerived(type: 'sequence' | 'animation', sourceId: string): void;
+  addDerived(type: 'sequence' | 'animation' | 'model-views' | 'model', sourceId: string): void;
+  confirmModel?(id: string, reviewId: string): Promise<unknown>;
   importAsset(input: Record<string, unknown>): Promise<void>;
   exportAsset(command: CanvasCommand, node: CanvasNode): Promise<unknown>;
   addTemplate(id: string): Promise<void>;
@@ -112,6 +114,7 @@ export function createCanvasAutomationUi(options: {
       connect: ['from', 'to'],
       disconnect: ['edgeId'],
       run: ['id'],
+      'confirm-model': ['id', 'reviewId'],
       stop: ['id'],
       query: ['id'],
       import: ['assetPath', 'kind', 'title'],
@@ -138,19 +141,37 @@ export function createCanvasAutomationUi(options: {
     if (command.action !== 'query' && command.revision !== current.revision)
       throw new Error('revision 已过期，请重新 inspect，不会覆盖人工修改。');
     options.clearError();
-    if (command.action === 'run' || command.action === 'query') {
+    if (
+      command.action === 'run' ||
+      command.action === 'query' ||
+      command.action === 'confirm-model'
+    ) {
       const target = node(input.id, current);
       if (
-        command.action === 'run' &&
+        command.action !== 'query' &&
         command.allowPaid !== true &&
-        (target.type === 'section' || ['image', 'video', 'video-source'].includes(target.type))
+        (target.type === 'section' ||
+          ['image', 'video', 'video-source', 'model', 'model-views'].includes(target.type))
       )
         throw new Error('生成可能消耗积分。取得用户授权后显式传入 --allow-paid。');
       running = true;
       options.busyChanged(true);
       try {
         if (command.action === 'query') await options.query(target.id);
-        else if (target.type === 'section') {
+        else if (command.action === 'confirm-model') {
+          if (
+            target.type !== 'model' ||
+            typeof input.reviewId !== 'string' ||
+            !input.reviewId ||
+            !options.confirmModel
+          )
+            throw new Error(
+              '确认模型必须指定模型卡片及当前 reviewId，且先取得用户对全部视图的明确批准。'
+            );
+          await options.confirmModel(target.id, input.reviewId);
+        } else if (target.type === 'section') {
+          if (canvasModelGroup(current, target.id))
+            throw new Error('模型流程需要人工确认角色和多视图，请分步执行卡片，不能自动批准。');
           options.queue.start(target.id, true);
           if (options.error()) throw new Error(options.error());
           if (!options.queue.view(target.id)) throw new Error(options.error() || '队列未启动。');
@@ -216,10 +237,18 @@ export function createCanvasAutomationUi(options: {
         if (typeof input.id !== 'string') throw new Error('缺少模板 id。');
         await options.addTemplate(input.id);
       } else if (command.action === 'add-node') {
-        if (!['image', 'video', 'note', 'sequence', 'animation'].includes(String(input.type)))
+        if (
+          !['image', 'video', 'note', 'sequence', 'animation', 'model-views', 'model'].includes(
+            String(input.type)
+          )
+        )
           throw new Error('不支持的卡片类型，请查询 capabilities。');
         if (current.nodes.length >= 400) throw new Error('画布卡片已达到容量限制。');
-        if (input.type === 'sequence' || input.type === 'animation') {
+        if (input.type === 'model' || input.type === 'model-views') {
+          const source = node(input.sourceId, current);
+          if (options.nodeBlocked(source.id)) throw new Error('来源卡片正在执行，请稍后创建。');
+          options.addDerived(input.type, source.id);
+        } else if (input.type === 'sequence' || input.type === 'animation') {
           const source = node(input.sourceId, current);
           if (
             options.nodeBlocked(source.id) ||

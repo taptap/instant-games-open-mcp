@@ -88,7 +88,8 @@ export function isBuiltinCanvasTemplate(id: string): boolean {
   return (
     id === '7e1cb6ad-732f-4dc3-a951-000000000001' ||
     id === '7e1cb6ad-732f-4dc3-a951-000000000002' ||
-    id === '7e1cb6ad-732f-4dc3-a951-000000000003'
+    id === '7e1cb6ad-732f-4dc3-a951-000000000003' ||
+    id === '7e1cb6ad-732f-4dc3-a951-000000000004'
   );
 }
 
@@ -184,6 +185,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
   }
   function instantiate(template: CanvasWorkflowTemplate, position: { x: number; y: number }) {
     const nodes: CanvasNode[] = JSON.parse(JSON.stringify(template.nodes));
+    const modelWorkflow = nodes.some((node) => node.type === 'model-views');
     const ids = new Map(nodes.map((node) => [node.id, createId()]));
     for (const node of nodes) {
       node.id = ids.get(node.id)!;
@@ -199,7 +201,12 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
         node.generation.sourceImageId = ids.get(node.generation.sourceImageId);
       if (node.generation?.sourceImageIds)
         node.generation.sourceImageIds = node.generation.sourceImageIds.map((id) => ids.get(id)!);
-      if (template.edges.some((edge) => ids.get(edge.to) === node.id)) node.templatePending = true;
+      if (
+        !['model', 'model-views'].includes(node.type) &&
+        template.edges.some((edge) => ids.get(edge.to) === node.id)
+      )
+        node.templatePending = true;
+      if (modelWorkflow && node.type === 'image' && !node.assetPath) node.templatePending = true;
     }
     const section = group(nodes, template.name);
     section.templateId = template.id;

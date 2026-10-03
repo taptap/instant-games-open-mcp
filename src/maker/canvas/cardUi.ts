@@ -24,6 +24,8 @@ export function decorateCanvasCard(
     'video-source': '视频',
     sequence: '序列帧',
     animation: '动画',
+    'model-views': '多视图确认',
+    model: '3D 模型',
     section: '工作流',
     note: '便签',
   };
@@ -98,6 +100,8 @@ export function refreshCanvasGroupHeaders(
       (node) => node.sectionId === group.id && !['note', 'section'].includes(node.type)
     );
     const states = members.map((node) => {
+      if (node.type === 'model' || node.type === 'model-views')
+        return cards.get(node.id)?.dataset.state || 'waiting';
       const overlay = cards.get(node.id)?.querySelector<HTMLElement>('.card-state-overlay');
       if (overlay?.dataset.state) return overlay.dataset.state;
       const saved = Boolean(

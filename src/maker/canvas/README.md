@@ -116,6 +116,49 @@ capabilities 返回参数类型、选项、范围和重要组合限制。inspect
 inspect --saved --canvas-id <画布ID> --id <卡片或分组ID> 可筛选已保存快照。
 guidance 只是当前快照的操作提示，不保证可执行；source=saved 不代表正在运行的页面状态。
 
+### 角色 3D 模型模板
+
+在“添加模板”选择“角色模型 · 多视图确认”。流程为：
+
+    角色图片（生成或导入并确认外观）
+      → 多视图（展示上游返回的全部视图，不写死三张）
+      → 人工确认全部视图 → 3D 模型（项目本地模型包）
+
+角色图复用图片卡；双足角色建议正面完整全身、A 姿势、四肢分离、无遮挡、纯色背景。
+四足动物和道具应按实际对象改角色提示词，不机械套用 A 姿势。画布只把确认的图片传给生模服务，
+不额外拼接隐藏提示词。多视图卡默认 balanced，可改 fast（草稿）或 high_quality；
+质量应在生成多视图前选好，修改后旧预览失效，需要新流程或重新生成视图。
+
+上游 create_3d_asset 的完整协议是 start / query / get_options / continue / post_process。
+本模板固定使用 reviewed 图片流程，不走 direct，不自动确认预览；远端可能返回四个方向，
+全部下载成功后才开放确认。后台支持面数、贴图/PBR 等 options，但受服务端阶段及质量策略限制；
+本版只开放三个质量档位，不写死高级参数。绑骨、贴图重做、重拓扑、格式转换仍使用原 Maker 工具，
+不加入画布首版。模型卡显示交付路径，不提供交互式 3D 查看器。
+
+CLI 与界面复用同一入口：
+
+1. add-template 使用模板 ID 7e1cb6ad-732f-4dc3-a951-000000000004。
+2. 编辑/生成角色图片，或使用 import 导入图片，再 add-node 创建 model-views（sourceId=图片ID）
+   和 model（sourceId=多视图卡ID）。模型卡不能没有上游，也不接受任意结果路径写入。
+3. update-nodes 可设置多视图卡的 modelQuality：fast / balanced / high_quality。
+4. 确认角色图后，对多视图卡执行 run --allow-paid。inspect 的 state.model 返回状态、全部预览路径、
+   assetId/taskId 及 reviewId。query 查询原上游任务，不发起新的生成。
+5. **展示全部预览并取得用户明确批准后**，执行 confirm-model --allow-paid，input 为
+   {"id":"模型卡ID","reviewId":"当前预览令牌"}。通用 run 或分组队列不会跳过确认。
+6. query 直至 state.model.status=completed；以 modelPath 为实际本地交付入口。
+   右键模型卡导出，或 export 的 format=model，可下载含模型、材质、贴图原相对路径的 ZIP。
+   带 --output-dir 即保存到本地目录；不重命名包内依赖文件。最多121个资源文件、128 MiB，
+   超限时明确提示从项目 assets/model 目录复制，不导出不完整模型包。
+
+canvas models --target-dir "<项目绝对路径>" --canvas-id <画布ID> 返回持久任务记录，
+无需页面；这是本地记录，不代表已刷新远端状态。新建、执行和确认仍需要打开画布页。
+
+原型图或质量变化后，旧预览不能确认，旧产物保留；结果未知或生成中不能再次提交。
+任务 ID 在素材下载前落盘，刷新不自动恢复付费生成。停止等待只释放页面，不取消远端；
+原请求还在执行时先“刷新本地状态”，请求结束后再“查询原任务”。模型查询不沿用视频6小时期限。
+单卡复制不复制模型依赖或任务；要创建独立模型流程，请添加模板或把完整流程另存用户模板。
+删除卡片不删除历史任务与已交付素材，历史 ID 可通过 models 查看并交给原 Maker 工具查询。
+
 ### 安全与恢复
 
 - 生图、生视频或分组 run 必须先取得用户授权，再显式传 --allow-paid；修改参数、添加模板不会扣费。

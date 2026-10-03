@@ -24,6 +24,7 @@ test('lists portable presets without importing assets or creating a canvas', asy
     '序列帧动画',
     '角色四方向',
     '首尾帧变身 · 灰狼→狼王',
+    '角色模型 · 多视图确认',
   ]);
   expect(templates.every((template) => template.builtin && !('assets' in template))).toBe(true);
   expect(await files.list()).toEqual([]);

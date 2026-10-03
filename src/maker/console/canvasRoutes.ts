@@ -7,6 +7,7 @@ import type { CanvasAutomationBridge } from '../canvas/automationBridge.js';
 import { ConsoleError } from './types.js';
 import type { ConsoleProjects } from './projects.js';
 import { CanvasGenerationService } from './canvasGeneration.js';
+import { CanvasModelService } from './canvasModels.js';
 import type { MakerRemoteProxyManager } from '../server/remoteProxyManager.js';
 
 async function readBytes(request: IncomingMessage, limit: number): Promise<Buffer> {
@@ -240,6 +241,40 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     const generationList = suffix.match(/^canvases\/([0-9a-f-]{36})\/generation$/i);
+    const models = suffix.match(/^canvases\/([0-9a-f-]{36})\/models$/i);
+    const modelExport = suffix.match(/^canvases\/([0-9a-f-]{36})\/models\/export$/i);
+    if (modelExport && method === 'GET') {
+      const bytes = await new CanvasModelService(project.path).export(
+        modelExport[1],
+        searchParams.get('nodeId') || ''
+      );
+      response.writeHead(200, {
+        'Content-Type': 'application/zip',
+        'Content-Length': bytes.length,
+        'X-Content-Type-Options': 'nosniff',
+      });
+      response.end(bytes);
+      return true;
+    }
+    if (models && (method === 'GET' || method === 'POST')) {
+      const service = new CanvasModelService(project.path, options.remoteProxyManager);
+      if (method === 'GET') send(response, 200, service.list(models[1]));
+      else {
+        if (!options.remoteProxyManager) throw new ConsoleError('模型生成能力尚未就绪。', 503);
+        const body = JSON.parse((await readBytes(request, 4096)).toString('utf8'));
+        if (
+          !body ||
+          typeof body !== 'object' ||
+          Array.isArray(body) ||
+          Object.keys(body).some(
+            (field) => !['nodeId', 'action', 'revision', 'reviewId'].includes(field)
+          )
+        )
+          throw new ConsoleError('模型操作参数无效。');
+        send(response, 200, await service.execute(models[1], body));
+      }
+      return true;
+    }
     if (generationList && method === 'GET') {
       if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
       const service = new CanvasGenerationService(project.path, options.remoteProxyManager);

@@ -43,10 +43,29 @@ export function canvasAutomationCapabilities() {
       'query',
       'import',
       'set-references',
+      'confirm-model',
       'export',
     ],
-    nodeTypes: ['image', 'video', 'note', 'sequence', 'animation'],
-    editable: ['title', 'text', 'x', 'y', 'prompt', 'parameters', 'sequenceSettings'],
+    nodeTypes: ['image', 'video', 'note', 'sequence', 'animation', 'model-views', 'model'],
+    editable: [
+      'title',
+      'text',
+      'x',
+      'y',
+      'prompt',
+      'parameters',
+      'sequenceSettings',
+      'modelQuality',
+    ],
+    modelWorkflow: {
+      quality: ['fast', 'balanced', 'high_quality'],
+      steps:
+        'character image -> run model-views with --allow-paid -> query -> show ALL previews -> explicit user approval -> confirm-model with --allow-paid -> query',
+      confirmation:
+        'Never approve automatically or use group run to bypass review. confirm-model requires the current reviewId from inspect state.model or models. Final model paths are already inside assets/model.',
+      history:
+        'canvas models --canvas-id ID reads persisted local attempts without a page; query on model cards contacts the original upstream task.',
+    },
     sequenceSettings: [
       'start',
       'end',
@@ -72,6 +91,10 @@ export function canvasAutomationCapabilities() {
     parameterSchema: canvasParameterSchema(),
     inputs: {
       inspect: { id: 'optional node or group ID; includes direct upstream' },
+      'confirm-model': {
+        id: 'model card ID',
+        reviewId: 'current review token; requires explicit user approval of all returned previews',
+      },
       import: { file: 'CLI --file: absolute local path', title: 'optional title in input JSON' },
       'set-references': {
         id: 'target image/video ID',
@@ -79,12 +102,12 @@ export function canvasAutomationCapabilities() {
         includeSelf: 'optional boolean, image only; default false',
       },
       'add-node': {
-        type: 'image/video/note/sequence/animation',
-        sourceId: 'required for sequence/animation',
+        type: 'image/video/note/sequence/animation/model-views/model',
+        sourceId: 'required for sequence/animation/model-views/model',
       },
       export: {
         id: 'result node ID',
-        format: 'png/jpg/video/atlas/frames',
+        format: 'png/jpg/video/atlas/frames/model',
         loop: 'optional boolean; default true',
       },
       download: {
@@ -93,6 +116,7 @@ export function canvasAutomationCapabilities() {
       },
     },
     exportFormats: {
+      model: ['model'],
       image: ['png', 'jpg'],
       video: ['video'],
       sequence: ['atlas', 'frames'],
@@ -172,6 +196,14 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
           throw new Error('卡片位置无效。');
         if (node.type === 'section') throw new Error('首版不支持移动整个分组。');
         next[key] = value;
+      } else if (key === 'modelQuality') {
+        if (
+          node.type !== 'model-views' ||
+          !['fast', 'balanced', 'high_quality'].includes(String(value))
+        )
+          throw new Error('模型质量只能在多视图卡上设置为 fast、balanced 或 high_quality。');
+        next.modelQuality = value as CanvasNode['modelQuality'];
+        contentChanged = true;
       } else if (key === 'prompt' || key === 'parameters') {
         if (!['image', 'video', 'video-source'].includes(node.type))
           throw new Error('此卡片没有生成参数。');
@@ -243,7 +275,8 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
     }
     if (contentChanged && next.generation && !next.generation.prompt.trim())
       throw new Error('此素材尚未保存提示词，请在同一次修改中提供 prompt。');
-    if (contentChanged && next.sectionId) next.templatePending = true;
+    if (['model', 'model-views'].includes(next.type)) delete next.templatePending;
+    else if (contentChanged && next.sectionId) next.templatePending = true;
     return { node: next, contentChanged };
   });
 }

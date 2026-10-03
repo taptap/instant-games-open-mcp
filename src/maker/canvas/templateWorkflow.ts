@@ -27,7 +27,8 @@ export function canvasNeedsProcessing(
 
 export function invalidateCanvasDependents(document: CanvasDocument, nodeId: string): void {
   for (const node of canvasDependents(document, nodeId)) {
-    if (node.sectionId && node.type !== 'section') node.templatePending = true;
+    if (node.sectionId && !['section', 'model', 'model-views'].includes(node.type))
+      node.templatePending = true;
   }
 }
 
@@ -111,6 +112,7 @@ export function createTemplateWorkflow(options: {
     const flow = document?.templateFlow;
     return Boolean(
       node &&
+        !['model', 'model-views'].includes(node.type) &&
         ((node.sectionId &&
           document?.nodes.some((section) => section.id === node.sectionId && section.templateId)) ||
           (flow && [flow.imageId, flow.videoId, flow.sequenceId, flow.animationId].includes(id)))
@@ -142,6 +144,7 @@ export function createTemplateWorkflow(options: {
   }
   type TemplateNodeStatus = 'editable' | 'pending' | 'loading' | 'complete';
   function templateMember(id: string) {
+    if (!isMember(id)) return;
     const document = options.getDocument();
     const flow = document?.templateFlow;
     if (
@@ -208,6 +211,7 @@ export function createTemplateWorkflow(options: {
     const document = options.getDocument();
     const node = document?.nodes.find((node) => node.id === id);
     const member = templateMember(id);
+    if (node && ['model', 'model-views'].includes(node.type)) return;
     if (member)
       return options.isNodeBusy?.(id)
         ? 'loading'
@@ -410,7 +414,7 @@ export function createTemplateWorkflow(options: {
     if (!automatic && options.isQueued?.(id)) return false;
     if (!document || !start || !(firstStep ? canAdjust(id) : canContinue(id, false))) return false;
     const candidates = [start, ...(automatic ? [] : canvasDependents(document, id))].filter(
-      (node) => node.sectionId === start.sectionId
+      (node) => node.sectionId === start.sectionId && !['model', 'model-views'].includes(node.type)
     );
     const remaining = new Set(candidates.map((node) => node.id));
     const ordered: typeof candidates = [];

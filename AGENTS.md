@@ -382,6 +382,11 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- 模型画布由 model3d.ts / model3dUi.ts 与 console/canvasModels.ts 接入原 create_3d_asset 生命周期。
+  角色图、多视图、模型用受校验的单向连线关联，不重复存来源；模型尝试独立原子保存，下载前记录远端 ID。
+  reviewed 的全部预览完整落地后，UI 明确确认或 CLI confirm-model 携带当前 reviewId 才可 continue；
+  不能自动批准，不能用通用 run/分组队列绕过。来源/质量变化阻止旧确认；停止仅释放本地等待，未知不重提。
+  新模板/复制不携带任务身份；模型 ZIP 读取明确交付子目录及材质贴图，不放宽 canvas-media 路由。
 - Canvas CLI 的协议、桥接、页面适配位于 src/maker/canvas/automation\*.ts，CLI 只接线，
   不新增 MCP tool 或独立工作流。命令必须绑定项目、页面、画布和编辑版本，复用页面保存与保护。
   不通过后端直接改写已打开画布，不覆盖人工草稿，不自动重放付费操作；详细约束见画布 README。

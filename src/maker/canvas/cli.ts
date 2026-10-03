@@ -29,6 +29,7 @@ export async function runCanvasCli(
     'status',
     'wait',
     'download',
+    'models',
     ...canvasAutomationCapabilities().actions,
   ];
   if (!action || !known.includes(action))
@@ -73,6 +74,15 @@ export async function runCanvasCli(
   }
   if (action === 'list') {
     print(await connection.request(''));
+    return;
+  }
+  if (action === 'models') {
+    if (typeof options.canvas_id !== 'string' || !/^[0-9a-f-]{36}$/i.test(options.canvas_id))
+      throw new Error('缺少有效 --canvas-id。');
+    print({
+      source: 'saved',
+      attempts: await connection.request('/' + options.canvas_id + '/models'),
+    });
     return;
   }
   if (action === 'templates') {

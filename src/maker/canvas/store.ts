@@ -6,6 +6,7 @@ import {
   type CanvasDocument,
   type CanvasSummary,
 } from './model.js';
+import type { CanvasModelAttempt } from './model3d.js';
 import { CanvasStoreError } from './model.js';
 import type {
   CanvasTemplatePage,
@@ -38,6 +39,18 @@ export interface CanvasGenerationAttempt {
 }
 
 export interface CanvasDocumentStore {
+  listModels?(canvasId: string): Promise<CanvasModelAttempt[]>;
+  exportModel?(canvasId: string, nodeId: string): Promise<Blob>;
+  modelAction?(
+    canvasId: string,
+    input: {
+      nodeId: string;
+      action: 'start' | 'query' | 'confirm';
+      revision?: number;
+      reviewId?: string;
+    },
+    signal?: AbortSignal
+  ): Promise<CanvasModelAttempt>;
   templates?: CanvasTemplateStore;
   videoHistory?(offset?: number, limit?: number): Promise<CanvasVideoHistory>;
   list(): Promise<CanvasSummary[]>;
@@ -184,6 +197,22 @@ export function createBrowserCanvasDocumentStore(
   return {
     videoHistory: (offset = 0, limit = 30) =>
       request<CanvasVideoHistory>('/canvases/video-history?offset=' + offset + '&limit=' + limit),
+    listModels: (canvasId) => request<CanvasModelAttempt[]>('/canvases/' + canvasId + '/models'),
+    exportModel: async (canvasId, nodeId) => {
+      const response = await fetcher(
+        base + '/canvases/' + canvasId + '/models/export?nodeId=' + encodeURIComponent(nodeId),
+        { signal: AbortSignal.timeout(60000) }
+      );
+      if (!response.ok) throw new Error((await response.json()).error || '模型导出失败。');
+      return response.blob();
+    },
+    modelAction: (canvasId, input, signal) =>
+      request<CanvasModelAttempt>('/canvases/' + canvasId + '/models', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+        signal,
+      }),
     templates: {
       prepareTemplate: (id, canvasId) =>
         request<CanvasWorkflowTemplate>('/canvases/templates/' + id + '/prepare', {

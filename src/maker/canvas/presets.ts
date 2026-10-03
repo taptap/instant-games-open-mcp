@@ -8,7 +8,7 @@ export interface CanvasPreset extends CanvasWorkflowTemplate {
 
 export function canvasPresets(): CanvasPreset[] {
   const prompts = createVideoPrompts();
-  return (presetData as unknown as CanvasPreset[]).map((preset, index) => {
+  const sequences = (presetData as unknown as CanvasPreset[]).map((preset, index) => {
     const template = { ...preset, nodes: structuredClone(preset.nodes) };
     const videos = template.nodes.filter((node) => node.type === 'video-source');
     for (const video of videos) {
@@ -49,6 +49,54 @@ export function canvasPresets(): CanvasPreset[] {
     );
     return template;
   });
+  const character = '7e1cb6ad-732f-4dc3-a951-000000000041';
+  const views = '7e1cb6ad-732f-4dc3-a951-000000000042';
+  const model = '7e1cb6ad-732f-4dc3-a951-000000000043';
+  return [
+    ...sequences,
+    {
+      id: '7e1cb6ad-732f-4dc3-a951-000000000004',
+      name: '角色模型 · 多视图确认',
+      revision: 1,
+      assets: {},
+      nodes: [
+        {
+          id: character,
+          type: 'image',
+          title: '角色原型 · 先确认外观',
+          x: 0,
+          y: 0,
+          width: 260,
+          height: 310,
+          generationDraft: {
+            operation: 'generate',
+            prompt:
+              '游戏角色，单个完整主体，正面全身，A姿势，双臂与身体分离，双脚分开，无遮挡，纯白背景，无地面、底座和文字。',
+          },
+        },
+        {
+          id: views,
+          type: 'model-views',
+          title: '多视图 · 确认后生模',
+          x: 340,
+          y: 0,
+          width: 480,
+          height: 360,
+          modelQuality: 'balanced',
+        },
+        { id: model, type: 'model', title: '3D 模型', x: 900, y: 0, width: 300, height: 360 },
+      ],
+      edges: [
+        {
+          id: '7e1cb6ad-732f-4dc3-a951-000000000044',
+          from: character,
+          to: views,
+          kind: 'character-views',
+        },
+        { id: '7e1cb6ad-732f-4dc3-a951-000000000045', from: views, to: model, kind: 'views-model' },
+      ],
+    },
+  ];
 }
 
 export function builtinCanvasTemplates(): CanvasWorkflowTemplate[] {

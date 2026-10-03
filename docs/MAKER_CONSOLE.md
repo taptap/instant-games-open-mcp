@@ -20,6 +20,14 @@ wait 是有界状态查询，不是新调度器或反调 AI。用法与首版限
 指定目录的排他写入，控制台不接收输出路径。导出字节按原操作和项目隔离，内存总量128 MiB、
 10分钟有效，访问时清理、下载后释放；不设后台重试。参数元信息与生成枚举校验共用，支持局部只读快照。
 
+角色模型模板复用图片卡，并增加 model-views / model 卡片。canvas/model3d.ts 只管理输入关系与版本，
+model3dUi.ts 经 Store 调用 console/canvasModels.ts，后者复用原 create_3d_asset reviewed 生命周期及
+本地模型交付，不新建模型生成器。所有上游预览下载后才允许以 reviewId 显式确认；分组队列不能代确认。
+模型尝试独立原子保存到 .maker/canvases/model-attempts，原始 ID 在素材下载前保存；中断不重放，
+停止本地等待不取消远端。角色图片和质量档变化会阻止旧确认；任务身份不写入模板或布局。
+CLI 的 run/query/confirm-model 与 UI 共用动作；models 只读持久记录。模型 ZIP 导出只读取上游明确
+交付的 assets/model 子目录，包含材质贴图，拒绝路径穿越、符号链接及超限资源，不影响现有媒体路由。
+
 ## Stdio 代理进程与清理
 
 控制台使用的本地 stdio 代理统一通过 HiddenStdioClientTransport 启动，Windows 设置
