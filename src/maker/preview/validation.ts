@@ -1,9 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
-import { projectEntry, writePrivateJson } from './protocol.js';
+import { previewDirectory, projectEntry, writePrivateJson } from './protocol.js';
 import { previewStatus } from './session.js';
 import { withPreviewLock, previewInstallation } from './installation.js';
 import { probeRuntime, previewWindow } from './runtime.js';
@@ -16,6 +15,7 @@ import { PreviewLuaLog } from './luaLog.js';
 import { selectWindowsBackgroundEnvironment } from '../system/backgroundProcess.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { repairLocalValidationSkillFilter } from '../cli/devKit.js';
+import { openPreviewDownloadCache, type PreviewDownloadCache } from './downloadCache.js';
 import {
   laterScreenshotFrame,
   ValidationScreenshot,
@@ -358,7 +358,7 @@ async function executeSkillValidation(
     let screenshotAssessment: ScreenshotAssessment | undefined;
     let preparation: Record<string, unknown> | undefined;
     let assets: PreviewAssetServer | undefined;
-    let cache: string | undefined;
+    let cache: PreviewDownloadCache | undefined;
     let exitCode: number | null = null;
     let exitSignal: NodeJS.Signals | null = null;
     let timedOut = false;
@@ -383,8 +383,11 @@ async function executeSkillValidation(
       let args: string[];
       if (classification.preparation_required) {
         assets = await startPreviewAssetServer(source, signal);
-        cache = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'maker-validate-')));
-        args = ['-game_url=' + assets.url, '-game_path=' + cache];
+        cache = openPreviewDownloadCache(
+          path.join(previewDirectory(project), 'storage'),
+          assets.url
+        );
+        args = ['-game_url=' + assets.url, '-game_path=' + cache.root];
       } else {
         args = [runtimeEntry, '-tapcode_dir=' + source];
       }
@@ -477,11 +480,7 @@ async function executeSkillValidation(
       if (!(await lua.finish())) failures.push('Final Lua log collection is incomplete.');
       try {
         await assets?.close();
-        if (cache) {
-          if (fs.lstatSync(cache).isSymbolicLink() || fs.realpathSync(cache) !== cache)
-            failures.push('Validation cache ownership changed; cache retained.');
-          else fs.rmSync(cache, { recursive: true, force: true });
-        }
+        cache?.clearProject();
       } catch (error) {
         failures.push(String(error));
       }
