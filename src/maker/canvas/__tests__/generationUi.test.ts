@@ -33,7 +33,7 @@ function fixture(status = 'succeeded') {
   const options = {
     store: {
       listGeneration,
-      createVideo: jest.fn<Promise<typeof attempt>, [string, any]>(async () => {
+      createVideo: jest.fn<Promise<typeof attempt>, [string, any, AbortSignal?]>(async () => {
         listGeneration.mockResolvedValue([attempt]);
         return attempt;
       }),
@@ -248,15 +248,14 @@ test('reopening after rejected recovery never overwrites a manual replacement', 
   expect(options.store.createVideo).not.toHaveBeenCalled();
 });
 
-test('shared video gate blocks submission before card creation', async () => {
-  const { document, options } = fixture();
+test('historical video occupancy does not block an explicit submission', async () => {
+  const { options } = fixture();
   options.store.listGeneration.mockResolvedValue([]);
   const videoHistory = jest.fn(async () => ({ busy: { reason: '等待原任务' } }));
   const ui = createCanvasGenerationUi({ ...options, store: { ...options.store, videoHistory } });
-  const before = JSON.stringify(document);
-  expect(await ui.runTemplateVideo('video', 4)).toBe(false);
-  expect(JSON.stringify(document)).toBe(before);
-  expect(options.store.createVideo).not.toHaveBeenCalled();
+  expect(await ui.runTemplateVideo('video', 4)).toBe(true);
+  expect(videoHistory).not.toHaveBeenCalled();
+  expect(options.store.createVideo).toHaveBeenCalledTimes(1);
 });
 
 test('credits belong to the displayed result, not its source or a later attempt', async () => {
@@ -349,7 +348,8 @@ test('two-frame workflow submits all current references in role order and invali
       sourceImageIds: ['head', 'tail'],
       sourceImagePaths: ['assets/image/new.png', 'assets/image/tail.png'],
       targetNodeId: 'video',
-    })
+    }),
+    expect.any(AbortSignal)
   );
   expect(video.generation.parameters.mode).toBe('first_last_frame');
   expect(video.sourceSnapshots).toHaveLength(2);
@@ -499,7 +499,8 @@ test('user template resolves the current connected image and reuses stored video
       resolution: '480p',
       duration: 7,
       ratio: '1:1',
-    })
+    }),
+    expect.any(AbortSignal)
   );
   expect(document.nodes).toHaveLength(2);
   expect(document.nodes[1].generation.parameters.duration).toBe(7);
@@ -647,19 +648,16 @@ test.each(['pending', 'running', 'unknown', 'failed', 'canceled'])(
   }
 );
 
-test('video deadlines unlock adjustment and then disable querying without changing the attempt', async () => {
+test('unknown history does not lock adjustment; only querying expires after six hours', async () => {
   jest.useFakeTimers();
   try {
     const { ui, attempt, options } = fixture('unknown');
     await ui.restore();
-    expect(ui.hasUnsettledResult('video')).toBe(true);
-    await jest.advanceTimersByTimeAsync(600_000);
-    expect(ui.nodeState('video')).toEqual({ status: 'timedout', canQuery: true });
     expect(ui.hasUnsettledResult('video')).toBe(false);
-    expect(await ui.runTemplateVideo('video', 4)).toBe(false);
-    expect(options.store.createVideo).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(600_000);
+    expect(ui.nodeState('video')).toEqual({ status: 'unknown', canQuery: true });
     await jest.advanceTimersByTimeAsync(21_000_000);
-    expect(ui.nodeState('video')).toEqual({ status: 'timedout', canQuery: false });
+    expect(ui.nodeState('video')).toEqual({ status: 'unknown', canQuery: false });
     await ui.queryNode('video');
     expect(options.store.generationAction).not.toHaveBeenCalled();
     expect(attempt.status).toBe('unknown');
@@ -668,80 +666,99 @@ test('video deadlines unlock adjustment and then disable querying without changi
   }
 });
 
-test('automatic pending queries stop at ten minutes without another paid submission', async () => {
+test('pending queries continue beyond ten minutes and stop immediately on request', async () => {
   jest.useFakeTimers();
   try {
     const { options, ui, attempt } = fixture('pending');
     options.store.generationAction.mockResolvedValue(attempt);
-    const running = ui.runTemplateVideo('video', 4);
+    const completed = jest.fn();
+    const running = ui.runTemplateVideo('video', 4).then(completed);
     await jest.advanceTimersByTimeAsync(600_000);
-    expect(await running).toBe(false);
-    const queries = options.store.generationAction.mock.calls.length;
-    expect(queries).toBeGreaterThan(0);
+    expect(completed).not.toHaveBeenCalled();
+    expect(ui.canStopWaiting('video')).toBe(true);
+    ui.stopWaiting('video');
+    await running;
+    expect(completed).toHaveBeenCalledWith(false);
+    expect(ui.isBusy).toBe(false);
+    const calls = options.store.generationAction.mock.calls.length;
     await jest.advanceTimersByTimeAsync(600_000);
-    expect(options.store.generationAction).toHaveBeenCalledTimes(queries);
+    expect(options.store.generationAction).toHaveBeenCalledTimes(calls);
     expect(options.store.createVideo).not.toHaveBeenCalled();
   } finally {
     jest.useRealTimers();
   }
 });
 
-test('an in-flight submission releases local waiting at ten minutes and ignores its late success', async () => {
-  jest.useFakeTimers();
-  try {
-    const { document, options, ui, attempt } = fixture('running');
-    attempt.taskId = '';
-    attempt.resultAssetPath = '';
-    options.store.listGeneration.mockResolvedValue([]);
-    let finishSubmission!: (result: typeof attempt) => void;
-    options.store.createVideo.mockImplementation(() => {
-      options.store.listGeneration.mockResolvedValue([attempt]);
-      return new Promise((resolve) => {
-        finishSubmission = resolve;
-      });
-    });
-    const before = structuredClone(document);
-    const completed = jest.fn();
-    const running = ui.runTemplateVideo('video', 4).then(completed);
-    await jest.advanceTimersByTimeAsync(599_999);
-    expect(options.store.createVideo).toHaveBeenCalledTimes(1);
-    expect(ui.isNodeBusy('video')).toBe(true);
-    expect(completed).not.toHaveBeenCalled();
-
-    await jest.advanceTimersByTimeAsync(1);
-    expect(completed).toHaveBeenCalledWith(false);
-    expect(ui.isNodeBusy('video')).toBe(false);
-    expect(ui.isBusy).toBe(false);
-    expect(attempt.status).toBe('running');
-    expect(document).toEqual(before);
-    expect(await options.store.listGeneration()).toEqual([attempt]);
-
-    const lateResult = {
-      ...attempt,
-      status: 'succeeded',
-      taskId: 'late-task',
-      resultAssetPath: 'late.mp4',
-    };
-    options.store.listGeneration.mockResolvedValue([lateResult]);
-    finishSubmission(lateResult);
-    await jest.advanceTimersByTimeAsync(0);
-    await running;
-    expect(document).toEqual(before);
-    expect(options.store.createVideo).toHaveBeenCalledTimes(1);
-    expect(options.store.generationAction).not.toHaveBeenCalled();
-    expect(options.onGenerated).not.toHaveBeenCalled();
-    expect(await options.store.listGeneration()).toEqual([lateResult]);
-  } finally {
-    jest.useRealTimers();
-  }
+test('stopping during history lookup prevents a later paid submission', async () => {
+  const { options, ui } = fixture();
+  let finishLookup!: (attempts: any[]) => void;
+  options.store.listGeneration.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finishLookup = resolve;
+      })
+  );
+  const running = ui.runTemplateVideo('video', 4, true);
+  ui.stopWaiting('video');
+  finishLookup([]);
+  expect(await running).toBe(false);
+  expect(options.store.createVideo).not.toHaveBeenCalled();
 });
 
-test('an in-flight workflow query stops at the original deadline and cannot overwrite a newer attempt', async () => {
+test.each(['stop', 'timeout'])(
+  'submission releases waiting on %s and does not restore a late result',
+  async (method) => {
+    jest.useFakeTimers();
+    try {
+      const { document, options, ui, attempt } = fixture('running');
+      attempt.taskId = '';
+      attempt.resultAssetPath = '';
+      options.store.listGeneration.mockResolvedValue([]);
+      let finishSubmission!: (result: typeof attempt) => void;
+      options.store.createVideo.mockImplementation(() => {
+        options.store.listGeneration.mockResolvedValue([attempt]);
+        return new Promise((resolve) => {
+          finishSubmission = resolve;
+        });
+      });
+      options.store.generationAction.mockResolvedValue(attempt);
+      const before = structuredClone(document);
+      const running = ui.runTemplateVideo('video', 4);
+      await jest.advanceTimersByTimeAsync(0);
+      expect(ui.canStopWaiting('video')).toBe(true);
+      if (method === 'stop') ui.stopWaiting('video');
+      else await jest.advanceTimersByTimeAsync(300_000);
+      expect(await running).toBe(false);
+      expect(ui.isNodeBusy('video')).toBe(false);
+      expect(ui.isBusy).toBe(false);
+      expect(options.store.createVideo.mock.calls[0][2]?.aborted).toBe(true);
+      expect(document).toEqual(before);
+      const lateResult = {
+        ...attempt,
+        status: 'succeeded',
+        taskId: 'late-task',
+        resultAssetPath: 'late.mp4',
+      };
+      options.store.listGeneration.mockResolvedValue([lateResult]);
+      finishSubmission(lateResult);
+      await jest.advanceTimersByTimeAsync(0);
+      await ui.restore();
+      expect(document).toEqual(before);
+      expect(ui.nodeState('video')).toEqual({ status: 'canceled', canQuery: true });
+      expect(ui.queueBlockReason('video')).toBeDefined();
+      expect(options.store.createVideo).toHaveBeenCalledTimes(1);
+      expect(options.store.generationAction).toHaveBeenCalledWith('canvas', attempt.id, 'cancel');
+      expect(options.onGenerated).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  }
+);
+
+test('stopping an in-flight query releases the card and ignores its late success', async () => {
   jest.useFakeTimers();
   try {
     const { document, options, ui, attempt } = fixture('pending');
-    attempt.resultAssetPath = '';
-    jest.setSystemTime(Date.parse(attempt.createdAt) + 360_000);
     let finishQuery!: (result: typeof attempt) => void;
     options.store.generationAction.mockImplementation(
       () =>
@@ -750,39 +767,15 @@ test('an in-flight workflow query stops at the original deadline and cannot over
         })
     );
     const before = structuredClone(document);
-    const completed = jest.fn();
-    const running = ui.runTemplateVideo('video', 4).then(completed);
-    await jest.advanceTimersByTimeAsync(119_999);
-    expect(options.store.generationAction).not.toHaveBeenCalled();
-    await jest.advanceTimersByTimeAsync(1);
-    expect(options.store.generationAction).toHaveBeenCalledWith('canvas', attempt.id, 'query');
-    await jest.advanceTimersByTimeAsync(119_999);
-    expect(completed).not.toHaveBeenCalled();
-    await jest.advanceTimersByTimeAsync(1);
-    expect(completed).toHaveBeenCalledWith(false);
-    expect(attempt.status).toBe('pending');
-    expect(document).toEqual(before);
-
-    await jest.advanceTimersByTimeAsync(1);
-    const newer = {
-      ...attempt,
-      id: 'new-attempt',
-      taskId: 'new-task',
-      createdAt: new Date(Date.now()).toISOString(),
-    };
-    options.store.listGeneration.mockResolvedValue([newer, attempt]);
     await ui.restore();
-    const lateResult = { ...attempt, status: 'succeeded', resultAssetPath: 'late.mp4' };
-    options.store.listGeneration.mockResolvedValue([newer, lateResult]);
-    finishQuery(lateResult);
-    await jest.advanceTimersByTimeAsync(0);
+    const running = ui.queryNode('video');
+    expect(ui.canStopWaiting('video')).toBe(true);
+    ui.stopWaiting('video');
+    finishQuery({ ...attempt, status: 'succeeded', resultAssetPath: 'late.mp4' });
     await running;
+    expect(ui.isBusy).toBe(false);
     expect(document).toEqual(before);
-    expect(ui.nodeState('video')).toEqual({ status: 'pending', canQuery: true });
-    expect(options.store.createVideo).not.toHaveBeenCalled();
-    expect(options.store.generationAction).toHaveBeenCalledTimes(1);
     expect(options.onGenerated).not.toHaveBeenCalled();
-    expect(await options.store.listGeneration()).toEqual([newer, lateResult]);
   } finally {
     jest.useRealTimers();
   }

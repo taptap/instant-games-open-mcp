@@ -45,11 +45,16 @@ export interface CanvasGenerationUiOptions {
     listGeneration(canvasId: string): Promise<any[]>;
     videoHistory?(offset?: number, limit?: number): Promise<{ busy?: { reason?: string } }>;
     generateImage(canvasId: string, input: Record<string, unknown>): Promise<any>;
-    createVideo(canvasId: string, input: Record<string, unknown>): Promise<any>;
+    createVideo(
+      canvasId: string,
+      input: Record<string, unknown>,
+      signal?: AbortSignal
+    ): Promise<any>;
     generationAction(
       canvasId: string,
       attemptId: string,
-      action: 'query' | 'retry' | 'cancel'
+      action: 'query' | 'retry' | 'cancel',
+      signal?: AbortSignal
     ): Promise<any>;
   };
   getDocument(): any;
@@ -88,6 +93,8 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   runTemplateVideo(nodeId: string, duration: number, userConfirmed?: boolean): Promise<boolean>;
   runTemplateImage(nodeId: string): Promise<boolean>;
   isNodeBusy(nodeId: string): boolean;
+  canStopWaiting(nodeId: string): boolean;
+  stopWaiting(nodeId: string): void;
   hasUnsettledResult(nodeId: string): boolean;
   nodeState(nodeId: string): { status: string; canQuery: boolean } | undefined;
   queueBlockReason(nodeId: string): string | undefined;
@@ -114,39 +121,75 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   const references = new Map<string, string[]>();
   const removedImageSources = new Map<string, Map<string, string>>();
   const importingReferences = new Set<string>();
-  async function waitVideoRequest(request: Promise<any>, canvasId: string, createdAt: string) {
+  const videoWaits = new Map<string, () => void>();
+  const stoppedVideos = new Set<string>();
+  const stoppedAttempts = new Set<string>();
+  const videoKey = (canvasId: string, nodeId: string) => canvasId + ':' + nodeId;
+  async function waitVideoRequest(
+    request: Promise<any>,
+    canvasId: string,
+    nodeId: string,
+    createdAt: string,
+    attemptId?: string,
+    controller?: AbortController
+  ) {
+    const key = videoKey(canvasId, nodeId);
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    let stoppedAt = '';
+    async function cancelAttempt(attempt: any, fromRequest = false) {
+      if (attempt.kind !== 'video' || attempt.targetNodeId !== nodeId) return;
+      if (!fromRequest) {
+        if (attemptId ? attempt.id !== attemptId : attempt.createdAt < createdAt) return;
+        if (!attemptId && attempt.createdAt >= stoppedAt) return;
+      }
+      stoppedAttempts.add(attempt.id);
+      attempts.set(attempt.id, { ...attempt, localWaitCanceledAt: new Date().toISOString() });
+      try {
+        await options.store.generationAction(canvasId, attempt.id, 'cancel');
+      } catch {
+        options.setError('已停止本地等待，但停止标记保存失败；旧结果请从视频历史核实。', 'warning');
+      }
+    }
+    const interrupted = new Promise<undefined>((resolve) => {
+      const stop = () => {
+        if (stopped) return;
+        stopped = true;
+        stoppedAt = new Date().toISOString();
+        stoppedVideos.add(key);
+        resolve(undefined);
+        controller?.abort();
+        void options.store
+          .listGeneration(canvasId)
+          .then(async (list: any[]) => {
+            for (const attempt of list) await cancelAttempt(attempt);
+            if (options.getDocument()?.id === canvasId) options.render();
+          })
+          .catch(() =>
+            options.setError('已停止等待；历史暂时读取失败，请稍后刷新视频历史。', 'warning')
+          );
+      };
+      videoWaits.set(key, stop);
+      timer = setTimeout(stop, 5 * 60_000);
+    });
+    options.render();
     try {
-      const remaining = Math.max(
-        0,
-        (videoTaskTiming({ createdAt }).waitUntil || Date.now()) - Date.now()
-      );
       const result = await Promise.race([
-        request,
-        new Promise<undefined>((resolve) => {
-          timer = setTimeout(() => resolve(undefined), remaining);
+        request.then((result) => {
+          if (stopped && result?.id) void cancelAttempt(result, true);
+          return result;
         }),
+        interrupted,
       ]);
-      if (result !== undefined) return result;
-      void options.store
-        .listGeneration(canvasId)
-        .then((list: any[]) => {
-          for (const attempt of list) attempts.set(attempt.id, attempt);
-          if (options.getDocument()?.id === canvasId) options.render();
-        })
-        .catch(() =>
-          options.setError(
-            '本地等待已结束，但历史记录暂时读取失败；请在视频历史中刷新查看。',
-            'warning'
-          )
-        );
+      if (!stopped && result !== undefined) return result;
       options.setError(
-        '等待超时，已结束本地等待；远端任务不会取消，迟到结果可在视频历史中取回。',
+        '已结束本地等待；远端任务不会取消，结果可在视频历史中取回，也可明确发起新生成。',
         'warning'
       );
       return;
     } finally {
       clearTimeout(timer);
+      videoWaits.delete(key);
     }
   }
   const imageSettings = new Map<
@@ -859,22 +902,6 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       return false;
     }
     const requesterId = node.id;
-    if (options.store.videoHistory) {
-      inFlight.add(requesterId);
-      try {
-        const history = await options.store.videoHistory(0, 1);
-        if (history.busy) {
-          options.setError(history.busy.reason || '已有视频尚未完成，请在视频历史中查询原任务。');
-          return false;
-        }
-        if (options.getDocument() !== documentState) return false;
-      } catch (error) {
-        options.setError('无法确认视频占用状态：' + String(error));
-        return false;
-      } finally {
-        inFlight.delete(requesterId);
-      }
-    }
     const decision = settings.templateRun
       ? { kind: 'reuse' as const, nodeId: node.id }
       : options.resolveTarget?.(source.id, 'video', node.draftSourceId ? undefined : node.id);
@@ -925,29 +952,39 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     options.onVideoCreated?.(node.id);
     inFlight.add(requesterId);
     inFlight.add(node.id);
+    stoppedVideos.delete(videoKey(documentState.id, node.id));
     options.render();
     try {
       if (!(await options.flush()) || options.getDocument()?.id !== documentState.id) return false;
+      if (stoppedVideos.has(videoKey(documentState.id, node.id))) return false;
       options.log?.(node.title + '：开始生成视频', 'info');
       const submittedAt = new Date(Date.now()).toISOString();
+      const controller = new AbortController();
       const attempt = await waitVideoRequest(
-        options.store.createVideo(documentState.id, {
-          prompt,
-          sourceImagePath: source.assetPath,
-          sourceImageId: source.id,
-          sourceImageIds: sources.map((item) => item.id),
-          sourceImagePaths: sources.map((item) => item.assetPath),
-          referenceImagePaths: importedReferences,
-          mode,
-          targetNodeId: node.id,
-          duration: settings.duration || 4,
-          model: settings.model || '2.0',
-          resolution: settings.resolution || '720p',
-          ratio: settings.ratio || 'adaptive',
-          userConfirmed: settings.userConfirmed === true,
-        }),
+        options.store.createVideo(
+          documentState.id,
+          {
+            prompt,
+            sourceImagePath: source.assetPath,
+            sourceImageId: source.id,
+            sourceImageIds: sources.map((item) => item.id),
+            sourceImagePaths: sources.map((item) => item.assetPath),
+            referenceImagePaths: importedReferences,
+            mode,
+            targetNodeId: node.id,
+            duration: settings.duration || 4,
+            model: settings.model || '2.0',
+            resolution: settings.resolution || '720p',
+            ratio: settings.ratio || 'adaptive',
+            userConfirmed: settings.userConfirmed === true,
+          },
+          controller.signal
+        ),
         documentState.id,
-        submittedAt
+        node.id,
+        submittedAt,
+        undefined,
+        controller
       );
       if (!attempt) return false;
       attempts.set(attempt.id, attempt);
@@ -1030,6 +1067,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     userConfirmed = false
   ): Promise<boolean> {
     const current = options.getDocument();
+    if (current) stoppedVideos.delete(videoKey(current.id, nodeId));
     const node = current?.nodes.find((item: any) => item.id === nodeId);
     const sources = current && node ? videoInputSources(current, node) : [];
     if (!node || !sources.length || sources.some((item) => !item.assetPath))
@@ -1046,6 +1084,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
             : 'multi_modal_reference')) === mode) &&
       JSON.stringify(item.referenceImagePaths || []) === JSON.stringify(referenceImages);
     const list = await options.store.listGeneration(current.id);
+    if (stoppedVideos.has(videoKey(current.id, nodeId))) return false;
     if (
       options.getDocument() !== current ||
       snapshots.some(
@@ -1064,7 +1103,6 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       list.some(
         (item: any) =>
           item.targetNodeId === nodeId &&
-          !videoTaskTiming(item).waitExpired &&
           (['pending', 'running', 'unknown', 'canceled'].includes(item.status) ||
             (item.status === 'failed' && item.taskId)) &&
           !matchesInputs(item)
@@ -1083,19 +1121,6 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const recorded = list.find(
       (item: any) => item.id === node.generation?.attemptId && item.targetNodeId === nodeId
     );
-    if (
-      attempt &&
-      attempt.status !== 'succeeded' &&
-      attempt.remoteStatus !== 'failed' &&
-      !(attempt.executionState === 'not_executed' && !attempt.taskId) &&
-      videoTaskTiming(attempt).waitExpired
-    ) {
-      options.setError(
-        '等待超时，已解除本地占用。请调整参数后明确生成新视频；旧任务保留在视频历史中。',
-        'warning'
-      );
-      return false;
-    }
     if (
       !attempt ||
       (attempt.status === 'failed' && !attempt.taskId) ||
@@ -1124,6 +1149,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         )
       )
         return true;
+      if (stoppedVideos.has(videoKey(current.id, nodeId))) return false;
       attempt = Array.from(attempts.values())
         .filter(
           (item: any) =>
@@ -1147,7 +1173,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       const next = await waitVideoRequest(
         options.store.generationAction(current.id, attempt.id, 'query'),
         current.id,
-        attempt.createdAt
+        nodeId,
+        attempt.createdAt,
+        attempt.id
       );
       if (!next) return false;
       attempt = next;
@@ -1158,16 +1186,31 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       ['pending', 'running', 'canceled', 'unknown'].includes(attempt.status) &&
       attempt.taskId
     ) {
-      if (videoTaskTiming(attempt).waitExpired) break;
+      if (videoTaskTiming(attempt).queryExpired) break;
       options.setError('视频正在生成，完成后自动处理序列帧；请保持页面打开。');
-      const remaining = (videoTaskTiming(attempt).waitUntil || Date.now()) - Date.now();
-      await new Promise((resolve) => setTimeout(resolve, Math.min(120000, Math.max(0, remaining))));
+      let delay: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await waitVideoRequest(
+          new Promise((resolve) => {
+            delay = setTimeout(() => resolve(true), 120000);
+          }),
+          current.id,
+          nodeId,
+          attempt.createdAt,
+          attempt.id
+        );
+      } finally {
+        clearTimeout(delay);
+      }
+      if (stoppedVideos.has(videoKey(current.id, nodeId))) return false;
       if (options.getDocument()?.id !== current.id) return false;
-      if (videoTaskTiming(attempt).waitExpired) break;
+      if (videoTaskTiming(attempt).queryExpired) break;
       const next = await waitVideoRequest(
         options.store.generationAction(current.id, attempt.id, 'query'),
         current.id,
-        attempt.createdAt
+        nodeId,
+        attempt.createdAt,
+        attempt.id
       );
       if (!next) return false;
       attempt = next;
@@ -1176,10 +1219,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     }
     if (attempt?.status !== 'succeeded') {
       options.setError(
-        attempt && videoTaskTiming(attempt).waitExpired
-          ? '等待超时，已解除本地占用；后续不自动执行。可在视频历史查询旧任务，或明确发起新视频。'
-          : attempt?.error ||
-              '视频尚未完成，已停止后续流程；可继续查询原任务，不会自动重新付费生成。'
+        attempt?.error || '视频尚未完成，已停止后续流程；可继续查询原任务，不会自动重新付费生成。'
       );
       return false;
     }
@@ -1194,7 +1234,8 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
 
   async function action(attempt: any, actionName: 'query' | 'retry' | 'cancel'): Promise<void> {
     const videoRetry = actionName === 'retry' && attempt.kind === 'video';
-    const targetId = videoRetry ? attempt.targetNodeId : undefined;
+    const targetId =
+      attempt.kind === 'video' && actionName !== 'cancel' ? attempt.targetNodeId : undefined;
     if (targetId && inFlight.has(targetId)) return;
     if (targetId) {
       inFlight.add(targetId);
@@ -1205,9 +1246,25 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       if (actionName === 'query' && videoTaskTiming(attempt).queryExpired)
         throw new Error('已超过提交后 6 小时的查询期限；历史记录和本地结果仍保留。');
       const startedAt = new Date(Date.now()).toISOString();
-      const request = options.store.generationAction(attempt.canvasId, attempt.id, actionName);
-      const next = videoRetry
-        ? await waitVideoRequest(request, attempt.canvasId, startedAt)
+      const controller = videoRetry ? new AbortController() : undefined;
+      const request = controller
+        ? options.store.generationAction(
+            attempt.canvasId,
+            attempt.id,
+            actionName,
+            controller.signal
+          )
+        : options.store.generationAction(attempt.canvasId, attempt.id, actionName);
+      if (targetId) stoppedVideos.delete(videoKey(attempt.canvasId, targetId));
+      const next = targetId
+        ? await waitVideoRequest(
+            request,
+            attempt.canvasId,
+            targetId,
+            startedAt,
+            videoRetry ? undefined : attempt.id,
+            controller
+          )
         : await request;
       if (!next) return;
       attempts.set(next.id, next);
@@ -1269,20 +1326,15 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const status = document.createElement('small');
     status.className = 'generation-status generation-status-' + relevant.status;
     status.textContent =
-      relevant.kind === 'video' &&
-      relevant.remoteStatus !== 'failed' &&
-      !(relevant.executionState === 'not_executed' && !relevant.taskId) &&
-      videoTaskTiming(relevant).waitExpired
-        ? '等待超时，已解除本地占用；可明确生成新视频'
-        : relevant.status === 'pending' || relevant.status === 'running'
-          ? '生成中…'
-          : relevant.status === 'unknown'
-            ? '结果未知，需查询原任务'
-            : relevant.status === 'failed'
-              ? '生成失败'
-              : relevant.status === 'canceled'
-                ? '已停止本地等待'
-                : '已完成';
+      relevant.status === 'pending' || relevant.status === 'running'
+        ? '生成中…'
+        : relevant.status === 'unknown'
+          ? '结果未知，需查询原任务'
+          : relevant.status === 'failed'
+            ? '生成失败'
+            : relevant.status === 'canceled'
+              ? '已停止本地等待'
+              : '已完成';
     container.append(status);
     if (relevant.error) {
       const detail = document.createElement('small');
@@ -1584,6 +1636,11 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       }
       const flow = documentState.templateFlow;
       if (flow && [flow.imageId, flow.videoId].includes(attempt.targetNodeId)) continue;
+      if (
+        attempt.kind === 'video' &&
+        (attempt.localWaitCanceledAt || stoppedAttempts.has(attempt.id))
+      )
+        continue;
       restored =
         (attempt.kind === 'video'
           ? await recoverVideo(attempt, list, false)
@@ -1667,7 +1724,17 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   }
   function nodeState(nodeId: string) {
     const attempt = latestNodeAttempt(nodeId);
-    if (!attempt || attempt.status === 'succeeded') return;
+    if (!attempt) return;
+    const stopped =
+      attempt.kind === 'video' &&
+      Boolean(attempt.localWaitCanceledAt || stoppedAttempts.has(attempt.id));
+    if (
+      attempt.status === 'succeeded' &&
+      (!stopped ||
+        options.getDocument()?.nodes.find((item: any) => item.id === nodeId)?.generation
+          ?.attemptId === attempt.id)
+    )
+      return;
     if (attempt.status === 'failed') {
       const current = options.getDocument();
       const target = current?.nodes.find((item: any) => item.id === nodeId);
@@ -1687,18 +1754,13 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         return;
     }
     return {
-      status:
-        attempt.kind === 'video' &&
-        videoTaskTiming(attempt).waitExpired &&
-        !(attempt.executionState === 'not_executed' && !attempt.taskId) &&
-        attempt.remoteStatus !== 'failed'
-          ? 'timedout'
-          : attempt.status,
+      status: stopped ? 'canceled' : attempt.status,
       canQuery:
         attempt.kind === 'video' &&
         Boolean(attempt.taskId) &&
         !videoTaskTiming(attempt).queryExpired &&
-        ['running', 'pending', 'unknown', 'canceled', 'failed'].includes(attempt.status),
+        (stopped ||
+          ['running', 'pending', 'unknown', 'canceled', 'failed'].includes(attempt.status)),
     };
   }
 
@@ -1723,6 +1785,14 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     runTemplateImage,
     queueBlockReason,
     nodeState,
+    canStopWaiting(nodeId: string) {
+      return videoWaits.has(videoKey(options.getDocument()?.id, nodeId));
+    },
+    stopWaiting(nodeId: string) {
+      const key = videoKey(options.getDocument()?.id, nodeId);
+      stoppedVideos.add(key);
+      videoWaits.get(key)?.();
+    },
     async queryNode(nodeId: string) {
       const attempt = latestNodeAttempt(nodeId);
       if (attempt?.kind === 'video' && attempt.taskId) await action(attempt, 'query');
@@ -1733,15 +1803,19 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           attempt.canvasId === options.getDocument()?.id &&
           attempt.targetNodeId === nodeId &&
           !explicitPreExecutionRejection(attempt) &&
-          !(attempt.kind === 'video' && videoTaskTiming(attempt).waitExpired) &&
+          attempt.kind !== 'video' &&
           ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status)
       );
     },
     isNodeBusy(nodeId: string) {
-      return inFlight.has(nodeId) || importingReferences.has(referenceKey({ id: nodeId }));
+      return (
+        inFlight.has(nodeId) ||
+        videoWaits.has(videoKey(options.getDocument()?.id, nodeId)) ||
+        importingReferences.has(referenceKey({ id: nodeId }))
+      );
     },
     get isBusy() {
-      return inFlight.size > 0;
+      return inFlight.size > 0 || videoWaits.size > 0;
     },
   };
 }

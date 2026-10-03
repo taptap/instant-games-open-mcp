@@ -18,8 +18,8 @@ export function createCanvasGroupQueue(options: {
   needs(nodeId: string): boolean;
   problem?(nodeId: string): string | undefined;
   busy(): boolean;
-  videoBusy(): Promise<boolean>;
   run(nodeId: string): Promise<boolean>;
+  stopActive?(nodeId: string): void;
   confirm(message: string): boolean;
   changed(): void;
   error(message: string): void;
@@ -109,6 +109,7 @@ export function createCanvasGroupQueue(options: {
     const state = queues.get(groupId);
     if (!state || !executing(state)) return;
     state.stopping = true;
+    if (state.active) options.stopActive?.(state.active);
     state.message = state.active ? '当前步骤结束后停止；不取消远端任务' : '已停止后续';
     if (!state.active) state.phase = 'paused';
     options.changed();
@@ -184,26 +185,6 @@ export function createCanvasGroupQueue(options: {
             selected = state;
             break;
           }
-          if (['video', 'video-source'].includes(node!.type)) {
-            try {
-              if (await options.videoBusy()) {
-                state.phase = 'waiting';
-                state.message = '等待视频名额';
-                continue;
-              }
-            } catch (error) {
-              state.phase = 'paused';
-              state.message = '视频名额检查失败';
-              options.error(error instanceof Error ? error.message : String(error));
-              continue;
-            }
-          }
-          if (!executing(state) || state.stopping || options.getDocument() !== current) continue;
-          if (state.pending[0] !== id) {
-            selected = state;
-            break;
-          }
-          if (options.busy()) break;
           selected = state;
           state.active = id;
           state.pending.shift();

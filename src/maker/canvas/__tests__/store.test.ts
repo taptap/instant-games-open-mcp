@@ -1,7 +1,28 @@
 import { CanvasStoreError } from '../model.js';
-import { dispatchCanvasStoreRequest, MemoryCanvasDocumentStore } from '../store.js';
+import {
+  createBrowserCanvasDocumentStore,
+  dispatchCanvasStoreRequest,
+  MemoryCanvasDocumentStore,
+} from '../store.js';
 
 describe('CanvasDocumentStore port', () => {
+  test('forwards local abort signals without adding them to paid generation parameters', async () => {
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({}),
+    })) as unknown as jest.MockedFunction<typeof fetch>;
+    const store = createBrowserCanvasDocumentStore('project', fetcher);
+    const controller = new AbortController();
+    const input = { prompt: '原地跑步', sourceImagePath: 'assets/image/head.png' };
+    await store.createVideo('canvas', input, controller.signal);
+    await store.generationAction('canvas', 'attempt', 'retry', controller.signal);
+    expect(fetcher.mock.calls[0][1]?.signal).toBe(controller.signal);
+    expect(fetcher.mock.calls[0][1]?.body).toBe(JSON.stringify(input));
+    expect(fetcher.mock.calls[1][1]?.signal).toBe(controller.signal);
+    controller.abort();
+    expect(fetcher.mock.calls[0][1]?.signal?.aborted).toBe(true);
+  });
+
   test('dispatches create, load, save, and active-canvas operations through the port', async () => {
     const store = new MemoryCanvasDocumentStore();
     const createdResponse = await dispatchCanvasStoreRequest(store, '/canvases', {

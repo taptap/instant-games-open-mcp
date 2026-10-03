@@ -78,12 +78,14 @@ export interface CanvasDocumentStore {
       sourceImageId?: string;
       targetNodeId?: string;
       duration?: number;
-    }
+    },
+    signal?: AbortSignal
   ): Promise<CanvasGenerationAttempt>;
   generationAction(
     canvasId: string,
     attemptId: string,
-    action: 'query' | 'retry' | 'cancel'
+    action: 'query' | 'retry' | 'cancel',
+    signal?: AbortSignal
   ): Promise<CanvasGenerationAttempt>;
 }
 
@@ -287,16 +289,17 @@ export function createBrowserCanvasDocumentStore(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
       }),
-    createVideo: (canvasId, input) =>
+    createVideo: (canvasId, input, signal) =>
       request<CanvasGenerationAttempt>('/canvases/' + canvasId + '/generation/video', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
+        signal,
       }),
-    generationAction: (canvasId, attemptId, action) =>
+    generationAction: (canvasId, attemptId, action, signal) =>
       request<CanvasGenerationAttempt>(
         '/canvases/' + canvasId + '/generation/' + attemptId + '/' + action,
-        { method: 'POST' }
+        { method: 'POST', signal }
       ),
   };
 }

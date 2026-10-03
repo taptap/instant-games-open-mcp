@@ -11,15 +11,12 @@ import {
 import type { MakerRemoteProxyManager } from '../server/remoteProxyManager.js';
 import { MakerCanvasFiles } from '../canvas/files.js';
 import { snapshotCanvasSource, type CanvasSourceSnapshot } from '../canvas/dependencies.js';
-import { MakerProjectRegistry } from '../projectRegistry.js';
 import { ConsoleError } from './types.js';
 import { videoTaskTiming } from '../canvas/videoTaskTiming.js';
 import {
-  reserveVideo,
-  reservedVideo,
+  acquireVideoSubmission,
+  releaseVideoSubmission,
   unfinishedVideo,
-  occupiesVideoSlot,
-  videoBusy,
   type CanvasVideoBusy,
 } from './canvasVideoGate.js';
 
@@ -253,25 +250,31 @@ export class CanvasGenerationService {
     }
   }
 
-  async createVideo(options: {
-    canvasId: string;
-    prompt: string;
-    sourceImagePath: string;
-    sourceImageId?: string;
-    targetNodeId?: string;
-    duration?: number;
-    model?: string;
-    resolution?: string;
-    ratio?: string;
-    userConfirmed?: boolean;
-    sourceImagePaths?: string[];
-    sourceImageIds?: string[];
-    referenceImagePaths?: string[];
-    mode?: string;
-  }): Promise<CanvasGenerationAttempt> {
+  async createVideo(
+    options: {
+      canvasId: string;
+      prompt: string;
+      sourceImagePath: string;
+      sourceImageId?: string;
+      targetNodeId?: string;
+      duration?: number;
+      model?: string;
+      resolution?: string;
+      ratio?: string;
+      userConfirmed?: boolean;
+      sourceImagePaths?: string[];
+      sourceImageIds?: string[];
+      referenceImagePaths?: string[];
+      mode?: string;
+    },
+    signal?: AbortSignal
+  ): Promise<CanvasGenerationAttempt> {
+    signal?.throwIfAborted();
     const files = new MakerCanvasFiles(this.projectRoot);
     await files.assertWritableForGeneration();
+    signal?.throwIfAborted();
     const document = await files.load(options.canvasId);
+    signal?.throwIfAborted();
     const sourceImagePaths = options.sourceImagePaths?.length
       ? options.sourceImagePaths
       : [options.sourceImagePath];
@@ -348,14 +351,24 @@ export class CanvasGenerationService {
     };
     attempt.targetAssetPath =
       document.nodes.find((node) => node.id === options.targetNodeId)?.assetPath || '';
-    if (this.busyVideo())
-      throw new ConsoleError(
-        '已有未完成视频，请等待原任务；提交满 10 分钟后解除本地占用，不代表远端已取消。',
-        409
-      );
-    reserveVideo(fs.realpathSync(this.projectRoot), attempt, () => this.writeAttempt(attempt));
     const operationKey = this.operationKey(attempt.id);
+    const releaseSubmission = acquireVideoSubmission(this.projectRoot, attempt);
+    try {
+      this.writeAttempt(attempt);
+    } catch (error) {
+      releaseSubmission();
+      throw error;
+    }
     videoOperations.add(operationKey);
+    let cancelError: unknown;
+    const cancelLocalWait = () => {
+      try {
+        this.cancel(attempt.id, attempt.canvasId);
+      } catch (error) {
+        cancelError = error;
+      }
+    };
+    signal?.addEventListener('abort', cancelLocalWait, { once: true });
     try {
       const result = await callRemoteProxyTool({
         targetDir: this.projectRoot,
@@ -386,13 +399,15 @@ export class CanvasGenerationService {
         },
       });
       this.finishVideoResult(attempt, result, files);
-      return attempt;
     } catch (error) {
       this.failVideoAttempt(attempt, error, false);
-      return attempt;
     } finally {
+      signal?.removeEventListener('abort', cancelLocalWait);
       videoOperations.delete(operationKey);
+      releaseSubmission();
     }
+    if (cancelError) throw cancelError;
+    return attempt;
   }
 
   async queryVideo(attemptId: string, canvasId?: string): Promise<CanvasGenerationAttempt> {
@@ -410,9 +425,7 @@ export class CanvasGenerationService {
       Date.parse(attempt.nextQueryAt) > Date.now()
     )
       throw new ConsoleError(
-        '首次 pending 后需等待 120 秒再查询，请于 ' +
-          attempt.nextQueryAt +
-          ' 后查询原任务；本地占用最多持续到提交后 10 分钟。',
+        '首次 pending 后需等待 120 秒再查询，请于 ' + attempt.nextQueryAt + ' 后查询原任务。',
         429
       );
     const operationKey = this.operationKey(attempt.id);
@@ -439,11 +452,16 @@ export class CanvasGenerationService {
     }
   }
 
-  async retry(attemptId: string, canvasId?: string): Promise<CanvasGenerationAttempt> {
+  async retry(
+    attemptId: string,
+    canvasId?: string,
+    signal?: AbortSignal
+  ): Promise<CanvasGenerationAttempt> {
+    signal?.throwIfAborted();
     const previous = this.readAttemptForCanvas(attemptId, canvasId);
     if (previous.kind === 'video' && unfinishedVideo(previous))
       throw new Error(
-        '结果未取得或未知，不能自动重试付费生成；有 taskId 可在提交后 6 小时内查询，满 10 分钟后可明确生成新视频。'
+        '结果未取得或未知，不能自动重试付费生成；有 taskId 可在提交后 6 小时内查询，也可明确生成新视频。'
       );
     if (previous.status === 'unknown') {
       throw new Error('结果未知，不能自动重试；视频任务请先查询原 taskId。');
@@ -471,17 +489,20 @@ export class CanvasGenerationService {
       throw new ConsoleError('该视频正在操作，请等待完成。', 409);
     videoOperations.add(operationKey);
     try {
-      return await this.createVideo({
-        canvasId: previous.canvasId,
-        prompt: previous.prompt,
-        sourceImagePath: previous.sourceImagePath,
-        sourceImageId: previous.sourceImageId,
-        targetNodeId: previous.targetNodeId,
-        sourceImagePaths: previous.sourceImagePaths,
-        sourceImageIds: previous.sourceImageIds,
-        referenceImagePaths: previous.referenceImagePaths,
-        ...previous.parameters,
-      });
+      return await this.createVideo(
+        {
+          canvasId: previous.canvasId,
+          prompt: previous.prompt,
+          sourceImagePath: previous.sourceImagePath,
+          sourceImageId: previous.sourceImageId,
+          targetNodeId: previous.targetNodeId,
+          sourceImagePaths: previous.sourceImagePaths,
+          sourceImageIds: previous.sourceImageIds,
+          referenceImagePaths: previous.referenceImagePaths,
+          ...previous.parameters,
+        },
+        signal
+      );
     } finally {
       videoOperations.delete(operationKey);
     }
@@ -490,15 +511,18 @@ export class CanvasGenerationService {
   cancel(attemptId: string, canvasId?: string): CanvasGenerationAttempt {
     const attempt = this.readAttemptForCanvas(attemptId, canvasId);
     const querying = attempt.kind === 'video' && videoOperations.has(this.operationKey(attempt.id));
-    if (!querying && (attempt.status === 'succeeded' || attempt.status === 'failed'))
-      return attempt;
+    const completed = attempt.status === 'succeeded' || attempt.status === 'failed';
+    if (completed && attempt.kind !== 'video') return attempt;
     if (attempt.kind === 'video') attempt.localWaitCanceledAt = new Date().toISOString();
-    attempt.status = 'canceled';
-    attempt.error = attempt.taskId
-      ? '已停止本地等待；远端任务可能仍在运行，可使用原 taskId 查询。'
-      : '已在本地取消，未确认远端是否已派发。';
+    if (querying || !completed) {
+      attempt.status = 'canceled';
+      attempt.error = attempt.taskId
+        ? '已停止本地等待；远端任务可能仍在运行，可使用原 taskId 查询。'
+        : '已在本地取消，未确认远端是否已派发。';
+    }
     this.touch(attempt);
     this.writeAttempt(attempt);
+    if (attempt.kind === 'video') releaseVideoSubmission(this.projectRoot, attempt);
     return attempt;
   }
 
@@ -536,27 +560,7 @@ export class CanvasGenerationService {
     return {
       items: attempts.slice(offset, offset + limit),
       total: attempts.length,
-      busy: this.busyVideo(),
     };
-  }
-
-  private busyVideo(): CanvasVideoBusy | undefined {
-    const reserved = reservedVideo();
-    if (reserved) return reserved;
-    const roots = new Set([
-      this.projectRoot,
-      ...new MakerProjectRegistry()
-        .list()
-        .filter((project) => project.valid)
-        .map((project) => project.path),
-    ]);
-    for (const root of roots) {
-      const attempt = new CanvasGenerationService(root, this.remoteProxyManager)
-        .list()
-        .find(occupiesVideoSlot);
-      if (attempt) return videoBusy(root, attempt);
-    }
-    return undefined;
   }
 
   private operationKey(id: string): string {
@@ -597,7 +601,7 @@ export class CanvasGenerationService {
     attempt.failureStage = attempt.remoteStatus === 'failed' ? 'remote' : undefined;
     attempt.error = videoTaskError(payload);
     if (!attempt.taskId && attempt.status !== 'failed')
-      attempt.error = '响应未返回 taskId，无法查询；提交满 10 分钟后可明确生成新视频，不自动重试。';
+      attempt.error = '响应未返回 taskId，无法查询；可明确生成新视频，不自动重试。';
     this.writeVideoAttempt(attempt);
   }
 
@@ -650,7 +654,7 @@ export class CanvasGenerationService {
     attempt.error =
       detail.message +
       (!attempt.taskId && attempt.status === 'unknown'
-        ? ' 未取得 taskId，无法查询；提交满 10 分钟后可明确生成新视频，不自动重试。'
+        ? ' 未取得 taskId，无法查询；可明确生成新视频，不自动重试。'
         : '');
     this.writeVideoAttempt(attempt);
   }
@@ -728,8 +732,7 @@ export class CanvasGenerationService {
         ...value,
         status: 'unknown',
         error:
-          value.error ||
-          '本地等待已中断；本地占用最多 10 分钟，有 taskId 可在提交后 6 小时内查询。',
+          value.error || '本地等待已中断；有 taskId 可在提交后 6 小时内查询，不自动重试付费生成。',
       };
     const marker = value.error?.indexOf('remote_result:') ?? -1;
     if (value.status === 'failed' && marker >= 0) {

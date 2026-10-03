@@ -251,33 +251,49 @@ export async function handleCanvasProjectRoute(options: {
     const generationVideo = suffix.match(/^canvases\/([0-9a-f-]{36})\/generation\/video$/i);
     if (generationVideo && method === 'POST') {
       if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
-      const body = JSON.parse(
-        (await readBytes(request, 64 * 1024)).toString('utf8') || '{}'
-      ) as Record<string, unknown>;
-      if (typeof body.prompt !== 'string' || !body.prompt.trim())
-        throw new ConsoleError('缺少视频生成提示词。');
-      if (typeof body.sourceImagePath !== 'string') throw new ConsoleError('缺少视频来源图片。');
-      const attempt = await new CanvasGenerationService(
-        project.path,
-        options.remoteProxyManager
-      ).createVideo({
-        canvasId: generationVideo[1],
-        prompt: body.prompt,
-        sourceImagePath: body.sourceImagePath,
-        sourceImageId: typeof body.sourceImageId === 'string' ? body.sourceImageId : undefined,
-        targetNodeId: typeof body.targetNodeId === 'string' ? body.targetNodeId : undefined,
-        duration: typeof body.duration === 'number' ? body.duration : undefined,
-        model: typeof body.model === 'string' ? body.model : undefined,
-        resolution: typeof body.resolution === 'string' ? body.resolution : undefined,
-        ratio: typeof body.ratio === 'string' ? body.ratio : undefined,
-        userConfirmed: body.userConfirmed === true,
-        sourceImagePaths: stringList(body.sourceImagePaths),
-        sourceImageIds: stringList(body.sourceImageIds),
-        referenceImagePaths: stringList(body.referenceImagePaths),
-        mode: typeof body.mode === 'string' ? body.mode : undefined,
-      });
-      send(response, 200, attempt);
-      return true;
+      const controller = new AbortController();
+      const onClose = () => {
+        if (!response.writableEnded) controller.abort();
+      };
+      response.once('close', onClose);
+      if (response.destroyed) onClose();
+      try {
+        const body = JSON.parse(
+          (await readBytes(request, 64 * 1024)).toString('utf8') || '{}'
+        ) as Record<string, unknown>;
+        if (typeof body.prompt !== 'string' || !body.prompt.trim())
+          throw new ConsoleError('缺少视频生成提示词。');
+        if (typeof body.sourceImagePath !== 'string') throw new ConsoleError('缺少视频来源图片。');
+        const attempt = await new CanvasGenerationService(
+          project.path,
+          options.remoteProxyManager
+        ).createVideo(
+          {
+            canvasId: generationVideo[1],
+            prompt: body.prompt,
+            sourceImagePath: body.sourceImagePath,
+            sourceImageId: typeof body.sourceImageId === 'string' ? body.sourceImageId : undefined,
+            targetNodeId: typeof body.targetNodeId === 'string' ? body.targetNodeId : undefined,
+            duration: typeof body.duration === 'number' ? body.duration : undefined,
+            model: typeof body.model === 'string' ? body.model : undefined,
+            resolution: typeof body.resolution === 'string' ? body.resolution : undefined,
+            ratio: typeof body.ratio === 'string' ? body.ratio : undefined,
+            userConfirmed: body.userConfirmed === true,
+            sourceImagePaths: stringList(body.sourceImagePaths),
+            sourceImageIds: stringList(body.sourceImageIds),
+            referenceImagePaths: stringList(body.referenceImagePaths),
+            mode: typeof body.mode === 'string' ? body.mode : undefined,
+          },
+          controller.signal
+        );
+        if (!controller.signal.aborted) send(response, 200, attempt);
+        return true;
+      } catch (error) {
+        if (controller.signal.aborted && response.destroyed) return true;
+        throw error;
+      } finally {
+        response.removeListener('close', onClose);
+      }
     }
     const generationAction = suffix.match(
       /^canvases\/([0-9a-f-]{36})\/generation\/([0-9a-f-]{36})\/(query|retry|cancel)$/i
@@ -286,14 +302,29 @@ export async function handleCanvasProjectRoute(options: {
       if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
       const service = new CanvasGenerationService(project.path, options.remoteProxyManager);
       const action = generationAction[3].toLowerCase();
-      const attempt =
-        action === 'query'
-          ? await service.queryVideo(generationAction[2], generationAction[1])
-          : action === 'retry'
-            ? await service.retry(generationAction[2], generationAction[1])
-            : service.cancel(generationAction[2], generationAction[1]);
-      send(response, 200, attempt);
-      return true;
+      const controller = action === 'retry' ? new AbortController() : undefined;
+      const onClose = () => {
+        if (!response.writableEnded) controller?.abort();
+      };
+      if (controller) {
+        response.once('close', onClose);
+        if (response.destroyed) onClose();
+      }
+      try {
+        const attempt =
+          action === 'query'
+            ? await service.queryVideo(generationAction[2], generationAction[1])
+            : action === 'retry'
+              ? await service.retry(generationAction[2], generationAction[1], controller?.signal)
+              : service.cancel(generationAction[2], generationAction[1]);
+        if (!controller?.signal.aborted) send(response, 200, attempt);
+        return true;
+      } catch (error) {
+        if (controller?.signal.aborted && response.destroyed) return true;
+        throw error;
+      } finally {
+        if (controller) response.removeListener('close', onClose);
+      }
     }
     const one = suffix.match(/^canvases\/([0-9a-f-]{36})$/i);
     if (one && method === 'GET') {

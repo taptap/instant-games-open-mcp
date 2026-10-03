@@ -18,7 +18,7 @@ export function createVideoHistoryUi(options: {
     title.textContent = '视频历史';
     const hint = document.createElement('p');
     hint.textContent =
-      '提交满 10 分钟后允许生成新视频，不取消旧任务；原 taskId 在提交后 6 小时内可查询。查询不重新付费生成，运行中至少间隔 2 分钟。这是本地期限，不代表远端任务的有效期。';
+      '不设本地生成冷却时间，能否提交由 Maker 服务判断。停止等待不取消远端任务；原 taskId 在提交后 6 小时内可查询，运行中查询至少间隔 2 分钟。此期限仅为本地策略，查询不会重新付费生成。';
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
     const list = document.createElement('div');
@@ -28,6 +28,7 @@ export function createVideoHistoryUi(options: {
     let total = 0;
     let loading = false;
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let stopQuery: (() => void) | undefined;
     function button(parent: HTMLElement, label: string, action: () => void) {
       const element = document.createElement('button');
       element.type = 'button';
@@ -40,7 +41,7 @@ export function createVideoHistoryUi(options: {
       previous.disabled = loading || querying || offset === 0;
       next.disabled = loading || querying || offset + 30 >= total;
       refresh.disabled = loading || querying;
-      close.disabled = querying;
+      close.textContent = querying ? '停止等待并关闭' : '关闭';
       for (const item of Array.from(list.querySelectorAll<HTMLButtonElement>('button[data-query]')))
         item.disabled =
           loading ||
@@ -59,7 +60,7 @@ export function createVideoHistoryUi(options: {
         const deadlines = [...page.items, ...(page.busy ? [page.busy] : [])]
           .flatMap((attempt) => {
             const timing = videoTaskTiming(attempt);
-            return [timing.waitUntil, timing.queryUntil];
+            return [timing.queryUntil];
           })
           .filter((value): value is number => value !== undefined && value > Date.now());
         if (deadlines.length)
@@ -73,7 +74,7 @@ export function createVideoHistoryUi(options: {
           ? (page.busy.projectLabel || '') +
             '：' +
             (page.busy.reason || '有视频尚未取得结果，请查询原任务。')
-          : '共 ' + total + ' 条；当前没有占用中的视频任务。';
+          : '共 ' + total + ' 条；历史任务不会限制新视频提交。';
         if (!total) list.textContent = '还没有视频生成记录。';
         for (const attempt of page.items) {
           const timing = videoTaskTiming(attempt);
@@ -89,11 +90,9 @@ export function createVideoHistoryUi(options: {
                 ? '上游已明确失败'
                 : attempt.executionState === 'not_executed' && !attempt.taskId
                   ? '未提交至上游'
-                  : timing.waitExpired
-                    ? '等待超时 · 未取回视频 · 已解除本地占用'
-                    : attempt.taskId
-                      ? '未取回视频 · 可查询原任务'
-                      : '无 taskId · 请核实执行结果';
+                  : attempt.taskId
+                    ? '未取回视频 · 可查询原任务'
+                    : '无 taskId · 请核实执行结果';
           heading.textContent = new Date(attempt.createdAt).toLocaleString() + ' · ' + state;
           const info = document.createElement('p');
           info.textContent =
@@ -124,9 +123,29 @@ export function createVideoHistoryUi(options: {
               options.onBusyChange?.();
               controls();
               status.textContent = '正在查询原任务，不会重新提交生成…';
+              let active = true;
+              const timer = setTimeout(() => stopQuery?.(), 5 * 60_000);
+              stopQuery = () => {
+                active = false;
+                clearTimeout(timer);
+                stopQuery = undefined;
+                querying = false;
+                options.onBusyChange?.();
+                controls();
+                status.textContent = '已停止等待，远端查询不会取消；可稍后刷新历史。';
+                void options.store
+                  .generationAction(attempt.canvasId, attempt.id, 'cancel')
+                  .catch(() => {
+                    if (root.isConnected)
+                      status.textContent = '已停止等待，但停止标记保存失败；请刷新历史核实原任务。';
+                  });
+              };
               void options.store
                 .generationAction(attempt.canvasId, attempt.id, 'query')
                 .then(async (result) => {
+                  if (!active) return;
+                  clearTimeout(timer);
+                  stopQuery = undefined;
                   const applied = await options.recover(result);
                   await finish();
                   status.textContent = result.resultAssetPath
@@ -136,10 +155,14 @@ export function createVideoHistoryUi(options: {
                     : result.error || '尚未取回视频，可稍后再次查询。';
                 })
                 .catch(async (error) => {
+                  if (!active) return;
                   await finish();
                   status.textContent = String(error);
                 });
               async function finish() {
+                active = false;
+                clearTimeout(timer);
+                stopQuery = undefined;
                 querying = false;
                 options.onBusyChange?.();
                 await load();
@@ -175,7 +198,8 @@ export function createVideoHistoryUi(options: {
     });
     const refresh = button(footer, '刷新', () => void load());
     function dismiss() {
-      if (querying) return;
+      if (querying && !stopQuery) return;
+      stopQuery?.();
       clearTimeout(refreshTimer);
       root.close();
       root.remove();

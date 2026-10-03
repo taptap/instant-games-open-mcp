@@ -288,6 +288,7 @@ try {
       assert.equal((await files.load(canvas.id)).nodes.find(node => node.id === videoId).type, 'video-source');
     }],
     ['视频历史读取本地记录并可关闭，不提交生成', async () => {
+      await page.locator('.canvas-log summary').click();
       await page.getByRole('button', { name: '视频历史', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: '视频历史', exact: true });
       await dialog.getByText('已取回本地', { exact: false }).waitFor();
@@ -303,7 +304,13 @@ try {
       await dialog.getByText('视频已取回并更新原卡片。', { exact: true }).waitFor();
       assert.equal(queries, 1);
       assert.equal(report.generationRequests.video, 1);
-      await dialog.getByRole('button', { name: '关闭', exact: true }).click();
+      let delayedQuery;
+      await page.route('**/generation/' + attempt.id + '/query', route => { delayedQuery = route; });
+      await dialog.getByRole('button', { name: '查询并取回', exact: true }).click();
+      await dialog.getByRole('button', { name: '停止等待并关闭', exact: true }).click();
+      await dialog.waitFor({ state: 'detached' });
+      assert.ok(delayedQuery);
+      await delayedQuery.fulfill({ json: attempt });
     }],
     ['实际尺寸与本地抠图保存接入画布，不调用远端', async () => {
       const original = (await files.load(canvas.id)).nodes.find(node => node.id === generatedId);
@@ -366,6 +373,61 @@ try {
       await deleteCard(generatedId); await saved();
       await page.reload(); await page.getByText('已保存', { exact: true }).waitFor();
       assert.equal(await page.locator('.card').count(), 0);
+    }],
+    ['停止分组和卡片视频等待立即解锁，允许明确新生成且迟到结果不覆盖', async () => {
+      const document = await files.load(canvas.id);
+      const groupId = randomUUID();
+      const sourceId = randomUUID();
+      const targetId = randomUUID();
+      const originalVideo = files.importGeneratedVideo(canvas.id, ensureVideoAsset());
+      document.nodes = [
+        { id: groupId, type: 'section', title: '停止等待验收', templateId: randomUUID(), x: 30, y: 50, width: 850, height: 320 },
+        { id: sourceId, type: 'image', title: '参考图片', sectionId: groupId, assetPath: imagePath, x: 60, y: 105, width: 230, height: 220 },
+        { id: targetId, type: 'video-source', title: '视频等待验收', assetPath: originalVideo, sectionId: groupId, templatePending: true, x: 400, y: 105, width: 330, height: 220, generation: { prompt: '固定镜头，角色原地跑步', parameters: { mode: 'first_frame', duration: 4 } } },
+      ];
+      document.edges = [{ id: randomUUID(), from: sourceId, to: targetId, kind: 'image-to-video' }];
+      document.viewport = { x: 0, y: 0, scale: 1 };
+      await files.save(canvas.id, document, document.revision);
+      const held = [];
+      await page.route('**/generation/video', async route => {
+        const input = route.request().postDataJSON();
+        const attempt = { ...input, id: randomUUID(), canvasId: canvas.id, kind: 'video', toolName: 'create_video_task', status: 'running', targetAssetPath: originalVideo, sourceSnapshots: [snapshotCanvasSource(document.nodes[1])], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        const file = path.join(project, '.maker/canvases/attempts', attempt.id + '.json');
+        fs.writeFileSync(file, JSON.stringify(attempt));
+        held.push({ route, attempt, file });
+        report.simulatedGenerations++;
+        report.generationRequests.video++;
+      });
+      await page.reload();
+      const group = page.locator('.group-queue');
+      await group.getByRole('button', { name: '▶ 完成剩余流程', exact: true }).click();
+      await group.getByRole('button', { name: '确认执行', exact: true }).click();
+      const card = page.locator('.card[data-id="' + targetId + '"]');
+      await card.getByRole('button', { name: '停止等待', exact: true }).waitFor();
+      const firstCanceled = page.waitForResponse(response => response.url().endsWith('/cancel') && response.ok());
+      await group.getByRole('button', { name: /停止/ }).click();
+      await page.locator('.group-queue[data-phase=paused]').waitFor();
+      await firstCanceled;
+      await card.getByRole('button', { name: '调整参数', exact: true }).click();
+      await page.getByRole('button', { name: '应用并继续', exact: true }).click();
+      await card.getByRole('button', { name: '停止等待', exact: true }).waitFor();
+      const secondCanceled = page.waitForResponse(response => response.url().endsWith('/cancel') && response.ok());
+      await card.getByRole('button', { name: '停止等待', exact: true }).click();
+      await card.getByRole('button', { name: '调整参数', exact: true }).waitFor();
+      await secondCanceled;
+      assert.equal(held.length, 2);
+      for (const item of held) {
+        const persisted = JSON.parse(fs.readFileSync(item.file, 'utf8'));
+        assert.ok(persisted.localWaitCanceledAt);
+        const result = { ...persisted, status: 'succeeded', taskId: 'late-' + item.attempt.id, resultAssetPath: files.importGeneratedVideo(canvas.id, ensureVideoAsset()) };
+        fs.writeFileSync(item.file, JSON.stringify(result));
+        await item.route.fulfill({ json: result });
+      }
+      await page.reload();
+      await card.waitFor();
+      assert.equal((await files.load(canvas.id)).nodes.find(node => node.id === targetId).assetPath, originalVideo);
+      assert.equal(held.length, 2);
+      await page.screenshot({ path: path.join(reportDir, 'video-wait-stopped.png') });
     }],
   ];
   for (const [name, run] of checks) {

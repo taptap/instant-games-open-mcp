@@ -27,6 +27,7 @@ export function renderCanvasCardStatus(
   state: CanvasCardStatus | undefined,
   options: {
     query?: () => Promise<void>;
+    stopWaiting?: () => void;
     resume?: () => Promise<void>;
     adjust?: () => void;
     waitingForSource?: boolean;
@@ -41,7 +42,7 @@ export function renderCanvasCardStatus(
     waiting: ['待处理', '来源已变化或此步骤尚未执行，旧结果暂时保留'],
     paused: ['等待继续', '选择卡片，继续处理或调整参数'],
     failed: ['处理失败', '本次未完成，可查看原因后重试'],
-    unknown: ['结果待确认', '请核查原任务，不要重复生成'],
+    unknown: ['结果待确认', '可查询原任务；主动重新生成可能重复扣费'],
   };
   const overlay = document.createElement('div');
   overlay.className = 'card-state-overlay card-state-' + state;
@@ -126,6 +127,18 @@ export function renderCanvasCardStatus(
     });
     overlay.append(query);
   }
+  if (options.stopWaiting) {
+    const stop = document.createElement('button');
+    stop.type = 'button';
+    stop.className = 'card-state-query card-state-stop';
+    stop.textContent = '停止等待';
+    stop.addEventListener('pointerdown', (event) => event.stopPropagation());
+    stop.addEventListener('click', (event) => {
+      event.stopPropagation();
+      options.stopWaiting!();
+    });
+    overlay.append(stop);
+  }
   if (options.resume && ['waiting', 'paused', 'failed'].includes(state)) {
     hint.textContent = '使用当前引用和已保存参数，更新此卡及后续待处理卡片';
     if (state === 'failed' && options.detail) hint.textContent = options.detail;
@@ -147,7 +160,11 @@ export function renderCanvasCardStatus(
     });
     overlay.append(resume);
   }
-  if (options.adjust && ['waiting', 'paused', 'failed'].includes(state)) {
+  if (
+    options.adjust &&
+    ['waiting', 'paused', 'failed', 'unknown', 'loading'].includes(state) &&
+    !options.stopWaiting
+  ) {
     const adjust = document.createElement('button');
     adjust.type = 'button';
     adjust.className = 'card-state-query card-state-adjust';

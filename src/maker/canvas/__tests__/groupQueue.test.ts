@@ -44,7 +44,7 @@ function fixture() {
     needs: (id: string) => !completed.has(id),
     problem: (id: string) => problems.get(id),
     busy: jest.fn(() => false),
-    videoBusy: jest.fn(async () => false),
+    stopActive: jest.fn((_id: string) => {}),
     run: jest.fn(async (id: string) => {
       completed.add(id);
       return true;
@@ -119,7 +119,6 @@ test('omits already completed cards when starting a group', async () => {
   await jest.advanceTimersByTimeAsync(0);
 
   expect(options.run.mock.calls).toEqual([['sequence'], ['animation']]);
-  expect(options.videoBusy).not.toHaveBeenCalled();
   expect(queue.view('group')).toMatchObject({ phase: 'complete', total: 2, completed: 2 });
 });
 
@@ -162,26 +161,6 @@ test('rejects moving a dependent before its source or a source after its depende
   expect(options.run).not.toHaveBeenCalled();
 });
 
-test.each([false, true])(
-  'rechecks the queue head after reordering during videoBusy (occupied=%s)',
-  async (occupied) => {
-    const { queue, document, options } = fixture();
-    document.nodes = [node('group', 'section'), node('first', 'video'), node('second', 'video')];
-    document.edges = [];
-    const occupancy = deferred<boolean>();
-    options.videoBusy.mockReturnValueOnce(occupancy.promise);
-    queue.start('group');
-    expect(options.videoBusy).toHaveBeenCalledTimes(1);
-    expect(queue.move('group', 'second', 'first')).toBe(true);
-
-    occupancy.resolve(occupied);
-    await jest.advanceTimersByTimeAsync(4000);
-
-    expect(options.run.mock.calls).toEqual([['second'], ['first']]);
-    expect(queue.view('group')).toMatchObject({ phase: 'complete', completed: 2, pending: [] });
-  }
-);
-
 test('stopping waits for the active step without canceling it or starting descendants', async () => {
   const { queue, options } = fixture();
   const active = deferred<boolean>();
@@ -208,18 +187,31 @@ test('stopping waits for the active step without canceling it or starting descen
   expect(queue.isBusy).toBe(false);
 });
 
-test('stopping during a video occupancy check prevents submission after the check resolves', async () => {
+test('stopping an active video releases local waiting immediately and never starts descendants', async () => {
   const { queue, options, completed } = fixture();
   completed.add('image');
-  const occupancy = deferred<boolean>();
-  options.videoBusy.mockReturnValueOnce(occupancy.promise);
+  const remote = deferred<boolean>();
+  const stopped = deferred<boolean>();
+  options.run.mockReturnValueOnce(Promise.race([remote.promise, stopped.promise]));
+  options.stopActive.mockImplementation(() => stopped.resolve(false));
   queue.start('group');
+  expect(queue.view('group')?.active).toBe('video');
   queue.stop('group');
-  occupancy.resolve(false);
-  await jest.advanceTimersByTimeAsync(10000);
+  expect(options.stopActive).toHaveBeenCalledWith('video');
+  await jest.advanceTimersByTimeAsync(0);
 
-  expect(options.run).not.toHaveBeenCalled();
-  expect(queue.view('group')?.phase).toBe('paused');
+  expect(queue.isBusy).toBe(false);
+  expect(queue.protects('video')).toBe(false);
+  expect(queue.view('group')).toMatchObject({
+    phase: 'paused',
+    active: undefined,
+    completed: 0,
+    pending: ['video', 'sequence', 'animation'],
+  });
+  remote.resolve(true);
+  await jest.advanceTimersByTimeAsync(10000);
+  expect(options.run.mock.calls).toEqual([['video']]);
+  expect(queue.view('group')).toMatchObject({ phase: 'paused', completed: 0 });
 });
 
 test.each(['false', 'throw'])(
@@ -277,63 +269,49 @@ test('groups share the single-step lock and one group failure does not stop anot
   expect(queue.view('other-group')?.phase).toBe('complete');
 });
 
-test('shared video occupancy waits without blocking another group or submitting video early', async () => {
+test('videos use the same execution queue as other cards without a separate occupancy check', async () => {
   const { queue, options } = twoGroups();
   options.busy.mockReturnValue(true);
-  options.videoBusy.mockResolvedValue(true);
   queue.start('group');
   queue.start('other-group');
   options.busy.mockReturnValue(false);
   await jest.advanceTimersByTimeAsync(4000);
 
-  expect(options.run.mock.calls).toEqual([['other-image']]);
-  expect(queue.view('group')?.phase).toBe('waiting');
+  expect(options.run.mock.calls).toEqual([['video'], ['other-image']]);
   expect(queue.view('other-group')?.phase).toBe('complete');
-  options.videoBusy.mockResolvedValue(false);
-  await jest.advanceTimersByTimeAsync(2000);
-
-  expect(options.run.mock.calls).toEqual([['other-image'], ['video']]);
   expect(queue.view('group')?.phase).toBe('complete');
 });
 
-test('a video occupancy query error pauses only its own group and does not retry it', async () => {
+test('an upstream video rejection pauses only its own group and does not retry it', async () => {
   const { queue, options } = twoGroups();
   options.busy.mockReturnValue(true);
-  options.videoBusy.mockRejectedValue(new Error('occupancy unavailable'));
+  options.run.mockRejectedValueOnce(new Error('Maker concurrency limit'));
   queue.start('group');
   queue.start('other-group');
   options.busy.mockReturnValue(false);
   await jest.advanceTimersByTimeAsync(20000);
 
-  expect(options.run.mock.calls).toEqual([['other-image']]);
-  expect(options.videoBusy).toHaveBeenCalledTimes(1);
-  expect(options.error).toHaveBeenCalledWith('occupancy unavailable');
+  expect(options.run.mock.calls).toEqual([['video'], ['other-image']]);
+  expect(options.error).toHaveBeenCalledWith('Maker concurrency limit');
   expect(queue.view('group')?.phase).toBe('paused');
   expect(queue.view('other-group')?.phase).toBe('complete');
 });
 
-test.each(['execution', 'video check'])(
-  'switching canvas during %s prevents continuation or restoration',
-  async (stage) => {
-    const { queue, document, options, completed, setDocument } = fixture();
-    const pending = deferred<boolean>();
-    if (stage === 'execution') options.run.mockReturnValueOnce(pending.promise);
-    else {
-      completed.add('image');
-      options.videoBusy.mockReturnValueOnce(pending.promise);
-    }
-    queue.start('group');
-    await jest.advanceTimersByTimeAsync(0);
-    setDocument(emptyDocument());
-    expect(queue.view('group')).toBeUndefined();
-    pending.resolve(stage === 'execution');
-    await jest.advanceTimersByTimeAsync(10000);
+test('switching canvas during execution prevents continuation or restoration', async () => {
+  const { queue, document, options, setDocument } = fixture();
+  const pending = deferred<boolean>();
+  options.run.mockReturnValueOnce(pending.promise);
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  setDocument(emptyDocument());
+  expect(queue.view('group')).toBeUndefined();
+  pending.resolve(true);
+  await jest.advanceTimersByTimeAsync(10000);
 
-    expect(options.run.mock.calls).toEqual(stage === 'execution' ? [['image']] : []);
-    expect(queue.isBusy).toBe(false);
-    setDocument(document);
-    expect(queue.view('group')).toBeUndefined();
-    await jest.advanceTimersByTimeAsync(10000);
-    expect(options.run.mock.calls).toEqual(stage === 'execution' ? [['image']] : []);
-  }
-);
+  expect(options.run.mock.calls).toEqual([['image']]);
+  expect(queue.isBusy).toBe(false);
+  setDocument(document);
+  expect(queue.view('group')).toBeUndefined();
+  await jest.advanceTimersByTimeAsync(10000);
+  expect(options.run.mock.calls).toEqual([['image']]);
+});
