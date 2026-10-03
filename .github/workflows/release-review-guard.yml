@@ -10,6 +10,17 @@ permissions:
   pull-requests: read
 
 jobs:
+  branch-policy:
+    name: branch-policy
+    if: github.event.pull_request.head.ref == 'beta'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject beta as a main PR source
+        run: |
+          echo "::error::The beta branch is only for prerelease packaging and validation."
+          echo "::error::Create the PR from the original fix/feature development branch."
+          exit 1
+
   review:
     name: review
     if: startsWith(github.head_ref || '', 'release/')

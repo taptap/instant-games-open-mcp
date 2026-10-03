@@ -26,6 +26,15 @@ git push origin feature/new-feature
 # 7. 合并后由维护者按仓库 CI/CD 策略处理发布
 ```
 
+### Beta 分支边界
+
+- `beta` 只是临时 beta 发布和回归验证分支，不是功能开发分支。
+- 功能必须先提交在 `fix/`、`feature/` 或其它明确的开发分支。
+- 发 beta 时，可以把已提交的开发分支提交 cherry-pick 到 `beta`。
+- **禁止创建 `beta` → `main` 的 PR，也禁止把 beta 整体合并回 main。**
+- beta 验证完成后，必须从原开发分支向目标分支提交 PR；beta 上的临时版本策略提交
+  不作为正式功能合并来源。
+
 ### Commit 规范
 
 **必须**遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范：
