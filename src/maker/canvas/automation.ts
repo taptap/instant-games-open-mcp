@@ -1,0 +1,249 @@
+import type { CanvasDocument, CanvasNode } from './model.js';
+import { canvasGenerationParameterChoices, canvasParameterSchema } from './automationInfo.js';
+
+export interface CanvasCommand {
+  requestId: string;
+  pageId: string;
+  canvasId: string;
+  revision?: number;
+  action: string;
+  input: Record<string, unknown>;
+  allowPaid?: boolean;
+}
+
+export interface CanvasOperation {
+  id: string;
+  pageId: string;
+  canvasId: string;
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'unknown';
+  createdAt: number;
+  updatedAt: number;
+  result?: unknown;
+  resultExpired?: boolean;
+  error?: string;
+}
+
+export function canvasAutomationCapabilities() {
+  return {
+    actions: [
+      'inspect',
+      'create',
+      'open',
+      'rename',
+      'add-template',
+      'add-node',
+      'update-nodes',
+      'delete-nodes',
+      'duplicate',
+      'group',
+      'connect',
+      'disconnect',
+      'run',
+      'stop',
+      'query',
+      'import',
+      'set-references',
+      'export',
+    ],
+    nodeTypes: ['image', 'video', 'note', 'sequence', 'animation'],
+    editable: ['title', 'text', 'x', 'y', 'prompt', 'parameters', 'sequenceSettings'],
+    sequenceSettings: [
+      'start',
+      'end',
+      'fps',
+      'width',
+      'height',
+      'fit',
+      'pixel',
+      'cutout',
+      'cutoutMode',
+      'backgroundColor',
+      'tolerance',
+    ],
+    unsupported: [
+      'brush',
+      'per-frame-editing',
+      'automatic-duplicate-removal',
+      'headless-execution',
+      'template-library-mutation',
+    ],
+    requiresConnectedPage: true,
+    paidExecutionRequiresAllowPaid: true,
+    parameterSchema: canvasParameterSchema(),
+    inputs: {
+      inspect: { id: 'optional node or group ID; includes direct upstream' },
+      import: { file: 'CLI --file: absolute local path', title: 'optional title in input JSON' },
+      'set-references': {
+        id: 'target image/video ID',
+        sourceIds: 'ordered image IDs; [] clears',
+        includeSelf: 'optional boolean, image only; default false',
+      },
+      'add-node': {
+        type: 'image/video/note/sequence/animation',
+        sourceId: 'required for sequence/animation',
+      },
+      export: {
+        id: 'result node ID',
+        format: 'png/jpg/video/atlas/frames',
+        loop: 'optional boolean; default true',
+      },
+      download: {
+        operationId: 'CLI --operation-id',
+        outputDir: 'CLI --output-dir: existing absolute directory',
+      },
+    },
+    exportFormats: {
+      image: ['png', 'jpg'],
+      video: ['video'],
+      sequence: ['atlas', 'frames'],
+      animation: ['atlas', 'frames'],
+    },
+  };
+}
+
+export function validateCanvasCommand(value: unknown): CanvasCommand {
+  const command = value as CanvasCommand;
+  if (!command || typeof command !== 'object' || Array.isArray(command))
+    throw new Error('命令必须是 JSON 对象。');
+  for (const key of Object.keys(command))
+    if (
+      !['requestId', 'pageId', 'canvasId', 'revision', 'action', 'input', 'allowPaid'].includes(key)
+    )
+      throw new Error('不支持的命令字段：' + key);
+  for (const key of ['requestId', 'pageId', 'canvasId'] as const)
+    if (typeof command[key] !== 'string' || !/^[a-zA-Z0-9-]{1,80}$/.test(command[key]))
+      throw new Error('缺少或无效的 ' + key);
+  if (!canvasAutomationCapabilities().actions.includes(command.action))
+    throw new Error('不支持的画布操作。请先查询 capabilities。');
+  if (!command.input || typeof command.input !== 'object' || Array.isArray(command.input))
+    throw new Error('input 必须是 JSON 对象。');
+  if (command.allowPaid !== undefined && typeof command.allowPaid !== 'boolean')
+    throw new Error('allowPaid 必须是布尔值。');
+  if (
+    !['inspect', 'stop', 'query'].includes(command.action) &&
+    (!Number.isSafeInteger(command.revision) || command.revision! < 0)
+  )
+    throw new Error('操作前请 inspect，并传入当前 revision。');
+  return command;
+}
+
+export function canvasAutomationSnapshot(document: CanvasDocument) {
+  return {
+    id: document.id,
+    title: document.title,
+    revision: document.revision,
+    nodes: document.nodes.map((node) => ({ ...node })),
+    edges: document.edges,
+    templateFlow: document.templateFlow,
+  };
+}
+
+export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record<string, unknown>) {
+  if (
+    Object.keys(input).some((key) => key !== 'nodes') ||
+    !Array.isArray(input.nodes) ||
+    !input.nodes.length ||
+    input.nodes.length > 100
+  )
+    throw new Error('nodes 必须包含 1～100 个卡片修改。');
+  const seen = new Set<string>();
+  return input.nodes.map((value) => {
+    const patch = value as Record<string, unknown>;
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch))
+      throw new Error('卡片修改无效。');
+    const node = document.nodes.find((node) => node.id === patch.id);
+    if (!node || seen.has(node.id)) throw new Error('卡片不存在或重复。');
+    seen.add(node.id);
+    const next: CanvasNode = JSON.parse(JSON.stringify(node));
+    let contentChanged = false;
+    for (const [key, value] of Object.entries(patch)) {
+      if (key === 'id') continue;
+      if (key === 'title' || key === 'text') {
+        if (
+          typeof value !== 'string' ||
+          !value.trim() ||
+          value.length > (key === 'title' ? 80 : 4000) ||
+          (key === 'text' && node.type !== 'note')
+        )
+          throw new Error('标题或便签内容无效。');
+        next[key] = value;
+      } else if (key === 'x' || key === 'y') {
+        if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 100000)
+          throw new Error('卡片位置无效。');
+        if (node.type === 'section') throw new Error('首版不支持移动整个分组。');
+        next[key] = value;
+      } else if (key === 'prompt' || key === 'parameters') {
+        if (!['image', 'video', 'video-source'].includes(node.type))
+          throw new Error('此卡片没有生成参数。');
+        if (next.assetPath) next.generation ||= { prompt: '' };
+        else next.generationDraft ||= { operation: 'generate' };
+        const settings = next.assetPath ? next.generation! : next.generationDraft!;
+        if (key === 'prompt') {
+          if (typeof value !== 'string' || !value.trim() || value.length > 8000)
+            throw new Error('提示词必须为 1～8000 字符。');
+          settings.prompt = value;
+        } else {
+          if (!value || typeof value !== 'object' || Array.isArray(value))
+            throw new Error('生成参数无效。');
+          const image = node.type === 'image';
+          const choices = canvasGenerationParameterChoices(image);
+          for (const [name, setting] of Object.entries(value))
+            if (!choices[name]?.includes(setting)) throw new Error('不支持的生成参数：' + name);
+          settings.parameters = { ...settings.parameters, ...value };
+        }
+        contentChanged = true;
+      } else if (key === 'sequenceSettings') {
+        if (
+          node.type !== 'sequence' ||
+          !node.sequenceSettings ||
+          !value ||
+          typeof value !== 'object' ||
+          Array.isArray(value)
+        )
+          throw new Error('此卡片不能修改抽帧参数。');
+        for (const name of Object.keys(value))
+          if (!canvasAutomationCapabilities().sequenceSettings.includes(name))
+            throw new Error('首版不支持的抽帧参数：' + name);
+        const settings = { ...node.sequenceSettings, ...value };
+        if (
+          ![
+            settings.start,
+            settings.end,
+            settings.fps,
+            settings.width,
+            settings.height,
+            settings.tolerance,
+          ].every(Number.isFinite) ||
+          settings.start < 0 ||
+          settings.end <= settings.start ||
+          settings.end > 86400 ||
+          settings.fps < 1 ||
+          settings.fps > 30 ||
+          Math.ceil((settings.end - settings.start) * settings.fps - 1e-8) > 120 ||
+          !Number.isInteger(settings.width) ||
+          !Number.isInteger(settings.height) ||
+          settings.width < 1 ||
+          settings.width > 2048 ||
+          settings.height < 1 ||
+          settings.height > 2048 ||
+          typeof settings.cutout !== 'boolean' ||
+          typeof settings.pixel !== 'boolean' ||
+          !['contain', 'cover', 'stretch'].includes(settings.fit) ||
+          (settings.cutoutMode !== undefined &&
+            !['connected', 'chroma'].includes(settings.cutoutMode)) ||
+          typeof settings.backgroundColor !== 'string' ||
+          !/^#[0-9a-f]{6}$/i.test(settings.backgroundColor) ||
+          settings.tolerance < 0 ||
+          settings.tolerance > 255
+        )
+          throw new Error('抽帧参数超出支持范围。');
+        next.sequenceSettings = settings;
+        contentChanged = true;
+      } else throw new Error('不支持的卡片字段：' + key);
+    }
+    if (contentChanged && next.generation && !next.generation.prompt.trim())
+      throw new Error('此素材尚未保存提示词，请在同一次修改中提供 prompt。');
+    if (contentChanged && next.sectionId) next.templatePending = true;
+    return { node: next, contentChanged };
+  });
+}

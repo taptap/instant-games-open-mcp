@@ -21,12 +21,23 @@ function setup(format: 'png' | 'jpg', canceled = false) {
   });
   const decode = jest.fn(async () => undefined);
   const globals = {
+    setTimeout,
+    clearTimeout,
     window: { showSaveFilePicker: picker },
     document: { createElement: () => canvas },
     Image: class {
       naturalWidth = 512;
       naturalHeight = 256;
       decode = decode;
+      onload?: () => void;
+      onerror?: () => void;
+      set src(value: string) {
+        if (value)
+          void decode().then(
+            () => this.onload?.(),
+            () => this.onerror?.()
+          );
+      }
     },
   };
   const download = new Script('(' + downloadCanvasImage.toString() + ')').runInNewContext(globals);
@@ -34,6 +45,35 @@ function setup(format: 'png' | 'jpg', canceled = false) {
 }
 
 describe('canvas image export', () => {
+  test('image loading timeout releases the caller without producing a file', async () => {
+    jest.useFakeTimers();
+    try {
+      const { download, decode, writable } = setup('png');
+      decode.mockImplementation(() => new Promise(() => {}));
+      const pending = download('/stalled-image', 'hero', 'png');
+      const rejection = expect(pending).rejects.toThrow('加载超时');
+      await jest.advanceTimersByTimeAsync(15000);
+      await rejection;
+      expect(writable.write).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('image load errors do not produce an export', async () => {
+    const { download, decode, writable } = setup('png');
+    decode.mockRejectedValueOnce(new Error('invalid image'));
+    await expect(download('/invalid', 'hero', 'png')).rejects.toThrow('无法加载');
+    expect(writable.write).not.toHaveBeenCalled();
+  });
+  test('CLI sink receives encoded bytes without a browser save dialog', async () => {
+    const { download, picker, writable, blob } = setup('png');
+    const sink = jest.fn(async () => undefined);
+    await download('/api/image', 'hero', 'png', sink);
+    expect(sink).toHaveBeenCalledWith(blob, 'hero.png');
+    expect(picker).not.toHaveBeenCalled();
+    expect(writable.write).not.toHaveBeenCalled();
+  });
   test.each(['png', 'jpg'] as const)(
     'encodes %s at original size and writes the selected local file',
     async (format) => {

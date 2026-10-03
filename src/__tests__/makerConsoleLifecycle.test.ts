@@ -234,6 +234,27 @@ describe('Maker console lifecycle', () => {
     await expectClosed(server);
   });
 
+  test('passive canvas automation heartbeat does not renew the idle deadline', async () => {
+    const entry = project();
+    const server = await start();
+    now = 90;
+    const response = await fetch(
+      server.origin + '/api/projects/' + entry.key + '/canvases/automation/exchange',
+      {
+        method: 'POST',
+        headers: headers(server),
+        body: JSON.stringify({
+          canvasId: '11111111-1111-4111-8111-111111111111',
+          revision: 1,
+          received: [],
+        }),
+      }
+    );
+    expect(response.status).toBe(200);
+    now = 101;
+    await expectClosed(server);
+  });
+
   test('health and shutdown stay available when the project registry is corrupt', async () => {
     const server = await start();
     fs.writeFileSync(path.join(directory, 'projects.json'), 'broken');

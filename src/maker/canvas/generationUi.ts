@@ -90,15 +90,22 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   ): void;
   restore(): Promise<void>;
   creditsLabel(node: any): string | undefined;
-  runTemplateVideo(nodeId: string, duration: number, userConfirmed?: boolean): Promise<boolean>;
+  runTemplateVideo(
+    nodeId: string,
+    duration: number,
+    userConfirmed?: boolean,
+    useSavedInput?: boolean
+  ): Promise<boolean>;
   runTemplateImage(nodeId: string): Promise<boolean>;
+  resetDraft(nodeId: string): void;
+  hasInputDraft(): boolean;
   isNodeBusy(nodeId: string): boolean;
   canStopWaiting(nodeId: string): boolean;
   stopWaiting(nodeId: string): void;
   hasUnsettledResult(nodeId: string): boolean;
   nodeState(nodeId: string): { status: string; canQuery: boolean } | undefined;
   queueBlockReason(nodeId: string): string | undefined;
-  queryNode(nodeId: string): Promise<void>;
+  queryNode(nodeId: string, throwOnError?: boolean): Promise<void>;
   recoverVideo(attempt: any): Promise<boolean>;
   imageTarget(node: any): string | undefined;
   readonly isBusy: boolean;
@@ -120,6 +127,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   const drafts = new Map<string, string>();
   const references = new Map<string, string[]>();
   const removedImageSources = new Map<string, Map<string, string>>();
+  const inputBaselines = new Map<string, { node: any; canvasId: string; value: string }>();
   const importingReferences = new Set<string>();
   const videoWaits = new Map<string, () => void>();
   const stoppedVideos = new Set<string>();
@@ -207,14 +215,45 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   function referencePaths(node: any): string[] {
     return references.get(referenceKey(node)) || node.generation?.referenceImagePaths || [];
   }
+  function inputState(node: any): string {
+    const image = node.type === 'image';
+    const settings =
+      (image ? imageSettings : videoSettings).get(referenceKey(node)) ||
+      node.generationDraft?.parameters ||
+      node.generation?.parameters ||
+      {};
+    const prompt = formatBuiltinPrompt(
+      drafts.get(node.id) ?? node.generationDraft?.prompt ?? node.generation?.prompt ?? ''
+    );
+    return JSON.stringify({
+      prompt: node.generationDraft ? undefined : image ? prompt : videoPrompts.prepare(prompt),
+      model: settings.model || (image ? 'auto' : '2.0'),
+      resolution: settings.resolution || (image ? '1K' : '720p'),
+      ratio: image ? settings.aspectRatio || '1:1' : settings.ratio || 'adaptive',
+      duration: image ? undefined : settings.duration || 4,
+      mode: image ? undefined : currentVideoMode(node),
+      references: referencePaths(node),
+      removed: [...(removedImageSources.get(referenceKey(node)) || [])],
+    });
+  }
+  function rememberInput(node: any): void {
+    const key = referenceKey(node);
+    if (!inputBaselines.has(key))
+      inputBaselines.set(key, {
+        node,
+        canvasId: options.getDocument().id,
+        value: inputState(node),
+      });
+  }
   function includesImageSource(node: any, source: any): boolean {
     return removedImageSources.get(referenceKey(node))?.get(source.id) !== source.assetPath;
   }
   function currentVideoMode(node: any): string {
     return (
       videoSettings.get(referenceKey(node))?.mode ||
+      node.generationDraft?.parameters?.mode ||
       node.generation?.parameters?.mode ||
-      (videoInputSources(options.getDocument(), node).length + referencePaths(node).length === 1
+      (referenceSources(node).length + referencePaths(node).length === 1
         ? 'first_frame'
         : 'select_mode')
     );
@@ -224,7 +263,10 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     if (node.type === 'image') return 14;
     const mode = currentVideoMode(node);
     const model =
-      videoSettings.get(referenceKey(node))?.model || node.generation?.parameters?.model || '2.0';
+      videoSettings.get(referenceKey(node))?.model ||
+      node.generationDraft?.parameters?.model ||
+      node.generation?.parameters?.model ||
+      '2.0';
     return mode === 'first_frame' ? 1 : mode === 'first_last_frame' ? 2 : model === '2.5' ? 30 : 9;
   }
 
@@ -285,6 +327,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           options.setError('已离开原卡片，参考图未添加到其他卡片。');
           return;
         }
+        rememberInput(node);
         references.set(key, [...referencePaths(node), saved.relativePath]);
       }
       options.setError('');
@@ -298,7 +341,19 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
 
   function referenceSources(node: any, reuseTarget = false): any[] {
     const current = options.getDocument();
-    if (node.type !== 'image') return videoInputSources(current, node);
+    if (node.referenceInput) {
+      const sources = videoInputSources(current, node);
+      if (
+        node.type === 'image' &&
+        node.referenceInput.includeSelf &&
+        node.assetPath &&
+        !sources.some((source) => source.id === node.id)
+      )
+        sources.push(node);
+      return sources.filter((source) => includesImageSource(node, source));
+    }
+    if (node.type !== 'image')
+      return videoInputSources(current, node).filter((source) => includesImageSource(node, source));
     const sourceId =
       node.draftSourceId ||
       node.generationDraft?.sourceImageId ||
@@ -349,6 +404,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         const remove = button(
           '×',
           () => {
+            rememberInput(node);
             if (source) {
               const removed = removedImageSources.get(key) || new Map<string, string>();
               removed.set(source.id, source.assetPath);
@@ -472,6 +528,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     input.className = 'generation-prompt';
     input.addEventListener('pointerdown', (event: any) => event.stopPropagation());
     input.addEventListener('input', () => {
+      if (!node.generationDraft) rememberInput(node);
       drafts.set(node.id, input.value);
       if (node.generationDraft) {
         node.generationDraft.prompt = input.value;
@@ -604,6 +661,10 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
             ? '扩展画面 · 已保存结果'
             : '生图结果';
       resultNode.assetPath = attempt.resultAssetPath;
+      if (resultNode.referenceInput)
+        resultNode.referenceInput = {
+          includeSelf: (attempt.sourceImageIds || [attempt.sourceImageId]).includes(resultNodeId),
+        };
       delete resultNode.templatePending;
       delete resultNode.generationDraft;
       resultNode.generation = {
@@ -623,12 +684,30 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
                 ? documentState.nodes.find((node: any) => node.id === sourceImageIds[0])
                 : undefined
             );
+      resultNode.sourceSnapshots = sourceImageIds
+        .map(
+          (id: string) =>
+            attempt.sourceSnapshots?.find((snapshot: any) => snapshot.nodeId === id) ||
+            (attempt.sourceSnapshot?.nodeId === id ? attempt.sourceSnapshot : undefined) ||
+            snapshotCanvasSource(documentState.nodes.find((node: any) => node.id === id))
+        )
+        .filter(Boolean);
       if (!targetNode) documentState.nodes.push(resultNode);
       else
         documentState.edges = documentState.edges.filter(
-          (edge: any) => edge.to !== resultNodeId || edge.kind !== 'image-variant'
+          (edge: any) =>
+            edge.to !== resultNodeId ||
+            edge.kind !== 'image-variant' ||
+            (resultNode.referenceInput && sourceImageIds.includes(edge.from))
         );
       for (const sourceId of sourceImageIds) {
+        if (
+          documentState.edges.some(
+            (edge: any) =>
+              edge.to === resultNodeId && edge.from === sourceId && edge.kind === 'image-variant'
+          )
+        )
+          continue;
         documentState.edges.push({
           id: options.createId(),
           from: sourceId,
@@ -672,6 +751,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         resultNode.type = 'video-source';
         resultNode.title = '视频结果';
         resultNode.assetPath = attempt.resultAssetPath;
+        delete resultNode.generationDraft;
         delete resultNode.templatePending;
         delete resultNode.videoInfo;
         resultNode.generation = {
@@ -709,6 +789,13 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         });
       }
       if (resultNode) {
+        if (resultNode.referenceInput)
+          documentState.edges = documentState.edges.filter(
+            (edge: any) =>
+              edge.to !== videoId ||
+              !['first-frame', 'image-to-video'].includes(edge.kind) ||
+              sourceImageIds.includes(edge.from)
+          );
         for (const edge of documentState.edges) {
           if (edge.to === videoId && edge.kind === 'first-frame') edge.kind = 'image-to-video';
         }
@@ -751,8 +838,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       return;
     let selectedOperation = node.generationDraft?.operation || operation;
     const refreshUpstream = Boolean(settings.templateRun && settings.refreshSource);
-    const sourceImageId =
-      node.assetPath && !refreshUpstream
+    const sourceImageId = node.referenceInput
+      ? referenceSources(node)[0]?.id
+      : node.assetPath && !refreshUpstream
         ? node.id
         : node.generationDraft?.sourceImageId ||
           node.generation?.sourceImageId ||
@@ -769,16 +857,23 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     }
     const targetId =
       decision?.kind === 'reuse' ? decision.nodeId : !node.assetPath ? node.id : undefined;
-    const sourceNodes = refreshUpstream
-      ? canvasReferences(documentState, node.id).length
-        ? canvasReferences(documentState, node.id).filter(
-            (source) => source.type === 'image' && source.assetPath
-          )
-        : selectedOperation !== 'generate' && source?.assetPath
-          ? imageEditSources(documentState, source, targetId)
-          : []
-      : referenceSources(node, Boolean(settings.templateRun));
-    if (!refreshUpstream && !sourceNodes.length && removedImageSources.has(referenceKey(node))) {
+    const sourceNodes = (
+      node.referenceInput
+        ? referenceSources(node)
+        : refreshUpstream
+          ? canvasReferences(documentState, node.id).length
+            ? canvasReferences(documentState, node.id).filter(
+                (source) => source.type === 'image' && source.assetPath
+              )
+            : selectedOperation !== 'generate' && source?.assetPath
+              ? imageEditSources(documentState, source, targetId)
+              : []
+          : referenceSources(node, Boolean(settings.templateRun))
+    ).filter((source) => includesImageSource(node, source));
+    if (
+      !sourceNodes.length &&
+      (node.referenceInput || removedImageSources.has(referenceKey(node)))
+    ) {
       selectedOperation = 'generate';
     }
     if (selectedOperation !== 'generate' && !sourceNodes.length) {
@@ -800,7 +895,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         prompt,
         operation: selectedOperation,
         targetNodeId: targetId,
-        model: settings.model,
+        model: settings.model === 'auto' ? undefined : settings.model,
         resolution: settings.resolution,
         aspectRatio: settings.aspectRatio,
         targetSize: imageTargetSize(settings.resolution || '1K', settings.aspectRatio || '1:1'),
@@ -816,6 +911,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       });
       attempts.set(attempt.id, attempt);
       if (options.getDocument()?.id !== documentState.id) return;
+      if (attempt.status !== 'failed' || attempt.taskId) inputBaselines.delete(referenceKey(node));
       if (attempt.status === 'succeeded') {
         options.log?.(node.title + '：图片生成完成', 'info');
         applyAttempt(attempt, true, Boolean(node.assetPath));
@@ -857,6 +953,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     } = {}
   ): Promise<boolean> {
     const documentState = options.getDocument();
+    const inputKey = documentState && referenceKey(node);
     if (!documentState || inFlight.has(node.id)) return false;
     if (settings.model === '2.5' && settings.userConfirmed !== true) {
       if (!window.confirm('Seedance 2.5 成本更高，实际按上游 token 扣费。确认继续吗？'))
@@ -870,7 +967,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     }
     input.value = prompt;
     drafts.set(node.id, prompt);
-    const sources = videoInputSources(documentState, node);
+    const sources = referenceSources(node);
     const source = sources[0];
     const importedReferences = [...referencePaths(node)];
     const mode = settings.mode || currentVideoMode(node);
@@ -989,6 +1086,8 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       if (!attempt) return false;
       attempts.set(attempt.id, attempt);
       if (options.getDocument()?.id !== documentState.id) return false;
+      if ((attempt.status !== 'failed' || attempt.taskId) && inputKey)
+        inputBaselines.delete(inputKey);
       if (attempt.status === 'succeeded') {
         options.log?.(node.title + '：视频生成完成', 'info');
         if (await recoverVideo(attempt)) {
@@ -1040,9 +1139,11 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const recorded = list.find(
       (attempt: any) => attempt.id === previous && attempt.targetNodeId === nodeId
     );
-    references.set(referenceKey(node), [
-      ...(node.generation?.referenceImagePaths || recorded?.referenceImagePaths || []),
-    ]);
+    if (!references.has(referenceKey(node)))
+      references.set(referenceKey(node), [
+        ...(node.generation?.referenceImagePaths ||
+          (node.referenceInput ? [] : recorded?.referenceImagePaths || [])),
+      ]);
     const prompt = node.generation?.prompt || node.generationDraft?.prompt;
     if (!prompt?.trim()) {
       options.setError('此图片没有已保存的提示词，请先编辑提示词。');
@@ -1051,6 +1152,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     await runImage(node, { value: prompt }, node.generation?.operation || 'variant', {
       ...generationParameters(recorded || {}, node),
       ...node.generation?.parameters,
+      ...node.generationDraft?.parameters,
       refreshSource: true,
       templateRun: true,
     });
@@ -1064,12 +1166,13 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   async function runTemplateVideo(
     nodeId: string,
     duration: number,
-    userConfirmed = false
+    userConfirmed = false,
+    useSavedInput = false
   ): Promise<boolean> {
     const current = options.getDocument();
     if (current) stoppedVideos.delete(videoKey(current.id, nodeId));
     const node = current?.nodes.find((item: any) => item.id === nodeId);
-    const sources = current && node ? videoInputSources(current, node) : [];
+    const sources = current && node ? referenceSources(node) : [];
     if (!node || !sources.length || sources.some((item) => !item.assetPath))
       throw new Error('视频缺少有效的来源图片，请检查引用连线。');
     const snapshots = sources.map((item) => snapshotCanvasSource(item)!);
@@ -1094,7 +1197,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
             current.nodes.find((item: any) => item.id === snapshot.nodeId)
           )
       ) ||
-      JSON.stringify(videoInputSources(current, node).map((item) => item.id)) !==
+      JSON.stringify(referenceSources(node).map((item) => item.id)) !==
         JSON.stringify(sources.map((item) => item.id))
     )
       return false;
@@ -1127,9 +1230,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       (attempt.status === 'succeeded' && attempt.id === node.generation?.attemptId)
     ) {
       const prompt = templateVideoPrompt(
-        attempt?.status === 'failed'
+        !useSavedInput && attempt?.status === 'failed'
           ? attempt.prompt || node.generation?.prompt
-          : node.generation?.prompt
+          : node.generationDraft?.prompt || node.generation?.prompt
       );
       if (
         await runVideo(
@@ -1142,7 +1245,10 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
             ratio: 'adaptive',
             ...generationParameters(recorded || {}, node),
             ...node.generation?.parameters,
-            ...(attempt?.status === 'failed' ? generationParameters(attempt) : {}),
+            ...node.generationDraft?.parameters,
+            ...(!useSavedInput && attempt?.status === 'failed'
+              ? generationParameters(attempt)
+              : {}),
             templateRun: true,
             userConfirmed,
           }
@@ -1156,6 +1262,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
             item.canvasId === current.id && item.targetNodeId === nodeId && matchesInputs(item)
         )
         .pop();
+      if (!attempt) return false;
     }
     if (
       userConfirmed &&
@@ -1232,7 +1339,11 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     return true;
   }
 
-  async function action(attempt: any, actionName: 'query' | 'retry' | 'cancel'): Promise<void> {
+  async function action(
+    attempt: any,
+    actionName: 'query' | 'retry' | 'cancel',
+    throwOnError = false
+  ): Promise<void> {
     const videoRetry = actionName === 'retry' && attempt.kind === 'video';
     const targetId =
       attempt.kind === 'video' && actionName !== 'cancel' ? attempt.targetNodeId : undefined;
@@ -1266,7 +1377,10 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
             controller
           )
         : await request;
-      if (!next) return;
+      if (!next) {
+        if (throwOnError) throw new Error('本地查询等待已停止，远端结果尚未确认。');
+        return;
+      }
       attempts.set(next.id, next);
       if (options.getDocument()?.id !== attempt.canvasId) return;
       if (next.kind === 'video') {
@@ -1298,6 +1412,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       } else options.render();
     } catch (error) {
       options.setError(error instanceof Error ? error.message : String(error));
+      if (throwOnError) throw error;
     } finally {
       if (targetId) {
         inFlight.delete(targetId);
@@ -1401,7 +1516,10 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       const fields = document.createElement('div');
       fields.className = 'generation-fields';
       const settingsKey = referenceKey(node);
-      const saved = imageSettings.get(settingsKey) || node.generation?.parameters;
+      const saved =
+        imageSettings.get(settingsKey) ||
+        node.generationDraft?.parameters ||
+        node.generation?.parameters;
       imageModel = selectControl('模型', ['auto', 'gpt', 'nanobanana'], saved?.model || 'auto');
       imageResolution = selectControl('分辨率', ['1K', '2K'], saved?.resolution || '1K');
       imageRatio = selectControl(
@@ -1409,19 +1527,23 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         ['1:1', '16:9', '9:16', '4:3', '3:4'],
         saved?.aspectRatio || '1:1'
       );
-      fields.addEventListener('change', () =>
+      fields.addEventListener('change', () => {
+        rememberInput(node);
         imageSettings.set(settingsKey, {
           model: imageModel.value,
           resolution: imageResolution.value,
           aspectRatio: imageRatio.value,
-        })
-      );
+        });
+      });
       fields.append(imageModel, imageResolution, imageRatio);
       panel.append(fields);
     } else {
       const fields = document.createElement('div');
       fields.className = 'generation-fields';
-      const saved = videoSettings.get(referenceKey(node)) || node.generation?.parameters;
+      const saved =
+        videoSettings.get(referenceKey(node)) ||
+        node.generationDraft?.parameters ||
+        node.generation?.parameters;
       videoMode = selectControl(
         '输入方式',
         ['select_mode', 'first_frame', 'first_last_frame', 'multi_modal_reference'],
@@ -1456,6 +1578,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         saved?.ratio || 'adaptive'
       );
       fields.addEventListener('change', () => {
+        rememberInput(node);
         videoSettings.set(referenceKey(node), {
           model: videoModel.value,
           resolution: videoResolution.value,
@@ -1688,7 +1811,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       return false;
     if (target.generation?.attemptId === attempt.id) return true;
     if ((target.assetPath || '') !== (attempt.targetAssetPath ?? '')) return false;
-    const sources = videoInputSources(current, target);
+    const sources = referenceSources(target);
     if (!videoAttemptMatchesSources(attempt, sources)) return false;
     if (
       JSON.stringify(referencePaths(target)) !== JSON.stringify(attempt.referenceImagePaths || [])
@@ -1783,6 +1906,31 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     },
     runTemplateVideo,
     runTemplateImage,
+    hasInputDraft() {
+      const current = options.getDocument();
+      return Boolean(
+        current &&
+          [...inputBaselines.values()].some(
+            (entry) =>
+              entry.canvasId === current.id &&
+              current.nodes.some(
+                (node: any) => node.id === (entry.node.draftSourceId || entry.node.id)
+              ) &&
+              entry.value !== inputState(entry.node)
+          )
+      );
+    },
+    resetDraft(nodeId: string) {
+      const node = options.getDocument()?.nodes.find((node: any) => node.id === nodeId);
+      drafts.delete(nodeId);
+      if (node) {
+        inputBaselines.delete(referenceKey(node));
+        imageSettings.delete(referenceKey(node));
+        videoSettings.delete(referenceKey(node));
+        references.delete(referenceKey(node));
+        removedImageSources.delete(referenceKey(node));
+      }
+    },
     queueBlockReason,
     nodeState,
     canStopWaiting(nodeId: string) {
@@ -1793,9 +1941,18 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       stoppedVideos.add(key);
       videoWaits.get(key)?.();
     },
-    async queryNode(nodeId: string) {
+    async queryNode(nodeId: string, throwOnError = false) {
+      if (throwOnError) {
+        const current = options.getDocument();
+        if (!current) throw new Error('当前没有打开的画布。');
+        const list = await options.store.listGeneration(current.id);
+        if (options.getDocument() !== current) throw new Error('画布已切换，请重新 inspect。');
+        for (const item of list) attempts.set(item.id, item);
+        if (!nodeState(nodeId)?.canQuery)
+          throw new Error('此卡片没有可查询的原视频任务；任务尚未返回 ID 时请稍后再查。');
+      }
       const attempt = latestNodeAttempt(nodeId);
-      if (attempt?.kind === 'video' && attempt.taskId) await action(attempt, 'query');
+      if (attempt?.kind === 'video' && attempt.taskId) await action(attempt, 'query', throwOnError);
     },
     hasUnsettledResult(nodeId: string) {
       return [...attempts.values()].some(

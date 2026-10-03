@@ -70,6 +70,17 @@ describe('video and frame data downloads', () => {
     expect(writable.close).toHaveBeenCalledTimes(1);
   });
 
+  test('CLI sink uses the same export bytes without opening a save dialog', async () => {
+    const source = node();
+    const before = structuredClone(source);
+    const sink = jest.fn(async (_blob: Blob, _filename: string) => undefined);
+    await downloadCanvasResource(source, 'video', (path) => path, undefined, undefined, true, sink);
+    expect(picker).not.toHaveBeenCalled();
+    expect(await sink.mock.calls[0][0].text()).toBe('original-video-bytes');
+    expect(sink.mock.calls[0][1]).toMatch(/.webm$/);
+    expect(source).toEqual(before);
+  });
+
   test('canceling does not read media or write a file', async () => {
     picker.mockRejectedValue(Object.assign(new Error('cancel'), { name: 'AbortError' }));
     await downloadCanvasResource(node(), 'video', (path) => path);

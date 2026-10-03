@@ -46,6 +46,7 @@ export interface CanvasGenerationDraft {
   operation: CanvasImageOperation;
   sourceImageId?: string;
   prompt?: string;
+  parameters?: CanvasGenerationResult['parameters'];
 }
 
 export interface Viewport {
@@ -69,6 +70,7 @@ export interface CanvasNode {
   templatePending?: boolean;
   text?: string;
   assetPath?: string;
+  referenceInput?: { includeSelf: boolean };
   generationDraft?: CanvasGenerationDraft;
   sourceSnapshot?: CanvasSourceSnapshot;
   sourceSnapshots?: CanvasSourceSnapshot[];
@@ -163,6 +165,7 @@ export function cloneDocument(document: CanvasDocument): CanvasDocument {
     viewport: { ...document.viewport },
     nodes: document.nodes.map((node) => ({
       ...node,
+      ...(node.referenceInput ? { referenceInput: { ...node.referenceInput } } : {}),
       ...(node.sourceSnapshot ? { sourceSnapshot: { ...node.sourceSnapshot } } : {}),
     })),
     edges: document.edges.map((edge) => ({ ...edge })),

@@ -918,6 +918,25 @@ export class MakerCanvasFiles {
       (typeof node.templatePending !== 'boolean' || node.type === 'section' || !sectionId)
     )
       fail('模板待处理状态无效。', 400, 'INVALID_DOCUMENT');
+    let referenceInput: CanvasNode['referenceInput'];
+    if (node.referenceInput !== undefined) {
+      const input = node.referenceInput as Record<string, unknown>;
+      if (
+        !input ||
+        typeof input !== 'object' ||
+        Array.isArray(input) ||
+        Object.keys(input).some((key) => key !== 'includeSelf') ||
+        typeof input.includeSelf !== 'boolean' ||
+        !['image', 'video', 'video-source'].includes(String(node.type)) ||
+        (input.includeSelf && (node.type !== 'image' || !assetPath))
+      )
+        fail(
+          '显式参考输入无效；仅图片或视频卡可设置，自身参考需要已保存的图片。',
+          400,
+          'INVALID_DOCUMENT'
+        );
+      referenceInput = { includeSelf: input.includeSelf as boolean };
+    }
     let sourceSnapshot: CanvasSourceSnapshot | undefined;
     if (node.sourceSnapshot !== undefined) {
       if (
@@ -1032,13 +1051,13 @@ export class MakerCanvasFiles {
     let generationDraft: CanvasNode['generationDraft'];
     if (node.generationDraft !== undefined) {
       if (
-        node.type !== 'image' ||
+        (node.type !== 'image' && node.type !== 'video') ||
         assetPath ||
         !node.generationDraft ||
         typeof node.generationDraft !== 'object' ||
         Array.isArray(node.generationDraft)
       ) {
-        fail('图片生成草稿只能附在没有结果素材的图片槽上。', 400, 'INVALID_DOCUMENT');
+        fail('生成草稿只能附在没有结果素材的图片或视频槽上。', 400, 'INVALID_DOCUMENT');
       }
       const input = node.generationDraft as Record<string, unknown>;
       const operation =
@@ -1059,6 +1078,9 @@ export class MakerCanvasFiles {
         operation,
         ...(sourceImageId ? { sourceImageId } : {}),
         ...(prompt ? { prompt } : {}),
+        ...(input.parameters === undefined
+          ? {}
+          : { parameters: this.parseGenerationParameters(input.parameters) }),
       };
     }
     if (videoInfo && node.type !== 'video-source')
@@ -1094,6 +1116,7 @@ export class MakerCanvasFiles {
       ...(sourceSnapshots ? { sourceSnapshots } : {}),
       ...(node.text === undefined ? {} : { text: text(node.text, 4000, '文字') }),
       ...(assetPath ? { assetPath } : {}),
+      ...(referenceInput ? { referenceInput } : {}),
       ...(videoInfo ? { videoInfo } : {}),
       ...(sourceVideoId ? { sourceVideoId } : {}),
       ...(sequenceSettings ? { sequenceSettings } : {}),
@@ -1275,12 +1298,13 @@ export class MakerCanvasFiles {
       (from?.type !== 'image' ||
         !from.assetPath ||
         to?.type !== 'image' ||
-        (to.assetPath
-          ? !to.generation?.sourceImageIds?.includes(from.id) &&
-            to.sourceSnapshot?.nodeId !== from.id &&
-            !to.sourceSnapshots?.some((snapshot) => snapshot.nodeId === from.id)
-          : to.generationDraft?.operation !== 'variant' ||
-            to.generationDraft.sourceImageId !== from.id))
+        (!to.referenceInput &&
+          (to.assetPath
+            ? !to.generation?.sourceImageIds?.includes(from.id) &&
+              to.sourceSnapshot?.nodeId !== from.id &&
+              !to.sourceSnapshots?.some((snapshot) => snapshot.nodeId === from.id)
+            : to.generationDraft?.operation !== 'variant' ||
+              to.generationDraft.sourceImageId !== from.id)))
     ) {
       fail('图片派生关系必须对应真实结果或变体草稿中的已保存来源图片。', 400, 'INVALID_EDGE');
     }

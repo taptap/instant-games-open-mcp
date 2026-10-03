@@ -3,6 +3,7 @@ import { createReadStream, statSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { CanvasStoreError } from '../canvas/model.js';
 import { MakerCanvasFiles } from '../canvas/files.js';
+import type { CanvasAutomationBridge } from '../canvas/automationBridge.js';
 import { ConsoleError } from './types.js';
 import type { ConsoleProjects } from './projects.js';
 import { CanvasGenerationService } from './canvasGeneration.js';
@@ -40,12 +41,61 @@ export async function handleCanvasProjectRoute(options: {
   key: string;
   registry: ConsoleProjects;
   remoteProxyManager?: MakerRemoteProxyManager;
+  automation?: CanvasAutomationBridge;
 }): Promise<boolean> {
   const { request, response, method, suffix, searchParams, key, registry } = options;
   if (!suffix || (!suffix.startsWith('canvases') && suffix !== 'canvas-media')) return false;
   const project = registry.resolve(key);
   const files = new MakerCanvasFiles(project.path);
   try {
+    if (suffix.startsWith('canvases/automation/')) {
+      if (!options.automation) throw new ConsoleError('画布 CLI 桥接未启动。', 503);
+      const action = suffix.slice('canvases/automation/'.length);
+      const exported = action.match(/^exports\/([a-zA-Z0-9-]{1,80})$/);
+      if (exported) {
+        if (method === 'POST') {
+          const pageId = searchParams.get('pageId') || '';
+          options.automation.checkExport(key, exported[1], pageId);
+          options.automation.saveExport(
+            key,
+            exported[1],
+            pageId,
+            await readBytes(request, 128 * 1024 * 1024)
+          );
+          send(response, 200, { ok: true });
+        } else if (method === 'GET') {
+          const bytes = options.automation.readExport(key, exported[1]);
+          response.writeHead(200, {
+            'Content-Type': 'application/octet-stream',
+            'Content-Length': bytes.length,
+            'X-Content-Type-Options': 'nosniff',
+          });
+          response.end(bytes);
+        } else if (method === 'DELETE') {
+          options.automation.releaseExport(key, exported[1]);
+          send(response, 200, { ok: true });
+        } else throw new ConsoleError('Unknown canvas export route.', 404);
+        return true;
+      }
+      if (method === 'GET' && action === 'pages') send(response, 200, options.automation.list(key));
+      else if (method === 'GET' && action === 'status')
+        send(response, 200, options.automation.status(key, searchParams.get('id') || ''));
+      else if (method === 'POST' && (action === 'submit' || action === 'exchange')) {
+        const body = JSON.parse(
+          (await readBytes(request, action === 'exchange' ? 4 * 1024 * 1024 : 128 * 1024)).toString(
+            'utf8'
+          )
+        );
+        send(
+          response,
+          200,
+          action === 'submit'
+            ? options.automation.submit(key, body)
+            : options.automation.exchange(key, body)
+        );
+      } else throw new ConsoleError('Unknown canvas automation route.', 404);
+      return true;
+    }
     if (suffix === 'canvases/video-history' && method === 'GET') {
       if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
       send(
@@ -361,6 +411,10 @@ export async function handleCanvasProjectRoute(options: {
     }
     throw new ConsoleError('Not found.', 404);
   } catch (error) {
+    if ((error as { code?: string }).code === 'CANVAS_PAGE_EXPIRED') {
+      send(response, 409, { code: 'CANVAS_PAGE_EXPIRED', error: (error as Error).message });
+      return true;
+    }
     if (error instanceof CanvasStoreError) {
       throw new ConsoleError(error.message, error.status);
     }

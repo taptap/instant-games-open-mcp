@@ -5,7 +5,7 @@ export function videoInputSources(
   document: CanvasDocument,
   node: CanvasNode & { draftSourceId?: string }
 ): CanvasNode[] {
-  if (node.draftSourceId)
+  if (node.draftSourceId && !node.referenceInput)
     return document.nodes.filter(
       (source) => source.id === node.draftSourceId && source.type === 'image'
     );
@@ -16,7 +16,7 @@ export function videoInputSources(
     ),
   ];
   const connected = document.edges.filter((edge) => edge.to === node.id).map((edge) => edge.from);
-  const order = [...new Set([...preferred, ...connected])];
+  const order = [...new Set(node.referenceInput ? connected : [...preferred, ...connected])];
   return sources.sort((left, right) => order.indexOf(left.id) - order.indexOf(right.id));
 }
 

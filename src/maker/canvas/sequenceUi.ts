@@ -196,7 +196,7 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     );
   }
 
-  function createFromVideo(sourceId: string): void {
+  function createFromVideo(sourceId: string, openEditor = true): string | undefined {
     const document = documentState();
     const source = document?.nodes.find(
       (node) => node.id === sourceId && node.type === 'video-source'
@@ -226,15 +226,15 @@ export function createSequenceUiController(options: SequenceUiOptions) {
           ? undefined
           : targets.find((node) => !node.assetPath && !node.frameSetInfo);
     if (pending) {
-      if (!drafts.has(pending.id) && !runs.has(pending.id)) {
+      if (openEditor && !drafts.has(pending.id) && !runs.has(pending.id)) {
         beginEdit(pending.id);
         const draft = drafts.get(pending.id)!;
         delete draft.assetPath;
         delete draft.frameSetInfo;
         delete draft.sourceSnapshot;
       }
-      options.onOpen?.(pending.id);
-      return;
+      if (openEditor) options.onOpen?.(pending.id);
+      return pending.id;
     }
     options.remember();
     const position = options.nextPlacement('sequence');
@@ -264,7 +264,8 @@ export function createSequenceUiController(options: SequenceUiOptions) {
     });
     options.markDirty();
     options.render();
-    options.onOpen?.(node.id);
+    if (openEditor) options.onOpen?.(node.id);
+    return node.id;
   }
 
   async function runStage(
@@ -442,7 +443,10 @@ export function createSequenceUiController(options: SequenceUiOptions) {
       controllers.get(nodeId)?.abort();
       return;
     }
-    if (action === 'create') return createFromVideo(nodeId);
+    if (action === 'create') {
+      createFromVideo(nodeId);
+      return;
+    }
     if (action === 'discard') {
       if (controllers.has(nodeId)) return;
       clearRun(nodeId);

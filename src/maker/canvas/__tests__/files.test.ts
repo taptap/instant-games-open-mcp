@@ -18,6 +18,42 @@ function gitignore(root: string): void {
 }
 
 describe('Maker canvas files', () => {
+  test.each(['image', 'video'] as const)(
+    'round trips %s draft parameters without inventing a result',
+    async (type) => {
+      const root = project('maker-canvas-draft-');
+      try {
+        gitignore(root);
+        const files = new MakerCanvasFiles(root);
+        const document = await files.create();
+        const draft = {
+          operation: 'generate' as const,
+          prompt: 'new prompt',
+          parameters:
+            type === 'image'
+              ? { model: 'gpt', resolution: '2K' }
+              : { model: '2.5', duration: 8, mode: 'first_frame' as const },
+        };
+        document.nodes.push({
+          id: createId(),
+          type,
+          title: 'draft',
+          x: 0,
+          y: 0,
+          width: 200,
+          height: 200,
+          generationDraft: draft,
+        });
+        await files.save(document.id, document, document.revision);
+        const saved = (await files.load(document.id)).nodes[0];
+        expect(saved.generationDraft).toEqual(draft);
+        expect(saved.generation).toBeUndefined();
+        expect(saved.assetPath).toBeUndefined();
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    }
+  );
   test('persists deleted generation IDs and rejects invalid deletion markers', async () => {
     const root = project('maker-canvas-deletions-');
     try {

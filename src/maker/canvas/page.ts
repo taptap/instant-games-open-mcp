@@ -1,6 +1,21 @@
 import { nodesInMarquee, removeNodes, saveAcknowledgement } from './edit.js';
 import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from './templates.js';
 import { createCanvasTemplateUi } from './templateUi.js';
+import {
+  canvasAutomationCapabilities,
+  canvasAutomationSnapshot,
+  prepareCanvasNodeUpdates,
+  validateCanvasCommand,
+} from './automation.js';
+import { connectCanvasAutomation } from './automationClient.js';
+import { createCanvasAutomationUi } from './automationUi.js';
+import { prepareCanvasImportedNode } from './automationAssets.js';
+import { applyCanvasReferences, prepareCanvasReferences } from './automationReferences.js';
+import {
+  canvasGenerationParameterChoices,
+  canvasParameterSchema,
+  selectCanvasSnapshot,
+} from './automationInfo.js';
 import { createTemplateCovers } from './templateCovers.js';
 import { TEMPLATE_LIBRARY_STYLES } from './templateStyles.js';
 import {
@@ -108,6 +123,18 @@ const template =
 
 export function getCanvasPageHtml(): string {
   const helpers = [
+    canvasAutomationCapabilities.toString(),
+    canvasGenerationParameterChoices.toString(),
+    canvasParameterSchema.toString(),
+    selectCanvasSnapshot.toString(),
+    canvasAutomationSnapshot.toString(),
+    prepareCanvasNodeUpdates.toString(),
+    validateCanvasCommand.toString(),
+    connectCanvasAutomation.toString(),
+    createCanvasAutomationUi.toString(),
+    prepareCanvasImportedNode.toString(),
+    prepareCanvasReferences.toString(),
+    applyCanvasReferences.toString(),
     decorateCanvasCard.toString(),
     refreshCanvasGroupHeaders.toString(),
     canvasGroupState.toString(),
@@ -1092,7 +1119,7 @@ export function getCanvasPageHtml(): string {
       '    hasUnsettledResult: function (id) { return generationUi.hasUnsettledResult(id); },',
       '    isQueued: function (id) { return Boolean(groupQueue && groupQueue.protects(id)); },',
       '    hasFailure: function (id) { return Boolean(generationUi.nodeState(id)) || sequenceUi.view(id).run?.status === "failed"; },',
-      '    video: generationUi.runTemplateVideo, sequence: sequenceUi.runTemplate, importImage: requestImageImport,',
+      '    video: function (id, duration, confirmed) { return generationUi.runTemplateVideo(id, duration, confirmed, canvasAutomationBusy); }, sequence: sequenceUi.runTemplate, importImage: requestImageImport,',
       '    image: generationUi.runTemplateImage,',
       '    refreshAnimation: function (id) { if (!refreshAnimationFromSource(documentState, id)) throw new Error("动画来源图集或连线尚未就绪。"); markDirty(); },',
       '    select: function (id) { selected.clear(); selected.add(id); render(); },',
@@ -1110,7 +1137,7 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '  let sequenceUi = null; let generationUi = null;',
-    '  let sequenceUi = null; let generationUi = null; let sequenceEditor; let templateWorkflow = null; let imageEditing = null; let videoHistory = null; let groupQueue = null; let groupQueueUi = null;'
+    '  let sequenceUi = null; let generationUi = null; let sequenceEditor; let templateWorkflow = null; let imageEditing = null; let videoHistory = null; let groupQueue = null; let groupQueueUi = null; let canvasAutomationBusy = false; let canvasOpening = 0;'
   );
   page = replaceCanvasPageText(
     page,
@@ -1621,6 +1648,93 @@ export function getCanvasPageHtml(): string {
       '  workspace.sync();',
       '  void boot().catch',
     ].join('\n')
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  void boot().catch',
+    [
+      '  const automation = createCanvasAutomationUi({',
+      '    current: function () { return documentState; },',
+      '    blocked: function () {',
+      '      if (canvasOpening) return "画布正在加载，请稍后重新 inspect。";',
+      '      if (dirty() || pendingSave) return "画布有未保存修改，请等待保存完成后重试。";',
+      '      if (generationUi.hasInputDraft()) return "存在尚未提交的人工生成参数草稿；请先手动完成生成，或刷新页面明确放弃草稿。关闭面板不会丢弃草稿。";',
+      '      if (drag || pendingAssetImports || pendingImageImport || pendingVideoImport || document.querySelector("dialog[open]") || selectionAction || sequenceUi.hasUnsavedFrames) return "请先完成或关闭正在编辑的面板、草稿和导入操作。";',
+      '      if (generationUi.isBusy || sequenceUi.isBusy || templateWorkflow.isBusy || groupQueue.isBusy || (imageEditing && imageEditing.isBusy) || (videoHistory && videoHistory.isBusy)) return "当前画布任务执行中，请等待完成。";',
+      '    },',
+      '    nodeStatus: function (id) { const run = sequenceUi.view(id).run; const saved = documentState.nodes.find(function (node) { return node.id === id; })?.frameSetInfo; return { workflow: templateWorkflow.status(id), generation: generationUi.nodeState(id), sequence: run && { status: run.status, stage: run.stage, error: run.error, frameCount: run.status === "complete" && saved ? saved.frameCount : run.frames.length }, canStop: generationUi.canStopWaiting(id) }; },',
+      '    nodeBlocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || Boolean(generationUi.queueBlockReason(id)) || sequenceUi.hasDraft(id) || templateWorkflow.locked(id); },',
+      '    remember: remember, changed: markDirty, render: render, save: flush,',
+      '    select: function (ids) { selected.clear(); ids.forEach(function (id) { selected.add(id); }); }, selected: function () { return Array.from(selected); },',
+      '    open: openDocument,',
+      '    create: async function (title) { const created = await store.create(title, "empty"); const option = document.createElement("option"); option.value = created.id; option.textContent = created.title; select.append(option); await openDocument(created.id); },',
+      '    add: function (type) { if (type === "image") createBlankImageSlot(); else add(type, nextPlacement(type)); },',
+      '    addDerived: function (type, sourceId) {',
+      '      let id;',
+      '      if (type === "sequence") id = sequenceUi.createFromVideo(sourceId, false);',
+      '      else {',
+      '        const decision = templateWorkflow.resolveTarget(sourceId, "animation");',
+      '        if (decision && decision.kind === "blocked") throw new Error(decision.message);',
+      '        remember();',
+      '        const created = appendAnimation(documentState, sourceId, crypto.randomUUID(), crypto.randomUUID(), decision && decision.kind === "reuse" ? decision.nodeId : undefined);',
+      '        id = created && created.id;',
+      '      }',
+      '      if (!id) throw new Error(error.textContent || "来源尚未就绪，未创建派生卡片。");',
+      '      selected.clear(); selected.add(id); markDirty();',
+      '    },',
+      '    importAsset: async function (input) {',
+      '      const current = documentState;',
+      '      const node = await prepareCanvasImportedNode(current.id, input, store.mediaUrl);',
+      '      if (documentState !== current) throw new Error("画布已切换，素材没有添加到其它画布。");',
+      '      const point = nextPlacement(node.type); node.x = point.x; node.y = point.y;',
+      '      if (node.type === "image") await loadMedia(node.assetPath);',
+      '      remember(); current.nodes.push(node); selected.clear(); selected.add(node.id); markDirty();',
+      '    },',
+      '    exportAsset: async function (command, node) {',
+      '      if (canvasNeedsProcessing(documentState, node)) throw new Error("来源或参数已变化，请先完成处理再导出。");',
+      '      const saved = structuredClone(node); let exported;',
+      '      await downloadCanvasResource(saved, command.input.format, store.mediaUrl, undefined, canvasExportIdentity(documentState, saved), command.input.loop !== false, async function (blob, filename) {',
+      '        if (!blob.size || blob.size > 128 * 1024 * 1024) throw new Error("导出文件必须小于128 MiB。");',
+      '        const response = await fetch("/api/projects/" + encodeURIComponent(key) + "/canvases/automation/exports/" + encodeURIComponent(command.requestId) + "?pageId=" + encodeURIComponent(command.pageId), { method: "POST", body: blob, signal: AbortSignal.timeout(60000) });',
+      '        if (!response.ok) { const failure = await response.json().catch(function () { return {}; }); throw new Error(failure.error || "导出结果传输失败，请重新导出，不要重新生成。"); }',
+      '        exported = { filename: filename, size: blob.size, format: command.input.format, frameCount: saved.frameSetInfo && saved.frameSetInfo.frameCount, width: saved.frameSetInfo && saved.frameSetInfo.width, height: saved.frameSetInfo && saved.frameSetInfo.height };',
+      '      });',
+      '      return { export: exported, canvasId: documentState.id, nodeId: node.id, revision: documentState.revision };',
+      '    },',
+      '    addTemplate: templateUi.addById, deleteSelected: deleteSelected, duplicate: duplicateSelected, group: createSection, connect: connect,',
+      '    resetDraft: function (id) { generationUi.resetDraft(id); sequenceUi.discardEdit(id); }, stop: generationUi.stopWaiting, canStop: generationUi.canStopWaiting,',
+      '    run: async function (id) {',
+      '      if (templateWorkflow.isMember(id)) return templateWorkflow.runQueued(id);',
+      '      const node = documentState.nodes.find(function (item) { return item.id === id; });',
+      '      if (!node || generationUi.queueBlockReason(id)) throw new Error("请先处理原任务，不会重复生成。");',
+      '      let ok = false;',
+      '      if (node.type === "image") ok = await generationUi.runTemplateImage(id);',
+      '      else if (node.type === "video" || node.type === "video-source") ok = await generationUi.runTemplateVideo(id, node.generation?.parameters?.duration || 4, true, true);',
+      '      else if (node.type === "sequence") { await sequenceUi.runTemplate(id); ok = true; }',
+      '      else if (node.type === "animation") ok = refreshAnimationFromSource(documentState, id);',
+      '      if (ok) { invalidateCanvasDependents(documentState, id); markDirty(); render(); }',
+      '      return ok;',
+      '    },',
+      '    query: async function (id) { await generationUi.queryNode(id, true); },',
+      '    error: function () { return error.textContent; }, clearError: function () { error.textContent = ""; }, queue: groupQueue,',
+      '    busyChanged: function (busy) { canvasAutomationBusy = busy; publishDirty(); }',
+      '  });',
+      '  connectCanvasAutomation({ projectKey: key, current: function () { return documentState; }, execute: automation.execute, error: setError });',
+      '  void boot().catch',
+    ].join(String.fromCharCode(10))
+  );
+  page = replaceCanvasPageText(
+    page,
+    'const sequenceRunning = Boolean(',
+    'const sequenceRunning = Boolean(canvasAutomationBusy || '
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  async function openDocument(id) {',
+    [
+      '  async function openDocument(id) { canvasOpening++; try { await loadCanvasDocument(id); } finally { canvasOpening--; } }',
+      '  async function loadCanvasDocument(id) {',
+    ].join(String.fromCharCode(10))
   );
   return page.replace(
     '<title data-maker-canvas="maker-canvas-page">创作画布</title>',

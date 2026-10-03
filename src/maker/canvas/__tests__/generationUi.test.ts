@@ -63,6 +63,78 @@ function fixture(status = 'succeeded') {
   return { document, attempt, options, ui: createCanvasGenerationUi(options) };
 }
 
+test('automation video execution uses explicitly saved parameters rather than a rejected attempt', async () => {
+  const { document, attempt, options } = fixture('failed');
+  attempt.taskId = undefined;
+  attempt.executionState = 'not_executed';
+  Object.assign(attempt, {
+    prompt: 'old prompt',
+    parameters: { model: '2.0', duration: 4, resolution: '720p' },
+  });
+  document.nodes[1].generation = {
+    prompt: 'new prompt',
+    parameters: { model: '2.5', duration: 8, resolution: '480p' },
+  };
+  const ui = createCanvasGenerationUi(options);
+  await ui.runTemplateVideo('video', 8, true, true);
+  expect(options.store.createVideo).toHaveBeenCalledWith(
+    'canvas',
+    expect.objectContaining({
+      prompt: expect.stringContaining('new prompt'),
+      model: '2.5',
+      duration: 8,
+      resolution: '480p',
+    }),
+    expect.anything()
+  );
+});
+
+test('video submission rejection preserves the actual error without inventing a queryable task', async () => {
+  const { options, ui } = fixture();
+  options.store.listGeneration.mockResolvedValue([]);
+  options.store.createVideo.mockRejectedValue(new Error('Seedance 2.5 requires adaptive ratio'));
+  expect(await ui.runTemplateVideo('video', 4, true, true)).toBe(false);
+  expect(options.setError).toHaveBeenLastCalledWith('Seedance 2.5 requires adaptive ratio');
+  expect(options.store.generationAction).not.toHaveBeenCalled();
+});
+
+test('automation query refreshes a task ID that arrived after stopping local wait', async () => {
+  const { document, attempt, options, ui } = fixture('canceled');
+  attempt.taskId = undefined;
+  await ui.restore();
+  expect(ui.nodeState('video')?.canQuery).toBe(false);
+  options.store.listGeneration.mockResolvedValue([{ ...attempt, taskId: 'late-task' }]);
+  options.store.generationAction.mockResolvedValue({
+    ...attempt,
+    taskId: 'late-task',
+    status: 'succeeded',
+  });
+  await ui.queryNode('video', true);
+  expect(options.store.generationAction).toHaveBeenCalledWith('canvas', 'attempt', 'query');
+  expect(options.store.createVideo).not.toHaveBeenCalled();
+  expect(document.nodes[1].assetPath).toBe('new.mp4');
+});
+
+test('automation query stops when the canvas changes during history refresh', async () => {
+  const { options, ui } = fixture('pending');
+  options.store.listGeneration.mockImplementation(async () => {
+    options.getDocument = () => ({ id: 'different', nodes: [] });
+    return [];
+  });
+  await expect(ui.queryNode('video', true)).rejects.toThrow('画布已切换');
+  expect(options.store.generationAction).not.toHaveBeenCalled();
+});
+
+test('automation query reports request errors while the existing UI keeps its error display', async () => {
+  const { options } = fixture('pending');
+  const ui = createCanvasGenerationUi(options);
+  await ui.restore();
+  options.store.generationAction.mockRejectedValue(new Error('network down'));
+  await expect(ui.queryNode('video', true)).rejects.toThrow('network down');
+  await expect(ui.queryNode('video')).resolves.toBeUndefined();
+  expect(options.setError).toHaveBeenCalledWith('network down');
+});
+
 describe('image reference drafts and refresh', () => {
   const globals = globalThis as any;
   const originalDocument = globals.document;
@@ -122,6 +194,71 @@ describe('image reference drafts and refresh', () => {
     return elements.filter((element) => element.tag === 'img').map((element) => element.src);
   }
 
+  test('unsubmitted manual inputs remain detectable after closing a panel, unlike unchanged caches', () => {
+    const { document, ui, image } = imageFixture(true);
+    ui.render({ append: jest.fn() }, image, document.nodes);
+    expect(ui.hasInputDraft()).toBe(false);
+    const input = elements.find((element) => element.tag === 'textarea');
+    const before = input.value;
+    input.value = 'manual unsent prompt';
+    input.events.input();
+    expect(ui.hasInputDraft()).toBe(true);
+    input.value = before;
+    input.events.input();
+    expect(ui.hasInputDraft()).toBe(false);
+    const fields = elements.find((element) => element.className === 'generation-fields');
+    const model = elements.find((element) => element.tag === 'select');
+    model.value = 'nanobanana';
+    fields.events.change();
+    expect(ui.hasInputDraft()).toBe(true);
+    model.value = 'auto';
+    fields.events.change();
+    expect(ui.hasInputDraft()).toBe(false);
+    elements
+      .find((element) => element.title === '移除参考图 1')
+      .events.click({ stopPropagation() {} });
+    expect(ui.hasInputDraft()).toBe(true);
+  });
+
+  test('saved automatic image model is omitted at the backend boundary', async () => {
+    const { options, ui, image } = imageFixture();
+    (image.generation as any).parameters = { model: 'auto' };
+    await ui.runTemplateImage(image.id);
+    expect(options.store.generateImage).toHaveBeenCalled();
+    expect(options.store.generateImage.mock.calls[0][1].model).toBeUndefined();
+  });
+
+  test('manual panels show explicit references in edge order and template generation respects removals', async () => {
+    const { document, options, ui, image, source } = imageFixture(true);
+    (image as any).referenceInput = { includeSelf: true };
+    image.generation!.referenceImagePaths = [];
+    const other = { ...source, id: 'other', assetPath: 'assets/image/other.png' };
+    document.nodes.push(other);
+    document.edges.unshift({
+      id: 'other-edge',
+      from: other.id,
+      to: image.id,
+      kind: 'image-variant',
+    });
+    ui.render({ append: jest.fn() }, image, document.nodes);
+    expect(displayedPaths()).toEqual([other.assetPath, source.assetPath, image.assetPath]);
+    elements
+      .filter((element) => element.className === 'generation-reference-remove')
+      .forEach((element) => element.events.click({ stopPropagation() {} }));
+    elements = [];
+    ui.render({ append: jest.fn() }, image, document.nodes);
+    expect(displayedPaths()).toEqual([]);
+    await ui.runTemplateImage(image.id);
+    const input = options.store.generateImage.mock.calls[0][1];
+    expect(input).toMatchObject({ operation: 'generate', referenceImagePaths: [] });
+    expect(input.sourceImageIds).toBeUndefined();
+    ui.resetDraft(image.id);
+    (image as any).referenceInput.includeSelf = false;
+    elements = [];
+    ui.render({ append: jest.fn() }, image, document.nodes);
+    expect(displayedPaths()).toEqual([other.assetPath, source.assetPath]);
+  });
+
   test.each([
     { remove: false, imported: false },
     { remove: true, imported: false },
@@ -157,7 +294,7 @@ describe('image reference drafts and refresh', () => {
     expect(document).toEqual(before);
   });
 
-  test('automatic template refresh uses current upstream despite manual draft removals', async () => {
+  test('template refresh respects manual reference removals', async () => {
     const { document, options, ui, image, source } = imageFixture();
     ui.render({ append: jest.fn() }, image, document.nodes, undefined, {
       canSubmit: true,
@@ -174,9 +311,7 @@ describe('image reference drafts and refresh', () => {
       document.id,
       expect.objectContaining({
         targetNodeId: image.id,
-        operation: 'variant',
-        sourceImageIds: [source.id],
-        sourceImagePaths: [source.assetPath],
+        operation: 'generate',
       })
     );
   });

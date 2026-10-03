@@ -454,5 +454,18 @@ export function createCanvasTemplateUi(options: {
       });
     }
   }
-  return { library, context, saveSelection };
+  return {
+    library,
+    context,
+    saveSelection,
+    async addById(id: string): Promise<void> {
+      if (busy || !options.store) throw new Error('模板库未就绪或正在操作。');
+      busy = true;
+      try {
+        await add(await options.store.getTemplate(id), false);
+      } finally {
+        busy = false;
+      }
+    },
+  };
 }

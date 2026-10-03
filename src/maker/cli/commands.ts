@@ -38,6 +38,7 @@ import { MAKER_TOOL_CALL_TIMEOUT_MS } from '../proxyPolicy.js';
 import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeLogs.js';
 import { runPreviewCli } from './preview.js';
 import { runConsoleCli } from '../console/cli.js';
+import { runCanvasCli } from '../canvas/cli.js';
 import { runBuildCli } from './build.js';
 import { runQrcodeCli } from './qrcode.js';
 import {
@@ -147,6 +148,7 @@ const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : '
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
 const TWO_PART_COMMANDS = new Set([
+  'canvas',
   'console',
   'preview',
   'pat',
@@ -160,6 +162,8 @@ const TWO_PART_COMMANDS = new Set([
   'user-skills',
 ]);
 const BOOLEAN_OPTIONS = new Set([
+  'saved',
+  'allow_paid',
   'no_open',
   'json',
   'skip_confirm',
@@ -306,6 +310,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'console') {
     await runConsoleCli(subcommand, parsed.options);
+    return;
+  }
+
+  if (command === 'canvas') {
+    await runCanvasCli(subcommand, parsed.options);
     return;
   }
 
@@ -3229,6 +3238,13 @@ function printHelp(): void {
       '  taptap-maker console serve  # launch from outside the AI IDE on Windows',
       '  taptap-maker console open [--target-dir PROJECT_ABSOLUTE_PATH] [--no-open] [--json]',
       '  taptap-maker console status|stop [--json]',
+      '  taptap-maker canvas capabilities',
+      '  taptap-maker canvas list|pages|templates --target-dir PROJECT_ABSOLUTE_PATH',
+      '  taptap-maker canvas <action> --target-dir PATH --page-id ID --canvas-id ID --revision N --input-file FILE',
+      '  taptap-maker canvas status|wait --target-dir PATH --operation-id ID',
+      '  taptap-maker canvas import --target-dir PATH --page-id ID --canvas-id ID --revision N --file ABSOLUTE_FILE',
+      '  taptap-maker canvas export --target-dir PATH --page-id ID --canvas-id ID --revision N --input-file FILE --output-dir DIRECTORY',
+      '  taptap-maker canvas download --target-dir PATH --operation-id ID --output-dir DIRECTORY',
       '  taptap-maker build --target-dir PROJECT_ABSOLUTE_PATH [--json]',
       '  taptap-maker qrcode --target-dir PROJECT_ABSOLUTE_PATH [--confirmed-screen-orientation landscape|portrait] [--json]',
       '  taptap-maker preview install|prepare|start|run|status|refresh|stop|logs|screenshot|validate|check',

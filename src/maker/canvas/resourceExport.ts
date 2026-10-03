@@ -31,7 +31,8 @@ export async function downloadCanvasResource(
   mediaUrl: (path: string) => string,
   progress?: (message: string) => void,
   identity = canvasExportIdentity(undefined, node),
-  loop = true
+  loop = true,
+  sink?: (blob: Blob, filename: string) => Promise<void>
 ): Promise<void> {
   if (
     !node.assetPath ||
@@ -47,7 +48,8 @@ export async function downloadCanvasResource(
     await downloadCanvasImage(
       mediaUrl(node.assetPath),
       filename.slice(0, -(format.length + 1)),
-      format
+      format,
+      sink
     );
     return;
   }
@@ -64,7 +66,7 @@ export async function downloadCanvasResource(
   const folder = filename.slice(0, -(extension.length + 1));
   let handle: any;
   try {
-    if (typeof window.showSaveFilePicker === 'function') {
+    if (!sink && typeof window.showSaveFilePicker === 'function') {
       handle = await window.showSaveFilePicker({
         suggestedName: filename,
         types: [
@@ -101,6 +103,10 @@ export async function downloadCanvasResource(
     if (!response.ok) throw new Error('视频读取失败，未导出文件，请重试。');
     blob = await response.blob();
     if (!blob.size) throw new Error('视频文件为空，未导出文件。');
+  }
+  if (sink) {
+    await sink(blob, filename);
+    return;
   }
   if (handle) {
     const writable = await handle.createWritable();

@@ -5,7 +5,8 @@ declare const Image: any;
 export async function downloadCanvasImage(
   sourceUrl: string,
   title: string,
-  format: 'png' | 'jpg'
+  format: 'png' | 'jpg',
+  sink?: (blob: Blob, filename: string) => Promise<void>
 ): Promise<void> {
   const mime = format === 'jpg' ? 'image/jpeg' : 'image/png';
   const safeTitle = Array.from(title, (character) =>
@@ -21,7 +22,7 @@ export async function downloadCanvasImage(
     format;
   let handle: any;
   try {
-    if (typeof window.showSaveFilePicker === 'function') {
+    if (!sink && typeof window.showSaveFilePicker === 'function') {
       handle = await window.showSaveFilePicker({
         suggestedName: filename,
         types: [
@@ -34,8 +35,21 @@ export async function downloadCanvasImage(
     throw error;
   }
   const source = new Image();
-  source.src = sourceUrl;
-  await source.decode();
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => finish(new Error('图片加载超时，未导出文件，请重试。')), 15000);
+    const finish = (error?: Error) => {
+      clearTimeout(timer);
+      source.onload = null;
+      source.onerror = null;
+      if (error) {
+        source.src = '';
+        reject(error);
+      } else resolve();
+    };
+    source.onload = () => finish();
+    source.onerror = () => finish(new Error('图片无法加载，未导出文件。'));
+    source.src = sourceUrl;
+  });
   const canvas = document.createElement('canvas');
   canvas.width = source.naturalWidth;
   canvas.height = source.naturalHeight;
@@ -54,6 +68,10 @@ export async function downloadCanvasImage(
       0.95
     );
   });
+  if (sink) {
+    await sink(blob, filename);
+    return;
+  }
   if (handle) {
     const writable = await handle.createWritable();
     try {

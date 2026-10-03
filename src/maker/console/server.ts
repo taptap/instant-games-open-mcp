@@ -21,6 +21,7 @@ import { ConsoleDocuments } from './documents.js';
 import { chooseProjectDirectory } from './folderPicker.js';
 import { discoverConsoleProjects } from './projectDiscovery.js';
 import { handleCanvasProjectRoute } from './canvasRoutes.js';
+import { CanvasAutomationBridge } from '../canvas/automationBridge.js';
 import { getCanvasPageHtml } from '../canvas/page.js';
 import { writePrivateJson } from '../system/privateJson.js';
 import { logLifecycleEvent } from '../lifecycle.js';
@@ -75,6 +76,7 @@ export async function startConsoleServer(options: {
   const plugins = new ConsolePlugins(options.registry, options.plugins);
   const updates = new ConsoleUpdates(options.version, options.distribution);
   const documents = new ConsoleDocuments(options.packageRoot || '');
+  const canvasAutomation = new CanvasAutomationBridge();
   const remoteProxyManager = options.remoteProxyManager || createMakerRemoteProxyManager();
   let selectedProjectKey = readSelectedProjectKey(options.preferencesFile);
   let luaLspCache: { at: number; value: Record<string, unknown> } | undefined;
@@ -507,9 +509,10 @@ export async function startConsoleServer(options: {
           key,
           registry: options.registry,
           remoteProxyManager,
+          automation: canvasAutomation,
         })
       ) {
-        touch();
+        if (suffix !== 'canvases/automation/exchange') touch();
       } else {
         throw new ConsoleError('Not found.', 404);
       }

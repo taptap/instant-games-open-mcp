@@ -382,6 +382,16 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- Canvas CLI 的协议、桥接、页面适配位于 src/maker/canvas/automation\*.ts，CLI 只接线，
+  不新增 MCP tool 或独立工作流。命令必须绑定项目、页面、画布和编辑版本，复用页面保存与保护。
+  不通过后端直接改写已打开画布，不覆盖人工草稿，不自动重放付费操作；详细约束见画布 README。
+  空卡输入复用 generationDraft（图片/视频及可选参数），成功生成后清除草稿，不伪造 generation 结果。
+  显式参考输入通过 referenceInput 标记，来源仍只存 edges；清空后不回退历史来源，旧结果保留。
+  CLI 本地文件读写在 automationFiles.ts，导入复用受控素材路由。导出复用 resourceExport 的 sink，
+  浏览器不接收本机输出目录；桥接缓存仅暂存按项目/操作绑定的字节，总量128 MiB、10分钟过期，
+  成功下载释放。CLI 使用排他创建保护同名文件，不增加自动重试或后台清理循环。
+  修改此链路同时运行画布 UI 回归与 scripts/test-maker-canvas-automation.mjs。
+
 - Maker 的 stdio 子代理统一使用 HiddenStdioClientTransport，Windows 保持 windowsHide:true、
   shell:false，只通过创建时持有的 ChildProcess 句柄终止直属子进程；禁止按旧 PID 使用
   taskkill /T，不新增 Job Object 或 PowerShell 清理代理。exit 立即结束协议等待，

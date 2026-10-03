@@ -437,6 +437,41 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
   }
 }
 
+export async function canvasConsoleConnection(projectPath: string) {
+  if (!path.isAbsolute(projectPath)) throw new ConsoleError('--target-dir 必须是项目绝对路径。');
+  const { previewProject } = await import('../preview/protocol.js');
+  previewProject(projectPath);
+  const session = await ensureSession();
+  const project = await request(session, '/api/projects', { path: projectPath });
+  return {
+    url: session.origin + '/canvas?project=' + encodeURIComponent(project.key),
+    transfer: async (route: string, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers);
+      headers.set('Origin', session.origin);
+      const response = await fetch(
+        session.origin + '/api/projects/' + encodeURIComponent(project.key) + '/canvases' + route,
+        {
+          ...init,
+          headers,
+          signal: AbortSignal.timeout(60000),
+          redirect: 'error',
+        }
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new ConsoleError(body.error || '素材传输失败：' + response.status, response.status);
+      }
+      return response;
+    },
+    request: (route: string, body?: unknown) =>
+      request(
+        session,
+        '/api/projects/' + encodeURIComponent(project.key) + '/canvases' + route,
+        body
+      ),
+  };
+}
+
 export async function startConsolePreview(
   projectPath: string,
   signal: AbortSignal
