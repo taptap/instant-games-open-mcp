@@ -13,6 +13,19 @@ fs.appendFileSync(
   JSON.stringify({ frame, started: Date.now() }) + '\n'
 );
 console.log('runtime evidence');
+if (options.cacheFixture && value('-game_path')) {
+  const cache = value('-game_path');
+  const publicFile = path.join(cache, 'cdn.example', 'engine-res', 'assets', 'uuid-hash.bin');
+  console.log(fs.existsSync(publicFile) ? 'public cache reused' : 'public cache cold');
+  fs.mkdirSync(path.dirname(publicFile), { recursive: true });
+  fs.writeFileSync(publicFile, 'public resource');
+  const projectCache = path.join(
+    cache,
+    value('-game_url').slice('http://'.length).replace(':', '_')
+  );
+  fs.mkdirSync(projectCache, { recursive: true });
+  fs.writeFileSync(path.join(projectCache, 'local-resource'), 'this round');
+}
 if (options.logError) console.log('ERROR: Lua execution failed');
 if (args.includes('-validate') && !options.noReport) {
   const pass = options.passReport && !options.luaErrors;

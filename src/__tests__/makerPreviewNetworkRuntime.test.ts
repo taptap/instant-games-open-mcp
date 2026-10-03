@@ -63,6 +63,12 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  for (const [, args] of jest.mocked(spawn).mock.calls) {
+    const cache = (args as string[] | undefined)
+      ?.find((arg) => arg.startsWith('-game_path='))
+      ?.slice('-game_path='.length);
+    if (cache) fs.rmSync(cache, { recursive: true, force: true });
+  }
   Object.defineProperty(process, 'platform', platform);
   fs.rmSync(root, { recursive: true, force: true });
 });
@@ -80,6 +86,58 @@ function runtime(): PreviewRuntime {
     jest.fn()
   );
 }
+
+test.each(['win32', 'darwin'])(
+  '%s restarts preserve public downloads but remove only the previous loopback project',
+  async (value) => {
+    Object.defineProperty(process, 'platform', { value });
+    fs.writeFileSync(
+      path.join(root, '.project/resources.json'),
+      JSON.stringify({ aliases: { player: 'uuid://player' } })
+    );
+    jest.mocked(preparePreviewServer).mockResolvedValue(undefined);
+    let firstCache: string | undefined;
+    let publicFile: string | undefined;
+    const allocated = new Set<string>();
+    try {
+      for (let round = 0; round < 2; round++) {
+        const url = `http://127.0.0.1:${12345 + round}/round-${round}/`;
+        jest.mocked(startPreviewAssetServer).mockResolvedValue({
+          url,
+          close: jest.fn().mockResolvedValue(undefined),
+        });
+        const instance = runtime();
+        let projectCache: string | undefined;
+        try {
+          await instance.start('main.lua', root);
+          const args = jest.mocked(spawn).mock.calls.at(-1)![1] as string[];
+          const cache = args
+            .find((arg) => arg.startsWith('-game_path='))!
+            .slice('-game_path='.length);
+          allocated.add(cache);
+          if (round === 0) {
+            firstCache = cache;
+            publicFile = path.join(cache, 'cdn.example', 'engine-res', 'assets', 'uuid-hash.bin');
+            fs.mkdirSync(path.dirname(publicFile), { recursive: true });
+            fs.writeFileSync(publicFile, 'public resource');
+          } else {
+            expect(cache).toBe(firstCache);
+            expect(fs.readFileSync(publicFile!, 'utf8')).toBe('public resource');
+          }
+          projectCache = path.join(cache, url.slice('http://'.length).replace(':', '_'));
+          fs.mkdirSync(projectCache, { recursive: true });
+          fs.writeFileSync(path.join(projectCache, 'local-resource'), 'this round');
+        } finally {
+          await instance.stop();
+        }
+        expect(fs.existsSync(projectCache!)).toBe(false);
+        expect(fs.existsSync(publicFile!)).toBe(true);
+      }
+    } finally {
+      for (const cache of allocated) fs.rmSync(cache, { recursive: true, force: true });
+    }
+  }
+);
 
 test.each(['darwin', 'win32'])(
   '%s launch and restart use fresh connection info with skip_login',
@@ -203,7 +261,7 @@ test.each(['win32', 'darwin'])(
     } finally {
       await instance.stop();
     }
-    if (platform === 'win32') expect(fs.existsSync(cache!)).toBe(false);
+    expect(fs.existsSync(cache!)).toBe(true);
     const server = await jest.mocked(startPreviewAssetServer).mock.results.at(-1)!.value;
     expect(server.close).toHaveBeenCalled();
     expect(fs.existsSync(path.join(root, '.project'))).toBe(false);
@@ -235,20 +293,23 @@ test.each(['win32', 'darwin'])(
       if (value === 'win32') {
         expect(path.basename(cache)).toMatch(/^maker-cache-/);
         expect(cache.startsWith(root + path.sep)).toBe(false);
-        fs.writeFileSync(path.join(cache, 'downloaded'), 'owned');
+        fs.mkdirSync(path.join(cache, 'cdn.example'), { recursive: true });
+        fs.writeFileSync(path.join(cache, 'cdn.example/downloaded'), 'public');
       }
     } finally {
       await instance.stop();
     }
     expect(fs.readFileSync(path.join(root, 'sentinel'), 'utf8')).toBe('preserved');
-    if (value === 'win32') expect(fs.existsSync(cache!)).toBe(false);
+    expect(fs.existsSync(cache!)).toBe(true);
+    if (value === 'win32')
+      expect(fs.readFileSync(path.join(cache!, 'cdn.example/downloaded'), 'utf8')).toBe('public');
     const server = await jest.mocked(startPreviewAssetServer).mock.results.at(-1)!.value;
     expect(server.close).toHaveBeenCalled();
   }
 );
 
 test.each([false, true])(
-  'Windows prepared spawn failure cleans server and cache (network=%s)',
+  'Windows prepared spawn failure closes server without deleting public cache (network=%s)',
   async (network) => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     if (network) {
@@ -267,7 +328,7 @@ test.each([false, true])(
     });
     await expect(runtime().start('main.lua', root)).rejects.toThrow('spawn rejected');
     expect(cache).not.toBe('');
-    expect(fs.existsSync(cache)).toBe(false);
+    expect(fs.existsSync(cache)).toBe(true);
     const server = await jest.mocked(startPreviewAssetServer).mock.results.at(-1)!.value;
     expect(server.close).toHaveBeenCalled();
   }
@@ -299,7 +360,7 @@ test('Windows cache cleanup refuses a substituted junction and preserves its tar
   const target = path.join(root, 'untouched');
   fs.mkdirSync(target);
   fs.writeFileSync(path.join(target, 'sentinel'), 'preserved');
-  fs.rmdirSync(cache);
+  fs.rmSync(cache, { recursive: true });
   fs.symlinkSync(target, cache, 'junction');
   try {
     await instance.stop();

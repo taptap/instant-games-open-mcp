@@ -12,10 +12,14 @@ import { PreviewLogs } from '../maker/preview/evidence.js';
 import { PreviewOwner } from '../maker/preview/owner.js';
 import { screenshotRetryTimeout } from '../maker/preview/validation.js';
 import { previewDirectory, writePrivateJson } from '../maker/preview/protocol.js';
+import { preparePreviewProject } from '../maker/preview/prepare.js';
 
 jest.mock('../maker/preview/prepare.js', () => ({
   ...jest.requireActual('../maker/preview/prepare.js'),
   requireManifestPreviewPlatform: jest.fn(),
+  preparePreviewProject: jest.fn(
+    jest.requireActual('../maker/preview/prepare.js').preparePreviewProject
+  ),
 }));
 
 let root: string;
@@ -80,6 +84,48 @@ test('budgets later screenshots without overriding explicit timeout limits', () 
 
 const validate = (options: Record<string, string | boolean> = {}, signal?: AbortSignal) =>
   executePreviewOperation('validate', { target_dir: project, runtime, ...options }, signal);
+
+nativeTest(
+  'manifest validation reuses public downloads across runs and cleans project files',
+  async () => {
+    fixture({ cacheFixture: true });
+    fs.writeFileSync(
+      path.join(project, '.project/resources.json'),
+      '{"groups":{"default":["**"]}}'
+    );
+    fs.mkdirSync(path.join(project, 'dist/1.0.0'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'dist/latest.json'), '{"version":"1.0.0","client":"abcd"}');
+    fs.writeFileSync(
+      path.join(project, 'dist/1.0.0/manifest-abcd.json'),
+      '{"target":"client","files":[]}'
+    );
+    jest
+      .mocked(preparePreviewProject)
+      .mockResolvedValueOnce({ source_directory: project, entry: 'main.lua' });
+    jest
+      .mocked(preparePreviewProject)
+      .mockResolvedValueOnce({ source_directory: project, entry: 'main.lua' });
+    let firstCache: string | undefined;
+    for (let round = 0; round < 2; round++) {
+      const result = await validate();
+      expect(result.ok).toBe(true);
+      const invocation = JSON.parse(fs.readFileSync(String(result.invocation_path), 'utf8'));
+      const args = invocation.args as string[];
+      const cache = args.find((arg) => arg.startsWith('-game_path='))!.slice('-game_path='.length);
+      const url = args.find((arg) => arg.startsWith('-game_url='))!.slice('-game_url='.length);
+      const projectCache = path.join(cache, url.slice('http://'.length).replace(':', '_'));
+      if (round === 0) firstCache = cache;
+      else expect(cache).toBe(firstCache);
+      expect(fs.existsSync(path.join(cache, 'cdn.example/engine-res/assets/uuid-hash.bin'))).toBe(
+        true
+      );
+      expect(fs.existsSync(projectCache)).toBe(false);
+      expect(fs.readFileSync(String(result.log_path), 'utf8')).toContain(
+        round === 0 ? 'public cache cold' : 'public cache reused'
+      );
+    }
+  }
+);
 
 nativeTest(
   'runs the existing validation protocol and leaves game judgment to the Skill',
