@@ -25,7 +25,7 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { MakerStdioClient as Client } from './stdioClient.js';
 import { identifyMakerProject, formatIdentifyHint } from './identify.js';
 import { HiddenStdioClientTransport } from './hiddenStdioTransport.js';
 import { closeTrackedMakerChildTransports, trackMakerChildTransport } from './childTransports.js';

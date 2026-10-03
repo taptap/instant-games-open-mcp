@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { HiddenStdioClientTransport } from './hiddenStdioTransport.js';
+import {
+  MakerStdioClient as Client,
+  withStdioRequestCleanup as withRequestCleanup,
+} from './stdioClient.js';
 import { ErrorCode, type CallToolResult, type Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
@@ -10,8 +13,8 @@ import type { RemoteProxyContext } from './mcp.js';
 export type RemoteProxyToolDefinition = Tool & { [key: string]: unknown };
 
 export interface MakerRemoteProxyClient {
-  connect(transport: Transport): Promise<void>;
-  listTools(): Promise<{ tools: Tool[] }>;
+  connect(transport: Transport, options?: RequestOptions): Promise<void>;
+  listTools(params?: { cursor?: string }, options?: RequestOptions): Promise<{ tools: Tool[] }>;
   callTool(
     request: { name: string; arguments?: Record<string, unknown> },
     resultSchema?: undefined,
@@ -159,10 +162,19 @@ export function createMakerRemoteProxyManager(
     retiredEntries.add(entry);
     entry.closing = true;
     entry.closePromise = Promise.resolve()
-      .then(async () => await entry.client.close())
-      .catch(() => {})
-      .finally(() => {
+      .then(async () => {
+        try {
+          await entry.client.close();
+        } finally {
+          await entry.transport.close();
+        }
+      })
+      .then(() => {
         retiredEntries.delete(entry);
+      })
+      .catch((error: unknown) => {
+        entry.closePromise = undefined;
+        throw error;
       });
     return entry.closePromise;
   };
@@ -176,7 +188,7 @@ export function createMakerRemoteProxyManager(
     if (entry.activeOperations > 0) {
       return;
     }
-    void closeEntry(entry);
+    void closeEntry(entry).catch(() => {});
   };
 
   const releaseEntry = async (entry: ConnectionEntry): Promise<void> => {
@@ -242,11 +254,11 @@ export function createMakerRemoteProxyManager(
     };
     connections.set(key, entry);
     client.onclose = () => {
-      if (!entry.closing && connections.get(key) === entry) {
-        connections.delete(key);
-      }
+      if (!entry.closing) void closeEntry(entry).catch(() => {});
     };
-    entry.connectPromise = client.connect(transport).then(() => client);
+    entry.connectPromise = withRequestCleanup(undefined, (requestOptions) =>
+      client.connect(transport, requestOptions)
+    ).then(() => client);
 
     try {
       await entry.connectPromise;
@@ -279,7 +291,11 @@ export function createMakerRemoteProxyManager(
   return {
     async listTools(context): Promise<RemoteProxyToolDefinition[]> {
       const key = createContextKey(context);
-      const result = await run(context, async (client) => await client.listTools());
+      const result = await run(context, (client) =>
+        withRequestCleanup(undefined, (requestOptions) =>
+          client.listTools(undefined, requestOptions)
+        )
+      );
       const tools = result.tools as RemoteProxyToolDefinition[];
       cachedTools.set(key, tools);
       return tools;
@@ -288,7 +304,9 @@ export function createMakerRemoteProxyManager(
     async callTool(context, request, requestOptions, onDispatch): Promise<CallToolResult> {
       return await run(context, async (client) => {
         onDispatch?.();
-        return await client.callTool(request, undefined, requestOptions);
+        return await withRequestCleanup(requestOptions, (scopedOptions) =>
+          client.callTool(request, undefined, scopedOptions)
+        );
       });
     },
 
@@ -303,10 +321,15 @@ export function createMakerRemoteProxyManager(
       closed = true;
       const entries = new Set([...connections.values(), ...retiredEntries]);
       connections.clear();
-      retiredEntries.clear();
-      closePromise = Promise.allSettled(
-        [...entries].map(async (entry) => await closeEntry(entry))
-      ).then(() => undefined);
+      closePromise = Promise.allSettled([...entries].map(async (entry) => await closeEntry(entry)))
+        .then((results) => {
+          const failure = results.find((result) => result.status === 'rejected');
+          if (failure?.status === 'rejected') throw failure.reason;
+        })
+        .catch((error: unknown) => {
+          closePromise = undefined;
+          throw error;
+        });
       return await closePromise;
     },
   };

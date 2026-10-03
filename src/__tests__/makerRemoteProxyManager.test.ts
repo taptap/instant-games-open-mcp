@@ -8,6 +8,9 @@ import {
   type MakerRemoteProxyClientHandlers,
 } from '../maker/server/remoteProxyManager.js';
 import type { RemoteProxyContext } from '../maker/server/mcp.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import type { ChildProcess } from 'node:child_process';
+import { getEventListeners, once } from 'node:events';
 
 type FakeClient = MakerRemoteProxyClient & {
   connect: jest.Mock<Promise<void>, [Transport]>;
@@ -91,6 +94,70 @@ function createHarness(options: { connect?: () => Promise<void> } = {}) {
 }
 
 describe('MakerRemoteProxyManager', () => {
+  test('real stdio calls drain noisy logs, reject child exit, and reconnect only on the next call', async () => {
+    const transports: HiddenStdioClientTransport[] = [];
+    const clients: Client[] = [];
+    const manager = createMakerRemoteProxyManager({
+      createClient: () => {
+        const client = new Client(
+          { name: 'process-hygiene-test', version: '0' },
+          { capabilities: {} }
+        );
+        clients.push(client);
+        const connect = client.connect.bind(client);
+        client.connect = async (transport, options) => {
+          transports.push(transport as HiddenStdioClientTransport);
+          await connect(transport, options);
+        };
+        return client as unknown as MakerRemoteProxyClient;
+      },
+    });
+    const server = [
+      'const readline = require("node:readline");',
+      'const rl = readline.createInterface({input:process.stdin});',
+      'const reply = (id, result) => process.stdout.write(JSON.stringify({jsonrpc:"2.0",id,result}) + "\\n");',
+      'rl.on("line", line => {',
+      '  const msg = JSON.parse(line);',
+      '  if (msg.method === "initialize") reply(msg.id, {protocolVersion:"2024-11-05",capabilities:{tools:{}},serverInfo:{name:"test",version:"0"}});',
+      '  if (msg.method === "tools/call") {',
+      '    if (msg.params.name === "exit") process.exit(0);',
+      '    else process.stderr.write(Buffer.alloc(4 * 1024 * 1024), () => reply(msg.id, {content:[{type:"text",text:"done"}]}));',
+      '  }',
+      '});',
+      'process.stdin.on("end", () => process.exit(0));',
+    ].join('\n');
+    const context = createContext({ command: process.execPath, args: ['-e', server] });
+    try {
+      await expect(manager.callTool(context, { name: 'noisy' })).resolves.toMatchObject({
+        content: [{ text: 'done' }],
+      });
+      const child = (transports[0] as unknown as { process: ChildProcess }).process;
+      await expect(manager.callTool(context, { name: 'exit' })).rejects.toMatchObject({
+        code: ErrorCode.ConnectionClosed,
+      });
+      expect(transports).toHaveLength(1);
+      expect(
+        (clients[0] as unknown as { _timeoutInfo: Map<number, unknown> })._timeoutInfo.size
+      ).toBe(0);
+      expect(child.stdout?.destroyed).toBe(true);
+      expect(child.stderr?.destroyed).toBe(true);
+      await expect(manager.callTool(context, { name: 'noisy' })).resolves.toMatchObject({
+        content: [{ text: 'done' }],
+      });
+      expect(transports).toHaveLength(2);
+      const idleChild = (transports[1] as unknown as { process: ChildProcess }).process;
+      const exited = once(idleChild, 'exit');
+      idleChild.kill();
+      await exited;
+      await manager.closeAll();
+      expect(idleChild.stdout?.destroyed).toBe(true);
+      expect(idleChild.stderr?.destroyed).toBe(true);
+    } finally {
+      await manager.closeAll();
+      await Promise.all(transports.map((transport) => transport.close()));
+    }
+  }, 15000);
+
   test('uses the hidden stdio transport for the persistent console proxy', async () => {
     const transports: Transport[] = [];
     const manager = createMakerRemoteProxyManager({
@@ -427,8 +494,65 @@ describe('MakerRemoteProxyManager', () => {
     expect(harness.clients[0].callTool).toHaveBeenCalledWith(
       { name: 'generate_image', arguments: { prompt: 'forest' } },
       undefined,
-      requestOptions
+      expect.objectContaining({ ...requestOptions, signal: expect.any(AbortSignal) })
     );
+  });
+
+  test('preserves caller cancellation and removes its signal listener', async () => {
+    const harness = createHarness();
+    const context = createContext();
+    await harness.manager.callTool(context, { name: 'ready' });
+    const controller = new AbortController();
+    let started: (() => void) | undefined;
+    const dispatched = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    harness.clients[0].callTool.mockImplementationOnce(
+      (_request, _schema, options: RequestOptions) =>
+        new Promise((_resolve, reject) => {
+          options.signal!.addEventListener('abort', () => reject(options.signal!.reason), {
+            once: true,
+          });
+          started?.();
+        })
+    );
+    const failure = new Error('user canceled');
+    const pending = harness.manager.callTool(
+      context,
+      { name: 'wait' },
+      { signal: controller.signal }
+    );
+    const rejected = expect(pending).rejects.toBe(failure);
+    await dispatched;
+    controller.abort(failure);
+    await rejected;
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+    expect(harness.clients[0].callTool).toHaveBeenCalledTimes(2);
+    await harness.manager.closeAll();
+  });
+
+  test('failed requests abort SDK cleanup signals while successful ones do not', async () => {
+    const harness = createHarness();
+    const context = createContext();
+    const controller = new AbortController();
+    await harness.manager.callTool(context, { name: 'ready' }, { signal: controller.signal });
+    expect(harness.clients[0].callTool.mock.calls[0][2].signal.aborted).toBe(false);
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+    harness.clients[0].callTool.mockRejectedValueOnce(new Error('connection interrupted'));
+    await expect(harness.manager.callTool(context, { name: 'wait' })).rejects.toThrow(
+      'connection interrupted'
+    );
+    expect(harness.clients[0].callTool.mock.calls[1][2].signal.aborted).toBe(true);
+    await harness.manager.closeAll();
+  });
+
+  test('closeAll reports failed transport cleanup and retries it on the next shutdown', async () => {
+    const harness = createHarness();
+    await harness.manager.callTool(createContext(), { name: 'ready' });
+    jest.mocked(harness.transports[0].close).mockRejectedValueOnce(new Error('exit unknown'));
+    await expect(harness.manager.closeAll()).rejects.toThrow('exit unknown');
+    await harness.manager.closeAll();
+    expect(harness.transports[0].close).toHaveBeenCalledTimes(2);
   });
 
   test('closeAll closes every client once, is idempotent, and rejects new acquisitions', async () => {

@@ -168,4 +168,38 @@ describe('Maker process lifecycle guards', () => {
     expect(firstClose).toHaveBeenCalledTimes(1);
     expect(secondClose).toHaveBeenCalledTimes(1);
   });
+
+  test('registry shutdown waits for a close already in progress', async () => {
+    let finish: (() => void) | undefined;
+    const close = jest.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        })
+    );
+    const transport = trackMakerChildTransport({ close });
+    const firstClose = transport.close();
+    await Promise.resolve();
+    let shutdownFinished = false;
+    const shutdown = closeTrackedMakerChildTransports().then(() => {
+      shutdownFinished = true;
+    });
+    await Promise.resolve();
+    expect(shutdownFinished).toBe(false);
+    finish?.();
+    await Promise.all([firstClose, shutdown]);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  test('failed cleanup stays registered and can be retried', async () => {
+    const close = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('exit unknown'))
+      .mockResolvedValue(undefined);
+    trackMakerChildTransport({ close });
+    await expect(closeTrackedMakerChildTransports()).rejects.toThrow('exit unknown');
+    await closeTrackedMakerChildTransports();
+    await closeTrackedMakerChildTransports();
+    expect(close).toHaveBeenCalledTimes(2);
+  });
 });

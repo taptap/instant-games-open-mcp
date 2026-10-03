@@ -866,6 +866,11 @@ Maker MCP 在本地 server 进程内按活动项目维护一个 embedded proxy �
 `tools/list_changed` 刷新。runtime-log watcher 保持独立的
 轮询连接生命周期，不与远端 proxy session 共享。
 
+Windows 本地 stdio 代理隐藏命令行窗口；代理异常退出会结束当前请求的等待，后续操作可重建连接。
+已提交的图片或视频生成仍按结果未知处理，不自动重复付费生成。关闭仅确认本实例直属子进程的退出，
+不按旧 PID 强杀进程树，也不将本地管道关闭当作孙进程已回收。详见
+[控制台代理进程说明](docs/MAKER_CONSOLE.md#stdio-代理进程与清理)。
+
 ## 🤝 贡献
 
 欢迎贡献！请遵循：

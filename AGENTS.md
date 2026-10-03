@@ -382,6 +382,16 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- Maker 的 stdio 子代理统一使用 HiddenStdioClientTransport，Windows 保持 windowsHide:true、
+  shell:false，只通过创建时持有的 ChildProcess 句柄终止直属子进程；禁止按旧 PID 使用
+  taskkill /T，不新增 Job Object 或 PowerShell 清理代理。exit 立即结束协议等待，
+  transport 自行收尾，不能依赖 SDK 在 onclose 后仍保留 transport。
+  stderr 为实时诊断流，默认持续排空，不缓存未订阅日志；背压发送在关闭/错误/退出时必须结束。
+  Windows 已退出子进程不等待继承管道；POSIX 最多等待 2 秒排空，然后释放本地管道。
+  关闭必须等待直属子进程退出证据，共享进行中的清理 Promise；清理失败保留登记并允许重试。
+  不把本地管道释放视为孙进程已回收。常驻及短命代理通过公开 AbortSignal 清理失败请求的 SDK 计时器，
+  保留调用者取消语义，不重放结果未知的付费请求。
+
 - `preview validate` 是 `run-lua-validate` Skill 的本地执行适配，不实现第二套判级或测试框架。
   Skill 分发由 UrhoX ai-dev-kit 维护；安装及验证时检测到本机仍排除该 Skill，先提示再仅移除
   当前平台的该项，其它平台和排除项不变。独立检查原 Skill 文件，缺失须明确提示更新 ai-dev-kit；

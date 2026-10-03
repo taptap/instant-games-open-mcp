@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
-import type { ChildProcess } from 'node:child_process';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { MakerStdioClient as Client } from '../maker/server/stdioClient';
 import { HiddenStdioClientTransport } from '../maker/server/hiddenStdioTransport';
 
 function processAlive(pid: number | null): boolean {
@@ -17,6 +17,122 @@ function processAlive(pid: number | null): boolean {
 }
 
 describe('HiddenStdioClientTransport close', () => {
+  it('clears the initialization deadline when the proxy exits before the handshake', async () => {
+    const transport = new HiddenStdioClientTransport({
+      command: process.execPath,
+      args: ['-e', 'process.stdin.resume(); setTimeout(() => process.exit(0), 100)'],
+      stderr: 'pipe',
+    });
+    const client = new Client({ name: 'handshake-exit-test', version: '0' }, { capabilities: {} });
+    try {
+      await expect(client.connect(transport)).rejects.toThrow('Connection closed');
+      expect((client as unknown as { _timeoutInfo: Map<number, unknown> })._timeoutInfo.size).toBe(
+        0
+      );
+    } finally {
+      await transport.close();
+    }
+  });
+
+  it('drains stderr even without a diagnostic subscriber', async () => {
+    const transport = new HiddenStdioClientTransport({
+      command: process.execPath,
+      args: [
+        '-e',
+        'process.stderr.write(Buffer.alloc(4 * 1024 * 1024), () => process.stdout.write(JSON.stringify({jsonrpc:"2.0",method:"ready"}) + "\\n")); process.stdin.resume()',
+      ],
+      stderr: 'pipe',
+    });
+    const ready = new Promise<void>((resolve) => {
+      transport.onmessage = () => resolve();
+    });
+    try {
+      await transport.start();
+      await ready;
+    } finally {
+      await transport.close();
+    }
+  });
+
+  it.each(['exit', 'close'] as const)('settles a backpressured send on %s', async (action) => {
+    const transport = new HiddenStdioClientTransport({
+      command: process.execPath,
+      args: ['-e', 'setInterval(() => {}, 1000)'],
+      stderr: 'pipe',
+    });
+    await transport.start();
+    const child = (transport as unknown as { process: ChildProcess }).process;
+    const baseline = child.stdin!.listenerCount('error');
+    const pending = transport
+      .send({ jsonrpc: '2.0', method: 'large', params: { data: 'x'.repeat(4 * 1024 * 1024) } })
+      .catch((error: unknown) => error);
+    try {
+      expect(child.stdin!.writableNeedDrain).toBe(true);
+      if (action === 'exit') child.kill();
+      else void transport.close();
+      await expect(pending).resolves.toMatchObject({ message: expect.any(String) });
+      await transport.close();
+      expect(child.stdin!.listenerCount('drain')).toBe(0);
+      expect(child.stdin!.listenerCount('error')).toBe(baseline);
+      expect(child.stdin!.destroyed).toBe(true);
+      expect(child.stdout!.destroyed).toBe(true);
+      expect(child.stderr!.destroyed).toBe(true);
+    } finally {
+      await transport.close();
+    }
+  });
+
+  it('concurrent closes all wait for the owned child to exit', async () => {
+    const transport = new HiddenStdioClientTransport({
+      command: process.execPath,
+      args: [
+        '-e',
+        'process.stdin.resume(); process.stdin.on("end", () => setTimeout(() => process.exit(0), 300))',
+      ],
+      stderr: 'pipe',
+    });
+    await transport.start();
+    const child = (transport as unknown as { process: ChildProcess }).process;
+    await Promise.all(
+      [transport.close(), transport.close()].map(async (closing) => {
+        await closing;
+        expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
+      })
+    );
+    await expect(transport.start()).rejects.toThrow('already started');
+  });
+
+  it('reports unconfirmed termination and allows cleanup to be retried', async () => {
+    const transport = new HiddenStdioClientTransport({
+      command: process.execPath,
+      args: ['-e', 'setInterval(() => {}, 1000)'],
+      stderr: 'pipe',
+    });
+    await transport.start();
+    const child = (transport as unknown as { process: ChildProcess }).process;
+    const kill = jest.spyOn(child, 'kill').mockReturnValue(false);
+    try {
+      await expect(transport.close()).rejects.toThrow('exit could not be confirmed');
+      expect(child.exitCode).toBeNull();
+      expect(child.signalCode).toBeNull();
+    } finally {
+      kill.mockRestore();
+      child.kill();
+      await transport.close();
+    }
+  }, 15000);
+
+  it('cleans up after a spawn failure and rejects reuse', async () => {
+    const transport = new HiddenStdioClientTransport({
+      command: path.join(os.tmpdir(), 'missing-maker-executable-' + process.pid),
+      stderr: 'pipe',
+    });
+    await expect(transport.start()).rejects.toThrow();
+    await transport.close();
+    expect(transport.pid).toBeNull();
+    await expect(transport.start()).rejects.toThrow('already started');
+  });
+
   it('waits for a child that exits after stdin closes', async () => {
     const transport = new HiddenStdioClientTransport({
       command: process.execPath,
@@ -52,6 +168,37 @@ describe('HiddenStdioClientTransport close', () => {
     expect(processAlive(pid)).toBe(false);
     expect(onclose).toHaveBeenCalledTimes(1);
   });
+
+  it('kills only the owned child and leaves an unrelated process', async () => {
+    if (process.platform !== 'win32') return;
+    const unrelated = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    const transport = new HiddenStdioClientTransport({
+      command: process.execPath,
+      args: ['-e', 'setInterval(() => {}, 1000)'],
+      stderr: 'pipe',
+    });
+    await transport.start();
+    const ownedPid = transport.pid;
+    try {
+      expect(processAlive(unrelated.pid ?? null)).toBe(true);
+      expect(processAlive(ownedPid)).toBe(true);
+      const started = Date.now();
+      await transport.close();
+      expect(Date.now() - started).toBeLessThan(5000);
+      expect(processAlive(ownedPid)).toBe(false);
+      expect(processAlive(unrelated.pid ?? null)).toBe(true);
+    } finally {
+      await transport.close();
+      try {
+        unrelated.kill();
+      } catch {
+        /* test cleanup */
+      }
+    }
+  }, 15000);
 
   it.each([false, true])(
     'rejects calls on exit once while inherited pipes drain (close before exit: %s)',
@@ -142,6 +289,22 @@ describe('HiddenStdioClientTransport close', () => {
         ]);
         expect(result).toBeInstanceOf(Error);
         expect((result as Error).message).toMatch(/Connection closed/);
+        expect(onclose).toHaveBeenCalledTimes(1);
+        await expect(transport.send({ jsonrpc: '2.0', method: 'ping' })).rejects.toThrow(
+          'Not connected'
+        );
+        if (process.platform === 'win32') {
+          const started = Date.now();
+          closing ??= closeTransport();
+          await closing;
+          expect(Date.now() - started).toBeLessThan(2000);
+          expect(child.stdout?.destroyed).toBe(true);
+          expect(child.stderr?.destroyed).toBe(true);
+          expect(onerror).not.toHaveBeenCalled();
+          expect(onnotification).not.toHaveBeenCalled();
+          fs.writeFileSync(releasePath, 'release');
+          return;
+        }
         expect(pipesClosed).toBe(false);
         expect(onclose).toHaveBeenCalledTimes(1);
         await expect(transport.send({ jsonrpc: '2.0', method: 'ping' })).rejects.toThrow(
@@ -167,7 +330,7 @@ describe('HiddenStdioClientTransport close', () => {
             _timeoutInfo?: Map<number, { timeoutId: ReturnType<typeof setTimeout> }>;
           }
         )._timeoutInfo;
-        for (const info of timeouts?.values() ?? []) clearTimeout(info.timeoutId);
+        expect(timeouts?.size).toBe(0);
         fs.rmSync(directory, { recursive: true, force: true });
       }
     },
@@ -255,7 +418,7 @@ describe('HiddenStdioClientTransport Windows console', () => {
     });
     const started = Date.now();
     await new Promise((resolve) => setTimeout(resolve, 50));
-    process.kill(transport.pid as number);
+    (transport as unknown as { process: ChildProcess }).process.kill();
     await expect(pending).rejects.toThrow(/Connection closed|Not connected/);
     expect(Date.now() - started).toBeLessThan(5000);
     await client.close().catch(() => undefined);
@@ -264,6 +427,6 @@ describe('HiddenStdioClientTransport Windows console', () => {
         _timeoutInfo?: Map<number, { timeoutId: ReturnType<typeof setTimeout> }>;
       }
     )._timeoutInfo;
-    for (const info of timeouts?.values() ?? []) clearTimeout(info.timeoutId);
+    expect(timeouts?.size).toBe(0);
   }, 15000);
 });
