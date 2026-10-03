@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "latest": "0.0.36",
-  "latest_beta": "0.0.37-beta.1",
+  "latest_beta": "0.0.37-beta.2",
   "minimum_supported": "0.0.1",
   "blacklist": [],
   "message": "TapTap Maker MCP package policy is current.",
-  "updated_at": "2026-09-29T14:49:58.251Z"
+  "updated_at": "2026-10-01T05:11:17.158Z"
 }
