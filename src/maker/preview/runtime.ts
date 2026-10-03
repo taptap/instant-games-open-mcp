@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { projectEntry, type PreviewIdentity, type RuntimeInfo } from './protocol.js';
@@ -13,6 +12,7 @@ import { previewWindow, type PreviewWindow } from './windowSettings.js';
 import { PreviewLuaLog } from './luaLog.js';
 import { selectWindowsBackgroundEnvironment } from '../system/backgroundProcess.js';
 import { preparePreviewServer, previewNetworkArgs } from './network.js';
+import { openPreviewDownloadCache, type PreviewDownloadCache } from './downloadCache.js';
 export { previewWindow } from './windowSettings.js';
 
 export const PREVIEW_TIMEOUT_MS = 30000;
@@ -56,8 +56,7 @@ export class PreviewRuntime {
   private readonly abort = new AbortController();
   private closed: Promise<void> = Promise.resolve();
   private assets?: PreviewAssetServer;
-  private assetCache?: string;
-  private temporaryCache?: string;
+  private downloadCache?: PreviewDownloadCache;
   private mode: 'local_manifest' | 'loopback_manifest' = 'local_manifest';
   readonly errors: string[] = [];
   readonly logs: PreviewLogs;
@@ -120,17 +119,8 @@ export class PreviewRuntime {
       this.assets = await startPreviewAssetServer(source, this.abort.signal);
       this.mode = 'loopback_manifest';
       try {
-        cacheRoot =
-          process.platform === 'win32'
-            ? (this.temporaryCache = fs.realpathSync(
-                fs.mkdtempSync(path.join(os.tmpdir(), 'maker-cache-'))
-              ))
-            : path.join(_storage, 'runtime-cache');
-        fs.mkdirSync(cacheRoot, { recursive: true, mode: 0o700 });
-        this.assetCache = path.join(
-          fs.realpathSync(cacheRoot),
-          this.assets.url.slice('http://'.length).replace(':', '_')
-        );
+        this.downloadCache = openPreviewDownloadCache(_storage, this.assets.url);
+        cacheRoot = this.downloadCache.root;
       } catch (error) {
         await this.assets.close();
         this.assets = undefined;
@@ -275,32 +265,12 @@ export class PreviewRuntime {
   }
 
   private clearAssetCache(): void {
-    if (this.temporaryCache) {
-      try {
-        if (fs.existsSync(this.temporaryCache)) {
-          if (
-            fs.lstatSync(this.temporaryCache).isSymbolicLink() ||
-            fs.realpathSync(this.temporaryCache) !== this.temporaryCache
-          )
-            throw new Error('Preview cache ownership changed.');
-          fs.rmSync(this.temporaryCache, { recursive: true, force: true });
-        }
-        this.temporaryCache = undefined;
-        this.assetCache = undefined;
-      } catch {
-        this.recordError('Could not remove this round of local preview download cache.');
-      }
-      return;
-    }
-    if (!this.assetCache) return;
+    if (!this.downloadCache) return;
     try {
-      const parent = path.dirname(this.assetCache);
-      if (fs.existsSync(parent) && fs.realpathSync(parent) === parent) {
-        fs.rmSync(this.assetCache, { recursive: true, force: true });
-        if (!fs.readdirSync(parent).length) fs.rmdirSync(parent);
-      }
+      this.downloadCache.clearProject();
+      this.downloadCache = undefined;
     } catch {
-      this.recordError('Could not remove this round of local preview download cache.');
+      this.recordError('Could not remove this round of local preview project download cache.');
     }
   }
 
