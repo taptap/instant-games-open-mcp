@@ -391,6 +391,10 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   关闭必须等待直属子进程退出证据，共享进行中的清理 Promise；清理失败保留登记并允许重试。
   不把本地管道释放视为孙进程已回收。常驻及短命代理通过公开 AbortSignal 清理失败请求的 SDK 计时器，
   保留调用者取消语义，不重放结果未知的付费请求。
+  控制台在代理或预览清理失败时继续独立收尾，保留失败项、所有权锁和显式关闭重试入口；
+  draining 仅允许健康查询与同源关闭请求，不允许恢复业务。失败复位关闭 Promise、记录脱敏错误，
+  成功项不重复清理；全部成功才关闭 HTTP 并发布 closed。CLI stop 可重试 draining 实例，
+  接受关闭请求不等于进程退出；HTTP、空闲与信号入口均须处理关闭拒绝，不引入后台重试循环。
 
 - `preview validate` 是 `run-lua-validate` Skill 的本地执行适配，不实现第二套判级或测试框架。
   Skill 分发由 UrhoX ai-dev-kit 维护；安装及验证时检测到本机仍排除该 Skill，先提示再仅移除

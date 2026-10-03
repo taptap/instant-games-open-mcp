@@ -107,13 +107,17 @@ async function request(session: Session, route: string, body?: unknown, timeoutM
 }
 async function activeSession(
   timeoutMs = 10000
-): Promise<(Session & { draining: boolean }) | undefined> {
+): Promise<(Session & { draining: boolean; shutdownError?: string }) | undefined> {
   const session = readSession();
   if (!session) return undefined;
   try {
     const state = await request(session, '/api/health', undefined, timeoutMs);
     if (state.instanceId !== session.instanceId) throw new Error('Console identity mismatch.');
-    return { ...session, draining: state.draining === true };
+    return {
+      ...session,
+      draining: state.draining === true,
+      shutdownError: typeof state.shutdownError === 'string' ? state.shutdownError : undefined,
+    };
   } catch (error) {
     // A live process with an unresponsive or different endpoint must not be replaced.
     try {
@@ -142,11 +146,16 @@ async function availableSession(): Promise<Session | undefined> {
       const session = await activeSession(
         Math.max(1, Math.min(10000, Math.floor(deadline - performance.now())))
       );
+      if (session?.shutdownError)
+        throw new ConsoleError(
+          `Console cleanup failed: ${session.shutdownError}. Run console stop to retry.`,
+          409
+        );
       if (!session?.draining) return session;
       sawDraining = true;
     } catch (error) {
       // A verified draining instance may close its socket just before its PID exits.
-      if (!sawDraining) throw error;
+      if (!sawDraining || error instanceof ConsoleError) throw error;
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
@@ -208,11 +217,11 @@ export async function runConsoleSupervisor(): Promise<void> {
       release();
     };
     const shutdown = (): void => {
-      void server.close();
+      void server.close().catch(() => {});
     };
     process.once('exit', cleanup);
-    process.once('SIGTERM', shutdown);
-    process.once('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
     void server.closed.then(() => {
       cleanup();
       process.removeListener('exit', cleanup);
@@ -500,13 +509,14 @@ export async function runConsoleCli(
       process.stdout.write(JSON.stringify({ ok: true, running: false }) + '\n');
       return;
     }
-    if (action === 'stop' && !session.draining) await request(session, '/api/shutdown', {});
+    if (action === 'stop') await request(session, '/api/shutdown', {});
     process.stdout.write(
       JSON.stringify({
-        ok: true,
-        running: action !== 'stop',
+        ok: action === 'stop' || !session.shutdownError,
+        running: true,
         origin: session.origin,
         draining: action === 'stop' || session.draining,
+        ...(action === 'status' && session.shutdownError ? { error: session.shutdownError } : {}),
       }) + '\n'
     );
     return;

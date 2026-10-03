@@ -23,6 +23,7 @@ import { discoverConsoleProjects } from './projectDiscovery.js';
 import { handleCanvasProjectRoute } from './canvasRoutes.js';
 import { getCanvasPageHtml } from '../canvas/page.js';
 import { writePrivateJson } from '../system/privateJson.js';
+import { logLifecycleEvent } from '../lifecycle.js';
 import {
   createMakerRemoteProxyManager,
   type MakerRemoteProxyManager,
@@ -122,6 +123,9 @@ export async function startConsoleServer(options: {
   let draining = false;
   let selectingFolder = false;
   let closePromise: Promise<void> | undefined;
+  let shutdownError: string | undefined;
+  let proxyClosed = false;
+  let previewsClosed = false;
   let resolveClosed!: () => void;
   const closed = new Promise<void>((resolve) => {
     resolveClosed = resolve;
@@ -173,7 +177,11 @@ export async function startConsoleServer(options: {
       ].join('; ')
     );
     try {
-      if (draining && !(request.method === 'GET' && request.url === '/api/health'))
+      if (
+        draining &&
+        !(request.method === 'GET' && request.url === '/api/health') &&
+        !(request.method === 'POST' && request.url === '/api/shutdown')
+      )
         throw new ConsoleError('Console is shutting down. No new operations are accepted.', 503);
       if (
         request.headers.host !== new URL(origin).host ||
@@ -218,7 +226,7 @@ export async function startConsoleServer(options: {
       if (request.method !== 'GET' && request.headers.origin !== origin)
         throw new ConsoleError('Same-origin writes are required.', 403);
       if (request.method === 'GET' && url.pathname === '/api/health') {
-        json(200, { instanceId: options.instanceId, draining });
+        json(200, { instanceId: options.instanceId, draining, shutdownError });
         return;
       }
       if (request.method === 'GET' && url.pathname === '/api/console-preferences') {
@@ -353,14 +361,17 @@ export async function startConsoleServer(options: {
         return;
       }
       if (request.method === 'POST' && url.pathname === '/api/shutdown') {
-        await bodyForMutation();
-        if (selectingFolder || updates.job.status === 'running' || tasks.active || previewsActive())
+        await readBody(request);
+        if (
+          !draining &&
+          (selectingFolder || updates.job.status === 'running' || tasks.active || previewsActive())
+        )
           throw new ConsoleError(
             'Stop the active preview or wait for running tasks before stopping the console.',
             409
           );
         json(200, { ok: true });
-        setImmediate(() => void close());
+        setImmediate(() => void close().catch(() => {}));
         return;
       }
       const report = url.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)\/report$/);
@@ -539,13 +550,14 @@ export async function startConsoleServer(options: {
         !plugins.active &&
         !previewsActive()
       )
-        void close();
+        void close().catch(() => {});
     },
     Math.min(30000, idleMs)
   );
   idleTimer.unref();
   async function close(): Promise<void> {
     if (closePromise) return closePromise;
+    shutdownError = undefined;
     draining = true;
     clearInterval(idleTimer);
     readAbort.abort();
@@ -558,8 +570,27 @@ export async function startConsoleServer(options: {
       await luaLspPending;
       await plugins.close();
       await tasks.settled();
-      await remoteProxyManager.closeAll();
-      await options.closePreviews?.();
+      const cleanup = await Promise.allSettled([
+        (async () => {
+          if (!proxyClosed) {
+            await remoteProxyManager.closeAll();
+            proxyClosed = true;
+          }
+        })(),
+        (async () => {
+          if (!previewsClosed) {
+            await options.closePreviews?.();
+            previewsClosed = true;
+          }
+        })(),
+      ]);
+      await Promise.allSettled(readers);
+      const failures = cleanup.flatMap((result) =>
+        result.status === 'rejected'
+          ? [result.reason instanceof Error ? result.reason.message : String(result.reason)]
+          : []
+      );
+      if (failures.length) throw new Error(failures.join('; '));
       await new Promise<void>((resolve) => {
         const timer = setTimeout(() => {
           for (const socket of sockets) socket.destroy();
@@ -571,9 +602,15 @@ export async function startConsoleServer(options: {
         });
         server.closeIdleConnections();
       });
-      await Promise.allSettled(readers);
       resolveClosed();
-    })();
+    })().catch((error: unknown) => {
+      shutdownError = String(
+        sanitizeDiagnosticValue(error instanceof Error ? error.message : String(error))
+      ).slice(0, 2048);
+      logLifecycleEvent('console-shutdown-failed', shutdownError);
+      closePromise = undefined;
+      throw error;
+    });
     return closePromise;
   }
   return { origin, tasks, close, closed };

@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { createConsoleExecutor } from '../maker/console/executor';
 import * as consoleLauncher from '../maker/console/processLauncher';
+import * as consoleServer from '../maker/console/server';
 import { PreviewOwner } from '../maker/preview/owner';
 import { executeBuildCommand } from '../maker/cli/build';
 import {
@@ -14,6 +15,7 @@ import {
   ensureCompatibleConsoleLauncher,
   openConsoleLog,
   runConsoleCli,
+  runConsoleSupervisor,
 } from '../maker/console/cli';
 import {
   buildWindowsConsoleLaunchScripts,
@@ -636,6 +638,99 @@ describe('Maker console CLI adapters', () => {
       }
     }
   );
+
+  test('reports failed shutdown and lets console stop retry a draining instance', async () => {
+    const oldHome = process.env.TAPTAP_MAKER_HOME;
+    process.env.TAPTAP_MAKER_HOME = directory;
+    const instanceId = '11111111-1111-4111-8111-111111111111';
+    fs.mkdirSync(path.join(directory, 'console'));
+    fs.writeFileSync(
+      path.join(directory, 'console/session.json'),
+      JSON.stringify({
+        schema: 1,
+        origin: 'http://127.0.0.1:54321',
+        instanceId,
+        launcher: 'test',
+        pid: process.pid,
+        draining: true,
+      })
+    );
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ instanceId, draining: true, shutdownError: 'exit unknown' }),
+    } as Response);
+    const output = jest.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      await runConsoleCli('status', { json: true });
+      expect(JSON.parse(String(output.mock.calls[0][0]))).toMatchObject({
+        ok: false,
+        running: true,
+        draining: true,
+        error: 'exit unknown',
+      });
+      await expect(runConsoleCli('open', { no_open: true })).rejects.toThrow(
+        'Run console stop to retry'
+      );
+      await runConsoleCli('stop', { json: true });
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://127.0.0.1:54321/api/shutdown',
+        expect.objectContaining({ method: 'POST' })
+      );
+      expect(JSON.parse(String(output.mock.calls[1][0]))).toMatchObject({
+        ok: true,
+        running: true,
+        draining: true,
+      });
+    } finally {
+      fetchMock.mockRestore();
+      output.mockRestore();
+      if (oldHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
+      else process.env.TAPTAP_MAKER_HOME = oldHome;
+    }
+  });
+
+  test('supervisor retains ownership and signal handlers until a failed close is retried successfully', async () => {
+    const oldHome = process.env.TAPTAP_MAKER_HOME;
+    process.env.TAPTAP_MAKER_HOME = directory;
+    let finishClosed!: () => void;
+    const closed = new Promise<void>((resolve) => {
+      finishClosed = resolve;
+    });
+    const close = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('exit unknown'))
+      .mockImplementationOnce(async () => {
+        finishClosed();
+      });
+    const start = jest.spyOn(consoleServer, 'startConsoleServer').mockResolvedValue({
+      origin: 'http://127.0.0.1:54321',
+      close,
+      closed,
+    } as any);
+    const previousSignals = process.listenerCount('SIGTERM');
+    try {
+      await runConsoleSupervisor();
+      process.emit('SIGTERM');
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(close).toHaveBeenCalledTimes(1);
+      expect(fs.existsSync(path.join(directory, 'console/session.json'))).toBe(true);
+      expect(fs.existsSync(path.join(directory, 'console/server.lock'))).toBe(true);
+      expect(process.listenerCount('SIGTERM')).toBe(previousSignals + 1);
+      process.emit('SIGTERM');
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(close).toHaveBeenCalledTimes(2);
+      expect(fs.existsSync(path.join(directory, 'console/session.json'))).toBe(false);
+      expect(fs.existsSync(path.join(directory, 'console/server.lock'))).toBe(false);
+      expect(process.listenerCount('SIGTERM')).toBe(previousSignals);
+    } finally {
+      finishClosed();
+      await new Promise((resolve) => setImmediate(resolve));
+      start.mockRestore();
+      if (oldHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
+      else process.env.TAPTAP_MAKER_HOME = oldHome;
+    }
+  });
 
   test.each([false, true])('opens token-free URLs with legacy session field=%s', async (legacy) => {
     const oldHome = process.env.TAPTAP_MAKER_HOME;

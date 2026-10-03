@@ -4,6 +4,8 @@ import path from 'node:path';
 import net from 'node:net';
 import { ConsoleProjects } from '../maker/console/projects';
 import { startConsoleServer } from '../maker/console/server';
+import * as lifecycle from '../maker/lifecycle';
+import { createMakerRemoteProxyManager } from '../maker/server/remoteProxyManager';
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 async function withinDeadline(operation: Promise<void>, ms: number) {
@@ -30,12 +32,17 @@ describe('Maker console lifecycle', () => {
     registry = new ConsoleProjects(path.join(directory, 'projects.json'));
     now = 0;
     servers = [];
+    jest.spyOn(lifecycle, 'logLifecycleEvent').mockImplementation(() => {});
   });
   afterEach(async () => {
     await Promise.all(servers.map((server) => server.close()));
     fs.rmSync(directory, { recursive: true, force: true });
+    jest.restoreAllMocks();
   });
-  async function start(execute = async (_options: any) => ({ ok: true })) {
+  async function start(
+    execute = async (_options: any) => ({ ok: true }),
+    options: Partial<Parameters<typeof startConsoleServer>[0]> = {}
+  ) {
     const server = await startConsoleServer({
       registry,
       html: '',
@@ -44,6 +51,7 @@ describe('Maker console lifecycle', () => {
       idleMs: 100,
       now: () => now,
       drainMs: 50,
+      ...options,
     });
     servers.push(server);
     return server;
@@ -74,6 +82,146 @@ describe('Maker console lifecycle', () => {
     await a.close();
     expect((await fetch(b.origin)).status).toBe(200);
   });
+
+  test('retries real manager cleanup through HTTP without reopening operations or repeating completed cleanup', async () => {
+    const closeTransport = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('exit unknown token=private-token'));
+    const client = {
+      connect: jest.fn(),
+      listTools: jest.fn().mockResolvedValue({ tools: [] }),
+      callTool: jest.fn(),
+      close: jest.fn(),
+    };
+    const manager = createMakerRemoteProxyManager({
+      createClient: () => client,
+      createTransport: () => ({ start: jest.fn(), send: jest.fn(), close: closeTransport }),
+    });
+    await manager.listTools({ projectRoot: directory } as any);
+    const closePreviews = jest.fn().mockResolvedValue(undefined);
+    const server = await start(undefined, { remoteProxyManager: manager, closePreviews });
+    let closed = false;
+    void server.closed.then(() => {
+      closed = true;
+    });
+    await expect(server.close()).rejects.toThrow('exit unknown');
+    expect(closePreviews).toHaveBeenCalledTimes(1);
+    expect(closed).toBe(false);
+    const health = await fetch(server.origin + '/api/health').then((response) => response.json());
+    expect(health).toMatchObject({
+      draining: true,
+      shutdownError: 'exit unknown token=<redacted>',
+    });
+    expect(lifecycle.logLifecycleEvent).toHaveBeenCalledWith(
+      'console-shutdown-failed',
+      health.shutdownError
+    );
+    const blocked = await fetch(server.origin + '/api/activity', {
+      method: 'POST',
+      headers: headers(server),
+      body: '{}',
+    });
+    expect(blocked.status).toBe(503);
+    const foreign = await fetch(server.origin + '/api/shutdown', {
+      method: 'POST',
+      headers: { ...headers(server), Origin: 'https://example.com' },
+      body: '{}',
+    });
+    expect(foreign.status).toBe(403);
+    const invalid = await fetch(server.origin + '/api/shutdown', {
+      method: 'POST',
+      headers: headers(server),
+      body: '{',
+    });
+    expect(invalid.status).toBe(400);
+    expect(closeTransport).toHaveBeenCalledTimes(1);
+    const retry = await fetch(server.origin + '/api/shutdown', {
+      method: 'POST',
+      headers: headers(server),
+      body: '{}',
+    });
+    expect(retry.status).toBe(200);
+    await expectClosed(server);
+    expect(closeTransport).toHaveBeenCalledTimes(2);
+    expect(closePreviews).toHaveBeenCalledTimes(1);
+    expect(client.listTools).toHaveBeenCalledTimes(1);
+  });
+
+  test('concurrent closes share cleanup and only retry a failed preview', async () => {
+    const closeAll = jest.fn().mockResolvedValue(undefined);
+    let finishPreview!: () => void;
+    const closePreviews = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('preview exit unknown'))
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishPreview = resolve;
+          })
+      );
+    const server = await start(undefined, {
+      remoteProxyManager: { closeAll } as any,
+      closePreviews,
+      hasActivePreview: () => true,
+    });
+    await expect(server.close()).rejects.toThrow('preview exit unknown');
+    const first = server.close();
+    const second = server.close();
+    for (let attempt = 0; attempt < 20 && !finishPreview; attempt++) await delay(5);
+    const retry = await fetch(server.origin + '/api/shutdown', {
+      method: 'POST',
+      headers: headers(server),
+      body: '{}',
+    });
+    expect(retry.status).toBe(200);
+    expect(closePreviews).toHaveBeenCalledTimes(2);
+    finishPreview();
+    await Promise.all([first, second]);
+    await expectClosed(server);
+    expect(closeAll).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(['http', 'idle'])(
+    'handles %s shutdown failure without automatic retries or false completion',
+    async (entry) => {
+      const closeAll = jest.fn().mockRejectedValue(new Error('exit unknown'));
+      const closePreviews = jest.fn().mockResolvedValue(undefined);
+      const server = await start(undefined, {
+        remoteProxyManager: { closeAll } as any,
+        closePreviews,
+      });
+      let closed = false;
+      void server.closed.then(() => {
+        closed = true;
+      });
+      try {
+        if (entry === 'http') {
+          await fetch(server.origin + '/api/shutdown', {
+            method: 'POST',
+            headers: headers(server),
+            body: '{}',
+          });
+        } else {
+          now = 101;
+        }
+        for (let attempt = 0; attempt < 100 && !closeAll.mock.calls.length; attempt++)
+          await delay(5);
+        await delay(150);
+        expect(closeAll).toHaveBeenCalledTimes(1);
+        expect(closed).toBe(false);
+        const health = await fetch(server.origin + '/api/health').then((response) =>
+          response.json()
+        );
+        expect(health).toMatchObject({ draining: true, shutdownError: 'exit unknown' });
+        await expect(server.close()).rejects.toThrow('exit unknown');
+        expect(closeAll).toHaveBeenCalledTimes(2);
+        expect(closePreviews).toHaveBeenCalledTimes(1);
+      } finally {
+        closeAll.mockResolvedValue(undefined);
+        await server.close();
+      }
+    }
+  );
 
   test('passive polling and rejected requests do not renew the idle deadline', async () => {
     const server = await start();
