@@ -525,6 +525,44 @@ try {
   );
   await success('query', { id: views.id });
   await page.screenshot({ path: path.join(temporary, 'canvas-model-review.png') });
+  const viewsCard = page.locator('[data-id="' + views.id + '"]');
+  assert.equal(await viewsCard.getByRole('combobox', { name: '模型质量' }).isVisible(), false);
+  await viewsCard.locator('.canvas-card-menu').click();
+  assert.equal(
+    await viewsCard.getByRole('combobox', { name: '模型质量' }).inputValue(),
+    'high_quality'
+  );
+  const transformBeforeMenuScroll = await page
+    .locator('#world')
+    .evaluate((world) => world.style.transform);
+  await viewsCard
+    .locator('.model-menu-actions')
+    .dispatchEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
+  assert.equal(
+    await page.locator('#world').evaluate((world) => world.style.transform),
+    transformBeforeMenuScroll
+  );
+  await viewsCard.locator('.canvas-card-menu').click();
+  let thumbnailLoads = 0;
+  let thumbnailFails = false;
+  await page.route('**/canvas-model-preview?*', async (route) => {
+    if (new URL(route.request().url()).searchParams.get('mode') !== 'thumbnail')
+      return route.continue();
+    thumbnailLoads++;
+    const result = thumbnailFails
+      ? { error: '模拟缩略图读取失败' }
+      : {
+          image:
+            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg==',
+        };
+    await route.fulfill({
+      contentType: 'text/html',
+      body:
+        '<script>parent.postMessage(' +
+        JSON.stringify({ type: 'maker:model-thumbnail', ...result }) +
+        ',location.origin)</script>',
+    });
+  });
   await success(
     'confirm-model',
     { id: model.id, reviewId: 'review-token' },
@@ -532,6 +570,30 @@ try {
   );
   assert.equal(current.nodes.find((node) => node.id === model.id).state.model.status, 'completed');
   assert.equal(modelSubmissions, 2);
+  const modelCard = page.locator('[data-id="' + model.id + '"]');
+  await modelCard.locator('.model-thumbnail[data-state="ready"] img').waitFor();
+  assert.equal(await page.locator('.model-thumbnail-worker').count(), 0);
+  assert.equal(await modelCard.locator('code').isVisible(), false);
+  await success('inspect');
+  assert.equal(thumbnailLoads, 1);
+  await modelCard.locator('.canvas-card-menu').click();
+  assert.equal(
+    await modelCard.getByRole('button', { name: '查询原任务', exact: true }).isVisible(),
+    true
+  );
+  thumbnailFails = true;
+  await modelCard.getByRole('button', { name: '重试预览', exact: true }).click();
+  await modelCard.locator('.model-thumbnail[data-state="error"]').waitFor();
+  assert.equal(await page.locator('.model-thumbnail-worker').count(), 0);
+  thumbnailFails = false;
+  await modelCard.locator('.canvas-card-menu').click();
+  await modelCard.getByRole('button', { name: '重试预览', exact: true }).click();
+  await modelCard.locator('.model-thumbnail[data-state="ready"]').waitFor();
+  assert.equal(thumbnailLoads, 3);
+  assert.equal(modelSubmissions, 2);
+  await modelCard.locator('.model-thumbnail').click();
+  await page.locator('.model-preview-dialog[open]').waitFor();
+  await page.getByRole('button', { name: '关闭预览', exact: true }).click();
   const preview = await command('preview-model', { id: model.id });
   assert.equal(preview.status, 'succeeded', JSON.stringify(preview));
   assert.equal(preview.result.opened, true);

@@ -55,10 +55,28 @@ export function decorateCanvasCard(
   more.textContent = '⋯';
   more.title = '卡片操作';
   more.setAttribute('aria-label', node.title + '的卡片操作');
+  const modelMenu = card.querySelector<HTMLDetailsElement>('.model-menu');
+  if (modelMenu) {
+    modelMenu.querySelector('summary')!.hidden = true;
+    more.setAttribute('aria-expanded', 'false');
+    modelMenu.addEventListener('toggle', () => {
+      more.setAttribute('aria-expanded', String(modelMenu.open));
+    });
+    const cardActions = document.createElement('button');
+    cardActions.type = 'button';
+    cardActions.textContent = '卡片操作 / 导出';
+    cardActions.addEventListener('click', (event) => {
+      event.stopPropagation();
+      modelMenu.open = false;
+      openMenu(event);
+    });
+    modelMenu.querySelector('.model-menu-actions')!.append(cardActions);
+  }
   more.addEventListener('pointerdown', (event) => event.stopPropagation());
   more.addEventListener('click', (event) => {
     event.stopPropagation();
-    openMenu(event);
+    if (modelMenu) modelMenu.open = !modelMenu.open;
+    else openMenu(event);
   });
   header.append(heading, more);
   if (node.type === 'section') {

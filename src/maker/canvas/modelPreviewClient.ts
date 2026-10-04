@@ -4,6 +4,12 @@ import { readCanvasModelMesh } from './modelMesh.js';
 
 const status = document.getElementById('status')!;
 const host = document.getElementById('viewport')!;
+const thumbnail = new URLSearchParams(location.search).get('mode') === 'thumbnail';
+if (thumbnail) document.body.classList.add('thumbnail');
+function publishThumbnail(result: { image?: string; error?: string }) {
+  if (thumbnail && window.parent !== window)
+    window.parent.postMessage({ type: 'maker:model-thumbnail', ...result }, location.origin);
+}
 const abort = new AbortController();
 const timer = setTimeout(() => abort.abort(), 60000);
 const owned: Array<{ dispose(): void }> = [];
@@ -49,6 +55,8 @@ async function main() {
     files: Array<{ path: string; size: number }>;
   };
   const allowed = new Set(manifest.files.map((file) => file.path));
+  if (parameters.has('attemptId') && parameters.get('attemptId') !== manifest.attemptId)
+    throw new Error('模型结果已变化，请刷新本地状态。');
   const fileUrl = (file: string) => {
     if (!allowed.has(file)) throw new Error('模型引用的文件未包含在交付包中：' + file);
     return (
@@ -92,6 +100,7 @@ async function main() {
   }
   if (materialRefs.length !== 1) throw new Error('模型材质关联不明确，请导出后在 Maker 中查看。');
   const meshes = readCanvasModelMesh(await (await request(fileUrl(manifest.model))).arrayBuffer());
+  if (disposed) return;
   if (materialRefs[0].length !== meshes.length) throw new Error('模型几何体与材质数量不匹配。');
   renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -186,6 +195,11 @@ async function main() {
   document.getElementById('reset')!.addEventListener('click', reset);
   size();
   clearTimeout(timer);
+  if (thumbnail) {
+    publishThumbnail({ image: renderer.domElement.toDataURL('image/png') });
+    dispose();
+    return;
+  }
   status.textContent = '真实 MDL · ' + triangles.toLocaleString() + ' 三角面 · 拖拽旋转 / 滚轮缩放';
   document.body.dataset.state = 'ready';
   renderer.domElement.addEventListener(
@@ -203,5 +217,6 @@ void main().catch((error) => {
     ? '模型加载已停止或超时，请关闭后重新打开；不会重新生成。'
     : error.message;
   document.body.dataset.state = 'error';
+  publishThumbnail({ error: status.textContent || '模型预览加载失败。' });
   dispose();
 });
