@@ -1723,6 +1723,7 @@ export function getCanvasPageHtml(): string {
       '    addTemplate: templateUi.addById, deleteSelected: deleteSelected, duplicate: duplicateSelected, group: createSection, connect: connect,',
       '    resetDraft: function (id) { generationUi.resetDraft(id); sequenceUi.discardEdit(id); }, stop: function (id) { if (modelUi.canStop(id)) modelUi.stop(); else generationUi.stopWaiting(id); }, canStop: function (id) { return modelUi.canStop(id) || generationUi.canStopWaiting(id); },',
       '    confirmModel: function (id, reviewId) { return modelUi.execute(id, "confirm", reviewId); },',
+      '    previewModel: function (id) { return modelUi.preview(id); },',
       '    run: async function (id) {',
       '      const modelNode = documentState.nodes.find(function (item) { return item.id === id; });',
       '      if (modelNode && modelNode.type === "model") throw new Error("请展示全部多视图并取得用户确认后使用 confirm-model，不允许直接 run 模型。");',

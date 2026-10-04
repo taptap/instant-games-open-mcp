@@ -532,6 +532,15 @@ try {
   );
   assert.equal(current.nodes.find((node) => node.id === model.id).state.model.status, 'completed');
   assert.equal(modelSubmissions, 2);
+  const preview = await command('preview-model', { id: model.id });
+  assert.equal(preview.status, 'succeeded', JSON.stringify(preview));
+  assert.equal(preview.result.opened, true);
+  assert.ok(preview.result.url.includes('/canvas-model-preview?'));
+  await page.locator('.model-preview-dialog[open]').waitFor();
+  await page.getByRole('button', { name: '关闭预览', exact: true }).click();
+  await page.locator('.model-preview-dialog').waitFor({ state: 'detached' });
+  assert.equal(await page.locator('.model-preview-dialog').count(), 0);
+  assert.equal(modelSubmissions, 2);
   await page.route('**/models/export?*', (route) =>
     route.fulfill({ contentType: 'application/zip', body: Buffer.from('PK-model-test') })
   );

@@ -94,6 +94,50 @@ test('template round trips three typed cards, quality and dependencies without t
   ).toThrow();
 });
 
+test('preview exposes only files inside the delivered model package and binds the saved attempt', async () => {
+  const directory = 'assets/model/preview-test';
+  fs.mkdirSync(path.join(root, directory, 'Meshes'), { recursive: true });
+  fs.writeFileSync(path.join(root, directory, 'Meshes/model.mdl'), 'UMD2');
+  fs.writeFileSync(path.join(root, directory, 'private.html'), '<script>bad</script>');
+  invoke.mockResolvedValue(
+    response({
+      status: 'completed',
+      local_delivery: {
+        status: 'success',
+        model: { local_path: directory + '/Meshes/model.mdl', format: 'mdl' },
+      },
+      model_files: [{ targetDirectory: directory }],
+    })
+  );
+  const attempt = await start();
+  const manifest = await service.preview(document.id, modelId);
+  expect(manifest.files).toEqual([{ path: 'Meshes/model.mdl', size: 4 }]);
+  expect(
+    (
+      await service.previewFile(document.id, modelId, attempt.id, 'Meshes/model.mdl')
+    ).bytes.toString()
+  ).toBe('UMD2');
+  await expect(
+    service.previewFile(document.id, modelId, attempt.id, '../.maker-mcp/config.json')
+  ).rejects.toThrow('不属于');
+  await expect(
+    service.previewFile(document.id, modelId, attempt.id, 'private.html')
+  ).rejects.toThrow('不属于');
+  await expect(
+    service.previewFile(document.id, modelId, createId(), 'Meshes/model.mdl')
+  ).rejects.toThrow('尚未交付');
+  await expect(service.preview(document.id, characterId)).rejects.toThrow('模型卡片');
+  const link = path.join(root, directory, 'escape');
+  fs.symlinkSync(root, link, process.platform === 'win32' ? 'junction' : 'dir');
+  await expect(service.preview(document.id, modelId)).rejects.toThrow('符号链接');
+});
+
+test('preview refuses pending results rather than displaying a reference image as a model', async () => {
+  invoke.mockResolvedValue(response({ status: 'processing', asset_id: 'pending' }));
+  await start();
+  await expect(service.preview(document.id, modelId)).rejects.toThrow('尚未交付');
+});
+
 test('start uses reviewed image workflow, renders all four views and never continues automatically', async () => {
   invoke.mockResolvedValue(response(review()));
   const result = await start();

@@ -44,6 +44,7 @@ export function canvasAutomationCapabilities() {
       'import',
       'set-references',
       'confirm-model',
+      'preview-model',
       'export',
     ],
     nodeTypes: ['image', 'video', 'note', 'sequence', 'animation', 'model-views', 'model'],
@@ -90,6 +91,9 @@ export function canvasAutomationCapabilities() {
     paidExecutionRequiresAllowPaid: true,
     parameterSchema: canvasParameterSchema(),
     inputs: {
+      'preview-model': {
+        id: 'completed model card ID; opens read-only rotation preview, no paid request',
+      },
       inspect: { id: 'optional node or group ID; includes direct upstream' },
       'confirm-model': {
         id: 'model card ID',

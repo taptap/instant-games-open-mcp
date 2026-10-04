@@ -39,6 +39,7 @@ export interface CanvasGenerationAttempt {
 }
 
 export interface CanvasDocumentStore {
+  modelPreviewUrl?(canvasId: string, nodeId: string): string;
   listModels?(canvasId: string): Promise<CanvasModelAttempt[]>;
   exportModel?(canvasId: string, nodeId: string): Promise<Blob>;
   modelAction?(
@@ -198,6 +199,13 @@ export function createBrowserCanvasDocumentStore(
     videoHistory: (offset = 0, limit = 30) =>
       request<CanvasVideoHistory>('/canvases/video-history?offset=' + offset + '&limit=' + limit),
     listModels: (canvasId) => request<CanvasModelAttempt[]>('/canvases/' + canvasId + '/models'),
+    modelPreviewUrl: (canvasId, nodeId) =>
+      '/canvas-model-preview?project=' +
+      encodeURIComponent(projectKey) +
+      '&canvas=' +
+      encodeURIComponent(canvasId) +
+      '&node=' +
+      encodeURIComponent(nodeId),
     exportModel: async (canvasId, nodeId) => {
       const response = await fetcher(
         base + '/canvases/' + canvasId + '/models/export?nodeId=' + encodeURIComponent(nodeId),

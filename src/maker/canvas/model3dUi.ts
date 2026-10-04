@@ -21,6 +21,33 @@ export function createCanvasModelUi(options: {
   let readVersion = 0;
   let activeViewsId: string | undefined;
   let activeSourceId: string | undefined;
+  function preview(id: string) {
+    const current = options.current();
+    if (!current || !options.store.modelPreviewUrl) throw new Error('模型预览尚未就绪。');
+    if (canvasModelInput(current, id).target.type !== 'model' || !state(id)?.modelPath)
+      throw new Error('模型尚未交付，不能预览。');
+    const dialog = document.createElement('dialog');
+    dialog.className = 'model-preview-dialog';
+    dialog.setAttribute('aria-label', '3D 模型旋转预览');
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '关闭预览';
+    const frame = document.createElement('iframe');
+    frame.title = '3D 模型旋转预览';
+    frame.src = options.store.modelPreviewUrl(current.id, id);
+    dialog.append(close, frame);
+    const release = () => {
+      frame.remove();
+      dialog.remove();
+    };
+    close.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('close', release, { once: true });
+    dialog.addEventListener('pointerdown', (event) => event.stopPropagation());
+    dialog.addEventListener('wheel', (event) => event.stopPropagation());
+    document.body.append(dialog);
+    dialog.showModal();
+    return { opened: true, url: frame.src };
+  }
   function canStop(id: string) {
     if (!waiting || !options.current()) return false;
     try {
@@ -300,6 +327,9 @@ export function createCanvasModelUi(options: {
           waiting || loading
         );
     } else if (value?.modelPath) {
+      button(body, '查看模型 · 旋转预览', () => {
+        preview(node.id);
+      });
       const output = document.createElement('code');
       output.textContent = value.modelPath;
       body.append(output);
@@ -334,6 +364,7 @@ export function createCanvasModelUi(options: {
     card.append(body);
   }
   return {
+    preview,
     sync,
     canStop,
     protects,
@@ -350,4 +381,6 @@ export function createCanvasModelUi(options: {
 }
 
 export const CANVAS_MODEL_STYLES =
+  '.model-preview-dialog{box-sizing:border-box}' +
+  '.model-preview-dialog{width:min(960px,94vw);height:min(760px,90vh);max-width:none;max-height:none;padding:12px;border:1px solid #536367;border-radius:12px;background:#182022;color:#e3e9e8}.model-preview-dialog[open]{display:flex;flex-direction:column;gap:10px}.model-preview-dialog::backdrop{background:#000a}.model-preview-dialog>button{align-self:flex-end;background:#293739;color:inherit;border:1px solid #536367;border-radius:6px;padding:7px 14px;cursor:pointer}.model-preview-dialog iframe{border:0;width:100%;flex:1;min-height:0;border-radius:8px}' +
   '.model-content{height:100%;overflow:auto;box-sizing:border-box;padding:8px;display:flex;flex-direction:column;gap:8px}.model-content p{margin:0}.model-content button,.model-content select{border:1px solid var(--canvas-border,#454955);border-radius:6px;background:var(--canvas-panel,#242832);color:inherit;padding:7px;font:inherit;cursor:pointer}.model-content button:disabled{opacity:.5;cursor:default}.model-views-gallery{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.model-views-gallery a{min-width:0;color:inherit;text-align:center}.card .model-views-gallery img{height:100px;width:100%;object-fit:contain;background:#eee}.model-content code,.model-content small{overflow-wrap:anywhere;font-size:11px}.model-error{color:#d9a167}';

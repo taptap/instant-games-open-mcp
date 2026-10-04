@@ -32,6 +32,16 @@ if (!existsSync(distDir)) {
 }
 
 try {
+  const preview = await esbuild.build({
+    entryPoints: [join(projectRoot, 'src/maker/canvas/modelPreviewClient.ts')],
+    bundle: true,
+    platform: 'browser',
+    target: 'es2020',
+    format: 'iife',
+    write: false,
+    minify: true,
+    legalComments: 'inline',
+  });
   await esbuild.build({
     entryPoints: [join(projectRoot, 'src/maker/index.ts')],
     bundle: true,
@@ -71,6 +81,7 @@ const __MAKER_BUNDLE_URL__ = import.meta.url;
 `,
     },
     define: {
+      __MAKER_MODEL_PREVIEW_SCRIPT__: JSON.stringify(preview.outputFiles[0].text),
       __MAKER_VERSION__: `"${VERSION}"`,
     },
     minify: false,

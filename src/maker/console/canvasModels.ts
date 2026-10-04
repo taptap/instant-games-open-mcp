@@ -151,6 +151,60 @@ export class CanvasModelService {
     });
     return Buffer.from(await (await createCanvasZip(entries)).arrayBuffer());
   }
+  async preview(canvasId: string, nodeId: string, attemptId?: string) {
+    const document = await this.files.load(canvasId);
+    const { target, views } = canvasModelInput(document, nodeId);
+    const attempt = this.list(canvasId).find(
+      (item) => item.nodeId === views.id && (!attemptId || item.id === attemptId)
+    );
+    if (target.type !== 'model' || attempt?.status !== 'completed' || !attempt.modelPath)
+      throw new ConsoleError('模型尚未交付，不能预览。', 409);
+    const directory = attempt.modelDirectory;
+    if (!directory?.startsWith('assets/model/') || !attempt.modelPath.startsWith(directory + '/'))
+      throw new ConsoleError('模型缺少明确的交付目录，请导出后查看。');
+    const files: Array<{ path: string; size: number }> = [];
+    let total = 0;
+    let visited = 0;
+    const visit = (relative: string) => {
+      if (++visited > 256) throw new ConsoleError('模型目录过大，请导出后查看。');
+      const filename = this.safe(relative);
+      const stat = fs.statSync(filename);
+      if (stat.isDirectory()) {
+        for (const name of fs.readdirSync(filename).sort()) visit(relative + '/' + name);
+      } else if (stat.isFile() && /\.(mdl|xml|prefab|meta|png|jpg|jpeg|webp)$/i.test(relative)) {
+        total += stat.size;
+        if (total > 128 * 1024 * 1024 || files.length >= 121)
+          throw new ConsoleError('模型预览超过资源容量，请导出后查看。');
+        if (/\.(xml|prefab|meta)$/i.test(relative) && stat.size > 1024 * 1024)
+          throw new ConsoleError('模型描述文件过大。');
+        files.push({ path: relative.slice(directory.length + 1), size: stat.size });
+      }
+    };
+    visit(directory);
+    const model = attempt.modelPath.slice(directory.length + 1);
+    if (!files.some((file) => file.path === model))
+      throw new ConsoleError('模型格式暂不支持预览。');
+    return { attemptId: attempt.id, model, directory, files };
+  }
+  async previewFile(canvasId: string, nodeId: string, attemptId: string, relative: string) {
+    if (!idPattern.test(attemptId)) throw new ConsoleError('模型预览标识无效。');
+    const preview = await this.preview(canvasId, nodeId, attemptId);
+    const file = preview.files.find((item) => item.path === relative);
+    if (!file) throw new ConsoleError('文件不属于此模型预览。', 404);
+    const bytes = fs.readFileSync(this.safe(preview.directory + '/' + file.path));
+    if (bytes.length !== file.size)
+      throw new ConsoleError('模型文件发生变化，请重新打开预览。', 409);
+    const extension = path.extname(relative).toLowerCase();
+    const mime =
+      extension === '.png'
+        ? 'image/png'
+        : ['.jpg', '.jpeg'].includes(extension)
+          ? 'image/jpeg'
+          : extension === '.webp'
+            ? 'image/webp'
+            : 'application/octet-stream';
+    return { bytes, mime };
+  }
   async execute(
     canvasId: string,
     input: {

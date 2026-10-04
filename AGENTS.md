@@ -383,6 +383,9 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 ### Maker 本地开发（CLI-first / PAT-first）
 
 - 模型画布由 model3d.ts / model3dUi.ts 与 console/canvasModels.ts 接入原 create_3d_asset 生命周期。
+  modelMesh.ts / modelPreviewClient.ts 提供只读 UMD2 旋转预览，Three.js 仅构建时依赖并内嵌打包；
+  独立详情 iframe 按需加载、关闭释放，不新增进程/CDN/付费转换，不改变模型交付文件。
+  资源入口绑定原尝试与交付子目录，UUID 引用只在包内解析，缺失或不支持时明确报错，不伪装成已渲染。
   角色图、多视图、模型用受校验的单向连线关联，不重复存来源；模型尝试独立原子保存，下载前记录远端 ID。
   reviewed 的全部预览完整落地后，UI 明确确认或 CLI confirm-model 携带当前 reviewId 才可 continue；
   不能自动批准，不能用通用 run/分组队列绕过。来源/质量变化阻止旧确认；停止仅释放本地等待，未知不重提。

@@ -242,6 +242,28 @@ export async function handleCanvasProjectRoute(options: {
     }
     const generationList = suffix.match(/^canvases\/([0-9a-f-]{36})\/generation$/i);
     const models = suffix.match(/^canvases\/([0-9a-f-]{36})\/models$/i);
+    const modelPreview = suffix.match(/^canvases\/([0-9a-f-]{36})\/models\/preview$/i);
+    if (modelPreview && method === 'GET') {
+      const service = new CanvasModelService(project.path);
+      const nodeId = searchParams.get('nodeId') || '';
+      if (searchParams.has('file')) {
+        const file = await service.previewFile(
+          modelPreview[1],
+          nodeId,
+          searchParams.get('attemptId') || '',
+          searchParams.get('file') || ''
+        );
+        response.writeHead(200, { 'Content-Type': file.mime, 'Content-Length': file.bytes.length });
+        response.end(file.bytes);
+      } else {
+        const { directory: _directory, ...manifest } = await service.preview(
+          modelPreview[1],
+          nodeId
+        );
+        send(response, 200, manifest);
+      }
+      return true;
+    }
     const modelExport = suffix.match(/^canvases\/([0-9a-f-]{36})\/models\/export$/i);
     if (modelExport && method === 'GET') {
       const bytes = await new CanvasModelService(project.path).export(

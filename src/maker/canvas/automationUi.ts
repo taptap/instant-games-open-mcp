@@ -31,6 +31,7 @@ export function createCanvasAutomationUi(options: {
   add(type: string): void;
   addDerived(type: 'sequence' | 'animation' | 'model-views' | 'model', sourceId: string): void;
   confirmModel?(id: string, reviewId: string): Promise<unknown>;
+  previewModel?(id: string): unknown;
   importAsset(input: Record<string, unknown>): Promise<void>;
   exportAsset(command: CanvasCommand, node: CanvasNode): Promise<unknown>;
   addTemplate(id: string): Promise<void>;
@@ -115,6 +116,7 @@ export function createCanvasAutomationUi(options: {
       disconnect: ['edgeId'],
       run: ['id'],
       'confirm-model': ['id', 'reviewId'],
+      'preview-model': ['id'],
       stop: ['id'],
       query: ['id'],
       import: ['assetPath', 'kind', 'title'],
@@ -141,6 +143,12 @@ export function createCanvasAutomationUi(options: {
     if (command.action !== 'query' && command.revision !== current.revision)
       throw new Error('revision 已过期，请重新 inspect，不会覆盖人工修改。');
     options.clearError();
+    if (command.action === 'preview-model') {
+      const target = node(input.id, current);
+      if (target.type !== 'model' || !options.previewModel)
+        throw new Error('请选择已交付的模型卡。');
+      return options.previewModel(target.id);
+    }
     if (
       command.action === 'run' ||
       command.action === 'query' ||

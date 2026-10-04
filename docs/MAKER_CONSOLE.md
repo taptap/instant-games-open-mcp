@@ -27,6 +27,11 @@ model3dUi.ts 经 Store 调用 console/canvasModels.ts，后者复用原 create_3
 停止本地等待不取消远端。角色图片和质量档变化会阻止旧确认；任务身份不写入模板或布局。
 CLI 的 run/query/confirm-model 与 UI 共用动作；models 只读持久记录。模型 ZIP 导出只读取上游明确
 交付的 assets/model 子目录，包含材质贴图，拒绝路径穿越、符号链接及超限资源，不影响现有媒体路由。
+模型旋转预览在独立只读详情 iframe 中按需加载，浏览器库构建时打入 Maker bundle，不依赖 CDN 或新进程。
+UMD2 读取器使用最高细节 LOD，转换坐标与三角面绕序；prefab/材质及贴图按交付包 UUID 精确解析，
+只显示静态网格和基础色贴图。预览资源接口绑定项目、画布、模型节点与 attemptId，限定交付目录、
+扩展名、大小和数量；不扩大 canvas-media 权限。关闭即销毁 iframe 与 GPU 资源，不保持后台渲染循环。
+CLI preview-model 与模型卡共用弹窗入口；不生成、不改文档。模型预览页保持独立脚本哈希 CSP。
 
 ## Stdio 代理进程与清理
 
