@@ -136,6 +136,7 @@ import {
   type MakerMcpTrackingContext,
 } from '../tracking.js';
 import { MAKER_CAPABILITY_ROUTING_INDEX } from '../capabilityRouting.js';
+import { generateResourceMeta, RESOURCE_META_TOOL } from '../resourceMeta.js';
 import {
   MAKER_ADS_INTEGRATION_GUIDE_URI,
   formatMakerAdsIntegrationGuide,
@@ -276,7 +277,7 @@ class MakerCloneFailedError extends Error {
 
 export const tools = [
   {
-    name: 'maker_status_lite',
+    name: 'maker_status_lite' as const,
     description: MAKER_STATUS_LITE_PUBLIC_DESCRIPTION,
     inputSchema: {
       type: 'object',
@@ -300,7 +301,7 @@ export const tools = [
     },
   },
   {
-    name: 'maker_build_current_directory',
+    name: 'maker_build_current_directory' as const,
     description: MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION,
     inputSchema: {
       type: 'object',
@@ -355,6 +356,7 @@ export const tools = [
       },
     },
   },
+  RESOURCE_META_TOOL,
 ];
 
 export const resources = [
@@ -809,6 +811,21 @@ export async function startMakerMcpServer(): Promise<void> {
           success: true,
         });
         return toolResult;
+      }
+
+      if (name === RESOURCE_META_TOOL.name) {
+        const result = await generateResourceMeta(rawArgs, extra.signal);
+        void reportMakerMcpActivityFromPromise(contextPromise, {
+          toolName: name,
+          requestId: extra.requestId,
+          durationMs: Date.now() - startedAt,
+          success: result.success,
+        });
+        return {
+          isError: !result.success,
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
       }
 
       if (name === 'maker_build_current_directory') {

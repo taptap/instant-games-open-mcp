@@ -382,6 +382,12 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- `generate_resource_meta` 是显式本地 MCP 能力，由 AI 决定调用时机；不挂接 Canvas 或远端素材下载。
+  `resourceMeta.ts` 负责参数、Python 执行与项目互斥，`resourceMetaSource.ts` 仅适配结构化结果，
+  `.meta` 内容和 UUID 必须由现有 UrhoX 工具快照生成，不重写算法，不允许调用者指定身份或 force。
+  保留已有有效 meta；目录及同名配置关联必须遵循官方规则，副作用和失败需明确返回。
+  接口说明见 `docs/MAKER_RESOURCE_META_WORKFLOW.md`；修改时运行资源 meta 与 MCP 注册/调用测试。
+
 - 模型画布由 model3d.ts / model3dUi.ts 与 console/canvasModels.ts 接入原 create_3d_asset 生命周期。
   modelMesh.ts / modelPreviewClient.ts 提供只读 UMD2 旋转预览，Three.js 仅构建时依赖并内嵌打包；
   独立详情 iframe 按需加载、关闭释放，不新增进程/CDN/付费转换，不改变模型交付文件。

@@ -1556,7 +1556,11 @@ describe('maker build local-change guard', () => {
   test('exposes only the compact Maker tool set', () => {
     const toolNames = tools.map((item) => item.name);
 
-    expect(toolNames).toEqual(['maker_status_lite', 'maker_build_current_directory']);
+    expect(toolNames).toEqual([
+      'maker_status_lite',
+      'maker_build_current_directory',
+      'generate_resource_meta',
+    ]);
     expect(resources.map((item) => item.uri)).toEqual([
       'maker://status',
       'maker://ads-integration-guide',
@@ -1759,6 +1763,7 @@ describe('maker build local-change guard', () => {
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
+      'generate_resource_meta',
       ...proxySnapshot.toolOrder,
     ]);
     expect(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES).toEqual(proxySnapshot.toolOrder);
@@ -1979,6 +1984,7 @@ describe('maker build local-change guard', () => {
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
+      'generate_resource_meta',
       ...proxySnapshot.toolOrder,
     ]);
     for (const toolName of MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES) {
@@ -2020,13 +2026,24 @@ describe('maker build local-change guard', () => {
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
+      'generate_resource_meta',
       ...proxySnapshot.toolOrder,
     ]);
-    expect(result.tools[2].description).toContain('Generate one new image asset for a Maker game');
-    expect(result.tools[2].inputSchema.properties).toHaveProperty('prompt');
-    expect(result.tools[2].inputSchema.properties).toHaveProperty('target_size');
-    expect(result.tools[2].inputSchema.properties).not.toHaveProperty('remote_only');
-    expect(result.tools[2].inputSchema.properties).not.toHaveProperty('cached_only');
+    expect(result.tools.find((tool) => tool.name === 'generate_image')!.description).toContain(
+      'Generate one new image asset for a Maker game'
+    );
+    expect(
+      result.tools.find((tool) => tool.name === 'generate_image')!.inputSchema.properties
+    ).toHaveProperty('prompt');
+    expect(
+      result.tools.find((tool) => tool.name === 'generate_image')!.inputSchema.properties
+    ).toHaveProperty('target_size');
+    expect(
+      result.tools.find((tool) => tool.name === 'generate_image')!.inputSchema.properties
+    ).not.toHaveProperty('remote_only');
+    expect(
+      result.tools.find((tool) => tool.name === 'generate_image')!.inputSchema.properties
+    ).not.toHaveProperty('cached_only');
     expect(remoteList).not.toHaveBeenCalled();
   });
 

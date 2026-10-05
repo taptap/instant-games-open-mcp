@@ -22,6 +22,7 @@ function formatMakerCapabilityRoutingIndex(options: { includeFeedback: boolean }
       : '',
     options.includeFeedback ? '  exposed by the current Maker tool list.' : '',
     '- Assets: image, video, music, sound-effect, voice, 3D tools when exposed.',
+    '- Resource .meta/UUID: generate_resource_meta; call when needed, never invent UUIDs.',
     '- MCP/proxy infrastructure failure: diagnose, ask once for user consent, then use the',
     "  active client's exact Maker command/args with `mcp report`; never use an unversioned npm package. Do not report expected project or business errors.",
     '',
