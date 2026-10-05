@@ -243,6 +243,7 @@ AI 可以通过当前安装的 Maker CLI 操作已打开的画布，无需浏览
 3. 提交编辑时带上该快照的 revision；参数建议写入 UTF-8 JSON 文件，避免 Windows 命令行转义问题。
 4. 命令立即返回操作 id，再用 wait 等待或 status 查询。wait 默认等 30 秒，最多 60 秒；超时返回当前状态，
    不取消或重提任务。succeeded 表示本次命令完成；query 成功不代表视频已完成，要看返回的卡片状态。
+   图集预览完成返回 result.status=waiting_for_confirmation，表示等候网格核对，不是最终组件已生成。
 
    taptap-maker canvas capabilities
    taptap-maker canvas pages --target-dir "<项目绝对路径>"
@@ -311,6 +312,28 @@ pixel、cutout、cutoutMode（connected/chroma）、backgroundColor（#RRGGBB）
 导出临时字节按操作隔离、总量最多128 MiB、10分钟过期；成功下载后释放，写入失败可再次 download。
 缓存过期或控制台重启后重新 export 即可，不需要重新生成。import 的 request-id 已存在时拒绝再次上传，
 请查询原操作，避免为同一导入重复创建素材。
+
+### 图集解析为独立 PNG
+
+对模板中的 image-assets（游戏资产）卡使用以下步骤；卡片 id 可通过 inspect 取得。
+CLI 与界面共用网格预览绘制、裁切和保存逻辑，CLI 预览不打开阻塞弹窗、不创建最终组件。
+
+1. 执行 preview-image-assets，input 为
+   {"id":"游戏资产卡ID","grid":{"columns":4,"rows":3,"marginX":0,"marginY":0,"gapX":0,"gapY":0}}。
+   grid 可省略，沿用图集已有设置或 4×3 默认值；行列为正整数、最多 120 格，边距/间距为非负整数像素。
+2. 用 wait/status 取得结果：status=waiting_for_confirmation、reviewId、revision、regions 和
+   preview.dataUrl（PNG data URI）。将 data URI 解码为本地 PNG 并实际查看，逐格核对主体完整与透明度。
+   预览只画网格，不判断物品语义。跨格时调整网格参数或原图后重新预览，不能直接确认。
+3. 核对后显式调用 confirm-image-assets，携带当前 --revision，input 为
+   {"id":"游戏资产卡ID","reviewId":"本次预览标识"}。确认只使用已预览的图片字节和网格；
+   新预览、画布版本/来源变化、页面重载及一次确认尝试都会使旧标识失效，失败后先检查再重新预览。
+4. 确认成功返回 status=completed 和 items（名称、路径、尺寸）。重新 inspect 后，执行
+   export，input 为 {"id":"游戏资产卡ID","format":"images"}，用 --output-dir 或 download 取得 PNG ZIP。
+
+run 游戏资产卡等同于请求默认网格预览，不自动确认。含游戏资产卡的分组不能通过 CLI 一次跑完，
+请分步执行上游图片，再预览、核对和确认；普通鼠标操作仍使用原解析弹窗。
+等待确认可在实时 inspect 的 state.imageAssets 中查询；不写入画布文件，刷新后重新预览即可。
+规则网格切图不会自动纠偏、抠背景或语义命名；生成图片不满足网格是需要检查的输出质量问题。
 
 ### 更小的状态查询
 

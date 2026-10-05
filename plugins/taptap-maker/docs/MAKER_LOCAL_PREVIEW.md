@@ -21,6 +21,10 @@ Runtime 按本机安装并由所有 Maker 项目共用，安装记录和新下�
 
 ## 使用
 
+用户明确指定本机编译入口时，所有诊断与验收都使用该入口，不自动改用插件或全局 CLI。
+Shell 执行本机 CLI 不会切换会话中的 MCP 连接；验证 MCP 工具时需另核对该连接的实际入口。
+Runtime 是独立产物，核对每轮 invocation.json 的 executable，不能用 MCP 版本推断引擎版本。
+
 `<PROJECT>` 为已绑定 Maker 游戏的绝对目录。插件用户使用当前插件内 CLI。
 
 ```sh
@@ -111,6 +115,14 @@ CLI 返回 `report`、`exit_code`、`exit_signal`、`artifacts`、`log_path`、`
 `evidence_directory`。`COMPLETED/ok:true` 只表示执行和证据收集完成，不是游戏 PASS。
 按原 Skill 读取原始报告与日志、打开每张 PNG、修复后复测；MCP 不复制噪音过滤或游戏判级规则。
 有效 FAIL 报告和 Runtime exit 1 可完成收集，异常退出、取消、超时、无效或缺失产物不能完成。
+判读时区分：COMPLETED 是证据收集完成；report.result=PASS 是引擎本轮运行检查结果；
+test_result=NOT_RUN 表示引擎断言未执行，普通 Lua assert 的日志计数不属于 test_assertions。
+明确传入 --validate-test 却没有执行时，CLI 会报失败；未请求断言时不把 NOT_RUN 自动判为游戏故障。
+scene_stalled/update_defined 需结合入口判断，纯 UI 或事件驱动程序不能仅凭没有 Scene/Update 判失败。
+受控入口按项目原 run-lua-validate 指引编写，保留实际生命周期与更新回调，检查是否确实驱动了界面。
+不要机械补调 Start/HandleUpdate：原入口已订阅更新时可能造成双重执行；测试包装遗漏应修测试入口。
+备用 Runtime 缺启动资源或 Validate/validate_helpers.lua，与项目 Skill 文件缺失是不同问题。
+前者检查该 Runtime 安装和资源搜索路径，后者按 ai-dev-kit 指引修复；不能给游戏补引擎资源或过滤 FAIL。
 报告与截图独立收集，失败仍保留已取得的部分证据。
 运行日志写入失败同样属于采集失败，不得返回 `COMPLETED`；已有报告、截图及正常回收流程保留。
 

@@ -63,6 +63,64 @@ test('live snapshots do not change before acknowledgement when a person edits la
   expect(result.nodes[0].generation.prompt).toBe('old prompt');
 });
 
+test('image-assets run returns review state without starting the interactive run or saving', async () => {
+  const { current, options, ui, command } = fixture();
+  current.nodes[0].type = 'image-assets';
+  const previewImageAssets = jest.fn(async () => ({
+    status: 'waiting_for_confirmation',
+    reviewId: 'review',
+  }));
+  const confirmImageAssets = jest.fn(async () => ({ status: 'completed' }));
+  const run = jest.fn();
+  Object.assign(options, { previewImageAssets, confirmImageAssets, run });
+  expect(await ui.execute({ ...command, action: 'run', input: { id: 'image' } })).toMatchObject({
+    status: 'waiting_for_confirmation',
+  });
+  expect(run).not.toHaveBeenCalled();
+  expect(options.save).not.toHaveBeenCalled();
+  await expect(
+    ui.execute({ ...command, action: 'confirm-image-assets', input: { id: 'image' } })
+  ).rejects.toThrow('reviewId');
+  await expect(
+    ui.execute({
+      ...command,
+      revision: 1,
+      action: 'confirm-image-assets',
+      input: { id: 'image', reviewId: 'review' },
+    })
+  ).rejects.toThrow('revision');
+  expect(confirmImageAssets).not.toHaveBeenCalled();
+  await ui.execute({
+    ...command,
+    action: 'confirm-image-assets',
+    input: { id: 'image', reviewId: 'review' },
+  });
+  expect(confirmImageAssets).toHaveBeenCalledWith('image', 'review');
+  options.blocked.mockReturnValue('manual draft');
+  await expect(
+    ui.execute({ ...command, action: 'preview-image-assets', input: { id: 'image' } })
+  ).rejects.toThrow('manual draft');
+  expect(previewImageAssets).toHaveBeenCalledTimes(1);
+});
+
+test('CLI group run cannot open a hidden image-assets confirmation or bypass review', async () => {
+  const { current, ui, command } = fixture();
+  current.nodes[0].type = 'image-assets';
+  current.nodes[0].sectionId = 'group';
+  current.nodes.push({
+    id: 'group',
+    type: 'section',
+    title: 'group',
+    x: 0,
+    y: 0,
+    width: 600,
+    height: 400,
+  });
+  await expect(
+    ui.execute({ ...command, action: 'run', allowPaid: true, input: { id: 'group' } })
+  ).rejects.toThrow('preview-image-assets');
+});
+
 test('unsaved human edits reject changes before touching history or saving', async () => {
   const { ui, options, command } = fixture();
   options.blocked.mockReturnValue('unsaved human input');

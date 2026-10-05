@@ -111,6 +111,7 @@ export type CanvasInfoNode = CanvasNode & {
     generation?: { status: string; canQuery: boolean };
     workflow?: string;
     sequence?: { status: string };
+    imageAssets?: { status: string };
   };
 };
 
@@ -127,7 +128,7 @@ export interface CanvasInfoSnapshot {
 
 export interface CanvasSnapshotGuidance {
   nodeId: string;
-  action: 'query' | 'check-upstream-and-run' | 'export' | 'set-references';
+  action: 'query' | 'check-upstream-and-run' | 'export' | 'set-references' | 'confirm-image-assets';
   reason: string;
 }
 
@@ -174,6 +175,16 @@ export function selectCanvasSnapshot<Snapshot extends CanvasInfoSnapshot>(
     const generation = snapshot.source === 'live' ? node.state?.generation : undefined;
     const add = (action: CanvasSnapshotGuidance['action'], reason: string) =>
       items.push({ nodeId: node.id, action, reason });
+    if (
+      snapshot.source === 'live' &&
+      node.state?.imageAssets?.status === 'waiting_for_confirmation'
+    ) {
+      add(
+        'confirm-image-assets',
+        'Inspect the returned grid PNG first, then explicitly confirm with the current reviewId and revision; do not run again to confirm.'
+      );
+      continue;
+    }
     if (generation?.canQuery) {
       add('query', 'The captured page state offers querying the original task; do not resubmit.');
       continue;

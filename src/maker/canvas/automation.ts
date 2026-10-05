@@ -46,6 +46,8 @@ export function canvasAutomationCapabilities() {
       'set-references',
       'confirm-model',
       'preview-model',
+      'preview-image-assets',
+      'confirm-image-assets',
       'export',
     ],
     nodeTypes: ['image', 'video', 'note', 'sequence', 'animation', 'model-views', 'model'],
@@ -68,6 +70,12 @@ export function canvasAutomationCapabilities() {
         'Never approve automatically or use group run to bypass review. confirm-model requires the current reviewId from inspect state.model or models. Final model paths are already inside assets/model.',
       history:
         'canvas models --canvas-id ID reads persisted local attempts without a page; query on model cards contacts the original upstream task.',
+    },
+    imageAssetsWorkflow: {
+      steps:
+        'preview-image-assets -> inspect the returned grid preview -> confirm-image-assets -> export images',
+      confirmation:
+        'Preview/run on an image-assets card completes the command with result.status=waiting_for_confirmation, not final assets. Use the current reviewId and revision after visually checking every cell. New previews, edits and page reloads invalidate old confirmation. No automatic grid repair or semantic naming.',
     },
     sequenceSettings: [
       'start',
@@ -93,6 +101,14 @@ export function canvasAutomationCapabilities() {
     paidExecutionRequiresAllowPaid: true,
     parameterSchema: canvasParameterSchema(),
     inputs: {
+      'preview-image-assets': {
+        id: 'image-assets card ID; read-only preview, no final files',
+        grid: 'optional object: columns/rows positive integers (at most 120 cells); marginX/marginY/gapX/gapY nonnegative integer pixels; omitted fields use saved/default grid',
+      },
+      'confirm-image-assets': {
+        id: 'image-assets card ID',
+        reviewId: 'current preview token; only confirm after inspecting the returned grid image',
+      },
       'preview-model': {
         id: 'completed model card ID; opens read-only rotation preview, no paid request',
       },
@@ -113,7 +129,7 @@ export function canvasAutomationCapabilities() {
       },
       export: {
         id: 'result node ID',
-        format: 'png/jpg/video/atlas/frames/model',
+        format: 'png/jpg/video/atlas/frames/model/images',
         loop: 'optional boolean; default true',
       },
       download: {
@@ -122,6 +138,7 @@ export function canvasAutomationCapabilities() {
       },
     },
     exportFormats: {
+      'image-assets': ['images'],
       model: ['model'],
       image: ['png', 'jpg'],
       video: ['video'],

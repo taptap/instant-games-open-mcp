@@ -5,6 +5,36 @@ import { mergeIconNeedsGeneration } from './mergeIcons.js';
 import type { ImageAtlasGrid } from './imageAtlasExport.js';
 import { imageAtlasRegions, createImageAtlasExport } from './imageAtlasExport.js';
 
+export function drawImageAtlasPreview(
+  canvas: HTMLCanvasElement,
+  bitmap: ImageBitmap,
+  grid: ImageAtlasGrid
+) {
+  const regions = imageAtlasRegions(bitmap.width, bitmap.height, grid);
+  const scale = Math.min(1, 900 / bitmap.width, 650 / bitmap.height);
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('无法显示网格预览。');
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  context.font = 'bold 14px sans-serif';
+  for (const region of regions) {
+    context.strokeStyle = '#00a883';
+    context.lineWidth = 2;
+    context.strokeRect(
+      region.x * scale,
+      region.y * scale,
+      region.width * scale,
+      region.height * scale
+    );
+    context.fillStyle = '#075e4c';
+    context.fillRect(region.x * scale + 2, region.y * scale + 2, 36, 20);
+    context.fillStyle = '#fff';
+    context.fillText(region.name.slice(-3), region.x * scale + 6, region.y * scale + 17);
+  }
+  return regions;
+}
+
 export function openImageAtlasDialog(
   node: CanvasNode,
   mediaUrl: (path: string) => string,
@@ -71,28 +101,7 @@ export function openImageAtlasDialog(
     try {
       for (const key of Object.keys(grid) as Array<keyof ImageAtlasGrid>)
         grid[key] = fields[key].value === '' ? NaN : Number(fields[key].value);
-      const regions = imageAtlasRegions(bitmap.width, bitmap.height, grid);
-      const scale = Math.min(1, 900 / bitmap.width, 650 / bitmap.height);
-      preview.width = Math.round(bitmap.width * scale);
-      preview.height = Math.round(bitmap.height * scale);
-      const context = preview.getContext('2d');
-      if (!context) throw new Error('无法显示网格预览。');
-      context.drawImage(bitmap, 0, 0, preview.width, preview.height);
-      context.font = 'bold 14px sans-serif';
-      for (const region of regions) {
-        context.strokeStyle = '#00a883';
-        context.lineWidth = 2;
-        context.strokeRect(
-          region.x * scale,
-          region.y * scale,
-          region.width * scale,
-          region.height * scale
-        );
-        context.fillStyle = '#075e4c';
-        context.fillRect(region.x * scale + 2, region.y * scale + 2, 36, 20);
-        context.fillStyle = '#fff';
-        context.fillText(region.name.slice(-3), region.x * scale + 6, region.y * scale + 17);
-      }
+      const regions = drawImageAtlasPreview(preview, bitmap, grid);
       status.textContent =
         bitmap.width +
         ' × ' +

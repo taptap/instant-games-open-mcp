@@ -310,6 +310,29 @@ describe('Maker console CLI adapters', () => {
     expect(() => ensureCompatibleConsoleLauncher('old-version', 'new-version')).toThrow(
       'Another Maker version'
     );
+    expect(() => ensureCompatibleConsoleLauncher('old-version', 'new-version')).toThrow(
+      '未记录（旧控制台）'
+    );
+    try {
+      ensureCompatibleConsoleLauncher('old-build', 'new-build', {
+        actual: {
+          version: 'dev',
+          entry: '/old/maker.js',
+          startedAt: '2026-10-05T07:00:00Z',
+          pid: 123,
+        },
+        expected: { version: 'dev', entry: '/new/maker.js' },
+      });
+      throw new Error('expected incompatible launcher');
+    } catch (error) {
+      expect((error as Error).message).toContain('/old/maker.js');
+      expect((error as Error).message).toContain('/new/maker.js');
+      expect((error as Error).message).toContain('old-build');
+      expect((error as Error).message).toContain('new-build');
+      expect((error as Error).message).toContain('先在原控制台保存画布');
+      expect((error as Error).message).toContain('console stop');
+      expect((error as { status: number }).status).toBe(409);
+    }
   });
 
   test('builds a Windows system-broker launch without forwarding credential variables', () => {

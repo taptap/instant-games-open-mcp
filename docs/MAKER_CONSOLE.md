@@ -15,6 +15,11 @@ CLI 通过 pages 显式选择页面，命令绑定 pageId、canvasId 和 revisio
 短编辑期间阻止页面输入，长任务继续使用现有任务保护和停止入口。
 领取过的命令不重新派发；结果单独确认，断线标记 unknown，刷新不恢复付费任务。
 wait 是有界状态查询，不是新调度器或反调 AI。用法与首版限制见画布目录 README。
+游戏资产卡通过 preview-image-assets 返回网格 PNG data URI 和 waiting_for_confirmation；
+核对每格后用 confirm-image-assets 携带当前 reviewId/revision，复用页面裁切和保存。
+预览不落盘组件、不打开阻塞弹窗；来源/画布变化、重载及确认尝试使旧标识失效。
+run 游戏资产卡只返回预览；含该类卡的 CLI 分组运行须拆为单卡操作，不能绕过核对。
+最终独立 PNG 使用 export format=images，复用现有 ZIP 与下载入口。
 素材导入由 CLI 读取明确的本地文件、复用受控上传，页面验证后创建卡片；参考输入沿用画布引用关系，
 显式清空不回退旧生成记录。导出复用原图片编码和 Maker ZIP 打包，仅替换文件输出端；CLI 负责
 指定目录的排他写入，控制台不接收输出路径。导出字节按原操作和项目隔离，内存总量128 MiB、
@@ -49,6 +54,13 @@ sequence-ui 的运动视频明确编码为 H.264/yuv420p，默认 libx264，可�
 选择本机已有 H.264 编码器，元数据由真实浏览器读取，不要求另装 ffprobe。
 
 ## Stdio 代理进程与清理
+
+更新 CLI 后，旧控制台进程仍保留原代码。console status 返回控制台与本次 CLI 的版本、入口和
+启动身份，控制台另含 PID/启动时间；旧记录没有的字段为 null，不按当前磁盘内容猜测。
+身份不一致时继续拒绝连接，并提示双方身份：先保存原画布，确认可以关闭后执行 console stop，
+再用指定入口执行 console open --target-dir <项目>。不会自动重启或接管未保存修改。
+验收本机源码时必须使用用户指定的 Node + maker.js 入口；Shell CLI 与会话 MCP 是独立连接，
+插件的 doctor 结果不能替代本机产物身份。不必每次普通使用都采集整套哈希。
 
 控制台使用的本地 stdio 代理统一通过 HiddenStdioClientTransport 启动，Windows 设置
 windowsHide:true、shell:false，避免无控制台的 Node 宿主拉起可见命令行窗口。

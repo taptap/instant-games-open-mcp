@@ -5,6 +5,90 @@ Lua LSP/Python 状态在后台异步检查，同一时刻只执行一次；首�
 
 控制台是 Maker CLI 的本机网页入口，随包分发，无需安装前端开发环境。
 
+## Canvas CLI
+
+序列帧画布提供独立的 canvas 子命令，接口与页面适配位于 src/maker/canvas/automation\*.ts。
+控制台只通过既有同源、项目 realpath 校验后的路由转发命令；不添加 MCP tool，不直接修改画布文件。
+页面轮询领取命令，调用现有模板、编辑、生成、队列和 Store 保存入口。
+CLI 通过 pages 显式选择页面，命令绑定 pageId、canvasId 和 revision；不猜测活动项目或页面。
+已保存快照与实时快照分别标记 source。临时参数面板、未保存草稿、活跃任务阻止冲突编辑。
+短编辑期间阻止页面输入，长任务继续使用现有任务保护和停止入口。
+领取过的命令不重新派发；结果单独确认，断线标记 unknown，刷新不恢复付费任务。
+wait 是有界状态查询，不是新调度器或反调 AI。用法与首版限制见画布目录 README。
+游戏资产卡通过 preview-image-assets 返回网格 PNG data URI 和 waiting_for_confirmation；
+核对每格后用 confirm-image-assets 携带当前 reviewId/revision，复用页面裁切和保存。
+预览不落盘组件、不打开阻塞弹窗；来源/画布变化、重载及确认尝试使旧标识失效。
+run 游戏资产卡只返回预览；含该类卡的 CLI 分组运行须拆为单卡操作，不能绕过核对。
+最终独立 PNG 使用 export format=images，复用现有 ZIP 与下载入口。
+素材导入由 CLI 读取明确的本地文件、复用受控上传，页面验证后创建卡片；参考输入沿用画布引用关系，
+显式清空不回退旧生成记录。导出复用原图片编码和 Maker ZIP 打包，仅替换文件输出端；CLI 负责
+指定目录的排他写入，控制台不接收输出路径。导出字节按原操作和项目隔离，内存总量128 MiB、
+10分钟有效，访问时清理、下载后释放；不设后台重试。参数元信息与生成枚举校验共用，支持局部只读快照。
+
+角色模型模板复用图片卡，并增加 model-views / model 卡片。canvas/model3d.ts 只管理输入关系与版本，
+model3dUi.ts 经 Store 调用 console/canvasModels.ts，后者复用原 create_3d_asset reviewed 生命周期及
+本地模型交付，不新建模型生成器。所有上游预览下载后才允许以 reviewId 显式确认；分组队列不能代确认。
+模型尝试独立原子保存到 .maker/canvases/model-attempts，原始 ID 在素材下载前保存；中断不重放，
+停止本地等待不取消远端。角色图片和质量档变化会阻止旧确认；任务身份不写入模板或布局。
+CLI 的 run/query/confirm-model 与 UI 共用动作；models 只读持久记录。模型 ZIP 导出只读取上游明确
+交付的 assets/model 子目录，包含材质贴图，拒绝路径穿越、符号链接及超限资源，不影响现有媒体路由。
+模型旋转预览在独立只读详情 iframe 中按需加载，浏览器库构建时打入 Maker bundle，不依赖 CDN 或新进程。
+UMD2 读取器使用最高细节 LOD，转换坐标与三角面绕序；prefab/材质及贴图按交付包 UUID 精确解析，
+只显示静态网格和基础色贴图。预览资源接口绑定项目、画布、模型节点与 attemptId，限定交付目录、
+扩展名、大小和数量；不扩大 canvas-media 权限。关闭即销毁 iframe 与 GPU 资源，不保持后台渲染循环。
+CLI preview-model 与模型卡共用弹窗入口；不生成、不改文档。模型预览页保持独立脚本哈希 CSP。
+模型卡复用同一预览页串行生成固定视角缩略图，完成即释放 iframe 与 GPU，按画布、节点和尝试 ID
+缓存最多 24 张；切换画布清空。消息校验同源及来源窗口，不持久化预览图片或改写模型结果。
+多视图以四宫格展示，低频操作集中到卡片菜单；付费生成仍须显式确认，预览失败可单独重试。
+
+画布模板与 helper 源码通过 replace 回调原样注入，避免正则字符串中的 `$'`、`$&` 被解释为
+替换指令而截断脚本。回归检查 helper 完整性、单一脚本可解析和响应 CSP 的实际内容哈希；
+仅 img-src 允许 data:/blob:，media-src、connect-src、frame-src 仍限同源，script-src 仅允许内容哈希。
+该注入问题在保留单引号源码的 TypeScript/ts-jest 格式下可复现；当前 esbuild 正式包会重写
+相关字符串，原版和修复版页面均可解析，不能把源码格式缺陷表述为已经发生的正式包故障。
+
+动画卡以非负经过时间计算帧索引，兼容首次播放或重挂载时 rAF 时间戳早于播放起点的情况。
+卡片回归检查当前 canvas 的实际像素变化及暂停稳定性，不覆盖 document.hidden。
+Windows 测试可通过 PLAYWRIGHT_MODULE、PLAYWRIGHT_CHROMIUM_EXECUTABLE 使用已有浏览器；
+sequence-ui 的运动视频明确编码为 H.264/yuv420p，默认 libx264，可用 MAKER_TEST_VIDEO_ENCODER
+选择本机已有 H.264 编码器，元数据由真实浏览器读取，不要求另装 ffprobe。
+
+## Stdio 代理进程与清理
+
+更新 CLI 后，旧控制台进程仍保留原代码。console status 返回控制台与本次 CLI 的版本、入口和
+启动身份，控制台另含 PID/启动时间；旧记录没有的字段为 null，不按当前磁盘内容猜测。
+身份不一致时继续拒绝连接，并提示双方身份：先保存原画布，确认可以关闭后执行 console stop，
+再用指定入口执行 console open --target-dir <项目>。不会自动重启或接管未保存修改。
+验收本机源码时必须使用用户指定的 Node + maker.js 入口；Shell CLI 与会话 MCP 是独立连接，
+插件的 doctor 结果不能替代本机产物身份。不必每次普通使用都采集整套哈希。
+
+控制台使用的本地 stdio 代理统一通过 HiddenStdioClientTransport 启动，Windows 设置
+windowsHide:true、shell:false，避免无控制台的 Node 宿主拉起可见命令行窗口。
+stderr 始终排空；它是实时诊断流，订阅者接收后续日志，不缓存无人订阅时的历史，
+避免常驻代理因日志积压发生背压。协议输出仍只从 stdout 解析。
+
+直属子进程 exit 时立即通知 MCP 连接关闭，结束请求和背压发送，并自动清理 transport。
+管理器也显式持有并关闭 transport，不依赖 SDK 在连接关闭后继续保留它。
+常驻和短命 CLI 代理的失败请求都通过公开 AbortSignal 释放 SDK 的剩余超时计时器，
+包括初始化握手；外部取消信号仍生效，不直接访问 SDK 私有状态。
+下一次操作可创建新连接；已提交的生成结果未知时不自动重放付费请求。
+
+关闭先结束 stdin 并等待最多 2 秒，再通过创建时持有的 ChildProcess 句柄发送 SIGTERM
+并等待最多 2 秒；POSIX 必要时再发送 SIGKILL 并等待最多 2 秒。
+Windows 已退出时立即释放本地管道；POSIX 在退出后最多再等待 2 秒排空继承管道。
+并发关闭共同等待同一次清理，清理失败保留登记以便重试；未确认直属进程退出时明确报错。
+启动失败也清理资源，关闭后的 transport 不复用，重连创建新实例。
+
+这些保证只覆盖直属子进程与本地资源。释放管道不证明孙进程已回收；禁止通过旧 PID 执行
+taskkill /T，也不添加 Job Object 或 PowerShell 进程树清理代理。
+
+控制台关闭时先停止接收新操作并等待已有任务，再独立清理代理和预览。某项失败不阻断
+另一项收尾；成功项不重复清理，失败项等待显式重试，不启动后台重试循环。失败记录脱敏写入
+生命周期日志，并通过健康查询和 `console status` 返回；只保留健康查询和同源关闭重试入口，
+所有权锁及退出信号处理保留到全部清理成功。运行 `console stop` 可再次尝试关闭。
+`console stop` 返回 `running:true, draining:true` 只表示关闭请求已接受，不表示进程已经退出。
+全部清理成功后才关闭 HTTP 并释放会话；打开控制台遇到清理失败时明确提示重试关闭。
+
 页脚版本信息旁保留小号、低对比度淡黄色“独立游戏开发日签”入口；控制台先在后台加载外部 iframe，
 只有收到 iframe load 事件后才显示入口，加载未完成或失败时不显示入口。
 弹出区域只显示内嵌日签内容。
@@ -206,6 +290,8 @@ Maker 全仓 tsc 仍有 287 项基线错误，控制台范围无诊断；FrameCr
   `integrations/framecrate.ts` 只实现 FrameCrate 启动与进程适配，不承载编辑或 AI 业务。
 - `GET /api/state` 的 `plugins` 提供公开插件元数据，不含 Studio token、启动命令或私有环境。
   页面按元数据展示插件标签，而非硬编码 FrameCrate 专属启动按钮。
+  配置了 `FRAMECRATE_STUDIO_DIR` 后，主导航显示「创作画布」标签，插件 id 仍是 `framecrate`，
+  打开的仍是同一个 Studio 页面，默认进入创作画布。
 - `POST /api/projects/:key/plugins/:id/open` 只打开注册表中的可信插件，复用 Host、Origin
   校验，并在每次打开或复用前检查登记项目的 realpath 和 Maker 绑定。
   浏览器不能提交启动命令、安装路径或任意目标 URL；不增加 MCP tool。
@@ -226,6 +312,9 @@ FrameCrate 子进程启动契约为：
 
 这是同一条命令，使用明确 Node、`shell: false` 和 Studio 根目录作为 `cwd`；
 继承受信启动环境，不从游戏目录解析 Studio 模块，不触发生成、构建、提交或发布。
+控制台由已安装的 dist/maker.js 运行时，把固定的自身 bundle 路径作为
+FRAMECRATE_MAKER_ENTRY 交给 Studio，用于画布生图与视频能力；显式配置的
+FRAMECRATE_MAKER_ENTRY 优先，不传 PAT，也不从游戏项目目录寻找可执行文件。
 `--host-origin` 必须是当前控制台的精确本机 HTTP origin（含端口，无路径），
 不能替换成通配符、另一端口或仅因同属 loopback 就信任的地址。
 
@@ -264,8 +353,8 @@ Studio 就绪 JSON 交付本机 URL 和匹配的 `projectPath`，URL fragment �
 - 启动失败、断连、显式重连、空闲及关闭的归属清理已完成本轮回归与独立复核。
   付费生成仍需单独预算确认；测试桩不得冒充真实 AI 验收。
 
-实际内嵌浏览器证据持久保存在
-`/Users/liangdong/Documents/MakerTools/framecrate-review-evidence/console-plugin-20260916/report.json`，
+实际内嵌浏览器证据保存在验收者的本地证据目录，不随安装包分发；
+对应报告为 `console-plugin-20260916/report.json`，
 报告 9 步全部通过，包含自刷新 200、重连、项目隔离、PNG/工程输出及窄屏验证；
 外部请求、生成请求和付费调用均为 0。独立工作台追加 smoke 的 1 次 fixture 提交不是付费生成。
 

@@ -84,7 +84,7 @@ import {
   imageAtlasInstructions,
   createImageAtlasExport,
 } from './imageAtlasExport.js';
-import { openImageAtlasDialog } from './imageAtlasUi.js';
+import { openImageAtlasDialog, drawImageAtlasPreview } from './imageAtlasUi.js';
 import {
   validateMergeIcons,
   mergeIconPrompt,
@@ -245,6 +245,7 @@ export function getCanvasPageHtml(): string {
     imageAtlasInstructions.toString(),
     createImageAtlasExport.toString(),
     openImageAtlasDialog.toString(),
+    drawImageAtlasPreview.toString(),
     validateMergeIcons.toString(),
     mergeIconPrompt.toString(),
     mergeIconGrid.toString(),
@@ -1735,7 +1736,7 @@ export function getCanvasPageHtml(): string {
       '      if (drag || pendingAssetImports || pendingImageImport || pendingVideoImport || document.querySelector("dialog[open]") || selectionAction || sequenceUi.hasUnsavedFrames) return "请先完成或关闭正在编辑的面板、草稿和导入操作。";',
       '      if (generationUi.isBusy || sequenceUi.isBusy || templateWorkflow.isBusy || groupQueue.isBusy || (imageEditing && imageEditing.isBusy) || (videoHistory && videoHistory.isBusy)) return "当前画布任务执行中，请等待完成。";',
       '    },',
-      '    nodeStatus: function (id) { const run = sequenceUi.view(id).run; const saved = documentState.nodes.find(function (node) { return node.id === id; })?.frameSetInfo; return { model: modelUi.state(id), workflow: templateWorkflow.status(id), generation: generationUi.nodeState(id), sequence: run && { status: run.status, stage: run.stage, error: run.error, frameCount: run.status === "complete" && saved ? saved.frameCount : run.frames.length }, canStop: generationUi.canStopWaiting(id) || modelUi.canStop(id) }; },',
+      '    nodeStatus: function (id) { const run = sequenceUi.view(id).run; const saved = documentState.nodes.find(function (node) { return node.id === id; })?.frameSetInfo; return { imageAssets: imageAssetsUi.reviewState(id), model: modelUi.state(id), workflow: templateWorkflow.status(id), generation: generationUi.nodeState(id), sequence: run && { status: run.status, stage: run.stage, error: run.error, frameCount: run.status === "complete" && saved ? saved.frameCount : run.frames.length }, canStop: generationUi.canStopWaiting(id) || modelUi.canStop(id) }; },',
       '    nodeBlocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || Boolean(generationUi.queueBlockReason(id)) || sequenceUi.hasDraft(id) || templateWorkflow.locked(id); },',
       '    remember: remember, changed: markDirty, render: render, save: flush,',
       '    select: function (ids) { selected.clear(); ids.forEach(function (id) { selected.add(id); }); }, selected: function () { return Array.from(selected); },',
@@ -1780,6 +1781,8 @@ export function getCanvasPageHtml(): string {
       '    resetDraft: function (id) { generationUi.resetDraft(id); sequenceUi.discardEdit(id); }, stop: function (id) { if (modelUi.canStop(id)) modelUi.stop(); else generationUi.stopWaiting(id); }, canStop: function (id) { return modelUi.canStop(id) || generationUi.canStopWaiting(id); },',
       '    confirmModel: function (id, reviewId) { return modelUi.execute(id, "confirm", reviewId); },',
       '    previewModel: function (id) { return modelUi.preview(id); },',
+      '    previewImageAssets: function (id, grid) { return imageAssetsUi.preview(id, grid); },',
+      '    confirmImageAssets: function (id, reviewId) { return imageAssetsUi.confirm(id, reviewId); },',
       '    run: async function (id) {',
       '      const modelNode = documentState.nodes.find(function (item) { return item.id === id; });',
       '      if (modelNode && modelNode.type === "model") throw new Error("请展示全部多视图并取得用户确认后使用 confirm-model，不允许直接 run 模型。");',

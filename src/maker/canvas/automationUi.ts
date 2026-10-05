@@ -32,6 +32,8 @@ export function createCanvasAutomationUi(options: {
   addDerived(type: 'sequence' | 'animation' | 'model-views' | 'model', sourceId: string): void;
   confirmModel?(id: string, reviewId: string): Promise<unknown>;
   previewModel?(id: string): unknown;
+  previewImageAssets?(id: string, grid?: unknown): Promise<unknown>;
+  confirmImageAssets?(id: string, reviewId: string): Promise<unknown>;
   importAsset(input: Record<string, unknown>): Promise<void>;
   exportAsset(command: CanvasCommand, node: CanvasNode): Promise<unknown>;
   addTemplate(id: string): Promise<void>;
@@ -117,6 +119,8 @@ export function createCanvasAutomationUi(options: {
       run: ['id'],
       'confirm-model': ['id', 'reviewId'],
       'preview-model': ['id'],
+      'preview-image-assets': ['id', 'grid'],
+      'confirm-image-assets': ['id', 'reviewId'],
       stop: ['id'],
       query: ['id'],
       import: ['assetPath', 'kind', 'title'],
@@ -143,6 +147,33 @@ export function createCanvasAutomationUi(options: {
     if (command.action !== 'query' && command.revision !== current.revision)
       throw new Error('revision 已过期，请重新 inspect，不会覆盖人工修改。');
     options.clearError();
+    if (
+      ['preview-image-assets', 'confirm-image-assets'].includes(command.action) ||
+      (command.action === 'run' && node(input.id, current).type === 'image-assets')
+    ) {
+      const target = node(input.id, current);
+      if (
+        target.type !== 'image-assets' ||
+        !options.previewImageAssets ||
+        !options.confirmImageAssets
+      )
+        throw new Error('请选择图集对应的游戏资产卡。');
+      if (
+        command.action === 'confirm-image-assets' &&
+        (typeof input.reviewId !== 'string' || !input.reviewId)
+      )
+        throw new Error('请先查看网格预览，再携带当前 reviewId 确认。');
+      running = true;
+      options.busyChanged(true);
+      try {
+        return command.action === 'confirm-image-assets'
+          ? await options.confirmImageAssets(target.id, input.reviewId as string)
+          : await options.previewImageAssets(target.id, input.grid);
+      } finally {
+        running = false;
+        options.busyChanged(false);
+      }
+    }
     if (command.action === 'preview-model') {
       const target = node(input.id, current);
       if (target.type !== 'model' || !options.previewModel)
@@ -178,6 +209,14 @@ export function createCanvasAutomationUi(options: {
             );
           await options.confirmModel(target.id, input.reviewId);
         } else if (target.type === 'section') {
+          if (
+            current.nodes.some(
+              (item) => item.sectionId === target.id && item.type === 'image-assets'
+            )
+          )
+            throw new Error(
+              '图集解析需要核对网格，请分步执行上游图片，再用 preview-image-assets 和 confirm-image-assets；分组运行不能代确认。'
+            );
           if (canvasModelGroup(current, target.id))
             throw new Error('模型流程需要人工确认角色和多视图，请分步执行卡片，不能自动批准。');
           options.queue.start(target.id, true);

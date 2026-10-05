@@ -626,10 +626,78 @@ try {
   const independentViews = current.selectedIds[0];
   await success('add-node', { type: 'model', sourceId: independentViews });
   assert.equal(current.nodes.find((node) => node.id === current.selectedIds[0]).type, 'model');
+  // CLI 图集预览不打开阻塞弹窗；确认前不落盘组件，旧预览不能确认。
+  const { PNG } = await import('pngjs');
+  const atlas = new PNG({ width: 80, height: 60 });
+  for (let y = 0; y < 60; y++) for (let x = 0; x < 80; x++) {
+    const offset = (y * 80 + x) * 4;
+    atlas.data[offset] = Math.floor(x / 20) * 60;
+    atlas.data[offset + 1] = Math.floor(y / 20) * 80;
+    atlas.data[offset + 2] = 100;
+    atlas.data[offset + 3] = x % 20 < 2 || y % 20 < 2 ? 0 : 255;
+  }
+  let atlasDocument = await files.create('CLI 图集确认');
+  const importedAtlas = await files.importImage(PNG.sync.write(atlas));
+  const atlasId = randomUUID(), assetsId = randomUUID();
+  atlasDocument.nodes.push(
+    { id: atlasId, type: 'image', title: '图集', x: 0, y: 0, width: 300, height: 240, assetPath: importedAtlas.relativePath },
+    { id: assetsId, type: 'image-assets', title: '游戏资产', x: 360, y: 0, width: 480, height: 460 }
+  );
+  atlasDocument.edges.push({ id: randomUUID(), from: atlasId, to: assetsId, kind: 'image-assets' });
+  atlasDocument = await files.save(atlasDocument.id, atlasDocument, atlasDocument.revision);
+  await success('open', { id: atlasDocument.id });
+  assert.equal((await command('confirm-image-assets', { id: assetsId, reviewId: 'missing' })).status, 'failed');
+  assert.equal((await command('preview-image-assets', { id: assetsId, grid: { columns: 0 } })).status, 'failed');
+  const firstReview = await success('run', { id: assetsId });
+  assert.equal(firstReview.status, 'waiting_for_confirmation');
+  assert.equal(await page.locator('dialog[open]').count(), 0);
+  let review = await success('preview-image-assets', { id: assetsId, grid: { columns: 4, rows: 3 } });
+  assert.equal(review.regions.length, 12);
+  const previewBytes = Buffer.from(review.preview.dataUrl.split(',')[1], 'base64');
+  assert.equal(PNG.sync.read(previewBytes).width, 80);
+  fs.writeFileSync(path.join(temporary, 'atlas-grid-preview.png'), previewBytes);
+  assert.equal((await files.load(current.id)).nodes.find(node => node.id === assetsId).imageAssetsInfo, undefined);
+  await success('inspect');
+  assert.equal(current.nodes.find(node => node.id === assetsId).state.imageAssets.status, 'waiting_for_confirmation');
+  assert.equal((await command('confirm-image-assets', { id: assetsId, reviewId: firstReview.reviewId })).status, 'failed');
+  await success('rename', { title: '画布修改使旧预览失效' });
+  assert.equal((await command('confirm-image-assets', { id: assetsId, reviewId: review.reviewId })).status, 'failed');
+  review = await success('preview-image-assets', { id: assetsId, grid: { columns: 4, rows: 3 } });
+  const atlasRoute = '**/canvases/' + current.id;
+  await page.route(atlasRoute, route => route.request().method() === 'PUT'
+    ? route.fulfill({ status: 500, json: { error: 'simulated atlas save failure' } }) : route.continue());
+  assert.equal((await command('confirm-image-assets', { id: assetsId, reviewId: review.reviewId })).status, 'failed');
+  assert.equal((await files.load(current.id)).nodes.find(node => node.id === assetsId).imageAssetsInfo, undefined);
+  await page.unroute(atlasRoute);
+  await success('inspect');
+  review = await success('preview-image-assets', { id: assetsId, grid: { columns: 4, rows: 3 } });
+  const assets = await success('confirm-image-assets', { id: assetsId, reviewId: review.reviewId });
+  assert.equal(assets.items.length, 12);
+  for (let index = 0; index < assets.items.length; index++) {
+    const item = assets.items[index];
+    const png = PNG.sync.read(fs.readFileSync(path.join(project, item.assetPath)));
+    assert.equal(png.width, 20); assert.equal(png.height, 20);
+    assert.equal(png.data[3], 0);
+    assert.deepEqual([...png.data.subarray((5 * 20 + 5) * 4, (5 * 20 + 5) * 4 + 4)],
+      [(index % 4) * 60, Math.floor(index / 4) * 80, 100, 255]);
+  }
+  await success('inspect');
+  assert.equal((await command('confirm-image-assets', { id: assetsId, reviewId: review.reviewId })).status, 'failed');
+  const assetOperation = await command('export', { id: assetsId, format: 'images' });
+  assert.equal(assetOperation.status, 'succeeded', JSON.stringify(assetOperation));
+  const assetDownload = await cli('download', { 'operation-id': assetOperation.id, 'output-dir': temporary });
+  const assetZip = fs.readFileSync(assetDownload.outputPath);
+  for (let index = 1; index <= 12; index++) assert.ok(assetZip.includes(Buffer.from('item_' + String(index).padStart(3, '0') + '.png')));
+  await page.reload();
+  await page.waitForTimeout(1200);
+  pageId = (await cli('pages')).pages.find(item => item.canvasId === current.id && item.id !== pageId)?.id || pageId;
+  await success('inspect');
+  assert.equal(current.nodes.find(node => node.id === assetsId).imageAssetsInfo.items.length, 12);
+  await page.screenshot({ path: path.join(temporary, 'atlas-assets.png') });
   assert.deepEqual(browserErrors, []);
   assert.equal(paidRequests, 0);
   console.log(
-    'PASS: CLI -> HTTP -> canvas -> disk; conflicts, paid guard, references, imports, sequence/animation, five resource exports and reviewed model workflow (simulated upstream).'
+    'PASS: CLI -> HTTP -> canvas -> disk; conflicts, paid guard, references, imports, sequence/animation, resource exports, reviewed image-assets and model workflow (simulated upstream).'
   );
   console.log('Screenshot: ' + path.join(temporary, 'canvas-cli.png'));
 } finally {

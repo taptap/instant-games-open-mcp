@@ -30,6 +30,9 @@ type Session = {
   pid: number;
   draining?: boolean;
   userHost?: boolean;
+  version?: string;
+  entry?: string;
+  startedAt?: string;
 };
 function home(): string {
   return path.join(getMakerHome(), 'console');
@@ -51,12 +54,40 @@ export function createConsoleLauncherIdentity(
     )
     .digest('hex');
 }
-export function ensureCompatibleConsoleLauncher(actual: string, expected: string): void {
+export function ensureCompatibleConsoleLauncher(
+  actual: string,
+  expected: string,
+  details?: {
+    actual: Partial<Pick<Session, 'version' | 'entry' | 'startedAt' | 'pid'>>;
+    expected: { version: string; entry: string };
+  }
+): void {
   if (actual !== expected) {
     throw new ConsoleError(
-      'Another Maker version is serving the console. Stop that console before opening this version.'
+      'Another Maker version is serving the console. 当前控制台与本次 CLI 的启动身份不一致。' +
+        ' 当前控制台：' +
+        JSON.stringify({
+          launcher: actual,
+          ...details?.actual,
+          version: details?.actual.version || '未记录（旧控制台）',
+        }) +
+        '；本次 CLI：' +
+        JSON.stringify({ launcher: expected, ...details?.expected }) +
+        '。先在原控制台保存画布，确认可关闭后执行 console stop，再用本次入口执行 console open --target-dir <项目绝对路径>。不会自动重启或丢弃未保存修改。',
+      409
     );
   }
+}
+function ensureSessionLauncher(session: Session): void {
+  ensureCompatibleConsoleLauncher(session.launcher, launcherIdentity(), {
+    actual: {
+      version: session.version,
+      entry: session.entry,
+      startedAt: session.startedAt,
+      pid: session.pid,
+    },
+    expected: { version: VERSION, entry: fs.realpathSync(process.argv[1]) },
+  });
 }
 function launcherIdentity(): string {
   const entry = fs.realpathSync(process.argv[1]);
@@ -201,6 +232,9 @@ export async function runConsoleSupervisor(): Promise<void> {
       pid: process.pid,
       launcher: launcherIdentity(),
       userHost,
+      version: VERSION,
+      entry: fs.realpathSync(process.argv[1]),
+      startedAt: new Date().toISOString(),
     };
     try {
       writePrivateJson(sessionPath(), record);
@@ -373,7 +407,7 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
   fs.mkdirSync(home(), { recursive: true, mode: 0o700 });
   const existing = await availableSession();
   if (existing) {
-    ensureCompatibleConsoleLauncher(existing.launcher, launcherIdentity());
+    ensureSessionLauncher(existing);
     return existing;
   }
   const lock = path.join(home(), 'launch.lock');
@@ -386,7 +420,7 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
       if (!(error instanceof ConsoleError) || error.status !== 409) throw error;
       const launched = await availableSession();
       if (launched) {
-        ensureCompatibleConsoleLauncher(launched.launcher, launcherIdentity());
+        ensureSessionLauncher(launched);
         return launched;
       }
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -397,7 +431,7 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
   try {
     const launched = await availableSession();
     if (launched) {
-      ensureCompatibleConsoleLauncher(launched.launcher, launcherIdentity());
+      ensureSessionLauncher(launched);
       return launched;
     }
     const launch = await launchConsoleServerProcess({
@@ -416,7 +450,7 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
       if (session && (!launch.expectedPid || session.pid === launch.expectedPid)) {
         const active = await availableSession();
         if (active) {
-          ensureCompatibleConsoleLauncher(active.launcher, launcherIdentity());
+          ensureSessionLauncher(active);
           return active;
         }
       }
@@ -550,6 +584,18 @@ export async function runConsoleCli(
         ok: action === 'stop' || !session.shutdownError,
         running: true,
         origin: session.origin,
+        console: {
+          version: session.version ?? null,
+          entry: session.entry ?? null,
+          startedAt: session.startedAt ?? null,
+          pid: session.pid,
+          launcher: session.launcher,
+        },
+        cli: {
+          version: VERSION,
+          entry: fs.realpathSync(process.argv[1]),
+          launcher: launcherIdentity(),
+        },
         draining: action === 'stop' || session.draining,
         ...(action === 'status' && session.shutdownError ? { error: session.shutdownError } : {}),
       }) + '\n'
