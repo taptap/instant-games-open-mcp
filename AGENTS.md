@@ -405,6 +405,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   浏览器不接收本机输出目录；桥接缓存仅暂存按项目/操作绑定的字节，总量128 MiB、10分钟过期，
   成功下载释放。CLI 使用排他创建保护同名文件，不增加自动重试或后台清理循环。
   修改此链路同时运行画布 UI 回归与 scripts/test-maker-canvas-automation.mjs。
+  页面模板及浏览器 helper 源码注入必须使用 replace 回调返回字面字符串，避免 `$&`、`$'` 等
+  被当作替换指令；测试须检查完整脚本可解析及 CSP 哈希，blob: 仅用于图片，不放宽脚本权限。
 
 - Maker 的 stdio 子代理统一使用 HiddenStdioClientTransport，Windows 保持 windowsHide:true、
   shell:false，只通过创建时持有的 ChildProcess 句柄终止直属子进程；禁止按旧 PID 使用
@@ -566,6 +568,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   atlasCompare.ts 保留只读比较实现，但页面不提供图集对比入口。控制台页签名为「序列帧动画」，内部 canvas 标识和用户画布名称不改写。
   生成积分只保存上游明确返回的非负有限数值 credits 到独立 attempt；卡片按当前 generation.attemptId 查询展示，不写布局或模板、不累计、不用估价代替。缺失显示未返回，不补查旧任务或触发扣费。
   修改这些模块运行 npm run test:maker:sequence-ui 与现有 canvas-ui 验收，禁止通过付费生成测试。
+  动画首帧及重挂载时的 rAF 时间戳可能早于 performance.now() 起点，播放经过时间下限为 0，
+  防止负帧索引；UI 回归观察重绘后的当前 canvas，不持有旧节点或伪造 document.hidden。
   sequenceSettings.cutoutMode 可选 connected/chroma，旧文档省略时保持 connected；新任务用 chroma 色差抠图去溢色。边界扫描仅报告风险，不证明视觉通过；源视频裁断只能重新构图生成，禁止用缩放掩盖。颜色与前景冲突时不能保证抠图无损。
   generationResult.ts 负责生成结果节点与 image-to-video 来源关系；`generationUi.ts` 只从卡片内发起明确的生成动作，`console/canvasGeneration.ts` 通过现有 remote proxy 调用 Maker MCP。尝试记录位于 `.maker/canvases/attempts/`，与画布 JSON 分离；unknown 结果禁止自动重试，有 taskId 才能查询原视频任务，页面不持有 PAT 或付款凭据。媒体路由在既有项目/path 校验后支持单 Range 读取，保持 206/416 与长度一致，真实动作视频用于抽帧回归，不能只用静态视频证明流程正常。
   Git 页「拉取远端代码」只在 `main` 上、本地没有自己的提交且文件不相交时快进。已有本地提交或

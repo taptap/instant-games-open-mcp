@@ -36,6 +36,18 @@ CLI preview-model 与模型卡共用弹窗入口；不生成、不改文档。�
 缓存最多 24 张；切换画布清空。消息校验同源及来源窗口，不持久化预览图片或改写模型结果。
 多视图以四宫格展示，低频操作集中到卡片菜单；付费生成仍须显式确认，预览失败可单独重试。
 
+画布模板与 helper 源码通过 replace 回调原样注入，避免正则字符串中的 `$'`、`$&` 被解释为
+替换指令而截断脚本。回归检查 helper 完整性、单一脚本可解析和响应 CSP 的实际内容哈希；
+仅 img-src 允许 data:/blob:，media-src、connect-src、frame-src 仍限同源，script-src 仅允许内容哈希。
+该注入问题在保留单引号源码的 TypeScript/ts-jest 格式下可复现；当前 esbuild 正式包会重写
+相关字符串，原版和修复版页面均可解析，不能把源码格式缺陷表述为已经发生的正式包故障。
+
+动画卡以非负经过时间计算帧索引，兼容首次播放或重挂载时 rAF 时间戳早于播放起点的情况。
+卡片回归检查当前 canvas 的实际像素变化及暂停稳定性，不覆盖 document.hidden。
+Windows 测试可通过 PLAYWRIGHT_MODULE、PLAYWRIGHT_CHROMIUM_EXECUTABLE 使用已有浏览器；
+sequence-ui 的运动视频明确编码为 H.264/yuv420p，默认 libx264，可用 MAKER_TEST_VIDEO_ENCODER
+选择本机已有 H.264 编码器，元数据由真实浏览器读取，不要求另装 ffprobe。
+
 ## Stdio 代理进程与清理
 
 控制台使用的本地 stdio 代理统一通过 HiddenStdioClientTransport 启动，Windows 设置

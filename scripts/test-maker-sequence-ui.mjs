@@ -24,8 +24,9 @@ async function screenshot(name) {
   report.screenshots.push(name + '.png');
 }
 try {
-  const globalRoot = execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim();
-  const globalPlaywright = path.join(globalRoot, 'playwright/index.mjs');
+  const globalPlaywright = process.env.PLAYWRIGHT_MODULE || path.join(
+    execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(), 'playwright/index.mjs'
+  );
   const playwright = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(path.resolve(process.env.PLAYWRIGHT_MODULE)).href : fs.existsSync(globalPlaywright) ? pathToFileURL(globalPlaywright).href : 'playwright');
   const bundle = path.join(temporary, 'harness.mjs');
   await build({ stdin: { contents: 'export { startConsoleServer } from "./src/maker/console/server.ts"; export { ConsoleProjects } from "./src/maker/console/projects.ts"; export { MakerCanvasFiles } from "./src/maker/canvas/files.ts"; export { defaultSequenceSettings } from "./src/maker/canvas/sequenceModel.ts"; export { snapshotCanvasSource } from "./src/maker/canvas/dependencies.ts";', resolveDir: repo }, bundle: true, platform: 'node', format: 'esm', outfile: bundle, external: ['./native/index.js'], logLevel: 'silent', banner: { js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);' } });
@@ -57,10 +58,10 @@ try {
     frames.push({ index, time: index / 10, x: (index % 5) * 96, y: Math.floor(index / 5) * 96, width: 96, height: 96 });
   }
   const movie = path.join(temporary, 'moving.mp4');
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', '10', '-i', path.join(temporary, 'frame%02d.png'), '-pix_fmt', 'yuv420p', movie]);
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', '10', '-i', path.join(temporary, 'frame%02d.png'), '-vf', 'scale=192:192', '-c:v', process.env.MAKER_TEST_VIDEO_ENCODER || 'libx264', '-pix_fmt', 'yuv420p', movie]);
   const video = await files.importVideo(document.id, fs.readFileSync(movie), 'video/mp4');
   const asset = await files.importImage(PNG.sync.write(atlas));
-  const source = { id: randomUUID(), type: 'video-source', title: '运动视频', x: -320, y: 40, width: 240, height: 210, assetPath: video.relativePath, videoInfo: { duration: 2, width: 96, height: 96 } };
+  const source = { id: randomUUID(), type: 'video-source', title: '运动视频', x: -320, y: 40, width: 240, height: 210, assetPath: video.relativePath, videoInfo: { duration: 2, width: 192, height: 192 } };
   const info = { fps: 10, frameCount: 20, width: 480, height: 384, columns: 5, rows: 4, frames };
   const first = { id: randomUUID(), type: 'sequence', title: '动作 A', x: 30, y: 40, width: 480, height: 300, sourceVideoId: source.id, assetPath: asset.relativePath, frameSetInfo: info, sequenceSettings: { ...defaultSequenceSettings(2, 96, 96), fps: 10 }, sourceSnapshot: snapshotCanvasSource(source) };
   const second = { ...first, id: randomUUID(), title: '动作 B', x: 560, y: 40 };
@@ -110,17 +111,20 @@ try {
   await check('自动识别粉色背景、调整参数、取消不改帧、批量应用可撤销', async () => {
     await editor.getByRole('button', { name: '自动去背景 / 调整参数', exact: true }).click();
     const background = page.getByRole('dialog', { name: '自动去背景', exact: true });
-    await background.getByText('识别背景：#ed62a8', { exact: false }).waitFor();
-    await background.getByLabel('颜色容差', { exact: true }).fill('35');
+    await background.getByText('当前帧自动识别：#ed62a8', { exact: false }).waitFor();
+    await background.getByLabel('颜色容差', { exact: true }).focus();
+    await page.keyboard.press('Home');
+    for (let step = 0; step < 35; step++) await page.keyboard.press('ArrowRight');
+    assert.equal(await background.getByLabel('颜色容差', { exact: true }).inputValue(), '35');
     await background.getByRole('button', { name: '应用到当前帧', exact: true }).waitFor({ state: 'visible' });
     await screenshot('03-background');
     await background.getByRole('button', { name: '取消', exact: true }).click(); assert.equal(await count(), 18);
     await editor.getByRole('button', { name: '自动去背景 / 调整参数', exact: true }).click();
-    await background.getByText('识别背景：#ed62a8', { exact: false }).waitFor();
+    await background.getByText('当前帧自动识别：#ed62a8', { exact: false }).waitFor();
     await background.getByRole('button', { name: '批量应用到全部帧', exact: true }).click();
     await background.waitFor({ state: 'detached' });
     await editor.getByRole('button', { name: '自动去背景 / 调整参数', exact: true }).click();
-    await background.getByText('识别背景：#ed62a8', { exact: false }).waitFor();
+    await background.getByText('当前帧自动识别：#ed62a8', { exact: false }).waitFor();
     await background.getByRole('button', { name: '应用到当前帧', exact: true }).click();
     await background.waitFor({ state: 'detached' });
     await editor.getByRole('button', { name: '撤销帧编辑' }).click();
@@ -184,7 +188,7 @@ try {
     await editor.getByRole('button', { name: '确认', exact: true }).click();
     assert.equal(JSON.stringify(await files.load(document.id)), before);
   });
-  await check('批量背景识别失败不会部分应用，取消不提交结果', async () => {
+  await check('逐帧识别不同背景色，批量失败不会部分应用，取消不提交结果', async () => {
     await page.evaluate(async () => {
       const frames = [];
       for (const color of ['#ed62a8', '#00ff00']) {
@@ -193,12 +197,29 @@ try {
         context.fillStyle = '#14b4dc'; context.fillRect(30, 20, 20, 60);
         frames.push({ time: frames.length, blob: await new Promise((resolve) => canvas.toBlob(resolve)) });
       }
-      window.backgroundApplied = false;
-      await openBackgroundEditor({ frames, index: 0, removal: createBackgroundRemoval(), apply: () => { window.backgroundApplied = true; } });
+      window.backgroundFrames = frames;
+      window.backgroundResult = null;
+      await openBackgroundEditor({ frames, index: 0, removal: createBackgroundRemoval(), apply: (result) => { window.backgroundResult = result; } });
     });
     const background = page.getByRole('dialog', { name: '自动去背景', exact: true });
     await background.getByRole('button', { name: '批量应用到全部帧', exact: true }).click();
-    await background.getByText('该帧背景与预览帧差异较大', { exact: false }).waitFor();
+    await background.waitFor({ state: 'detached' });
+    const alpha = await page.evaluate(async () => Promise.all(window.backgroundResult.map(async (frame) => {
+      const bitmap = await createImageBitmap(frame.blob);
+      const canvas = document.createElement('canvas'); canvas.width = canvas.height = 96;
+      const context = canvas.getContext('2d'); context.drawImage(bitmap, 0, 0); bitmap.close();
+      return [context.getImageData(0, 0, 1, 1).data[3], context.getImageData(35, 35, 1, 1).data[3]];
+    })));
+    assert.deepEqual(alpha, [[0, 255], [0, 255]]);
+    await page.evaluate(async () => {
+      const canvas = document.createElement('canvas'); canvas.width = canvas.height = 96;
+      const transparent = await new Promise((resolve) => canvas.toBlob(resolve));
+      const frames = [window.backgroundFrames[0], { time: 1, blob: transparent }];
+      window.backgroundApplied = false;
+      await openBackgroundEditor({ frames, index: 0, removal: createBackgroundRemoval(), apply: () => { window.backgroundApplied = true; } });
+    });
+    await background.getByRole('button', { name: '批量应用到全部帧', exact: true }).click();
+    await background.getByText('第 2 帧：未可靠识别到大面积纯色背景', { exact: false }).waitFor();
     assert.equal(await page.evaluate(() => window.backgroundApplied), false);
     await screenshot('08-batch-protection');
     await background.getByRole('button', { name: '取消', exact: true }).click();
@@ -211,9 +232,18 @@ try {
     const actual = await files.create('真实角色动作验收');
     const moviePath = path.join(temporary, 'character.mp4');
     const bytes = Buffer.from(videoAsset.data, 'base64'); fs.writeFileSync(moviePath, bytes);
-    const probe = JSON.parse(execFileSync('ffprobe', ['-v', 'quiet', '-select_streams', 'v:0', '-show_entries', 'stream=width,height:format=duration', '-of', 'json', moviePath], { encoding: 'utf8' }));
     const imported = await files.importVideo(actual.id, bytes, 'video/mp4');
-    const actualSource = { ...source, id: randomUUID(), assetPath: imported.relativePath, videoInfo: { duration: Number(probe.format.duration), width: probe.streams[0].width, height: probe.streams[0].height } };
+    const videoInfo = await page.evaluate((mediaUrl) => new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        const info = { duration: video.duration, width: video.videoWidth, height: video.videoHeight };
+        video.removeAttribute('src'); video.load(); resolve(info);
+      };
+      video.onerror = () => reject(new Error('Fixture video metadata is unavailable.'));
+      video.src = mediaUrl;
+    }), server.origin + '/api/projects/' + entry.key + '/canvas-media?path=' + encodeURIComponent(imported.relativePath));
+    const actualSource = { ...source, id: randomUUID(), assetPath: imported.relativePath, videoInfo };
     const sequence = { id: randomUUID(), type: 'sequence', title: '角色动作序列', x: 30, y: 40, width: 480, height: 300, sourceVideoId: actualSource.id, sequenceSettings: preset.nodes.find((node) => node.type === 'sequence').sequenceSettings };
     actual.nodes.push(actualSource, sequence);
     actual.edges.push({ id: randomUUID(), from: actualSource.id, to: sequence.id, kind: 'sequence-source' });

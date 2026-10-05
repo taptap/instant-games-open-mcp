@@ -80,7 +80,8 @@ export function createAnimationCards(
     if (!document.hidden) {
       for (const id of playing) {
         const item = mounted.get(id);
-        if (item) item.draw(Math.floor(((now - item.started) * item.fps) / 1000) % item.count);
+        if (item)
+          item.draw(Math.floor((Math.max(0, now - item.started) * item.fps) / 1000) % item.count);
       }
     }
     if ([...playing].some((id) => mounted.has(id))) request = requestAnimationFrame(tick);
