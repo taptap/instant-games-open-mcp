@@ -122,7 +122,7 @@ export const CANVAS_PAGE_MARKER = 'maker-canvas-page';
 function replaceCanvasPageText(page: string, search: string, replacement: string): string {
   if (!page.includes(search))
     throw new Error('Canvas page template is out of sync: ' + search.slice(0, 96));
-  return page.replace(search, replacement);
+  return page.replace(search, () => replacement);
 }
 
 const template =
@@ -1223,7 +1223,7 @@ export function getCanvasPageHtml(): string {
       '  function render() {',
     ].join('\n')
   );
-  page = page.replace('/*__HELPERS__*/', helpers);
+  page = page.replace('/*__HELPERS__*/', () => helpers);
   page = replaceCanvasPageText(
     page,
     '      card.append(title);',

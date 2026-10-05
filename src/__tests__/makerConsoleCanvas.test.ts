@@ -2,11 +2,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { Script } from 'node:vm';
 import { ConsoleProjects } from '../maker/console/projects';
 import { startConsoleServer } from '../maker/console/server';
 import { getCanvasPageHtml, CANVAS_PAGE_MARKER } from '../maker/canvas/page';
 import { createBrowserCanvasDocumentStore } from '../maker/canvas/store';
+import { sequenceActionsForCard } from '../maker/canvas/sequence';
+import { canvasParameterSchema } from '../maker/canvas/automationInfo';
 
 function makeProject(directory: string, name: string, id = name): string {
   const root = path.join(directory, name);
@@ -43,12 +46,27 @@ describe('Maker console canvas', () => {
     try {
       const page = await fetch(server.origin + '/canvas');
       const csp = page.headers.get('content-security-policy') || '';
+      const html = await page.text();
+      const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1] || '';
+      const directives = new Map(
+        csp.split(';').map((directive) => {
+          const [name, ...sources] = directive.trim().split(/\s+/);
+          return [name, sources.join(' ')];
+        })
+      );
       expect(page.status).toBe(200);
-      expect(await page.text()).toContain(CANVAS_PAGE_MARKER);
+      expect(html).toContain(CANVAS_PAGE_MARKER);
       expect(csp).toContain("frame-ancestors 'self'");
       expect(csp).not.toContain("script-src 'self'");
       expect(csp).not.toContain('studio_token');
-      expect(csp).not.toContain('blob:');
+      expect(directives.get('default-src')).toBe("'none'");
+      expect(directives.get('script-src')).toBe(
+        "'sha256-" + createHash('sha256').update(script).digest('base64') + "'"
+      );
+      expect(directives.get('img-src')).toBe("'self' data: blob:");
+      for (const name of ['media-src', 'connect-src', 'frame-src'])
+        expect(directives.get(name)).toBe("'self'");
+      for (const name of ['base-uri', 'form-action']) expect(directives.get(name)).toBe("'none'");
       const home = await fetch(server.origin);
       const homeCsp = home.headers.get('content-security-policy') || '';
       expect(homeCsp).toContain("frame-ancestors 'none'");
@@ -67,8 +85,13 @@ describe('Maker console canvas', () => {
     expect(script).toContain('return store.mediaUrl(assetPath)');
     expect(script).toContain('store.importVideo(canvasId');
     expect(script).toContain('sequenceUi = createSequenceUiController({');
-    expect(script).toContain('function sequenceActionsForCard');
-    expect(script).toContain('createSequenceEditor({ controller: sequenceUi');
+    expect(script.includes(sequenceActionsForCard.toString())).toBe(true);
+    expect(script.includes(canvasParameterSchema.toString())).toBe(true);
+    expect(html.match(/<script>/g)).toHaveLength(1);
+    expect(() => new Script(script)).not.toThrow();
+    expect(script).toContain(
+      'createSequenceEditor({ maxFrames: MAX_SEQUENCE_FRAMES, controller: sequenceUi'
+    );
     expect(script).toContain('let sequenceEditor');
     expect(script).toContain('renderCard: renderSequenceResult');
     expect(script).not.toContain('function renderSequenceCard(');
@@ -76,24 +99,26 @@ describe('Maker console canvas', () => {
     expect(script).toContain('maxSequenceFrameCount');
     expect(script).not.toContain("board.addEventListener('drop'");
     expect(script).toContain('function nextPlacement(type)');
-    expect(script).toContain("add('video', nextPlacement('video'))");
+    expect(script).toContain("add('video', pendingPlacement || nextPlacement('video'))");
     expect(script).toContain("kind: 'image-variant'");
     expect(html).toContain('id="create-section"');
     expect(html).toContain('id="duplicate-selected"');
     expect(script).toContain('exportCanvasPng');
     expect(script).toContain('function createImageSlot(source)');
     expect(html).toContain('新建空白画布');
-    expect(html).toContain('新建序列帧模板画布');
+    expect(html).not.toContain('新建序列帧模板画布');
+    expect(html).toContain('id="add-template"');
     expect(html).toContain('id="canvas-context-menu"');
     expect(html).toContain('新建图片卡片');
     expect(html).toContain('新建视频卡片');
     expect(html).not.toContain('data-canvas-action="add-image"');
     expect(html).not.toContain('data-canvas-action="add-video-source"');
-    expect(html).toContain('#undo, #redo');
+    expect(html).toContain('id="undo"');
+    expect(html).toContain('id="redo"');
     expect(script).toContain("board.addEventListener('contextmenu'");
     expect(script).toContain("card.addEventListener('dragstart'");
     expect(script).not.toContain('图片生成方式');
-    expect(script).toContain("button('导入参考图'");
+    expect(script).toContain('generationUi.render(panel, panelNode');
     expect(script).toContain('function requestImageImport(nodeId)');
     expect(script).toContain('store.importImage(request.canvasId');
     expect(html).toContain('id="selection-toolbar"');
@@ -113,18 +138,45 @@ describe('Maker console canvas', () => {
   });
 
   test.each([
-    { assetPath: undefined, selectionAction: '', opens: true },
-    { assetPath: 'assets/hero.png', selectionAction: '', opens: false },
-    { assetPath: 'assets/hero.png', selectionAction: 'image', opens: true },
-    { assetPath: 'assets/hero.png', selectionAction: 'outpaint', opens: true },
+    { assetPath: undefined, selectionAction: '', opens: true, blocked: '' },
+    { assetPath: 'assets/hero.png', selectionAction: '', opens: false, blocked: '' },
+    { assetPath: 'assets/hero.png', selectionAction: 'image', opens: true, blocked: '' },
+    { assetPath: 'assets/hero.png', selectionAction: 'outpaint', opens: true, blocked: '' },
+    { assetPath: undefined, selectionAction: '', opens: false, blocked: 'model' },
+    { assetPath: 'assets/hero.png', selectionAction: 'image', opens: false, blocked: 'generation' },
+    {
+      assetPath: 'assets/hero.png',
+      selectionAction: 'outpaint',
+      opens: false,
+      blocked: 'template-loading',
+    },
+    { assetPath: undefined, selectionAction: '', opens: false, blocked: 'template-locked' },
+    {
+      assetPath: 'assets/hero.png',
+      selectionAction: 'image',
+      opens: false,
+      blocked: 'remote-unknown',
+    },
   ])(
-    'shows the image prompt for the selection: $assetPath / $selectionAction',
-    ({ assetPath, selectionAction, opens }) => {
+    'shows the image prompt for the selection: $assetPath / $selectionAction / $blocked',
+    ({ assetPath, selectionAction, opens, blocked }) => {
       const html = getCanvasPageHtml();
       const handler = html.match(/function renderSelectionToolbar\(\) \{([\s\S]*?)\n {4}\}/);
       expect(handler).not.toBeNull();
       const node = { id: 'image-slot', type: 'image', assetPath };
-      const generationUi = { render: jest.fn() };
+      const generationUi = {
+        render: jest.fn(),
+        isNodeBusy: jest.fn(() => blocked === 'generation'),
+        nodeState: jest.fn(() =>
+          blocked === 'remote-unknown' ? { status: 'unknown' } : undefined
+        ),
+      };
+      const modelUi = { protects: jest.fn(() => blocked === 'model') };
+      const templateWorkflow = {
+        isNodeLoading: jest.fn(() => blocked === 'template-loading'),
+        isMember: jest.fn(() => false),
+        locked: jest.fn(() => blocked === 'template-locked'),
+      };
       const selectionToolbar = { replaceChildren: jest.fn(), append: jest.fn(), hidden: true };
       const selectionMenu = { replaceChildren: jest.fn(), append: jest.fn(), hidden: true };
       const document = {
@@ -142,10 +194,12 @@ describe('Maker console canvas', () => {
         selectionToolbar,
         selectionMenu,
         generationUi,
+        modelUi,
+        templateWorkflow,
         positionSelectionToolbar: jest.fn(),
       });
-      expect(selectionMenu.hidden).toBe(!assetPath);
-      expect(selectionMenu.append).toHaveBeenCalledTimes(1);
+      expect(selectionMenu.hidden).toBe(!assetPath || Boolean(blocked));
+      expect(selectionMenu.append).toHaveBeenCalledTimes(blocked ? 0 : 1);
       expect(selectionToolbar.hidden).toBe(!opens);
       expect(generationUi.render).toHaveBeenCalledTimes(opens ? 1 : 0);
       if (opens)
@@ -153,7 +207,8 @@ describe('Maker console canvas', () => {
           expect.anything(),
           node,
           [node],
-          selectionAction === 'outpaint' ? 'outpaint' : undefined
+          selectionAction === 'outpaint' ? 'outpaint' : undefined,
+          undefined
         );
       expect(html).toContain('width: 84px; height: 84px;');
     }
@@ -382,7 +437,13 @@ describe('Maker console canvas', () => {
         body: JSON.stringify({ selectedProjectKey: key }),
       });
       expect(saved.status).toBe(200);
-      expect(fs.statSync(preferencesFile).mode & 0o777).toBe(0o600);
+      const preferencesStat = fs.statSync(preferencesFile);
+      expect(preferencesStat.isFile()).toBe(true);
+      expect(JSON.parse(fs.readFileSync(preferencesFile, 'utf8'))).toEqual({
+        schema: 1,
+        selectedProjectKey: key,
+      });
+      if (process.platform !== 'win32') expect(preferencesStat.mode & 0o777).toBe(0o600);
     } finally {
       await server.close();
     }

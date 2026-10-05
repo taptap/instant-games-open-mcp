@@ -1,11 +1,109 @@
-import { appendAnimation, refreshAnimationFromSource } from '../animation.js';
+import { appendAnimation, createAnimationCards, refreshAnimationFromSource } from '../animation.js';
 import { createId, emptyDocument } from '../model.js';
 import { MakerCanvasFiles } from '../files.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Script } from 'node:vm';
 
 describe('animation output cards', () => {
+  test('keeps the first frame valid when the animation timestamp predates playback or remount', () => {
+    let now = 1000;
+    let nextRequest = 0;
+    const pending = new Map<number, (timestamp: number) => void>();
+    const elements: Array<{
+      tag: string;
+      textContent: string;
+      dataset: Record<string, string>;
+      listeners: Map<string, (event: { stopPropagation: () => void }) => void>;
+    }> = [];
+    const drawing = { clearRect: jest.fn(), drawImage: jest.fn() };
+    const factory = new Script('(' + createAnimationCards.toString() + ')').runInNewContext({
+      document: {
+        hidden: false,
+        createElement: (tag: string) => {
+          const element = {
+            tag,
+            textContent: '',
+            dataset: {} as Record<string, string>,
+            listeners: new Map<string, (event: { stopPropagation: () => void }) => void>(),
+            append: jest.fn(),
+            getContext: () => drawing,
+            addEventListener(
+              name: string,
+              callback: (event: { stopPropagation: () => void }) => void
+            ) {
+              this.listeners.set(name, callback);
+            },
+          };
+          elements.push(element);
+          return element;
+        },
+      },
+      Image: class {
+        onload?: () => void;
+        set src(_value: string) {
+          this.onload?.();
+        }
+      },
+      performance: { now: () => now },
+      requestAnimationFrame: (callback: (timestamp: number) => void) => {
+        pending.set(++nextRequest, callback);
+        return nextRequest;
+      },
+      cancelAnimationFrame: (request: number) => pending.delete(request),
+    });
+    const controller: ReturnType<typeof createAnimationCards> = factory(() => '/atlas.png');
+    const node = {
+      id: createId(),
+      type: 'animation' as const,
+      x: 0,
+      y: 0,
+      width: 320,
+      height: 240,
+      assetPath: 'assets/image/atlas.png',
+      frameSetInfo: {
+        fps: 4,
+        frameCount: 2,
+        width: 128,
+        height: 64,
+        columns: 2,
+        rows: 1,
+        frames: [0, 1].map((index) => ({
+          index,
+          time: index / 4,
+          x: index * 64,
+          y: 0,
+          width: 64,
+          height: 64,
+        })),
+      },
+    };
+    const card = { isConnected: true, append: jest.fn() } as unknown as HTMLElement;
+    const frame = (timestamp: number) => {
+      const callbacks = [...pending.values()];
+      pending.clear();
+      for (const callback of callbacks) callback(timestamp);
+    };
+    controller.beginRender([node]);
+    controller.render(card, node);
+    elements.find((element) => element.tag === 'button')!.listeners.get('click')!({
+      stopPropagation: jest.fn(),
+    });
+    expect(() => frame(now - 0.5)).not.toThrow();
+    expect(elements.find((element) => element.tag === 'canvas')!.dataset.frameIndex).toBe('0');
+    frame(now + 250);
+    expect(elements.find((element) => element.tag === 'canvas')!.dataset.frameIndex).toBe('1');
+    now = 2000;
+    controller.beginRender([node]);
+    controller.render(card, node);
+    expect(() => frame(now - 0.5)).not.toThrow();
+    expect(elements.filter((element) => element.tag === 'canvas').at(-1)!.dataset.frameIndex).toBe(
+      '0'
+    );
+    expect(pending.size).toBe(1);
+  });
+
   test('copies a saved result without linking its mutable frame metadata', () => {
     const document = emptyDocument();
     const source = {
