@@ -92,7 +92,12 @@ try {
     canvas.revision
   );
   await files.setActiveCanvasId(canvas.id);
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({
+    headless: true,
+    ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+      : {}),
+  });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.setDefaultTimeout(8000);
   const errors = [];
@@ -370,7 +375,8 @@ try {
   await page.getByRole('button', { name: '添加模板', exact: true }).click();
   await dialog.getByText('我的模板 · 500', { exact: true }).waitFor();
   const openTime = performance.now() - opened;
-  assert.equal(await dialog.locator('.workflow-template-row').count(), 27);
+  const expectedRows = 24 + (await files.listTemplatePage()).presets.length;
+  assert.equal(await dialog.locator('.workflow-template-row').count(), expectedRows);
   await page.waitForFunction(() => document.querySelectorAll('.template-cover canvas').length >= 2);
   assert.equal(await dialog.locator('video').count(), 0);
   const firstCover = dialog.locator('.template-cover canvas').first();
@@ -395,7 +401,7 @@ try {
   for (let index = 0; index < 3; index++) {
     await dialog.getByRole('button', { name: '下一页' }).click();
     await dialog.getByText((index + 2) + ' / 21', { exact: true }).waitFor();
-    assert.equal(await dialog.locator('.workflow-template-row').count(), 27);
+    assert.equal(await dialog.locator('.workflow-template-row').count(), expectedRows);
   }
   const search = dialog.getByRole('searchbox', { name: '搜索模板' });
   await search.fill('游戏动作 499');
@@ -422,7 +428,7 @@ try {
   await page.waitForFunction(() => window.templateObjectUrls.size === 0);
   await page.waitForFunction(() => window.templateBitmaps.size === 0);
   assert.deepEqual(errors, []);
-  console.log('PASS 500条模板：打开 ' + Math.round(openTime) + 'ms；每页27卡、透明动画帧、悬停播放/移开停止、减少动效、全库搜索、预览缓存、窄屏单列、关闭释放URL和位图');
+  console.log('PASS 500条模板：打开 ' + Math.round(openTime) + 'ms；每页' + expectedRows + '卡、透明动画帧、悬停播放/移开停止、减少动效、全库搜索、预览缓存、窄屏单列、关闭释放URL和位图');
   console.log('完成：真实浏览器 + 实际文件接口；仅模板管理，不含生图、生视频或完整序列帧验收。');
 } finally {
   await browser?.close();

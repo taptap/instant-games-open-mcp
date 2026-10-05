@@ -97,7 +97,7 @@ try {
   const files = new MakerCanvasFiles(project);
   const canvas = await files.create('CLI test');
   await files.setActiveCanvasId(canvas.id);
-  const globalPlaywright = path.join(
+  const globalPlaywright = process.env.PLAYWRIGHT_MODULE || path.join(
     execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(),
     'playwright/index.mjs'
   );
@@ -108,7 +108,12 @@ try {
         ? pathToFileURL(globalPlaywright).href
         : 'playwright'
   );
-  browser = await playwright.chromium.launch({ headless: true });
+  browser = await playwright.chromium.launch({
+    headless: true,
+    ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+      : {}),
+  });
   const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
   const browserErrors = [];
   page.on('pageerror', (error) => browserErrors.push(error.message));

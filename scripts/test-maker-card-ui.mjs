@@ -19,9 +19,11 @@ const check = (name) => {
   console.log('PASS ' + name);
 };
 try {
-  const globalRoot = execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim();
+  const playwrightModule = process.env.PLAYWRIGHT_MODULE || path.join(
+    execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(), 'playwright/index.mjs'
+  );
   const { chromium } = await import(
-    pathToFileURL(process.env.PLAYWRIGHT_MODULE || path.join(globalRoot, 'playwright/index.mjs'))
+    pathToFileURL(playwrightModule)
       .href
   );
   const bundle = path.join(temporary, 'harness.mjs');
@@ -104,7 +106,10 @@ try {
       },
     },
   });
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({
+    headless: true,
+    ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : {}),
+  });
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
   page.setDefaultTimeout(10000);
   page.on('pageerror', (error) => errors.push(error.message));
@@ -175,11 +180,24 @@ try {
   await video.evaluate((element) => element.pause());
   const animation = frame.locator('.card.animation');
   await animation.getByRole('button', { name: '播放动画', exact: true }).click();
-  const before = await animation.locator('canvas').evaluate((element) => element.toDataURL());
-  await page.waitForTimeout(350);
-  const after = await animation.locator('canvas').evaluate((element) => element.toDataURL());
-  assert.notEqual(before, after);
+  const changed = await animation.locator('canvas').evaluate(async (canvas) => {
+    const cardId = canvas.closest('.card').dataset.id;
+    const start = canvas.dataset.frameIndex || '0';
+    const initialPixels = canvas.toDataURL();
+    const deadline = performance.now() + 2000;
+    while (performance.now() < deadline) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const current = document.querySelector('[data-id="' + cardId + '"] canvas');
+      if (current && current.dataset.frameIndex !== start && current.toDataURL() !== initialPixels)
+        return true;
+    }
+    return false;
+  });
+  assert.equal(changed, true);
   await animation.getByRole('button', { name: '暂停', exact: true }).click();
+  const pausedPixels = await animation.locator('canvas').evaluate((canvas) => canvas.toDataURL());
+  await page.waitForTimeout(350);
+  assert.equal(await animation.locator('canvas').evaluate((canvas) => canvas.toDataURL()), pausedPixels);
   check('原视频播放器可播放暂停，动画实际换帧且能暂停');
   await frame.locator('.card.image .canvas-card-menu').click();
   await frame.locator('#canvas-context-menu').waitFor();

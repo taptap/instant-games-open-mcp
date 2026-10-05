@@ -47,6 +47,7 @@ try {
     let response;
     if (url.pathname.endsWith('/canvases')) response = [{ id: canvasId, title: canvas.title }];
     else if (url.pathname.endsWith('/canvases/active')) response = { canvasId };
+    else if (url.pathname.endsWith('/canvases/automation/exchange')) response = { pageId: 'group-test-page', commands: [], acknowledged: [] };
     else if (url.pathname.endsWith('/video-history')) response = { items: [], total: 0 };
     else if (url.pathname.endsWith('/images')) response = { relativePath: 'assets/image/imported-' + (++importedImages) + '.jpg' };
     else if (url.pathname.endsWith('/canvases/' + canvasId)) {
