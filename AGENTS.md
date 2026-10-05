@@ -405,6 +405,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   浏览器不接收本机输出目录；桥接缓存仅暂存按项目/操作绑定的字节，总量128 MiB、10分钟过期，
   成功下载释放。CLI 使用排他创建保护同名文件，不增加自动重试或后台清理循环。
   修改此链路同时运行画布 UI 回归与 scripts/test-maker-canvas-automation.mjs。
+  UI 设计稿到游戏素材的多轮识别、人工复核、去文字和分层导出模板见
+  docs/MAKER_UI_WORKFLOW.md；不得把识别候选或未确认图集自动当作正式 PNG。
   图集 CLI 使用 preview-image-assets / confirm-image-assets，复用原网格预览、裁切和保存。
   预览只返回 waiting_for_confirmation、PNG data URI 与临时 reviewId；不创建最终素材。
   确认绑定页面、画布 revision、来源和网格，新预览/修改/重载及确认尝试使旧标识失效。

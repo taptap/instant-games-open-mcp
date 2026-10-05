@@ -11,7 +11,7 @@ export function templatePresentation(id: string) {
   const number = Number(id.slice(-3));
   const category = [5, 6, 9].includes(number)
     ? '道具与种植'
-    : [7, 10].includes(number)
+    : [7, 10, 12].includes(number)
       ? 'UI 设计'
       : number === 4
         ? '3D 模型'
@@ -39,6 +39,10 @@ export function templatePresentation(id: string) {
     11: [
       { index: 0, label: '角色参考' },
       { index: 1, label: '概念展示' },
+    ],
+    12: [
+      { index: 0, label: '角色界面设计稿' },
+      { index: 6, label: '背包界面设计稿' },
     ],
   };
   return { category, previews: previews[number], modelPreview: number === 4 };

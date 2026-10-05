@@ -104,7 +104,7 @@ test('500 templates use paged summaries, cached parsing, global search and no co
   const first = await readTemplatePage(folder, read, 1, '');
   expect(first.total).toBe(500);
   expect(first.items).toHaveLength(24);
-  expect(first.presets).toHaveLength(11);
+  expect(first.presets).toHaveLength(12);
   expect(first.items.every((item) => !('nodes' in item) && !('edges' in item))).toBe(true);
   expect(read).toHaveBeenCalledTimes(500);
   const second = await readTemplatePage(folder, read, 2, '');
@@ -137,7 +137,7 @@ test('bad files and symbolic links do not break the library or expose outside te
   const result = await files.listTemplatePage();
   expect(result.skipped).toBe(2);
   expect(result.items).toEqual([]);
-  expect(result.presets).toHaveLength(11);
+  expect(result.presets).toHaveLength(12);
 });
 
 test('cover source chooses a starting image, falling back to a stable image or no cover', async () => {

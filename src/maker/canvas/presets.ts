@@ -3,6 +3,7 @@ import modelPresetData from './modelPresetData.json';
 import type { CanvasWorkflowTemplate } from './templates.js';
 import { createVideoPrompts } from './videoPrompts.js';
 import { createAssetPresets } from './assetPresets.js';
+import { createUiWorkflowPreset } from './uiWorkflowPresets.js';
 
 export interface CanvasPreset extends CanvasWorkflowTemplate {
   assets: Record<string, { type: string; data: string }>;
@@ -110,6 +111,7 @@ export function canvasPresets(): CanvasPreset[] {
       ],
     },
     ...createAssetPresets(),
+    createUiWorkflowPreset(),
   ];
 }
 
