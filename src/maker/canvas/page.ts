@@ -1,6 +1,8 @@
 import { nodesInMarquee, removeNodes, saveAcknowledgement } from './edit.js';
 import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from './templates.js';
 import { createCanvasTemplateUi } from './templateUi.js';
+import { builtinPresetDescriptions } from './presetDescriptions.js';
+import { templateCategories, templatePresentation } from './templatePresentation.js';
 import {
   canvasAutomationCapabilities,
   canvasAutomationSnapshot,
@@ -77,6 +79,24 @@ import { createFrameCollection } from './frameCollection.js';
 import { createCanvasGenerationUi, imageEditSources } from './generationUi.js';
 import { downloadCanvasImage } from './imageExport.js';
 import {
+  imageAtlasRegions,
+  imageAtlasManifest,
+  imageAtlasInstructions,
+  createImageAtlasExport,
+} from './imageAtlasExport.js';
+import { openImageAtlasDialog } from './imageAtlasUi.js';
+import {
+  validateMergeIcons,
+  mergeIconPrompt,
+  mergeIconGrid,
+  mergeIconNeedsGeneration,
+  configureMergeIcons,
+} from './mergeIcons.js';
+import { editMergeIcons } from './mergeIconsUi.js';
+import { validateImageAssetsInfo, applyImageAssets, createImageAssetsZip } from './imageAssets.js';
+import { splitImageAtlas } from './imageAtlasExport.js';
+import { createImageAssetsUi, IMAGE_ASSETS_STYLES } from './imageAssetsUi.js';
+import {
   canvasExportIdentity,
   canvasExportFilename,
   nextCanvasExportCode,
@@ -108,6 +128,13 @@ import {
 } from './templateWorkflow.js';
 import { videoInputSources, videoAttemptMatchesSources } from './videoInputs.js';
 import {
+  framePairSources,
+  videoFramePair,
+  validateFramePairVideo,
+  validateFramePairGraph,
+  setFramePairSource,
+} from './framePair.js';
+import {
   canvasNodeVersion,
   canvasReferences,
   canvasDependents,
@@ -130,6 +157,11 @@ const template =
 
 export function getCanvasPageHtml(): string {
   const helpers = [
+    framePairSources.toString(),
+    videoFramePair.toString(),
+    validateFramePairVideo.toString(),
+    validateFramePairGraph.toString(),
+    setFramePairSource.toString(),
     createCanvasModelUi.toString(),
     canvasModelInput.toString(),
     canvasModelIsCurrent.toString(),
@@ -156,6 +188,9 @@ export function getCanvasPageHtml(): string {
     canvasCardStatus.toString(),
     renderCanvasCardStatus.toString(),
     createCanvasTemplateModel.toString(),
+    'const builtinPresetDescriptions = ' + JSON.stringify(builtinPresetDescriptions) + ';',
+    'const templateCategories = ' + JSON.stringify(templateCategories) + ';',
+    templatePresentation.toString(),
     isBuiltinCanvasTemplate.toString(),
     createCanvasTemplateUi.toString(),
     createTemplateCovers.toString(),
@@ -205,6 +240,22 @@ export function getCanvasPageHtml(): string {
     sequenceExportLua.toString(),
     sequenceExportInstructions.toString(),
     createSequenceExport.toString(),
+    imageAtlasRegions.toString(),
+    imageAtlasManifest.toString(),
+    imageAtlasInstructions.toString(),
+    createImageAtlasExport.toString(),
+    openImageAtlasDialog.toString(),
+    validateMergeIcons.toString(),
+    mergeIconPrompt.toString(),
+    mergeIconGrid.toString(),
+    mergeIconNeedsGeneration.toString(),
+    configureMergeIcons.toString(),
+    editMergeIcons.toString(),
+    splitImageAtlas.toString(),
+    validateImageAssetsInfo.toString(),
+    applyImageAssets.toString(),
+    createImageAssetsZip.toString(),
+    createImageAssetsUi.toString(),
     canvasExportFormats.toString(),
     canvasExportFilename.toString(),
     canvasExportIdentity.toString(),
@@ -1105,6 +1156,7 @@ export function getCanvasPageHtml(): string {
       '    maxInputFrameCount: maxSequenceInputFrameCount,',
       '  });',
       '  generationUi = createCanvasGenerationUi({',
+      '    referencesBlocked: function () { return canvasAutomationBusy || generationUi.isBusy || groupQueue.isBusy; },',
       '    store: store,',
       '    getDocument: function () { return documentState; },',
       '    getSelected: function () { return selected; },',
@@ -1133,6 +1185,7 @@ export function getCanvasPageHtml(): string {
       '    hasFailure: function (id) { return Boolean(generationUi.nodeState(id)) || sequenceUi.view(id).run?.status === "failed"; },',
       '    video: function (id, duration, confirmed) { return generationUi.runTemplateVideo(id, duration, confirmed, canvasAutomationBusy); }, sequence: sequenceUi.runTemplate, importImage: requestImageImport,',
       '    image: generationUi.runTemplateImage,',
+      '    assets: function (id) { return imageAssetsUi.run(id); },',
       '    refreshAnimation: function (id) { if (!refreshAnimationFromSource(documentState, id)) throw new Error("动画来源图集或连线尚未就绪。"); markDirty(); },',
       '    select: function (id) { selected.clear(); selected.add(id); render(); },',
       '    animation: function (flow) {',
@@ -1149,7 +1202,7 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '  let sequenceUi = null; let generationUi = null;',
-    '  let sequenceUi = null; let generationUi = null; let sequenceEditor; let templateWorkflow = null; let imageEditing = null; let videoHistory = null; let groupQueue = null; let groupQueueUi = null; let modelUi = null; let canvasAutomationBusy = false; let canvasOpening = 0;'
+    '  let sequenceUi = null; let generationUi = null; let sequenceEditor; let templateWorkflow = null; let imageEditing = null; let videoHistory = null; let groupQueue = null; let groupQueueUi = null; let modelUi = null; let imageAssetsUi = null; let canvasAutomationBusy = false; let canvasOpening = 0;'
   );
   page = replaceCanvasPageText(
     page,
@@ -1258,7 +1311,7 @@ export function getCanvasPageHtml(): string {
       "        actionButton('快速编辑', function () { selectionAction = selectionAction === 'image' ? '' : 'image'; render(); }, selectionAction === 'image');",
       "        actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video');",
       "        actionButton('去纯色背景', function () { void openLocalImage(node, 'cutout'); });",
-      "        actionButton('扩展画面（AI）', function () { selectionAction = selectionAction === 'outpaint' ? '' : 'outpaint'; render(); }, selectionAction === 'outpaint');",
+      "        if (!node.mergeIcons) actionButton('扩展画面（AI）', function () { selectionAction = selectionAction === 'outpaint' ? '' : 'outpaint'; render(); }, selectionAction === 'outpaint');",
       "        actionButton('本地编辑', function () { void openLocalImage(node, 'edit'); });",
       "        const download = document.createElement('details'); download.className = 'image-download';",
       "        const trigger = document.createElement('summary'); trigger.setAttribute('aria-label', '下载图片'); trigger.title = '下载图片'; trigger.innerHTML = '<svg width=18 height=18 viewBox=\"0 0 24 24\" fill=none stroke=currentColor stroke-width=1.8 aria-hidden=true><path d=\"M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5\"/></svg>';",
@@ -1339,7 +1392,8 @@ export function getCanvasPageHtml(): string {
     [
       '  let pendingPlacement = null;',
       "  const contextMenu = document.getElementById('canvas-context-menu');",
-      '  const resourceExport = createCanvasResourceExport({ getDocument: function () { return documentState; }, mediaUrl: function (path) { return store.mediaUrl(path); }, error: setError, progress: function (message) { setError(message, "info"); }, model: { ready: function (id) { const state = modelUi && modelUi.state(id); return state && state.status === "completed" && !state.stale; }, download: function (id) { return modelUi.download(id); } } });',
+      '  imageAssetsUi = createImageAssetsUi({ current: function () { return documentState; }, store: store, remember: remember, changed: markDirty, save: flush, render: render, select: function (id) { selected.clear(); selected.add(id); }, blocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || generationUi.hasInputDraft() || sequenceUi.hasUnsavedFrames; }, resolve: function (id) { return templateWorkflow.resolveTarget(id, "image-assets"); }, error: setError });',
+      '  const resourceExport = createCanvasResourceExport({ getDocument: function () { return documentState; }, mediaUrl: function (path) { return store.mediaUrl(path); }, error: setError, progress: function (message) { setError(message, "info"); }, assets: imageAssetsUi, model: { ready: function (id) { const state = modelUi && modelUi.state(id); return state && state.status === "completed" && !state.stale; }, download: function (id) { return modelUi.download(id); } } });',
       '  function hideContextMenu() { contextMenu.hidden = true; }',
       '  function showContextMenu(event) {',
       '    event.preventDefault();',
@@ -1417,6 +1471,7 @@ export function getCanvasPageHtml(): string {
     [
       '      if (modelUi) modelUi.render(card, node);',
       '      decorateCanvasCard(card, node, title, showContextMenu);',
+      '      if (node.type === "image-assets" && imageAssetsUi) { card.querySelector(".canvas-card-content")?.remove(); imageAssetsUi.render(card, node); }',
       '      const templateStatus = templateWorkflow && templateWorkflow.status(node.id);',
       '      const creditsLabel = generationUi && generationUi.creditsLabel(node); if (creditsLabel) { const credits = document.createElement("small"); credits.className = "generation-credits"; credits.textContent = creditsLabel; credits.title = "当前结果的 MCP 返回积分，不是累计消耗或余额；未返回不代表免费，最终扣费以账单为准。"; card.append(credits); }',
       '      const nodeBusy = Boolean((generationUi && generationUi.isNodeBusy(node.id)) || (templateWorkflow && templateWorkflow.isNodeLoading(node.id)));',
@@ -1430,7 +1485,7 @@ export function getCanvasPageHtml(): string {
       '        card.querySelectorAll("button,input,select,textarea").forEach(function (control) { control.disabled = true; });',
       '        card.addEventListener("dblclick", function (event) { event.stopImmediatePropagation(); }, true);',
       '      }',
-      '      renderCanvasCardStatus(card, overlayState, { stopWaiting: generationUi.canStopWaiting(node.id) ? function () { generationUi.stopWaiting(node.id); } : undefined, waitingForSource: templateWorkflow.waitingForSource(node.id), adjust: templateWorkflow.canAdjust(node.id) ? function () { selected.clear(); selected.add(node.id); if (node.type === "sequence") { sequenceUi.beginEdit(node.id); sequenceEditor.open(node.id); } else { selectionAction = "workflow"; render(); } } : undefined, waitTimedOut: generationState && generationState.status === "timedout", resume: (!generationState || generationState.status !== "timedout") && templateWorkflow.canContinue(node.id) ? function () { selectionAction = ""; return templateWorkflow.runFrom(node.id); } : undefined, detail: sequenceState && sequenceState.error, stoppedWaiting: generationState && generationState.status === "canceled", query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
+      '      renderCanvasCardStatus(card, overlayState, { stopWaiting: generationUi.canStopWaiting(node.id) ? function () { generationUi.stopWaiting(node.id); } : undefined, waitingForSource: templateWorkflow.waitingForSource(node.id), adjust: templateWorkflow.canAdjust(node.id) ? function () { selected.clear(); selected.add(node.id); if (node.type === "sequence") { sequenceUi.beginEdit(node.id); sequenceEditor.open(node.id); } else if (node.type === "image-assets") { void templateWorkflow.runFrom(node.id); } else { selectionAction = "workflow"; render(); } } : undefined, waitTimedOut: generationState && generationState.status === "timedout", resume: (!generationState || generationState.status !== "timedout") && templateWorkflow.canContinue(node.id) ? function () { selectionAction = ""; return templateWorkflow.runFrom(node.id); } : undefined, detail: sequenceState && sequenceState.error, stoppedWaiting: generationState && generationState.status === "canceled", query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
       '      world.append(card);',
     ].join('\n')
   );
@@ -1480,10 +1535,11 @@ export function getCanvasPageHtml(): string {
       '  setInterval(function () { if (!documentState || !generationUi) return; const next = documentState.id + documentState.nodes.filter(function (node) { return node.type === "video" || node.type === "video-source"; }).map(function (node) { const state = generationUi.nodeState(node.id); return node.id + (state ? state.status + state.canQuery : ""); }).join("|"); if (videoTimingState !== next) render(); videoTimingState = next; }, 1000);',
       '  async function openLocalImage(node, action) {',
       '    if (imageEditing && imageEditing.isBusy) return;',
+      '    if (node.mergeIcons && (node.templatePending || mergeIconNeedsGeneration(node))) { setError("阶段设置或参考已变更，请先生成新图集，不能处理旧图。"); return; }',
       '    const current = documentState;',
       '    const decision = templateWorkflow.resolveTarget(node.id, "image", node.id);',
       '    if (decision && decision.kind === "blocked") { setError(decision.message); return; }',
-      '    const targetId = decision && decision.kind === "reuse" ? decision.nodeId : undefined;',
+      '    const targetId = node.mergeIcons ? node.id : decision && decision.kind === "reuse" ? decision.nodeId : undefined;',
       '    imageEditing = createImageEditing({',
       '      load: async function (source, signal) { const response = await fetch(store.mediaUrl(source.assetPath), { signal: signal }); if (!response.ok) throw new Error("图片读取失败"); return response.blob(); },',
       '      save: async function (blob) { if (documentState !== current) throw new Error("画布已切换"); return store.importImage(current.id, await blob.arrayBuffer(), "image/png"); },',
@@ -1750,7 +1806,7 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     'const sequenceRunning = Boolean(',
-    'const sequenceRunning = Boolean(canvasAutomationBusy || (modelUi && modelUi.isBusy) || '
+    'const sequenceRunning = Boolean(canvasAutomationBusy || (imageAssetsUi && imageAssetsUi.isBusy) || (modelUi && modelUi.isBusy) || '
   );
   page = replaceCanvasPageText(
     page,
@@ -1760,7 +1816,11 @@ export function getCanvasPageHtml(): string {
       '  async function loadCanvasDocument(id) {',
     ].join(String.fromCharCode(10))
   );
-  page = replaceCanvasPageText(page, '</style>', CANVAS_MODEL_STYLES + '</style>');
+  page = replaceCanvasPageText(
+    page,
+    '</style>',
+    CANVAS_MODEL_STYLES + IMAGE_ASSETS_STYLES + '</style>'
+  );
   page = replaceCanvasPageText(
     page,
     '    canvasLogs.setContext(documentState.id);',
@@ -1774,12 +1834,12 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '  function protectTemplateSelection() {',
-    '  function protectTemplateSelection() {\n    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再修改卡片。"); return true; }'
+    '  function protectTemplateSelection() {\n    if (imageAssetsUi && imageAssetsUi.isBusy) { setError("请等待游戏资产保存完成，再修改卡片。"); return true; }\n    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再修改卡片。"); return true; }'
   );
   page = replaceCanvasPageText(
     page,
     '  async function leaveCurrent() {',
-    '  async function leaveCurrent() {\n    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再切换画布。"); return false; }'
+    '  async function leaveCurrent() {\n    if (imageAssetsUi && imageAssetsUi.isBusy) { setError("请等待游戏资产保存完成，再切换画布。"); return false; }\n    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再切换画布。"); return false; }'
   );
   page = replaceCanvasPageText(
     page,
@@ -1789,12 +1849,12 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '    const previous = past.pop();',
-    '    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再撤销。"); return; }\n    const previous = past.pop();'
+    '    if (imageAssetsUi && imageAssetsUi.isBusy) { setError("请等待游戏资产保存完成，再撤销。"); return; }\n    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再撤销。"); return; }\n    const previous = past.pop();'
   );
   page = replaceCanvasPageText(
     page,
     '    const next = future.shift();',
-    '    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再重做。"); return; }\n    const next = future.shift();'
+    '    if (imageAssetsUi && imageAssetsUi.isBusy) { setError("请等待游戏资产保存完成，再重做。"); return; }\n    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再重做。"); return; }\n    const next = future.shift();'
   );
   page = replaceCanvasPageText(
     page,

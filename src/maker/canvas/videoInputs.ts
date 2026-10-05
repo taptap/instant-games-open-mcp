@@ -1,10 +1,15 @@
 import { canvasReferences } from './dependencies.js';
+import { framePairSources } from './framePair.js';
 import type { CanvasDocument, CanvasNode } from './model.js';
 
 export function videoInputSources(
   document: CanvasDocument,
   node: CanvasNode & { draftSourceId?: string }
 ): CanvasNode[] {
+  if (node.videoInputMode === 'first_last_frame') {
+    const { first, last } = framePairSources(document, node.id);
+    return [first, last].filter((source): source is CanvasNode => Boolean(source));
+  }
   if (node.draftSourceId && !node.referenceInput)
     return document.nodes.filter(
       (source) => source.id === node.draftSourceId && source.type === 'image'

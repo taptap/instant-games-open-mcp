@@ -24,6 +24,7 @@ export function decorateCanvasCard(
     'video-source': '视频',
     sequence: '序列帧',
     animation: '动画',
+    'image-assets': '游戏资产',
     'model-views': '多视图确认',
     model: '3D 模型',
     section: '工作流',
@@ -47,7 +48,13 @@ export function decorateCanvasCard(
         ' · ' +
         node.videoInfo.duration.toFixed(1) +
         ' 秒'
-      : kinds[node.type];
+      : node.mergeIcons
+        ? '二合图标生成器 · ' +
+          node.mergeIcons.series.length +
+          '系列 × ' +
+          node.mergeIcons.stageCount +
+          '阶段'
+        : kinds[node.type];
   heading.append(title, metadata);
   const more = document.createElement('button');
   more.type = 'button';
@@ -123,8 +130,10 @@ export function refreshCanvasGroupHeaders(
       const overlay = cards.get(node.id)?.querySelector<HTMLElement>('.card-state-overlay');
       if (overlay?.dataset.state) return overlay.dataset.state;
       const saved = Boolean(
-        node.assetPath &&
-          (!['sequence', 'animation'].includes(node.type) || node.frameSetInfo?.frames.length)
+        node.type === 'image-assets'
+          ? node.imageAssetsInfo?.items.length
+          : node.assetPath &&
+              (!['sequence', 'animation'].includes(node.type) || node.frameSetInfo?.frames.length)
       );
       return saved ? 'ready' : 'waiting';
     });

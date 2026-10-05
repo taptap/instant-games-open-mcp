@@ -222,6 +222,14 @@ export function createBrowserCanvasDocumentStore(
         signal,
       }),
     templates: {
+      modelPreviewUrl: (id, revision) =>
+        '/canvas-model-preview?project=' +
+        encodeURIComponent(projectKey) +
+        '&template=' +
+        encodeURIComponent(id) +
+        '&revision=' +
+        revision +
+        '&mode=template',
       prepareTemplate: (id, canvasId) =>
         request<CanvasWorkflowTemplate>('/canvases/templates/' + id + '/prepare', {
           method: 'POST',
@@ -233,9 +241,9 @@ export function createBrowserCanvasDocumentStore(
           '/canvases/templates?page=' + page + '&q=' + encodeURIComponent(query)
         ),
       getTemplate: (id) => request<CanvasWorkflowTemplate>('/canvases/templates/' + id),
-      getCover: async (id, revision, signal) => {
+      getCover: async (id, revision, signal, slot = 0) => {
         const response = await fetcher(
-          base + '/canvases/templates/' + id + '/cover?revision=' + revision,
+          base + '/canvases/templates/' + id + '/cover?revision=' + revision + '&slot=' + slot,
           { signal }
         );
         if (!response.ok) throw new Error('缩略图加载失败');
@@ -246,12 +254,15 @@ export function createBrowserCanvasDocumentStore(
             JSON.parse(response.headers.get('X-Template-Cover-Animation') || 'null') || undefined,
         };
       },
-      saveCover: async (id, revision, blob, signal) => {
-        await request('/canvases/templates/' + id + '/cover?revision=' + revision, {
-          method: 'PUT',
-          body: blob,
-          signal,
-        });
+      saveCover: async (id, revision, blob, signal, slot = 0) => {
+        await request(
+          '/canvases/templates/' + id + '/cover?revision=' + revision + '&slot=' + slot,
+          {
+            method: 'PUT',
+            body: blob,
+            signal,
+          }
+        );
       },
       saveTemplate: (template) =>
         request<CanvasWorkflowTemplate>('/canvases/templates/' + template.id, {

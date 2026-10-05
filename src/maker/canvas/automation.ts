@@ -1,4 +1,5 @@
 import type { CanvasDocument, CanvasNode } from './model.js';
+import { configureMergeIcons } from './mergeIcons.js';
 import { canvasGenerationParameterChoices, canvasParameterSchema } from './automationInfo.js';
 
 export interface CanvasCommand {
@@ -57,6 +58,7 @@ export function canvasAutomationCapabilities() {
       'parameters',
       'sequenceSettings',
       'modelQuality',
+      'mergeIcons',
     ],
     modelWorkflow: {
       quality: ['fast', 'balanced', 'high_quality'],
@@ -200,6 +202,9 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
           throw new Error('卡片位置无效。');
         if (node.type === 'section') throw new Error('首版不支持移动整个分组。');
         next[key] = value;
+      } else if (key === 'mergeIcons') {
+        configureMergeIcons(next, value);
+        contentChanged = true;
       } else if (key === 'modelQuality') {
         if (
           node.type !== 'model-views' ||
@@ -215,6 +220,7 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
         else next.generationDraft ||= { operation: 'generate' };
         const settings = next.assetPath ? next.generation! : next.generationDraft!;
         if (key === 'prompt') {
+          if (next.mergeIcons) throw new Error('二合图标提示词由阶段设置生成，请修改 mergeIcons。');
           if (typeof value !== 'string' || !value.trim() || value.length > 8000)
             throw new Error('提示词必须为 1～8000 字符。');
           settings.prompt = value;
@@ -226,6 +232,12 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
           for (const [name, setting] of Object.entries(value))
             if (!choices[name]?.includes(setting)) throw new Error('不支持的生成参数：' + name);
           settings.parameters = { ...settings.parameters, ...value };
+          if (
+            node.videoInputMode === 'first_last_frame' &&
+            settings.parameters.mode !== undefined &&
+            settings.parameters.mode !== 'first_last_frame'
+          )
+            throw new Error('此视频固定使用首尾帧模式。');
         }
         contentChanged = true;
       } else if (key === 'sequenceSettings') {

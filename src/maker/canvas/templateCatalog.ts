@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { setImmediate } from 'node:timers/promises';
 import { builtinCanvasTemplates } from './presets.js';
+import { builtinPresetDescriptions } from './presetDescriptions.js';
 import {
   isBuiltinCanvasTemplate,
   templateCoverSource,
@@ -69,7 +70,13 @@ export async function readTemplatePage(
     }
   }
   const matches = (summary: CanvasTemplateSummary) =>
-    summary.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+    (
+      summary.name +
+      ' ' +
+      (summary.builtin ? builtinPresetDescriptions[summary.id] || '' : '自定义工作流')
+    )
+      .toLocaleLowerCase()
+      .includes(query.trim().toLocaleLowerCase());
   const filtered = summaries
     .filter(matches)
     .sort((left, right) => right.updatedAt - left.updatedAt || left.id.localeCompare(right.id));

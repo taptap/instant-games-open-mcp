@@ -20,7 +20,12 @@ try {
     );
   const { chromium } = await import(pathToFileURL(modulePath).href);
   const bundle = path.join(temporary, 'harness.mjs');
+  const preview = await build({
+    entryPoints: [path.join(repo, 'src/maker/canvas/modelPreviewClient.ts')],
+    bundle: true, platform: 'browser', format: 'iife', write: false, minify: true,
+  });
   await build({
+    define: { __MAKER_MODEL_PREVIEW_SCRIPT__: JSON.stringify(preview.outputFiles[0].text) },
     stdin: {
       contents:
         'export { startConsoleServer } from "./src/maker/console/server.ts"; export { ConsoleProjects } from "./src/maker/console/projects.ts"; export { MakerCanvasFiles } from "./src/maker/canvas/files.ts";',
@@ -63,6 +68,7 @@ try {
     version: 'template-test',
   });
   const files = new MakerCanvasFiles(project);
+  const builtinCount = (await files.listTemplatePage()).presets.length;
   let canvas = await files.create('模板管理验证', 'starter');
   const image = { ...canvas.nodes[0], x: 90, y: 100, width: 280, height: 260 };
   const creditAttemptId = randomUUID();
@@ -236,10 +242,10 @@ try {
   const presetNames = ['序列帧动画', '角色四方向', '首尾帧变身 · 灰狼→狼王'];
   for (const name of presetNames) {
     await page.getByRole('button', { name: '添加模板', exact: true }).click();
-    const row = dialog.locator('.workflow-template-row').filter({ has: page.getByText(name, { exact: true }) });
+    const row = dialog.locator('.workflow-template-row').filter({ has: page.getByText(name.split(' · ')[0], { exact: true }) });
     await row.waitFor();
     if (name === '首尾帧变身 · 灰狼→狼王')
-      assert.equal(await row.locator('.template-description').textContent(), '首尾双图 → 变身视频 → 抽帧 → 动画');
+      assert.equal(await row.locator('.template-description').textContent(), '首尾帧必填与对比 → 变身视频 → 抽帧 → 动画');
     assert.equal(await row.getByRole('button').count(), 1);
     await row.getByRole('button', { name: '添加', exact: true }).click();
     await until(async () => (await saved()).nodes.filter(node => node.type === 'section').length === presetNames.indexOf(name) + 1);
@@ -270,6 +276,22 @@ try {
   assert.equal(transformationVideo.generation.parameters.mode, 'first_last_frame');
   assert.deepEqual(transformationVideo.generation.sourceImageIds, transformation.filter(node => node.type === 'image').map(node => node.id));
   assert.equal(document.edges.filter(edge => edge.to === transformationVideo.id).length, 2);
+  const headId = transformationVideo.generation.sourceImageIds[0];
+  const tailId = transformationVideo.generation.sourceImageIds[1];
+  await card(transformationVideo.id).getByRole('button', { name: '调整参数' }).click();
+  assert.equal(await page.getByRole('combobox',{name:'首帧图片',exact:true}).inputValue(),headId);
+  assert.equal(await page.getByRole('combobox',{name:'尾帧图片',exact:true}).inputValue(),tailId);
+  if (process.env.MAKER_FRAME_REFERENCE_SCREENSHOT) await page.screenshot({path:process.env.MAKER_FRAME_REFERENCE_SCREENSHOT});
+  await page.getByRole('combobox',{name:'首帧图片',exact:true}).selectOption('');
+  await until(async()=>!(await saved()).edges.some(edge=>edge.to===transformationVideo.id&&edge.kind==='frame-first'));
+  await page.reload();
+  await card(transformationVideo.id).getByRole('button', { name: '调整参数' }).click();
+  assert.equal(await page.getByRole('combobox',{name:'首帧图片',exact:true}).inputValue(),'');
+  assert.equal(await page.getByRole('button',{name:'应用并继续',exact:true}).isDisabled(),true);
+  assert.equal(await page.getByRole('combobox',{name:'尾帧图片',exact:true}).inputValue(),tailId);
+  await page.getByRole('combobox',{name:'首帧图片',exact:true}).selectOption(headId);
+  await until(async()=>(await saved()).edges.some(edge=>edge.to===transformationVideo.id&&edge.kind==='frame-first'));
+  console.log('PASS 原视频引用区首尾帧必填、独立保存，刷新不将尾帧顶替首帧，不新增卡片');
   const reuseCheck = await page.evaluate(async canvas => {
     const group = canvas.nodes.find(node => node.type === 'section' && node.title.includes('灰狼'));
     const target = canvas.nodes.find(node => node.sectionId === group.id && node.type === 'video-source');
@@ -303,6 +325,8 @@ try {
     const targetPanel = document.createElement('div');
     ui.render(targetPanel, target, canvas.nodes, undefined, { canSubmit: true, submit: execute => execute() });
     const displayedPrompt = targetPanel.querySelector('.generation-prompt').value;
+    if (!targetPanel.querySelector('select[aria-label="输入方式"]')?.disabled) throw new Error('首尾帧模式未锁定');
+    if (targetPanel.querySelector('.generation-reference-add')) throw new Error('首尾帧视频不应有第三张参考图入口');
     targetPanel.querySelector('.generation-action-primary').click();
     await new Promise(resolve => setTimeout(resolve, 0));
     return { blocked, unchanged, requests, displayedPrompt, sourceIds: target.generation.sourceImageIds };
@@ -341,7 +365,7 @@ try {
   assert.deepEqual(errors, []);
   if (process.env.MAKER_TEMPLATE_SCREENSHOT)
     await page.screenshot({ path: process.env.MAKER_TEMPLATE_SCREENSHOT });
-  console.log('PASS 三个内置预设实际添加并刷新保留：29卡/23连线，六段旧示例视频可解码，四方向草稿与首尾帧双图关系保留，预设不能覆盖');
+  console.log('PASS 三个内置预设实际添加并刷新保留：29卡/23连线，六段旧示例视频可解码，四方向草稿与首尾帧固定引用保留，预设不能覆盖');
   await page.keyboard.press('Escape');
   const demo = await files.prepareTemplate('7e1cb6ad-732f-4dc3-a951-000000000001', canvas.id);
   for (let index = 0; index < 500; index++) {
@@ -370,7 +394,7 @@ try {
   await page.getByRole('button', { name: '添加模板', exact: true }).click();
   await dialog.getByText('我的模板 · 500', { exact: true }).waitFor();
   const openTime = performance.now() - opened;
-  assert.equal(await dialog.locator('.workflow-template-row').count(), 27);
+  assert.equal(await dialog.locator('.workflow-template-row').count(), builtinCount + 24);
   await page.waitForFunction(() => document.querySelectorAll('.template-cover canvas').length >= 2);
   assert.equal(await dialog.locator('video').count(), 0);
   const firstCover = dialog.locator('.template-cover canvas').first();
@@ -381,21 +405,43 @@ try {
     const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
     return data.some((value, index) => index % 4 === 3 && value === 0);
   }));
-  await firstCover.hover();
+  const animationRow = dialog.locator('.workflow-template-row').first();
+  await animationRow.locator('.template-card-heading').hover();
+  await until(async () => await firstCover.evaluate(canvas => canvas.toDataURL()) !== still);
+  await animationRow.locator('.template-description').hover();
+  await until(async () => await firstCover.evaluate(canvas => canvas.toDataURL()) !== still);
+  await animationRow.getByRole('button', { name: '添加', exact: true }).hover();
   await until(async () => await firstCover.evaluate(canvas => canvas.toDataURL()) !== still);
   await page.getByRole('heading', { name: '添加模板', exact: true }).hover();
   await until(async () => await firstCover.evaluate(canvas => canvas.toDataURL()) === still);
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await firstCover.hover();
+  await animationRow.locator('.template-card-heading').hover();
   await page.waitForTimeout(250);
   assert.equal(await firstCover.evaluate(canvas => canvas.toDataURL()), still);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.getByRole('heading', { name: '添加模板', exact: true }).hover();
+  await animationRow.getByRole('button', { name: '添加', exact: true }).focus();
+  await until(async () => await firstCover.evaluate(canvas => canvas.toDataURL()) !== still);
+  await dialog.getByRole('searchbox', { name: '搜索模板' }).focus();
+  await until(async () => await firstCover.evaluate(canvas => canvas.toDataURL()) === still);
+  await dialog.getByRole('button', { name: '3D 模型', exact: true }).click();
+  const modelFrame = page.frameLocator('iframe[title="角色模型 · 多视图确认真实模型预览"]');
+  await modelFrame.locator('body[data-state=ready]').waitFor({ timeout: 30000 });
+  const modelCanvas = modelFrame.locator('canvas');
+  const modelBefore = await modelCanvas.evaluate(canvas => canvas.toDataURL());
+  const modelBox = await modelCanvas.boundingBox();
+  await page.mouse.move(modelBox.x + modelBox.width / 2, modelBox.y + modelBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(modelBox.x + modelBox.width / 2 + 70, modelBox.y + modelBox.height / 2, { steps: 10 });
+  await page.mouse.up();
+  assert.notEqual(await modelCanvas.evaluate(canvas => canvas.toDataURL()), modelBefore);
+  await dialog.getByRole('button', { name: '全部', exact: true }).click();
   const firstPage = await files.listTemplatePage();
   assert(firstPage.items.every(item => !('nodes' in item) && !('edges' in item)));
   for (let index = 0; index < 3; index++) {
     await dialog.getByRole('button', { name: '下一页' }).click();
     await dialog.getByText((index + 2) + ' / 21', { exact: true }).waitFor();
-    assert.equal(await dialog.locator('.workflow-template-row').count(), 27);
+    assert.equal(await dialog.locator('.workflow-template-row').count(), builtinCount + 24);
   }
   const search = dialog.getByRole('searchbox', { name: '搜索模板' });
   await search.fill('游戏动作 499');
@@ -406,7 +452,7 @@ try {
   await until(async () => !files.readTemplateCover(matched.id, matched.revision).source);
   assert(!requests.some(url => /templates\/[0-9a-f-]{36}$/.test(url)));
   await search.fill('没有这个模板');
-  await dialog.getByText('我的模板 · 0', { exact: true }).waitFor();
+  await dialog.getByText('没有匹配的模板，试试其他关键词或分类。', { exact: true }).waitFor();
   assert.equal(await dialog.locator('.workflow-template-row').count(), 0);
   await search.fill('游戏动作 499');
   await dialog.getByText('我的模板 · 1', { exact: true }).waitFor();
@@ -422,7 +468,123 @@ try {
   await page.waitForFunction(() => window.templateObjectUrls.size === 0);
   await page.waitForFunction(() => window.templateBitmaps.size === 0);
   assert.deepEqual(errors, []);
-  console.log('PASS 500条模板：打开 ' + Math.round(openTime) + 'ms；每页27卡、透明动画帧、悬停播放/移开停止、减少动效、全库搜索、预览缓存、窄屏单列、关闭释放URL和位图');
+  console.log('PASS 500条模板：打开 ' + Math.round(openTime) + 'ms；每页24条用户模板加内置预设、透明动画帧、悬停播放/移开停止、减少动效、全库搜索、预览缓存、窄屏单列、关闭释放URL和位图');
+  canvas = await files.create('新素材预设验证');
+  await files.setActiveCanvasId(canvas.id);
+  await page.goto(server.origin + '/canvas?project=' + entry.key);
+  const newPresets = (await files.listTemplatePage()).presets.slice(4);
+  assert.equal(newPresets.length, 7);
+  await page.getByRole('button', { name: '添加模板', exact: true }).click();
+  assert.deepEqual(await dialog.boundingBox(), { x: 0, y: 0, width: 1440, height: 1000 });
+  await dialog.getByRole('button', { name: '道具与种植', exact: true }).click();
+  await dialog.getByText('共 3 个模板', { exact: true }).waitFor();
+  assert.equal(await dialog.locator('.workflow-template-row').count(), 3);
+  await dialog.getByRole('button', { name: 'UI 设计', exact: true }).click();
+  await dialog.getByText('共 2 个模板', { exact: true }).waitFor();
+  await dialog.getByRole('searchbox').fill('科幻终端');
+  await dialog.getByText('共 1 个模板', { exact: true }).waitFor();
+  await dialog.getByText('UI风格裂变', { exact: true }).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.deepEqual(await dialog.boundingBox(), { x: 0, y: 0, width: 390, height: 844 });
+  assert(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await dialog.getByRole('searchbox').fill('');
+  await dialog.getByText('共 2 个模板', { exact: true }).waitFor();
+  await dialog.getByRole('button', { name: '我的模板', exact: true }).click();
+  await dialog.getByText('共 500 个模板', { exact: true }).waitFor();
+  assert.equal(await dialog.locator('.workflow-template-row').count(), 24);
+  await page.keyboard.press('Escape');
+  assert.equal(await dialog.isVisible(), false);
+  let added = 0;
+  for (const preset of newPresets) {
+    await page.getByRole('button', { name: '添加模板', exact: true }).click();
+    const row = dialog.locator('.workflow-template-row').filter({ has: page.getByText(preset.name.split(' · ')[0], { exact: true }) });
+    await row.waitFor();
+    await row.scrollIntoViewIfNeeded();
+    const expectedPreviews = [6, 9].includes(Number(preset.id.slice(-3))) ? 1 : 2;
+    assert.equal(await row.locator('.template-cover').count(), expectedPreviews);
+    await until(() => row.locator('.template-cover img').evaluateAll((images, count) => images.length === count && images.every(image => image.complete && image.naturalWidth > 0), expectedPreviews));
+    assert.equal(await row.locator('.template-cover img').count(), expectedPreviews);
+    assert.equal(Math.round((await row.boundingBox()).height), 316);
+    assert(await row.evaluate(element => {
+      const bottom = element.querySelector('.template-card-actions').getBoundingClientRect().top;
+      return Array.from(element.querySelectorAll('.template-cover')).every(cover => cover.getBoundingClientRect().bottom < bottom);
+    }), '预览不能挤占底部卡片数和添加按钮');
+    assert.equal(await row.getByRole('button').count(), 1);
+    const description = await row.locator('.template-description').textContent();
+    assert(!description.includes('抽帧 → 动画'));
+    await row.getByRole('button', { name: '添加', exact: true }).click();
+    added++;
+    await until(async () => (await saved()).nodes.filter(node => node.type === 'section').length === added);
+    await until(() => page.evaluate(() => document.getElementById('status').textContent === '已保存' && !window.makerCanvasUnsaved));
+    const current = await saved();
+    const group = current.nodes.find(node => node.templateId === preset.id);
+    const members = current.nodes.filter(node => node.sectionId === group.id);
+    assert.equal(members.filter(node => node.type === 'note').length, 0);
+    const cropPreset = preset.id.endsWith('000006');
+    const npcPreset = preset.id.endsWith('000008');
+    const mergePreset = preset.id.endsWith('000009');
+    const stylesPreset = preset.id.endsWith('000010');
+    const conceptPreset = preset.id.endsWith('000011');
+    if (stylesPreset) assert(members.length === 4 && members.every(node => node.type === 'image'));
+    else if (conceptPreset) assert(members.length === 2 && members.every(node => node.type === 'image'));
+    else assert.equal(members.find(node => node.type === 'image-assets').imageAssetsInfo.items.length, cropPreset ? 5 : npcPreset ? 8 : mergePreset ? 15 : 12);
+    assert(members.every(node => !node.generation?.attemptId && !node.generation?.taskId));
+    assert(members.filter(node => node.assetPath).every(node => node.type === 'image'));
+    assert.equal(members.length, preset.nodeCount);
+    assert.equal(members.filter(node => node.templatePending).length, 0);
+    assert(members.every(node => !node.generationDraft));
+    const source = members.find(node => node.type === 'image' && !current.edges.some(edge => edge.to === node.id));
+    assert(source.title.includes(conceptPreset ? '森林法师' : stylesPreset ? '每日签到' : cropPreset ? '番茄' : npcPreset ? '小镇邮差' : mergePreset ? '草莓派礼篮' : preset.id.endsWith('000007') ? '花园商店' : '林间炼金工坊'));
+    assert(members.filter(node => node.type === 'image' && node.id !== source.id).every(node => node.generation.sourceImageIds[0] === source.id));
+    console.log('PASS 新预设添加与落盘：' + preset.name);
+  }
+  await page.reload();
+  await until(() => page.locator('.card').count().then(count => count === 28));
+  const allAssets = await saved();
+  assert.equal(allAssets.nodes.length, 28);
+  assert.equal(allAssets.edges.length, 14);
+  assert.equal(allAssets.nodes.filter(node => node.type === 'video').length, 0);
+  assert.equal(allAssets.nodes.filter(node => node.type === 'image' && node.assetPath).length, 16);
+  assert.equal(allAssets.nodes.filter(node => ['sequence', 'animation', 'video-source'].includes(node.type)).length, 0);
+  const alphaChecks = await page.evaluate(async paths => {
+    const project = new URL(location.href).searchParams.get('project');
+    const results = [];
+    for (const assetPath of paths) {
+      const response = await fetch('/api/projects/' + project + '/canvas-media?path=' + encodeURIComponent(assetPath));
+      if (!response.ok) throw new Error('模板图片读取失败');
+      const bitmap = await createImageBitmap(await response.blob());
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const context = canvas.getContext('2d');
+      context.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      results.push({ width: canvas.width, height: canvas.height, corner: pixels[3], alpha: pixels.some((value, index) => index % 4 === 3 && value === 0) });
+    }
+    return results;
+  }, allAssets.nodes.filter(node => node.type === 'image').map(node => node.assetPath));
+  assert.deepEqual(alphaChecks.slice(0, 2).map(image => [image.width, image.height]), [[2048, 1152], [2304, 1500]]);
+  assert.equal(alphaChecks[0].corner, 255);
+  assert(alphaChecks[1].corner === 0 && alphaChecks[1].alpha);
+  assert(alphaChecks.slice(2, 4).every(image => image.corner === 0 && image.alpha));
+  assert.equal(alphaChecks[4].corner, 255);
+  assert(alphaChecks[5].corner === 0 && alphaChecks[5].alpha);
+  assert(alphaChecks.slice(6, 10).every(image => image.corner === 0 && image.alpha));
+  assert(alphaChecks.slice(10, 14).every(image => image.corner === 255 && !image.alpha));
+  assert(alphaChecks[14].corner === 0 && alphaChecks[14].alpha);
+  assert(alphaChecks[15].corner === 255 && !alphaChecks[15].alpha);
+  if (process.env.MAKER_ASSET_PRESET_SCREENSHOT) {
+    await page.getByRole('button', { name: '添加模板', exact: true }).click();
+    await dialog.getByRole('button', { name: '道具与种植', exact: true }).click();
+    await dialog.getByText('共 3 个模板', { exact: true }).waitFor();
+    await until(() => dialog.locator('.template-cover img').evaluateAll(images => images.length === 4 && images.every(image => image.complete && image.naturalWidth > 0)));
+    await page.screenshot({ path: process.env.MAKER_ASSET_PRESET_SCREENSHOT });
+    await dialog.getByRole('button', { name: '关闭', exact: true }).click();
+  }
+  assert.deepEqual(errors, []);
+  console.log('PASS 素材三卡预设与UI三风格分支：真实图片、无便签/任务身份/自动扣费，刷新恢复与真实文件保存');
   console.log('完成：真实浏览器 + 实际文件接口；仅模板管理，不含生图、生视频或完整序列帧验收。');
 } finally {
   await browser?.close();

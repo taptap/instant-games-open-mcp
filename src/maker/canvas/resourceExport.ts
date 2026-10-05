@@ -8,8 +8,11 @@ import {
 } from './exportNaming.js';
 import { downloadCanvasImage } from './imageExport.js';
 import { createSequenceExport } from './sequenceExport.js';
+import { openImageAtlasDialog } from './imageAtlasUi.js';
+import { createImageAssetsZip } from './imageAssets.js';
 
 export function canvasExportFormats(node?: CanvasNode): Array<{ format: string; label: string }> {
+  if (node?.type === 'image-assets') return [{ format: 'images', label: '独立 PNG 素材包' }];
   if (node?.type === 'model') return [{ format: 'model', label: 'Maker 模型包（含材质贴图）' }];
   if (!node || !['image', 'video', 'video-source', 'sequence', 'animation'].includes(node.type))
     return [];
@@ -36,25 +39,26 @@ export async function downloadCanvasResource(
   sink?: (blob: Blob, filename: string) => Promise<void>
 ): Promise<void> {
   if (
-    !node.assetPath ||
+    (!node.assetPath && !(node.type === 'image-assets' && node.imageAssetsInfo?.items.length)) ||
     node.templatePending ||
     !canvasExportFormats(node).some((item) => item.format === format)
   )
     throw new Error('此卡片尚无可导出的生成结果。');
   const sequence = node.type === 'sequence' || node.type === 'animation';
+  const assets = node.type === 'image-assets';
   if (sequence && !node.frameSetInfo?.frames.length)
     throw new Error('请先完成并保存序列帧结果，再导出。');
   if (format === 'png' || format === 'jpg') {
     const filename = canvasExportFilename(identity, format, format, await nextCanvasExportCode());
     await downloadCanvasImage(
-      mediaUrl(node.assetPath),
+      mediaUrl(node.assetPath!),
       filename.slice(0, -(format.length + 1)),
       format,
       sink
     );
     return;
   }
-  const extension = sequence ? 'zip' : node.assetPath.split('.').pop()?.toLowerCase();
+  const extension = sequence || assets ? 'zip' : node.assetPath!.split('.').pop()?.toLowerCase();
   const types: Record<string, string> = {
     zip: 'application/zip',
     mp4: 'video/mp4',
@@ -72,7 +76,7 @@ export async function downloadCanvasResource(
         suggestedName: filename,
         types: [
           {
-            description: sequence ? '序列帧资源包' : '视频原文件',
+            description: sequence ? '序列帧资源包' : assets ? '独立 PNG 素材包' : '视频原文件',
             accept: { [mime]: ['.' + extension] },
           },
         ],
@@ -86,7 +90,7 @@ export async function downloadCanvasResource(
   if (sequence) {
     progress?.('正在准备序列帧导出包…');
     blob = await createSequenceExport(
-      mediaUrl(node.assetPath),
+      mediaUrl(node.assetPath!),
       node.frameSetInfo!,
       format as 'atlas' | 'frames',
       folder,
@@ -99,8 +103,10 @@ export async function downloadCanvasResource(
         loop,
       }
     );
+  } else if (assets) {
+    blob = await createImageAssetsZip(node.imageAssetsInfo!, mediaUrl);
   } else {
-    const response = await fetch(mediaUrl(node.assetPath));
+    const response = await fetch(mediaUrl(node.assetPath!));
     if (!response.ok) throw new Error('视频读取失败，未导出文件，请重试。');
     blob = await response.blob();
     if (!blob.size) throw new Error('视频文件为空，未导出文件。');
@@ -138,6 +144,7 @@ export function createCanvasResourceExport(options: {
   error(message: string): void;
   progress?(message: string): void;
   model?: { ready(id: string): boolean; download(id: string): Promise<void> };
+  assets?: { open(id: string): Promise<boolean> };
 }) {
   let busy = false;
   async function download(node: CanvasNode, format: string, loop = true) {
@@ -182,7 +189,8 @@ export function createCanvasResourceExport(options: {
         busy ||
         (saved.type === 'model'
           ? !options.model?.ready(saved.id)
-          : !saved.assetPath ||
+          : (!saved.assetPath &&
+              !(saved.type === 'image-assets' && saved.imageAssetsInfo?.items.length)) ||
             Boolean(saved.templatePending) ||
             (['sequence', 'animation'].includes(saved.type) && !saved.frameSetInfo?.frames.length));
       toggle.title = busy
@@ -190,6 +198,17 @@ export function createCanvasResourceExport(options: {
         : toggle.disabled
           ? '尚无已保存的生成结果'
           : '导出当前已保存的资源，不包含未保存的处理草稿';
+      if (saved.type === 'image-assets') {
+        toggle.textContent = '下载素材（PNG ZIP）';
+        toggle.removeAttribute('aria-expanded');
+        toggle.addEventListener('click', () => {
+          menu.hidden = true;
+          void download(saved, 'images');
+        });
+        group.append(toggle);
+        menu.append(group);
+        return;
+      }
       const items = document.createElement('div');
       let loop = true;
       if (formats.some((option) => option.format === 'atlas')) {
@@ -229,6 +248,22 @@ export function createCanvasResourceExport(options: {
           if (busy) return;
           menu.hidden = true;
           void download(saved, option.format, loop);
+        });
+        items.append(item);
+      }
+      if (saved.type === 'image') {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.textContent = '图集解析 / 导出单图';
+        item.addEventListener('click', () => {
+          if (busy) return;
+          menu.hidden = true;
+          try {
+            if (options.assets) void options.assets.open(saved.id);
+            else openImageAtlasDialog(saved, options.mediaUrl);
+          } catch (error) {
+            options.error((error as Error).message);
+          }
         });
         items.append(item);
       }

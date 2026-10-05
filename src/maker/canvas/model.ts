@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { FrameSetInfo, SequenceSettings, VideoInfo } from './sequenceModel.js';
 import type { CanvasSourceSnapshot } from './dependencies.js';
+import type { ImageAssetsInfo } from './imageAssets.js';
+import type { MergeIconSettings } from './mergeIcons.js';
 
 export const HISTORY_LIMIT = 60;
 
@@ -11,6 +13,7 @@ export type CanvasNodeType =
   | 'video-source'
   | 'sequence'
   | 'animation'
+  | 'image-assets'
   | 'model-views'
   | 'model'
   | 'section';
@@ -21,7 +24,10 @@ export type CanvasEdgeKind =
   | 'sequence-source'
   | 'character-views'
   | 'views-model'
-  | 'sequence-animation';
+  | 'sequence-animation'
+  | 'image-assets'
+  | 'frame-first'
+  | 'frame-last';
 
 export type CanvasCreateTemplate = 'starter' | 'empty' | 'sequence';
 
@@ -80,9 +86,12 @@ export interface CanvasNode {
   sourceSnapshot?: CanvasSourceSnapshot;
   sourceSnapshots?: CanvasSourceSnapshot[];
   videoInfo?: VideoInfo;
+  videoInputMode?: 'first_last_frame';
   sourceVideoId?: string;
   sequenceSettings?: SequenceSettings;
   frameSetInfo?: FrameSetInfo;
+  imageAssetsInfo?: ImageAssetsInfo;
+  mergeIcons?: MergeIconSettings;
   generation?: CanvasGenerationResult;
 }
 
@@ -171,6 +180,7 @@ export function cloneDocument(document: CanvasDocument): CanvasDocument {
     nodes: document.nodes.map((node) => ({
       ...node,
       ...(node.referenceInput ? { referenceInput: { ...node.referenceInput } } : {}),
+      ...(node.mergeIcons ? { mergeIcons: structuredClone(node.mergeIcons) } : {}),
       ...(node.sourceSnapshot ? { sourceSnapshot: { ...node.sourceSnapshot } } : {}),
     })),
     edges: document.edges.map((edge) => ({ ...edge })),

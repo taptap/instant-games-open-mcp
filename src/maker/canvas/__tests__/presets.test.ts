@@ -3,9 +3,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { MakerCanvasFiles } from '../files.js';
 import { createId } from '../model.js';
-import { createCanvasTemplateModel } from '../templates.js';
+import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from '../templates.js';
 import { isCanvasNodeStale } from '../dependencies.js';
+import { invalidateCanvasDependents } from '../templateWorkflow.js';
 import { canvasPresets } from '../presets.js';
+import { builtinPresetDescriptions } from '../presetDescriptions.js';
+const { PNG } = require('pngjs');
 
 let root: string;
 let files: MakerCanvasFiles;
@@ -25,10 +28,245 @@ test('lists portable presets without importing assets or creating a canvas', asy
     '角色四方向',
     '首尾帧变身 · 灰狼→狼王',
     '角色模型 · 多视图确认',
+    '道具生成 · 风格图→图集→游戏资产',
+    '种植生长 · 作物→状态图集→游戏资产',
+    'UI组件提取 · 设计稿→组件图集→游戏资产',
+    'NPC批量生成 · 角色参考→职业图集→游戏资产',
+    '二合图标生成 · 风格参考→升级图集→游戏资产',
+    'UI风格裂变 · 同一界面→三种风格',
+    '角色概念设计 · 角色参考→完整展示图',
   ]);
   expect(templates.every((template) => template.builtin && !('assets' in template))).toBe(true);
   expect(await files.list()).toEqual([]);
   expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+});
+
+test.each([4, 5, 6, 7, 8])(
+  'asset preset %i persists transparent generated examples with independent references',
+  async (index) => {
+    const preset = canvasPresets()[index];
+    const canvas = await files.create('素材模板验证');
+    const prepared = await files.prepareTemplate(preset.id, canvas.id);
+    const instance = model.instantiate(prepared, { x: 0, y: 0 });
+    const saved = await files.save(
+      canvas.id,
+      { ...canvas, nodes: instance.nodes, edges: instance.edges },
+      canvas.revision
+    );
+    const source = saved.nodes.find((node) => node.type === 'image' && node.assetPath)!;
+    const results = saved.nodes.filter((node) => node.type === 'image' && node.id !== source.id);
+    expect(results).toHaveLength(1);
+    expect(saved.nodes.filter((node) => node.type === 'note')).toHaveLength(0);
+    expect(
+      saved.nodes.every((node) => ['section', 'image-assets', 'image'].includes(node.type))
+    ).toBe(true);
+    expect(source.templatePending).toBeUndefined();
+    expect(source.generation?.parameters).toMatchObject({ model: 'gpt', resolution: '2K' });
+    const itemCount = index === 5 ? 5 : index === 7 ? 8 : index === 8 ? 15 : 12;
+    expect(Object.keys(preset.assets)).toHaveLength(itemCount + 2);
+    const collection = saved.nodes.find((node) => node.type === 'image-assets')!;
+    expect(collection.imageAssetsInfo?.items).toHaveLength(itemCount);
+    expect(collection.templatePending).toBeUndefined();
+    expect(saved.edges).toContainEqual(
+      expect.objectContaining({ kind: 'image-assets', from: results[0].id, to: collection.id })
+    );
+    for (const item of collection.imageAssetsInfo!.items)
+      expect(fs.statSync(files.readMedia(item.assetPath).file).size).toBeGreaterThan(0);
+    expect(fs.statSync(files.readMedia(source.assetPath!).file).size).toBeGreaterThan(0);
+    for (const result of results) {
+      expect(result.assetPath).toBeDefined();
+      expect(result.generationDraft).toBeUndefined();
+      expect(result.generation?.attemptId).toBeUndefined();
+      expect(result.generation?.taskId).toBeUndefined();
+      expect(result.templatePending).toBeUndefined();
+      expect(result.referenceInput).toEqual({ includeSelf: false });
+      expect(result.generation?.referenceImagePaths).toEqual([]);
+      expect(result.generation).toMatchObject({
+        operation: 'generate',
+        sourceImageId: source.id,
+        parameters: { aspectRatio: index === 5 || index === 8 ? '16:9' : '4:3' },
+      });
+      expect(result.generation!.prompt!.length).toBeGreaterThan(20);
+      expect(isCanvasNodeStale(result, [source])).toBe(false);
+      expect(saved.edges).toContainEqual(
+        expect.objectContaining({ kind: 'image-variant', from: source.id, to: result.id })
+      );
+    }
+    const second = model.instantiate(prepared, { x: 1600, y: 0 });
+    const otherSource = second.nodes.find((node) => node.type === 'image' && node.assetPath)!;
+    expect(
+      instance.nodes.every((node) => !second.nodes.some((other) => other.id === node.id))
+    ).toBe(true);
+    expect(
+      second.nodes
+        .filter((node) => node.generation?.sourceImageId)
+        .every((node) => node.generation?.sourceImageId === otherSource.id)
+    ).toBe(true);
+    const combined = await files.save(
+      canvas.id,
+      {
+        ...saved,
+        nodes: [...saved.nodes, ...second.nodes],
+        edges: [...saved.edges, ...second.edges],
+      },
+      saved.revision
+    );
+    expect((await files.load(canvas.id)).nodes).toEqual(combined.nodes);
+    const custom = await files.saveTemplate(
+      model.snapshot(combined, [instance.section.id], '素材副本')
+    );
+    expect(custom.builtin).toBeUndefined();
+    await expect(files.saveTemplate({ ...prepared, name: '覆盖预设' })).rejects.toMatchObject({
+      code: 'READ_ONLY_TEMPLATE',
+    });
+    await expect(files.deleteTemplate(preset.id, preset.revision)).rejects.toMatchObject({
+      code: 'READ_ONLY_TEMPLATE',
+    });
+  }
+);
+
+test('full game scene retains its background; atlas and standalone items have real alpha and intact borders', async () => {
+  const preset = canvasPresets()[4];
+  const canvas = await files.create('透明素材验证');
+  const prepared = await files.prepareTemplate(preset.id, canvas.id);
+  const images = prepared.nodes.filter((node) => node.type === 'image');
+  expect(images).toHaveLength(2);
+  const scene = PNG.sync.read(fs.readFileSync(files.readMedia(images[0].assetPath!).file));
+  expect([scene.width, scene.height, scene.data[3]]).toEqual([2048, 1152, 255]);
+  expect(images[0].generation?.prompt).toContain('核心玩法');
+  expect(images[0].generation?.prompt).toContain('完整游戏画面');
+  const collection = prepared.nodes.find((node) => node.type === 'image-assets')!;
+  for (const assetPath of [
+    images[1].assetPath!,
+    ...collection.imageAssetsInfo!.items.map((item) => item.assetPath),
+  ]) {
+    const png = PNG.sync.read(fs.readFileSync(files.readMedia(assetPath).file));
+    expect([png.width, png.height]).toEqual(
+      assetPath === images[1].assetPath ? [2304, 1500] : [576, 500]
+    );
+    let transparent = 0;
+    let opaque = 0;
+    for (let offset = 3; offset < png.data.length; offset += 4) {
+      if (png.data[offset] === 0) transparent++;
+      if (png.data[offset] === 255) opaque++;
+    }
+    expect(transparent).toBeGreaterThan(png.width * png.height * 0.1);
+    expect(opaque).toBeGreaterThan(png.width * png.height * 0.03);
+    for (const pixel of [
+      0,
+      png.width - 1,
+      png.width * (png.height - 1),
+      png.width * png.height - 1,
+    ])
+      expect(png.data[pixel * 4 + 3]).toBe(0);
+    if (png.width === 576) {
+      for (let column = 0; column < png.width; column++) {
+        expect(png.data[column * 4 + 3]).toBe(0);
+        expect(png.data[((png.height - 1) * png.width + column) * 4 + 3]).toBe(0);
+      }
+      for (let row = 0; row < png.height; row++) {
+        expect(png.data[row * png.width * 4 + 3]).toBe(0);
+        expect(png.data[(row * png.width + png.width - 1) * 4 + 3]).toBe(0);
+      }
+    }
+  }
+  const cover = files.readTemplateCover(preset.id, preset.revision);
+  expect(cover.type).toBe('image/png');
+  expect(PNG.sync.read(cover.bytes).data[3]).toBe(255);
+  expect(prepared.nodes.every((node) => !node.generationDraft)).toBe(true);
+});
+
+test('crop preset contains five aligned transparent stages whose pixels match the atlas', () => {
+  const preset = canvasPresets()[5];
+  const images = preset.nodes.filter((node) => node.type === 'image');
+  const collection = preset.nodes.find((node) => node.type === 'image-assets')!;
+  const info = collection.imageAssetsInfo!;
+  expect(info.grid).toEqual({ columns: 5, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 });
+  const decode = (assetPath: string) =>
+    PNG.sync.read(Buffer.from(preset.assets[assetPath].data, 'base64'));
+  const reference = decode(images[0].assetPath!);
+  expect(reference.data[3]).toBe(0);
+  const atlas = decode(images[1].assetPath!);
+  expect([atlas.width, atlas.height]).toEqual([2560, 800]);
+  const bounds = info.items.map((item, index) => {
+    const png = decode(item.assetPath);
+    expect([png.width, png.height]).toEqual([512, 800]);
+    let top = png.height;
+    let bottom = -1;
+    let mismatched = 0;
+    let boundary = 0;
+    for (let row = 0; row < png.height; row++) {
+      for (let column = 0; column < png.width; column++) {
+        const offset = (row * png.width + column) * 4;
+        const original = (row * atlas.width + index * 512 + column) * 4;
+        const alpha = png.data[offset + 3];
+        if (alpha !== atlas.data[original + 3]) mismatched++;
+        for (let channel = 0; channel < 3; channel++) {
+          const difference = Math.abs(png.data[offset + channel] - atlas.data[original + channel]);
+          if (alpha === 255 ? difference !== 0 : (difference * alpha) / 255 > 1) mismatched++;
+        }
+        if (row === 0 || row === png.height - 1 || column === 0 || column === png.width - 1)
+          boundary += alpha;
+        if (alpha) {
+          top = Math.min(top, row);
+          bottom = Math.max(bottom, row);
+        }
+      }
+    }
+    expect(mismatched).toBe(0);
+    expect(boundary).toBe(0);
+    expect(bottom).toBe(720);
+    return { top, bottom };
+  });
+  expect(bounds[0].top).toBeGreaterThan(bounds[1].top);
+  expect(bounds[1].top).toBeGreaterThan(bounds[2].top);
+  expect(bounds[2].top).toBeGreaterThan(bounds[3].top);
+  const prompt = images[1].generation!.prompt!;
+  for (const stage of ['播种', '幼苗', '开花', '结果', '枯萎']) expect(prompt).toContain(stage);
+  expect(prompt).toContain('4列×1行或5列×1行');
+  expect(prompt).toContain('不画种子或花');
+});
+
+test.each([4, 5, 6])(
+  'saved asset preset %i is ready without payment, then becomes pending after changing reference',
+  async (index) => {
+    const canvas = await files.create('完整素材模板');
+    const prepared = await files.prepareTemplate(canvasPresets()[index].id, canvas.id);
+    const instance = model.instantiate(prepared, { x: 0, y: 0 });
+    canvas.nodes = instance.nodes;
+    canvas.edges = instance.edges;
+    expect(canvas.nodes.every((node) => !node.templatePending)).toBe(true);
+    const source = canvas.nodes.find(
+      (node) => node.type === 'image' && !canvas.edges.some((edge) => edge.to === node.id)
+    )!;
+    invalidateCanvasDependents(canvas, source.id);
+    expect(canvas.nodes.filter((node) => node.templatePending).map((node) => node.type)).toEqual([
+      'image',
+      'image-assets',
+    ]);
+  }
+);
+
+test('all presets have protected ids and descriptions without sharing mutable definitions', () => {
+  const presets = canvasPresets();
+  expect(new Set(presets.map((preset) => preset.id)).size).toBe(presets.length);
+  const nodes = presets.flatMap((preset) => preset.nodes);
+  expect(new Set(nodes.map((node) => node.id)).size).toBe(nodes.length);
+  expect(Object.keys(builtinPresetDescriptions)).toEqual(presets.map((preset) => preset.id));
+  expect(presets.every((preset) => isBuiltinCanvasTemplate(preset.id))).toBe(true);
+  expect(isBuiltinCanvasTemplate('__proto__')).toBe(false);
+  expect(isBuiltinCanvasTemplate(createId())).toBe(false);
+  expect(
+    presets
+      .slice(4)
+      .every((preset) =>
+        preset.nodes.every((node) => !node.generation?.taskId && !node.generation?.attemptId)
+      )
+  ).toBe(true);
+  const before = JSON.stringify(presets.slice(4));
+  presets[4].nodes[1].generation!.prompt = 'changed';
+  Object.values(presets[4].assets)[0].data = 'changed';
+  expect(JSON.stringify(canvasPresets().slice(4))).toBe(before);
 });
 
 test.each([0, 1, 2])(
@@ -97,10 +335,12 @@ test.each([0, 1, 2])(
       );
       expect(
         first.edges
-          .filter((edge) => edge.to === video.id)
+          .filter((edge) => ['frame-first', 'frame-last'].includes(edge.kind))
           .map((edge) => edge.from)
           .sort()
       ).toEqual(images.map((node) => node.id).sort());
+      expect(video.videoInputMode).toBe('first_last_frame');
+      expect(first.edges.filter((edge) => edge.to === video.id)).toHaveLength(2);
       expect(images.every((node) => !node.templatePending && node.generation?.prompt)).toBe(true);
       expect(isCanvasNodeStale(video, images)).toBe(false);
       const previousPath = images[1].assetPath;

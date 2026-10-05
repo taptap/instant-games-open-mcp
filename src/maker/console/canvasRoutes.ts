@@ -3,6 +3,7 @@ import { createReadStream, statSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { CanvasStoreError } from '../canvas/model.js';
 import { MakerCanvasFiles } from '../canvas/files.js';
+import { readBuiltinTemplateModel } from '../canvas/templateModelPreview.js';
 import type { CanvasAutomationBridge } from '../canvas/automationBridge.js';
 import { ConsoleError } from './types.js';
 import type { ConsoleProjects } from './projects.js';
@@ -121,6 +122,20 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     const template = suffix.match(/^canvases\/templates\/([0-9a-f-]{36})$/i);
+    const templateModel = suffix.match(/^canvases\/templates\/([0-9a-f-]{36})\/model-preview$/i);
+    if (templateModel && method === 'GET') {
+      const current = files.getTemplate(templateModel[1]);
+      if (current.revision !== Number(searchParams.get('revision')))
+        throw new ConsoleError('模板已更新，请刷新列表。', 409);
+      const result = readBuiltinTemplateModel(templateModel[1], searchParams.get('file'));
+      response.writeHead(200, {
+        'Content-Type': result.type,
+        'Content-Length': result.bytes.length,
+        'X-Content-Type-Options': 'nosniff',
+      });
+      response.end(result.bytes);
+      return true;
+    }
     const preset = suffix.match(/^canvases\/templates\/([0-9a-f-]{36})\/prepare$/i);
     if (preset && method === 'POST') {
       const body = JSON.parse((await readBytes(request, 4096)).toString('utf8'));
@@ -133,8 +148,10 @@ export async function handleCanvasProjectRoute(options: {
     if (cover && (method === 'GET' || method === 'PUT')) {
       const revision = Number(searchParams.get('revision'));
       if (!Number.isSafeInteger(revision) || revision < 1) throw new ConsoleError('模板版本无效。');
+      const slot = Number(searchParams.get('slot') || 0);
+      if (slot !== 0 && slot !== 1) throw new ConsoleError('预览位置无效。');
       if (method === 'GET') {
-        const result = files.readTemplateCover(cover[1], revision);
+        const result = files.readTemplateCover(cover[1], revision, slot);
         response.writeHead(200, {
           'Content-Type': result.type,
           'Content-Length': result.bytes.length,
@@ -146,7 +163,12 @@ export async function handleCanvasProjectRoute(options: {
         });
         response.end(result.bytes);
       } else {
-        files.saveTemplateCover(cover[1], revision, await readBytes(request, 2 * 1024 * 1024));
+        files.saveTemplateCover(
+          cover[1],
+          revision,
+          await readBytes(request, 2 * 1024 * 1024),
+          slot
+        );
         send(response, 200, { ok: true });
       }
       return true;

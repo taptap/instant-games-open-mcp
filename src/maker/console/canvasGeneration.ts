@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { validateFramePairVideo } from '../canvas/framePair.js';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { callRemoteProxyTool } from '../server/mcp.js';
@@ -319,6 +320,7 @@ export class CanvasGenerationService {
       if (!target || (target.type !== 'video' && target.type !== 'video-source')) {
         throw new Error('视频生成目标卡不存在或不是视频输入卡。');
       }
+      validateFramePairVideo(document, target.id, mode, sourceImageIds, referenceImagePaths);
     }
     const attempt = this.createAttempt({
       canvasId: options.canvasId,

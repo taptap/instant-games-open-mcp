@@ -50,8 +50,15 @@ export function prepareCanvasReferences(
     throw new Error('旧版固定模板不支持修改视频来源，请添加新模板副本后设置参考图。');
 
   const parameters = target.generationDraft?.parameters || target.generation?.parameters;
+  if (
+    target.videoInputMode === 'first_last_frame' &&
+    input.sourceIds.length !== 0 &&
+    input.sourceIds.length !== 2
+  )
+    throw new Error('首尾帧需要按首帧、尾帧提供两张图片，或清空两者。');
   const count = input.sourceIds.length + Number(includeSelf);
-  const mode = parameters?.mode || (count === 1 ? 'first_frame' : 'select_mode');
+  const mode =
+    target.videoInputMode || parameters?.mode || (count === 1 ? 'first_frame' : 'select_mode');
   const limit =
     target.type === 'image'
       ? 14
@@ -88,7 +95,9 @@ export function prepareCanvasReferences(
   const previous = document.edges.filter(
     (edge) =>
       edge.to === target.id &&
-      ['image-variant', 'first-frame', 'image-to-video'].includes(edge.kind)
+      ['image-variant', 'first-frame', 'image-to-video', 'frame-first', 'frame-last'].includes(
+        edge.kind
+      )
   );
   const kind =
     target.type === 'image'
@@ -98,11 +107,15 @@ export function prepareCanvasReferences(
         : 'image-to-video';
   const edges: CanvasReferencesPlan['edges'] = [
     ...document.edges.filter((edge) => !previous.includes(edge)).map((edge) => ({ ...edge })),
-    ...sources.map((source) => ({
+    ...sources.map((source, index) => ({
       id: previous.find((edge) => edge.from === source.id)?.id,
       from: source.id,
       to: target.id,
-      kind: kind as CanvasEdge['kind'],
+      kind: (target.videoInputMode === 'first_last_frame'
+        ? index === 0
+          ? 'frame-first'
+          : 'frame-last'
+        : kind) as CanvasEdge['kind'],
     })),
   ];
   if (edges.length > 800) throw new Error('画布连线已达到容量限制。');

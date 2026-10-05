@@ -1,6 +1,66 @@
 import { createCanvasGenerationUi } from '../generationUi.js';
 import { snapshotCanvasSource } from '../dependencies.js';
 import { canvasNeedsProcessing } from '../templateWorkflow.js';
+import { configureMergeIcons, mergeIconPrompt } from '../mergeIcons.js';
+
+test.each(['succeeded', 'failed', 'missing', 'unknown'])(
+  'merge icon execution respects settings and result protection: %s',
+  async (status) => {
+    const { document, options } = fixture();
+    delete document.templateFlow;
+    const target = document.nodes[1];
+    target.type = 'image';
+    target.assetPath = 'old-atlas.png';
+    target.generation = { prompt: '旧提示词', sourceImageId: 'head' };
+    document.edges[0].kind = 'image-variant';
+    const settings = {
+      stageCount: 3,
+      instructions: '',
+      series: [{ name: '面包', stages: ['圆面包', '一篮', '礼篮'] }],
+    };
+    configureMergeIcons(target, settings);
+    options.store.listGeneration.mockResolvedValue(
+      status === 'unknown'
+        ? [
+            {
+              id: 'unknown-image',
+              kind: 'image',
+              canvasId: document.id,
+              targetNodeId: target.id,
+              status: 'unknown',
+            } as any,
+          ]
+        : []
+    );
+    if (status === 'missing') document.edges = [];
+    options.store.generateImage.mockImplementation(async (canvasId, input) => ({
+      ...input,
+      id: 'merge-result',
+      canvasId,
+      kind: 'image',
+      status,
+      resultAssetPath: status === 'succeeded' ? 'new-atlas.png' : undefined,
+    }));
+    const ui = createCanvasGenerationUi(options);
+    const success = await ui.runTemplateImage(target.id);
+    expect(success).toBe(status === 'succeeded');
+    expect(document.nodes).toHaveLength(2);
+    if (status === 'missing' || status === 'unknown')
+      expect(options.store.generateImage).not.toHaveBeenCalled();
+    else
+      expect(options.store.generateImage).toHaveBeenCalledWith(
+        document.id,
+        expect.objectContaining({
+          prompt: mergeIconPrompt(settings),
+          targetNodeId: target.id,
+          sourceImageIds: ['head'],
+        })
+      );
+    expect(target.assetPath).toBe(status === 'succeeded' ? 'new-atlas.png' : 'old-atlas.png');
+    expect(target.mergeIcons).toEqual(settings);
+    expect(canvasNeedsProcessing(document, target)).toBe(status !== 'succeeded');
+  }
+);
 
 function fixture(status = 'succeeded') {
   const document: any = {
@@ -62,6 +122,42 @@ function fixture(status = 'succeeded') {
   };
   return { document, attempt, options, ui: createCanvasGenerationUi(options) };
 }
+
+test('paired generation submits first then last and preserves the pair connection after recovery', async () => {
+  const { document, attempt, options } = fixture();
+  delete document.templateFlow;
+  const first = document.nodes[0];
+  const video = document.nodes[1];
+  const last = { ...first, id: 'tail', assetPath: 'assets/image/tail.png' };
+  document.nodes.push(last);
+  video.videoInputMode = 'first_last_frame';
+  document.edges = [
+    { id: 'last', kind: 'frame-last', from: last.id, to: video.id },
+    { id: 'first', kind: 'frame-first', from: first.id, to: video.id },
+  ];
+  video.generation.parameters = { mode: 'first_last_frame' };
+  Object.assign(attempt, {
+    sourceImageIds: [first.id, last.id],
+    sourceImagePaths: [first.assetPath, last.assetPath],
+    sourceSnapshots: [snapshotCanvasSource(first), snapshotCanvasSource(last)],
+    parameters: { mode: 'first_last_frame' },
+  });
+  options.store.listGeneration.mockResolvedValue([]);
+  const ui = createCanvasGenerationUi(options);
+  expect(await ui.runTemplateVideo(video.id, 4, true, true)).toBe(true);
+  expect(options.store.createVideo).toHaveBeenCalledWith(
+    document.id,
+    expect.objectContaining({
+      sourceImageIds: [first.id, last.id],
+      sourceImagePaths: [first.assetPath, last.assetPath],
+      mode: 'first_last_frame',
+      referenceImagePaths: [],
+    }),
+    expect.anything()
+  );
+  expect(document.edges.filter((edge: any) => edge.to === video.id)).toHaveLength(2);
+  expect(canvasNeedsProcessing(document, video)).toBe(false);
+});
 
 test('automation video execution uses explicitly saved parameters rather than a rejected attempt', async () => {
   const { document, attempt, options } = fixture('failed');

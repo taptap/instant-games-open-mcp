@@ -1,4 +1,8 @@
 declare const document: any;
+import { mergeIconPrompt, configureMergeIcons } from './mergeIcons.js';
+import { editMergeIcons } from './mergeIconsUi.js';
+import { framePairSources, setFramePairSource, validateFramePairVideo } from './framePair.js';
+import { canvasNeedsProcessing, invalidateCanvasDependents } from './templateWorkflow.js';
 import {
   canvasReferences,
   isCanvasNodeStale,
@@ -78,6 +82,7 @@ export interface CanvasGenerationUiOptions {
   onGenerated?(nodeId: string, kind: string): Promise<void>;
   onVideoCreated?(nodeId: string): void;
   onGenerateStart?(): void;
+  referencesBlocked?(): boolean;
 }
 
 export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
@@ -249,6 +254,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     return removedImageSources.get(referenceKey(node))?.get(source.id) !== source.assetPath;
   }
   function currentVideoMode(node: any): string {
+    if (node.videoInputMode === 'first_last_frame') return 'first_last_frame';
     return (
       videoSettings.get(referenceKey(node))?.mode ||
       node.generationDraft?.parameters?.mode ||
@@ -277,6 +283,10 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     workflow?: CanvasWorkflowEdit
   ): Promise<void> {
     const current = options.getDocument();
+    if (node.videoInputMode === 'first_last_frame') {
+      options.setError('请在首帧、尾帧位置选择画布图片；更换文件请使用对应图片卡。');
+      return;
+    }
     if (
       !current ||
       !files.length ||
@@ -439,6 +449,74 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           ? '首帧'
           : '参考图 ' + (position + 1);
     }
+    if (node.videoInputMode === 'first_last_frame') {
+      const current = options.getDocument();
+      const frames = framePairSources(current, node.id);
+      for (const [role, label] of [
+        ['first', '首帧'],
+        ['last', '尾帧'],
+      ] as const) {
+        const source = frames[role];
+        const field = selectControl(
+          label + '图片',
+          [
+            '',
+            ...current.nodes
+              .filter((item: any) => item.type === 'image' && item.assetPath)
+              .map((item: any) => item.id),
+          ],
+          source?.id || ''
+        );
+        field.querySelector('span').textContent = label + ' · 必填';
+        const select = field.querySelector('select');
+        for (const option of Array.from(select.options) as any[])
+          option.textContent =
+            current.nodes.find((item: any) => item.id === option.value)?.title || '请选择' + label;
+        select.disabled = busy || options.referencesBlocked?.() || frameReferenceBlocked(node.id);
+        if (source?.assetPath) {
+          thumbnail(source.assetPath, label);
+          field.prepend(strip.lastChild);
+        }
+        select.addEventListener('change', async () => {
+          if (
+            options.getDocument() !== current ||
+            inFlight.has(node.id) ||
+            importingReferences.has(key) ||
+            options.referencesBlocked?.() ||
+            frameReferenceBlocked(node.id)
+          )
+            return;
+          try {
+            const chosen = current.nodes.find((item: any) => item.id === select.value);
+            if (
+              chosen &&
+              (canvasNeedsProcessing(current, chosen) || frameReferenceBlocked(chosen.id))
+            )
+              throw new Error('请先完成参考图片的生成或处理。');
+            const next = { ...current, edges: current.edges.slice() };
+            setFramePairSource(next, node.id, role, select.value || undefined, options.createId);
+            options.remember();
+            current.edges = next.edges;
+            if (node.sectionId) node.templatePending = true;
+            invalidateCanvasDependents(current, node.id);
+            options.markDirty();
+            importingReferences.add(key);
+            options.render();
+            if (!(await options.flush()))
+              throw new Error('首尾帧设置尚未保存，请保存画布后再生成。');
+            options.setError('');
+          } catch (error) {
+            options.setError((error as Error).message);
+          } finally {
+            importingReferences.delete(key);
+            options.render();
+          }
+        });
+        strip.append(field);
+      }
+      panel.append(strip);
+      return;
+    }
     sources.forEach((item: any, index: number) => {
       if (item.assetPath)
         thumbnail(
@@ -493,6 +571,19 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       status.textContent = '参考图导入中…';
       strip.append(status);
     }
+  }
+
+  function frameReferenceBlocked(nodeId: string): boolean {
+    return (
+      inFlight.has(nodeId) ||
+      [...attempts.values()].some(
+        (attempt) =>
+          attempt.canvasId === options.getDocument()?.id &&
+          attempt.targetNodeId === nodeId &&
+          !explicitPreExecutionRejection(attempt) &&
+          ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status)
+      )
+    );
   }
 
   function button(
@@ -654,8 +745,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
             }
           : {}),
       };
-      resultNode.title =
-        attempt.operation === 'variant'
+      resultNode.title = resultNode.mergeIcons
+        ? '二合图标 · 已保存结果'
+        : attempt.operation === 'variant'
           ? '图片变体 · 已保存结果'
           : attempt.operation === 'outpaint'
             ? '扩展画面 · 已保存结果'
@@ -836,7 +928,13 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const documentState = options.getDocument();
     if (!documentState || inFlight.has(node.id) || importingReferences.has(referenceKey(node)))
       return;
-    let selectedOperation = node.generationDraft?.operation || operation;
+    if (node.mergeIcons && operation === 'outpaint') {
+      options.setError('二合图标卡用于阶段图集生成，不支持扩展画面；请使用普通图片卡。');
+      return;
+    }
+    let selectedOperation = node.mergeIcons
+      ? 'generate'
+      : node.generationDraft?.operation || operation;
     const refreshUpstream = Boolean(settings.templateRun && settings.refreshSource);
     const sourceImageId = node.referenceInput
       ? referenceSources(node)[0]?.id
@@ -855,8 +953,13 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       options.setError(decision.message);
       return;
     }
-    const targetId =
-      decision?.kind === 'reuse' ? decision.nodeId : !node.assetPath ? node.id : undefined;
+    const targetId = node.mergeIcons
+      ? node.id
+      : decision?.kind === 'reuse'
+        ? decision.nodeId
+        : !node.assetPath
+          ? node.id
+          : undefined;
     const sourceNodes = (
       node.referenceInput
         ? referenceSources(node)
@@ -880,7 +983,13 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       options.setError('变体或扩展画面需要一张已保存的来源图片。');
       return;
     }
-    const prompt = promptFor(node, input, selectedOperation);
+    if (node.mergeIcons && !sourceNodes.length && !referencePaths(node).length) {
+      options.setError('二合图标需要一张风格参考图，请先引用或导入图片。');
+      return;
+    }
+    const prompt = node.mergeIcons
+      ? mergeIconPrompt(node.mergeIcons)
+      : promptFor(node, input, selectedOperation);
     inFlight.add(node.id);
     if (targetId) inFlight.add(targetId);
     options.render();
@@ -971,6 +1080,18 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const source = sources[0];
     const importedReferences = [...referencePaths(node)];
     const mode = settings.mode || currentVideoMode(node);
+    try {
+      validateFramePairVideo(
+        documentState,
+        node.id,
+        mode,
+        sources.map((source) => source.id),
+        importedReferences
+      );
+    } catch (error) {
+      options.setError((error as Error).message);
+      return false;
+    }
     if (!['first_frame', 'first_last_frame', 'multi_modal_reference'].includes(mode)) {
       options.setError('这张视频有多张来源图，但没有保存输入方式；请先选择首尾帧或多图参考。');
       return false;
@@ -1024,6 +1145,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       node = target;
       drafts.set(node.id, prompt);
     } else if (node.draftSourceId || decision?.kind === 'create') {
+      const constrained = node.videoInputMode === 'first_last_frame';
       options.remember();
       node = {
         id: options.createId(),
@@ -1033,6 +1155,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         width: 360,
         height: 240,
         title: '视频生成',
+        ...(constrained ? { videoInputMode: 'first_last_frame' } : {}),
         ...(source.sectionId ? { sectionId: source.sectionId } : {}),
       };
       drafts.set(node.id, prompt);
@@ -1042,7 +1165,11 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           id: options.createId(),
           from: inputSource.id,
           to: node.id,
-          kind: 'first-frame',
+          kind: constrained
+            ? inputSource.id === sources[0].id
+              ? 'frame-first'
+              : 'frame-last'
+            : 'first-frame',
         });
       options.markDirty();
     }
@@ -1144,7 +1271,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         ...(node.generation?.referenceImagePaths ||
           (node.referenceInput ? [] : recorded?.referenceImagePaths || [])),
       ]);
-    const prompt = node.generation?.prompt || node.generationDraft?.prompt;
+    const prompt = node.mergeIcons
+      ? mergeIconPrompt(node.mergeIcons)
+      : node.generation?.prompt || node.generationDraft?.prompt;
     if (!prompt?.trim()) {
       options.setError('此图片没有已保存的提示词，请先编辑提示词。');
       return false;
@@ -1345,6 +1474,17 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     throwOnError = false
   ): Promise<void> {
     const videoRetry = actionName === 'retry' && attempt.kind === 'video';
+    const mergeTarget = options
+      .getDocument()
+      ?.nodes.find((node: any) => node.id === attempt.targetNodeId && node.mergeIcons);
+    if (actionName === 'retry' && mergeTarget) {
+      if (attempt.prompt !== mergeIconPrompt(mergeTarget.mergeIcons)) {
+        options.setError('阶段设置已变更，请按新设置生成图集，不会重试旧提示词。');
+        return;
+      }
+      await runTemplateImage(mergeTarget.id);
+      return;
+    }
     const targetId =
       attempt.kind === 'video' && actionName !== 'cancel' ? attempt.targetNodeId : undefined;
     if (targetId && inFlight.has(targetId)) return;
@@ -1488,6 +1628,11 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const panel = document.createElement('div');
     panel.className = 'generation-panel';
     const busy = inFlight.has(node.id) || importingReferences.has(referenceKey(node));
+    const frames =
+      node.videoInputMode === 'first_last_frame'
+        ? framePairSources(options.getDocument(), node.id)
+        : undefined;
+    const missingFrame = Boolean(frames && (!frames.first?.assetPath || !frames.last?.assetPath));
     const operation =
       operationOverride ||
       node.generationDraft?.operation ||
@@ -1502,7 +1647,57 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
             : '描述要生成的游戏角色、道具或怪物…'
         : '描述游戏角色动作、镜头和特效…'
     );
-    panel.append(createPromptEditor(input));
+    if (node.mergeIcons) {
+      input.value = mergeIconPrompt(node.mergeIcons);
+      input.readOnly = true;
+      panel.append(
+        button(
+          '编辑升级阶段',
+          () => {
+            const current = options.getDocument();
+            editMergeIcons(node.mergeIcons, async (settings) => {
+              if (
+                options.getDocument() !== current ||
+                !current.nodes.includes(node) ||
+                inFlight.has(node.id) ||
+                options.referencesBlocked?.()
+              )
+                throw new Error('画布或任务状态已变化，请关闭后重新编辑。');
+              if (JSON.stringify(settings) === JSON.stringify(node.mergeIcons)) {
+                if (!(await options.flush())) throw new Error('阶段设置尚未保存，请重试保存。');
+                return;
+              }
+              options.remember();
+              configureMergeIcons(node, settings);
+              drafts.delete(node.id);
+              inputBaselines.delete(referenceKey(node));
+              invalidateCanvasDependents(current, node.id);
+              options.markDirty();
+              options.render();
+              if (!(await options.flush()))
+                throw new Error('阶段设置尚未保存，旧素材仍保留，请重试保存。');
+            });
+          },
+          {
+            disabled:
+              busy ||
+              Boolean(options.referencesBlocked?.()) ||
+              ['pending', 'running', 'unknown', 'canceled'].includes(
+                latestNodeAttempt(node.id)?.status
+              ),
+          }
+        )
+      );
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      summary.textContent =
+        node.mergeIcons.series.length +
+        '个系列 × ' +
+        node.mergeIcons.stageCount +
+        '阶段 · 查看提示词';
+      details.append(summary, input);
+      panel.append(details);
+    } else panel.append(createPromptEditor(input));
     renderReferences(panel, node, busy, workflow);
     let imageModel: any;
     let imageResolution: any;
@@ -1546,7 +1741,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         node.generation?.parameters;
       videoMode = selectControl(
         '输入方式',
-        ['select_mode', 'first_frame', 'first_last_frame', 'multi_modal_reference'],
+        node.videoInputMode === 'first_last_frame'
+          ? ['first_last_frame']
+          : ['select_mode', 'first_frame', 'first_last_frame', 'multi_modal_reference'],
         currentVideoMode(node)
       );
       const modeLabels: Record<string, string> = {
@@ -1555,6 +1752,8 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         first_last_frame: '首尾帧',
         multi_modal_reference: '多图参考',
       };
+      if (node.videoInputMode === 'first_last_frame')
+        videoMode.querySelector('select').disabled = true;
       for (const option of Array.from(videoMode.querySelector('select').options) as any[])
         option.textContent = modeLabels[option.value];
       videoModel = selectControl('模型', ['2.0', '2.5'], saved?.model || '2.0');
@@ -1598,7 +1797,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     capabilityHint.textContent =
       node.type === 'image'
         ? '分辨率与比例是生成目标，模型可能返回不同尺寸，请以实际图片为准。'
-        : '已连接图片与导入参考图按显示顺序提交；首帧需1张，首尾帧需2张，多图参考按模型限制。';
+        : node.videoInputMode === 'first_last_frame'
+          ? '首帧、尾帧均为必填，只使用这两张图片；更换文件请使用对应图片卡的导入入口。'
+          : '已连接图片与导入参考图按显示顺序提交；首帧需1张，首尾帧需2张，多图参考按模型限制。';
     panel.append(capabilityHint);
     async function submitGeneration(): Promise<void> {
       if (workflow && !workflow.canSubmit) return;
@@ -1668,7 +1869,10 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
                   duration: Number(videoDuration?.value || 4),
                   ratio: videoRatio?.value,
                 }),
-          { className: 'generation-action generation-action-primary', disabled: busy }
+          {
+            className: 'generation-action generation-action-primary',
+            disabled: busy || missingFrame,
+          }
         )
       );
     } else if (node.type === 'image') {
@@ -1698,7 +1902,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         button(workflow ? '应用并继续' : '生成视频', submitGeneration, {
           className: 'generation-action generation-action-primary',
           title: '从已连接图片创建视频结果',
-          disabled: busy || Boolean(workflow && !workflow.canSubmit),
+          disabled: busy || missingFrame || Boolean(workflow && !workflow.canSubmit),
         })
       );
       panel.append(actions);

@@ -5,7 +5,9 @@ import { readCanvasModelMesh } from './modelMesh.js';
 const status = document.getElementById('status')!;
 const host = document.getElementById('viewport')!;
 const thumbnail = new URLSearchParams(location.search).get('mode') === 'thumbnail';
+const templatePreview = new URLSearchParams(location.search).get('mode') === 'template';
 if (thumbnail) document.body.classList.add('thumbnail');
+if (templatePreview) document.body.classList.add('template');
 function publishThumbnail(result: { image?: string; error?: string }) {
   if (thumbnail && window.parent !== window)
     window.parent.postMessage({ type: 'maker:model-thumbnail', ...result }, location.origin);
@@ -36,21 +38,30 @@ async function main() {
   const project = parameters.get('project') || '';
   const canvas = parameters.get('canvas') || '';
   const node = parameters.get('node') || '';
+  const template = parameters.get('template');
+  const revision = Number(parameters.get('revision'));
   if (
     !/^[a-f0-9]{64}$/.test(project) ||
-    !/^[a-f0-9-]{36}$/i.test(canvas) ||
-    !/^[a-f0-9-]{36}$/i.test(node)
+    (template
+      ? !/^[a-f0-9-]{36}$/i.test(template) || !Number.isSafeInteger(revision) || revision < 1
+      : !/^[a-f0-9-]{36}$/i.test(canvas) || !/^[a-f0-9-]{36}$/i.test(node))
   )
     throw new Error('模型预览参数无效。');
-  const endpoint =
-    '/api/projects/' + project + '/canvases/' + canvas + '/models/preview?nodeId=' + node;
+  const endpoint = template
+    ? '/api/projects/' +
+      project +
+      '/canvases/templates/' +
+      template +
+      '/model-preview?revision=' +
+      revision
+    : '/api/projects/' + project + '/canvases/' + canvas + '/models/preview?nodeId=' + node;
   async function request(url: string) {
     const response = await fetch(url, { signal: abort.signal });
     if (!response.ok) throw new Error((await response.json()).error || '模型文件读取失败。');
     return response;
   }
   const manifest = (await (await request(endpoint)).json()) as {
-    attemptId: string;
+    attemptId?: string;
     model: string;
     files: Array<{ path: string; size: number }>;
   };
@@ -61,8 +72,7 @@ async function main() {
     if (!allowed.has(file)) throw new Error('模型引用的文件未包含在交付包中：' + file);
     return (
       endpoint +
-      '&attemptId=' +
-      encodeURIComponent(manifest.attemptId) +
+      (manifest.attemptId ? '&attemptId=' + encodeURIComponent(manifest.attemptId) : '') +
       '&file=' +
       encodeURIComponent(file)
     );

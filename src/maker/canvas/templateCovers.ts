@@ -11,6 +11,8 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
   const urls = new Set<string>();
   const bitmaps = new Set<ImageBitmap>();
   const visible = new Set<Element>();
+  const cleanup: Array<() => void> = [];
+  const models = new Map<Element, (visible: boolean) => void>();
   let playing:
     | {
         container: HTMLElement;
@@ -54,6 +56,7 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
   }
   const observer = new IntersectionObserver((entries) => {
     for (const entry of entries) {
+      models.get(entry.target)?.(entry.isIntersecting && !document.hidden);
       if (!entry.isIntersecting) {
         visible.delete(entry.target);
         if (playing?.container === entry.target) stop();
@@ -67,15 +70,16 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
     pump();
   });
   async function load(
-    summary: Pick<CanvasTemplateSummary, 'id' | 'revision'>
+    summary: Pick<CanvasTemplateSummary, 'id' | 'revision'>,
+    slot = 0
   ): Promise<{ blob: Blob; animation?: CanvasTemplateCoverAnimation }> {
-    const result = await store.getCover(summary.id, summary.revision, abort.signal);
+    const result = await store.getCover(summary.id, summary.revision, abort.signal, slot);
     if (!result.source) return result;
     const bitmap = await createImageBitmap(result.blob);
     let thumbnail: Blob;
     let animation = result.animation;
     try {
-      const scale = Math.min(1, 256 / Math.max(bitmap.width, bitmap.height));
+      const scale = Math.min(1, 768 / Math.max(bitmap.width, bitmap.height));
       const canvas = document.createElement('canvas');
       if (animation) {
         canvas.width = Math.min(8, animation.frames.length) * 128;
@@ -121,17 +125,49 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
     }
     if (!stopped)
       await store
-        .saveCover(summary.id, summary.revision, thumbnail, abort.signal)
+        .saveCover(summary.id, summary.revision, thumbnail, abort.signal, slot)
         .catch(() => undefined);
     return { blob: thumbnail, animation };
   }
   return {
-    observe(container: HTMLElement, summary: CanvasTemplateSummary) {
+    observeModel(container: HTMLElement, summary: CanvasTemplateSummary) {
+      const url = store.modelPreviewUrl?.(summary.id, summary.revision);
+      if (!url) {
+        container.textContent = '模型预览暂不可用';
+        return;
+      }
+      let frame: HTMLIFrameElement | undefined;
+      const show = (visible: boolean) => {
+        if (!visible || stopped) {
+          frame?.remove();
+          frame = undefined;
+          container.textContent = '模型结果预览';
+        } else if (!frame) {
+          frame = document.createElement('iframe');
+          frame.title = summary.name + '真实模型预览';
+          frame.src = url;
+          const hint = document.createElement('span');
+          hint.className = 'template-animation-hint';
+          hint.textContent = '拖拽旋转';
+          container.replaceChildren(frame, hint);
+        }
+      };
+      const visibility = () => show(!document.hidden && visible.has(container));
+      document.addEventListener('visibilitychange', visibility);
+      cleanup.push(() => {
+        document.removeEventListener('visibilitychange', visibility);
+        show(false);
+      });
+      models.set(container, show);
+      container.classList.add('cover-model');
+      observer.observe(container);
+    },
+    observe(container: HTMLElement, summary: CanvasTemplateSummary, slot = 0, target = container) {
       if (!summary.hasCover) return;
       container.classList.add('cover-loading');
       waiting.set(container, async () => {
         try {
-          const { blob, animation } = await load(summary);
+          const { blob, animation } = await load(summary, slot);
           if (stopped || !container.isConnected) return;
           if (animation) {
             const bitmap = await createImageBitmap(blob);
@@ -146,7 +182,7 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
             canvas.tabIndex = 0;
             canvas.setAttribute('role', 'img');
             canvas.setAttribute('aria-label', summary.name + '动画结果预览，悬停或聚焦播放');
-            canvas.title = '悬停播放动画';
+            canvas.title = '悬停卡片播放动画';
             const context = canvas.getContext('2d')!;
             let current = -1;
             const draw = (index: number): void => {
@@ -174,6 +210,7 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
                 matchMedia('(prefers-reduced-motion: reduce)').matches
               )
                 return;
+              if (playing?.container === container) return;
               stop();
               playing = { container, draw, animation: animation!, started: performance.now() };
               request = requestAnimationFrame(tick);
@@ -181,17 +218,32 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
             const pause = (): void => {
               if (playing?.container === container) stop();
             };
-            canvas.addEventListener('mouseenter', play);
-            canvas.addEventListener('mouseleave', pause);
-            canvas.addEventListener('focus', play);
-            canvas.addEventListener('blur', pause);
+            const update = () => {
+              if (target.matches(':hover') || target.contains(document.activeElement)) play();
+              else pause();
+            };
+            const blur = (event: FocusEvent) => {
+              if (!target.matches(':hover') && !target.contains(event.relatedTarget as Node | null))
+                pause();
+            };
+            target.addEventListener('mouseenter', update);
+            target.addEventListener('mouseleave', update);
+            target.addEventListener('focusin', play);
+            target.addEventListener('focusout', blur);
+            cleanup.push(() => {
+              target.removeEventListener('mouseenter', update);
+              target.removeEventListener('mouseleave', update);
+              target.removeEventListener('focusin', play);
+              target.removeEventListener('focusout', blur);
+            });
             container.classList.add('cover-animation');
             container.classList.remove('cover-loading');
             const hint = document.createElement('span');
             hint.className = 'template-animation-hint';
-            hint.textContent = '悬停播放';
+            hint.textContent = '悬停卡片播放';
             container.replaceChildren(canvas, hint);
             draw(0);
+            update();
             return;
           }
           const url = URL.createObjectURL(blob);
@@ -201,14 +253,14 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
           image.decoding = 'async';
           image.onload = () => container.classList.remove('cover-loading');
           image.onerror = () => {
-            container.textContent = '暂无预览';
+            container.textContent = '预览暂不可用';
             container.classList.remove('cover-loading');
           };
           image.src = url;
           container.replaceChildren(image);
         } catch {
           container.classList.remove('cover-loading');
-          container.textContent = '暂无预览';
+          container.textContent = '预览暂不可用';
         }
       });
       observer.observe(container);
@@ -223,6 +275,8 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
       waiting.clear();
       queue.length = 0;
       visible.clear();
+      cleanup.splice(0).forEach((dispose) => dispose());
+      models.clear();
       for (const bitmap of bitmaps) bitmap.close();
       bitmaps.clear();
       for (const url of urls) URL.revokeObjectURL(url);

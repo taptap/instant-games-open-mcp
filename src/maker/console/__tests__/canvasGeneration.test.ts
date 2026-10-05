@@ -52,6 +52,63 @@ describe('CanvasGenerationService', () => {
     else process.env.TAPTAP_MAKER_HOME = originalMakerHome;
   });
 
+  test('paired video gate rejects missing slots, reversed roles and alternate modes before remote calls', async () => {
+    const files = new MakerCanvasFiles(root);
+    let document = await files.create('首尾帧校验', 'starter');
+    const [first, last] = document.nodes;
+    const target = {
+      id: createId(),
+      type: 'video' as const,
+      videoInputMode: 'first_last_frame' as const,
+      title: '视频',
+      x: 600,
+      y: 0,
+      width: 300,
+      height: 300,
+    };
+    document = await files.save(
+      document.id,
+      {
+        ...document,
+        nodes: [...document.nodes, target],
+        edges: [
+          { id: createId(), from: first.id, to: target.id, kind: 'frame-first' },
+          { id: createId(), from: last.id, to: target.id, kind: 'frame-last' },
+        ],
+      },
+      document.revision
+    );
+    const service = new CanvasGenerationService(root, {} as any);
+    const input = {
+      canvasId: document.id,
+      targetNodeId: target.id,
+      prompt: '连续变身',
+      sourceImageId: first.id,
+      sourceImagePath: first.assetPath!,
+      sourceImageIds: [first.id, last.id],
+      sourceImagePaths: [first.assetPath!, last.assetPath!],
+      mode: 'first_last_frame',
+    };
+    await expect(service.createVideo({ ...input, mode: 'multi_modal_reference' })).rejects.toThrow(
+      '固定'
+    );
+    await expect(
+      service.createVideo({
+        ...input,
+        sourceImageIds: [last.id, first.id],
+        sourceImagePaths: [last.assetPath!, first.assetPath!],
+      })
+    ).rejects.toThrow('固定');
+    expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
+    document = await files.save(
+      document.id,
+      { ...document, edges: document.edges.filter((edge) => edge.kind !== 'frame-first') },
+      document.revision
+    );
+    await expect(service.createVideo(input)).rejects.toThrow('必填');
+    expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
+  });
+
   test.each([
     { task_id: 'failed-task', error: '内容校验失败', expected: '内容校验失败' },
     { task_id: 'failed-task', error: { message: '上游生成失败' }, expected: '上游生成失败' },

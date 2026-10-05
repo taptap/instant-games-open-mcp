@@ -30,7 +30,7 @@ export function canvasExportIdentity(
       break;
     }
     const firstFrame = document.edges.find(
-      (edge) => edge.to === current.id && edge.kind === 'first-frame'
+      (edge) => edge.to === current.id && ['first-frame', 'frame-first'].includes(edge.kind)
     );
     const preferredId =
       firstFrame?.from ||
@@ -58,7 +58,15 @@ export function canvasExportFilename(
     .replace(/·.*$/, '')
     .replace(/[^\p{L}\p{N}]/gu, '');
   const kind =
-    format === 'atlas' ? '集' : format === 'frames' ? '帧' : format === 'video' ? '视' : '图';
+    format === 'images'
+      ? '资'
+      : format === 'atlas'
+        ? '集'
+        : format === 'frames'
+          ? '帧'
+          : format === 'video'
+            ? '视'
+            : '图';
   const limit = Math.min(
     3,
     15 - extension.length - 1 - code.length - kind.length - identity.direction.length

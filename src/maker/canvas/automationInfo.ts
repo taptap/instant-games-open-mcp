@@ -35,6 +35,34 @@ export function canvasParameterSchema() {
     description:
       'Optional update fields. Updates merge with existing settings; constraints apply to the merged settings. This schema does not guarantee execution readiness.',
     image: generation(true),
+    mergeIcons: {
+      type: 'object',
+      description:
+        'Image-card specialization. Replaces the complete settings; compiles the prompt and marks old results pending. Each series needs at least stageCount descriptions; empty descriptions are designed by the model. No paid generation is started by this update.',
+      required: ['stageCount', 'instructions', 'series'],
+      properties: {
+        stageCount: { type: 'integer', minimum: 2, maximum: 33 },
+        instructions: { type: 'string', maxLength: 400 },
+        series: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 3,
+          items: {
+            type: 'object',
+            required: ['name', 'stages'],
+            properties: {
+              name: { type: 'string', minLength: 1, maxLength: 40 },
+              stages: {
+                type: 'array',
+                minItems: 2,
+                maxItems: 33,
+                items: { type: 'string', maxLength: 60 },
+              },
+            },
+          },
+        },
+      },
+    },
     video: {
       ...generation(false),
       description:

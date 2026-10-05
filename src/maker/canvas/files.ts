@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
+import { validateFramePairGraph } from './framePair.js';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { getGitCommand } from '../system/git.js';
@@ -28,6 +29,8 @@ import {
 } from './templates.js';
 import { builtinCanvasTemplates, canvasPresets } from './presets.js';
 import { readTemplatePage } from './templateCatalog.js';
+import { validateImageAssetsInfo } from './imageAssets.js';
+import { validateMergeIcons, mergeIconPrompt } from './mergeIcons.js';
 
 const execFileAsync = promisify(execFile);
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -167,6 +170,8 @@ export class MakerCanvasFiles {
       }
       for (const node of template.nodes) {
         if (node.assetPath) node.assetPath = paths.get(node.assetPath)!;
+        for (const item of node.imageAssetsInfo?.items || [])
+          item.assetPath = paths.get(item.assetPath)!;
         if (node.generation?.referenceImagePaths)
           node.generation.referenceImagePaths = node.generation.referenceImagePaths.map(
             (source) => paths.get(source)!
@@ -219,7 +224,8 @@ export class MakerCanvasFiles {
 
   readTemplateCover(
     id: string,
-    revision: number
+    revision: number,
+    slot = 0
   ): {
     bytes: Buffer;
     type: string;
@@ -228,21 +234,21 @@ export class MakerCanvasFiles {
   } {
     const template = this.getTemplate(id);
     if (template.revision !== revision) fail('模板已更新，请刷新列表。', 409, 'CONFLICT');
-    const animation = templateCoverAnimation(template);
-    const relative = '.maker/canvases/templates/' + id + '-cover-v2-' + revision + '.png';
+    const sourcePath = templateCoverSource(template, slot);
+    if (!sourcePath) fail('模板没有此预览图片。', 404, 'NOT_FOUND');
+    const animation = templateCoverAnimation(template, false, slot);
+    const relative =
+      '.maker/canvases/templates/' + id + '-cover-v3-' + slot + '-' + revision + '.png';
     if (fs.existsSync(path.join(this.root, relative))) {
       const file = this.safeProjectFile(relative);
-      if (fs.statSync(file).size > (animation ? 2 * 1024 * 1024 : 300 * 1024))
-        fail('缩略图过大。', 413, 'STORAGE_LIMIT');
+      if (fs.statSync(file).size > 2 * 1024 * 1024) fail('缩略图过大。', 413, 'STORAGE_LIMIT');
       return {
         bytes: fs.readFileSync(file),
         type: 'image/png',
         source: false,
-        animation: templateCoverAnimation(template, true),
+        animation: templateCoverAnimation(template, true, slot),
       };
     }
-    const sourcePath = templateCoverSource(template);
-    if (!sourcePath) fail('模板没有图片。', 404, 'NOT_FOUND');
     if (template.builtin) {
       const asset = canvasPresets().find((preset) => preset.id === id)!.assets[sourcePath];
       return {
@@ -258,15 +264,16 @@ export class MakerCanvasFiles {
     return { bytes: fs.readFileSync(media.file), type: media.type, source: true, animation };
   }
 
-  saveTemplateCover(id: string, revision: number, bytes: Buffer): void {
+  saveTemplateCover(id: string, revision: number, bytes: Buffer, slot = 0): void {
     const template = this.getTemplate(id);
     if (template.revision !== revision) fail('模板已更新，请刷新列表。', 409, 'CONFLICT');
-    const animation = templateCoverAnimation(template, true);
-    const width = animation ? Math.min(8, animation.frames.length) * 128 : 256;
-    const height = animation ? Math.ceil(animation.frames.length / 8) * 128 : 256;
+    if (!templateCoverSource(template, slot)) fail('模板没有此预览图片。', 404, 'NOT_FOUND');
+    const animation = templateCoverAnimation(template, true, slot);
+    const width = animation ? Math.min(8, animation.frames.length) * 128 : 768;
+    const height = animation ? Math.ceil(animation.frames.length / 8) * 128 : 768;
     if (
       bytes.length < 24 ||
-      bytes.length > (animation ? 2 * 1024 * 1024 : 300 * 1024) ||
+      bytes.length > 2 * 1024 * 1024 ||
       !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
       bytes.toString('ascii', 12, 16) !== 'IHDR' ||
       bytes.readUInt32BE(16) < 1 ||
@@ -277,11 +284,11 @@ export class MakerCanvasFiles {
     )
       fail('缩略图 PNG 尺寸或大小不符合预览规格。', 400, 'INVALID_IMAGE');
     const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'templates'));
-    this.atomicWrite(folder, id + '-cover-v2-' + revision + '.png', bytes);
+    this.atomicWrite(folder, id + '-cover-v3-' + slot + '-' + revision + '.png', bytes);
   }
 
   private removeTemplateCover(id: string, revision: number): void {
-    for (const marker of ['-cover-', '-cover-v2-']) {
+    for (const marker of ['-cover-', '-cover-v2-', '-cover-v3-0-', '-cover-v3-1-']) {
       const relative = '.maker/canvases/templates/' + id + marker + revision + '.png';
       if (fs.existsSync(path.join(this.root, relative)))
         fs.unlinkSync(this.safeProjectFile(relative));
@@ -782,6 +789,7 @@ export class MakerCanvasFiles {
   private assertAssets(document: CanvasDocument): void {
     for (const node of document.nodes) {
       for (const reference of node.generation?.referenceImagePaths || []) this.readMedia(reference);
+      for (const item of node.imageAssetsInfo?.items || []) this.readMedia(item.assetPath);
       if (!node.assetPath) continue;
       this.readMedia(node.assetPath);
     }
@@ -827,11 +835,18 @@ export class MakerCanvasFiles {
     for (const edge of edges) {
       if (edgeIds.has(edge.id)) fail('画布连线标识重复。', 400, 'INVALID_EDGE');
       edgeIds.add(edge.id);
-      const connection = ['image-to-video', 'first-frame', 'image-variant'].includes(edge.kind)
-        ? edge.to + ':' + edge.from
-        : edge.to;
+      const connection = ['frame-first', 'frame-last'].includes(edge.kind)
+        ? edge.to + ':' + edge.kind
+        : ['image-to-video', 'first-frame', 'image-variant'].includes(edge.kind)
+          ? edge.to + ':' + edge.from
+          : edge.to;
       if (seen.has(connection)) fail('画布来源连线不能重复。', 400, 'INVALID_EDGE');
       seen.add(connection);
+    }
+    try {
+      validateFramePairGraph({ nodes, edges });
+    } catch (error) {
+      fail((error as Error).message, 400, 'INVALID_EDGE');
     }
     if (
       input.deletedGenerationIds !== undefined &&
@@ -872,6 +887,7 @@ export class MakerCanvasFiles {
       node.type !== 'video-source' &&
       node.type !== 'sequence' &&
       node.type !== 'animation' &&
+      node.type !== 'image-assets' &&
       node.type !== 'model-views' &&
       node.type !== 'model' &&
       node.type !== 'section'
@@ -880,6 +896,32 @@ export class MakerCanvasFiles {
     }
     const assetPath =
       node.assetPath === undefined ? undefined : text(node.assetPath, 240, '素材路径');
+    if (
+      node.videoInputMode !== undefined &&
+      (node.videoInputMode !== 'first_last_frame' ||
+        !['video', 'video-source'].includes(String(node.type)))
+    )
+      fail('首尾帧约束只能用于视频卡。', 400, 'INVALID_DOCUMENT');
+    let mergeIcons: CanvasNode['mergeIcons'];
+    if (node.mergeIcons !== undefined) {
+      if (node.type !== 'image') fail('二合图标设置只能用于图片卡。', 400, 'INVALID_DOCUMENT');
+      try {
+        mergeIcons = validateMergeIcons(node.mergeIcons);
+        mergeIconPrompt(mergeIcons);
+      } catch (error) {
+        fail((error as Error).message, 400, 'INVALID_DOCUMENT');
+      }
+    }
+    let imageAssetsInfo: CanvasNode['imageAssetsInfo'];
+    if (node.imageAssetsInfo !== undefined) {
+      if (node.type !== 'image-assets')
+        fail('只有游戏资产卡可以保存素材列表。', 400, 'INVALID_DOCUMENT');
+      try {
+        imageAssetsInfo = validateImageAssetsInfo(node.imageAssetsInfo);
+      } catch (error) {
+        fail((error as Error).message, 400, 'INVALID_DOCUMENT');
+      }
+    }
     if (node.type === 'video-source' && (!assetPath || !VIDEO_RELATIVE.test(assetPath))) {
       fail('视频素材卡必须引用本画布导入的视频。', 400, 'UNSAFE_PATH');
     }
@@ -951,9 +993,15 @@ export class MakerCanvasFiles {
         !node.sourceSnapshot ||
         typeof node.sourceSnapshot !== 'object' ||
         Array.isArray(node.sourceSnapshot) ||
-        !['image', 'video-source', 'sequence', 'animation'].includes(String(node.type))
+        !['image', 'video-source', 'sequence', 'animation', 'image-assets'].includes(
+          String(node.type)
+        )
       ) {
-        fail('来源快照只能附在派生图片、视频、序列帧或动画卡上。', 400, 'INVALID_DOCUMENT');
+        fail(
+          '来源快照只能附在派生图片、视频、序列帧、动画或游戏资产卡上。',
+          400,
+          'INVALID_DOCUMENT'
+        );
       }
       const input = node.sourceSnapshot as Record<string, unknown>;
       const nodeId = text(input.nodeId, 36, '来源节点标识');
@@ -1129,9 +1177,14 @@ export class MakerCanvasFiles {
       ...(assetPath ? { assetPath } : {}),
       ...(referenceInput ? { referenceInput } : {}),
       ...(videoInfo ? { videoInfo } : {}),
+      ...(node.videoInputMode === 'first_last_frame'
+        ? { videoInputMode: 'first_last_frame' as const }
+        : {}),
       ...(sourceVideoId ? { sourceVideoId } : {}),
       ...(sequenceSettings ? { sequenceSettings } : {}),
       ...(frameSetInfo ? { frameSetInfo } : {}),
+      ...(imageAssetsInfo ? { imageAssetsInfo } : {}),
+      ...(mergeIcons ? { mergeIcons } : {}),
       ...(generation ? { generation } : {}),
       ...(generationDraft ? { generationDraft } : {}),
     };
@@ -1270,7 +1323,10 @@ export class MakerCanvasFiles {
       edge.kind !== 'sequence-source' &&
       edge.kind !== 'character-views' &&
       edge.kind !== 'views-model' &&
-      edge.kind !== 'sequence-animation'
+      edge.kind !== 'sequence-animation' &&
+      edge.kind !== 'frame-first' &&
+      edge.kind !== 'frame-last' &&
+      edge.kind !== 'image-assets'
     ) {
       fail('画布连线类型无效。', 400, 'INVALID_EDGE');
     }
@@ -1285,6 +1341,13 @@ export class MakerCanvasFiles {
     if (edge.from === edge.to) fail('不能把卡片连到自身。', 400, 'INVALID_EDGE');
     const from = nodes.find((node) => node.id === edge.from);
     const to = nodes.find((node) => node.id === edge.to);
+    if (
+      ['frame-first', 'frame-last'].includes(String(edge.kind)) &&
+      (from?.type !== 'image' || to?.videoInputMode !== 'first_last_frame')
+    )
+      fail('首尾帧位置必须引用图片卡。', 400, 'INVALID_EDGE');
+    if (edge.kind === 'image-assets' && (from?.type !== 'image' || to?.type !== 'image-assets'))
+      fail('游戏资产来源必须为图片图集。', 400, 'INVALID_EDGE');
     if (
       (edge.kind === 'character-views' && (from?.type !== 'image' || to?.type !== 'model-views')) ||
       (edge.kind === 'views-model' && (from?.type !== 'model-views' || to?.type !== 'model'))

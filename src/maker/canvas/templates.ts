@@ -1,4 +1,6 @@
 import type { CanvasDocument, CanvasNode, CanvasEdge } from './model.js';
+import { builtinPresetDescriptions } from './presetDescriptions.js';
+import { templatePresentation } from './templatePresentation.js';
 
 export interface CanvasWorkflowTemplate {
   id: string;
@@ -10,14 +12,22 @@ export interface CanvasWorkflowTemplate {
 }
 
 export interface CanvasTemplateStore {
+  modelPreviewUrl?(id: string, revision: number): string;
   listTemplatePage(page: number, query: string): Promise<CanvasTemplatePage>;
   getTemplate(id: string): Promise<CanvasWorkflowTemplate>;
   getCover(
     id: string,
     revision: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    slot?: number
   ): Promise<{ blob: Blob; source: boolean; animation?: CanvasTemplateCoverAnimation }>;
-  saveCover(id: string, revision: number, blob: Blob, signal?: AbortSignal): Promise<void>;
+  saveCover(
+    id: string,
+    revision: number,
+    blob: Blob,
+    signal?: AbortSignal,
+    slot?: number
+  ): Promise<void>;
   saveTemplate(template: CanvasWorkflowTemplate): Promise<CanvasWorkflowTemplate>;
   deleteTemplate(id: string, revision: number): Promise<void>;
   prepareTemplate?(id: string, canvasId: string): Promise<CanvasWorkflowTemplate>;
@@ -47,7 +57,19 @@ export interface CanvasTemplatePage {
   skipped: number;
 }
 
-export function templateCoverNode(template: CanvasWorkflowTemplate): CanvasNode | undefined {
+export function templateCoverNode(
+  template: CanvasWorkflowTemplate,
+  slot = 0
+): CanvasNode | undefined {
+  if (slot !== 0 && slot !== 1) return;
+  const previews = template.builtin ? templatePresentation(template.id).previews : undefined;
+  if (previews) {
+    const preview = previews[slot];
+    return preview
+      ? template.nodes.filter((node) => node.type === 'image')[preview.index]
+      : undefined;
+  }
+  if (slot !== 0) return;
   const results = template.nodes
     .filter((node) => node.assetPath && node.frameSetInfo?.frames.length)
     .sort((left, right) => left.x - right.x || left.y - right.y || left.id.localeCompare(right.id));
@@ -61,15 +83,19 @@ export function templateCoverNode(template: CanvasWorkflowTemplate): CanvasNode 
   return images.find((node) => !template.edges.some((edge) => edge.to === node.id)) || images[0];
 }
 
-export function templateCoverSource(template: CanvasWorkflowTemplate): string | undefined {
-  return templateCoverNode(template)?.assetPath;
+export function templateCoverSource(
+  template: CanvasWorkflowTemplate,
+  slot = 0
+): string | undefined {
+  return templateCoverNode(template, slot)?.assetPath;
 }
 
 export function templateCoverAnimation(
   template: CanvasWorkflowTemplate,
-  compact = false
+  compact = false,
+  slot = 0
 ): CanvasTemplateCoverAnimation | undefined {
-  const info = templateCoverNode(template)?.frameSetInfo;
+  const info = templateCoverNode(template, slot)?.frameSetInfo;
   if (!info?.frames.length) return;
   const count = Math.min(32, info.frames.length);
   return {
@@ -85,12 +111,7 @@ export function templateCoverAnimation(
 }
 
 export function isBuiltinCanvasTemplate(id: string): boolean {
-  return (
-    id === '7e1cb6ad-732f-4dc3-a951-000000000001' ||
-    id === '7e1cb6ad-732f-4dc3-a951-000000000002' ||
-    id === '7e1cb6ad-732f-4dc3-a951-000000000003' ||
-    id === '7e1cb6ad-732f-4dc3-a951-000000000004'
-  );
+  return Object.prototype.hasOwnProperty.call(builtinPresetDescriptions, id);
 }
 
 export function createCanvasTemplateModel(createId: () => string = () => crypto.randomUUID()) {
@@ -186,6 +207,10 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
   function instantiate(template: CanvasWorkflowTemplate, position: { x: number; y: number }) {
     const nodes: CanvasNode[] = JSON.parse(JSON.stringify(template.nodes));
     const modelWorkflow = nodes.some((node) => node.type === 'model-views');
+    const savedExampleWorkflow =
+      template.builtin &&
+      (nodes.some((node) => node.type === 'image-assets' && node.imageAssetsInfo?.items.length) ||
+        nodes.every((node) => node.type === 'image' && node.assetPath));
     const ids = new Map(nodes.map((node) => [node.id, createId()]));
     for (const node of nodes) {
       node.id = ids.get(node.id)!;
@@ -203,6 +228,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
         node.generation.sourceImageIds = node.generation.sourceImageIds.map((id) => ids.get(id)!);
       if (
         !['model', 'model-views'].includes(node.type) &&
+        !savedExampleWorkflow &&
         template.edges.some((edge) => ids.get(edge.to) === node.id)
       )
         node.templatePending = true;

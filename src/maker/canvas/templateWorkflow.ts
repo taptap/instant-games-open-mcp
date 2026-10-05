@@ -8,13 +8,24 @@ import type {
 } from './model.js';
 import { CanvasStoreError } from './model.js';
 import { canvasReferences, canvasDependents, isCanvasNodeStale } from './dependencies.js';
+import { framePairSources } from './framePair.js';
+import { mergeIconNeedsGeneration } from './mergeIcons.js';
 
 export function canvasNeedsProcessing(
   document: CanvasDocument,
   node: CanvasNode,
   visiting = new Set<string>()
 ): boolean {
-  if (node.templatePending) return true;
+  if (node.templatePending || mergeIconNeedsGeneration(node)) return true;
+  if (node.videoInputMode === 'first_last_frame') {
+    const { first, last } = framePairSources(document, node.id);
+    if (!first?.assetPath || !last?.assetPath) return true;
+    if (
+      node.assetPath &&
+      JSON.stringify(node.generation?.sourceImageIds) !== JSON.stringify([first.id, last.id])
+    )
+      return true;
+  }
   if (visiting.has(node.id)) return true;
   if (isCanvasNodeStale(node, canvasReferences(document, node.id))) return true;
   visiting.add(node.id);
@@ -101,6 +112,7 @@ export function createTemplateWorkflow(options: {
   hasFailure?(nodeId: string): boolean;
   image?(nodeId: string): Promise<boolean>;
   refreshAnimation?(nodeId: string): void;
+  assets?(nodeId: string): Promise<boolean>;
   isQueued?(nodeId: string): boolean;
 }) {
   let running = false;
@@ -123,7 +135,7 @@ export function createTemplateWorkflow(options: {
     return Boolean(
       node &&
         isMember(id) &&
-        ['image', 'video', 'video-source', 'sequence'].includes(node.type) &&
+        ['image', 'video', 'video-source', 'sequence', 'image-assets'].includes(node.type) &&
         (node.type !== 'sequence' || !waitingForSource(id)) &&
         !running &&
         !options.isQueued?.(id) &&
@@ -259,10 +271,11 @@ export function createTemplateWorkflow(options: {
       return { kind: 'reuse', nodeId: sourceId };
     const kinds: Partial<Record<CanvasNodeType, CanvasEdgeKind[]>> = {
       image: ['image-variant'],
-      video: ['first-frame', 'image-to-video'],
-      'video-source': ['first-frame', 'image-to-video'],
+      video: ['first-frame', 'image-to-video', 'frame-first', 'frame-last'],
+      'video-source': ['first-frame', 'image-to-video', 'frame-first', 'frame-last'],
       sequence: ['sequence-source'],
       animation: ['sequence-animation'],
+      'image-assets': ['image-assets'],
     };
     const targets = document.nodes.filter(
       (node) =>
@@ -286,7 +299,9 @@ export function createTemplateWorkflow(options: {
     )
       return blocked;
     const available = candidates.filter(
-      (node) => status(node.id) === 'pending' || (!node.assetPath && !node.frameSetInfo)
+      (node) =>
+        status(node.id) === 'pending' ||
+        (!node.assetPath && !node.frameSetInfo && !node.imageAssetsInfo?.items.length)
     );
     if (available.length > 1)
       return { kind: 'blocked', message: '有多个待处理目标，请先选择具体下游卡片编辑。' };
@@ -396,7 +411,9 @@ export function createTemplateWorkflow(options: {
       document &&
         node &&
         status(id) === 'pending' &&
-        ['image', 'video', 'video-source', 'sequence', 'animation'].includes(node.type) &&
+        ['image', 'video', 'video-source', 'sequence', 'animation', 'image-assets'].includes(
+          node.type
+        ) &&
         (canvasReferences(document, id).length || node.type === 'image') &&
         !running &&
         (!requireReady || !waitingForSource(id)) &&
@@ -482,7 +499,9 @@ export function createTemplateWorkflow(options: {
         } else if (node.type === 'image' && options.image) {
           if (!(await options.image(node.id))) return false;
         } else if (node.type === 'sequence') await options.sequence(node.id);
-        else if (node.type === 'animation' && options.refreshAnimation)
+        else if (node.type === 'image-assets' && options.assets) {
+          if (!(await options.assets(node.id))) return false;
+        } else if (node.type === 'animation' && options.refreshAnimation)
           options.refreshAnimation(node.id);
         else throw new Error('此卡片暂不支持直接继续，请手动处理。');
         if (options.getDocument() !== document) throw new Error('已离开原画布，后续处理停止。');
@@ -538,8 +557,9 @@ export function createTemplateWorkflow(options: {
       if (readyImage) {
         container.hidden = false;
         const hint = document.createElement('span');
-        hint.textContent =
-          '图片已就绪。请先核对朝向、站姿与完整构图，再点击下游待处理卡片的「处理并继续」。';
+        hint.textContent = documentState?.nodes.some((node) => node.type === 'image-assets')
+          ? '替换游戏画面、调整道具清单后，继续生成图集；确认网格后解析为独立 PNG 素材。'
+          : '图片已就绪。请先核对朝向、站姿与完整构图，再点击下游待处理卡片的「处理并继续」。';
         container.append(hint);
       }
       return;

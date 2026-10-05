@@ -1,6 +1,8 @@
 import type { CanvasDocument, CanvasNode } from './model.js';
+import { builtinPresetDescriptions } from './presetDescriptions.js';
 import { isBuiltinCanvasTemplate } from './templates.js';
 import { createTemplateCovers } from './templateCovers.js';
+import { templateCategories, templatePresentation } from './templatePresentation.js';
 import type {
   CanvasTemplateStore,
   CanvasWorkflowTemplate,
@@ -188,9 +190,10 @@ export function createCanvasTemplateUi(options: {
     await Promise.all(
       [
         ...new Set(
-          copy.nodes.flatMap((node) =>
-            node.assetPath && node.type !== 'video-source' ? [node.assetPath] : []
-          )
+          copy.nodes.flatMap((node) => [
+            ...(node.assetPath && node.type !== 'video-source' ? [node.assetPath] : []),
+            ...(node.imageAssetsInfo?.items.map((item) => item.assetPath) || []),
+          ])
         ),
       ].map((path) => options.loadMedia(path))
     );
@@ -205,22 +208,43 @@ export function createCanvasTemplateUi(options: {
     await persistGroup();
     if (editing) options.error('已添加编辑副本：直接调整卡片和连线，完成后右键分组 → 替换模板。');
   }
-  async function library(initialPage = 1, initialQuery = ''): Promise<void> {
+  async function library(
+    initialPage = 1,
+    initialQuery = '',
+    initialCategory: string = '全部'
+  ): Promise<void> {
     const store = options.store;
     if (!store) {
       options.error('当前画布环境不支持模板库。');
       return;
     }
-    const body = open('添加模板', '从一张图片，开始你的下一套工作流');
+    const body = open('添加模板', '选择一个模板，开始你的下一套工作流。');
     dialog.classList.add('template-library');
     const search = document.createElement('input');
     search.type = 'search';
-    search.placeholder = '搜索模板名称…';
+    search.placeholder = '搜索模板名称或用途…';
     search.setAttribute('aria-label', '搜索模板');
     search.maxLength = 80;
     search.value = initialQuery;
     search.className = 'template-search';
-    body.before(search);
+    const toolbar = document.createElement('div');
+    toolbar.className = 'template-library-toolbar';
+    const total = document.createElement('span');
+    total.className = 'template-library-total';
+    total.setAttribute('aria-live', 'polite');
+    toolbar.append(search, total);
+    const categories = document.createElement('nav');
+    categories.className = 'template-categories';
+    categories.setAttribute('aria-label', '模板分类');
+    let category = initialCategory;
+    for (const label of templateCategories) {
+      const filter = button(label, async () => {
+        category = label;
+        await refresh(1);
+      });
+      categories.append(filter);
+    }
+    body.before(toolbar, categories);
     const footer = document.createElement('footer');
     footer.className = 'template-library-footer';
     const hint = document.createElement('small');
@@ -246,7 +270,7 @@ export function createCanvasTemplateUi(options: {
           if (template.revision !== summary.revision)
             throw new Error('模板已更新，请重新打开列表。');
           await store!.saveTemplate({ ...template, name: input.value.trim() });
-          await library(currentPage, search.value);
+          await library(currentPage, search.value, category);
         })
       );
       input.focus();
@@ -256,7 +280,7 @@ export function createCanvasTemplateUi(options: {
       form.append(
         button('确认删除模板', async () => {
           await store!.deleteTemplate(summary.id, summary.revision);
-          await library(currentPage, search.value);
+          await library(currentPage, search.value, category);
         })
       );
     }
@@ -264,25 +288,34 @@ export function createCanvasTemplateUi(options: {
       const card = document.createElement('article');
       card.className = 'workflow-template-row';
       card.dataset.templateId = summary.id;
-      const cover = document.createElement('div');
-      cover.className = 'template-cover';
-      cover.textContent = '暂无预览';
+      const previews = summary.builtin ? templatePresentation(summary.id).previews : undefined;
+      const media = document.createElement('div');
+      media.className = 'template-previews';
+      for (const [slot, preview] of (previews || [{ label: '效果预览' }]).entries()) {
+        const figure = document.createElement('figure');
+        const cover = document.createElement('div');
+        cover.className = 'template-cover';
+        cover.textContent = summary.hasCover ? '正在加载…' : '暂无预览';
+        const caption = document.createElement('figcaption');
+        caption.textContent = preview.label;
+        figure.append(cover, caption);
+        media.append(figure);
+        if (summary.builtin && templatePresentation(summary.id).modelPreview)
+          covers!.observeModel(cover, summary);
+        else covers!.observe(cover, summary, slot, card);
+      }
       const content = document.createElement('div');
       content.className = 'template-card-content';
       const heading = document.createElement('div');
       heading.className = 'template-card-heading';
       const name = document.createElement('strong');
-      name.textContent = summary.name;
+      name.textContent = summary.builtin ? summary.name.split(' · ')[0] : summary.name;
       name.title = summary.name;
       heading.append(name);
       const description = document.createElement('small');
       description.className = 'template-description';
       description.textContent = summary.builtin
-        ? summary.id === '7e1cb6ad-732f-4dc3-a951-000000000003'
-          ? '首尾双图 → 变身视频 → 抽帧 → 动画'
-          : summary.id === '7e1cb6ad-732f-4dc3-a951-000000000002'
-            ? '前 · 后 · 左 · 右，四向动作'
-            : '图片 → 视频 → 抽帧 → 动画'
+        ? builtinPresetDescriptions[summary.id] || '内置工作流'
         : '自定义工作流';
       const actions = document.createElement('div');
       actions.className = 'template-card-actions';
@@ -318,9 +351,8 @@ export function createCanvasTemplateUi(options: {
         });
         heading.append(more);
       }
-      content.append(heading, description, actions);
-      card.append(cover, content);
-      covers!.observe(cover, summary);
+      content.append(media, description);
+      card.append(heading, content, actions);
       return card;
     }
     function section(title: string, summaries: CanvasTemplateSummary[]): void {
@@ -338,6 +370,12 @@ export function createCanvasTemplateUi(options: {
       body.textContent = '正在读取模板…';
       body.setAttribute('aria-busy', 'true');
       pager.replaceChildren();
+      total.textContent = '读取中…';
+      categories
+        .querySelectorAll('button')
+        .forEach((filter) =>
+          filter.setAttribute('aria-pressed', String(filter.textContent === category))
+        );
       try {
         const result = await store!.listTemplatePage(page, search.value);
         if (!isCurrent(version)) return;
@@ -345,13 +383,19 @@ export function createCanvasTemplateUi(options: {
         covers = createTemplateCovers(store!);
         body.replaceChildren();
         body.scrollTop = 0;
-        if (result.presets.length) section('预设模板', result.presets);
-        section('我的模板 · ' + result.total, result.items);
-        if (!result.items.length) {
+        const showCustom = category === '全部' || category === '我的模板';
+        const presets = result.presets.filter(
+          (item) => category === '全部' || templatePresentation(item.id).category === category
+        );
+        const count = presets.length + (showCustom ? result.total : 0);
+        total.textContent = '共 ' + count + ' 个模板';
+        if (presets.length) section('预设模板', presets);
+        if (showCustom && result.items.length) section('我的模板 · ' + result.total, result.items);
+        if (!count) {
           const empty = document.createElement('p');
           empty.className = 'template-empty';
           empty.textContent = search.value.trim()
-            ? '没有匹配的自定义模板，试试其他名称。'
+            ? '没有匹配的模板，试试其他关键词或分类。'
             : '框选相连卡片，右键「保存为模板」，就能在这里复用。';
           body.append(empty);
         }
@@ -364,7 +408,7 @@ export function createCanvasTemplateUi(options: {
         next.disabled = result.page >= pages;
         const label = document.createElement('span');
         label.textContent = result.page + ' / ' + pages;
-        pager.append(previous, label, next);
+        if (showCustom && result.total > result.pageSize) pager.append(previous, label, next);
         const status = dialog.querySelector('[role=status]')!;
         status.textContent = result.skipped ? result.skipped + ' 个模板文件无法读取，已跳过。' : '';
       } catch (error) {

@@ -12,6 +12,7 @@ package-lock.json
 CHANGELOG.md
 *.min.js
 *.min.css
+src/maker/canvas/assetPresetData.json
 
 # Binary files
 bin/
