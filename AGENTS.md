@@ -410,7 +410,10 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   成功下载释放。CLI 使用排他创建保护同名文件，不增加自动重试或后台清理循环。
   修改此链路同时运行画布 UI 回归与 scripts/test-maker-canvas-automation.mjs。
   UI 设计稿到游戏素材的多轮识别、人工复核、去文字和分层导出模板见
-  docs/MAKER*UI_WORKFLOW.md；不得把识别候选或未确认图集自动当作正式 PNG。
+  docs/MAKER_UI_WORKFLOW.md；不得把识别候选或未确认图集自动当作正式 PNG。
+  UI 复原识别先保存稳定元素 ID、原稿像素坐标与父子层级，素材绑定另存；冗余切图保留为备用，
+  不自动插入布局。仓库本地 scripts/assemble-maker-ui.mjs 先按记录组装，Agent 再对照截图，
+  按同一 ID 保存独立纠偏记录；原布局不覆写，历史坐标回填必须标明来源，不宣称自动视觉通过。
   图集 CLI 使用 preview-image-assets / confirm-image-assets，复用原网格预览、裁切和保存。
   预览只返回 waiting_for_confirmation、PNG data URI 与临时 reviewId；不创建最终素材。
   确认绑定页面、画布 revision、来源和网格，新预览/修改/重载及确认尝试使旧标识失效。

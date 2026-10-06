@@ -24,6 +24,8 @@
 
 Maker 创作画布的 UI 设计稿、多轮识别、去文字、分层图集和独立 PNG 导出流程见
 [Maker UI 工作流](docs/MAKER_UI_WORKFLOW.md)。
+UI 复原可使用仓库本地 scripts/assemble-maker-ui.mjs：按稳定编号与原稿坐标组装，保留备用切图，
+再通过 UI 编辑器对照截图记录纠偏；尚未接入发布版画布自动执行，详见同一工作流文档。
 
 Maker 支持[本地控制台](docs/MAKER_CONSOLE.md)管理项目、构建和 Git 历史，并在文件不冲突时拉取远端代码；项目页可查看所有项目
 共用的本机 Runtime 与独立 Lua LSP 安装状态，构建页可单独检查 Lua，构建前默认可选检查。构建失败信息
