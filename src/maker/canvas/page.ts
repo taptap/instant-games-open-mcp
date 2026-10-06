@@ -1157,6 +1157,7 @@ export function getCanvasPageHtml(): string {
       '    maxInputFrameCount: maxSequenceInputFrameCount,',
       '  });',
       '  generationUi = createCanvasGenerationUi({',
+      '    videoPrompts: createVideoPrompts(),',
       '    referencesBlocked: function () { return canvasAutomationBusy || generationUi.isBusy || groupQueue.isBusy; },',
       '    store: store,',
       '    getDocument: function () { return documentState; },',
@@ -1277,7 +1278,14 @@ export function getCanvasPageHtml(): string {
       '  function render() {',
     ].join('\n')
   );
-  page = page.replace('/*__HELPERS__*/', () => helpers);
+  // The browser page receives helper functions through `toString()`.  When
+  // tsx transpiles a helper, references to imported modules are emitted as
+  // `import_<module>.<export>`, but those module namespaces do not exist in
+  // the standalone browser script.  Every referenced export is injected into
+  // the same helper scope above, so strip only the generated namespace prefix
+  // before embedding the source.
+  const helperSource = helpers.replace(/\bimport_[A-Za-z0-9_$]+\./g, '');
+  page = page.replace('/*__HELPERS__*/', () => helperSource);
   page = replaceCanvasPageText(
     page,
     '      card.append(title);',

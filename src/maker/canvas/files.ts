@@ -484,6 +484,16 @@ export class MakerCanvasFiles {
           copy.generationDraft.sourceImageId = ids.get(copy.generationDraft.sourceImageId);
           if (!copy.generationDraft.sourceImageId) delete copy.generationDraft.sourceImageId;
         }
+        if (copy.generationDraft?.sourceImageIds) {
+          copy.generationDraft.sourceImageIds = copy.generationDraft.sourceImageIds.flatMap(
+            (id) => {
+              const mapped = ids.get(id);
+              return mapped ? [mapped] : [];
+            }
+          );
+          if (!copy.generationDraft.sourceImageIds.length)
+            delete copy.generationDraft.sourceImageIds;
+        }
         if (copy.sourceSnapshot) {
           copy.sourceSnapshot.nodeId =
             ids.get(copy.sourceSnapshot.nodeId) || copy.sourceSnapshot.nodeId;
@@ -1128,11 +1138,22 @@ export class MakerCanvasFiles {
           : text(input.sourceImageId, 36, '图片来源标识');
       if (sourceImageId && !ID.test(sourceImageId))
         fail('图片生成草稿来源无效。', 400, 'INVALID_DOCUMENT');
+      const sourceImageIds =
+        input.sourceImageIds === undefined
+          ? undefined
+          : Array.isArray(input.sourceImageIds)
+            ? input.sourceImageIds.map((sourceId) => text(sourceId, 36, '图片来源标识'))
+            : fail('图片生成草稿来源列表无效。', 400, 'INVALID_DOCUMENT');
+      if (sourceImageIds && new Set(sourceImageIds).size !== sourceImageIds.length)
+        fail('图片生成草稿来源不能重复。', 400, 'INVALID_DOCUMENT');
+      if (sourceImageIds?.some((id) => !ID.test(id)))
+        fail('图片生成草稿来源列表无效。', 400, 'INVALID_DOCUMENT');
       const prompt =
         input.prompt === undefined ? undefined : text(input.prompt, 8000, '生成草稿提示词');
       generationDraft = {
         operation,
         ...(sourceImageId ? { sourceImageId } : {}),
+        ...(sourceImageIds?.length ? { sourceImageIds } : {}),
         ...(prompt ? { prompt } : {}),
         ...(input.parameters === undefined
           ? {}

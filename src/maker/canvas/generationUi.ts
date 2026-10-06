@@ -39,6 +39,7 @@ export function imageEditSources(
 }
 
 export interface CanvasGenerationUiOptions {
+  videoPrompts?: ReturnType<typeof createVideoPrompts>;
   store: {
     importImage(
       canvasId: string,
@@ -117,7 +118,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
 } {
   const GAME_ASSET_CONSTRAINTS =
     '游戏素材约束：单个主体、完整不裁切、四周保留动作空间；背景均匀纯色；不出现地面、地砖、站台、展示台、底座、台阶、接触阴影、投影、反射、文字、Logo、水印或其他角色。';
-  const videoPrompts = createVideoPrompts();
+  const videoPrompts = options.videoPrompts || createVideoPrompts();
 
   function withGameAssetConstraints(prompt: string): string {
     return prompt.includes('游戏素材约束：') ? prompt : prompt + '\n\n' + GAME_ASSET_CONSTRAINTS;
@@ -351,6 +352,15 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
 
   function referenceSources(node: any, reuseTarget = false): any[] {
     const current = options.getDocument();
+    const draftSourceIds = node.generationDraft?.sourceImageIds?.length
+      ? node.generationDraft.sourceImageIds
+      : [];
+    if (draftSourceIds.length) {
+      return draftSourceIds
+        .map((id: string) => current.nodes.find((item: any) => item.id === id))
+        .filter((source: any) => source?.type === 'image' && source.assetPath)
+        .filter((source: any) => includesImageSource(node, source));
+    }
     if (node.referenceInput) {
       const sources = videoInputSources(current, node);
       if (
@@ -685,7 +695,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       node.generationDraft?.prompt ||
       node.generation?.prompt ||
       defaults[operation];
-    const prompt = operation === 'outpaint' ? value : withGameAssetConstraints(value);
+    const prompt = operation === 'generate' ? withGameAssetConstraints(value) : value;
     input.value = prompt;
     drafts.set(node.id, prompt);
     return prompt;

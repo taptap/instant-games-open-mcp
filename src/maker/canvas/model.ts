@@ -55,6 +55,7 @@ export interface CanvasGenerationResult {
 export interface CanvasGenerationDraft {
   operation: CanvasImageOperation;
   sourceImageId?: string;
+  sourceImageIds?: string[];
   prompt?: string;
   parameters?: CanvasGenerationResult['parameters'];
 }

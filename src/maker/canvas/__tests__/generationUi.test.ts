@@ -324,6 +324,24 @@ describe('image reference drafts and refresh', () => {
     expect(options.store.generateImage.mock.calls[0][1].model).toBeUndefined();
   });
 
+  test.each(['variant', 'outpaint', 'generate'])(
+    '%s preserves edit instructions and only new generation receives asset defaults',
+    async (operation) => {
+      const { options, ui, image } = imageFixture();
+      const prompt = '只去掉按钮文字和Icon，保留原底板、边框、底部厚度与阴影';
+      image.generation.prompt = prompt;
+      image.generation.operation = operation;
+      await ui.runTemplateImage(image.id);
+      const submitted = options.store.generateImage.mock.calls[0][1].prompt;
+      if (operation === 'generate') {
+        expect(submitted).toContain(prompt);
+        expect(submitted).toContain('游戏素材约束：');
+      } else {
+        expect(submitted).toBe(prompt);
+      }
+    }
+  );
+
   test('manual panels show explicit references in edge order and template generation respects removals', async () => {
     const { document, options, ui, image, source } = imageFixture(true);
     (image as any).referenceInput = { includeSelf: true };

@@ -22,10 +22,10 @@ test('BikeKingBanana UI workflow has four screens, three review passes and expli
     )
   ).toBe(true);
   expect(preset.nodes.filter((node) => node.title.includes('识别候选'))).toHaveLength(12);
-  expect(preset.nodes.filter((node) => node.type === 'image-assets')).toHaveLength(4);
+  expect(preset.nodes.filter((node) => node.type === 'image-assets')).toHaveLength(8);
   expect(preset.nodes.filter((node) => node.type === 'note')).toHaveLength(7);
-  expect(preset.edges.filter((edge) => edge.kind === 'image-variant')).toHaveLength(12);
-  expect(preset.edges.filter((edge) => edge.kind === 'image-assets')).toHaveLength(4);
+  expect(preset.edges.filter((edge) => edge.kind === 'image-variant')).toHaveLength(32);
+  expect(preset.edges.filter((edge) => edge.kind === 'image-assets')).toHaveLength(8);
   expect(Object.keys(preset.assets)).toHaveLength(4);
   for (const node of preset.nodes.filter((item) => item.type === 'image' && !item.assetPath)) {
     expect(node.referenceInput).toEqual({ includeSelf: false });
@@ -46,7 +46,20 @@ test('BikeKingBanana UI workflow prepares real references without faking downstr
     );
     expect(references).toHaveLength(4);
     expect(references.every((node) => node.assetPath?.startsWith('assets/image/'))).toBe(true);
-    expect(instance.nodes.filter((node) => node.templatePending)).toHaveLength(16);
+    expect(instance.nodes.filter((node) => node.templatePending)).toHaveLength(40);
+    const consensus = instance.nodes.find((node) => node.title.includes('共识复核板'))!;
+    const consensusSources = consensus.generationDraft?.sourceImageIds || [];
+    expect(consensusSources).toHaveLength(4);
+    expect(consensusSources.every((id) => instance.nodes.some((node) => node.id === id))).toBe(
+      true
+    );
+    const iconSplit = instance.nodes.find((node) => node.title.includes('Icon + 按钮拆分'))!;
+    expect(iconSplit.generationDraft?.sourceImageIds).toEqual(
+      expect.arrayContaining([
+        instance.nodes.find((node) => node.title.includes('去普通文字'))!.id,
+        consensus.id,
+      ])
+    );
     expect(
       instance.nodes
         .filter((node) => node.type === 'image-assets')

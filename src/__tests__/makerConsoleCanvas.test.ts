@@ -130,6 +130,7 @@ describe('Maker console canvas', () => {
     expect(mediaLoader![1]).not.toContain('createObjectURL');
     const pageScript = script.slice(script.indexOf('(function () {'));
     expect(() => new Script(pageScript)).not.toThrow();
+    expect(pageScript).not.toMatch(/\bimport_[A-Za-z0-9_$]+\./);
     const assetPath = 'assets/image/hero #1.png';
     const store = createBrowserCanvasDocumentStore('project-key');
     expect(store.mediaUrl(assetPath)).toBe(

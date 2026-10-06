@@ -13,5 +13,5 @@ export const builtinPresetDescriptions: Record<string, string> = {
   '7e1cb6ad-732f-4dc3-a951-000000000011':
     '角色参考 → 动作立绘＋正侧背三视图＋六种表情，一张完整概念展示图',
   '7e1cb6ad-732f-4dc3-a951-000000000012':
-    '四类 BikeKingBanana UI → 三轮识别共识 → 去文字分层图集 → 独立 PNG',
+    '四类 BikeKingBanana UI → 去文字/美术字体 → 三轮识别共识 → Icon/按钮与底图分层 → 独立 PNG',
 };

@@ -152,6 +152,10 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       ) {
         throw new Error('图片草稿依赖选区外的参考卡，请一起选中后保存。');
       }
+      if (node.generationDraft?.sourceImageIds) {
+        if (node.generationDraft.sourceImageIds.some((id) => !selected.has(id)))
+          throw new Error('图片草稿依赖选区外的参考卡，请一起选中后保存。');
+      }
       if (node.generation) {
         delete node.generation.taskId;
         delete node.generation.attemptId;
@@ -222,6 +226,10 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
         snapshot.nodeId = ids.get(snapshot.nodeId)!;
       if (node.generationDraft?.sourceImageId)
         node.generationDraft.sourceImageId = ids.get(node.generationDraft.sourceImageId);
+      if (node.generationDraft?.sourceImageIds)
+        node.generationDraft.sourceImageIds = node.generationDraft.sourceImageIds.map(
+          (id) => ids.get(id)!
+        );
       if (node.generation?.sourceImageId)
         node.generation.sourceImageId = ids.get(node.generation.sourceImageId);
       if (node.generation?.sourceImageIds)

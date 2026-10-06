@@ -406,13 +406,15 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   成功下载释放。CLI 使用排他创建保护同名文件，不增加自动重试或后台清理循环。
   修改此链路同时运行画布 UI 回归与 scripts/test-maker-canvas-automation.mjs。
   UI 设计稿到游戏素材的多轮识别、人工复核、去文字和分层导出模板见
-  docs/MAKER_UI_WORKFLOW.md；不得把识别候选或未确认图集自动当作正式 PNG。
+  docs/MAKER*UI_WORKFLOW.md；不得把识别候选或未确认图集自动当作正式 PNG。
   图集 CLI 使用 preview-image-assets / confirm-image-assets，复用原网格预览、裁切和保存。
   预览只返回 waiting_for_confirmation、PNG data URI 与临时 reviewId；不创建最终素材。
   确认绑定页面、画布 revision、来源和网格，新预览/修改/重载及确认尝试使旧标识失效。
   run 游戏资产卡只预览，CLI 分组不能绕过网格核对；导出独立 PNG 用 format=images。
   页面模板及浏览器 helper 源码注入必须使用 replace 回调返回字面字符串，避免 `$&`、`$'` 等
-  被当作替换指令；测试须检查完整脚本可解析及 CSP 哈希，blob: 仅用于图片，不放宽脚本权限。
+  被当作替换指令；注入前还要移除 tsx 生成的 `import*<module>.` 模块前缀，避免浏览器
+  初始化时引用不存在的服务端命名空间。测试须检查完整脚本可解析、无残留模块前缀及 CSP 哈希，
+  blob: 仅用于图片，不放宽脚本权限。
 
 - Maker 的 stdio 子代理统一使用 HiddenStdioClientTransport，Windows 保持 windowsHide:true、
   shell:false，只通过创建时持有的 ChildProcess 句柄终止直属子进程；禁止按旧 PID 使用
@@ -516,7 +518,7 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   图片、视频、序列帧与动画不得各自另写模板目标判断；待编辑首图保留原位更新，已完成目标不得隐式覆盖。
   手动保存结果后由 nodeChanged 推进剩余阶段；自动接续显式使用既定节点，不重复应用手动分支规则。
   复用不删除旧结果、下游连线或布局，生成成功后才替换内容；pending/unknown 付费尝试先查询原任务。
-  生图提示词默认补充游戏素材的完整主体、纯色背景及无地面/站台约束；模板视频提示词只保留动作要求，并统一补充固定镜头、主体稳定和无新增环境物体约束。
+  新建生图提示词默认补充游戏素材的完整主体、纯色背景及无地面/站台约束；图片变体和扩图保留编辑提示词，不追加会删除 UI 底板或阴影的通用素材约束。模板视频提示词只保留动作要求，并统一补充固定镜头、主体稳定和无新增环境物体约束。
   画布交互修改后主动运行 npm run test:maker:canvas-ui，在临时项目使用真实页面、受控素材路由和落盘校验，返回报告与截图；付费生成只模拟远端结果。删除生成结果须记录 deletedGenerationIds，恢复时不得复活已删除节点。
   序列帧卡只显示来源和已保存结果；编辑在同页 sequenceEditor 大弹窗中完成。sequenceUi 持有临时草稿，保存成功才替换节点并记录一次撤销；失败保留旧结果与重试草稿。页面保存请求串行，编辑器不另起服务、不改变 Store 或持久化协议。
   animation.ts 负责独立动画卡：只复制已保存图集路径和帧索引，不复制图片字节，不引用可变处理草稿。sequence-animation 是来源关系，不是实时绑定；删除源卡只删除连线，已创建动画仍可播放。播放状态不落盘，重载默认暂停；重绘时回收旧渲染实例和动画调度。

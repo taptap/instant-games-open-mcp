@@ -51,6 +51,52 @@ test('two-source snapshots and video input mode survive independent template cop
   ).toBe(false);
 });
 
+test('multi-source image drafts keep every reference when a template is instantiated', () => {
+  const document = emptyDocument('多参考图拆分');
+  const first = {
+    id: createId(),
+    type: 'image' as const,
+    x: 0,
+    y: 0,
+    width: 320,
+    height: 320,
+    title: '原始设计稿',
+    assetPath: 'assets/image/first.png',
+  };
+  const second = { ...first, id: createId(), x: 400, title: '识别候选' };
+  const target = {
+    ...first,
+    id: createId(),
+    x: 800,
+    title: '共识复核板',
+    assetPath: undefined,
+    generation: undefined,
+    generationDraft: {
+      operation: 'variant' as const,
+      sourceImageId: first.id,
+      sourceImageIds: [first.id, second.id],
+      prompt: '汇总两份识别结果',
+    },
+  };
+  document.nodes = [first, second, target];
+  document.edges = [
+    { id: createId(), from: first.id, to: target.id, kind: 'image-variant' },
+    { id: createId(), from: second.id, to: target.id, kind: 'image-variant' },
+  ];
+  const template = model.snapshot(
+    document,
+    document.nodes.map((node) => node.id),
+    '多参考图'
+  );
+  const copy = model.instantiate(template, { x: 100, y: 200 });
+  const copiedTarget = copy.nodes.find((node) => node.title === '共识复核板')!;
+  const ids = copiedTarget.generationDraft?.sourceImageIds || [];
+  expect(ids).toHaveLength(2);
+  expect(ids.every((id) => copy.nodes.some((node) => node.id === id))).toBe(true);
+  expect(ids).not.toContain(first.id);
+  expect(ids).not.toContain(second.id);
+});
+
 function fixture(): CanvasDocument {
   const document = emptyDocument('游戏角色工作流');
   const imageId = createId();
