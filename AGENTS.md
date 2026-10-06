@@ -382,6 +382,10 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- 画布连线的几何与交互位于 canvas/wirePath.ts / wireUi.ts。同源出线共用分叉高度，
+  edge.route 仅保存可选相对偏移，复用原保存、撤销与任务保护，不修改引用关系。
+  调整连线后验证拖动、缩放、刷新持久化及恢复自动走线。
+
 - `generate_resource_meta` 是显式本地 MCP 能力，由 AI 决定调用时机；不挂接 Canvas 或远端素材下载。
   `resourceMeta.ts` 负责参数、Python 执行与项目互斥，`resourceMetaSource.ts` 仅适配结构化结果，
   `.meta` 内容和 UUID 必须由现有 UrhoX 工具快照生成，不重写算法，不允许调用者指定身份或 force。

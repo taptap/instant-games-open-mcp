@@ -1416,7 +1416,23 @@ export class MakerCanvasFiles {
     ) {
       fail('动画关系必须从已保存帧集连到动画卡。', 400, 'INVALID_EDGE');
     }
-    return { id: edge.id, from: edge.from, to: edge.to, kind: edge.kind };
+    let route: CanvasEdge['route'];
+    if (edge.route !== undefined) {
+      if (!edge.route || typeof edge.route !== 'object' || Array.isArray(edge.route))
+        fail('连线位置无效。', 400, 'INVALID_EDGE');
+      const offsets = edge.route as Record<string, unknown>;
+      route = {
+        x: numberIn(offsets.x, -100000, 100000, '连线横向偏移'),
+        y: numberIn(offsets.y, -100000, 100000, '连线纵向偏移'),
+      };
+    }
+    return {
+      id: edge.id,
+      from: edge.from,
+      to: edge.to,
+      kind: edge.kind,
+      ...(route ? { route } : {}),
+    };
   }
 }
 

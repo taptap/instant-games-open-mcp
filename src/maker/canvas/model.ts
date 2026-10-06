@@ -101,6 +101,7 @@ export interface CanvasEdge {
   from: string;
   to: string;
   kind: CanvasEdgeKind;
+  route?: { x: number; y: number };
 }
 
 export interface CanvasDocument {
@@ -184,7 +185,10 @@ export function cloneDocument(document: CanvasDocument): CanvasDocument {
       ...(node.mergeIcons ? { mergeIcons: structuredClone(node.mergeIcons) } : {}),
       ...(node.sourceSnapshot ? { sourceSnapshot: { ...node.sourceSnapshot } } : {}),
     })),
-    edges: document.edges.map((edge) => ({ ...edge })),
+    edges: document.edges.map((edge) => ({
+      ...edge,
+      ...(edge.route ? { route: { ...edge.route } } : {}),
+    })),
   };
 }
 

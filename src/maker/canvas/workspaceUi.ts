@@ -9,6 +9,8 @@ export function createCanvasWorkspace(options: {
   const header = document.querySelector('header')!;
   const board = document.getElementById('board')!;
   const videoHistory = document.getElementById('video-history')!;
+  const rename = document.getElementById('rename-canvas')!;
+  (header.querySelector('.canvas-heading') as HTMLElement).hidden = true;
   header.classList.add('workspace-toolbar');
   const opened: string[] = [];
   let switching = false;
@@ -54,19 +56,39 @@ export function createCanvasWorkspace(options: {
   }
   const more = menu('···', 'workspace-more');
   more.root.querySelector('summary')!.setAttribute('aria-label', '更多画布操作');
+  const template = document.getElementById('add-template')!;
+  const save = document.getElementById('save')!;
+  iconButton(add.root.querySelector('summary')!, '添加节点', '<path d="M12 5v14M5 12h14"/>');
+  iconButton(
+    template,
+    '添加模板',
+    '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'
+  );
+  iconButton(
+    save,
+    '保存',
+    '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z"/><path d="M7 3v6h10V3M7 21v-8h10v8"/>'
+  );
+  iconButton(
+    more.root.querySelector('summary')!,
+    '更多画布操作',
+    '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'
+  );
   for (const id of ['undo', 'redo', 'duplicate-selected', 'delete-selected', 'export-canvas']) {
     more.panel.append(document.getElementById(id)!);
   }
   const actions = document.createElement('div');
   actions.className = 'workspace-actions';
-  actions.append(
-    add.root,
-    document.getElementById('add-template')!,
-    document.getElementById('status')!,
-    document.getElementById('save')!,
-    more.root
-  );
+  actions.append(add.root, template, document.getElementById('status')!, save, more.root);
   header.append(actions);
+  header.setAttribute('aria-label', '画布操作');
+  const main = document.createElement('div');
+  main.className = 'workspace-main';
+  const stage = document.createElement('div');
+  stage.className = 'workspace-stage';
+  header.before(main);
+  main.append(header, stage);
+  stage.append(document.getElementById('error')!, board);
   const bottom = document.createElement('footer');
   bottom.className = 'workspace-bottom';
   const controls = document.createElement('div');
@@ -83,7 +105,7 @@ export function createCanvasWorkspace(options: {
     fit
   );
   bottom.append(document.getElementById('canvas-log')!, controls);
-  document.getElementById('board')!.after(bottom);
+  main.after(bottom);
   const menus = [library, add, more];
   for (const item of menus) {
     item.root.addEventListener('toggle', () => {
@@ -119,6 +141,14 @@ export function createCanvasWorkspace(options: {
       void action();
     });
     return element;
+  }
+  function iconButton(element: HTMLElement, label: string, paths: string) {
+    element.title = label;
+    element.setAttribute('aria-label', label);
+    element.innerHTML =
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      paths +
+      '</svg>';
   }
   function menu(label: string, className: string) {
     const root = document.createElement('details');
@@ -180,12 +210,18 @@ export function createCanvasWorkspace(options: {
   }
   function sync() {
     const current = options.current();
+    const status = document.getElementById('status')!;
+    status.title = status.textContent || '';
+    status.setAttribute('aria-label', status.title);
+    status.setAttribute('role', 'status');
+    rename.toggleAttribute('disabled', switching || !current);
     header.inert = board.inert = controls.inert = switching || !current;
     tabsRow.setAttribute('aria-busy', String(switching));
     if (current) {
       const option = Array.from(select.options).find((item) => item.value === current.id);
       if (option) option.textContent = current.title;
       document.getElementById('canvas-title')!.textContent = current.title;
+      document.getElementById('canvas-title')!.title = current.title;
     }
     if (current && !opened.includes(current.id)) opened.push(current.id);
     percentage.value = Math.round((current?.viewport.scale || 1) * 100) + '%';
@@ -207,6 +243,7 @@ export function createCanvasWorkspace(options: {
       choice.setAttribute('aria-selected', String(id === current?.id));
       choice.disabled = switching;
       tab.append(choice);
+      if (id === current?.id) tab.append(rename);
       if (opened.length > 1) {
         const remove = button('×', '关闭页签：' + name, () => close(id));
         remove.disabled = switching;
@@ -241,6 +278,19 @@ body {
 #board #selection-menu {
   z-index: 27;
 }
+.workspace-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.workspace-stage {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
 .workspace-tabs-row,
 .workspace-toolbar,
 .workspace-bottom {
@@ -253,8 +303,8 @@ body {
   display: flex;
   gap: 6px;
   align-items: center;
-  height: 42px;
-  padding: 0 16px;
+  height: 34px;
+  padding: 0 10px;
   border-bottom: 1px solid #343b3d;
 }
 .workspace-tabs {
@@ -270,8 +320,8 @@ body {
 .workspace-tab {
   display: flex;
   flex: none;
-  max-width: 230px;
-  height: 36px;
+  max-width: min(340px, 60vw);
+  height: 30px;
   border: 1px solid #343b3d;
   border-bottom: 0;
   border-radius: 6px 6px 0 0;
@@ -317,33 +367,52 @@ body {
   cursor: wait;
 }
 .workspace-toolbar {
+  position: absolute;
+  left: 12px;
+  top: 16px;
+  z-index: 40;
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
   flex-wrap: nowrap;
-  height: 58px;
-  padding: 8px 18px;
-  gap: 12px;
-  border-bottom: 1px solid #343b3d;
+  width: 52px;
+  padding: 10px 6px;
+  gap: 8px;
+  border: 1px solid #434b4d;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px #0006;
 }
-.workspace-toolbar .canvas-heading {
-  flex: 1;
-  min-width: 0;
-  max-width: none;
-  font-size: 17px;
-}
-.workspace-toolbar #canvas-title {
-  max-width: 100%;
+.workspace-tab #rename-canvas {
+  align-self: center;
+  flex-basis: 26px;
+  width: 26px;
+  min-height: 26px;
+  height: 26px;
+  padding: 0;
 }
 .workspace-actions {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: none;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  flex: 1;
 }
 .workspace-toolbar #status {
-  margin: 0 2px 0 10px;
-  font-size: 12px;
+  margin: 2px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid #343b3d;
+  font-size: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
   color: #a7b1b4;
 }
+.workspace-toolbar #status::before {
+  content: '…';
+  font-size: 16px;
+  line-height: 24px;
+}
+.workspace-toolbar #status[data-state="saved"]::before { content: '✓'; }
+.workspace-toolbar #status[data-state="error"]::before { content: '!'; }
 .workspace-toolbar #status[data-state="saved"] {
   color: #78d4ad;
 }
@@ -366,8 +435,17 @@ body {
 }
 .workspace-actions > button {
   box-sizing: border-box;
-  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
   line-height: 20px;
+  padding: 0;
+}
+.workspace-actions summary {
+  width: 100%;
+  height: 38px;
+  padding: 0;
 }
 .workspace-menu summary:hover {
   background: #30383a;
@@ -416,6 +494,17 @@ body {
 }
 .workspace-menu-panel button:hover {
   background: #323b3c;
+}
+.workspace-toolbar .workspace-menu-panel {
+  left: calc(100% + 8px);
+  right: auto;
+  top: 0;
+  max-height: calc(100dvh - 140px);
+  overflow-y: auto;
+}
+.workspace-more .workspace-menu-panel {
+  top: auto;
+  bottom: 0;
 }
 .workspace-library .workspace-menu-panel {
   width: min(300px, calc(100vw - 40px));
@@ -500,23 +589,6 @@ body {
   display: none !important;
 }
 @media (max-width: 850px) {
-  .workspace-toolbar {
-    padding-inline: 10px;
-    gap: 6px;
-  }
-  .workspace-actions {
-    gap: 5px;
-  }
-  .workspace-toolbar .canvas-heading {
-    font-size: 14px;
-  }
-  .workspace-toolbar #status {
-    max-width: 75px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    margin-left: 2px;
-  }
   .workspace-bottom {
     gap: 8px;
     padding-inline: 10px;
@@ -527,16 +599,7 @@ body {
     padding-inline: 8px;
   }
   .workspace-toolbar {
-    height: auto;
-    min-height: 58px;
-    flex-wrap: wrap;
-  }
-  .workspace-toolbar .canvas-heading {
-    flex-basis: 100%;
-  }
-  .workspace-actions {
-    width: 100%;
-    justify-content: flex-end;
+    padding-block: 8px;
   }
   .workspace-bottom .canvas-log-preview {
     display: none;

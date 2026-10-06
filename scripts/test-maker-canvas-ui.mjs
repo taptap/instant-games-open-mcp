@@ -158,6 +158,29 @@ try {
       assert.equal(await page.locator('.card').count(), 0);
       assert.equal((await files.load(canvas.id)).nodes.length, 0);
     }],
+    ['悬浮图标栏不占画布宽度且页签改名刷新后可用', async () => {
+      const title = '页签改名验证';
+      page.once('dialog', dialog => dialog.accept(title));
+      await page.locator('.workspace-tab #rename-canvas').click();
+      assert.equal((await saved()).title, title);
+      await page.reload();
+      await page.getByRole('tab', { name: title, exact: true }).waitFor();
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 1000 });
+        await page.locator('.workspace-add summary').click();
+        const rail = await page.locator('.workspace-toolbar').boundingBox();
+        const area = await board.boundingBox();
+        const menu = await page.locator('.workspace-add .workspace-menu-panel').boundingBox();
+        assert.ok(rail.width <= 56 && rail.x > area.x);
+        assert.equal(area.width, width);
+        assert.ok(rail.height < area.height / 2);
+        assert.ok(menu.x >= rail.x + rail.width && menu.x + menu.width <= width);
+        await page.locator('.workspace-add summary').click();
+        assert.equal(await page.getByRole('button', { name: '保存', exact: true }).isVisible(), true);
+        assert.equal(await page.locator('#status').getAttribute('title'), '已保存');
+      }
+      await page.setViewportSize({ width: 1440, height: 1000 });
+    }],
     ['右键新建图片卡并显示生图框', async () => {
       await createImage();
       assert.equal(await page.locator('.card.image').count(), 1);
@@ -181,14 +204,14 @@ try {
       await page.locator('[data-canvas-action=duplicate]').click();
       await page.waitForFunction(() => document.querySelectorAll('.card').length === 2);
       const duplicate = (await saved()).nodes.find(node => node.id !== imageId);
-      await board.click({ position: { x: 30, y: 40 } });
+      await board.click({ position: { x: 90, y: 40 } });
       await deleteCard(duplicate.id);
       assert.deepEqual((await saved()).nodes.map(node => node.id), [imageId]);
-      await board.click({ position: { x: 30, y: 40 } });
+      await board.click({ position: { x: 90, y: 40 } });
       await page.keyboard.press('ControlOrMeta+z');
       await page.waitForFunction(() => document.querySelectorAll('.card').length === 2);
       assert.equal((await saved()).nodes.length, 2);
-      await board.click({ position: { x: 30, y: 40 } });
+      await board.click({ position: { x: 90, y: 40 } });
       await page.keyboard.press('ControlOrMeta+Shift+z');
       await page.waitForFunction(() => document.querySelectorAll('.card').length === 1);
       assert.deepEqual((await saved()).nodes.map(node => node.id), [imageId]);
@@ -248,7 +271,7 @@ try {
       await duration.selectOption('6');
       assert.equal(await duration.evaluate(element => element.style.color), 'rgb(239, 100, 100)');
       await page.screenshot({ path: path.join(reportDir, 'video-draft.png') });
-      await board.click({ position: { x: 30, y: 40 } });
+      await board.click({ position: { x: 90, y: 40 } });
       assert.equal(await page.locator('.generation-prompt').count(), 0);
       assert.equal((await saved()).nodes.length, 1);
     }],
@@ -264,7 +287,7 @@ try {
       assert.equal((await files.load(canvas.id)).nodes.find(node => node.id === generatedId).assetPath, before);
       await page.getByLabel('移除参考图 1', { exact: true }).click();
       await page.getByLabel('输入方式').selectOption('first_frame');
-      await board.click({ position: { x: 30, y: 40 } });
+      await board.click({ position: { x: 90, y: 40 } });
     }],
     ['图生视频结果卡与来源连线（远端模拟）', async () => {
       await page.locator('.card.image').click();
@@ -428,6 +451,53 @@ try {
       assert.equal((await files.load(canvas.id)).nodes.find(node => node.id === targetId).assetPath, originalVideo);
       assert.equal(held.length, 2);
       await page.screenshot({ path: path.join(reportDir, 'video-wait-stopped.png') });
+    }],
+    ['连线可双向拖动、撤销重做、刷新保留并恢复自动走线', async () => {
+      const document = await files.load(canvas.id);
+      const source = { id: randomUUID(), type: 'image', title: '来源', x: 160, y: 60, width: 200, height: 150, assetPath: imagePath };
+      const target = { ...source, id: randomUUID(), title: '结果', x: 660, y: 550, referenceInput: { includeSelf: false } };
+      const link = { id: randomUUID(), from: source.id, to: target.id, kind: 'image-variant' };
+      document.nodes = [source, target]; document.edges = [link]; document.viewport = { x: 0, y: 0, scale: 1 };
+      delete document.templateFlow;
+      await files.save(canvas.id, document, document.revision);
+      await page.reload(); await page.getByText('已保存', { exact: true }).waitFor();
+      const area = await board.boundingBox();
+      await page.mouse.click(area.x + 510, area.y + 380);
+      await page.locator('.wire-handle[data-axis=y]').waitFor();
+      async function dragHandle(axis, delta) {
+        const box = await page.locator('.wire-handle[data-axis=' + axis + ']').boundingBox();
+        const x = box.x + box.width / 2, y = box.y + box.height / 2;
+        await page.mouse.move(x, y); await page.mouse.down();
+        await page.mouse.move(x + (axis === 'x' ? delta : 0), y + (axis === 'y' ? delta : 0), { steps: 5 });
+        await page.mouse.up();
+      }
+      await dragHandle('y', 60); await dragHandle('x', 100);
+      assert.deepEqual((await saved()).edges[0].route, { x: 100, y: 60 });
+      await page.evaluate(() => document.activeElement.blur()); await page.keyboard.press('ControlOrMeta+z');
+      assert.deepEqual((await saved()).edges[0].route, { x: 0, y: 60 });
+      await page.evaluate(() => document.activeElement.blur()); await page.keyboard.press('ControlOrMeta+Shift+z');
+      assert.deepEqual((await saved()).edges[0].route, { x: 100, y: 60 });
+      await page.reload(); await page.getByText('已保存', { exact: true }).waitFor();
+      assert.deepEqual((await files.load(canvas.id)).edges[0].route, { x: 100, y: 60 });
+      await page.mouse.click(area.x + 560, area.y + 440);
+      await page.getByRole('button', { name: '恢复自动走线' }).click();
+      assert.equal((await saved()).edges[0].route, undefined);
+      await page.evaluate(() => document.activeElement.blur()); await page.keyboard.press('ControlOrMeta+z');
+      assert.deepEqual((await saved()).edges[0].route, { x: 100, y: 60 });
+      await page.evaluate(() => document.activeElement.blur()); await page.keyboard.press('ControlOrMeta+Shift+z'); await saved();
+      // Zoom changes screen delta, not the persisted canvas-coordinate offset.
+      await page.getByRole('button', { name: '缩小画布', exact: true }).click();
+      const scaled = await saved(); const v = scaled.viewport;
+      await page.mouse.click(area.x + v.x + 510 * v.scale, area.y + v.y + 380 * v.scale);
+      await dragHandle('x', 50);
+      assert.ok(Math.abs((await saved()).edges[0].route.x - 50 / v.scale) < 1);
+      await page.getByRole('button', { name: '恢复自动走线' }).click(); await saved();
+      await page.screenshot({ path: path.join(reportDir, 'wire-routing.png') });
+      const persisted = await files.load(canvas.id);
+      for (const route of [{ x: '2', y: 0 }, { x: 0, y: 100001 }, { x: 0 }, null]) {
+        await assert.rejects(files.save(canvas.id, { ...persisted, edges: [{ ...link, route }] }, persisted.revision));
+      }
+      assert.equal((await files.load(canvas.id)).revision, persisted.revision);
     }],
   ];
   for (const [name, run] of checks) {

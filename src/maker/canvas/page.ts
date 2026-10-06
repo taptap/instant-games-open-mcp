@@ -1,4 +1,6 @@
 import { nodesInMarquee, removeNodes, saveAcknowledgement } from './edit.js';
+import { canvasWireGeometry, canvasWirePath } from './wirePath.js';
+import { createCanvasWireUi, CANVAS_WIRE_STYLES } from './wireUi.js';
 import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from './templates.js';
 import { createCanvasTemplateUi } from './templateUi.js';
 import { builtinPresetDescriptions } from './presetDescriptions.js';
@@ -157,6 +159,9 @@ const template =
 
 export function getCanvasPageHtml(): string {
   const helpers = [
+    canvasWireGeometry.toString(),
+    canvasWirePath.toString(),
+    createCanvasWireUi.toString(),
     framePairSources.toString(),
     videoFramePair.toString(),
     validateFramePairVideo.toString(),
@@ -1288,6 +1293,25 @@ export function getCanvasPageHtml(): string {
   page = page.replace('/*__HELPERS__*/', () => helperSource);
   page = replaceCanvasPageText(
     page,
+    "      path.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + 40) + ' ' + y1 + ', ' + (x2 - 40) + ' ' + y2 + ', ' + x2 + ' ' + y2);",
+    "      path.setAttribute('d', canvasWirePath(from, to, documentState.nodes, view, documentState.edges, edge.route));"
+  );
+  page = replaceCanvasPageText(
+    page,
+    "      path.setAttribute('class', 'wire');",
+    [
+      '      const related = selected.has(from.id) || selected.has(to.id) || selected.has(from.sectionId) || selected.has(to.sectionId);',
+      "      path.setAttribute('class', 'wire' + (selected.size ? (related ? ' wire-focused' : ' wire-muted') : ''));",
+      '      path.dataset.from = from.id; path.dataset.to = to.id;',
+    ].join('\n')
+  );
+  page = replaceCanvasPageText(
+    page,
+    '.wire { fill: none; stroke: #d7b56d; stroke-width: 2; }',
+    '.wire { fill: none; stroke: #d7b56d; stroke-width: 2; stroke-linejoin: round; opacity: .65; } .wire-focused { stroke: #ffe0a0; stroke-width: 3; opacity: 1; } .wire-muted { opacity: .12; }'
+  );
+  page = replaceCanvasPageText(
+    page,
     '      card.append(title);',
     "      if (node.type !== 'image' || !node.assetPath) card.append(title); if (node.type === 'section') { const info = document.createElement('p'); info.textContent = documentState.nodes.filter(function (item) { return item.sectionId === node.id; }).length + ' 个节点'; card.append(info); } if (node.type === 'image' && !node.assetPath) { const empty = document.createElement('button'); empty.type = 'button'; empty.className = 'image-empty'; empty.setAttribute('aria-label', '导入图片'); empty.innerHTML = '<span>＋</span><small>图片</small>'; empty.addEventListener('click', function (event) { event.stopPropagation(); selectNode(node.id, false); requestImageImport(node.id); }); card.append(empty); }"
   );
@@ -1871,6 +1895,43 @@ export function getCanvasPageHtml(): string {
     page,
     '  function duplicateSelected() {',
     '  function duplicateSelected() {\n    if (documentState && documentState.nodes.some(function (node) { return selected.has(node.id) && ["model", "model-views"].includes(node.type); })) { setError("模型卡片依赖完整来源，请通过添加模板或另存模板创建独立流程。"); return; }'
+  );
+  page = replaceCanvasPageText(page, '</style>', CANVAS_WIRE_STYLES + '</style>');
+  page = replaceCanvasPageText(
+    page,
+    '  void boot().catch',
+    [
+      '  wireUi = createCanvasWireUi({ board: board, current: function () { return documentState; },',
+      '    panning: function () { return space; },',
+      '    blocked: function () { return canvasOpening || canvasAutomationBusy || drag || pendingAssetImports || pendingImageImport || pendingVideoImport || selectionAction || document.querySelector("dialog[open]") || generationUi.isBusy || sequenceUi.isBusy || templateWorkflow.isBusy || groupQueue.isBusy || modelUi.isBusy || imageAssetsUi.isBusy || (imageEditing && imageEditing.isBusy); },',
+      '    select: function () { selected.clear(); }, remember: remember, changed: markDirty, render: render });',
+      '  void boot().catch',
+    ].join('\n')
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  function render() {',
+    '  var wireUi;\n  function render() {'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    if (layout(documentState) === savedKey)',
+    '    if (wireUi) wireUi.sync();\n    if (layout(documentState) === savedKey)'
+  );
+  page = replaceCanvasPageText(
+    page,
+    'const sequenceRunning = Boolean(',
+    'const sequenceRunning = Boolean((wireUi && wireUi.isBusy) || '
+  );
+  page = replaceCanvasPageText(
+    page,
+    '      if (drag || pendingAssetImports',
+    '      if ((wireUi && wireUi.isBusy) || drag || pendingAssetImports'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  async function leaveCurrent() {',
+    '  async function leaveCurrent() { if (wireUi && wireUi.isBusy) return false;'
   );
   return page.replace(
     '<title data-maker-canvas="maker-canvas-page">创作画布</title>',
