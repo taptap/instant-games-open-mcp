@@ -28,7 +28,15 @@ def main():
     if config is None:
         raise ValueError('缺少 UrhoX project.json；请先完善项目配置。')
     safe(config)
-    author, game = load_project_json(config)
+    # The bundled JSONC helper strips // inside URL strings. Read standard JSON
+    # first, retaining the official fallback and identity-field precedence.
+    try:
+        data = json.loads(config.read_text(encoding='utf-8-sig'))
+    except ValueError:
+        author, game = load_project_json(config)
+    else:
+        author = data.get('author', {}).get('id')
+        game = data.get('id') or data.get('project_id')
     if not all(isinstance(v, str) and v.strip() for v in (author, game)):
         raise ValueError('项目配置必须包含有效的 author.id 和 id 或 project_id。')
     generator = MetaGenerator(author, game)

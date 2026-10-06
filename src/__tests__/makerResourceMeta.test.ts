@@ -98,6 +98,22 @@ test('UUID payload carries official version, author/project hashes and timestamp
   expect(payload.readUIntBE(8, 6)).toBeLessThanOrEqual(Date.now());
 });
 
+test('reads real project JSON containing URLs without stripping string contents', async () => {
+  write(
+    '.project/project.json',
+    JSON.stringify({
+      author: { id: 'author-test' },
+      project_id: 'game-test',
+      taptap_publish: { icon_url: 'https://example.com/icon.png', note: '/* literal */' },
+    })
+  );
+  write('assets/icon.png');
+  const first = await generate(['assets/icon.png']);
+  expect(first.success).toBe(true);
+  const second = await generate(['assets/icon.png']);
+  expect(second.results[0]).toMatchObject({ status: 'preserved', uuid: first.results[0].uuid });
+});
+
 test('matches official config linkage, path_refs, recursion and exclusions', async () => {
   write('assets/ui/button.png');
   write('assets/ui/button.xml', '<texture />');
