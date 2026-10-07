@@ -25,6 +25,9 @@ test('npm package includes both local workflow guides in an isolated package', (
   try {
     for (const entry of [
       'scripts/prepare-maker-package.js',
+      'scripts/bundle-maker-ui-skill.js',
+      'scripts/maker-demo-resource-check.mjs',
+      'skills/maker-ui-workflow',
       'bin/taptap-maker',
       'skills/taptap-maker-local',
       'skills/taptap-maker-dev-kit-guide',
@@ -37,6 +40,10 @@ test('npm package includes both local workflow guides in an isolated package', (
       fs.cpSync(path.join(source, entry), path.join(root, entry), { recursive: true });
     }
     fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
+    // Use the checked resource registry and build dependencies without copying demo media.
+    for (const entry of ['node_modules', 'resources', 'src']) {
+      fs.symlinkSync(path.join(source, entry), path.join(root, entry), 'junction');
+    }
     fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
     fs.writeFileSync(path.join(root, 'dist/maker.js'), '// test bundle');
     const result = spawnSync(
@@ -47,7 +54,7 @@ test('npm package includes both local workflow guides in an isolated package', (
         encoding: 'utf8',
       }
     );
-    expect(result.status).toBe(0);
+    if (result.status !== 0) throw new Error(result.stdout + result.stderr);
     for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
       expect(fs.readFileSync(path.join(root, 'packages/maker/docs', name), 'utf8')).toBe(
         fs.readFileSync(path.join(source, 'docs', name), 'utf8')

@@ -281,13 +281,13 @@ export function createUiWorkflowPreset(): CanvasPreset {
   const assets = Object.fromEntries(
     Object.entries(uiWorkflowData).map(([key, data]) => [
       'assets/image/preset-bike-ui-' + key + '.jpg',
-      { type: data.type, data: data.data },
+      { type: data.type, resourceId: data.resourceId },
     ])
   );
   return {
     id: '7e1cb6ad-732f-4dc3-a951-000000000012',
     name: 'BikeKingBanana UI · 去文字→三轮识别→Icon/按钮与底图分层导出',
-    revision: 2,
+    revision: 3,
     nodes,
     edges,
     assets,

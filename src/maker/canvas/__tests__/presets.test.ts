@@ -1,3 +1,4 @@
+import { readDemoResource } from '../../demoResources.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -30,7 +31,6 @@ test('lists portable presets without importing assets or creating a canvas', asy
     '角色模型 · 多视图确认',
     '道具生成 · 风格图→图集→游戏资产',
     '种植生长 · 作物→状态图集→游戏资产',
-    'UI组件提取 · 设计稿→组件图集→游戏资产',
     'NPC批量生成 · 角色参考→职业图集→游戏资产',
     '二合图标生成 · 风格参考→升级图集→游戏资产',
     'UI风格裂变 · 同一界面→三种风格',
@@ -171,54 +171,58 @@ test('full game scene retains its background; atlas and standalone items have re
       }
     }
   }
-  const cover = files.readTemplateCover(preset.id, preset.revision);
-  expect(cover.type).toBe('image/png');
-  expect(PNG.sync.read(cover.bytes).data[3]).toBe(255);
+  const cover = await files.readTemplateCover(preset.id, preset.revision);
+  expect(['image/png', 'image/jpeg']).toContain(cover.type);
+  expect(cover.bytes.length).toBeGreaterThan(0);
   expect(prepared.nodes.every((node) => !node.generationDraft)).toBe(true);
 });
 
-test('crop preset contains five aligned transparent stages whose pixels match the atlas', () => {
+test('crop preset contains five aligned transparent stages whose pixels match the atlas', async () => {
   const preset = canvasPresets()[5];
   const images = preset.nodes.filter((node) => node.type === 'image');
   const collection = preset.nodes.find((node) => node.type === 'image-assets')!;
   const info = collection.imageAssetsInfo!;
   expect(info.grid).toEqual({ columns: 5, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 });
-  const decode = (assetPath: string) =>
-    PNG.sync.read(Buffer.from(preset.assets[assetPath].data, 'base64'));
-  const reference = decode(images[0].assetPath!);
+  const decode = async (assetPath: string) =>
+    PNG.sync.read(await readDemoResource(preset.assets[assetPath].resourceId));
+  const reference = await decode(images[0].assetPath!);
   expect(reference.data[3]).toBe(0);
-  const atlas = decode(images[1].assetPath!);
+  const atlas = await decode(images[1].assetPath!);
   expect([atlas.width, atlas.height]).toEqual([2560, 800]);
-  const bounds = info.items.map((item, index) => {
-    const png = decode(item.assetPath);
-    expect([png.width, png.height]).toEqual([512, 800]);
-    let top = png.height;
-    let bottom = -1;
-    let mismatched = 0;
-    let boundary = 0;
-    for (let row = 0; row < png.height; row++) {
-      for (let column = 0; column < png.width; column++) {
-        const offset = (row * png.width + column) * 4;
-        const original = (row * atlas.width + index * 512 + column) * 4;
-        const alpha = png.data[offset + 3];
-        if (alpha !== atlas.data[original + 3]) mismatched++;
-        for (let channel = 0; channel < 3; channel++) {
-          const difference = Math.abs(png.data[offset + channel] - atlas.data[original + channel]);
-          if (alpha === 255 ? difference !== 0 : (difference * alpha) / 255 > 1) mismatched++;
-        }
-        if (row === 0 || row === png.height - 1 || column === 0 || column === png.width - 1)
-          boundary += alpha;
-        if (alpha) {
-          top = Math.min(top, row);
-          bottom = Math.max(bottom, row);
+  const bounds = await Promise.all(
+    info.items.map(async (item, index) => {
+      const png = await decode(item.assetPath);
+      expect([png.width, png.height]).toEqual([512, 800]);
+      let top = png.height;
+      let bottom = -1;
+      let mismatched = 0;
+      let boundary = 0;
+      for (let row = 0; row < png.height; row++) {
+        for (let column = 0; column < png.width; column++) {
+          const offset = (row * png.width + column) * 4;
+          const original = (row * atlas.width + index * 512 + column) * 4;
+          const alpha = png.data[offset + 3];
+          if (alpha !== atlas.data[original + 3]) mismatched++;
+          for (let channel = 0; channel < 3; channel++) {
+            const difference = Math.abs(
+              png.data[offset + channel] - atlas.data[original + channel]
+            );
+            if (alpha === 255 ? difference !== 0 : (difference * alpha) / 255 > 1) mismatched++;
+          }
+          if (row === 0 || row === png.height - 1 || column === 0 || column === png.width - 1)
+            boundary += alpha;
+          if (alpha) {
+            top = Math.min(top, row);
+            bottom = Math.max(bottom, row);
+          }
         }
       }
-    }
-    expect(mismatched).toBe(0);
-    expect(boundary).toBe(0);
-    expect(bottom).toBe(720);
-    return { top, bottom };
-  });
+      expect(mismatched).toBe(0);
+      expect(boundary).toBe(0);
+      expect(bottom).toBe(720);
+      return { top, bottom };
+    })
+  );
   expect(bounds[0].top).toBeGreaterThan(bounds[1].top);
   expect(bounds[1].top).toBeGreaterThan(bounds[2].top);
   expect(bounds[2].top).toBeGreaterThan(bounds[3].top);
@@ -248,7 +252,7 @@ test.each([4, 5, 6])(
   }
 );
 
-test('all presets have protected ids and descriptions without sharing mutable definitions', () => {
+test('all presets have protected ids and descriptions without sharing mutable definitions', async () => {
   const presets = canvasPresets();
   expect(new Set(presets.map((preset) => preset.id)).size).toBe(presets.length);
   const nodes = presets.flatMap((preset) => preset.nodes);
@@ -266,7 +270,7 @@ test('all presets have protected ids and descriptions without sharing mutable de
   ).toBe(true);
   const before = JSON.stringify(presets.slice(4));
   presets[4].nodes[1].generation!.prompt = 'changed';
-  Object.values(presets[4].assets)[0].data = 'changed';
+  Object.values(presets[4].assets)[0].resourceId = 'changed';
   expect(JSON.stringify(canvasPresets().slice(4))).toBe(before);
 });
 
@@ -380,7 +384,7 @@ test('protects builtins and rejects invalid preparation before importing media',
   expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
 });
 
-test('four directions use distinct empty neutral references and keep old results explicitly pending', () => {
+test('four directions use distinct empty neutral references and keep old results explicitly pending', async () => {
   const preset = canvasPresets()[1];
   const images = preset.nodes.filter((node) => node.type === 'image');
   const head = images.find((node) => node.assetPath)!;
@@ -432,7 +436,7 @@ test('four directions use distinct empty neutral references and keep old results
   );
 });
 
-test('preparing prompt metadata never mutates future templates', () => {
+test('preparing prompt metadata never mutates future templates', async () => {
   const first = canvasPresets();
   const before = JSON.stringify(first);
   first[1].nodes[0].title = 'changed';

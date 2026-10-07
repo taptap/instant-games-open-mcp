@@ -45,7 +45,8 @@ export function getConsoleHtml(): string {
   <button data-page="build">构建与测试</button>
   <button data-page="git">Git</button>
   <button data-page="documents" disabled>文档 / Skill</button>
-  <button data-page="canvas">序列帧动画</button>
+  <button data-page="canvas">自由画布</button>
+  <button data-page="ui-editor">UI 编辑器</button>
   <span id="plugin-tabs" class="plugin-tabs"></span>
 </nav>
 <button id="close-canvas" type="button" hidden>关闭当前项目画布</button>
@@ -54,7 +55,8 @@ export function getConsoleHtml(): string {
 <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>
 <main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
 <section id="plugin-views" aria-label="插件工作区" hidden></section>
-<section id="canvas-views" aria-label="序列帧动画" hidden></section>
+<section id="canvas-views" aria-label="自由画布" hidden></section>
+<section id="ui-editor-view" aria-label="UI 编辑器" hidden></section>
 <div id="announcement" role="status" aria-live="polite" class="context" hidden></div>
 <footer><div class="footer-start"><span id="version">Maker 本地服务</span>
 <section id="fortune-corner" aria-label="开发者日签" hidden>

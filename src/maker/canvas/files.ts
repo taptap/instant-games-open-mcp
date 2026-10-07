@@ -1,3 +1,4 @@
+import { readDemoResource, demoResourceInfo } from '../demoResources.js';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
@@ -155,13 +156,13 @@ export class MakerCanvasFiles {
     await this.load(canvasId);
     const preset = canvasPresets().find((template) => template.id === id);
     if (!preset) fail('预设模板不存在。', 404, 'NOT_FOUND');
-    const template: CanvasWorkflowTemplate = JSON.parse(
-      JSON.stringify(builtinCanvasTemplates().find((template) => template.id === id))
-    );
+    // Retired presets remain readable for existing references, but are absent from the catalog.
+    const { assets: _assets, ...definition } = preset;
+    const template: CanvasWorkflowTemplate = { ...structuredClone(definition), builtin: true };
     const paths = new Map<string, string>();
     try {
       for (const [source, asset] of Object.entries(preset.assets)) {
-        const bytes = Buffer.from(asset.data, 'base64');
+        const bytes = await readDemoResource(asset.resourceId);
         const imported =
           asset.type === 'video/mp4'
             ? await this.importVideo(canvasId, bytes, asset.type)
@@ -218,20 +219,42 @@ export class MakerCanvasFiles {
 
   getTemplate(id: string): CanvasWorkflowTemplate {
     this.assertStorageShape();
-    const preset = builtinCanvasTemplates().find((template) => template.id === id);
-    return preset ? JSON.parse(JSON.stringify(preset)) : this.readTemplate(id);
+    const preset = canvasPresets().find((template) => template.id === id);
+    if (!preset) return this.readTemplate(id);
+    const { assets: _assets, ...template } = preset;
+    return JSON.parse(JSON.stringify({ ...template, builtin: true }));
   }
 
-  readTemplateCover(
+  async readTemplatePreviewImage(id: string, revision: number, nodeId: string) {
+    const template = this.getTemplate(id);
+    if (template.revision !== revision) fail('模板已更新，请刷新列表。', 409, 'CONFLICT');
+    const node = template.nodes.find((item) => item.id === nodeId);
+    if (!node?.assetPath || !['image', 'sequence', 'animation'].includes(node.type))
+      fail('模板没有此预览图片。', 404, 'NOT_FOUND');
+    if (template.builtin) {
+      const asset = canvasPresets().find((preset) => preset.id === id)!.assets[node.assetPath];
+      if (!asset) fail('模板没有此预览图片。', 404, 'NOT_FOUND');
+      const resource = demoResourceInfo(asset.resourceId);
+      const resourceId = resource.thumbnail || asset.resourceId;
+      return { bytes: await readDemoResource(resourceId), type: demoResourceInfo(resourceId).type };
+    }
+    const media = this.readMedia(node.assetPath);
+    if (!media.type.startsWith('image/')) fail('只支持图片预览。', 400, 'INVALID_IMAGE');
+    if (fs.statSync(media.file).size > 20 * 1024 * 1024)
+      fail('图片超过 20 MiB。', 413, 'STORAGE_LIMIT');
+    return { bytes: fs.readFileSync(media.file), type: media.type };
+  }
+
+  async readTemplateCover(
     id: string,
     revision: number,
     slot = 0
-  ): {
+  ): Promise<{
     bytes: Buffer;
     type: string;
     source: boolean;
     animation?: ReturnType<typeof templateCoverAnimation>;
-  } {
+  }> {
     const template = this.getTemplate(id);
     if (template.revision !== revision) fail('模板已更新，请刷新列表。', 409, 'CONFLICT');
     const sourcePath = templateCoverSource(template, slot);
@@ -251,9 +274,11 @@ export class MakerCanvasFiles {
     }
     if (template.builtin) {
       const asset = canvasPresets().find((preset) => preset.id === id)!.assets[sourcePath];
+      const resource = demoResourceInfo(asset.resourceId);
+      const resourceId = (!animation && resource.thumbnail) || asset.resourceId;
       return {
-        bytes: Buffer.from(asset.data, 'base64'),
-        type: asset.type,
+        bytes: await readDemoResource(resourceId),
+        type: demoResourceInfo(resourceId).type,
         source: true,
         animation,
       };

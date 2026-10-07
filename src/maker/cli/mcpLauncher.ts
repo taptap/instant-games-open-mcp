@@ -52,6 +52,7 @@ const VERIFY_CLIENT_VERSION = '1.0.0';
 const REQUIRED_TOOL_NAME = 'maker_status_lite';
 const PUBLISHED_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const SELF_RUNTIME_DIRECTORIES = [
+  'skills/maker-ui-workflow',
   'skills/taptap-maker-local',
   'skills/taptap-maker-dev-kit-guide',
   'skills/update-taptap-mcp',

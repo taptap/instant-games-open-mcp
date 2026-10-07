@@ -1,3 +1,4 @@
+import { readDemoResource } from '../../demoResources.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,7 +12,7 @@ import { invalidateCanvasDependents } from '../templateWorkflow.js';
 const { PNG } = require('pngjs');
 const presetId = '7e1cb6ad-732f-4dc3-a951-000000000010';
 
-test('UI styles preset is one complete reference and three independently generated style branches', () => {
+test('UI styles preset is one complete reference and three independently generated style branches', async () => {
   const preset = canvasPresets().find((item) => item.id === presetId)!;
   const [reference, ...variants] = preset.nodes;
   expect(preset.nodes.map((node) => node.type)).toEqual(['image', 'image', 'image', 'image']);
@@ -31,7 +32,7 @@ test('UI styles preset is one complete reference and three independently generat
       resolution: '2K',
       aspectRatio: '16:9',
     });
-    const bytes = Buffer.from(preset.assets[node.assetPath!].data, 'base64');
+    const bytes = await readDemoResource(preset.assets[node.assetPath!].resourceId);
     hashes.add(createHash('sha256').update(bytes).digest('hex'));
     const png = PNG.sync.read(bytes);
     expect([png.width, png.height]).toEqual([2048, 1152]);

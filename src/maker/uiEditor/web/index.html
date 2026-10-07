@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maker UI 编辑器</title>
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+  <div class="editor">
+    <header class="chrome">
+      <div class="menubar">
+        <div class="menubar-left">
+          <strong class="app-title">UI 编辑器</strong>
+          <button id="demoBtn" type="button" class="ghost">新手示例</button>
+          <button id="saveBtn" type="button" class="ghost" disabled>保存</button>
+          <button id="changesBtn" type="button" class="ghost">变更</button>
+          <button id="checkUiBtn" type="button" class="ghost">检查 UI</button>
+          <button id="skillHelpBtn" type="button" class="ghost">AI Skill</button>
+          <span id="currentDocument" class="muted truncate">正在读取当前项目的 UI 文档</span>
+          <span id="saveStatus" class="muted" role="status" aria-live="polite"></span>
+          <span id="sessionStatus" class="muted" role="status" aria-live="polite"></span>
+        </div>
+        <div class="menubar-right">
+          <label class="device-label">屏幕
+            <select id="deviceSelect">
+              <option value="720p">720p 720×1280</option>
+              <option value="1080p" selected>1080p 1080×1920</option>
+              <option value="2k">2K 1440×2560</option>
+              <option value="4k">4K 2160×3840</option>
+              <option value="customize">自定义分辨率…</option>
+            </select>
+          </label>
+          <div class="orientation-control" role="radiogroup" aria-label="屏幕方向">
+            <label><input type="radio" name="orientation" value="portrait" checked />竖屏</label>
+            <label><input type="radio" name="orientation" value="landscape" />横屏</label>
+          </div>
+          <span id="scaleBadge" class="muted">1.00×</span>
+          <button id="resetLayoutBtn" type="button" class="ghost" title="恢复默认面板尺寸">重置布局</button>
+          <span class="sep"></span>
+          <span id="zoomLabel" class="muted">100%</span>
+          <button id="fitBtn" type="button" class="ghost">适应</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="hierarchy">
+        <div class="panel-title">
+          <span>UI节点树</span>
+          <div class="add-menu" id="treeAddMenu">
+            <button type="button" class="add-toggle" id="treeAddBtn" title="在选中节点下添加子节点">＋ 添加</button>
+            <button type="button" class="add-toggle ghost" id="treeDeleteBtn" title="删除选中节点">删除</button>
+            <div class="add-pop hidden" id="treeAddPop">
+              <button type="button" data-create="Panel">容器 Panel</button>
+              <button type="button" data-create="Image">图片 Image</button>
+              <button type="button" data-create="Button">按钮 Button</button>
+              <button type="button" data-create="Label">文字 Label</button>
+            </div>
+          </div>
+        </div>
+        <div class="local-search"><input id="treeSearch" type="search" placeholder="搜索节点" aria-label="搜索节点" /><span id="treeSearchCount" class="muted" role="status"></span></div>
+        <div id="tree" class="tree"></div>
+      </aside>
+      <div class="split-v" data-split="left" title="拖动调整宽度"></div>
+
+      <section class="canvas-pane">
+        <div class="canvas-toolbar">
+          <div class="tool-group" title="选择">
+            <button type="button" class="icon-btn" id="pickToolBtn" title="选择工具：点击空白后可在画面上点选节点">选择</button>
+          </div>
+          <div class="add-menu" id="canvasAddMenu">
+            <button type="button" class="add-toggle" id="canvasAddBtn" title="在当前选中控件内添加">＋ 添加</button>
+            <div class="add-pop hidden" id="canvasAddPop">
+              <button type="button" data-create="Panel">容器 Panel</button>
+              <button type="button" data-create="Image">图片 Image</button>
+              <button type="button" data-create="Button">按钮 Button</button>
+              <button type="button" data-create="Label">文字 Label</button>
+            </div>
+          </div>
+          <div class="tool-group" title="对齐">
+            <button type="button" class="icon-btn" data-align="left" title="左对齐">⇤</button>
+            <button type="button" class="icon-btn" data-align="hcenter" title="水平居中">↔</button>
+            <button type="button" class="icon-btn" data-align="right" title="右对齐">⇥</button>
+            <button type="button" class="icon-btn" data-align="top" title="顶对齐">⤒</button>
+            <button type="button" class="icon-btn" data-align="vcenter" title="垂直居中">↕</button>
+            <button type="button" class="icon-btn" data-align="bottom" title="底对齐">⤓</button>
+          </div>
+          <div class="tool-group" title="分布">
+            <button type="button" class="icon-btn" data-dist="x" title="水平均分">||</button>
+            <button type="button" class="icon-btn" data-dist="y" title="垂直均分">=</button>
+          </div>
+          <div class="tool-group" title="编组">
+            <button type="button" class="icon-btn" id="groupBtn" title="编组 ⌘G">▢+</button>
+            <button type="button" class="icon-btn" id="ungroupBtn" title="解组 ⇧⌘G">▢−</button>
+          </div>
+          <button id="compareToggle" type="button" class="ghost" aria-expanded="false">设计稿对照</button>
+          <span id="meta" class="muted truncate meta-path"></span>
+        </div>
+        <div class="transform-toolbar">
+          <button id="overlapBtn" type="button" class="ghost" title="列出选中位置的重叠节点">重叠节点</button>
+          <label>旋转 <input id="selectionRotation" type="number" step="1" aria-label="选择旋转角度" disabled /> °</label>
+          <label>缩放 <input id="selectionScale" type="number" min="1" max="1000" step="5" value="100" aria-label="选择等比缩放百分比" disabled /> %</label>
+          <span id="transformStatus" class="muted" role="status"></span>
+        </div>
+        <div id="comparisonTools" class="comparison-tools hidden">
+          <button id="compareImport" type="button">选择设计稿</button><input id="compareFile" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+          <select id="compareMode" aria-label="对照方式"><option value="side">左右对照</option><option value="overlay">重叠对照</option><option value="off">仅 UI</option></select>
+          <label><input id="compareVisible" type="checkbox" checked />显示设计稿</label>
+          <label>透明度 <input id="compareOpacity" type="range" min="0" max="100" value="50" aria-label="设计稿透明度" /><output id="comparePercent">50%</output></label>
+          <details><summary>参考图对齐</summary><div class="comparison-alignment">
+            <label>X <input id="compareX" type="number" value="0" step="1" /></label>
+            <label>Y <input id="compareY" type="number" value="0" step="1" /></label>
+            <label>比例 % <input id="compareScale" type="number" value="100" min="10" max="400" /></label>
+            <button id="compareReset" type="button">对齐原点</button>
+          </div></details><span id="compareStatus" role="status"></span>
+        </div>
+        <div class="comparison-workspace" id="comparisonWorkspace">
+        <aside id="referencePane" class="reference-pane hidden" aria-label="原始设计稿"><span class="comparison-caption">原始设计稿 · 缩放与平移同步</span><div id="referenceStage"><canvas id="referenceCanvas"></canvas></div></aside>
+        <main class="preview" id="preview">
+          <div class="preview-stage" id="previewStage">
+            <div class="artboard-label" id="artboardLabel">Frame</div>
+            <canvas id="stage" width="720" height="1280"></canvas>
+          </div>
+        </main>
+        </div>
+      </section>
+
+      <div class="split-v" data-split="right" title="拖动调整宽度"></div>
+      <aside class="inspector">
+        <div class="panel-title">控件属性</div>
+        <div id="inspector" class="inspector-body">
+          <p class="muted">选中一个节点后显示属性</p>
+        </div>
+      </aside>
+    </div>
+
+    <div class="split-h" data-split="bottom" title="拖动调整高度"></div>
+
+    <footer class="project-bar">
+      <div class="bottom-tabs">
+        <button type="button" class="tab-btn active" data-tab="ui">UI 文档</button>
+        <button type="button" class="tab-btn" data-tab="project">项目资源</button>
+        <button id="openProjectBtn" type="button" class="ghost refresh-files" title="更新当前项目的文件列表，保留正在编辑的内容">刷新文件</button>
+      </div>
+      <div class="bottom-body">
+        <div class="project-dirs">
+          <div class="panel-title" id="bottomDirTitle">项目目录</div>
+          <div id="projectDirs" class="project-dir-tree"></div>
+        </div>
+        <div class="split-v" data-split="project" title="拖动调整宽度"></div>
+        <div class="project-files-pane">
+          <div class="panel-title project-files-title">
+            <span id="bottomListTitle">文件</span>
+            <input id="entrySearch" type="search" placeholder="搜索 UI 文档" aria-label="搜索 UI 文档" />
+            <span id="entrySearchCount" class="muted" role="status"></span>
+            <div class="view-toggle">
+              <button id="cancelReplaceBtn" type="button" class="ghost hidden">取消选图</button>
+              <button id="viewListBtn" type="button" class="ghost active">列表</button>
+              <button id="viewIconBtn" type="button" class="ghost">图标</button>
+            </div>
+          </div>
+          <div id="projectFiles" class="project-files"></div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <dialog id="changesDialog" class="workbench-dialog" aria-labelledby="changesTitle">
+    <header><h2 id="changesTitle">当前文档变更</h2><button type="button" data-close="changesDialog" class="ghost" aria-label="关闭变更预览">×</button></header>
+    <p id="changesPath" class="muted"></p>
+    <div class="change-head"><span>字段路径</span><span>保存前</span><span>保存后</span></div>
+    <div id="changesList" class="workbench-scroll"></div>
+    <footer><span id="changesSummary" role="status"></span></footer>
+  </dialog>
+  <dialog id="deviceDialog" class="workbench-dialog device-dialog" aria-labelledby="deviceTitle">
+    <header><h2 id="deviceTitle">自定义分辨率</h2><button type="button" data-close="deviceDialog" class="ghost" aria-label="关闭自定义分辨率">×</button></header>
+    <form id="deviceForm">
+      <div class="workbench-controls"><label>宽 <input id="deviceWidth" type="number" min="240" max="4096" required /></label><button id="deviceSwap" type="button" class="ghost" title="交换宽高" aria-label="交换宽高">⇄</button><label>高 <input id="deviceHeight" type="number" min="240" max="4096" required /></label></div>
+      <label><input id="safeAreaEnabled" type="checkbox" /> 显示安全区</label>
+      <div class="safe-area-fields">
+        <label>上 <input id="safeTop" type="number" min="0" max="2048" value="0" required /></label>
+        <label>右 <input id="safeRight" type="number" min="0" max="2048" value="0" required /></label>
+        <label>下 <input id="safeBottom" type="number" min="0" max="2048" value="0" required /></label>
+        <label>左 <input id="safeLeft" type="number" min="0" max="2048" value="0" required /></label>
+      </div>
+      <p id="deviceError" class="muted" role="alert"></p>
+      <footer><span class="muted">仅预览，不修改 UI 设计尺寸</span><button type="submit">应用</button></footer>
+    </form>
+  </dialog>
+  <div id="overlapMenu" class="overlap-menu hidden" role="dialog" aria-label="重叠节点"></div>
+  <div id="contextMenu" class="context-menu hidden" role="menu" aria-label="编辑操作"></div>
+
+  <dialog id="missingUiDialog" class="dialog-mask" aria-labelledby="missingUiTitle">
+    <div class="dialog">
+      <h3 id="missingUiTitle">这个项目没有 .ui.json</h3>
+      <p id="missingUiDescription" class="muted">当前选中的项目还没有 UI 文档。可从设计稿生成，或让 AI 将已有 Lua UI 转换为 .ui.json。</p>
+      <ol class="guide-list">
+        <li>把设计稿或已有切图交给 AI，使用 Maker 内置的 maker-ui-workflow。</li>
+        <li>生成项目 assets 内的 .ui.json 后，点击「刷新文件」。</li>
+        <li>用「设计稿对照」左右参考或重叠调整，点击「保存」直接写入当前项目。</li>
+      </ol>
+      <label for="skillPrompt">给 AI 的指令</label>
+      <textarea id="skillPrompt" class="report-text" readonly rows="7"></textarea>
+      <p id="skillCopyStatus" role="status" aria-live="polite" class="muted"></p>
+      <div class="dialog-actions">
+        <button id="missingUiOk" type="button" class="ghost" autofocus>关闭</button>
+        <button id="copySkillPrompt" type="button" class="ghost active">复制给 AI</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="uiCheckDialog" class="dialog-mask" aria-labelledby="uiCheckTitle">
+    <div class="dialog">
+      <h3 id="uiCheckTitle">UI 静态检查</h3>
+      <p id="uiCheckSummary"></p>
+      <p class="muted">检查声明、ID 与资源索引。未验证引擎效果、字体、图片解码、动态模板展开及 Lua 绑定。</p>
+      <div id="uiCheckList" class="diagnostic-list"></div>
+      <details><summary>AI 诊断报告</summary>
+        <textarea id="uiCheckOutput" class="report-text" readonly rows="7" aria-label="AI 诊断报告"></textarea>
+      </details>
+      <p id="checkCopyStatus" role="status" aria-live="polite" class="muted"></p>
+      <div class="dialog-actions">
+        <button id="closeCheckReport" type="button" class="ghost" autofocus>关闭</button>
+        <button id="copyCheckReport" type="button" class="ghost active">复制报告</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="deleteDialog" class="dialog-mask" aria-labelledby="deleteDialogTitle" aria-describedby="deleteDialogText">
+    <div class="dialog">
+      <h3 id="deleteDialogTitle">删除节点</h3>
+      <p id="deleteDialogText" class="muted">确定删除该节点及其子节点吗？</p>
+      <div class="dialog-actions">
+        <button id="deleteDialogCancel" type="button" class="ghost" autofocus>取消</button>
+        <button id="deleteDialogOk" type="button" class="ghost danger">删除</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="saveDialog" class="dialog-mask" aria-labelledby="saveDialogTitle" aria-describedby="saveDialogPath">
+    <div class="dialog">
+      <h3 id="saveDialogTitle">要保存对当前 UI 的修改吗？</h3>
+      <p id="saveDialogPath" class="muted"></p>
+      <div class="dialog-actions">
+        <button id="saveDialogCancel" type="button" class="ghost" autofocus>取消</button>
+        <button id="saveDialogDiscard" type="button" class="ghost danger">不保存</button>
+        <button id="saveDialogSave" type="button">保存</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="src/bootstrap.js?v=20260928-ui2"></script>
+</body>
+</html>

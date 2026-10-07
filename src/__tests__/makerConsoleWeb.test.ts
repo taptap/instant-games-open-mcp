@@ -984,6 +984,8 @@ describe('Maker console standalone UI', () => {
           : {},
     }));
     await api.pollState();
+    // Initial project selection navigates to overview; isolate task retry from its refresh.
+    api.setPage('projects');
     const completion = api.pollState();
     await new Promise((resolve) => setImmediate(resolve));
     expect(refresh).toHaveBeenCalledTimes(1);

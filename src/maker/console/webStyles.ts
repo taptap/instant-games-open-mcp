@@ -264,7 +264,7 @@ body.canvas-mode>.navigation{padding-inline:16px;gap:16px}
 body.canvas-mode nav{gap:20px}
 body.canvas-mode nav button{min-height:30px;padding:4px 0;font-size:12px}
 body.canvas-mode>.top,body.canvas-mode>.navigation,body.canvas-mode>.feedback,body.canvas-mode>#announcement,body.canvas-mode>footer{flex-shrink:0}
-body.canvas-mode #canvas-views{display:flex;flex-direction:column;flex:1;min-height:0}
+body.canvas-mode #canvas-views,body.canvas-mode #ui-editor-view{display:flex;flex-direction:column;flex:1;min-height:0}
 body.canvas-mode .canvas-frame{display:block;flex:1;width:100%;height:100%;min-height:0;border:0;background:var(--bg)}
 body.canvas-mode .canvas-toolbar{display:flex;gap:8px;padding:8px 12px;background:var(--top)}
 body.canvas-mode #close-canvas{flex-shrink:0;min-height:28px;padding:3px 8px;font-size:12px;color:var(--muted);background:transparent}

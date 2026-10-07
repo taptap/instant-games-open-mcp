@@ -19,6 +19,29 @@ beforeEach(() => {
 });
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
+test('workflow preview reads only images belonging to the template without importing assets', async () => {
+  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000012');
+  const node = template.nodes.find((item) => item.type === 'image' && item.assetPath)!;
+  const result = await files.readTemplatePreviewImage(template.id, template.revision, node.id);
+  expect(result.type).toMatch(/^image\//);
+  expect(result.bytes.length).toBeGreaterThan(100);
+  expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+  await expect(files.readTemplatePreviewImage(template.id, 999, node.id)).rejects.toThrow('更新');
+  await expect(
+    files.readTemplatePreviewImage(template.id, template.revision, '../outside')
+  ).rejects.toThrow('没有');
+  const canvas = await files.create('preview fixture');
+  const prepared = await files.prepareTemplate(template.id, canvas.id);
+  const custom = await files.saveTemplate({ ...prepared, id: createId(), revision: 0 });
+  const customNode = custom.nodes.find((item) => item.type === 'image' && item.assetPath)!;
+  const image = await files.readTemplatePreviewImage(custom.id, custom.revision, customNode.id);
+  expect(image.type).toMatch(/^image\//);
+  fs.unlinkSync(path.join(root, customNode.assetPath!));
+  await expect(
+    files.readTemplatePreviewImage(custom.id, custom.revision, customNode.id)
+  ).rejects.toThrow('不存在');
+});
+
 test('asset previews use real selected images and never reuse old placeholder covers', async () => {
   const templates = (await files.listTemplates()).filter(
     (template) => Number(template.id.slice(-3)) >= 5
@@ -37,23 +60,29 @@ test('asset previews use real selected images and never reuse old placeholder co
         ),
         wrong
       );
-      const source = files.readTemplateCover(template.id, template.revision, slot);
+      const source = await files.readTemplateCover(template.id, template.revision, slot);
       expect(source.source).toBe(true);
       expect(source.bytes.equals(wrong)).toBe(false);
     }
     if (previews.length === 2) {
-      const second = files.readTemplateCover(template.id, template.revision, 1);
+      const second = await files.readTemplateCover(template.id, template.revision, 1);
       expect(
-        second.bytes.equals(files.readTemplateCover(template.id, template.revision, 0).bytes)
+        second.bytes.equals(
+          (await files.readTemplateCover(template.id, template.revision, 0)).bytes
+        )
       ).toBe(false);
       const cached = PNG.sync.write(new PNG({ width: 768, height: 400 }));
       files.saveTemplateCover(template.id, template.revision, cached, 1);
-      expect(files.readTemplateCover(template.id, template.revision, 1).source).toBe(false);
-      expect(files.readTemplateCover(template.id, template.revision, 0).source).toBe(true);
+      expect((await files.readTemplateCover(template.id, template.revision, 1)).source).toBe(false);
+      expect((await files.readTemplateCover(template.id, template.revision, 0)).source).toBe(true);
     } else {
-      expect(() => files.readTemplateCover(template.id, template.revision, 1)).toThrow('预览');
+      await expect(files.readTemplateCover(template.id, template.revision, 1)).rejects.toThrow(
+        '预览'
+      );
     }
-    expect(() => files.readTemplateCover(template.id, template.revision, 2)).toThrow('预览');
+    await expect(files.readTemplateCover(template.id, template.revision, 2)).rejects.toThrow(
+      '预览'
+    );
   }
   const found = await files.listTemplatePage(1, '科幻终端');
   expect(found.presets.map((template) => template.id)).toEqual([
@@ -67,25 +96,25 @@ test('asset previews use real selected images and never reuse old placeholder co
   expect(templateCoverSource(model, 0)).toBe('assets/image/preset-model-cat-reference.png');
   expect(templatePresentation(model.id).previews).toEqual([{ index: 0, label: '模型结果' }]);
   expect(templatePresentation(model.id).modelPreview).toBe(true);
-  expect(() => files.readTemplateCover(model.id, model.revision, 1)).toThrow('预览');
+  await expect(files.readTemplateCover(model.id, model.revision, 1)).rejects.toThrow('预览');
 });
 
-test('model preview serves only the bundled mesh and its resources without task identities', () => {
+test('model preview serves only the bundled mesh and its resources without task identities', async () => {
   const id = '7e1cb6ad-732f-4dc3-a951-000000000004';
-  const manifest = JSON.parse(readBuiltinTemplateModel(id, null).bytes.toString());
+  const manifest = JSON.parse((await readBuiltinTemplateModel(id, null)).bytes.toString());
   expect(manifest.attemptId).toBeUndefined();
   expect(manifest.taskId).toBeUndefined();
   for (const file of manifest.files)
-    expect(readBuiltinTemplateModel(id, file.path).bytes.length).toBe(file.size);
-  const bytes = readBuiltinTemplateModel(id, manifest.model).bytes;
+    expect((await readBuiltinTemplateModel(id, file.path)).bytes.length).toBe(file.size);
+  const bytes = (await readBuiltinTemplateModel(id, manifest.model)).bytes;
   const meshes = readCanvasModelMesh(new Uint8Array(bytes).buffer);
   expect(meshes.length).toBeGreaterThan(0);
   expect(meshes[0].indices.length).toBeGreaterThan(3);
   for (const filename of ['../model.mdl', '__proto__', '/etc/passwd', 'missing.mdl'])
-    expect(() => readBuiltinTemplateModel(id, filename)).toThrow('不属于');
-  expect(() => readBuiltinTemplateModel('7e1cb6ad-732f-4dc3-a951-000000000005', null)).toThrow(
-    '没有'
-  );
+    await expect(readBuiltinTemplateModel(id, filename)).rejects.toThrow('不属于');
+  await expect(
+    readBuiltinTemplateModel('7e1cb6ad-732f-4dc3-a951-000000000005', null)
+  ).rejects.toThrow('没有');
 });
 
 test('500 templates use paged summaries, cached parsing, global search and no count limit', async () => {
@@ -104,7 +133,7 @@ test('500 templates use paged summaries, cached parsing, global search and no co
   const first = await readTemplatePage(folder, read, 1, '');
   expect(first.total).toBe(500);
   expect(first.items).toHaveLength(24);
-  expect(first.presets).toHaveLength(12);
+  expect(first.presets).toHaveLength(11);
   expect(first.items.every((item) => !('nodes' in item) && !('edges' in item))).toBe(true);
   expect(read).toHaveBeenCalledTimes(500);
   const second = await readTemplatePage(folder, read, 2, '');
@@ -137,7 +166,7 @@ test('bad files and symbolic links do not break the library or expose outside te
   const result = await files.listTemplatePage();
   expect(result.skipped).toBe(2);
   expect(result.items).toEqual([]);
-  expect(result.presets).toHaveLength(12);
+  expect(result.presets).toHaveLength(11);
 });
 
 test('cover source chooses a starting image, falling back to a stable image or no cover', async () => {
@@ -194,7 +223,7 @@ test('covers prefer animation then saved frames, sampling the whole action withi
 
 test('revision-bound thumbnails are small, isolated, invalidate on replace and reject unsafe paths', async () => {
   const builtin = (await files.listTemplates())[0];
-  const source = files.readTemplateCover(builtin.id, builtin.revision);
+  const source = await files.readTemplateCover(builtin.id, builtin.revision);
   expect(source.source).toBe(true);
   const count = templateCoverAnimation(builtin)!.frames.length;
   const png = PNG.sync.write(
@@ -206,11 +235,11 @@ test('revision-bound thumbnails are small, isolated, invalidate on replace and r
     builtin.id + '-cover-' + builtin.revision + '.png'
   );
   fs.writeFileSync(oldCache, png);
-  expect(files.readTemplateCover(builtin.id, builtin.revision).source).toBe(true);
+  expect((await files.readTemplateCover(builtin.id, builtin.revision)).source).toBe(true);
   files.saveTemplateCover(builtin.id, builtin.revision, png);
-  expect(files.readTemplateCover(builtin.id, builtin.revision).bytes).toEqual(png);
-  expect(files.readTemplateCover(builtin.id, builtin.revision).source).toBe(false);
-  expect(files.readTemplateCover(builtin.id, builtin.revision).animation).toEqual(
+  expect((await files.readTemplateCover(builtin.id, builtin.revision)).bytes).toEqual(png);
+  expect((await files.readTemplateCover(builtin.id, builtin.revision)).source).toBe(false);
+  expect((await files.readTemplateCover(builtin.id, builtin.revision)).animation).toEqual(
     templateCoverAnimation(builtin, true)
   );
   expect(() => files.saveTemplateCover('../outside', 1, png)).toThrow();
@@ -224,7 +253,7 @@ test('revision-bound thumbnails are small, isolated, invalidate on replace and r
   const custom = await files.saveTemplate({ ...prepared, id: createId(), revision: 0 });
   files.saveTemplateCover(custom.id, custom.revision, png);
   const replaced = await files.saveTemplate({ ...custom, name: '更新的模板' });
-  expect(files.readTemplateCover(replaced.id, replaced.revision).source).toBe(true);
+  expect((await files.readTemplateCover(replaced.id, replaced.revision)).source).toBe(true);
   expect(() => files.saveTemplateCover(custom.id, custom.revision, png)).toThrow('更新');
   files.saveTemplateCover(replaced.id, replaced.revision, png);
   await files.deleteTemplate(replaced.id, replaced.revision);
@@ -246,5 +275,5 @@ test('revision-bound thumbnails are small, isolated, invalidate on replace and r
   const external = path.join(root, 'outside.png');
   fs.writeFileSync(external, png);
   fs.symlinkSync(external, cache);
-  expect(() => files.readTemplateCover(builtin.id, builtin.revision)).toThrow('链接');
+  await expect(files.readTemplateCover(builtin.id, builtin.revision)).rejects.toThrow('链接');
 });

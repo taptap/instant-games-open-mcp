@@ -1,14 +1,14 @@
-import { createHash } from 'node:crypto';
+import { readDemoResource } from '../../demoResources.js';
 import { canvasPresets } from '../presets.js';
 import { imageAtlasRegions } from '../imageAtlasExport.js';
 
 const { PNG } = require('pngjs');
 
-test('NPC preset keeps a style reference and eight distinct transparent full-body assets', () => {
+test('NPC preset keeps a style reference and eight distinct transparent full-body assets', async () => {
   const preset = canvasPresets().find((item) => item.id.endsWith('000008'))!;
   const [reference, atlas, collection] = preset.nodes;
-  const decode = (assetPath: string) =>
-    PNG.sync.read(Buffer.from(preset.assets[assetPath].data, 'base64'));
+  const decode = async (assetPath: string) =>
+    PNG.sync.read(await readDemoResource(preset.assets[assetPath].resourceId));
   expect(preset.nodes.map((node) => node.type)).toEqual(['image', 'image', 'image-assets']);
   expect(preset.nodes.every((node) => !node.templatePending && !node.generationDraft)).toBe(true);
   expect(
@@ -18,7 +18,7 @@ test('NPC preset keeps a style reference and eight distinct transparent full-bod
     [reference.id, atlas.id, 'image-variant'],
     [atlas.id, collection.id, 'image-assets'],
   ]);
-  expect(decode(reference.assetPath!).data[3]).toBe(0);
+  expect((await decode(reference.assetPath!)).data[3]).toBe(0);
   expect(atlas.referenceInput).toEqual({ includeSelf: false });
   expect(atlas.generation?.referenceImagePaths).toEqual([]);
   expect(atlas.generation?.sourceImageIds).toEqual([reference.id]);
@@ -38,13 +38,13 @@ test('NPC preset keeps a style reference and eight distinct transparent full-bod
   expect(info.grid).toEqual({ columns: 4, rows: 2, marginX: 0, marginY: 0, gapX: 0, gapY: 0 });
   expect(info.items).toHaveLength(8);
   expect(Object.keys(preset.assets)).toHaveLength(10);
-  const original = decode(atlas.assetPath!);
+  const original = await decode(atlas.assetPath!);
   expect([original.width, original.height]).toEqual([info.width, info.height]);
   const regions = imageAtlasRegions(info.width, info.height, info.grid);
   const hashes = new Set<string>();
   for (const [index, item] of info.items.entries()) {
-    hashes.add(createHash('sha256').update(preset.assets[item.assetPath].data).digest('hex'));
-    const png = decode(item.assetPath);
+    hashes.add(preset.assets[item.assetPath].resourceId);
+    const png = await decode(item.assetPath);
     const region = regions[index];
     expect([png.width, png.height]).toEqual([region.width, region.height]);
     expect([item.width, item.height]).toEqual([png.width, png.height]);

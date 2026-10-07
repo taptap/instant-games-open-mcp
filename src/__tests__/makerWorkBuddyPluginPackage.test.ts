@@ -60,6 +60,7 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
         homepage: pluginSourceUrl,
         repository: pluginSourceUrl,
         skills: [
+          './skills/maker-ui-workflow',
           './skills/taptap-maker-local',
           './skills/taptap-maker-dev-kit-guide',
           './skills/taptap-maker-plugin-lifecycle',
@@ -89,6 +90,23 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     }
   });
 
+  test('keeps the UI workflow executable and its references within the two-level limit', () => {
+    const skill = path.join(pluginRoot, 'skills/maker-ui-workflow');
+    const entry = fs.readFileSync(path.join(skill, 'SKILL.md'), 'utf8');
+    expect(entry).toContain('(workflow.md)');
+    expect(entry).not.toContain('scripts/assemble-ui.mjs');
+    expect(fs.readFileSync(path.join(skill, 'workflow.md'), 'utf8')).not.toContain(
+      'scripts/assemble-ui.mjs'
+    );
+    const run = spawnSync(process.execPath, [path.join(skill, 'assemble-ui.mjs')], {
+      cwd: tempDir,
+      encoding: 'utf8',
+    });
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain('Usage:');
+    expect(run.stderr).not.toContain('Cannot find');
+  });
+
   test('launches the bundled runtime through WorkBuddy-provided Node', () => {
     const mcpText = fs.readFileSync(path.join(pluginRoot, '.mcp.json'), 'utf8');
     const mcp = JSON.parse(mcpText);
@@ -107,6 +125,9 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
 
   test('contains the runtime, cross-platform CLI, skills, commands, icon, and docs', () => {
     const requiredPaths = [
+      'skills/maker-ui-workflow/SKILL.md',
+      'skills/maker-ui-workflow/assemble-ui.mjs',
+      'skills/maker-ui-workflow/workflow.md',
       'icon.png',
       'icon.svg',
       'dist/maker.js',

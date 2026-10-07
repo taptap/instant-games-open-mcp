@@ -138,6 +138,7 @@ describe('Maker MCP launcher', () => {
       fs.writeFileSync(bundlePath, '// maker bundle');
       fs.writeFileSync(path.join(packageRoot, 'package.json'), '{"type":"module"}');
       for (const skill of [
+        'maker-ui-workflow',
         'taptap-maker-local',
         'taptap-maker-dev-kit-guide',
         'update-taptap-mcp',
@@ -316,6 +317,7 @@ describe('Maker MCP launcher', () => {
       fs.writeFileSync(bundlePath, '// maker bundle');
       fs.writeFileSync(path.join(packageRoot, 'package.json'), '{"type":"module"}');
       for (const skill of [
+        'maker-ui-workflow',
         'taptap-maker-local',
         'taptap-maker-dev-kit-guide',
         'update-taptap-mcp',
@@ -371,7 +373,12 @@ function createSelfRuntimeFixture(prefix: string): {
   fs.mkdirSync(path.dirname(bundlePath), { recursive: true });
   fs.writeFileSync(bundlePath, '// maker bundle', 'utf8');
   fs.writeFileSync(path.join(packageRoot, 'package.json'), '{"type":"module"}');
-  for (const skill of ['taptap-maker-local', 'taptap-maker-dev-kit-guide', 'update-taptap-mcp']) {
+  for (const skill of [
+    'maker-ui-workflow',
+    'taptap-maker-local',
+    'taptap-maker-dev-kit-guide',
+    'update-taptap-mcp',
+  ]) {
     const skillDir = path.join(packageRoot, 'skills', skill);
     fs.mkdirSync(skillDir, { recursive: true });
     fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `# ${skill}`, 'utf8');

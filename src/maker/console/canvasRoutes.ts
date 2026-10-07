@@ -122,12 +122,27 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     const template = suffix.match(/^canvases\/templates\/([0-9a-f-]{36})$/i);
+    const previewImage = suffix.match(/^canvases\/templates\/([0-9a-f-]{36})\/preview-image$/i);
+    if (previewImage && method === 'GET') {
+      const result = await files.readTemplatePreviewImage(
+        previewImage[1],
+        Number(searchParams.get('revision')),
+        searchParams.get('node') || ''
+      );
+      response.writeHead(200, {
+        'Content-Type': result.type,
+        'Content-Length': result.bytes.length,
+        'X-Content-Type-Options': 'nosniff',
+      });
+      response.end(result.bytes);
+      return true;
+    }
     const templateModel = suffix.match(/^canvases\/templates\/([0-9a-f-]{36})\/model-preview$/i);
     if (templateModel && method === 'GET') {
       const current = files.getTemplate(templateModel[1]);
       if (current.revision !== Number(searchParams.get('revision')))
         throw new ConsoleError('模板已更新，请刷新列表。', 409);
-      const result = readBuiltinTemplateModel(templateModel[1], searchParams.get('file'));
+      const result = await readBuiltinTemplateModel(templateModel[1], searchParams.get('file'));
       response.writeHead(200, {
         'Content-Type': result.type,
         'Content-Length': result.bytes.length,
@@ -151,7 +166,7 @@ export async function handleCanvasProjectRoute(options: {
       const slot = Number(searchParams.get('slot') || 0);
       if (slot !== 0 && slot !== 1) throw new ConsoleError('预览位置无效。');
       if (method === 'GET') {
-        const result = files.readTemplateCover(cover[1], revision, slot);
+        const result = await files.readTemplateCover(cover[1], revision, slot);
         response.writeHead(200, {
           'Content-Type': result.type,
           'Content-Length': result.bytes.length,

@@ -11,12 +11,25 @@
 import * as esbuild from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { PNG } from 'pngjs';
+import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { checkDemoResources } from './maker-demo-resource-check.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, '..');
+
+function editorAssets(relative = '') {
+  const root = join(projectRoot, 'src/maker/uiEditor/web');
+  return Object.fromEntries(
+    readdirSync(join(root, relative), { withFileTypes: true }).flatMap((entry) => {
+      const name = relative + entry.name;
+      if (name.startsWith('examples/') && /\.(png|jpe?g|webp)$/i.test(name)) return [];
+      if (entry.isDirectory()) return Object.entries(editorAssets(name + '/'));
+      if (!entry.isFile()) throw new Error('Editor assets must be regular files: ' + name);
+      return [[name, readFileSync(join(root, name)).toString('base64')]];
+    })
+  );
+}
 
 console.log('🚀 Bundling TapTap Maker...');
 console.log('📁 Project root:', projectRoot);
@@ -32,95 +45,8 @@ if (!existsSync(distDir)) {
   mkdirSync(distDir, { recursive: true });
 }
 
-const optimizedPresetFiles = new Set([
-  resolve(projectRoot, 'src/maker/canvas/assetPresetData.json'),
-  resolve(projectRoot, 'src/maker/canvas/presetData.json'),
-  resolve(projectRoot, 'src/maker/canvas/modelPresetData.json'),
-  resolve(projectRoot, 'src/maker/canvas/templateModelData.json'),
-]);
-
-function maxPresetImageDimension(assetPath) {
-  if (assetPath.includes('merge-icons-item_')) return 120;
-  if (assetPath.includes('-item_')) return assetPath.includes('town-npc') ? 320 : 200;
-  if (assetPath.includes('character-concept-reference')) return 400;
-  if (assetPath.endsWith('.png')) return 500;
-  return undefined;
-}
-
-function resizeRgba(image, maxDimension) {
-  const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
-  if (scale === 1) return image;
-  const width = Math.max(1, Math.round(image.width * scale));
-  const height = Math.max(1, Math.round(image.height * scale));
-  const data = Buffer.alloc(width * height * 4);
-  for (let y = 0; y < height; y += 1) {
-    const sourceY = ((y + 0.5) * image.height) / height - 0.5;
-    const y0 = Math.max(0, Math.floor(sourceY));
-    const y1 = Math.min(image.height - 1, y0 + 1);
-    const yWeight = sourceY - y0;
-    for (let x = 0; x < width; x += 1) {
-      const sourceX = ((x + 0.5) * image.width) / width - 0.5;
-      const x0 = Math.max(0, Math.floor(sourceX));
-      const x1 = Math.min(image.width - 1, x0 + 1);
-      const xWeight = sourceX - x0;
-      const targetOffset = (y * width + x) * 4;
-      const topLeft = (y0 * image.width + x0) * 4;
-      const topRight = (y0 * image.width + x1) * 4;
-      const bottomLeft = (y1 * image.width + x0) * 4;
-      const bottomRight = (y1 * image.width + x1) * 4;
-      for (let channel = 0; channel < 4; channel += 1) {
-        const top =
-          image.data[topLeft + channel] * (1 - xWeight) + image.data[topRight + channel] * xWeight;
-        const bottom =
-          image.data[bottomLeft + channel] * (1 - xWeight) +
-          image.data[bottomRight + channel] * xWeight;
-        data[targetOffset + channel] = Math.round(top * (1 - yWeight) + bottom * yWeight);
-      }
-    }
-  }
-  return { width, height, data };
-}
-
-function optimizePngData(data, assetPath) {
-  const maxDimension = maxPresetImageDimension(assetPath);
-  if (!maxDimension) return data;
-  const source = PNG.sync.read(Buffer.from(data, 'base64'));
-  const image = resizeRgba(source, maxDimension);
-  const optimized = PNG.sync.write(image, { deflateLevel: 9, deflateStrategy: 3 });
-  return optimized.length < Buffer.byteLength(data, 'base64') ? optimized.toString('base64') : data;
-}
-
-function optimizePresetValue(value, assetPath = '') {
-  if (Array.isArray(value)) return value.map((item) => optimizePresetValue(item, assetPath));
-  if (!value || typeof value !== 'object') return value;
-  if (typeof value.data === 'string' && value.type === 'image/png') {
-    return { ...value, data: optimizePngData(value.data, assetPath) };
-  }
-  return Object.fromEntries(
-    Object.entries(value).map(([key, item]) => {
-      const childPath = key === 'data' ? assetPath : key.endsWith('.png') ? key : assetPath;
-      if (typeof item === 'string' && key.endsWith('.png')) {
-        return [key, optimizePngData(item, key)];
-      }
-      return [key, optimizePresetValue(item, childPath)];
-    })
-  );
-}
-
-function optimizePresetJsonPlugin() {
-  return {
-    name: 'optimize-maker-preset-assets',
-    setup(build) {
-      build.onLoad({ filter: /\.json$/ }, (args) => {
-        if (!optimizedPresetFiles.has(resolve(args.path))) return;
-        const value = JSON.parse(readFileSync(args.path, 'utf8'));
-        return { contents: JSON.stringify(optimizePresetValue(value)), loader: 'json' };
-      });
-    },
-  };
-}
-
 try {
+  checkDemoResources(projectRoot, { requireCdn: true });
   const preview = await esbuild.build({
     entryPoints: [join(projectRoot, 'src/maker/canvas/modelPreviewClient.ts')],
     bundle: true,
@@ -170,10 +96,11 @@ const __MAKER_BUNDLE_URL__ = import.meta.url;
 `,
     },
     define: {
+      __MAKER_DEMO_BUNDLED__: 'true',
+      __MAKER_UI_EDITOR_ASSETS__: JSON.stringify(editorAssets()),
       __MAKER_MODEL_PREVIEW_SCRIPT__: JSON.stringify(preview.outputFiles[0].text),
       __MAKER_VERSION__: `"${VERSION}"`,
     },
-    plugins: [optimizePresetJsonPlugin()],
     minify: false,
     sourcemap: false,
     treeShaking: true,

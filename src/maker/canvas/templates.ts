@@ -12,6 +12,12 @@ export interface CanvasWorkflowTemplate {
 }
 
 export interface CanvasTemplateStore {
+  getPreviewImage?(
+    id: string,
+    revision: number,
+    nodeId: string,
+    signal?: AbortSignal
+  ): Promise<Blob>;
   modelPreviewUrl?(id: string, revision: number): string;
   listTemplatePage(page: number, query: string): Promise<CanvasTemplatePage>;
   getTemplate(id: string): Promise<CanvasWorkflowTemplate>;

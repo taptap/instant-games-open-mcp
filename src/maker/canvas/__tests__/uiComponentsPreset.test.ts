@@ -1,30 +1,31 @@
+import { readDemoResource } from '../../demoResources.js';
 import { canvasPresets } from '../presets.js';
 import { imageAtlasRegions } from '../imageAtlasExport.js';
 
 const { PNG } = require('pngjs');
 
-test('UI preset preserves a complete screen and twelve independently usable alpha components', () => {
+test('UI preset preserves a complete screen and twelve independently usable alpha components', async () => {
   const preset = canvasPresets().find((item) => item.id.endsWith('000007'))!;
   const [reference, atlas, collection] = preset.nodes;
-  const decode = (assetPath: string) =>
-    PNG.sync.read(Buffer.from(preset.assets[assetPath].data, 'base64'));
+  const decode = async (assetPath: string) =>
+    PNG.sync.read(await readDemoResource(preset.assets[assetPath].resourceId));
   expect(preset.nodes.map((node) => node.type)).toEqual(['image', 'image', 'image-assets']);
   expect(preset.edges.map((edge) => [edge.from, edge.to, edge.kind])).toEqual([
     [reference.id, atlas.id, 'image-variant'],
     [atlas.id, collection.id, 'image-assets'],
   ]);
-  expect(decode(reference.assetPath!).data[3]).toBe(255);
+  expect((await decode(reference.assetPath!)).data[3]).toBe(255);
   expect(reference.generation?.prompt).toContain('完整游戏界面');
   expect(atlas.referenceInput).toEqual({ includeSelf: false });
   expect(atlas.generation?.referenceImagePaths).toEqual([]);
   const info = collection.imageAssetsInfo!;
   expect(info.grid).toEqual({ columns: 4, rows: 3, marginX: 0, marginY: 0, gapX: 0, gapY: 0 });
-  const original = decode(atlas.assetPath!);
+  const original = await decode(atlas.assetPath!);
   expect([original.width, original.height]).toEqual([2560, 1728]);
   const regions = imageAtlasRegions(info.width, info.height, info.grid);
   expect(info.items).toHaveLength(12);
   for (const [index, item] of info.items.entries()) {
-    const png = decode(item.assetPath);
+    const png = await decode(item.assetPath);
     const region = regions[index];
     expect([png.width, png.height]).toEqual([640, 576]);
     let transparent = 0;

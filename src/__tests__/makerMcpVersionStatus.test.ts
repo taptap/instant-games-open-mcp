@@ -410,7 +410,8 @@ describe('maker MCP version status integration', () => {
     expect(instructions).toContain('Do not report expected project or business errors');
     expect(instructions).toContain('image, video, music, sound-effect');
     expect(instructions).toContain('generate_resource_meta');
-    expect((instructions as string).length).toBeLessThanOrEqual(1300);
+    expect(instructions).toContain('maker-ui-workflow');
+    expect((instructions as string).length).toBeLessThanOrEqual(1600);
     expect(instructions).not.toMatch(
       /agents update|global memory|~\/.(?:codex|claude|workbuddy)/iu
     );

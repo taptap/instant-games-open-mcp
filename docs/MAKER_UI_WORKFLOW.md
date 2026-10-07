@@ -1,5 +1,10 @@
 # Maker UI 设计稿到游戏素材工作流
 
+正式入口为随 Maker 分发的 [maker-ui-workflow](../skills/maker-ui-workflow/SKILL.md)。
+对话中提出设计稿还原、拆 UI、提取按钮/图标/背景、切图拼装或设计稿对照时，由 Maker 能力索引路由到该 Skill，
+按用户需要的阶段进入，不新增 MCP tool。组装后在控制台「UI 编辑器」中继续编辑和保存。
+旧「UI组件提取 · 设计稿→组件图集→游戏资产」已从模板列表移除，既有画布和历史素材不删除。
+
 ## 当前流程：保留位置、冗余切图、两次对位
 
 识别阶段先记录原设计稿中的元素身份和位置，再开始生图式切图。红框图只是可视化，
@@ -30,8 +35,8 @@
 
 ### 布局文件与组装工具
 
-仓库本地工具 scripts/assemble-maker-ui.mjs 不调用付费模型、不写 meta、不修改已打开画布。
-在仓库安装依赖后运行；目前为本地 Agent 工具，尚未接入发布版 Canvas CLI。
+Skill 工具 skills/maker-ui-workflow/scripts/assemble-ui.mjs 不调用付费模型、不写 meta、不修改已打开画布。
+发布时打包依赖，随 npm 与客户端插件提供；原 scripts/assemble-maker-ui.mjs 保留兼容入口。
 布局文件放项目开发资源目录，UI 和正式 PNG 放 assets。命令输出目录必须不存在，避免覆盖手工编辑。
 
     node scripts/assemble-maker-ui.mjs <项目根目录> <layout.json> <新输出目录> [corrections.json]

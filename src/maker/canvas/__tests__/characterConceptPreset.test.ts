@@ -1,3 +1,4 @@
+import { readDemoResource } from '../../demoResources.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -10,7 +11,7 @@ import { invalidateCanvasDependents } from '../templateWorkflow.js';
 const { PNG } = require('pngjs');
 const presetId = '7e1cb6ad-732f-4dc3-a951-000000000011';
 
-test('character concept uses a real transparent reference and one complete presentation sheet', () => {
+test('character concept uses a real transparent reference and one complete presentation sheet', async () => {
   const preset = canvasPresets().find((item) => item.id === presetId)!;
   const [reference, sheet] = preset.nodes;
   expect(preset.nodes.map((node) => node.type)).toEqual(['image', 'image']);
@@ -44,7 +45,9 @@ test('character concept uses a real transparent reference and one complete prese
     '游戏素材约束：',
   ])
     expect(sheet.generation?.prompt).toContain(term);
-  const source = PNG.sync.read(Buffer.from(preset.assets[reference.assetPath!].data, 'base64'));
+  const source = PNG.sync.read(
+    await readDemoResource(preset.assets[reference.assetPath!].resourceId)
+  );
   expect(source.height).toBeGreaterThan(source.width);
   let transparent = 0;
   let opaque = 0;
@@ -58,7 +61,7 @@ test('character concept uses a real transparent reference and one complete prese
     }
   expect(transparent).toBeGreaterThan(source.width * source.height * 0.2);
   expect(opaque).toBeGreaterThan(10000);
-  const result = PNG.sync.read(Buffer.from(preset.assets[sheet.assetPath!].data, 'base64'));
+  const result = PNG.sync.read(await readDemoResource(preset.assets[sheet.assetPath!].resourceId));
   expect([result.width, result.height]).toEqual([2048, 1152]);
   expect(
     result.data.every((value: number, offset: number) => offset % 4 !== 3 || value === 255)

@@ -42,7 +42,7 @@ export function templatePresentation(id: string) {
     ],
     12: [
       { index: 0, label: '角色界面设计稿' },
-      { index: 6, label: '背包界面设计稿' },
+      { index: 9, label: '背包界面设计稿' },
     ],
   };
   return { category, previews: previews[number], modelPreview: number === 4 };

@@ -1,0 +1,35 @@
+{
+  "name": "新手示例 · 关卡按钮",
+  "ui": [
+    {
+      "path": "examples/meowdoku/ui/level_tile.ui.json",
+      "name": "level_tile.ui.json",
+      "dir": "examples/meowdoku/ui",
+      "kind": "ui",
+      "assetRoot": "examples/meowdoku/"
+    }
+  ],
+  "assets": [
+    {
+      "path": "examples/meowdoku/image/level_select_slices/attempt_soft_alpha_v3/11_difficulty_star_icon.png",
+      "name": "11_difficulty_star_icon.png",
+      "dir": "examples/meowdoku/image/level_select_slices/attempt_soft_alpha_v3",
+      "kind": "image",
+      "ref": "image/level_select_slices/attempt_soft_alpha_v3/11_difficulty_star_icon.png"
+    },
+    {
+      "path": "examples/meowdoku/image/level_select_slices/attempt_soft_alpha_v3/5_level_tile_red.png",
+      "name": "5_level_tile_red.png",
+      "dir": "examples/meowdoku/image/level_select_slices/attempt_soft_alpha_v3",
+      "kind": "image",
+      "ref": "image/level_select_slices/attempt_soft_alpha_v3/5_level_tile_red.png"
+    },
+    {
+      "path": "examples/meowdoku/image/level_select_slices/attempt_soft_alpha_v3/9_lock_icon.png",
+      "name": "9_lock_icon.png",
+      "dir": "examples/meowdoku/image/level_select_slices/attempt_soft_alpha_v3",
+      "kind": "image",
+      "ref": "image/level_select_slices/attempt_soft_alpha_v3/9_lock_icon.png"
+    }
+  ]
+}

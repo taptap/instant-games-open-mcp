@@ -1,0 +1,92 @@
+{
+  "type": "Panel",
+  "id": "level_tile",
+  "width": 154,
+  "height": 180,
+  "backgroundColor": false,
+  "pointerEvents": "box-none",
+  "children": [
+    {
+      "type": "Button",
+      "id": "level_tile_btn",
+      "position": "absolute",
+      "left": 0,
+      "top": 0,
+      "width": 154,
+      "height": 138,
+      "backgroundImage": "image/level_select_slices/attempt_soft_alpha_v3/5_level_tile_red.png",
+      "backgroundFit": "contain",
+      "backgroundColor": false,
+      "borderWidth": 0
+    },
+    {
+      "type": "Label",
+      "id": "level_tile_number",
+      "position": "absolute",
+      "left": 0,
+      "top": 28,
+      "width": 154,
+      "height": 54,
+      "text": "1",
+      "fontSize": 42,
+      "fontWeight": "bold",
+      "fontColor": "#FFFFFF",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "pointerEvents": "none"
+    },
+    {
+      "type": "Panel",
+      "id": "level_tile_lock",
+      "position": "absolute",
+      "left": 54,
+      "top": 35,
+      "width": 46,
+      "height": 60,
+      "backgroundImage": "image/level_select_slices/attempt_soft_alpha_v3/9_lock_icon.png",
+      "backgroundFit": "contain",
+      "backgroundColor": false,
+      "visible": false,
+      "pointerEvents": "none"
+    },
+    {
+      "type": "Panel",
+      "id": "level_tile_star_1",
+      "position": "absolute",
+      "left": 32,
+      "top": 96,
+      "width": 30,
+      "height": 30,
+      "backgroundImage": "image/level_select_slices/attempt_soft_alpha_v3/11_difficulty_star_icon.png",
+      "backgroundFit": "contain",
+      "backgroundColor": false,
+      "pointerEvents": "none"
+    },
+    {
+      "type": "Panel",
+      "id": "level_tile_star_2",
+      "position": "absolute",
+      "left": 62,
+      "top": 96,
+      "width": 30,
+      "height": 30,
+      "backgroundImage": "image/level_select_slices/attempt_soft_alpha_v3/11_difficulty_star_icon.png",
+      "backgroundFit": "contain",
+      "backgroundColor": false,
+      "pointerEvents": "none"
+    },
+    {
+      "type": "Panel",
+      "id": "level_tile_star_3",
+      "position": "absolute",
+      "left": 92,
+      "top": 96,
+      "width": 30,
+      "height": 30,
+      "backgroundImage": "image/level_select_slices/attempt_soft_alpha_v3/11_difficulty_star_icon.png",
+      "backgroundFit": "contain",
+      "backgroundColor": false,
+      "pointerEvents": "none"
+    }
+  ]
+}

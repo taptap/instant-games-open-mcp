@@ -22,6 +22,7 @@ import { ConsoleDocuments } from './documents.js';
 import { chooseProjectDirectory } from './folderPicker.js';
 import { discoverConsoleProjects } from './projectDiscovery.js';
 import { handleCanvasProjectRoute } from './canvasRoutes.js';
+import { handleUiEditorRoute, serveUiEditor } from './uiEditorRoutes.js';
 import { CanvasAutomationBridge } from '../canvas/automationBridge.js';
 import { getCanvasPageHtml } from '../canvas/page.js';
 import { writePrivateJson } from '../system/privateJson.js';
@@ -136,15 +137,18 @@ export async function startConsoleServer(options: {
   const sockets = new Set<Socket>();
   const readers = new Set<Promise<unknown>>();
   const readAbort = new AbortController();
-  async function read<T>(operation: () => Promise<T>): Promise<T> {
-    if (readers.size >= 4)
+  let activeQueries = 0;
+  async function read<T>(operation: () => Promise<T>, projectQuery = true): Promise<T> {
+    if (projectQuery && activeQueries >= 4)
       throw new ConsoleError('Too many active project queries. Try again shortly.', 429);
+    if (projectQuery) activeQueries++;
     const pending = Promise.resolve().then(operation);
     readers.add(pending);
     try {
       return await pending;
     } finally {
       readers.delete(pending);
+      if (projectQuery) activeQueries--;
     }
   }
   // Hash trusted, generated inline scripts; this is not an HTML sanitizer.
@@ -194,6 +198,10 @@ export async function startConsoleServer(options: {
         throw new ConsoleError('Foreign host or origin rejected.', 403);
       }
       const url = new URL(request.url || '/', origin);
+      if (request.method === 'GET' && url.pathname.startsWith('/ui-editor/')) {
+        await read(() => serveUiEditor(url, response), false);
+        return;
+      }
       if (request.method === 'GET' && url.pathname === '/favicon.ico') {
         response.writeHead(204);
         response.end();
@@ -393,6 +401,20 @@ export async function startConsoleServer(options: {
       const project = url.pathname.match(/^\/api\/projects\/([a-f0-9]{64})(?:\/(.*))?$/);
       if (!project) throw new ConsoleError('Not found.', 404);
       const [, key, suffix] = project;
+      if (suffix?.startsWith('ui-editor/')) {
+        const release = request.method === 'POST' ? tasks.occupy(key) : undefined;
+        try {
+          // Image loads are static reads, not expensive project queries; still await them on close.
+          await read(
+            () => handleUiEditorRoute(request, response, options.registry, key, suffix),
+            !suffix.startsWith('ui-editor/files/')
+          );
+          touch();
+        } finally {
+          release?.();
+        }
+        return;
+      }
       const plugin = suffix?.match(/^plugins\/([a-z][a-z0-9-]{0,47})\/open$/);
       const validation = suffix?.match(
         /^validation(?:\/([^/]+)(?:\/(logs|prepare|screenshot\.png))?)?$/

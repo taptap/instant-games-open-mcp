@@ -482,6 +482,12 @@ jobs:
       - name: Check code formatting
         run: npm run format:check
 
+      - name: Verify demo resources before release
+        run: |
+          node scripts/maker-demo-resources.mjs check --release
+          node scripts/maker-demo-resources.mjs verify cdn
+          node scripts/maker-demo-resources.mjs verify github
+
       - name: Build project
         run: npm run build
 

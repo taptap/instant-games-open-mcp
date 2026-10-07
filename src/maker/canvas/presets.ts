@@ -6,7 +6,7 @@ import { createAssetPresets } from './assetPresets.js';
 import { createUiWorkflowPreset } from './uiWorkflowPresets.js';
 
 export interface CanvasPreset extends CanvasWorkflowTemplate {
-  assets: Record<string, { type: string; data: string }>;
+  assets: Record<string, { type: string; resourceId: string }>;
 }
 
 export function canvasPresets(): CanvasPreset[] {
@@ -116,8 +116,10 @@ export function canvasPresets(): CanvasPreset[] {
 }
 
 export function builtinCanvasTemplates(): CanvasWorkflowTemplate[] {
-  return canvasPresets().map(({ assets: _assets, ...template }) => ({
-    ...template,
-    builtin: true,
-  }));
+  return canvasPresets()
+    .filter((template) => template.id !== '7e1cb6ad-732f-4dc3-a951-000000000007')
+    .map(({ assets: _assets, ...template }) => ({
+      ...template,
+      builtin: true,
+    }));
 }

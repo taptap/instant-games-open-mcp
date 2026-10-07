@@ -1177,6 +1177,10 @@ function clearGitPullState() {
   if (dialog?.open) dialog.close();
 }
 function chooseProject(key, updateUrl = true) {
+  if (key !== selected && !leaveUiEditor()) {
+    $('project-picker').value = selected;
+    return;
+  }
   const project = state.projects.find(p => p.key === key);
   selected = key;
   if (!project?.valid && page !== 'projects' && page !== 'documents') page = 'projects';
@@ -2617,6 +2621,47 @@ async function loadCommit(hash) {
   }
 }
 const canvasFrames = new Map();
+let uiEditorFrame;
+let uiEditorProject = '';
+let initialUiProject = '';
+function uiEditorState() {
+  try { return uiEditorFrame?.contentWindow?.UrhoxProject; }
+  catch { return null; }
+}
+function leaveUiEditor() {
+  const editor = uiEditorState();
+  if (editor?.isBusy?.()) {
+    notify('UI 编辑器正在打开或保存文档，请稍后切换项目。', 'warning');
+    return false;
+  }
+  if (editor?.isDirty?.() && !window.confirm('UI 有未保存修改。切换项目会丢弃这些修改，确定继续？')) return false;
+  uiEditorFrame?.remove();
+  uiEditorFrame = undefined;
+  uiEditorProject = '';
+  return true;
+}
+function renderUiEditor() {
+  const host = $('ui-editor-view');
+  if (!currentProject()?.valid) return;
+  if (uiEditorFrame && uiEditorProject !== selected && !leaveUiEditor()) return;
+  if (!uiEditorFrame) {
+    uiEditorFrame = node('iframe', undefined, 'canvas-frame');
+    uiEditorFrame.title = 'UI 编辑器';
+    uiEditorFrame.referrerPolicy = 'origin';
+    const query = new URLSearchParams({project:selected});
+    const requested = initialQuery.get('ui');
+    if (requested && selected === initialUiProject) query.set('ui', requested);
+    uiEditorFrame.src = '/ui-editor/?' + query.toString();
+    uiEditorProject = selected;
+    host.replaceChildren(uiEditorFrame);
+  }
+}
+function protectUiEditorUnload(event) {
+  const editor = uiEditorState();
+  if (editor?.isDirty?.() || editor?.isBusy?.()) {
+    event.preventDefault(); event.returnValue = '';
+  }
+}
 const closedCanvasFrames = new Set();
 const CANVAS_FRAME_LIMIT = 8;
 function canvasUnsaved(frame) {
@@ -2673,7 +2718,7 @@ function renderCanvas() {
   let frame = canvasFrames.get(key);
   if (!frame) {
     frame = node('iframe', undefined, 'canvas-frame');
-    frame.title = '序列帧动画';
+    frame.title = '自由画布';
     frame.referrerPolicy = 'origin';
     frame.src = '/canvas?project=' + encodeURIComponent(key);
     canvasFrames.set(key, frame);
@@ -2691,17 +2736,19 @@ function navigate(next) {
   if (next === 'build') void refreshPreview();
 }
 function render() {
-  document.body.classList.toggle('canvas-mode', page === 'canvas');
+  document.body.classList.toggle('canvas-mode', page === 'canvas' || page === 'ui-editor');
   $('close-canvas').hidden = true;
   syncValidationPolling();
   updateChrome();
   $('view').setAttribute('aria-busy','false');
   const plugin = currentProject()?.valid && pluginDescriptors().find(item => page === 'plugin:' + item.id);
-  $('view').hidden = Boolean(plugin) || page === 'canvas';
+  $('view').hidden = Boolean(plugin) || page === 'canvas' || page === 'ui-editor';
   $('plugin-views').hidden = !plugin;
   $('canvas-views').hidden = page !== 'canvas';
+  $('ui-editor-view').hidden = page !== 'ui-editor';
   pluginSessions.forEach(session => { session.element.hidden = true; });
   if (page === 'canvas') { renderCanvas(); return; }
+  if (page === 'ui-editor') { renderUiEditor(); return; }
   if (plugin) { renderPlugin(plugin); return; }
   if (page === 'documents') { void renderDocuments(); return; }
   if (page === 'projects' || !currentProject()?.valid) renderProjects();
@@ -2760,6 +2807,10 @@ async function pollState() {
       page = 'projects';
     }
   }
+  if (first && currentProject()?.valid && initialQuery.get('page') === 'ui-editor') {
+    page = 'ui-editor';
+    initialUiProject = selected;
+  }
   const settled = [];
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
@@ -2782,7 +2833,7 @@ async function pollState() {
   let projectChanged = false;
   if (first && projectNotice === '') projectNotice = currentProjectNotice();
   else projectChanged = publishProjectChange();
-  if (projectChanged) render();
+  if (projectChanged || (first && page === 'ui-editor')) render();
   else {
     updateChrome();
     if (page === 'projects' && (first || priorProjects !== JSON.stringify(state.projects))) renderProjects();
@@ -2843,6 +2894,7 @@ onProjectChange(() => {
   documentDirectoryRequest++;
 });
 document.addEventListener('DOMContentLoaded',async () => {
+  window.addEventListener('beforeunload', protectUiEditorUnload);
   $('git-pull-conflict-copy')?.addEventListener('click',() => void copyGitPrompt($('git-pull-conflict-prompt').value));
   let makerMarkClicks = 0;
   let makerMarkTimer;

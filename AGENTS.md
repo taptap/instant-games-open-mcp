@@ -382,6 +382,31 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- 模板库只读流程预览位于 canvas/templatePreview.ts，复用 wirePath 几何；仅通过 Store 读取模板与
+  绑定模板版本/节点 ID 的图片，不调用 prepareTemplate、不保存画布、不触发生成。关闭释放请求和媒体。
+
+- 示例资源索引为 src/maker/demoResources.json，demoResources.ts 统一按需下载、校验和缓存。
+  官方模板图片（含缩略图）入库须运行 npm run maker:resources:prepare，之后上传并登记 CDN。
+  maker-demo-resource-check.mjs 统一上传/构建检查；bundle 和独立包准备阶段强制检查压缩记录、
+  哈希、引用和 CDN，发布 Actions 校验 CDN/GitHub 双源。不得在打包时自动压缩或上传。
+  模板和编辑器复用此模块；图片/视频放 resources/maker-demo，排除 npm，不能再内嵌 base64。
+  GitHub 备用地址使用 main 加内容哈希文件名；已发布的资源文件不可覆盖或删除。
+  scripts/maker-demo-resources.mjs 负责资源添加、压缩检查和上传地址登记；maker-demo-upload.mjs
+  复用公司上传 API，默认 4 并发，只上传未登记资源。成功回执先落盘再校验登记，结果未知不自动重提。
+  不保存凭据、不在打包时上传。PNG/JPEG 必须经无损压缩和像素校验，详见 docs/MAKER_DEMO_RESOURCES.md。
+
+- UI 工作流入口统一为 skills/maker-ui-workflow，由 capabilityRouting.ts 路由，随 npm、客户端插件和
+  self runtime 分发；不新增 MCP tool。组装脚本以 Skill 内版本为唯一实现，scripts/assemble-maker-ui.mjs
+  仅保留旧入口。打包 Skill 时内嵌 pngjs，发布物不依赖开发仓库的 node_modules。
+  WorkBuddy 产物将脚本和参考文档放在 Skill 根目录并重写相对链接，遵守插件两层目录限制。
+- UI 编辑器源码在 src/maker/uiEditor/web 内维护，由 bundle-maker.js 内嵌到 Maker bundle。
+  控制台独立页签直接绑定所选项目，不启动独立服务、访问个人仓库或再次选择目录。
+  console/uiEditorRoutes.ts 与 uiEditor/projectFiles.ts 限定项目文件读写；保存必须携带原文核对、
+  拒绝路径越界/符号链接、互斥和原子写入。切页保留草稿，切项目和离开保护未保存修改。
+  保存直接写入当前文档，变更预览按需打开；刷新只更新索引，禁止重置草稿、撤销历史或保存基线。
+  文档右键重新加载复用未保存确认；编辑器不再保留目录授权、下载保存或独立项目切换分支。
+  Demo 仅练习且不写项目；新资源 meta 仍由工作流显式调用。修改后运行 UI 编辑器接口及浏览器回归。
+
 - 画布连线的几何与交互位于 canvas/wirePath.ts / wireUi.ts。同源出线共用分叉高度，
   edge.route 仅保存可选相对偏移，复用原保存、撤销与任务保护，不修改引用关系。
   调整连线后验证拖动、缩放、刷新持久化及恢复自动走线。
@@ -540,7 +565,7 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   videoHistoryUi.ts 经 Store 分页查本地历史，只查询原任务；恢复前验证当前画布、目标和来源快照，
   不自动推进后续。videoPrompts.ts 集中内置 Skill 提示词，编辑与提交一致，不追加隐藏视频约束。
   imageEditing.ts 复用本地编辑器，localImageResult.ts 接入图片结果；不冒充 AI 分割或蒙版重绘。
-  添加模板库内置普通序列帧、角色四方向和首尾帧变身预设，素材在 presets.ts/presetData.json 随包提供；列表不传字节，显式添加时通过既有受控导入后复用模板实例化。保留四方向分支、首尾帧双来源与显式 mode，不依赖用户项目已有示例，不自动生成。内置模板只读，修改实例可另存用户模板。
+  添加模板库内置普通序列帧、角色四方向和首尾帧变身预设，素材由 presets.ts/presetData.json 引用资源索引并按需下载；列表不传字节，显式添加时通过既有受控导入后复用模板实例化。保留四方向分支、首尾帧双来源与显式 mode，不依赖用户项目已有示例，不自动生成。内置模板只读，修改实例可另存用户模板。
   添加模板使用全屏库，templatePresentation.ts 配置用途分类与真实单/双预览，不能用其它模板素材兜底。封面沿用受控路由，slot 限定0/1，v3缓存按位置与版本隔离，不复用旧占位封面；修改素材或预览选择必须递增模板revision。保存/重命名等小弹窗不随模板库全屏化。
   模板动画悬停整卡或聚焦内部控件播放。模型模板列表复用 modelPreviewClient 只读渲染随包示例，
   templateModelPreview 仅开放固定模板/版本与内置资源白名单，不读取任意项目路径、不携带任务身份；

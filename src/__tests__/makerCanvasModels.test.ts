@@ -165,7 +165,9 @@ test('rejects missing character, wrong revision and direct model run before disp
   await expect(
     service.execute(document.id, { action: 'start', nodeId: modelId, revision: document.revision })
   ).rejects.toThrow('先生成多视图');
-  delete document.nodes.find((node) => node.id === characterId)!.assetPath;
+  const character = document.nodes.find((node) => node.id === characterId)!;
+  delete character.assetPath;
+  delete character.generation;
   await save();
   await expect(start()).rejects.toThrow('角色图片');
   expect(invoke).not.toHaveBeenCalled();

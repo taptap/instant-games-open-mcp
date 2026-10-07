@@ -28,6 +28,7 @@
     "maker:dsh-plugin:package": "node scripts/package-maker-dsh-plugin.js",
     "maker:proxy-schema:check": "tsx scripts/sync-maker-proxy-tool-snapshot.ts",
     "maker:proxy-schema:update": "tsx scripts/sync-maker-proxy-tool-snapshot.ts --write",
+    "maker:resources:prepare": "node scripts/maker-demo-resources.mjs optimize && node scripts/maker-demo-resources.mjs check",
     "docker:npm": "cd docker/npm && docker-compose -p taptap-mcp up -d",
     "test": "jest",
     "test:maker:canvas-ui": "node scripts/test-maker-canvas-ui.mjs",

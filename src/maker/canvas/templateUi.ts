@@ -2,6 +2,7 @@ import type { CanvasDocument, CanvasNode } from './model.js';
 import { builtinPresetDescriptions } from './presetDescriptions.js';
 import { isBuiltinCanvasTemplate } from './templates.js';
 import { createTemplateCovers } from './templateCovers.js';
+import { openCanvasTemplatePreview } from './templatePreview.js';
 import { templateCategories, templatePresentation } from './templatePresentation.js';
 import type {
   CanvasTemplateStore,
@@ -53,6 +54,8 @@ export function createCanvasTemplateUi(options: {
       if (busy) return;
       busy = true;
       element.disabled = true;
+      const originalLabel = element.textContent;
+      if (label === '＋ 添加') element.textContent = '正在下载并添加…';
       void Promise.resolve()
         .then(action)
         .catch((error) => {
@@ -64,6 +67,7 @@ export function createCanvasTemplateUi(options: {
         .finally(() => {
           busy = false;
           element.disabled = false;
+          element.textContent = originalLabel;
         });
     };
     return element;
@@ -326,7 +330,11 @@ export function createCanvasTemplateUi(options: {
       );
       addButton.setAttribute('aria-label', '添加');
       addButton.className = 'template-add';
-      actions.append(count, addButton);
+      const previewButton = button('预览', () => {
+        openCanvasTemplatePreview(store!, summary.id, summary.name);
+      });
+      previewButton.className = 'template-preview';
+      actions.append(count, previewButton, addButton);
       if (!summary.builtin) {
         const more = document.createElement('details');
         more.className = 'template-more';

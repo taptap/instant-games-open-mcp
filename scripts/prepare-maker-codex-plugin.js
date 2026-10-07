@@ -16,6 +16,7 @@ import {
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bundleMakerUiSkill } from './bundle-maker-ui-skill.js';
 import { format } from 'prettier';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,6 +27,7 @@ const PLUGIN_SOURCE_URL =
   'https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker';
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const REQUIRED_SKILLS = [
+  'maker-ui-workflow',
   'taptap-maker-local',
   'taptap-maker-dev-kit-guide',
   'taptap-maker-plugin-lifecycle',
@@ -344,6 +346,8 @@ async function main() {
       `${skill} skill`
     );
   }
+  bundleMakerUiSkill(projectRoot, join(pluginRoot, 'skills/maker-ui-workflow'));
+
   for (const skill of CODEX_PLUGIN_SKILLS) {
     copyRequiredDirectory(
       join(CODEX_PLUGIN_SKILLS_ROOT, skill),

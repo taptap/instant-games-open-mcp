@@ -222,6 +222,20 @@ export function createBrowserCanvasDocumentStore(
         signal,
       }),
     templates: {
+      getPreviewImage: async (id, revision, nodeId, signal) => {
+        const response = await fetcher(
+          base +
+            '/canvases/templates/' +
+            id +
+            '/preview-image?revision=' +
+            revision +
+            '&node=' +
+            encodeURIComponent(nodeId),
+          { signal }
+        );
+        if (!response.ok) throw new Error('预览图片加载失败');
+        return response.blob();
+      },
       modelPreviewUrl: (id, revision) =>
         '/canvas-model-preview?project=' +
         encodeURIComponent(projectKey) +

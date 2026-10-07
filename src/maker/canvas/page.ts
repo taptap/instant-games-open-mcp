@@ -3,6 +3,7 @@ import { canvasWireGeometry, canvasWirePath } from './wirePath.js';
 import { createCanvasWireUi, CANVAS_WIRE_STYLES } from './wireUi.js';
 import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from './templates.js';
 import { createCanvasTemplateUi } from './templateUi.js';
+import { openCanvasTemplatePreview } from './templatePreview.js';
 import { builtinPresetDescriptions } from './presetDescriptions.js';
 import { templateCategories, templatePresentation } from './templatePresentation.js';
 import {
@@ -198,6 +199,7 @@ export function getCanvasPageHtml(): string {
     templatePresentation.toString(),
     isBuiltinCanvasTemplate.toString(),
     createCanvasTemplateUi.toString(),
+    openCanvasTemplatePreview.toString(),
     createTemplateCovers.toString(),
     'const DEFAULT_SEQUENCE_FPS = ' + DEFAULT_SEQUENCE_FPS + ';',
     'const DEFAULT_SEQUENCE_DURATION = ' + DEFAULT_SEQUENCE_DURATION + ';',

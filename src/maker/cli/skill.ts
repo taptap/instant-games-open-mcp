@@ -18,6 +18,7 @@ export const UPDATE_TAPTAP_MCP_SKILL_NAME = 'update-taptap-mcp';
 export const MAKER_PLUGIN_LIFECYCLE_SKILL_NAME = 'taptap-maker-plugin-lifecycle';
 
 const BUNDLED_SKILLS = [
+  { name: 'maker-ui-workflow' },
   {
     name: MAKER_LOCAL_SKILL_NAME,
   },

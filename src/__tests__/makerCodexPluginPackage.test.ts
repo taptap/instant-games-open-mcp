@@ -154,6 +154,9 @@ describe('TapTap Maker Codex plugin package', () => {
 
   test('contains the runtime, CLI, skills, and troubleshooting documentation', () => {
     const requiredPaths = [
+      'skills/maker-ui-workflow/SKILL.md',
+      'skills/maker-ui-workflow/scripts/assemble-ui.mjs',
+      'skills/maker-ui-workflow/references/workflow.md',
       'dist/maker.js',
       'bin/taptap-maker',
       'skills/taptap-maker-local/SKILL.md',

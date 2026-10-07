@@ -200,3 +200,7 @@ native/node_modules/
 docs/superpowers
 .workbuddy
 /test-reports/maker-canvas-ui/
+
+# Bundled UI editor layout runtime (licensed third-party assets)
+!src/maker/uiEditor/web/vendor/yoga-layout/dist/
+!src/maker/uiEditor/web/vendor/yoga-layout/dist/**

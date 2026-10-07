@@ -1,3 +1,4 @@
+import { readDemoResource } from '../../demoResources.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,26 +15,26 @@ import { canvasPresets } from '../presets.js';
 import { imageAtlasRegions } from '../imageAtlasExport.js';
 import { canvasNeedsProcessing } from '../templateWorkflow.js';
 
-test('built-in merge example contains fifteen real alpha assets matching its five-stage settings', () => {
+test('built-in merge example contains fifteen real alpha assets matching its five-stage settings', async () => {
   const { PNG } = require('pngjs');
   const preset = canvasPresets().find((entry) => entry.id.endsWith('000009'))!;
   const [reference, atlas, assets] = preset.nodes;
-  const decode = (assetPath: string) =>
-    PNG.sync.read(Buffer.from(preset.assets[assetPath].data, 'base64'));
+  const decode = async (assetPath: string) =>
+    PNG.sync.read(await readDemoResource(preset.assets[assetPath].resourceId));
   expect(preset.nodes.map((node) => node.type)).toEqual(['image', 'image', 'image-assets']);
   expect(preset.edges).toHaveLength(2);
   expect(atlas.generation?.prompt).toBe(mergeIconPrompt(atlas.mergeIcons!));
   expect(atlas.generationDraft).toBeUndefined();
   expect(atlas.generation?.attemptId).toBeUndefined();
-  expect(decode(reference.assetPath!).data[3]).toBe(0);
+  expect((await decode(reference.assetPath!)).data[3]).toBe(0);
   const info = assets.imageAssetsInfo!;
   expect(info.grid).toEqual(mergeIconGrid(atlas.mergeIcons!));
   expect(info.items).toHaveLength(15);
   expect(Object.keys(preset.assets)).toHaveLength(17);
-  const original = decode(atlas.assetPath!);
+  const original = await decode(atlas.assetPath!);
   const regions = imageAtlasRegions(info.width, info.height, info.grid);
   for (const [index, item] of info.items.entries()) {
-    const image = decode(item.assetPath);
+    const image = await decode(item.assetPath);
     const region = regions[index];
     expect([image.width, image.height]).toEqual([region.width, region.height]);
     let opaque = 0,
@@ -71,7 +72,7 @@ const settings = {
   series: [{ name: '面包', stages: ['一只', '两只', '一篮', '礼篮', '豪华礼篮'] }],
 };
 
-test('builds ordered stage prompts, retains hidden descriptions, and matches the split grid', () => {
+test('builds ordered stage prompts, retains hidden descriptions, and matches the split grid', async () => {
   const prompt = mergeIconPrompt(settings);
   expect(prompt).toContain('严格5列×1行，共5个图标');
   expect(prompt).toContain('Lv.5：豪华礼篮');
@@ -104,7 +105,7 @@ test.each([
   expect(() => validateMergeIcons(value)).toThrow();
 });
 
-test('configuration preserves old pixels and generation evidence until explicit regeneration', () => {
+test('configuration preserves old pixels and generation evidence until explicit regeneration', async () => {
   const doc = emptyDocument();
   const node = {
     id: createId(),

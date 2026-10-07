@@ -22,6 +22,8 @@ function formatMakerCapabilityRoutingIndex(options: { includeFeedback: boolean }
       : '',
     options.includeFeedback ? '  exposed by the current Maker tool list.' : '',
     '- Assets: image, video, music, sound-effect, voice, 3D tools when exposed.',
+    '- 游戏UI/设计稿还原/拆UI/按钮图标背景切图/拼装UI.json/设计稿对照: read maker-ui-workflow (path in status).',
+    '  Start at requested stage; existing UI edits do not restart generation.',
     '- Resource .meta/UUID: generate_resource_meta; call when needed, never invent UUIDs.',
     '- MCP/proxy infrastructure failure: diagnose, ask once for user consent, then use the',
     "  active client's exact Maker command/args with `mcp report`; never use an unversioned npm package. Do not report expected project or business errors.",
