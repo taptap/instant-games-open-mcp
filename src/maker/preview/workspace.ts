@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { getGitCommand } from '../system/git.js';
+import { sameProjectPathSpelling } from '../system/projectPath.js';
 
 const NAME = '.maker-preview';
 const OWNER = 'owner.json';
@@ -36,14 +37,18 @@ export function ownedPreviewWorkspace(project: string): string | undefined {
   const root = previewWorkspace(project);
   const stat = fs.lstatSync(root, { throwIfNoEntry: false });
   if (!stat) return undefined;
-  if (!stat.isDirectory() || stat.isSymbolicLink() || fs.realpathSync(root) !== root)
+  if (!stat.isDirectory() || stat.isSymbolicLink() || fs.realpathSync.native(root) !== root)
     throw new Error('预览缓存目录异常，拒绝访问：' + root);
   const marker = path.join(root, OWNER);
   const ownerStat = fs.lstatSync(marker);
   if (!ownerStat.isFile() || ownerStat.isSymbolicLink() || ownerStat.size > 4096)
     throw new Error('预览缓存归属记录异常：' + root);
   const owner = JSON.parse(fs.readFileSync(marker, 'utf8'));
-  if (owner.schema !== 1 || owner.project !== project)
+  if (
+    owner.schema !== 1 ||
+    typeof owner.project !== 'string' ||
+    !sameProjectPathSpelling(owner.project, project)
+  )
     throw new Error('预览缓存归属不匹配，未覆盖或删除：' + root);
   return root;
 }

@@ -111,6 +111,11 @@ async function cacheInventory(project: string, signal?: AbortSignal) {
       path.normalize(candidate) !== candidate
     )
       return;
+    try {
+      if (fs.realpathSync.native(candidate) !== candidate) return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return;
+    }
     const key = path.basename(previewDirectory(candidate));
     if (!expected || key === expected) known.set(key, candidate);
   };
@@ -164,7 +169,7 @@ async function cacheInventory(project: string, signal?: AbortSignal) {
     }
     if (candidate) {
       try {
-        if (fs.realpathSync(candidate) !== candidate) throw new Error('项目路径已变化');
+        if (fs.realpathSync.native(candidate) !== candidate) throw new Error('项目路径已变化');
         const workspace = previewWorkspace(candidate);
         categories['project-workspace'] = await sizeOf(workspace, signal, warnings);
       } catch (error) {

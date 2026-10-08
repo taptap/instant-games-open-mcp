@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { getMakerHome } from './storage.js';
 import { writePrivateJson } from './system/privateJson.js';
+import { sameProjectPathSpelling } from './system/projectPath.js';
 
 export type MakerProjectRegistryEntry = { key: string; path: string; binding: string };
 export type MakerRegisteredProject = MakerProjectRegistryEntry & { valid: boolean; error?: string };
@@ -97,7 +98,7 @@ function binding(root: string): string {
 
 function describe(entry: MakerProjectRegistryEntry): MakerRegisteredProject {
   try {
-    if (fs.realpathSync(entry.path) !== entry.path || binding(entry.path) !== entry.binding)
+    if (fs.realpathSync.native(entry.path) !== entry.path || binding(entry.path) !== entry.binding)
       throw new Error('Project binding or directory identity changed; remove and add it again.');
     return { ...entry, valid: true };
   } catch (error) {
@@ -190,11 +191,20 @@ export class MakerProjectRegistry {
         'Please provide the absolute path to a local Maker project.'
       );
     return this.transaction((data) => {
-      const root = fs.realpathSync(directory);
+      const root = fs.realpathSync.native(directory);
       const id = binding(root);
       const key = keyFor(root);
+      const aliases = data.projects.filter(
+        (entry) =>
+          entry.path !== root && sameProjectPathSpelling(entry.path, root) && entry.binding === id
+      );
       const existing = data.projects.find((entry) => entry.key === key);
-      if (existing) return { result: requireValid(existing) };
+      if (existing) {
+        const result = requireValid(existing);
+        data.projects = data.projects.filter((entry) => !aliases.includes(entry));
+        return { result, changed: aliases.length > 0 };
+      }
+      data.projects = data.projects.filter((entry) => !aliases.includes(entry));
       if (data.projects.length >= MAX_PROJECTS)
         throw new MakerProjectRegistryError('The local project list is limited to 200 entries.');
       const entry = { key, path: root, binding: id };
