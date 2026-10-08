@@ -1,12 +1,15 @@
 import { consoleIcons } from './webIcons.js';
+import { consoleThemeScript } from '../webTheme.js';
 
 export const consoleScript = String.raw`
+${consoleThemeScript}
 (function(){
 'use strict';
 const iconNodes = ${JSON.stringify(consoleIcons)};
 const initialQuery = new URLSearchParams(location.search);
 let projectid = initialQuery.get('projectid') || '';
-let selected = projectid ? '' : initialQuery.get('project') || '';
+let selected = initialQuery.get('project') || '';
+const hasExplicitProject = initialQuery.has('projectid') || initialQuery.has('project');
 let page = selected ? 'overview' : 'projects';
 let selectionEpoch = 0;
 let viewEpoch = 0;
@@ -16,7 +19,7 @@ let loaded = false;
 let fortuneTimer;
 let fortuneReady = false;
 function fortuneMode() {
-  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  return window.MakerConsole.getTheme();
 }
 function fortuneUrl() {
   return 'https://liangdong-ttm.github.io/gdev-fortune/?embed=1&theme=dungeon&mode=' + fortuneMode();
@@ -90,6 +93,8 @@ function bindFortuneHover(element) {
   element.addEventListener('mouseleave',scheduleCloseFortune);
 }
 let documentTab = 'docs', documentSearch = '', documentItems = [], documentSelected = '';
+let requestedSkill = initialQuery.get('skill') || '';
+if (requestedSkill) documentTab = 'skills';
 let documentRequest = 0, documentDirectoryRequest = 0;
 function markdownText(value) {
   // Decode only entity-shaped fragments; all resulting content still uses textContent.
@@ -253,7 +258,17 @@ async function renderDocuments() {
     const items = await api(documentApi());
     if (epoch !== viewEpoch || page !== 'documents' || request !== documentDirectoryRequest) return;
     documentItems = items; renderDocumentDirectory();
-    const first = items.find(item => item.id === documentSelected && item.kind === documentTab) || items.find(item => item.kind === documentTab);
+    let linkedSkill;
+    if (requestedSkill) {
+      const matches = items.filter(item => item.kind === 'skills' && item.relativePath.endsWith('/' + requestedSkill + '/SKILL.md'));
+      linkedSkill = matches.find(item => item.source === 'Maker 内置') || matches[0];
+      if (!linkedSkill) {
+        replace(reader,[node('p','未找到关联 Skill：' + requestedSkill + '。请检查 Maker 版本或当前项目的 Skill 文件。','bad')]);
+        return;
+      }
+      requestedSkill = '';
+    }
+    const first = linkedSkill || items.find(item => item.id === documentSelected && item.kind === documentTab) || items.find(item => item.kind === documentTab);
     if (first) void openDocument(first);
     else reader.append(node('p','暂无此类资料','muted'));
   } catch (error) {
@@ -1176,10 +1191,17 @@ function clearGitPullState() {
   if (dialog?.open) dialog.close();
 }
 function chooseProject(key, updateUrl = true) {
+  if (key !== selected && !leaveUiEditor()) {
+    $('project-picker').value = selected;
+    return;
+  }
   const project = state.projects.find(p => p.key === key);
   selected = key;
   if (!project?.valid && page !== 'projects' && page !== 'documents') page = 'projects';
   if (updateUrl) setProjectQuery();
+  if (updateUrl) void api('/api/console-preferences', {
+    method:'PUT',body:{selectedProjectKey:key || null}
+  }).catch(() => {});
   publishProjectChange();
   if (key && !project) notify('所选项目未登记，请从本地项目列表选择。');
   render();
@@ -1282,7 +1304,7 @@ function pluginMessageMatches(event, session) {
 }
 function sendPluginTheme(session, type = 'maker-console:theme') {
   if (!session.iframe || !session.origin) return;
-  const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  const theme = window.MakerConsole.getTheme();
   session.iframe.contentWindow.postMessage({type,protocolVersion:1,theme},session.origin);
 }
 function updatePluginTabs() {
@@ -2027,6 +2049,49 @@ function renderWindowSettings() {
   disclosure.append(summary,form);
   return disclosure;
 }
+function previewCachePanel() {
+  const key = selected, epoch = selectionEpoch;
+  const panel = node('section');
+  panel.append(node('h3','本机预览缓存'));
+  const label = node('p','尚未统计 · 验证自动保留最近 3 次，运行中或状态不明的记录额外保留。','muted');
+  const details = node('p',undefined,'muted');
+  details.style.overflowWrap = 'anywhere';
+  const projects = node('details');
+  projects.append(node('summary','按项目查看占用和缓存位置'));
+  const projectList = node('div');
+  projectList.style.overflowWrap = 'anywhere';
+  projects.append(projectList);
+  const actions = node('div',undefined,'actions');
+  const format = bytes => (bytes / 1024 ** 3).toFixed(2) + ' GiB';
+  const query = async (clear,all = false) => {
+    if (clear && !window.confirm('清理' + (all ? '全部可确认归属项目' : '当前项目') + '已结束的测试记录、截图、日志及新旧预览副本？运行中、状态不明或归属不明的内容会保留。Runtime 下载资源、安装文件和存档不在此次清理范围。')) return;
+    refresh.disabled = clean.disabled = cleanAll.disabled = true;
+    label.textContent = clear ? '正在清理缓存…' : '正在统计缓存…';
+    try {
+      const result = await api(projectPath(key,clear ? '/preview/cache/clear' : '/preview/cache'),clear ? {method:'POST',body:{all_projects:all},timeoutMs:300000} : {timeoutMs:300000});
+      if (!selectionMatches(key,epoch)) return;
+      label.textContent = (result.complete === false ? '已统计占用（不完整）：' : '全部项目预览占用：') + format(result.total_bytes) + ' · 当前项目：' + format(result.bytes);
+      const names = {validation:'测试记录及旧副本',sessions:'会话记录及旧副本',preparations:'旧准备记录及副本','validation-prep':'旧验证副本',storage:'Runtime 下载资源 / 存档','public-index-cache':'旧公共索引','project-workspace':'项目内固定缓存','legacy-runtime':'旧 Runtime 安装（保留）',other:'状态及其他文件',unattributed:'未归属内容（保留）','windows-downloads':'Windows 临时下载缓存（保留）'};
+      details.textContent = Object.entries(result.total_categories || {}).map(([name,size]) => (names[name] || name) + ' ' + format(size)).join(' · ') + '。统计整个 ' + result.global_directory + '、已登记或有历史记录的项目内 .maker-preview，以及 Windows 已标记的临时下载缓存；不含原项目源码、正式构建产物和独立安装的共享 Runtime。按文件逻辑大小统计，不等同于可清理大小。' + (result.warnings || []).join('；');
+      replace(projectList,(result.projects || []).filter(item => item.bytes > 0).sort((left,right) => right.bytes-left.bytes).map(item => node('p',(item.project || '未确认归属 ' + item.key) + '：' + format(item.bytes) + ' · ' + item.directory)));
+      if (clear) {
+        clearValidationDisplay();
+        const view = validationView();
+        view.runs = []; view.entries.clear(); view.paged = false; view.nextCursor = ''; view.initialized = false;
+        renderConsoleLogs();
+        void refreshValidation();
+      }
+    } catch (error) { if (selectionMatches(key,epoch)) label.textContent = '缓存操作失败：' + error.message; }
+    finally { refresh.disabled = clean.disabled = cleanAll.disabled = false; }
+  };
+  const refresh = button('统计 / 刷新',() => void query(false));
+  const clean = button('清理当前项目',() => void query(true));
+  const cleanAll = button('清理全部项目',() => void query(true,true));
+  actions.append(refresh,clean,cleanAll);
+  panel.append(label,details,projects,actions);
+  void query(false);
+  return panel;
+}
 function renderBuild() {
   const title = heading('构建与测试',currentProject().name,true);
   const columns = node('div',undefined,'columns build-columns');
@@ -2035,7 +2100,7 @@ function renderBuild() {
   columns.append(build,local);
   const logs = node('section',undefined,'console-logs'); logs.id = 'console-logs';
   const history = node('section',undefined,'task-history'); history.id = 'task-history';
-  replace($('view'),[title,columns,logs,history]);
+  replace($('view'),[title,columns,logs,previewCachePanel(),history]);
   updateBuild();
   if (logView().tab === 'validate' && !validationView().initialized) void refreshValidation();
 }
@@ -2612,6 +2677,113 @@ async function loadCommit(hash) {
     if (selectionMatches(key,epoch) && view === viewEpoch && request === commitRequest) replace($('commit-detail'),[node('p',error.message,'bad')]);
   }
 }
+const canvasFrames = new Map();
+let uiEditorFrame;
+let uiEditorProject = '';
+let initialUiProject = '';
+function uiEditorState() {
+  try { return uiEditorFrame?.contentWindow?.UrhoxProject; }
+  catch { return null; }
+}
+function leaveUiEditor() {
+  const editor = uiEditorState();
+  if (editor?.isBusy?.()) {
+    notify('UI 编辑器正在打开或保存文档，请稍后切换项目。', 'warning');
+    return false;
+  }
+  if (editor?.isDirty?.() && !window.confirm('UI 有未保存修改。切换项目会丢弃这些修改，确定继续？')) return false;
+  uiEditorFrame?.remove();
+  uiEditorFrame = undefined;
+  uiEditorProject = '';
+  return true;
+}
+function renderUiEditor() {
+  const host = $('ui-editor-view');
+  if (!currentProject()?.valid) return;
+  if (uiEditorFrame && uiEditorProject !== selected && !leaveUiEditor()) return;
+  if (!uiEditorFrame) {
+    uiEditorFrame = node('iframe', undefined, 'canvas-frame');
+    uiEditorFrame.title = 'UI 编辑器';
+    uiEditorFrame.referrerPolicy = 'origin';
+    const query = new URLSearchParams({project:selected});
+    const requested = initialQuery.get('ui');
+    if (requested && selected === initialUiProject) query.set('ui', requested);
+    uiEditorFrame.src = '/ui-editor/?' + query.toString();
+    uiEditorProject = selected;
+    host.replaceChildren(uiEditorFrame);
+  }
+}
+function protectUiEditorUnload(event) {
+  const editor = uiEditorState();
+  if (editor?.isDirty?.() || editor?.isBusy?.()) {
+    event.preventDefault(); event.returnValue = '';
+  }
+}
+const closedCanvasFrames = new Set();
+const CANVAS_FRAME_LIMIT = 8;
+function canvasUnsaved(frame) {
+  try { return frame.contentWindow && frame.contentWindow.makerCanvasUnsaved === true; }
+  catch { return true; }
+}
+function canvasPending(frame) {
+  try { return frame.contentWindow && frame.contentWindow.makerCanvasPendingImport === true; }
+  catch { return true; }
+}
+function closeCurrentCanvas() {
+  const key = selected;
+  const frame = canvasFrames.get(key);
+  if (!frame) return;
+  if (canvasPending(frame)) {
+    notify('图片导入尚未完成，请等待导入结束后再关闭画布。', 'warning');
+    return;
+  }
+  if (canvasUnsaved(frame) && !window.confirm('此项目画布有未保存编辑。关闭后这些编辑会丢失，已保存内容仍在项目里。确定关闭？')) return;
+  frame.remove();
+  canvasFrames.delete(key);
+  closedCanvasFrames.add(key);
+  renderCanvas();
+}
+function openCurrentCanvas() {
+  closedCanvasFrames.delete(selected);
+  renderCanvas();
+}
+function renderCanvas() {
+  const host = $('canvas-views');
+  host.hidden = false;
+  $('view').hidden = true;
+  $('plugin-views').hidden = true;
+  pluginSessions.forEach(session => { session.element.hidden = true; });
+  let bar = document.getElementById('canvas-toolbar');
+  if (!bar) {
+    bar = node('div', undefined, 'canvas-toolbar');
+    bar.id = 'canvas-toolbar';
+    host.prepend(bar);
+  }
+  const key = selected;
+  $('close-canvas').hidden = !canvasFrames.has(key);
+  bar.hidden = !closedCanvasFrames.has(key);
+  if (!key || !currentProject()?.valid) return;
+  if (closedCanvasFrames.has(key)) {
+    bar.replaceChildren(button('打开当前项目画布', openCurrentCanvas));
+    canvasFrames.forEach((item, itemKey) => { item.hidden = itemKey !== key; });
+    return;
+  }
+  if (canvasFrames.size >= CANVAS_FRAME_LIMIT && !canvasFrames.has(key)) {
+    notify('已打开 ' + CANVAS_FRAME_LIMIT + ' 个项目画布。请先打开其中一个并点击「关闭当前项目画布」。有未保存编辑时会先确认，不会静默丢掉。', 'warning');
+    return;
+  }
+  let frame = canvasFrames.get(key);
+  if (!frame) {
+    frame = node('iframe', undefined, 'canvas-frame');
+    frame.title = '自由画布';
+    frame.referrerPolicy = 'origin';
+    frame.src = '/canvas?project=' + encodeURIComponent(key);
+    canvasFrames.set(key, frame);
+    host.append(frame);
+  }
+  $('close-canvas').hidden = false;
+  canvasFrames.forEach((item, itemKey) => { item.hidden = itemKey !== key; });
+}
 function navigate(next) {
   if (!currentProject()?.valid && next !== 'projects' && next !== 'documents') return;
   viewEpoch++; commitRequest++; gitLoading = false; page = next;
@@ -2621,13 +2793,19 @@ function navigate(next) {
   if (next === 'build') void refreshPreview();
 }
 function render() {
+  document.body.classList.toggle('canvas-mode', page === 'canvas' || page === 'ui-editor');
+  $('close-canvas').hidden = true;
   syncValidationPolling();
   updateChrome();
   $('view').setAttribute('aria-busy','false');
   const plugin = currentProject()?.valid && pluginDescriptors().find(item => page === 'plugin:' + item.id);
-  $('view').hidden = Boolean(plugin);
+  $('view').hidden = Boolean(plugin) || page === 'canvas' || page === 'ui-editor';
   $('plugin-views').hidden = !plugin;
+  $('canvas-views').hidden = page !== 'canvas';
+  $('ui-editor-view').hidden = page !== 'ui-editor';
   pluginSessions.forEach(session => { session.element.hidden = true; });
+  if (page === 'canvas') { renderCanvas(); return; }
+  if (page === 'ui-editor') { renderUiEditor(); return; }
   if (plugin) { renderPlugin(plugin); return; }
   if (page === 'documents') { void renderDocuments(); return; }
   if (page === 'projects' || !currentProject()?.valid) renderProjects();
@@ -2668,7 +2846,29 @@ async function pollState() {
     selected = projectKeyFromQuery(initialQuery);
     page = currentProject()?.valid ? 'overview' : 'projects';
     if (!selected) notify('请从项目列表选择对应的本地目录：项目未登记或有多个本地副本。','warning');
+    else void api('/api/console-preferences', {method:'PUT',body:{selectedProjectKey:selected}}).catch(() => {});
+  } else if (first && hasExplicitProject) {
+    const requested = projectKeyFromQuery(initialQuery);
+    selected = state.projects.some(project => project.key === requested && project.valid) ? requested : '';
+    page = selected ? 'overview' : 'projects';
+    if (!selected) notify('链接中的项目未登记或已失效，请从项目列表选择。','warning');
+    else void api('/api/console-preferences', {method:'PUT',body:{selectedProjectKey:selected}}).catch(() => {});
+  } else if (first) {
+    try {
+      const preference = await api('/api/console-preferences');
+      const project = state.projects.find(item => item.key === preference.selectedProjectKey && item.valid);
+      selected = project ? project.key : '';
+      page = selected ? 'overview' : 'projects';
+    } catch {
+      selected = '';
+      page = 'projects';
+    }
   }
+  if (first && currentProject()?.valid && initialQuery.get('page') === 'ui-editor') {
+    page = 'ui-editor';
+    initialUiProject = selected;
+  }
+  if (first && initialQuery.get('page') === 'documents') page = 'documents';
   const settled = [];
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
@@ -2691,7 +2891,7 @@ async function pollState() {
   let projectChanged = false;
   if (first && projectNotice === '') projectNotice = currentProjectNotice();
   else projectChanged = publishProjectChange();
-  if (projectChanged) render();
+  if (projectChanged || (first && ['ui-editor', 'documents'].includes(page))) render();
   else {
     updateChrome();
     if (page === 'projects' && (first || priorProjects !== JSON.stringify(state.projects))) renderProjects();
@@ -2752,6 +2952,7 @@ onProjectChange(() => {
   documentDirectoryRequest++;
 });
 document.addEventListener('DOMContentLoaded',async () => {
+  window.addEventListener('beforeunload', protectUiEditorUnload);
   $('git-pull-conflict-copy')?.addEventListener('click',() => void copyGitPrompt($('git-pull-conflict-prompt').value));
   let makerMarkClicks = 0;
   let makerMarkTimer;
@@ -2783,16 +2984,15 @@ document.addEventListener('DOMContentLoaded',async () => {
   window.addEventListener('focus',() => { void sendActivity(); void poll(); });
   window.addEventListener('pagehide',dispose,{once:true});
   const theme = $('theme');
-  try { theme.checked = localStorage.getItem('maker-console-theme') !== 'light'; } catch (_) {}
-  document.documentElement.dataset.theme = theme.checked ? 'dark' : 'light';
+  theme.checked = window.MakerConsole.getTheme() === 'dark';
   theme.addEventListener('change',() => {
-    const value = theme.checked ? 'dark' : 'light';
-    document.documentElement.dataset.theme = value;
+    if (!window.MakerConsole.setTheme(theme.checked ? 'dark' : 'light')) notify('无法保存主题设置');
+  });
+  window.MakerConsole.onThemeChange(() => {
     pluginSessions.forEach(session => sendPluginTheme(session));
     if ($('fortune-frame').getAttribute('src')) {
       beginFortuneLoad(true);
     }
-    try { localStorage.setItem('maker-console-theme',value); } catch (_) { notify('无法保存主题设置'); }
   });
   $('projects-button').append(icon('folder'));
   const fortunePanel = $('fortune-panel');
@@ -2815,6 +3015,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   window.addEventListener('resize',() => { if (!$('fortune-panel').hidden) positionFortune(); });
   document.addEventListener('keydown',event => { if (event.key === 'Escape') closeFortune(); });
   $('projects-button').addEventListener('click',() => navigate('projects'));
+  $('close-canvas').addEventListener('click',closeCurrentCanvas);
   $('project-picker').addEventListener('change',event => chooseProject(event.target.value));
   $('maker-version-picker').addEventListener('change',selectMakerVersion);
   $('dismiss').addEventListener('click',() => { $('feedback').hidden = true; });

@@ -18,13 +18,22 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bundleMakerUiSkill } from './bundle-maker-ui-skill.js';
+import { checkDemoResources } from './maker-demo-resource-check.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, '..');
 const packageRoot = join(projectRoot, 'packages', 'maker');
+checkDemoResources(projectRoot, { requireCdn: true });
 
-const REQUIRED_SKILLS = ['taptap-maker-local', 'taptap-maker-dev-kit-guide', 'update-taptap-mcp'];
+const REQUIRED_SKILLS = [
+  'maker-ui-workflow',
+  'lua-ui-to-json',
+  'taptap-maker-local',
+  'taptap-maker-dev-kit-guide',
+  'update-taptap-mcp',
+];
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const LEGACY_PACKAGE = '@taptap/instant-games-open-mcp';
 const MAKER_PACKAGE = '@taptap/maker';
@@ -109,6 +118,8 @@ function createPackageJson(version) {
     files: [
       'bin/taptap-maker',
       'dist/maker.js',
+      'skills/maker-ui-workflow/',
+      'skills/lua-ui-to-json/',
       'skills/taptap-maker-local/',
       'skills/taptap-maker-dev-kit-guide/',
       'skills/update-taptap-mcp/',
@@ -141,6 +152,10 @@ function createReadme(version) {
   return `# @taptap/maker
 
 TapTap Maker local development CLI and MCP server.
+
+The console includes a project UI editor with reference-image comparison. Official template media
+download on demand from CDN, fall back to GitHub, and are verified and cached locally. First use
+of an uncached template requires a network connection; media are not in this package.
 
 ## Usage
 
@@ -230,6 +245,7 @@ function main() {
       `${skill} skill`
     );
   }
+  bundleMakerUiSkill(projectRoot, join(packageRoot, 'skills/maker-ui-workflow'));
   rewriteMakerSkillPackageReferences(join(packageRoot, 'skills'), version);
 
   copyRequiredFile(

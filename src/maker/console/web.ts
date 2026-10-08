@@ -28,7 +28,7 @@ export function getConsoleHtml(): string {
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>Maker 本地控制台</title><style>${consoleStyles}</style></head>
-<body>
+<body class="compact-chrome">
 <header class="top">
   <div class="brand"><button class="mark" id="maker-mark" type="button" aria-label="Maker 控制台品牌标记">M</button>Maker 控制台
     <select id="maker-version-picker" aria-label="Maker MCP 版本" disabled><option>版本加载中</option></select>
@@ -45,13 +45,18 @@ export function getConsoleHtml(): string {
   <button data-page="build">构建与测试</button>
   <button data-page="git">Git</button>
   <button data-page="documents" disabled>文档 / Skill</button>
+  <button data-page="canvas">自由画布</button>
+  <button data-page="ui-editor">UI 编辑器</button>
   <span id="plugin-tabs" class="plugin-tabs"></span>
 </nav>
+<button id="close-canvas" type="button" hidden>关闭当前项目画布</button>
 <div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>
 </div>
 <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>
 <main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
 <section id="plugin-views" aria-label="插件工作区" hidden></section>
+<section id="canvas-views" aria-label="自由画布" hidden></section>
+<section id="ui-editor-view" aria-label="UI 编辑器" hidden></section>
 <div id="announcement" role="status" aria-live="polite" class="context" hidden></div>
 <footer><div class="footer-start"><span id="version">Maker 本地服务</span>
 <section id="fortune-corner" aria-label="开发者日签" hidden>

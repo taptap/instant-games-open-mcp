@@ -50,3 +50,6 @@ jest.config.js
 # Cache
 .taptap-minigame/
 *.cache
+
+# Demo originals are downloaded on demand, never published in npm.
+resources/maker-demo/

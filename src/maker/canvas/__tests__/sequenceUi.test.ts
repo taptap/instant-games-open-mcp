@@ -1,0 +1,564 @@
+import { createId, emptyDocument, type CanvasNode } from '../model.js';
+import { snapshotCanvasSource } from '../dependencies.js';
+import { createSequenceUiController, type SequenceUiOptions } from '../sequenceUi.js';
+import {
+  createSequenceProcessor,
+  defaultSequenceSettings,
+  renderSequenceCard,
+  type SequenceFrame,
+  type SequenceRunView,
+} from '../sequence.js';
+
+describe('sequence workflow recovery', () => {
+  function editorFixture() {
+    const document = emptyDocument();
+    const source: CanvasNode = {
+      id: 'video',
+      type: 'video-source',
+      title: 'video',
+      x: 0,
+      y: 0,
+      width: 240,
+      height: 210,
+      assetPath: '.maker/video.mp4',
+      videoInfo: { duration: 1, width: 320, height: 180 },
+    };
+    const originalInfo = {
+      fps: 2,
+      width: 256,
+      height: 256,
+      frameCount: 1,
+      columns: 1,
+      rows: 1,
+      frames: [{ index: 0, x: 0, y: 0, width: 256, height: 256, time: 0 }],
+    };
+    const node: CanvasNode = {
+      id: 'sequence',
+      type: 'sequence',
+      title: 'sequence',
+      x: 0,
+      y: 0,
+      width: 480,
+      height: 300,
+      sourceVideoId: source.id,
+      assetPath: 'assets/image/original.png',
+      frameSetInfo: originalInfo,
+      sequenceSettings: defaultSequenceSettings(1, 320, 180),
+    };
+    document.nodes = [source, node];
+    const frame = { time: 0, blob: new Blob(['frame']) };
+    const upload = jest.fn(async () => ({ relativePath: 'assets/image/new.png' }));
+    const flush = jest.fn(async () => true);
+    const snapshots: string[] = [];
+    const options = {
+      store: { mediaUrl: (value: string) => value, importImage: upload },
+      processor: {
+        extract: async () => [frame],
+        findDuplicates: async () => [],
+        resize: async () => [frame],
+        packAtlas: async () => ({ blob: new Blob(['atlas']), info: originalInfo }),
+        dispose: (frames: SequenceFrame[]) => {
+          frames.length = 0;
+        },
+      },
+      video: {
+        dataset: { assetPath: source.assetPath },
+        readyState: 1,
+        duration: 1,
+        videoWidth: 320,
+        videoHeight: 180,
+      },
+      getDocument: () => document,
+      createId,
+      nextPlacement: () => ({ x: 0, y: 0 }),
+      remember: () => snapshots.push(JSON.stringify(node)),
+      markDirty: jest.fn(),
+      flush,
+      render: jest.fn(),
+      renderCard: jest.fn(),
+      refreshCard: jest.fn(),
+      publishState: jest.fn(),
+      setError: jest.fn(),
+      onOpen: jest.fn(),
+      resolveTarget: jest.fn(() => undefined),
+      defaultSettings: defaultSequenceSettings,
+      estimateFrameCount: () => 1,
+      maxFrameCount: () => 10,
+      maxInputFrameCount: () => 10,
+    } as unknown as SequenceUiOptions;
+    return {
+      controller: createSequenceUiController(options),
+      document,
+      node,
+      upload,
+      flush,
+      snapshots,
+      options,
+    };
+  }
+
+  test('retains cutout input for parameter changes without altering the saved node', async () => {
+    const { controller, node } = editorFixture();
+    const originalPath = node.assetPath;
+    await controller.action(node.id, 'extract');
+    const original = { time: 0, blob: new Blob(['original']) };
+    const processed = { time: 0, blob: new Blob(['transparent']) };
+    controller.replaceBackgroundFrames(node.id, [processed], [original]);
+    expect(controller.backgroundInput(node.id)).toEqual([original]);
+    expect(controller.view(node.id).run?.frames).toEqual([processed]);
+    expect(node.assetPath).toBe(originalPath);
+    controller.replaceFrames(node.id, [{ ...processed, blob: new Blob(['brush']) }]);
+    expect(controller.backgroundInput(node.id)).toBeUndefined();
+    controller.undoFrames(node.id);
+    expect(controller.view(node.id).run?.frames).toEqual([processed]);
+  });
+
+  test('cutout input stays aligned when deleting a copied frame with the same source time', async () => {
+    const { controller, node } = editorFixture();
+    await controller.action(node.id, 'extract');
+    const originals = [0, 0].map((time, index) => ({ time, blob: new Blob(['original' + index]) }));
+    const processed = originals.map((frame) => ({ ...frame, blob: new Blob(['processed']) }));
+    controller.replaceBackgroundFrames(node.id, processed, originals);
+    await controller.action(node.id, 'remove-frame', 0);
+    expect(controller.backgroundInput(node.id)).toEqual([originals[1]]);
+    expect(controller.view(node.id).run?.frames).toEqual([processed[1]]);
+  });
+
+  test('rejects oversized copies and invalid output FPS without losing a draft', async () => {
+    const { controller, node, options } = editorFixture();
+    await controller.action(node.id, 'extract');
+    const frame = { time: 0, blob: new Blob(['draft']) };
+    controller.replaceFrames(node.id, [frame]);
+    options.maxFrameCount = () => 1;
+    expect(() => controller.replaceFrames(node.id, [frame, { ...frame }])).toThrow('容量上限');
+    expect(controller.view(node.id).run?.frames).toEqual([frame]);
+    controller.updateSetting(node.id, 'fps', 8);
+    controller.updateSetting(node.id, 'fps', 0);
+    controller.updateSetting(node.id, 'fps', 1.5);
+    expect(controller.view(node.id).node?.sequenceSettings?.fps).toBe(8);
+    expect(node.sequenceSettings?.fps).not.toBe(8);
+  });
+
+  test('reuses a linked pending template card, preserving its saved result and animation edge', () => {
+    const { controller, document, node, options, snapshots } = editorFixture();
+    document.edges = [
+      { id: 'vs', from: 'video', to: node.id, kind: 'sequence-source' },
+      { id: 'sa', from: node.id, to: 'animation', kind: 'sequence-animation' },
+    ];
+    options.resolveTarget = () => ({ kind: 'reuse', nodeId: node.id });
+    const before = JSON.stringify(document);
+    controller.createFromVideo('video');
+    expect(options.onOpen).toHaveBeenCalledWith(node.id);
+    expect(JSON.stringify(document)).toBe(before);
+    expect(snapshots).toHaveLength(0);
+    expect(options.markDirty).not.toHaveBeenCalled();
+    expect(controller.view(node.id).node?.assetPath).toBeUndefined();
+    expect(controller.view(node.id).node?.sequenceSettings).toEqual(node.sequenceSettings);
+    controller.updateSetting(node.id, 'fps', 3);
+    controller.createFromVideo('video');
+    expect(controller.view(node.id).node?.sequenceSettings?.fps).toBe(3);
+    controller.discardEdit(node.id);
+    expect(JSON.stringify(document)).toBe(before);
+  });
+
+  test('saving a reused pending card updates it in place without changing downstream links', async () => {
+    const { controller, document, node, options } = editorFixture();
+    node.sequenceSettings!.cutout = false;
+    document.edges = [{ id: 'vs', from: 'video', to: node.id, kind: 'sequence-source' }];
+    options.resolveTarget = () => ({ kind: 'reuse', nodeId: node.id });
+    controller.createFromVideo('video');
+    await controller.runTemplate(node.id);
+    expect(document.nodes).toHaveLength(2);
+    expect(document.edges).toEqual([
+      { id: 'vs', from: 'video', to: node.id, kind: 'sequence-source' },
+    ]);
+    expect(node.assetPath).toBe('assets/image/new.png');
+  });
+
+  test('reuses a connected empty target on repeated clicks', () => {
+    const { controller, document, node, options } = editorFixture();
+    delete node.assetPath;
+    delete node.frameSetInfo;
+    document.edges = [{ id: 'vs', from: 'video', to: node.id, kind: 'sequence-source' }];
+    controller.createFromVideo('video');
+    controller.createFromVideo('video');
+    expect(document.nodes).toHaveLength(2);
+    expect(document.edges).toHaveLength(1);
+    expect(options.onOpen).toHaveBeenLastCalledWith(node.id);
+  });
+
+  test.each(['finished', 'disconnected', 'other-source', 'wrong-edge'])(
+    'creates a new target instead of reusing %s',
+    (reason) => {
+      const { controller, document, node, options } = editorFixture();
+      document.edges = [{ id: 'vs', from: 'video', to: node.id, kind: 'sequence-source' }];
+      if (reason === 'disconnected') document.edges = [];
+      if (reason === 'other-source') node.sourceVideoId = 'another-video';
+      if (reason === 'wrong-edge') document.edges[0].kind = 'image-to-video';
+      const original = JSON.stringify(node);
+      controller.createFromVideo('video');
+      expect(document.nodes).toHaveLength(3);
+      expect(JSON.stringify(node)).toBe(original);
+      const created = document.nodes[2];
+      expect(options.onOpen).toHaveBeenLastCalledWith(created.id);
+      expect(created.sourceVideoId).toBe('video');
+      controller.createFromVideo('video');
+      expect(document.nodes).toHaveLength(3);
+    }
+  );
+
+  test('template runs extraction through atlas save without a manual editor', async () => {
+    const { controller, node, upload } = editorFixture();
+    node.sequenceSettings!.cutout = false;
+    await controller.runTemplate(node.id);
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(node.assetPath).toBe('assets/image/new.png');
+  });
+
+  test('template keeps old atlas when saving fails', async () => {
+    const { controller, node, flush } = editorFixture();
+    node.sequenceSettings!.cutout = false;
+    flush.mockResolvedValue(false);
+    await expect(controller.runTemplate(node.id)).rejects.toThrow();
+    expect(node.assetPath).toBe('assets/image/original.png');
+  });
+
+  test('template retries cutout without extracting again and preserves the old result on failure', async () => {
+    const { controller, node, options } = editorFixture();
+    const extract = jest.spyOn(options.processor, 'extract');
+    options.processor.cutout = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('背景需要调整'))
+      .mockImplementation(async (frames: SequenceFrame[]) => frames.slice());
+    await expect(controller.runTemplate(node.id)).rejects.toThrow('背景需要调整');
+    expect(node.assetPath).toBe('assets/image/original.png');
+    controller.updateSetting(node.id, 'cutoutMode', 'connected');
+    await controller.runTemplate(node.id);
+    expect(extract).toHaveBeenCalledTimes(1);
+    expect(options.processor.cutout).toHaveBeenLastCalledWith(
+      expect.any(Array),
+      expect.any(String),
+      expect.any(Number),
+      expect.any(AbortSignal),
+      expect.any(Function),
+      'connected'
+    );
+    expect(node.assetPath).toBe('assets/image/new.png');
+  });
+
+  test.each(['source', 'settings', 'reference'])(
+    'template re-extracts when %s changes',
+    async (change) => {
+      const { controller, document, node, options } = editorFixture();
+      const extract = jest.spyOn(options.processor, 'extract');
+      options.processor.cutout = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('背景需要调整'))
+        .mockImplementation(async (frames: SequenceFrame[]) => frames.slice());
+      await expect(controller.runTemplate(node.id)).rejects.toThrow();
+      if (change === 'source') {
+        document.nodes[0].assetPath = '.maker/new-video.mp4';
+        options.video.dataset.assetPath = document.nodes[0].assetPath;
+      } else if (change === 'reference') {
+        document.nodes.push({ ...document.nodes[0], id: 'new-video' });
+        node.sourceVideoId = 'new-video';
+      } else {
+        controller.view(node.id).node!.sequenceSettings!.start = 0.1;
+      }
+      await controller.runTemplate(node.id);
+      expect(extract).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  test('template saves manual background edits without discarding them or repeating cutout', async () => {
+    const { controller, node, options } = editorFixture();
+    const extract = jest.spyOn(options.processor, 'extract');
+    options.processor.cutout = jest.fn().mockRejectedValue(new Error('背景需要调整'));
+    await expect(controller.runTemplate(node.id)).rejects.toThrow();
+    const original = controller.view(node.id).run!.frames.slice();
+    const edited = [{ time: 0, blob: new Blob(['manual']) }];
+    controller.replaceBackgroundFrames(node.id, edited, original);
+    controller.updateSetting(node.id, 'fps', 8);
+    const resize = jest.spyOn(options.processor, 'resize');
+    await controller.runTemplate(node.id);
+    expect(extract).toHaveBeenCalledTimes(1);
+    expect(options.processor.cutout).toHaveBeenCalledTimes(1);
+    expect(resize.mock.calls[0][0][0].blob).toBe(edited[0].blob);
+    expect(node.sequenceSettings!.fps).toBe(8);
+  });
+
+  test('template retries only save after a persistence error', async () => {
+    const { controller, node, options, flush, upload } = editorFixture();
+    node.sequenceSettings!.cutout = false;
+    const extract = jest.spyOn(options.processor, 'extract');
+    const resize = jest.spyOn(options.processor, 'resize');
+    flush.mockResolvedValueOnce(false);
+    await expect(controller.runTemplate(node.id)).rejects.toThrow();
+    await controller.runTemplate(node.id);
+    expect(extract).toHaveBeenCalledTimes(1);
+    expect(resize).toHaveBeenCalledTimes(1);
+    expect(upload).toHaveBeenCalledTimes(1);
+  });
+
+  test('saving refuses frames from a replaced video', async () => {
+    const { controller, document, node, upload } = editorFixture();
+    await controller.action(node.id, 'extract');
+    document.nodes[0].assetPath = '.maker/replaced.mp4';
+    await controller.action(node.id, 'save');
+    expect(controller.view(node.id).run?.error).toContain('视频来源或抽帧参数已变化');
+    expect(upload).not.toHaveBeenCalled();
+    expect(node.assetPath).toBe('assets/image/original.png');
+  });
+
+  test('changing the video while metadata loads cannot label old frames as the new source', async () => {
+    const { controller, document, node, options } = editorFixture();
+    const extract = jest.spyOn(options.processor, 'extract');
+    const loading = controller.action(node.id, 'extract');
+    document.nodes[0].assetPath = '.maker/replaced-during-load.mp4';
+    await loading;
+    expect(controller.view(node.id).run?.error).toContain('读取期间视频来源已变化');
+    expect(extract).not.toHaveBeenCalled();
+    expect(node.assetPath).toBe('assets/image/original.png');
+    expect(controller.isBusy).toBe(false);
+  });
+
+  test('missing video source reports a recoverable failure inside the editor', async () => {
+    const { controller, document, node } = editorFixture();
+    document.nodes = [node];
+    await controller.action(node.id, 'extract');
+    expect(controller.view(node.id).run?.status).toBe('failed');
+    expect(controller.view(node.id).run?.error).toContain('重新连接来源视频');
+    expect(node.assetPath).toBe('assets/image/original.png');
+    expect(controller.isBusy).toBe(false);
+  });
+
+  test.each(['current', 'stale', 'missing'])(
+    'preserves edited atlas pixels and their %s source evidence',
+    async (provenance) => {
+      const { controller, document, node, options } = editorFixture();
+      if (provenance !== 'missing') node.sourceSnapshot = snapshotCanvasSource(document.nodes[0]);
+      if (provenance === 'stale') document.nodes[0].assetPath = '.maker/replaced-before-edit.mp4';
+      const originalSnapshot = node.sourceSnapshot;
+      const globals = {
+        fetch: globalThis.fetch,
+        createImageBitmap: globalThis.createImageBitmap,
+        document: globalThis.document,
+      };
+      Object.assign(globalThis, {
+        fetch: jest.fn(async () => new Response(new Blob(['atlas']))),
+        createImageBitmap: jest.fn(async () => ({ close: jest.fn() })),
+        document: {
+          createElement: () => ({
+            getContext: () => ({ drawImage: jest.fn() }),
+            toBlob: (callback: (blob: Blob) => void) => callback(new Blob(['saved-pixel'])),
+          }),
+        },
+      });
+      try {
+        const extract = jest.spyOn(options.processor, 'extract');
+        const resize = jest
+          .spyOn(options.processor, 'resize')
+          .mockImplementation(async (frames) => frames.slice());
+        await controller.editableFrames(node.id);
+        const edited = [{ time: 0, blob: new Blob(['hand-painted']) }];
+        controller.replaceFrames(node.id, edited);
+        controller.updateSetting(node.id, 'fps', 8);
+        if (provenance === 'current') {
+          await controller.runTemplate(node.id);
+        } else {
+          await expect(controller.runTemplate(node.id)).rejects.toThrow('请先在编辑器保存修改');
+          expect(controller.view(node.id).run?.frames[0].blob).toBe(edited[0].blob);
+          await controller.action(node.id, 'resize');
+          await controller.action(node.id, 'save');
+        }
+        expect(extract).not.toHaveBeenCalled();
+        expect(resize.mock.calls[0][0][0].blob).toBe(edited[0].blob);
+        expect(node.assetPath).toBe('assets/image/new.png');
+        expect(node.sourceSnapshot).toEqual(originalSnapshot);
+        expect(node.sequenceSettings!.fps).toBe(8);
+      } finally {
+        Object.assign(globalThis, globals);
+      }
+    }
+  );
+
+  test('explicit rerun after completion still extracts a fresh set', async () => {
+    const { controller, node, options } = editorFixture();
+    node.sequenceSettings!.cutout = false;
+    const extract = jest.spyOn(options.processor, 'extract');
+    await controller.runTemplate(node.id);
+    await controller.runTemplate(node.id);
+    expect(extract).toHaveBeenCalledTimes(2);
+  });
+
+  test('frame edit undo and redo remain isolated in the draft', async () => {
+    const { controller, node } = editorFixture();
+    const before = JSON.stringify(node);
+    await controller.action(node.id, 'reset');
+    await controller.action(node.id, 'extract');
+    const original = controller.view(node.id).run!.frames[0].blob;
+    const edited = new Blob(['edited']);
+    controller.replaceFrames(node.id, [{ time: 0, blob: edited }]);
+    expect(controller.view(node.id).run!.frames[0].blob).toBe(edited);
+    controller.undoFrames(node.id);
+    expect(controller.view(node.id).run!.frames[0].blob).toBe(original);
+    controller.undoFrames(node.id, true);
+    expect(controller.view(node.id).run!.frames[0].blob).toBe(edited);
+    controller.replaceFrames(node.id, []);
+    expect(controller.view(node.id).run!.frames).toHaveLength(1);
+    expect(JSON.stringify(node)).toBe(before);
+    controller.discardEdit(node.id);
+    expect(JSON.stringify(node)).toBe(before);
+  });
+
+  test('re-edit settings and discarded frames never replace the saved result', async () => {
+    const { controller, node, document } = editorFixture();
+    const before = JSON.stringify(document);
+    controller.beginEdit(node.id);
+    await controller.action(node.id, 'reset');
+    controller.updateSetting(node.id, 'fps', 3);
+    await controller.action(node.id, 'extract');
+    expect(controller.hasDraft(node.id)).toBe(true);
+    expect(JSON.stringify(document)).toBe(before);
+    expect(controller.discardEdit(node.id)).toBe(true);
+    expect(controller.hasUnsavedFrames).toBe(false);
+    expect(JSON.stringify(document)).toBe(before);
+  });
+
+  test('failed commit preserves original result and retries without reupload; success is one undo', async () => {
+    const { controller, node, upload, flush, snapshots } = editorFixture();
+    const before = JSON.stringify(node);
+    await controller.action(node.id, 'reset');
+    await controller.action(node.id, 'extract');
+    await controller.action(node.id, 'dedupe');
+    await controller.action(node.id, 'keep-all');
+    await controller.action(node.id, 'resize');
+    flush.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    await controller.action(node.id, 'save');
+    expect(JSON.stringify(node)).toBe(before);
+    expect(controller.view(node.id).run).toMatchObject({ status: 'failed', stage: 'save' });
+    expect(controller.view(node.id).run?.frames).toHaveLength(1);
+    expect(snapshots).toHaveLength(0);
+    await controller.action(node.id, 'save');
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(node.assetPath).toBe('assets/image/new.png');
+    expect(controller.view(node.id).run?.status).toBe('complete');
+    expect(snapshots).toEqual([before]);
+    controller.discardEdit(node.id);
+    controller.beginEdit(node.id);
+    expect(controller.view(node.id).node?.assetPath).toBe('assets/image/new.png');
+    expect(controller.hasUnsavedFrames).toBe(false);
+  });
+
+  test('retries a failed cutout step with the extracted frames intact', async () => {
+    const document = emptyDocument();
+    const video: CanvasNode = {
+      id: createId(),
+      type: 'video-source',
+      x: 0,
+      y: 0,
+      width: 240,
+      height: 210,
+      title: 'source',
+      assetPath: '.maker/canvases/source.mp4',
+      videoInfo: { duration: 1, width: 320, height: 180 },
+    };
+    const sequence: CanvasNode = {
+      id: createId(),
+      type: 'sequence',
+      x: 300,
+      y: 0,
+      width: 480,
+      height: 300,
+      title: 'sequence',
+      sourceVideoId: video.id,
+      sequenceSettings: { ...defaultSequenceSettings(1, 320, 180), end: 1, fps: 2, cutout: true },
+    };
+    document.nodes = [video, sequence];
+    document.edges = [{ id: createId(), from: video.id, to: sequence.id, kind: 'sequence-source' }];
+    const extracted: SequenceFrame[] = [
+      { time: 0, blob: new Blob(['frame-1']) },
+      { time: 0.5, blob: new Blob(['frame-2']) },
+    ];
+    const cutout = jest
+      .fn<
+        Promise<SequenceFrame[]>,
+        [SequenceFrame[], string, number, AbortSignal, (current: number, total: number) => void]
+      >()
+      .mockRejectedValueOnce(new Error('temporary cutout failure'))
+      .mockResolvedValueOnce(extracted.map((frame) => ({ ...frame })));
+    const processor = {
+      extract: jest.fn(async () => extracted.map((frame) => ({ ...frame }))),
+      cutout,
+      findDuplicates: jest.fn(async () => []),
+      resize: jest.fn(async (frames: SequenceFrame[]) => frames),
+      packAtlas: jest.fn(),
+      dispose: jest.fn(),
+    } as unknown as ReturnType<typeof createSequenceProcessor>;
+    const videoElement = {
+      dataset: { assetPath: video.assetPath },
+      readyState: 1,
+      duration: 1,
+      videoWidth: 320,
+      videoHeight: 180,
+      pause: jest.fn(),
+    } as unknown as HTMLVideoElement;
+    let lastRun: SequenceRunView | undefined;
+    const controller = createSequenceUiController({
+      store: {
+        list: async () => [],
+        load: async () => document,
+        create: async () => document,
+        save: async (value) => value,
+        importImage: async () => ({ relativePath: 'assets/image/canvas-atlas.png' }),
+        importVideo: async () => ({ relativePath: video.assetPath! }),
+        mediaUrl: (value) => value,
+        getActiveCanvasId: async () => document.id,
+        setActiveCanvasId: async () => {},
+        listGeneration: async () => [],
+        generateImage: async () => {
+          throw new Error('not used');
+        },
+        createVideo: async () => {
+          throw new Error('not used');
+        },
+        generationAction: async () => {
+          throw new Error('not used');
+        },
+      },
+      processor,
+      renderCard: ((_, __, ___, run) => {
+        lastRun = run;
+      }) as typeof renderSequenceCard,
+      getDocument: () => document,
+      createId,
+      nextPlacement: () => ({ x: 600, y: 0 }),
+      video: videoElement,
+      remember: jest.fn(),
+      markDirty: jest.fn(),
+      flush: async () => true,
+      render: jest.fn(),
+      refreshCard: () => controller.renderCard({} as HTMLElement, sequence, video),
+      publishState: jest.fn(),
+      setError: jest.fn(),
+      defaultSettings: defaultSequenceSettings,
+      estimateFrameCount: () => 2,
+      maxFrameCount: () => 2,
+      maxInputFrameCount: () => 2,
+    });
+
+    await controller.action(sequence.id, 'extract');
+    await controller.action(sequence.id, 'cutout');
+    expect(lastRun).toMatchObject({ status: 'failed', stage: 'cutout' });
+    expect(lastRun?.frames).toHaveLength(2);
+
+    await controller.action(sequence.id, 'cutout');
+    expect(cutout).toHaveBeenCalledTimes(2);
+    expect(cutout.mock.calls[1][0]).toHaveLength(2);
+    expect(lastRun).toMatchObject({ status: 'ready', stage: 'dedupe' });
+    await controller.action(sequence.id, 'remove-frame', 0);
+    expect(lastRun?.frames).toHaveLength(1);
+    await controller.action(sequence.id, 'remove-frame', 0);
+    expect(lastRun?.frames).toHaveLength(1);
+  });
+});

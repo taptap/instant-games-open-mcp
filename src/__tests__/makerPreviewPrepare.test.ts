@@ -11,8 +11,10 @@ import {
   previewPreparationDirectory,
 } from '../maker/preview/prepare.js';
 import { previewDirectory } from '../maker/preview/protocol.js';
+import { runPreviewInstaller } from '../maker/preview/installerProcess.js';
 
 jest.mock('node:child_process', () => ({ execFile: jest.fn() }));
+jest.mock('../maker/preview/installerProcess.js', () => ({ runPreviewInstaller: jest.fn() }));
 jest.mock('../maker/system/python.js', () => ({
   checkMakerPythonEnvironmentAsync: jest.fn(),
   setupMakerPythonEnvironmentAsync: jest.fn(),
@@ -22,7 +24,21 @@ let root: string;
 let home: string | undefined;
 beforeEach(() => {
   jest.resetAllMocks();
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-prepare-test-'));
+  jest.mocked(runPreviewInstaller).mockImplementation(
+    (command, args, options) =>
+      new Promise((resolve, reject) => {
+        execFile(command, args, options as any, (error, stdout, stderr) => {
+          if (error) reject(Object.assign(error, { cleanupVerified: true }));
+          else
+            resolve(
+              typeof stdout === 'object'
+                ? (stdout as unknown as { stdout: string; stderr: string })
+                : { stdout: String(stdout || ''), stderr: String(stderr || '') }
+            );
+        });
+      })
+  );
+  root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'maker-prepare-test-')));
   home = process.env.TAPTAP_MAKER_HOME;
   process.env.TAPTAP_MAKER_HOME = root;
 });
@@ -136,7 +152,7 @@ test('prepares missing config only in the managed copy with official source defa
   await expect(preparePreviewProject(project, path.join(root, 'output'))).rejects.toThrow(
     'fixture builder reached'
   );
-  const copy = path.join(root, 'output/source/.project');
+  const copy = path.join(project, '.maker-preview/source/.project');
   const read = (name: string) =>
     JSON.parse(fs.readFileSync(path.join(copy, name + '.json'), 'utf8'));
   expect(read('project')).toMatchObject({
@@ -175,7 +191,9 @@ test('validation entry overrides only the managed copy and rejects outside scrip
     preparePreviewProject(project, path.join(root, 'output'), undefined, 'state.lua')
   ).rejects.toThrow('fixture builder reached');
   expect(
-    JSON.parse(fs.readFileSync(path.join(root, 'output/source/.project/project.json'), 'utf8'))
+    JSON.parse(
+      fs.readFileSync(path.join(project, '.maker-preview/source/.project/project.json'), 'utf8')
+    )
   ).toMatchObject({ 'entry@client': 'state.lua' });
   expect(fs.readFileSync(path.join(project, '.project/project.json'), 'utf8')).toBe(config);
   await expect(
@@ -238,8 +256,9 @@ test.each(['1', '1.2.3', '1.0.{x}', '0.{x}.{x}', '1.2.3-beta.1+build', 'dev'])(
     );
     expect(execFile).toHaveBeenCalledTimes(1);
     expect(
-      JSON.parse(fs.readFileSync(path.join(root, 'output/source/.project/project.json'), 'utf8'))
-        .version
+      JSON.parse(
+        fs.readFileSync(path.join(project, '.maker-preview/source/.project/project.json'), 'utf8')
+      ).version
     ).toBe(version);
   }
 );
@@ -305,6 +324,95 @@ test('builder failure retains diagnostics and never uses old project dist', asyn
   );
 });
 
+test('reuses one copy, removes deleted files and old builds, and resets temporary entry', async () => {
+  const project = path.join(root, 'project');
+  fs.mkdirSync(path.join(project, 'scripts'), { recursive: true });
+  fs.mkdirSync(path.join(project, '.project'));
+  fs.writeFileSync(path.join(project, 'scripts/main.lua'), 'first');
+  fs.writeFileSync(path.join(project, 'scripts/test.lua'), 'test');
+  fs.writeFileSync(path.join(project, 'scripts/deleted.lua'), 'delete');
+  const original = JSON.stringify({ entry: 'main.lua' });
+  fs.writeFileSync(path.join(project, '.project/project.json'), original);
+  jest
+    .mocked(checkMakerPythonEnvironmentAsync)
+    .mockResolvedValue({ ready: true, python: '/python' } as any);
+  jest.mocked(execFile).mockImplementation((...args: unknown[]) => {
+    (args.at(-1) as (error: Error) => void)(new Error('fixture builder reached'));
+    return {} as ReturnType<typeof execFile>;
+  });
+  await expect(
+    preparePreviewProject(project, path.join(root, 'round1'), undefined, 'test.lua')
+  ).rejects.toThrow('fixture builder reached');
+  const source = path.join(project, '.maker-preview/source');
+  fs.mkdirSync(path.join(source, 'dist/assets'), { recursive: true });
+  fs.writeFileSync(path.join(source, 'dist/assets/old'), 'old');
+  fs.mkdirSync(path.join(source, '.build/manifest_cache'), { recursive: true });
+  fs.writeFileSync(path.join(source, '.build/manifest_cache/engine.json'), 'index');
+  fs.writeFileSync(path.join(source, 'scripts/generated.meta'), 'stale');
+  fs.unlinkSync(path.join(project, 'scripts/deleted.lua'));
+  fs.writeFileSync(path.join(project, 'scripts/main.lua'), 'second');
+  await expect(preparePreviewProject(project, path.join(root, 'round2'))).rejects.toThrow(
+    'fixture builder reached'
+  );
+  expect(fs.readFileSync(path.join(source, 'scripts/main.lua'), 'utf8')).toBe('second');
+  expect(fs.existsSync(path.join(source, 'scripts/deleted.lua'))).toBe(false);
+  expect(fs.existsSync(path.join(source, 'scripts/generated.meta'))).toBe(false);
+  expect(fs.existsSync(path.join(source, 'dist'))).toBe(false);
+  expect(fs.existsSync(path.join(source, '.maker-preview'))).toBe(false);
+  expect(fs.readFileSync(path.join(source, '.build/manifest_cache/engine.json'), 'utf8')).toBe(
+    'index'
+  );
+  expect(
+    JSON.parse(fs.readFileSync(path.join(source, '.project/project.json'), 'utf8'))['entry@client']
+  ).toBeUndefined();
+  expect(fs.readFileSync(path.join(project, '.project/project.json'), 'utf8')).toBe(original);
+  expect(fs.existsSync(path.join(root, 'round1/source'))).toBe(false);
+  expect(fs.existsSync(path.join(root, 'round2/source'))).toBe(false);
+});
+
+(process.platform === 'win32' ? test.skip : test)(
+  'rejects a replaced copy directory without touching its target',
+  async () => {
+    const project = path.join(root, 'project');
+    fs.mkdirSync(path.join(project, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(project, '.project/project.json'),
+      JSON.stringify({ version: '../unsafe' })
+    );
+    await expect(preparePreviewProject(project, path.join(root, 'round1'))).rejects.toThrow(
+      'Unsafe'
+    );
+    const source = path.join(project, '.maker-preview/source');
+    fs.rmSync(source, { recursive: true });
+    const outside = path.join(root, 'outside');
+    fs.mkdirSync(outside);
+    fs.writeFileSync(path.join(outside, 'keep'), 'keep');
+    fs.symlinkSync(outside, source, 'dir');
+    await expect(preparePreviewProject(project, path.join(root, 'round2'))).rejects.toThrow('链接');
+    expect(fs.readFileSync(path.join(outside, 'keep'), 'utf8')).toBe('keep');
+  }
+);
+
+test('unverified Builder cleanup blocks reuse of the fixed workspace', async () => {
+  const project = path.join(root, 'project');
+  fs.mkdirSync(path.join(project, 'scripts'), { recursive: true });
+  jest
+    .mocked(checkMakerPythonEnvironmentAsync)
+    .mockResolvedValue({ ready: true, python: '/python' } as any);
+  jest
+    .mocked(runPreviewInstaller)
+    .mockRejectedValueOnce(Object.assign(new Error('cleanup unknown'), { cleanupVerified: false }));
+  await expect(preparePreviewProject(project, path.join(root, 'round1'))).rejects.toThrow(
+    'cleanup unknown'
+  );
+  const marker = path.join(project, '.maker-preview/.cleanup-unverified');
+  expect(fs.existsSync(marker)).toBe(true);
+  await expect(preparePreviewProject(project, path.join(root, 'round2'))).rejects.toThrow(
+    '退出状态未确认'
+  );
+  expect(runPreviewInstaller).toHaveBeenCalledTimes(1);
+});
+
 test('exit zero without a complete manifest still fails', async () => {
   const project = path.join(root, 'project');
   fs.mkdirSync(path.join(project, '.project'), { recursive: true });
@@ -328,7 +436,7 @@ test('exit zero without a complete manifest still fails', async () => {
   );
 });
 
-test('repeated failed standalone preparations retain only the latest three managed copies', async () => {
+test('repeated failed preparations retain three logs but only one project-local copy', async () => {
   const project = path.join(root, 'project');
   fs.mkdirSync(path.join(project, '.project'), { recursive: true });
   fs.writeFileSync(path.join(project, '.project', 'project.json'), '{"version":"../unsafe"}');
@@ -340,6 +448,11 @@ test('repeated failed standalone preparations retain only the latest three manag
   const retained = fs.readdirSync(path.join(previewDirectory(project), 'preparations'));
   expect(retained).toHaveLength(3);
   expect(retained).toContain(path.basename(last));
+  expect(fs.existsSync(path.join(project, '.maker-preview/source'))).toBe(true);
+  for (const name of retained)
+    expect(
+      fs.existsSync(path.join(previewDirectory(project), 'preparations', name, 'source'))
+    ).toBe(false);
 });
 
 test.each(['valid', 'missing-asset', 'nonzero-exit', 'stderr-error'])(
@@ -354,7 +467,7 @@ test.each(['valid', 'missing-asset', 'nonzero-exit', 'stderr-error'])(
       python: '/python',
     } as Awaited<ReturnType<typeof checkMakerPythonEnvironmentAsync>>);
     jest.mocked(execFile).mockImplementation((...args: unknown[]) => {
-      const source = path.join(output, 'source');
+      const source = path.join(project, '.maker-preview/source');
       const cache = path.join(source, '.build/manifest_cache');
       fs.mkdirSync(cache, { recursive: true });
       fs.mkdirSync(path.join(source, 'dist/1'), { recursive: true });

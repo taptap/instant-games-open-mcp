@@ -94,6 +94,13 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Verify demo resources before release
+        # Uploads are a separate maintenance step; release only verifies immutable files.
+        run: |
+          node scripts/maker-demo-resources.mjs check --release
+          node scripts/maker-demo-resources.mjs verify cdn
+          node scripts/maker-demo-resources.mjs verify github
+
       - name: Build Maker bundle
         run: npm run build -- --skip-server --skip-proxy --skip-native
         env:

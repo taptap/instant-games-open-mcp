@@ -19,7 +19,7 @@ interface StudioSession {
 export class FramecrateLauncher {
   readonly metadata = {
     id: 'framecrate',
-    title: 'FrameCrate',
+    title: '创作画布',
     icon: 'film',
     order: 100,
     requiresProject: true,
@@ -102,6 +102,16 @@ export class FramecrateLauncher {
         409
       );
     }
+    const runningEntry = process.argv[1];
+    const makerEntry =
+      env.FRAMECRATE_MAKER_ENTRY ||
+      (runningEntry &&
+      path.isAbsolute(runningEntry) &&
+      path.basename(runningEntry) === 'maker.js' &&
+      path.basename(path.dirname(runningEntry)) === 'dist' &&
+      fs.existsSync(runningEntry)
+        ? fs.realpathSync(runningEntry)
+        : undefined);
     const child = spawn(
       process.execPath,
       [
@@ -114,7 +124,7 @@ export class FramecrateLauncher {
       ],
       {
         cwd: root,
-        env,
+        env: { ...env, ...(makerEntry ? { FRAMECRATE_MAKER_ENTRY: makerEntry } : {}) },
         shell: false,
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,

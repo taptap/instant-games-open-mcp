@@ -68,16 +68,6 @@ function networkEnabled(settings: Record<string, any>): boolean {
   return Number(runtime.max_players) > 0;
 }
 
-function hasResourceMetadata(directory: string): boolean {
-  if (!fs.existsSync(directory)) return false;
-  if (fs.lstatSync(directory).isSymbolicLink()) return true;
-  for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
-    if (item.isSymbolicLink() || item.name.endsWith('.meta')) return true;
-    if (item.isDirectory() && hasResourceMetadata(path.join(directory, item.name))) return true;
-  }
-  return false;
-}
-
 export function classifyPreviewProject(
   project: string,
   platform: NodeJS.Platform = process.platform
@@ -97,12 +87,7 @@ export function classifyPreviewProject(
       ? 'network_or_server'
       : platform === 'win32' && fs.existsSync(path.join(project, 'dist/latest.json'))
         ? 'existing_windows_manifest'
-        : Object.keys(resourcesConfig).some(
-              (key) => !['$schema', 'entry', 'entry@client', 'entry@server'].includes(key)
-            ) ||
-            Object.keys(settingsConfig).some((key) => !['$schema', '@runtime'].includes(key)) ||
-            hasResourceMetadata(path.join(project, 'scripts')) ||
-            hasResourceMetadata(path.join(project, 'assets'))
+        : needsResourceManifest(resourcesConfig, settingsConfig)
           ? 'resource_manifest'
           : undefined;
 
@@ -113,6 +98,57 @@ export function classifyPreviewProject(
     ...(reason ? { preparation_reason: reason } : {}),
     ...(serverEntry || detectedEntry ? { server_entry: serverEntry || detectedEntry } : {}),
   };
+}
+
+function needsResourceManifest(
+  resources: Record<string, any>,
+  settings: Record<string, any>
+): boolean {
+  const resourceRules = Object.entries(resources).some(([key, value]) => {
+    if (['$schema', 'entry', 'entry@client', 'entry@server'].includes(key)) return false;
+    if (key === 'preload_groups' && Array.isArray(value) && value.length === 0) return false;
+    if (key === 'groups' && value && typeof value === 'object' && !Array.isArray(value)) {
+      const groups = Object.entries(value);
+      if (groups.length === 0) return false;
+      if (
+        groups.length === 1 &&
+        groups[0][0] === 'default' &&
+        Array.isArray(groups[0][1]) &&
+        groups[0][1].length === 1 &&
+        groups[0][1][0] === '**'
+      )
+        return false;
+    }
+    return true;
+  });
+  const settingsRules = Object.entries(settings).some(([key, value]) => {
+    if (['$schema', '@runtime'].includes(key)) return false;
+    if (key === 'build' && value && typeof value === 'object' && !Array.isArray(value))
+      return Object.entries(value).some(([name, setting]) => {
+        if (['output_dir', 'generate_fs_path'].includes(name)) return false;
+        if (name === 'asset_ignores' && Array.isArray(setting) && setting.length === 0)
+          return false;
+        if (
+          name === 'asset_dirs' &&
+          Array.isArray(setting) &&
+          setting.length === 2 &&
+          setting.includes('../assets') &&
+          setting.includes('../scripts')
+        )
+          return false;
+        return true;
+      });
+    if (
+      key === 'sources' &&
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      Object.keys(value).length === 0
+    )
+      return false;
+    return true;
+  });
+  return resourceRules || settingsRules;
 }
 
 export function readPreviewConfiguration(

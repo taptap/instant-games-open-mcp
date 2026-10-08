@@ -13,6 +13,7 @@ import { PreviewLuaLog } from './luaLog.js';
 import { selectWindowsBackgroundEnvironment } from '../system/backgroundProcess.js';
 import { preparePreviewServer, previewNetworkArgs } from './network.js';
 import { openPreviewDownloadCache, type PreviewDownloadCache } from './downloadCache.js';
+import { requirePlainPreviewSource } from './workspace.js';
 export { previewWindow } from './windowSettings.js';
 
 export const PREVIEW_TIMEOUT_MS = 30000;
@@ -101,6 +102,7 @@ export class PreviewRuntime {
     const requiresPreparation = classification.preparation_required;
     if (requiresPreparation)
       this.preparation = await preparePreviewProject(project, this.directory, this.abort.signal);
+    else await requirePlainPreviewSource(project, this.abort.signal);
     if (this.stopping) throw new Error('CANCELLED');
     const source = requiresPreparation ? String(this.preparation!.source_directory) : project;
     if (requiresPreparation) entry = String(this.preparation!.entry);

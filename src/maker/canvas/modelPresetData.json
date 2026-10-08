@@ -1,0 +1,16 @@
+{
+  "generation": {
+    "prompt": "低多边形游戏角色，橘色猫咪冒险家，双足直立，穿简洁蓝色短袖上衣和棕色短裤，不持武器。正面全身，左右对称的中性A姿势，双臂向外展开与躯干分离，双脚分开。耳朵、双手、双脚和尾巴完整可见，无披风，无挂件，纯白背景，无地面、底座、阴影、文字。\n\n游戏素材约束：单个主体、完整不裁切、四周保留动作空间；背景均匀纯色；不出现地面、地砖、站台、展示台、底座、台阶、接触阴影、投影、反射、文字、Logo、水印或其他角色。",
+    "referenceImagePaths": [],
+    "parameters": {
+      "model": "gpt",
+      "resolution": "1K",
+      "aspectRatio": "1:1"
+    },
+    "operation": "generate"
+  },
+  "asset": {
+    "type": "image/png",
+    "resourceId": "1aacb35ec0a151342888b03e28384f31dd3b46b6e82230e14cd13b25386b6444"
+  }
+}

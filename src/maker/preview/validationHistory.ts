@@ -6,10 +6,10 @@ import { getMakerHome } from '../storage.js';
 import { processPresence } from '../system/processPresence.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { withPreviewLock } from './installation.js';
+import { previewWorkspace } from './workspace.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const RETENTION_MS = 7 * 86400000;
-const CLEANUP_INTERVAL_MS = 86400000;
+const RETAINED_RUNS = 3;
 const BUDGET_BYTES = 5 * 1024 ** 3;
 const LIMITS: Record<string, number> = {
   'run.json': 16384,
@@ -361,7 +361,20 @@ export async function readValidationPreparation(project: string, id: string) {
   };
 }
 
-export async function cleanValidationHistory(project: string): Promise<string[]> {
+export async function cleanValidationHistory(
+  project: string,
+  protectedIds: string[] = []
+): Promise<string[]> {
+  return withPreviewLock(project, () =>
+    trimValidationHistory(project, RETAINED_RUNS, protectedIds)
+  );
+}
+
+export async function trimValidationHistory(
+  project: string,
+  keep: number,
+  protectedIds: string[] = []
+): Promise<string[]> {
   let root: string;
   try {
     root = await historyRoot(project);
@@ -369,61 +382,51 @@ export async function cleanValidationHistory(project: string): Promise<string[]>
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw error;
   }
-  // Reuse the project lock so concurrent commands cannot scan or delete the same history.
-  return withPreviewLock(project, async () => {
-    const previous = await artifact(root, 'cleanup.json', 1024);
-    let completedAt = NaN;
-    if (previous) {
-      try {
-        const state = JSON.parse(previous.toString('utf8'));
-        if (typeof state?.completed_at === 'string') completedAt = Date.parse(state.completed_at);
-      } catch (error) {
-        if (!(error instanceof SyntaxError)) throw error;
+  await artifact(root, 'cleanup.json', 1024);
+  const { runs, warnings } = await records(project, Infinity);
+  let bytes = 0;
+  let count = 0;
+  let retained = 0;
+  for (const run of runs) {
+    const directory = await runDirectory(project, run.run_id);
+    const inactive =
+      run.finished_at ||
+      (processPresence(run.owner_pid) === 'missing' &&
+        run.runtime_launch_pending !== true &&
+        (run.phase === 'preparing' || Boolean(run.runtime_pid)) &&
+        (!run.runtime_pid || processPresence(run.runtime_pid) === 'missing'));
+    const protectedRun =
+      protectedIds.includes(run.run_id) ||
+      (keep === 0 && processPresence(run.owner_pid) !== 'missing');
+    if (inactive && retained++ >= keep && !protectedRun) {
+      await fs.promises.rm(directory, { recursive: true, force: true });
+      continue;
+    }
+    if (keep === 0) warnings.push('保留运行中或仍由进程持有的验证记录：' + run.run_id);
+    // Include prepared source in the warning budget, but never follow its links.
+    const pending = [directory];
+    while (pending.length && count < 50000) {
+      const current = pending.pop()!;
+      for (const entry of await fs.promises.readdir(current, { withFileTypes: true })) {
+        if (count >= 50000) break;
+        count++;
+        const filename = path.join(current, entry.name);
+        const stat = await fs.promises.lstat(filename);
+        if (stat.isSymbolicLink()) continue;
+        if (stat.isDirectory()) pending.push(filename);
+        else if (stat.isFile()) bytes += stat.size;
       }
     }
-    const elapsed = Date.now() - completedAt;
-    if (elapsed >= 0 && elapsed < CLEANUP_INTERVAL_MS) return [];
-
-    const { runs, warnings } = await records(project, Infinity);
-    let bytes = 0;
-    let count = 0;
-    for (const run of runs) {
-      const directory = await runDirectory(project, run.run_id);
-      const expired = Date.now() - Date.parse(run.finished_at || run.started_at) > RETENTION_MS;
-      const inactive =
-        run.finished_at ||
-        (processPresence(run.owner_pid) === 'missing' &&
-          !run.runtime_launch_pending &&
-          (!run.runtime_pid || processPresence(run.runtime_pid) === 'missing'));
-      if (expired && inactive) {
-        await fs.promises.rm(directory, { recursive: true, force: true });
-        continue;
-      }
-      // Include prepared source in the warning budget, but never follow its links.
-      const pending = [directory];
-      while (pending.length && count < 50000) {
-        const current = pending.pop()!;
-        for (const entry of await fs.promises.readdir(current, { withFileTypes: true })) {
-          if (count >= 50000) break;
-          count++;
-          const filename = path.join(current, entry.name);
-          const stat = await fs.promises.lstat(filename);
-          if (stat.isSymbolicLink()) continue;
-          if (stat.isDirectory()) pending.push(filename);
-          else if (stat.isFile()) bytes += stat.size;
-        }
-      }
-    }
-    if (count >= 50000) warnings.push('Validation disk usage scan truncated at 50000 entries.');
-    if (bytes > BUDGET_BYTES)
-      warnings.push(
-        'Validation cache exceeds 5 GiB. Archive needed evidence before manually removing completed runs; recent runs were not deleted.'
-      );
-    writePrivateJson(path.join(root, 'cleanup.json'), {
-      completed_at: new Date(Date.now()).toISOString(),
-    });
-    return warnings;
+  }
+  if (count >= 50000) warnings.push('Validation disk usage scan truncated at 50000 entries.');
+  if (bytes > BUDGET_BYTES)
+    warnings.push(
+      'Validation cache exceeds 5 GiB. Archive needed evidence before manually removing completed runs; recent runs were not deleted.'
+    );
+  writePrivateJson(path.join(root, 'cleanup.json'), {
+    completed_at: new Date(Date.now()).toISOString(),
   });
+  return warnings;
 }
 
 export async function archiveValidationRun(
@@ -431,15 +434,31 @@ export async function archiveValidationRun(
   outputDir: string
 ): Promise<string> {
   if (!path.isAbsolute(outputDir)) throw new Error('--output-dir must be an absolute directory.');
-  await fs.promises.mkdir(outputDir, { recursive: true, mode: 0o700 });
-  const root = await fs.promises.realpath(outputDir);
-  const managed = await fs.promises.realpath(path.dirname(previewDirectory(run.project_realpath)));
-  const relative = path.relative(managed, root);
-  if (
-    !relative ||
-    (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative))
-  )
-    throw new Error('--output-dir must be outside the managed preview cache.');
+  let ancestor = path.resolve(outputDir);
+  let root = '';
+  while (!root) {
+    try {
+      root = path.resolve(await fs.promises.realpath(ancestor), path.relative(ancestor, outputDir));
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || path.dirname(ancestor) === ancestor)
+        throw error;
+      ancestor = path.dirname(ancestor);
+    }
+  }
+  const managed = [
+    await fs.promises.realpath(path.dirname(previewDirectory(run.project_realpath))),
+    previewWorkspace(run.project_realpath),
+  ];
+  for (const directory of managed) {
+    const relative = path.relative(directory, root);
+    if (
+      !relative ||
+      (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative))
+    )
+      throw new Error('--output-dir must be outside the managed preview cache.');
+  }
+  await fs.promises.mkdir(root, { recursive: true, mode: 0o700 });
   const destination = path.join(root, run.run_id);
   await fs.promises.mkdir(destination, { mode: 0o700 });
   const files = [

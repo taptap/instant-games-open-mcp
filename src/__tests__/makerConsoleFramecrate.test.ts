@@ -34,6 +34,7 @@ const projectPath = process.argv[process.argv.indexOf('--project') + 1];
 fs.appendFileSync(path.join(process.cwd(), 'starts.jsonl'),
   JSON.stringify({pid:process.pid, cwd:process.cwd(), exec:process.execPath,
     args:process.execArgv, projectPath, env:process.env.FIXTURE_VALUE,
+    makerEntry:process.env.FRAMECRATE_MAKER_ENTRY || null,
     hostOrigin:process.argv.includes('--host-origin') ? process.argv[process.argv.indexOf('--host-origin') + 1] : null}) + '\\n');
 const url = 'http://127.0.0.1:12345/#studio_token=fixture-' + process.pid;
 ${source || 'console.log(JSON.stringify({url, projectPath}));'}
@@ -81,6 +82,29 @@ setInterval(() => {}, 1000);
     await Promise.all(launchers.splice(0).map((instance) => instance.close()));
     for (const { pid } of starts()) expect(() => process.kill(pid, 0)).toThrow();
     fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  it('shows the canvas as the console tab while keeping the existing plugin id', () => {
+    expect(launcher().metadata).toMatchObject({ id: 'framecrate', title: '创作画布' });
+  });
+
+  it('passes the running Maker bundle to Studio without overriding an explicit entry', async () => {
+    const bundle = path.join(directory, 'dist', 'maker.js');
+    fs.mkdirSync(path.dirname(bundle));
+    fs.writeFileSync(bundle, '');
+    const previous = process.argv[1];
+    try {
+      process.argv[1] = bundle;
+      await launcher({ FRAMECRATE_STUDIO_DIR: root }).open(project('A').path);
+      expect(starts()[0].makerEntry).toBe(fs.realpathSync(bundle));
+      await launcher({
+        FRAMECRATE_STUDIO_DIR: root,
+        FRAMECRATE_MAKER_ENTRY: '/explicit/maker.js',
+      }).open(project('B').path);
+      expect(starts()[1].makerEntry).toBe('/explicit/maker.js');
+    } finally {
+      process.argv[1] = previous;
+    }
   });
 
   it('requires explicit configuration and an installed source entry', async () => {

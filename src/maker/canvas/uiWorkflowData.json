@@ -1,0 +1,1294 @@
+{
+  "id": "7e1cb6ad-732f-4dc3-a951-000000000012",
+  "name": "游戏UI制作",
+  "revision": 5,
+  "skills": ["maker-ui-workflow"],
+  "nodes": [
+    {
+      "id": "e3f1d7ae-c8d2-4fa8-a2ae-000000000002",
+      "type": "image",
+      "x": 3835.0,
+      "y": 0,
+      "width": 400.0,
+      "height": 755.0,
+      "title": "① 原设计稿 · 香蕉物流",
+      "assetPath": "assets/image/preset-game-ui-042.png"
+    },
+    {
+      "id": "e3f1d7ae-c8d2-4fa8-a2ae-000000000007",
+      "type": "image",
+      "x": 2835.0,
+      "y": 1140,
+      "width": 400.0,
+      "height": 755.0,
+      "title": "② 去文字设计稿",
+      "assetPath": "assets/image/preset-game-ui-066.png",
+      "generation": {
+        "prompt": "精准去除所有普通文案、数字、按钮小字、页签小字、Icon 内小字及美术字体，保持原构图和非文字细节。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "9:16"
+        },
+        "operation": "variant",
+        "sourceImageId": "e3f1d7ae-c8d2-4fa8-a2ae-000000000002",
+        "sourceImageIds": ["e3f1d7ae-c8d2-4fa8-a2ae-000000000002"]
+      }
+    },
+    {
+      "id": "b12d09bb-41d8-49d6-954f-437187ddfbf2",
+      "type": "image",
+      "x": 4735.0,
+      "y": 2330,
+      "width": 400.0,
+      "height": 755.0,
+      "title": "②-C 背景准备 · 去除Icon与按钮",
+      "assetPath": "assets/image/preset-game-ui-007.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成背景分层准备。\n保留：保留原稿主面板、分区底板和装饰框的原位置。\n移除：移除文字、Icon、按钮及按钮内图案，修补遮挡区域。\n输出：单张背景准备图，不移动剩余背景框。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "9:16"
+        },
+        "sourceImageId": "e3f1d7ae-c8d2-4fa8-a2ae-000000000007",
+        "sourceImageIds": ["e3f1d7ae-c8d2-4fa8-a2ae-000000000007"]
+      }
+    },
+    {
+      "id": "39a843c1-9e03-46a9-a866-484020e88531",
+      "type": "image",
+      "x": 4680,
+      "y": 3530,
+      "width": 480.0,
+      "height": 470.0,
+      "title": "③ 木质标题底板 · 4 PNG",
+      "assetPath": "assets/image/preset-game-ui-039.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成木质标题底板。\n保留：分别保留木质标题条与独立底框的轮廓、边缘、纹理。\n移除：移除所有文字、图标和外部主面板。\n输出：2列2行，4个独立底板，等大格子，主体不跨格。 使用纯洋红底便于后续透明处理，不添加投影平台；这不是最终透明PNG，需检查并处理底色后裁切。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "1:1"
+        },
+        "sourceImageId": "b12d09bb-41d8-49d6-954f-437187ddfbf2",
+        "sourceImageIds": ["b12d09bb-41d8-49d6-954f-437187ddfbf2"]
+      }
+    },
+    {
+      "id": "89185d4a-93c8-4894-aad3-30937a902026",
+      "type": "image",
+      "x": 5280,
+      "y": 3530,
+      "width": 510.0,
+      "height": 1030.0,
+      "title": "③ 完整主面板 · 1 PNG",
+      "assetPath": "assets/image/preset-game-ui-013.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成完整主面板。\n保留：保留完整外围主面板轮廓、材质和边缘装饰。\n移除：移除内部文字、按钮、图标及独立分区底框。\n输出：1个完整主面板，主体完整，无外部环境。 使用纯洋红底便于后续透明处理，不添加投影平台；这不是最终透明PNG，需检查并处理底色后裁切。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "9:16"
+        },
+        "sourceImageId": "b12d09bb-41d8-49d6-954f-437187ddfbf2",
+        "sourceImageIds": ["b12d09bb-41d8-49d6-954f-437187ddfbf2"]
+      }
+    },
+    {
+      "id": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
+      "type": "image",
+      "x": 935.0,
+      "y": 2330,
+      "width": 400.0,
+      "height": 755.0,
+      "title": "②-A 按钮标注 · B01—B11",
+      "assetPath": "assets/image/preset-game-ui-021.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成按钮分析标注。\n保留：在参考图上识别按钮及可点击页签；每个实例记录独立B编号并保留原位置。\n移除：不要把Icon当作按钮底板，不把相似实例合并。\n输出：原图上画框和编号；标注全部按钮，不拆图、不改布局。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "9:16"
+        },
+        "sourceImageId": "e3f1d7ae-c8d2-4fa8-a2ae-000000000007",
+        "sourceImageIds": ["e3f1d7ae-c8d2-4fa8-a2ae-000000000007"]
+      }
+    },
+    {
+      "id": "ef5d0a89-9b4c-43bf-895b-873e3ec879fa",
+      "type": "image",
+      "x": 2835.0,
+      "y": 2330,
+      "width": 400.0,
+      "height": 755.0,
+      "title": "②-B Icon标注 · I01—I29",
+      "assetPath": "assets/image/preset-game-ui-057.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成Icon分析标注。\n保留：在参考图上识别全部独立Icon和装饰小图；每个实例记录独立I编号并保留原位置。\n移除：不要把背景框、普通文字和按钮底板混入Icon。\n输出：原图上画框和编号；相似实例也分别编号，不拆图、不改布局。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "9:16"
+        },
+        "sourceImageId": "e3f1d7ae-c8d2-4fa8-a2ae-000000000007",
+        "sourceImageIds": ["e3f1d7ae-c8d2-4fa8-a2ae-000000000007"]
+      }
+    },
+    {
+      "id": "6e29e273-6ee3-4d95-9e34-8272b2dd239a",
+      "type": "image",
+      "x": 6422.13,
+      "y": 2330.04,
+      "width": 400.0,
+      "height": 755.0,
+      "title": "②-D 美术字体标注 · T01—T02",
+      "assetPath": "assets/image/preset-game-ui-050.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成美术字体分析标注。\n保留：识别原稿中独立美术字及字效，使用T编号标注字形边界。\n移除：不把后方木板、框、按钮背景计入字形。\n输出：保持原稿位置，只画美术字边界与编号，不抹掉原文。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "9:16"
+        },
+        "sourceImageId": "e3f1d7ae-c8d2-4fa8-a2ae-000000000002",
+        "sourceImageIds": ["e3f1d7ae-c8d2-4fa8-a2ae-000000000002"]
+      }
+    },
+    {
+      "id": "e61fbe3d-465d-4cca-ae56-7a40df0fb231",
+      "type": "image",
+      "x": 2720.65,
+      "y": 3528.52,
+      "width": 630.0,
+      "height": 530.0,
+      "title": "③ Icon贴图 · 现有16类",
+      "assetPath": "assets/image/preset-game-ui-017.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成Icon贴图提取。\n保留：提取已标注的不同Icon，保留完整主体和美术风格；重复素材可共用。\n移除：移除编号、文字、按钮底板与背景框。\n输出：示例为4列4行16类，换原稿后按真实清单调整数量与网格，不因示例数量而漏图。 使用纯洋红底便于后续透明处理，不添加投影平台；这不是最终透明PNG，需检查并处理底色后裁切。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "1:1"
+        },
+        "sourceImageId": "ef5d0a89-9b4c-43bf-895b-873e3ec879fa",
+        "sourceImageIds": ["ef5d0a89-9b4c-43bf-895b-873e3ec879fa"]
+      }
+    },
+    {
+      "id": "ab180665-681a-4441-9dfa-895eaef7dc5a",
+      "type": "image",
+      "x": 4080,
+      "y": 3530,
+      "width": 480.0,
+      "height": 1040.0,
+      "title": "③ 独立背景框 · 7 PNG",
+      "assetPath": "assets/image/preset-game-ui-043.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成独立背景框提取。\n保留：分别保留分区底框和进度条各独立层，轮廓、纹理完整。\n移除：移除内部文字、Icon、按钮与外部主面板。\n输出：示例1列7行7个底框；保持每个独立，不嵌套叠放，换图后按实际清单调整。 使用纯洋红底便于后续透明处理，不添加投影平台；这不是最终透明PNG，需检查并处理底色后裁切。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "9:16"
+        },
+        "sourceImageId": "b12d09bb-41d8-49d6-954f-437187ddfbf2",
+        "sourceImageIds": ["b12d09bb-41d8-49d6-954f-437187ddfbf2"]
+      }
+    },
+    {
+      "id": "451036ce-ac66-4c52-805c-01bf88369e41",
+      "type": "image",
+      "x": 0,
+      "y": 3530,
+      "width": 650.0,
+      "height": 310.0,
+      "title": "③ 页签双状态 · 10 PNG",
+      "assetPath": "assets/image/preset-game-ui-003.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成页签按钮双状态。\n保留：分别提取各页签的默认和按下底板；两种状态使用相同尺寸及锚点。\n移除：移除Icon、标签文字、编号和背景。\n输出：示例5列2行，上排默认、下排对应按下；每格一个底板，换图后调整列数。 使用纯洋红底便于后续透明处理，不添加投影平台；这不是最终透明PNG，需检查并处理底色后裁切。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "1:1"
+        },
+        "sourceImageId": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
+        "sourceImageIds": ["6041aa5d-911a-4d63-bee9-8480a6cdc36b"]
+      }
+    },
+    {
+      "id": "215aa317-e6f4-4696-b51a-379c324aa11e",
+      "type": "image",
+      "x": 760,
+      "y": 3530,
+      "width": 460.0,
+      "height": 285.0,
+      "title": "③ 补种／建造双状态 · 4 PNG",
+      "assetPath": "assets/image/preset-game-ui-002.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成主操作按钮双状态。\n保留：分别提取补种、建造类按钮默认和按下底板，两状态大小与锚点一致。\n移除：移除图标、文案、编号和背景。\n输出：示例2列2行，上排默认、下排对应按下，每格一个底板。 使用纯洋红底便于后续透明处理，不添加投影平台；这不是最终透明PNG，需检查并处理底色后裁切。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "1:1"
+        },
+        "sourceImageId": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
+        "sourceImageIds": ["6041aa5d-911a-4d63-bee9-8480a6cdc36b"]
+      }
+    },
+    {
+      "id": "60ea6f01-64c2-47b3-b3a1-188e3b4cd650",
+      "type": "image",
+      "x": 1340,
+      "y": 3530,
+      "width": 460.0,
+      "height": 400.0,
+      "title": "③ 快捷入口双状态 · 6 PNG",
+      "assetPath": "assets/image/preset-game-ui-026.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成快捷入口按钮双状态。\n保留：提取快捷入口按钮的默认与按下底板，两状态大小与锚点一致。\n移除：移除Icon、普通文字、编号和背景。\n输出：示例3列2行，上排默认、下排对应按下，每格一个底板。 使用纯洋红底便于后续透明处理，不添加投影平台；这不是最终透明PNG，需检查并处理底色后裁切。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "1:1"
+        },
+        "sourceImageId": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
+        "sourceImageIds": ["6041aa5d-911a-4d63-bee9-8480a6cdc36b"]
+      }
+    },
+    {
+      "id": "9a0cecb9-a701-4d10-8e34-b75f04ed74bc",
+      "type": "image",
+      "x": 1920,
+      "y": 3530,
+      "width": 350.0,
+      "height": 640.0,
+      "title": "③ 关闭底板双状态 · 2 PNG",
+      "assetPath": "assets/image/preset-game-ui-067.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成关闭按钮双状态。\n保留：提取关闭按钮底板的默认和按下状态，大小和锚点一致。\n移除：移除关闭叉号Icon、文字、编号和外部背景。\n输出：1列2行，上默认下按下，每格一个独立底板。 使用纯洋红底便于后续透明处理，不添加投影平台；这不是最终透明PNG，需检查并处理底色后裁切。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "9:16"
+        },
+        "sourceImageId": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
+        "sourceImageIds": ["6041aa5d-911a-4d63-bee9-8480a6cdc36b"]
+      }
+    },
+    {
+      "id": "c190210f-313a-43fc-b3d1-33197f7a1da3",
+      "type": "image-assets",
+      "x": 0,
+      "y": 4980,
+      "width": 650.0,
+      "height": 310.0,
+      "title": "③ 资源包 · 页签双状态 · 10 PNG",
+      "imageAssetsInfo": {
+        "width": 2440,
+        "height": 944,
+        "grid": {
+          "columns": 5,
+          "rows": 2,
+          "marginX": 0,
+          "marginY": 0,
+          "gapX": 0,
+          "gapY": 0
+        },
+        "items": [
+          {
+            "name": "item_001",
+            "assetPath": "assets/image/preset-game-ui-033.png",
+            "width": 488,
+            "height": 472
+          },
+          {
+            "name": "item_002",
+            "assetPath": "assets/image/preset-game-ui-008.png",
+            "width": 488,
+            "height": 472
+          },
+          {
+            "name": "item_003",
+            "assetPath": "assets/image/preset-game-ui-038.png",
+            "width": 488,
+            "height": 472
+          },
+          {
+            "name": "item_004",
+            "assetPath": "assets/image/preset-game-ui-024.png",
+            "width": 488,
+            "height": 472
+          },
+          {
+            "name": "item_005",
+            "assetPath": "assets/image/preset-game-ui-018.png",
+            "width": 488,
+            "height": 472
+          },
+          {
+            "name": "item_006",
+            "assetPath": "assets/image/preset-game-ui-048.png",
+            "width": 488,
+            "height": 472
+          },
+          {
+            "name": "item_007",
+            "assetPath": "assets/image/preset-game-ui-005.png",
+            "width": 488,
+            "height": 472
+          },
+          {
+            "name": "item_008",
+            "assetPath": "assets/image/preset-game-ui-025.png",
+            "width": 488,
+            "height": 472
+          },
+          {
+            "name": "item_009",
+            "assetPath": "assets/image/preset-game-ui-040.png",
+            "width": 488,
+            "height": 472
+          },
+          {
+            "name": "item_010",
+            "assetPath": "assets/image/preset-game-ui-029.png",
+            "width": 488,
+            "height": 472
+          }
+        ]
+      }
+    },
+    {
+      "id": "a2c2b052-1550-4433-a3a2-051dd3553492",
+      "type": "image-assets",
+      "x": 760,
+      "y": 4980,
+      "width": 460.0,
+      "height": 300.0,
+      "title": "③ 资源包 · 补种／建造双状态 · 4 PNG",
+      "imageAssetsInfo": {
+        "width": 1640,
+        "height": 656,
+        "grid": {
+          "columns": 2,
+          "rows": 2,
+          "marginX": 0,
+          "marginY": 0,
+          "gapX": 0,
+          "gapY": 0
+        },
+        "items": [
+          {
+            "name": "item_001",
+            "assetPath": "assets/image/preset-game-ui-027.png",
+            "width": 820,
+            "height": 328
+          },
+          {
+            "name": "item_002",
+            "assetPath": "assets/image/preset-game-ui-059.png",
+            "width": 820,
+            "height": 328
+          },
+          {
+            "name": "item_003",
+            "assetPath": "assets/image/preset-game-ui-006.png",
+            "width": 820,
+            "height": 328
+          },
+          {
+            "name": "item_004",
+            "assetPath": "assets/image/preset-game-ui-011.png",
+            "width": 820,
+            "height": 328
+          }
+        ]
+      }
+    },
+    {
+      "id": "ade78bcf-3ef8-4e2b-a4a1-3780064bf101",
+      "type": "image-assets",
+      "x": 1340,
+      "y": 4980,
+      "width": 460.0,
+      "height": 400.0,
+      "title": "③ 资源包 · 快捷入口双状态 · 6 PNG",
+      "imageAssetsInfo": {
+        "width": 1026,
+        "height": 772,
+        "grid": {
+          "columns": 3,
+          "rows": 2,
+          "marginX": 0,
+          "marginY": 0,
+          "gapX": 0,
+          "gapY": 0
+        },
+        "items": [
+          {
+            "name": "item_001",
+            "assetPath": "assets/image/preset-game-ui-045.png",
+            "width": 342,
+            "height": 386
+          },
+          {
+            "name": "item_002",
+            "assetPath": "assets/image/preset-game-ui-065.png",
+            "width": 342,
+            "height": 386
+          },
+          {
+            "name": "item_003",
+            "assetPath": "assets/image/preset-game-ui-032.png",
+            "width": 342,
+            "height": 386
+          },
+          {
+            "name": "item_004",
+            "assetPath": "assets/image/preset-game-ui-055.png",
+            "width": 342,
+            "height": 386
+          },
+          {
+            "name": "item_005",
+            "assetPath": "assets/image/preset-game-ui-014.png",
+            "width": 342,
+            "height": 386
+          },
+          {
+            "name": "item_006",
+            "assetPath": "assets/image/preset-game-ui-031.png",
+            "width": 342,
+            "height": 386
+          }
+        ]
+      }
+    },
+    {
+      "id": "7716dbea-f9ac-4e78-8465-5ba51b3d1770",
+      "type": "image-assets",
+      "x": 1920,
+      "y": 4980,
+      "width": 350.0,
+      "height": 640.0,
+      "title": "③ 资源包 · 关闭底板双状态 · 2 PNG",
+      "imageAssetsInfo": {
+        "width": 373,
+        "height": 720,
+        "grid": {
+          "columns": 1,
+          "rows": 2,
+          "marginX": 0,
+          "marginY": 0,
+          "gapX": 0,
+          "gapY": 0
+        },
+        "items": [
+          {
+            "name": "item_001",
+            "assetPath": "assets/image/preset-game-ui-053.png",
+            "width": 373,
+            "height": 360
+          },
+          {
+            "name": "item_002",
+            "assetPath": "assets/image/preset-game-ui-058.png",
+            "width": 373,
+            "height": 360
+          }
+        ]
+      }
+    },
+    {
+      "id": "55106047-e37f-48a0-b55e-ad067a90bd89",
+      "type": "image-assets",
+      "x": 2720.62,
+      "y": 4978.52,
+      "width": 630.0,
+      "height": 530.0,
+      "title": "③ 资源包 · Icon贴图 · 现有16类",
+      "imageAssetsInfo": {
+        "width": 1384,
+        "height": 1244,
+        "grid": {
+          "columns": 4,
+          "rows": 4,
+          "marginX": 0,
+          "marginY": 0,
+          "gapX": 0,
+          "gapY": 0
+        },
+        "items": [
+          {
+            "name": "item_001",
+            "assetPath": "assets/image/preset-game-ui-035.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_002",
+            "assetPath": "assets/image/preset-game-ui-036.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_003",
+            "assetPath": "assets/image/preset-game-ui-012.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_004",
+            "assetPath": "assets/image/preset-game-ui-020.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_005",
+            "assetPath": "assets/image/preset-game-ui-063.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_006",
+            "assetPath": "assets/image/preset-game-ui-044.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_007",
+            "assetPath": "assets/image/preset-game-ui-022.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_008",
+            "assetPath": "assets/image/preset-game-ui-004.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_009",
+            "assetPath": "assets/image/preset-game-ui-019.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_010",
+            "assetPath": "assets/image/preset-game-ui-060.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_011",
+            "assetPath": "assets/image/preset-game-ui-064.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_012",
+            "assetPath": "assets/image/preset-game-ui-023.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_013",
+            "assetPath": "assets/image/preset-game-ui-009.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_014",
+            "assetPath": "assets/image/preset-game-ui-030.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_015",
+            "assetPath": "assets/image/preset-game-ui-054.png",
+            "width": 346,
+            "height": 311
+          },
+          {
+            "name": "item_016",
+            "assetPath": "assets/image/preset-game-ui-049.png",
+            "width": 346,
+            "height": 311
+          }
+        ]
+      }
+    },
+    {
+      "id": "e00314a9-cb50-4dcd-b950-e35bae15a44a",
+      "type": "image-assets",
+      "x": 4080,
+      "y": 4980,
+      "width": 480.0,
+      "height": 850.0,
+      "title": "③ 资源包 · 独立背景框 · 7 PNG",
+      "imageAssetsInfo": {
+        "width": 954,
+        "height": 3542,
+        "grid": {
+          "columns": 1,
+          "rows": 7,
+          "marginX": 0,
+          "marginY": 0,
+          "gapX": 0,
+          "gapY": 0
+        },
+        "items": [
+          {
+            "name": "item_001",
+            "assetPath": "assets/image/preset-game-ui-016.png",
+            "width": 954,
+            "height": 506
+          },
+          {
+            "name": "item_002",
+            "assetPath": "assets/image/preset-game-ui-010.png",
+            "width": 954,
+            "height": 506
+          },
+          {
+            "name": "item_003",
+            "assetPath": "assets/image/preset-game-ui-015.png",
+            "width": 954,
+            "height": 506
+          },
+          {
+            "name": "item_004",
+            "assetPath": "assets/image/preset-game-ui-061.png",
+            "width": 954,
+            "height": 506
+          },
+          {
+            "name": "item_005",
+            "assetPath": "assets/image/preset-game-ui-056.png",
+            "width": 954,
+            "height": 506
+          },
+          {
+            "name": "item_006",
+            "assetPath": "assets/image/preset-game-ui-052.png",
+            "width": 954,
+            "height": 506
+          },
+          {
+            "name": "item_007",
+            "assetPath": "assets/image/preset-game-ui-037.png",
+            "width": 954,
+            "height": 506
+          }
+        ]
+      }
+    },
+    {
+      "id": "412f500c-78da-47df-b448-b066a08d154d",
+      "type": "image-assets",
+      "x": 4680,
+      "y": 4980,
+      "width": 480.0,
+      "height": 470.0,
+      "title": "③ 资源包 · 木质标题底板 · 4 PNG",
+      "imageAssetsInfo": {
+        "width": 2048,
+        "height": 2048,
+        "grid": {
+          "columns": 2,
+          "rows": 2,
+          "marginX": 0,
+          "marginY": 0,
+          "gapX": 0,
+          "gapY": 0
+        },
+        "items": [
+          {
+            "name": "item_001",
+            "assetPath": "assets/image/preset-game-ui-041.png",
+            "width": 1024,
+            "height": 1024
+          },
+          {
+            "name": "item_002",
+            "assetPath": "assets/image/preset-game-ui-046.png",
+            "width": 1024,
+            "height": 1024
+          },
+          {
+            "name": "item_003",
+            "assetPath": "assets/image/preset-game-ui-047.png",
+            "width": 1024,
+            "height": 1024
+          },
+          {
+            "name": "item_004",
+            "assetPath": "assets/image/preset-game-ui-034.png",
+            "width": 1024,
+            "height": 1024
+          }
+        ]
+      }
+    },
+    {
+      "id": "4aa1c1c0-59fb-4985-b477-d1916ebc6f33",
+      "type": "image-assets",
+      "x": 5280,
+      "y": 4980,
+      "width": 510.0,
+      "height": 850.0,
+      "title": "③ 资源包 · 完整主面板 · 1 PNG",
+      "imageAssetsInfo": {
+        "width": 1094,
+        "height": 1867,
+        "grid": {
+          "columns": 1,
+          "rows": 1,
+          "marginX": 0,
+          "marginY": 0,
+          "gapX": 0,
+          "gapY": 0
+        },
+        "items": [
+          {
+            "name": "item_001",
+            "assetPath": "assets/image/preset-game-ui-028.png",
+            "width": 1094,
+            "height": 1867
+          }
+        ]
+      }
+    },
+    {
+      "id": "e227c5e4-f895-4bba-8596-97865e98b579",
+      "type": "image",
+      "x": 6291.4,
+      "y": 3530,
+      "width": 650.0,
+      "height": 460.0,
+      "title": "③ 美术字 · AI提取与透明处理",
+      "assetPath": "assets/image/preset-game-ui-062.png",
+      "referenceInput": {
+        "includeSelf": false
+      },
+      "generation": {
+        "operation": "variant",
+        "prompt": "参考与目标：以输入参考图为依据，完成美术字提取。\n保留：只保留美术字的完整字形、描边和字效。\n移除：彻底移除后方底框、木板、背景和标注编号，不把底板切入字形。\n输出：示例1列2行两组美术字，完整独立，不跨格。 使用纯洋红底便于后续透明处理，不添加投影平台；这不是最终透明PNG，需检查并处理底色后裁切。",
+        "parameters": {
+          "model": "gpt",
+          "resolution": "2K",
+          "aspectRatio": "1:1"
+        },
+        "sourceImageId": "6e29e273-6ee3-4d95-9e34-8272b2dd239a",
+        "sourceImageIds": ["6e29e273-6ee3-4d95-9e34-8272b2dd239a"]
+      }
+    },
+    {
+      "id": "40fc12b0-dc7d-4bd5-a94c-4131a80e1050",
+      "type": "image-assets",
+      "x": 6291.4,
+      "y": 4980,
+      "width": 650.0,
+      "height": 440.0,
+      "title": "③ 资源包 · 美术字 · 2 PNG",
+      "imageAssetsInfo": {
+        "width": 1349,
+        "height": 900,
+        "grid": {
+          "columns": 1,
+          "rows": 2,
+          "marginX": 0,
+          "marginY": 0,
+          "gapX": 0,
+          "gapY": 0
+        },
+        "items": [
+          {
+            "name": "item_001",
+            "assetPath": "assets/image/preset-game-ui-051.png",
+            "width": 1349,
+            "height": 450
+          },
+          {
+            "name": "item_002",
+            "assetPath": "assets/image/preset-game-ui-001.png",
+            "width": 1349,
+            "height": 450
+          }
+        ]
+      }
+    },
+    {
+      "id": "7e1cb6ad-732f-4dc3-a951-000000001299",
+      "type": "note",
+      "title": "资源包之后 · 交给 AI 继续",
+      "x": 3035,
+      "y": 5990.0,
+      "width": 1000,
+      "height": 340,
+      "text": "模板到独立 PNG 资源包结束。各资源卡分别下载，全部保留；示例包含人工透明处理与重排，换稿后须重新核对清单、网格和底色。\n下一步：把设计稿和素材包交给接入 Maker MCP 的 AI，说“使用 maker-ui-workflow，把这些素材导入当前游戏项目、生成 meta、组装 UI.json，并打开控制台 UI 编辑器对照调整”。\n有布局清单则按原坐标组装；没有则由 AI 对照原稿补录，不能猜配相似素材。CLI 组装也需要先准备 layout.json；控制台不会自动完成 AI 识别。\n用户模板和生成素材只保存在本机，不自动上传 CDN 或 GitHub。"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e3f1d7ae-c8d2-4fa8-a2ae-000000000101",
+      "from": "e3f1d7ae-c8d2-4fa8-a2ae-000000000002",
+      "to": "e3f1d7ae-c8d2-4fa8-a2ae-000000000007",
+      "kind": "image-variant"
+    },
+    {
+      "id": "d890dd51-aa60-4069-87c0-ddd8a07bba7f",
+      "from": "b12d09bb-41d8-49d6-954f-437187ddfbf2",
+      "to": "39a843c1-9e03-46a9-a866-484020e88531",
+      "kind": "image-variant"
+    },
+    {
+      "id": "0c615af0-469c-4b52-a3e5-62fcc0b29ff5",
+      "from": "b12d09bb-41d8-49d6-954f-437187ddfbf2",
+      "to": "89185d4a-93c8-4894-aad3-30937a902026",
+      "kind": "image-variant"
+    },
+    {
+      "id": "142ad7b5-6af4-40b3-858f-de169337f342",
+      "from": "e3f1d7ae-c8d2-4fa8-a2ae-000000000007",
+      "to": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
+      "kind": "image-variant"
+    },
+    {
+      "id": "2959f9ca-d134-43f2-9d48-1364a1b6a011",
+      "from": "e3f1d7ae-c8d2-4fa8-a2ae-000000000007",
+      "to": "ef5d0a89-9b4c-43bf-895b-873e3ec879fa",
+      "kind": "image-variant"
+    },
+    {
+      "id": "300b14ef-b553-42f0-9717-debcc152da37",
+      "from": "e3f1d7ae-c8d2-4fa8-a2ae-000000000002",
+      "to": "6e29e273-6ee3-4d95-9e34-8272b2dd239a",
+      "kind": "image-variant",
+      "route": {
+        "x": 1.25,
+        "y": 0
+      }
+    },
+    {
+      "id": "15fc7eba-0317-4538-8717-a694c1b215ab",
+      "from": "ef5d0a89-9b4c-43bf-895b-873e3ec879fa",
+      "to": "e61fbe3d-465d-4cca-ae56-7a40df0fb231",
+      "kind": "image-variant"
+    },
+    {
+      "id": "48717b25-73c9-48f4-93b2-52b70b97ca8d",
+      "from": "b12d09bb-41d8-49d6-954f-437187ddfbf2",
+      "to": "ab180665-681a-4441-9dfa-895eaef7dc5a",
+      "kind": "image-variant"
+    },
+    {
+      "id": "54f39381-22ea-4577-9fe8-da7e0ced6687",
+      "from": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
+      "to": "451036ce-ac66-4c52-805c-01bf88369e41",
+      "kind": "image-variant"
+    },
+    {
+      "id": "01405bdd-7ba9-4065-a69b-424c52a5d3a0",
+      "from": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
+      "to": "215aa317-e6f4-4696-b51a-379c324aa11e",
+      "kind": "image-variant"
+    },
+    {
+      "id": "26eb8449-2a06-47e9-a4a9-c89b6593b8bb",
+      "from": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
+      "to": "60ea6f01-64c2-47b3-b3a1-188e3b4cd650",
+      "kind": "image-variant"
+    },
+    {
+      "id": "cd9073dd-5f58-4073-b802-f44b50d64fad",
+      "from": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
+      "to": "9a0cecb9-a701-4d10-8e34-b75f04ed74bc",
+      "kind": "image-variant"
+    },
+    {
+      "id": "8b9312d3-4373-42d6-a97b-385e065e2e97",
+      "from": "451036ce-ac66-4c52-805c-01bf88369e41",
+      "to": "c190210f-313a-43fc-b3d1-33197f7a1da3",
+      "kind": "image-assets"
+    },
+    {
+      "id": "d1155391-a1ca-4fd8-930e-aae31f2aa91e",
+      "from": "215aa317-e6f4-4696-b51a-379c324aa11e",
+      "to": "a2c2b052-1550-4433-a3a2-051dd3553492",
+      "kind": "image-assets"
+    },
+    {
+      "id": "15f6b4d7-57be-4114-b08e-d5cd06b05b9c",
+      "from": "60ea6f01-64c2-47b3-b3a1-188e3b4cd650",
+      "to": "ade78bcf-3ef8-4e2b-a4a1-3780064bf101",
+      "kind": "image-assets"
+    },
+    {
+      "id": "f0f8b032-13e6-4a4d-97a1-0926410cf31b",
+      "from": "9a0cecb9-a701-4d10-8e34-b75f04ed74bc",
+      "to": "7716dbea-f9ac-4e78-8465-5ba51b3d1770",
+      "kind": "image-assets"
+    },
+    {
+      "id": "973b8cbe-cfed-44ea-b39f-61e10c5bc40b",
+      "from": "e61fbe3d-465d-4cca-ae56-7a40df0fb231",
+      "to": "55106047-e37f-48a0-b55e-ad067a90bd89",
+      "kind": "image-assets"
+    },
+    {
+      "id": "f1470899-60f4-4034-b8bb-84ee39414401",
+      "from": "ab180665-681a-4441-9dfa-895eaef7dc5a",
+      "to": "e00314a9-cb50-4dcd-b950-e35bae15a44a",
+      "kind": "image-assets"
+    },
+    {
+      "id": "dd5c7a60-a46b-459e-be71-ab1dcc816587",
+      "from": "39a843c1-9e03-46a9-a866-484020e88531",
+      "to": "412f500c-78da-47df-b448-b066a08d154d",
+      "kind": "image-assets"
+    },
+    {
+      "id": "5cddccf7-f903-4a32-859d-9346a3a09449",
+      "from": "89185d4a-93c8-4894-aad3-30937a902026",
+      "to": "4aa1c1c0-59fb-4985-b477-d1916ebc6f33",
+      "kind": "image-assets"
+    },
+    {
+      "id": "ea4dc9ca-71d3-4e26-97ac-e63a64160ab9",
+      "from": "e3f1d7ae-c8d2-4fa8-a2ae-000000000007",
+      "to": "b12d09bb-41d8-49d6-954f-437187ddfbf2",
+      "kind": "image-variant"
+    },
+    {
+      "id": "bfbb0956-9f32-4ca7-8d7c-399d4d605253",
+      "from": "6e29e273-6ee3-4d95-9e34-8272b2dd239a",
+      "to": "e227c5e4-f895-4bba-8596-97865e98b579",
+      "kind": "image-variant"
+    },
+    {
+      "id": "198ab614-7ab9-45ee-b4d0-8f46731f2fa9",
+      "from": "e227c5e4-f895-4bba-8596-97865e98b579",
+      "to": "40fc12b0-dc7d-4bd5-a94c-4131a80e1050",
+      "kind": "image-assets"
+    }
+  ],
+  "assets": {
+    "assets/image/preset-game-ui-001.png": {
+      "type": "image/png",
+      "resourceId": "74d638412657996ea2460d46b76a0e774d435c96ca0fcf48d7b06a6873e061b9"
+    },
+    "assets/image/preset-game-ui-002.png": {
+      "type": "image/png",
+      "resourceId": "f363c5437660d456bd9c13b1094d6228af199b8c0c1242f8ed5b7830c181918e"
+    },
+    "assets/image/preset-game-ui-003.png": {
+      "type": "image/png",
+      "resourceId": "4c8c8bd2a98784f6ce00db9edfa452c58d872c64dcbec5c4cc05b5ad5495fe8d"
+    },
+    "assets/image/preset-game-ui-004.png": {
+      "type": "image/png",
+      "resourceId": "fb2d062dc6a18753ffd269295a7d1e317257db486b0206745b524e2be56179ec"
+    },
+    "assets/image/preset-game-ui-005.png": {
+      "type": "image/png",
+      "resourceId": "c37705b3e8fa693f2ffa1112126543a603f950436ca199a346171d8888054a3d"
+    },
+    "assets/image/preset-game-ui-006.png": {
+      "type": "image/png",
+      "resourceId": "11f55c723744b8bb8341fd7bb983d1c6b9260383c835a652a739e3e9b517d1c1"
+    },
+    "assets/image/preset-game-ui-007.png": {
+      "type": "image/png",
+      "resourceId": "0c36e9f5dfc9c1d0fc293f25dd481e2cdc83c9e978e10014a7bd9148594d3178"
+    },
+    "assets/image/preset-game-ui-008.png": {
+      "type": "image/png",
+      "resourceId": "71ceae909ee97c2ca98b641073475e7ac0b619f45d612bf74874e8fdd6e705a6"
+    },
+    "assets/image/preset-game-ui-009.png": {
+      "type": "image/png",
+      "resourceId": "ef0e33e26bf6f8788e43f10e4887daabd752d1ea1a8b16a81b626a8e55847b79"
+    },
+    "assets/image/preset-game-ui-010.png": {
+      "type": "image/png",
+      "resourceId": "06902f6d5ba716c531227982a542b1b91f42d3c02145eb8939c50bd20414eef3"
+    },
+    "assets/image/preset-game-ui-011.png": {
+      "type": "image/png",
+      "resourceId": "4ce7d45b1d5ebfb4885ae990994c246efb291c48403baedf502d4b3398bc6fbc"
+    },
+    "assets/image/preset-game-ui-012.png": {
+      "type": "image/png",
+      "resourceId": "bdc037bd632690e236547c22ea2a0726c955ff31abf16a65650af7d9b3cd6b7f"
+    },
+    "assets/image/preset-game-ui-013.png": {
+      "type": "image/png",
+      "resourceId": "937bf68ac38a1f7380c3346eb6b4d5e21a3a4a8410fb4dc81857afa5f24aa3ff"
+    },
+    "assets/image/preset-game-ui-014.png": {
+      "type": "image/png",
+      "resourceId": "aa031ff0bd579639bdfd8e2e6167ac67739d806985481bf21784c98f55606ab7"
+    },
+    "assets/image/preset-game-ui-015.png": {
+      "type": "image/png",
+      "resourceId": "4b1e135d274a901e531a5a552d93740bafafe5a16fa72b5ba08ffb7693b6edbb"
+    },
+    "assets/image/preset-game-ui-016.png": {
+      "type": "image/png",
+      "resourceId": "0495500c176f688861de2323912bfbe914282dccb508f3188ae7d2308b9023cb"
+    },
+    "assets/image/preset-game-ui-017.png": {
+      "type": "image/png",
+      "resourceId": "31911e606b5cc0b5ff86df2afb73de9097196f6a7e67fc0f5bd64fa15cea074f"
+    },
+    "assets/image/preset-game-ui-018.png": {
+      "type": "image/png",
+      "resourceId": "c3997c02fe18a0d93f749bcccfad71a3b80af83d8f9e8a9c319499b0bb495bbd"
+    },
+    "assets/image/preset-game-ui-019.png": {
+      "type": "image/png",
+      "resourceId": "6a71003a8d270a8b52f0222a3cc4022c81b49d30debcfcc0d7aa5498119940db"
+    },
+    "assets/image/preset-game-ui-020.png": {
+      "type": "image/png",
+      "resourceId": "4977c23d9346d7bd325e57f8672fd04f159f04db4eea188aa53b5b7c56545401"
+    },
+    "assets/image/preset-game-ui-021.png": {
+      "type": "image/png",
+      "resourceId": "3dac105dda08657a8a6bbcfd7cb63834e5c8f9bb75a777787db6bb76a182ed63"
+    },
+    "assets/image/preset-game-ui-022.png": {
+      "type": "image/png",
+      "resourceId": "89df278dc0f19f994acb7be0d64841ffb05768eaa0e684e9d0bfc21b7e39e076"
+    },
+    "assets/image/preset-game-ui-023.png": {
+      "type": "image/png",
+      "resourceId": "6bb42cfa9560252080a74e93dfd8abaa153cbdda8aac9d01defb01aa78609e97"
+    },
+    "assets/image/preset-game-ui-024.png": {
+      "type": "image/png",
+      "resourceId": "94c57c64fd39a4fec052f42ee230cfb37dae4cf4b280ead4602744e8d1712258"
+    },
+    "assets/image/preset-game-ui-025.png": {
+      "type": "image/png",
+      "resourceId": "54e178fba0f67c54e14f257d5657a4d1a7eaf2672e7252570e6fae46efabab5b"
+    },
+    "assets/image/preset-game-ui-026.png": {
+      "type": "image/png",
+      "resourceId": "334a2be4ec48a7f99eb188fdc4fa76f3328484c5342c2bd97de86904a3b18326"
+    },
+    "assets/image/preset-game-ui-027.png": {
+      "type": "image/png",
+      "resourceId": "b5eeb8fe5218ed706bc95c7eaf81aca8661c08358e582ebfe750d9bc674138e8"
+    },
+    "assets/image/preset-game-ui-028.png": {
+      "type": "image/png",
+      "resourceId": "d579f9c06ca7937cced49be117a55ff6db71a241b99b0e458f19a271cc41d671"
+    },
+    "assets/image/preset-game-ui-029.png": {
+      "type": "image/png",
+      "resourceId": "2d0ffceef29265d0a0230d729f0bc0d03b2c2259e2c3ee94b61306b28f692c2d"
+    },
+    "assets/image/preset-game-ui-030.png": {
+      "type": "image/png",
+      "resourceId": "c59fbca773fb5e448c0abc145994df44fb3fd7cffbac1f66ef71086b1818c36b"
+    },
+    "assets/image/preset-game-ui-031.png": {
+      "type": "image/png",
+      "resourceId": "bc2623568f5e547f15b73bcbdc0e0407bf1f24ecc537e9761f2ed12b03b33091"
+    },
+    "assets/image/preset-game-ui-032.png": {
+      "type": "image/png",
+      "resourceId": "f6889200625480e9260debb367c353be0261803d1796665597af4fa9c9f53aef"
+    },
+    "assets/image/preset-game-ui-033.png": {
+      "type": "image/png",
+      "resourceId": "f518cfcd89f77ee7f4eb3f9fca4248afbddbd663dd335349a7d281343ff92ff2"
+    },
+    "assets/image/preset-game-ui-034.png": {
+      "type": "image/png",
+      "resourceId": "4a2b897abedc0c37e366f417268b43c8a83b485335208d9a3514726da563ac13"
+    },
+    "assets/image/preset-game-ui-035.png": {
+      "type": "image/png",
+      "resourceId": "5a6b913c87c6ad54db679e3d6be8731ab258a878e3ef2b9824126ec6e226b776"
+    },
+    "assets/image/preset-game-ui-036.png": {
+      "type": "image/png",
+      "resourceId": "5ab3248dca61b13c9a6656084b05ce2f5270c5ad7fdd3a55d5588bd245f31481"
+    },
+    "assets/image/preset-game-ui-037.png": {
+      "type": "image/png",
+      "resourceId": "635415e48943e267f0efcee20ac646a3364f04cf42308902eaf004880fdb2ee0"
+    },
+    "assets/image/preset-game-ui-038.png": {
+      "type": "image/png",
+      "resourceId": "a91c92bbc305c7aea76e53f27d0fa734842e3a166588812ee4ddcd93b004f955"
+    },
+    "assets/image/preset-game-ui-039.png": {
+      "type": "image/png",
+      "resourceId": "e5414e64df52b15bb480b4c7ab24f89ea18da37571bd0ed535f035f8a72a16d6"
+    },
+    "assets/image/preset-game-ui-040.png": {
+      "type": "image/png",
+      "resourceId": "f9ffb6c2be8c5dbf3dcf8e943d4c23d53d371adb26500fc5895c362d1ea9241c"
+    },
+    "assets/image/preset-game-ui-041.png": {
+      "type": "image/png",
+      "resourceId": "fe4be4d92a38c558cbd2fe4425358191047ab148dafe57f1e039c653a9224699"
+    },
+    "assets/image/preset-game-ui-042.png": {
+      "type": "image/png",
+      "resourceId": "b57f55eccaa5ede383b0ce86bcf83fb86e32222206fe03ba22e651c41ceb251d"
+    },
+    "assets/image/preset-game-ui-043.png": {
+      "type": "image/png",
+      "resourceId": "a865770862e38089f1aa51261a81530bd9049a8e3858f24e1c76ae5250957e6a"
+    },
+    "assets/image/preset-game-ui-044.png": {
+      "type": "image/png",
+      "resourceId": "6fa34a3b2a3664d578156034aa2497a3436562a163b235dde9fb65132419e8bd"
+    },
+    "assets/image/preset-game-ui-045.png": {
+      "type": "image/png",
+      "resourceId": "48a7ce0ed878d02770df0be4a71f3f71884ccbfdc45946b61607eb7bcc05e7c7"
+    },
+    "assets/image/preset-game-ui-046.png": {
+      "type": "image/png",
+      "resourceId": "38d1e649479226b6f475c03a011169553ea4075c6c247ef8986c7b76a567651a"
+    },
+    "assets/image/preset-game-ui-047.png": {
+      "type": "image/png",
+      "resourceId": "4cb14329650c727e324b54d1d99f6344b4a7bb06e3f161a5abdc42c13360c6d7"
+    },
+    "assets/image/preset-game-ui-048.png": {
+      "type": "image/png",
+      "resourceId": "f78978100193d19fa6c8667369bf79c7db6a7e71f3bf87b60677bf6aec473d3a"
+    },
+    "assets/image/preset-game-ui-049.png": {
+      "type": "image/png",
+      "resourceId": "072b3f6e3a90bc32cb4cfde09b9b5f7f0218c855a51d3ee1bb9f5cee6ab19fa2"
+    },
+    "assets/image/preset-game-ui-050.png": {
+      "type": "image/png",
+      "resourceId": "571c0713a30f8424b9ed8a8ceb7d3c9807518a7ddbf80fcf533ff06cce51f517"
+    },
+    "assets/image/preset-game-ui-051.png": {
+      "type": "image/png",
+      "resourceId": "91f225750e0e60c8f821bc7ec4c900dcf117eba889104f7f2ba15617af9947a4"
+    },
+    "assets/image/preset-game-ui-052.png": {
+      "type": "image/png",
+      "resourceId": "6cfa63e462baf0990b1345ce9fe57082365f1aa720ab50945215a495f06fccfb"
+    },
+    "assets/image/preset-game-ui-053.png": {
+      "type": "image/png",
+      "resourceId": "c0ee903521217890e253978c53a9ba4bdbee71523c04edb30dee581650455431"
+    },
+    "assets/image/preset-game-ui-054.png": {
+      "type": "image/png",
+      "resourceId": "11740cbf5490129d415a644a28a1f73012542cce9dda9ef2fa6cdedbe3f13f84"
+    },
+    "assets/image/preset-game-ui-055.png": {
+      "type": "image/png",
+      "resourceId": "7c87a6707ee3f6bd1327af22b5a41e3b0fe1fd760d3be709be87ab8123f1e047"
+    },
+    "assets/image/preset-game-ui-056.png": {
+      "type": "image/png",
+      "resourceId": "3358f76b6fe844b45f220892387675bba0eaa55ff8ab1c1563876676ac2ce877"
+    },
+    "assets/image/preset-game-ui-057.png": {
+      "type": "image/png",
+      "resourceId": "60e393095b4460abbe573e30554c4f1f4ef4501678c036ed7c88c938b931ec88"
+    },
+    "assets/image/preset-game-ui-058.png": {
+      "type": "image/png",
+      "resourceId": "67a7ff267c78bd9d98736ac47fe49bca0986f2ea7be890c5e6c2a53b913dc2e1"
+    },
+    "assets/image/preset-game-ui-059.png": {
+      "type": "image/png",
+      "resourceId": "8fa95c5bb7441b27c1d445f1cc1f409bcf9593d8d99d90b1967c11cb140a042c"
+    },
+    "assets/image/preset-game-ui-060.png": {
+      "type": "image/png",
+      "resourceId": "5a7fcba6a34a3f4928151275e49d284218e79e448e6e35de71ad96a1be1ba2f6"
+    },
+    "assets/image/preset-game-ui-061.png": {
+      "type": "image/png",
+      "resourceId": "c8cf6faa793ac11464c1235c5abc03a97356c7b0d7b7624e3ccf1432fb02f2f0"
+    },
+    "assets/image/preset-game-ui-062.png": {
+      "type": "image/png",
+      "resourceId": "60a04b5e0b5c1343e2caa63a1980247fb5ff6cf9d5d0e1fd9084d4e9b891d387"
+    },
+    "assets/image/preset-game-ui-063.png": {
+      "type": "image/png",
+      "resourceId": "851dd09797f5edc9ec40d1322bb6c7a73b4239b47d56df64830bb42cfceade3c"
+    },
+    "assets/image/preset-game-ui-064.png": {
+      "type": "image/png",
+      "resourceId": "8d138c04d501b128efa6f7df6cf1fb89b0545618627e750beefb024365cce53d"
+    },
+    "assets/image/preset-game-ui-065.png": {
+      "type": "image/png",
+      "resourceId": "1b15fa099d2245d916a9c7a6c0eab6894a64e9f800aec2e558abfa08c8ce052b"
+    },
+    "assets/image/preset-game-ui-066.png": {
+      "type": "image/png",
+      "resourceId": "e9d73f3a0c887ab1210ab79afacd778bfac5641990fb7ca2384d13f4be941340"
+    },
+    "assets/image/preset-game-ui-067.png": {
+      "type": "image/png",
+      "resourceId": "f8b542745f8961a9a45befd0d961cefc1690b0623eee595d4d13d6692416084d"
+    }
+  }
+}

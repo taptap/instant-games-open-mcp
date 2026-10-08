@@ -9,6 +9,7 @@ import { probeRuntime, previewWindow } from './runtime.js';
 import { ensurePreviewRuntimeResources } from './runtimeResources.js';
 import { classifyPreviewProject } from './configuration.js';
 import { preparePreviewProject, requireManifestPreviewPlatform } from './prepare.js';
+import { requirePlainPreviewSource } from './workspace.js';
 import { startPreviewAssetServer, type PreviewAssetServer } from './assets.js';
 import { PreviewLogs } from './evidence.js';
 import { PreviewLuaLog } from './luaLog.js';
@@ -207,7 +208,7 @@ export async function runSkillValidation(
     try {
       output.warnings = [
         ...(Array.isArray(output.warnings) ? output.warnings : []),
-        ...(await cleanValidationHistory(project)),
+        ...(await cleanValidationHistory(project, [run.run_id])),
       ];
     } catch (error) {
       output.warnings = [
@@ -378,7 +379,7 @@ async function executeSkillValidation(
         );
         source = String(preparation.source_directory);
         runtimeEntry = String(preparation.entry);
-      }
+      } else await requirePlainPreviewSource(project, signal);
       if (signal.aborted) throw new Error('CANCELLED');
       let args: string[];
       if (classification.preparation_required) {

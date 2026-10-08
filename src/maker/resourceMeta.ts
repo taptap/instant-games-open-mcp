@@ -1,0 +1,86 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { materializePreviewBuilder } from './preview/prepare.js';
+import { PREVIEW_BUILDER_COMMIT } from './preview/builderSource.js';
+import { checkMakerPythonEnvironmentAsync, runPythonCommand } from './system/python.js';
+import { claimRecoveryMutex } from './system/recoveryMutex.js';
+import { RESOURCE_META_RUNNER } from './resourceMetaSource.js';
+
+export const RESOURCE_META_TOOL = {
+  name: 'generate_resource_meta' as const,
+  description:
+    'Generate missing UrhoX resource .meta files and their UUIDs using the official bundled engine generator. Call explicitly when assets need metadata; Canvas does not call this automatically. Pass the absolute project root and project-relative files or directories (recursive, up to 5000 resources). Reads author.id and id/project_id from the project configuration. Preserves existing valid .meta byte-for-byte; invalid metadata fails without replacement. Returns resource paths, meta paths, UUIDs, and generated/preserved/skipped status, including same-name XML/JSON configs. Never invent UUIDs or supply UUID/author/project overrides. Does not move assets, rewrite game references, build, upload, or refresh a running editor. Duplicate checks cover the requested resources and companion configs, not the entire project. Python must be ready (taptap-maker python setup).',
+  inputSchema: {
+    type: 'object' as const,
+    additionalProperties: false,
+    required: ['target_dir', 'paths'],
+    properties: {
+      target_dir: { type: 'string', description: 'Absolute UrhoX game project root directory.' },
+      paths: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 100,
+        items: { type: 'string', minLength: 1 },
+        description:
+          'Project-relative files/directories, e.g. assets/image/button.png or assets/model/hero. Use forward slashes.',
+      },
+    },
+  },
+};
+
+export async function generateResourceMeta(args: Record<string, unknown>, signal?: AbortSignal) {
+  if (Object.keys(args).some((key) => !['target_dir', 'paths'].includes(key)))
+    throw new Error('仅接受 target_dir 和 paths，不允许指定 UUID 或覆盖已有 meta。');
+  if (typeof args.target_dir !== 'string' || !path.isAbsolute(args.target_dir))
+    throw new Error('target_dir 必须是游戏项目根目录的绝对路径。');
+  if (
+    !Array.isArray(args.paths) ||
+    !args.paths.length ||
+    args.paths.length > 100 ||
+    args.paths.some(
+      (item) => typeof item !== 'string' || !item || item.length > 2048 || item.includes('\0')
+    )
+  )
+    throw new Error('paths 必须包含 1～100 个有效的项目相对路径。');
+  const root = fs.realpathSync(args.target_dir);
+  if (!fs.statSync(root).isDirectory()) throw new Error('项目根路径不是目录。');
+  const release = await claimRecoveryMutex(
+    path.join(root, '.maker', 'resource-meta.lock'),
+    () => new Error('该项目正在生成 meta，或互斥端口被占用，请稍后重试。')
+  );
+  let temporary: string | undefined;
+  try {
+    const python = await checkMakerPythonEnvironmentAsync(signal);
+    if (!python.ready || !python.python)
+      throw new Error('Python 环境未就绪，请先运行 taptap-maker python setup。');
+    const directory = path.dirname(materializePreviewBuilder());
+    temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-resource-meta-'));
+    const runner = path.join(temporary, 'run.py');
+    const request = path.join(temporary, 'request.json');
+    fs.writeFileSync(runner, RESOURCE_META_RUNNER, { mode: 0o600 });
+    fs.writeFileSync(request, JSON.stringify({ project: root, paths: args.paths }), {
+      mode: 0o600,
+    });
+    const output = await runPythonCommand(
+      python.python,
+      ['-I', '-B', runner, directory, request],
+      signal,
+      { ...process.env, PYTHONIOENCODING: 'utf-8' },
+      60000
+    );
+    if (output.status !== 0 || output.error)
+      throw new Error(
+        'meta 生成器执行失败，部分文件可能已生成，请检查后重试。' +
+          (output.error?.message || output.stderr)
+      );
+    const result = JSON.parse(output.stdout) as { success: boolean; [key: string]: unknown };
+    return { ...result, generatorCommit: PREVIEW_BUILDER_COMMIT };
+  } finally {
+    try {
+      if (temporary) fs.rmSync(temporary, { recursive: true, force: true });
+    } finally {
+      await release();
+    }
+  }
+}

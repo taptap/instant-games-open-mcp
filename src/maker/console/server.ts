@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { getCanvasModelPreviewHtml } from '../canvas/modelPreviewPage.js';
+import fs from 'node:fs';
 import type { Socket } from 'node:net';
 import { createHash } from 'node:crypto';
 import { ConsoleProjects } from './projects.js';
@@ -8,6 +10,7 @@ import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { checkMakerLuaLspEnvironmentAsync } from '../system/luaLsp.js';
 import { ConsolePlugins, type ConsolePlugin } from './plugins.js';
 import { readPreviewWindowSettings, savePreviewWindowSettings } from '../preview/windowSettings.js';
+import { previewCacheUsage, clearPreviewCache } from '../preview/cacheManagement.js';
 import {
   listValidationRuns,
   readValidationRun,
@@ -19,6 +22,34 @@ import { ConsoleUpdates } from './updates.js';
 import { ConsoleDocuments } from './documents.js';
 import { chooseProjectDirectory } from './folderPicker.js';
 import { discoverConsoleProjects } from './projectDiscovery.js';
+import { handleCanvasProjectRoute } from './canvasRoutes.js';
+import { handleUiEditorRoute, serveUiEditor } from './uiEditorRoutes.js';
+import { consoleThemeScript, consoleThemeStyles } from '../webTheme.js';
+import { CanvasAutomationBridge } from '../canvas/automationBridge.js';
+import { getCanvasPageHtml } from '../canvas/page.js';
+import { writePrivateJson } from '../system/privateJson.js';
+import { logLifecycleEvent } from '../lifecycle.js';
+import {
+  createMakerRemoteProxyManager,
+  type MakerRemoteProxyManager,
+} from '../server/remoteProxyManager.js';
+
+function readSelectedProjectKey(filename?: string): string | null {
+  if (!filename) return null;
+  try {
+    const stat = fs.lstatSync(filename);
+    if (!stat.isFile() || stat.size > 16 * 1024) return null;
+    const value = JSON.parse(fs.readFileSync(filename, 'utf8')) as {
+      schema?: unknown;
+      selectedProjectKey?: unknown;
+    };
+    return value.schema === 1 && typeof value.selectedProjectKey === 'string'
+      ? value.selectedProjectKey
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function startConsoleServer(options: {
   registry: ConsoleProjects;
@@ -28,6 +59,7 @@ export async function startConsoleServer(options: {
   distribution?: string;
   packageRoot?: string;
   historyFile?: string;
+  preferencesFile?: string;
   instanceId?: string;
   idleMs?: number;
   hasActivePreview?: () => boolean;
@@ -36,6 +68,7 @@ export async function startConsoleServer(options: {
   onDraining?: () => void;
   closePreviews?: () => Promise<void>;
   plugins?: readonly ConsolePlugin[];
+  remoteProxyManager?: MakerRemoteProxyManager;
 }) {
   const now = options.now || Date.now;
   const idleMs = options.idleMs ?? 30 * 60 * 1000;
@@ -47,6 +80,9 @@ export async function startConsoleServer(options: {
   const plugins = new ConsolePlugins(options.registry, options.plugins);
   const updates = new ConsoleUpdates(options.version, options.distribution);
   const documents = new ConsoleDocuments(options.packageRoot || '');
+  const canvasAutomation = new CanvasAutomationBridge();
+  const remoteProxyManager = options.remoteProxyManager || createMakerRemoteProxyManager();
+  let selectedProjectKey = readSelectedProjectKey(options.preferencesFile);
   let luaLspCache: { at: number; value: Record<string, unknown> } | undefined;
   let luaLspPending: Promise<void> | undefined;
   const luaLspStatus = (): Record<string, unknown> => {
@@ -93,22 +129,36 @@ export async function startConsoleServer(options: {
   let draining = false;
   let selectingFolder = false;
   let closePromise: Promise<void> | undefined;
+  let shutdownError: string | undefined;
+  let proxyClosed = false;
+  let previewsClosed = false;
   let resolveClosed!: () => void;
   const closed = new Promise<void>((resolve) => {
     resolveClosed = resolve;
   });
   const sockets = new Set<Socket>();
   const readers = new Set<Promise<unknown>>();
+  const canvasOperations = new Set<Promise<unknown>>();
   const readAbort = new AbortController();
-  async function read<T>(operation: () => Promise<T>): Promise<T> {
-    if (readers.size >= 4)
+  let activeQueries = 0;
+  function trackCanvasOperation<T>(operation: Promise<T>): Promise<T> {
+    const pending = Promise.resolve(operation);
+    canvasOperations.add(pending);
+    return pending.finally(() => {
+      canvasOperations.delete(pending);
+    });
+  }
+  async function read<T>(operation: () => Promise<T>, projectQuery = true): Promise<T> {
+    if (projectQuery && activeQueries >= 4)
       throw new ConsoleError('Too many active project queries. Try again shortly.', 429);
+    if (projectQuery) activeQueries++;
     const pending = Promise.resolve().then(operation);
     readers.add(pending);
     try {
       return await pending;
     } finally {
       readers.delete(pending);
+      if (projectQuery) activeQueries--;
     }
   }
   // Hash trusted, generated inline scripts; this is not an HTML sanitizer.
@@ -144,7 +194,11 @@ export async function startConsoleServer(options: {
       ].join('; ')
     );
     try {
-      if (draining && !(request.method === 'GET' && request.url === '/api/health'))
+      if (
+        draining &&
+        !(request.method === 'GET' && request.url === '/api/health') &&
+        !(request.method === 'POST' && request.url === '/api/shutdown')
+      )
         throw new ConsoleError('Console is shutting down. No new operations are accepted.', 503);
       if (
         request.headers.host !== new URL(origin).host ||
@@ -154,6 +208,20 @@ export async function startConsoleServer(options: {
         throw new ConsoleError('Foreign host or origin rejected.', 403);
       }
       const url = new URL(request.url || '/', origin);
+      if (request.method === 'GET' && url.pathname === '/console-theme.css') {
+        response.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8' });
+        response.end(consoleThemeStyles);
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/console-theme.js') {
+        response.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
+        response.end(consoleThemeScript);
+        return;
+      }
+      if (request.method === 'GET' && url.pathname.startsWith('/ui-editor/')) {
+        await read(() => serveUiEditor(url, response), false);
+        return;
+      }
       if (request.method === 'GET' && url.pathname === '/favicon.ico') {
         response.writeHead(204);
         response.end();
@@ -164,10 +232,66 @@ export async function startConsoleServer(options: {
         response.end(options.html);
         return;
       }
+      if (request.method === 'GET' && ['/canvas', '/canvas-model-preview'].includes(url.pathname)) {
+        const html = url.pathname === '/canvas' ? getCanvasPageHtml() : getCanvasModelPreviewHtml();
+        const source = html.match(/<script>([\s\S]*?)<\/script>/i)?.[1] ?? '';
+        const hash = createHash('sha256').update(source).digest('base64');
+        response.setHeader(
+          'Content-Security-Policy',
+          [
+            "default-src 'none'",
+            `script-src 'sha256-${hash}'`,
+            "style-src 'unsafe-inline'",
+            "img-src 'self' data: blob:",
+            "media-src 'self'",
+            "frame-src 'self'",
+            "connect-src 'self'",
+            "base-uri 'none'",
+            "form-action 'none'",
+            "frame-ancestors 'self'",
+          ].join('; ')
+        );
+        response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        response.end(html);
+        return;
+      }
       if (request.method !== 'GET' && request.headers.origin !== origin)
         throw new ConsoleError('Same-origin writes are required.', 403);
       if (request.method === 'GET' && url.pathname === '/api/health') {
-        json(200, { instanceId: options.instanceId, draining });
+        json(200, { instanceId: options.instanceId, draining, shutdownError });
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/api/console-preferences') {
+        const project = selectedProjectKey
+          ? options.registry.list().find((item) => item.key === selectedProjectKey && item.valid)
+          : undefined;
+        json(200, { selectedProjectKey: project?.key || null });
+        return;
+      }
+      if (request.method === 'PUT' && url.pathname === '/api/console-preferences') {
+        const body = await bodyForMutation();
+        const value = body.selectedProjectKey;
+        if (value !== null && (typeof value !== 'string' || value.length > 128)) {
+          throw new ConsoleError('Invalid selected project preference.');
+        }
+        if (typeof value === 'string') {
+          const project = options.registry.resolve(value);
+          if (!project.valid)
+            throw new ConsoleError('The selected project is no longer valid.', 409);
+        }
+        if (options.preferencesFile) {
+          try {
+            writePrivateJson(options.preferencesFile, {
+              schema: 1,
+              selectedProjectKey: value,
+            });
+          } catch {
+            throw new ConsoleError('Could not save the console project preference.', 500);
+          }
+        }
+        selectedProjectKey = typeof value === 'string' ? value : null;
+        touch();
+        json(200, { ok: true });
         return;
       }
       if (request.method === 'POST' && url.pathname === '/api/activity') {
@@ -269,14 +393,21 @@ export async function startConsoleServer(options: {
         return;
       }
       if (request.method === 'POST' && url.pathname === '/api/shutdown') {
-        await bodyForMutation();
-        if (selectingFolder || updates.job.status === 'running' || tasks.active || previewsActive())
+        await readBody(request);
+        if (
+          !draining &&
+          (selectingFolder ||
+            updates.job.status === 'running' ||
+            tasks.active ||
+            canvasOperations.size > 0 ||
+            previewsActive())
+        )
           throw new ConsoleError(
             'Stop the active preview or wait for running tasks before stopping the console.',
             409
           );
         json(200, { ok: true });
-        setImmediate(() => void close());
+        setImmediate(() => void close().catch(() => {}));
         return;
       }
       const report = url.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)\/report$/);
@@ -294,6 +425,20 @@ export async function startConsoleServer(options: {
       const project = url.pathname.match(/^\/api\/projects\/([a-f0-9]{64})(?:\/(.*))?$/);
       if (!project) throw new ConsoleError('Not found.', 404);
       const [, key, suffix] = project;
+      if (suffix?.startsWith('ui-editor/')) {
+        const release = request.method === 'POST' ? tasks.occupy(key) : undefined;
+        try {
+          // Image loads are static reads, not expensive project queries; still await them on close.
+          await read(
+            () => handleUiEditorRoute(request, response, options.registry, key, suffix),
+            !suffix.startsWith('ui-editor/files/')
+          );
+          touch();
+        } finally {
+          release?.();
+        }
+        return;
+      }
       const plugin = suffix?.match(/^plugins\/([a-z][a-z0-9-]{0,47})\/open$/);
       const validation = suffix?.match(
         /^validation(?:\/([^/]+)(?:\/(logs|prepare|screenshot\.png))?)?$/
@@ -370,6 +515,27 @@ export async function startConsoleServer(options: {
           200,
           await read(() => options.registry.commit(key, suffix.slice(4), readAbort.signal))
         );
+      } else if (request.method === 'GET' && suffix === 'preview/cache') {
+        json(
+          200,
+          await read(() => previewCacheUsage(options.registry.resolve(key).path, readAbort.signal))
+        );
+      } else if (request.method === 'POST' && suffix === 'preview/cache/clear') {
+        const body = await bodyForMutation();
+        if (body.all_projects !== undefined && typeof body.all_projects !== 'boolean')
+          throw new ConsoleError('all_projects 必须是布尔值。', 400);
+        const release = tasks.occupy(key);
+        try {
+          json(
+            200,
+            await read(() =>
+              clearPreviewCache(options.registry.resolve(key).path, body.all_projects === true)
+            )
+          );
+          touch();
+        } finally {
+          release();
+        }
       } else if (request.method === 'POST' && suffix === 'preview/window') {
         const body = await bodyForMutation();
         const directory = options.registry.resolve(key).path;
@@ -402,6 +568,22 @@ export async function startConsoleServer(options: {
             return { ...result, server_changes };
           })
         );
+      } else if (
+        await trackCanvasOperation(
+          handleCanvasProjectRoute({
+            request,
+            response,
+            method: request.method || 'GET',
+            suffix,
+            searchParams: url.searchParams,
+            key,
+            registry: options.registry,
+            remoteProxyManager,
+            automation: canvasAutomation,
+          })
+        )
+      ) {
+        if (suffix !== 'canvases/automation/exchange') touch();
       } else {
         throw new ConsoleError('Not found.', 404);
       }
@@ -439,16 +621,18 @@ export async function startConsoleServer(options: {
         !selectingFolder &&
         updates.job.status !== 'running' &&
         !tasks.active &&
+        canvasOperations.size === 0 &&
         !plugins.active &&
         !previewsActive()
       )
-        void close();
+        void close().catch(() => {});
     },
     Math.min(30000, idleMs)
   );
   idleTimer.unref();
   async function close(): Promise<void> {
     if (closePromise) return closePromise;
+    shutdownError = undefined;
     draining = true;
     clearInterval(idleTimer);
     readAbort.abort();
@@ -461,7 +645,29 @@ export async function startConsoleServer(options: {
       await luaLspPending;
       await plugins.close();
       await tasks.settled();
-      await options.closePreviews?.();
+      // Paid canvas generation is not a console task. Wait for it before closing proxy connections.
+      await Promise.allSettled(canvasOperations);
+      const cleanup = await Promise.allSettled([
+        (async () => {
+          if (!proxyClosed) {
+            await remoteProxyManager.closeAll();
+            proxyClosed = true;
+          }
+        })(),
+        (async () => {
+          if (!previewsClosed) {
+            await options.closePreviews?.();
+            previewsClosed = true;
+          }
+        })(),
+      ]);
+      await Promise.allSettled(readers);
+      const failures = cleanup.flatMap((result) =>
+        result.status === 'rejected'
+          ? [result.reason instanceof Error ? result.reason.message : String(result.reason)]
+          : []
+      );
+      if (failures.length) throw new Error(failures.join('; '));
       await new Promise<void>((resolve) => {
         const timer = setTimeout(() => {
           for (const socket of sockets) socket.destroy();
@@ -473,9 +679,15 @@ export async function startConsoleServer(options: {
         });
         server.closeIdleConnections();
       });
-      await Promise.allSettled(readers);
       resolveClosed();
-    })();
+    })().catch((error: unknown) => {
+      shutdownError = String(
+        sanitizeDiagnosticValue(error instanceof Error ? error.message : String(error))
+      ).slice(0, 2048);
+      logLifecycleEvent('console-shutdown-failed', shutdownError);
+      closePromise = undefined;
+      throw error;
+    });
     return closePromise;
   }
   return { origin, tasks, close, closed };

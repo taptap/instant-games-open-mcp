@@ -40,7 +40,7 @@ export function previewProject(targetDir: string): string {
   if (!targetDir || !path.isAbsolute(targetDir)) {
     throw new Error('Preview requires --target-dir with the real Maker project absolute path.');
   }
-  const project = fs.realpathSync(targetDir);
+  const project = fs.realpathSync.native(targetDir);
   if (!fs.statSync(project).isDirectory() || !loadProjectConfig(project)) {
     throw new Error('Preview requires a bound Maker project with .maker-mcp/config.json.');
   }

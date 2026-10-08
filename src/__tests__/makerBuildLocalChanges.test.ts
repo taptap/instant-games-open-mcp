@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import * as makerMcp from '../maker/server/mcp';
 import proxySnapshot from '../maker/server/remoteProxyToolSnapshot.json';
 import {
@@ -1555,7 +1556,11 @@ describe('maker build local-change guard', () => {
   test('exposes only the compact Maker tool set', () => {
     const toolNames = tools.map((item) => item.name);
 
-    expect(toolNames).toEqual(['maker_status_lite', 'maker_build_current_directory']);
+    expect(toolNames).toEqual([
+      'maker_status_lite',
+      'maker_build_current_directory',
+      'generate_resource_meta',
+    ]);
     expect(resources.map((item) => item.uri)).toEqual([
       'maker://status',
       'maker://ads-integration-guide',
@@ -1758,6 +1763,7 @@ describe('maker build local-change guard', () => {
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
+      'generate_resource_meta',
       ...proxySnapshot.toolOrder,
     ]);
     expect(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES).toEqual(proxySnapshot.toolOrder);
@@ -1978,6 +1984,7 @@ describe('maker build local-change guard', () => {
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
+      'generate_resource_meta',
       ...proxySnapshot.toolOrder,
     ]);
     for (const toolName of MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES) {
@@ -2019,13 +2026,24 @@ describe('maker build local-change guard', () => {
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
+      'generate_resource_meta',
       ...proxySnapshot.toolOrder,
     ]);
-    expect(result.tools[2].description).toContain('Generate one new image asset for a Maker game');
-    expect(result.tools[2].inputSchema.properties).toHaveProperty('prompt');
-    expect(result.tools[2].inputSchema.properties).toHaveProperty('target_size');
-    expect(result.tools[2].inputSchema.properties).not.toHaveProperty('remote_only');
-    expect(result.tools[2].inputSchema.properties).not.toHaveProperty('cached_only');
+    expect(result.tools.find((tool) => tool.name === 'generate_image')!.description).toContain(
+      'Generate one new image asset for a Maker game'
+    );
+    expect(
+      result.tools.find((tool) => tool.name === 'generate_image')!.inputSchema.properties
+    ).toHaveProperty('prompt');
+    expect(
+      result.tools.find((tool) => tool.name === 'generate_image')!.inputSchema.properties
+    ).toHaveProperty('target_size');
+    expect(
+      result.tools.find((tool) => tool.name === 'generate_image')!.inputSchema.properties
+    ).not.toHaveProperty('remote_only');
+    expect(
+      result.tools.find((tool) => tool.name === 'generate_image')!.inputSchema.properties
+    ).not.toHaveProperty('cached_only');
     expect(remoteList).not.toHaveBeenCalled();
   });
 
@@ -2294,6 +2312,88 @@ describe('maker build local-change guard', () => {
     }
   });
 
+  test.each(['download', 'isError', 'callback'])(
+    'persists raw video response before %s failure without resubmitting',
+    async (failure) => {
+      saveTapAuth({
+        kid: 'video-kid',
+        mac_key: 'video-key',
+        token_type: 'mac',
+        mac_algorithm: 'hmac-sha-1',
+      });
+      const payload = {
+        task_id: 'owned-video',
+        status: 'succeeded',
+        cdn_url: 'https://example.test/video.mp4',
+      };
+      const raw = {
+        content: [{ type: 'text', text: JSON.stringify(payload) }],
+        ...(failure === 'isError' ? { isError: true } : {}),
+      };
+      const callTool = jest.fn().mockResolvedValue(raw);
+      const evidence = path.join(tempDir, 'raw-video.json');
+      const onRawResult = jest.fn(async (result) => {
+        fs.writeFileSync(evidence, JSON.stringify(result));
+        if (failure === 'callback') throw new Error('授权已失效: evidence write failed');
+      });
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockImplementation(async () => {
+        expect(JSON.parse(fs.readFileSync(evidence, 'utf8'))).toEqual(raw);
+        throw new Error('授权已失效: download failed');
+      });
+      try {
+        const operation = makerMcp.callRemoteProxyTool({
+          targetDir: tempDir,
+          name: 'query_video_task',
+          args: { task_id: 'owned-video' },
+          manager: { callTool } as unknown as MakerRemoteProxyManager,
+          onRawResult,
+        });
+        if (failure === 'download')
+          await expect(operation).resolves.toMatchObject({
+            structuredContent: { task_id: 'owned-video', download: { success: false } },
+          });
+        else await expect(operation).rejects.toThrow();
+        expect(onRawResult).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(fs.readFileSync(evidence, 'utf8'))).toEqual(raw);
+        expect(callTool).toHaveBeenCalledTimes(1);
+        if (failure !== 'download') expect(global.fetch).not.toHaveBeenCalled();
+        else expect(global.fetch).toHaveBeenCalledTimes(1);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    }
+  );
+
+  test('canvas paid calls can disable expired-auth replay without changing the proxy default', async () => {
+    saveTapAuth({
+      kid: 'video-kid',
+      mac_key: 'video-key',
+      token_type: 'mac',
+      mac_algorithm: 'hmac-sha-1',
+    });
+    const raw = {
+      isError: true,
+      content: [
+        { type: 'text', text: JSON.stringify({ task_id: 'owned-video', error: '授权已失效' }) },
+      ],
+    };
+    const callTool = jest.fn().mockResolvedValue(raw);
+    const onRawResult = jest.fn();
+    await expect(
+      makerMcp.callRemoteProxyTool({
+        targetDir: tempDir,
+        name: 'create_video_task',
+        args: {},
+        manager: { callTool } as unknown as MakerRemoteProxyManager,
+        onRawResult,
+        retryExpiredAuth: false,
+      })
+    ).rejects.toThrow();
+    expect(onRawResult).toHaveBeenCalledWith(raw);
+    expect(callTool).toHaveBeenCalledTimes(1);
+  });
+
   test('managed proxy tool refreshes MAC once after 授权已失效 and retries', async () => {
     savePat({ token: 'maker-pat' });
     saveTapAuth({
@@ -2489,6 +2589,62 @@ describe('maker build local-change guard', () => {
     });
     expect(callTool).toHaveBeenCalledTimes(1);
   });
+
+  test.each([
+    [new McpError(ErrorCode.InvalidRequest, '项目授权失败'), 'not_executed'],
+    [new Error('MCP error -32600: 项目授权失败'), 'unknown'],
+    [new McpError(ErrorCode.InternalError, 'reference=-326001'), 'unknown'],
+    [
+      new McpError(ErrorCode.InvalidRequest, '项目授权失败', { execution_state: 'unknown' }),
+      'unknown',
+    ],
+  ])(
+    'uses structured rejection evidence after dispatch: %s',
+    async (networkError, expectedState) => {
+      saveTapAuth({
+        kid: 'rnd-kid',
+        mac_key: 'rnd-mac-key',
+        token_type: 'mac',
+        mac_algorithm: 'hmac-sha-256',
+      });
+      const callTool = jest.fn(
+        async (
+          _context: unknown,
+          _request: unknown,
+          _options: unknown,
+          onDispatch?: () => void
+        ) => {
+          onDispatch?.();
+          throw networkError;
+        }
+      );
+      const manager = {
+        callTool,
+        listTools: jest.fn(),
+        getCachedTools: jest.fn(),
+        closeAll: jest.fn(),
+      } as unknown as MakerRemoteProxyManager;
+      const callRemoteProxyTool = (
+        makerMcp as typeof makerMcp & {
+          callRemoteProxyTool: (options: Record<string, unknown>) => Promise<unknown>;
+        }
+      ).callRemoteProxyTool;
+
+      await expect(
+        callRemoteProxyTool({
+          targetDir: tempDir,
+          name: 'generate_image',
+          args: {},
+          extra: { sendNotification: jest.fn() },
+          manager,
+        })
+      ).rejects.toMatchObject({
+        executionState: expectedState,
+        automaticRetry: false,
+      });
+      expect(callTool).toHaveBeenCalledTimes(1);
+    }
+  );
 
   test('does not retry MCP business errors with remote diagnostics', async () => {
     let attempts = 0;

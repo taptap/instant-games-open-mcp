@@ -1,4 +1,9 @@
 import { PassThrough } from 'node:stream';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import { shouldExitForParentDeath, isDisconnectedStdioError } from '../maker/lifecycle';
 import {
   closeTrackedMakerChildTransports,
@@ -30,6 +35,41 @@ function createProxyConfig(options?: ProxyConfig['options']): ProxyConfig {
 }
 
 describe('Maker process lifecycle guards', () => {
+  test('MCP host still finishes tracked cleanup when manager shutdown rejects and signals repeat', () => {
+    const serverUrl = pathToFileURL(path.resolve(__dirname, '../maker/server/mcp.ts')).href;
+    const transportsUrl = pathToFileURL(
+      path.resolve(__dirname, '../maker/server/childTransports.ts')
+    ).href;
+    const source = [
+      `const server = await import(${JSON.stringify(serverUrl)});`,
+      `const transports = await import(${JSON.stringify(transportsUrl)});`,
+      'const { installMakerServerExitHandlers } = server.default ?? server;',
+      'const { trackMakerChildTransport } = transports.default ?? transports;',
+      'process.on("unhandledRejection", () => { console.error("unhandled rejection"); process.exit(2); });',
+      'trackMakerChildTransport({ async close() { await new Promise(resolve => setTimeout(resolve, 30)); console.log("tracked closed"); } });',
+      'installMakerServerExitHandlers({ async closeAll() { console.log("manager close"); throw new Error("exit unknown"); } });',
+      'process.emit("SIGTERM"); process.emit("SIGINT");',
+    ].join('\n');
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-mcp-shutdown-'));
+    try {
+      const result = spawnSync(
+        process.execPath,
+        ['--import', 'tsx', '--input-type=module', '-e', source],
+        {
+          encoding: 'utf8',
+          timeout: 15000,
+          env: { ...process.env, TAPTAP_MAKER_HOME: directory },
+        }
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(result.stdout.trim().split('\n')).toEqual(['manager close', 'tracked closed']);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   test('treats disconnected stdio stream errors as client shutdown', () => {
     expect(
       isDisconnectedStdioError(Object.assign(new Error('broken pipe'), { code: 'EPIPE' }))
@@ -167,5 +207,39 @@ describe('Maker process lifecycle guards', () => {
 
     expect(firstClose).toHaveBeenCalledTimes(1);
     expect(secondClose).toHaveBeenCalledTimes(1);
+  });
+
+  test('registry shutdown waits for a close already in progress', async () => {
+    let finish: (() => void) | undefined;
+    const close = jest.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        })
+    );
+    const transport = trackMakerChildTransport({ close });
+    const firstClose = transport.close();
+    await Promise.resolve();
+    let shutdownFinished = false;
+    const shutdown = closeTrackedMakerChildTransports().then(() => {
+      shutdownFinished = true;
+    });
+    await Promise.resolve();
+    expect(shutdownFinished).toBe(false);
+    finish?.();
+    await Promise.all([firstClose, shutdown]);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  test('failed cleanup stays registered and can be retried', async () => {
+    const close = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('exit unknown'))
+      .mockResolvedValue(undefined);
+    trackMakerChildTransport({ close });
+    await expect(closeTrackedMakerChildTransports()).rejects.toThrow('exit unknown');
+    await closeTrackedMakerChildTransports();
+    await closeTrackedMakerChildTransports();
+    expect(close).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,0 +1,2591 @@
+[
+  {
+    "id": "7e1cb6ad-732f-4dc3-a951-000000000001",
+    "name": "序列帧动画",
+    "revision": 2,
+    "nodes": [
+      {
+        "id": "8410bf2b-2b77-4e7d-8be6-d3c84fb8ae57",
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "width": 260,
+        "height": 410,
+        "title": "01 蓝银战士 · 生图参考",
+        "assetPath": "assets/image/canvas-6795d39f-9991-4426-8c3d-5ffbae90cae2.png",
+        "generation": {
+          "prompt": "同一蓝银战士，纯色背景与安全留白；真实生成图的构图预处理"
+        }
+      },
+      {
+        "id": "1d5f1e9a-8bac-43ea-a00b-5ba9f38818c9",
+        "type": "video-source",
+        "x": 320,
+        "y": 0,
+        "width": 290,
+        "height": 290,
+        "title": "02 向右挥剑 · 视频",
+        "assetPath": ".maker/canvases/a5aa6aee-40f9-4b55-b07e-80bedca305ec/videos/video-c04e17f0-05f3-4497-bcbd-c2d66638ce17.mp4",
+        "generation": {
+          "prompt": "The character swings the reference weapon in one explosive lightning-fast slash with full-body follow-through, then returns to the reference pose.",
+          "sourceImageId": "8410bf2b-2b77-4e7d-8be6-d3c84fb8ae57",
+          "parameters": {
+            "model": "2.0",
+            "resolution": "720p",
+            "duration": 4,
+            "ratio": "adaptive"
+          }
+        }
+      },
+      {
+        "id": "c0ecc60d-8889-454e-ac9d-bdfa424eda69",
+        "type": "sequence",
+        "x": 670,
+        "y": 0,
+        "width": 480,
+        "height": 410,
+        "title": "03 向右挥剑 · 序列帧",
+        "assetPath": "assets/image/canvas-f097ba28-5fd3-4172-b5cb-84ba7a03d1da.png",
+        "sourceVideoId": "1d5f1e9a-8bac-43ea-a00b-5ba9f38818c9",
+        "sequenceSettings": {
+          "start": 0.5,
+          "end": 3.5,
+          "fps": 4,
+          "cutout": true,
+          "cutoutMode": "chroma",
+          "backgroundColor": "#ff30f9",
+          "tolerance": 48,
+          "duplicateThreshold": 0.985,
+          "width": 256,
+          "height": 256,
+          "fit": "contain",
+          "pixel": false
+        },
+        "frameSetInfo": {
+          "fps": 4,
+          "frameCount": 12,
+          "width": 1024,
+          "height": 768,
+          "columns": 4,
+          "rows": 3,
+          "frames": [
+            {
+              "index": 0,
+              "time": 0.5,
+              "x": 0,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 1,
+              "time": 0.75,
+              "x": 256,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 2,
+              "time": 1,
+              "x": 512,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 3,
+              "time": 1.25,
+              "x": 768,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 4,
+              "time": 1.5,
+              "x": 0,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 5,
+              "time": 1.75,
+              "x": 256,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 6,
+              "time": 2,
+              "x": 512,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 7,
+              "time": 2.25,
+              "x": 768,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 8,
+              "time": 2.5,
+              "x": 0,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 9,
+              "time": 2.75,
+              "x": 256,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 10,
+              "time": 3,
+              "x": 512,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 11,
+              "time": 3.25,
+              "x": 768,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            }
+          ]
+        }
+      },
+      {
+        "id": "b9338f9d-8b26-4809-aca2-9a4be62caa01",
+        "type": "animation",
+        "x": 1214,
+        "y": 0,
+        "width": 280,
+        "height": 300,
+        "title": "序列帧动画",
+        "assetPath": "assets/image/canvas-f097ba28-5fd3-4172-b5cb-84ba7a03d1da.png",
+        "frameSetInfo": {
+          "fps": 4,
+          "frameCount": 12,
+          "width": 1024,
+          "height": 768,
+          "columns": 4,
+          "rows": 3,
+          "frames": [
+            {
+              "index": 0,
+              "time": 0.5,
+              "x": 0,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 1,
+              "time": 0.75,
+              "x": 256,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 2,
+              "time": 1,
+              "x": 512,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 3,
+              "time": 1.25,
+              "x": 768,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 4,
+              "time": 1.5,
+              "x": 0,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 5,
+              "time": 1.75,
+              "x": 256,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 6,
+              "time": 2,
+              "x": 512,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 7,
+              "time": 2.25,
+              "x": 768,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 8,
+              "time": 2.5,
+              "x": 0,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 9,
+              "time": 2.75,
+              "x": 256,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 10,
+              "time": 3,
+              "x": 512,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 11,
+              "time": 3.25,
+              "x": 768,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "b5223e97-d397-4de2-8387-63f3ed81ffbf",
+        "from": "8410bf2b-2b77-4e7d-8be6-d3c84fb8ae57",
+        "to": "1d5f1e9a-8bac-43ea-a00b-5ba9f38818c9",
+        "kind": "image-to-video"
+      },
+      {
+        "id": "c6cd06ba-389a-4db3-924c-c745c4cbedf2",
+        "from": "1d5f1e9a-8bac-43ea-a00b-5ba9f38818c9",
+        "to": "c0ecc60d-8889-454e-ac9d-bdfa424eda69",
+        "kind": "sequence-source"
+      },
+      {
+        "id": "533079af-cfc9-4854-87ea-aed9f391aa18",
+        "from": "c0ecc60d-8889-454e-ac9d-bdfa424eda69",
+        "to": "b9338f9d-8b26-4809-aca2-9a4be62caa01",
+        "kind": "sequence-animation"
+      }
+    ],
+    "assets": {
+      "assets/image/canvas-6795d39f-9991-4426-8c3d-5ffbae90cae2.png": {
+        "type": "image/png",
+        "resourceId": "4365e9c024b469b22a7d989481acc5c0bc0488651f358ff46b18af85ebe21cac"
+      },
+      ".maker/canvases/a5aa6aee-40f9-4b55-b07e-80bedca305ec/videos/video-c04e17f0-05f3-4497-bcbd-c2d66638ce17.mp4": {
+        "type": "video/mp4",
+        "resourceId": "93c8d2ca209840a6e08243ebf2f89f2a546dcc5a3471e4a4dcf75ef629f4d124"
+      },
+      "assets/image/canvas-f097ba28-5fd3-4172-b5cb-84ba7a03d1da.png": {
+        "type": "image/png",
+        "resourceId": "ede645c78dcc1e2b6b4cb30b10df659404eea2b9597cc121050c34dad26dfaa3"
+      }
+    }
+  },
+  {
+    "id": "7e1cb6ad-732f-4dc3-a951-000000000002",
+    "name": "角色四方向",
+    "revision": 2,
+    "nodes": [
+      {
+        "id": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "type": "image",
+        "x": 0,
+        "y": 510,
+        "width": 260,
+        "height": 300,
+        "title": "01 蓝银战士 · 生图参考",
+        "assetPath": "assets/image/canvas-421adcbc-f85f-4b27-aeb6-be9b1760b419.png",
+        "generation": {
+          "prompt": "同一蓝银战士，纯色背景与安全留白；真实生成图的构图预处理"
+        }
+      },
+      {
+        "id": "282ec863-929e-41b5-9e3d-313a1bf32e40",
+        "type": "video-source",
+        "x": 660,
+        "y": 0,
+        "width": 290,
+        "height": 300,
+        "title": "03 向前跑步 · 视频（初始为旧示例）",
+        "generation": {
+          "prompt": "The character runs in place with exaggerated bouncy strides and clear alternating leg and arm motion.",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000010",
+          "parameters": {
+            "model": "2.0",
+            "resolution": "720p",
+            "duration": 4,
+            "ratio": "adaptive",
+            "mode": "first_frame"
+          },
+          "sourceImageIds": ["7e1cb6ad-732f-4dc3-a951-000000000010"]
+        },
+        "assetPath": ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-112120c3-9716-4c34-b210-0120b4f7bb18.mp4"
+      },
+      {
+        "id": "71af41b1-5050-4202-8496-84018fee11f6",
+        "type": "sequence",
+        "x": 1010,
+        "y": 0,
+        "width": 480,
+        "height": 300,
+        "title": "03 向前跑步 · 序列帧（初始为旧示例）",
+        "sourceVideoId": "282ec863-929e-41b5-9e3d-313a1bf32e40",
+        "sequenceSettings": {
+          "start": 0,
+          "end": 3,
+          "fps": 4,
+          "cutout": true,
+          "cutoutMode": "chroma",
+          "backgroundColor": "#ff28f9",
+          "tolerance": 48,
+          "duplicateThreshold": 0.985,
+          "width": 256,
+          "height": 256,
+          "fit": "contain",
+          "pixel": false
+        },
+        "assetPath": "assets/image/canvas-af514697-a190-4119-89d5-168f247001f1.png",
+        "frameSetInfo": {
+          "fps": 4,
+          "frameCount": 12,
+          "width": 1024,
+          "height": 768,
+          "columns": 4,
+          "rows": 3,
+          "frames": [
+            {
+              "index": 0,
+              "time": 0,
+              "x": 0,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 1,
+              "time": 0.25,
+              "x": 256,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 2,
+              "time": 0.5,
+              "x": 512,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 3,
+              "time": 0.75,
+              "x": 768,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 4,
+              "time": 1,
+              "x": 0,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 5,
+              "time": 1.25,
+              "x": 256,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 6,
+              "time": 1.5,
+              "x": 512,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 7,
+              "time": 1.75,
+              "x": 768,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 8,
+              "time": 2,
+              "x": 0,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 9,
+              "time": 2.25,
+              "x": 256,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 10,
+              "time": 2.5,
+              "x": 512,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 11,
+              "time": 2.75,
+              "x": 768,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            }
+          ]
+        }
+      },
+      {
+        "id": "95bfb500-703b-4f8d-ab7c-0dd5d1fc5676",
+        "type": "video-source",
+        "x": 660,
+        "y": 340,
+        "width": 290,
+        "height": 300,
+        "title": "03 向后跑步 · 视频（初始为旧示例）",
+        "generation": {
+          "prompt": "The character runs in place with exaggerated bouncy strides and clear alternating leg and arm motion.",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000011",
+          "parameters": {
+            "model": "2.0",
+            "resolution": "720p",
+            "duration": 4,
+            "ratio": "adaptive",
+            "mode": "first_frame"
+          },
+          "sourceImageIds": ["7e1cb6ad-732f-4dc3-a951-000000000011"]
+        },
+        "assetPath": ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-41fc0007-3f84-4838-a7cc-c8a7a1f78a14.mp4"
+      },
+      {
+        "id": "8e0426f3-2b7c-4f89-a418-0703f2428fc9",
+        "type": "sequence",
+        "x": 1010,
+        "y": 340,
+        "width": 480,
+        "height": 300,
+        "title": "03 向后跑步 · 序列帧（初始为旧示例）",
+        "sourceVideoId": "95bfb500-703b-4f8d-ab7c-0dd5d1fc5676",
+        "sequenceSettings": {
+          "start": 0,
+          "end": 3,
+          "fps": 4,
+          "cutout": true,
+          "cutoutMode": "chroma",
+          "backgroundColor": "#ff28fc",
+          "tolerance": 48,
+          "duplicateThreshold": 0.985,
+          "width": 256,
+          "height": 256,
+          "fit": "contain",
+          "pixel": false
+        },
+        "assetPath": "assets/image/canvas-e201ed5e-2592-43a0-8d52-d8590809f048.png",
+        "frameSetInfo": {
+          "fps": 4,
+          "frameCount": 12,
+          "width": 1024,
+          "height": 768,
+          "columns": 4,
+          "rows": 3,
+          "frames": [
+            {
+              "index": 0,
+              "time": 0,
+              "x": 0,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 1,
+              "time": 0.25,
+              "x": 256,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 2,
+              "time": 0.5,
+              "x": 512,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 3,
+              "time": 0.75,
+              "x": 768,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 4,
+              "time": 1,
+              "x": 0,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 5,
+              "time": 1.25,
+              "x": 256,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 6,
+              "time": 1.5,
+              "x": 512,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 7,
+              "time": 1.75,
+              "x": 768,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 8,
+              "time": 2,
+              "x": 0,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 9,
+              "time": 2.25,
+              "x": 256,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 10,
+              "time": 2.5,
+              "x": 512,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 11,
+              "time": 2.75,
+              "x": 768,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            }
+          ]
+        }
+      },
+      {
+        "id": "ed988c2c-e851-487f-ac77-5714c9c52fc4",
+        "type": "video-source",
+        "x": 660,
+        "y": 680,
+        "width": 290,
+        "height": 300,
+        "title": "03 向左跑步 · 视频（初始为旧示例）",
+        "generation": {
+          "prompt": "The character runs in place with exaggerated bouncy strides and clear alternating leg and arm motion.",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000012",
+          "parameters": {
+            "model": "2.0",
+            "resolution": "720p",
+            "duration": 4,
+            "ratio": "adaptive",
+            "mode": "first_frame"
+          },
+          "sourceImageIds": ["7e1cb6ad-732f-4dc3-a951-000000000012"]
+        },
+        "assetPath": ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-612711a5-e9a5-4cdf-adb0-f11ca2523e7d.mp4"
+      },
+      {
+        "id": "46bf7b9a-44bc-4c88-a473-d7f93b3c4588",
+        "type": "sequence",
+        "x": 1010,
+        "y": 680,
+        "width": 480,
+        "height": 300,
+        "title": "03 向左跑步 · 序列帧（初始为旧示例）",
+        "sourceVideoId": "ed988c2c-e851-487f-ac77-5714c9c52fc4",
+        "sequenceSettings": {
+          "start": 0,
+          "end": 3,
+          "fps": 4,
+          "cutout": true,
+          "cutoutMode": "chroma",
+          "backgroundColor": "#fe27fa",
+          "tolerance": 48,
+          "duplicateThreshold": 0.985,
+          "width": 256,
+          "height": 256,
+          "fit": "contain",
+          "pixel": false
+        },
+        "assetPath": "assets/image/canvas-786d578b-d7d8-42af-b3f5-3b8680dd1cc7.png",
+        "frameSetInfo": {
+          "fps": 4,
+          "frameCount": 12,
+          "width": 1024,
+          "height": 768,
+          "columns": 4,
+          "rows": 3,
+          "frames": [
+            {
+              "index": 0,
+              "time": 0,
+              "x": 0,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 1,
+              "time": 0.25,
+              "x": 256,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 2,
+              "time": 0.5,
+              "x": 512,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 3,
+              "time": 0.75,
+              "x": 768,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 4,
+              "time": 1,
+              "x": 0,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 5,
+              "time": 1.25,
+              "x": 256,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 6,
+              "time": 1.5,
+              "x": 512,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 7,
+              "time": 1.75,
+              "x": 768,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 8,
+              "time": 2,
+              "x": 0,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 9,
+              "time": 2.25,
+              "x": 256,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 10,
+              "time": 2.5,
+              "x": 512,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 11,
+              "time": 2.75,
+              "x": 768,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            }
+          ]
+        }
+      },
+      {
+        "id": "201966e7-e280-4559-bd5d-f146803e2ee7",
+        "type": "video-source",
+        "x": 660,
+        "y": 1020,
+        "width": 290,
+        "height": 300,
+        "title": "03 向右跑步 · 视频（初始为旧示例）",
+        "generation": {
+          "prompt": "The character runs in place with exaggerated bouncy strides and clear alternating leg and arm motion.",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000013",
+          "parameters": {
+            "model": "2.0",
+            "resolution": "720p",
+            "duration": 4,
+            "ratio": "adaptive",
+            "mode": "first_frame"
+          },
+          "sourceImageIds": ["7e1cb6ad-732f-4dc3-a951-000000000013"]
+        },
+        "assetPath": ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-8f07365a-90c5-4ceb-9407-55de5e4bfb8d.mp4"
+      },
+      {
+        "id": "60468243-f6e2-45c6-861e-65c9d87572ef",
+        "type": "sequence",
+        "x": 1010,
+        "y": 1020,
+        "width": 480,
+        "height": 300,
+        "title": "03 向右跑步 · 序列帧（初始为旧示例）",
+        "sourceVideoId": "201966e7-e280-4559-bd5d-f146803e2ee7",
+        "sequenceSettings": {
+          "start": 0,
+          "end": 3,
+          "fps": 4,
+          "cutout": true,
+          "cutoutMode": "chroma",
+          "backgroundColor": "#fe25f6",
+          "tolerance": 48,
+          "duplicateThreshold": 0.985,
+          "width": 256,
+          "height": 256,
+          "fit": "contain",
+          "pixel": false
+        },
+        "assetPath": "assets/image/canvas-07726790-2ae9-415d-8d63-09500f0e76d3.png",
+        "frameSetInfo": {
+          "fps": 4,
+          "frameCount": 12,
+          "width": 1024,
+          "height": 768,
+          "columns": 4,
+          "rows": 3,
+          "frames": [
+            {
+              "index": 0,
+              "time": 0,
+              "x": 0,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 1,
+              "time": 0.25,
+              "x": 256,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 2,
+              "time": 0.5,
+              "x": 512,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 3,
+              "time": 0.75,
+              "x": 768,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 4,
+              "time": 1,
+              "x": 0,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 5,
+              "time": 1.25,
+              "x": 256,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 6,
+              "time": 1.5,
+              "x": 512,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 7,
+              "time": 1.75,
+              "x": 768,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 8,
+              "time": 2,
+              "x": 0,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 9,
+              "time": 2.25,
+              "x": 256,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 10,
+              "time": 2.5,
+              "x": 512,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 11,
+              "time": 2.75,
+              "x": 768,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            }
+          ]
+        }
+      },
+      {
+        "id": "93e67dbc-7281-4a73-9c9c-038557ba54dd",
+        "type": "animation",
+        "x": 1554,
+        "y": 0,
+        "width": 280,
+        "height": 300,
+        "title": "序列帧动画（初始为旧示例）",
+        "assetPath": "assets/image/canvas-af514697-a190-4119-89d5-168f247001f1.png",
+        "frameSetInfo": {
+          "fps": 4,
+          "frameCount": 12,
+          "width": 1024,
+          "height": 768,
+          "columns": 4,
+          "rows": 3,
+          "frames": [
+            {
+              "index": 0,
+              "time": 0,
+              "x": 0,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 1,
+              "time": 0.25,
+              "x": 256,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 2,
+              "time": 0.5,
+              "x": 512,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 3,
+              "time": 0.75,
+              "x": 768,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 4,
+              "time": 1,
+              "x": 0,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 5,
+              "time": 1.25,
+              "x": 256,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 6,
+              "time": 1.5,
+              "x": 512,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 7,
+              "time": 1.75,
+              "x": 768,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 8,
+              "time": 2,
+              "x": 0,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 9,
+              "time": 2.25,
+              "x": 256,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 10,
+              "time": 2.5,
+              "x": 512,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 11,
+              "time": 2.75,
+              "x": 768,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            }
+          ]
+        }
+      },
+      {
+        "id": "bdabf1b2-9280-46f9-a5b9-034482ecd1cd",
+        "type": "animation",
+        "x": 1554,
+        "y": 340,
+        "width": 280,
+        "height": 300,
+        "title": "序列帧动画（初始为旧示例）",
+        "assetPath": "assets/image/canvas-e201ed5e-2592-43a0-8d52-d8590809f048.png",
+        "frameSetInfo": {
+          "fps": 4,
+          "frameCount": 12,
+          "width": 1024,
+          "height": 768,
+          "columns": 4,
+          "rows": 3,
+          "frames": [
+            {
+              "index": 0,
+              "time": 0,
+              "x": 0,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 1,
+              "time": 0.25,
+              "x": 256,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 2,
+              "time": 0.5,
+              "x": 512,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 3,
+              "time": 0.75,
+              "x": 768,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 4,
+              "time": 1,
+              "x": 0,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 5,
+              "time": 1.25,
+              "x": 256,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 6,
+              "time": 1.5,
+              "x": 512,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 7,
+              "time": 1.75,
+              "x": 768,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 8,
+              "time": 2,
+              "x": 0,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 9,
+              "time": 2.25,
+              "x": 256,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 10,
+              "time": 2.5,
+              "x": 512,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 11,
+              "time": 2.75,
+              "x": 768,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            }
+          ]
+        }
+      },
+      {
+        "id": "9a44ea3c-2b32-48de-a8c3-1a6891b9be22",
+        "type": "animation",
+        "x": 1554,
+        "y": 680,
+        "width": 280,
+        "height": 300,
+        "title": "序列帧动画（初始为旧示例）",
+        "assetPath": "assets/image/canvas-786d578b-d7d8-42af-b3f5-3b8680dd1cc7.png",
+        "frameSetInfo": {
+          "fps": 4,
+          "frameCount": 12,
+          "width": 1024,
+          "height": 768,
+          "columns": 4,
+          "rows": 3,
+          "frames": [
+            {
+              "index": 0,
+              "time": 0,
+              "x": 0,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 1,
+              "time": 0.25,
+              "x": 256,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 2,
+              "time": 0.5,
+              "x": 512,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 3,
+              "time": 0.75,
+              "x": 768,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 4,
+              "time": 1,
+              "x": 0,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 5,
+              "time": 1.25,
+              "x": 256,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 6,
+              "time": 1.5,
+              "x": 512,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 7,
+              "time": 1.75,
+              "x": 768,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 8,
+              "time": 2,
+              "x": 0,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 9,
+              "time": 2.25,
+              "x": 256,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 10,
+              "time": 2.5,
+              "x": 512,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 11,
+              "time": 2.75,
+              "x": 768,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            }
+          ]
+        }
+      },
+      {
+        "id": "ab2b6e43-8fd2-4e23-b239-65f923008195",
+        "type": "animation",
+        "x": 1554,
+        "y": 1020,
+        "width": 280,
+        "height": 300,
+        "title": "序列帧动画（初始为旧示例）",
+        "assetPath": "assets/image/canvas-07726790-2ae9-415d-8d63-09500f0e76d3.png",
+        "frameSetInfo": {
+          "fps": 4,
+          "frameCount": 12,
+          "width": 1024,
+          "height": 768,
+          "columns": 4,
+          "rows": 3,
+          "frames": [
+            {
+              "index": 0,
+              "time": 0,
+              "x": 0,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 1,
+              "time": 0.25,
+              "x": 256,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 2,
+              "time": 0.5,
+              "x": 512,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 3,
+              "time": 0.75,
+              "x": 768,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 4,
+              "time": 1,
+              "x": 0,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 5,
+              "time": 1.25,
+              "x": 256,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 6,
+              "time": 1.5,
+              "x": 512,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 7,
+              "time": 1.75,
+              "x": 768,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 8,
+              "time": 2,
+              "x": 0,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 9,
+              "time": 2.25,
+              "x": 256,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 10,
+              "time": 2.5,
+              "x": 512,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 11,
+              "time": 2.75,
+              "x": 768,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            }
+          ]
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000010",
+        "type": "image",
+        "x": 320,
+        "y": 0,
+        "width": 280,
+        "height": 300,
+        "title": "02 正面 · 站姿参考（待确认）",
+        "generationDraft": {
+          "operation": "variant",
+          "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000011",
+        "type": "image",
+        "x": 320,
+        "y": 340,
+        "width": 280,
+        "height": 300,
+        "title": "02 背面 · 站姿参考（待确认）",
+        "generationDraft": {
+          "operation": "variant",
+          "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000012",
+        "type": "image",
+        "x": 320,
+        "y": 680,
+        "width": 280,
+        "height": 300,
+        "title": "02 左侧 · 站姿参考（待确认）",
+        "generationDraft": {
+          "operation": "variant",
+          "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000013",
+        "type": "image",
+        "x": 320,
+        "y": 1020,
+        "width": 280,
+        "height": 300,
+        "title": "02 右侧 · 站姿参考（待确认）",
+        "generationDraft": {
+          "operation": "variant",
+          "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "cdc8a8dd-8a04-4175-9fac-cb464762162f",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000010",
+        "to": "282ec863-929e-41b5-9e3d-313a1bf32e40",
+        "kind": "image-to-video"
+      },
+      {
+        "id": "b8fc6ee9-987f-4800-b037-0c64442525bd",
+        "from": "282ec863-929e-41b5-9e3d-313a1bf32e40",
+        "to": "71af41b1-5050-4202-8496-84018fee11f6",
+        "kind": "sequence-source"
+      },
+      {
+        "id": "cc58d1f2-5132-45f6-a599-eea79d0165b1",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000011",
+        "to": "95bfb500-703b-4f8d-ab7c-0dd5d1fc5676",
+        "kind": "image-to-video"
+      },
+      {
+        "id": "324eabea-6590-47f0-9b4e-90d1b2bfdb80",
+        "from": "95bfb500-703b-4f8d-ab7c-0dd5d1fc5676",
+        "to": "8e0426f3-2b7c-4f89-a418-0703f2428fc9",
+        "kind": "sequence-source"
+      },
+      {
+        "id": "04a1e885-f85f-4b9a-a201-48170775ff6a",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000012",
+        "to": "ed988c2c-e851-487f-ac77-5714c9c52fc4",
+        "kind": "image-to-video"
+      },
+      {
+        "id": "5744b151-761e-4743-924b-a9418287f341",
+        "from": "ed988c2c-e851-487f-ac77-5714c9c52fc4",
+        "to": "46bf7b9a-44bc-4c88-a473-d7f93b3c4588",
+        "kind": "sequence-source"
+      },
+      {
+        "id": "7ee4ea9e-ff4d-46cd-8af5-c989aa5df49b",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000013",
+        "to": "201966e7-e280-4559-bd5d-f146803e2ee7",
+        "kind": "image-to-video"
+      },
+      {
+        "id": "39c79497-2e91-4ffb-80f2-63a44455aa12",
+        "from": "201966e7-e280-4559-bd5d-f146803e2ee7",
+        "to": "60468243-f6e2-45c6-861e-65c9d87572ef",
+        "kind": "sequence-source"
+      },
+      {
+        "id": "653a63fd-b6be-4eed-a217-f1eeadc290a2",
+        "from": "71af41b1-5050-4202-8496-84018fee11f6",
+        "to": "93e67dbc-7281-4a73-9c9c-038557ba54dd",
+        "kind": "sequence-animation"
+      },
+      {
+        "id": "67263650-0402-4fc0-ba7d-e55099e11b16",
+        "from": "8e0426f3-2b7c-4f89-a418-0703f2428fc9",
+        "to": "bdabf1b2-9280-46f9-a5b9-034482ecd1cd",
+        "kind": "sequence-animation"
+      },
+      {
+        "id": "52c19d51-336b-4e2f-afc9-67944e269ab5",
+        "from": "46bf7b9a-44bc-4c88-a473-d7f93b3c4588",
+        "to": "9a44ea3c-2b32-48de-a8c3-1a6891b9be22",
+        "kind": "sequence-animation"
+      },
+      {
+        "id": "ce032109-53f4-4f5c-980d-92d26aa9f3da",
+        "from": "60468243-f6e2-45c6-861e-65c9d87572ef",
+        "to": "ab2b6e43-8fd2-4e23-b239-65f923008195",
+        "kind": "sequence-animation"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000020",
+        "from": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000010",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000021",
+        "from": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000011",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000022",
+        "from": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000012",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000023",
+        "from": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000013",
+        "kind": "image-variant"
+      }
+    ],
+    "assets": {
+      "assets/image/canvas-421adcbc-f85f-4b27-aeb6-be9b1760b419.png": {
+        "type": "image/png",
+        "resourceId": "e17b1bc66cbf1bdfa77dec56de82e8317aa36636e89bcc7aa9e6b3680d68a38f"
+      },
+      ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-112120c3-9716-4c34-b210-0120b4f7bb18.mp4": {
+        "type": "video/mp4",
+        "resourceId": "eac8d49c0cad4709696782cfe1419c50d8c4a8b7285291964964d595a42ccaef"
+      },
+      "assets/image/canvas-af514697-a190-4119-89d5-168f247001f1.png": {
+        "type": "image/png",
+        "resourceId": "11109f5f1be88e75b70d72343e403188f84e75447976e42808cddb8a17af05b6"
+      },
+      ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-41fc0007-3f84-4838-a7cc-c8a7a1f78a14.mp4": {
+        "type": "video/mp4",
+        "resourceId": "ffbe9fcf587a92072010942c3a7d084b1a7db03363e75f17b91b056170686320"
+      },
+      "assets/image/canvas-e201ed5e-2592-43a0-8d52-d8590809f048.png": {
+        "type": "image/png",
+        "resourceId": "44485bc3575d732e9e7ec5eba07c6586b0619690fe3a9874858e434b515d68e4"
+      },
+      ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-612711a5-e9a5-4cdf-adb0-f11ca2523e7d.mp4": {
+        "type": "video/mp4",
+        "resourceId": "4fb08aaaff901ae1c362c2a93f916cb91115566cbb004110d576307051a417ab"
+      },
+      "assets/image/canvas-786d578b-d7d8-42af-b3f5-3b8680dd1cc7.png": {
+        "type": "image/png",
+        "resourceId": "94944a9c5b61916b49ff40c8accb29aa3982896fd125a488ef01daf3c2d9e3c4"
+      },
+      ".maker/canvases/4e081000-bcbf-4c38-810f-ad29ff802578/videos/video-8f07365a-90c5-4ceb-9407-55de5e4bfb8d.mp4": {
+        "type": "video/mp4",
+        "resourceId": "7e07de9d72c2df39c8811a6bc274d0880138f93b1f6b6730da055412406364c7"
+      },
+      "assets/image/canvas-07726790-2ae9-415d-8d63-09500f0e76d3.png": {
+        "type": "image/png",
+        "resourceId": "9a47857f41c7a2f9005bbe9da5a94345fec1cdb97421edbce6289e6d8757edf9"
+      }
+    }
+  },
+  {
+    "id": "7e1cb6ad-732f-4dc3-a951-000000000003",
+    "name": "首尾帧变身 · 灰狼→狼王",
+    "revision": 2,
+    "nodes": [
+      {
+        "id": "4238be48-31dc-4a25-b472-f0e729af02e8",
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "width": 280,
+        "height": 280,
+        "title": "首帧 · 四足灰狼",
+        "assetPath": "assets/image/canvas-b7167481-8004-43a9-ac83-805042facdee.png",
+        "generation": {
+          "prompt": "游戏怪物：单只四足灰狼，灰黑毛发、琥珀色眼睛，面向左前方三分之四视角，伏低蓄力，全身完整。\n\n画面约束：固定镜头，均匀纯绿色背景 #00FF00，四周保留动作空间；无地面、站台、阴影、文字或其他角色。"
+        }
+      },
+      {
+        "id": "4268fc98-3389-481e-9349-ead55eb4ee0d",
+        "type": "image",
+        "x": 0,
+        "y": 328,
+        "width": 280,
+        "height": 280,
+        "title": "尾帧 · 人形狼王",
+        "assetPath": "assets/image/canvas-d9da728a-2756-42e3-b2ad-2a647ebf0ece.png",
+        "generation": {
+          "prompt": "游戏 Boss：单只直立人形狼王，灰黑毛发、琥珀色眼睛，面向左前方三分之四视角，胸肩和手臂强壮，双足站立，张口咆哮，双爪向外张开，全身完整。\n\n画面约束：固定镜头，均匀纯绿色背景 #00FF00，四周保留动作空间；无地面、站台、阴影、文字或其他角色。"
+        }
+      },
+      {
+        "id": "4c9ce565-9af2-4144-a35f-a2755722f49c",
+        "type": "video-source",
+        "x": 350,
+        "y": 0,
+        "width": 360,
+        "height": 360,
+        "title": "首尾帧变身视频",
+        "assetPath": ".maker/canvases/88406a8e-a1fd-4cfa-ae6a-827e1d04daea/videos/video-76bd9305-5dbf-4b1a-a753-6be859fc7d40.mp4",
+        "videoInfo": {
+          "duration": 5.041667,
+          "width": 384,
+          "height": 384
+        },
+        "generation": {
+          "prompt": "The subject transforms continuously from the first reference pose into the last reference pose, with clear physical deformation, not a crossfade or an added subject.",
+          "parameters": {
+            "model": "2.0",
+            "ratio": "adaptive",
+            "duration": 5,
+            "mode": "first_last_frame",
+            "resolution": "720p"
+          },
+          "sourceImageId": "4238be48-31dc-4a25-b472-f0e729af02e8",
+          "sourceImageIds": [
+            "4238be48-31dc-4a25-b472-f0e729af02e8",
+            "4268fc98-3389-481e-9349-ead55eb4ee0d"
+          ]
+        },
+        "sourceSnapshots": [
+          {
+            "nodeId": "4238be48-31dc-4a25-b472-f0e729af02e8",
+            "version": "image|assets/image/canvas-b7167481-8004-43a9-ac83-805042facdee.png|manual-asset"
+          },
+          {
+            "nodeId": "4268fc98-3389-481e-9349-ead55eb4ee0d",
+            "version": "image|assets/image/canvas-d9da728a-2756-42e3-b2ad-2a647ebf0ece.png|manual-asset"
+          }
+        ],
+        "sourceSnapshot": {
+          "nodeId": "4238be48-31dc-4a25-b472-f0e729af02e8",
+          "version": "image|assets/image/canvas-b7167481-8004-43a9-ac83-805042facdee.png|manual-asset"
+        }
+      },
+      {
+        "id": "b7fcb4b8-52c7-491c-bd9f-339687c2d976",
+        "type": "sequence",
+        "x": 790,
+        "y": 0,
+        "width": 480,
+        "height": 608,
+        "title": "变身序列帧 · 50 帧 / 10 FPS",
+        "sourceSnapshot": {
+          "nodeId": "4c9ce565-9af2-4144-a35f-a2755722f49c",
+          "version": "video-source|.maker/canvases/88406a8e-a1fd-4cfa-ae6a-827e1d04daea/videos/video-76bd9305-5dbf-4b1a-a753-6be859fc7d40.mp4|manual-asset"
+        },
+        "assetPath": "assets/image/canvas-4ccd9cc9-2b1a-4e2c-ad2f-2f2837d0ab5b.png",
+        "sourceVideoId": "4c9ce565-9af2-4144-a35f-a2755722f49c",
+        "sequenceSettings": {
+          "start": 0,
+          "end": 5,
+          "fps": 10,
+          "cutout": true,
+          "cutoutMode": "chroma",
+          "backgroundColor": "#00ff00",
+          "tolerance": 90,
+          "duplicateThreshold": 0.985,
+          "width": 256,
+          "height": 256,
+          "fit": "contain",
+          "pixel": false
+        },
+        "frameSetInfo": {
+          "fps": 10,
+          "frameCount": 50,
+          "width": 2048,
+          "height": 1792,
+          "columns": 8,
+          "rows": 7,
+          "frames": [
+            {
+              "index": 0,
+              "time": 0,
+              "x": 0,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 1,
+              "time": 0.1,
+              "x": 256,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 2,
+              "time": 0.2,
+              "x": 512,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 3,
+              "time": 0.3,
+              "x": 768,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 4,
+              "time": 0.4,
+              "x": 1024,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 5,
+              "time": 0.5,
+              "x": 1280,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 6,
+              "time": 0.6,
+              "x": 1536,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 7,
+              "time": 0.7,
+              "x": 1792,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 8,
+              "time": 0.8,
+              "x": 0,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 9,
+              "time": 0.9,
+              "x": 256,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 10,
+              "time": 1,
+              "x": 512,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 11,
+              "time": 1.1,
+              "x": 768,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 12,
+              "time": 1.2,
+              "x": 1024,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 13,
+              "time": 1.3,
+              "x": 1280,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 14,
+              "time": 1.4,
+              "x": 1536,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 15,
+              "time": 1.5,
+              "x": 1792,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 16,
+              "time": 1.6,
+              "x": 0,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 17,
+              "time": 1.7,
+              "x": 256,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 18,
+              "time": 1.8,
+              "x": 512,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 19,
+              "time": 1.9,
+              "x": 768,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 20,
+              "time": 2,
+              "x": 1024,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 21,
+              "time": 2.1,
+              "x": 1280,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 22,
+              "time": 2.2,
+              "x": 1536,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 23,
+              "time": 2.3,
+              "x": 1792,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 24,
+              "time": 2.4,
+              "x": 0,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 25,
+              "time": 2.5,
+              "x": 256,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 26,
+              "time": 2.6,
+              "x": 512,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 27,
+              "time": 2.7,
+              "x": 768,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 28,
+              "time": 2.8,
+              "x": 1024,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 29,
+              "time": 2.9,
+              "x": 1280,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 30,
+              "time": 3,
+              "x": 1536,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 31,
+              "time": 3.1,
+              "x": 1792,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 32,
+              "time": 3.2,
+              "x": 0,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 33,
+              "time": 3.3,
+              "x": 256,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 34,
+              "time": 3.4,
+              "x": 512,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 35,
+              "time": 3.5,
+              "x": 768,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 36,
+              "time": 3.6,
+              "x": 1024,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 37,
+              "time": 3.7,
+              "x": 1280,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 38,
+              "time": 3.8,
+              "x": 1536,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 39,
+              "time": 3.9,
+              "x": 1792,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 40,
+              "time": 4,
+              "x": 0,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 41,
+              "time": 4.1,
+              "x": 256,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 42,
+              "time": 4.2,
+              "x": 512,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 43,
+              "time": 4.3,
+              "x": 768,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 44,
+              "time": 4.4,
+              "x": 1024,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 45,
+              "time": 4.5,
+              "x": 1280,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 46,
+              "time": 4.6,
+              "x": 1536,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 47,
+              "time": 4.7,
+              "x": 1792,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 48,
+              "time": 4.8,
+              "x": 0,
+              "y": 1536,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 49,
+              "time": 4.9,
+              "x": 256,
+              "y": 1536,
+              "width": 256,
+              "height": 256
+            }
+          ]
+        }
+      },
+      {
+        "id": "70b00b8d-cf7d-4523-bcd0-1b44e5d1ccd5",
+        "type": "animation",
+        "x": 1350,
+        "y": 0,
+        "width": 280,
+        "height": 300,
+        "title": "序列帧动画",
+        "sourceSnapshot": {
+          "nodeId": "b7fcb4b8-52c7-491c-bd9f-339687c2d976",
+          "version": "sequence|assets/image/canvas-4ccd9cc9-2b1a-4e2c-ad2f-2f2837d0ab5b.png|saved-frame-set"
+        },
+        "assetPath": "assets/image/canvas-4ccd9cc9-2b1a-4e2c-ad2f-2f2837d0ab5b.png",
+        "frameSetInfo": {
+          "fps": 10,
+          "frameCount": 50,
+          "width": 2048,
+          "height": 1792,
+          "columns": 8,
+          "rows": 7,
+          "frames": [
+            {
+              "index": 0,
+              "time": 0,
+              "x": 0,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 1,
+              "time": 0.1,
+              "x": 256,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 2,
+              "time": 0.2,
+              "x": 512,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 3,
+              "time": 0.3,
+              "x": 768,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 4,
+              "time": 0.4,
+              "x": 1024,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 5,
+              "time": 0.5,
+              "x": 1280,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 6,
+              "time": 0.6,
+              "x": 1536,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 7,
+              "time": 0.7,
+              "x": 1792,
+              "y": 0,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 8,
+              "time": 0.8,
+              "x": 0,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 9,
+              "time": 0.9,
+              "x": 256,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 10,
+              "time": 1,
+              "x": 512,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 11,
+              "time": 1.1,
+              "x": 768,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 12,
+              "time": 1.2,
+              "x": 1024,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 13,
+              "time": 1.3,
+              "x": 1280,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 14,
+              "time": 1.4,
+              "x": 1536,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 15,
+              "time": 1.5,
+              "x": 1792,
+              "y": 256,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 16,
+              "time": 1.6,
+              "x": 0,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 17,
+              "time": 1.7,
+              "x": 256,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 18,
+              "time": 1.8,
+              "x": 512,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 19,
+              "time": 1.9,
+              "x": 768,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 20,
+              "time": 2,
+              "x": 1024,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 21,
+              "time": 2.1,
+              "x": 1280,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 22,
+              "time": 2.2,
+              "x": 1536,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 23,
+              "time": 2.3,
+              "x": 1792,
+              "y": 512,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 24,
+              "time": 2.4,
+              "x": 0,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 25,
+              "time": 2.5,
+              "x": 256,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 26,
+              "time": 2.6,
+              "x": 512,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 27,
+              "time": 2.7,
+              "x": 768,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 28,
+              "time": 2.8,
+              "x": 1024,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 29,
+              "time": 2.9,
+              "x": 1280,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 30,
+              "time": 3,
+              "x": 1536,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 31,
+              "time": 3.1,
+              "x": 1792,
+              "y": 768,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 32,
+              "time": 3.2,
+              "x": 0,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 33,
+              "time": 3.3,
+              "x": 256,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 34,
+              "time": 3.4,
+              "x": 512,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 35,
+              "time": 3.5,
+              "x": 768,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 36,
+              "time": 3.6,
+              "x": 1024,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 37,
+              "time": 3.7,
+              "x": 1280,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 38,
+              "time": 3.8,
+              "x": 1536,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 39,
+              "time": 3.9,
+              "x": 1792,
+              "y": 1024,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 40,
+              "time": 4,
+              "x": 0,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 41,
+              "time": 4.1,
+              "x": 256,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 42,
+              "time": 4.2,
+              "x": 512,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 43,
+              "time": 4.3,
+              "x": 768,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 44,
+              "time": 4.4,
+              "x": 1024,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 45,
+              "time": 4.5,
+              "x": 1280,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 46,
+              "time": 4.6,
+              "x": 1536,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 47,
+              "time": 4.7,
+              "x": 1792,
+              "y": 1280,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 48,
+              "time": 4.8,
+              "x": 0,
+              "y": 1536,
+              "width": 256,
+              "height": 256
+            },
+            {
+              "index": 49,
+              "time": 4.9,
+              "x": 256,
+              "y": 1536,
+              "width": 256,
+              "height": 256
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "af8e9375-acd3-4843-ae09-5bafa71fcefd",
+        "from": "4238be48-31dc-4a25-b472-f0e729af02e8",
+        "to": "4c9ce565-9af2-4144-a35f-a2755722f49c",
+        "kind": "image-to-video"
+      },
+      {
+        "id": "cdf25c81-83d9-4f13-b51f-9096d79d0606",
+        "from": "4c9ce565-9af2-4144-a35f-a2755722f49c",
+        "to": "b7fcb4b8-52c7-491c-bd9f-339687c2d976",
+        "kind": "sequence-source"
+      },
+      {
+        "id": "401f691f-9745-4353-8269-3d75a02d923b",
+        "from": "b7fcb4b8-52c7-491c-bd9f-339687c2d976",
+        "to": "70b00b8d-cf7d-4523-bcd0-1b44e5d1ccd5",
+        "kind": "sequence-animation"
+      },
+      {
+        "id": "19e0b50f-f19b-4105-8251-07a77d0704a1",
+        "from": "4268fc98-3389-481e-9349-ead55eb4ee0d",
+        "to": "4c9ce565-9af2-4144-a35f-a2755722f49c",
+        "kind": "image-to-video"
+      }
+    ],
+    "assets": {
+      "assets/image/canvas-b7167481-8004-43a9-ac83-805042facdee.png": {
+        "type": "image/png",
+        "resourceId": "3ec5dc1efc54ac8296d027743cdd2493c6344fd636d309ee3a55675a68475089"
+      },
+      "assets/image/canvas-d9da728a-2756-42e3-b2ad-2a647ebf0ece.png": {
+        "type": "image/png",
+        "resourceId": "43d52cdaa5d229fe251dd9aaa7cb130b566a90255381e924cab011e8d6e76573"
+      },
+      ".maker/canvases/88406a8e-a1fd-4cfa-ae6a-827e1d04daea/videos/video-76bd9305-5dbf-4b1a-a753-6be859fc7d40.mp4": {
+        "type": "video/mp4",
+        "resourceId": "14bd474edbaeb3ff5547bab9530f4cddc8bf79c9efe32fed309ae53810b055e1"
+      },
+      "assets/image/canvas-4ccd9cc9-2b1a-4e2c-ad2f-2f2837d0ab5b.png": {
+        "type": "image/png",
+        "resourceId": "2bceb6ce7268a8156a12b95be9123cdaaca5dbfdc3f7b9078ac6eace112e9ee8"
+      }
+    }
+  }
+]

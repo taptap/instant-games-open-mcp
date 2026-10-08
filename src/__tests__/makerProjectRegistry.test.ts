@@ -11,6 +11,7 @@ import {
 import { ConsoleProjects } from '../maker/console/projects';
 import { writePrivateJson } from '../maker/system/privateJson';
 import { writePrivateJson as previewWritePrivateJson } from '../maker/preview/protocol';
+import { previewProject, previewDirectory } from '../maker/preview/protocol';
 
 describe('shared Maker local project registry', () => {
   let directory: string;
@@ -60,6 +61,20 @@ describe('shared Maker local project registry', () => {
     expect(data).not.toHaveProperty('selected');
     expect(fs.readdirSync(root)).toEqual(['.maker-mcp']);
   });
+
+  (process.platform === 'win32' ? test : test.skip)(
+    'native Windows drive aliases share registry and preview identity',
+    () => {
+      const canonical = fs.realpathSync.native(project('中文 空格'));
+      expect(canonical).toMatch(/^[A-Za-z]:/);
+      const upper = canonical[0].toUpperCase() + canonical.slice(1);
+      const lower = canonical[0].toLowerCase() + canonical.slice(1);
+      const registry = new MakerProjectRegistry();
+      expect(registry.add(lower)).toEqual(registry.add(upper));
+      expect(registry.list()).toHaveLength(1);
+      expect(previewDirectory(previewProject(lower))).toBe(previewDirectory(previewProject(upper)));
+    }
+  );
 
   test('rejects relative, missing, unbound and rebound paths without changing project config', () => {
     const registry = new MakerProjectRegistry();
@@ -278,9 +293,9 @@ describe('shared Maker local project registry', () => {
       schema: 1,
       projects: [entry(root)],
     });
-    const realpath = fs.realpathSync;
+    const realpath = fs.realpathSync.native;
     const locks: boolean[] = [];
-    const spy = jest.spyOn(fs, 'realpathSync').mockImplementation((file, options) => {
+    const spy = jest.spyOn(fs.realpathSync, 'native').mockImplementation((file, options) => {
       if (file === root) locks.push(fs.existsSync(filename + '.lock'));
       return realpath(file, options as any);
     });

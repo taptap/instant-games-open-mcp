@@ -30,6 +30,9 @@ type Session = {
   pid: number;
   draining?: boolean;
   userHost?: boolean;
+  version?: string;
+  entry?: string;
+  startedAt?: string;
 };
 function home(): string {
   return path.join(getMakerHome(), 'console');
@@ -51,12 +54,40 @@ export function createConsoleLauncherIdentity(
     )
     .digest('hex');
 }
-export function ensureCompatibleConsoleLauncher(actual: string, expected: string): void {
+export function ensureCompatibleConsoleLauncher(
+  actual: string,
+  expected: string,
+  details?: {
+    actual: Partial<Pick<Session, 'version' | 'entry' | 'startedAt' | 'pid'>>;
+    expected: { version: string; entry: string };
+  }
+): void {
   if (actual !== expected) {
     throw new ConsoleError(
-      'Another Maker version is serving the console. Stop that console before opening this version.'
+      'Another Maker version is serving the console. 当前控制台与本次 CLI 的启动身份不一致。' +
+        ' 当前控制台：' +
+        JSON.stringify({
+          launcher: actual,
+          ...details?.actual,
+          version: details?.actual.version || '未记录（旧控制台）',
+        }) +
+        '；本次 CLI：' +
+        JSON.stringify({ launcher: expected, ...details?.expected }) +
+        '。先在原控制台保存画布，确认可关闭后执行 console stop，再用本次入口执行 console open --target-dir <项目绝对路径>。不会自动重启或丢弃未保存修改。',
+      409
     );
   }
+}
+function ensureSessionLauncher(session: Session): void {
+  ensureCompatibleConsoleLauncher(session.launcher, launcherIdentity(), {
+    actual: {
+      version: session.version,
+      entry: session.entry,
+      startedAt: session.startedAt,
+      pid: session.pid,
+    },
+    expected: { version: VERSION, entry: fs.realpathSync(process.argv[1]) },
+  });
 }
 function launcherIdentity(): string {
   const entry = fs.realpathSync(process.argv[1]);
@@ -107,13 +138,17 @@ async function request(session: Session, route: string, body?: unknown, timeoutM
 }
 async function activeSession(
   timeoutMs = 10000
-): Promise<(Session & { draining: boolean }) | undefined> {
+): Promise<(Session & { draining: boolean; shutdownError?: string }) | undefined> {
   const session = readSession();
   if (!session) return undefined;
   try {
     const state = await request(session, '/api/health', undefined, timeoutMs);
     if (state.instanceId !== session.instanceId) throw new Error('Console identity mismatch.');
-    return { ...session, draining: state.draining === true };
+    return {
+      ...session,
+      draining: state.draining === true,
+      shutdownError: typeof state.shutdownError === 'string' ? state.shutdownError : undefined,
+    };
   } catch (error) {
     // A live process with an unresponsive or different endpoint must not be replaced.
     try {
@@ -142,11 +177,16 @@ async function availableSession(): Promise<Session | undefined> {
       const session = await activeSession(
         Math.max(1, Math.min(10000, Math.floor(deadline - performance.now())))
       );
+      if (session?.shutdownError)
+        throw new ConsoleError(
+          `Console cleanup failed: ${session.shutdownError}. Run console stop to retry.`,
+          409
+        );
       if (!session?.draining) return session;
       sawDraining = true;
     } catch (error) {
       // A verified draining instance may close its socket just before its PID exits.
-      if (!sawDraining) throw error;
+      if (!sawDraining || error instanceof ConsoleError) throw error;
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
@@ -173,6 +213,7 @@ export async function runConsoleSupervisor(): Promise<void> {
       packageRoot: path.dirname(path.dirname(path.resolve(process.argv[1]))),
       distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
       historyFile: path.join(home(), 'tasks.json'),
+      preferencesFile: path.join(home(), 'preferences.json'),
       instanceId,
       execute: createConsoleExecutor({
         entry: process.argv[1],
@@ -191,6 +232,9 @@ export async function runConsoleSupervisor(): Promise<void> {
       pid: process.pid,
       launcher: launcherIdentity(),
       userHost,
+      version: VERSION,
+      entry: fs.realpathSync(process.argv[1]),
+      startedAt: new Date().toISOString(),
     };
     try {
       writePrivateJson(sessionPath(), record);
@@ -207,11 +251,11 @@ export async function runConsoleSupervisor(): Promise<void> {
       release();
     };
     const shutdown = (): void => {
-      void server.close();
+      void server.close().catch(() => {});
     };
     process.once('exit', cleanup);
-    process.once('SIGTERM', shutdown);
-    process.once('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
     void server.closed.then(() => {
       cleanup();
       process.removeListener('exit', cleanup);
@@ -363,7 +407,7 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
   fs.mkdirSync(home(), { recursive: true, mode: 0o700 });
   const existing = await availableSession();
   if (existing) {
-    ensureCompatibleConsoleLauncher(existing.launcher, launcherIdentity());
+    ensureSessionLauncher(existing);
     return existing;
   }
   const lock = path.join(home(), 'launch.lock');
@@ -376,7 +420,7 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
       if (!(error instanceof ConsoleError) || error.status !== 409) throw error;
       const launched = await availableSession();
       if (launched) {
-        ensureCompatibleConsoleLauncher(launched.launcher, launcherIdentity());
+        ensureSessionLauncher(launched);
         return launched;
       }
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -387,7 +431,7 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
   try {
     const launched = await availableSession();
     if (launched) {
-      ensureCompatibleConsoleLauncher(launched.launcher, launcherIdentity());
+      ensureSessionLauncher(launched);
       return launched;
     }
     const launch = await launchConsoleServerProcess({
@@ -406,7 +450,7 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
       if (session && (!launch.expectedPid || session.pid === launch.expectedPid)) {
         const active = await availableSession();
         if (active) {
-          ensureCompatibleConsoleLauncher(active.launcher, launcherIdentity());
+          ensureSessionLauncher(active);
           return active;
         }
       }
@@ -425,6 +469,41 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
   } finally {
     releaseLaunch();
   }
+}
+
+export async function canvasConsoleConnection(projectPath: string) {
+  if (!path.isAbsolute(projectPath)) throw new ConsoleError('--target-dir 必须是项目绝对路径。');
+  const { previewProject } = await import('../preview/protocol.js');
+  previewProject(projectPath);
+  const session = await ensureSession();
+  const project = await request(session, '/api/projects', { path: projectPath });
+  return {
+    url: session.origin + '/canvas?project=' + encodeURIComponent(project.key),
+    transfer: async (route: string, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers);
+      headers.set('Origin', session.origin);
+      const response = await fetch(
+        session.origin + '/api/projects/' + encodeURIComponent(project.key) + '/canvases' + route,
+        {
+          ...init,
+          headers,
+          signal: AbortSignal.timeout(60000),
+          redirect: 'error',
+        }
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new ConsoleError(body.error || '素材传输失败：' + response.status, response.status);
+      }
+      return response;
+    },
+    request: (route: string, body?: unknown) =>
+      request(
+        session,
+        '/api/projects/' + encodeURIComponent(project.key) + '/canvases' + route,
+        body
+      ),
+  };
 }
 
 export async function startConsolePreview(
@@ -499,13 +578,26 @@ export async function runConsoleCli(
       process.stdout.write(JSON.stringify({ ok: true, running: false }) + '\n');
       return;
     }
-    if (action === 'stop' && !session.draining) await request(session, '/api/shutdown', {});
+    if (action === 'stop') await request(session, '/api/shutdown', {});
     process.stdout.write(
       JSON.stringify({
-        ok: true,
-        running: action !== 'stop',
+        ok: action === 'stop' || !session.shutdownError,
+        running: true,
         origin: session.origin,
+        console: {
+          version: session.version ?? null,
+          entry: session.entry ?? null,
+          startedAt: session.startedAt ?? null,
+          pid: session.pid,
+          launcher: session.launcher,
+        },
+        cli: {
+          version: VERSION,
+          entry: fs.realpathSync(process.argv[1]),
+          launcher: launcherIdentity(),
+        },
         draining: action === 'stop' || session.draining,
+        ...(action === 'status' && session.shutdownError ? { error: session.shutdownError } : {}),
       }) + '\n'
     );
     return;

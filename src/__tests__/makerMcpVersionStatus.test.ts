@@ -4,6 +4,11 @@ const mockServers: Array<{
 }> = [];
 const mockRemoteProxyCallTool = jest.fn();
 
+jest.mock('../maker/resourceMeta', () => ({
+  ...jest.requireActual('../maker/resourceMeta'),
+  generateResourceMeta: jest.fn(),
+}));
+
 jest.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
   Server: class MockServer {
     handlers = new Map<unknown, (...args: any[]) => any>();
@@ -187,6 +192,32 @@ describe('maker MCP version status integration', () => {
     }
   });
 
+  test.each([true, false])(
+    'dispatches explicit meta calls locally and returns success=%s',
+    async (success) => {
+      const { startMakerMcpServer } = await import('../maker/server/mcp');
+      const { generateResourceMeta } = await import('../maker/resourceMeta');
+      const { CallToolRequestSchema, ListToolsRequestSchema } = await import(
+        '@modelcontextprotocol/sdk/types.js'
+      );
+      const result = { success, results: [], generatorCommit: 'official-commit' };
+      jest.mocked(generateResourceMeta).mockResolvedValue(result);
+      await startMakerMcpServer();
+      await mockServers[0].handlers.get(ListToolsRequestSchema)!({}, {});
+      expect(generateResourceMeta).not.toHaveBeenCalled();
+      const args = { target_dir: '/tmp/meta-game', paths: ['assets/button.png'] };
+      const signal = new AbortController().signal;
+      const response = await mockServers[0].handlers.get(CallToolRequestSchema)!(
+        { params: { name: 'generate_resource_meta', arguments: args } },
+        { requestId: 'meta-test', signal }
+      );
+      expect(generateResourceMeta).toHaveBeenCalledWith(args, signal);
+      expect(response).toMatchObject({ isError: !success, structuredContent: result });
+      expect(JSON.parse(response.content[0].text)).toEqual(result);
+      expect(mockRemoteProxyCallTool).not.toHaveBeenCalled();
+    }
+  );
+
   test('starts package update check on MCP startup and includes update status in maker_status_lite', async () => {
     const { startMakerMcpServer } = await import('../maker/server/mcp');
     const { CallToolRequestSchema, ListToolsRequestSchema } = await import(
@@ -210,8 +241,8 @@ describe('maker MCP version status integration', () => {
     expect(handler).toBeDefined();
     const firstList = await listHandler({}, {});
     const secondList = await listHandler({}, {});
-    expect(firstList.tools).toHaveLength(18);
-    expect(secondList.tools).toHaveLength(18);
+    expect(firstList.tools).toHaveLength(19);
+    expect(secondList.tools).toHaveLength(19);
 
     const result = await handler(
       {
@@ -378,7 +409,9 @@ describe('maker MCP version status integration', () => {
     expect(instructions).toContain('never use an unversioned npm package');
     expect(instructions).toContain('Do not report expected project or business errors');
     expect(instructions).toContain('image, video, music, sound-effect');
-    expect((instructions as string).length).toBeLessThanOrEqual(1200);
+    expect(instructions).toContain('generate_resource_meta');
+    expect(instructions).toContain('maker-ui-workflow');
+    expect((instructions as string).length).toBeLessThanOrEqual(1600);
     expect(instructions).not.toMatch(
       /agents update|global memory|~\/.(?:codex|claude|workbuddy)/iu
     );
@@ -503,7 +536,7 @@ describe('maker MCP version status integration', () => {
     const result = await listHandler({}, {});
     const names = result.tools.map((tool: { name: string }) => tool.name);
 
-    expect(names).toHaveLength(18);
+    expect(names).toHaveLength(19);
     expect(names).toEqual(
       expect.arrayContaining([
         'maker_status_lite',

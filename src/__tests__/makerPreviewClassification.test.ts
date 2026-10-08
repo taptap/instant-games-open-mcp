@@ -106,15 +106,28 @@ test('Windows single player with stale dist must prepare without modifying it', 
 test.each([
   ['settings', { sources: { 'official-res': { tag: 'stable' } } }],
   ['resources', { aliases: { player: 'uuid://player' } }],
-  ['resources', { groups: { default: ['**'] } }],
+  ['resources', { groups: { level1: ['level1/**'] } }],
 ])('preserves manifest semantics from %s', (name, value) => {
   config(name as string, value);
   expect(classifyPreviewProject(root).preparation_required).toBe(true);
 });
 
-test('project metadata requires resource indexing even without resource configuration', () => {
+test('metadata alone does not require a project copy', () => {
   fs.writeFileSync(path.join(root, 'scripts/main.lua.meta'), '{"uuid":"entry"}');
-  expect(classifyPreviewProject(root).preparation_required).toBe(true);
+  expect(classifyPreviewProject(root).preparation_required).toBe(false);
+});
+
+test('ordinary local groups and default build fields do not require a copy', () => {
+  config('resources', { groups: { default: ['**'] }, preload_groups: [] });
+  config('settings', {
+    build: {
+      output_dir: '../dist',
+      asset_dirs: ['../assets', '../scripts'],
+      asset_ignores: [],
+      generate_fs_path: true,
+    },
+  });
+  expect(classifyPreviewProject(root).preparation_required).toBe(false);
 });
 
 test('partial configuration preserves custom server entry and network classification', () => {

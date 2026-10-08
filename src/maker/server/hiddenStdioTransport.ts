@@ -18,9 +18,13 @@ export type HiddenStdioServerParameters = {
 
 export class HiddenStdioClientTransport implements Transport {
   private process?: ChildProcess;
-  private readonly abortController = new AbortController();
   private readonly readBuffer = new ReadBuffer();
   private readonly stderrStream: PassThrough | null;
+  private readonly pendingSends = new Set<(error: Error) => void>();
+  private started = false;
+  private closeNotified = false;
+  private closing = false;
+  private closePromise?: Promise<void>;
 
   onclose?: () => void;
   onerror?: (error: Error) => void;
@@ -31,38 +35,41 @@ export class HiddenStdioClientTransport implements Transport {
       serverParams.stderr === 'pipe' || serverParams.stderr === 'overlapped'
         ? new PassThrough()
         : null;
+    this.stderrStream?.resume();
   }
 
   async start(): Promise<void> {
-    if (this.process) {
+    if (this.started || this.closing) {
       throw new Error('HiddenStdioClientTransport already started.');
     }
+    this.started = true;
 
     await new Promise<void>((resolve, reject) => {
       this.process = spawn(this.serverParams.command, this.serverParams.args ?? [], {
         env: this.serverParams.env,
         stdio: ['pipe', 'pipe', this.serverParams.stderr ?? 'inherit'],
         shell: false,
-        signal: this.abortController.signal,
         windowsHide: true,
         cwd: this.serverParams.cwd,
       });
 
       this.process.on('error', (error) => {
-        if (error.name === 'AbortError') {
-          this.onclose?.();
-          return;
-        }
         reject(error);
         this.onerror?.(error);
       });
       this.process.on('spawn', () => resolve());
+      this.process.on('exit', () => {
+        this.notifyClose();
+        void this.close().catch((error: Error) => this.onerror?.(error));
+      });
       this.process.on('close', () => {
         this.process = undefined;
-        this.onclose?.();
+        this.notifyClose();
+        void this.close().catch((error: Error) => this.onerror?.(error));
       });
       this.process.stdin?.on('error', (error) => this.onerror?.(error));
       this.process.stdout?.on('data', (chunk: Buffer) => {
+        if (this.closeNotified) return;
         this.readBuffer.append(chunk);
         this.processReadBuffer();
       });
@@ -82,58 +89,116 @@ export class HiddenStdioClientTransport implements Transport {
   }
 
   async close(): Promise<void> {
+    this.closing = true;
+    this.rejectPendingSends();
+    this.closePromise ??= Promise.resolve()
+      .then(() => this.closeProcess())
+      .catch((error: unknown) => {
+        this.closePromise = undefined;
+        throw error;
+      });
+    return this.closePromise;
+  }
+
+  private async closeProcess(): Promise<void> {
     const child = this.process;
-    this.process = undefined;
     this.readBuffer.clear();
-    if (!child || child.exitCode !== null || child.signalCode !== null) {
-      this.abortController.abort();
+    if (!child) {
+      this.stderrStream?.destroy();
+      this.notifyClose();
       return;
     }
-    const exited = new Promise<void>((resolve) => {
-      child.once('close', () => resolve());
-    });
-    const wait = (ms: number) =>
-      Promise.race([
-        exited,
-        new Promise<void>((resolve) => {
-          const timer = setTimeout(resolve, ms);
-          timer.unref?.();
-        }),
-      ]);
+    const alive = () =>
+      this.process === child && child.exitCode === null && child.signalCode === null;
+    const wait = (event: 'exit' | 'close') =>
+      new Promise<void>((resolve) => {
+        if (this.process !== child || (event === 'exit' && !alive())) {
+          resolve();
+          return;
+        }
+        const done = () => {
+          clearTimeout(timer);
+          child.removeListener(event, done);
+          child.removeListener('close', done);
+          resolve();
+        };
+        const timer = setTimeout(done, 2000);
+        child.once(event, done);
+        if (event !== 'close') child.once('close', done);
+      });
     try {
       child.stdin?.end();
     } catch {
-      // 关闭 stdin 后继续进入终止流程。
+      child.stdin?.destroy();
     }
-    await wait(2000);
-    if (child.exitCode === null && child.signalCode === null) {
-      try {
+    try {
+      if (alive()) await wait('exit');
+      if (alive()) {
         child.kill('SIGTERM');
-      } catch {
-        // 进程可能已经退出。
+        await wait('exit');
       }
-      await wait(2000);
-    }
-    if (child.exitCode === null && child.signalCode === null) {
-      try {
+      if (alive() && process.platform !== 'win32') {
         child.kill('SIGKILL');
-      } catch {
-        // 进程可能已经退出。
+        await wait('exit');
       }
-      await wait(2000);
+      if (alive()) {
+        throw new Error('Maker proxy child exit could not be confirmed.');
+      }
+      if (process.platform !== 'win32') await wait('close');
+    } finally {
+      child.stdin?.destroy();
+      child.stdout?.destroy();
+      child.stderr?.unpipe(this.stderrStream ?? undefined);
+      child.stderr?.destroy();
+      this.stderrStream?.destroy();
+      this.notifyClose();
     }
-    this.abortController.abort();
   }
+
   async send(message: JSONRPCMessage): Promise<void> {
     const stdin = this.process?.stdin;
-    if (!stdin) {
+    if (!stdin || this.closing || this.closeNotified || stdin.destroyed) {
       throw new Error('Not connected');
     }
     const json = serializeMessage(message);
-    if (stdin.write(json)) {
-      return;
-    }
-    await new Promise<void>((resolve) => stdin.once('drain', resolve));
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        stdin.removeListener('drain', drained);
+        stdin.removeListener('close', closed);
+        stdin.removeListener('error', failed);
+        this.pendingSends.delete(failed);
+      };
+      const drained = () => {
+        cleanup();
+        resolve();
+      };
+      const failed = (error: Error) => {
+        cleanup();
+        reject(error);
+      };
+      const closed = () => failed(new Error('Not connected'));
+      this.pendingSends.add(failed);
+      stdin.once('drain', drained);
+      stdin.once('close', closed);
+      stdin.once('error', failed);
+      try {
+        if (stdin.write(json)) drained();
+      } catch (error) {
+        failed(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  }
+
+  private rejectPendingSends(): void {
+    for (const reject of this.pendingSends) reject(new Error('Not connected'));
+  }
+
+  private notifyClose(): void {
+    if (this.closeNotified) return;
+    this.closeNotified = true;
+    this.rejectPendingSends();
+    this.readBuffer.clear();
+    this.onclose?.();
   }
 
   private processReadBuffer(): void {

@@ -98,7 +98,11 @@ describe('Maker tool description override coverage', () => {
         listRemoteTools: async () => remoteTools,
       });
 
-      expect(result.tools.map((tool) => tool.name)).toEqual(baseline.toolOrder);
+      expect(result.tools.map((tool) => tool.name)).toEqual([
+        ...baseline.toolOrder.slice(0, 2),
+        'generate_resource_meta',
+        ...baseline.toolOrder.slice(2),
+      ]);
       expect(JSON.stringify(result.tools)).not.toMatch(
         /prefer(?: this)? Maker MCP proxy tools?|over native AI|client-native|Other client media tools/iu
       );

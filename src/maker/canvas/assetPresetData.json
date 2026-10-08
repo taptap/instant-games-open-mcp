@@ -1,0 +1,1396 @@
+[
+  {
+    "id": "7e1cb6ad-732f-4dc3-a951-000000000005",
+    "name": "道具生成 · 风格图→图集→游戏资产",
+    "revision": 4,
+    "nodes": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000501",
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "width": 620,
+        "height": 430,
+        "title": "① 游戏风格图 · 林间炼金工坊",
+        "sourceSnapshots": [],
+        "assetPath": "assets/image/preset-alchemy-game-scene.png",
+        "generation": {
+          "prompt": "奇幻炼金工坊模拟经营与采集冒险游戏的美术风格图，一张完整的游戏实机画面风格设计稿，不是人物立绘或孤立角色。横向画面，等距俯视的2.5D手绘游戏场景。完整的林间炼金小镇：左侧森林采集区有薄荷药草、红色蘑菇、青蓝魔晶和琥珀矿石；中央开放式石木炼金工坊里有工作台、玻璃药瓶、铜坩埚、杵臼、配方卷轴、原料架；右侧是药剂柜台与来购买药水的村民，远处有森林道路和冒险入口。玩家操控的小炼金师在场景里只是一个小比例角色，正将采集的材料投入铜坩埚，另一位村民在柜台等待交易，清楚呈现采集→炼制→售卖的核心玩法。画面中有真实地面、建筑、背景、光照和阴影，明确可行走区域，重要交互物清晰易读。半写实卡通手绘RPG美术，统一深青绿、温暖古铜金和木色，柔和晨光，精致玻璃和金属，简洁深色轮廓，适合独立游戏。不要分镜、拼贴、纯色背景、人物大特写、文字、水印或界面边框。游戏素材约束：此图是包含场景、背景、主要元素和核心玩法的完整游戏画面，保留环境与地面，不做单主体或纯色抠图素材。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "16:9"
+          },
+          "operation": "generate"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000502",
+        "type": "image",
+        "x": 700,
+        "y": 0,
+        "width": 520,
+        "height": 430,
+        "title": "② 道具图集 · 4列3行",
+        "assetPath": "assets/image/preset-alchemy-item-atlas.png",
+        "referenceInput": {
+          "includeSelf": false
+        },
+        "generation": {
+          "prompt": "依据参考游戏画面制作同一款炼金工坊游戏的背包物品图集。继承场景中的等距三分之四视角、深青绿和古铜金装饰、温暖手绘光照与清晰轮廓。只提取画风与游戏内容，不画场景或人物。【排列方式】4列×3行共12格，一張完整横向图集，等距等大网格，每格一个物品，物品完整居中，约占格子宽高60%，各格留足空白，不跨格，没有网格线或标签。【道具清单】从左到右、从上到下：第一行红色生命药水、蓝色魔力药水、绿色解毒药水、琥珀色耐力药水；第二行一束薄荷药草、一簇红色蘑菇、青蓝魔力水晶、琥珀炼金矿石；第三行木质杵臼（杵与臼作为一件工具）、小型铜坩埚、卷起的羊皮配方卷轴、空的精致玻璃药瓶。必须恰好12件、不漏件、不重件、不新增道具。【统一形状】物品自然形状、不加底板。各格风格、视角、轮廓粗细和高光方向一致。【背景】整张背景均匀纯白，格间也纯白。游戏素材约束：整张12件物品网格是唯一输出；不要人物、场景、地面、阴影、反射、边框、编号、文字、Logo或水印。",
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "4:3"
+          },
+          "operation": "generate",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000501",
+          "sourceImageIds": [
+            "7e1cb6ad-732f-4dc3-a951-000000000501"
+          ],
+          "referenceImagePaths": [
+            "assets/image/preset-alchemy-game-scene.png"
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000501",
+          "version": "image|assets/image/preset-alchemy-game-scene.png|manual-asset"
+        },
+        "sourceSnapshots": [
+          {
+            "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000501",
+            "version": "image|assets/image/preset-alchemy-game-scene.png|manual-asset"
+          }
+        ]
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000503",
+        "type": "image-assets",
+        "x": 1290,
+        "y": 0,
+        "width": 500,
+        "height": 490,
+        "title": "③ 游戏资产 · 12 张独立 PNG",
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000502",
+          "version": "image|assets/image/preset-alchemy-item-atlas.png|manual-asset"
+        },
+        "imageAssetsInfo": {
+          "width": 2304,
+          "height": 1500,
+          "grid": {
+            "columns": 4,
+            "rows": 3,
+            "marginX": 0,
+            "marginY": 0,
+            "gapX": 0,
+            "gapY": 0
+          },
+          "items": [
+            {
+              "name": "item_001",
+              "assetPath": "assets/image/preset-alchemy-item_001.png",
+              "width": 576,
+              "height": 500
+            },
+            {
+              "name": "item_002",
+              "assetPath": "assets/image/preset-alchemy-item_002.png",
+              "width": 576,
+              "height": 500
+            },
+            {
+              "name": "item_003",
+              "assetPath": "assets/image/preset-alchemy-item_003.png",
+              "width": 576,
+              "height": 500
+            },
+            {
+              "name": "item_004",
+              "assetPath": "assets/image/preset-alchemy-item_004.png",
+              "width": 576,
+              "height": 500
+            },
+            {
+              "name": "item_005",
+              "assetPath": "assets/image/preset-alchemy-item_005.png",
+              "width": 576,
+              "height": 500
+            },
+            {
+              "name": "item_006",
+              "assetPath": "assets/image/preset-alchemy-item_006.png",
+              "width": 576,
+              "height": 500
+            },
+            {
+              "name": "item_007",
+              "assetPath": "assets/image/preset-alchemy-item_007.png",
+              "width": 576,
+              "height": 500
+            },
+            {
+              "name": "item_008",
+              "assetPath": "assets/image/preset-alchemy-item_008.png",
+              "width": 576,
+              "height": 500
+            },
+            {
+              "name": "item_009",
+              "assetPath": "assets/image/preset-alchemy-item_009.png",
+              "width": 576,
+              "height": 500
+            },
+            {
+              "name": "item_010",
+              "assetPath": "assets/image/preset-alchemy-item_010.png",
+              "width": 576,
+              "height": 500
+            },
+            {
+              "name": "item_011",
+              "assetPath": "assets/image/preset-alchemy-item_011.png",
+              "width": 576,
+              "height": 500
+            },
+            {
+              "name": "item_012",
+              "assetPath": "assets/image/preset-alchemy-item_012.png",
+              "width": 576,
+              "height": 500
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000541",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000501",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000502",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000542",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000502",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000503",
+        "kind": "image-assets"
+      }
+    ],
+    "assets": {
+      "assets/image/preset-alchemy-game-scene.png": {
+        "type": "image/png",
+        "resourceId": "f4a98986e3bf0d02e6ac6314c8d9e14de497d768a4debf0079ae11d5a0c30694"
+      },
+      "assets/image/preset-alchemy-item-atlas.png": {
+        "type": "image/png",
+        "resourceId": "100d09308a07e3e99466965e8cbebba94650dc3bb248626343bda65c9ddf619e"
+      },
+      "assets/image/preset-alchemy-item_001.png": {
+        "type": "image/png",
+        "resourceId": "b9e54e9bc30d06958d76076f9d5fa010e678513e90d87d0c5aa4640c73a21087"
+      },
+      "assets/image/preset-alchemy-item_002.png": {
+        "type": "image/png",
+        "resourceId": "cb48f5ad31db7bd056df569fef89dd19361d30014b783b9dde8d5c22ce78a91b"
+      },
+      "assets/image/preset-alchemy-item_003.png": {
+        "type": "image/png",
+        "resourceId": "07d989a223033adc64ed32acdf0f08f368166a46405a7043cb155b1847b60138"
+      },
+      "assets/image/preset-alchemy-item_004.png": {
+        "type": "image/png",
+        "resourceId": "b33efd92c2a6d728fe802123bec38dd85afc64515c9e3db1734529fd4050d2ed"
+      },
+      "assets/image/preset-alchemy-item_005.png": {
+        "type": "image/png",
+        "resourceId": "bda71c25e29095fcce7f31482027c55dbeb43c006339a00c2da49738224d2404"
+      },
+      "assets/image/preset-alchemy-item_006.png": {
+        "type": "image/png",
+        "resourceId": "26a9a40d0aed99a7920223c98570400e93962a76206abcadd989c107658951e1"
+      },
+      "assets/image/preset-alchemy-item_007.png": {
+        "type": "image/png",
+        "resourceId": "d1caca51aa01f2f30b40164a1b4db6cdc26af8fa090ac9c53f355a60831a7d4a"
+      },
+      "assets/image/preset-alchemy-item_008.png": {
+        "type": "image/png",
+        "resourceId": "379991502ceb2461b169e333c6255381988239c2c68f7f36e43387461abec941"
+      },
+      "assets/image/preset-alchemy-item_009.png": {
+        "type": "image/png",
+        "resourceId": "f587378ed38bddac548e2c527dacf6b62475a4d42c9136d5ca7ca1f3af8b1642"
+      },
+      "assets/image/preset-alchemy-item_010.png": {
+        "type": "image/png",
+        "resourceId": "20d58dfb480b6a94e3819aecb8761df594495b12cfa3a0d0069f4ab56bb71d24"
+      },
+      "assets/image/preset-alchemy-item_011.png": {
+        "type": "image/png",
+        "resourceId": "2bc4188842b5c1881ef83850fc85660048e8200ac3aaa7a3d5139b76d99f40a3"
+      },
+      "assets/image/preset-alchemy-item_012.png": {
+        "type": "image/png",
+        "resourceId": "11a49657769e0d48404770ce6b84452b48f01574c52038d0ae3ecdf97fda3bb3"
+      }
+    }
+  },
+  {
+    "id": "7e1cb6ad-732f-4dc3-a951-000000000006",
+    "name": "种植生长 · 作物→状态图集→游戏资产",
+    "revision": 1,
+    "nodes": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000601",
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 420,
+        "title": "① 作物参考 · 成熟番茄",
+        "assetPath": "assets/image/preset-tomato-reference.png",
+        "generation": {
+          "prompt": "为温馨农场种植游戏制作一枚成熟番茄的物品参考图。单独一枚饱满红色番茄，顶部保留自然绿色星形萼片与短果柄，无叶枝、无容器，不是整株植物。精致手绘2D游戏图标，轻微三分之四俯视角，简洁清楚的深色轮廓，柔和上左侧光，鲜艳但自然的红绿配色，形状圆润，清晰易读，不要摄影风格。主体完整居中，占图幅65%，四周留白。游戏素材约束：纯均匀白色背景，无文字、标注、阴影、地面、平台、装饰边框、水印。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "1:1"
+          },
+          "operation": "generate"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000602",
+        "type": "image",
+        "title": "② 生长图集 · 番茄五阶段",
+        "assetPath": "assets/image/preset-tomato-growth.png",
+        "x": 390,
+        "y": 0,
+        "width": 720,
+        "height": 420,
+        "referenceInput": {
+          "includeSelf": false
+        },
+        "generation": {
+          "prompt": "制作参考作物的种植生长状态图集，继承参考图的物种、果实形状、配色、手绘轮廓和光照，不复制单个果实充当所有阶段。当前作物：番茄；阶段数：5；排列：5列×1行，从左到右按时间顺序，仅输出一张图。阶段依次为：1播种（土面中央一粒小小的浅米色扁平番茄种子略露出）；2幼苗（低矮青绿幼苗，子叶及初生真叶，无花无果）；3开花（长成的番茄植株，有番茄锯齿形真叶与数朵黄色星形小花，无果）；4结果（同种株型枝叶，结出清晰饱满的红番茄及少量未熟绿果）；5枯萎（同一作物衰败，弯垂枝干、黄褐卷叶与少量暗红萎缩果实，不再鲜绿）。每株生长在同样一小撮椭圆土壤上，不用盆或花箱。所有格子的土壤大小、视角完全一致，土壤底部都对齐在各格高度85%的同一水平线，植株主茎底部都在格子正中央；幼苗自然矮小，成熟株较高，不能逐格放大到同高度。每格等宽等高，主体完整、不跨格，最大宽度不超过单格70%，上左右留足透明处理空间，五格水平中心在全图宽度10%、30%、50%、70%、90%。背景为均匀纯白。游戏素材约束：这是一张五格状态图集，不是单主体，不画长条连贯地面；只保留各株脚下的小土块，不要网格线、边框、文字、编号、箭头、花盆、田园背景、阴影、发光或水印。\n物种适配规则（优先于上述番茄示例）：先识别参考图的作物，再决定有意义的游戏生长阶段。番茄、茄子、黄瓜等果菜用5阶段：播种、幼苗、开花、结果、枯萎；以叶或根为采收目标的作物通常用4阶段：播种、幼苗、可采收成熟、枯萎，不强加开花结果；蘑菇等真菌用4阶段：菌丝培养基、原基幼菇、成熟子实体、衰败，不画种子或花。参考不是番茄时，必须同步替换所有物种特征、阶段描述、格数与均匀中心位置，不能画成红番茄。不展示分析文字或标签。最终只画4列×1行或5列×1行，与选定阶段一一对应。",
+          "referenceImagePaths": [
+            "assets/image/preset-tomato-reference.png"
+          ],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "16:9"
+          },
+          "operation": "generate",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000601",
+          "sourceImageIds": [
+            "7e1cb6ad-732f-4dc3-a951-000000000601"
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000601",
+          "version": "image|assets/image/preset-tomato-reference.png|manual-asset"
+        },
+        "sourceSnapshots": [
+          {
+            "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000601",
+            "version": "image|assets/image/preset-tomato-reference.png|manual-asset"
+          }
+        ]
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000603",
+        "type": "image-assets",
+        "title": "③ 游戏资产 · 5 张独立 PNG",
+        "x": 1180,
+        "y": 0,
+        "width": 650,
+        "height": 420,
+        "imageAssetsInfo": {
+          "width": 2560,
+          "height": 800,
+          "grid": {
+            "columns": 5,
+            "rows": 1,
+            "marginX": 0,
+            "marginY": 0,
+            "gapX": 0,
+            "gapY": 0
+          },
+          "items": [
+            {
+              "name": "item_001",
+              "assetPath": "assets/image/preset-tomato-item_001.png",
+              "width": 512,
+              "height": 800
+            },
+            {
+              "name": "item_002",
+              "assetPath": "assets/image/preset-tomato-item_002.png",
+              "width": 512,
+              "height": 800
+            },
+            {
+              "name": "item_003",
+              "assetPath": "assets/image/preset-tomato-item_003.png",
+              "width": 512,
+              "height": 800
+            },
+            {
+              "name": "item_004",
+              "assetPath": "assets/image/preset-tomato-item_004.png",
+              "width": 512,
+              "height": 800
+            },
+            {
+              "name": "item_005",
+              "assetPath": "assets/image/preset-tomato-item_005.png",
+              "width": 512,
+              "height": 800
+            }
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000602",
+          "version": "image|assets/image/preset-tomato-growth.png|manual-asset"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000641",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000601",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000602",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000642",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000602",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000603",
+        "kind": "image-assets"
+      }
+    ],
+    "assets": {
+      "assets/image/preset-tomato-reference.png": {
+        "type": "image/png",
+        "resourceId": "1b8598dc2bab504007e660dd2d9c3da2b9fd112afda89bdbca4faedba579e982"
+      },
+      "assets/image/preset-tomato-growth.png": {
+        "type": "image/png",
+        "resourceId": "5c398a4d76d0d95d8e53407eae6a380b061ca9c0723715c3e60f0b9dbfd4f7ea"
+      },
+      "assets/image/preset-tomato-item_001.png": {
+        "type": "image/png",
+        "resourceId": "8fa757ba7a280d704957c63693fa94d6c49ef33637c2149d024b6b85534f29a8"
+      },
+      "assets/image/preset-tomato-item_002.png": {
+        "type": "image/png",
+        "resourceId": "c99b28e78b6d24d3b2677dc7b40cfdbbc37fe2d5a9a38aa58abdd5d43d4e3e23"
+      },
+      "assets/image/preset-tomato-item_003.png": {
+        "type": "image/png",
+        "resourceId": "9b63209d22736a1d47b5426158d8fc7074da9a9aeacf557edb0c3984b707846f"
+      },
+      "assets/image/preset-tomato-item_004.png": {
+        "type": "image/png",
+        "resourceId": "79c2c76da8814feb1dbe1c9de5add957e11fdc5aadb0bc5a814e71a9f331e42d"
+      },
+      "assets/image/preset-tomato-item_005.png": {
+        "type": "image/png",
+        "resourceId": "4d943112fd8bc575cbbb5a3fb9cc8d15d75c34b2628b524ea3fae680ae7d2865"
+      }
+    }
+  },
+  {
+    "id": "7e1cb6ad-732f-4dc3-a951-000000000007",
+    "name": "UI组件提取 · 设计稿→组件图集→游戏资产",
+    "revision": 1,
+    "nodes": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000701",
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "width": 300,
+        "height": 460,
+        "title": "① 游戏UI参考 · 花园商店",
+        "assetPath": "assets/image/preset-garden-ui-reference.png",
+        "generation": {
+          "prompt": "绘制一张完整、真实可读的休闲种植经营游戏手机商店界面设计稿，3:4竖向画幅，精致温暖的手绘2D卡通游戏UI，主题是森林花园小店。不是素材图集，也不是拆解展示板。界面背后有柔和的绿色花园与小木屋背景；画面中央是一块大面积的暖奶油色圆角面板，厚实蜂蜜棕木边框、四角少量嫩叶装饰，所有商品和交互都在面板里。顶部是琥珀色丝带标题栏，仅写SHOP；右上角独立红色圆形关闭按钮带金色X；左上角空心圆形金边头像框内显示一位园丁头像。顶栏两枚浅金色圆角胶囊资源条，分别放金币+300和蓝色宝石+20。面板中间有2列3行的木边奶油色正方形商品槽，摆放种子袋、浇水壶、胡萝卜、铲子、花盆、草莓；商品槽下方有金币价签和一枚金色五角星收藏标识。底部一枚长条圆角翡翠绿主按钮BUY及一枚同尺寸棕金色次按钮SELL；左下角有翡翠绿向左返回箭头。所有按钮、丝带、面板、格框和资源栏边界清楚，不相互遮挡，视觉层级合理，像一张可以直接交给游戏开发者的完整商店截图。游戏素材约束：本图是有背景和UI布局的完整游戏界面，保留花园环境、面板及上述所有功能组件；无设备外壳、无网格、无制作者备注、无水印。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "3:4"
+          },
+          "operation": "generate"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000702",
+        "type": "image",
+        "x": 380,
+        "y": 0,
+        "width": 680,
+        "height": 460,
+        "title": "② UI组件图集 · 12项透明组件",
+        "assetPath": "assets/image/preset-garden-ui-atlas.png",
+        "referenceInput": {
+          "includeSelf": false
+        },
+        "generation": {
+          "prompt": "分析参考游戏UI设计稿，把其中可复用的界面美术组件提取重绘为一张清晰的游戏UI素材图集。必须以输入界面的真实元素为依据，保持木质金边、奶油色填充、翡翠绿按钮、叶片装饰、描边厚度与上左侧光照，不另造一套UI风格。不要复制整屏，不要把人物或商品道具当作UI面板。当前参考图是花园商店界面，提取以下12项，每格只放一项，严格4列×3行均匀网格，从左到右再从上到下：第1行：1完整大主面板（只保留木边与奶油色空白内底，清除覆盖的标题、商品、按钮、文字），2琥珀色标题丝带空底（去掉SHOP文字，保留装饰叶），3翡翠绿主按钮空底（去掉BUY文字），4棕金色次按钮空底（去掉SELL文字）；第2行：5红色圆形金边关闭按钮含奶油色X图形，6空心圆形金边头像框（去掉人物，中心使用和外部完全一样的纯洋红背景便于抠空），7正方形商品槽（保留木边和奶油色底，去掉商品与价格），8浅金圆角资源条空底（去掉货币图标和数字）；第3行：9金币图标，10蓝色宝石图标，11金色五角星图标，12绿色圆形金边返回按钮含奶油色向左箭头。禁止保留字母、价格、数字、字符注释；X和返回箭头属于按钮图形可以保留。不同长宽比组件保持原有轮廓比例，不拉伸成方块；都缩放到各自格内，主体居中完整、四周至少12%留白，不接触相邻格。四列中心严格为画幅宽度的12.5%、37.5%、62.5%、87.5%；三行中心严格为画幅高度的16.67%、50%、83.33%。不要网格线、隔线、标签、编号、阴影、发光、素材面板外壳。全图只输出十二个分离的组件，不要附原图。游戏素材约束：本图是多组件平铺图集，不是单主体；整个背景必须是同一种完全均匀的纯洋红 #FF00FF，头像框空心处同色，组件不使用洋红，奶油色面板内底保留；无摄影背景、地面、水印。适配规则：替换参考图后，先识别该图真实存在的主要面板/标题/主次按钮/关闭或返回/边框/资源栏/货币等组件并列出对应清单，再提取，不强加花园、木纹或原图没有的元素；合并重复样式，优先保留核心12项，不用同一组件重复填格。若实际不足12项或超过12项，应先调整清单及行列数，并与后续解析窗口保持一致，不虚构补齐。拆出的是供程序组合的美术单图，不承诺恢复被遮挡内容的原像素、字体、九宫格拉伸参数或PSD图层。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "4:3"
+          },
+          "operation": "generate",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000701",
+          "sourceImageIds": [
+            "7e1cb6ad-732f-4dc3-a951-000000000701"
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000701",
+          "version": "image|assets/image/preset-garden-ui-reference.png|manual-asset"
+        },
+        "sourceSnapshots": [
+          {
+            "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000701",
+            "version": "image|assets/image/preset-garden-ui-reference.png|manual-asset"
+          }
+        ]
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000703",
+        "type": "image-assets",
+        "x": 1130,
+        "y": 0,
+        "width": 650,
+        "height": 460,
+        "title": "③ 游戏资产 · 12张UI单图",
+        "imageAssetsInfo": {
+          "width": 2560,
+          "height": 1728,
+          "grid": {
+            "columns": 4,
+            "rows": 3,
+            "marginX": 0,
+            "marginY": 0,
+            "gapX": 0,
+            "gapY": 0
+          },
+          "items": [
+            {
+              "name": "item_001",
+              "assetPath": "assets/image/preset-garden-ui-item_001.png",
+              "width": 640,
+              "height": 576
+            },
+            {
+              "name": "item_002",
+              "assetPath": "assets/image/preset-garden-ui-item_002.png",
+              "width": 640,
+              "height": 576
+            },
+            {
+              "name": "item_003",
+              "assetPath": "assets/image/preset-garden-ui-item_003.png",
+              "width": 640,
+              "height": 576
+            },
+            {
+              "name": "item_004",
+              "assetPath": "assets/image/preset-garden-ui-item_004.png",
+              "width": 640,
+              "height": 576
+            },
+            {
+              "name": "item_005",
+              "assetPath": "assets/image/preset-garden-ui-item_005.png",
+              "width": 640,
+              "height": 576
+            },
+            {
+              "name": "item_006",
+              "assetPath": "assets/image/preset-garden-ui-item_006.png",
+              "width": 640,
+              "height": 576
+            },
+            {
+              "name": "item_007",
+              "assetPath": "assets/image/preset-garden-ui-item_007.png",
+              "width": 640,
+              "height": 576
+            },
+            {
+              "name": "item_008",
+              "assetPath": "assets/image/preset-garden-ui-item_008.png",
+              "width": 640,
+              "height": 576
+            },
+            {
+              "name": "item_009",
+              "assetPath": "assets/image/preset-garden-ui-item_009.png",
+              "width": 640,
+              "height": 576
+            },
+            {
+              "name": "item_010",
+              "assetPath": "assets/image/preset-garden-ui-item_010.png",
+              "width": 640,
+              "height": 576
+            },
+            {
+              "name": "item_011",
+              "assetPath": "assets/image/preset-garden-ui-item_011.png",
+              "width": 640,
+              "height": 576
+            },
+            {
+              "name": "item_012",
+              "assetPath": "assets/image/preset-garden-ui-item_012.png",
+              "width": 640,
+              "height": 576
+            }
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000702",
+          "version": "image|assets/image/preset-garden-ui-atlas.png|manual-asset"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000741",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000701",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000702",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000742",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000702",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000703",
+        "kind": "image-assets"
+      }
+    ],
+    "assets": {
+      "assets/image/preset-garden-ui-reference.png": {
+        "type": "image/png",
+        "resourceId": "bbf489feb4b04bf7fcf1b83e6273024ebb77cc4b4dc5506f5dd7d28dea2a6ba9"
+      },
+      "assets/image/preset-garden-ui-atlas.png": {
+        "type": "image/png",
+        "resourceId": "33a9fe5460529dcd4e9996935bfae6b80148806f4459e96a805b352c07ee895d"
+      },
+      "assets/image/preset-garden-ui-item_001.png": {
+        "type": "image/png",
+        "resourceId": "454b67c3d6d281d7d6b3e61c66375b69143645be9ed8dbd108dd561bb357b89b"
+      },
+      "assets/image/preset-garden-ui-item_002.png": {
+        "type": "image/png",
+        "resourceId": "c78c7ef1425ff30ee8ebe280dca50d20e82f8c3d46853bbc9eab44c28268fa58"
+      },
+      "assets/image/preset-garden-ui-item_003.png": {
+        "type": "image/png",
+        "resourceId": "34bba6715d13b09ab4590c73e1c4a3d209b024a1af6c6ee5283f4d06b69b0f03"
+      },
+      "assets/image/preset-garden-ui-item_004.png": {
+        "type": "image/png",
+        "resourceId": "7ea682378a397672b6781b752dbc1848593459ca4067935835b8695d9f446360"
+      },
+      "assets/image/preset-garden-ui-item_005.png": {
+        "type": "image/png",
+        "resourceId": "736679a26992348d3c9b0899344253daee3d522121d85eca0446080b9ec798b6"
+      },
+      "assets/image/preset-garden-ui-item_006.png": {
+        "type": "image/png",
+        "resourceId": "392b84caa13016c3ad196a75c5a3cfa3ccc8d56ac7f8b0634a4fcb122055da33"
+      },
+      "assets/image/preset-garden-ui-item_007.png": {
+        "type": "image/png",
+        "resourceId": "e801bfff0588921cb98299c19e1afa172462dd5dc8068d5e7628543c912fc6e6"
+      },
+      "assets/image/preset-garden-ui-item_008.png": {
+        "type": "image/png",
+        "resourceId": "95193e4c3fff93bab4748b5a46f1856f945a6d0a3f30240da94ee3ca36d5e9e8"
+      },
+      "assets/image/preset-garden-ui-item_009.png": {
+        "type": "image/png",
+        "resourceId": "e8d1b43472d530a3170fd650897896ac6ee3d0a5094e3d64a35d3f77df2309a3"
+      },
+      "assets/image/preset-garden-ui-item_010.png": {
+        "type": "image/png",
+        "resourceId": "a844d650d7aecc81e9366a64ae892897cdbb71a912d602df66eeece2804a3492"
+      },
+      "assets/image/preset-garden-ui-item_011.png": {
+        "type": "image/png",
+        "resourceId": "57680ce923935346176459f1d0d3462ccd473bbfbe328fa9e5873c2f6d63ed6a"
+      },
+      "assets/image/preset-garden-ui-item_012.png": {
+        "type": "image/png",
+        "resourceId": "0a37b0cd81db3054042425e4dc9c1a894a88e1774427b8932204d61a88895791"
+      }
+    }
+  },
+  {
+    "id": "7e1cb6ad-732f-4dc3-a951-000000000008",
+    "name": "NPC批量生成 · 角色参考→职业图集→游戏资产",
+    "revision": 1,
+    "nodes": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000801",
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "width": 300,
+        "height": 460,
+        "title": "① 角色风格参考 · 小镇邮差",
+        "assetPath": "assets/image/preset-town-npc-reference.png",
+        "generation": {
+          "prompt": "生成一张休闲奇幻小镇经营游戏的NPC角色风格参考图。唯一角色是一位成年女性邮差，棕色短卷发、圆脸雀斑、青绿色短披肩制服、米白内衫、棕色长靴和皮革邮差包，手持一封奶油色信封。精致温暖的手绘2D卡通游戏美术，三头身可爱比例，清晰深棕轮廓线、柔和赛璐璐阴影、上左方统一暖光、饱满但不荧光的青绿和赭棕配色、衣物细节适中。四分之三正面站立，完整头发、手、道具和脚，主体置中，头顶与脚下各留至少12%空白。友善自然表情，不做T pose，不是头像，不是多人物图集，不是游戏场景。全图纯洋红色#FF00FF背景，完全均匀，无渐变、地面、底座、阴影、字母、文字、水印或边框；角色上不出现洋红色。输出可用作整套NPC统一画风参考的完整角色立绘。\n\n游戏素材约束：单个主体、完整不裁切、四周保留动作空间；背景均匀纯色；不出现地面、地砖、站台、展示台、底座、台阶、接触阴影、投影、反射、文字、Logo、水印或其他角色。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "3:4"
+          },
+          "operation": "generate"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000802",
+        "type": "image",
+        "x": 380,
+        "y": 0,
+        "width": 680,
+        "height": 460,
+        "title": "② NPC图集 · 8种职业",
+        "assetPath": "assets/image/preset-town-npc-atlas.png",
+        "referenceInput": {
+          "includeSelf": false
+        },
+        "generation": {
+          "prompt": "以输入角色为唯一画风参考，生成同一款游戏中八位不同身份的新NPC。参考图只约束手绘2D卡通画风、参考图的约四至五头身比例（不要改成大头Q版）、深棕清晰描边、材质简化程度、上左暖光和色彩饱和度，不复制邮差的脸、制服、发型和包，不是同一人物换装或八个动作。世界观：温暖的林间奇幻小镇经营游戏。严格4列×2行八个等大格，每格仅一位全身NPC，按从左到右、从上到下：第一行：1铁匠，壮实中年男性、深肤色、黑色短胡须、深棕皮围裙、手握小锤；2面包师，圆脸微胖成年女性、栗色盘发、奶油色厨帽与围裙、双手端面包盘；3草药师，矮小银发老奶奶、圆眼镜、青绿披肩长裙、手提草药篮；4城镇守卫，高个年轻女性、深蓝短发、轻便银甲青绿护肩、手持小圆木盾和短矛；第二行：5渔夫，清瘦深肤色中年男性、草帽、靛蓝背心裤装、手提小鱼篓与短钓竿；6图书管理员，年轻男性、红棕卷发圆眼镜、奶油色衬衣青绿马甲、怀抱厚书；7旅行商人，矮胖络腮胡成年男性、琥珀头巾与赭棕外套、腰包和小旅行背包、手举卷好的布匹；8旅店老板娘，成熟高个女性、黑色盘发、奶油色衬衣和酒红长裙、腰挂钥匙、手举木杯。八人脸型、发型、年龄、体型轮廓和功能道具明显不同，职业一眼可辨；所有人相同四分之三正面视角、友善中性站姿、相同线条和渲染质感，不混入写实照片、3D或像素风。所有头发、帽子、身体、脚和随身道具必须完整包含在各自格内，四周至少12%留白，脚底同排对齐；两行之间有明显空白带，角色不能跨格、互相遮挡或接触。列中心为12.5%、37.5%、62.5%、87.5%，行中心为25%、75%；不同身高自然保留，不能把高个压扁或胖人拉细。画面只包含八个人，不把输入邮差作为第九人放进图集。纯洋红#FF00FF平涂背景，完全均匀，无阴影、地面、底座、光圈、分格线、标签、职业文字、序号、水印或装饰边框；角色与道具不使用洋红色。替换参考图时：先沿用新参考图的绘画媒介、身材比例、视角、时代和世界观，职业清单按该游戏改写，不把本例服饰配色强加给新图；保持人数与解析的4列2行一致。最终是八个同风格、不同身份的NPC静态立绘，不是骨骼、动作序列或多方向动画。\n\n游戏素材约束：单个主体、完整不裁切、四周保留动作空间；背景均匀纯色；不出现地面、地砖、站台、展示台、底座、台阶、接触阴影、投影、反射、文字、Logo、水印或其他角色。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "4:3"
+          },
+          "operation": "generate",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000801",
+          "sourceImageIds": [
+            "7e1cb6ad-732f-4dc3-a951-000000000801"
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000801",
+          "version": "image|assets/image/preset-town-npc-reference.png|manual-asset"
+        },
+        "sourceSnapshots": [
+          {
+            "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000801",
+            "version": "image|assets/image/preset-town-npc-reference.png|manual-asset"
+          }
+        ]
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000803",
+        "type": "image-assets",
+        "x": 1130,
+        "y": 0,
+        "width": 650,
+        "height": 460,
+        "title": "③ 游戏资产 · 8张NPC单图",
+        "imageAssetsInfo": {
+          "width": 2560,
+          "height": 1728,
+          "grid": {
+            "columns": 4,
+            "rows": 2,
+            "marginX": 0,
+            "marginY": 0,
+            "gapX": 0,
+            "gapY": 0
+          },
+          "items": [
+            {
+              "name": "item_001",
+              "assetPath": "assets/image/preset-town-npc-item_001.png",
+              "width": 640,
+              "height": 864
+            },
+            {
+              "name": "item_002",
+              "assetPath": "assets/image/preset-town-npc-item_002.png",
+              "width": 640,
+              "height": 864
+            },
+            {
+              "name": "item_003",
+              "assetPath": "assets/image/preset-town-npc-item_003.png",
+              "width": 640,
+              "height": 864
+            },
+            {
+              "name": "item_004",
+              "assetPath": "assets/image/preset-town-npc-item_004.png",
+              "width": 640,
+              "height": 864
+            },
+            {
+              "name": "item_005",
+              "assetPath": "assets/image/preset-town-npc-item_005.png",
+              "width": 640,
+              "height": 864
+            },
+            {
+              "name": "item_006",
+              "assetPath": "assets/image/preset-town-npc-item_006.png",
+              "width": 640,
+              "height": 864
+            },
+            {
+              "name": "item_007",
+              "assetPath": "assets/image/preset-town-npc-item_007.png",
+              "width": 640,
+              "height": 864
+            },
+            {
+              "name": "item_008",
+              "assetPath": "assets/image/preset-town-npc-item_008.png",
+              "width": 640,
+              "height": 864
+            }
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000802",
+          "version": "image|assets/image/preset-town-npc-atlas.png|manual-asset"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000841",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000801",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000802",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000842",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000802",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000803",
+        "kind": "image-assets"
+      }
+    ],
+    "assets": {
+      "assets/image/preset-town-npc-reference.png": {
+        "type": "image/png",
+        "resourceId": "12fbed50f9d877e96d9054196c4338da934b9282d98f3549414f64d3b85fe1e4"
+      },
+      "assets/image/preset-town-npc-atlas.png": {
+        "type": "image/png",
+        "resourceId": "fa1e258c5275b616ac6e57f69251f4172fbaa081d932288ba0ab3f66787487ee"
+      },
+      "assets/image/preset-town-npc-item_001.png": {
+        "type": "image/png",
+        "resourceId": "df77b9f10af6225b467254390a9f76cc20ba4f9376b14398228ed4fad2663320"
+      },
+      "assets/image/preset-town-npc-item_002.png": {
+        "type": "image/png",
+        "resourceId": "977be249e852c95a68955c52c4186816483a03618fc774cd1f75dc0afe321ae5"
+      },
+      "assets/image/preset-town-npc-item_003.png": {
+        "type": "image/png",
+        "resourceId": "352f85383b86b34eeb4f6198b3c3ea9ea90649c5fbe19f8fd17483f9c2a10835"
+      },
+      "assets/image/preset-town-npc-item_004.png": {
+        "type": "image/png",
+        "resourceId": "26f67b5b5de1dc2df5799e198e68acd0a3d6f8a4af4f7028d6f29309f6823c5b"
+      },
+      "assets/image/preset-town-npc-item_005.png": {
+        "type": "image/png",
+        "resourceId": "0bf04d3f5da3fbaf983003dc9d42f22c27f640b65b7038da537237577b25ff05"
+      },
+      "assets/image/preset-town-npc-item_006.png": {
+        "type": "image/png",
+        "resourceId": "515772e9825b96c37ea2c2cd8d7873df1b1c8f42db192a1f91246f12a853ef82"
+      },
+      "assets/image/preset-town-npc-item_007.png": {
+        "type": "image/png",
+        "resourceId": "5a35944af3370087e2636b3fcd26d7184d527f280900d15f2924970ea4af1614"
+      },
+      "assets/image/preset-town-npc-item_008.png": {
+        "type": "image/png",
+        "resourceId": "ad13836cf5d9040f3e0cce55650aed8217b3aa999b42141502ab6e41d3e06a15"
+      }
+    }
+  },
+  {
+    "id": "7e1cb6ad-732f-4dc3-a951-000000000009",
+    "name": "二合图标生成 · 风格参考→升级图集→游戏资产",
+    "revision": 1,
+    "nodes": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000901",
+        "type": "image",
+        "x": 0,
+        "y": 0,
+        "width": 300,
+        "height": 460,
+        "title": "① 风格参考 · 草莓派礼篮",
+        "assetPath": "assets/image/preset-merge-icons-reference.png",
+        "generation": {
+          "prompt": "生成一个精致的休闲二合游戏风格参考图标：一只手工编织的浅棕藤篮，篮内一只金黄草莓派，上面几颗红草莓和奶油，篮边系一条青蓝色缎带。手绘2D立体卡通风格，深暖棕细轮廓，温暖饱满配色，柔和上左光照，清晰简化的材质，高级休闲经营游戏图标，四分之三略俯视。完整单一图标主体居中，占画幅65%，四周留白。游戏素材约束：完全均匀纯洋红#FF00FF背景，主体不用洋红。没有文字、水印、网格、底座、桌子、地面、投影、背景环境；不是照片，不是图集。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "1:1"
+          },
+          "operation": "generate"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000902",
+        "type": "image",
+        "x": 380,
+        "y": 0,
+        "width": 680,
+        "height": 460,
+        "title": "② 二合图标 · 3系列5阶段",
+        "assetPath": "assets/image/preset-merge-icons-atlas.png",
+        "referenceInput": {
+          "includeSelf": false
+        },
+        "generation": {
+          "prompt": "生成一张二合游戏升级图标图集。输入图片只作为画风参考，不复制参考图身份。统一材质、描边、视角、色彩与光照。\n严格5列×3行，共15个图标；每行一个系列，左到右从Lv.1逐级升级。\n同系列保持可识别的核心造型，按数量、结构、工艺与价值循序递进；不能只是放大或变色，不能突然变成不相关物品。相邻等级必须有明显差异。空白描述由模型合理补全，不输出文字说明。\n第1行「面包篮」：Lv.1：一只金黄圆面包，无容器；Lv.2：两只圆面包和一片切片面包叠放；Lv.3：浅藤篮内三只面包，搭一块奶油色布巾；Lv.4：更深的藤篮装满圆面包和长棍，蓝布巾和小麦装饰；Lv.5：豪华面包礼篮，圆面包长棍牛角包齐全，蓝缎带及一罐蜂蜜\n第2行「蓝色工具箱」：Lv.1：一把木柄小锤，完整居中；Lv.2：木柄锤与扳手交叉组合；Lv.3：小蓝色开口工具盒，露出锤子扳手螺丝刀；Lv.4：双层蓝色工具箱，上盖打开，分层整齐放工具；Lv.5：蓝色专业工具工作台，三层抽屉、后背工具挂架与木台面\n第3行「藏宝箱」：Lv.1：小号浅棕木箱，简单平盖，无装饰；Lv.2：中号同色木箱，弧形盖加深棕铁箍，小锁扣；Lv.3：同系弧盖木箱，金边金锁，盖上蓝色宝石；Lv.4：更精致的同系金边木箱，盖微开露出一层金币，双侧金饰；Lv.5：同系最高级豪华宝箱，敞盖堆满金币蓝宝石，金色浮雕和精美锁扣\n休闲奇幻小镇的手绘2D二合游戏图标。暖棕轮廓、饱满立体卡通、上左柔光、统一四分之三俯视角。同系列保留标志性材质和配色。\n游戏素材约束：每格仅一件完整图标组合，均匀等距网格，主体居中且四周至少15%留白。严格保持指定总数与等级顺序，不跨格、不裁切、不重复。不要等级文字、数字、标签、网格线、水印、地面或投影。全图使用均匀纯洋红#FF00FF背景，主体不用洋红，不加光晕或透明玻璃；供后续抠背景及规则网格拆分。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "16:9"
+          },
+          "operation": "generate",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000000901",
+          "sourceImageIds": [
+            "7e1cb6ad-732f-4dc3-a951-000000000901"
+          ]
+        },
+        "mergeIcons": {
+          "stageCount": 5,
+          "instructions": "休闲奇幻小镇的手绘2D二合游戏图标。暖棕轮廓、饱满立体卡通、上左柔光、统一四分之三俯视角。同系列保留标志性材质和配色。",
+          "series": [
+            {
+              "name": "面包篮",
+              "stages": [
+                "一只金黄圆面包，无容器",
+                "两只圆面包和一片切片面包叠放",
+                "浅藤篮内三只面包，搭一块奶油色布巾",
+                "更深的藤篮装满圆面包和长棍，蓝布巾和小麦装饰",
+                "豪华面包礼篮，圆面包长棍牛角包齐全，蓝缎带及一罐蜂蜜"
+              ]
+            },
+            {
+              "name": "蓝色工具箱",
+              "stages": [
+                "一把木柄小锤，完整居中",
+                "木柄锤与扳手交叉组合",
+                "小蓝色开口工具盒，露出锤子扳手螺丝刀",
+                "双层蓝色工具箱，上盖打开，分层整齐放工具",
+                "蓝色专业工具工作台，三层抽屉、后背工具挂架与木台面"
+              ]
+            },
+            {
+              "name": "藏宝箱",
+              "stages": [
+                "小号浅棕木箱，简单平盖，无装饰",
+                "中号同色木箱，弧形盖加深棕铁箍，小锁扣",
+                "同系弧盖木箱，金边金锁，盖上蓝色宝石",
+                "更精致的同系金边木箱，盖微开露出一层金币，双侧金饰",
+                "同系最高级豪华宝箱，敞盖堆满金币蓝宝石，金色浮雕和精美锁扣"
+              ]
+            }
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000901",
+          "version": "image|assets/image/preset-merge-icons-reference.png|manual-asset"
+        },
+        "sourceSnapshots": [
+          {
+            "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000901",
+            "version": "image|assets/image/preset-merge-icons-reference.png|manual-asset"
+          }
+        ]
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000903",
+        "type": "image-assets",
+        "x": 1130,
+        "y": 0,
+        "width": 650,
+        "height": 460,
+        "title": "③ 游戏资产 · 15张升级图标",
+        "imageAssetsInfo": {
+          "width": 2400,
+          "height": 1296,
+          "grid": {
+            "columns": 5,
+            "rows": 3,
+            "marginX": 0,
+            "marginY": 0,
+            "gapX": 0,
+            "gapY": 0
+          },
+          "items": [
+            {
+              "name": "item_001",
+              "assetPath": "assets/image/preset-merge-icons-item_001.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_002",
+              "assetPath": "assets/image/preset-merge-icons-item_002.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_003",
+              "assetPath": "assets/image/preset-merge-icons-item_003.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_004",
+              "assetPath": "assets/image/preset-merge-icons-item_004.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_005",
+              "assetPath": "assets/image/preset-merge-icons-item_005.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_006",
+              "assetPath": "assets/image/preset-merge-icons-item_006.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_007",
+              "assetPath": "assets/image/preset-merge-icons-item_007.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_008",
+              "assetPath": "assets/image/preset-merge-icons-item_008.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_009",
+              "assetPath": "assets/image/preset-merge-icons-item_009.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_010",
+              "assetPath": "assets/image/preset-merge-icons-item_010.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_011",
+              "assetPath": "assets/image/preset-merge-icons-item_011.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_012",
+              "assetPath": "assets/image/preset-merge-icons-item_012.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_013",
+              "assetPath": "assets/image/preset-merge-icons-item_013.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_014",
+              "assetPath": "assets/image/preset-merge-icons-item_014.png",
+              "width": 480,
+              "height": 432
+            },
+            {
+              "name": "item_015",
+              "assetPath": "assets/image/preset-merge-icons-item_015.png",
+              "width": 480,
+              "height": 432
+            }
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000000902",
+          "version": "image|assets/image/preset-merge-icons-atlas.png|manual-asset"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000941",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000901",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000902",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000000942",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000000902",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000000903",
+        "kind": "image-assets"
+      }
+    ],
+    "assets": {
+      "assets/image/preset-merge-icons-reference.png": {
+        "type": "image/png",
+        "resourceId": "f0164eb07ab97489c1bcbf74e44459bd0b948716b43ca46d63e90ccd0a1ae408"
+      },
+      "assets/image/preset-merge-icons-atlas.png": {
+        "type": "image/png",
+        "resourceId": "8b2cf7f4f9c7979a234712079a2511682b9bde318ff6981199b6a2b9d816328b"
+      },
+      "assets/image/preset-merge-icons-item_001.png": {
+        "type": "image/png",
+        "resourceId": "166f478eeebe15e5e3d01e67b3fa94bf45b138a82ee50743ca9badfcec0f97ac"
+      },
+      "assets/image/preset-merge-icons-item_002.png": {
+        "type": "image/png",
+        "resourceId": "e0d43184160cfd50c8909850dad76b3c1eb450389c62efb13883365feda9b220"
+      },
+      "assets/image/preset-merge-icons-item_003.png": {
+        "type": "image/png",
+        "resourceId": "2bf14d883f40eada3b16c3d865aff9f5f4e0b4daf0e89624646e07ae46ee915a"
+      },
+      "assets/image/preset-merge-icons-item_004.png": {
+        "type": "image/png",
+        "resourceId": "c6598446c33ae65af977d53e17a3838baceac9436fb60cfaa350c179453309a1"
+      },
+      "assets/image/preset-merge-icons-item_005.png": {
+        "type": "image/png",
+        "resourceId": "ebe7deb176b4a34e4a170eff2d9801e91a2f4550088878d62962a07de985aa82"
+      },
+      "assets/image/preset-merge-icons-item_006.png": {
+        "type": "image/png",
+        "resourceId": "c5f22e5437c35c8fea045941110bde9678b634a756a2a8c5260d3db9af5a7353"
+      },
+      "assets/image/preset-merge-icons-item_007.png": {
+        "type": "image/png",
+        "resourceId": "2a1be265afc2bf9c5f65ca37b4e262e02f8bbac64589f278091e1afe04af76f5"
+      },
+      "assets/image/preset-merge-icons-item_008.png": {
+        "type": "image/png",
+        "resourceId": "af4cc85eab5830e98ebbcbf93285074754a87b6d9be86d1a8c55e81415375b17"
+      },
+      "assets/image/preset-merge-icons-item_009.png": {
+        "type": "image/png",
+        "resourceId": "f714ef942bac5c5ff6e06863c6b1d05050d4c4e9f5b83df9e3e4ee0b54f7a734"
+      },
+      "assets/image/preset-merge-icons-item_010.png": {
+        "type": "image/png",
+        "resourceId": "e012ff8826fd441651a7b03b749879ee04d29922af96b6ade97dd93da9288998"
+      },
+      "assets/image/preset-merge-icons-item_011.png": {
+        "type": "image/png",
+        "resourceId": "eecf88247a58d738b3402053285b3369bf2fe0b4df34092e9b5b662de4e4b9b7"
+      },
+      "assets/image/preset-merge-icons-item_012.png": {
+        "type": "image/png",
+        "resourceId": "1b454f82d3a56bd639172c249a062f6a5978a7b7ddd53e8604f24285f4a4ced1"
+      },
+      "assets/image/preset-merge-icons-item_013.png": {
+        "type": "image/png",
+        "resourceId": "2acf2745f8478db64dbb66a3ca27534da0c0956d61d5b05e2b52dae2eae805e9"
+      },
+      "assets/image/preset-merge-icons-item_014.png": {
+        "type": "image/png",
+        "resourceId": "06a06b240c6077e85fab9c710f94dd435bbea3d57ffdb5a87c5c060b91c3ab7c"
+      },
+      "assets/image/preset-merge-icons-item_015.png": {
+        "type": "image/png",
+        "resourceId": "312ab459f587ba06e766a614a2ac831d42fbb61fc9a90da3551f5986b68ebc4c"
+      }
+    }
+  },
+  {
+    "id": "7e1cb6ad-732f-4dc3-a951-000000000010",
+    "name": "UI风格裂变 · 同一界面→三种风格",
+    "revision": 1,
+    "nodes": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000001001",
+        "type": "image",
+        "x": 0,
+        "y": 470,
+        "width": 680,
+        "height": 430,
+        "title": "① 目标参考 · 每日签到",
+        "assetPath": "assets/image/preset-ui-styles-reference.png",
+        "generation": {
+          "prompt": "生成一张横版16:9的完整游戏UI设计稿：每日签到奖励界面。不是网页、不是设备样机、不是图标图集。\n中性清爽的现代休闲游戏UI，雾蓝灰渐变底色，简洁的蓝白大面板，圆角、轻微阴影，适量金色高亮，正视平面。四周保留整齐安全边距，不裁切界面。\n界面构成严格如下：顶部居中大标题“每日签到”，右上角一个关闭X；标题下小字“累计签到 2 天”；中央严格一行七个等宽奖励格，从左到右分别标注“第1天”“第2天”“第3天”“第4天”“第5天”“第6天”“第7天”。\n七格内奖励依次为：金币100、蓝宝石10、金币300、体力药水1、蓝宝石30、金币500、金色宝箱1；数字在图标下方清楚显示，图标完整且不跨格。前两格有已领取的绿色勾选标记，第3格用金色边框突出为今日，后四格普通未领取状态。底部中央只有一个主按钮“领取奖励”，其下小字“每日登录领取奖励”。没有其它按钮或额外奖励格。\n游戏素材约束：本次产物是带完整背景、文字、按钮、图标和状态的UI设计稿，不抠空面板、不删除文字、不使用纯色抠图背景，不要真人、手、设备边框、水印或外部说明。图像本身就是完整成品界面。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "16:9"
+          },
+          "operation": "generate"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000001002",
+        "type": "image",
+        "x": 750,
+        "y": 0,
+        "width": 680,
+        "height": 430,
+        "title": "② 温暖手绘 · 森林经营",
+        "referenceInput": {
+          "includeSelf": false
+        },
+        "assetPath": "assets/image/preset-ui-styles-cozy.png",
+        "generation": {
+          "prompt": "以输入的目标参考图作为唯一的界面布局和功能依据，生成同一种UI的另一种完整风格设计稿。先识别参考图的界面类型、内容分区、标题、各按钮、格子数量、图标语义、文字数字和状态，再换肤。\n严格保留原界面类型、信息层级、相对位置、分区数量、按钮功能、奖励格数量与排列、文字与数字、已领取/当前/未领取等状态。不添加功能，不重排格子，不增加或删掉按钮。不把签到变成商店，不把背包变成任务板。\n签到界面保留参考图实际天数、奖励顺序与数值、勾选、高亮和领取按钮；背包界面保留参考图实际格数、分类与选中状态；宝箱界面保留开启条件、奖励和按钮。以当前参考图为准，不强制七天或固定格数，不向其它界面套用签到结构。\n只改变艺术风格：配色、材质、边框造型、图标画法、装饰、字体气质和背景氛围；图标可以重绘但语义和数量不能改变。文字必须清楚，装饰不可遮挡信息和点击区域。输出单张完整设计稿，不是三方案拼图，不做前后对比，不加标题标签。\n\n温暖手绘风格：适合休闲种田经营游戏。奶油米白、鼠尾草绿和蜂蜜黄主色，细腻2D手绘，圆润木质边框与亚麻/纸张面板，少量叶片花朵点缀，柔和笔触和暖光。按钮厚实亲和，图标可爱清晰，不把叶片或木纹盖住文字，不是只给原图改色。\n\n游戏素材约束：这是完整游戏UI设计稿，保留界面背景、面板填充、文字与状态，不做透明图标、不拆分组件、不使用纯色抠图背景；保持参考画幅比例、正视平面及安全边距，不裁切、倾斜或使用设备样机。无真人、水印和外部注释。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "16:9"
+          },
+          "operation": "generate",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000001001",
+          "sourceImageIds": [
+            "7e1cb6ad-732f-4dc3-a951-000000001001"
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000001001",
+          "version": "image|assets/image/preset-ui-styles-reference.png|manual-asset"
+        },
+        "sourceSnapshots": [
+          {
+            "nodeId": "7e1cb6ad-732f-4dc3-a951-000000001001",
+            "version": "image|assets/image/preset-ui-styles-reference.png|manual-asset"
+          }
+        ]
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000001003",
+        "type": "image",
+        "x": 750,
+        "y": 470,
+        "width": 680,
+        "height": 430,
+        "title": "③ 暗黑奇幻 · 黑金古堡",
+        "referenceInput": {
+          "includeSelf": false
+        },
+        "assetPath": "assets/image/preset-ui-styles-fantasy.png",
+        "generation": {
+          "prompt": "以输入的目标参考图作为唯一的界面布局和功能依据，生成同一种UI的另一种完整风格设计稿。先识别参考图的界面类型、内容分区、标题、各按钮、格子数量、图标语义、文字数字和状态，再换肤。\n严格保留原界面类型、信息层级、相对位置、分区数量、按钮功能、奖励格数量与排列、文字与数字、已领取/当前/未领取等状态。不添加功能，不重排格子，不增加或删掉按钮。不把签到变成商店，不把背包变成任务板。\n签到界面保留参考图实际天数、奖励顺序与数值、勾选、高亮和领取按钮；背包界面保留参考图实际格数、分类与选中状态；宝箱界面保留开启条件、奖励和按钮。以当前参考图为准，不强制七天或固定格数，不向其它界面套用签到结构。\n只改变艺术风格：配色、材质、边框造型、图标画法、装饰、字体气质和背景氛围；图标可以重绘但语义和数量不能改变。文字必须清楚，装饰不可遮挡信息和点击区域。输出单张完整设计稿，不是三方案拼图，不做前后对比，不加标题标签。\n\n暗黑奇幻风格：适合中世纪魔幻RPG。深炭黑和酒红底色，古铜与暗金浮雕边框，雕刻金属、旧皮革与石材质感，小量红宝石点缀，顶部装饰对称克制。奖励图标细腻厚重，标题庄严，按钮可辨，明暗对比保证易读。不得增添角色立绘或压住格子，不是简单改色。\n\n游戏素材约束：这是完整游戏UI设计稿，保留界面背景、面板填充、文字与状态，不做透明图标、不拆分组件、不使用纯色抠图背景；保持参考画幅比例、正视平面及安全边距，不裁切、倾斜或使用设备样机。无真人、水印和外部注释。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "16:9"
+          },
+          "operation": "generate",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000001001",
+          "sourceImageIds": [
+            "7e1cb6ad-732f-4dc3-a951-000000001001"
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000001001",
+          "version": "image|assets/image/preset-ui-styles-reference.png|manual-asset"
+        },
+        "sourceSnapshots": [
+          {
+            "nodeId": "7e1cb6ad-732f-4dc3-a951-000000001001",
+            "version": "image|assets/image/preset-ui-styles-reference.png|manual-asset"
+          }
+        ]
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000001004",
+        "type": "image",
+        "x": 750,
+        "y": 940,
+        "width": 680,
+        "height": 430,
+        "title": "④ 科幻终端 · 深蓝全息",
+        "referenceInput": {
+          "includeSelf": false
+        },
+        "assetPath": "assets/image/preset-ui-styles-scifi.png",
+        "generation": {
+          "prompt": "以输入的目标参考图作为唯一的界面布局和功能依据，生成同一种UI的另一种完整风格设计稿。先识别参考图的界面类型、内容分区、标题、各按钮、格子数量、图标语义、文字数字和状态，再换肤。\n严格保留原界面类型、信息层级、相对位置、分区数量、按钮功能、奖励格数量与排列、文字与数字、已领取/当前/未领取等状态。不添加功能，不重排格子，不增加或删掉按钮。不把签到变成商店，不把背包变成任务板。\n签到界面保留参考图实际天数、奖励顺序与数值、勾选、高亮和领取按钮；背包界面保留参考图实际格数、分类与选中状态；宝箱界面保留开启条件、奖励和按钮。以当前参考图为准，不强制七天或固定格数，不向其它界面套用签到结构。\n只改变艺术风格：配色、材质、边框造型、图标画法、装饰、字体气质和背景氛围；图标可以重绘但语义和数量不能改变。文字必须清楚，装饰不可遮挡信息和点击区域。输出单张完整设计稿，不是三方案拼图，不做前后对比，不加标题标签。\n\n科幻终端风格：适合太空探索和机甲游戏。深海军蓝背景，青蓝和少量亮橙高亮，切角合金面板、细发光边、半透明玻璃层次与克制的全息线条，技术感清晰字形。图标重绘为精致科幻质感，但仍是参考图同一类奖励，禁止将金币和药水换成别的物品。按钮可辨，布局不动，不加图表雷达，不是只改颜色。\n\n游戏素材约束：这是完整游戏UI设计稿，保留界面背景、面板填充、文字与状态，不做透明图标、不拆分组件、不使用纯色抠图背景；保持参考画幅比例、正视平面及安全边距，不裁切、倾斜或使用设备样机。无真人、水印和外部注释。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "16:9"
+          },
+          "operation": "generate",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000001001",
+          "sourceImageIds": [
+            "7e1cb6ad-732f-4dc3-a951-000000001001"
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000001001",
+          "version": "image|assets/image/preset-ui-styles-reference.png|manual-asset"
+        },
+        "sourceSnapshots": [
+          {
+            "nodeId": "7e1cb6ad-732f-4dc3-a951-000000001001",
+            "version": "image|assets/image/preset-ui-styles-reference.png|manual-asset"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000001041",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000001001",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000001002",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000001042",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000001001",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000001003",
+        "kind": "image-variant"
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000001043",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000001001",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000001004",
+        "kind": "image-variant"
+      }
+    ],
+    "assets": {
+      "assets/image/preset-ui-styles-reference.png": {
+        "type": "image/png",
+        "resourceId": "bb86d6688360ff27e50eb9f9dc53e94b8f70944030eb88a061d6a3aaa7db4d49"
+      },
+      "assets/image/preset-ui-styles-cozy.png": {
+        "type": "image/png",
+        "resourceId": "7ebc2209434d83ced94d814bfe03adb6ad85ef9d1539e357171f5ea23b65e3a8"
+      },
+      "assets/image/preset-ui-styles-fantasy.png": {
+        "type": "image/png",
+        "resourceId": "690a6a8262e3e1c8a96abeba0e65701370d17bb5efc521e5bc74c588accc326d"
+      },
+      "assets/image/preset-ui-styles-scifi.png": {
+        "type": "image/png",
+        "resourceId": "1a290153e1d1e49c59ecc9eb105c9442631c7720d9dbbd9be27d7eaaaee09991"
+      }
+    }
+  },
+  {
+    "id": "7e1cb6ad-732f-4dc3-a951-000000000011",
+    "name": "角色概念设计 · 角色参考→完整展示图",
+    "revision": 1,
+    "nodes": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000001101",
+        "type": "image",
+        "title": "① 角色参考 · 森林法师",
+        "assetPath": "assets/image/preset-character-concept-reference.png",
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 580,
+        "generation": {
+          "prompt": "生成一张原创游戏角色参考立绘。成年女性森林法师，三头身Q版，完整全身，面部清晰可见，圆润可爱但不幼儿化。栗棕短发，琥珀色眼睛，苔绿尖顶软帽，帽侧一枚金色叶片胸针；奶油白内衫，青绿色短披风，领口一枚金色圆扣，棕色短靴，腰间一个小皮包。右手持一根完整木质法杖，顶端一颗琥珀晶石和两片绿叶；左手自然放松。站立正面略微四分之三视角，头到脚、帽尖、杖尖都完整，四周留足10%空白。清晰2D手绘游戏插画，细暖棕描边，柔和明暗，形体明确，材质简洁。游戏素材约束：只有这一个完整角色及其法杖，背景完全均匀纯洋红#FF00FF，角色身上不要使用洋红。无文字、Logo、水印、场景、地面、底座、投影、光效、漂浮物、图框或其他角色。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "3:4"
+          },
+          "operation": "generate"
+        }
+      },
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000001102",
+        "type": "image",
+        "x": 390,
+        "y": 0,
+        "width": 960,
+        "height": 580,
+        "title": "② 角色概念 · 立绘·三视图·六表情",
+        "referenceInput": {
+          "includeSelf": false
+        },
+        "assetPath": "assets/image/preset-character-concept-sheet.png",
+        "generation": {
+          "prompt": "以输入角色图为唯一的角色身份和美术风格参考，制作一张完整角色概念展示图，适合角色提案与团队沟通。先观察脸型、发型发色、眼睛、年龄体型、服装层次、配色、饰品及手持道具，所有区域始终是同一个角色。保持原绘画风格与身体比例，不换人、不换服装、不做不同风格版本。\n横版16:9，干净象牙白纸面，浅灰细分隔线，留足边距，清晰有序。严格三个区域：左侧占45%，一幅较大的完整全身主立绘；右上占55%宽、约55%高，等大排列正面、严格90度侧面、背面三张全身设定；右下为3列×2行共六张面部表情特写。不要加参考缩略图、额外姿势或复杂装饰。所有主体不裁切、不遮挡，不串到其它区域。\n主立绘：根据参考角色职业和已有道具，设计一个有张力但肢体关系简单清楚的蓄势动作。参考有人类双臂时，严格只画两条胳膊、两只手；一只手握住原有道具，另一只手伸向一侧，完整显示两肩到两手的连续关系，不交叉胳膊，不在腰后、道具上或衣袖旁再出现任何多余的手。法师只用右手持杖，左手自然向外展开，双脚稳定分开站立。仅改变姿势，保留脸、服装与装备；原图无道具则两手自然做适合身份的动作，不凭空加武器。无大面积法术遮挡。本图是静态动作立绘，不是动画。\n三视图：正面、侧面、背面从左到右排列，统一站立姿势、身高与脚底基线，展示完整帽子、衣服、鞋和装备。侧面必须单侧轮廓，不要用四分之三正面代替；背面展示后脑和背部，不露正面五官。服装接缝与装备位置对应一致。不画三个正面。看不见的背面细节按可见设计保守补全，不宣称是原稿精确还原。每张下方小字分别标“正面”“侧面”“背面”。\n六种表情：上排微笑、大笑、愤怒，下排悲伤、惊讶、冷峻。微笑闭嘴轻扬嘴角；大笑闭眼张嘴；愤怒皱眉露齿；悲伤眉尾下垂眼含泪；惊讶睁大眼和嘴；冷峻嘴唇闭合、眼神沉着严厉，不能像愤怒那样露齿。每格同样的脸部近景与正面角度，保留可识别的发型、帽饰和领口，不能六张相同表情。每格下方准确写上述对应中文短标签，不加对话气泡。\n游戏素材约束：这是一张完整的角色设定展示图，保留纸面背景、细分隔线和上述短标签。不是规则游戏精灵图集，不做透明底、不拆分、不放棋盘格。只画一个角色的设计，不能把参考底色带入成品；不添加人物说明长文、作者签名、水印、照片边框或使用教程。",
+          "referenceImagePaths": [],
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "16:9"
+          },
+          "operation": "generate",
+          "sourceImageId": "7e1cb6ad-732f-4dc3-a951-000000001101",
+          "sourceImageIds": [
+            "7e1cb6ad-732f-4dc3-a951-000000001101"
+          ]
+        },
+        "sourceSnapshot": {
+          "nodeId": "7e1cb6ad-732f-4dc3-a951-000000001101",
+          "version": "image|assets/image/preset-character-concept-reference.png|manual-asset"
+        },
+        "sourceSnapshots": [
+          {
+            "nodeId": "7e1cb6ad-732f-4dc3-a951-000000001101",
+            "version": "image|assets/image/preset-character-concept-reference.png|manual-asset"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "7e1cb6ad-732f-4dc3-a951-000000001141",
+        "from": "7e1cb6ad-732f-4dc3-a951-000000001101",
+        "to": "7e1cb6ad-732f-4dc3-a951-000000001102",
+        "kind": "image-variant"
+      }
+    ],
+    "assets": {
+      "assets/image/preset-character-concept-reference.png": {
+        "type": "image/png",
+        "resourceId": "24a27402f197c8423d3647657fd6f86b11415baa09401b2bd09acbccfeb20eba"
+      },
+      "assets/image/preset-character-concept-sheet.png": {
+        "type": "image/png",
+        "resourceId": "224fda23936c7f921742b9f032624087e4cf07d3547ff1ce228ca47394a8de74"
+      }
+    }
+  }
+]

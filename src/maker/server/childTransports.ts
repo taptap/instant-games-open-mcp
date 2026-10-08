@@ -7,15 +7,19 @@ const activeMakerChildTransports = new Set<ClosableTransport>();
 export function trackMakerChildTransport<T extends ClosableTransport>(transport: T): T {
   activeMakerChildTransports.add(transport);
   const originalClose = transport.close.bind(transport);
-  let closed = false;
+  let closePromise: Promise<void> | undefined;
 
   transport.close = async (): Promise<void> => {
-    if (closed) {
-      return;
-    }
-    closed = true;
-    activeMakerChildTransports.delete(transport);
-    await originalClose();
+    closePromise ??= Promise.resolve()
+      .then(originalClose)
+      .then(() => {
+        activeMakerChildTransports.delete(transport);
+      })
+      .catch((error: unknown) => {
+        closePromise = undefined;
+        throw error;
+      });
+    return closePromise;
   };
 
   return transport;
@@ -23,6 +27,7 @@ export function trackMakerChildTransport<T extends ClosableTransport>(transport:
 
 export async function closeTrackedMakerChildTransports(): Promise<void> {
   const transports = [...activeMakerChildTransports];
-  activeMakerChildTransports.clear();
-  await Promise.all(transports.map((transport) => transport.close().catch(() => {})));
+  const results = await Promise.allSettled(transports.map((transport) => transport.close()));
+  const failure = results.find((result) => result.status === 'rejected');
+  if (failure?.status === 'rejected') throw failure.reason;
 }

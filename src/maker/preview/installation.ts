@@ -164,6 +164,19 @@ export async function withPreviewLock<T>(project: string, action: () => Promise<
     }
     fs.writeFileSync(filename, identity, { flag: 'wx', mode: 0o600 });
     owned = true;
+    if (/^[A-Z]:[\\/]/.test(project)) {
+      const legacyProject = project[0].toLowerCase() + project.slice(1);
+      if (fs.existsSync(previewDirectory(legacyProject))) {
+        return await withPreviewLock(legacyProject, async () => {
+          const { previewStatus } = await import('./session.js');
+          const { requireNoActiveValidationRuntime } = await import('./validationHistory.js');
+          if ((await previewStatus(legacyProject)).process_alive !== false)
+            throw new Error('旧盘符路径的预览仍在运行或状态不明，请先用旧版停止预览。');
+          await requireNoActiveValidationRuntime(legacyProject);
+          return await action();
+        });
+      }
+    }
     return await action();
   } finally {
     try {

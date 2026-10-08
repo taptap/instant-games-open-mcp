@@ -121,7 +121,14 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
       }
     };})();`
   );
-  const api = runInNewContext(exposed, context);
+  const window = {
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+    parent: undefined as unknown,
+  };
+  window.parent = window;
+  const api = runInNewContext(exposed, { ...context, window });
   return { api, fetch, storage, replaceState, intervals, setInterval, clearInterval, context };
 }
 
@@ -984,6 +991,8 @@ describe('Maker console standalone UI', () => {
           : {},
     }));
     await api.pollState();
+    // Initial project selection navigates to overview; isolate task retry from its refresh.
+    api.setPage('projects');
     const completion = api.pollState();
     await new Promise((resolve) => setImmediate(resolve));
     expect(refresh).toHaveBeenCalledTimes(1);
@@ -1452,7 +1461,7 @@ describe('Maker console standalone UI', () => {
     const styles = getConsoleHtml().match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
     expect(source).toContain("const logs = node('section',undefined,'console-logs')");
     expect(source).toContain("['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志']");
-    expect(source).toContain("replace($('view'),[title,columns,logs,history])");
+    expect(source).toContain("replace($('view'),[title,columns,logs,previewCachePanel(),history])");
     expect(source).toContain("bar.setAttribute('aria-valuenow',String(info.percent))");
     expect(styles.indexOf('.build-progress.indeterminate span{width:35%}')).toBeGreaterThan(-1);
     expect(styles.indexOf('.build-progress.indeterminate span{width:35%}')).toBeLessThan(

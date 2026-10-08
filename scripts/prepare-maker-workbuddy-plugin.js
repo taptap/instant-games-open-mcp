@@ -10,12 +10,14 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bundleMakerUiSkill } from './bundle-maker-ui-skill.js';
 import { format } from 'prettier';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -27,7 +29,12 @@ const localMarketplacePath = join(projectRoot, '.codebuddy-plugin', 'marketplace
 const PLUGIN_SOURCE_URL =
   'https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/workbuddy/taptap-maker';
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
-const SHARED_SKILLS = ['taptap-maker-local', 'taptap-maker-dev-kit-guide'];
+const SHARED_SKILLS = [
+  'maker-ui-workflow',
+  'lua-ui-to-json',
+  'taptap-maker-local',
+  'taptap-maker-dev-kit-guide',
+];
 const WORKBUDDY_SKILLS = ['taptap-maker-plugin-lifecycle', 'update-taptap-mcp'];
 const WORKBUDDY_COMMANDS = ['create-project.md', 'sync-project.md'];
 const WORKBUDDY_HOOK_FILES = ['hooks.json', 'session-start.cjs'];
@@ -285,6 +292,43 @@ async function main() {
       `${skill} skill`
     );
   }
+  bundleMakerUiSkill(projectRoot, join(pluginRoot, 'skills/maker-ui-workflow'));
+  // WorkBuddy allows only two directory levels below the plugin root.
+  const uiSkill = join(pluginRoot, 'skills/maker-ui-workflow');
+  renameSync(join(uiSkill, 'scripts/assemble-ui.mjs'), join(uiSkill, 'assemble-ui.mjs'));
+  renameSync(join(uiSkill, 'references/workflow.md'), join(uiSkill, 'workflow.md'));
+  for (const directory of ['scripts', 'references'])
+    rmSync(join(uiSkill, directory), { recursive: true });
+  for (const name of ['SKILL.md', 'workflow.md']) {
+    const file = join(uiSkill, name);
+    writeFileSync(
+      file,
+      readFileSync(file, 'utf8')
+        .replaceAll('scripts/assemble-ui.mjs', 'assemble-ui.mjs')
+        .replaceAll('references/workflow.md', 'workflow.md')
+    );
+  }
+
+  const luaSkill = join(pluginRoot, 'skills/lua-ui-to-json');
+  for (const [directory, names] of [
+    ['scripts', ['check-ui.cjs', 'ui-json-check.cjs']],
+    ['references', ['conversion.md', 'diagnostics.md']],
+  ]) {
+    for (const name of names) renameSync(join(luaSkill, directory, name), join(luaSkill, name));
+    rmSync(join(luaSkill, directory), { recursive: true });
+  }
+  for (const name of ['SKILL.md', 'conversion.md', 'diagnostics.md']) {
+    const file = join(luaSkill, name);
+    writeFileSync(
+      file,
+      readFileSync(file, 'utf8')
+        .replaceAll('scripts/check-ui.cjs', 'check-ui.cjs')
+        .replaceAll('scripts/ui-json-check.cjs', 'ui-json-check.cjs')
+        .replaceAll('references/conversion.md', 'conversion.md')
+        .replaceAll('references/diagnostics.md', 'diagnostics.md')
+    );
+  }
+
   for (const skill of WORKBUDDY_SKILLS) {
     copyRequiredDirectory(
       join(workBuddySourceRoot, 'skills', skill),

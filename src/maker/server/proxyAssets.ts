@@ -223,10 +223,7 @@ function addRemoteProxyErrorExecutionState(result: RemoteProxyToolResult): Remot
   const existingRecord = isRecord(existingStructuredContent)
     ? existingStructuredContent
     : undefined;
-  const topLevelState = (result as unknown as { execution_state?: unknown }).execution_state;
-  const explicitState =
-    normalizeRemoteProxyExecutionState(existingRecord?.execution_state) ??
-    normalizeRemoteProxyExecutionState(topLevelState);
+  const explicitState = getRemoteProxyExecutionState(result);
   return {
     ...result,
     structuredContent: {
@@ -242,6 +239,24 @@ function addRemoteProxyErrorExecutionState(result: RemoteProxyToolResult): Remot
 
 function normalizeRemoteProxyExecutionState(value: unknown): RemoteProxyExecutionState | undefined {
   return value === 'not_executed' || value === 'unknown' ? value : undefined;
+}
+
+export function getRemoteProxyExecutionState(
+  result: unknown
+): RemoteProxyExecutionState | undefined {
+  if (!isRecord(result)) return undefined;
+  const states = [
+    normalizeRemoteProxyExecutionState(result.execution_state),
+    normalizeRemoteProxyExecutionState(
+      isRecord(result.structuredContent) ? result.structuredContent.execution_state : undefined
+    ),
+  ];
+  for (const item of Array.isArray(result.content) ? result.content : []) {
+    if (isTextContent(item))
+      states.push(normalizeRemoteProxyExecutionState(parseJsonObject(item.text)?.execution_state));
+  }
+  if (states.includes('unknown')) return 'unknown';
+  return states.includes('not_executed') ? 'not_executed' : result.isError ? 'unknown' : undefined;
 }
 
 function shouldMaterializeRemoteProxyTool(toolName: string): boolean {
