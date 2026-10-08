@@ -2049,6 +2049,49 @@ function renderWindowSettings() {
   disclosure.append(summary,form);
   return disclosure;
 }
+function previewCachePanel() {
+  const key = selected, epoch = selectionEpoch;
+  const panel = node('section');
+  panel.append(node('h3','本机预览缓存'));
+  const label = node('p','尚未统计 · 验证自动保留最近 3 次，运行中或状态不明的记录额外保留。','muted');
+  const details = node('p',undefined,'muted');
+  details.style.overflowWrap = 'anywhere';
+  const projects = node('details');
+  projects.append(node('summary','按项目查看占用和缓存位置'));
+  const projectList = node('div');
+  projectList.style.overflowWrap = 'anywhere';
+  projects.append(projectList);
+  const actions = node('div',undefined,'actions');
+  const format = bytes => (bytes / 1024 ** 3).toFixed(2) + ' GiB';
+  const query = async (clear,all = false) => {
+    if (clear && !window.confirm('清理' + (all ? '全部可确认归属项目' : '当前项目') + '已结束的测试记录、截图、日志及新旧预览副本？运行中、状态不明或归属不明的内容会保留。Runtime 下载资源、安装文件和存档不在此次清理范围。')) return;
+    refresh.disabled = clean.disabled = cleanAll.disabled = true;
+    label.textContent = clear ? '正在清理缓存…' : '正在统计缓存…';
+    try {
+      const result = await api(projectPath(key,clear ? '/preview/cache/clear' : '/preview/cache'),clear ? {method:'POST',body:{all_projects:all},timeoutMs:300000} : {timeoutMs:300000});
+      if (!selectionMatches(key,epoch)) return;
+      label.textContent = (result.complete === false ? '已统计占用（不完整）：' : '全部项目预览占用：') + format(result.total_bytes) + ' · 当前项目：' + format(result.bytes);
+      const names = {validation:'测试记录及旧副本',sessions:'会话记录及旧副本',preparations:'旧准备记录及副本','validation-prep':'旧验证副本',storage:'Runtime 下载资源 / 存档','public-index-cache':'旧公共索引','project-workspace':'项目内固定缓存','legacy-runtime':'旧 Runtime 安装（保留）',other:'状态及其他文件',unattributed:'未归属内容（保留）','windows-downloads':'Windows 临时下载缓存（保留）'};
+      details.textContent = Object.entries(result.total_categories || {}).map(([name,size]) => (names[name] || name) + ' ' + format(size)).join(' · ') + '。统计整个 ' + result.global_directory + '、已登记或有历史记录的项目内 .maker-preview，以及 Windows 已标记的临时下载缓存；不含原项目源码、正式构建产物和独立安装的共享 Runtime。按文件逻辑大小统计，不等同于可清理大小。' + (result.warnings || []).join('；');
+      replace(projectList,(result.projects || []).filter(item => item.bytes > 0).sort((left,right) => right.bytes-left.bytes).map(item => node('p',(item.project || '未确认归属 ' + item.key) + '：' + format(item.bytes) + ' · ' + item.directory)));
+      if (clear) {
+        clearValidationDisplay();
+        const view = validationView();
+        view.runs = []; view.entries.clear(); view.paged = false; view.nextCursor = ''; view.initialized = false;
+        renderConsoleLogs();
+        void refreshValidation();
+      }
+    } catch (error) { if (selectionMatches(key,epoch)) label.textContent = '缓存操作失败：' + error.message; }
+    finally { refresh.disabled = clean.disabled = cleanAll.disabled = false; }
+  };
+  const refresh = button('统计 / 刷新',() => void query(false));
+  const clean = button('清理当前项目',() => void query(true));
+  const cleanAll = button('清理全部项目',() => void query(true,true));
+  actions.append(refresh,clean,cleanAll);
+  panel.append(label,details,projects,actions);
+  void query(false);
+  return panel;
+}
 function renderBuild() {
   const title = heading('构建与测试',currentProject().name,true);
   const columns = node('div',undefined,'columns build-columns');
@@ -2057,7 +2100,7 @@ function renderBuild() {
   columns.append(build,local);
   const logs = node('section',undefined,'console-logs'); logs.id = 'console-logs';
   const history = node('section',undefined,'task-history'); history.id = 'task-history';
-  replace($('view'),[title,columns,logs,history]);
+  replace($('view'),[title,columns,logs,previewCachePanel(),history]);
   updateBuild();
   if (logView().tab === 'validate' && !validationView().initialized) void refreshValidation();
 }

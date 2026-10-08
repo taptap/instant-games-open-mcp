@@ -10,6 +10,7 @@ import {
   updateValidationRun,
 } from '../maker/preview/validationHistory.js';
 import { PreviewLogs } from '../maker/preview/evidence.js';
+import { previewDirectory } from '../maker/preview/protocol.js';
 
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=',
@@ -59,7 +60,11 @@ describe('Maker console read-only validation history HTTP routes', () => {
         }
       );
       req.on('error', reject);
-      req.end();
+      req.end(
+        options.method === 'POST' && options.headers?.['content-type'] === 'application/json'
+          ? '{}'
+          : undefined
+      );
     });
   }
 
@@ -115,6 +120,59 @@ describe('Maker console read-only validation history HTTP routes', () => {
       else process.env.TAPTAP_MAKER_HOME = oldHome;
       await fs.promises.rm(root, { recursive: true, force: true, maxRetries: 5 });
     }
+  });
+
+  test('cache routes measure project copies, require same origin, and preserve active records', async () => {
+    const current = project('cache');
+    const other = project('other-cache');
+    const run = await completedRun(current.path);
+    updateValidationRun(run, { owner_pid: 2147483647 });
+    const active = await createValidationRun(current.path);
+    const foreign = await completedRun(other.path);
+    const source = path.join(run.directory, 'source');
+    fs.mkdirSync(source);
+    fs.writeFileSync(path.join(source, 'asset.bin'), Buffer.alloc(4096));
+    const url = '/api/projects/' + current.key + '/preview/cache';
+    expect((await json(url)).categories.validation).toBeGreaterThan(4096);
+    expect(
+      (
+        await request(url + '/clear', {
+          method: 'POST',
+          headers: { origin: 'https://other.invalid' },
+        })
+      ).status
+    ).toBe(403);
+    expect(fs.existsSync(run.directory)).toBe(true);
+    const response = await request(url + '/clear', {
+      method: 'POST',
+      headers: { origin: server.origin, 'content-type': 'application/json' },
+    });
+    expect(response.status).toBe(200);
+    expect(fs.existsSync(run.directory)).toBe(false);
+    expect(fs.existsSync(active.directory)).toBe(true);
+    expect(fs.existsSync(foreign.directory)).toBe(true);
+    expect(JSON.parse(response.body.toString()).warnings.length).toBeGreaterThan(0);
+  });
+
+  test('cache cleanup rejects linked roots and unknown Runtime launches', async () => {
+    const current = project('cache-unsafe');
+    const run = await createValidationRun(current.path);
+    updateValidationRun(run, { runtime_launch_pending: true, owner_pid: 2147483647 });
+    const url = '/api/projects/' + current.key + '/preview/cache';
+    expect(
+      (
+        await request(url + '/clear', {
+          method: 'POST',
+          headers: { origin: server.origin, 'content-type': 'application/json' },
+        })
+      ).status
+    ).not.toBe(200);
+    expect(fs.existsSync(run.directory)).toBe(true);
+    const base = previewDirectory(current.path);
+    fs.renameSync(base, base + '-moved');
+    fs.symlinkSync(base + '-moved', base, 'dir');
+    expect((await request(url)).status).not.toBe(200);
+    expect(fs.existsSync(path.join(base + '-moved', 'validation', run.run_id))).toBe(true);
   });
 
   test('lists empty history and pages by run ID without including a newly started run', async () => {

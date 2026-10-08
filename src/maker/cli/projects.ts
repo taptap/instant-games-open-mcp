@@ -1404,6 +1404,7 @@ function listLocalFiles(root: string): string[] {
         entry.name === '.git' ||
         relativePath === '.maker-mcp' ||
         relativePath.startsWith('.maker-mcp/') ||
+        relativePath === '.maker-preview' ||
         entry.name === '.DS_Store'
       ) {
         continue;

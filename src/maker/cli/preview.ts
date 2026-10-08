@@ -104,9 +104,17 @@ export async function executePreviewOperation(
       typeof options.target_dir === 'string' ? options.target_dir : ''
     );
     if (action === 'prepare')
-      result = await withPreviewLock(project, () =>
-        preparePreviewProject(project, previewPreparationDirectory(project), controller.signal)
-      );
+      result = await withPreviewLock(project, async () => {
+        await requireNoActiveValidationRuntime(project);
+        const state = await previewStatus(project);
+        if (state.process_alive !== false || !['stopped', 'failed'].includes(String(state.state)))
+          throw new Error('请先停止预览并确认 Runtime 已退出，再更新项目预览副本。');
+        return preparePreviewProject(
+          project,
+          previewPreparationDirectory(project),
+          controller.signal
+        );
+      });
     else if (action === 'status') result = await previewStatus(project);
     else if (action === 'validate')
       result = await runSkillValidation(project, options, controller.signal);

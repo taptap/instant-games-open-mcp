@@ -480,9 +480,9 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   正式参数和限制统一见 `docs/MAKER_LOCAL_PREVIEW.md`，插件副本通过生成脚本同步。
 - Validate 在准备前记录 run ID 和证据路径，stderr 发出 `validation.started`，最终 stdout 保持
   结构化结果。多轮验证由 Agent 依照原 Skill 顺序调用，不新增批量测试框架或引擎协议。
-  证据独立存于项目 realpath 哈希下的 `validation/<run ID>`，完成后保留 7 天；
-  每轮结束检查当前项目的清理时间，成功清理后 24 小时内跳过历史及容量扫描，
-  时间记录存于该项目 `validation/cleanup.json`，失败不更新时间；复用项目锁，
+  证据独立存于项目 realpath 哈希下的 `validation/<run ID>`，完成后保留最近 3 次；
+  每轮结束清理超出次数且确认不再使用的记录，不按天数或 24 小时间隔跳过；
+  清理记录存于该项目 `validation/cleanup.json`，失败不更新时间；复用项目锁，
   不设后台定时任务、不联动控制台开关、不扫描其它项目。
   活跃及进程未知记录不删除，5 GiB 仅告警，显式 `--output-dir` 归档不参与自动清理。
   启动安全检查核验全部记录，不受控制台列表的 5000 轮分页上限影响；归档保留最终清理告警。
@@ -519,14 +519,20 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   系统重启后，启动记录早于当前开机至少一分钟且所有已记录 PID 均确认不存在，才可恢复
   遗留 starting 会话。创建后的登记失败必须收尾本轮子进程；状态写失败不得中断退出等待。
 
-- 只有不依赖资源索引的完整单机项目直接运行原目录。资源/构建配置、资源元数据、联机/server、
-  缺配置以及 Windows 原目录存在 dist/latest.json 均进入受管理副本。不得删除用户 dist、
-  创建 junction/软链接或为绕过路径限制改写游戏原目录。
+- 不依赖资源索引的完整单机项目直接运行原目录；仅有 .meta、默认资源组和常规 build 字段
+  不触发复制。公共来源、非默认资源/构建规则、联机/server、缺配置及 Windows 原目录的
+  dist/latest.json 仍通过准备产物加载。需要副本时固定使用项目内 .maker-preview/source，
+  所有入口和重试共用；覆盖 scripts/assets/.project，重建副本 dist，只复用公共索引。
+  不删除用户 dist、不创建链接；缓存写入前核验归属并加入 Git 忽略，已跟踪缓存拒绝写入。
+  显式 prepare 也必须拒绝活动或未知 Runtime；刷新先等待旧进程退出再覆盖。
+  Builder 复用受控 Python 执行及回收确认；未确认回收的固定副本保留标记，拒绝覆盖和清理。
+  缓存统计区分本机全部项目、当前项目和未归属内容，遍历整个旧 preview 根及已知项目内副本，
+  不按少数目录漏算。清理逐项目复用锁与进程核验，保留未知归属、Runtime 安装和下载/存档。
 
 - 控制台主题由 webTheme.ts 统一提供 MakerConsole.getTheme/setTheme/onThemeChange、
   maker-console:theme 事件和共享 CSS 色板；UI 编辑器通过 /console-theme.css 复用色板。
   画布和 UI 编辑器复用同一接口，不重载 iframe、不改素材或游戏配色。
-  全页签默认紧凑顶部，canvas-mode 只管理工作区高度。
+  全页签默认紧凑顶部，canvas-mode 只管理工作区高度；缓存管理位于构建日志下方。
 - 修改控制台前读 `docs/MAKER_CONSOLE.md`；修改 Runtime 安装或预览前读
   `docs/MAKER_LOCAL_PREVIEW.md`。操作指引统一维护在 `skills/taptap-maker-local/SKILL.md`，
   插件副本通过生成脚本同步，不手工维护。
@@ -649,7 +655,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   Markdown 解析为 tokens 后以 DOM 安全渲染，禁止原始 HTML、脚本、远程图片及任意文件读取；
   文档与 Skill 分页签，仅阅读不执行，不新增 MCP tool。
 - Runtime 安装和记录位于 Maker user home 的 `runtime/`，所有项目共用；旧项目哈希目录中的有效
-  安装会自动登记，不重复下载。项目哈希目录只保留项目会话、准备产物、日志和运行缓存。
+  安装会自动登记，不重复下载。项目哈希目录保留会话证据、准备日志和运行下载缓存；
+  新的准备副本及构建产物固定在项目内 .maker-preview/source，不随会话或重试增加副本。
   新安装和已登记 Runtime 启动前必须补齐 `Data/LuaScripts`、`Data/Fonts`、`CoreData`；缺少
   `Res/Fonts/MiSans-Regular.ttf` 时优先复用旧 `Data/Fonts` 字体，再从当前 macOS/Windows
   系统字体复制通用中文兜底，不覆盖已有文件；local_preview 只挂载松散 `Res`，不能仅写入

@@ -2,8 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { getMakerHome, loadProjectConfig } from '../storage.js';
 import { previewEntryName, readPreviewConfiguration } from './configuration.js';
 import {
@@ -18,8 +16,10 @@ import {
   PREVIEW_BUILDER_COMMIT,
 } from './builderSource.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
-import { trimPreviewCache } from './cache.js';
+import { trimPreviewCache, UNVERIFIED_CLEANUP_MARKER } from './cache.js';
+import { runPreviewInstaller } from './installerProcess.js';
 import { previewBuilderWarnings } from './builderDiagnostics.js';
+import { ensurePreviewWorkspace, requirePlainTree } from './workspace.js';
 
 export function requireManifestPreviewPlatform(platform = process.platform): void {
   if (platform !== 'win32' && platform !== 'darwin')
@@ -183,9 +183,21 @@ async function prepareProjectCopy(
   const projectConfig = readPreviewConfiguration(project, 'project');
   const resourcesConfig = readPreviewConfiguration(project, 'resources');
   const settingsConfig = readPreviewConfiguration(project, 'settings');
-  const source = path.join(directory, 'source');
-  if (fs.existsSync(source)) throw new Error('Refusing to reuse an old prepared source directory.');
+  const workspace = await ensurePreviewWorkspace(project);
+  const pending = path.join(workspace, UNVERIFIED_CLEANUP_MARKER);
+  if (fs.existsSync(pending))
+    throw new Error('上次预览构建退出状态未确认。请确认构建进程已结束后再移除标记：' + pending);
+  await requirePlainTree(workspace, signal);
+  const source = path.join(workspace, 'source');
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   fs.mkdirSync(source, { recursive: true, mode: 0o700 });
+  for (const name of ['scripts', 'assets', '.project', 'dist'])
+    await fs.promises.rm(path.join(source, name), { recursive: true, force: true });
+  const build = path.join(source, '.build');
+  if (fs.existsSync(build))
+    for (const name of await fs.promises.readdir(build))
+      if (name !== 'manifest_cache')
+        await fs.promises.rm(path.join(build, name), { recursive: true, force: true });
   for (const name of ['scripts', 'assets', '.project']) {
     const original = path.join(project, name);
     if (fs.existsSync(original)) await copyTree(original, path.join(source, name), signal);
@@ -240,19 +252,20 @@ async function prepareProjectCopy(
     throw new Error('Could not prepare the managed Python environment.');
   const builder = materializePreviewBuilder();
   const args = [builder, '--project', source, '--force-enhanced-refs', '--no-7z', '--no-compress'];
-  const cache = path.join(previewDirectory(project), 'public-index-cache');
-  const roundCache = path.join(source, '.build', 'manifest_cache');
-  if (fs.existsSync(cache)) await copyTree(cache, roundCache, signal);
   const log = path.join(directory, 'prepare.log');
+  if (signal?.aborted) throw new Error('CANCELLED');
+  fs.writeFileSync(pending, JSON.stringify({ owner_pid: process.pid }), {
+    flag: 'wx',
+    mode: 0o600,
+  });
   try {
-    const output = await promisify(execFile)(python.python, args, {
+    const output = await runPreviewInstaller(python.python, args, {
       cwd: path.dirname(builder),
-      windowsHide: true,
       signal,
-      timeout: 300000,
+      timeoutMs: 300000,
       maxBuffer: 4 * 1024 * 1024,
-      env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONNOUSERSITE: '1' },
     });
+    fs.unlinkSync(pending);
     fs.writeFileSync(log, String(sanitizeDiagnosticValue(output.stdout + output.stderr)), {
       mode: 0o600,
     });
@@ -260,7 +273,6 @@ async function prepareProjectCopy(
       throw new Error('Public source index download failed.');
     const diagnosticWarnings = previewBuilderWarnings(source, output.stdout, output.stderr);
     const result = validatePreparedPreview(source);
-    if (fs.existsSync(roundCache)) await copyTree(roundCache, cache, signal);
     return {
       ok: true,
       source_directory: source,
@@ -275,6 +287,8 @@ async function prepareProjectCopy(
       ...result,
     };
   } catch (error) {
+    if ((error as { cleanupVerified?: boolean }).cleanupVerified === true)
+      fs.rmSync(pending, { force: true });
     const failure = error as Error & { stdout?: string; stderr?: string };
     if (failure.stdout || failure.stderr || !fs.existsSync(log))
       fs.writeFileSync(

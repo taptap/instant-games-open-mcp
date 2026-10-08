@@ -10,6 +10,7 @@ import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { checkMakerLuaLspEnvironmentAsync } from '../system/luaLsp.js';
 import { ConsolePlugins, type ConsolePlugin } from './plugins.js';
 import { readPreviewWindowSettings, savePreviewWindowSettings } from '../preview/windowSettings.js';
+import { previewCacheUsage, clearPreviewCache } from '../preview/cacheManagement.js';
 import {
   listValidationRuns,
   readValidationRun,
@@ -502,6 +503,27 @@ export async function startConsoleServer(options: {
           200,
           await read(() => options.registry.commit(key, suffix.slice(4), readAbort.signal))
         );
+      } else if (request.method === 'GET' && suffix === 'preview/cache') {
+        json(
+          200,
+          await read(() => previewCacheUsage(options.registry.resolve(key).path, readAbort.signal))
+        );
+      } else if (request.method === 'POST' && suffix === 'preview/cache/clear') {
+        const body = await bodyForMutation();
+        if (body.all_projects !== undefined && typeof body.all_projects !== 'boolean')
+          throw new ConsoleError('all_projects 必须是布尔值。', 400);
+        const release = tasks.occupy(key);
+        try {
+          json(
+            200,
+            await read(() =>
+              clearPreviewCache(options.registry.resolve(key).path, body.all_projects === true)
+            )
+          );
+          touch();
+        } finally {
+          release();
+        }
       } else if (request.method === 'POST' && suffix === 'preview/window') {
         const body = await bodyForMutation();
         const directory = options.registry.resolve(key).path;

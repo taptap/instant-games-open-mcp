@@ -129,113 +129,39 @@ test('a log rotation between reads cannot silently skip a generation', async () 
   }
 });
 
-test('retains recent and active evidence, expires only old finished evidence', async () => {
-  const old = await createValidationRun(project);
-  finishValidationRun(old, { result: 'FAIL' });
-  const oldRecord = JSON.parse(fs.readFileSync(path.join(old.directory, 'run.json'), 'utf8'));
-  oldRecord.finished_at = new Date(Date.now() - 8 * 86400000).toISOString();
-  writePrivateJson(path.join(old.directory, 'run.json'), oldRecord);
-  const active = await createValidationRun(project);
-  updateValidationRun(active, {
-    started_at: new Date(Date.now() - 8 * 86400000).toISOString(),
-  });
-  const recent = await createValidationRun(project);
-  finishValidationRun(recent, { result: 'COMPLETED' });
-  await cleanValidationHistory(project);
-  expect(fs.existsSync(old.directory)).toBe(false);
-  expect(fs.existsSync(active.directory)).toBe(true);
-  expect(fs.existsSync(recent.directory)).toBe(true);
-});
-
-async function expiredFinishedRun(target = project) {
-  const run = await createValidationRun(target);
-  finishValidationRun(run, { result: 'COMPLETED' });
-  updateValidationRun(run, {
-    finished_at: new Date(Date.now() - 8 * 86400000).toISOString(),
-  });
-  return run;
-}
-
-test('persists cleanup time and skips history scans for the next 24 hours', async () => {
-  const now = Date.now();
-  const clock = jest.spyOn(Date, 'now').mockReturnValue(now);
-  const first = await expiredFinishedRun();
-  await cleanValidationHistory(project);
-  expect(fs.existsSync(first.directory)).toBe(false);
-  const state = path.join(previewDirectory(project), 'validation', 'cleanup.json');
-  expect(JSON.parse(fs.readFileSync(state, 'utf8')).completed_at).toBe(new Date(now).toISOString());
-
-  const later = await expiredFinishedRun();
-  clock.mockReturnValue(now + 86400000 - 1);
-  const scan = jest.spyOn(fs.promises, 'readdir');
-  await cleanValidationHistory(project);
-  expect(scan).not.toHaveBeenCalled();
-  expect(fs.existsSync(later.directory)).toBe(true);
-  clock.mockReturnValue(now + 86400000);
-  await cleanValidationHistory(project);
-  expect(scan).toHaveBeenCalled();
-  expect(fs.existsSync(later.directory)).toBe(false);
-});
-
-test('cleanup intervals are isolated by project', async () => {
-  await createValidationRun(project);
-  await cleanValidationHistory(project);
-  const other = path.join(root, 'other');
-  fs.mkdirSync(other);
-  const expired = await expiredFinishedRun(other);
-  await cleanValidationHistory(other);
-  expect(fs.existsSync(expired.directory)).toBe(false);
-});
-
-test.each(['{partial', '{"completed_at":"invalid"}', '{"completed_at":"2099-01-01"}'])(
-  'invalid or future cleanup state does not prevent cleanup: %s',
-  async (contents) => {
-    const expired = await expiredFinishedRun();
-    const state = path.join(previewDirectory(project), 'validation', 'cleanup.json');
-    fs.writeFileSync(state, contents);
-    await cleanValidationHistory(project);
-    expect(fs.existsSync(expired.directory)).toBe(false);
-    expect(
-      Number.isFinite(Date.parse(JSON.parse(fs.readFileSync(state, 'utf8')).completed_at))
-    ).toBe(true);
-    expect(Date.parse(JSON.parse(fs.readFileSync(state, 'utf8')).completed_at)).toBeLessThanOrEqual(
-      Date.now()
-    );
+test('keeps latest three completed runs on every cleanup and protects active runs', async () => {
+  const runs = [];
+  for (let index = 0; index < 6; index++) {
+    const run = await createValidationRun(project);
+    finishValidationRun(run, { result: 'COMPLETED' });
+    updateValidationRun(run, { started_at: new Date(1700000000000 + index * 1000).toISOString() });
+    runs.push(run);
   }
-);
-
-test('failed cleanup does not defer the next attempt', async () => {
-  const expired = await expiredFinishedRun();
-  const state = path.join(previewDirectory(project), 'validation', 'cleanup.json');
-  const remove = jest.spyOn(fs.promises, 'rm').mockRejectedValueOnce(new Error('disk busy'));
-  await expect(cleanValidationHistory(project)).rejects.toThrow('disk busy');
-  expect(fs.existsSync(state)).toBe(false);
-  remove.mockRestore();
+  const active = await createValidationRun(project);
   await cleanValidationHistory(project);
-  expect(fs.existsSync(expired.directory)).toBe(false);
+  expect(runs.map((run) => fs.existsSync(run.directory))).toEqual([
+    false,
+    false,
+    false,
+    true,
+    true,
+    true,
+  ]);
+  expect(fs.existsSync(active.directory)).toBe(true);
+  finishValidationRun(active, { result: 'COMPLETED' });
+  await cleanValidationHistory(project);
+  expect(fs.existsSync(runs[3].directory)).toBe(false);
+  expect((await listValidationRuns(project)).runs).toHaveLength(3);
 });
 
-test('busy project cleanup does not record success or interfere with the operation', async () => {
-  const expired = await expiredFinishedRun();
-  const state = path.join(previewDirectory(project), 'validation', 'cleanup.json');
+test('cleanup respects project lock and retains unknown launches without PIDs', async () => {
+  const run = await createValidationRun(project);
+  updateValidationRun(run, { owner_pid: 2147483647, phase: 'running' });
   await withPreviewLock(project, async () => {
     await expect(cleanValidationHistory(project)).rejects.toThrow(/in progress|active/);
-    expect(fs.existsSync(state)).toBe(false);
-    expect(fs.existsSync(expired.directory)).toBe(true);
   });
   await cleanValidationHistory(project);
-  expect(fs.existsSync(expired.directory)).toBe(false);
-});
-
-test('linked cleanup state is rejected without deleting evidence or touching its target', async () => {
-  const expired = await expiredFinishedRun();
-  const outside = path.join(root, 'outside.json');
-  fs.writeFileSync(outside, '{"completed_at":"2000-01-01"}');
-  const state = path.join(previewDirectory(project), 'validation', 'cleanup.json');
-  fs.symlinkSync(outside, state);
-  await expect(cleanValidationHistory(project)).rejects.toThrow();
-  expect(fs.existsSync(expired.directory)).toBe(true);
-  expect(fs.readFileSync(outside, 'utf8')).toBe('{"completed_at":"2000-01-01"}');
+  expect(fs.existsSync(run.directory)).toBe(true);
 });
 
 test('unfinished records with dead owners are incomplete, never successful', async () => {
@@ -245,6 +171,30 @@ test('unfinished records with dead owners are incomplete, never successful', asy
   writePrivateJson(path.join(run.directory, 'run.json'), data);
   expect((await readValidationRun(project, run.run_id)).run.status).toBe('incomplete');
   expect(fs.existsSync(path.join(run.directory, 'result.json'))).toBe(false);
+});
+
+test('failed count cleanup can retry immediately and cannot escape through linked state', async () => {
+  const runs = [];
+  for (let index = 0; index < 4; index++) {
+    const run = await createValidationRun(project);
+    finishValidationRun(run, { result: 'COMPLETED' });
+    updateValidationRun(run, { started_at: new Date(1700000000000 + index * 1000).toISOString() });
+    runs.push(run);
+  }
+  const remove = jest.spyOn(fs.promises, 'rm').mockRejectedValueOnce(new Error('disk busy'));
+  await expect(cleanValidationHistory(project)).rejects.toThrow('disk busy');
+  remove.mockRestore();
+  const state = path.join(path.dirname(runs[0].directory), 'cleanup.json');
+  expect(fs.existsSync(state)).toBe(false);
+  const outside = path.join(root, 'outside.json');
+  fs.writeFileSync(outside, '{}');
+  fs.symlinkSync(outside, state);
+  await expect(cleanValidationHistory(project)).rejects.toThrow();
+  expect(fs.existsSync(runs[0].directory)).toBe(true);
+  expect(fs.readFileSync(outside, 'utf8')).toBe('{}');
+  fs.unlinkSync(state);
+  await cleanValidationHistory(project);
+  expect(fs.existsSync(runs[0].directory)).toBe(false);
 });
 
 test('launch guard allows projects without validation history and not-yet-launched runs', async () => {
@@ -379,3 +329,47 @@ test('explicit archive retains fixed evidence, not managed project source', asyn
   expect(result.artifacts[0].path).toBe(path.join(archive, 'runtime.log'));
   await expect(archiveValidationRun(run, run.directory)).rejects.toThrow();
 });
+
+test.each(['.maker-preview', '.maker-preview/source/assets/archive'])(
+  'rejects durable archives inside project cache: %s',
+  async (relative) => {
+    const run = await createValidationRun(project);
+    finishValidationRun(run, { result: 'COMPLETED' });
+    const output = path.join(project, relative);
+    await expect(archiveValidationRun(run, output)).rejects.toThrow(
+      'outside the managed preview cache'
+    );
+    expect(fs.existsSync(path.join(project, '.maker-preview'))).toBe(false);
+    expect(fs.existsSync(path.join(run.directory, 'result.json'))).toBe(true);
+  }
+);
+
+(process.platform === 'win32' ? test.skip : test)(
+  'rejects an archive alias pointing inside the project cache',
+  async () => {
+    const run = await createValidationRun(project);
+    finishValidationRun(run, { result: 'COMPLETED' });
+    const cache = path.join(project, '.maker-preview/source');
+    fs.mkdirSync(cache, { recursive: true });
+    const alias = path.join(root, 'archive-alias');
+    fs.symlinkSync(cache, alias, 'dir');
+    await expect(archiveValidationRun(run, alias)).rejects.toThrow(
+      'outside the managed preview cache'
+    );
+    expect(fs.existsSync(path.join(cache, run.run_id))).toBe(false);
+  }
+);
+
+(process.platform === 'win32' ? test.skip : test)(
+  'rejects a project alias before creating an unowned workspace',
+  async () => {
+    const run = await createValidationRun(project);
+    finishValidationRun(run, { result: 'COMPLETED' });
+    const alias = path.join(root, 'project-alias');
+    fs.symlinkSync(project, alias, 'dir');
+    await expect(
+      archiveValidationRun(run, path.join(alias, '.maker-preview/archive'))
+    ).rejects.toThrow('outside the managed preview cache');
+    expect(fs.existsSync(path.join(project, '.maker-preview'))).toBe(false);
+  }
+);
