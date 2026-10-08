@@ -4,6 +4,7 @@ import { createCanvasWireUi, CANVAS_WIRE_STYLES } from './wireUi.js';
 import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from './templates.js';
 import { createCanvasTemplateUi } from './templateUi.js';
 import { openCanvasTemplatePreview } from './templatePreview.js';
+import { isGameUiResource, gameUiHandoffText, openGameUiHandoff } from './uiWorkflowHandoff.js';
 import { builtinPresetDescriptions } from './presetDescriptions.js';
 import { templateCategories, templatePresentation } from './templatePresentation.js';
 import {
@@ -270,6 +271,9 @@ export function getCanvasPageHtml(): string {
     nextCanvasExportCode.toString(),
     downloadCanvasResource.toString(),
     createCanvasResourceExport.toString(),
+    isGameUiResource.toString(),
+    gameUiHandoffText.toString(),
+    openGameUiHandoff.toString(),
     imageSizeLabel.toString(),
     renderImageInfo.toString(),
     createImageEditing.toString(),

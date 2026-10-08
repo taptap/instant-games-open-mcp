@@ -384,6 +384,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 - 模板库只读流程预览位于 canvas/templatePreview.ts，复用 wirePath 几何；仅通过 Store 读取模板与
   绑定模板版本/节点 ID 的图片，不调用 prepareTemplate、不保存画布、不触发生成。关闭释放请求和媒体。
+  游戏UI制作使用香蕉物流真实示例，uiWorkflowHandoff.ts 只提供资源包之后的 AI 接续说明与复制指令，
+  不调用模型或自动组装。官方媒体入库不得扫描/上传用户模板目录，用户模板与素材始终仅保存在本机。
 
 - 示例资源索引为 src/maker/demoResources.json，demoResources.ts 统一按需下载、校验和缓存。
   官方模板图片（含缩略图）入库须运行 npm run maker:resources:prepare，之后上传并登记 CDN。

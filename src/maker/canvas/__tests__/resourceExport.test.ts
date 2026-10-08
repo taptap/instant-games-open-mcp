@@ -1,6 +1,12 @@
-import { canvasExportFormats, downloadCanvasResource } from '../resourceExport.js';
-import type { CanvasNode } from '../model.js';
+import {
+  canvasExportFormats,
+  createCanvasResourceExport,
+  downloadCanvasResource,
+} from '../resourceExport.js';
+import type { CanvasDocument, CanvasNode } from '../model.js';
 import * as sequenceExport from '../sequenceExport.js';
+import * as imageAssets from '../imageAssets.js';
+import * as handoff from '../uiWorkflowHandoff.js';
 
 function node(type: CanvasNode['type'] = 'video-source'): CanvasNode {
   return {
@@ -87,6 +93,44 @@ describe('video and frame data downloads', () => {
     expect(fetcher).not.toHaveBeenCalled();
     expect(writable.write).not.toHaveBeenCalled();
   });
+
+  test.each(['saved', 'canceled', 'failed', 'switched', 'custom'])(
+    'UI handoff after export: %s',
+    async (state) => {
+      const card = { ...node('image-assets'), sectionId: 'section' };
+      const current = {
+        id: 'canvas',
+        nodes: [
+          card,
+          {
+            ...node('section'),
+            id: 'section',
+            templateId: state === 'custom' ? 'custom' : '7e1cb6ad-732f-4dc3-a951-000000000012',
+          },
+        ],
+        edges: [],
+      } as unknown as CanvasDocument;
+      let selected = current;
+      const show = jest.spyOn(handoff, 'openGameUiHandoff').mockImplementation(() => undefined);
+      jest.spyOn(imageAssets, 'createImageAssetsZip').mockResolvedValue(new Blob(['zip']));
+      const error = jest.fn();
+      if (state === 'canceled')
+        picker.mockRejectedValue(Object.assign(new Error('cancel'), { name: 'AbortError' }));
+      if (state === 'failed') writable.write.mockRejectedValue(new Error('disk full'));
+      if (state === 'switched')
+        writable.close.mockImplementation(async () => {
+          selected = { ...current, id: 'other-canvas' };
+        });
+      await createCanvasResourceExport({
+        getDocument: () => selected,
+        mediaUrl: (p) => p,
+        error,
+      }).download(card, 'images');
+      expect(show).toHaveBeenCalledTimes(state === 'saved' ? 1 : 0);
+      if (state === 'saved') expect(show).toHaveBeenCalledWith('canvas');
+      expect(error).toHaveBeenCalledTimes(state === 'failed' ? 1 : 0);
+    }
+  );
 
   test('failed reads never save an error response as a video', async () => {
     fetcher.mockResolvedValue({ ok: false });

@@ -10,6 +10,7 @@ import { downloadCanvasImage } from './imageExport.js';
 import { createSequenceExport } from './sequenceExport.js';
 import { openImageAtlasDialog } from './imageAtlasUi.js';
 import { createImageAssetsZip } from './imageAssets.js';
+import { isGameUiResource, openGameUiHandoff } from './uiWorkflowHandoff.js';
 
 export function canvasExportFormats(node?: CanvasNode): Array<{ format: string; label: string }> {
   if (node?.type === 'image-assets') return [{ format: 'images', label: '独立 PNG 素材包' }];
@@ -158,14 +159,22 @@ export function createCanvasResourceExport(options: {
         return;
       }
       const identity = canvasExportIdentity(options.getDocument(), saved);
+      const current = options.getDocument();
+      const handoff = isGameUiResource(current, saved);
+      let downloaded = false;
       await downloadCanvasResource(
         saved,
         format,
         options.mediaUrl,
-        options.progress,
+        (message) => {
+          downloaded ||= message.startsWith('导出完成：') || message.startsWith('已发起下载：');
+          options.progress?.(message);
+        },
         identity,
         loop
       );
+      if (downloaded && handoff && current?.id === options.getDocument()?.id)
+        openGameUiHandoff(current!.id);
     } catch (error) {
       options.error((error as Error).message || '资源导出失败，请重试。');
     } finally {
@@ -206,6 +215,17 @@ export function createCanvasResourceExport(options: {
           void download(saved, 'images');
         });
         group.append(toggle);
+        if (isGameUiResource(options.getDocument(), saved)) {
+          const next = document.createElement('button');
+          next.type = 'button';
+          next.textContent = '下一步：组装游戏 UI';
+          next.onclick = () => {
+            menu.hidden = true;
+            const current = options.getDocument();
+            if (current) openGameUiHandoff(current.id);
+          };
+          group.append(next);
+        }
         menu.append(group);
         return;
       }

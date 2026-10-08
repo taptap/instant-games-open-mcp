@@ -40,10 +40,7 @@ export function templatePresentation(id: string) {
       { index: 0, label: '角色参考' },
       { index: 1, label: '概念展示' },
     ],
-    12: [
-      { index: 0, label: '角色界面设计稿' },
-      { index: 9, label: '背包界面设计稿' },
-    ],
+    12: [{ index: 0, label: '香蕉物流 · 设计稿' }],
   };
   return { category, previews: previews[number], modelPreview: number === 4 };
 }
