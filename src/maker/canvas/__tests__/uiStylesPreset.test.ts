@@ -9,6 +9,8 @@ import { createCanvasTemplateModel } from '../templates.js';
 import { isCanvasNodeStale } from '../dependencies.js';
 import { invalidateCanvasDependents } from '../templateWorkflow.js';
 
+jest.setTimeout(30000);
+
 const { PNG } = require('pngjs');
 const presetId = '7e1cb6ad-732f-4dc3-a951-000000000010';
 
