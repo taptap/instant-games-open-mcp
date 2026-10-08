@@ -133,7 +133,10 @@ remote test version; it never builds or uploads server code automatically.
    `taptap-maker preview install --target-dir <PROJECT> --json`, then start. Installation requires
    Python and curl; do not install dependencies or bypass client approval silently.
    Explain that preparation and Runtime may download public indexes/assets. Start/refresh prepare
-   a managed copy automatically; `preview prepare` diagnoses preparation alone. Platform support,
+   a copy only when preparation is needed; plain source previews do not copy. Prepared source is
+   reused at `<PROJECT>/.maker-preview/source`, overwritten after the old Runtime exits, and ignored
+   by Git. History keeps evidence, not source snapshots. `preview prepare` rejects active previews.
+   The console distinguishes all-project usage from current-project usage and offers explicit cleanup. Platform support,
    installation recovery and cache behavior are documented in `docs/MAKER_LOCAL_PREVIEW.md`.
 
 2. Run `taptap-maker preview start --target-dir <PROJECT> --json`. Report process launch only,
@@ -233,11 +236,11 @@ list; scrolling to the bottom loads older pages. Logs/JSON show a three-line col
 screenshots show thumbnails linked to the original. It shows collected evidence, not proof the
 Agent inspected an image.
 
-Validation evidence is project-realpath isolated and retained for seven days after completion,
-independently of normal preview cleanup. Each invocation checks cleanup eligibility after it
-finishes; successful cleanup is persisted per project and skips history/disk scans for 24 hours.
+Validation evidence is project-realpath isolated and retains the latest three completed runs,
+with active or unverified runs additionally protected. Each invocation checks cleanup eligibility
+after it finishes; there is no age-based or 24-hour cleanup delay.
 Failures do not advance that timestamp or change the validation result. There is no background
-timer, console lifecycle trigger, or cross-project scan. For durable acceptance output, pass
+timer, console lifecycle trigger, or automatic cross-project cleanup. For durable acceptance output, pass
 `--output-dir <ABSOLUTE_DIRECTORY_OUTSIDE_PREVIEW_CACHE>` on each invocation: completed or failed
 run artifacts are copied into a unique run subdirectory, never automatically cleaned. Verify
 `archive_directory` in the result; archive failures remain explicit. Prepared game source is not
