@@ -550,6 +550,67 @@ describe('CanvasGenerationService', () => {
     expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(1);
   });
 
+  test('does not let a second image download retry overwrite a successful recovery', async () => {
+    const document = await new MakerCanvasFiles(root).create('concurrent recovery', 'empty');
+    const previewUrl = 'https://cdn.example/generated/concurrent.png';
+    callRemoteProxyToolMock.mockResolvedValue({
+      content: [],
+      structuredContent: {
+        success: true,
+        previewUrl,
+        download: { success: false, error: 'Asset download failed: HTTP 502' },
+      },
+    } as any);
+    const failed = await new CanvasGenerationService(root, {} as any).generateImage({
+      canvasId: document.id,
+      prompt: 'image',
+    });
+    let started!: () => void;
+    const startedPromise = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let release!: (value: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      release = resolve;
+    });
+    const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(() => {
+      started();
+      return pending;
+    });
+    const first = new CanvasGenerationService(root, {} as any).retry(failed.id, document.id);
+    await startedPromise;
+    await expect(
+      new CanvasGenerationService(root, {} as any).retry(failed.id, document.id)
+    ).rejects.toMatchObject({
+      status: 409,
+      message: '该图片正在恢复本地下载，请等待当前操作完成。',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    release({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => png.buffer,
+    } as Response);
+    const recovered = await first;
+    expect(recovered).toMatchObject({ id: failed.id, status: 'succeeded' });
+    expect(recovered.resultAssetPath).toMatch(/^assets\/image\/canvas-/);
+    const persisted = new CanvasGenerationService(root, {} as any).list(document.id)[0];
+    expect(persisted).toMatchObject({
+      id: failed.id,
+      status: 'succeeded',
+      resultAssetPath: recovered.resultAssetPath,
+    });
+    expect(persisted.failureStage).toBeUndefined();
+    await expect(
+      new CanvasGenerationService(root, {} as any).retry(failed.id, document.id)
+    ).rejects.toThrow('只有明确失败');
+    expect(new CanvasGenerationService(root, {} as any).list(document.id)[0].status).toBe(
+      'succeeded'
+    );
+    expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(1);
+  });
+
   test('interrupted local delivery and repeated import failures never resubmit generation', async () => {
     const files = new MakerCanvasFiles(root);
     const document = await files.create('interrupted delivery', 'empty');

@@ -22,6 +22,7 @@ import {
 } from './canvasVideoGate.js';
 
 const videoOperations = new Set<string>();
+const imageRecoveries = new Set<string>();
 
 export type CanvasGenerationKind = 'image' | 'video';
 export type CanvasGenerationStatus =
@@ -434,6 +435,40 @@ export class CanvasGenerationService {
     return attempt;
   }
 
+  private async recoverImageDownload(
+    previous: CanvasGenerationAttempt,
+    signal?: AbortSignal
+  ): Promise<CanvasGenerationAttempt> {
+    const operationKey = this.operationKey(previous.id);
+    if (imageRecoveries.has(operationKey)) {
+      throw new ConsoleError('该图片正在恢复本地下载，请等待当前操作完成。', 409);
+    }
+    imageRecoveries.add(operationKey);
+    try {
+      const current = this.readAttemptForCanvas(previous.id, previous.canvasId);
+      if (current.status === 'succeeded' && current.resultAssetPath) return current;
+      const files = new MakerCanvasFiles(this.projectRoot);
+      await files.assertWritableForGeneration();
+      await files.load(current.canvasId);
+      signal?.throwIfAborted();
+      try {
+        if (!current.deliveredAssetPath && current.remoteAssetUrl) {
+          current.deliveredAssetPath = await this.downloadRemoteImage(current.remoteAssetUrl);
+          this.writeAttempt(current);
+        }
+        this.finishImageDelivery(current, files);
+      } catch (error) {
+        const saved = this.readAttempt(current.id);
+        if (saved.status === 'succeeded' && saved.resultAssetPath) return saved;
+        this.failAttempt(current, error);
+        return current;
+      }
+      return current;
+    } finally {
+      imageRecoveries.delete(operationKey);
+    }
+  }
+
   async queryVideo(attemptId: string, canvasId?: string): Promise<CanvasGenerationAttempt> {
     const attempt = this.readAttemptForCanvas(attemptId, canvasId);
     if (attempt.kind !== 'video' || !attempt.taskId)
@@ -489,20 +524,7 @@ export class CanvasGenerationService {
       previous.failureStage === 'download' &&
       (previous.deliveredAssetPath || previous.remoteAssetUrl)
     ) {
-      const files = new MakerCanvasFiles(this.projectRoot);
-      await files.assertWritableForGeneration();
-      await files.load(previous.canvasId);
-      signal?.throwIfAborted();
-      try {
-        if (!previous.deliveredAssetPath && previous.remoteAssetUrl) {
-          previous.deliveredAssetPath = await this.downloadRemoteImage(previous.remoteAssetUrl);
-          this.writeAttempt(previous);
-        }
-        this.finishImageDelivery(previous, files);
-      } catch (error) {
-        this.failAttempt(previous, error);
-      }
-      return previous;
+      return this.recoverImageDownload(previous, signal);
     }
     if (previous.kind === 'video' && unfinishedVideo(previous))
       throw new Error(
