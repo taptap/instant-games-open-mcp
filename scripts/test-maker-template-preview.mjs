@@ -106,6 +106,14 @@ try {
     await preview.locator('.template-preview-card').first().waitFor();
   }
   await page.locator('.template-search').fill(template.name);
+  const skillLink = page.locator('[data-template-id="7e1cb6ad-732f-4dc3-a951-000000000012"] .template-card-metadata a');
+  assert.equal(await skillLink.innerText(), 'Skill · maker-ui-workflow');
+  assert.equal(await skillLink.getAttribute('target'), '_blank');
+  const skillUrl = new URL(await skillLink.getAttribute('href'), server.origin);
+  assert.equal(skillUrl.searchParams.get('project'), entry.key);
+  assert.equal(skillUrl.searchParams.get('skill'), 'maker-ui-workflow');
+  assert.equal(skillUrl.searchParams.get('page'), 'documents');
+
   await open(template.id);
   assert.equal(await preview.locator('.template-preview-card').count(), template.nodes.length);
   assert.equal(
@@ -164,6 +172,32 @@ try {
   assert.deepEqual(writes, []);
   assert.equal(paidRequests, 0);
   assert.deepEqual(browserErrors, []);
+  await page.unroute('**/preview-image?**');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const customRow = page.locator('[data-template-id="' + custom.id + '"]');
+  await customRow.locator('.template-more summary').click();
+  const downloadPromise = page.waitForEvent('download');
+  await customRow.getByRole('button', { name: '导出 ZIP', exact: true }).click();
+  const download = await downloadPromise;
+  assert(download.suggestedFilename().endsWith('.maker-template.zip'));
+  const zipPath = path.join(temporary, 'shared-template.zip');
+  await download.saveAs(zipPath);
+  await page.getByRole('button', { name: '导入 ZIP', exact: true }).click();
+  await page.getByLabel('模板 ZIP 文件', { exact: true }).setInputFiles(zipPath);
+  await page.getByRole('button', { name: '导入', exact: true }).click();
+  await page.locator('.template-library').waitFor();
+  const imported = (await files.listTemplatePage()).items.find(item => item.id !== custom.id);
+  assert(imported);
+  assert.equal(imported.name, custom.name);
+  assert.deepEqual(imported.skills, custom.skills);
+  await open(imported.id);
+  await page.waitForFunction(() => [...document.querySelectorAll('.template-workflow-preview img')].every(img => img.complete && img.naturalWidth > 0));
+  assert.equal(await preview.locator('.template-preview-card').count(), custom.nodes.length);
+  assert.equal(JSON.stringify(await files.load(canvas.id)), original);
+  assert.equal(writes.filter(url => url.endsWith('/templates/import')).length, 1);
+  assert.equal(paidRequests, 0);
+  assert.deepEqual(browserErrors, []);
+  console.log('PASS: custom ZIP download -> upload -> new template -> preview, original canvas unchanged');
   console.log(
     'PASS: builtin/custom preview, images, wires, zoom/pan/fit, modal lifecycle, missing images, mobile, no canvas writes or generation'
   );

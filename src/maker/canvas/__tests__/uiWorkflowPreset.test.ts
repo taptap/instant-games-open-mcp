@@ -13,6 +13,7 @@ const presetId = '7e1cb6ad-732f-4dc3-a951-000000000012';
 test('game UI template promotes the complete banana example with explicit handoff', () => {
   const preset = createUiWorkflowPreset();
   expect(preset.name).toBe('游戏UI制作');
+  expect(preset.skills).toEqual(['maker-ui-workflow']);
   expect(preset.nodes.filter((n) => n.type === 'image')).toHaveLength(15);
   const exports = preset.nodes.filter((n) => n.type === 'image-assets');
   expect(exports).toHaveLength(9);

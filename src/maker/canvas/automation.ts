@@ -77,6 +77,20 @@ export function canvasAutomationCapabilities() {
       confirmation:
         'Preview/run on an image-assets card completes the command with result.status=waiting_for_confirmation, not final assets. Use the current reviewId and revision after visually checking every cell. New previews, edits and page reloads invalidate old confirmation. No automatic grid repair or semantic naming.',
     },
+    templateSkills: {
+      source: 'templates.presets/items[].skills and inspect.skills / section.templateSkills',
+      instruction:
+        'Before executing a template, read its associated Skills using the paths in Maker status or the current project Skill directories. If unavailable, report the missing Skill; do not claim to have followed it. Skills guide the Agent, not automatic console execution, and do not bypass review or paid-operation confirmation.',
+    },
+    uiWorkflow: {
+      skill: 'maker-ui-workflow',
+      steps:
+        'design/layout -> reviewed PNG assets -> import into project -> generate_resource_meta -> assemble-ui.mjs -> console UI editor comparison',
+      completion:
+        'For an editable game UI request, PNG export is an intermediate result: the Agent continues with the Skill through assembly and editor verification. Stop at PNG only when the user requests extraction alone. Do not ask the user to copy a handoff prompt when the Agent is already operating the CLI.',
+      boundary:
+        'The console does not invoke AI. Read every resource card and pending state; one successful export does not mean all assets or the UI are complete. Reuse verified layout records, or record layout from the design with explicit provenance before assembly.',
+    },
     sequenceSettings: [
       'start',
       'end',
@@ -182,6 +196,7 @@ export function canvasAutomationSnapshot(document: CanvasDocument) {
     nodes: document.nodes.map((node) => ({ ...node })),
     edges: document.edges,
     templateFlow: document.templateFlow,
+    skills: [...new Set(document.nodes.flatMap((node) => node.templateSkills || []))],
   };
 }
 

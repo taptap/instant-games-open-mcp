@@ -3,6 +3,7 @@ import { createReadStream, statSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { CanvasStoreError } from '../canvas/model.js';
 import { MakerCanvasFiles } from '../canvas/files.js';
+import { TEMPLATE_ARCHIVE_LIMIT } from '../canvas/templateArchive.js';
 import { readBuiltinTemplateModel } from '../canvas/templateModelPreview.js';
 import type { CanvasAutomationBridge } from '../canvas/automationBridge.js';
 import { ConsoleError } from './types.js';
@@ -119,6 +120,28 @@ export async function handleCanvasProjectRoute(options: {
           searchParams.get('q') || ''
         )
       );
+      return true;
+    }
+    if (suffix === 'canvases/templates/import' && method === 'POST') {
+      send(
+        response,
+        201,
+        await files.importTemplate(await readBytes(request, TEMPLATE_ARCHIVE_LIMIT))
+      );
+      return true;
+    }
+    const exportedTemplate = suffix.match(/^canvases\/templates\/([0-9a-f-]{36})\/export$/i);
+    if (exportedTemplate && method === 'GET') {
+      const bytes = await files.exportTemplate(
+        exportedTemplate[1],
+        Number(searchParams.get('revision'))
+      );
+      response.writeHead(200, {
+        'Content-Type': 'application/zip',
+        'Content-Length': bytes.length,
+        'X-Content-Type-Options': 'nosniff',
+      });
+      response.end(bytes);
       return true;
     }
     const template = suffix.match(/^canvases\/templates\/([0-9a-f-]{36})$/i);

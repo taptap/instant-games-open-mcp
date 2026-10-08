@@ -1,7 +1,8 @@
 {
   "id": "7e1cb6ad-732f-4dc3-a951-000000000012",
   "name": "游戏UI制作",
-  "revision": 4,
+  "revision": 5,
+  "skills": ["maker-ui-workflow"],
   "nodes": [
     {
       "id": "e3f1d7ae-c8d2-4fa8-a2ae-000000000002",

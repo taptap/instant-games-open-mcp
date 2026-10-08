@@ -290,6 +290,7 @@ try {
   await success('delete-nodes', { ids: [inputVideo, temporaryGroup] });
   const templates = await cli('templates');
   assert.ok(templates.presets.length);
+  assert.deepEqual(templates.presets.find(t => t.name === '游戏UI制作').skills, ['maker-ui-workflow']);
   await success('add-template', { id: templates.presets[0].id });
   assert.ok(current.nodes.some((node) => node.type === 'section'));
   const sequence = current.nodes.find((node) => node.type === 'sequence');
@@ -638,14 +639,17 @@ try {
   }
   let atlasDocument = await files.create('CLI 图集确认');
   const importedAtlas = await files.importImage(PNG.sync.write(atlas));
-  const atlasId = randomUUID(), assetsId = randomUUID();
+  const atlasId = randomUUID(), assetsId = randomUUID(), uiSectionId = randomUUID();
   atlasDocument.nodes.push(
+    { id: uiSectionId, type: 'section', title: '游戏UI制作', x: -20, y: -60, width: 880, height: 580, templateId: '7e1cb6ad-732f-4dc3-a951-000000000012', templateRevision: 5, templateSkills: ['maker-ui-workflow'] },
     { id: atlasId, type: 'image', title: '图集', x: 0, y: 0, width: 300, height: 240, assetPath: importedAtlas.relativePath },
-    { id: assetsId, type: 'image-assets', title: '游戏资产', x: 360, y: 0, width: 480, height: 460 }
+    { id: assetsId, type: 'image-assets', title: '游戏资产', x: 360, y: 0, width: 480, height: 460, sectionId: uiSectionId }
   );
   atlasDocument.edges.push({ id: randomUUID(), from: atlasId, to: assetsId, kind: 'image-assets' });
   atlasDocument = await files.save(atlasDocument.id, atlasDocument, atlasDocument.revision);
   await success('open', { id: atlasDocument.id });
+  assert.deepEqual(current.skills, ['maker-ui-workflow']);
+  assert.deepEqual((await success('inspect', { id: assetsId })).skills, ['maker-ui-workflow']);
   assert.equal((await command('confirm-image-assets', { id: assetsId, reviewId: 'missing' })).status, 'failed');
   assert.equal((await command('preview-image-assets', { id: assetsId, grid: { columns: 0 } })).status, 'failed');
   const firstReview = await success('run', { id: assetsId });
@@ -686,6 +690,12 @@ try {
   const assetOperation = await command('export', { id: assetsId, format: 'images' });
   assert.equal(assetOperation.status, 'succeeded', JSON.stringify(assetOperation));
   const assetDownload = await cli('download', { 'operation-id': assetOperation.id, 'output-dir': temporary });
+  assert.equal(assetDownload.result.nextStep.skill, 'maker-ui-workflow');
+  assert.ok(assetDownload.result.nextStep.instruction.includes(current.id));
+  assert.ok(assetDownload.result.nextStep.instruction.includes('generate_resource_meta'));
+  assert.ok(assetDownload.result.nextStep.instruction.includes('UI 编辑器'));
+  assert.ok(assetDownload.result.nextStep.instruction.includes('若只要求切图则在导出结束'));
+  assert.equal(await page.locator('dialog[open]').count(), 0);
   const assetZip = fs.readFileSync(assetDownload.outputPath);
   for (let index = 1; index <= 12; index++) assert.ok(assetZip.includes(Buffer.from('item_' + String(index).padStart(3, '0') + '.png')));
   await page.reload();

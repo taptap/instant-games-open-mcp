@@ -222,6 +222,24 @@ export function createBrowserCanvasDocumentStore(
         signal,
       }),
     templates: {
+      exportTemplate: async (id, revision) => {
+        const response = await fetcher(
+          base + '/canvases/templates/' + id + '/export?revision=' + revision
+        );
+        if (!response.ok) throw new Error((await response.json()).error || '模板导出失败');
+        return response.blob();
+      },
+      importTemplate: (zip) =>
+        request<CanvasWorkflowTemplate>('/canvases/templates/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/zip' },
+          body: zip,
+        }),
+      skillUrl: (name) =>
+        '/?page=documents&project=' +
+        encodeURIComponent(projectKey) +
+        '&skill=' +
+        encodeURIComponent(name),
       getPreviewImage: async (id, revision, nodeId, signal) => {
         const response = await fetcher(
           base +

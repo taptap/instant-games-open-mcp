@@ -3,7 +3,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { MakerCanvasFiles } from '../files.js';
 import { createId } from '../model.js';
-import { templateCoverSource, templateCoverAnimation } from '../templates.js';
+import {
+  templateCoverSource,
+  templateCoverAnimation,
+  createCanvasTemplateModel,
+} from '../templates.js';
+import { canvasAutomationSnapshot } from '../automation.js';
+import { selectCanvasSnapshot } from '../automationInfo.js';
 const { PNG } = require('pngjs');
 import { readTemplatePage } from '../templateCatalog.js';
 import { templatePresentation } from '../templatePresentation.js';
@@ -18,6 +24,45 @@ beforeEach(() => {
   files = new MakerCanvasFiles(root);
 });
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+
+test('template Skills survive local save, instantiation, reload and CLI inspection', async () => {
+  const model = createCanvasTemplateModel();
+  const canvas = await files.create();
+  const first = {
+    id: createId(),
+    type: 'image' as const,
+    title: '输入',
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+  };
+  const second = { ...first, id: createId(), type: 'image-assets' as const, title: '输出', x: 200 };
+  const template = await files.saveTemplate({
+    id: createId(),
+    name: '自定义 UI',
+    revision: 0,
+    skills: ['maker-ui-workflow'],
+    nodes: [first, second],
+    edges: [{ id: createId(), from: first.id, to: second.id, kind: 'image-assets' }],
+  });
+  expect((await files.listTemplatePage()).items[0].skills).toEqual(template.skills);
+  const instance = model.instantiate(files.getTemplate(template.id), { x: 0, y: 0 });
+  canvas.nodes = instance.nodes;
+  canvas.edges = instance.edges;
+  await files.save(canvas.id, canvas, canvas.revision);
+  const loaded = await files.load(canvas.id);
+  expect(canvasAutomationSnapshot(loaded).skills).toEqual(template.skills);
+  expect(
+    selectCanvasSnapshot(canvasAutomationSnapshot(loaded), instance.nodes[1].id).skills
+  ).toEqual(template.skills);
+  expect(model.snapshot(loaded, [instance.section.id], '副本').skills).toEqual(template.skills);
+  await files.deleteTemplate(template.id, template.revision);
+  expect(canvasAutomationSnapshot(await files.load(canvas.id)).skills).toEqual(template.skills);
+  await expect(
+    files.saveTemplate({ ...template, revision: 0, skills: ['../../secret'] })
+  ).rejects.toThrow('Skill');
+});
 
 test('workflow preview reads only images belonging to the template without importing assets', async () => {
   const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000012');

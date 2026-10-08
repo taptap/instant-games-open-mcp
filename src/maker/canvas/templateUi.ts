@@ -164,6 +164,8 @@ export function createCanvasTemplateUi(options: {
         group.title = saved.name;
         group.templateId = saved.id;
         group.templateRevision = saved.revision;
+        if (saved.skills?.length) group.templateSkills = [...saved.skills];
+        else delete group.templateSkills;
         nodes.forEach((node) => {
           node.sectionId = group.id;
         });
@@ -237,6 +239,29 @@ export function createCanvasTemplateUi(options: {
     total.className = 'template-library-total';
     total.setAttribute('aria-live', 'polite');
     toolbar.append(search, total);
+    if (store!.importTemplate)
+      toolbar.append(
+        button('导入 ZIP', () => {
+          const form = open(
+            '导入模板',
+            '选择 Maker 导出的 ZIP，素材一起导入当前项目，保存为新模板，不覆盖已有内容。'
+          );
+          const file = document.createElement('input');
+          file.type = 'file';
+          file.accept = '.zip,application/zip';
+          file.setAttribute('aria-label', '模板 ZIP 文件');
+          form.append(
+            file,
+            button('导入', async () => {
+              const zip = file.files?.[0];
+              if (!zip) throw new Error('请选择模板 ZIP 文件。');
+              if (zip.size > 128 * 1024 * 1024) throw new Error('模板 ZIP 不能超过 128 MiB。');
+              const saved = await store!.importTemplate!(zip);
+              await library(1, saved.name, '我的模板');
+            })
+          );
+        })
+      );
     const categories = document.createElement('nav');
     categories.className = 'template-categories';
     categories.setAttribute('aria-label', '模板分类');
@@ -325,6 +350,20 @@ export function createCanvasTemplateUi(options: {
       actions.className = 'template-card-actions';
       const count = document.createElement('small');
       count.textContent = summary.nodeCount + ' 张卡片';
+      const metadata = document.createElement('div');
+      metadata.className = 'template-card-metadata';
+      metadata.append(count);
+      for (const name of summary.skills || []) {
+        const link = document.createElement('a');
+        link.textContent = 'Skill · ' + name;
+        link.title = '阅读 ' + name + ' Skill';
+        if (store!.skillUrl) {
+          link.href = store!.skillUrl(name);
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+        }
+        metadata.append(link);
+      }
       const addButton = button('＋ 添加', async () =>
         add(await store!.getTemplate(summary.id), false)
       );
@@ -334,7 +373,7 @@ export function createCanvasTemplateUi(options: {
         openCanvasTemplatePreview(store!, summary.id, summary.name);
       });
       previewButton.className = 'template-preview';
-      actions.append(count, previewButton, addButton);
+      actions.append(metadata, previewButton, addButton);
       if (!summary.builtin) {
         const more = document.createElement('details');
         more.className = 'template-more';
@@ -350,6 +389,22 @@ export function createCanvasTemplateUi(options: {
           button('重命名', () => showRename(summary)),
           remove
         );
+        if (store!.exportTemplate)
+          menu.prepend(
+            button('导出 ZIP', async () => {
+              const blob = await store!.exportTemplate!(summary.id, summary.revision);
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download =
+                summary.name.replaceAll(String.fromCharCode(92), '_').replace(/[/:*?"<>|]/g, '_') +
+                '.maker-template.zip';
+              document.body.append(link);
+              link.click();
+              link.remove();
+              setTimeout(() => URL.revokeObjectURL(url), 1000);
+            })
+          );
         more.append(toggle, menu);
         more.addEventListener('toggle', () => {
           if (more.open)

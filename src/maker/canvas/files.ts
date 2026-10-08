@@ -1,4 +1,10 @@
 import { readDemoResource, demoResourceInfo } from '../demoResources.js';
+import {
+  exportTemplateArchive,
+  readTemplateArchive,
+  remapTemplateAssets,
+  templateAssetPaths,
+} from './templateArchive.js';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
@@ -42,6 +48,17 @@ const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
 function fail(message: string, status: number, code: string): never {
   throw new CanvasStoreError(message, status, code);
+}
+
+function templateSkills(value: unknown): string[] | undefined {
+  if (value === undefined) return;
+  if (
+    !Array.isArray(value) ||
+    value.length > 8 ||
+    value.some((name) => typeof name !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(name))
+  )
+    fail('模板 Skill 名称无效。', 400, 'INVALID_DOCUMENT');
+  return [...new Set(value)] as string[];
 }
 
 function inside(root: string, target: string): boolean {
@@ -340,7 +357,57 @@ export class MakerCanvasFiles {
       parsed.nodes.map((node) => node.id),
       name
     );
-    return { ...template, id: input.id, revision: parsed.revision };
+    const skills = templateSkills(input.skills);
+    return {
+      ...template,
+      id: input.id,
+      revision: parsed.revision,
+      ...(skills?.length ? { skills } : {}),
+    };
+  }
+
+  async exportTemplate(id: string, revision: number): Promise<Buffer> {
+    if (isBuiltinCanvasTemplate(id))
+      fail('请先保存为自定义模板再导出。', 400, 'READ_ONLY_TEMPLATE');
+    const template = this.getTemplate(id);
+    if (template.revision !== revision) fail('模板已更新，请刷新列表后导出。', 409, 'CONFLICT');
+    return exportTemplateArchive(template, (relative) => this.readMedia(relative));
+  }
+
+  async importTemplate(bytes: Buffer): Promise<CanvasWorkflowTemplate> {
+    const archive = await readTemplateArchive(bytes);
+    const template = this.parseTemplate({ ...archive.template, id: randomUUID(), revision: 0 });
+    const references = templateAssetPaths(template);
+    if (
+      references.length !== archive.assets.size ||
+      references.some((file) => !archive.assets.has(file))
+    )
+      fail('模板素材清单不完整或包含无关文件。', 400, 'INVALID_TEMPLATE_ARCHIVE');
+    this.assertStorageShape();
+    await this.assertIgnored();
+    const imported: string[] = [];
+    const paths = new Map<string, string>();
+    try {
+      for (const source of references) {
+        const content = archive.assets.get(source)!;
+        const video = VIDEO_RELATIVE.test(source);
+        const type = source.endsWith('.webm')
+          ? 'video/webm'
+          : source.endsWith('.mov')
+            ? 'video/quicktime'
+            : 'video/mp4';
+        const destination = video
+          ? this.writeVideo(template.id, content, type).relativePath
+          : (await this.importImage(content)).relativePath;
+        imported.push(destination);
+        paths.set(source, destination);
+      }
+      remapTemplateAssets(template, paths);
+      return await this.saveTemplate(template);
+    } catch (error) {
+      for (const relative of imported) fs.unlinkSync(this.safeProjectFile(relative));
+      throw error;
+    }
   }
 
   async saveTemplate(input: CanvasWorkflowTemplate): Promise<CanvasWorkflowTemplate> {
@@ -642,6 +709,14 @@ export class MakerCanvasFiles {
     this.assertStorageShape();
     await this.assertIgnored();
     await this.load(canvasId);
+    return this.writeVideo(canvasId, bytes, contentType);
+  }
+
+  private writeVideo(
+    canvasId: string,
+    bytes: Buffer,
+    contentType: string
+  ): { relativePath: string } {
     if (bytes.length < 12 || bytes.length > MAX_VIDEO_BYTES) {
       fail('视频为空或超过 100 MiB。', 413, 'STORAGE_LIMIT');
     }
@@ -998,6 +1073,9 @@ export class MakerCanvasFiles {
       fail('模板分组标识无效。', 400, 'INVALID_DOCUMENT');
     if (node.templateRevision !== undefined)
       numberIn(node.templateRevision, 1, 1_000_000, '模板版本');
+    const skills = templateSkills(node.templateSkills);
+    if (skills && node.type !== 'section')
+      fail('Skill 只能关联模板分组。', 400, 'INVALID_DOCUMENT');
     if (
       node.templatePending !== undefined &&
       (typeof node.templatePending !== 'boolean' || node.type === 'section' || !sectionId)
@@ -1216,6 +1294,7 @@ export class MakerCanvasFiles {
         : {}),
       ...(node.templateId ? { templateId: node.templateId as string } : {}),
       ...(node.templateRevision ? { templateRevision: node.templateRevision as number } : {}),
+      ...(skills?.length ? { templateSkills: skills } : {}),
       ...(node.templatePending ? { templatePending: true } : {}),
       ...(sourceSnapshot ? { sourceSnapshot } : {}),
       ...(sourceSnapshots ? { sourceSnapshots } : {}),

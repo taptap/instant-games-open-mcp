@@ -54,7 +54,8 @@ export const TEMPLATE_LIBRARY_STYLES = `
 .template-description { display:block; font-size:13px; margin:0; align-self:center; max-height:100%; overflow:auto; overflow-wrap:anywhere; }
 .template-card-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .template-card-actions small { font-size:12px; white-space:nowrap; }
-.template-card-actions small:first-child { margin-right:auto; }
+.template-card-metadata { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-right:auto; min-width:0; }
+.template-card-metadata a { font-size:12px; color:#efce69; overflow-wrap:anywhere; text-underline-offset:3px; }
 .workflow-template-dialog .template-preview { padding:5px 10px; background:transparent; }
 .template-workflow-preview[open] { display:flex; flex-direction:column; width:92vw; max-width:1500px; height:86dvh; max-height:94dvh; overflow:hidden; padding:20px; }
 .template-workflow-preview.expanded[open] { width:100vw; max-width:none; height:100dvh; max-height:none; border-radius:0; }

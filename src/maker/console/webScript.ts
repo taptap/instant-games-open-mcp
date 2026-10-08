@@ -91,6 +91,8 @@ function bindFortuneHover(element) {
   element.addEventListener('mouseleave',scheduleCloseFortune);
 }
 let documentTab = 'docs', documentSearch = '', documentItems = [], documentSelected = '';
+let requestedSkill = initialQuery.get('skill') || '';
+if (requestedSkill) documentTab = 'skills';
 let documentRequest = 0, documentDirectoryRequest = 0;
 function markdownText(value) {
   // Decode only entity-shaped fragments; all resulting content still uses textContent.
@@ -254,7 +256,17 @@ async function renderDocuments() {
     const items = await api(documentApi());
     if (epoch !== viewEpoch || page !== 'documents' || request !== documentDirectoryRequest) return;
     documentItems = items; renderDocumentDirectory();
-    const first = items.find(item => item.id === documentSelected && item.kind === documentTab) || items.find(item => item.kind === documentTab);
+    let linkedSkill;
+    if (requestedSkill) {
+      const matches = items.filter(item => item.kind === 'skills' && item.relativePath.endsWith('/' + requestedSkill + '/SKILL.md'));
+      linkedSkill = matches.find(item => item.source === 'Maker 内置') || matches[0];
+      if (!linkedSkill) {
+        replace(reader,[node('p','未找到关联 Skill：' + requestedSkill + '。请检查 Maker 版本或当前项目的 Skill 文件。','bad')]);
+        return;
+      }
+      requestedSkill = '';
+    }
+    const first = linkedSkill || items.find(item => item.id === documentSelected && item.kind === documentTab) || items.find(item => item.kind === documentTab);
     if (first) void openDocument(first);
     else reader.append(node('p','暂无此类资料','muted'));
   } catch (error) {
@@ -2811,6 +2823,7 @@ async function pollState() {
     page = 'ui-editor';
     initialUiProject = selected;
   }
+  if (first && initialQuery.get('page') === 'documents') page = 'documents';
   const settled = [];
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
@@ -2833,7 +2846,7 @@ async function pollState() {
   let projectChanged = false;
   if (first && projectNotice === '') projectNotice = currentProjectNotice();
   else projectChanged = publishProjectChange();
-  if (projectChanged || (first && page === 'ui-editor')) render();
+  if (projectChanged || (first && ['ui-editor', 'documents'].includes(page))) render();
   else {
     updateChrome();
     if (page === 'projects' && (first || priorProjects !== JSON.stringify(state.projects))) renderProjects();

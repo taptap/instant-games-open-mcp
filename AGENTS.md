@@ -542,7 +542,10 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   复用 section/sectionId，不增加工作流引擎。模板定义经 Store 的 templates 端口保存到项目
   .maker/canvases/templates/<id>.json，使用 revision 冲突检查和原子写入；不携带任务身份。
   templateId/templateRevision 只关联实例分组，templatePending 只标记实例待处理结果；
-  同画布多实例按分组隔离。替换/删除模板不得回写或删除旧实例及素材，跨项目复制不在此版范围。
+  同画布多实例按分组隔离。替换/删除模板不得回写或删除旧实例及素材。
+  自定义模板跨项目分享通过 templateArchive.ts 导出/导入 ZIP，包含模板和引用媒体，
+  复用素材校验与模板保存；导入生成新 ID、重映射路径，不覆盖旧模板，不上传云端或安装 Skill。
+  ZIP 包体及展开内容最多 128 MiB，校验条目路径、类型和哈希，失败清理本次写入的素材。
   groupQueue.ts 仅管理当前页面分组队列，groupQueueUi.ts 提供底边单行控件；不复制引用或新增持久协议。
   队列通过 templateWorkflow.runQueued 复用单卡执行和保存，不通过成功回调隐式续跑；失败/未知暂停。
   排序不得倒置依赖；复用现有串行执行，不按历史任务占用等待视频名额，不自动重提。

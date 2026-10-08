@@ -19,6 +19,7 @@ function summarize(template: CanvasWorkflowTemplate, updatedAt: number): CanvasT
     name: template.name,
     revision: template.revision,
     builtin: template.builtin,
+    ...(template.skills?.length ? { skills: template.skills } : {}),
     nodeCount: template.nodes.length,
     hasCover: Boolean(templateCoverSource(template)),
     updatedAt,

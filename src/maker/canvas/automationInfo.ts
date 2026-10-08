@@ -155,7 +155,14 @@ export function selectCanvasSnapshot<Snapshot extends CanvasInfoSnapshot>(
       node.type === 'section' ? [node.id] : node.sectionId ? [node.sectionId] : []
     )
   );
-  const selected = { ...snapshot, nodes, edges };
+  const skills = [
+    ...new Set(
+      snapshot.nodes
+        .filter((node) => groupIds.has(node.id))
+        .flatMap((node) => node.templateSkills || [])
+    ),
+  ];
+  const selected = { ...snapshot, nodes, edges, skills };
   if (snapshot.queues)
     selected.queues = snapshot.queues.filter((queue) => !target || groupIds.has(queue.groupId));
   if (

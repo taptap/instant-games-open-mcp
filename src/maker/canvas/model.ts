@@ -79,6 +79,7 @@ export interface CanvasNode {
   exportDirection?: 'front' | 'back' | 'left' | 'right';
   templateId?: string;
   templateRevision?: number;
+  templateSkills?: string[];
   templatePending?: boolean;
   text?: string;
   assetPath?: string;

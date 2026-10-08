@@ -7,11 +7,15 @@ export interface CanvasWorkflowTemplate {
   name: string;
   revision: number;
   builtin?: boolean;
+  skills?: string[];
   nodes: CanvasNode[];
   edges: CanvasEdge[];
 }
 
 export interface CanvasTemplateStore {
+  exportTemplate?(id: string, revision: number): Promise<Blob>;
+  importTemplate?(zip: Blob): Promise<CanvasWorkflowTemplate>;
+  skillUrl?(name: string): string;
   getPreviewImage?(
     id: string,
     revision: number,
@@ -49,6 +53,7 @@ export interface CanvasTemplateSummary {
   name: string;
   revision: number;
   builtin?: boolean;
+  skills?: string[];
   nodeCount: number;
   hasCover: boolean;
   updatedAt: number;
@@ -143,6 +148,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       delete node.sectionId;
       delete node.templateId;
       delete node.templateRevision;
+      delete node.templateSkills;
       delete node.templatePending;
       if (node.sourceVideoId && !selected.has(node.sourceVideoId))
         throw new Error('抽帧卡依赖选区外的视频，请一起选中后保存。');
@@ -193,9 +199,18 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
         }
       }
     }
+    const sectionIds = new Set(members(document, ids).map((node) => node.sectionId));
+    const skills = [
+      ...new Set(
+        document.nodes
+          .filter((node) => node.type === 'section' && sectionIds.has(node.id))
+          .flatMap((node) => node.templateSkills || [])
+      ),
+    ];
     return {
       id: createId(),
       name: name.trim(),
+      ...(skills.length ? { skills } : {}),
       revision: 0,
       nodes,
       edges: JSON.parse(JSON.stringify(edges)),
@@ -251,6 +266,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
     const section = group(nodes, template.name);
     section.templateId = template.id;
     section.templateRevision = template.revision;
+    if (template.skills?.length) section.templateSkills = [...template.skills];
     nodes.forEach((node) => {
       node.sectionId = section.id;
     });
