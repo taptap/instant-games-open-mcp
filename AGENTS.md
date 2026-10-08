@@ -1,1279 +1,144 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
-
-## 全局工作指引
-
-**重要：Codex 在此项目中的工作规范**
-
-### 文档更新规则
-
-- **主动更新文档**：当有重要代码改动时（新特性、架构变更、API 修改），必须同时更新相关文档：
-  - `AGENTS.md` - 开发指南和技术文档
-  - `README.md` - 用户文档和使用说明
-  - `docs/` - 相关技术文档
-  - **不需要每次都问用户是否更新文档，主动更新即可**
-  - **注意**：`CHANGELOG.md` 由 CI/CD 自动生成，无需手动维护
-
-### Git 提交规范
-
-> ⚠️ **重要：提交前必须确认 commit type！**
->
-> 不同的 type 会触发不同的版本更新行为。提交前请先确认：
->
-> - 本次改动是否需要触发版本更新？
-> - 如果只是文档、调试、配置等改动，应使用 `chore:`、`docs:`、`ci:` 等不触发发布的 type
-> - 如果是功能或修复，才使用 `feat:`、`fix:`、`refactor:` 等触发发布的 type
-
-- **使用 Conventional Commits 规范**：项目已配置自动化 CI/CD，commit 消息格式至关重要
-
-**触发版本更新的 type：**
-
-- `feat:` - 新功能（触发 minor 版本升级）
-- `fix:` - Bug 修复（触发 patch 版本升级）
-- `feat!:` 或 `fix!:` - 破坏性变更（触发 major 版本升级）
-- `refactor:` - 代码重构（触发 patch 版本升级）
-- `perf:` - 性能优化（触发 patch 版本升级）
-
-**不触发版本更新的 type：**
-
-- `docs:` - 文档更新
-- `chore:` - 构建/工具/配置/调试相关
-- `test:` - 测试相关
-- `ci:` - CI 配置更新
-- `style:` - 代码格式
-- `build:` - 构建系统变更
-
-- **Commit Message 格式规范**（基于 `.commitlintrc.cjs`）：
-
-  ```
-  <type>(<scope>): <subject>
-
-  <body>
-
-  <footer>
-  ```
-
-  - **Header**（第一行，必填）：
-    - 格式：`<type>(<scope>): <subject>`
-    - 最大长度：100 字符
-    - Type 必须小写
-    - Scope 必须小写（可选）
-    - Subject：最少 5 字符，最多 100 字符，不以句号结尾
-  - **Body**（可选）：
-    - 详细描述改动内容
-    - 与 header 之间必须有空行
-    - 每行不超过 100 字符（由 `body-max-line-length` 强制）
-  - **Footer**（可选）：
-    - 关联 issue 或注明破坏性变更
-    - 与 body 之间必须有空行
-
-- **完整示例**：
-
-```
-feat(leaderboard): add score submission API
-
-- 新增 submitScores 工具
-- 支持批量提交分数
-- 添加输入验证
-
-Closes #123
-```
-
-**注意事项**：
-
-- ✅ Type 和 Scope 必须小写
-- ✅ Subject 最少 5 字符，不以句号结尾
-- ✅ Body 每行不超过 100 字符
-- ✅ Body 和 Footer 前必须有空行
-- ❌ 错误示例：`Feat(API): Added feature.`（Type 大写、Scope 大写、Subject 以句号结尾）
-
-### Copilot/AI 提交规范
-
-> 📄 详细规范请参考 `.github/copilot-instructions.md`
-
-**Copilot 和其他 AI 工具必须遵循 Conventional Commits 规范。**
-
-- ❌ **禁止的提交消息**：`Initial plan`、`WIP`、`temp`、`test` 等无类型前缀的消息
-- ✅ **正确格式**：`feat(proxy): add new feature`、`chore(planning): initial investigation`
-- ⚙️ **Commitlint 已配置忽略规则**：自动忽略 `Initial plan`、`WIP` 等模式的提交
-
-### 分支工作流
-
-- ❌ **不要直接 commit 到 main 分支**（已配置分支保护）
-- ✅ **默认创建 `fix/` 分支** → 提交代码 → 创建 PR
-- ⚠️ **谨慎创建 `feature/` 分支**：仅当改动是明确的新功能，并且确认应触发 minor 版本升级时使用
-- ❌ 不要因为改动较大、开发时间较长或包含多个提交就使用 `feature/`；无法确认时使用 `fix/`
-- ✅ 分支前缀和 commit type 都必须反映实际改动；`feature/` 通常对应 `feat:`，会使中版本号 +1
-- ❌ **PR 合并后不会自动发布 npm**
-- ✅ **主包 npm 发布只能手动运行 GitHub Actions workflow**
-- ✅ 主包发布前必须对选定 release 源码执行 Proxy 强制回归；复用 release 分支不得改变
-  workflow 启动时的源码、构建脚本或 Native 输入。复用已发布 npm 版本前必须比较 Proxy bundle
-  和 launcher，内容不同立即停止，不能仅因版本已存在就更新 `latest`。
-- ✅ 主包 Native 复用必须绑定 npm 当前线上版本对应的 `v<version>` tag 和 Release，并校验
-  6 个平台资产完整；不得读取仓库最新 Release，以免混入 Maker、DSH 或客户端插件版本。
-- ✅ 主包 release tag 必须指向实际发布源码提交；创建 tag 前比较 workflow 启动提交与 tag
-  目标的 Native 源码，存在差异必须停止，禁止让 tag 指向未参与 Native 构建的并发合并。
-- ✅ macOS Intel Native 必须显式传入 `x86_64-apple-darwin` target；ARM64 musl 交叉编译固定
-  Rust `1.97.0` 并启用 fail-fast，直到 Zig 工具链确认兼容 Rust 1.98 的新链接参数。
-
-**工作流程：**
-
-```
-默认 fix 分支开发 → git commit (规范格式) → git push → 创建 PR
-→ CI 检查 → Code Review → Merge PR → 需要发布时人工触发 workflow → 更新文档
-```
-
-### Git 工作区保护规则 ⚠️
-
-**重要：所有 Git 操作必须保护工作区，防止代码丢失！**
-
-- ✅ **切换分支前必须保存工作区**：
-
-  ```bash
-  # 方案 1：提交当前更改
-  git add .
-  git commit -m "wip: save current work"
-  git checkout -b new-branch
-
-  # 方案 2：暂存当前更改
-  git stash push -m "description"
-  git checkout -b new-branch
-  git stash pop  # 恢复更改
-  ```
-
-- ❌ **永远不要在工作区有未保存更改时切换分支**
-- ❌ **永远不要使用 `git checkout -- .` 或 `git reset --hard` 清理工作区**（会导致代码丢失）
-- ✅ **如需清理工作区，先确认有 commit 或 stash 备份**
-
-**详细流程参考：** [docs/CI_CD.md](docs/CI_CD.md)
-
-## 项目概述
-
-基于 Model Context Protocol (MCP) 的 TapTap Open API MCP 服务器，为 **TapTap Minigame 和 H5 游戏**提供排行榜、分享、多人联机、云存档，以及当前游戏 DC 数据查询、统计概览与评价操作能力。
-
-**核心特性：**
-
-- 🏆 排行榜系统 - 完整的 API 文档和服务端管理
-- 🎮 H5 游戏管理 - 上传、发布、状态查询
-- 🧭 当前游戏 DC 能力 - 商店/评价/社区统计概览、商店快照、论坛内容、评价列表、点赞、官方回复
-- 🦞 OpenClaw Plugin 子包 - `packages/openclaw-dc-plugin`，面向 OpenClaw 暴露 raw JSON tools，并 bundled 运营简报 skill
-- 🛠️ Maker 本地 MCP - `taptap-maker` 支持 PAT-first 的 app 列表、项目 clone/push 和远端构建转发
-- 🔐 OAuth 2.0 Device Code Flow - 零配置认证（扫码即用）
-- 🎯 完整功能集 - 多类 Tools + Resources，覆盖文档查询与服务端动作
-- 🚀 MCP 2025 标准 - Streamable HTTP + RFC 5424 Logging
-- 📡 三种传输协议 - stdio（本地）+ SSE（远程/实时）+ HTTP JSON（兼容）
-- 🔌 多客户端并发 - 独立会话管理，无限并发
-
-**基本信息：**
-
-- **NPM 包：** `@taptap/instant-games-open-mcp`
-- **OpenClaw Plugin 子包：** `packages/openclaw-dc-plugin`（计划独立发布为 npm plugin）
-- **官方 API 文档：** https://developer.taptap.cn/minigameapidoc/
-
-## 架构概览
-
-项目采用**三层模块化架构设计**：
-
-```
-功能模块层 (src/features/)
-  ├── app/         - 应用管理模块（基础功能）
-  ├── dcCurrentApp/ - 当前游戏 DC 能力模块
-  ├── leaderboard/ - 排行榜模块
-  ├── h5game/      - H5 游戏模块
-  ├── ads/         - 小游戏/H5 广告状态查询与接入闭环
-  └── [未来]       - cloudSave/, share/ 等
-       ↓ 依赖
-核心共享层 (src/core/)
-  ├── auth/        - OAuth 2.0 Device Code Flow
-  ├── network/     - HTTP Client（MAC 认证 + 签名）
-  ├── handlers/    - 通用处理器
-  ├── utils/       - 工具函数
-  └── types/       - 类型定义
-       ↓ 依赖
-服务器层
-  ├── src/server.ts        - 主服务器（自动注册所有模块）
-  └── bin/instant-games-open-mcp - NPM 可执行入口
-```
-
-**关键设计模式：**
-
-1. **统一格式** - Tools 和 Resources 采用统一对象数组格式
-
-```typescript
-// Tools 统一格式
-export const myTools: ToolRegistration[] = [
-  {
-    definition: { name: 'my_tool', ... },
-    handler: async (args: { param: string }, context, extra) => { ... }
-  }
-];
-```
-
-2. **模块依赖规则**
-
-- ✅ 业务模块可依赖 `core/` 和 `features/app/`
-- ❌ 业务模块之间不能相互依赖
-- ✅ app 模块只依赖 core，不依赖其他业务模块
-
-3. **私有参数协议**（v1.3.0+）
-
-- 支持 MCP Proxy 模式的多账号认证
-- 对 AI Agent 和业务层完全透明
-- 双模式注入：参数（`_mac_token`）或 Header（`X-TapTap-Mac-Token`）
-- `src/mcp-proxy` 是服务端与本地 Maker MCP 共用的通用组件。默认不发送 `X-TapTap-Tag`，
-  不新增或覆盖 `_tag`；只有本地 Maker 嵌入入口通过构造函数运行时选项
-  `sourceTag: 'local'` 显式启用标记。不得根据上游地址推断来源或改变通用默认行为。
-- 通用 Proxy 默认保留上游协议错误，工具超时为 5 分钟，按配置固定间隔重连，失败重放不循环入队。
-  Maker 通过 `src/maker/proxyPolicy.ts` 显式启用诊断转换、退避恢复与 1 小时超时，
-  不得把 Maker 专属策略作为共享组件默认值。详见 `src/mcp-proxy/README.md`。
-
-**完整架构详见：** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-
-## AI Agent 工具使用指导
-
-**设计原则：通过工具描述引导 AI Agent 行为**
-
-### 核心设计理念
-
-本项目通过精心设计的工具描述（Tool Description）来引导 AI Agent 的行为，确保：
-
-1. **提前验证前置条件** - 避免因缺少必要信息而导致的操作失败
-2. **优先询问用户选择** - 当有多个选项时，主动询问用户而不是自动决策
-3. **提供清晰的错误指导** - 当操作失败时，明确告知下一步应该做什么
-
-### 工具描述优化策略
-
-#### 1. 前置条件检查
-
-对于需要应用上下文的操作（如排行榜管理），工具描述中明确说明：
-
-```
-**PREREQUISITE: An app MUST be selected first.**
-Before calling this tool, ALWAYS call get_current_app_info to verify
-an app is selected. If not, guide user through:
-1) Call list_developers_and_apps
-2) Show list to user and ASK them to choose
-3) Call select_app with user's choice
-```
-
-**受益工具：**
-
-- `create_leaderboard` - 创建排行榜前必须选择应用
-- `list_leaderboards` - 查询排行榜前必须选择应用
-- `publish_leaderboard` - 发布排行榜前必须选择应用
-
-#### 2. 强制用户确认
-
-对于涉及选择的操作，工具描述中强调：
-
-```
-**CRITICAL: Show the returned preview/counts to the user and explicitly
-ASK them to choose or provide app_id/name keywords - DO NOT automatically
-select without user confirmation, even if there is only one option.**
-For large accounts, avoid dumping every app into chat; use raw/JSON output
-only for machine-readable lookup.
-```
-
-**受益工具：**
-
-- `list_developers_and_apps` - 显示预览/总数并询问用户选择，长列表不逐条刷屏
-- `select_app` - 仅在用户明确确认后才调用
-- `list_leaderboards` - 有多个排行榜时询问用户选择
-
-#### 3. 渐进式引导流程
-
-**标准工作流：**
-
-```mermaid
-graph TD
-    A[用户请求操作] --> B{是否需要应用上下文?}
-    B -->|是| C[调用 get_current_app_info]
-    B -->|否| H[直接执行操作]
-    C --> D{应用已选择?}
-    D -->|是| H
-    D -->|否| E[调用 list_developers_and_apps]
-    E --> F[显示列表并询问用户]
-    F --> G[用户确认后调用 select_app]
-    G --> H[执行目标操作]
-```
-
-### 实施要点
-
-1. **工具描述是 AI 的行为准则**
-   - 使用加粗的 `**PREREQUISITE:**` `**CRITICAL:**` `**IMPORTANT:**` 等关键词
-   - 使用大写的 `MUST`、`ALWAYS`、`DO NOT` 来强调
-   - 明确列出步骤 `1)`, `2)`, `3)`
-
-2. **降低自动决策的优先级**
-   - 明确说明"即使只有一个选项也要询问用户"
-   - 强调"只有在用户明确确认后才调用"
-
-3. **提供清晰的失败恢复路径**
-   - 当前置条件不满足时，描述中提供完整的解决步骤
-   - 使用"guide user through"语法提供流程指导
-
-### 相关文件
-
-- `src/features/app/tools.ts` - 应用管理工具定义
-- `src/features/leaderboard/tools.ts` - 排行榜工具定义
-- `src/features/h5Game/tools.ts` - H5 游戏工具定义
-- `src/features/ads/tools.ts` - 小游戏/H5 广告工作流与 Agent 契约
-
-### 小游戏/H5 广告接入闭环
-
-- 本 MCP 的广告流程仅适用于 TapTap 小游戏/H5，不适用于 TapTap Maker/UrhoX。用户或项目明确属于
-  Maker/UrhoX 时停止当前流程并提示改用 Maker MCP；不得混用两套 MCP 的工具、应用上下文、广告配置、
-  广告位 ID 或运行时 API。
-- 用户提出任何广告、激励视频、插屏、Banner 或变现相关需求时，先调用
-  `get_ads_integration_workflow`，再按流程确认应用并调用 `check_ads_status`。
-- 广告位 ID 的唯一来源是 `check_ads_status` 对 `/ad/v1/config` 的自动查询结果。AI 不得向开发者
-  索要广告位 ID，不得建议去后台手工查找，也不得接受用户提供的 ID 作为失败兜底。
-- `status=0` 时展示开通链接并等待用户完成操作；`status=1` 且匹配到游戏方向对应广告位时才调用
-  `get_ad_integration_guide`；`status=2` 时立即停止广告接入。
-- 广告检查从缓存未检测到横竖屏时，先刷新一次服务端应用信息；刷新后仍未设置，才询问用户选择
-  `1`（竖屏）或 `2`（横屏），使用 `update_app_info` 设置 `screenOrientation` 后重新调用
-  `check_ads_status`。不得随机选择任意方向或广告位。服务端未返回广告位或查询失败时按工具指引重试，
-  不生成占位代码。
-- 每次 `check_ads_status` 都先使旧广告缓存失效；只有最新响应属于当前选中应用、状态为 `1`、方向为
-  `1` 或 `2` 且匹配广告位 ID 为非空字符串时，才重新缓存可用于代码生成的配置。查询期间应用发生
-  切换时丢弃响应，禁止把旧应用广告位写入新应用缓存。同一应用有重叠查询时只允许最后发起的查询
-  更新缓存；广告缓存必须统一使用 `ResolvedContext.getCacheIsolationKey()`，同时支持 `projectPath` 和
-  `projectId` 隔离。
-- 审核版本 `upload_level` 的横竖屏字段优先级高于线上 `level`；字段存在但不是 `1` 或 `2` 时按方向
-  未设置处理，不得回退旧线上方向。
-- `status=1` 和有效广告位只证明服务端配置可用于生成代码，不证明 `window.tap` 已注入、ZIP 已正确
-  上传或真机广告可播放。激励视频启动时预加载；`show()` 未就绪时按官方流程 `load()` 后只重试一次。
-- `docs://ads/ad-manager` 只作为旧客户端兼容入口，不直接返回 AdManager 源码；完整代码只能由
-  `get_ad_integration_guide` 在真实广告位自动查询成功后生成。
-
-## 常用命令
-
-### 开发环境设置
-
-```bash
-# 安装依赖（推荐，可复现安装）
-npm ci
-
-# 新增/更新依赖时使用
-# npm install <package>
-
-# 全局安装（可选）
-npm install -g @taptap/instant-games-open-mcp
-```
-
-### 快速启动
-
-```bash
-# stdio 模式（默认，本地开发）
-npm start                  # 或 npm run dev
-
-# SSE 模式（远程部署，推荐用于 OpenHands）
-npm run serve:sse          # 基础模式（端口 3000）
-npm run serve:sse:dev      # 开发模式（详细日志）
-
-# HTTP JSON 模式（兼容普通 HTTP 客户端）
-npm run serve:http         # 端口 3000
-
-# 自定义端口和环境
-TAPTAP_MCP_PORT=8080 npm run serve:sse       # SSE 模式，端口 8080
-TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
-```
-
-### Maker 本地开发（CLI-first / PAT-first）
-
-- 模板库只读流程预览位于 canvas/templatePreview.ts，复用 wirePath 几何；仅通过 Store 读取模板与
-  绑定模板版本/节点 ID 的图片，不调用 prepareTemplate、不保存画布、不触发生成。关闭释放请求和媒体。
-  游戏UI制作使用香蕉物流真实示例，uiWorkflowHandoff.ts 只提供资源包之后的 AI 接续说明与复制指令，
-  不调用模型或自动组装。官方媒体入库不得扫描/上传用户模板目录，用户模板与素材始终仅保存在本机。
-
-- 示例资源索引为 src/maker/demoResources.json，demoResources.ts 统一按需下载、校验和缓存。
-  官方模板图片（含缩略图）入库须运行 npm run maker:resources:prepare，之后上传并登记 CDN。
-  maker-demo-resource-check.mjs 统一上传/构建检查；bundle 和独立包准备阶段强制检查压缩记录、
-  哈希、引用和 CDN，发布 Actions 校验 CDN/GitHub 双源。不得在打包时自动压缩或上传。
-  模板和编辑器复用此模块；图片/视频放 resources/maker-demo，排除 npm，不能再内嵌 base64。
-  GitHub 备用地址使用 main 加内容哈希文件名；已发布的资源文件不可覆盖或删除。
-  scripts/maker-demo-resources.mjs 负责资源添加、压缩检查和上传地址登记；maker-demo-upload.mjs
-  复用公司上传 API，默认 4 并发，只上传未登记资源。成功回执先落盘再校验登记，结果未知不自动重提。
-  不保存凭据、不在打包时上传。PNG/JPEG 必须经无损压缩和像素校验，详见 docs/MAKER_DEMO_RESOURCES.md。
-
-- UI 工作流入口统一为 skills/maker-ui-workflow，由 capabilityRouting.ts 路由，随 npm、客户端插件和
-  self runtime 分发；不新增 MCP tool。组装脚本以 Skill 内版本为唯一实现，scripts/assemble-maker-ui.mjs
-  仅保留旧入口。打包 Skill 时内嵌 pngjs，发布物不依赖开发仓库的 node_modules。
-  WorkBuddy 产物将脚本和参考文档放在 Skill 根目录并重写相对链接，遵守插件两层目录限制。
-- UI 编辑器源码在 src/maker/uiEditor/web 内维护，由 bundle-maker.js 内嵌到 Maker bundle。
-  控制台独立页签直接绑定所选项目，不启动独立服务、访问个人仓库或再次选择目录。
-  console/uiEditorRoutes.ts 与 uiEditor/projectFiles.ts 限定项目文件读写；保存必须携带原文核对、
-  拒绝路径越界/符号链接、互斥和原子写入。切页保留草稿，切项目和离开保护未保存修改。
-  保存直接写入当前文档，变更预览按需打开；刷新只更新索引，禁止重置草稿、撤销历史或保存基线。
-  文档右键重新加载复用未保存确认；编辑器不再保留目录授权、下载保存或独立项目切换分支。
-  不内置示例素材，顶部问号仅链接外部示例；新资源 meta 仍由工作流显式调用。
-  旧项目 Lua UI 提取与检查通过 skills/lua-ui-to-json 路由，随 npm、插件和 self runtime 完整分发。
-  检查脚本使用 .cjs，和编辑器共享相同静态规则；默认不迁移游戏入口和行为绑定。
-  修改后运行 UI 编辑器接口、浏览器及 Skill 打包回归。
-
-- 画布连线的几何与交互位于 canvas/wirePath.ts / wireUi.ts。同源出线共用分叉高度，
-  edge.route 仅保存可选相对偏移，复用原保存、撤销与任务保护，不修改引用关系。
-  调整连线后验证拖动、缩放、刷新持久化及恢复自动走线。
-
-- `generate_resource_meta` 是显式本地 MCP 能力，由 AI 决定调用时机；不挂接 Canvas 或远端素材下载。
-  `resourceMeta.ts` 负责参数、Python 执行与项目互斥，`resourceMetaSource.ts` 仅适配结构化结果，
-  `.meta` 内容和 UUID 必须由现有 UrhoX 工具快照生成，不重写算法，不允许调用者指定身份或 force。
-  保留已有有效 meta；目录及同名配置关联必须遵循官方规则，副作用和失败需明确返回。
-  接口说明见 `docs/MAKER_RESOURCE_META_WORKFLOW.md`；修改时运行资源 meta 与 MCP 注册/调用测试。
-
-- 模型画布由 model3d.ts / model3dUi.ts 与 console/canvasModels.ts 接入原 create_3d_asset 生命周期。
-  modelMesh.ts / modelPreviewClient.ts 提供只读 UMD2 旋转预览，Three.js 仅构建时依赖并内嵌打包；
-  独立详情 iframe 按需加载、关闭释放，不新增进程/CDN/付费转换，不改变模型交付文件。
-  资源入口绑定原尝试与交付子目录，UUID 引用只在包内解析，缺失或不支持时明确报错，不伪装成已渲染。
-  角色图、多视图、模型用受校验的单向连线关联，不重复存来源；模型尝试独立原子保存，下载前记录远端 ID。
-  reviewed 的全部预览完整落地后，UI 明确确认或 CLI confirm-model 携带当前 reviewId 才可 continue；
-  不能自动批准，不能用通用 run/分组队列绕过。来源/质量变化阻止旧确认；停止仅释放本地等待，未知不重提。
-  新模板/复制不携带任务身份；模型 ZIP 读取明确交付子目录及材质贴图，不放宽 canvas-media 路由。
-- Canvas CLI 的协议、桥接、页面适配位于 src/maker/canvas/automation\*.ts，CLI 只接线，
-  不新增 MCP tool 或独立工作流。命令必须绑定项目、页面、画布和编辑版本，复用页面保存与保护。
-  不通过后端直接改写已打开画布，不覆盖人工草稿，不自动重放付费操作；详细约束见画布 README。
-  空卡输入复用 generationDraft（图片/视频及可选参数），成功生成后清除草稿，不伪造 generation 结果。
-  显式参考输入通过 referenceInput 标记，来源仍只存 edges；清空后不回退历史来源，旧结果保留。
-  CLI 本地文件读写在 automationFiles.ts，导入复用受控素材路由。导出复用 resourceExport 的 sink，
-  浏览器不接收本机输出目录；桥接缓存仅暂存按项目/操作绑定的字节，总量128 MiB、10分钟过期，
-  成功下载释放。CLI 使用排他创建保护同名文件，不增加自动重试或后台清理循环。
-  修改此链路同时运行画布 UI 回归与 scripts/test-maker-canvas-automation.mjs。
-  UI 设计稿到游戏素材的多轮识别、人工复核、去文字和分层导出模板见
-  docs/MAKER_UI_WORKFLOW.md；不得把识别候选或未确认图集自动当作正式 PNG。
-  UI 复原识别先保存稳定元素 ID、原稿像素坐标与父子层级，素材绑定另存；冗余切图保留为备用，
-  不自动插入布局。仓库本地 scripts/assemble-maker-ui.mjs 先按记录组装，Agent 再对照截图，
-  按同一 ID 保存独立纠偏记录；原布局不覆写，历史坐标回填必须标明来源，不宣称自动视觉通过。
-  图集 CLI 使用 preview-image-assets / confirm-image-assets，复用原网格预览、裁切和保存。
-  预览只返回 waiting_for_confirmation、PNG data URI 与临时 reviewId；不创建最终素材。
-  确认绑定页面、画布 revision、来源和网格，新预览/修改/重载及确认尝试使旧标识失效。
-  run 游戏资产卡只预览，CLI 分组不能绕过网格核对；导出独立 PNG 用 format=images。
-  页面模板及浏览器 helper 源码注入必须使用 replace 回调返回字面字符串，避免 `$&`、`$'` 等
-  被当作替换指令；注入前还要移除 tsx 生成的 `import*<module>.` 模块前缀，避免浏览器
-  初始化时引用不存在的服务端命名空间。测试须检查完整脚本可解析、无残留模块前缀及 CSP 哈希，
-  blob: 仅用于图片，不放宽脚本权限。
-
-- Maker 的 stdio 子代理统一使用 HiddenStdioClientTransport，Windows 保持 windowsHide:true、
-  shell:false，只通过创建时持有的 ChildProcess 句柄终止直属子进程；禁止按旧 PID 使用
-  taskkill /T，不新增 Job Object 或 PowerShell 清理代理。exit 立即结束协议等待，
-  transport 自行收尾，不能依赖 SDK 在 onclose 后仍保留 transport。
-  stderr 为实时诊断流，默认持续排空，不缓存未订阅日志；背压发送在关闭/错误/退出时必须结束。
-  Windows 已退出子进程不等待继承管道；POSIX 最多等待 2 秒排空，然后释放本地管道。
-  关闭必须等待直属子进程退出证据，共享进行中的清理 Promise；清理失败保留登记并允许重试。
-  不把本地管道释放视为孙进程已回收。常驻及短命代理通过公开 AbortSignal 清理失败请求的 SDK 计时器，
-  保留调用者取消语义，不重放结果未知的付费请求。
-  控制台在代理或预览清理失败时继续独立收尾，保留失败项、所有权锁和显式关闭重试入口；
-  draining 仅允许健康查询与同源关闭请求，不允许恢复业务。失败复位关闭 Promise、记录脱敏错误，
-  成功项不重复清理；全部成功才关闭 HTTP 并发布 closed。CLI stop 可重试 draining 实例，
-  接受关闭请求不等于进程退出；HTTP、空闲与信号入口均须处理关闭拒绝，不引入后台重试循环。
-
-- `preview validate` 是 `run-lua-validate` Skill 的本地执行适配，不实现第二套判级或测试框架。
-  Skill 分发由 UrhoX ai-dev-kit 维护；安装及验证时检测到本机仍排除该 Skill，先提示再仅移除
-  当前平台的该项，其它平台和排除项不变。独立检查原 Skill 文件，缺失须明确提示更新 ai-dev-kit；
-  不自动升级、不修改 Skill 正文、不阻断 Runtime 验证。
-  MCP 与项目指引先路由到 taptap-maker-local 获取本地调用映射。
-  复用 Runtime、项目准备、manifest 加载、日志和项目锁；保留原始报告及失败证据，
-  validate/start/run 在项目锁内核验遗留验证 Runtime，存活或创建结果未知不得重复启动；
-  日志落盘失败必须反映到采集结果，不得因报告有效就返回 COMPLETED。
-  `COMPLETED` 只表示收集完成，游戏结论由 Skill/Agent 给出。截图帧显式选择，测试入口与断言
-  使用原有 Runtime 能力；不改引擎、不自动停止常驻窗口、不改游戏代码或发布配置。
-  正式参数和限制统一见 `docs/MAKER_LOCAL_PREVIEW.md`，插件副本通过生成脚本同步。
-- Validate 在准备前记录 run ID 和证据路径，stderr 发出 `validation.started`，最终 stdout 保持
-  结构化结果。多轮验证由 Agent 依照原 Skill 顺序调用，不新增批量测试框架或引擎协议。
-  证据独立存于项目 realpath 哈希下的 `validation/<run ID>`，完成后保留最近 3 次；
-  每轮结束清理超出次数且确认不再使用的记录，不按天数或 24 小时间隔跳过；
-  清理记录存于该项目 `validation/cleanup.json`，失败不更新时间；复用项目锁，
-  不设后台定时任务、不联动控制台开关、不扫描其它项目。
-  活跃及进程未知记录不删除，5 GiB 仅告警，显式 `--output-dir` 归档不参与自动清理。
-  启动安全检查核验全部记录，不受控制台列表的 5000 轮分页上限影响；归档保留最终清理告警。
-  控制台 Validate 页签只读固定证据文件，不调用验证、不依赖推送；多轮按时间倒序滚动展示，最新结果在最上面，
-  向下分页加载更早记录，不用轮次下拉框；日志/JSON 缩起最多 3 行、截图为小图。按项目隔离历史、
-  滚动位置和各轮日志游标，已完成证据缓存，隐藏时停止轮询、图片按需读取。
-  原始游戏结果与证据收集结果分开，未完成记录不得视作 PASS。
-  截图检查仅识别接近全黑/透明和已观察到的 Bootstrap 未完成，保留无效截图及原始游戏报告；
-  安全完成且无实际运行错误时等 3 秒、延后截图帧，最多 2 次重试，逐轮留证、允许取消。
-  重试默认超时按帧数比例增加且不超过 580 秒，显式超时不变；按前轮 Runtime 耗时估算超限时
-  不启动重试并提示调整预算。历史翻页与证据读取解耦，未变化卡片复用，不提高读取并发。
-  不重试缺产物、崩溃、超时、取消或未知进程；任意游戏 loading 和玩法仍由 Agent 看图判定。
-
-- Python 异步命令取消/超时后的输出排空最多等待 6 秒；POSIX 回收进程组不依赖组长仍存活。
-  Windows 父进程已退出时禁止拿旧 PID 执行 taskkill，无法验证回收必须明确报错，
-  不得将关闭管道等同于后代已回收。
-
-- Preview preparation must await asynchronous Python probes/setup and sequential asynchronous copies.
-  Cancellation and timeout wait for owned subprocess cleanup before returning; never launch Runtime
-  after cancellation. Keep the synchronous Python API for unrelated callers.
-- Agent preview treats reloading as an active transition. After owner cleanup, verify session and
-  supervisor identity and read logs from the final reload, not the initial launch snapshot.
-- Runtime close drains the final announced Lua log in bounded chunks before publishing terminal
-  evidence; incomplete collection must be explicit. A visible window is not gameplay acceptance.
-
-- `preview stop` 的取消标记必须绑定已核验的 session_id 与 supervisor_id，不能用项目级文件变化
-  取消任意新会话。无会话不写标记；旧停止请求与新启动并发必须有回归测试。
-- 插件生成前使用锁文件依赖（`npm ci`），禁止混入本地漂移的版本。CodeQL 扫描第一方源码，
-  仅排除两个包含第三方依赖的生成 bundle；不得关闭源码查询以绕过告警。
-
-- 预览创建 Runtime 前必须持久化 runtime_launch_pending，取得 PID 后立即登记。
-  已发布端点的 starting 会话只有在 supervisor 确认不存在且 Runtime 创建结果明确时才能恢复；
-  缺少阶段标记的旧记录、创建结果未知和权限未知均不得凭零 PID 自动回收。
-  系统重启后，启动记录早于当前开机至少一分钟且所有已记录 PID 均确认不存在，才可恢复
-  遗留 starting 会话。创建后的登记失败必须收尾本轮子进程；状态写失败不得中断退出等待。
-
-- 不依赖资源索引的完整单机项目直接运行原目录；仅有 .meta、默认资源组和常规 build 字段
-  不触发复制。公共来源、非默认资源/构建规则、联机/server、缺配置及 Windows 原目录的
-  dist/latest.json 仍通过准备产物加载。需要副本时固定使用项目内 .maker-preview/source，
-  所有入口和重试共用；覆盖 scripts/assets/.project，重建副本 dist，只复用公共索引。
-  不删除用户 dist、不创建链接；缓存写入前核验归属并加入 Git 忽略，已跟踪缓存拒绝写入。
-  显式 prepare 也必须拒绝活动或未知 Runtime；刷新先等待旧进程退出再覆盖。
-  Builder 复用受控 Python 执行及回收确认；未确认回收的固定副本保留标记，拒绝覆盖和清理。
-  缓存统计区分本机全部项目、当前项目和未归属内容，遍历整个旧 preview 根及已知项目内副本，
-  不按少数目录漏算。清理逐项目复用锁与进程核验，保留未知归属、Runtime 安装和下载/存档。
-
-- 控制台主题由 webTheme.ts 统一提供 MakerConsole.getTheme/setTheme/onThemeChange、
-  maker-console:theme 事件和共享 CSS 色板；UI 编辑器通过 /console-theme.css 复用色板。
-  画布和 UI 编辑器复用同一接口，不重载 iframe、不改素材或游戏配色。
-  全页签默认紧凑顶部，canvas-mode 只管理工作区高度；缓存管理位于构建日志下方。
-- 修改控制台前读 `docs/MAKER_CONSOLE.md`；修改 Runtime 安装或预览前读
-  `docs/MAKER_LOCAL_PREVIEW.md`。操作指引统一维护在 `skills/taptap-maker-local/SKILL.md`，
-  插件副本通过生成脚本同步，不手工维护。
-- 控制台复用 CLI 业务，不新增 MCP tool；操作必须显式绑定已校验的项目 realpath，
-  不依赖全局当前项目或 cwd。项目登记共用 `src/maker/projectRegistry.ts`，
-  登记失败不得改变 init/clone 的成功结果。
-  Maker 自有创作画布在 `src/maker/canvas/` 保持独立模块：页面与文档编辑只依赖画布 Store 端口；控制台仅提供导航、项目 key 解析、受控文件路由和画布生成适配器，不接管节点状态或编辑历史。`sequenceModel.ts` 存放持久数据契约，`sequence.ts`/`sequenceUi.ts` 在浏览器执行本地抽帧、简化统一抠图、去重确认、缩放与图集保存；服务端只受控导入视频/图集、保存文档，并通过现有 Maker remote proxy 提交画布内明确发起的生成。生成尝试独立保存，不写入画布布局或持有 PAT。图片和视频卡片保持内容优先，生成参数放在选中后的顶部面板，不能把生成表单常驻在卡片内。FrameCrate 仅作只读流程参考，不嵌入页面或导入旧仓服务。
-  默认新建画布为空白，不写入示例图；模板统一从「添加模板」进入，旧 sequence 创建接口只保留兼容，不在页面暴露。load/save 不补卡，不覆盖旧文档或用户清空后保存的画布。
-  templateWorkflow.ts 管理新序列帧模板的首图锁定与分阶段接续：首图原位替换后经用户确认，依次处理视频、抽帧/图集及动画；保留旧结果，失败停在当前阶段。未知任务只按原 taskId 查询，不自动重试付费生成，流程状态随文档保存。视频面板本身是临时草稿，点击生成才创建 first-frame 输入卡；成功才写 image-to-video 结果关系，不放宽来源校验。画布视频时长限定 4～8 秒，超过 5 秒标红。
-  cardStatus.ts 只负责卡片整卡状态遮罩，读取生成、抽帧和模板状态，不写入文档或改变任务执行。
-  生成状态按当前画布和目标卡读取最新尝试，不能把来源图片误标为下游任务失败；加载遮罩必须
-  保留后台视频原任务查询入口，不把停止等待解释为远端任务取消，不自动重试。
-  工作流待处理/失败隐藏普通顶部菜单；遮罩参数提交复用 runFrom 首步骤回调原位执行，成功后续跑。
-  logUi.ts 只维护当前画布的有界会话日志，默认两行、展开筛选，使用纯文本渲染；不耦合控制台任务状态。
-  结构化 execution_state=unknown 的远端错误不得误标 failed 或开放重试。
-  用户模板由 canvas/templates.ts 管理选区快照和内部引用重映射，templateUi.ts 管理交互；
-  引用/被引用统一从 edges 按需查询，不存双份关系或引入监听/工作流引擎。内容成功变更标记下游
-  templatePending 并保留结果；卡片遮罩的显式继续复用已有生成、抽帧和动画动作，原位更新同组待处理卡。
-  未完成的上游、循环、保存失败及未知生成结果必须阻止后续提交；generation.parameters 不包含付款确认。
-  复用 section/sectionId，不增加工作流引擎。模板定义经 Store 的 templates 端口保存到项目
-  .maker/canvases/templates/<id>.json，使用 revision 冲突检查和原子写入；不携带任务身份。
-  templateId/templateRevision 只关联实例分组，templatePending 只标记实例待处理结果；
-  同画布多实例按分组隔离。替换/删除模板不得回写或删除旧实例及素材。
-  自定义模板跨项目分享通过 templateArchive.ts 导出/导入 ZIP，包含模板和引用媒体，
-  复用素材校验与模板保存；导入生成新 ID、重映射路径，不覆盖旧模板，不上传云端或安装 Skill。
-  ZIP 包体及展开内容最多 128 MiB，校验条目路径、类型和哈希，失败清理本次写入的素材。
-  groupQueue.ts 仅管理当前页面分组队列，groupQueueUi.ts 提供底边单行控件；不复制引用或新增持久协议。
-  队列通过 templateWorkflow.runQueued 复用单卡执行和保存，不通过成功回调隐式续跑；失败/未知暂停。
-  排序不得倒置依赖；复用现有串行执行，不按历史任务占用等待视频名额，不自动重提。
-  停止阻止下一步并释放当前视频的本地等待（不取消远端）；其它当前步骤结束后停止。
-  刷新不恢复付费任务；运行中保护引用/卡片、删除/撤销和离开操作。
-  模板手动入口统一调用 templateWorkflow.resolveTarget，根据真实出边、目标类型和待定状态返回复用、新建或阻止操作。
-  图片、视频、序列帧与动画不得各自另写模板目标判断；待编辑首图保留原位更新，已完成目标不得隐式覆盖。
-  手动保存结果后由 nodeChanged 推进剩余阶段；自动接续显式使用既定节点，不重复应用手动分支规则。
-  复用不删除旧结果、下游连线或布局，生成成功后才替换内容；pending/unknown 付费尝试先查询原任务。
-  新建生图提示词默认补充游戏素材的完整主体、纯色背景及无地面/站台约束；图片变体和扩图保留编辑提示词，不追加会删除 UI 底板或阴影的通用素材约束。模板视频提示词只保留动作要求，并统一补充固定镜头、主体稳定和无新增环境物体约束。
-  画布交互修改后主动运行 npm run test:maker:canvas-ui，在临时项目使用真实页面、受控素材路由和落盘校验，返回报告与截图；付费生成只模拟远端结果。删除生成结果须记录 deletedGenerationIds，恢复时不得复活已删除节点。
-  序列帧卡只显示来源和已保存结果；编辑在同页 sequenceEditor 大弹窗中完成。sequenceUi 持有临时草稿，保存成功才替换节点并记录一次撤销；失败保留旧结果与重试草稿。页面保存请求串行，编辑器不另起服务、不改变 Store 或持久化协议。
-  animation.ts 负责独立动画卡：只复制已保存图集路径和帧索引，不复制图片字节，不引用可变处理草稿。sequence-animation 是来源关系，不是实时绑定；删除源卡只删除连线，已创建动画仍可播放。播放状态不落盘，重载默认暂停；重绘时回收旧渲染实例和动画调度。
-  resourceExport.ts 统一提供资源卡片右键导出：图片复用 imageExport.ts 编码，视频保留原字节；sequenceExport.ts 校验实际 PNG 尺寸与帧坐标，仅输出 Maker 图集包（spritesheet.png＋匹配 SpriteSheet 读取器的 spritesheet.json）或单图包（连续 PNG＋animation.lua 数据配置），均含接入 README。菜单循环选项仅影响本次导出，方向作为动画名 front/back/left/right，无方向用 default；禁止把朝向写入播放顺序 direction，后者固定 forward。不再输出自有 maker-sequence JSON，不另写播放器。zipArchive.ts 仅封装 UTF-8 STORE ZIP，最多 122 文件（120 帧＋配置＋说明）、128 MiB；单帧保留尺寸与透明边距，不裁边、不旋转、不重新缩放；只读结果快照和 Store 受控媒体 URL，不写画布、不触发生成、不新增服务端接口；空结果和待生成示例不导出。
-  exportNaming.ts 在导出时只读查询引用链，组合首图短名、方向、类型与时间短码，含扩展名不超过 15 字符；多来源优先明确首帧，歧义回退当前标题，不猜提示词。exportDirection 仅为可选命名元数据，由 files.ts 校验、模板保存复制保留，不参与生成或引用失效判断；图片顶部下载和右键共用导出入口。
-  视频 taskId 在 remote proxy 素材下载前持久化；不按历史或任务年龄限制新生成，并发由 Maker 上游判断。
-  进程内同目标活跃提交防重复，停止本地等待即释放；未知结果不自动重提。
-  videoTaskTiming.ts 只计算提交后 6 小时查询期限，查询不续期；单次前端请求最多等待 5 分钟，
-  可主动停止并立即释放页面和队列。停止不取消远端、不改写失败、不自动重提；迟到结果仅保留历史，
-  显式查询取回时才应用到仍匹配的卡片。
-  查询入口前后端均校验 6 小时期限，这是本地策略，不宣称上游 ID 同时失效。
-  videoHistoryUi.ts 经 Store 分页查本地历史，只查询原任务；恢复前验证当前画布、目标和来源快照，
-  不自动推进后续。videoPrompts.ts 集中内置 Skill 提示词，编辑与提交一致，不追加隐藏视频约束。
-  imageEditing.ts 复用本地编辑器，localImageResult.ts 接入图片结果；不冒充 AI 分割或蒙版重绘。
-  添加模板库内置普通序列帧、角色四方向和首尾帧变身预设，素材由 presets.ts/presetData.json 引用资源索引并按需下载；列表不传字节，显式添加时通过既有受控导入后复用模板实例化。保留四方向分支、首尾帧双来源与显式 mode，不依赖用户项目已有示例，不自动生成。内置模板只读，修改实例可另存用户模板。
-  添加模板使用全屏库，templatePresentation.ts 配置用途分类与真实单/双预览，不能用其它模板素材兜底。封面沿用受控路由，slot 限定0/1，v3缓存按位置与版本隔离，不复用旧占位封面；修改素材或预览选择必须递增模板revision。保存/重命名等小弹窗不随模板库全屏化。
-  模板动画悬停整卡或聚焦内部控件播放。模型模板列表复用 modelPreviewClient 只读渲染随包示例，
-  templateModelPreview 仅开放固定模板/版本与内置资源白名单，不读取任意项目路径、不携带任务身份；
-  离开可见区域、隐藏页面、切分类或关闭库释放 iframe，不替代实际生成流程的多视图确认。
-  UI组件提取预设仅追加 assetPresetData.json 真实素材与提示词：完整游戏UI→4×3组件重绘→12张透明PNG，复用现有图片/游戏资产卡、抠背景和规则网格解析。保留面板内底、抠空头像框，不把参考重绘宣传为无损PSD拆层；离线整理示例留白不等于新增自动对齐能力。
-  NPC批量生成预设仅追加真实素材与提示词：角色参考→4×2同风格不同职业图集→8张透明PNG。此模板首图是完整角色，不是道具模板的场景图；风格统一不等于身份一致，不新增批量任务、行为属性或动画能力，复用现有抠图、规则网格解析及资产菜单下载。
-  UI风格裂变仅配置四张image卡：一个目标参考直接连接三种风格结果，保持原功能布局和内容，换肤提示词不固定当前示例格数。保留完整背景与文字，不附加抠图或资产拆分，不新增卡片、生成接口或工作流；示例无任务身份，沿用分组队列与单卡下载。
-  完整内置纯图片预设添加后保留已就绪结果；缺图预设和用户模板仍沿用待处理规则。替换引用源照常使下游待更新，不通过示例豁免改变生成或重试行为。
-  角色概念设计仅配置两张image卡：透明角色参考→完整动作立绘、正侧背三视图及六表情展示图。保持同一角色，背面为参考补全；保留展示图背景与标签，不附加动画、建模、规则切图或新交互。
-  二合图标复用image节点，以mergeIcons保存1～3系列、2～33阶段的描述；mergeIconsUi只在原参数面板打开编辑弹窗，不在卡面放表单。配置改变标记旧图与下游待更新，不伪造generation记录或给已有素材添加generationDraft；生成时统一编译提示词，成功才替换原图。抠图原位保存，解析网格来自当前完成的阶段设置；高阶段密度不保证模型质量，不新增付费任务调度。
-  assetPresets.ts / assetPresetData.json 只发布已逐项真实生成并看图检查的静态素材模板；
-  游戏风格图必须是含场景、背景、主要元素与核心玩法的完整游戏画面，不能用孤立角色替代；
-  场景保留背景，道具图集和独立素材抠为真实透明PNG。示例保留提示词参数但剥离任务身份，
-  不附空卡草稿、开发说明或竞品便签。道具模板恰为风格图→规则图集→游戏资产三张卡，
-  不改成任意单物品分支，不自动生成或付费重试。
-  种植生长预设复用作物参考图→状态图集→游戏资产；首图是作物实物而非游戏场景。
-  番茄示例五阶段，提示词按物种选择四/五阶段，真菌不强加种子或花；
-  拆分列数以实际图集为准，保留等尺寸、透明边距与统一落点，不新增自动识别或卡片类型。
-  带完整已保存游戏资产的内置预设添加后可预览和下载；上游变更才使下游待处理，
-  不改变旧视频/序列帧模板和用户模板的初始化规则。
-  imageAtlasExport.ts / imageAtlasUi.ts 提供图片卡的规则网格解析与静态资源导出，复用受控媒体
-  和 zipArchive；行列、边距、格间距经校验并需预览确认。直接导出只读素材快照。
-  imageAssets.ts / imageAssetsUi.ts 提供 image-assets 卡，复用受控图片导入保存每张独立PNG，
-  全部导入和画布保存成功才替换资产列表；失败保留旧结果，来源变化阻止写入。
-  模板准备同时重映射列表内素材路径；image-assets 连线复用已有来源失效与继续机制。
-  卡面只显示真实缩略图，不常驻下载或重新解析按钮；下载置于右上角卡片菜单，ZIP仅含独立PNG。
-  不新增服务端接口、语义/PSD拆分或工作流引擎，
-  不自动抠背景，不将静态物品伪装成动画。
-  导出原像素PNG单图或 Maker 静态SpriteSheet包，保留Alpha和透明边距；最多120格、4096边长、
-  128MiB。修改此入口运行 scripts/test-maker-image-atlas-ui.mjs 及画布UI回归。
-  presetDescriptions.ts 同步内置ID只读识别与列表说明，不改生成、保存或队列协议；模型能力限制先列问题，不顺带扩展功能。
-  模板列表只返回24条分页摘要，templateCatalog.ts缓存文件指纹与摘要，不把完整工作流传给列表；完整定义按ID读取。templateCovers.ts优先展示动画/帧集结果，无结果再用静态图片；预览最多32帧、每帧128px，帧信息随封面接口按需读取并按模板版本缓存。最多2并发、仅悬停或聚焦的一张播放，翻页/关闭释放位图与调度，不加载视频。无模板总数硬上限，仍保留单文件和封面尺寸限制。
-  派生卡的 sourceSnapshot/sourceSnapshots 由 dependencies.ts 统一计算和校验；该模块只负责关系与版本查询，模板待处理传播由 templateWorkflow.ts 负责。上游变化只标记过期，不自动触发生成或覆盖下游结果，图片/视频、序列帧和动画均由卡片内明确刷新。失败时保留旧结果，不能把刷新判断重新塞回 page.ts。
-  视频当前引用以 edges 为准，generation 来源仅为历史记录和稳定顺序；videoInputs.ts 解析当前来源，首尾角色与输入模式只在视频业务层解释。固定首尾帧视频以 videoInputMode 标记约束，frame-first/frame-last 直接引用图片，不新增中间卡；引用区复用现有控件，UI/CLI/服务端校验两图必填及顺序，清空首帧不提升尾帧。每张来源在提交时记录快照，恢复任务不得补回已断开的引用或用当前版本覆盖历史证据。旧多图未保存 mode 时由用户明确选择，不猜测首尾角色、不自动付费重提。
-  frameEditor.ts 在浏览器记录单帧操作并按归一化坐标批量重放，全部处理成功才交给 sequenceUi 替换草稿；不得复制同一帧代替批量处理，不做隐式智能跟踪。新任务时长与帧率集中在 sequenceModel.ts 的 DEFAULT_SEQUENCE_DURATION / DEFAULT_SEQUENCE_FPS，旧存档不迁移；已保存图集可解帧编辑。画布页面内联函数必须显式传入跨模块依赖，并以实际打包页面验收。
-  帧编辑页负责画面，整理与输出页负责集合与输出；frameCollection.ts 处理选择、删除和复制等集合变换。
-  backgroundRemoval.ts 独立实现有边界支持的大面积纯色识别及像素处理，backgroundUi.ts 提供参数预览；
-  默认自动识别，不要求点击取色。逐帧背景匹配不等于运动跟踪，低可信/失败/取消不得部分替换。
-  同次编辑保留抠图前输入以免重复处理累积损伤，不新增持久原图协议；保存后不承诺恢复已删除像素。
-  atlasCompare.ts 保留只读比较实现，但页面不提供图集对比入口。控制台页签名为「序列帧动画」，内部 canvas 标识和用户画布名称不改写。
-  生成积分只保存上游明确返回的非负有限数值 credits 到独立 attempt；卡片按当前 generation.attemptId 查询展示，不写布局或模板、不累计、不用估价代替。缺失显示未返回，不补查旧任务或触发扣费。
-  修改这些模块运行 npm run test:maker:sequence-ui 与现有 canvas-ui 验收，禁止通过付费生成测试。
-  动画首帧及重挂载时的 rAF 时间戳可能早于 performance.now() 起点，播放经过时间下限为 0，
-  防止负帧索引；UI 回归观察重绘后的当前 canvas，不持有旧节点或伪造 document.hidden。
-  sequenceSettings.cutoutMode 可选 connected/chroma，旧文档省略时保持 connected；新任务用 chroma 色差抠图去溢色。边界扫描仅报告风险，不证明视觉通过；源视频裁断只能重新构图生成，禁止用缩放掩盖。颜色与前景冲突时不能保证抠图无损。
-  generationResult.ts 负责生成结果节点与 image-to-video 来源关系；`generationUi.ts` 只从卡片内发起明确的生成动作，`console/canvasGeneration.ts` 通过现有 remote proxy 调用 Maker MCP。尝试记录位于 `.maker/canvases/attempts/`，与画布 JSON 分离；unknown 结果禁止自动重试，有 taskId 才能查询原视频任务，页面不持有 PAT 或付款凭据。媒体路由在既有项目/path 校验后支持单 Range 读取，保持 206/416 与长度一致，真实动作视频用于抽帧回归，不能只用静态视频证明流程正常。
-  Git 页「拉取远端代码」只在 `main` 上、本地没有自己的提交且文件不相交时快进。已有本地提交或
-  同一文件两边都改过时不改写历史；文件相交时弹出可复制提示词交给 AI。不在 `main` 时只提示。
-  拉取全程占用该项目的控制台任务名额，阻止同期任务和关闭；快进不中途取消。
-  不恢复进程内 Git 互斥锁，并发 Git 写入仍由 index.lock 拒绝。
-- 控制台异常反馈仅在明确确认后，通过当前 CLI 子进程的 stdin 复用 `mcp report`；
-  使用 `MAKER_ISSUE_CATEGORIES` 分类，日志只读受管理固定文件并脱敏、有界截取。
-  不阻塞服务、不另造 GitHub 提交/登录流程；原任务结果不变，未知提交不自动重发。
-  测试二维码复用 `qrcode` CLI 和现有远端工具及配置检查，不自动重试；
-  首次发布方向需用户确认，不能使用本地预览窗口默认值代替。控制台允许补齐名称和分类，
-  本地配置补齐须明确确认提交、推送全部本地改动，复用 push 同步远端工作区，不能仅写本地文件。
-  QR CLI 不额外调用 build；缺配置时先提示用户显式构建初始化，非法配置先修复，不循环构建。
-  远端二维码工具本身会构建上传测试版本，界面不得宣称整个流程“不构建”。
-  远端开发者选择通过已知返回格式转换为单选交互，复用通用弹窗；服务端核对源任务、
-  项目及候选 ID，不默认选择、不自动重试，不执行远端文本中夹带的发布或其它命令。
-  当前项目任务完成后可弹出选择或二维码大图，不重复弹出，不打断其它项目或已打开的弹窗。
-  仅识别 MCP 图片及二维码 CDN 的 Markdown 图片链接；加载失败只重载图片，不重复上传。
-  失效开发者保留原配置并提供诊断，不自动清空 ID 或猜测可用身份。
-- 控制台版本更新为用户级操作，固定查询 `@taptap/maker` 最近发布版本，只接受目录中精确版本，
-  复用所选包的 `upgrade --launcher self --json`，不另写安装器。任何插件渠道禁止独立包更新；
-  当前运行版本与已安装版本分开显示，不自动重启会话；更新期间防止重复执行及空闲退出。
-- 控制台资料目录由 `console/documents.ts` 收录固定范围 Markdown，使用不透明 ID 读取；
-  项目由登记 realpath 校验，拒绝项目外符号链接，限制扫描深度、数量和文件大小。
-  Markdown 解析为 tokens 后以 DOM 安全渲染，禁止原始 HTML、脚本、远程图片及任意文件读取；
-  文档与 Skill 分页签，仅阅读不执行，不新增 MCP tool。
-- Runtime 安装和记录位于 Maker user home 的 `runtime/`，所有项目共用；旧项目哈希目录中的有效
-  安装会自动登记，不重复下载。项目哈希目录保留会话证据、准备日志和运行下载缓存；
-  新的准备副本及构建产物固定在项目内 .maker-preview/source，不随会话或重试增加副本。
-  新安装和已登记 Runtime 启动前必须补齐 `Data/LuaScripts`、`Data/Fonts`、`CoreData`；缺少
-  `Res/Fonts/MiSans-Regular.ttf` 时优先复用旧 `Data/Fonts` 字体，再从当前 macOS/Windows
-  系统字体复制通用中文兜底，不覆盖已有文件；local_preview 只挂载松散 `Res`，不能仅写入
-  `Data/Fonts`。项目字体只保留在各项目 `assets/Fonts` 和受管理项目副本中，不得汇总到共享 Runtime；
-  显式 `--runtime` 指向的外部 Runtime 不得自动修改。
-  项目页复用预览状态展示 Runtime 安装版本或时间，未安装时进入现有 `preview.install` 流程；
-  顶部同时展示独立 maker-lua-lsp 安装状态和版本。构建页提供独立 Lua 检查；构建前默认勾选
-  检查，发现 Lua 错误则停止，可取消勾选后直接构建。构建和本地预览快捷操作先切换到
-  “构建与测试”。构建进度只使用当前阶段的真实比例，无有效比例时显示不定进度，不合成跨阶段
-  总百分比；Git/服务端失败信息默认展开，任务详情和 Runtime 日志保持整行宽度。
-- 控制台紧凑布局把 Lua 检查放回构建区域，窗口设置默认折叠但保留按项目草稿；
-  轮询不得收起用户已展开的设置或丢失未保存值。历史任务默认摘要化，运行中及最新失败、
-  未知结果保持展开；二维码查看与开发者选择入口不得藏进原始结果。Markdown 实体只解码一次，
-  解码结果通过 textContent 插入，不作为 HTML 执行。日签保持在页脚版本旁的小号淡黄色入口，弹出区域只显示内嵌内容。
-- 控制台插件集成纠正（2026-09-16，本地验证及独立复核完成）：使用
-  `src/maker/console/plugins.ts` 的类型化可信注册表，FrameCrate 启动适配位于
-  `src/maker/console/integrations/framecrate.ts`。`GET /api/state` 只公开插件元数据，
-  `POST /api/projects/:key/plugins/:id/open` 校验已注册插件、项目 realpath 与绑定；
-  不提供任意命令、路径或 URL 启动接口，不新增 MCP tool。
-- 配置 `FRAMECRATE_STUDIO_DIR` 后，控制台主导航显示「创作画布」标签，插件 id 仍是 `framecrate`。
-  该标签必须持久内嵌同一个 Studio 页面，默认进入创作画布，不以新浏览器标签替代。
-  iframe 按项目与插件保存，最多 8 个；切换标签或项目仅切换可见性，保留 DOM，
-  达上限明确拒绝新增，禁止静默淘汰未保存编辑。sandbox 仅允许
-  `allow-scripts allow-same-origin allow-downloads allow-modals`，不允许弹窗或顶层导航。
-- 仅从显式 `FRAMECRATE_STUDIO_DIR` 启动已安装的 Studio；固定 Node/tsx 入口携带
-  `--project <realpath> --host-origin <控制台精确 loopback origin>`，不实施 ZIP 安装或市场。
-  Studio 可保留其自身内部 token，但控制台自身不使用访问 token，嵌入 CSP 仅放行该宿主；通用消息使用
-  `protocolVersion: 1` 及 `maker-console:connect`、`maker-console:plugin-ready`、
-  `maker-console:plugin-activity`、`maker-console:theme`，双方校验 origin 与窗口来源，
-  主题仅接受 `light`/`dark` 并由插件跟随控制台，不传 PAT 或业务执行命令。
-  用户显式关闭控制台只回收自己启动的 Studio，不修改 MCP 配置。
-  控制台从自身正在运行的 dist/maker.js 推导画布 Maker 入口并传给 Studio；显式
-  FRAMECRATE_MAKER_ENTRY 优先，不从项目目录找可执行文件，也不传 PAT。
-  ready 子进程正常关闭等待 drain、不设强制超时；永久挂起时关闭持续等待，优先避免截断写入。
-  生命周期与真实 AI、计价、付费、Windows 未验收边界见 `docs/MAKER_CONSOLE.md`。
-- 本地服务仅监听 loopback；控制台页面存活时使用每分钟页面租约续期，焦点或可见性恢复时立即续期；
-  普通状态轮询和健康检查不续期。页面租约停止且无任务约 30 分钟后退出，不增加常驻唤醒进程。
-  同一 Maker 版本跨 Codex、WorkBuddy 和独立 CLI 复用用户级控制台，实例身份不得绑定插件路径或
-  distribution。console open 自动复用或普通 Node 直启同版本控制台，不要求手动 Host。
-  控制台预览直接在控制台进程内运行 PreviewSession，不经 CLI 或独立 supervisor 子进程；
-  preview start 通过已有项目登记和任务 API 提交预览，调用方结束不停止用户游戏。
-  Agent 用 preview run 前台直接持有 Runtime，可按会话读取日志、状态并停止；默认上限 10 分钟，
-  --duration-ms 可缩短。正常收尾等待自己持有的 Runtime 退出，不接管别人的调试会话。
-  控制台日志和 Agent 最终证据读取有界末尾（最多 100 行、64 KiB），显示截断信息；
-  CLI logs 保留从头分页及 session/reload 增量校验，--tail 显式读取最近输出。
-  整个 IDE 回收进程树仍可结束预览；外部 console serve 仅为可选独立入口，不自动 breakaway。
-  常驻窗口截图与游戏断言 JSON 尚不支持；一次性验证用 preview validate，
-  会话状态不能视作游戏验证通过。仅显式 --legacy-wmi 保留旧入口。
-  启动命令不得转发 PAT、MAC token 或 client secret，Windows 直启子进程只继承白名单环境。
-  控制台不生成、保存或校验访问 token，页面和 CLI 请求不携带 Bearer；loopback 地址只用于本机
-  访问，不应被描述为带凭证的远程会话链接；
-  链接包含本机 origin 和可选 projectid（真实项目 ID），多副本时用 checkout 区分目录；
-  内部操作仍使用目录级登记标识。裸地址、刷新和新标签无需授权。
-  保留 no-store、Host/Origin 校验、跨站拒绝及写操作精确同源要求，不改 Maker PAT 或插件凭证。
-  保留访问校验、空闲退出和有界资源管理。
-  预览与控制台独立管理；只清理已确认所有权的进程和缓存，不把未知结果当作失败自动重试。
-- Runtime 安装器 stdin 是专用取消通道，默认不得传给下载等子进程；子进程使用 DEVNULL，
-  明确传入的 PIPE 等输入保持原意。取消、超时及失败要等待已登记的子进程回收。
-- 本地预览启动 Runtime 前必须先分类项目：满足前述直读条件的单机项目直接运行原目录；
-  `@runtime.multiplayer`、`@runtime.max_players`、持久世界配置、`entry@server`、
-  `scripts/server_main.lua` 或 `scripts/server.lua` 均进入受管理副本；缺少标准配置的新项目
-  也进入受管理副本，仅在副本补齐预览默认值。任何路径都不使用 junction、软链接或 `subst`，
-  不得改写游戏原目录。入口默认 `scripts/main.lua`，窗口未保存时默认横屏 1920×1080（已有项目方向优先）。
-  执行 Builder 前仍校验配置与版本路径；已有无效配置、JSONC/旧布局不得用默认值绕过，不写回项目
-  或伪造平台身份。
-  联网/server 项目由 `preview/network.ts` 读取受管理副本的 `@runtime` 配置与真实游戏 ID，
-  复用 PAT 鉴权，按引擎 CreateMultiDebugGame 契约申请 `test` 游戏；缺少构建产物或申请失败时
-  必须直接失败，不得静默降级成离线预览。
-  所有需要准备产物的项目在 Windows/macOS 统一通过受保护的 loopback client manifest 服务加载，
-  不把 -tapcode_dir 的松散源码挂载当成 manifest 加载成功；否则部分 Runtime 会跳过
-  settings.json，连接成功但 IsNetworkMode 为 false。资源加载方式只由是否需要准备产物决定，
-  不按操作系统或是否联网分流；测试服申请仍由 network_required 控制，简单单机保持原目录直读。
-  Windows 下载缓存使用每轮独占的 TEMP 短目录，不创建路径映射；确认 Runtime 退出后才清理，
-  缓存根目录被替换为链接时拒绝清理，不触及原项目或共享 Runtime 缓存。
-  Runtime 使用 skip_login 和 directConnectParams，server_port=0 强制 WebSocket。
-  PAT/MAC 与返回的 login_key 不进入 Runtime 参数或预览日志；不改引擎，
-  不自动远端构建、不连接 formal、不重放结果未知的申请。仅验证线上环境，
-  内部环境不得混用线上入口。Windows 实机验收独立于 macOS 验证。
-  预览窗口设置由 `src/maker/preview/windowSettings.ts` 统一解析，按项目保存在用户预览缓存中；
-  横竖屏默认跟随发布配置，缺失时横屏，允许手动覆盖；保存不自动重启，启动或刷新时应用，
-  不得写回项目发布配置。控制台与 CLI 共用窗口设置，运行中尺寸以启动时的 preflight 为准。
-  Windows 预览由控制台或 Agent Node 直接 spawn Runtime，shell:false、detached:false；
-  共享 PreviewOwner 跟踪进程内会话，保留 supervisor_pid 字段兼容但不另开 supervisor 进程。
-  Agent 在项目锁内确认无活动会话；stop 在写取消标记前验证 session，禁止影响其它会话。
-  Windows 强杀清理依赖 Node/libuv 非 detached 子进程 Job 行为并进行实测，不新增本地 Native
-  安装器或绕过宿主管理。Lua 日志仅跟随本轮公布的固定目录文件，校验文件身份、拒绝链接并有界读取。
-  旧 CIM 仅作显式 --legacy-wmi 兼容排障，空日志不得凭猜测自动重试或改 PATH。
-  预览离线恢复必须确认会话证据匹配且两个进程都不存在；状态查询不写回会话，避免覆盖并发启动。
-  Builder 快照须逐字节匹配固定 Git 提交；不修改引擎、公共资源或游戏原目录来掩盖预览错误。
-  Builder 多 source 重复引用仅由 preview/builderDiagnostics.ts 校验本轮精确 hash 对应的缓存索引后
-  降为警告：路径/UUID 一致，唯一真实资源，其余 source 明确转引该来源，内容元数据无冲突。
-  未知/截断错误、缺少证据、不同资源冲突、非零退出和无效产物继续阻止启动；保留原始 prepare.log。
-
-Maker 本地开发的默认路径是 CLI-first + PAT-first：
-
-- Codex Maker plugin 位于 `plugins/taptap-maker`。Codex 和 WorkBuddy 插件共用独立插件版本，
-  唯一来源为 `config/maker-plugin-version.json`，首版 `0.0.1`；内置 Maker MCP 版本仍读取
-  `config/maker-version-policy.json`，不得用插件版本覆盖 runtime、埋点、诊断或 npm 版本。使用
-  `npm run maker:codex-plugin:prepare` 生成完整自包含产物；运行时使用宿主 Node.js 和插件内
-  `dist/maker.js`，不得依赖外部 npm/npx。`.agents/plugins/marketplace.json` 是仓库级 Codex
-  marketplace；正式 marketplace 名为 `taptap-maker`。
-- WorkBuddy Maker plugin 位于 `plugins/workbuddy/taptap-maker`，使用
-  `npm run maker:workbuddy-plugin:prepare` 生成；仓库本地市场是
-  `.codebuddy-plugin/marketplace.json`。MCP 和插件 CLI 必须通过插件内 `bin/run-node` 启动
-  `${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js`；启动器优先 `WORKBUDDY_EXTRA_PATHS` 和 WorkBuddy
-  managed Node 目录，再回退系统 PATH。Windows 必须同时支持版本目录根和 `bin` 子目录中的
-  `node.exe`。插件不依赖 npm/npx，也不固定项目 `cwd`。
-  WorkBuddy 官方市场 ZIP 必须直接压缩插件根目录内容，不得包含 `taptap-maker/` 或
-  `plugins/workbuddy/taptap-maker/` 外层目录；ZIP 根必须包含 `.codebuddy-plugin/plugin.json`、
-  `.mcp.json`、`README.md` 和 `SKILL.md`，所有文件的父目录深度最多为两层，并拒绝
-  `__MACOSX`、`.DS_Store` 等系统元数据。`.codebuddy-plugin/marketplace.json` 只用于仓库源码验证，
-  不得放入 WorkBuddy 官方市场 ZIP。
-  `create-project` 和 `sync-project` 是仅有的两个快捷命令，执行前必须要求空 workspace。
-  WorkBuddy 插件的 `init` 和 `dev-kit update` 必须逐项检查
-  `.workbuddy/skills/taptap-maker-*`，只从 `.installer/skills` 补齐缺失的项目 Skill，不得覆盖已有
-  同名 Skill。该同步不得影响独立 Maker MCP、Codex 插件或其他客户端；目录链接不可用时才复制。
-- Codex/WorkBuddy 客户端插件发布只使用 `Prepare Maker Plugin Release` 和
-  `Publish Maker Plugin` workflows。
-  前者按最新 `maker-plugin-v*` tag 自动递增 patch 并创建版本 PR；后者在 PR 合并后发布 Codex
-  marketplace ZIP、WorkBuddy 官方市场根级 ZIP、`INSTALL.md`、`SHA256SUMS` 和
-  `maker-plugin-release.json`。插件发布不得调用
-  npm publish、不得复用 Maker npm 或主包 release workflow。插件专属安装页固定为
-  `plugins/taptap-maker/README.md`；Codex 对外安装使用对应渠道的 GitHub Release 页面和 ZIP，
-  WorkBuddy 对外安装使用官方插件市场。直接从仓库添加 marketplace 只用于源码或 develop 预览版
-  验证，并且必须在添加前用生成目录中的 CLI 完成旧 MCP 检查。
-- DSH bundle 插件 `@taptap/dsh-maker` 位于 `packages/dsh-maker/`，使用独立版本并精确依赖已核对
-  artifact 的 `@taptap/maker`。稳定包当前锁定 `@taptap/maker@0.0.32`；`Publish DSH Maker Plugin`
-  从 `develop` 只发布 GitHub prerelease，从 `main`
-  同时发布 npm `latest` 和 GitHub Release；1024Store 使用 npm 包名作为市场入口。DSH 发布不得
-  复用 Codex/WorkBuddy 插件版本、ZIP workflow 或 Maker 主包发布 workflow。DSH npm job 必须独占
-  仅允许 `main` 的 `dsh_npm_publish` environment；不得复用需要支持 Maker develop beta 的
-  `npm_publish` environment。DSH npm 常规发布使用仓库 `NPM_TOKEN`，不使用 OIDC/provenance；仅首次
-  创建 `@taptap/dsh-maker` 时手动传 `use_create_package_token=true` 使用仓库
-  `NPM_CREATE_PKG_TOKEN`，workflow 会先确认包名尚不存在。OIDC 仅用于 Maker MCP 主包发布。
-- 客户端专属源文件必须放在 `plugin-sources/taptap-maker/<client>/`；生成产物必须按客户端隔离。
-  不得把 WorkBuddy manifest、commands、Skills 或 MCP 配置写入 Codex 插件目录。新增客户端时复用
-  `src/maker/` 的 runtime/CLI，不复制 Maker tools、resources 或 proxy 业务逻辑。
-- 插件 runtime 必须设置非空的 `TAPTAP_MAKER_DISTRIBUTION`；任意非空值都表示由插件渠道管理，
-  Maker 不执行 npm 包版本检查或输出 npm 升级提示。具体值只用于识别 Codex、WorkBuddy、DSH 或
-  外部插件分发渠道；独立 Maker MCP 不设置该变量并保持现有 npm 更新策略。
-- 插件模式必须先按 `taptap-maker-plugin-lifecycle` 检查对应客户端的旧 Maker MCP。Codex 安装请求
-  即授权自动迁移：安装前后都要检查，活动旧注册只写 `enabled = false`，无需再次确认；只有状态为
-  `disabled` 或 `not_found` 才能报告插件可用，`ambiguous` 必须在安装前停止。WorkBuddy 同时检查
-  `~/.workbuddy/mcp.json` 和旧
-  `.mcp.json`，禁用只写 `disabled: true`，并通过只读 SessionStart Hook 向 AI 注入提醒；只有用户
-  明确确认后才调用迁移 CLI。两个客户端在正常移除插件时恢复旧注册都必须明确确认；保留原配置、
-  最新备份和恢复状态。不得删除旧注册、PAT、Maker home、项目绑定、WorkBuddy connector trust 或游戏文件。初始化必须使用
-  `taptap-maker init --skip-mcp-install`。插件用户通过当前客户端 marketplace 更新，不运行独立 npm
-  包升级。
-  Codex 只有在本次安装实际禁用旧注册后又安装或验证失败时，才自动 restore 作为事务回滚；原本已
-  禁用、未找到、此前已迁移或不是本次迁移的注册不得恢复。回滚前必须移除本次已安装的插件并确认
-  不再启用；插件移除失败时保持旧 MCP 禁用。正常移除插件时仍要求用户明确确认。
-  Codex 插件产物必须使用插件专用 `update-taptap-mcp`，不得复制 npm 发行版的更新 Skill。旧 MCP
-  restore 必须校验迁移注册指纹；插件模式故障上报只检查插件 `.mcp.json` 和当前 bundle，不能把
-  已禁用的独立 `taptap-maker` 注册或物化 self runtime 当作插件运行证据。
-- Maker CLI-first 重构后的正式说明在 `docs/MAKER.md`；完整环境变量契约在
-  `docs/MAKER_ENVIRONMENT_VARIABLES.md`；面向团队介绍的功能总览在
-  `docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`。上下文压缩或长时间中断后，先读这些文档再继续。
-- dev-kit Skill 安装统一在 `installAiDevKitSkills` 补齐 `.agents/skills`，使用
-  `projectSkills.ts` 的跨平台链接/复制逻辑，沿用源名称、跳过已有同名目录。
-  所有分发渠道都执行，脚本缺失或失败也尝试补齐；不得将整个 `.agents` 加入
-  dev-kit 替换删除清单，Git 忽略只收录对应 Skill 路径。
-- 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，由该 CLI 展示 app 列表并让用户选择已有 app 或 `0`/`new`。只有用户明确说“创建/新建项目或游戏”时，才使用 `taptap-maker init --create`。
-- `taptap-maker user-skills pull --target-dir <PROJECT_DIR>` 只用于用户明确要求拉取个人 Maker
-  Skill 的边缘场景。正常开发、状态检查和初始化不得主动调用；该能力保持为 CLI，不得新增 MCP tool。
-  命令只覆盖服务端 ZIP 中出现的 `.installer/skills/<skill-name>`，并以原始名称安装到项目内
-  `.codex/skills`、`.cursor/skills`、`.workbuddy/skills` 和 `.agents/skills`；其它本地 Skill 保持不变，暂不接入
-  `taptap-maker init`。客户端安装优先链接到 `.installer/skills`，链接不可用时回退复制，失败时
-  回滚本次客户端替换。归档限制为下载 64 MiB、1000 个条目和解压后 128 MiB。
-- 如果本地没有当前环境的 Maker PAT，CLI 默认运行 CLI 登录：生成满足 `^[A-Za-z0-9_-]{16,128}$` 的临时 code，按需打开当前环境的 `/pat-tokens?code=<code>`，用户登录并点击“创建 token”后，CLI 轮询 `/api/v1/cli-auth/result?code=<code>`，拿到授权结果后完成本地鉴权配置。
-- Maker 鉴权文件必须沿用线上已发布版本的原始本地保存路径，不要新建环境子目录；不要在用户文档或普通用户说明里暴露具体凭证缓存路径。
-- 用户可运行 `taptap-maker login` 主动刷新当前环境鉴权；`taptap-maker init` 和无参数 `taptap-maker pat set` 缺 PAT 时也走 CLI 登录。兼容写法 `taptap-maker pat set <PAT>`、`--pat PAT` 或 `--pat-stdin` 仅用于 CI / 应急联调，其中 argv 形式会让 PAT 进入 `ps`/shell history。
-- 本地研发服务配置只作为内部开发能力处理；项目目录级配置只读取 `.maker/taptap-maker.local.json`，不读取项目根目录散落的本地配置文件。不要把内部环境名称、地址或切换方式写入面向用户的 schema、CLI help、README、skill、示例或错误指引。
-- `taptap-maker init` 会检查 Git、Python 环境、maker-lua-lsp 本地 Lua 诊断环境、PAT、TapTap token、当前目录绑定状态、app 列表、AI dev kit，并在用户选择 app 或创建新 Maker 项目后先记录 `.maker-mcp/config.json`，再 checkout 到当前目录；Python 未就绪时会自动尝试准备，最多 3 次，仍失败则暂停 init 且不继续 PAT、app、clone 或 MCP 配置；Python ready 后会 best-effort 创建 Maker 私有 LSP venv，在其中安装/升级 `maker-lua-lsp` 并执行 `maker-lua-lsp install --ide codex,cursor,claude`，LSP 失败只提示错误且不阻塞远端构建。clone/fetch 失败后重复执行 init 会复用已记录 app，显式选择不同 app 会拒绝覆盖已有绑定。app 文本预览默认展示前 40 个；创建新项目入口 `0. Create a new Maker project` 不参与裁剪，始终在列表底部显示；账号 app 很多时在 init 交互中输入 `all` 一次性展开全部，或单独跑 `taptap-maker apps --all`；`taptap-maker apps --json` 仅给 AI / 脚本解析使用。AI 转述时宽屏可用两列紧凑布局，窄屏保持单列；每个 app 保留 app_id，并在用户确认后选择 app；如需新建项目，可让用户在 init 中选择 `0`/`new` 并输入项目名称，或使用 `taptap-maker init --create --name "my-local-game"`；当前目录已绑定 Maker 项目时，必须切换到新的独立目录后再创建新项目。
-- AI dev kit 安装/更新按当前环境查询最新版本信息，按返回的 `current.version` 生成版本化下载 URL；版本检查失败时降级使用内置默认下载地址。安装成功后记录本地已安装版本，`taptap-maker doctor`、`maker://status` 和 `maker_status_lite` 输出当前版本、最新版本和是否可更新。
-- `taptap-maker init` 首次拉取默认使用 `git init` + `git fetch --depth=1 origin` + checkout；Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；明确的 HTTP/2 传输错误会在后续 fetch/push 中通过命令级 `http.version=HTTP/1.1` 降级，不修改用户 Git 配置；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
-- 首次 clone/fetch 前必须提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
-- CLI 写 MCP 配置时优先支持 Windows：默认把当前包的 Maker bundle、skills 和排障文档物化到
-  `TAPTAP_MAKER_HOME/mcp-runtime/<version>/`，并固化当前进程的绝对 `node.exe` 与版本化
-  `dist/maker.js`，避免依赖 npx 缓存、网络和客户端 PATH。显式 `--launcher npx` 才使用 npm，
-  self runtime 复制目录遇到 Windows `EIO`、`EACCES` 或 `EPERM` 时回退为逐项复制；其它错误保持
-  原样失败，避免掩盖未知文件系统问题。
-  发布包必须固定当前精确版本、使用专用可写 npm cache；Windows 固化绝对 `node.exe` 与
-  `npm-cli.js`，不把 `.cmd` shell 命令写入客户端配置。最终命令必须先完成 MCP `initialize` 和
-  `tools/list`，验证失败时
-  不修改任何客户端配置或备份；Git 引导优先指向 Git for
-  Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方
-  Git。`taptap-maker init`、`mcp install` 和 `upgrade` 写入的用户级 MCP 配置永远不包含项目
-  `cwd`，默认覆盖 Codex、Cursor、Claude，并自动检测已存在配置文件的 Trae、OpenCode、
-  WorkBuddy、DSH；避免多个客户端、对话或 Maker 项目争用同一个全局路径。支持 MCP Roots 的客户端
-  由当前 workspace root 决定 Maker 项目；不支持 Roots 时，由 Agent 在具体 Maker tool 调用中
-  传入 `target_dir`。`upgrade --target-dir <PROJECT_DIR>` 只指定本次项目策略更新目标，不把目录
-  持久化到 MCP 配置。项目级本地研发服务选择只在调用时解析，不会提升为用户级 MCP 启动环境。
-  MCP 进程 cwd 只作为最后兜底和诊断信息。安装器必须先比较现有
-  `taptap-maker` 条目，内容一致时不写文件；Claude 也不得重复执行 `claude mcp add`。
-  Trae Solo/Solo CN 优先支持，按 `User/` 目录创建或合并 `User/mcp.json`，普通 Trae
-  只在 `mcp.json` 已存在时更新；
-  OpenCode 使用官方 `mcp` schema 和 command 数组；self 模式只写客户端标识，显式 npx 模式
-  额外写专用 npm cache，不持久化项目路径或项目级本地研发服务选择；
-  WorkBuddy 在 macOS 和 Windows 都优先写用户目录下的 `.workbuddy/mcp.json`；显式传
-  `--ide workbuddy` 时会创建该官方配置文件；未显式指定 IDE 的自动检测模式下，legacy
-  `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为 fallback 合并；通用
-  `mcpServers` JSON 只作为 README/文档片段引导其它 AI 编辑器识别自己的实际配置文件后合并写入，
-  CLI 不生成额外通用配置文件。`taptap-maker init` 写入多个客户端配置时，任一目标失败都必须
-  记录 `mcp_install_failed`、返回非零且不报告初始化完成；已成功写入的目标保持不变，失败项可用
-  `taptap-maker install` 自动检测并幂等重试。`--ide` / `--register-mcp` 只保留给历史自动化兼容；
-  新增客户端必须接入默认自动检测流程，不得要求用户传客户端参数。
-  DSH 使用 `@deepseek-ai/dsh-mcp-client` 插件；CLI 写入用户级
-  `$DSH_HOME/cordis.patch.yml`（默认 `~/.dsh/cordis.patch.yml`），使用稳定 self launcher、
-  `failOnStartupError: true` 和一小时 `toolCallTimeoutMs`。首次注册必须写 Cordis `insert` patch；
-  裸顶层 id patch 不会在空根创建 plugin。已有 profile 级 Maker registration 时就地更新 profile，
-  不创建重复 serverName；所有配置都不写项目 `cwd`。
-  DSH HMR 可热重载该补丁，无需重启 IDE；DSH 当前不广播 MCP Roots，Agent 必须在每个项目相关
-  Maker tool 调用中显式传入当前游戏目录 `target_dir`。
-- `taptap-maker mcp verify` 默认验证安装器使用的稳定 self runtime；`--mode npx` 验证固定当前
-  精确版本的 npm launcher。验证失败必须返回非零退出码。npm stderr 中的 EPERM、EACCES、
-  root-owned/cache 不可写必须归类为 `npm_environment_error`，不能误报为普通 protocol error。
-- `taptap-maker doctor` 只做离线主机、项目和 CLI 执行上下文检查，不检查当前 AI 会话是否已
-  加载 Maker tools，也不读取客户端实际配置；不要因为存在 `.workbuddy` 就把 WorkBuddy trust
-  当作其它客户端的故障原因。Python/Lua LSP、dev-kit、版本和 AGENTS policy 检查属于维护信息，
-  不能单独证明 MCP 连接失败。
-- Maker MCP tools 缺失或出现 `-32000` / `Connection closed` 时，先按 `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md` 做不依赖 MCP tools 的本地自检。先根据真实配置、日志或 MCP 初始化信息确认当前客户端，再检查该客户端的 command/args/cwd、MCP Roots、Node/npm/npx、client PATH、退出码和 stderr；只有确认当前客户端为 WorkBuddy 时才检查其信任状态。禁止用 Windows 中文路径 `cd && npx` 拼接命令修复 cwd。
-- 远端 proxy tool 调用必须先确认解析出的目录存在有效 `.maker-mcp/config.json`。MCP Roots 不可用
-  且进程 cwd 未绑定时，只让该项目相关调用快速失败，错误必须包含 `evaluated_target_dir`、
-  `project_context_source` 和显式 `target_dir` 指引；不得阻止 MCP server、status 或 tools/list 启动。
-- Maker 内嵌 proxy 必须设置 `disable_standalone_sse=true`，不打开可选的 standalone SSE GET；
-  远端 RPC 响应与 progress 继续使用 POST SSE。该设置用于避免 Node.js 26 中长连接阻塞后续
-  `tools/list` 并触发 SDK 固定 60 秒超时。普通 MCP Proxy 默认保持 standalone SSE 可用，不能全局关闭。
-- 疑似 Maker MCP、proxy、客户端集成或服务端基础设施缺陷（启动/连接失败、tools 异常缺失、超时、反复重连失败、HTTP 5xx/unavailable、未分类内部错误）时，AI 应先按错误码、操作和稳定错误信息形成故障指纹，并在当前会话只询问用户一次是否允许上报。用户明确同意后，把已脱敏的错误、当前 tools、workspace roots、客户端版本和复现步骤通过 stdin 交给 Maker 报告 CLI。优先原样复用当前客户端 `taptap-maker` 配置中的 command 和有序 args，再追加 `mcp report --ide <client> --target-dir <project> --context-stdin --consent --json`；不得依赖全局 PATH 中存在 `taptap-maker`，也不得用无版本的 `@taptap/maker` 启动可能落后的 npm `latest`。只有确认精确安装版本时才可使用 `npx -y --package @taptap/maker@<exact-version> taptap-maker ...` 作为 fallback；Windows 的 `npx` 不可用时继续使用配置内的绝对 `node.exe` 和 `npm-cli.js` argv。不要上传完整聊天、项目源码、其它 MCP server、PAT/token 或完整环境变量。普通参数错误、已有明确恢复路径的登录问题、项目文件缺失、用户取消、Lua 编译或业务校验错误不提示上报。返回 `manual_required` 表示 GitHub 不可达、未登录或自动提交失败；展示脱敏报告和手动 Issue 地址后继续原任务，不得把上报失败当作 Maker 任务失败。
-  报告上下文必须至少包含非空 `error_code`、`failed_operation` 或 `error_message`；空输入和仅有默认
-  摘要的输入由 CLI 在收集诊断前拒绝。精确提示 `Need to call maker_build_current_directory` 是正常
-  构建前置条件，不得触发故障上报。
-- MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
-  `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
-  Maker MCP 每个进程启动时复用 PAT 换取 TapTap MAC 凭据的现有接口检查一次账号状态；只有明确
-  返回 `BLACKLISTED` 才把 `tools/list` 收敛为 `maker_status_lite`，并在任何 tool call 和
-  `maker://status` 进入项目、构建或 proxy 逻辑前统一返回限制提示。PAT 缺失、过期、网络和其它
-  未知错误不得误判为黑名单；账号状态变化需要重连或重启 MCP 后生效。
-  远端 proxy tools 默认隐藏，仅白名单公开 `generate_image`、`batch_generate_images`、
-  `edit_image`、`create_video_task`、`query_video_task`、`text_to_music`、
-  `text_to_sound_effect`、`batch_sound_effects`、`text_to_dialogue`、
-  `audition_voices_for_character`、`confirm_character_voice`、
-  `create_3d_asset`、`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config`
-  和 `get_debug_feedbacks`，
-  用于试用图片/视频/音乐/音效/配音/3D 模型生成、广告配置同步和远端玩家反馈查询链路，
-  本地保留远端 input schema、参数语义和成功返回值；完整公开定义固定在
-  `src/maker/server/remoteProxyToolSnapshot.json`，description 使用已审核的本地内容，避免远端通用
-  教程与 Maker 本地确认门、素材落盘和恢复工作流冲突。提交前用已绑定 Maker 项目运行
-  `npm run maker:proxy-schema:check -- --target-dir <PROJECT_DIR>` 对比实时远端 schema；发现漂移时运行
-  `npm run maker:proxy-schema:update -- --target-dir <PROJECT_DIR>` 生成快照，review diff 后再次检查。
-  schema 或白名单变化必须随本地 MCP 版本更新发布。
-  这些 tools 为 Maker 项目提供对应的素材和平台能力。远端 proxy tool 返回 `isError` 时，本地 MCP
-  必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
-- `create_video_task` 仅在用户明确要求生成视频时调用，不得在实现玩法、补齐素材或自我优化时主动生成。
-  明确指定 `duration > 10` 秒或使用 `model="2.5"` 时，必须先展示粗估积分，并说明实际扣费按上游
-  token 结算；得到用户明确确认后，再以相同参数并带 `user_confirmed=true` 重试。
-- 音频 proxy tools 在本地 Maker 项目中必须保留 Provider 原格式并落盘生成结果。
-  `text_to_sound_effect` 和 `batch_sound_effects` 固定使用豆包 Seed Audio；
-  `text_to_dialogue`、`audition_voices_for_character` 和 `confirm_character_voice` 固定使用
-  ElevenLabs；`text_to_music` 固定使用 Suno。`AUDIO_PROVIDER` 不再切换这些公开工具。
-  ElevenLabs 确认成功后必须保存本地 Voice ID mapping，并通过 `next_step_hint` 引导 Agent
-  只使用角色名和台词继续调用 `text_to_dialogue`；历史豆包 mapping 保留但不用于固定的
-  ElevenLabs 对白、试听和确认流程。
-- 本地 Maker MCP 活跃上报复用 `tapmaker_mcp_call`，在 `args.source` 写入 `local_mcp`，
-  在 `args.mcp_version` 写入 `@taptap/maker` 版本；开发构建使用 `dev`，禁止使用主包版本
-  代替。`user_id` 和 `project_id` 只从当前项目 `.maker-mcp/config.json` 读取；缺少关键字段或
-  项目上下文无法准确解析时不上报，不使用 JWT、PAT、默认值或其它项目配置补齐。Tool、
-  `maker://status` Resource 和 MCP 启动事件计入本地活跃，上报失败不得影响 MCP 结果。
-  错误信息上报前必须脱敏 PAT、Bearer、access token、refresh token、MAC key 和 URL 凭证，
-  可保留 user_id、project_id、路径等诊断信息。
-- 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。默认 status 是快速本地摘要；只有明确排障或同步确认时才调用 `maker_status_lite` 的 `detail=true`，获取 `Maker remote sync`、AI dev kit、proxy 和维护诊断。支持 MCP Roots 的客户端会输出 `MCP client roots` 与 `project_context_source`；只有一个 workspace root 时直接作为 Maker 操作目标，多个 root 中只有一个已绑定 Maker 项目时自动选择该项目，多个 Maker root 时必须让用户只保留一个 Maker workspace 或显式传 `target_dir`，不要猜测。项目初始化和健康状态仍会提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main、是否需要运行 `taptap-maker dev-kit update`。本地主配置缺失时保持 `not_initialized` 且允许显式构建；仅在用户明确要求构建、提交或预览时调用 `maker_build_current_directory`。显式提交或构建时，即使 detail 状态为 `needs_pull` 也直接调用该工具，由工具在 commit 前尝试 fast-forward；`diverged` 或 `branch_not_allowed` 才先人工处理。构建成功后本地配置仍可能缺失，此时保持二维码、广告和多人配置等依赖能力不可用，不要自动重复构建。detail 模式下可传 `skip_remote_sync=true` 跳过远端 Git 同步和 dev-kit 最新版本检查。
-- 统一项目健康检查保持只读，不自动移动、覆盖或重建 `.project` 配置。不得用 `.project` 目录是否存在判断项目已经初始化；`.project` 为空、只含音色 mapping/其它本地文件、只含 `resources.json`，或缺少 `project.json` / `settings.json` 时，都按具体文件状态保持新项目可构建。只有规范位置的配置文件实际存在且内容错误时才进入校验/修复路径：`settings.json` 仍可解析为 object 时，可在用户确认后补入缺失的 schema/build 默认字段，并保留 `@runtime`、`asset_ignores` 与未知字段。`sources.*.tag` 是锁定字段，只能从完整副本恢复；不要凭默认值生成项目身份、版本、发布元数据或资源分组。`entry=main.lua` 也必须先确认项目实际入口。
-- 当前目录是已绑定 Maker 项目时，调用 `generate_test_qrcode` 应先不传方向参数。本地 MCP 会读取 `.project/project.json`：已有合法 `taptap_publish.screen_orientation` 时直接沿用，不再询问用户，且后续输入不能覆盖；只有该字段从未设置时，才单独发起一次对话，让用户明确选择横屏（`landscape`）或竖屏（`portrait`），禁止推断或默认。用户选择后重试并传本地私有参数 `confirmed_screen_orientation`，本地 MCP 只在首次缺失时写入该值，不会把私有参数转发给远端。二维码生成并建立应用身份后，只有用户明确提供 TapTap `user_id` 时才调用 `add_test_whitelist`，不要猜测账号 ID。
-- 当前目录是已绑定 Maker 项目时，只要用户消息涉及广告（包括“广告”、激励视频、播放广告、广告 ID、广告位、`ShowRewardVideoAd`、广告配置、广告开通状态等），先阅读 `maker://ads-integration-guide`，再按其中流程检查 Maker 项目状态、调用 `get_ad_config` 并阅读项目内 `engine-docs/recipes/sdk.md`。主配置未初始化时，本地 preflight 会保持广告能力不可用且不调用远端 `get_ad_config`；仅在用户明确要求构建时调用 `maker_build_current_directory`。构建后本地配置仍缺失时直接说明当前已知限制，不要自动重复构建。配置就绪后再调用 `get_ad_config` 获取广告开通状态和配置；若返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`。不要先查 `.maker-mcp/config.json` 或用运行回调推断广告是否开通，也不要为这个恢复流程调用发布类工具。
-- 当前目录是已绑定 Maker 项目时，只有用户明确询问当前 Maker 游戏的线上玩家反馈（包括玩家提交的游戏故障、真机游戏日志或截图），或指定游戏会话的服务端/Lua 日志时，才调用 Maker MCP tool `get_debug_feedbacks`；Cindy 等 AI 客户端、插件、通用开发工具或其它产品的问题反馈/问题上报不属于该工具。本地 runtime log 只用于当前本地构建/运行会话，不要用本地日志替代线上玩家提交的反馈。
-- `get_debug_feedbacks` 会拉取线上玩家反馈，并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`；调用后优先使用返回的 `local_dir`、`local_log_paths`、`local_screenshot_paths` 读取日志和查看截图。附件路径以 tool 返回的 `local_*` 字段为准；没有 `local_*` 字段时，不要把附件当成本地文件读取。
-- 当前目录是已绑定 Maker 项目时，用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 远端预览 / 远端跑一下 / 查看远端结果 / 看看远端效果 / 验证远端游戏效果”时，都调用 `maker_build_current_directory`。本地控制台或本地预览走对应 CLI，不提交、不推送、不启动远端构建。普通“验证代码 / 跑测试 / lint / 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求远端构建、运行或预览。普通远端构建会先 push 再 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒远端服务；push 成功后才远端 build。
-- 提交前发现本地仅落后于 Maker 远端时，`maker_build_current_directory` 会自动执行 `git merge --ff-only origin/main` 后继续；如果远端更新会覆盖本地未提交修改，则必须在创建 commit 前停止并保留本地文件。分叉、非 main、认证或网络失败不自动处理。
-- push 被拒绝、分叉、自动 fast-forward 失败、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
-- push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。
-- 所有构建失败输出都必须返回 `failure_stage`、`code_submit_status` 和 `remote_build_status`，明确区分
-  项目校验、代码提交/推送和远端构建。push 成功但远端 build 失败时，工具返回
-  `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端，并优先检查返回的
-  `build_failure` / `remote_result` 中是否存在代码或资源诊断；不得自动修改项目文件。
-- `code_submit` 或无法分类的构建执行失败必须附带 `local_execution_check`，提醒用户检查 AI 客户端
-  是否在沙盒中运行 Windows PowerShell、CLI、Git 或 MCP 命令。只有明确的本地 PowerShell/进程
-  拦截证据才输出 `restriction_signal: detected`；远端 Git 返回的 `sandbox` 文本不得升级为本地信号。
-  远端构建失败必须优先检查代码和资源诊断，只有本地命令也被拦截时才把沙盒作为次要排查项；已知
-  的项目配置、鉴权/上下文或结构校验错误不输出 Full Access 建议。Maker MCP 不能读取客户端访问模式，
-  因此任何沙盒提示都不能作为根因结论；可信项目才可建议开启 Full Access（“完全访问模式”）并重连 MCP。
-  本地 Tap auth 或 `user_id` 上下文准备失败必须返回 `failure_stage: local_build_context` 和
-  `remote_build_status: not_started`，不得描述成远端构建失败。
-- `MCP error -32001: Request timed out` 只证明 MCP 请求超时，不能单独证明 Maker server 故障。
-  Maker MCP 能收到该错误时必须返回只读的本地进程、Node、cwd/project 对齐摘要，并把根因保持为
-  `unconfirmed`；随后通过活动客户端相同的 Maker launcher 对该项目运行 doctor（独立 CLI 等价命令为
-  `taptap-maker doctor --target-dir <PROJECT_DIR>`），再检查活动客户端实际生效的 command、args、
-  cwd/Roots、会话/tool 注册和 request timeout。doctor 不能读取活动客户端配置；没有
-  HTTP 5xx、服务端日志或服务状态等证据时禁止宣称服务端宕机，也禁止盲目重复构建。
-- 远端 Lua/LSP 编译失败属于工具级业务错误。代理必须把带 `error.data.remote_result` 的上游 `McpError(-32603)`
-  转换为 `CallToolResult.isError` 并保留完整诊断；只有连接断开、会话失效等传输故障才允许进入重连路径，
-  不得用 `TapTap MCP Server is currently unavailable` 覆盖原始编译错误。Maker 本地重试器必须优先依据
-  `remote_result` 和 MCP 错误码分类，业务错误不得重复发起构建；只有 `build` 可对明确的 proxy
-  unavailable、连接关闭、请求超时和 HTTP 5xx 自动重试最多 5 次。build pending 请求重放期间再次
-  断线时，保留未完成请求并进入下一轮退避重连。其它 Maker Proxy tools 固定单次调用，不进入本地
-  重试器，也不在 Proxy 重连后自动重放。唯一例外是远端明确返回 MAC 失效（`授权已失效` 或
-  `data.error=access_denied`）：本地用现有 PAT 换一次新 MAC，并用新凭证重试原请求一次。
-  派发前失败返回 `execution_state=not_executed`，派发后响应中断返回 `execution_state=unknown`，
-  这两种情况和其它业务失败都返回 `automatic_retry=false`。遇到 `unknown` 时必须先核对远端
-  产物、任务、状态和用量，再决定是否由用户显式重试。
-- 用户明确说不提交、直接构建云端版本时，才允许调用 `maker_build_current_directory` 并设置 `confirm_remote_build_without_submit=true`；这种模式只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
-- 构建时如果用户未指定入口且本地存在 `scripts/main.lua`，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`；用户显式传单机入口或多人入口时优先生效。
-- 远端 Maker MCP tools 所需的 TapTap MAC token 通过 PAT 获取。
-
-### 测试和验证
-
-```bash
-# 编译检查
-npm run build
-
-# 代码检查（ESLint）
-npm run lint
-
-# 代码检查并自动修复
-npm run lint:fix
-
-# 格式检查（Prettier）
-npm run format:check
-
-# 格式化代码
-npm run format
-
-# OpenClaw plugin 子包打包预检
-npm run openclaw:pack
-```
-
-### 环境变量（常用）
-
-| 变量名                               | 说明                               | 默认值                |
-| ------------------------------------ | ---------------------------------- | --------------------- |
-| `TAPTAP_MCP_TRANSPORT`               | 传输协议（stdio/sse/http）         | stdio                 |
-| `TAPTAP_MCP_PORT`                    | HTTP/SSE 模式端口                  | 3000                  |
-| `TAPTAP_MCP_VERBOSE`                 | 详细日志模式                       | false                 |
-| `TAPTAP_MCP_ENABLE_RAW_TOOLS`        | 是否暴露 `*_raw` 工具              | false                 |
-| `TAPTAP_MCP_ENV`                     | 环境选择（production/rnd）         | production            |
-| `TAPTAP_MCP_DC_CURRENT_APP_BASE_URL` | 当前游戏 DC 接口 host 覆盖（可选） | 空                    |
-| `TAPTAP_MCP_CACHE_DIR`               | 缓存根目录                         | /tmp/taptap-mcp/cache |
-| `TAPTAP_MCP_TEMP_DIR`                | 临时文件根目录                     | /tmp/taptap-mcp/temp  |
-| `WORKSPACE_ROOT`                     | 工作空间根路径（推荐设置）         | process.cwd()         |
-| `TAPTAP_MCP_LOG_ROOT`                | 日志根目录                         | /tmp/taptap-mcp/logs  |
-| `TAPTAP_MCP_LOG_FILE`                | 是否启用文件日志                   | false                 |
-| `TAPTAP_MCP_LOG_LEVEL`               | 文件日志级别                       | info                  |
-| `TAPTAP_MCP_LOG_MAX_DAYS`            | 日志保留天数                       | 7                     |
-
-**完整环境变量说明：** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-**日志系统说明：** [docs/LOG_SYSTEM.md](docs/LOG_SYSTEM.md)
-
-## 开发规范
-
-### Maker Proxy 架构约束
-
-- Maker MCP 按活动项目维护 embedded proxy 长连接；每个项目拥有独立远端 session、工具缓存
-  和重连状态，多个本地项目可并行开发。
-- 单项目断线自动恢复，不要求重新安装或重启 Maker MCP；项目、环境、用户、项目 ID 和授权
-  配置指纹共同决定连接身份，禁止跨项目复用连接。
-- 同项目连接身份变化时新连接立即接管；旧连接必须等待已开始的请求结束后再关闭，避免中断
-  构建或远端工具调用。
-- MCP 包版本或本地 proxy 工具白名单/schema 变化后需要 Reconnect 本地 MCP；proxy tools 使用
-  版本化本地定义，不依赖运行时 `tools/list_changed` 刷新工具列表。
-- runtime-log watcher 保持独立 polling connection lifecycle，不纳入远端 proxy manager。
-
-### AI 行为规范
-
-- **永远返回中文回复**
-- **允许进行网页查询和搜索**
-- **所有工具描述使用英文**，便于 AI Agent 理解
-- **工具处理函数必须返回 `Promise<string>` 类型**
-- **命名必须清晰区分能力边界**：新增 CLI 命令、MCP tool/resource、skill、脚本、
-  文档章节或用户可见流程名称时，使用带业务前缀/语义清晰的名称，让 Agent 能稳定区分
-  AI 客户端内置能力、本项目已有概念、通用 Skill 名称和常见命令；用户可见文案应明确标注
-  “CLI 命令”“MCP tool/resource”“workflow guide document/skill 文档”。
-- **`taptap-maker init` 是 Maker 初始化唯一主流程入口**：`init` 相关命名必须视为保留名。
-  新增能力使用业务前缀与完整语义命名，面向用户或 AI 的文案统一把 bundled workflow guide
-  document 表达为“文档/指南”，并把 Maker 初始化的正向下一步写成：执行 `taptap-maker init`。
-
-### 代码规范
-
-- 使用 TypeScript 进行类型安全的开发
-- 所有异步函数使用 `async/await` 语法
-- 遵循 ESLint 规则和 Prettier 格式化标准
-- 为所有函数和接口添加 JSDoc 注释
-
-**Lint 工具链**：
-
-- **ESLint**：TypeScript 代码质量检查（`.eslintrc.cjs`）
-- **Prettier**：代码格式化（`.prettierrc`）
-- **lint-staged**：提交时自动检查和修复（`.lintstagedrc`）
-- **Husky**：Git hooks 管理（pre-commit 运行 lint-staged）
-
-**Pre-commit Hook**：提交代码时自动运行 ESLint 和 Prettier，确保代码质量
-
-### MCP 工具开发
-
-- 新增工具需要在 `src/server.ts` 中注册工具定义和处理函数
-- 工具定义需要包含完整的 JSON Schema 输入验证
-- 工具描述使用英文，包含使用场景说明
-- 服务器使用 stdio 通信模式，适配 Codex Desktop 等 MCP 客户端
-
-### 网络请求开发
-
-- 所有 API 请求必须通过 `HttpClient` 类发送
-- HttpClient 自动处理：
-  - MAC Token 认证（Authorization header）
-  - 请求签名（X-Tap-Sign header）
-  - 环境 URL 切换
-  - 错误处理和超时控制
-- 新增 API 只需调用 `client.get()` 或 `client.post()`
-
-### 认证机制（简要）
-
-- **MAC Token 认证**：每个请求的 Authorization header 使用 MAC 认证
-- **请求签名**：X-Tap-Sign header，HMAC-SHA256 签名
-- **OAuth 2.0**：Device Code Flow，扫码即用
-- **模块化设计**：
-  - `tokenStorage.ts`：Token 持久化管理（读取、保存、清除）
-  - `config.ts`：OAuth 环境配置（端点、Client ID 管理）
-  - `oauth.ts`：OAuth 流程实现（请求 device code、轮询 token）
-
-**详细认证流程：** [docs/ARCHITECTURE.md#认证机制](docs/ARCHITECTURE.md)
-
-### 原生签名模块（Native Signer）
-
-为了保护 `CLIENT_SECRET` 不在 npm 源码中暴露，项目使用 Rust 编写的原生签名模块：
-
-**安全模型：**
-
-- `CLIENT_SECRET` 在 CI/CD 编译时 XOR 加密嵌入二进制
-- 运行时在内存中解密，计算签名后返回结果
-- SECRET 不暴露给 JS 层
-
-**目录结构：**
-
-```
-native/
-├── Cargo.toml          # Rust 项目配置
-├── build.rs            # 编译时 SECRET 加密
-├── src/lib.rs          # 签名实现
-├── index.js            # JS 加载器
-└── *.node              # 编译后的二进制
-```
-
-**开发模式：**
-
-- 如果原生模块不可用，自动 fallback 到环境变量
-- 设置 `TAPTAP_MCP_CLIENT_SECRET` 环境变量即可开发测试
-
-**构建原生模块：**
-
-```bash
-cd native
-export BUILD_CLIENT_ID="your_client_id"
-export BUILD_CLIENT_SECRET="your_client_secret"
-npm install && npm run build
-```
-
-**详细文档：** [native/README.md](native/README.md)
-
-### 本地缓存（v1.4.1+）
-
-**缓存目录结构：**
-
-- 全局缓存：`/tmp/taptap-mcp/cache/global/app.json`
-- 租户缓存：`/tmp/taptap-mcp/cache/{userId}/{projectId}/app.json`
-- 临时文件：`/tmp/taptap-mcp/temp/{userId}/{projectId}/`
-
-**特性：**
-
-- ✅ 独立于 workspace，支持只读挂载
-- ✅ 租户数据完全隔离
-- ✅ 临时文件自动清理
-
-### 路径处理最佳实践
-
-1. **推荐使用绝对路径**（如 `/Users/username/project/dist`）
-2. **相对路径注意事项**：stdio 模式下可能解析错误，推荐设置 `WORKSPACE_ROOT` 环境变量
-3. **调试技巧**：启用 `TAPTAP_MCP_VERBOSE=true` 查看详细日志
-
-**详细说明：** [docs/PATH_RESOLUTION.md](docs/PATH_RESOLUTION.md)
-
-### 扩展新功能
-
-使用脚手架快速创建新功能模块：
-
-```bash
-# 运行脚手架脚本
-./scripts/create-feature.sh
-
-# 按提示输入功能信息
-# 自动生成模块结构：src/features/yourFeature/
-# 包含：index.ts, tools.ts, handlers.ts, api.ts 等
-
-# 在 src/server.ts 注册新模块
-import { yourFeatureModule } from './features/yourFeature/index.js';
-const allModules = [..., yourFeatureModule];
-```
-
-## 文档索引
-
-### 用户文档
-
-- **快速开始（零基础）**：[docs/QUICK_START.md](docs/QUICK_START.md) - 面向非技术用户的极简 Cursor 配置指南
-- **AI 安装引导**：[docs/AI_SETUP_GUIDE.md](docs/AI_SETUP_GUIDE.md) - 面向 AI Agent 的可执行安装部署指南
-- **详细配置指南**：[docs/USER_GUIDE.md](docs/USER_GUIDE.md) - 多种工具的完整配置方法
-- **项目介绍**：[README.md](README.md) - 用户快速上手指南
-- **贡献指南**：[CONTRIBUTING.md](CONTRIBUTING.md) - 开发者贡献流程
-
-### 技术文档
-
-- **完整架构**：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - 模块化架构、设计模式、认证机制
-- **部署指南**：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - 三种传输协议、环境变量、MCP 集成配置
-- **CI/CD 流程**：[docs/CI_CD.md](docs/CI_CD.md) - GitHub Flow、Semantic Release、手动发布
-- **路径解析**：[docs/PATH_RESOLUTION.md](docs/PATH_RESOLUTION.md) - 路径处理问题、最佳实践
-
-### Proxy 相关文档
-
-- **Proxy 开发**：[docs/PROXY.md](docs/PROXY.md) - MCP Proxy 完整开发指引（整合了私有参数协议、客户端配置、独立打包、TapCode 集成示例）
-
-### 原生签名模块
-
-- **原生签名器**：[native/README.md](native/README.md) - Rust 原生签名模块开发和构建指南
-
-### API 参考
-
-- **TapTap Open API**：https://developer.taptap.cn/minigameapidoc/ - 官方 API 文档
-- **MCP 规范**：https://spec.modelcontextprotocol.io/ - Model Context Protocol 规范
-
-## 工具和资源概览
-
-### 核心 MCP Tools
-
-**流程指引（1个）**
-
-- `get_leaderboard_integration_guide` - 排行榜完整接入工作流指引
-
-**信息查询（2个）**
-
-- `get_current_app_info` - 获取当前选择的应用信息
-- `check_environment` - 检查环境配置和认证状态
-
-**认证（3个）**
-
-- `start_oauth_authorization` - 开始 OAuth 授权（获取二维码）
-- `complete_oauth_authorization` - 完成 OAuth 授权
-- `clear_auth_data` - 清除认证数据和缓存
-
-**应用管理（3个）**
-
-- `list_developers_and_apps` - 列出所有开发者和应用（含关卡与非关卡）
-- `select_app` - 选择要使用的应用（支持关卡与非关卡）
-- `create_developer` - 创建新开发者
-
-**当前游戏 DC 能力（8个）**
-
-- `get_current_app_store_overview` - 获取当前游戏商店统计概览
-- `get_current_app_review_overview` - 获取当前游戏评价统计概览
-- `get_current_app_community_overview` - 获取当前游戏社区统计概览
-- `get_current_app_store_snapshot` - 获取当前游戏商店结果型快照
-- `get_current_app_forum_contents` - 获取当前游戏论坛内容
-- `get_current_app_reviews` - 获取当前游戏评价列表
-- `like_current_app_review` - 给当前游戏指定评价点赞
-- `reply_current_app_review` - 以官方身份回复当前游戏评价
-
-**排行榜管理（5个）**
-
-- `create_leaderboard` - 创建新排行榜
-- `list_leaderboards` - 列出所有排行榜
-- `publish_leaderboard` - 发布排行榜
-- `get_user_leaderboard_scores` - 获取用户分数数据
-- `get_app_status` - 获取应用审核状态
-
-**H5 游戏管理（3个）**
-
-- `prepare_h5_upload` - 收集 H5 游戏信息（上传前）
-- `upload_h5_game` - 上传 H5 游戏包；未设置方向时在上传前要求用户选择 `screenOrientation`，
-  并在提交后回读服务端方向确认生效
-- `get_debug_feedbacks` - 拉取用户调试反馈并下载附件到本地
-
-> 注：创建/编辑应用请使用 `create_app` 和 `update_app_info` 工具（在应用管理分类中）
-
-**小游戏/H5 广告接入（3个）**
-
-- `get_ads_integration_workflow` - 广告接入完整工作流入口
-- `check_ads_status` - 自动查询广告状态与广告位 ID
-- `get_ad_integration_guide` - 使用自动获取的广告位 ID 生成接入代码
-
-**振动 API 文档（1个）**
-
-- `get_vibrate_integration_guide` - 振动 API 完整文档和接入指引
-
-### MCP Resources（示例）
-
-**API 详细文档（6个）**
-
-- `docs://leaderboard/api/get-manager` - tap.getLeaderboardManager()
-- `docs://leaderboard/api/open` - openLeaderboard()
-- `docs://leaderboard/api/submit-scores` - submitScores()
-- `docs://leaderboard/api/load-scores` - loadLeaderboardScores()
-- `docs://leaderboard/api/load-player-score` - loadCurrentPlayerLeaderboardScore()
-- `docs://leaderboard/api/load-centered-scores` - loadPlayerCenteredScores()
-
-**概览文档（1个）**
-
-- `docs://leaderboard/overview` - 所有 API 的完整概览
-
-## 注意事项
-
-- 所有工具描述使用英文，便于 AI Agent 理解
-- 环境变量名称使用 TAPTAP*MCP* 前缀
-- MAC Token 必须是 JSON 字符串格式
-- 请求签名使用两层机制（MAC + X-Tap-Sign）
-- 默认环境为 production，可通过 TAPTAP_MCP_ENV 切换
+本文件是仓库级开发入口，供 Codex、Claude Code、Copilot 等 Agent 使用。
+它只记录稳定、跨模块、需要在开始工作前知道的约束；实现细节、完整 API 清单、
+一次性验收记录和排障过程应维护在对应文档中，不要持续追加到本文件。
+
+## 工作范围与文档入口
+
+先判断任务属于哪个模块，再定位并阅读对应文档的相关章节，不要预读整张索引或无关全文。
+文档是实现细节的来源，本文件只保留索引和不可违反的通用规则。
+
+| 任务范围                                | 先读                                                                                           |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 仓库架构、模块依赖、认证                | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                                   |
+| MCP 部署、传输协议、通用环境变量        | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)、[docs/MCP_USAGE.md](docs/MCP_USAGE.md)               |
+| MCP Proxy、私有参数、连接生命周期       | [src/mcp-proxy/README.md](src/mcp-proxy/README.md)、[docs/PROXY.md](docs/PROXY.md)             |
+| Maker CLI、PAT、项目初始化、客户端集成  | [docs/MAKER.md](docs/MAKER.md)                                                                 |
+| Maker 控制台、UI 编辑器                 | [docs/MAKER_CONSOLE.md](docs/MAKER_CONSOLE.md)                                                 |
+| Maker Canvas                            | [src/maker/canvas/README.md](src/maker/canvas/README.md)                                       |
+| Maker Runtime、本地预览、验证和进程清理 | [docs/MAKER_LOCAL_PREVIEW.md](docs/MAKER_LOCAL_PREVIEW.md)                                     |
+| Maker 环境变量                          | [docs/MAKER_ENVIRONMENT_VARIABLES.md](docs/MAKER_ENVIRONMENT_VARIABLES.md)                     |
+| UI 设计稿、切图和布局复原               | [docs/MAKER_UI_WORKFLOW.md](docs/MAKER_UI_WORKFLOW.md)                                         |
+| 示例资源、CDN 和打包校验                | [docs/MAKER_DEMO_RESOURCES.md](docs/MAKER_DEMO_RESOURCES.md)                                   |
+| 小游戏/H5 广告                          | [docs/MCP_USAGE.md](docs/MCP_USAGE.md)、[src/features/ads/tools.ts](src/features/ads/tools.ts) |
+| 代码审核                                | [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md)                                                     |
+| 资源 `.meta` 和 UUID                    | [docs/MAKER_RESOURCE_META_WORKFLOW.md](docs/MAKER_RESOURCE_META_WORKFLOW.md)                   |
+| 发布、版本、Native 构建、Release guard  | [docs/CI_CD.md](docs/CI_CD.md)、[docs/RELEASE_PR_GUARDS.md](docs/RELEASE_PR_GUARDS.md)         |
+| 本地 Maker 操作指引                     | [skills/taptap-maker-local/SKILL.md](skills/taptap-maker-local/SKILL.md)                       |
+
+修改模块前先查相邻源码、测试和上述文档；不要把一次 bug 的解决步骤直接升级成全仓库
+永久规则。只有稳定的架构契约、安全边界或 Agent 行为变化才需要更新本文件。
+
+## 仓库定位
+
+本仓库包含两类能力：
+
+- `src/features/`：TapTap 小游戏/H5 Open API MCP，包含应用、排行榜、H5、广告和当前游戏
+  DC 等业务模块。
+- `src/maker/`、`packages/`、`plugins/`：Maker CLI/MCP、控制台、Canvas、客户端插件和
+  相关打包产物。
+
+通用服务器入口是 `src/server.ts`，NPM 入口是 `bin/instant-games-open-mcp`。
+服务器支持 `stdio`、SSE 和 HTTP JSON；不要把某一种传输方式写成唯一模式。
+
+### 模块边界
+
+- 业务模块可以依赖 `src/core/` 和应用上下文能力。
+- 业务模块之间不要直接互相依赖；需要共享逻辑时放入合适的 `core/` 抽象。
+- Maker 业务保持在 `src/maker/`，不要把 Maker 专属策略写入通用 `src/mcp-proxy/`。
+- 新增 MCP tool/resource 时沿用现有 `ToolRegistration`、`ResourceRegistration` 和模块
+  自动注册机制，先参考同目录实现，不要在 `src/server.ts` 重复编排业务逻辑。
+
+## 不可违反的行为约束
+
+### 安全、凭证与数据隔离
+
+- 不把 PAT、MAC token、Bearer token、client secret、API key 或完整认证响应写入源码、
+  提交、普通日志、URL、命令参数或用户可见错误。
+- 不为了排障打印完整环境变量；输出前脱敏凭证和 URL 中的认证信息。
+- 本地项目操作必须绑定已校验的项目 realpath；远端操作使用已确认的应用/项目上下文。
+  不猜测 workspace，不跨项目混用缓存、会话、任务和凭证；复用既有隔离机制。
+- 受控文件写入应使用项目已有的路径校验、原子写入、revision/锁和权限策略；不要绕过
+  受控路由直接改写打开中的 Canvas、项目绑定或用户草稿。
+- 不删除、覆盖或清理用户文件、`dist`、Runtime、项目配置或未知进程，除非已有明确的
+  所有权证据和对应模块流程。
+
+### 用户确认、付费操作与不确定结果
+
+- 用户未明确指定应用、项目、方向、开发者或模板等目标时，按工具契约展示候选并等待
+  确认；不能因为只有一个候选就自动选择。用户已明确指定的目标不重复询问。
+- 生成、上传、发布、远端构建、二维码、素材处理等可能扣费、提交或产生不可逆副作用的
+  操作必须遵循对应工具/文档的确认门，不得主动扩展用户请求。
+- 远端请求在响应中断、超时或返回 `unknown` 时，不得把未知解释为失败，也不得盲目重放
+  可能已经执行的付费或提交操作。应先查询原任务、产物、状态或用量，再由用户决定是否重试。
+- 保留上游业务错误和结构化诊断；不要用笼统的“服务不可用”覆盖编译、校验或业务错误。
+- 小游戏/H5 广告流程与 Maker/UrhoX 广告流程严格分开，不混用工具、应用上下文、广告位
+  ID 或运行时 API。
+
+### Agent 行为
+
+- 先读取当前状态和上下文，再执行写操作；状态查询默认保持只读。
+- 优先复用已有 CLI、MCP tool、Store、网络客户端和文档，不新增第二套工作流或重试器。
+- 对用户未明确要求的远端构建、付费生成、发布、提交、上报和大范围重构保持克制。
+- 工具描述使用英文，并清楚写明前置条件、确认要求、失败恢复路径和副作用。
+- 用户可见回复默认使用简体中文；代码、命令、API 名称和协议字段保留原文。
+
+## 开发约定
+
+### TypeScript 与模块实现
+
+- 新代码使用 TypeScript，遵循仓库现有类型、ESLint 和 Prettier 配置。
+- 公共函数、接口和跨模块契约应有足够的类型与注释；不为机械覆盖率添加无意义注释。
+- 异步流程优先使用 `async/await`，正确传播取消、超时、未知结果和原始错误。
+- TapTap Open API 功能模块通过 `HttpClient` 发起请求；Maker 专属请求沿用 Maker 模块已有
+  client/transport，不要把两套认证或错误策略混在一起。
+- 新增工具需要完整 JSON Schema，并在所属功能模块注册；不要维护手工工具清单作为第二来源。
+
+### 状态、持久化与回归
+
+- 持久化模型、引用关系、任务状态和缓存只保留一个权威来源；不要为方便 UI 再复制一份
+  可变关系。
+- 付费任务、用户草稿、远端任务和本地等待分开建模；停止本地等待不等同于取消远端任务。
+- 修改共享契约、项目隔离、认证、进程清理或付费流程时，定向验证直接相关的调用链及
+  失败、取消或未知结果路径；按实际风险扩大范围，不因模块名称就机械运行整组回归。
+- 不把截图、窗口可见或 HTTP 成功单独当作游戏玩法、资源质量或发布成功的证明。
+
+## Git 与提交
+
+- 不直接向 `main` 提交；优先沿用当前合适分支，不为小修自动切分支。需要新分支时默认
+  使用 `fix/`；确认需要 minor 版本升级的新功能才使用 `feature/`，不使用 `codex/` 前缀。
+- Commit 使用 Conventional Commits：
+  `feat`、`fix`、`refactor`、`perf`、`docs`、`chore`、`test`、`ci`、`build`、`style`。
+  type/scope 使用英文小写，subject 不以句号结尾；重要改动的 body 用短 bullet 说明行为、
+  设计取舍、风险和验证；header 和 body 每行不超过 100 字符。
+- 不使用 `WIP`、`temp`、`test` 或 `Initial plan` 作为手工提交消息。需要保护未完成工作时
+  使用 `git stash` 或有实际含义的正式提交，不要提交示例中的“保存工作区”伪提交。
+- 切换分支或执行可能影响文件的 Git 操作前，先确认工作区已提交或 stash。
+- 不使用 `git reset --hard`、`git checkout -- .` 等破坏性清理命令，也不覆盖用户已有修改。
+- 发布、Native 复用、插件打包和 Release tag 规则只按
+  [docs/CI_CD.md](docs/CI_CD.md) 与 [docs/RELEASE_PR_GUARDS.md](docs/RELEASE_PR_GUARDS.md) 执行。
+
+## 验证与交付
+
+- 小修默认只做相关静态检查和最小定向测试，不重复执行全量或大范围回归。完整验收由用户
+  最后统一执行；涉及数据安全、共享契约或发布门禁时，保留必要的针对性验证。
+- 文档修改只检查内容、链接及差异，不运行代码测试、构建或全仓 lint。
+- 依赖未变且本机可用时不重复安装；需要安装或准备正式发布物时使用锁定依赖（ 60npm ci 60）。
+- 测试、lint 和格式检查限定到受影响文件或用例。构建仅在编译产物、打包或实际运行验证
+  需要时执行；具体命令查  60package.json 60 和对应模块文档，不把命令清单当成每次必跑步骤。
+- 用户要求本地看到最新页面时，交付包括构建、核对运行入口和必要的服务重启；保护未保存
+  草稿及活动任务，不把“已编译”当成“运行中的进程已更新”。
+
+完成前检查  60git diff --check 60，确认没有带入无关修改、凭证、临时图片或调查记录。
+说明实际运行的检查及未验证边界；不要把局部通过写成完整验收通过。
+
+## 文档维护边界
+
+- `README.md` 面向用户，描述稳定能力和使用方式。
+- `docs/` 面向开发、运维和排障，维护完整流程、协议、参数和历史兼容约束。
+- `skills/` 面向 Agent，维护可执行的任务路由和操作顺序。
+- `AGENTS.md` 是仓库规则的唯一维护入口；`CLAUDE.md` 只引用它，不复制规则正文。
+- 不要因为一次实现、一次测试、一个平台探针或一个具体日期就扩充本文件；如果某条规则
+  只对一个模块成立，应放在该模块文档或 Skill 中。重要行为变化同步更新对应正式文档，
+  不把临时计划、测试报告或交接记录写入并提交到仓库，除非用户明确要求。
