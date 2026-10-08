@@ -133,6 +133,6 @@ describe('Maker integrated UI editor', () => {
     expect(
       (await fetch(server.origin + '/ui-editor/vendor/yoga-layout/dist/src/index.js')).ok
     ).toBe(true);
-    expect((await fetch(server.origin + '/ui-editor/examples/manifest.json')).ok).toBe(true);
+    expect((await fetch(server.origin + '/ui-editor/examples/manifest.json')).status).toBe(404);
   });
 });

@@ -53,6 +53,7 @@ const REQUIRED_TOOL_NAME = 'maker_status_lite';
 const PUBLISHED_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const SELF_RUNTIME_DIRECTORIES = [
   'skills/maker-ui-workflow',
+  'skills/lua-ui-to-json',
   'skills/taptap-maker-local',
   'skills/taptap-maker-dev-kit-guide',
   'skills/update-taptap-mcp',

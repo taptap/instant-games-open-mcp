@@ -29,7 +29,12 @@ const localMarketplacePath = join(projectRoot, '.codebuddy-plugin', 'marketplace
 const PLUGIN_SOURCE_URL =
   'https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/workbuddy/taptap-maker';
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
-const SHARED_SKILLS = ['maker-ui-workflow', 'taptap-maker-local', 'taptap-maker-dev-kit-guide'];
+const SHARED_SKILLS = [
+  'maker-ui-workflow',
+  'lua-ui-to-json',
+  'taptap-maker-local',
+  'taptap-maker-dev-kit-guide',
+];
 const WORKBUDDY_SKILLS = ['taptap-maker-plugin-lifecycle', 'update-taptap-mcp'];
 const WORKBUDDY_COMMANDS = ['create-project.md', 'sync-project.md'];
 const WORKBUDDY_HOOK_FILES = ['hooks.json', 'session-start.cjs'];
@@ -301,6 +306,26 @@ async function main() {
       readFileSync(file, 'utf8')
         .replaceAll('scripts/assemble-ui.mjs', 'assemble-ui.mjs')
         .replaceAll('references/workflow.md', 'workflow.md')
+    );
+  }
+
+  const luaSkill = join(pluginRoot, 'skills/lua-ui-to-json');
+  for (const [directory, names] of [
+    ['scripts', ['check-ui.cjs', 'ui-json-check.cjs']],
+    ['references', ['conversion.md', 'diagnostics.md']],
+  ]) {
+    for (const name of names) renameSync(join(luaSkill, directory, name), join(luaSkill, name));
+    rmSync(join(luaSkill, directory), { recursive: true });
+  }
+  for (const name of ['SKILL.md', 'conversion.md', 'diagnostics.md']) {
+    const file = join(luaSkill, name);
+    writeFileSync(
+      file,
+      readFileSync(file, 'utf8')
+        .replaceAll('scripts/check-ui.cjs', 'check-ui.cjs')
+        .replaceAll('scripts/ui-json-check.cjs', 'ui-json-check.cjs')
+        .replaceAll('references/conversion.md', 'conversion.md')
+        .replaceAll('references/diagnostics.md', 'diagnostics.md')
     );
   }
 

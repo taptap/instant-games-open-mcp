@@ -111,8 +111,3 @@ export async function readDemoResource(id: string, preview = false): Promise<Buf
     pending.delete(id);
   }
 }
-
-export function editorDemoResource(relative: string): string | undefined {
-  const entries = manifest.editor as Record<string, string>;
-  return Object.prototype.hasOwnProperty.call(entries, relative) ? entries[relative] : undefined;
-}

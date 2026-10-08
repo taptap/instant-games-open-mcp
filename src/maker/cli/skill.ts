@@ -19,6 +19,7 @@ export const MAKER_PLUGIN_LIFECYCLE_SKILL_NAME = 'taptap-maker-plugin-lifecycle'
 
 const BUNDLED_SKILLS = [
   { name: 'maker-ui-workflow' },
+  { name: 'lua-ui-to-json' },
   {
     name: MAKER_LOCAL_SKILL_NAME,
   },

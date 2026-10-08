@@ -18,7 +18,7 @@ function fixture(run) {
     cdn: 'https://app-res.tapimg.com/img/fixture.png',
     lossless: { sourceSize: bytes.length + 20, pixelSha256: 'a'.repeat(64) },
   };
-  const manifest = { resources: { [id]: entry }, editor: { 'examples/demo.png': id } };
+  const manifest = { resources: { [id]: entry } };
   fs.mkdirSync(path.join(root, 'resources/maker-demo'), { recursive: true });
   fs.mkdirSync(path.join(root, 'src/maker/canvas'), { recursive: true });
   const image = path.join(root, 'resources/maker-demo', entry.file);
@@ -66,13 +66,9 @@ test('modified bytes cannot reuse an optimization record', () =>
     fs.writeFileSync(image, 'changed');
     assert.throws(() => checkDemoResources(root), /本地文件不匹配/);
   }));
-test('missing template, thumbnail and editor references block release', () =>
-  fixture(({ root, entry, manifest, save }) => {
+test('missing thumbnail references block release', () =>
+  fixture(({ root, entry, save }) => {
     entry.thumbnail = 'missing';
-    save();
-    assert.throws(() => checkDemoResources(root), /引用缺失/);
-    delete entry.thumbnail;
-    manifest.editor['examples/demo.png'] = 'missing';
     save();
     assert.throws(() => checkDemoResources(root), /引用缺失/);
   }));

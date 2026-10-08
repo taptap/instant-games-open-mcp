@@ -23,6 +23,7 @@ function formatMakerCapabilityRoutingIndex(options: { includeFeedback: boolean }
     options.includeFeedback ? '  exposed by the current Maker tool list.' : '',
     '- Assets: image, video, music, sound-effect, voice, 3D tools when exposed.',
     '- 游戏UI/设计稿还原/拆UI/按钮图标背景切图/拼装UI.json/设计稿对照: read maker-ui-workflow (path in status).',
+    '- Lua写死的UI/旧项目UI提取/UI转JSON/已有UI.json检查及预览排错: read lua-ui-to-json (path in status); preserve gameplay and existing edits.',
     '  Start at requested stage; existing UI edits do not restart generation.',
     '- Resource .meta/UUID: generate_resource_meta; call when needed, never invent UUIDs.',
     '- MCP/proxy infrastructure failure: diagnose, ask once for user consent, then use the',

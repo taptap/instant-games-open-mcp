@@ -154,6 +154,11 @@ describe('TapTap Maker Codex plugin package', () => {
 
   test('contains the runtime, CLI, skills, and troubleshooting documentation', () => {
     const requiredPaths = [
+      'skills/lua-ui-to-json/SKILL.md',
+      'skills/lua-ui-to-json/scripts/check-ui.cjs',
+      'skills/lua-ui-to-json/scripts/ui-json-check.cjs',
+      'skills/lua-ui-to-json/references/conversion.md',
+      'skills/lua-ui-to-json/references/diagnostics.md',
       'skills/maker-ui-workflow/SKILL.md',
       'skills/maker-ui-workflow/scripts/assemble-ui.mjs',
       'skills/maker-ui-workflow/references/workflow.md',

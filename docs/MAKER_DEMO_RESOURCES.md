@@ -1,7 +1,7 @@
 # Maker 示例资源维护
 
-模板和编辑器示例共用 src/maker/demoResources.json。每个图片/视频一个地址，
-不打 ZIP，不增加 MCP tool。编辑器代码、WASM 和示例布局继续随包分发。
+官方画布模板使用 src/maker/demoResources.json。每个图片/视频一个地址，
+不打 ZIP，不增加 MCP tool。编辑器代码和 WASM 随包分发，示例改为外部链接，不再内置。
 
 ```text
 官方模板入库：添加素材 → prepare（无损压缩 + 像素核对）→ 模板引用 resourceId
@@ -34,7 +34,7 @@ prepare 对已有合格记录跳过压缩，不反复处理已上传图片；不
 Maker bundle 和独立 npm 包准备阶段自动执行同一检查：未压缩、文件哈希不匹配、资源引用缺失、
 图片内嵌或未登记 CDN 地址都会阻止打包。可手动运行 check --release 提前检查。
 主包和 Maker 的发布 Actions 还必须下载验证 CDN、GitHub 两个来源，任一失败即停止发布。
-这只约束随产品维护的官方模板及新手示例；用户项目里的图片和自定义模板继续读本机，
+这只约束随产品维护的官方模板；用户项目里的图片和自定义模板继续读本机，
 不会被自动压缩、上传或改写。
 
 上传模块 scripts/maker-demo-upload.mjs 使用公司页面的同一接口：
@@ -83,7 +83,7 @@ GitHub 尚未合入或验证失败时，不应发布依赖该批资源的新包�
 源码研发和测试优先读取仓库内校验合格的文件，正式 bundle 只使用缓存和远端。
 
 回归：makerDemoResources.test.ts 覆盖回退、缓存、损坏及并发；模板测试覆盖导入和预览，
-node scripts/test-maker-ui-editor.mjs 覆盖编辑器与离线缓存示例。
+node scripts/test-maker-ui-editor.mjs 覆盖项目编辑器与外部示例入口。
 node --test scripts/test-maker-demo-upload.mjs 覆盖上传协议、并发上限、失败恢复、授权失败及重复运行。
 node --test scripts/test-maker-demo-resource-check.mjs 覆盖入库/打包拦截，包括缺压缩记录、文件改动、
 未上传、引用缺失和内嵌图片。

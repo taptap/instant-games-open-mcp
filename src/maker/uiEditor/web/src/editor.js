@@ -380,8 +380,7 @@
       documentNameEl.textContent = display;
       documentNameEl.title = project.name + " · " + display;
     }
-    if (saveStatus) saveStatus.textContent = window.UrhoxConfig.DEMO ? "示例练习 · 不写入项目"
-      : saving ? "正在保存…" : !hasDocument ? "" : dirty ? "未保存" : "已保存";
+    if (saveStatus) saveStatus.textContent = saving ? "正在保存…" : !hasDocument ? "" : dirty ? "未保存" : "已保存";
     renderAll();
   }
 
@@ -412,7 +411,7 @@
   function saveCurrent() {
     if (saving) return saving;
     if (!writeReady) {
-      alert("新手示例仅供练习，不能写入当前项目。请返回项目后编辑并保存。");
+      alert("当前项目文件尚未就绪，请刷新文件后再保存。");
       return Promise.resolve(false);
     }
     var preview = window.UrhoxPreview;
@@ -551,22 +550,7 @@
     updateDirtyUi();
   }
 
-  var leavingConfirmed = false;
-  function reloadEditor(demo) {
-    if (saving || opening || refreshing) return;
-    if (isDirty() && !confirm("当前 UI 有未保存修改，离开会丢弃这些修改。确定继续？")) return;
-    var url = new URL(location.href);
-    if (demo === true) url.searchParams.set("demo", "1");
-    if (demo === false) url.searchParams.delete("demo");
-    if (typeof demo === "boolean") url.searchParams.delete("ui");
-    else if (currentFilePath()) url.searchParams.set("ui", currentFilePath());
-    leavingConfirmed = true;
-    location.href = url.href;
-  }
   openProjectBtn.addEventListener("click", function () { loadProjectFiles(false); });
-  var demoBtn = document.getElementById("demoBtn");
-  demoBtn.textContent = window.UrhoxConfig.DEMO ? "返回项目" : "新手示例";
-  demoBtn.addEventListener("click", function () { reloadEditor(!window.UrhoxConfig.DEMO); });
 
   viewListBtn.addEventListener("click", function () {
     viewMode = "list";
@@ -608,7 +592,7 @@
   });
 
   window.addEventListener("beforeunload", function (event) {
-    if (leavingConfirmed || (!isDirty() && !saving)) return;
+    if (!isDirty() && !saving) return;
     event.preventDefault();
     event.returnValue = "";
   });
@@ -635,7 +619,7 @@
         return asset;
       });
       resourceIndexReady = true;
-      writeReady = !window.UrhoxConfig.DEMO;
+      writeReady = true;
       if (window.UrhoxPreview?.tree) {
         // Refresh the index only: keep the document, undo history and original save baseline.
         if (!project.files.some(function (file) { return file.path === currentFilePath(); }) && status)

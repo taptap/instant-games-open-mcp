@@ -61,6 +61,7 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
         repository: pluginSourceUrl,
         skills: [
           './skills/maker-ui-workflow',
+          './skills/lua-ui-to-json',
           './skills/taptap-maker-local',
           './skills/taptap-maker-dev-kit-guide',
           './skills/taptap-maker-plugin-lifecycle',
@@ -125,6 +126,11 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
 
   test('contains the runtime, cross-platform CLI, skills, commands, icon, and docs', () => {
     const requiredPaths = [
+      'skills/lua-ui-to-json/SKILL.md',
+      'skills/lua-ui-to-json/check-ui.cjs',
+      'skills/lua-ui-to-json/ui-json-check.cjs',
+      'skills/lua-ui-to-json/conversion.md',
+      'skills/lua-ui-to-json/diagnostics.md',
       'skills/maker-ui-workflow/SKILL.md',
       'skills/maker-ui-workflow/assemble-ui.mjs',
       'skills/maker-ui-workflow/workflow.md',

@@ -29,6 +29,7 @@ checkDemoResources(projectRoot, { requireCdn: true });
 
 const REQUIRED_SKILLS = [
   'maker-ui-workflow',
+  'lua-ui-to-json',
   'taptap-maker-local',
   'taptap-maker-dev-kit-guide',
   'update-taptap-mcp',
@@ -118,6 +119,7 @@ function createPackageJson(version) {
       'bin/taptap-maker',
       'dist/maker.js',
       'skills/maker-ui-workflow/',
+      'skills/lua-ui-to-json/',
       'skills/taptap-maker-local/',
       'skills/taptap-maker-dev-kit-guide/',
       'skills/update-taptap-mcp/',
@@ -151,9 +153,9 @@ function createReadme(version) {
 
 TapTap Maker local development CLI and MCP server.
 
-The console includes a project UI editor with reference-image comparison. Template media and
-editor demo images download on demand from CDN, fall back to GitHub, and are verified and cached
-locally. First use of an uncached demo requires a network connection; media are not in this package.
+The console includes a project UI editor with reference-image comparison. Official template media
+download on demand from CDN, fall back to GitHub, and are verified and cached locally. First use
+of an uncached template requires a network connection; media are not in this package.
 
 ## Usage
 

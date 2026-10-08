@@ -23,7 +23,6 @@ function editorAssets(relative = '') {
   return Object.fromEntries(
     readdirSync(join(root, relative), { withFileTypes: true }).flatMap((entry) => {
       const name = relative + entry.name;
-      if (name.startsWith('examples/') && /\.(png|jpe?g|webp)$/i.test(name)) return [];
       if (entry.isDirectory()) return Object.entries(editorAssets(name + '/'));
       if (!entry.isFile()) throw new Error('Editor assets must be regular files: ' + name);
       return [[name, readFileSync(join(root, name)).toString('base64')]];

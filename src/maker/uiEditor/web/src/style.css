@@ -27,6 +27,8 @@
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: "PingFang SC", "Noto Sans SC", sans-serif; user-select: none; }
 .menubar { flex-wrap: wrap; }
 .menubar-left, .menubar-right { flex-wrap: wrap; }
+.examples-help { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:4px; color:var(--muted); }
+.examples-help:hover, .examples-help:focus-visible { color:var(--text); background:var(--panel-2); outline:1px solid var(--accent); }
 .transform-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:5px 8px; border-bottom:1px solid var(--line); font-size:12px; }
 .transform-toolbar label { display:flex; align-items:center; gap:5px; }
 .transform-toolbar input { width:64px; }

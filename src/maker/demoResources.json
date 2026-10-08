@@ -2565,10 +2565,5 @@
       },
       "cdn": "https://app-res.tapimg.com/img/2026-10-08/15fbf5203f1c3d7a60d0eddbbf6ce4ce.png"
     }
-  },
-  "editor": {
-    "examples/meowdoku/image/level_select_slices/attempt_soft_alpha_v3/11_difficulty_star_icon.png": "f6a58636252245b43599f322d01bd22b2321363ba7c9ed9f5d5274d8432184e7",
-    "examples/meowdoku/image/level_select_slices/attempt_soft_alpha_v3/9_lock_icon.png": "5e3e5f8e3f79e286e85be2e6dbccebb13a71688001ef4467a2f68df6cc2a4b4a",
-    "examples/meowdoku/image/level_select_slices/attempt_soft_alpha_v3/5_level_tile_red.png": "5fc4e1476b0aee9096f72d3621c1210a7977c54f38dd8566eaf20fd6602b10dc"
   }
 }

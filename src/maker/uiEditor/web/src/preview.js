@@ -4,8 +4,8 @@
   "use strict";
 
   var CFG = window.UrhoxConfig || {};
-  var DEFAULT_UI = CFG.DEFAULT_UI || "examples/meowdoku/ui/start.ui.json";
-  var DEFAULT_ASSET_ROOT = CFG.DEFAULT_ASSET_ROOT || "examples/meowdoku/";
+  var DEFAULT_UI = CFG.DEFAULT_UI || "";
+  var DEFAULT_ASSET_ROOT = CFG.DEFAULT_ASSET_ROOT;
   var DEVICES = CFG.DEVICES || {
     "1080p": { id: "1080p", name: "1080p", width: 1080, height: 1920, bezel: 28 },
   };

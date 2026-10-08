@@ -14,7 +14,9 @@
       <div class="menubar">
         <div class="menubar-left">
           <strong class="app-title">UI 编辑器</strong>
-          <button id="demoBtn" type="button" class="ghost">新手示例</button>
+          <a id="examplesHelp" class="examples-help" href="https://liangdong-ttm.github.io/UrhoxUIEditor/" target="_blank" rel="noopener noreferrer" aria-label="查看 UI 编辑器示例（新窗口）" title="查看 UI 编辑器示例">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4"/><circle cx="12" cy="16.5" r=".8" fill="currentColor" stroke="none"/></svg>
+          </a>
           <button id="saveBtn" type="button" class="ghost" disabled>保存</button>
           <button id="changesBtn" type="button" class="ghost">变更</button>
           <button id="checkUiBtn" type="button" class="ghost">检查 UI</button>
@@ -198,7 +200,7 @@
       <h3 id="missingUiTitle">这个项目没有 .ui.json</h3>
       <p id="missingUiDescription" class="muted">当前选中的项目还没有 UI 文档。可从设计稿生成，或让 AI 将已有 Lua UI 转换为 .ui.json。</p>
       <ol class="guide-list">
-        <li>把设计稿或已有切图交给 AI，使用 Maker 内置的 maker-ui-workflow。</li>
+        <li>已有 Lua UI：让 AI 使用 lua-ui-to-json 提取可编辑文档；设计稿或切图：使用 maker-ui-workflow。</li>
         <li>生成项目 assets 内的 .ui.json 后，点击「刷新文件」。</li>
         <li>用「设计稿对照」左右参考或重叠调整，点击「保存」直接写入当前项目。</li>
       </ol>

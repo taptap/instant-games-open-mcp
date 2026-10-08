@@ -3,7 +3,7 @@
   root.UrhoxSave = {
     write: async function (path, text, expectedText) {
       var config = root.UrhoxConfig;
-      if (config.DEMO || !path || !path.startsWith(config.FILE_ROOT) || typeof expectedText !== "string") {
+      if (!path || !path.startsWith(config.FILE_ROOT) || typeof expectedText !== "string") {
         return { ok: false, error: "只能保存当前项目中已打开的 UI 文档。" };
       }
       try {

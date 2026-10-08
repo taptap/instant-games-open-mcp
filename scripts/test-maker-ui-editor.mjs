@@ -12,13 +12,6 @@ const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-ui-editor-browser
 const staticRoot = path.join(repo, 'src/maker/uiEditor/web');
 const previousHome = process.env.TAPTAP_MAKER_HOME;
 process.env.TAPTAP_MAKER_HOME = path.join(temporary, 'maker-home');
-const demoManifest = JSON.parse(fs.readFileSync(path.join(repo, 'src/maker/demoResources.json')));
-const demoCache = path.join(process.env.TAPTAP_MAKER_HOME, 'cache/demo-resources');
-fs.mkdirSync(demoCache, { recursive: true });
-for (const id of Object.values(demoManifest.editor)) {
-  const file = demoManifest.resources[id].file;
-  fs.copyFileSync(path.join(repo, 'resources/maker-demo', file), path.join(demoCache, file));
-}
 function assets(directory, relative = '') {
   return Object.fromEntries(
     fs
@@ -319,24 +312,16 @@ try {
       name,
     'second'
   );
-  await editor.locator('#demoBtn').click();
-  await page.waitForFunction(
-    (name) =>
-      document.querySelector('#ui-editor-view iframe')?.contentWindow?.UrhoxProject?.get().name ===
-      name,
-    '新手示例 · 关卡按钮'
-  );
-  assert.equal(await editor.locator('#saveBtn').isDisabled(), true);
-  await editor.locator('#demoBtn').click();
-  await page.waitForFunction(
-    (name) =>
-      document.querySelector('#ui-editor-view iframe')?.contentWindow?.UrhoxProject?.get().name ===
-      name,
-    'second'
-  );
+  assert.equal(await editor.locator('#demoBtn').count(), 0);
+  const help = editor.locator('#examplesHelp');
+  assert.equal(await help.getAttribute('href'), 'https://liangdong-ttm.github.io/UrhoxUIEditor/');
+  assert.equal(await help.getAttribute('target'), '_blank');
+  assert.equal(await help.getAttribute('rel'), 'noopener noreferrer');
+  assert.equal(await help.isVisible(), true);
   await page.locator('#project-picker').selectOption(empty.key);
   await editor.locator('#missingUiDialog[open]').waitFor();
   assert.match(await editor.locator('#skillPrompt').inputValue(), /maker-ui-workflow/);
+  assert.match(await editor.locator('#skillPrompt').inputValue(), /lua-ui-to-json/);
   await editor.locator('#missingUiOk').click();
   await page.locator('#project-picker').selectOption(second.key);
   await page.waitForFunction(
@@ -357,8 +342,16 @@ try {
   assert.equal(await editor.locator('html').getAttribute('data-theme'), 'light');
   assert.deepEqual(errors, []);
   assert.deepEqual(failedResources, []);
+  const skillPage = await browser.newPage();
+  await skillPage.goto(server.origin + '/?project=' + second.key + '&page=documents&skill=maker-ui-workflow');
+  await skillPage.locator('.document-reader-header h2').waitFor();
+  assert.match(await skillPage.locator('#document-reader').innerText(), /Maker 游戏 UI 制作|Maker UI|设计稿/);
+  assert.match(await skillPage.locator('#document-reader').innerText(), /assemble-ui/);
+  await skillPage.goto(server.origin + '/?project=' + second.key + '&page=documents&skill=missing-skill');
+  await skillPage.getByText('未找到关联 Skill：missing-skill。请检查 Maker 版本或当前项目的 Skill 文件。', {exact:true}).waitFor();
+  await skillPage.close();
   console.log(
-    'PASS: project loading, reference, direct save, non-destructive index refresh, document guard, resources, stale conflict after refresh, project guard, demo, empty project, responsive frame'
+    'PASS: project loading, reference, direct save, non-destructive index refresh, document guard, resources, stale conflict after refresh, project guard, external examples, empty project, responsive frame, shared theme, compact navigation'
   );
 } catch (error) {
   for (const frame of page?.frames() || [])

@@ -39,7 +39,7 @@ export function checkDemoResources(root, { requireCdn = false } = {}) {
     if (entry.cdn && new URL(entry.cdn).origin !== 'https://app-res.tapimg.com')
       throw new Error('CDN 地址无效：' + entry.file);
   }
-  // Official templates and editor demos must reference the same checked registry.
+  // Official templates must reference the checked registry.
   function walk(value) {
     if (typeof value === 'string' && value.startsWith('data:image/'))
       throw new Error('官方模板图片不能内嵌，请通过资源库压缩并上传 CDN。');
@@ -58,6 +58,5 @@ export function checkDemoResources(root, { requireCdn = false } = {}) {
     'uiWorkflowData',
   ])
     walk(JSON.parse(fs.readFileSync(path.join(root, 'src/maker/canvas', name + '.json'), 'utf8')));
-  for (const id of Object.values(manifest.editor)) reference(id);
   return { resources: Object.keys(resources).length };
 }

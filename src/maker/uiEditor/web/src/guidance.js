@@ -1,10 +1,11 @@
 (function () {
   "use strict";
   function el(id) { return document.getElementById(id); }
-  var prompt = "请使用 Maker 内置 maker-ui-workflow Skill，处理控制台当前项目的 UI。" +
-    "先检查已有设计稿、切图、布局清单和 UI.json，按我的要求从相应阶段继续。" +
-    "设计稿拆分时记录元素 ID、位置和层级，切图与布局明确绑定，保留备用素材。" +
-    "按布局组装 .ui.json，显式生成 meta，在控制台 UI 编辑器中对照设计稿检查并调整。" +
+  var prompt = "请处理 Maker 控制台当前项目的 UI。已有 Lua 代码写死的 UI，使用内置 lua-ui-to-json Skill 提取并检查 .ui.json；设计稿或切图使用 maker-ui-workflow Skill。" +
+    "先检查已有 Lua UI、设计稿、素材和 .ui.json，按我的要求从相应阶段继续。" +
+    "提取 Lua UI 时保留布局约束和资源引用，行为逻辑留在 Lua，并运行 Skill 自带的静态检查脚本。" +
+    "设计稿拆分时记录元素 ID、位置和层级，切图与布局明确绑定，再按布局组装。" +
+    "新增文件显式生成 meta，在控制台 UI 编辑器中对照原 UI 或设计稿检查。" +
     "不要覆盖我手工修改过的 UI，不修改游戏加载入口或玩法。";
   el("skillPrompt").value = prompt;
   async function copy(textarea, status) {
@@ -20,9 +21,9 @@
     }
   }
   function openGuide(projectName) {
-    el("missingUiTitle").textContent = projectName ? "这个项目没有 .ui.json" : "UI 设计稿拆解与还原";
+    el("missingUiTitle").textContent = projectName ? "这个项目没有 .ui.json" : "UI 提取与设计稿还原";
     el("missingUiDescription").textContent = projectName
-      ? "在「" + projectName + "」中未找到 .ui.json。可把设计稿或已有素材交给 AI 组装，完成后刷新文件；也可以先体验新手示例。"
+      ? "在「" + projectName + "」中未找到 .ui.json。可让 AI 提取已有 Lua UI，或从设计稿、素材组装，完成后刷新文件。顶部问号可查看在线示例。"
       : "把下面的指令交给 AI，使用 Maker 内置工作流。已有 UI 可以直接对照编辑。";
     el("skillCopyStatus").textContent = "";
     if (!el("missingUiDialog").open) el("missingUiDialog").showModal();

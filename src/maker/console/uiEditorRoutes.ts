@@ -1,4 +1,3 @@
-import { editorDemoResource, readDemoResource } from '../demoResources.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
 import { readUiEditorAsset, uiEditorMime } from '../uiEditor/assets.js';
@@ -9,8 +8,7 @@ import { ConsoleError } from './types.js';
 export async function serveUiEditor(url: URL, response: ServerResponse): Promise<boolean> {
   if (!url.pathname.startsWith('/ui-editor/')) return false;
   const relative = decodeURIComponent(url.pathname.slice('/ui-editor/'.length)) || 'index.html';
-  const demo = editorDemoResource(relative);
-  const bytes = demo ? await readDemoResource(demo) : readUiEditorAsset(relative);
+  const bytes = readUiEditorAsset(relative);
   if (!bytes) throw new ConsoleError('编辑器文件不存在。', 404);
   response.setHeader(
     'Content-Security-Policy',

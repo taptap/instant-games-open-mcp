@@ -12,7 +12,8 @@ Lua LSP/Python 状态在后台异步检查，同一时刻只执行一次；首�
 「项目资源」保留目录、图片/字体列表、缩略图、拖入与替换图片。两者共用「刷新文件」，
 只更新索引，保留当前文档、撤销历史和保存基线，不重载编辑器或丢弃草稿。
 在当前文档上右键「重新从磁盘加载」可读取外部修改，切换或重新加载均保留未保存确认。
-没有 UI 文档时提供可复制的 maker-ui-workflow 指令；「新手示例」为小型关卡按钮练习，不写入项目。
+没有 UI 文档时提供可复制的 AI 指令：已有 Lua UI 使用 lua-ui-to-json 提取与检查，设计稿和切图使用 maker-ui-workflow。
+顶部圆圈问号打开 https://liangdong-ttm.github.io/UrhoxUIEditor/ 查看外部示例；不再内置示例入口和素材。
 
 保留节点树、属性、拖动缩放、撤销重做、静态检查和设计稿左右/透明叠加对照。
 同目录同名 .reference.png 自动加载，例如 main.ui.json 对应 main.reference.png。
@@ -25,8 +26,8 @@ Lua LSP/Python 状态在后台异步检查，同一时刻只执行一次；首�
 UI 编辑器只保存已有 .ui.json，不自动生成 meta、发布游戏或改加载逻辑。新文件由工作流显式生成 meta。
 
 实现位于 src/maker/uiEditor/，由原 UrhoxUIEditor 代码迁入并在本仓库维护。
-浏览器代码、Yoga WASM 和示例布局在构建时嵌入 dist/maker.js，npm/客户端插件随同一 bundle 分发。
-示例图片与画布模板媒体按需下载：已校验的本地缓存优先，其次 CDN，失败尝试 GitHub，
+浏览器代码和 Yoga WASM在构建时嵌入 dist/maker.js，npm/客户端插件随同一 bundle 分发。
+官方画布模板媒体按需下载：已校验的本地缓存优先，其次 CDN，失败尝试 GitHub，
 通过大小和 SHA-256 校验后缓存；项目自己的图片不受影响。首次使用未缓存的示例需要联网。
 不依赖个人仓库、Python 或额外端口。原项目 MIT 及 Yoga 许可证保留在 web/ 内。
 资源维护、无损压缩及发布顺序见仓库的 [示例资源维护](https://github.com/taptap/instant-games-open-mcp/blob/main/docs/MAKER_DEMO_RESOURCES.md)。

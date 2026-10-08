@@ -139,6 +139,7 @@ describe('Maker MCP launcher', () => {
       fs.writeFileSync(path.join(packageRoot, 'package.json'), '{"type":"module"}');
       for (const skill of [
         'maker-ui-workflow',
+        'lua-ui-to-json',
         'taptap-maker-local',
         'taptap-maker-dev-kit-guide',
         'update-taptap-mcp',
@@ -318,6 +319,7 @@ describe('Maker MCP launcher', () => {
       fs.writeFileSync(path.join(packageRoot, 'package.json'), '{"type":"module"}');
       for (const skill of [
         'maker-ui-workflow',
+        'lua-ui-to-json',
         'taptap-maker-local',
         'taptap-maker-dev-kit-guide',
         'update-taptap-mcp',
@@ -375,6 +377,7 @@ function createSelfRuntimeFixture(prefix: string): {
   fs.writeFileSync(path.join(packageRoot, 'package.json'), '{"type":"module"}');
   for (const skill of [
     'maker-ui-workflow',
+    'lua-ui-to-json',
     'taptap-maker-local',
     'taptap-maker-dev-kit-guide',
     'update-taptap-mcp',
