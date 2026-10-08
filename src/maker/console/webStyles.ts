@@ -1,13 +1,14 @@
+import { consoleThemeStyles } from '../webTheme.js';
+
 export const consoleStyles = String.raw`
-:root{color-scheme:dark;--bg:#1b1e1f;--top:#232728;--border:#363b3c;--text:#ecefee;--muted:#9ca6a4;--yellow:#f5dc56;--accent:#f5dc56;--green:#78d4ad;--red:#f08b85;--soft:#303b36;--code:#16191a}
-:root[data-theme="light"]{color-scheme:light;--bg:#fff;--top:#f3f5f4;--border:#dce2de;--text:#252e29;--muted:#64716a;--accent:#76600b;--green:#176c50;--red:#b3352c;--soft:#edf4ef;--code:#f5f7f6}
+${consoleThemeStyles}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 "PingFang SC","Microsoft YaHei",sans-serif;letter-spacing:0}
 button,input,select{font:inherit;letter-spacing:0;max-width:100%}
 button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:7px 12px;border:1px solid var(--border);border-radius:4px;background:var(--top);color:var(--text);cursor:pointer}
 button:hover:not(:disabled){border-color:var(--muted);background:var(--soft)}
 button:disabled{opacity:.5;cursor:not-allowed}
-button.primary{background:var(--yellow);border-color:var(--yellow);color:#252820;font-weight:600}
+button.primary{background:var(--yellow);border-color:var(--yellow);color:var(--on-yellow);font-weight:600}
 button.preview-button{color:var(--accent);font-weight:700;border-color:#756b38;background:#302e22}
 :root[data-theme="light"] button.preview-button{background:#fcf6d7;border-color:#bcab57}
 .build-button{min-width:88px}
@@ -254,32 +255,32 @@ nav{overflow-x:auto;white-space:nowrap}
 .plugin-status p{margin:0;overflow-wrap:anywhere}
 .plugin-frame{display:block;width:100%;height:calc(100dvh - 205px);min-height:520px;border:0;background:var(--bg)}
 body.canvas-mode{display:flex;flex-direction:column;height:100dvh;min-height:0}
-body.canvas-mode>.top{padding:4px 16px;gap:8px;min-height:36px;box-sizing:border-box}
-body.canvas-mode .brand{font-size:13px;font-weight:500;gap:8px;color:var(--muted)}
-body.canvas-mode .mark{width:22px;height:22px;min-height:22px;font-size:12px}
-body.canvas-mode #maker-version-picker{max-width:128px;font-size:11px;padding:3px 6px}
-body.canvas-mode .toolbar select{width:210px;font-size:12px;padding:4px 8px}
-body.canvas-mode .toolbar .icon-button{width:28px;min-height:28px;padding:5px}
-body.canvas-mode>.navigation{padding-inline:16px;gap:16px}
-body.canvas-mode nav{gap:20px}
-body.canvas-mode nav button{min-height:30px;padding:4px 0;font-size:12px}
+body.compact-chrome>.top{padding:4px 16px;gap:8px;min-height:36px;box-sizing:border-box}
+body.compact-chrome .brand{font-size:13px;font-weight:500;gap:8px;color:var(--muted)}
+body.compact-chrome .mark{width:22px;height:22px;min-height:22px;font-size:12px}
+body.compact-chrome #maker-version-picker{max-width:128px;font-size:11px;padding:3px 6px}
+body.compact-chrome .toolbar select{width:210px;font-size:12px;padding:4px 8px}
+body.compact-chrome .toolbar .icon-button{width:28px;min-height:28px;padding:5px}
+body.compact-chrome>.navigation{padding-inline:16px;gap:16px}
+body.compact-chrome nav{gap:20px}
+body.compact-chrome nav button{min-height:30px;padding:4px 0;font-size:12px}
 body.canvas-mode>.top,body.canvas-mode>.navigation,body.canvas-mode>.feedback,body.canvas-mode>#announcement,body.canvas-mode>footer{flex-shrink:0}
 body.canvas-mode #canvas-views,body.canvas-mode #ui-editor-view{display:flex;flex-direction:column;flex:1;min-height:0}
 body.canvas-mode .canvas-frame{display:block;flex:1;width:100%;height:100%;min-height:0;border:0;background:var(--bg)}
 body.canvas-mode .canvas-toolbar{display:flex;gap:8px;padding:8px 12px;background:var(--top)}
 body.canvas-mode #close-canvas{flex-shrink:0;min-height:28px;padding:3px 8px;font-size:12px;color:var(--muted);background:transparent}
-body.canvas-mode>footer{padding-block:3px;gap:0 12px;font-size:11px;line-height:1.5}
+body.compact-chrome>footer{padding-block:3px;gap:0 12px;font-size:11px;line-height:1.5}
 [hidden]{display:none!important}
 @media(max-width:720px){
 .top,main{padding:18px 16px}.navigation{padding-inline:16px;gap:0;flex-wrap:wrap}nav{gap:24px;width:100%;flex:auto}.context,footer{padding-inline:16px}
 .top{padding-block:10px}
-body.canvas-mode nav{flex:1;width:auto;margin-right:12px}
-body.canvas-mode .toolbar{width:auto;min-width:0;flex:1 1 100%;flex-wrap:nowrap}
-body.canvas-mode .toolbar select{width:auto;min-width:0}
-body.canvas-mode .navigation{flex-wrap:nowrap;gap:8px}
-body.canvas-mode .navigation .context{width:auto;max-width:none;padding:0}
-body.canvas-mode .navigation #context{display:none}
-body.canvas-mode .navigation #connection{font-size:11px;white-space:nowrap}
+body.compact-chrome nav{flex:1;width:auto;margin-right:12px}
+body.compact-chrome .toolbar{width:auto;min-width:0;flex:1 1 100%;flex-wrap:nowrap}
+body.compact-chrome .toolbar select{width:auto;min-width:0}
+body.compact-chrome .navigation{flex-wrap:nowrap;gap:8px}
+body.compact-chrome .navigation .context{width:auto;max-width:none;padding:0}
+body.compact-chrome .navigation #context{display:none}
+body.compact-chrome .navigation #connection{font-size:11px;white-space:nowrap}
 body.canvas-mode #close-canvas{max-width:85px;white-space:normal;font-size:10px}
 .navigation .context{max-width:none;width:100%;padding:8px 0;justify-content:space-between}
 .toolbar{width:100%}.toolbar select{flex:1;min-width:0;width:auto}.theme{margin-left:auto}

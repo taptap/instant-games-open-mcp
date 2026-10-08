@@ -28,7 +28,7 @@ export function getConsoleHtml(): string {
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>Maker 本地控制台</title><style>${consoleStyles}</style></head>
-<body>
+<body class="compact-chrome">
 <header class="top">
   <div class="brand"><button class="mark" id="maker-mark" type="button" aria-label="Maker 控制台品牌标记">M</button>Maker 控制台
     <select id="maker-version-picker" aria-label="Maker MCP 版本" disabled><option>版本加载中</option></select>

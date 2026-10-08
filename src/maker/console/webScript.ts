@@ -1,6 +1,8 @@
 import { consoleIcons } from './webIcons.js';
+import { consoleThemeScript } from '../webTheme.js';
 
 export const consoleScript = String.raw`
+${consoleThemeScript}
 (function(){
 'use strict';
 const iconNodes = ${JSON.stringify(consoleIcons)};
@@ -17,7 +19,7 @@ let loaded = false;
 let fortuneTimer;
 let fortuneReady = false;
 function fortuneMode() {
-  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  return window.MakerConsole.getTheme();
 }
 function fortuneUrl() {
   return 'https://liangdong-ttm.github.io/gdev-fortune/?embed=1&theme=dungeon&mode=' + fortuneMode();
@@ -1302,7 +1304,7 @@ function pluginMessageMatches(event, session) {
 }
 function sendPluginTheme(session, type = 'maker-console:theme') {
   if (!session.iframe || !session.origin) return;
-  const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  const theme = window.MakerConsole.getTheme();
   session.iframe.contentWindow.postMessage({type,protocolVersion:1,theme},session.origin);
 }
 function updatePluginTabs() {
@@ -2939,16 +2941,15 @@ document.addEventListener('DOMContentLoaded',async () => {
   window.addEventListener('focus',() => { void sendActivity(); void poll(); });
   window.addEventListener('pagehide',dispose,{once:true});
   const theme = $('theme');
-  try { theme.checked = localStorage.getItem('maker-console-theme') !== 'light'; } catch (_) {}
-  document.documentElement.dataset.theme = theme.checked ? 'dark' : 'light';
+  theme.checked = window.MakerConsole.getTheme() === 'dark';
   theme.addEventListener('change',() => {
-    const value = theme.checked ? 'dark' : 'light';
-    document.documentElement.dataset.theme = value;
+    if (!window.MakerConsole.setTheme(theme.checked ? 'dark' : 'light')) notify('无法保存主题设置');
+  });
+  window.MakerConsole.onThemeChange(() => {
     pluginSessions.forEach(session => sendPluginTheme(session));
     if ($('fortune-frame').getAttribute('src')) {
       beginFortuneLoad(true);
     }
-    try { localStorage.setItem('maker-console-theme',value); } catch (_) { notify('无法保存主题设置'); }
   });
   $('projects-button').append(icon('folder'));
   const fortunePanel = $('fortune-panel');

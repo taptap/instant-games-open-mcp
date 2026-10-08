@@ -37,9 +37,20 @@ UI 编辑器只保存已有 .ui.json，不自动生成 meta、发布游戏或改
 验证：npx jest --runInBand src/**tests**/makerUiEditor.test.ts；
 node scripts/test-maker-ui-editor.mjs（Playwright 可用时）。
 
-进入自由画布页时，控制台标题和导航采用紧凑布局；画布名称在顶部页签展示，当前页签的
+所有页签的控制台标题和导航默认采用紧凑布局，切页不改变顶部尺寸；画布名称在顶部页签展示，当前页签的
 铅笔按钮用于改名。添加节点、模板、保存和更多操作位于画布左侧悬浮图标条，不占画布宽度，
 悬停可查看名称及保存状态。
+
+主题统一通过浏览器接口 `window.MakerConsole.getTheme()` 获取（`dark` / `light`），
+`setTheme(theme)` 修改并持久化；`onThemeChange(listener)` 订阅变化，返回取消订阅函数。
+存储受限时仍切换本页主题，`setTheme` 返回 false，控制台提示无法保存；非法主题值不生效。
+同时派发 `window` 上的 `maker-console:theme` CustomEvent，`detail` 为 `{protocolVersion:1, theme}`。
+自由画布和 UI 编辑器初次加载读取宿主主题，隐藏期间仍同步，切换不重载页面或丢失草稿。
+独立打开时读取同一存储项，并响应其它窗口的存储变更；外部插件继续使用原 postMessage 协议。
+主题只改变编辑工具外观，不改变素材像素、游戏 UI 配色或导出文件。
+控制台与 UI 编辑器共用 webTheme.ts 的色板；编辑器通过 /console-theme.css 加载，
+只映射面板等局部变量，不另定义强调色。普通按钮为中性色，保存和工具选中态为黄色深字，
+复选框、单选框与滑杆统一使用黄色，文字强调、焦点和列表选中态适配深浅色。
 
 模板库每个模板的「添加」旁提供「预览」：在独立弹窗中按真实布局展示卡片、图片和连线，
 支持全景、缩放、平移及铺满窗口。卡片不可编辑或执行；关闭后保留模板库筛选，

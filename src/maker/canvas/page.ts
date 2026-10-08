@@ -1,4 +1,6 @@
 import { nodesInMarquee, removeNodes, saveAcknowledgement } from './edit.js';
+import { consoleThemeScript } from '../webTheme.js';
+import { CANVAS_THEME_STYLES } from './themeStyles.js';
 import { canvasWireGeometry, canvasWirePath } from './wirePath.js';
 import { createCanvasWireUi, CANVAS_WIRE_STYLES } from './wireUi.js';
 import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from './templates.js';
@@ -1940,6 +1942,8 @@ export function getCanvasPageHtml(): string {
     '  async function leaveCurrent() {',
     '  async function leaveCurrent() { if (wireUi && wireUi.isBusy) return false;'
   );
+  page = replaceCanvasPageText(page, '<script>', '<script>' + consoleThemeScript);
+  page = replaceCanvasPageText(page, '</style>', CANVAS_THEME_STYLES + '</style>');
   return page.replace(
     '<title data-maker-canvas="maker-canvas-page">创作画布</title>',
     '<title data-maker-canvas="maker-canvas-page">序列帧动画</title>'

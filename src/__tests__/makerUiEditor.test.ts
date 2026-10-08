@@ -53,6 +53,14 @@ describe('Maker integrated UI editor', () => {
     const html = await page.text();
     expect(html).not.toContain('welcomeScreen');
     expect(html).toContain('刷新文件');
+    expect(html).toContain('src="/console-theme.js"');
+    const theme = await fetch(server.origin + '/console-theme.js');
+    expect(theme.headers.get('content-type')).toContain('text/javascript');
+    expect(await theme.text()).toContain('onThemeChange');
+    expect(html).toContain('href="/console-theme.css"');
+    const palette = await fetch(server.origin + '/console-theme.css');
+    expect(palette.headers.get('content-type')).toContain('text/css');
+    expect(await palette.text()).toContain('--yellow:#f5dc56');
     expect(page.headers.get('content-security-policy')).toContain(
       "script-src 'self' 'wasm-unsafe-eval'"
     );

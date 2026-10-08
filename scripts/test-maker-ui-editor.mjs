@@ -175,6 +175,47 @@ try {
   await frame.waitForFunction(
     () => window.UrhoxPreview?.tree?.id === 'screen' && !window.UrhoxProject.isBusy()
   );
+  await page.locator('#theme').uncheck();
+  assert.equal(await frame.evaluate(() => window.MakerConsole.getTheme()), 'light');
+  assert.equal(await frame.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(255, 255, 255)');
+  async function checkEditorControls() {
+    const consoleColors = await page.evaluate(() => {
+      const css = getComputedStyle(document.documentElement);
+      return { yellow:css.getPropertyValue('--yellow').trim(), panel:css.getPropertyValue('--top').trim() };
+    });
+    const controls = await frame.evaluate(() => {
+      const css = getComputedStyle(document.documentElement);
+      return {
+        yellow:css.getPropertyValue('--yellow').trim(), panel:css.getPropertyValue('--panel').trim(),
+        primary:getComputedStyle(document.getElementById('saveBtn')).backgroundColor,
+        primaryText:getComputedStyle(document.getElementById('saveBtn')).color,
+        neutral:getComputedStyle(document.getElementById('changesBtn')).backgroundColor,
+        checkbox:getComputedStyle(document.querySelector('.tree-vis')).accentColor,
+        radio:getComputedStyle(document.querySelector('.orientation-control input')).accentColor,
+      };
+    });
+    assert.equal(controls.yellow, consoleColors.yellow);
+    assert.equal(controls.panel, consoleColors.panel);
+    assert.equal(controls.primary, 'rgb(245, 220, 86)');
+    assert.equal(controls.primaryText, 'rgb(37, 40, 32)');
+    assert.equal(controls.checkbox, controls.primary);
+    assert.equal(controls.radio, controls.primary);
+    assert.notEqual(controls.neutral, controls.primary);
+  }
+  await checkEditorControls();
+  const headerHeight = (await page.locator('.top').boundingBox()).height;
+  for (const tab of ['overview', 'build', 'git', 'documents', 'canvas', 'ui-editor']) {
+    await page.locator('nav [data-page="' + tab + '"]').click();
+    assert.equal((await page.locator('.top').boundingBox()).height, headerHeight, tab);
+  }
+  const canvasFrame = page.frames().find((item) => item.url().includes('/canvas?'));
+  await canvasFrame.waitForFunction(() => window.MakerConsole?.getTheme() === 'light');
+  assert.equal(await canvasFrame.evaluate(() => getComputedStyle(document.getElementById('board')).backgroundColor), 'rgb(245, 247, 246)');
+  await page.locator('#theme').check();
+  assert.equal(await canvasFrame.evaluate(() => window.MakerConsole.getTheme()), 'dark');
+  assert.equal(await frame.evaluate(() => window.MakerConsole.getTheme()), 'dark');
+  await checkEditorControls();
+  assert.equal(await canvasFrame.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(16, 17, 20)');
   assert.equal(await editor.locator('#welcomeScreen').count(), 0);
   assert.equal(await editor.locator('#folderInput').count(), 0);
   assert.equal(await editor.locator('#permBadge').count(), 0);
@@ -189,6 +230,8 @@ try {
     p.nudge(25, 0);
   });
   await frame.waitForFunction(() => window.UrhoxProject.isDirty());
+  await page.locator('#theme').uncheck();
+  assert.equal(await frame.evaluate(() => window.UrhoxProject.isDirty()), true);
   // Refresh discovers new files without losing the dirty document or undo history.
   fs.mkdirSync(path.join(first.root, 'assets/ui/sub'), { recursive: true });
   fs.copyFileSync(
@@ -304,6 +347,14 @@ try {
   );
   await page.setViewportSize({ width: 768, height: 900 });
   assert.ok((await page.locator('#ui-editor-view iframe').boundingBox()).height > 500);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok((await page.locator('#ui-editor-view iframe').boundingBox()).height > 400);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.reload();
+  await page.locator('nav [data-page="ui-editor"]').click();
+  await editor.locator('#stage').waitFor();
+  assert.equal(await page.evaluate(() => window.MakerConsole.getTheme()), 'light');
+  assert.equal(await editor.locator('html').getAttribute('data-theme'), 'light');
   assert.deepEqual(errors, []);
   assert.deepEqual(failedResources, []);
   console.log(

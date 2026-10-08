@@ -121,7 +121,14 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
       }
     };})();`
   );
-  const api = runInNewContext(exposed, context);
+  const window = {
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+    parent: undefined as unknown,
+  };
+  window.parent = window;
+  const api = runInNewContext(exposed, { ...context, window });
   return { api, fetch, storage, replaceState, intervals, setInterval, clearInterval, context };
 }
 

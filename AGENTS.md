@@ -520,6 +520,10 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   缺配置以及 Windows 原目录存在 dist/latest.json 均进入受管理副本。不得删除用户 dist、
   创建 junction/软链接或为绕过路径限制改写游戏原目录。
 
+- 控制台主题由 webTheme.ts 统一提供 MakerConsole.getTheme/setTheme/onThemeChange、
+  maker-console:theme 事件和共享 CSS 色板；UI 编辑器通过 /console-theme.css 复用色板。
+  画布和 UI 编辑器复用同一接口，不重载 iframe、不改素材或游戏配色。
+  全页签默认紧凑顶部，canvas-mode 只管理工作区高度。
 - 修改控制台前读 `docs/MAKER_CONSOLE.md`；修改 Runtime 安装或预览前读
   `docs/MAKER_LOCAL_PREVIEW.md`。操作指引统一维护在 `skills/taptap-maker-local/SKILL.md`，
   插件副本通过生成脚本同步，不手工维护。

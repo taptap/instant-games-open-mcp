@@ -23,6 +23,7 @@ import { chooseProjectDirectory } from './folderPicker.js';
 import { discoverConsoleProjects } from './projectDiscovery.js';
 import { handleCanvasProjectRoute } from './canvasRoutes.js';
 import { handleUiEditorRoute, serveUiEditor } from './uiEditorRoutes.js';
+import { consoleThemeScript, consoleThemeStyles } from '../webTheme.js';
 import { CanvasAutomationBridge } from '../canvas/automationBridge.js';
 import { getCanvasPageHtml } from '../canvas/page.js';
 import { writePrivateJson } from '../system/privateJson.js';
@@ -198,6 +199,16 @@ export async function startConsoleServer(options: {
         throw new ConsoleError('Foreign host or origin rejected.', 403);
       }
       const url = new URL(request.url || '/', origin);
+      if (request.method === 'GET' && url.pathname === '/console-theme.css') {
+        response.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8' });
+        response.end(consoleThemeStyles);
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/console-theme.js') {
+        response.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
+        response.end(consoleThemeScript);
+        return;
+      }
       if (request.method === 'GET' && url.pathname.startsWith('/ui-editor/')) {
         await read(() => serveUiEditor(url, response), false);
         return;

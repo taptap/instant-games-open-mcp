@@ -72,7 +72,15 @@ function harness(options: { observeImages?: boolean } = {}) {
       observedImages.clear();
     }
   }
+  const window = {
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+    parent: undefined as unknown,
+  };
+  window.parent = window;
   const context = {
+    window,
     fetch,
     document,
     URL,
