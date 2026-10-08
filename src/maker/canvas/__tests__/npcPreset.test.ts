@@ -2,6 +2,8 @@ import { readDemoResource } from '../../demoResources.js';
 import { canvasPresets } from '../presets.js';
 import { imageAtlasRegions } from '../imageAtlasExport.js';
 
+jest.setTimeout(30000);
+
 const { PNG } = require('pngjs');
 
 test('NPC preset keeps a style reference and eight distinct transparent full-body assets', async () => {

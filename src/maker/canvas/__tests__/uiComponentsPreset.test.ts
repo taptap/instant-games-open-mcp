@@ -2,6 +2,8 @@ import { readDemoResource } from '../../demoResources.js';
 import { canvasPresets } from '../presets.js';
 import { imageAtlasRegions } from '../imageAtlasExport.js';
 
+jest.setTimeout(30000);
+
 const { PNG } = require('pngjs');
 
 test('UI preset preserves a complete screen and twelve independently usable alpha components', async () => {

@@ -465,6 +465,91 @@ describe('CanvasGenerationService', () => {
     expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(1);
   });
 
+  test('retries a paid image from its saved URL without generating again', async () => {
+    const document = await new MakerCanvasFiles(root).create('remote url', 'empty');
+    const previewUrl = 'https://cdn.example/generated/canvas.png';
+    callRemoteProxyToolMock.mockResolvedValue({
+      content: [],
+      structuredContent: {
+        success: true,
+        previewUrl,
+        credits: 12,
+        download: { success: false, error: 'Asset download failed: HTTP 502' },
+      },
+    } as any);
+    const failed = await new CanvasGenerationService(root, {} as any).generateImage({
+      canvasId: document.id,
+      prompt: 'image',
+    });
+    expect(failed).toMatchObject({
+      status: 'failed',
+      remoteStatus: 'succeeded',
+      failureStage: 'download',
+      remoteAssetUrl: previewUrl,
+      credits: 12,
+    });
+    expect(failed.deliveredAssetPath).toBeUndefined();
+    expect(failed.error).toContain('不会重新付费生成');
+    const persisted = JSON.parse(
+      fs.readFileSync(path.join(root, '.maker/canvases/attempts', failed.id + '.json'), 'utf8')
+    );
+    expect(persisted).toMatchObject({
+      status: 'failed',
+      failureStage: 'download',
+      remoteAssetUrl: previewUrl,
+    });
+    const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => png.buffer,
+    } as Response);
+    const recovered = await new CanvasGenerationService(root, {} as any).retry(
+      failed.id,
+      document.id
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      previewUrl,
+      expect.objectContaining({ redirect: 'error' })
+    );
+    expect(recovered).toMatchObject({ id: failed.id, status: 'succeeded', credits: 12 });
+    expect(recovered.resultAssetPath).toMatch(/^assets\/image\/canvas-/);
+    expect(fs.readFileSync(path.join(root, recovered.resultAssetPath!)).subarray(0, 4)).toEqual(
+      Buffer.from([137, 80, 78, 71])
+    );
+    expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not fetch a non-https image URL or repeat the paid generation', async () => {
+    const document = await new MakerCanvasFiles(root).create('bad url', 'empty');
+    callRemoteProxyToolMock.mockResolvedValue({
+      content: [],
+      structuredContent: {
+        success: true,
+        previewUrl: 'http://cdn.example/generated.png',
+        download: { success: false, error: 'HTTP 500' },
+      },
+    } as any);
+    const failed = await new CanvasGenerationService(root, {} as any).generateImage({
+      canvasId: document.id,
+      prompt: 'image',
+    });
+    const fetchMock = jest.spyOn(globalThis, 'fetch');
+    const retried = await new CanvasGenerationService(root, {} as any).retry(
+      failed.id,
+      document.id
+    );
+    expect(retried).toMatchObject({
+      id: failed.id,
+      status: 'failed',
+      failureStage: 'download',
+      remoteAssetUrl: 'http://cdn.example/generated.png',
+    });
+    expect(retried.error).toContain('原图片地址无效');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(1);
+  });
+
   test('interrupted local delivery and repeated import failures never resubmit generation', async () => {
     const files = new MakerCanvasFiles(root);
     const document = await files.create('interrupted delivery', 'empty');

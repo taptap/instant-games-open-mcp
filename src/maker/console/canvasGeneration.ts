@@ -66,6 +66,7 @@ export interface CanvasGenerationAttempt {
   };
   resultAssetPath?: string;
   deliveredAssetPath?: string;
+  remoteAssetUrl?: string;
   credits?: number;
   error?: string;
   executionState?: RemoteProxyExecutionState;
@@ -238,9 +239,28 @@ export class CanvasGenerationService {
       });
       const payload = resultPayload(result);
       const source = stringField(payload.localPath);
+      const remoteAssetUrl = stringField(payload.previewUrl);
+      const download = isRecord(payload.download) ? payload.download : undefined;
       attempt.credits = returnedCredits(payload.credits);
-      if (!source || !source.startsWith('assets/image/'))
-        throw new Error('Maker MCP 已返回，但没有可用于画布的本地图片素材。');
+      if (!source || !source.startsWith('assets/image/')) {
+        const downloadError = stringField(download?.error);
+        const recoverable = payload.success === true && Boolean(remoteAssetUrl);
+        if (recoverable) {
+          // Persist the paid URL before failing so a crash cannot drop it.
+          attempt.remoteStatus = 'succeeded';
+          attempt.remoteAssetUrl = remoteAssetUrl;
+          attempt.status = 'failed';
+          attempt.failureStage = 'download';
+          this.writeAttempt(attempt);
+        }
+        throw new Error(
+          recoverable
+            ? '图片已生成，本地下载未完成' +
+              (downloadError ? '：' + downloadError : '') +
+              '。已保留原地址，可重试本地下载，不会重新付费生成。'
+            : 'Maker MCP 已返回，但没有可用于画布的本地图片素材。'
+        );
+      }
       attempt.remoteStatus = 'succeeded';
       attempt.deliveredAssetPath = source;
       attempt.failureStage = 'download';
@@ -466,14 +486,18 @@ export class CanvasGenerationService {
     if (
       previous.kind === 'image' &&
       previous.remoteStatus === 'succeeded' &&
-      previous.deliveredAssetPath &&
-      previous.failureStage === 'download'
+      previous.failureStage === 'download' &&
+      (previous.deliveredAssetPath || previous.remoteAssetUrl)
     ) {
       const files = new MakerCanvasFiles(this.projectRoot);
       await files.assertWritableForGeneration();
       await files.load(previous.canvasId);
       signal?.throwIfAborted();
       try {
+        if (!previous.deliveredAssetPath && previous.remoteAssetUrl) {
+          previous.deliveredAssetPath = await this.downloadRemoteImage(previous.remoteAssetUrl);
+          this.writeAttempt(previous);
+        }
         this.finishImageDelivery(previous, files);
       } catch (error) {
         this.failAttempt(previous, error);
@@ -714,6 +738,34 @@ export class CanvasGenerationService {
     attempt.updatedAt = new Date().toISOString();
   }
 
+  private async downloadRemoteImage(url: string): Promise<string> {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new Error('原图片地址无效。');
+    }
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password)
+      throw new Error('原图片地址无效。');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const response = await fetch(parsed.href, { signal: controller.signal, redirect: 'error' });
+      if (!response.ok) throw new Error(`原图片下载失败：HTTP ${response.status}`);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.length === 0 || bytes.length > 20 * 1024 * 1024)
+        throw new Error('原图片下载失败：文件大小无效。');
+      const extension = /\.jpe?g$/i.test(parsed.pathname) ? 'jpg' : 'png';
+      const relative = `assets/image/canvas-recovered-${randomUUID()}.${extension}`;
+      const absolute = path.join(this.projectRoot, ...relative.split('/'));
+      fs.mkdirSync(path.dirname(absolute), { recursive: true });
+      fs.writeFileSync(absolute, bytes, { flag: 'wx', mode: 0o644 });
+      return relative;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   private finishImageDelivery(attempt: CanvasGenerationAttempt, files: MakerCanvasFiles): void {
     attempt.resultAssetPath ||= files.importGeneratedImage(attempt.deliveredAssetPath!);
     attempt.status = 'succeeded';
@@ -726,8 +778,9 @@ export class CanvasGenerationService {
   private failAttempt(attempt: CanvasGenerationAttempt, error: unknown, queryFailed = false): void {
     const detail = executionError(error);
     const delivered = attempt.kind === 'image' && attempt.remoteStatus === 'succeeded';
+    const canRecoverLocally = Boolean(attempt.deliveredAssetPath || attempt.remoteAssetUrl);
     attempt.status = delivered
-      ? attempt.deliveredAssetPath
+      ? canRecoverLocally
         ? 'failed'
         : 'unknown'
       : queryFailed || detail.state !== 'not_executed'
@@ -739,7 +792,11 @@ export class CanvasGenerationService {
       detail.message +
       (delivered
         ? ' 图片请求已返回，不会重新付费生成；' +
-          (attempt.deliveredAssetPath ? '可重试本地导入。' : '请先核实原图片结果。')
+          (attempt.deliveredAssetPath
+            ? '可重试本地导入。'
+            : attempt.remoteAssetUrl
+              ? '已保留原图片地址，可重试本地下载。'
+              : '请先核实原图片结果。')
         : '');
     this.touch(attempt);
     this.writeAttempt(attempt);

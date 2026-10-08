@@ -672,6 +672,63 @@ describe('Maker canvas files', () => {
     expect((await restarted.list()).map((item) => item.id)).toContain(second.id);
   });
 
+  test('keeps image references at 14 and allows a video card to save 30', async () => {
+    const root = project('maker-canvas-refs-');
+    gitignore(root);
+    const files = new MakerCanvasFiles(root);
+    const canvas = await files.create();
+    const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0, 0, 0, 0, 0]);
+    const image = await files.importImage(png);
+    const videoBytes = Buffer.alloc(16);
+    videoBytes.write('ftyp', 4, 'ascii');
+    videoBytes.write('isom', 8, 'ascii');
+    const video = await files.importVideo(canvas.id, videoBytes, 'video/mp4');
+    const references = (count: number) => Array.from({ length: count }, () => image.relativePath);
+    const card = (type: 'image' | 'video-source', count: number, assetPath: string) => ({
+      id: createId(),
+      type,
+      title: type,
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 200,
+      assetPath,
+      generation: { prompt: '参考图', referenceImagePaths: references(count) },
+    });
+    const fifteen = await files.save(
+      canvas.id,
+      { ...canvas, nodes: [card('video-source', 15, video.relativePath)] },
+      canvas.revision
+    );
+    expect(fifteen.nodes[0].generation?.referenceImagePaths).toHaveLength(15);
+    const thirty = await files.save(
+      fifteen.id,
+      { ...fifteen, nodes: [card('video-source', 30, video.relativePath)] },
+      fifteen.revision
+    );
+    expect(thirty.nodes[0].generation?.referenceImagePaths).toHaveLength(30);
+    await expect(
+      files.save(
+        thirty.id,
+        { ...thirty, nodes: [card('video-source', 31, video.relativePath)] },
+        thirty.revision
+      )
+    ).rejects.toMatchObject({ code: 'UNSAFE_PATH', message: '参考图片路径无效。' });
+    await expect(
+      files.save(
+        thirty.id,
+        { ...thirty, nodes: [card('image', 15, image.relativePath)] },
+        thirty.revision
+      )
+    ).rejects.toMatchObject({ code: 'UNSAFE_PATH', message: '参考图片路径无效。' });
+    const imageCard = await files.save(
+      thirty.id,
+      { ...thirty, nodes: [card('image', 14, image.relativePath)] },
+      thirty.revision
+    );
+    expect(imageCard.nodes[0].generation?.referenceImagePaths).toHaveLength(14);
+  });
+
   test('imports an image inside the project and rejects symlink escape', async () => {
     const root = project('maker-canvas-img-');
     gitignore(root);

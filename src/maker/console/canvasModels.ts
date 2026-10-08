@@ -337,7 +337,8 @@ export class CanvasModelService {
             : undefined;
       attempt.status = state === 'not_executed' && input.action === 'start' ? 'failed' : 'unknown';
       attempt.retrySafe = state === 'not_executed' && input.action === 'start';
-      attempt.error = (error instanceof Error ? error.message : String(error)).slice(0, 4000);
+      // String(error) is not a stack-trace barrier and is returned by the canvas route.
+      attempt.error = (error instanceof Error ? error.message : '模型请求失败。').slice(0, 4000);
       attempt.updatedAt = new Date().toISOString();
       this.write(attempt);
       return attempt;

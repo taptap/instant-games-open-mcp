@@ -33,7 +33,7 @@ try {
   });
   const { getCanvasPageHtml, STARTER_IMAGE_BASE64 } = await import(pathToFileURL(bundle).href);
   const html = getCanvasPageHtml();
-  new Function(html.match(/<script>([\s\S]*?)<\/script>/)[1]);
+  new Function(html.match(/<script>([\s\S]*?)<\/script>/i)[1]);
   const canvasId = randomUUID();
   const groupId = randomUUID();
   const titles = ['处理中', '待处理', '等待继续', '处理失败', '结果待确认', '视频后台生成'];

@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { Script } from 'node:vm';
 import { ConsoleProjects } from '../maker/console/projects';
 import { startConsoleServer } from '../maker/console/server';
+import { CanvasGenerationService } from '../maker/console/canvasGeneration';
 import { getCanvasPageHtml, CANVAS_PAGE_MARKER } from '../maker/canvas/page';
 import { createBrowserCanvasDocumentStore } from '../maker/canvas/store';
 import { sequenceActionsForCard } from '../maker/canvas/sequence';
@@ -47,7 +48,7 @@ describe('Maker console canvas', () => {
       const page = await fetch(server.origin + '/canvas');
       const csp = page.headers.get('content-security-policy') || '';
       const html = await page.text();
-      const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1] || '';
+      const script = html.match(/<script>([\s\S]*?)<\/script>/i)?.[1] || '';
       const directives = new Map(
         csp.split(';').map((directive) => {
           const [name, ...sources] = directive.trim().split(/\s+/);
@@ -80,14 +81,14 @@ describe('Maker console canvas', () => {
 
   test('loads page images through the encoded same-origin project media route', async () => {
     const html = getCanvasPageHtml();
-    const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1] || '';
+    const script = html.match(/<script>([\s\S]*?)<\/script>/i)?.[1] || '';
     expect(script).toContain('const store = createBrowserCanvasDocumentStore(key)');
     expect(script).toContain('return store.mediaUrl(assetPath)');
     expect(script).toContain('store.importVideo(canvasId');
     expect(script).toContain('sequenceUi = createSequenceUiController({');
     expect(script.includes(sequenceActionsForCard.toString())).toBe(true);
     expect(script.includes(canvasParameterSchema.toString())).toBe(true);
-    expect(html.match(/<script>/g)).toHaveLength(1);
+    expect(html.match(/<script>/gi)).toHaveLength(1);
     expect(() => new Script(script)).not.toThrow();
     expect(script).toContain(
       'createSequenceEditor({ maxFrames: MAX_SEQUENCE_FRAMES, controller: sequenceUi'
@@ -415,6 +416,70 @@ describe('Maker console canvas', () => {
       }
     } finally {
       await server.close().catch(() => undefined);
+    }
+  });
+
+  test('blocks shutdown and proxy close while canvas generation is still running', async () => {
+    const root = makeProject(directory, 'generation-shutdown');
+    const key = registry.add(root).key;
+    let releaseGeneration!: (value: { status: 'failed' }) => void;
+    const generation = new Promise<{ status: 'failed' }>((resolve) => {
+      releaseGeneration = resolve;
+    });
+    let started!: () => void;
+    const startedPromise = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const generateImage = jest
+      .spyOn(CanvasGenerationService.prototype, 'generateImage')
+      .mockImplementation(() => {
+        started();
+        return generation as never;
+      });
+    const closeAll = jest.fn(async () => undefined);
+    let current = 0;
+    let server: Awaited<ReturnType<typeof startConsoleServer>> | undefined;
+    try {
+      server = await startConsoleServer({
+        registry,
+        execute: async () => ({ ok: true }),
+        html: '',
+        version: 'test',
+        idleMs: 20,
+        now: () => current,
+        remoteProxyManager: { closeAll, callTool: jest.fn() } as never,
+      });
+      const post = (route: string, body: unknown) =>
+        fetch(server!.origin + route, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', origin: server!.origin },
+          body: JSON.stringify(body),
+        });
+      const canvasId = '11111111-1111-4111-8111-111111111111';
+      const pending = post('/api/projects/' + key + '/canvases/' + canvasId + '/generation/image', {
+        prompt: 'keep the paid request',
+      });
+      await startedPromise;
+      expect((await post('/api/shutdown', {})).status).toBe(409);
+      current = 60_000;
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(closeAll).not.toHaveBeenCalled();
+      const closing = server.close();
+      let closed = false;
+      void closing.then(() => {
+        closed = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(closed).toBe(false);
+      expect(closeAll).not.toHaveBeenCalled();
+      releaseGeneration({ status: 'failed' });
+      expect((await pending).status).toBe(200);
+      await closing;
+      expect(closeAll).toHaveBeenCalledTimes(1);
+    } finally {
+      generateImage.mockRestore();
+      releaseGeneration({ status: 'failed' });
+      await server?.close().catch(() => undefined);
     }
   });
 

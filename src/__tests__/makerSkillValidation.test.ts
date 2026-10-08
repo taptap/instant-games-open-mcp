@@ -93,6 +93,10 @@ nativeTest(
       path.join(project, '.project/resources.json'),
       '{"groups":{"default":["**"]}}'
     );
+    fs.writeFileSync(
+      path.join(project, '.project/settings.json'),
+      JSON.stringify({ sources: { 'engine-res': { tag: 'stable' } } })
+    );
     fs.mkdirSync(path.join(project, 'dist/1.0.0'), { recursive: true });
     fs.writeFileSync(path.join(project, 'dist/latest.json'), '{"version":"1.0.0","client":"abcd"}');
     fs.writeFileSync(

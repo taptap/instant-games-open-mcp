@@ -1191,10 +1191,13 @@ export class MakerCanvasFiles {
         fail('图片来源标识列表无效。', 400, 'INVALID_DOCUMENT');
       }
       const referenceImagePaths = input.referenceImagePaths;
+      // Image cards stay at 14. Video cards follow Seedance 2.5's 30-image limit;
+      // createVideo still rejects a 2.0 request above 9 before any paid call.
+      const referenceLimit = node.type === 'video-source' ? 30 : 14;
       if (
         referenceImagePaths !== undefined &&
         (!Array.isArray(referenceImagePaths) ||
-          referenceImagePaths.length > 14 ||
+          referenceImagePaths.length > referenceLimit ||
           referenceImagePaths.some(
             (value) => typeof value !== 'string' || value.length > 240 || !RELATIVE.test(value)
           ))

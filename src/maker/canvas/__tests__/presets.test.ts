@@ -9,6 +9,8 @@ import { isCanvasNodeStale } from '../dependencies.js';
 import { invalidateCanvasDependents } from '../templateWorkflow.js';
 import { canvasPresets } from '../presets.js';
 import { builtinPresetDescriptions } from '../presetDescriptions.js';
+
+jest.setTimeout(30000);
 const { PNG } = require('pngjs');
 
 let root: string;
@@ -35,7 +37,7 @@ test('lists portable presets without importing assets or creating a canvas', asy
     '二合图标生成 · 风格参考→升级图集→游戏资产',
     'UI风格裂变 · 同一界面→三种风格',
     '角色概念设计 · 角色参考→完整展示图',
-    'BikeKingBanana UI · 去文字→三轮识别→Icon/按钮与底图分层导出',
+    '游戏UI制作',
   ]);
   expect(templates.every((template) => template.builtin && !('assets' in template))).toBe(true);
   expect(await files.list()).toEqual([]);

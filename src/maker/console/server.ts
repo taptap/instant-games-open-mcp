@@ -138,8 +138,16 @@ export async function startConsoleServer(options: {
   });
   const sockets = new Set<Socket>();
   const readers = new Set<Promise<unknown>>();
+  const canvasOperations = new Set<Promise<unknown>>();
   const readAbort = new AbortController();
   let activeQueries = 0;
+  function trackCanvasOperation<T>(operation: Promise<T>): Promise<T> {
+    const pending = Promise.resolve(operation);
+    canvasOperations.add(pending);
+    return pending.finally(() => {
+      canvasOperations.delete(pending);
+    });
+  }
   async function read<T>(operation: () => Promise<T>, projectQuery = true): Promise<T> {
     if (projectQuery && activeQueries >= 4)
       throw new ConsoleError('Too many active project queries. Try again shortly.', 429);
@@ -388,7 +396,11 @@ export async function startConsoleServer(options: {
         await readBody(request);
         if (
           !draining &&
-          (selectingFolder || updates.job.status === 'running' || tasks.active || previewsActive())
+          (selectingFolder ||
+            updates.job.status === 'running' ||
+            tasks.active ||
+            canvasOperations.size > 0 ||
+            previewsActive())
         )
           throw new ConsoleError(
             'Stop the active preview or wait for running tasks before stopping the console.',
@@ -557,17 +569,19 @@ export async function startConsoleServer(options: {
           })
         );
       } else if (
-        await handleCanvasProjectRoute({
-          request,
-          response,
-          method: request.method || 'GET',
-          suffix,
-          searchParams: url.searchParams,
-          key,
-          registry: options.registry,
-          remoteProxyManager,
-          automation: canvasAutomation,
-        })
+        await trackCanvasOperation(
+          handleCanvasProjectRoute({
+            request,
+            response,
+            method: request.method || 'GET',
+            suffix,
+            searchParams: url.searchParams,
+            key,
+            registry: options.registry,
+            remoteProxyManager,
+            automation: canvasAutomation,
+          })
+        )
       ) {
         if (suffix !== 'canvases/automation/exchange') touch();
       } else {
@@ -607,6 +621,7 @@ export async function startConsoleServer(options: {
         !selectingFolder &&
         updates.job.status !== 'running' &&
         !tasks.active &&
+        canvasOperations.size === 0 &&
         !plugins.active &&
         !previewsActive()
       )
@@ -630,6 +645,8 @@ export async function startConsoleServer(options: {
       await luaLspPending;
       await plugins.close();
       await tasks.settled();
+      // Paid canvas generation is not a console task. Wait for it before closing proxy connections.
+      await Promise.allSettled(canvasOperations);
       const cleanup = await Promise.allSettled([
         (async () => {
           if (!proxyClosed) {

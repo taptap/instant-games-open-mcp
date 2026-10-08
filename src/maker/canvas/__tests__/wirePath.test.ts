@@ -95,7 +95,7 @@ test('route clones are independent; straight wires have no redundant corners', (
 
 test('browser injection parses and includes route controller and shared fanout', () => {
   const html = getCanvasPageHtml();
-  const script = html.match(/<script>([\s\S]*?)<\/script>/)![1];
+  const script = html.match(/<script>([\s\S]*?)<\/script>/i)![1];
   expect(() => new Script(script)).not.toThrow();
   expect(html).toContain(
     'canvasWirePath(from, to, documentState.nodes, view, documentState.edges, edge.route)'

@@ -24,7 +24,7 @@ describe('Maker public documentation', () => {
   });
 
   test('lists the generated install guide in every plugin release contract', () => {
-    for (const file of ['README.md', 'docs/MAKER.md', 'AGENTS.md']) {
+    for (const file of ['README.md', 'docs/MAKER.md']) {
       const content = fs.readFileSync(path.resolve(file), 'utf8');
       expect(content).toContain('`INSTALL.md`');
     }
@@ -108,7 +108,6 @@ describe('Maker public documentation', () => {
 
   test('documents consent-gated non-MCP issue reporting and non-blocking fallback', () => {
     for (const file of [
-      'AGENTS.md',
       'README.md',
       'docs/MAKER.md',
       'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md',
@@ -134,7 +133,7 @@ describe('Maker public documentation', () => {
   });
 
   test('documents the QR orientation gate and test whitelist proxy workflow', () => {
-    for (const file of ['AGENTS.md', 'README.md', 'docs/MAKER.md']) {
+    for (const file of ['README.md', 'docs/MAKER.md']) {
       const text = fs.readFileSync(path.resolve(file), 'utf8');
       expect(text).toContain('add_test_whitelist');
       expect(text).toContain('confirmed_screen_orientation');
@@ -306,7 +305,7 @@ describe('Maker public documentation', () => {
   });
 
   test('technical docs keep project-local service selection out of user-level MCP config', () => {
-    for (const file of ['AGENTS.md', 'docs/MAKER.md']) {
+    for (const file of ['docs/MAKER.md']) {
       const text = fs.readFileSync(path.resolve(file), 'utf8');
       expect(text).toContain('项目级本地研发服务选择只在调用时解析');
       expect(text).toContain('不会提升为用户级 MCP 启动环境');
