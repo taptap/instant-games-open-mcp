@@ -47,6 +47,7 @@ describe('CanvasGenerationService', () => {
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     fs.rmSync(root, { recursive: true, force: true });
     if (originalMakerHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
     else process.env.TAPTAP_MAKER_HOME = originalMakerHome;
@@ -313,7 +314,13 @@ describe('CanvasGenerationService', () => {
     const referencePath = (await files.importImage(png)).relativePath;
     fs.writeFileSync(path.join(root, 'assets/image/generated.png'), Buffer.from('generated'));
     callRemoteProxyToolMock
-      .mockRejectedValueOnce(new Error('temporary failure'))
+      .mockRejectedValueOnce(
+        new RemoteProxyToolCallError(
+          'generate_image',
+          'not_executed',
+          new Error('temporary failure')
+        )
+      )
       .mockResolvedValueOnce(successfulImageResult());
     const service = new CanvasGenerationService(root, {} as any);
     const attempt = await service.generateImage({
@@ -426,12 +433,96 @@ describe('CanvasGenerationService', () => {
     expect(fs.existsSync(path.join(root, attempt.resultAssetPath!))).toBe(true);
   });
 
+  test('recovers a delivered image after restart without another paid request', async () => {
+    const files = new MakerCanvasFiles(root);
+    const document = await files.create('local delivery', 'empty');
+    fs.mkdirSync(path.join(root, 'assets/image'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'assets/image/generated.png'), Buffer.from('image'));
+    callRemoteProxyToolMock.mockResolvedValue({
+      content: [],
+      structuredContent: { localPath: 'assets/image/generated.png', credits: 20 },
+    } as any);
+    jest.spyOn(MakerCanvasFiles.prototype, 'importGeneratedImage').mockImplementationOnce(() => {
+      throw new Error('EACCES');
+    });
+    const service = new CanvasGenerationService(root, {} as any);
+    const failed = await service.generateImage({ canvasId: document.id, prompt: 'image' });
+    expect(failed).toMatchObject({
+      status: 'failed',
+      remoteStatus: 'succeeded',
+      failureStage: 'download',
+      deliveredAssetPath: 'assets/image/generated.png',
+      credits: 20,
+    });
+    const recovered = await new CanvasGenerationService(root, {} as any).retry(
+      failed.id,
+      document.id
+    );
+    expect(recovered).toMatchObject({ id: failed.id, status: 'succeeded', credits: 20 });
+    expect(recovered.error).toBeUndefined();
+    expect(recovered.failureStage).toBeUndefined();
+    expect(fs.readFileSync(path.join(root, recovered.resultAssetPath!), 'utf8')).toBe('image');
+    expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('interrupted local delivery and repeated import failures never resubmit generation', async () => {
+    const files = new MakerCanvasFiles(root);
+    const document = await files.create('interrupted delivery', 'empty');
+    callRemoteProxyToolMock.mockResolvedValue(successfulImageResult());
+    const service = new CanvasGenerationService(root, {} as any);
+    const failed = await service.generateImage({ canvasId: document.id, prompt: 'image' });
+    const filename = path.join(root, '.maker/canvases/attempts', failed.id + '.json');
+    fs.writeFileSync(filename, JSON.stringify({ ...failed, status: 'running' }));
+    expect(service.list(document.id)[0].status).toBe('failed');
+    const retried = await service.retry(failed.id, document.id);
+    expect(retried).toMatchObject({ id: failed.id, status: 'failed', failureStage: 'download' });
+    expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(['download error', 'missing result'])(
+    '%s does not permit another paid image request',
+    async (scenario) => {
+      const document = await new MakerCanvasFiles(root).create('unknown delivery', 'empty');
+      if (scenario === 'download error')
+        callRemoteProxyToolMock.mockRejectedValue(new Error('download failed'));
+      else
+        callRemoteProxyToolMock.mockResolvedValue({
+          content: [],
+          structuredContent: { success: true },
+        } as any);
+      const service = new CanvasGenerationService(root, {} as any);
+      const failed = await service.generateImage({ canvasId: document.id, prompt: 'image' });
+      expect(failed.status).toBe('unknown');
+      await expect(service.retry(failed.id, document.id)).rejects.toThrow('结果未知');
+      expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  test('legacy image failures without non-execution evidence cannot regenerate via retry', async () => {
+    const document = await new MakerCanvasFiles(root).create('legacy failure', 'empty');
+    callRemoteProxyToolMock.mockRejectedValue(new Error('import failed'));
+    const service = new CanvasGenerationService(root, {} as any);
+    const failed = await service.generateImage({ canvasId: document.id, prompt: 'image' });
+    fs.writeFileSync(
+      path.join(root, '.maker/canvases/attempts', failed.id + '.json'),
+      JSON.stringify({ ...failed, status: 'failed' })
+    );
+    await expect(service.retry(failed.id, document.id)).rejects.toThrow('无法确认');
+    expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(1);
+  });
+
   test('keeps the target node when retrying an explicitly failed attempt', async () => {
     const files = new MakerCanvasFiles(root);
     const document = await files.create(undefined, 'starter');
     fs.writeFileSync(path.join(root, 'assets/image/generated.png'), Buffer.from('png'));
     callRemoteProxyToolMock
-      .mockRejectedValueOnce(new Error('temporary failure'))
+      .mockRejectedValueOnce(
+        new RemoteProxyToolCallError(
+          'generate_image',
+          'not_executed',
+          new Error('temporary failure')
+        )
+      )
       .mockResolvedValueOnce(successfulImageResult());
 
     const service = new CanvasGenerationService(root, {} as any);
@@ -453,7 +544,13 @@ describe('CanvasGenerationService', () => {
     const document = await files.create(undefined, 'starter');
     fs.writeFileSync(path.join(root, 'assets/image/generated.png'), Buffer.from('png'));
     callRemoteProxyToolMock
-      .mockRejectedValueOnce(new Error('temporary failure'))
+      .mockRejectedValueOnce(
+        new RemoteProxyToolCallError(
+          'generate_image',
+          'not_executed',
+          new Error('temporary failure')
+        )
+      )
       .mockResolvedValueOnce(successfulImageResult());
 
     const service = new CanvasGenerationService(root, {} as any);

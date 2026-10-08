@@ -1487,7 +1487,12 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const mergeTarget = options
       .getDocument()
       ?.nodes.find((node: any) => node.id === attempt.targetNodeId && node.mergeIcons);
-    if (actionName === 'retry' && mergeTarget) {
+    if (
+      actionName === 'retry' &&
+      mergeTarget &&
+      attempt.executionState === 'not_executed' &&
+      attempt.failureStage !== 'download'
+    ) {
       if (attempt.prompt !== mergeIconPrompt(mergeTarget.mergeIcons)) {
         options.setError('阶段设置已变更，请按新设置生成图集，不会重试旧提示词。');
         return;
@@ -1596,7 +1601,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         : relevant.status === 'unknown'
           ? '结果未知，需查询原任务'
           : relevant.status === 'failed'
-            ? '生成失败'
+            ? relevant.kind === 'image' && relevant.failureStage === 'download'
+              ? '本地导入未完成'
+              : '生成失败'
             : relevant.status === 'canceled'
               ? '已停止本地等待'
               : '已完成';
@@ -1620,8 +1627,11 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       (relevant.kind !== 'video' || !relevant.taskId || relevant.remoteStatus === 'failed')
     )
       container.append(
-        button(relevant.kind === 'video' ? '重新生成（消耗积分）' : '重试', () =>
-          action(relevant, 'retry')
+        button(
+          relevant.kind === 'image' && relevant.failureStage === 'download'
+            ? '重试本地导入'
+            : '重新生成（消耗积分）',
+          () => action(relevant, 'retry')
         )
       );
   }

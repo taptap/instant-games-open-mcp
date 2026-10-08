@@ -65,6 +65,7 @@ export interface CanvasGenerationAttempt {
     mode?: 'first_frame' | 'first_last_frame' | 'multi_modal_reference';
   };
   resultAssetPath?: string;
+  deliveredAssetPath?: string;
   credits?: number;
   error?: string;
   executionState?: RemoteProxyExecutionState;
@@ -240,10 +241,11 @@ export class CanvasGenerationService {
       attempt.credits = returnedCredits(payload.credits);
       if (!source || !source.startsWith('assets/image/'))
         throw new Error('Maker MCP 已返回，但没有可用于画布的本地图片素材。');
-      attempt.resultAssetPath = files.importGeneratedImage(source);
-      attempt.status = 'succeeded';
-      this.touch(attempt);
+      attempt.remoteStatus = 'succeeded';
+      attempt.deliveredAssetPath = source;
+      attempt.failureStage = 'download';
       this.writeAttempt(attempt);
+      this.finishImageDelivery(attempt, files);
       return attempt;
     } catch (error) {
       this.failAttempt(attempt, error);
@@ -461,6 +463,23 @@ export class CanvasGenerationService {
   ): Promise<CanvasGenerationAttempt> {
     signal?.throwIfAborted();
     const previous = this.readAttemptForCanvas(attemptId, canvasId);
+    if (
+      previous.kind === 'image' &&
+      previous.remoteStatus === 'succeeded' &&
+      previous.deliveredAssetPath &&
+      previous.failureStage === 'download'
+    ) {
+      const files = new MakerCanvasFiles(this.projectRoot);
+      await files.assertWritableForGeneration();
+      await files.load(previous.canvasId);
+      signal?.throwIfAborted();
+      try {
+        this.finishImageDelivery(previous, files);
+      } catch (error) {
+        this.failAttempt(previous, error);
+      }
+      return previous;
+    }
     if (previous.kind === 'video' && unfinishedVideo(previous))
       throw new Error(
         '结果未取得或未知，不能自动重试付费生成；有 taskId 可在提交后 6 小时内查询，也可明确生成新视频。'
@@ -472,6 +491,8 @@ export class CanvasGenerationService {
       throw new Error('只有明确失败的生成尝试可以重试。');
     }
     if (previous.kind === 'image') {
+      if (previous.executionState !== 'not_executed')
+        throw new Error('无法确认原图片请求未执行，请先核实原结果；不能重试付费生成。');
       return this.generateImage({
         canvasId: previous.canvasId,
         prompt: previous.prompt,
@@ -693,11 +714,33 @@ export class CanvasGenerationService {
     attempt.updatedAt = new Date().toISOString();
   }
 
+  private finishImageDelivery(attempt: CanvasGenerationAttempt, files: MakerCanvasFiles): void {
+    attempt.resultAssetPath ||= files.importGeneratedImage(attempt.deliveredAssetPath!);
+    attempt.status = 'succeeded';
+    attempt.failureStage = undefined;
+    attempt.error = undefined;
+    this.touch(attempt);
+    this.writeAttempt(attempt);
+  }
+
   private failAttempt(attempt: CanvasGenerationAttempt, error: unknown, queryFailed = false): void {
     const detail = executionError(error);
-    attempt.status = queryFailed || detail.state === 'unknown' ? 'unknown' : 'failed';
+    const delivered = attempt.kind === 'image' && attempt.remoteStatus === 'succeeded';
+    attempt.status = delivered
+      ? attempt.deliveredAssetPath
+        ? 'failed'
+        : 'unknown'
+      : queryFailed || detail.state !== 'not_executed'
+        ? 'unknown'
+        : 'failed';
+    if (delivered) attempt.failureStage = 'download';
     attempt.executionState = detail.state;
-    attempt.error = detail.message;
+    attempt.error =
+      detail.message +
+      (delivered
+        ? ' 图片请求已返回，不会重新付费生成；' +
+          (attempt.deliveredAssetPath ? '可重试本地导入。' : '请先核实原图片结果。')
+        : '');
     this.touch(attempt);
     this.writeAttempt(attempt);
   }
@@ -713,6 +756,13 @@ export class CanvasGenerationService {
   }
 
   private normalizeAttempt(value: CanvasGenerationAttempt): CanvasGenerationAttempt {
+    if (value.kind === 'image' && value.status === 'running' && value.deliveredAssetPath)
+      return {
+        ...value,
+        status: 'failed',
+        failureStage: 'download',
+        error: '图片已交付，本地导入未完成，可重试本地导入，不会重新付费生成。',
+      };
     if (value.kind === 'video' && value.executionState === 'unknown')
       return { ...value, status: 'unknown', remoteStatus: undefined };
     if (

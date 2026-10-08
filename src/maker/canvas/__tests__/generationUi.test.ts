@@ -290,6 +290,46 @@ describe('image reference drafts and refresh', () => {
     return elements.filter((element) => element.tag === 'img').map((element) => element.src);
   }
 
+  test.each([false, true])(
+    'local image retry does not start a new generation, including merge icons: %s',
+    async (mergeIcons) => {
+      const { document, options, ui, image } = imageFixture();
+      if (mergeIcons)
+        configureMergeIcons(image as any, {
+          stageCount: 2,
+          instructions: '',
+          series: [{ name: 'bread', stages: ['one', 'two'] }],
+        });
+      const attempt: any = {
+        id: 'delivered-image',
+        canvasId: document.id,
+        kind: 'image',
+        targetNodeId: image.id,
+        prompt: 'original prompt',
+        status: 'failed',
+        remoteStatus: 'succeeded',
+        failureStage: 'download',
+        deliveredAssetPath: 'assets/image/generated.png',
+        updatedAt: new Date().toISOString(),
+      };
+      options.store.listGeneration.mockResolvedValue([attempt]);
+      options.store.generationAction.mockResolvedValue({
+        ...attempt,
+        status: 'succeeded',
+        resultAssetPath: 'assets/image/recovered.png',
+      });
+      await ui.restore();
+      ui.render({ append: jest.fn() }, image, document.nodes);
+      expect(elements.some((element) => element.textContent === '本地导入未完成')).toBe(true);
+      elements
+        .find((element) => element.textContent === '重试本地导入')
+        .events.click({ stopPropagation() {} });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(options.store.generationAction).toHaveBeenCalledWith(document.id, attempt.id, 'retry');
+      expect(options.store.generateImage).not.toHaveBeenCalled();
+    }
+  );
+
   test('unsubmitted manual inputs remain detectable after closing a panel, unlike unchanged caches', () => {
     const { document, ui, image } = imageFixture(true);
     ui.render({ append: jest.fn() }, image, document.nodes);
