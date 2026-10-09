@@ -150,6 +150,14 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       delete node.templateRevision;
       delete node.templateSkills;
       delete node.templatePending;
+      if (node.uiRecognition)
+        node.uiRecognition = {
+          enabled: node.uiRecognition.enabled,
+          model: node.uiRecognition.model,
+          results: [],
+        };
+      if (node.uiRecognitionSourceId && !selected.has(node.uiRecognitionSourceId))
+        delete node.uiRecognitionSourceId;
       if (node.sourceVideoId && !selected.has(node.sourceVideoId))
         throw new Error('抽帧卡依赖选区外的视频，请一起选中后保存。');
       if (node.sourceSnapshot && !selected.has(node.sourceSnapshot.nodeId))
@@ -234,11 +242,21 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
     const modelWorkflow = nodes.some((node) => node.type === 'model-views');
     const savedExampleWorkflow =
       template.builtin &&
+      // UI production examples remain visible, but do not complete a new workflow.
+      template.id !== '7e1cb6ad-732f-4dc3-a951-000000000012' &&
       (nodes.some((node) => node.type === 'image-assets' && node.imageAssetsInfo?.items.length) ||
         nodes.every((node) => node.type === 'image' && node.assetPath));
     const ids = new Map(nodes.map((node) => [node.id, createId()]));
     for (const node of nodes) {
       node.id = ids.get(node.id)!;
+      if (node.uiRecognitionSourceId)
+        node.uiRecognitionSourceId = ids.get(node.uiRecognitionSourceId);
+      if (node.uiRecognition)
+        node.uiRecognition = {
+          enabled: node.uiRecognition.enabled,
+          model: node.uiRecognition.model,
+          results: [],
+        };
       node.x += position.x;
       node.y += position.y;
       if (node.sourceVideoId) node.sourceVideoId = ids.get(node.sourceVideoId);

@@ -18,6 +18,53 @@ function gitignore(root: string): void {
 }
 
 describe('Maker canvas files', () => {
+  test('keeps resource PNGs in canvas storage without creating game assets', async () => {
+    const root = project('maker-canvas-resource-');
+    try {
+      gitignore(root);
+      const files = new MakerCanvasFiles(root);
+      const canvas = await files.create('resources', 'empty');
+      const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0, 0, 0, 0, 0]);
+      const imported = await files.importImage(png, canvas.id);
+      expect(imported.relativePath.startsWith('.maker/canvases/' + canvas.id + '/resources/')).toBe(
+        true
+      );
+      const media = files.readMedia(imported.relativePath);
+      expect(media.type).toBe('image/png');
+      expect(fs.readFileSync(media.file)).toEqual(png);
+      expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+      await expect(files.importImage(png, '../outside')).rejects.toBeInstanceOf(CanvasStoreError);
+      await expect(files.importImage(png, createId())).rejects.toBeInstanceOf(CanvasStoreError);
+      const jpeg = Buffer.from([255, 216, 255, 224, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+      await expect(files.importImage(jpeg, canvas.id)).rejects.toMatchObject({
+        code: 'INVALID_IMAGE',
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects resource-directory symlinks before writing PNGs', async () => {
+    const root = project('maker-canvas-resource-link-');
+    const outside = project('maker-canvas-resource-outside-');
+    try {
+      gitignore(root);
+      const files = new MakerCanvasFiles(root);
+      const canvas = await files.create('resources', 'empty');
+      const folder = path.join(root, '.maker', 'canvases', canvas.id);
+      fs.mkdirSync(folder, { recursive: true });
+      fs.symlinkSync(outside, path.join(folder, 'resources'));
+      const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0, 0, 0, 0, 0]);
+      await expect(files.importImage(png, canvas.id)).rejects.toMatchObject({
+        code: 'UNSAFE_PATH',
+      });
+      expect(fs.readdirSync(outside)).toEqual([]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
   test.each(['image', 'video'] as const)(
     'round trips %s draft parameters without inventing a result',
     async (type) => {
@@ -392,6 +439,7 @@ describe('Maker canvas files', () => {
       sectionId,
       generation: {
         prompt: '保留角色并升级装备',
+        cutoutColor: '#00FF00' as const,
         operation: 'variant' as const,
         sourceImageId: created.nodes[0].id,
         sourceImageIds: [created.nodes[0].id],
@@ -416,6 +464,10 @@ describe('Maker canvas files', () => {
     );
     expect((await files.load(saved.id)).nodes).toEqual(saved.nodes);
     expect((await files.load(saved.id)).edges).toEqual(saved.edges);
+    expect(
+      (await files.load(saved.id)).nodes.find((node) => node.id === resultId)?.generation
+        ?.cutoutColor
+    ).toBe('#00FF00');
   });
 
   test('persists an image generation slot and validates its saved source', async () => {

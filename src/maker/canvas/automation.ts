@@ -1,6 +1,9 @@
 import type { CanvasDocument, CanvasNode } from './model.js';
 import { configureMergeIcons } from './mergeIcons.js';
+import { canvasOriginalImage, imageRatioInfo } from './imageSizing.js';
 import { canvasGenerationParameterChoices, canvasParameterSchema } from './automationInfo.js';
+import { imageCardSize } from './imageInfo.js';
+import { uiRecognitionStatus, validateUiRecognition } from './uiRecognition.js';
 
 export interface CanvasCommand {
   requestId: string;
@@ -56,11 +59,14 @@ export function canvasAutomationCapabilities() {
       'text',
       'x',
       'y',
+      'width',
+      'height',
       'prompt',
       'parameters',
       'sequenceSettings',
       'modelQuality',
       'mergeIcons',
+      'uiRecognition',
     ],
     modelWorkflow: {
       quality: ['fast', 'balanced', 'high_quality'],
@@ -72,10 +78,12 @@ export function canvasAutomationCapabilities() {
         'canvas models --canvas-id ID reads persisted local attempts without a page; query on model cards contacts the original upstream task.',
     },
     imageAssetsWorkflow: {
+      groupRun:
+        'Run a template group once with --allow-paid after user authorization. Images execute in dependency order, then resource cards split the current atlas with their saved grids and save final PNG items without per-card dialogs. Failed or unknown steps block only their dependent branch; independent branches continue. Definite image failures or uncuttable UI atlas layouts allow at most two paid regenerations per source per authorized group run; unknown tasks and download failures are never regenerated. Completion means prepared resource cards, not visual approval or installation into the game.',
       steps:
         'preview-image-assets -> inspect the returned grid preview -> confirm-image-assets -> export images',
       confirmation:
-        'Preview/run on an image-assets card completes the command with result.status=waiting_for_confirmation, not final assets. Use the current reviewId and revision after visually checking every cell. New previews, edits and page reloads invalidate old confirmation. No automatic grid repair or semantic naming.',
+        'Preview/run on an image-assets card completes the command with result.status=waiting_for_confirmation, not final assets. Use the current reviewId and revision after visually checking every cell. New previews, edits and page reloads invalidate old confirmation. Game UI atlases with default grids use transparent separators for lossless alignment; explicit margins/gaps remain fixed. No semantic naming.',
     },
     templateSkills: {
       source: 'templates.presets/items[].skills and inspect.skills / section.templateSkills',
@@ -84,12 +92,16 @@ export function canvasAutomationCapabilities() {
     },
     uiWorkflow: {
       skill: 'maker-ui-workflow',
+      imageSizing:
+        'imageInfo reports actual image pixels and ratio, not card geometry. originalImage traces the unique original through existing references. Use parameters.aspectRatio=source for full-screen processing, or a supported fixed ratio for atlases. Uncommon input ratios carry warnings; unsupported source ratios stop before billing. Generation history separates referenceImages, originalImage, parameters.targetSize, resultImageInfo and submittedPrompt. Never infer actual dimensions from requested size.',
+      recognition:
+        'Canvas templates default recognition off. CLI run on a UI group or image enables recognition by default and completes it before downstream generation. Explicit no-recognition comparisons must pass input.recognition=false on run. First run the text-removal card. The calling AI then views its completed text-free output and saves its list using update-nodes nodes:[{id:TEXT_FREE_CARD_ID,uiRecognition:{enabled:true,result:RESULT}}]. RESULT fields: id(UUID), model(actual agent model or unknown), prompt, createdAt(ISO), durationMs, sourcePath, sourceSha256, width/height(text-free image pixels), elements:[{id,name,category,rect:[x,y,w,h],parentId,zIndex,states,cutout}]. Categories: icon,frame,tab,action,shortcut,close,title,panel,art_text,text. Art-text annotation/extraction stays on a separate original-image branch. No separate vision service or TAPTAP_MAKER_VISION_CONFIG required. If the current AI cannot view images, recommend switching its model.',
       steps:
         'design/layout -> reviewed PNG assets -> import into project -> generate_resource_meta -> assemble-ui.mjs -> console UI editor comparison',
       completion:
         'For an editable game UI request, PNG export is an intermediate result: the Agent continues with the Skill through assembly and editor verification. Stop at PNG only when the user requests extraction alone. Do not ask the user to copy a handoff prompt when the Agent is already operating the CLI.',
       boundary:
-        'The console does not invoke AI. Read every resource card and pending state; one successful export does not mean all assets or the UI are complete. Reuse verified layout records, or record layout from the design with explicit provenance before assembly.',
+        'Enabled CLI recognition uses the calling AI and its saved element list; assembly remains a separate Skill task. Read every resource card and pending state; one successful export does not mean all assets or the UI are complete. Reuse verified layout records, or record layout from the design with explicit provenance before assembly.',
     },
     sequenceSettings: [
       'start',
@@ -115,6 +127,15 @@ export function canvasAutomationCapabilities() {
     paidExecutionRequiresAllowPaid: true,
     parameterSchema: canvasParameterSchema(),
     inputs: {
+      run: {
+        id: 'node or group ID',
+        recognition:
+          'optional boolean for UI groups/images; defaults true in CLI automation. Set false explicitly for a no-recognition comparison. The setting is saved to the source card; browser group buttons use the saved switch without applying this CLI default.',
+      },
+      'update-nodes': {
+        nodes:
+          'Array of patches with id and editable fields. width/height resize only the card, not the image or viewport (width 48..2000, height 36..1600; sections up to 100000). For image cards with known pixels, set width OR height and the other axis follows the image ratio including the header; if both are supplied they must match. Layout-only changes do not invalidate generated results.',
+      },
       'preview-image-assets': {
         id: 'image-assets card ID; read-only preview, no final files',
         grid: 'optional object: columns/rows positive integers (at most 120 cells); marginX/marginY/gapX/gapY nonnegative integer pixels; omitted fields use saved/default grid',
@@ -193,7 +214,33 @@ export function canvasAutomationSnapshot(document: CanvasDocument) {
     id: document.id,
     title: document.title,
     revision: document.revision,
-    nodes: document.nodes.map((node) => ({ ...node })),
+    nodes: document.nodes.map((node) => {
+      const original = node.type === 'image' ? canvasOriginalImage(document, node) : undefined;
+      return {
+        ...node,
+        ...(node.uiRecognition ? { recognitionState: uiRecognitionStatus(node) } : {}),
+        ...(node.uiRecognitionSourceId
+          ? {
+              text: uiRecognitionStatus(
+                document.nodes.find((source) => source.id === node.uiRecognitionSourceId)
+              ).text,
+            }
+          : {}),
+        ...(node.imageInfo
+          ? { imageInfo: { ...node.imageInfo, ...imageRatioInfo(node.imageInfo) } }
+          : {}),
+        ...(original?.imageInfo
+          ? {
+              originalImage: {
+                nodeId: original.id,
+                assetPath: original.assetPath,
+                ...original.imageInfo,
+                ...imageRatioInfo(original.imageInfo),
+              },
+            }
+          : {}),
+      };
+    }),
     edges: document.edges,
     templateFlow: document.templateFlow,
     skills: [...new Set(document.nodes.flatMap((node) => node.templateSkills || []))],
@@ -234,6 +281,45 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
           throw new Error('卡片位置无效。');
         if (node.type === 'section') throw new Error('首版不支持移动整个分组。');
         next[key] = value;
+      } else if (key === 'width' || key === 'height') {
+        const min = key === 'width' ? 48 : 36;
+        const max = node.type === 'section' ? 100000 : key === 'width' ? 2000 : 1600;
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max)
+          throw new Error('卡片' + key + '必须为 ' + min + '～' + max + '。');
+        next[key] = value;
+      } else if (key === 'uiRecognition') {
+        const settings = value as Record<string, unknown>;
+        if (
+          node.type !== 'image' ||
+          !next.uiRecognition ||
+          !settings ||
+          typeof settings !== 'object' ||
+          Array.isArray(settings) ||
+          !Object.keys(settings).length ||
+          Object.keys(settings).some((key) => !['enabled', 'model', 'result'].includes(key)) ||
+          (settings.enabled !== undefined && typeof settings.enabled !== 'boolean') ||
+          (settings.model !== undefined &&
+            (typeof settings.model !== 'string' || !/^[a-zA-Z0-9_.-]{1,80}$/.test(settings.model)))
+        )
+          throw new Error('识图设置仅支持原稿卡的 enabled、model 和 result。');
+        if (settings.enabled !== undefined)
+          next.uiRecognition.enabled = settings.enabled as boolean;
+        if (settings.model !== undefined) next.uiRecognition.model = settings.model as string;
+        if (settings.result !== undefined) {
+          if (node.templatePending || !node.assetPath)
+            throw new Error('请先完成去文字，再识别当前去文字图并写入清单。');
+          if (next.uiRecognition.pendingId) throw new Error('请先确认原识图请求结果。');
+          const result = settings.result as import('./uiRecognition.js').UiRecognitionResult;
+          if (!result || result.sourcePath !== node.assetPath)
+            throw new Error('识图清单不属于当前原稿，请重新看图。');
+          next.uiRecognition = validateUiRecognition({
+            ...next.uiRecognition,
+            enabled: settings.enabled !== false,
+            results: [...next.uiRecognition.results, result],
+            selectedId: result.id,
+          });
+          contentChanged = true;
+        }
       } else if (key === 'mergeIcons') {
         configureMergeIcons(next, value);
         contentChanged = true;
@@ -320,6 +406,28 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
         next.sequenceSettings = settings;
         contentChanged = true;
       } else throw new Error('不支持的卡片字段：' + key);
+    }
+    if (
+      (patch.width !== undefined || patch.height !== undefined) &&
+      next.type === 'image' &&
+      next.assetPath &&
+      next.imageInfo
+    ) {
+      const requestedWidth =
+        patch.width !== undefined
+          ? next.width
+          : ((next.height - 42) * next.imageInfo.width) / next.imageInfo.height + 2;
+      const size = imageCardSize(requestedWidth, next.imageInfo.width, next.imageInfo.height);
+      if (
+        !size ||
+        size.width < 48 ||
+        (patch.width !== undefined && Math.abs(size.width - next.width) > 0.01) ||
+        (patch.height !== undefined && Math.abs(size.height - next.height) > 0.01)
+      )
+        throw new Error(
+          '图片卡片尺寸需符合原图比例及尺寸范围；请只设置 width 或 height，另一边自动适配。'
+        );
+      Object.assign(next, size);
     }
     if (contentChanged && next.generation && !next.generation.prompt.trim())
       throw new Error('此素材尚未保存提示词，请在同一次修改中提供 prompt。');

@@ -194,6 +194,7 @@ describe('animation output cards', () => {
       const image = document.nodes[0];
       const node = {
         ...image,
+        imageInfo: undefined,
         id: createId(),
         type: 'animation' as const,
         frameSetInfo: {

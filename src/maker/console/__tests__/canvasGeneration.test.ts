@@ -2,6 +2,8 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
+import type { CanvasNode } from '../../canvas/model.js';
 
 jest.mock('../../server/mcp.js', () => ({
   ...jest.requireActual('../../server/mcp.js'),
@@ -51,6 +53,130 @@ describe('CanvasGenerationService', () => {
     fs.rmSync(root, { recursive: true, force: true });
     if (originalMakerHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
     else process.env.TAPTAP_MAKER_HOME = originalMakerHome;
+  });
+
+  test('source sizing uses original pixels across intermediates and sends dimensions for every reference', async () => {
+    const files = new MakerCanvasFiles(root);
+    let doc = await files.create('landscape', 'empty');
+    const png = (width: number, height: number) => {
+      const data = Buffer.alloc(24);
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(data);
+      data.write('IHDR', 12);
+      data.writeUInt32BE(width, 16);
+      data.writeUInt32BE(height, 20);
+      return data;
+    };
+    const first = await files.importImage(png(1920, 1080));
+    const second = await files.importImage(png(576, 1024));
+    const source = {
+      id: createId(),
+      type: 'image' as const,
+      title: 'original',
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 300,
+      assetPath: first.relativePath,
+    };
+    const intermediate: CanvasNode = {
+      ...source,
+      id: createId(),
+      title: 'clean',
+      assetPath: second.relativePath,
+      generation: { prompt: 'clean', operation: 'variant' as const, sourceImageIds: [source.id] },
+    };
+    const target = {
+      ...source,
+      id: createId(),
+      title: 'marked',
+      generation: {
+        prompt: 'keep layout',
+        operation: 'variant' as const,
+        sourceImageIds: [intermediate.id],
+        parameters: { aspectRatio: 'source' },
+      },
+    };
+    doc.nodes = [source, intermediate, target];
+    doc.edges = [
+      { id: createId(), kind: 'image-variant', from: source.id, to: intermediate.id },
+      { id: createId(), kind: 'image-variant', from: intermediate.id, to: target.id },
+    ];
+    doc = await files.save(doc.id, doc, doc.revision);
+    fs.writeFileSync(path.join(root, 'assets/image/generated.png'), png(576, 1024));
+    callRemoteProxyToolMock.mockResolvedValue(successfulImageResult());
+    const service = new CanvasGenerationService(root, {} as any);
+    const result = await service.generateImage({
+      canvasId: doc.id,
+      targetNodeId: target.id,
+      prompt: 'keep layout',
+      aspectRatio: 'source',
+      resolution: '2K',
+      sourceImageIds: [intermediate.id],
+      sourceImagePaths: [second.relativePath],
+    });
+    expect(callRemoteProxyToolMock.mock.calls[0][0].args).toMatchObject({
+      aspect_ratio: '16:9',
+      target_size: '2048x1152',
+      prompt: expect.stringContaining('1920×1080'),
+    });
+    expect(result.referenceImages).toEqual([
+      { assetPath: second.relativePath, width: 576, height: 1024 },
+    ]);
+    expect(result.originalImage).toMatchObject({ width: 1920, height: 1080, nodeId: source.id });
+    expect(result.parameters?.aspectRatio).toBe('source');
+    expect(result.resultImageInfo).toEqual({ width: 576, height: 1024 });
+    expect(result.warnings?.join()).toContain('比例与请求不一致');
+    const recognitionId = createId();
+    doc.nodes.find((node) => node.id === intermediate.id)!.uiRecognition = {
+      enabled: true,
+      selectedId: recognitionId,
+      results: [
+        {
+          id: recognitionId,
+          model: 'fixture',
+          prompt: 'identify',
+          createdAt: new Date().toISOString(),
+          durationMs: 0,
+          sourcePath: second.relativePath,
+          sourceSha256: createHash('sha256').update(png(576, 1024)).digest('hex'),
+          width: 576,
+          height: 1024,
+          elements: [
+            {
+              id: 'B1',
+              name: 'button',
+              category: 'action',
+              rect: [10, 20, 50, 30],
+              parentId: null,
+              zIndex: 0,
+              states: [],
+              cutout: true,
+            },
+          ],
+        },
+      ],
+    };
+    doc = await files.save(doc.id, doc, doc.revision);
+    const recognized = await service.generateImage({
+      canvasId: doc.id,
+      targetNodeId: target.id,
+      prompt: 'extract B1',
+      sourceImageIds: [intermediate.id],
+      sourceImagePaths: [second.relativePath],
+    });
+    expect(recognized.submittedPrompt).toContain('原设计稿实际尺寸：1920×1080');
+    expect(recognized.submittedPrompt).toContain('元素清单坐标基准为去文字识别输入图：576×1024');
+    expect(recognized.submittedPrompt).not.toContain('原设计稿坐标基准');
+    const custom = await files.importImage(png(1700, 1000));
+    await expect(
+      service.generateImage({
+        canvasId: doc.id,
+        prompt: 'custom',
+        aspectRatio: 'source',
+        referenceImagePaths: [custom.relativePath],
+      })
+    ).rejects.toThrow('尚未提交');
+    expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(2);
   });
 
   test('paired video gate rejects missing slots, reversed roles and alternate modes before remote calls', async () => {
@@ -675,6 +801,7 @@ describe('CanvasGenerationService', () => {
     const failed = await service.generateImage({
       canvasId: document.id,
       prompt: 'cartoon warrior',
+      cutoutColor: '#00FF00',
       targetNodeId: document.nodes[0].id,
     });
     const retried = await service.retry(failed.id);
@@ -682,6 +809,14 @@ describe('CanvasGenerationService', () => {
     expect(failed.status).toBe('failed');
     expect(retried.status).toBe('succeeded');
     expect(retried.targetNodeId).toBe(document.nodes[0].id);
+    expect(retried.cutoutColor).toBe('#00FF00');
+    expect(
+      new CanvasGenerationService(root, {} as any)
+        .list(document.id)
+        .find((item) => item.id === retried.id)?.cutoutColor
+    ).toBe('#00FF00');
+    for (const call of callRemoteProxyToolMock.mock.calls)
+      expect(call[0].args).not.toHaveProperty('cutoutColor');
     expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(2);
   });
 
@@ -704,6 +839,7 @@ describe('CanvasGenerationService', () => {
       canvasId: document.id,
       prompt: '升级护甲但保留角色轮廓',
       operation: 'outpaint',
+      targetNodeId: document.nodes[0].id,
       sourceImagePath: document.nodes[0].assetPath,
       sourceImageId: document.nodes[0].id,
     });
@@ -712,6 +848,11 @@ describe('CanvasGenerationService', () => {
     expect(failed.operation).toBe('outpaint');
     expect(retried.operation).toBe('outpaint');
     expect(retried.sourceImageIds).toEqual([document.nodes[0].id]);
+    expect(retried.targetAssetPath).toBe(document.nodes[0].assetPath);
+    expect(retried.sourceSnapshots).toEqual([retried.sourceSnapshot]);
+    expect(service.list(document.id).find((item) => item.id === retried.id)?.targetAssetPath).toBe(
+      document.nodes[0].assetPath
+    );
     expect(callRemoteProxyToolMock.mock.calls[1][0].args).toMatchObject({
       reference_images: [document.nodes[0].assetPath],
     });

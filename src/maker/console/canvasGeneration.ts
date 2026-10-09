@@ -1,7 +1,16 @@
 import fs from 'node:fs';
 import { validateFramePairVideo } from '../canvas/framePair.js';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { selectedUiRecognition, uiRecognitionSource } from '../canvas/uiRecognition.js';
+import {
+  IMAGE_OUTPUT_RATIOS,
+  canvasOriginalImage,
+  imageRatioInfo,
+  resolveImageSize,
+  imageResultWarning,
+  type CanvasImageInfo,
+} from '../canvas/imageSizing.js';
 import { callRemoteProxyTool } from '../server/mcp.js';
 import {
   type RemoteProxyExecutionState,
@@ -40,6 +49,12 @@ export interface CanvasGenerationAttempt {
   toolName: 'generate_image' | 'create_video_task';
   status: CanvasGenerationStatus;
   prompt: string;
+  cutoutColor?: '#FF00FF' | '#00FF00';
+  referenceImages?: Array<CanvasImageInfo & { assetPath: string }>;
+  originalImage?: CanvasImageInfo & { assetPath: string; nodeId?: string };
+  resultImageInfo?: CanvasImageInfo;
+  warnings?: string[];
+  submittedPrompt?: string;
   operation?: 'generate' | 'variant' | 'outpaint';
   taskId?: string;
   sourceImagePath?: string;
@@ -141,6 +156,7 @@ export class CanvasGenerationService {
   async generateImage(options: {
     canvasId: string;
     prompt: string;
+    cutoutColor?: '#FF00FF' | '#00FF00';
     name?: string;
     targetSize?: string;
     aspectRatio?: string;
@@ -155,6 +171,8 @@ export class CanvasGenerationService {
     targetNodeId?: string;
   }): Promise<CanvasGenerationAttempt> {
     const files = new MakerCanvasFiles(this.projectRoot);
+    if (options.cutoutColor !== undefined && !['#FF00FF', '#00FF00'].includes(options.cutoutColor))
+      throw new Error('抠图底色无效。');
     await files.assertWritableForGeneration();
     const document = await files.load(options.canvasId);
     const sourceImagePaths = options.sourceImagePaths?.length
@@ -179,12 +197,7 @@ export class CanvasGenerationService {
       throw new Error('图片模型无效。');
     if (options.resolution && !['1K', '2K'].includes(options.resolution))
       throw new Error('图片分辨率无效。');
-    if (
-      options.aspectRatio &&
-      !['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9', '5:4', '4:5'].includes(
-        options.aspectRatio
-      )
-    )
+    if (options.aspectRatio && !['source', ...IMAGE_OUTPUT_RATIOS].includes(options.aspectRatio))
       throw new Error('图片比例无效。');
     if (options.targetSize && !/^[1-9]\d{0,3}x[1-9]\d{0,3}$/.test(options.targetSize))
       throw new Error('图片目标尺寸无效。');
@@ -199,12 +212,108 @@ export class CanvasGenerationService {
       if (!target || target.type !== 'image') {
         throw new Error('图片生成目标卡不存在或不是图片卡。');
       }
+      const original = uiRecognitionSource(document, target);
+      if (original?.uiRecognition?.enabled && original.id !== target.id) {
+        const recognition = selectedUiRecognition(original);
+        if (
+          !recognition ||
+          !original.assetPath ||
+          createHash('sha256')
+            .update(fs.readFileSync(files.readMedia(original.assetPath).file))
+            .digest('hex') !== recognition.sourceSha256
+        )
+          throw new Error('原稿识图清单缺失或已过期，请重新识图后再生成。');
+      }
     }
+    const target = document.nodes.find((node) => node.id === options.targetNodeId);
+    const recognitionSource = target && uiRecognitionSource(document, target);
+    const recognition =
+      recognitionSource && recognitionSource.id !== target?.id
+        ? selectedUiRecognition(recognitionSource)
+        : undefined;
+    const seed =
+      target && document.edges.some((edge) => edge.to === target.id)
+        ? target
+        : sourceImageIds.length === 1
+          ? document.nodes.find((node) => node.id === sourceImageIds[0])
+          : undefined;
+    const originalNode = seed ? canvasOriginalImage(document, seed) : undefined;
+    const originalPath =
+      originalNode?.assetPath || (remoteReferences.length === 1 ? remoteReferences[0] : undefined);
+    const originalInfo = originalPath ? files.imageInfo(originalPath) : undefined;
+    const originalImage =
+      originalPath && originalInfo
+        ? { assetPath: originalPath, nodeId: originalNode?.id, ...originalInfo }
+        : undefined;
+    const references = remoteReferences.flatMap((assetPath) => {
+      const info = files.imageInfo(assetPath);
+      return info ? [{ assetPath, ...info }] : [];
+    });
+    const requestedPixels = options.targetSize?.split('x').map(Number);
+    const requestedRatio =
+      options.aspectRatio ||
+      (requestedPixels
+        ? imageRatioInfo({ width: requestedPixels[0], height: requestedPixels[1] }).common
+        : '1:1');
+    if (!requestedRatio)
+      throw new Error(
+        '目标尺寸为非常见比例，可能影响结果；请明确选择支持的输出比例，尚未提交生图。'
+      );
+    const size = resolveImageSize(requestedRatio, options.resolution, originalInfo);
+    const targetSize =
+      options.aspectRatio === 'source' ? size.targetSize : options.targetSize || size.targetSize;
+    const [targetWidth, targetHeight] = targetSize.split('x').map(Number);
+    if (imageResultWarning({ width: targetWidth, height: targetHeight }, size.targetSize))
+      throw new Error('目标尺寸与输出比例冲突，请检查生成参数；尚未提交生图。');
+    const warnings = [
+      ...new Set(
+        [...references, ...(originalImage ? [originalImage] : [])].flatMap(
+          (info) => imageRatioInfo(info).warning || []
+        )
+      ),
+    ];
+    const sizingPrompt = [
+      ...references.map(
+        (info) =>
+          '参考图' +
+          (remoteReferences.indexOf(info.assetPath) + 1) +
+          '实际尺寸：' +
+          info.width +
+          '×' +
+          info.height +
+          '，比例 ' +
+          imageRatioInfo(info).ratio +
+          '。'
+      ),
+      ...(originalImage
+        ? ['原设计稿实际尺寸：' + originalImage.width + '×' + originalImage.height + '。']
+        : []),
+      ...(recognition
+        ? [
+            '元素清单坐标基准为去文字识别输入图：' +
+              recognition.width +
+              '×' +
+              recognition.height +
+              '；参考图若尺寸不同，请按比例对应位置，不以原设计稿尺寸或图集格子坐标代替。',
+          ]
+        : []),
+      '本次输出尺寸：' +
+        targetSize +
+        '，比例 ' +
+        (options.aspectRatio
+          ? size.aspectRatio
+          : imageRatioInfo({ width: targetWidth, height: targetHeight }).ratio) +
+        '。',
+      ...(options.aspectRatio === 'source'
+        ? ['保持原设计稿方向、构图和元素自身比例，不旋转、拉伸、裁去界面内容。']
+        : []),
+    ].join('\n');
     const attempt = this.createAttempt({
       canvasId: options.canvasId,
       kind: 'image',
       toolName: 'generate_image',
       prompt: options.prompt,
+      cutoutColor: options.cutoutColor,
       operation,
       sourceImagePath: options.sourceImagePath || sourceImagePaths[0],
       sourceImageId: options.sourceImageId || sourceImageIds[0],
@@ -216,12 +325,22 @@ export class CanvasGenerationService {
     attempt.sourceSnapshot = snapshotCanvasSource(
       document.nodes.find((node) => node.id === sourceImageIds[0])
     );
+    attempt.sourceSnapshots = sourceImageIds.flatMap((id) => {
+      const snapshot = snapshotCanvasSource(document.nodes.find((node) => node.id === id));
+      return snapshot ? [snapshot] : [];
+    });
+    attempt.targetAssetPath =
+      document.nodes.find((node) => node.id === options.targetNodeId)?.assetPath || '';
     attempt.parameters = {
       model: options.model,
       resolution: options.resolution,
-      targetSize: options.targetSize,
-      aspectRatio: options.aspectRatio,
+      targetSize,
+      aspectRatio: requestedRatio,
     };
+    attempt.referenceImages = references;
+    attempt.originalImage = originalImage;
+    attempt.warnings = warnings;
+    attempt.submittedPrompt = options.prompt + '\n' + sizingPrompt;
     this.writeAttempt(attempt);
     try {
       const result = await callRemoteProxyTool({
@@ -229,10 +348,10 @@ export class CanvasGenerationService {
         name: 'generate_image',
         manager: this.remoteProxyManager,
         args: {
-          prompt: options.prompt,
+          prompt: attempt.submittedPrompt,
           name: options.name || 'canvas-image',
-          target_size: options.targetSize || '1024x1024',
-          ...(options.aspectRatio ? { aspect_ratio: options.aspectRatio } : {}),
+          target_size: targetSize,
+          aspect_ratio: size.aspectRatio,
           ...(options.model ? { model: options.model } : {}),
           ...(options.resolution ? { resolution: options.resolution } : {}),
           ...(remoteReferences.length ? { reference_images: remoteReferences } : {}),
@@ -542,6 +661,7 @@ export class CanvasGenerationService {
       return this.generateImage({
         canvasId: previous.canvasId,
         prompt: previous.prompt,
+        cutoutColor: previous.cutoutColor,
         operation: previous.operation,
         sourceImagePath: previous.sourceImagePath,
         sourceImageId: previous.sourceImageId,
@@ -743,6 +863,7 @@ export class CanvasGenerationService {
       | 'kind'
       | 'toolName'
       | 'prompt'
+      | 'cutoutColor'
       | 'operation'
       | 'sourceImagePath'
       | 'sourceImageId'
@@ -790,6 +911,11 @@ export class CanvasGenerationService {
 
   private finishImageDelivery(attempt: CanvasGenerationAttempt, files: MakerCanvasFiles): void {
     attempt.resultAssetPath ||= files.importGeneratedImage(attempt.deliveredAssetPath!);
+    attempt.resultImageInfo = files.imageInfo(attempt.resultAssetPath);
+    const warning = attempt.resultImageInfo
+      ? imageResultWarning(attempt.resultImageInfo, attempt.parameters?.targetSize)
+      : '生成图片尺寸暂无法读取，请核对实际文件。';
+    if (warning) attempt.warnings = [...new Set([...(attempt.warnings || []), warning])];
     attempt.status = 'succeeded';
     attempt.failureStage = undefined;
     attempt.error = undefined;

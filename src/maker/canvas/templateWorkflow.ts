@@ -10,12 +10,14 @@ import { CanvasStoreError } from './model.js';
 import { canvasReferences, canvasDependents, isCanvasNodeStale } from './dependencies.js';
 import { framePairSources } from './framePair.js';
 import { mergeIconNeedsGeneration } from './mergeIcons.js';
+import { selectedUiRecognition } from './uiRecognition.js';
 
 export function canvasNeedsProcessing(
   document: CanvasDocument,
   node: CanvasNode,
   visiting = new Set<string>()
 ): boolean {
+  if (node.uiRecognition?.enabled && !selectedUiRecognition(node)) return true;
   if (node.templatePending || mergeIconNeedsGeneration(node)) return true;
   if (node.videoInputMode === 'first_last_frame') {
     const { first, last } = framePairSources(document, node.id);
@@ -520,7 +522,12 @@ export function createTemplateWorkflow(options: {
         options.changed();
         if (!(await options.save())) throw new Error('结果保存失败，已停止后续步骤，请先保存。');
         activeNodeId = undefined;
-        if (node.type === 'image') {
+        // Video workflows retain their reference-image checkpoint. Static image
+        // workflows continue through every dependent image and saved-grid export.
+        if (
+          node.type === 'image' &&
+          ordered.some((item) => ['video', 'video-source'].includes(item.type))
+        ) {
           options.select(node.id);
           return true;
         }

@@ -7,6 +7,8 @@ import {
   type CanvasSummary,
 } from './model.js';
 import type { CanvasModelAttempt } from './model3d.js';
+import type { RecognitionAttempt } from '../console/canvasRecognition.js';
+import { withCanvasTimeout } from './requestTimeout.js';
 import { CanvasStoreError } from './model.js';
 import type {
   CanvasTemplatePage,
@@ -21,6 +23,7 @@ export interface CanvasGenerationAttempt {
   toolName: 'generate_image' | 'create_video_task';
   status: 'running' | 'pending' | 'succeeded' | 'failed' | 'unknown' | 'canceled';
   prompt: string;
+  cutoutColor?: '#FF00FF' | '#00FF00';
   operation?: 'generate' | 'variant' | 'outpaint';
   taskId?: string;
   sourceImagePath?: string;
@@ -39,6 +42,20 @@ export interface CanvasGenerationAttempt {
 }
 
 export interface CanvasDocumentStore {
+  recognitionModels?(): Promise<Array<{ id: string; model: string }>>;
+  recognizeUi?(
+    canvasId: string,
+    input: {
+      id: string;
+      nodeId: string;
+      model: string;
+      revision: number;
+      width: number;
+      height: number;
+      allowPaid: boolean;
+    }
+  ): Promise<RecognitionAttempt>;
+  recognitionStatus?(canvasId: string, id: string): Promise<RecognitionAttempt>;
   modelPreviewUrl?(canvasId: string, nodeId: string): string;
   listModels?(canvasId: string): Promise<CanvasModelAttempt[]>;
   exportModel?(canvasId: string, nodeId: string): Promise<Blob>;
@@ -61,10 +78,12 @@ export interface CanvasDocumentStore {
   importImage(
     canvasId: string,
     bytes: ArrayBuffer,
-    contentType: string
+    contentType: string,
+    purpose?: 'resource'
   ): Promise<{ relativePath: string }>;
   importVideo(canvasId: string, file: Blob, contentType: string): Promise<{ relativePath: string }>;
   mediaUrl(assetPath: string): string;
+  imageInfo?(assetPath: string): Promise<{ width: number; height: number } | undefined>;
   getActiveCanvasId(): Promise<string | undefined>;
   setActiveCanvasId(canvasId: string): Promise<void>;
   listGeneration(canvasId: string): Promise<CanvasGenerationAttempt[]>;
@@ -72,6 +91,7 @@ export interface CanvasDocumentStore {
     canvasId: string,
     input: {
       prompt: string;
+      cutoutColor?: '#FF00FF' | '#00FF00';
       name?: string;
       targetSize?: string;
       aspectRatio?: string;
@@ -82,7 +102,8 @@ export interface CanvasDocumentStore {
       sourceImageIds?: string[];
       referenceImagePaths?: string[];
       targetNodeId?: string;
-    }
+    },
+    signal?: AbortSignal
   ): Promise<CanvasGenerationAttempt>;
   createVideo(
     canvasId: string,
@@ -155,13 +176,21 @@ export async function dispatchCanvasStoreRequest(
       return success({ ok: true });
     }
     const match = requestPath.match(
-      new RegExp('^/canvases/([0-9a-f-]{36})(/images|/videos)?$', 'i')
+      new RegExp('^/canvases/([0-9a-f-]{36})(/images|/resource-images|/videos)?$', 'i')
     );
     if (!match) throw Object.assign(new Error('Not found.'), { status: 404 });
-    if (match[2] === '/images' && method === 'POST') {
+    if (['/images', '/resource-images'].includes(match[2]) && method === 'POST') {
       if (!(options?.body instanceof ArrayBuffer)) throw new Error('图片内容无效。');
       const contentType = new Headers(options?.headers).get('content-type') || '';
-      return success(await store.importImage(match[1], options.body, contentType), 201);
+      return success(
+        await store.importImage(
+          match[1],
+          options.body,
+          contentType,
+          match[2] === '/resource-images' ? 'resource' : undefined
+        ),
+        201
+      );
     }
     if (match[2] === '/videos' && method === 'POST') {
       if (!(options?.body instanceof Blob)) throw new Error('视频内容无效。');
@@ -184,6 +213,8 @@ export function createBrowserCanvasDocumentStore(
 ): CanvasDocumentStore {
   const base = '/api/projects/' + encodeURIComponent(projectKey);
   async function request<T>(path: string, options?: RequestInit): Promise<T> {
+    if (!options?.signal && (options?.method === 'PUT' || !options?.method))
+      return withCanvasTimeout((signal) => request<T>(path, { ...options, signal }));
     const response = await fetcher(base + path, options);
     const body = (await response.json().catch(() => ({}))) as { error?: string };
     if (!response.ok) {
@@ -198,6 +229,15 @@ export function createBrowserCanvasDocumentStore(
   return {
     videoHistory: (offset = 0, limit = 30) =>
       request<CanvasVideoHistory>('/canvases/video-history?offset=' + offset + '&limit=' + limit),
+    recognitionModels: () => request('/canvases/recognition-models'),
+    recognizeUi: (canvasId, input) =>
+      request('/canvases/' + canvasId + '/recognition', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+        signal: AbortSignal.timeout(195000),
+      }),
+    recognitionStatus: (canvasId, id) => request('/canvases/' + canvasId + '/recognition/' + id),
     listModels: (canvasId) => request<CanvasModelAttempt[]>('/canvases/' + canvasId + '/models'),
     modelPreviewUrl: (canvasId, nodeId) =>
       '/canvas-model-preview?project=' +
@@ -323,17 +363,18 @@ export function createBrowserCanvasDocumentStore(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(document),
       }),
-    importImage: async (canvasId: string, bytes: ArrayBuffer, contentType: string) => {
-      const response = await fetcher(base + '/canvases/' + canvasId + '/images', {
-        method: 'POST',
-        headers: { 'content-type': contentType },
-        body: bytes,
-      });
-      const body = (await response.json().catch(() => ({}))) as {
-        relativePath?: string;
-        error?: string;
-      };
-      if (!response.ok) throw new Error(body.error || '请求失败 ' + response.status);
+    importImage: async (
+      canvasId: string,
+      bytes: ArrayBuffer,
+      contentType: string,
+      purpose?: 'resource'
+    ) => {
+      const body = await withCanvasTimeout((signal) =>
+        request<{ relativePath?: string }>(
+          '/canvases/' + canvasId + (purpose === 'resource' ? '/resource-images' : '/images'),
+          { method: 'POST', headers: { 'content-type': contentType }, body: bytes, signal }
+        )
+      );
       if (typeof body.relativePath !== 'string') throw new Error('导入结果缺少项目相对路径。');
       return { relativePath: body.relativePath };
     },
@@ -352,6 +393,8 @@ export function createBrowserCanvasDocumentStore(
       return { relativePath: body.relativePath };
     },
     mediaUrl: (assetPath: string) => base + '/canvas-media?path=' + encodeURIComponent(assetPath),
+    imageInfo: (assetPath: string) =>
+      request('/canvases/image-info?path=' + encodeURIComponent(assetPath)),
     getActiveCanvasId: async () =>
       (await request<{ canvasId?: string }>('/canvases/active')).canvasId,
     setActiveCanvasId: async (canvasId: string) => {
@@ -363,11 +406,12 @@ export function createBrowserCanvasDocumentStore(
     },
     listGeneration: (canvasId: string) =>
       request<CanvasGenerationAttempt[]>('/canvases/' + canvasId + '/generation'),
-    generateImage: (canvasId, input) =>
+    generateImage: (canvasId, input, signal) =>
       request<CanvasGenerationAttempt>('/canvases/' + canvasId + '/generation/image', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
+        signal,
       }),
     createVideo: (canvasId, input, signal) =>
       request<CanvasGenerationAttempt>('/canvases/' + canvasId + '/generation/video', {

@@ -175,6 +175,7 @@ describe('Maker console canvas', () => {
       };
       const modelUi = { protects: jest.fn(() => blocked === 'model') };
       const templateWorkflow = {
+        canEditImage: jest.fn(() => !blocked),
         isNodeLoading: jest.fn(() => blocked === 'template-loading'),
         isMember: jest.fn(() => false),
         locked: jest.fn(() => blocked === 'template-locked'),
@@ -231,6 +232,7 @@ describe('Maker console canvas', () => {
       const menuStyle = { left: '', top: '' };
       new Script('(function () {' + handler![1] + '})();').runInNewContext({
         selectionToolbar: { hidden: false, style, offsetWidth: 440, offsetHeight: 230 },
+        document: { querySelector: () => null },
         selectionMenu: { hidden: false, style: menuStyle, offsetWidth: 320, offsetHeight: 40 },
         world: {
           querySelector: () => ({

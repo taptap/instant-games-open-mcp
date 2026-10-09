@@ -30,6 +30,17 @@
       ],
     },
     {
+      id: "nanovg",
+      title: "NanoVG 绘图",
+      open: true,
+      showIf: function (node) { return node.type === "NanoVG"; },
+      rows: [
+        [{ key: "opacity", label: "透明度", kind: "slider", min: 0, max: 1, step: 0.05 }],
+        [{ key: "viewBox", label: "绘图坐标范围", kind: "json" }],
+        [{ key: "commands", label: "绘制指令", kind: "json" }],
+      ],
+    },
+    {
       id: "image",
       title: "图片",
       open: true,
@@ -83,7 +94,7 @@
       title: "外观",
       open: false,
       showIf: function (node) {
-        return !isImageNode(node) || hasVal(node, "borderRadius") || hasVal(node, "opacity") || hasVal(node, "backgroundColor");
+        return node.type !== "NanoVG" && (!isImageNode(node) || hasVal(node, "borderRadius") || hasVal(node, "opacity") || hasVal(node, "backgroundColor"));
       },
       rows: [
         [{ key: "backgroundColor", label: "Color", kind: "color" }, { key: "opacity", label: "透明度", kind: "number" }],
@@ -220,7 +231,32 @@
   function makeControl(node, field, onChange) {
     var value = node[field.key];
     var control;
-    if (field.kind === "readonly") {
+    if (field.kind === "json") {
+      var wrap = document.createElement("div");
+      wrap.className = "nanovg-field";
+      var input = document.createElement("textarea");
+      input.rows = field.key === "commands" ? 12 : 2;
+      input.value = JSON.stringify(value, null, 2);
+      input.setAttribute("aria-label", field.label);
+      var apply = document.createElement("button");
+      apply.type = "button"; apply.textContent = "应用";
+      var error = document.createElement("p"); error.setAttribute("role", "status");
+      apply.addEventListener("click", function () {
+        try {
+          var parsed = JSON.parse(input.value), candidate = Object.assign({}, node);
+          candidate[field.key] = parsed;
+          var problems = [];
+          root.UrhoxUICheck.checkNanoVG(candidate, function (at, message) { problems.push(at + ": " + message); }, function () {});
+          if (problems.length) throw new Error(problems.join("\n"));
+          emitChange(onChange, { phase: "start" });
+          node[field.key] = parsed;
+          emitChange(onChange, { phase: "end" });
+          error.textContent = "";
+        } catch (e) { error.textContent = "未应用：" + e.message; }
+      });
+      wrap.appendChild(input); wrap.appendChild(apply); wrap.appendChild(error);
+      return wrap;
+    } else if (field.kind === "readonly") {
       control = document.createElement("input");
       control.disabled = true;
       control.value = formatValue(value);

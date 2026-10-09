@@ -6,6 +6,23 @@ import {
 } from '../store.js';
 
 describe('CanvasDocumentStore port', () => {
+  test('routes resource PNGs separately from project image imports', async () => {
+    const memory = new MemoryCanvasDocumentStore();
+    const canvas = await memory.create();
+    const imported = jest.spyOn(memory, 'importImage');
+    const fetcher = jest.fn(async (url: string, options?: RequestInit) =>
+      dispatchCanvasStoreRequest(memory, url.slice(url.indexOf('/canvases/')), options)
+    );
+    const store = createBrowserCanvasDocumentStore('project', fetcher as typeof fetch);
+    const bytes = new ArrayBuffer(16);
+    await store.importImage(canvas.id, bytes, 'image/png', 'resource');
+    expect(fetcher.mock.calls[0][0]).toContain('/resource-images');
+    expect(imported).toHaveBeenLastCalledWith(canvas.id, bytes, 'image/png', 'resource');
+    await store.importImage(canvas.id, bytes, 'image/png');
+    expect(fetcher.mock.calls[1][0]).toContain('/images');
+    expect(imported).toHaveBeenLastCalledWith(canvas.id, bytes, 'image/png', undefined);
+  });
+
   test('forwards local abort signals without adding them to paid generation parameters', async () => {
     const fetcher = jest.fn(async () => ({
       ok: true,

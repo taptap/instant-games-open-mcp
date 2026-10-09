@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
+import { PNG } from 'pngjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-group-queue-'));
@@ -13,8 +14,9 @@ let browser;
 try {
   const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE || path.join(execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(), 'playwright/index.mjs')).href);
   const bundle = path.join(temporary, 'page.mjs');
-  await build({ stdin: { contents: 'export { getCanvasPageHtml } from "./src/maker/canvas/page.ts"; export { STARTER_IMAGE_BASE64 } from "./src/maker/canvas/starterImages.ts"; export { snapshotCanvasSource } from "./src/maker/canvas/dependencies.ts";', resolveDir: repo }, bundle: true, platform: 'node', format: 'esm', outfile: bundle, logLevel: 'silent' });
-  const { getCanvasPageHtml, STARTER_IMAGE_BASE64, snapshotCanvasSource } = await import(pathToFileURL(bundle).href);
+  await build({ stdin: { contents: 'export { getCanvasPageHtml } from "./src/maker/canvas/page.ts"; export { STARTER_IMAGE_BASE64 } from "./src/maker/canvas/starterImages.ts"; export { snapshotCanvasSource } from "./src/maker/canvas/dependencies.ts"; export { createUiWorkflowPreset } from "./src/maker/canvas/uiWorkflowPresets.ts";', resolveDir: repo }, bundle: true, platform: 'node', format: 'esm', outfile: bundle, logLevel: 'silent' });
+  const { getCanvasPageHtml, STARTER_IMAGE_BASE64, snapshotCanvasSource, createUiWorkflowPreset } = await import(pathToFileURL(bundle).href);
+  const uiTemplate = { ...createUiWorkflowPreset(), builtin: true };
   const html = getCanvasPageHtml();
   const image = Buffer.from(STARTER_IMAGE_BASE64[0], 'base64');
   fs.writeFileSync(path.join(temporary, 'source.jpg'), image);
@@ -35,6 +37,10 @@ try {
   let failNext = false;
   let confirmations = 0;
   let importedImages = 0;
+  let generatedImageFixture;
+  const pngImports = new Map();
+  const automationCommands = [];
+  const automationResults = [];
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1200, height: 880 } });
   page.setDefaultTimeout(10000);
@@ -43,13 +49,28 @@ try {
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/canvas') return route.fulfill({ contentType: 'text/html', body: html });
-    if (url.pathname.endsWith('/canvas-media')) return route.fulfill({ contentType: url.search.includes('.mp4') ? 'video/mp4' : 'image/jpeg', body: url.search.includes('.mp4') ? videoBytes : image });
+    if (url.pathname.endsWith('/canvas-media')) {
+      const png = pngImports.get(url.searchParams.get('path'));
+      return route.fulfill({ contentType: png ? 'image/png' : url.search.includes('.mp4') ? 'video/mp4' : 'image/jpeg', body: png || (url.search.includes('.mp4') ? videoBytes : image) });
+    }
     let response;
-    if (url.pathname.endsWith('/canvases')) response = [{ id: canvasId, title: canvas.title }];
+    if (url.pathname.endsWith('/canvases/templates')) response = { presets: [{ ...uiTemplate, nodeCount: uiTemplate.nodes.length, hasCover: true, updatedAt: 0 }], items: [], page: 1, pageSize: 20, total: 0, skipped: 0 };
+    else if (url.pathname.endsWith('/canvases/templates/' + uiTemplate.id + '/cover')) return route.fulfill({ contentType: 'image/jpeg', body: image });
+    else if (url.pathname.endsWith('/canvases/templates/' + uiTemplate.id) || url.pathname.endsWith('/canvases/templates/' + uiTemplate.id + '/prepare')) response = uiTemplate;
+    else if (url.pathname.endsWith('/canvases')) response = [{ id: canvasId, title: canvas.title }];
     else if (url.pathname.endsWith('/canvases/active')) response = { canvasId };
-    else if (url.pathname.endsWith('/canvases/automation/exchange')) response = { pageId: 'group-test-page', commands: [], acknowledged: [] };
+    else if (url.pathname.endsWith('/canvases/automation/exchange')) {
+      const results = route.request().postDataJSON().results || [];
+      automationResults.push(...results);
+      response = { pageId: 'group-test-page', commands: automationCommands.splice(0), acknowledged: results.map(result => result.id) };
+    }
     else if (url.pathname.endsWith('/video-history')) response = { items: [], total: 0 };
-    else if (url.pathname.endsWith('/images')) response = { relativePath: 'assets/image/imported-' + (++importedImages) + '.jpg' };
+    else if (url.pathname.endsWith('/images') || url.pathname.endsWith('/resource-images')) {
+      if (url.pathname.endsWith('/resource-images')) {
+        response = { relativePath: '.maker/canvases/' + canvasId + '/resources/' + randomUUID() + '.png' };
+        pngImports.set(response.relativePath, route.request().postDataBuffer());
+      } else response = { relativePath: 'assets/image/imported-' + (++importedImages) + '.jpg' };
+    }
     else if (url.pathname.endsWith('/canvases/' + canvasId)) {
       if (route.request().method() === 'PUT') canvas = { ...route.request().postDataJSON(), revision: canvas.revision + 1 };
       response = canvas;
@@ -60,6 +81,16 @@ try {
       const target = canvas.nodes.find(node => node.id === input.targetNodeId);
       response = { ...input, id: randomUUID(), canvasId, kind, status: failNext ? 'unknown' : 'succeeded', error: failNext ? '模拟结果未知；禁止自动重提' : undefined, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), targetAssetPath: target?.assetPath || '', resultAssetPath: failNext ? undefined : kind === 'image' ? 'assets/image/' + randomUUID() + '.jpg' : 'assets/video/result.mp4', sourceSnapshots: (input.sourceImageIds || [input.sourceImageId]).map(id => snapshotCanvasSource(canvas.nodes.find(node => node.id === id))), parameters: { mode: input.mode, duration: input.duration, model: input.model } };
       failNext = false;
+      if (generatedImageFixture && kind === 'image' && response.resultAssetPath) {
+        const pixels = PNG.sync.read(generatedImageFixture);
+        if (input.cutoutColor === '#00FF00') {
+          for (let i = 0; i < pixels.data.length; i += 4) {
+            if (pixels.data[i] === 255 && pixels.data[i + 1] === 0 && pixels.data[i + 2] === 255)
+              pixels.data.set([0, 255, 0, 255], i);
+          }
+        }
+        pngImports.set(response.resultAssetPath, PNG.sync.write(pixels));
+      }
       attempts.push(response);
       if (holdNext) { holdNext = false; await new Promise(resolve => { release = resolve; }); }
     } else if (url.pathname.endsWith('/generation')) response = attempts;
@@ -115,7 +146,34 @@ try {
   await startQueue('继续剩余流程');
   await queue.getByText('已暂停', { exact: true }).waitFor();
   assert.equal(calls.length, 7);
+  const callsBeforeTemplate = calls.length;
+  canvas = { ...canvas, nodes: [], edges: [], viewport: { x: 0, y: 0, scale: 1 } };
+  await page.reload();
+  await page.getByRole('button', { name: '添加模板', exact: true }).click();
+  await page.getByRole('button', { name: '添加', exact: true }).click();
+  await page.getByRole('group', { name: '游戏UI制作执行队列', exact: true }).getByRole('button', { name: '▶ 完成剩余流程', exact: true }).waitFor();
+  await page.getByText('已保存', { exact: true }).waitFor();
+  assert.equal(canvas.nodes.filter(node => node.templatePending).length, 23);
+  assert.equal(canvas.nodes.filter(node => node.type === 'image-assets' && node.templatePending).length, 9);
+  assert.equal(canvas.nodes.filter(node => node.type === 'image' && !node.templatePending).length, 1);
+  const templateSource = canvas.nodes.find(node => node.type === 'image' && !node.templatePending);
+  const oldSourcePath = templateSource.assetPath;
+  await page.locator('.card[data-id="' + templateSource.id + '"] img').click();
+  const replacePicker = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: '替换图片', exact: true }).click();
+  await (await replacePicker).setFiles(path.join(temporary, 'source.jpg'));
+  await page.waitForFunction(id => document.querySelector('.card[data-id="' + id + '"] img')?.alt === 'source', templateSource.id);
+  await page.getByText('已保存', { exact: true }).waitFor();
+  assert.notEqual(canvas.nodes.find(node => node.id === templateSource.id).assetPath, oldSourcePath);
+  assert.equal(canvas.nodes.length, 26);
+  assert.equal(canvas.nodes.filter(node => node.templatePending).length, 23);
+  await page.reload();
+  await page.getByRole('group', { name: '游戏UI制作执行队列', exact: true }).getByRole('button', { name: '▶ 完成剩余流程', exact: true }).waitFor();
+  assert.equal(canvas.nodes.filter(node => node.templatePending).length, 23);
+  assert.equal(calls.length, callsBeforeTemplate);
   assert.deepEqual(errors, []);
+  console.log('PASS 从空白画布添加真实游戏UI模板：23个下游步骤待处理，示例保留，保存重开仍可运行，未自动生图。');
+  importedImages = 0;
   for (const scenario of ['text', 'import', 'linked', 'unknown']) {
     attempts.splice(0);
     const target = scenario === 'linked'
@@ -123,6 +181,7 @@ try {
       : { ...master };
     canvas = {
       ...canvas,
+      viewport: { x: 0, y: 150, scale: 1 },
       nodes: [group, ...(scenario === 'linked' ? [{ ...master }] : []), target],
       edges: scenario === 'linked'
         ? [{ id: randomUUID(), from: master.id, to: target.id, kind: 'image-variant' }]
@@ -189,6 +248,99 @@ try {
     }
   }
   assert.deepEqual(errors, []);
+  for (const entry of ['group', 'card', 'cli']) {
+    attempts.splice(0);
+    const keyed = new PNG({ width: 80, height: 60 });
+    for (let y = 0; y < 60; y++) for (let x = 0; x < 80; x++) {
+      const offset = (y * 80 + x) * 4;
+      const inside = x % 40 >= 10 && x % 40 < 30 && y >= 15 && y < 45;
+      keyed.data.set(inside ? [30, 170, 210, 255] : [255, 0, 255, 255], offset);
+    }
+    generatedImageFixture = PNG.sync.write(keyed);
+    const source = { ...master };
+    const clean = { ...references[0], templatePending: true };
+    const atlas = { ...references[1], templatePending: true };
+    const assets = {
+      id: randomUUID(), type: 'image-assets', title: 'PNG资源包', sectionId: groupId,
+      x: 800, y: 380, width: 260, height: 220, templatePending: true,
+      imageAssetsInfo: { width: 80, height: 60,
+        grid: { columns: 2, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
+        items: [1, 2].map(index => ({ name: 'item_00' + index, width: 40, height: 60, assetPath: 'assets/image/canvas-' + randomUUID() + '.png' })),
+      },
+    };
+    canvas = { ...canvas, viewport: { x: 0, y: 0, scale: 1 }, nodes: [{ ...group, templateId: uiTemplate.id }, source, clean, atlas, assets], edges: [
+      { id: randomUUID(), from: source.id, to: clean.id, kind: 'image-variant' },
+      { id: randomUUID(), from: clean.id, to: atlas.id, kind: 'image-variant' },
+      { id: randomUUID(), from: atlas.id, to: assets.id, kind: 'image-assets' },
+    ] };
+    await page.reload();
+    const before = calls.length;
+    if (entry === 'group') await startQueue('▶ 完成剩余流程');
+    else if (entry === 'card') {
+      await page.locator('.card[data-id="' + clean.id + '"]').getByRole('button', { name: '处理并继续', exact: true }).click();
+    } else {
+      await page.getByText('已保存', { exact: true }).waitFor();
+      const requestId = randomUUID();
+      automationCommands.push({ action: 'run', pageId: 'group-test-page', canvasId, revision: canvas.revision, requestId, input: { id: groupId }, allowPaid: true });
+      await page.waitForFunction(() => document.querySelector('.group-queue')?.dataset.phase === 'complete');
+      for (let index = 0; index < 30 && !automationResults.some(result => result.id === requestId); index++) await page.waitForTimeout(100);
+      assert.equal(automationResults.find(result => result.id === requestId)?.status, 'succeeded');
+    }
+    await page.waitForFunction(id => {
+      const card = document.querySelector('.card[data-id="' + id + '"]');
+      return card && !card.querySelector('.card-state-overlay') && card.querySelectorAll('.image-assets-grid img').length === 2;
+    }, assets.id);
+    await page.getByText('已保存', { exact: true }).waitFor();
+    assert.deepEqual(calls.slice(before), [clean.id, atlas.id]);
+    assert.equal(canvas.nodes.find(node => node.id === clean.id).title, clean.title);
+    assert.equal(canvas.nodes.find(node => node.id === atlas.id).title, atlas.title);
+    assert.equal(canvas.nodes.some(node => node.templatePending), false);
+    assert.equal(await page.locator('[data-image-atlas-dialog]').count(), 0);
+    const atlasResult = canvas.nodes.find(node => node.id === atlas.id).generation;
+    assert.ok(['#FF00FF', '#00FF00'].includes(atlasResult.cutoutColor));
+    assert.ok(atlasResult.prompt.includes(atlasResult.cutoutColor));
+    const output = canvas.nodes.find(node => node.id === assets.id).imageAssetsInfo;
+    for (const item of output.items) {
+      assert.ok(item.assetPath.startsWith('.maker/canvases/' + canvasId + '/resources/'));
+      const decoded = PNG.sync.read(pngImports.get(item.assetPath));
+      assert.equal(decoded.width, item.width);
+      assert.equal(decoded.height, item.height);
+      assert.equal(decoded.data[3], 0);
+      assert.equal(decoded.data[(30 * decoded.width + 20) * 4 + 3], 255);
+    }
+    await page.reload();
+    await page.locator('.card[data-id="' + assets.id + '"] .image-assets-grid img').first().waitFor();
+    assert.equal(calls.length, before + 2);
+    assert.equal(canvas.nodes.some(node => node.templatePending), false);
+  }
+  assert.deepEqual(errors, []);
+  const previousAssets = structuredClone(canvas.nodes.find(node => node.type === 'image-assets').imageAssetsInfo);
+  const blankAtlas = new PNG({ width: 80, height: 60 });
+  for (let offset = 0; offset < blankAtlas.data.length; offset += 4) blankAtlas.data.set([255, 0, 255, 255], offset);
+  generatedImageFixture = PNG.sync.write(blankAtlas);
+  const beforeBlank = calls.length;
+  canvas.nodes.find(node => node.id === references[1].id).templatePending = true;
+  await page.reload();
+  await startQueue('▶ 完成剩余流程');
+  await queue.getByText('已暂停', { exact: true }).waitFor();
+  assert.deepEqual(canvas.nodes.find(node => node.type === 'image-assets').imageAssetsInfo, previousAssets);
+  assert.equal(canvas.nodes.find(node => node.type === 'image-assets').templatePending, true);
+  assert.ok((await page.locator('body').innerText()).includes('没有有效内容'));
+  assert.equal(calls.length, beforeBlank + 3, 'initial generation plus at most two quality retries');
+  for (let y = 10; y < 50; y++) {
+    for (let x = 10; x < 70; x++) blankAtlas.data.set([20, 100, 200, 255], (y * 80 + x) * 4);
+  }
+  generatedImageFixture = PNG.sync.write(blankAtlas);
+  canvas.nodes.find(node => node.id === references[1].id).templatePending = true;
+  await page.reload();
+  await startQueue('▶ 完成剩余流程');
+  await queue.getByText('已暂停', { exact: true }).waitFor();
+  assert.deepEqual(canvas.nodes.find(node => node.type === 'image-assets').imageAssetsInfo, previousAssets);
+  assert.equal(canvas.nodes.find(node => node.type === 'image-assets').templatePending, true);
+  assert.ok((await page.locator('body').innerText()).includes('没有可靠的透明分隔'));
+  assert.deepEqual(errors, []);
+  console.log('PASS UI模板：记录底色并自动抠图、保留主体和步骤名称；空白格暂停并保留旧资源，不假报完成。');
+  console.log('PASS UI模板：页面整组、单卡继续、CLI整组均接续两步生图和PNG资源卡，实际PNG可解码，保存重开不重跑。');
   console.log('PASS 模板图片参考可全部移除，文本草稿保留，纯文本/仅导入图生成不隐式携带旧图或上游图，原位更新且未知结果保留旧图。');
   console.log('PASS 横向参考图列表：空态加号、多选14张、横向滚动、达到上限禁用、删除后恢复添加，底部不再有导入按钮。');
   console.log('PASS Group 底部队列：一次确认接续图/视频、拖拽排序、拒绝倒置依赖、停止后续、完成跳过、刷新不恢复付费任务、unknown 不重提。');

@@ -321,6 +321,65 @@ test('a direction reference requires explicit confirmation before continuing to 
   expect(options.video).toHaveBeenCalledTimes(1);
 });
 
+test.each(['card', 'group'])(
+  'static %s workflow runs images and saved-grid resources to completion',
+  async (entry) => {
+    const { document, options } = userTemplate();
+    document.nodes = [
+      document.nodes.find((node) => node.id === 'group')!,
+      ...['design', 'clean', 'atlas', 'assets'].map((id) => ({
+        id,
+        type: (id === 'assets' ? 'image-assets' : 'image') as 'image' | 'image-assets',
+        title: id,
+        sectionId: 'group',
+        x: 0,
+        y: 0,
+        width: 200,
+        height: 200,
+        assetPath: id === 'assets' ? undefined : id + '-old',
+        templatePending: id !== 'design',
+      })),
+    ];
+    document.edges = [
+      { id: 'dc', from: 'design', to: 'clean', kind: 'image-variant' },
+      { id: 'ca', from: 'clean', to: 'atlas', kind: 'image-variant' },
+      { id: 'aa', from: 'atlas', to: 'assets', kind: 'image-assets' },
+    ];
+    const executed: string[] = [];
+    const complete = async (id: string) => {
+      executed.push(id);
+      const node = document.nodes.find((node) => node.id === id)!;
+      const sourceId = document.edges.find((edge) => edge.to === id)?.from;
+      node.sourceSnapshot = snapshotCanvasSource(
+        document.nodes.find((node) => node.id === sourceId)
+      );
+      if (node.type === 'image') node.assetPath = id + '-new';
+      return true;
+    };
+    const assets = jest.fn(complete);
+    const flow = createTemplateWorkflow({ ...options, image: complete, assets });
+    if (entry === 'card') expect(await flow.runFrom('clean')).toBe(true);
+    else {
+      const queue = createCanvasGroupQueue({
+        getDocument: () => document,
+        needs: (id) => flow.status(id) === 'pending',
+        busy: () => flow.isBusy,
+        run: flow.runQueued,
+        confirm: () => true,
+        changed: jest.fn(),
+        error: options.error,
+      });
+      queue.start('group');
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(queue.view('group')).toMatchObject({ phase: 'complete', completed: 3, total: 3 });
+    }
+    expect(executed).toEqual(['clean', 'atlas', 'assets']);
+    expect(assets).toHaveBeenCalledWith('assets');
+    expect(options.error).not.toHaveBeenCalled();
+    expect(document.nodes.some((node) => node.templatePending)).toBe(false);
+  }
+);
+
 test('changing a reference marks all downstream cards pending, survives reload and never generates implicitly', async () => {
   const { document, options, flow } = userTemplate();
   document.nodes[0].assetPath = 'new-head';
@@ -382,7 +441,6 @@ test('group queue uses saved single steps to finish video, frames and animation 
     getDocument: options.getDocument,
     needs: (id) => flow.status(id) === 'pending',
     busy: () => flow.isBusy,
-    videoBusy: async () => false,
     run: flow.runQueued,
     confirm: () => true,
     changed: jest.fn(),

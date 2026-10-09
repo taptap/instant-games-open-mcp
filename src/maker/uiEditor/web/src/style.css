@@ -8,6 +8,23 @@
   --bottom-h: 200px;
   --proj-left-w: 240px;
   --split: 6px;
+  --tree-name: #f1f3f5;
+  --tree-modified: #70b5ff;
+  --tree-panel: #a8b8cd;
+  --tree-label: #e6c879;
+  --tree-button: #8fd0a5;
+  --tree-image: #efa891;
+  --tree-vector: #76d3d0;
+}
+
+:root[data-theme="light"] {
+  --tree-name: #26313c;
+  --tree-modified: #1263bd;
+  --tree-panel: #536b88;
+  --tree-label: #85620d;
+  --tree-button: #247444;
+  --tree-image: #a64b31;
+  --tree-vector: #107676;
 }
 
 :root[data-theme="light"] .preview {
@@ -270,7 +287,15 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
   accent-color: var(--yellow);
 }
 .tree-toggle { width: 14px; flex: 0 0 14px; padding: 0; border: 0; background: transparent; color: var(--muted); }
-.tree-type { color: var(--accent); }
+.tree-type { color: var(--muted); }
+.tree-type[data-type="Panel"] { color: var(--tree-panel); }
+.tree-type[data-type="Label"] { color: var(--tree-label); }
+.tree-type[data-type="Button"] { color: var(--tree-button); }
+.tree-type[data-type="Image"] { color: var(--tree-image); }
+.tree-type[data-type="NanoVG"] { color: var(--tree-vector); }
+.tree-id { color: var(--tree-name); }
+.tree-row.modified-node .tree-id { color: var(--tree-modified); }
+.tree-row.hidden-node .tree-type { opacity: .6; }
 .tree-type, .tree-toggle { flex-shrink: 0; }
 .tree-id { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-row { min-height: 26px; white-space: nowrap; }
@@ -579,3 +604,7 @@ body.picking-image #bottomListTitle { color: var(--accent); }
 .comparison-tools button, .comparison-tools select, .comparison-tools input[type=number] { color: #d8dade; background: #2c2e34; border: 1px solid #454850; border-radius: 4px; padding: 4px 6px; font: inherit; }
 .comparison-tools button:hover { background: #383b43; }
 .comparison-tools summary { cursor: pointer; }
+/* Vector data applies as one undoable edit, after validation. */
+.nanovg-field { width: 100%; min-width: 0; }
+.nanovg-field textarea { width: 100%; box-sizing: border-box; resize: vertical; font: 11px monospace; }
+.nanovg-field p { color: #c53030; white-space: pre-wrap; overflow-wrap: anywhere; }

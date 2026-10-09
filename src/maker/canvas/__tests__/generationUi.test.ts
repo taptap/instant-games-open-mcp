@@ -2,6 +2,173 @@ import { createCanvasGenerationUi } from '../generationUi.js';
 import { snapshotCanvasSource } from '../dependencies.js';
 import { canvasNeedsProcessing } from '../templateWorkflow.js';
 import { configureMergeIcons, mergeIconPrompt } from '../mergeIcons.js';
+import { createCanvasGroupQueue } from '../groupQueue.js';
+import { MakerCanvasFiles } from '../files.js';
+import { createId } from '../model.js';
+import * as uiCutout from '../uiCutout.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+test('UI atlas color preparation saves an existing image through the real document validator', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'canvas-cutout-save-'));
+  const color = jest.spyOn(uiCutout, 'detectUiCutoutColor').mockResolvedValue('#00FF00');
+  try {
+    const files = new MakerCanvasFiles(root);
+    const document = await files.create(undefined, 'starter');
+    const [source, target] = document.nodes;
+    const sectionId = createId();
+    const assetsId = createId();
+    Object.assign(target, {
+      type: 'image',
+      assetPath: source.assetPath,
+      sectionId,
+      templatePending: true,
+      generation: {
+        prompt: 'UI atlas',
+        operation: 'variant',
+        sourceImageId: source.id,
+        sourceImageIds: [source.id],
+      },
+    });
+    document.nodes = [
+      source,
+      target,
+      {
+        id: sectionId,
+        type: 'section',
+        title: 'UI',
+        x: 0,
+        y: 0,
+        width: 900,
+        height: 600,
+        templateId: '7e1cb6ad-732f-4dc3-a951-000000000012',
+      },
+      {
+        id: assetsId,
+        type: 'image-assets',
+        title: 'assets',
+        x: 600,
+        y: 0,
+        width: 300,
+        height: 300,
+        sectionId,
+      },
+    ];
+    document.edges = [
+      { id: createId(), from: source.id, to: target.id, kind: 'image-variant' },
+      { id: createId(), from: target.id, to: assetsId, kind: 'image-assets' },
+    ];
+    const { options } = fixture();
+    options.getDocument = () => document;
+    options.store.listGeneration.mockResolvedValue([]);
+    options.flush.mockImplementation(async () => {
+      const saved = await files.save(document.id, document, document.revision);
+      document.revision = saved.revision;
+      return true;
+    });
+    options.store.generateImage.mockResolvedValue({
+      id: createId(),
+      kind: 'image',
+      status: 'failed',
+      error: 'fixture failure',
+    });
+    await createCanvasGenerationUi(options).runTemplateImage(target.id);
+    expect(options.setError.mock.calls).toEqual([['fixture failure', 'error']]);
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+    expect(target.generationDraft).toBeUndefined();
+    expect(
+      (await files.load(document.id)).nodes.find((node) => node.id === target.id)?.generation
+        ?.prompt
+    ).toContain('#00FF00');
+  } finally {
+    color.mockRestore();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a hanging image releases the serial queue, preserves its dependent branch and recovers without repayment', async () => {
+  jest.useFakeTimers();
+  try {
+    const { document, options } = fixture();
+    delete document.templateFlow;
+    const target = document.nodes[1];
+    Object.assign(target, {
+      type: 'image',
+      assetPath: 'old.png',
+      sectionId: 'group',
+      templatePending: true,
+      referenceInput: { includeSelf: false },
+      generation: { prompt: 'atlas' },
+    });
+    document.edges[0].kind = 'image-variant';
+    document.nodes.push(
+      { id: 'group', type: 'section', templateId: 'template' },
+      { ...target, id: 'other', generation: { prompt: 'other' } },
+      { id: 'assets', type: 'image-assets', sectionId: 'group', templatePending: true }
+    );
+    document.edges.push(
+      { id: 'ha', from: 'head', to: 'other', kind: 'image-variant' },
+      { id: 'ta', from: target.id, to: 'assets', kind: 'image-assets' }
+    );
+    options.store.listGeneration.mockResolvedValue([]);
+    let late!: (value: any) => void;
+    let original: any;
+    const submitted: string[] = [];
+    options.store.generateImage.mockImplementation(async (canvasId, input) => {
+      submitted.push(input.targetNodeId);
+      const result = {
+        ...input,
+        canvasId,
+        id: input.targetNodeId + '-attempt',
+        kind: 'image',
+        createdAt: new Date().toISOString(),
+        targetAssetPath: 'old.png',
+        status: 'succeeded',
+        resultAssetPath: input.targetNodeId + '.png',
+        sourceSnapshots: [snapshotCanvasSource(document.nodes[0])],
+      };
+      if (input.targetNodeId === target.id) {
+        original = result;
+        return new Promise((resolve) => {
+          late = resolve;
+        });
+      }
+      return result;
+    });
+    const ui = createCanvasGenerationUi(options);
+    const queue = createCanvasGroupQueue({
+      getDocument: () => document,
+      needs: (id) => Boolean(document.nodes.find((n: any) => n.id === id)?.templatePending),
+      problem: ui.queueBlockReason,
+      busy: () => ui.isBusy,
+      run: ui.runTemplateImage,
+      confirm: () => true,
+      error: options.setError,
+      changed: () => {},
+    });
+    queue.start('group');
+    await jest.advanceTimersByTimeAsync(5 * 60_000 + 1000);
+    expect(submitted).toEqual([target.id, 'other']);
+    expect(ui.isBusy).toBe(false);
+    expect(ui.hasUnsettledResult(target.id)).toBe(true);
+    expect(ui.nodeState(target.id)).toEqual({ status: 'unknown', canQuery: true });
+    expect(queue.view('group')).toMatchObject({ phase: 'paused', completed: 1 });
+    expect(queue.blockedBy('group', 'assets')).toBe(target.id);
+    late(original);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(target.assetPath).toBe('old.png');
+    expect(await ui.runTemplateImage(target.id)).toBe(false);
+    expect(submitted).toHaveLength(2);
+    options.store.listGeneration.mockResolvedValue([original]);
+    await ui.queryNode(target.id, true);
+    expect(target.assetPath).toBe(target.id + '.png');
+    expect(ui.hasUnsettledResult(target.id)).toBe(false);
+    expect(submitted).toHaveLength(2);
+  } finally {
+    jest.useRealTimers();
+  }
+});
 
 test.each(['succeeded', 'failed', 'missing', 'unknown'])(
   'merge icon execution respects settings and result protection: %s',
@@ -54,11 +221,227 @@ test.each(['succeeded', 'failed', 'missing', 'unknown'])(
           prompt: mergeIconPrompt(settings),
           targetNodeId: target.id,
           sourceImageIds: ['head'],
-        })
+        }),
+        expect.any(AbortSignal)
       );
     expect(target.assetPath).toBe(status === 'succeeded' ? 'new-atlas.png' : 'old-atlas.png');
     expect(target.mergeIcons).toEqual(settings);
     expect(canvasNeedsProcessing(document, target)).toBe(status !== 'succeeded');
+  }
+);
+
+test('updating an existing template image preserves its workflow step title', async () => {
+  const { document, options } = fixture();
+  delete document.templateFlow;
+  const target = document.nodes[1];
+  target.type = 'image';
+  target.title = '② 去文字设计稿';
+  target.sectionId = 'group';
+  target.generation = { prompt: '移除文字', sourceImageId: 'head' };
+  document.edges[0].kind = 'image-variant';
+  document.nodes.push({ id: 'group', type: 'section', templateId: 'ui-template' });
+  options.store.generateImage.mockImplementation(async (canvasId, input) => ({
+    ...input,
+    id: 'result',
+    canvasId,
+    kind: 'image',
+    status: 'succeeded',
+    resultAssetPath: 'new-atlas.png',
+  }));
+  const ui = createCanvasGenerationUi(options);
+  expect(await ui.runTemplateImage(target.id)).toBe(true);
+  expect(target.title).toBe('② 去文字设计稿');
+  expect(target.assetPath).toBe('new-atlas.png');
+});
+
+function imageRecoveryFixture(legacy = false) {
+  const { document, options } = fixture();
+  delete document.templateFlow;
+  const target = document.nodes[1];
+  Object.assign(target, {
+    type: 'image',
+    assetPath: 'old.png',
+    templatePending: true,
+    referenceInput: { includeSelf: false },
+    generation: { prompt: 'seven frames', attemptId: 'previous', parameters: { model: 'gpt' } },
+  });
+  document.edges[0].kind = 'image-variant';
+  const previous = {
+    id: 'previous',
+    canvasId: document.id,
+    targetNodeId: target.id,
+    kind: 'image',
+    createdAt: '2026-10-08T01:00:00Z',
+    status: 'succeeded',
+    resultAssetPath: 'old.png',
+  };
+  const completed = {
+    ...previous,
+    id: 'completed',
+    createdAt: '2026-10-08T02:00:00Z',
+    resultAssetPath: 'new.png',
+    prompt: 'seven frames',
+    parameters: { model: 'gpt' },
+    sourceImageIds: ['head'],
+    sourceImagePaths: [document.nodes[0].assetPath],
+    sourceSnapshots: [snapshotCanvasSource(document.nodes[0])],
+    ...(legacy ? {} : { targetAssetPath: 'old.png' }),
+  };
+  options.store.listGeneration.mockResolvedValue([previous, completed] as any);
+  return { document, options, target, completed, previous, ui: createCanvasGenerationUi(options) };
+}
+
+test.each([
+  [1920, 1080, '1024x576'],
+  [1080, 1920, '576x1024'],
+  [1700, 1000, null],
+])('template image sizing handles %ix%i before submitting', async (width, height, targetSize) => {
+  const { document, options, target, ui } = imageRecoveryFixture();
+  document.nodes[0].imageInfo = { width, height };
+  target.generation.parameters.aspectRatio = 'source';
+  options.store.listGeneration.mockResolvedValue([]);
+  options.store.generateImage.mockResolvedValue({
+    id: 'failure',
+    kind: 'image',
+    status: 'failed',
+    error: 'fixture failure',
+  });
+  await ui.runTemplateImage(target.id);
+  if (targetSize)
+    expect(options.store.generateImage).toHaveBeenCalledWith(
+      document.id,
+      expect.objectContaining({ aspectRatio: 'source', targetSize }),
+      expect.anything()
+    );
+  else {
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+    expect(options.setError).toHaveBeenCalledWith(expect.stringContaining('尚未提交'));
+  }
+});
+
+test.each(['restore', 'query', 'run', 'legacy'])(
+  'recovers a completed image after page disconnect without paying again: %s',
+  async (entry) => {
+    const { options, target, ui } = imageRecoveryFixture(entry === 'legacy');
+    if (entry === 'query') await ui.queryNode(target.id, true);
+    else if (entry === 'run') expect(await ui.runTemplateImage(target.id)).toBe(true);
+    else await ui.restore();
+    expect(target.assetPath).toBe('new.png');
+    expect(target.templatePending).toBeUndefined();
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+    expect(options.store.generationAction).not.toHaveBeenCalled();
+    expect(options.flush).toHaveBeenCalled();
+  }
+);
+
+test.each(['target', 'source', 'prompt', 'parameters', 'draft-parameters', 'references', 'newer'])(
+  'image recovery preserves edits made after submission: %s',
+  async (change) => {
+    const { document, options, target, completed, previous, ui } = imageRecoveryFixture();
+    if (change === 'target') target.assetPath = 'manual.png';
+    if (change === 'source') document.nodes[0].assetPath = 'changed-source.png';
+    if (change === 'prompt') target.generation.prompt = 'changed prompt';
+    if (change === 'parameters') target.generation.parameters.model = 'nanobanana';
+    if (change === 'draft-parameters')
+      target.generationDraft = { prompt: completed.prompt, parameters: { model: 'nanobanana' } };
+    if (change === 'references') target.generation.referenceImagePaths = ['another.png'];
+    if (change === 'newer')
+      options.store.listGeneration.mockResolvedValue([
+        previous,
+        completed,
+        { ...completed, id: 'newer', createdAt: '2026-10-08T03:00:00Z', status: 'running' },
+      ] as any);
+    const path = target.assetPath;
+    await ui.restore();
+    expect(target.assetPath).toBe(path);
+    expect(target.templatePending).toBe(true);
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+  }
+);
+
+test.each(['restore', 'query', 'run'])(
+  'recovers the automatic image model across wire normalization through %s',
+  async (entry) => {
+    const { options, target, completed, ui } = imageRecoveryFixture();
+    target.generation.parameters.model = 'auto';
+    completed.parameters = {} as typeof completed.parameters;
+    if (entry === 'query') await ui.queryNode(target.id, true);
+    else if (entry === 'run') expect(await ui.runTemplateImage(target.id)).toBe(true);
+    else await ui.restore();
+    expect(target.assetPath).toBe('new.png');
+    expect(target.templatePending).toBeUndefined();
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+  }
+);
+
+test('an explicitly changed image model still refuses the old automatic result', async () => {
+  const { options, target, completed, ui } = imageRecoveryFixture();
+  target.generation.parameters.model = 'nanobanana';
+  completed.parameters = {} as typeof completed.parameters;
+  await ui.restore();
+  expect(target.assetPath).toBe('old.png');
+  expect(options.store.generateImage).not.toHaveBeenCalled();
+});
+
+test.each(['restore', 'run'])(
+  'wrong-ratio results remain pending after %s without another paid request',
+  async (entry) => {
+    const { document, options, target, completed, ui } = imageRecoveryFixture();
+    target.sectionId = 'group';
+    document.nodes.push({ id: 'group', type: 'section', templateId: 'template' });
+    Object.assign(completed, {
+      resultImageInfo: { width: 576, height: 1024 },
+      parameters: { ...completed.parameters, targetSize: '1024x576' },
+    });
+    if (entry === 'restore') await ui.restore();
+    else expect(await ui.runTemplateImage(target.id)).toBe(false);
+    expect(target.assetPath).toBe('new.png');
+    expect(target.templatePending).toBe(true);
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+    expect(options.setError).toHaveBeenCalledWith(expect.stringContaining('比例与请求不一致'));
+  }
+);
+
+test('image query refreshes a formerly running local record without submitting a remote query', async () => {
+  const { options, target, completed, previous, ui } = imageRecoveryFixture();
+  options.store.listGeneration.mockResolvedValue([
+    previous,
+    { ...completed, status: 'running' },
+  ] as any);
+  await ui.restore();
+  expect(ui.nodeState(target.id)?.canQuery).toBe(true);
+  options.store.listGeneration.mockResolvedValue([previous, completed] as any);
+  await ui.queryNode(target.id, true);
+  expect(target.assetPath).toBe('new.png');
+  expect(options.store.generateImage).not.toHaveBeenCalled();
+  expect(options.store.generationAction).not.toHaveBeenCalled();
+});
+
+test.each([
+  [{ status: 'failed', executionState: 'not_executed' }, true],
+  [{ status: 'failed', remoteStatus: 'failed' }, true],
+  [{ status: 'unknown', executionState: 'unknown' }, false],
+  [{ status: 'failed', remoteStatus: 'succeeded', failureStage: 'download' }, false],
+  [{ status: 'succeeded' }, false],
+] as const)(
+  'only definite image failures allow bounded queue retries: %j',
+  async (state, retryable) => {
+    const { document, options } = fixture();
+    delete document.templateFlow;
+    const target = document.nodes[1];
+    target.type = 'image';
+    target.generation = { prompt: 'draw', sourceImageId: 'head' };
+    document.edges[0].kind = 'image-variant';
+    options.store.generateImage.mockImplementation(async (canvasId, input) => ({
+      ...input,
+      id: 'attempt',
+      kind: 'image',
+      canvasId,
+      ...state,
+    }));
+    const ui = createCanvasGenerationUi(options);
+    await ui.runTemplateImage(target.id);
+    expect(ui.retryableImage(target.id)).toBe(retryable);
   }
 );
 
@@ -466,7 +849,8 @@ describe('image reference drafts and refresh', () => {
       expect.objectContaining({
         targetNodeId: image.id,
         operation: 'generate',
-      })
+      }),
+      expect.any(AbortSignal)
     );
   });
 });
@@ -868,7 +1252,8 @@ test('image continuation recovers only its recorded parameters and reference ima
       resolution: '2K',
       aspectRatio: '3:2',
       referenceImagePaths: ['assets/image/reference.png'],
-    })
+    }),
+    expect.any(AbortSignal)
   );
   expect(options.store.generateImage.mock.calls[0][1].userConfirmed).toBeUndefined();
   expect(target.generation.referenceImagePaths).toEqual(['assets/image/reference.png']);

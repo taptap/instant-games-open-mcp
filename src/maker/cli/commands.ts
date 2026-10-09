@@ -39,6 +39,7 @@ import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeL
 import { runPreviewCli } from './preview.js';
 import { runConsoleCli } from '../console/cli.js';
 import { runCanvasCli } from '../canvas/cli.js';
+import { runUiCli } from '../uiEditor/cli.js';
 import { runBuildCli } from './build.js';
 import { runQrcodeCli } from './qrcode.js';
 import {
@@ -148,6 +149,7 @@ const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : '
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
 const TWO_PART_COMMANDS = new Set([
+  'ui',
   'canvas',
   'console',
   'preview',
@@ -162,6 +164,7 @@ const TWO_PART_COMMANDS = new Set([
   'user-skills',
 ]);
 const BOOLEAN_OPTIONS = new Set([
+  'dry_run',
   'saved',
   'allow_paid',
   'no_open',
@@ -315,6 +318,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'canvas') {
     await runCanvasCli(subcommand, parsed.options);
+    return;
+  }
+
+  if (command === 'ui') {
+    await runUiCli(subcommand, parsed.options, parsed.positionals);
     return;
   }
 
@@ -3238,6 +3246,12 @@ function printHelp(): void {
       '  taptap-maker console serve  # launch from outside the AI IDE on Windows',
       '  taptap-maker console open [--target-dir PROJECT_ABSOLUTE_PATH] [--no-open] [--json]',
       '  taptap-maker console status|stop [--json]',
+      '  taptap-maker ui capabilities',
+      '  taptap-maker ui nanovg-adapter [--json]',
+      '  taptap-maker ui list --target-dir PROJECT_ABSOLUTE_PATH [--json]',
+      '  taptap-maker ui inspect|check|open --target-dir PATH --file assets/ui/screen.ui.json',
+      '  taptap-maker ui create --target-dir PATH --file assets/ui/new.ui.json --input-file FILE [--dry-run]',
+      '  taptap-maker ui patch --target-dir PATH --file assets/ui/screen.ui.json --revision SHA256 --input-file FILE [--dry-run]',
       '  taptap-maker canvas capabilities',
       '  taptap-maker canvas list|pages|templates --target-dir PROJECT_ABSOLUTE_PATH',
       '  taptap-maker canvas <action> --target-dir PATH --page-id ID --canvas-id ID --revision N --input-file FILE',

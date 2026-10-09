@@ -459,6 +459,16 @@
           hoverOpacity: 1,
           pressedOpacity: 0.86,
         };
+      } else if (kind === "NanoVG") {
+        node = { type: "NanoVG", id: "vector", position: "absolute", left: 0, top: 0,
+          width: 240, height: 160, viewBox: [0, 0, 240, 160], commands: [
+            ["beginPath"], ["roundedRect", 2, 2, 236, 156, 18],
+            ["fillPaint", { kind: "linearGradient", args: [0, 0, 240, 160, "#164e63", "#22a899"] }],
+            ["fill"], ["strokeColor", "#a7f3d0"], ["strokeWidth", 2], ["stroke"],
+          ] };
+        var used = new Set(), suffix = 2;
+        Doc().walk(sourceRoot(app), function (item) { if (item.id) used.add(item.id); });
+        while (used.has(node.id)) node.id = "vector_" + suffix++;
       } else if (kind === "Image") {
         node = { type: "Panel", role: "Image", id: "image", position: "absolute", left: 0, top: 0, width: 160, height: 160, backgroundImage: "", backgroundFit: "contain", backgroundColor: "#CCCCCC55" };
       } else {

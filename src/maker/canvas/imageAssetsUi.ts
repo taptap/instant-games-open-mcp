@@ -1,12 +1,16 @@
 declare const document: any;
 import type { CanvasDocument, CanvasNode } from './model.js';
+import { selectedUiExtraction } from './uiRecognition.js';
 import type { CanvasDocumentStore } from './store.js';
 import type { ImageAtlasGrid } from './imageAtlasExport.js';
 import { splitImageAtlas } from './imageAtlasExport.js';
 import { applyImageAssets } from './imageAssets.js';
-import { canvasNodeVersion } from './dependencies.js';
+import { canvasNodeVersion, isCanvasSourceCurrent } from './dependencies.js';
 import { openImageAtlasDialog, drawImageAtlasPreview } from './imageAtlasUi.js';
 import { mergeIconGrid, mergeIconNeedsGeneration } from './mergeIcons.js';
+import { isGameUiResource } from './uiWorkflowHandoff.js';
+import { withCanvasTimeout } from './requestTimeout.js';
+import { uiCutoutRgb, uiCutoutPrompt } from './uiCutout.js';
 
 export function createImageAssetsUi(options: {
   current(): CanvasDocument | null;
@@ -21,6 +25,9 @@ export function createImageAssetsUi(options: {
   error(message: string): void;
 }) {
   let busy = false;
+  let failedAtlas:
+    | { targetId: string; canvasId: string; sourceId: string; version?: string }
+    | undefined;
   let review:
     | {
         id: string;
@@ -32,6 +39,14 @@ export function createImageAssetsUi(options: {
         grid: ImageAtlasGrid;
       }
     | undefined;
+  function savedGrid(current: CanvasDocument, source: CanvasNode, target?: CanvasNode) {
+    if (source.mergeIcons) return mergeIconGrid(source.mergeIcons);
+    const plan = selectedUiExtraction(current, source);
+    // A confirmed grid belongs to this atlas; new atlases use the active mode's grid.
+    if (target?.imageAssetsInfo && isCanvasSourceCurrent(target.sourceSnapshot, source))
+      return target.imageAssetsInfo.grid;
+    return plan?.grid || source.uiBaselineGrid || target?.imageAssetsInfo?.grid;
+  }
   function reviewed(id: string) {
     const current = options.current();
     if (!review || review.targetId !== id) return;
@@ -96,7 +111,7 @@ export function createImageAssetsUi(options: {
       marginY: 0,
       gapX: 0,
       gapY: 0,
-      ...(source.mergeIcons ? mergeIconGrid(source.mergeIcons) : target.imageAssetsInfo?.grid),
+      ...savedGrid(current, source, target),
       ...(input as Partial<ImageAtlasGrid> | undefined),
     };
     review = undefined;
@@ -104,9 +119,11 @@ export function createImageAssetsUi(options: {
     const saved = structuredClone(source);
     busy = true;
     try {
-      const response = await fetch(options.store.mediaUrl(source.assetPath));
-      if (!response.ok) throw new Error('图片读取失败，请重新预览。');
-      const blob = await response.blob();
+      const blob = await withCanvasTimeout(async (signal) => {
+        const response = await fetch(options.store.mediaUrl(saved.assetPath!), { signal });
+        if (!response.ok) throw new Error('图片读取失败，请重新预览。');
+        return response.blob();
+      });
       if (!blob.size || blob.size > 128 * 1024 * 1024) throw new Error('图片为空或超过 128 MiB。');
       const bitmap = await createImageBitmap(blob);
       try {
@@ -161,10 +178,64 @@ export function createImageAssetsUi(options: {
       format: 'images',
     };
   }
-  async function generate(source: CanvasNode, blob: Blob, grid: ImageAtlasGrid, targetId?: string) {
+  async function runSavedGrid(id: string): Promise<boolean> {
+    failedAtlas = undefined;
+    const current = options.current();
+    const target = current?.nodes.find((node) => node.id === id && node.type === 'image-assets');
+    const edge = current?.edges.find((edge) => edge.kind === 'image-assets' && edge.to === id);
+    const source = current?.nodes.find((node) => node.id === edge?.from && node.type === 'image');
+    if (
+      !current ||
+      !target ||
+      !source?.assetPath ||
+      source.templatePending ||
+      mergeIconNeedsGeneration(source) ||
+      options.blocked(source.id) ||
+      busy
+    )
+      throw new Error('请先完成并保存来源图集，再处理资源包。');
+    const configuredGrid = savedGrid(current, source, target);
+    if (!configuredGrid) throw new Error('资源卡缺少切图参数，请先调整并保存网格后继续。');
+    const grid = { ...configuredGrid };
+    const savedSource = structuredClone(source);
+    const targetGrid = JSON.stringify(target.imageAssetsInfo?.grid);
+    function checkTarget() {
+      if (
+        options.current() !== current ||
+        !current!.nodes.includes(target!) ||
+        JSON.stringify(target!.imageAssetsInfo?.grid) !== targetGrid ||
+        !current!.edges.some(
+          (item) => item.kind === 'image-assets' && item.from === source!.id && item.to === id
+        )
+      )
+        throw new Error('资源卡、网格或画布已变化，原有资源包已保留。');
+    }
+    review = undefined;
+    busy = true;
+    let blob: Blob;
+    try {
+      blob = await withCanvasTimeout(async (signal) => {
+        const response = await fetch(options.store.mediaUrl(savedSource.assetPath!), { signal });
+        if (!response.ok) throw new Error('来源图集读取失败，资源包未更新。');
+        return response.blob();
+      });
+      checkTarget();
+    } finally {
+      busy = false;
+    }
+    return generate(savedSource, blob, grid, id, checkTarget);
+  }
+  async function generate(
+    source: CanvasNode,
+    blob: Blob,
+    grid: ImageAtlasGrid,
+    targetId?: string,
+    checkTarget?: () => void
+  ) {
     const canvasId = options.current()?.id;
     const version = canvasNodeVersion(source);
     function currentSource() {
+      checkTarget?.();
       const current = options.current();
       const input = current?.nodes.find((node) => node.id === source.id);
       if (
@@ -181,14 +252,33 @@ export function createImageAssetsUi(options: {
     busy = true;
     try {
       currentSource();
-      const split = await splitImageAtlas(blob, grid);
+      const target = options.current()?.nodes.find((node) => node.id === targetId);
+      // The game UI template explicitly generates magenta-backed atlases.
+      const background =
+        target && isGameUiResource(options.current() || undefined, target)
+          ? uiCutoutRgb(source.generation?.cutoutColor)
+          : undefined;
+      let split: Awaited<ReturnType<typeof splitImageAtlas>>;
+      try {
+        split = await splitImageAtlas(blob, grid, background);
+      } catch (error) {
+        currentSource();
+        if (
+          background &&
+          targetId &&
+          (error as Error & { code?: string }).code === 'ATLAS_LAYOUT_INVALID'
+        )
+          failedAtlas = { targetId, canvasId: canvasId!, sourceId: source.id, version };
+        throw error;
+      }
       const items = [];
       for (const item of split.items) {
         currentSource();
         const imported = await options.store.importImage(
           canvasId!,
           await item.blob.arrayBuffer(),
-          'image/png'
+          'image/png',
+          'resource'
         );
         items.push({
           name: item.name,
@@ -212,8 +302,13 @@ export function createImageAssetsUi(options: {
         edgeId,
         targetId
       );
+      const liveSource = current.nodes.find((node) => node.id === source.id)!;
+      const previousGrid = liveSource.uiBaselineGrid;
+      if (liveSource.uiBaselineGrid && !selectedUiExtraction(current, liveSource))
+        liveSource.uiBaselineGrid = { ...split.grid };
       options.changed();
       if (!(await options.save())) {
+        liveSource.uiBaselineGrid = previousGrid;
         if (previous) {
           for (const key of Object.keys(result))
             delete (result as unknown as Record<string, unknown>)[key];
@@ -263,7 +358,7 @@ export function createImageAssetsUi(options: {
     return new Promise((resolve) => {
       let succeeded = false;
       openImageAtlasDialog(saved, options.store.mediaUrl, {
-        grid: source.mergeIcons ? mergeIconGrid(source.mergeIcons) : target?.imageAssetsInfo?.grid,
+        grid: savedGrid(current!, source, target),
         create: async (blob, grid) => {
           succeeded = await generate(saved, blob, grid, targetId);
           return succeeded;
@@ -274,6 +369,40 @@ export function createImageAssetsUi(options: {
   }
   return {
     open,
+    runSavedGrid,
+    retryPrompt(id: string) {
+      const current = options.current();
+      const target = current?.nodes.find((node) => node.id === id);
+      const source = current?.nodes.find((node) => node.id === failedAtlas?.sourceId);
+      const grid = current && source ? savedGrid(current, source, target) : undefined;
+      if (failedAtlas?.targetId !== id || !grid) return '';
+      return uiCutoutPrompt(
+        '输出排版校正：必须恰好 ' +
+          grid.columns * grid.rows +
+          ' 个完整独立素材，' +
+          grid.columns +
+          ' 列 × ' +
+          grid.rows +
+          ' 行，每格只包含一个完整对象，不得在同一格摆放多个独立对象或减少格子数量。' +
+          '保持本步骤要求的素材类别及保留、移除规则。每格四周至少留15%纯洋红空白，' +
+          '所有格外像素为RGB(255,0,255)，不要噪点、渐变、网格线；保持每个主体完整。',
+        source?.generation?.cutoutColor || '#FF00FF'
+      );
+    },
+    retrySource(id: string) {
+      const current = options.current();
+      const source = current?.nodes.find((node) => node.id === failedAtlas?.sourceId);
+      if (
+        failedAtlas?.targetId === id &&
+        current?.id === failedAtlas.canvasId &&
+        source?.generation?.prompt &&
+        canvasNodeVersion(source) === failedAtlas.version &&
+        current.edges.some(
+          (edge) => edge.from === source.id && edge.to === id && edge.kind === 'image-assets'
+        )
+      )
+        return source.id;
+    },
     preview,
     confirm,
     reviewState,

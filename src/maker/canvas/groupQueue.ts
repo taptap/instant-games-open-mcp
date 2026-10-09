@@ -1,11 +1,14 @@
 import type { CanvasDocument, CanvasNode } from './model.js';
-import { canvasReferences } from './dependencies.js';
+import { canvasReferences, canvasDependents } from './dependencies.js';
 
 export interface CanvasGroupQueueState {
   groupId: string;
   pending: string[];
   completed: number;
   total: number;
+  finished: string[];
+  failures: Record<string, string>;
+  retries: Record<string, number>;
   active?: string;
   startedAt?: number;
   phase: 'queued' | 'running' | 'waiting' | 'paused' | 'complete';
@@ -19,10 +22,13 @@ export function createCanvasGroupQueue(options: {
   problem?(nodeId: string): string | undefined;
   busy(): boolean;
   run(nodeId: string): Promise<boolean>;
+  retryTarget?(nodeId: string): string | undefined;
+  prepareRetry?(nodeId: string, failedNodeId: string): void;
   stopActive?(nodeId: string): void;
   confirm(message: string): boolean;
   changed(): void;
   error(message: string): void;
+  haltReason?(): string | undefined;
 }) {
   const queues = new Map<string, CanvasGroupQueueState>();
   let documentState: CanvasDocument | null = null;
@@ -41,7 +47,9 @@ export function createCanvasGroupQueue(options: {
       documentState?.nodes.filter(
         (node) =>
           node.sectionId === groupId &&
-          ['image', 'video', 'video-source', 'sequence', 'animation'].includes(node.type)
+          ['image', 'video', 'video-source', 'sequence', 'animation', 'image-assets'].includes(
+            node.type
+          )
       ) || []
     );
   }
@@ -56,8 +64,9 @@ export function createCanvasGroupQueue(options: {
   }
   function start(groupId: string, alreadyConfirmed = false) {
     sync();
-    if (!documentState || (queues.get(groupId) && executing(queues.get(groupId)!))) return;
-    const previous = queues.get(groupId)?.pending || [];
+    if (!documentState || (queues.get(groupId) && executing(queues.get(groupId)!))) return false;
+    const prior = queues.get(groupId);
+    const previous = prior?.pending || [];
     const candidates = members(groupId).filter(
       (node) => options.needs(node.id) || options.problem?.(node.id)
     );
@@ -75,35 +84,42 @@ export function createCanvasGroupQueue(options: {
       );
       if (!next) {
         options.error('分组内存在循环引用，请先调整连线。');
-        return;
+        return false;
       }
       pending.push(next.id);
       remaining.delete(next.id);
     }
     if (!pending.length) {
       options.error('此分组没有待处理的步骤。');
-      return;
+      return false;
     }
     if (
       !alreadyConfirmed &&
       !options.confirm(
         '按当前参数完成此分组剩余 ' +
           pending.length +
-          ' 个步骤？生图和视频会消耗积分，Seedance 2.5 按较高费用计费。执行中不逐张确认参考图；失败会暂停，不自动重试。请保持页面打开。'
+          ' 个步骤？识图按模型服务计费；生图和视频会消耗积分，Seedance 2.5 按较高费用计费。生图确定失败或图集排版无法切分时最多重新生图2次；结果未知不重提。失败只阻塞依赖分支，其余继续。请保持页面打开。'
       )
     )
-      return;
+      return false;
+    const finished = (prior?.finished || []).filter(
+      (id) => members(groupId).some((node) => node.id === id) && !pending.includes(id)
+    );
     queues.set(groupId, {
       groupId,
       pending,
-      completed: 0,
-      total: pending.length,
+      completed: finished.length,
+      total: finished.length + pending.length,
+      finished,
+      failures: {},
+      retries: { ...prior?.retries },
       phase: 'queued',
       message: '准备执行',
       stopping: false,
     });
     options.changed();
     void pump();
+    return true;
   }
   function stop(groupId: string) {
     const state = queues.get(groupId);
@@ -153,41 +169,51 @@ export function createCanvasGroupQueue(options: {
             state.phase = 'paused';
             continue;
           }
-          const id = state.pending[0];
-          const node = current.nodes.find(
-            (item) => item.id === id && item.sectionId === state.groupId
-          );
           if (!current.nodes.some((item) => item.id === state.groupId && item.type === 'section')) {
             state.phase = 'paused';
             state.message = '分组已移除';
             continue;
           }
-          if (!node && id) {
-            state.phase = 'paused';
-            state.message = '卡片已移除，请重新启动队列';
-            continue;
-          }
+          const blocked = new Set(Object.keys(state.failures));
+          for (const failed of Object.keys(state.failures))
+            for (const node of canvasDependents(current, failed)) blocked.add(node.id);
+          const id = state.pending.find((id) => !blocked.has(id));
           if (!id) {
-            state.phase = 'complete';
-            state.message = '已完成';
+            state.phase = state.pending.length ? 'paused' : 'complete';
+            state.message = state.pending.length
+              ? Object.entries(state.failures)
+                  .map(
+                    ([id, reason]) =>
+                      (current.nodes.find((node) => node.id === id)?.title || id) + '：' + reason
+                  )
+                  .join('；')
+              : '已完成';
             continue;
           }
-          const problem = options.problem?.(id);
+          selected = state;
+          const node = current.nodes.find(
+            (item) => item.id === id && item.sectionId === state.groupId
+          );
+          const retrying = (state.retries[id] || 0) > 0 && options.retryTarget?.(id) === id;
+          const problem = !node
+            ? '卡片已移除，请重新启动队列'
+            : retrying
+              ? undefined
+              : options.problem?.(id);
           if (problem) {
-            state.phase = 'paused';
-            state.message = problem;
+            state.failures[id] = problem;
             options.error(problem);
-            continue;
+            break;
           }
           if (!options.needs(id)) {
-            state.pending.shift();
-            state.completed++;
-            selected = state;
+            state.pending.splice(state.pending.indexOf(id), 1);
+            state.finished.push(id);
+            state.completed = state.finished.length;
             break;
           }
           selected = state;
           state.active = id;
-          state.pending.shift();
+          state.pending.splice(state.pending.indexOf(id), 1);
           state.phase = 'running';
           state.startedAt = Date.now();
           state.message = '正在执行';
@@ -200,19 +226,72 @@ export function createCanvasGroupQueue(options: {
             failure = error instanceof Error ? error.message : String(error);
             options.error(failure);
           }
-          if (success) state.completed++;
-          else state.pending.unshift(id);
+          if (options.getDocument() !== current) return;
+          const halt = options.haltReason?.();
+          if (halt) {
+            state.pending.unshift(id);
+            state.active = undefined;
+            state.startedAt = undefined;
+            state.phase = 'paused';
+            state.message = halt;
+            for (const queued of queues.values()) {
+              if (executing(queued)) {
+                queued.phase = 'paused';
+                queued.message = halt;
+              }
+            }
+            options.error(halt);
+            return;
+          }
+          if (success) state.finished.push(id);
+          else {
+            state.pending.unshift(id);
+            state.failures[id] = failure || '步骤未完成，请查看卡片和运行日志';
+            const retry = !state.stopping && options.retryTarget?.(id);
+            if (
+              retry &&
+              (state.retries[retry] || 0) < 2 &&
+              current.nodes.some((node) => node.id === retry && node.sectionId === state.groupId)
+            ) {
+              options.prepareRetry?.(retry, id);
+              state.retries[retry] = (state.retries[retry] || 0) + 1;
+              delete state.failures[id];
+              // Re-run the source and invalidated descendants in dependency order.
+              const affected = new Set([
+                retry,
+                ...canvasDependents(current, retry).map((node) => node.id),
+              ]);
+              const redo = members(state.groupId).filter(
+                (node) => affected.has(node.id) && options.needs(node.id)
+              );
+              const waitingIds = new Set([...redo.map((node) => node.id), retry]);
+              const ordered: string[] = [];
+              while (waitingIds.size) {
+                const next = [...waitingIds].find(
+                  (nodeId) =>
+                    !canvasReferences(current, nodeId).some((source) => waitingIds.has(source.id))
+                );
+                if (!next) throw new Error('重试分支存在循环引用');
+                ordered.push(next);
+                waitingIds.delete(next);
+              }
+              state.pending = [
+                ...state.pending.filter((nodeId) => !ordered.includes(nodeId)),
+                ...ordered,
+              ];
+              state.finished = state.finished.filter((nodeId) => !ordered.includes(nodeId));
+            }
+          }
+          state.completed = state.finished.length;
+          state.total = state.completed + state.pending.length;
           state.active = undefined;
           state.startedAt = undefined;
-          state.phase =
-            !success || state.stopping ? 'paused' : state.pending.length ? 'queued' : 'complete';
-          state.message = !success
-            ? failure || '已暂停，请查看当前卡片及运行日志'
-            : state.stopping
-              ? '已停止后续'
-              : state.pending.length
-                ? '准备执行'
-                : '已完成';
+          state.phase = state.stopping ? 'paused' : state.pending.length ? 'queued' : 'complete';
+          state.message = state.stopping
+            ? '已停止后续'
+            : state.pending.length
+              ? '继续可执行分支'
+              : '已完成';
           break;
         }
         options.changed();
@@ -243,6 +322,15 @@ export function createCanvasGroupQueue(options: {
     view(groupId: string) {
       sync();
       return queues.get(groupId);
+    },
+    blockedBy(groupId: string, nodeId: string) {
+      sync();
+      return Object.keys(queues.get(groupId)?.failures || {}).find(
+        (id) =>
+          id !== nodeId &&
+          documentState &&
+          canvasDependents(documentState, id).some((node) => node.id === nodeId)
+      );
     },
     protects(id: string) {
       sync();

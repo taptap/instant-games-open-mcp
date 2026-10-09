@@ -21,3 +21,13 @@ test('bundles an independent collapsible log and preserves the hidden compatibil
   expect(page).toContain('<p id="error" hidden aria-hidden="true">');
   expect(page).toContain('canvasLogs.setContext(documentState.id)');
 });
+
+test('groups log actions at the right edge instead of spacing each button independently', () => {
+  const page = getCanvasPageHtml();
+  expect(page).toContain("actionGroup.className = 'canvas-log-actions'");
+  expect(page).toContain('actionGroup.append(...actions, clear)');
+  expect(CANVAS_LOG_STYLES).toContain(
+    '.canvas-log-actions { display:flex; align-items:center; gap:10px; margin-left:auto; }'
+  );
+  expect(CANVAS_LOG_STYLES).not.toContain('.canvas-log-filters button { margin-left:auto;');
+});

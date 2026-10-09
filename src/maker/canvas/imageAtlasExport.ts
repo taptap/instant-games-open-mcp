@@ -1,6 +1,8 @@
 declare const document: any;
 declare const createImageBitmap: any;
 import { createCanvasZip } from './zipArchive.js';
+import { createBackgroundRemoval } from './backgroundRemoval.js';
+import { alignAtlasCells, atlasLayoutError } from './atlasAlignment.js';
 
 export interface ImageAtlasGrid {
   columns: number;
@@ -167,7 +169,11 @@ export async function createImageAtlasExport(
   }
 }
 
-export async function splitImageAtlas(source: Blob, grid: ImageAtlasGrid) {
+export async function splitImageAtlas(
+  source: Blob,
+  grid: ImageAtlasGrid,
+  backgroundColor?: [number, number, number]
+) {
   if (!source.size || source.size > 128 * 1024 * 1024) throw new Error('图片为空或超过 128 MiB。');
   const bitmap = await createImageBitmap(source);
   try {
@@ -175,22 +181,90 @@ export async function splitImageAtlas(source: Blob, grid: ImageAtlasGrid) {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     if (!context) throw new Error('无法创建素材裁切画布。');
+    const removal = backgroundColor && createBackgroundRemoval();
+    let aligned: ReturnType<typeof alignAtlasCells> | undefined;
+    let keyed: any;
+    if (removal && !grid.marginX && !grid.marginY && !grid.gapX && !grid.gapY) {
+      keyed = document.createElement('canvas');
+      keyed.width = bitmap.width;
+      keyed.height = bitmap.height;
+      const ctx = keyed.getContext('2d');
+      if (!ctx) throw new Error('无法创建素材对齐画布。');
+      ctx.drawImage(bitmap, 0, 0);
+      const pixels = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+      removal.process(pixels.data, bitmap.width, bitmap.height, {
+        color: backgroundColor,
+        automatic: false,
+        mode: 'connected',
+        tolerance: 48,
+        softness: 16,
+        despill: 0.5,
+      });
+      aligned = alignAtlasCells(pixels.data, bitmap.width, bitmap.height, grid);
+      ctx.putImageData(pixels, 0, 0);
+    }
     const items = [];
     let bytes = 0;
     for (const region of regions) {
       canvas.width = region.width;
       canvas.height = region.height;
-      context.drawImage(
-        bitmap,
-        region.x,
-        region.y,
-        region.width,
-        region.height,
-        0,
-        0,
-        region.width,
-        region.height
-      );
+      const cell = aligned?.[items.length];
+      if (cell)
+        context.drawImage(
+          keyed,
+          cell.x,
+          cell.y,
+          cell.width,
+          cell.height,
+          cell.dx,
+          cell.dy,
+          cell.width,
+          cell.height
+        );
+      else
+        context.drawImage(
+          bitmap,
+          region.x,
+          region.y,
+          region.width,
+          region.height,
+          0,
+          0,
+          region.width,
+          region.height
+        );
+      if (removal && !aligned) {
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+        removal.process(pixels.data, canvas.width, canvas.height, {
+          color: backgroundColor,
+          automatic: false,
+          mode: 'connected',
+          tolerance: 24,
+          softness: 12,
+          despill: 0.5,
+        });
+        if (!pixels.data.some((value: number, index: number) => index % 4 === 3 && value > 0))
+          throw atlasLayoutError(
+            '图集第 ' + (items.length + 1) + ' 格没有有效内容，资源包未更新。请检查图集和网格。'
+          );
+        // UI atlases require padding: occupied borders indicate a cut subject or unkeyed background.
+        let opaqueBorder = 0;
+        let borderPixels = 0;
+        for (let y = 0; y < canvas.height; y++) {
+          for (let x = 0; x < canvas.width; x++) {
+            if (x !== 0 && y !== 0 && x !== canvas.width - 1 && y !== canvas.height - 1) continue;
+            borderPixels++;
+            if (pixels.data[(y * canvas.width + x) * 4 + 3] >= 128) opaqueBorder++;
+          }
+        }
+        if (opaqueBorder / borderPixels > 0.01)
+          throw atlasLayoutError(
+            '图集第 ' +
+              (items.length + 1) +
+              ' 格边界仍有明显内容，可能跨格或底色未去净，资源包未更新。请调整图集或网格。'
+          );
+        context.putImageData(pixels, 0, 0);
+      }
       const blob = await new Promise<Blob>((resolve, reject) =>
         canvas.toBlob(
           (result: Blob | null) => (result ? resolve(result) : reject(new Error('素材编码失败。'))),

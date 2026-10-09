@@ -47,8 +47,13 @@ test('official assets import locally, replacing the source invalidates all examp
       { ...canvas, nodes: instance.nodes, edges: instance.edges },
       canvas.revision
     );
-    expect(saved.nodes.some((n) => n.templatePending)).toBe(false);
+    expect(
+      saved.nodes.filter((n) => n.type === 'image-assets').every((n) => n.templatePending)
+    ).toBe(true);
     const source = saved.nodes.find((n) => n.type === 'image')!;
+    expect(source.templatePending).toBeUndefined();
+    // Simulate a completed workflow before replacing its design.
+    for (const node of saved.nodes) delete node.templatePending;
     source.assetPath = 'assets/image/replaced.png';
     invalidateCanvasDependents(saved, source.id);
     expect(

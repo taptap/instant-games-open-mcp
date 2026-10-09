@@ -421,13 +421,14 @@
     var path = preview.currentPath;
     // Keep the saved snapshot separate from edits made while the request is in flight.
     var json = preview.getJSON();
+    var savedNodes = window.UrhoxHistory.nodeStates(preview.tree);
     var text = exportJSON(json);
     saving = (async function () {
       var result = await window.UrhoxSave.write(path, text, loadedText[path]);
       if (!result.ok) throw new Error(result.error || "无法保存当前项目的 UI 文档");
       loadedText[path] = text;
       if (project === targetProject && preview.currentPath === path) {
-        if (preview.markClean) preview.markClean(json);
+        if (preview.markClean) preview.markClean(json, savedNodes);
         else setDirty(path, JSON.stringify(preview.getJSON()) !== JSON.stringify(json));
       }
       return true;

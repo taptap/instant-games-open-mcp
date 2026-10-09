@@ -6,7 +6,7 @@ import { MakerCanvasFiles } from '../files.js';
 import { createId } from '../model.js';
 import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from '../templates.js';
 import { isCanvasNodeStale } from '../dependencies.js';
-import { invalidateCanvasDependents } from '../templateWorkflow.js';
+import { canvasNeedsProcessing, invalidateCanvasDependents } from '../templateWorkflow.js';
 import { canvasPresets } from '../presets.js';
 import { builtinPresetDescriptions } from '../presetDescriptions.js';
 
@@ -232,6 +232,42 @@ test('crop preset contains five aligned transparent stages whose pixels match th
   for (const stage of ['播种', '幼苗', '开花', '结果', '枯萎']) expect(prompt).toContain(stage);
   expect(prompt).toContain('4列×1行或5列×1行');
   expect(prompt).toContain('不画种子或花');
+});
+
+test('new game UI workflow keeps examples but starts every downstream step pending', async () => {
+  const canvas = await files.create('新游戏UI流程');
+  const preset = canvasPresets().find((item) => item.name === '游戏UI制作')!;
+  const prepared = await files.prepareTemplate(preset.id, canvas.id);
+  const before = JSON.stringify(prepared);
+  const instance = model.instantiate(prepared, { x: 0, y: 0 });
+  canvas.nodes = instance.nodes;
+  canvas.edges = instance.edges;
+  const source = canvas.nodes.find(
+    (node) => node.type === 'image' && !canvas.edges.some((edge) => edge.to === node.id)
+  )!;
+  expect(source.assetPath).toBeTruthy();
+  expect(source.uiRecognition).toBeUndefined();
+  const clean = canvas.nodes.find((node) => node.title === '② 去文字设计稿')!;
+  expect(clean.uiRecognition).toEqual({ enabled: false, results: [] });
+  expect(canvasNeedsProcessing(canvas, source)).toBe(false);
+  expect(canvas.nodes.find((node) => node.uiRecognitionSourceId)?.uiRecognitionSourceId).toBe(
+    clean.id
+  );
+  const downstream = canvas.nodes.filter((node) =>
+    canvas.edges.some((edge) => edge.to === node.id)
+  );
+  expect(downstream).toHaveLength(23);
+  for (const node of downstream) {
+    expect(node.templatePending).toBe(true);
+    expect(canvasNeedsProcessing(canvas, node)).toBe(true);
+    if (node.type === 'image') expect(node.assetPath).toBeTruthy();
+    if (node.type === 'image-assets') expect(node.imageAssetsInfo?.items.length).toBeGreaterThan(0);
+  }
+  expect(canvas.nodes.find((node) => node.uiRecognitionSourceId)?.templatePending).toBeUndefined();
+  const saved = await files.save(canvas.id, canvas, canvas.revision);
+  const reopened = await files.load(saved.id);
+  expect(reopened.nodes.filter((node) => node.templatePending)).toHaveLength(downstream.length);
+  expect(JSON.stringify(prepared)).toBe(before);
 });
 
 test.each([4, 5, 6])(
