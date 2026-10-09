@@ -6,9 +6,9 @@ import { claimRecoveryMutex } from '../system/recoveryMutex.js';
 
 const imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg']);
 const fontExtensions = new Set(['.ttf', '.otf', '.woff', '.woff2']);
-const MAX_JSON = 8 * 1024 * 1024;
+export const MAX_UI_JSON = 8 * 1024 * 1024;
 
-export async function resolveUiFile(root: string, relative: string): Promise<string> {
+function validateUiPath(relative: string): void {
   if (
     !relative.startsWith('assets/') ||
     relative.includes(String.fromCharCode(92)) ||
@@ -16,6 +16,10 @@ export async function resolveUiFile(root: string, relative: string): Promise<str
     relative.split('/').some((part) => !part || part === '.' || part === '..')
   )
     throw new ConsoleError('仅允许访问当前项目 assets 内的资源。', 400);
+}
+
+export async function resolveUiFile(root: string, relative: string): Promise<string> {
+  validateUiPath(relative);
   let current = await fs.realpath(root);
   for (const part of relative.split('/')) {
     current = path.join(current, part);
@@ -36,12 +40,12 @@ export async function readUiFile(root: string, relative: string): Promise<Buffer
   )
     throw new ConsoleError('UI 编辑器不支持此文件类型。', 415);
   const filename = await resolveUiFile(root, relative);
-  const limit = extension === '.json' || extension === '.meta' ? MAX_JSON : 32 * 1024 * 1024;
+  const limit = extension === '.json' || extension === '.meta' ? MAX_UI_JSON : 32 * 1024 * 1024;
   if ((await fs.stat(filename)).size > limit) throw new ConsoleError('资源超过读取大小限制。', 413);
   return fs.readFile(filename);
 }
 
-export async function uiEditorManifest(project: ConsoleProject) {
+export async function uiEditorManifest(project: Pick<ConsoleProject, 'path' | 'key' | 'name'>) {
   const prefix = '/api/projects/' + project.key + '/ui-editor/files/';
   const encode = (relative: string) => relative.split('/').map(encodeURIComponent).join('/');
   const ui: Record<string, unknown>[] = [];
@@ -97,7 +101,7 @@ export async function uiEditorManifest(project: ConsoleProject) {
   try {
     if (
       (await fs.realpath(configPath)) !== configPath ||
-      (await fs.stat(configPath)).size > MAX_JSON
+      (await fs.stat(configPath)).size > MAX_UI_JSON
     )
       throw new Error('项目配置路径或大小无效');
     const raw = JSON.parse(await fs.readFile(configPath, 'utf8'));
@@ -120,7 +124,10 @@ export async function saveUiFile(root: string, body: Record<string, unknown>) {
     typeof body.expectedText !== 'string'
   )
     throw new ConsoleError('保存需要 UI 路径、内容和打开时的原文。', 400);
-  if (Buffer.byteLength(body.content) > MAX_JSON || Buffer.byteLength(body.expectedText) > MAX_JSON)
+  if (
+    Buffer.byteLength(body.content) > MAX_UI_JSON ||
+    Buffer.byteLength(body.expectedText) > MAX_UI_JSON
+  )
     throw new ConsoleError('UI 文档超过 8 MiB。', 413);
   let value;
   try {
@@ -154,5 +161,67 @@ export async function saveUiFile(root: string, body: Record<string, unknown>) {
   } finally {
     if (temporary) await fs.unlink(temporary).catch(() => {});
     await release();
+  }
+}
+
+/** Publish a new document under the same project lock without replacing any existing file. */
+export async function createUiFile(root: string, relative: string, content: string) {
+  validateUiPath(relative);
+  if (!relative.endsWith('.ui.json') || Buffer.byteLength(content) > MAX_UI_JSON)
+    throw new ConsoleError('新建需要 assets 内的 .ui.json 路径，文档须小于 8 MiB。');
+  const tree = JSON.parse(content);
+  if (!tree || typeof tree !== 'object' || Array.isArray(tree) || typeof tree.type !== 'string')
+    throw new ConsoleError('UI 文档必须包含根节点 type。');
+  root = await fs.realpath(root);
+  const release = await claimRecoveryMutex(
+    path.join(root, '.maker', 'ui-editor-save.lock'),
+    () => new ConsoleError('该项目正在保存 UI，请稍后再试。', 409)
+  );
+  let temporary: string | undefined;
+  try {
+    await validateNewUiFile(root, relative);
+    let parent = root;
+    const parts = relative.split('/');
+    for (const part of parts.slice(0, -1)) {
+      parent = path.join(parent, part);
+      await fs.mkdir(parent).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== 'EEXIST') throw error;
+      });
+      const stat = await fs.lstat(parent);
+      if (stat.isSymbolicLink() || !stat.isDirectory())
+        throw new ConsoleError('资源目录不能是符号链接或普通文件。', 403);
+    }
+    const filename = path.join(root, relative);
+    temporary = filename + '.' + randomUUID() + '.tmp';
+    await fs.writeFile(temporary, content, { flag: 'wx' });
+    if ((await fs.realpath(parent)) !== parent)
+      throw new ConsoleError('创建期间资源目录已变化，未写入文档。', 409);
+    // A hard link publishes the complete file atomically and fails if the destination exists.
+    await fs.link(temporary, filename).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'EEXIST') throw new ConsoleError('UI 文档已存在，未覆盖。', 409);
+      throw error;
+    });
+    return { ok: true };
+  } finally {
+    if (temporary) await fs.unlink(temporary).catch(() => {});
+    await release();
+  }
+}
+
+export async function validateNewUiFile(root: string, relative: string): Promise<void> {
+  validateUiPath(relative);
+  if (!relative.endsWith('.ui.json')) throw new ConsoleError('新建路径必须以 .ui.json 结尾。');
+  let current = await fs.realpath(root);
+  const parts = relative.split('/');
+  for (let i = 0; i < parts.length; i++) {
+    current = path.join(current, parts[i]);
+    const stat = await fs.lstat(current).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    });
+    if (!stat) return;
+    if (stat.isSymbolicLink()) throw new ConsoleError('不允许通过符号链接创建资源。', 403);
+    if (i === parts.length - 1) throw new ConsoleError('UI 文档已存在，未覆盖。', 409);
+    if (!stat.isDirectory()) throw new ConsoleError('资源父路径不是目录。');
   }
 }

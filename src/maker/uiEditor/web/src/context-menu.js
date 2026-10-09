@@ -66,6 +66,7 @@
     items.push({ label: "添加节点", enabled: state.add, children: [
       action("容器 Panel", "addNode", true, "Panel"), action("图片 Image", "addNode", true, "Image"),
       action("按钮 Button", "addNode", true, "Button"), action("文字 Label", "addNode", true, "Label"),
+      action("矢量图 NanoVG", "addNode", true, "NanoVG"),
     ] });
     if (target) items.push(action("复制", "copy", state.copy), action("创建副本", "duplicate", state.duplicate));
     items.push(action(target ? "粘贴为子节点" : "粘贴", "paste", state.paste));

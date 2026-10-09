@@ -62,6 +62,122 @@ test.each(['succeeded', 'failed', 'missing', 'unknown'])(
   }
 );
 
+test('updating an existing template image preserves its workflow step title', async () => {
+  const { document, options } = fixture();
+  delete document.templateFlow;
+  const target = document.nodes[1];
+  target.type = 'image';
+  target.title = '② 去文字设计稿';
+  target.sectionId = 'group';
+  target.generation = { prompt: '移除文字', sourceImageId: 'head' };
+  document.edges[0].kind = 'image-variant';
+  document.nodes.push({ id: 'group', type: 'section', templateId: 'ui-template' });
+  options.store.generateImage.mockImplementation(async (canvasId, input) => ({
+    ...input,
+    id: 'result',
+    canvasId,
+    kind: 'image',
+    status: 'succeeded',
+    resultAssetPath: 'new-atlas.png',
+  }));
+  const ui = createCanvasGenerationUi(options);
+  expect(await ui.runTemplateImage(target.id)).toBe(true);
+  expect(target.title).toBe('② 去文字设计稿');
+  expect(target.assetPath).toBe('new-atlas.png');
+});
+
+function imageRecoveryFixture(legacy = false) {
+  const { document, options } = fixture();
+  delete document.templateFlow;
+  const target = document.nodes[1];
+  Object.assign(target, {
+    type: 'image',
+    assetPath: 'old.png',
+    templatePending: true,
+    referenceInput: { includeSelf: false },
+    generation: { prompt: 'seven frames', attemptId: 'previous', parameters: { model: 'gpt' } },
+  });
+  document.edges[0].kind = 'image-variant';
+  const previous = {
+    id: 'previous',
+    canvasId: document.id,
+    targetNodeId: target.id,
+    kind: 'image',
+    createdAt: '2026-10-08T01:00:00Z',
+    status: 'succeeded',
+    resultAssetPath: 'old.png',
+  };
+  const completed = {
+    ...previous,
+    id: 'completed',
+    createdAt: '2026-10-08T02:00:00Z',
+    resultAssetPath: 'new.png',
+    prompt: 'seven frames',
+    parameters: { model: 'gpt' },
+    sourceImageIds: ['head'],
+    sourceImagePaths: [document.nodes[0].assetPath],
+    sourceSnapshots: [snapshotCanvasSource(document.nodes[0])],
+    ...(legacy ? {} : { targetAssetPath: 'old.png' }),
+  };
+  options.store.listGeneration.mockResolvedValue([previous, completed] as any);
+  return { document, options, target, completed, previous, ui: createCanvasGenerationUi(options) };
+}
+
+test.each(['restore', 'query', 'run', 'legacy'])(
+  'recovers a completed image after page disconnect without paying again: %s',
+  async (entry) => {
+    const { options, target, ui } = imageRecoveryFixture(entry === 'legacy');
+    if (entry === 'query') await ui.queryNode(target.id, true);
+    else if (entry === 'run') expect(await ui.runTemplateImage(target.id)).toBe(true);
+    else await ui.restore();
+    expect(target.assetPath).toBe('new.png');
+    expect(target.templatePending).toBeUndefined();
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+    expect(options.store.generationAction).not.toHaveBeenCalled();
+    expect(options.flush).toHaveBeenCalled();
+  }
+);
+
+test.each(['target', 'source', 'prompt', 'parameters', 'draft-parameters', 'references', 'newer'])(
+  'image recovery preserves edits made after submission: %s',
+  async (change) => {
+    const { document, options, target, completed, previous, ui } = imageRecoveryFixture();
+    if (change === 'target') target.assetPath = 'manual.png';
+    if (change === 'source') document.nodes[0].assetPath = 'changed-source.png';
+    if (change === 'prompt') target.generation.prompt = 'changed prompt';
+    if (change === 'parameters') target.generation.parameters.model = 'nanobanana';
+    if (change === 'draft-parameters')
+      target.generationDraft = { prompt: completed.prompt, parameters: { model: 'nanobanana' } };
+    if (change === 'references') target.generation.referenceImagePaths = ['another.png'];
+    if (change === 'newer')
+      options.store.listGeneration.mockResolvedValue([
+        previous,
+        completed,
+        { ...completed, id: 'newer', createdAt: '2026-10-08T03:00:00Z', status: 'running' },
+      ] as any);
+    const path = target.assetPath;
+    await ui.restore();
+    expect(target.assetPath).toBe(path);
+    expect(target.templatePending).toBe(true);
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+  }
+);
+
+test('image query refreshes a formerly running local record without submitting a remote query', async () => {
+  const { options, target, completed, previous, ui } = imageRecoveryFixture();
+  options.store.listGeneration.mockResolvedValue([
+    previous,
+    { ...completed, status: 'running' },
+  ] as any);
+  await ui.restore();
+  expect(ui.nodeState(target.id)?.canQuery).toBe(true);
+  options.store.listGeneration.mockResolvedValue([previous, completed] as any);
+  await ui.queryNode(target.id, true);
+  expect(target.assetPath).toBe('new.png');
+  expect(options.store.generateImage).not.toHaveBeenCalled();
+  expect(options.store.generationAction).not.toHaveBeenCalled();
+});
+
 function fixture(status = 'succeeded') {
   const document: any = {
     id: 'canvas',

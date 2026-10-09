@@ -13,7 +13,10 @@ export function createUiWorkflowPreset(): CanvasPreset {
       });
     if (sources.length) {
       node.sourceSnapshot = sources[0];
-      if (node.type === 'image') node.sourceSnapshots = sources;
+      if (node.type === 'image') {
+        node.sourceSnapshots = sources;
+        node.referenceInput = { includeSelf: false };
+      }
     }
   }
   return template;

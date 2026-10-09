@@ -103,8 +103,8 @@ test('image-assets run returns review state without starting the interactive run
   expect(previewImageAssets).toHaveBeenCalledTimes(1);
 });
 
-test('CLI group run cannot open a hidden image-assets confirmation or bypass review', async () => {
-  const { current, ui, command } = fixture();
+test('CLI group run includes resource cards and delegates saved-grid processing to the queue', async () => {
+  const { current, options, ui, command } = fixture();
   current.nodes[0].type = 'image-assets';
   current.nodes[0].sectionId = 'group';
   current.nodes.push({
@@ -116,9 +116,15 @@ test('CLI group run cannot open a hidden image-assets confirmation or bypass rev
     width: 600,
     height: 400,
   });
-  await expect(
-    ui.execute({ ...command, action: 'run', allowPaid: true, input: { id: 'group' } })
-  ).rejects.toThrow('preview-image-assets');
+  const start = jest.fn();
+  Object.assign(options.queue, { start, view: () => ({ phase: 'complete' }) });
+  await expect(ui.execute({ ...command, action: 'run', input: { id: 'group' } })).rejects.toThrow(
+    '--allow-paid'
+  );
+  expect(start).not.toHaveBeenCalled();
+  await ui.execute({ ...command, action: 'run', allowPaid: true, input: { id: 'group' } });
+  expect(start).toHaveBeenCalledWith('group', true);
+  expect(options.save).toHaveBeenCalledTimes(1);
 });
 
 test('unsaved human edits reject changes before touching history or saving', async () => {

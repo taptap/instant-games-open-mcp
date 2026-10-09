@@ -7,6 +7,7 @@ import { applyImageAssets } from './imageAssets.js';
 import { canvasNodeVersion } from './dependencies.js';
 import { openImageAtlasDialog, drawImageAtlasPreview } from './imageAtlasUi.js';
 import { mergeIconGrid, mergeIconNeedsGeneration } from './mergeIcons.js';
+import { isGameUiResource } from './uiWorkflowHandoff.js';
 
 export function createImageAssetsUi(options: {
   current(): CanvasDocument | null;
@@ -161,10 +162,63 @@ export function createImageAssetsUi(options: {
       format: 'images',
     };
   }
-  async function generate(source: CanvasNode, blob: Blob, grid: ImageAtlasGrid, targetId?: string) {
+  async function runSavedGrid(id: string): Promise<boolean> {
+    const current = options.current();
+    const target = current?.nodes.find((node) => node.id === id && node.type === 'image-assets');
+    const edge = current?.edges.find((edge) => edge.kind === 'image-assets' && edge.to === id);
+    const source = current?.nodes.find((node) => node.id === edge?.from && node.type === 'image');
+    if (
+      !current ||
+      !target ||
+      !source?.assetPath ||
+      source.templatePending ||
+      mergeIconNeedsGeneration(source) ||
+      options.blocked(source.id) ||
+      busy
+    )
+      throw new Error('请先完成并保存来源图集，再处理资源包。');
+    const savedGrid = source.mergeIcons
+      ? mergeIconGrid(source.mergeIcons)
+      : target.imageAssetsInfo?.grid;
+    if (!savedGrid) throw new Error('资源卡缺少切图参数，请先调整并保存网格后继续。');
+    const grid = { ...savedGrid };
+    const savedSource = structuredClone(source);
+    const targetGrid = JSON.stringify(target.imageAssetsInfo?.grid);
+    function checkTarget() {
+      if (
+        options.current() !== current ||
+        !current!.nodes.includes(target!) ||
+        JSON.stringify(target!.imageAssetsInfo?.grid) !== targetGrid ||
+        !current!.edges.some(
+          (item) => item.kind === 'image-assets' && item.from === source!.id && item.to === id
+        )
+      )
+        throw new Error('资源卡、网格或画布已变化，原有资源包已保留。');
+    }
+    review = undefined;
+    busy = true;
+    let blob: Blob;
+    try {
+      const response = await fetch(options.store.mediaUrl(source.assetPath));
+      if (!response.ok) throw new Error('来源图集读取失败，资源包未更新。');
+      blob = await response.blob();
+      checkTarget();
+    } finally {
+      busy = false;
+    }
+    return generate(savedSource, blob, grid, id, checkTarget);
+  }
+  async function generate(
+    source: CanvasNode,
+    blob: Blob,
+    grid: ImageAtlasGrid,
+    targetId?: string,
+    checkTarget?: () => void
+  ) {
     const canvasId = options.current()?.id;
     const version = canvasNodeVersion(source);
     function currentSource() {
+      checkTarget?.();
       const current = options.current();
       const input = current?.nodes.find((node) => node.id === source.id);
       if (
@@ -181,14 +235,21 @@ export function createImageAssetsUi(options: {
     busy = true;
     try {
       currentSource();
-      const split = await splitImageAtlas(blob, grid);
+      const target = options.current()?.nodes.find((node) => node.id === targetId);
+      // The game UI template explicitly generates magenta-backed atlases.
+      const background =
+        target && isGameUiResource(options.current() || undefined, target)
+          ? ([255, 0, 255] as [number, number, number])
+          : undefined;
+      const split = await splitImageAtlas(blob, grid, background);
       const items = [];
       for (const item of split.items) {
         currentSource();
         const imported = await options.store.importImage(
           canvasId!,
           await item.blob.arrayBuffer(),
-          'image/png'
+          'image/png',
+          'resource'
         );
         items.push({
           name: item.name,
@@ -274,6 +335,7 @@ export function createImageAssetsUi(options: {
   }
   return {
     open,
+    runSavedGrid,
     preview,
     confirm,
     reviewState,

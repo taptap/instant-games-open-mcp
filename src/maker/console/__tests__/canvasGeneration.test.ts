@@ -704,6 +704,7 @@ describe('CanvasGenerationService', () => {
       canvasId: document.id,
       prompt: '升级护甲但保留角色轮廓',
       operation: 'outpaint',
+      targetNodeId: document.nodes[0].id,
       sourceImagePath: document.nodes[0].assetPath,
       sourceImageId: document.nodes[0].id,
     });
@@ -712,6 +713,11 @@ describe('CanvasGenerationService', () => {
     expect(failed.operation).toBe('outpaint');
     expect(retried.operation).toBe('outpaint');
     expect(retried.sourceImageIds).toEqual([document.nodes[0].id]);
+    expect(retried.targetAssetPath).toBe(document.nodes[0].assetPath);
+    expect(retried.sourceSnapshots).toEqual([retried.sourceSnapshot]);
+    expect(service.list(document.id).find((item) => item.id === retried.id)?.targetAssetPath).toBe(
+      document.nodes[0].assetPath
+    );
     expect(callRemoteProxyToolMock.mock.calls[1][0].args).toMatchObject({
       reference_images: [document.nodes[0].assetPath],
     });

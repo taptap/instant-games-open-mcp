@@ -42,6 +42,10 @@ import { validateMergeIcons, mergeIconPrompt } from './mergeIcons.js';
 const execFileAsync = promisify(execFile);
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RELATIVE = /^(?:assets\/image\/canvas-[0-9a-f-]{36}\.(?:png|jpg|webp))$/i;
+const RESOURCE_RELATIVE = new RegExp(
+  '^[.]maker/canvases/[0-9a-f-]{36}/resources/[0-9a-f-]{36}[.]png$',
+  'i'
+);
 const VIDEO_RELATIVE =
   /^\.maker\/canvases\/[0-9a-f-]{36}\/videos\/video-[0-9a-f-]{36}\.(?:mp4|mov|webm)$/i;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
@@ -687,13 +691,23 @@ export class MakerCanvasFiles {
     return next;
   }
 
-  async importImage(bytes: Buffer): Promise<{ relativePath: string }> {
+  async importImage(bytes: Buffer, resourceCanvasId?: string): Promise<{ relativePath: string }> {
     this.assertStorageShape();
     if (bytes.length < 12 || bytes.length > 20 * 1024 * 1024) {
       fail('图片为空或超过 20 MiB。', 413, 'STORAGE_LIMIT');
     }
     const extension = extensionOf(bytes);
     if (!extension) fail('只接受 PNG、JPEG 或 WebP。', 400, 'INVALID_IMAGE');
+    if (resourceCanvasId !== undefined) {
+      await this.assertIgnored();
+      await this.load(resourceCanvasId);
+      if (extension !== 'png') fail('资源包只接受 PNG。', 400, 'INVALID_IMAGE');
+      const relativePath =
+        '.maker/canvases/' + resourceCanvasId + '/resources/' + randomUUID() + '.png';
+      const folder = this.ensureDir(path.dirname(path.join(this.root, relativePath)));
+      this.atomicWrite(folder, path.basename(relativePath), bytes);
+      return { relativePath };
+    }
     const folder = this.ensureDir(path.join(this.root, 'assets', 'image'));
     const name = `canvas-${randomUUID()}.${extension}`;
     const relativePath = `assets/image/${name}`;
@@ -733,7 +747,11 @@ export class MakerCanvasFiles {
   }
 
   readMedia(relativePath: string): { file: string; type: string } {
-    if (!RELATIVE.test(relativePath) && !VIDEO_RELATIVE.test(relativePath)) {
+    if (
+      !RELATIVE.test(relativePath) &&
+      !VIDEO_RELATIVE.test(relativePath) &&
+      !RESOURCE_RELATIVE.test(relativePath)
+    ) {
       fail('素材路径无效。', 400, 'UNSAFE_PATH');
     }
     const target = path.join(this.root, relativePath);

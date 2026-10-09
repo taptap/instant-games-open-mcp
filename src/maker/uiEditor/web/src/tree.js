@@ -31,6 +31,8 @@
       inheritedLocked ? "父节点已锁定" : ""].filter(Boolean).join(" · ");
     row.className = "tree-row" + (selected ? " selected" : "") + (hidden ? " hidden-node" : "");
     row.classList.toggle("search-match", !!opts.searching && opts.searchMatches.has(node));
+    var modified = !!opts.modifiedNodes && opts.modifiedNodes.has(key);
+    row.classList.toggle("modified-node", modified);
     row.style.paddingLeft = (6 + depth * 14) + "px";
 
     var vis = document.createElement("input");
@@ -66,11 +68,13 @@
     var label = nodeLabel(node);
     var typeEl = document.createElement("span");
     typeEl.className = "tree-type";
+    typeEl.dataset.type = label.typeName;
     window.UrhoxUiTools.highlight(typeEl, label.typeName, opts.query || "");
     row.appendChild(typeEl);
     if (label.name) {
       var idEl = document.createElement("span");
       idEl.className = "tree-id";
+      idEl.title = modified ? "有未保存的修改" : "";
       window.UrhoxUiTools.highlight(idEl, " " + label.name, opts.query || "");
       row.appendChild(idEl);
     }

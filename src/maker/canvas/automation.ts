@@ -72,6 +72,8 @@ export function canvasAutomationCapabilities() {
         'canvas models --canvas-id ID reads persisted local attempts without a page; query on model cards contacts the original upstream task.',
     },
     imageAssetsWorkflow: {
+      groupRun:
+        'Run a template group once with --allow-paid after user authorization. Images execute in dependency order, then resource cards split the current atlas with their saved grids and save final PNG items without per-card dialogs. Missing/invalid grids or failed/unknown steps pause the group; no automatic paid retry. Completion means prepared resource cards, not visual approval or installation into the game.',
       steps:
         'preview-image-assets -> inspect the returned grid preview -> confirm-image-assets -> export images',
       confirmation:

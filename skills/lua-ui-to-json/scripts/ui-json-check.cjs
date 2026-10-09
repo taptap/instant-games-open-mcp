@@ -1,6 +1,74 @@
 (function (root) {
   "use strict";
-  var previewTypes = new Set(["Panel", "Label", "Button"]);
+  var previewTypes = new Set(["Panel", "Label", "Button", "NanoVG"]);
+  // An allowlist shared by the browser, CLI and standalone document checker.
+  var nanoOps = {
+    save: "", restore: "", beginPath: "", closePath: "", fill: "", stroke: "",
+    moveTo: "nn", lineTo: "nn", bezierTo: "nnnnnn", quadTo: "nnnn", arcTo: "nnnnn",
+    rect: "nnnn", roundedRect: "nnnnn", roundedRectVarying: "nnnnnnnn",
+    circle: "nnn", ellipse: "nnnn", arc: "nnnnnn",
+    translate: "nn", scale: "nn", rotate: "n", skewX: "n", skewY: "n", transform: "nnnnnn",
+    scissor: "nnnn", intersectScissor: "nnnn",
+    fillColor: "c", strokeColor: "c", fillPaint: "p", strokePaint: "p",
+    strokeWidth: "n", miterLimit: "n", lineCap: "n", lineJoin: "n", globalAlpha: "n",
+    fontSize: "n", fontFace: "s", textAlign: "n", textLetterSpacing: "n", text: "nns", textBox: "nnns",
+  };
+  function nanoColor(value) {
+    return typeof value === "string" && /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(value) ||
+      Array.isArray(value) && value.length === 4 && value.every(function (n) {
+        return typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 255;
+      });
+  }
+  function checkNanoVG(node, issue, resource) {
+    var box = node.viewBox, commands = node.commands, depth = 0;
+    if (!Array.isArray(box) || box.length !== 4 || box.some(function (n) {
+      return typeof n !== "number" || !Number.isFinite(n);
+    }) || box[2] <= 0 || box[3] <= 0) issue("/viewBox", "viewBox 必须是 [x, y, 正宽度, 正高度]。");
+    if (!Array.isArray(commands) || commands.length > 20000) {
+      issue("/commands", "绘制指令必须是数组，最多 20000 条。"); return;
+    }
+    function paint(value, at) {
+      if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.kind !== "string") return false;
+      var signatures = { linearGradient: "nnnncc", radialGradient: "nnnncc", imagePattern: "nnnnnsn" };
+      var sig = Object.prototype.hasOwnProperty.call(signatures, value.kind) && signatures[value.kind];
+      if (!sig || !args(value.args, sig, at + "/args")) return false;
+      if (value.kind === "radialGradient" && (value.args[2] < 0 || value.args[3] <= value.args[2])) return false;
+      if (value.kind === "imagePattern") {
+        if (value.args[2] <= 0 || value.args[3] <= 0 || value.args[6] < 0 || value.args[6] > 1) return false;
+        resource(value.args[5], at + "/args/5");
+      }
+      return true;
+    }
+    function args(values, sig, at) {
+      return Array.isArray(values) && values.length === sig.length && values.every(function (value, i) {
+        var type = sig[i];
+        return type === "n" ? typeof value === "number" && Number.isFinite(value) :
+          type === "s" ? typeof value === "string" : type === "c" ? nanoColor(value) : paint(value, at + "/" + i);
+      });
+    }
+    commands.forEach(function (command, i) {
+      var at = "/commands/" + i;
+      if (!Array.isArray(command) || typeof command[0] !== "string" || !Object.prototype.hasOwnProperty.call(nanoOps, command[0]) ||
+          !args(command.slice(1), nanoOps[command[0]], at)) {
+        issue(at, "不支持的 NanoVG 指令或参数。使用 ui capabilities 查询支持范围。"); return;
+      }
+      var op = command[0], a = command.slice(1);
+      if (op === "save" && ++depth > 32) issue(at, "NanoVG 图层状态栈超过 32 层，需为引擎保留栈空间。");
+      if (op === "restore" && --depth < 0) { issue(at, "restore 没有对应的 save。"); depth = 0; }
+      if (op === "globalAlpha" && (a[0] < 0 || a[0] > 1)) issue(at, "透明度必须在 0 到 1 之间。");
+      if (["strokeWidth", "miterLimit", "fontSize"].includes(op) && a[0] <= 0) issue(at, "值必须大于 0。");
+      if (op === "lineCap" && ![0, 1, 2].includes(a[0]) || op === "lineJoin" && ![1, 3, 4].includes(a[0]) ||
+          op === "arc" && ![1, 2].includes(a[5])) issue(at, "无效的 NanoVG 枚举值。");
+      if (op === "textBox" && a[2] <= 0) issue(at, "文本框宽度必须大于 0。");
+      if (op === "textAlign" && ![0, 1, 2, 4].some(function (h) {
+        return [0, 8, 16, 32, 64].some(function (v) { return a[0] === h + v; });
+      })) issue(at, "文本对齐每个方向最多指定一个 NanoVG 标志。");
+      if (op === "circle" && a[2] < 0 || op === "ellipse" && (a[2] < 0 || a[3] < 0) ||
+          op === "arc" && a[2] < 0 || op === "arcTo" && a[4] < 0 ||
+          op.startsWith("roundedRect") && a.slice(4).some(function (n) { return n < 0; })) issue(at, "半径不能为负数。");
+    });
+    if (depth) issue("/commands", "save/restore 必须配对。");
+  }
   var lengths = ["width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight",
     "left", "right", "top", "bottom", "padding", "paddingLeft", "paddingRight",
     "paddingTop", "paddingBottom", "paddingHorizontal", "paddingVertical",
@@ -94,6 +162,10 @@
         }
       });
       resource(node.backgroundImage, pointer + "/backgroundImage");
+      resource(node.pressedBackgroundImage, pointer + "/pressedBackgroundImage");
+      if (node.type === "NanoVG") checkNanoVG(node, function (at, message) {
+        issue("UI_NANOVG", "error", pointer + at, message);
+      }, function (ref, at) { resource(ref, pointer + at); });
       if (node.component != null) {
         if (token(node.component)) {
           parameterized = true;
@@ -128,7 +200,7 @@
         .concat(options.resourceExists ? [] : ["resource-existence"]),
     };
   }
-  var api = { checkDocument: checkDocument };
+  var api = { checkDocument: checkDocument, checkNanoVG: checkNanoVG, nanoOps: nanoOps };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.UrhoxUICheck = api;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -506,6 +506,25 @@ export async function canvasConsoleConnection(projectPath: string) {
   };
 }
 
+export async function openUiEditorConsole(projectPath: string, file: string, noOpen = false) {
+  const { previewProject } = await import('../preview/protocol.js');
+  const { inspectUiDocument } = await import('../uiEditor/documents.js');
+  const root = previewProject(projectPath);
+  await inspectUiDocument(root, file);
+  const session = await ensureSession();
+  const project = await request(session, '/api/projects', { path: root });
+  await request(session, '/api/activity', {});
+  const query = new URLSearchParams({
+    projectid: project.projectid,
+    checkout: project.key,
+    page: 'ui-editor',
+    ui: file,
+  });
+  const url = session.origin + '/?' + query;
+  if (!noOpen) openBrowser(url);
+  return { ok: true, url, projectKey: project.key, file };
+}
+
 export async function startConsolePreview(
   projectPath: string,
   signal: AbortSignal

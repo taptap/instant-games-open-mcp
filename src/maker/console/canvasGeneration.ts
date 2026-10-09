@@ -216,6 +216,12 @@ export class CanvasGenerationService {
     attempt.sourceSnapshot = snapshotCanvasSource(
       document.nodes.find((node) => node.id === sourceImageIds[0])
     );
+    attempt.sourceSnapshots = sourceImageIds.flatMap((id) => {
+      const snapshot = snapshotCanvasSource(document.nodes.find((node) => node.id === id));
+      return snapshot ? [snapshot] : [];
+    });
+    attempt.targetAssetPath =
+      document.nodes.find((node) => node.id === options.targetNodeId)?.assetPath || '';
     attempt.parameters = {
       model: options.model,
       resolution: options.resolution,

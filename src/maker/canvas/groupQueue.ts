@@ -41,7 +41,9 @@ export function createCanvasGroupQueue(options: {
       documentState?.nodes.filter(
         (node) =>
           node.sectionId === groupId &&
-          ['image', 'video', 'video-source', 'sequence', 'animation'].includes(node.type)
+          ['image', 'video', 'video-source', 'sequence', 'animation', 'image-assets'].includes(
+            node.type
+          )
       ) || []
     );
   }
@@ -89,7 +91,7 @@ export function createCanvasGroupQueue(options: {
       !options.confirm(
         '按当前参数完成此分组剩余 ' +
           pending.length +
-          ' 个步骤？生图和视频会消耗积分，Seedance 2.5 按较高费用计费。执行中不逐张确认参考图；失败会暂停，不自动重试。请保持页面打开。'
+          ' 个步骤？生图和视频会消耗积分，Seedance 2.5 按较高费用计费。执行中不逐张确认参考图；资源卡按已保存网格自动切图，结果需复核。失败会暂停，不自动重试。请保持页面打开。'
       )
     )
       return;

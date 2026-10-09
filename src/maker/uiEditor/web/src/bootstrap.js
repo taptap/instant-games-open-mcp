@@ -1,10 +1,10 @@
 try {
-  const cacheVersion = "20261007-project-files2";
+  const cacheVersion = "20261009-tree-state1";
   window.UrhoxYogaEngine = (await import("../vendor/yoga-layout/dist/src/index.js")).default;
   await import("../skills/lua-ui-to-json/scripts/ui-json-check.js?" + cacheVersion);
   for (const name of [
     "config", "project-config", "yoga-lite", "geom", "history", "doc", "assets", "ui-tools", "tree",
-    "inspector", "canvas", "commands", "layout", "transform", "input", "preview", "save",
+    "inspector", "nanovg", "canvas", "commands", "layout", "transform", "input", "preview", "save",
     "comparison", "workbench", "context-menu", "hotkeys", "guidance", "editor",
   ]) {
     await import("./" + name + ".js?" + cacheVersion);

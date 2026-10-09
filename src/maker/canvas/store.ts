@@ -61,7 +61,8 @@ export interface CanvasDocumentStore {
   importImage(
     canvasId: string,
     bytes: ArrayBuffer,
-    contentType: string
+    contentType: string,
+    purpose?: 'resource'
   ): Promise<{ relativePath: string }>;
   importVideo(canvasId: string, file: Blob, contentType: string): Promise<{ relativePath: string }>;
   mediaUrl(assetPath: string): string;
@@ -155,13 +156,21 @@ export async function dispatchCanvasStoreRequest(
       return success({ ok: true });
     }
     const match = requestPath.match(
-      new RegExp('^/canvases/([0-9a-f-]{36})(/images|/videos)?$', 'i')
+      new RegExp('^/canvases/([0-9a-f-]{36})(/images|/resource-images|/videos)?$', 'i')
     );
     if (!match) throw Object.assign(new Error('Not found.'), { status: 404 });
-    if (match[2] === '/images' && method === 'POST') {
+    if (['/images', '/resource-images'].includes(match[2]) && method === 'POST') {
       if (!(options?.body instanceof ArrayBuffer)) throw new Error('图片内容无效。');
       const contentType = new Headers(options?.headers).get('content-type') || '';
-      return success(await store.importImage(match[1], options.body, contentType), 201);
+      return success(
+        await store.importImage(
+          match[1],
+          options.body,
+          contentType,
+          match[2] === '/resource-images' ? 'resource' : undefined
+        ),
+        201
+      );
     }
     if (match[2] === '/videos' && method === 'POST') {
       if (!(options?.body instanceof Blob)) throw new Error('视频内容无效。');
@@ -323,12 +332,20 @@ export function createBrowserCanvasDocumentStore(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(document),
       }),
-    importImage: async (canvasId: string, bytes: ArrayBuffer, contentType: string) => {
-      const response = await fetcher(base + '/canvases/' + canvasId + '/images', {
-        method: 'POST',
-        headers: { 'content-type': contentType },
-        body: bytes,
-      });
+    importImage: async (
+      canvasId: string,
+      bytes: ArrayBuffer,
+      contentType: string,
+      purpose?: 'resource'
+    ) => {
+      const response = await fetcher(
+        base + '/canvases/' + canvasId + (purpose === 'resource' ? '/resource-images' : '/images'),
+        {
+          method: 'POST',
+          headers: { 'content-type': contentType },
+          body: bytes,
+        }
+      );
       const body = (await response.json().catch(() => ({}))) as {
         relativePath?: string;
         error?: string;

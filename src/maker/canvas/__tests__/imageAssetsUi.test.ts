@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createImageAssetsUi } from '../imageAssetsUi.js';
 import { emptyDocument } from '../model.js';
-import { drawImageAtlasPreview } from '../imageAtlasUi.js';
+import { drawImageAtlasPreview, openImageAtlasDialog } from '../imageAtlasUi.js';
 
 jest.mock('../imageAtlasUi.js', () => ({
   openImageAtlasDialog: jest.fn(),
@@ -16,7 +16,11 @@ let close: jest.Mock;
 beforeEach(() => {
   close = jest.fn();
   globals.document = {
-    createElement: () => ({ toDataURL: () => 'data:image/png;base64,preview' }),
+    createElement: () => ({
+      toDataURL: () => 'data:image/png;base64,preview',
+      getContext: () => ({ drawImage: jest.fn() }),
+      toBlob: (done: (blob: Blob) => void) => done(new Blob(['png'], { type: 'image/png' })),
+    }),
   };
   globals.createImageBitmap = jest.fn(async () => ({ width: 80, height: 60, close }));
   globals.fetch = jest.fn(async () => new Response(new Blob(['image'])));
@@ -48,9 +52,19 @@ function fixture() {
   current.edges.push({ id: 'edge', kind: 'image-assets', from: 'source', to: 'target' });
   const options = {
     current: () => current,
-    store: { mediaUrl: (path: string) => path, importImage: jest.fn() },
+    store: {
+      mediaUrl: (path: string) => path,
+      importImage: jest.fn(async () => ({
+        relativePath: '.maker/canvases/' + current.id + '/resources/' + randomUUID() + '.png',
+      })),
+    },
     blocked: jest.fn(() => false),
     save: jest.fn(async () => true),
+    remember: jest.fn(),
+    changed: jest.fn(),
+    render: jest.fn(),
+    select: jest.fn(),
+    error: jest.fn(),
   };
   const ui = createImageAssetsUi(options as unknown as Parameters<typeof createImageAssetsUi>[0]);
   return { current, options, ui };
@@ -119,5 +133,89 @@ test('grid render failures dispose the bitmap and invalidate the previous previe
   await expect(ui.preview('target', { columns: 0 })).rejects.toThrow('invalid grid');
   expect(close).toHaveBeenCalledTimes(2);
   expect(ui.reviewState('target')).toBeUndefined();
+  expect(ui.isBusy).toBe(false);
+});
+
+function savedGridFixture() {
+  const setup = fixture();
+  const target = setup.current.nodes[1];
+  target.templatePending = true;
+  target.imageAssetsInfo = {
+    width: 120,
+    height: 80,
+    grid: { columns: 2, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
+    items: [1, 2].map((index) => ({
+      name: 'item_00' + index,
+      width: 60,
+      height: 80,
+      assetPath: 'assets/image/canvas-' + randomUUID() + '.png',
+    })),
+  };
+  return { ...setup, target };
+}
+
+test('workflow prepares real items from current atlas and saved grid without a review dialog', async () => {
+  const { current, target, options, ui } = savedGridFixture();
+  const oldPaths = target.imageAssetsInfo!.items.map((item) => item.assetPath);
+  expect(await ui.runSavedGrid(target.id)).toBe(true);
+  expect(current.nodes).toHaveLength(2);
+  expect(target.templatePending).toBeUndefined();
+  expect(target.imageAssetsInfo).toMatchObject({
+    width: 80,
+    height: 60,
+    items: [
+      { width: 40, height: 60 },
+      { width: 40, height: 60 },
+    ],
+  });
+  expect(target.imageAssetsInfo!.items.every((item) => !oldPaths.includes(item.assetPath))).toBe(
+    true
+  );
+  expect(options.store.importImage).toHaveBeenCalledTimes(2);
+  expect(options.store.importImage).toHaveBeenCalledWith(
+    current.id,
+    expect.any(ArrayBuffer),
+    'image/png',
+    'resource'
+  );
+  expect(options.save).toHaveBeenCalledTimes(2);
+  expect(openImageAtlasDialog).not.toHaveBeenCalled();
+  expect(ui.reviewState(target.id)).toBeUndefined();
+  expect(ui.isBusy).toBe(false);
+});
+
+test('workflow refuses missing or invalid grid without importing files or guessing defaults', async () => {
+  const { target, options, ui } = savedGridFixture();
+  target.imageAssetsInfo!.grid.columns = 0;
+  await expect(ui.runSavedGrid(target.id)).rejects.toThrow('行列');
+  delete target.imageAssetsInfo;
+  await expect(ui.runSavedGrid(target.id)).rejects.toThrow('缺少切图参数');
+  expect(options.store.importImage).not.toHaveBeenCalled();
+  expect(ui.isBusy).toBe(false);
+});
+
+test.each(['source', 'grid', 'edge', 'canvas'])(
+  'workflow refuses stale %s after reading media',
+  async (change) => {
+    const { current, target, options, ui } = savedGridFixture();
+    globals.fetch = jest.fn(async () => {
+      if (change === 'source') current.nodes[0].assetPath = 'new-atlas.png';
+      if (change === 'grid') target.imageAssetsInfo!.grid.rows = 2;
+      if (change === 'edge') current.edges = [];
+      if (change === 'canvas') options.current = () => emptyDocument();
+      return new Response(new Blob(['image']));
+    });
+    await expect(ui.runSavedGrid(target.id)).rejects.toThrow('已变化');
+    expect(options.store.importImage).not.toHaveBeenCalled();
+    expect(ui.isBusy).toBe(false);
+  }
+);
+
+test('workflow save failure restores old resource card and keeps it pending', async () => {
+  const { target, options, ui } = savedGridFixture();
+  const before = structuredClone(target);
+  options.save.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+  await expect(ui.runSavedGrid(target.id)).rejects.toThrow('保存失败');
+  expect(target).toEqual(before);
   expect(ui.isBusy).toBe(false);
 });

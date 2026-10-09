@@ -11,6 +11,35 @@ module.exports = (async function () {
     vm.runInContext(fs.readFileSync(require.resolve("../web/src/" + name + ".js"), "utf8"), context);
   }
   const { UrhoxCommands: cmd, UrhoxDoc: doc, UrhoxYoga: yoga } = context;
+  {
+    const h = context.UrhoxHistory;
+    const tree = { type: "Panel", children: [
+      { type: "Label", id: "same", text: "Original" },
+      { type: "Panel", id: "same", children: [] },
+    ] };
+    doc.ensureEditorIds(tree);
+    const [label, panel] = tree.children;
+    const baseline = h.nodeStates(tree);
+    const changed = () => [...h.modifiedNodeKeys(tree, baseline)];
+    label._layout = { x: 100 };
+    assert.deepEqual(changed(), [], "preview caches do not dirty a node");
+    label.text = "Edited";
+    assert.deepEqual(changed(), [label._editorId], "only edited node changes, even with duplicate names");
+    const inFlightSave = h.nodeStates(tree);
+    label.id = "renamed";
+    assert.deepEqual([...h.modifiedNodeKeys(tree, inFlightSave)], [label._editorId], "edits during save remain dirty");
+    label.id = "same"; label.text = "Original";
+    assert.deepEqual(changed(), [], "reverting to saved properties clears the marker");
+    tree.children.shift(); panel.children.push(label);
+    assert.deepEqual(new Set(changed()), new Set([tree._editorId, panel._editorId, label._editorId]), "reparenting marks changed relationships");
+    const moved = h.nodeStates(tree);
+    assert.deepEqual([...h.modifiedNodeKeys(h.cloneForHistory(tree), moved)], [], "undo snapshots retain identities");
+    panel.children.push({ type: "NanoVG", commands: [] });
+    doc.ensureEditorIds(tree);
+    assert.deepEqual(new Set(h.modifiedNodeKeys(tree, moved)), new Set([panel._editorId, panel.children[1]._editorId]), "new nodes and their parent are modified");
+    panel.children.pop();
+    assert.deepEqual([...h.modifiedNodeKeys(tree, moved)], [], "undoing insertion clears markers");
+  }
   function fixture() {
     const a = { type: "Panel", id: "a", width: "50%", height: 20 };
     const b = { type: "Panel", id: "b", width: 30, height: 20 };
@@ -29,6 +58,16 @@ module.exports = (async function () {
     };
     app.ensureKeys(); app.layout();
     return { app, a, b, p, q, history };
+  }
+  {
+    const { app, p } = fixture();
+    const first = cmd.createNode(app, "NanoVG", 20, 20, p);
+    const second = cmd.createNode(app, "NanoVG", 40, 40, p);
+    assert.equal(first.type, "NanoVG");
+    assert.notEqual(first.id, second.id, "new vector layers have unique document IDs");
+    assert.equal(first.commands[2][1].kind, "linearGradient");
+    const snapshot = context.UrhoxHistory.cloneForSave(app.tree);
+    assert.deepEqual(snapshot.children[0].children[2].commands, first.commands);
   }
   {
     const { app, a, b, p } = fixture();
