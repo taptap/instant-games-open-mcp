@@ -209,14 +209,6 @@ export function createCanvasAutomationUi(options: {
             );
           await options.confirmModel(target.id, input.reviewId);
         } else if (target.type === 'section') {
-          if (
-            current.nodes.some(
-              (item) => item.sectionId === target.id && item.type === 'image-assets'
-            )
-          )
-            throw new Error(
-              '图集解析需要核对网格，请分步执行上游图片，再用 preview-image-assets 和 confirm-image-assets；分组运行不能代确认。'
-            );
           if (canvasModelGroup(current, target.id))
             throw new Error('模型流程需要人工确认角色和多视图，请分步执行卡片，不能自动批准。');
           options.queue.start(target.id, true);

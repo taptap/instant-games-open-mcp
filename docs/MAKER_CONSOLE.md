@@ -40,6 +40,85 @@ Lua LSP/Python 状态在后台异步检查，同一时刻只执行一次；首�
 可使用控制台地址的 page=ui-editor 和 ui=assets/相对路径直达生成的文档，保留原项目参数并 URL 编码。
 UI 编辑器只保存已有 .ui.json，不自动生成 meta、发布游戏或改加载逻辑。新文件由工作流显式生成 meta。
 
+### UI 文档 CLI
+
+同包 CLI 提供 taptap-maker ui，使用 ui capabilities 查看操作格式。
+除 open 外均直接操作已绑定项目的保存文件，不需要浏览器或控制台进程。
+每次明确传入项目绝对路径；文档路径相对项目根且必须为 assets 内的 .ui.json。
+
+```sh
+taptap-maker ui list --target-dir /absolute/project --json
+taptap-maker ui inspect --target-dir /absolute/project --file assets/ui/main.ui.json --json
+taptap-maker ui inspect --target-dir /absolute/project --file assets/ui/main.ui.json --id title --json
+taptap-maker ui create --target-dir /absolute/project --file assets/ui/new.ui.json --input-file document.json --json
+taptap-maker ui patch --target-dir /absolute/project --file assets/ui/main.ui.json --revision SHA256_FROM_INSPECT --input-file changes.json --dry-run --json
+taptap-maker ui check --target-dir /absolute/project --file assets/ui/main.ui.json --json
+taptap-maker ui open --target-dir /absolute/project --file assets/ui/main.ui.json --no-open --json
+```
+
+create 输入完整 UI 根节点，自动建立缺少的目录，已有文档拒绝覆盖。
+inspect 返回文档 SHA-256 revision 和节点树；可用 --id 或 --pointer /children/0 缩小读取范围，
+revision 始终对应整个保存文件。无 ID 的节点可用 pointer 定位，空 pointer 表示根。
+patch 输入一个批次，例如：
+
+```json
+{
+  "operations": [
+    { "op": "set", "id": "title", "props": { "text": "新的标题", "left": 24 }, "unset": ["right"] },
+    {
+      "op": "add",
+      "parentId": "screen",
+      "node": { "type": "Label", "id": "hint", "text": "提示" }
+    },
+    { "op": "move", "id": "hint", "parentId": "screen", "index": 0 },
+    { "op": "remove", "id": "obsolete" }
+  ]
+}
+```
+
+set 可修改文字、位置、尺寸、资源引用等声明属性，不能直接替换 children 或内部字段。
+remove 删除节点及其子树；根节点不能删除或移动。
+add/move 的 parentId 可改为 parentPointer，省略父级时使用根节点。
+index 表示目标 children 中的位置，省略则放末尾；同父级移动按移除后的数组计数。
+move 保留节点的局部坐标和布局属性；跨父级需要保留视觉位置时，在同批次中显式 set 新坐标。
+批次最多 100 个操作，任一步失败均不落盘；整批通过共享 UI 检查后只保存一次。
+
+create/patch 支持 --dry-run，仅检查结果而不写文件或建目录；去掉此参数才执行。
+输入可以用 --input-file 或 --input，二者互斥。检查包含默认与按下图片引用，仍不证明运行时、
+字体和图片解码结果。业务错误、检查错误和版本冲突均以非零退出码报告；--json 输出结构化结果。
+
+CLI 与网页复用同一保存锁、路径校验和原文比较，旧 revision 不会覆盖新版本。
+CLI 不读取或改写网页未保存的草稿；CLI 写入后，在编辑器文档菜单选择「重新从磁盘加载」，
+或通过 ui open 打开保存版本。旧网页草稿直接保存时会报告冲突，须保留草稿并合并。
+open 返回带项目和 checkout 身份的控制台地址；不带 --no-open 时使用系统浏览器打开。
+这些命令不自动生成 meta、不导入外部图片、不改 Lua、不构建或发布游戏。
+
+### NanoVG 图层
+
+编辑器支持 `type: "NanoVG"` 图层，与普通节点共用选择、移动、缩放、层级、复制、撤销和保存。
+节点树的类型名按组件着色：Panel 灰蓝、Label 金黄、Button 绿色、Image 珊瑚色、NanoVG 青色。
+节点名称在深色主题下默认白色，未保存修改显示蓝色，保存成功或撤销至保存状态后恢复；
+浅色主题使用深色对应色。标记基于保存快照，包含节点属性和层级变化，保存期间的新修改仍保留蓝色。
+添加菜单选择「矢量图 NanoVG」；属性面板可修改透明度、绘图坐标范围和绘制指令，
+点击「应用」前校验指令，错误不会替换原数据。CLI ui create/patch/check 使用同一格式和规则。
+
+图层的 viewBox: [x, y, width, height] 定义局部绘图坐标，commands 保存白名单绘制指令；
+调整节点宽高会缩放整层，不改曲线控制点。支持直线、贝塞尔曲线、圆角矩形、圆/椭圆、
+弧线、填充/描边、线性/径向渐变、图片画刷、文字、变换及裁剪。具体操作和参数签名以
+ui capabilities --json 的 nanovg.commands 为准。不接受脚本字符串或任意代码执行。
+图片画刷的资源路径也参与项目资源检查。填充规则中的孔洞、箱形渐变、混合模式、字体模糊、
+reset 类调用尚未支持，捕获或检查会报错，不静默丢弃。textBox 支持多行文字和显式换行；
+浏览器字体与原生字体不同可能导致换行位置和行距差异，需按实际字体复核。
+
+Lua 自绘逻辑不能直接作为普通 Panel 导入。随包 MakerNanoVG.lua 可显式捕获命名绘图层，
+也可回放保存后的数据；ui nanovg-adapter 输出源码，--json 输出带 source 的对象，
+命令本身不修改项目。使用引擎 UI.LoadJSON 时须先注册 NanoVG 控件，原始 nvg 绘图项目可
+直接回放图层，详见 [NanoVG 提取与回放](../skills/lua-ui-to-json/references/nanovg.md)。
+
+浏览器使用 Canvas 2D 预览绘制数据，字体度量、抗锯齿、非等比描边和旋转裁剪与原生 NanoVG
+可能有差异。捕获表示调用当时的视觉状态；游戏事件、存档数据、动画和点击热区仍在 Lua。
+图层移动不会自动重写游戏热区。原项目不会因打开编辑器而安装适配器或替换游戏入口。
+
 实现位于 src/maker/uiEditor/，由原 UrhoxUIEditor 代码迁入并在本仓库维护。
 浏览器代码和 Yoga WASM在构建时嵌入 dist/maker.js，npm/客户端插件随同一 bundle 分发。
 官方画布模板媒体按需下载：已校验的本地缓存优先，其次 CDN，失败尝试 GitHub，
@@ -75,6 +154,17 @@ node scripts/test-maker-ui-editor.mjs（Playwright 可用时）。
 「游戏UI制作」关联 maker-ui-workflow；CLI templates 返回关联名，添加后的分组和 inspect 也保留关联，
 AI 执行前按指引读取 Skill。保存为自定义模板时继承关联，仅本地保存，不自动安装或执行 Skill。
 内置「游戏UI制作」展示香蕉物流的设计稿、分析拆图和 PNG 资源包。模板到资源包结束，
+新添加时保留示例预览，原稿之后的处理卡和资源卡均为待处理，不将示例计为本次完成。
+选中原稿卡后使用「替换图片」，保留连线并更新下游状态；生成只引用上游，不混入旧示例图。
+替换设计稿并保存参数后，分组「完成剩余流程」一次确认，按连线接续生图及资源卡处理。
+资源卡使用已保存网格裁切当前图集，独立 PNG 保存成功后才计为完成；无须逐卡调用或确认。
+此模板的图集提示词固定网格并约定洋红底，资源卡复用本地去背景算法去除与格子边界连通的
+洋红底；保留已透明像素和内部装饰。空白格或有明显不透明边界的格子会暂停并保留原资源包，
+提示调整图集或网格；这不是语义识别，运行后仍需复核遗漏和边缘质量。
+缺少网格、参数无效、处理失败或生成结果未知时暂停，不重提付费任务。完成不代表视觉复核通过，
+不会自动归档到游戏正式资源目录、生成 meta 或 UI.json。页面仍须保持打开。
+图片生成中页面断连后，重开或 query 会读取原生成记录；若原结果已保存且目标、引用和参数未变，
+取回原图并保存，不重新扣费生成。继续分组时也先取回已有成功结果；页面关闭不代表队列在后台继续。
 末尾便签、资源卡菜单和下载完成提示引导用户复制 maker-ui-workflow 指令给 AI，
 继续导入当前项目、生成 meta、组装 UI.json 并打开 UI 编辑器；控制台不自动执行此步骤。
 官方媒体才使用 CDN/GitHub；用户自定义模板与素材只读写当前项目，不自动上传。
@@ -109,7 +199,8 @@ wait 是有界状态查询，不是新调度器或反调 AI。用法与首版限
 游戏资产卡通过 preview-image-assets 返回网格 PNG data URI 和 waiting_for_confirmation；
 核对每格后用 confirm-image-assets 携带当前 reviewId/revision，复用页面裁切和保存。
 预览不落盘组件、不打开阻塞弹窗；来源/画布变化、重载及确认尝试使旧标识失效。
-run 游戏资产卡只返回预览；含该类卡的 CLI 分组运行须拆为单卡操作，不能绕过核对。
+run 单张游戏资产卡仍返回预览；run 分组则按已保存网格自动生成资源卡，不打开逐卡确认弹窗。
+分组运行与页面使用相同队列，要求 --allow-paid；按保存参数执行不代表已经核对图像内容。
 最终独立 PNG 使用 export format=images，复用现有 ZIP 与下载入口。
 素材导入由 CLI 读取明确的本地文件、复用受控上传，页面验证后创建卡片；参考输入沿用画布引用关系，
 显式清空不回退旧生成记录。导出复用原图片编码和 Maker ZIP 打包，仅替换文件输出端；CLI 负责

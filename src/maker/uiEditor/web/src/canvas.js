@@ -66,6 +66,10 @@
   function paintNode(ctx, node, app) {
     var box = node._layout;
     if (!box || node._hidden) return;
+    if (node.type === "NanoVG") {
+      root.UrhoxNanoVG.render(ctx, node, app);
+      return;
+    }
     var assets = root.UrhoxAssets;
     ctx.save();
     var bg = assets.colorToCss(node.backgroundColor);

@@ -520,7 +520,12 @@ export function createTemplateWorkflow(options: {
         options.changed();
         if (!(await options.save())) throw new Error('结果保存失败，已停止后续步骤，请先保存。');
         activeNodeId = undefined;
-        if (node.type === 'image') {
+        // Video workflows retain their reference-image checkpoint. Static image
+        // workflows continue through every dependent image and saved-grid export.
+        if (
+          node.type === 'image' &&
+          ordered.some((item) => ['video', 'video-source'].includes(item.type))
+        ) {
           options.select(node.id);
           return true;
         }

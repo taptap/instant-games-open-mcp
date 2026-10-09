@@ -234,6 +234,8 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
     const modelWorkflow = nodes.some((node) => node.type === 'model-views');
     const savedExampleWorkflow =
       template.builtin &&
+      // UI production examples remain visible, but do not complete a new workflow.
+      template.id !== '7e1cb6ad-732f-4dc3-a951-000000000012' &&
       (nodes.some((node) => node.type === 'image-assets' && node.imageAssetsInfo?.items.length) ||
         nodes.every((node) => node.type === 'image' && node.assetPath));
     const ids = new Map(nodes.map((node) => [node.id, createId()]));

@@ -27,7 +27,10 @@ export function validateImageAssetsInfo(value: unknown): ImageAssetsInfo {
       item.width !== region.width ||
       item.height !== region.height ||
       typeof item.assetPath !== 'string' ||
-      !new RegExp('^assets/image/canvas-[0-9a-f-]{36}[.]png$', 'i').test(item.assetPath) ||
+      !new RegExp(
+        '^(assets/image/canvas-|[.]maker/canvases/[0-9a-f-]{36}/resources/)[0-9a-f-]{36}[.]png$',
+        'i'
+      ).test(item.assetPath) ||
       paths.has(item.assetPath)
     )
       throw new Error('游戏资产名称、尺寸或素材路径无效。');

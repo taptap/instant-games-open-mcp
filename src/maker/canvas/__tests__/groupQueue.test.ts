@@ -122,6 +122,26 @@ test('omits already completed cards when starting a group', async () => {
   expect(queue.view('group')).toMatchObject({ phase: 'complete', total: 2, completed: 2 });
 });
 
+test('static workflow does not finish until the final resource card succeeds', async () => {
+  const { queue, document, options } = fixture();
+  document.nodes = [
+    node('group', 'section'),
+    node('assets', 'image-assets'),
+    node('image', 'image'),
+  ];
+  document.edges = [{ id: 'ia', from: 'image', to: 'assets', kind: 'image-assets' }];
+  const assets = deferred<boolean>();
+  options.run.mockImplementation(async (id) => (id === 'assets' ? assets.promise : true));
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  expect(options.run.mock.calls).toEqual([['image'], ['assets']]);
+  expect(queue.view('group')).toMatchObject({ phase: 'running', active: 'assets', total: 2 });
+  assets.resolve(false);
+  await jest.advanceTimersByTimeAsync(10000);
+  expect(queue.view('group')).toMatchObject({ phase: 'paused', pending: ['assets'], completed: 1 });
+  expect(options.run).toHaveBeenCalledTimes(2);
+});
+
 test('skips a queued card completed while waiting for the shared execution lock', async () => {
   const { queue, completed, options } = fixture();
   options.busy.mockReturnValue(true);

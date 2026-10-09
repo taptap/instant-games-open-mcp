@@ -195,6 +195,7 @@
       collapsed: app.collapsed,
       selectedNodes: app.selectedNodes,
       nodeKey: window.UrhoxDoc.nodeKey,
+      modifiedNodes: app.modifiedNodes,
       onVisible: function (node, visible) {
         window.UrhoxCommands.setVisible(app, node, visible);
       },
@@ -450,14 +451,24 @@
   }
 
   function markDirty() {
+    var tree = app.sourceTree || app.tree;
+    var now = JSON.stringify(window.UrhoxHistory.cloneForSave(tree));
+    if (now === app.cleanState) app.cleanNodes = window.UrhoxHistory.nodeStates(tree);
+    app.modifiedNodes = window.UrhoxHistory.modifiedNodeKeys(tree, app.cleanNodes);
+    if (app.treeEl) app.treeEl.querySelectorAll(".tree-row").forEach(function (row) {
+      var modified = app.modifiedNodes.has(row.dataset.nodeKey);
+      row.classList.toggle("modified-node", modified);
+      var name = row.querySelector(".tree-id");
+      if (name) name.title = modified ? "有未保存的修改" : "";
+    });
     if (app.path && window.UrhoxProject) {
-      var now = JSON.stringify(window.UrhoxHistory.cloneForSave(app.sourceTree || app.tree));
       window.UrhoxProject.setDirty(app.path, now !== app.cleanState);
     }
   }
 
-  function markClean(savedTree) {
+  function markClean(savedTree, savedNodes) {
     app.cleanState = JSON.stringify(window.UrhoxHistory.cloneForSave(savedTree || app.sourceTree || app.tree));
+    app.cleanNodes = savedNodes || window.UrhoxHistory.nodeStates(app.sourceTree || app.tree);
     markDirty();
   }
 
@@ -593,6 +604,8 @@
     app.cleanState = JSON.stringify(window.UrhoxHistory.cloneForSave(tree));
     window.UrhoxDoc.ensureEditorIds(app.sourceTree);
     app.templates = options.templates || {};
+    app.cleanNodes = window.UrhoxHistory.nodeStates(app.sourceTree);
+    app.modifiedNodes = new Set();
     app.components = options.components || {};
     app.missingComponents = options.missingComponents || [];
     setProjectConfig(options.projectConfig);

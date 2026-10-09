@@ -27,6 +27,30 @@
     return cloneNode(node, true);
   }
 
+  // Match editor identities, not editable names or array positions, across undo and save.
+  function nodeStates(tree) {
+    var states = new Map();
+    function visit(node, parent) {
+      var props = {};
+      Object.keys(node).sort().forEach(function (key) {
+        if (key !== "children" && key.charAt(0) !== "_") props[key] = node[key];
+      });
+      states.set(node._editorId, JSON.stringify({ props: props, parent: parent,
+        children: (node.children || []).map(function (child) { return child._editorId; }) }));
+      (node.children || []).forEach(function (child) { visit(child, node._editorId); });
+    }
+    if (tree) visit(tree, null);
+    return states;
+  }
+
+  function modifiedNodeKeys(tree, baseline) {
+    var modified = new Set();
+    nodeStates(tree).forEach(function (state, key) {
+      if (!baseline || baseline.get(key) !== state) modified.add(key);
+    });
+    return modified;
+  }
+
   function History(limit) {
     this.limit = limit || 80;
     this.undoStack = [];
@@ -99,6 +123,8 @@
   History.prototype.clone = cloneForSave;
 
   root.UrhoxHistory = {
+    nodeStates: nodeStates,
+    modifiedNodeKeys: modifiedNodeKeys,
     History: History,
     cloneNode: cloneForSave,
     cloneForHistory: cloneForHistory,

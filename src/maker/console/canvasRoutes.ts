@@ -506,10 +506,13 @@ export async function handleCanvasProjectRoute(options: {
       send(response, 200, await files.save(one[1], input, input.revision));
       return true;
     }
-    const image = suffix.match(/^canvases\/([0-9a-f-]{36})\/images$/i);
+    const image = suffix.match(/^canvases\/([0-9a-f-]{36})\/(images|resource-images)$/i);
     if (image && method === 'POST') {
       await files.load(image[1]);
-      const saved = await files.importImage(await readBytes(request, 20 * 1024 * 1024));
+      const saved = await files.importImage(
+        await readBytes(request, 20 * 1024 * 1024),
+        image[2] === 'resource-images' ? image[1] : undefined
+      );
       send(response, 201, saved);
       return true;
     }

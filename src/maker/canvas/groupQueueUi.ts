@@ -32,9 +32,11 @@ export function createCanvasGroupQueueUi(options: {
         ? '生图'
         : ['video', 'video-source'].includes(node?.type || '')
           ? '视频'
-          : node?.type === 'sequence'
-            ? '抽帧'
-            : '动画';
+          : node?.type === 'image-assets'
+            ? '切图'
+            : node?.type === 'sequence'
+              ? '抽帧'
+              : '动画';
     return (node?.title || '卡片') + ' · ' + action;
   }
   function elapsed(startedAt?: number): string {
@@ -96,7 +98,7 @@ export function createCanvasGroupQueueUi(options: {
       const hint = document.createElement('span');
       hint.className = 'group-queue-status group-queue-detail';
       hint.textContent =
-        '生图和视频会消耗积分，Seedance 2.5 按较高费用计费。执行中不逐张确认参考图；失败会暂停，不自动重试。请保持页面打开。';
+        '生图和视频会消耗积分，Seedance 2.5 按较高费用计费。执行中不逐张确认参考图；资源卡按已保存网格自动切图，结果需复核。失败会暂停，不自动重试。请保持页面打开。';
       root.append(hint);
     } else {
       root.append(

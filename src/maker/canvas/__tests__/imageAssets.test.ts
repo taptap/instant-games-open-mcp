@@ -80,74 +80,90 @@ test('creates a real collection with source relation; updates it without replaci
   ).toThrow('先完成');
 });
 
-test('exports saved standalone PNGs only and rejects missing or mismatched media', async () => {
-  const saved = info();
-  const png = PNG.sync.write(new PNG({ width: 20, height: 20 }));
-  const previous = global.fetch;
-  global.fetch = jest.fn(async () => new Response(png)) as typeof fetch;
-  try {
-    const zip = Buffer.from(
-      await (await createImageAssetsZip(saved, (path) => path)).arrayBuffer()
-    );
-    const names = [...zip.toString('latin1').matchAll(/item_[0-9]{3}[.]png/g)].map(
-      (match) => match[0]
-    );
-    expect(new Set(names).size).toBe(12);
-    expect(zip.toString('latin1')).not.toMatch(/animation.lua|README|index.json/);
-    global.fetch = jest.fn(async () => new Response('', { status: 404 })) as typeof fetch;
-    await expect(createImageAssetsZip(saved, (path) => path)).rejects.toThrow('读取失败');
-    global.fetch = jest.fn(
-      async () => new Response(PNG.sync.write(new PNG({ width: 21, height: 20 })))
-    ) as typeof fetch;
-    await expect(createImageAssetsZip(saved, (path) => path)).rejects.toThrow('尺寸');
-  } finally {
-    global.fetch = previous;
-  }
-});
-
-test('persists independent PNGs and retains them after source deletion', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-image-assets-'));
-  fs.writeFileSync(path.join(root, '.gitignore'), '.maker\n');
-  const files = new MakerCanvasFiles(root);
-  try {
-    let document = await files.create('资产');
-    const sourceFile = await files.importImage(PNG.sync.write(new PNG({ width: 80, height: 60 })));
-    const source = {
-      id: createId(),
-      type: 'image' as const,
-      title: '图集',
-      x: 0,
-      y: 0,
-      width: 200,
-      height: 200,
-      assetPath: sourceFile.relativePath,
-    };
+test.each(['legacy', 'resource'])(
+  'exports %s PNGs and rejects missing or mismatched media',
+  async (storage) => {
     const saved = info();
-    for (const item of saved.items)
-      item.assetPath = (
-        await files.importImage(PNG.sync.write(new PNG({ width: item.width, height: item.height })))
-      ).relativePath;
-    document.nodes.push(source);
-    const target = applyImageAssets(document, source.id, saved, createId(), createId());
-    document = await files.save(document.id, document, document.revision);
-    expect((await files.load(document.id)).nodes[1].imageAssetsInfo).toEqual(saved);
-    document.nodes = [target];
-    document.edges = [];
-    document = await files.save(document.id, document, document.revision);
-    expect((await files.load(document.id)).nodes[0].imageAssetsInfo?.items).toHaveLength(12);
-    for (const item of saved.items)
-      expect(fs.existsSync(files.readMedia(item.assetPath).file)).toBe(true);
-    await expect(
-      files.save(
-        document.id,
-        {
-          ...document,
-          nodes: [{ ...target, imageAssetsInfo: { ...saved, items: saved.items.slice(1) } }],
-        },
-        document.revision
-      )
-    ).rejects.toMatchObject({ code: 'INVALID_DOCUMENT' });
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    if (storage === 'resource') {
+      const canvasId = createId();
+      for (const item of saved.items)
+        item.assetPath = '.maker/canvases/' + canvasId + '/resources/' + createId() + '.png';
+    }
+    const png = PNG.sync.write(new PNG({ width: 20, height: 20 }));
+    const previous = global.fetch;
+    global.fetch = jest.fn(async () => new Response(png)) as typeof fetch;
+    try {
+      const zip = Buffer.from(
+        await (await createImageAssetsZip(saved, (path) => path)).arrayBuffer()
+      );
+      const names = [...zip.toString('latin1').matchAll(/item_[0-9]{3}[.]png/g)].map(
+        (match) => match[0]
+      );
+      expect(new Set(names).size).toBe(12);
+      expect(zip.toString('latin1')).not.toMatch(/animation.lua|README|index.json/);
+      global.fetch = jest.fn(async () => new Response('', { status: 404 })) as typeof fetch;
+      await expect(createImageAssetsZip(saved, (path) => path)).rejects.toThrow('读取失败');
+      global.fetch = jest.fn(
+        async () => new Response(PNG.sync.write(new PNG({ width: 21, height: 20 })))
+      ) as typeof fetch;
+      await expect(createImageAssetsZip(saved, (path) => path)).rejects.toThrow('尺寸');
+    } finally {
+      global.fetch = previous;
+    }
   }
-});
+);
+
+test.each(['legacy', 'resource'])(
+  'persists %s PNGs and retains them after source deletion',
+  async (storage) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-image-assets-'));
+    fs.writeFileSync(path.join(root, '.gitignore'), '.maker\n');
+    const files = new MakerCanvasFiles(root);
+    try {
+      let document = await files.create('资产');
+      const sourceFile = await files.importImage(
+        PNG.sync.write(new PNG({ width: 80, height: 60 }))
+      );
+      const source = {
+        id: createId(),
+        type: 'image' as const,
+        title: '图集',
+        x: 0,
+        y: 0,
+        width: 200,
+        height: 200,
+        assetPath: sourceFile.relativePath,
+      };
+      const saved = info();
+      for (const item of saved.items)
+        item.assetPath = (
+          await files.importImage(
+            PNG.sync.write(new PNG({ width: item.width, height: item.height })),
+            storage === 'resource' ? document.id : undefined
+          )
+        ).relativePath;
+      document.nodes.push(source);
+      const target = applyImageAssets(document, source.id, saved, createId(), createId());
+      document = await files.save(document.id, document, document.revision);
+      expect((await files.load(document.id)).nodes[1].imageAssetsInfo).toEqual(saved);
+      document.nodes = [target];
+      document.edges = [];
+      document = await files.save(document.id, document, document.revision);
+      expect((await files.load(document.id)).nodes[0].imageAssetsInfo?.items).toHaveLength(12);
+      for (const item of saved.items)
+        expect(fs.existsSync(files.readMedia(item.assetPath).file)).toBe(true);
+      await expect(
+        files.save(
+          document.id,
+          {
+            ...document,
+            nodes: [{ ...target, imageAssetsInfo: { ...saved, items: saved.items.slice(1) } }],
+          },
+          document.revision
+        )
+      ).rejects.toMatchObject({ code: 'INVALID_DOCUMENT' });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+);
