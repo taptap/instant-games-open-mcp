@@ -246,7 +246,13 @@ test('new game UI workflow keeps examples but starts every downstream step pendi
     (node) => node.type === 'image' && !canvas.edges.some((edge) => edge.to === node.id)
   )!;
   expect(source.assetPath).toBeTruthy();
+  expect(source.uiRecognition).toBeUndefined();
+  const clean = canvas.nodes.find((node) => node.title === '② 去文字设计稿')!;
+  expect(clean.uiRecognition).toEqual({ enabled: false, results: [] });
   expect(canvasNeedsProcessing(canvas, source)).toBe(false);
+  expect(canvas.nodes.find((node) => node.uiRecognitionSourceId)?.uiRecognitionSourceId).toBe(
+    clean.id
+  );
   const downstream = canvas.nodes.filter((node) =>
     canvas.edges.some((edge) => edge.to === node.id)
   );
@@ -257,7 +263,7 @@ test('new game UI workflow keeps examples but starts every downstream step pendi
     if (node.type === 'image') expect(node.assetPath).toBeTruthy();
     if (node.type === 'image-assets') expect(node.imageAssetsInfo?.items.length).toBeGreaterThan(0);
   }
-  expect(canvas.nodes.find((node) => node.type === 'text')?.templatePending).toBeUndefined();
+  expect(canvas.nodes.find((node) => node.uiRecognitionSourceId)?.templatePending).toBeUndefined();
   const saved = await files.save(canvas.id, canvas, canvas.revision);
   const reopened = await files.load(saved.id);
   expect(reopened.nodes.filter((node) => node.templatePending)).toHaveLength(downstream.length);

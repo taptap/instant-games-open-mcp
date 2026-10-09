@@ -98,7 +98,7 @@ export function createCanvasGroupQueueUi(options: {
       const hint = document.createElement('span');
       hint.className = 'group-queue-status group-queue-detail';
       hint.textContent =
-        '生图和视频会消耗积分，Seedance 2.5 按较高费用计费。执行中不逐张确认参考图；资源卡按已保存网格自动切图，结果需复核。失败会暂停，不自动重试。请保持页面打开。';
+        '识图按模型服务计费；生图和视频会消耗积分，Seedance 2.5 按较高费用计费。生图确定失败或图集无法切分时最多重新生图2次；未知结果不重提。失败只阻塞依赖分支，其余继续。请保持页面打开。';
       root.append(hint);
     } else {
       root.append(
@@ -117,10 +117,18 @@ export function createCanvasGroupQueueUi(options: {
     tasks.className = 'group-queue-tasks';
     tasks.setAttribute('aria-label', '待执行任务，拖动调整顺序');
     for (const id of state?.pending || []) {
-      const item = button('⠿ ' + title(id), () => options.focus(id), 'group-queue-task');
+      const failure = state?.failures?.[id];
+      const blocked = options.queue.blockedBy(groupId, id);
+      const item = button(
+        (failure ? '失败 · ' : blocked ? '等待上游 · ' : '⠿ ') + title(id),
+        () => options.focus(id),
+        'group-queue-task'
+      );
       item.dataset.nodeId = id;
       item.draggable = true;
-      item.title = title(id) + '（拖动排序；左右方向键调整）';
+      item.title =
+        failure ||
+        (blocked ? '等待 ' + title(blocked) + ' 恢复' : title(id) + '（拖动排序；左右方向键调整）');
       item.addEventListener('dragstart', (event) => {
         dragged = { groupId, nodeId: id };
         event.stopPropagation();
@@ -187,6 +195,20 @@ export function createCanvasGroupQueueUi(options: {
       count.textContent = state.completed + '/' + state.total;
       count.title = state.message;
       root.append(count);
+      const failed = Object.keys(state.failures || {}).length;
+      if (failed) {
+        const status = document.createElement('span');
+        status.className = 'group-queue-status';
+        status.textContent =
+          failed + ' 项失败' + (active ? '，其余分支继续' : '，点击失败任务定位');
+        root.append(status);
+      }
+      if (state.active && state.retries?.[state.active]) {
+        const retry = document.createElement('span');
+        retry.className = 'group-queue-status';
+        retry.textContent = '重新生图 ' + state.retries[state.active] + '/2';
+        root.append(retry);
+      }
       if (state.phase === 'paused') {
         const hint = document.createElement('span');
         hint.className = 'group-queue-status';

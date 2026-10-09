@@ -1,4 +1,5 @@
 import { runInNewContext } from 'node:vm';
+import { IMAGE_OUTPUT_RATIOS } from '../imageSizing.js';
 import {
   canvasGenerationParameterChoices,
   canvasParameterSchema,
@@ -43,6 +44,9 @@ function fixture(): CanvasInfoSnapshot & { title: string; capturedAt: string } {
       groupId,
       pending: groupId === 'group' ? ['video', 'sequence', 'sibling'] : [],
       completed: 2,
+      finished: [],
+      failures: {},
+      retries: {},
       total: 5,
       active: groupId === 'group' ? 'video' : undefined,
       phase: 'running',
@@ -300,7 +304,9 @@ test('all runtime dependencies can be injected using exported function toString 
   const functions = [canvasGenerationParameterChoices, canvasParameterSchema, selectCanvasSnapshot];
   const script = functions.map((fn) => fn.toString()).join('\n');
   const injected = runInNewContext(
-    script + '\n({ canvasGenerationParameterChoices, canvasParameterSchema, selectCanvasSnapshot })'
+    script +
+      '\n({ canvasGenerationParameterChoices, canvasParameterSchema, selectCanvasSnapshot })',
+    { imageSizing_js_1: { IMAGE_OUTPUT_RATIOS }, IMAGE_OUTPUT_RATIOS }
   ) as {
     canvasGenerationParameterChoices: typeof canvasGenerationParameterChoices;
     canvasParameterSchema: typeof canvasParameterSchema;

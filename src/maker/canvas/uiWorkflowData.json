@@ -1,7 +1,7 @@
 {
   "id": "7e1cb6ad-732f-4dc3-a951-000000000012",
   "name": "游戏UI制作",
-  "revision": 6,
+  "revision": 9,
   "skills": ["maker-ui-workflow"],
   "nodes": [
     {
@@ -22,13 +22,17 @@
       "width": 400.0,
       "height": 755.0,
       "title": "② 去文字设计稿",
+      "uiRecognition": {
+        "enabled": false,
+        "results": []
+      },
       "assetPath": "assets/image/preset-game-ui-066.png",
       "generation": {
         "prompt": "精准去除所有普通文案、数字、按钮小字、页签小字、Icon 内小字及美术字体，保持原构图和非文字细节。",
         "parameters": {
           "model": "gpt",
           "resolution": "2K",
-          "aspectRatio": "9:16"
+          "aspectRatio": "source"
         },
         "operation": "variant",
         "sourceImageId": "e3f1d7ae-c8d2-4fa8-a2ae-000000000002",
@@ -53,7 +57,7 @@
         "parameters": {
           "model": "gpt",
           "resolution": "2K",
-          "aspectRatio": "9:16"
+          "aspectRatio": "source"
         },
         "sourceImageId": "e3f1d7ae-c8d2-4fa8-a2ae-000000000007",
         "sourceImageIds": ["e3f1d7ae-c8d2-4fa8-a2ae-000000000007"]
@@ -73,7 +77,7 @@
       },
       "generation": {
         "operation": "variant",
-        "prompt": "参考与目标：以输入参考图为依据，完成标题底板。\n保留：分别保留原稿材质的标题条与独立底框的轮廓、边缘、纹理。\n移除：移除所有文字、图标和外部主面板。\n输出：2列2行，4个独立底板，等大格子，主体不跨格。 使用纯洋红底便于后续透明处理，不添加投影平台；资源卡会自动去除与格子边界连通的洋红底再裁切；四周留白，主体不跨格，不绘制网格线。 每个等分格子的中心必须与素材中心重合，格内四周至少留10%纯洋红空白。所有格外背景必须是平涂RGB(255,0,255)，不画噪点、纹理、渐变、阴影或网格线；不要用参考图的布局摆放素材。",
+        "prompt": "参考与目标：以输入参考图为依据，完成标题底板。\n保留：仅保留用于承载标题文字的单条横向标题底板，保持原稿的轮廓、边缘、纹理。\n移除：移除所有文字、图标、外部主面板、背包格阵列、多个卡框的组合和按钮列表。\n输出：2列2行，4个独立横向标题条，每格仅一条完整标题底板，不能把整个界面或多个底框装进一格；等大格子，主体不跨格。 使用纯洋红底便于后续透明处理，不添加投影平台；资源卡会自动去除与格子边界连通的洋红底再裁切；四周留白，主体不跨格，不绘制网格线。 每个等分格子的中心必须与素材中心重合，格内四周至少留10%纯洋红空白。所有格外背景必须是平涂RGB(255,0,255)，不画噪点、纹理、渐变、阴影或网格线；不要用参考图的布局摆放素材。",
         "parameters": {
           "model": "gpt",
           "resolution": "2K",
@@ -81,7 +85,8 @@
         },
         "sourceImageId": "b12d09bb-41d8-49d6-954f-437187ddfbf2",
         "sourceImageIds": ["b12d09bb-41d8-49d6-954f-437187ddfbf2"]
-      }
+      },
+      "uiExtraction": "title"
     },
     {
       "id": "89185d4a-93c8-4894-aad3-30937a902026",
@@ -97,15 +102,16 @@
       },
       "generation": {
         "operation": "variant",
-        "prompt": "参考与目标：以输入参考图为依据，完成完整主面板。\n保留：保留完整外围主面板轮廓、材质和边缘装饰。\n移除：移除内部文字、按钮、图标及全部独立分区底框，内侧填补为连续一致的空白面板材质，不能保留任何小格子、进度条或子框；外围边框与面板内底保持一体。\n输出：1个完整主面板，主体完整，无外部环境。 使用纯洋红底便于后续透明处理，不添加投影平台；资源卡会自动去除与格子边界连通的洋红底再裁切；四周留白，主体不跨格，不绘制网格线。 每个等分格子的中心必须与素材中心重合，格内四周至少留10%纯洋红空白。所有格外背景必须是平涂RGB(255,0,255)，不画噪点、纹理、渐变、阴影或网格线；不要用参考图的布局摆放素材。",
+        "prompt": "参考与目标：以输入参考图为依据，完成完整主面板。\n保留：保留完整外围主面板轮廓、材质和边缘装饰。\n移除：移除内部文字、按钮、图标及全部独立分区底框，内侧填补为连续一致的空白面板材质，不能保留任何小格子、进度条或子框；外围边框与面板内底保持一体。\n输出：全图仅1个完整连续的主面板，外围只有一圈闭合轮廓，内底连续；不可拆成上下两个面板、不可附带第二个底板，无外部环境。 使用纯洋红底便于后续透明处理，不添加投影平台；资源卡会自动去除与格子边界连通的洋红底再裁切；四周留白，主体不跨格，不绘制网格线。 每个等分格子的中心必须与素材中心重合，格内四周至少留10%纯洋红空白。所有格外背景必须是平涂RGB(255,0,255)，不画噪点、纹理、渐变、阴影或网格线；不要用参考图的布局摆放素材。",
         "parameters": {
           "model": "gpt",
           "resolution": "2K",
-          "aspectRatio": "9:16"
+          "aspectRatio": "source"
         },
         "sourceImageId": "b12d09bb-41d8-49d6-954f-437187ddfbf2",
         "sourceImageIds": ["b12d09bb-41d8-49d6-954f-437187ddfbf2"]
-      }
+      },
+      "uiExtraction": "panel"
     },
     {
       "id": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
@@ -125,11 +131,12 @@
         "parameters": {
           "model": "gpt",
           "resolution": "2K",
-          "aspectRatio": "9:16"
+          "aspectRatio": "source"
         },
         "sourceImageId": "e3f1d7ae-c8d2-4fa8-a2ae-000000000007",
         "sourceImageIds": ["e3f1d7ae-c8d2-4fa8-a2ae-000000000007"]
-      }
+      },
+      "uiAnnotation": ["tab", "action", "shortcut", "close"]
     },
     {
       "id": "ef5d0a89-9b4c-43bf-895b-873e3ec879fa",
@@ -149,11 +156,12 @@
         "parameters": {
           "model": "gpt",
           "resolution": "2K",
-          "aspectRatio": "9:16"
+          "aspectRatio": "source"
         },
         "sourceImageId": "e3f1d7ae-c8d2-4fa8-a2ae-000000000007",
         "sourceImageIds": ["e3f1d7ae-c8d2-4fa8-a2ae-000000000007"]
-      }
+      },
+      "uiAnnotation": ["icon"]
     },
     {
       "id": "6e29e273-6ee3-4d95-9e34-8272b2dd239a",
@@ -173,11 +181,12 @@
         "parameters": {
           "model": "gpt",
           "resolution": "2K",
-          "aspectRatio": "9:16"
+          "aspectRatio": "source"
         },
         "sourceImageId": "e3f1d7ae-c8d2-4fa8-a2ae-000000000002",
         "sourceImageIds": ["e3f1d7ae-c8d2-4fa8-a2ae-000000000002"]
-      }
+      },
+      "uiAnnotation": ["art_text"]
     },
     {
       "id": "e61fbe3d-465d-4cca-ae56-7a40df0fb231",
@@ -201,7 +210,8 @@
         },
         "sourceImageId": "ef5d0a89-9b4c-43bf-895b-873e3ec879fa",
         "sourceImageIds": ["ef5d0a89-9b4c-43bf-895b-873e3ec879fa"]
-      }
+      },
+      "uiExtraction": "icon"
     },
     {
       "id": "ab180665-681a-4441-9dfa-895eaef7dc5a",
@@ -217,7 +227,7 @@
       },
       "generation": {
         "operation": "variant",
-        "prompt": "参考：输入图片只提供UI底框的颜色、材质和轮廓风格，输出必须彻底改变排布。保留：选取7种独立背景底框，每种只保留边框和内部填色，二者一体。移除：人物、图标、文字、编号、子框、内部网格与大界面布局。\nOUTPUT: A sprite atlas, NOT a UI screenshot. 1152x2048 canvas, flat solid #FF00FF background. Exactly SEVEN TINY isolated UI frame thumbnails in ONE vertical column. All seven thumbnails have the SAME bounding-box height of 120 pixels maximum, preserve their aspect ratios. Their center coordinates are exactly (576,146), (576,439), (576,731), (576,1024), (576,1316), (576,1609), (576,1901). IMPORTANT: each thumbnail is tiny, with huge empty magenta space around it. The seventh thumbnail must be as small as the other six. No large panels anywhere. No shadows on background, no texture on background, no grid lines, no labels. Seven separate objects equally spaced from top to bottom, NOT stacked or joined. All pixels outside these seven small objects are exactly RGB(255,0,255).",
+        "prompt": "参考：输入图片只提供UI底框的颜色、材质和轮廓风格，输出必须彻底改变排布。保留：选取7种独立背景底框，每种只保留边框和内部填色，二者一体。移除：人物、图标、文字、编号、子框、内部网格与大界面布局。\nOUTPUT: A sprite atlas, NOT a UI screenshot. Use the requested output canvas dimensions, flat solid #FF00FF background. Exactly SEVEN TINY isolated UI frame thumbnails in ONE vertical column. All seven thumbnails have the SAME bounding-box height of at most 40% of each cell height, preserve their aspect ratios. Place each thumbnail at the center of its equal-height cell, using relative positions rather than fixed pixel coordinates. IMPORTANT: each thumbnail is tiny, with huge empty magenta space around it. The seventh thumbnail must be as small as the other six. No large panels anywhere. No shadows on background, no texture on background, no grid lines, no labels. Seven separate objects equally spaced from top to bottom, NOT stacked or joined. All pixels outside these seven small objects are exactly RGB(255,0,255).",
         "parameters": {
           "model": "gpt",
           "resolution": "2K",
@@ -225,7 +235,8 @@
         },
         "sourceImageId": "b12d09bb-41d8-49d6-954f-437187ddfbf2",
         "sourceImageIds": ["b12d09bb-41d8-49d6-954f-437187ddfbf2"]
-      }
+      },
+      "uiExtraction": "frame"
     },
     {
       "id": "451036ce-ac66-4c52-805c-01bf88369e41",
@@ -249,7 +260,8 @@
         },
         "sourceImageId": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
         "sourceImageIds": ["6041aa5d-911a-4d63-bee9-8480a6cdc36b"]
-      }
+      },
+      "uiExtraction": "tab"
     },
     {
       "id": "215aa317-e6f4-4696-b51a-379c324aa11e",
@@ -273,7 +285,8 @@
         },
         "sourceImageId": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
         "sourceImageIds": ["6041aa5d-911a-4d63-bee9-8480a6cdc36b"]
-      }
+      },
+      "uiExtraction": "action"
     },
     {
       "id": "60ea6f01-64c2-47b3-b3a1-188e3b4cd650",
@@ -297,7 +310,8 @@
         },
         "sourceImageId": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
         "sourceImageIds": ["6041aa5d-911a-4d63-bee9-8480a6cdc36b"]
-      }
+      },
+      "uiExtraction": "shortcut"
     },
     {
       "id": "9a0cecb9-a701-4d10-8e34-b75f04ed74bc",
@@ -321,7 +335,8 @@
         },
         "sourceImageId": "6041aa5d-911a-4d63-bee9-8480a6cdc36b",
         "sourceImageIds": ["6041aa5d-911a-4d63-bee9-8480a6cdc36b"]
-      }
+      },
+      "uiExtraction": "close"
     },
     {
       "id": "c190210f-313a-43fc-b3d1-33197f7a1da3",
@@ -829,7 +844,8 @@
         },
         "sourceImageId": "6e29e273-6ee3-4d95-9e34-8272b2dd239a",
         "sourceImageIds": ["6e29e273-6ee3-4d95-9e34-8272b2dd239a"]
-      }
+      },
+      "uiExtraction": "art_text"
     },
     {
       "id": "40fc12b0-dc7d-4bd5-a94c-4131a80e1050",
@@ -874,7 +890,17 @@
       "y": 5990.0,
       "width": 1000,
       "height": 340,
-      "text": "模板到独立 PNG 资源包结束。各资源卡分别下载，全部保留；示例仅供参考；运行后按预设网格去洋红底并裁切，完成后核对清单与边界。\n下一步：把设计稿和素材包交给接入 Maker MCP 的 AI，说“使用 maker-ui-workflow，把这些素材导入当前游戏项目、生成 meta、组装 UI.json，并打开控制台 UI 编辑器对照调整”。\n有布局清单则按原坐标组装；没有则由 AI 对照原稿补录，不能猜配相似素材。CLI 组装也需要先准备 layout.json；控制台不会自动完成 AI 识别。\n用户模板和生成素材只保存在本机，不自动上传 CDN 或 GitHub。"
+      "text": "模板到独立 PNG 资源包结束。各资源卡分别下载，全部保留；示例仅供参考；开启识图时按清单计算网格，关闭时沿用示例网格；按记录底色抠图，完成后核对清单与边界。\n下一步：把设计稿和素材包交给接入 Maker MCP 的 AI，说“使用 maker-ui-workflow，把这些素材导入当前游戏项目、生成 meta、组装 UI.json，并打开控制台 UI 编辑器对照调整”。\n有布局清单则按原坐标组装；没有则由 AI 对照原稿补录，不能猜配相似素材。开启识图可取得元素编号和原稿坐标；后续仍需核对素材绑定并准备 layout.json，再由 CLI 组装。\n用户模板和生成素材只保存在本机，不自动上传 CDN 或 GitHub。"
+    },
+    {
+      "id": "7e1cb6ad-732f-4dc3-a951-000000001298",
+      "type": "note",
+      "title": "识图元素清单",
+      "x": 4275.0,
+      "y": 0,
+      "width": 420,
+      "height": 600,
+      "uiRecognitionSourceId": "e3f1d7ae-c8d2-4fa8-a2ae-000000000007"
     }
   ],
   "edges": [

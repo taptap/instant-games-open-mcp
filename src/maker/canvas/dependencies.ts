@@ -10,7 +10,12 @@ export function metadataVersion(node: CanvasNode): string {
     return node.frameSetInfo ? 'saved-frame-set' : 'missing-frame-set';
   }
   if (node.type === 'image' || node.type === 'video-source') {
-    return node.generation?.attemptId || 'manual-asset';
+    const asset = node.generation?.attemptId || 'manual-asset';
+    return node.uiRecognition
+      ? asset +
+          '|recognition:' +
+          (node.uiRecognition.enabled ? node.uiRecognition.selectedId || 'pending' : 'off')
+      : asset;
   }
   return 'unsupported';
 }

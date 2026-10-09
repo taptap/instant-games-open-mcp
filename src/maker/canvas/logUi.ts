@@ -47,7 +47,10 @@ export function createCanvasLog(root: HTMLElement, actions: HTMLElement[] = []) 
     entries.length = 0;
     render();
   });
-  filters.append(...actions, clear);
+  const actionGroup = document.createElement('div');
+  actionGroup.className = 'canvas-log-actions';
+  actionGroup.append(...actions, clear);
+  filters.append(actionGroup);
   details.append(summary, filters, list);
   root.replaceChildren(details, preview);
   details.addEventListener('toggle', () => {
@@ -116,5 +119,5 @@ export const CANVAS_LOG_STYLES = [
   '.canvas-log-list { max-height:min(240px,32vh); min-height:40px; overflow:auto; overscroll-behavior:contain; line-height:1.6; }',
   '.canvas-log-row { padding:3px 0; white-space:pre-wrap; overflow-wrap:anywhere; font-family:ui-monospace,monospace; }',
   '.canvas-log-error { color:#f29c97; } .canvas-log-warning { color:#e5bd78; } .canvas-log-info { color:#d0d6df; }',
-  '.canvas-log-filters { display:flex; align-items:center; gap:14px; padding:5px 0; } .canvas-log-filters label { display:flex; align-items:center; gap:4px; } .canvas-log-filters button { margin-left:auto; background:transparent; color:inherit; border:1px solid #454d5d; border-radius:5px; cursor:pointer; }',
+  '.canvas-log-filters { display:flex; align-items:center; flex-wrap:wrap; gap:14px; padding:5px 0; } .canvas-log-filters label { display:flex; align-items:center; gap:4px; } .canvas-log-actions { display:flex; align-items:center; gap:10px; margin-left:auto; } .canvas-log-filters button { background:transparent; color:inherit; border:1px solid #454d5d; border-radius:5px; cursor:pointer; }',
 ].join('\n');

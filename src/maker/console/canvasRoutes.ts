@@ -10,6 +10,7 @@ import { ConsoleError } from './types.js';
 import type { ConsoleProjects } from './projects.js';
 import { CanvasGenerationService } from './canvasGeneration.js';
 import { CanvasModelService } from './canvasModels.js';
+import { CanvasRecognitionService } from './canvasRecognition.js';
 import type { MakerRemoteProxyManager } from '../server/remoteProxyManager.js';
 
 async function readBytes(request: IncomingMessage, limit: number): Promise<Buffer> {
@@ -51,6 +52,31 @@ export async function handleCanvasProjectRoute(options: {
   const project = registry.resolve(key);
   const files = new MakerCanvasFiles(project.path);
   try {
+    if (suffix === 'canvases/image-info' && method === 'GET') {
+      const assetPath = searchParams.get('path') || '';
+      files.readMedia(assetPath);
+      send(response, 200, files.imageInfo(assetPath) || null);
+      return true;
+    }
+    if (suffix === 'canvases/recognition-models' && method === 'GET') {
+      send(response, 200, new CanvasRecognitionService(project.path).modelsForDisplay());
+      return true;
+    }
+    const recognition = suffix.match(
+      new RegExp('^canvases/([0-9a-f-]{36})/recognition(?:/([0-9a-f-]{36}))?$', 'i')
+    );
+    if (recognition) {
+      await files.load(recognition[1]);
+      const service = new CanvasRecognitionService(project.path);
+      if (method === 'GET' && recognition[2])
+        send(response, 200, service.query(recognition[1], recognition[2]));
+      else if (method === 'POST' && !recognition[2]) {
+        const input = JSON.parse((await readBytes(request, 4096)).toString('utf8'));
+        if (input.allowPaid !== true) throw new ConsoleError('识图可能计费，需要明确确认执行。');
+        send(response, 200, await service.run(recognition[1], input));
+      } else throw new ConsoleError('Unknown recognition route.', 404);
+      return true;
+    }
     if (suffix.startsWith('canvases/automation/')) {
       if (!options.automation) throw new ConsoleError('画布 CLI 桥接未启动。', 503);
       const action = suffix.slice('canvases/automation/'.length);
@@ -371,12 +397,18 @@ export async function handleCanvasProjectRoute(options: {
       ) as Record<string, unknown>;
       if (typeof body.prompt !== 'string' || !body.prompt.trim())
         throw new ConsoleError('缺少图片生成提示词。');
+      if (
+        body.cutoutColor !== undefined &&
+        !['#FF00FF', '#00FF00'].includes(String(body.cutoutColor))
+      )
+        throw new ConsoleError('抠图底色无效。');
       const attempt = await new CanvasGenerationService(
         project.path,
         options.remoteProxyManager
       ).generateImage({
         canvasId: generationImage[1],
         prompt: body.prompt,
+        cutoutColor: body.cutoutColor as '#FF00FF' | '#00FF00' | undefined,
         name: typeof body.name === 'string' ? body.name : undefined,
         targetSize: typeof body.targetSize === 'string' ? body.targetSize : undefined,
         aspectRatio: typeof body.aspectRatio === 'string' ? body.aspectRatio : undefined,

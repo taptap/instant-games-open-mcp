@@ -439,6 +439,7 @@ describe('Maker canvas files', () => {
       sectionId,
       generation: {
         prompt: '保留角色并升级装备',
+        cutoutColor: '#00FF00' as const,
         operation: 'variant' as const,
         sourceImageId: created.nodes[0].id,
         sourceImageIds: [created.nodes[0].id],
@@ -463,6 +464,10 @@ describe('Maker canvas files', () => {
     );
     expect((await files.load(saved.id)).nodes).toEqual(saved.nodes);
     expect((await files.load(saved.id)).edges).toEqual(saved.edges);
+    expect(
+      (await files.load(saved.id)).nodes.find((node) => node.id === resultId)?.generation
+        ?.cutoutColor
+    ).toBe('#00FF00');
   });
 
   test('persists an image generation slot and validates its saved source', async () => {

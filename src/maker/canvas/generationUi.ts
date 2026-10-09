@@ -10,11 +10,27 @@ import {
   snapshotCanvasSource,
 } from './dependencies.js';
 import { createPromptEditor, formatBuiltinPrompt } from './promptEditor.js';
+import { selectedUiExtraction } from './uiRecognition.js';
+import {
+  IMAGE_OUTPUT_RATIOS,
+  canvasOriginalImage,
+  imageRatioInfo,
+  resolveImageSize,
+  imageResultWarning,
+} from './imageSizing.js';
 import { createVideoPrompts } from './videoPrompts.js';
 import { videoTaskTiming } from './videoTaskTiming.js';
 import type { TemplateOutputDecision } from './templateWorkflow.js';
 import type { CanvasDocument, CanvasNode } from './model.js';
+import type { CanvasGenerationAttempt } from '../console/canvasGeneration.js';
 import { videoInputSources, videoAttemptMatchesSources } from './videoInputs.js';
+import { withCanvasTimeout } from './requestTimeout.js';
+import {
+  isUiCutoutSource,
+  detectUiCutoutColor,
+  uiCutoutPrompt,
+  type UiCutoutColor,
+} from './uiCutout.js';
 
 export interface CanvasWorkflowEdit {
   canSubmit: boolean;
@@ -47,9 +63,14 @@ export interface CanvasGenerationUiOptions {
       contentType: string
     ): Promise<{ relativePath: string }>;
     mediaUrl(path: string): string;
+    imageInfo?(path: string): Promise<{ width: number; height: number } | undefined>;
     listGeneration(canvasId: string): Promise<any[]>;
     videoHistory?(offset?: number, limit?: number): Promise<{ busy?: { reason?: string } }>;
-    generateImage(canvasId: string, input: Record<string, unknown>): Promise<any>;
+    generateImage(
+      canvasId: string,
+      input: Record<string, unknown>,
+      signal?: AbortSignal
+    ): Promise<any>;
     createVideo(
       canvasId: string,
       input: Record<string, unknown>,
@@ -111,9 +132,16 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   hasUnsettledResult(nodeId: string): boolean;
   nodeState(nodeId: string): { status: string; canQuery: boolean } | undefined;
   queueBlockReason(nodeId: string): string | undefined;
+  retryableImage(nodeId: string): boolean;
   queryNode(nodeId: string, throwOnError?: boolean): Promise<void>;
   recoverVideo(attempt: any): Promise<boolean>;
   imageTarget(node: any): string | undefined;
+  imageSizing(nodeId: string):
+    | (Pick<CanvasGenerationAttempt, 'referenceImages' | 'originalImage' | 'warnings'> & {
+        requestedSize?: string;
+        actual?: CanvasGenerationAttempt['resultImageInfo'];
+      })
+    | undefined;
   readonly isBusy: boolean;
 } {
   const GAME_ASSET_CONSTRAINTS =
@@ -129,6 +157,19 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   }
 
   const attempts = new Map<string, any>();
+  const retryableImages = new Set<string>();
+  const unconfirmedImages = new Map<string, number>();
+  function recordAttempt(attempt: any) {
+    attempts.set(attempt.id, attempt);
+    const key = attempt.canvasId + ':' + attempt.targetNodeId;
+    const started = unconfirmedImages.get(key);
+    if (
+      attempt.kind === 'image' &&
+      started !== undefined &&
+      Date.parse(attempt.createdAt) >= started
+    )
+      unconfirmedImages.delete(key);
+  }
   const inFlight = new Set<string>();
   const drafts = new Map<string, string>();
   const references = new Map<string, string[]>();
@@ -639,23 +680,6 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     return input;
   }
 
-  function imageTargetSize(resolution: string, ratio: string): string {
-    const side = resolution === '2K' ? 2048 : 1024;
-    const shapes: Record<string, [number, number]> = {
-      '1:1': [1, 1],
-      '16:9': [16, 9],
-      '9:16': [9, 16],
-      '4:3': [4, 3],
-      '3:4': [3, 4],
-      '3:2': [3, 2],
-      '2:3': [2, 3],
-    };
-    const shape = shapes[ratio] || shapes['1:1'];
-    const width = shape[0] >= shape[1] ? side : Math.round((side * shape[0]) / shape[1]);
-    const height = shape[1] >= shape[0] ? side : Math.round((side * shape[1]) / shape[0]);
-    return width + 'x' + height;
-  }
-
   function selectControl(label: string, values: string[], current: string): any {
     const wrapper = document.createElement('label');
     wrapper.className = 'generation-field';
@@ -667,7 +691,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     values.forEach((value) => {
       const option = document.createElement('option');
       option.value = value;
-      option.textContent = value;
+      option.textContent = value === 'source' ? '跟随原稿' : value;
       option.selected = value === current;
       select.append(option);
     });
@@ -769,6 +793,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
               ? '扩展画面 · 已保存结果'
               : '生图结果';
       resultNode.assetPath = attempt.resultAssetPath;
+      resultNode.imageInfo = attempt.resultImageInfo;
       if (resultNode.referenceInput)
         resultNode.referenceInput = {
           includeSelf: (attempt.sourceImageIds || [attempt.sourceImageId]).includes(resultNodeId),
@@ -777,6 +802,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       delete resultNode.generationDraft;
       resultNode.generation = {
         prompt: attempt.prompt,
+        ...(attempt.cutoutColor ? { cutoutColor: attempt.cutoutColor } : {}),
         referenceImagePaths: attempt.referenceImagePaths || [],
         parameters: generationParameters(attempt, resultNode),
         operation: attempt.operation || 'generate',
@@ -923,6 +949,17 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         });
       }
     }
+    const output = documentState.nodes.find(
+      (item: CanvasNode) => item.generation?.attemptId === attempt.id
+    );
+    if (output && attempt.kind === 'image' && attempt.resultImageInfo) {
+      output.imageInfo = attempt.resultImageInfo;
+      const warning = imageResultWarning(attempt.resultImageInfo, attempt.parameters?.targetSize);
+      if (warning) {
+        if (output.sectionId) output.templatePending = true;
+        options.setError(warning);
+      }
+    }
     void options.loadMedia(attempt.resultAssetPath).then(() => options.render());
     if (persist) options.markDirty();
     if (persist) options.render();
@@ -1003,43 +1040,135 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       options.setError('二合图标需要一张风格参考图，请先引用或导入图片。');
       return;
     }
-    const prompt = node.mergeIcons
+    let prompt = node.mergeIcons
       ? mergeIconPrompt(node.mergeIcons)
       : promptFor(node, input, selectedOperation);
     inFlight.add(node.id);
     if (targetId) inFlight.add(targetId);
     options.render();
     try {
+      const original = canvasOriginalImage(documentState, node);
+      const paths = [
+        ...new Set([
+          ...sourceNodes.map((item) => item.assetPath!),
+          ...referencePaths(node),
+          ...(original?.assetPath ? [original.assetPath] : []),
+        ]),
+      ];
+      const sizes = new Map<string, { width: number; height: number }>();
+      for (const path of paths) {
+        const info = options.store.imageInfo
+          ? await options.store.imageInfo(path)
+          : documentState.nodes.find((item: CanvasNode) => item.assetPath === path)?.imageInfo;
+        if (info) {
+          sizes.set(path, info);
+          const warning = imageRatioInfo(info).warning;
+          if (warning) {
+            options.log?.(warning, 'warning');
+            options.setError(warning, 'warning');
+          }
+        }
+      }
+      const originalInfo = original?.assetPath
+        ? sizes.get(original.assetPath)
+        : paths.length === 1
+          ? sizes.get(paths[0])
+          : undefined;
+      const outputSize = resolveImageSize(
+        settings.aspectRatio || '1:1',
+        settings.resolution,
+        originalInfo
+      );
+      if (options.getDocument() !== documentState) return;
+      let cutoutColor: UiCutoutColor | undefined;
+      const extraction = selectedUiExtraction(documentState, node);
+      if (extraction) {
+        node.uiBaselinePrompt ??= prompt;
+        const correction = (node.generationDraft?.prompt || node.generation?.prompt || '')
+          .split(String.fromCharCode(10))
+          .find((line: string) => line.startsWith('输出排版校正：'));
+        prompt = extraction.prompt + (correction ? String.fromCharCode(10) + correction : '');
+      } else if (node.uiExtraction && node.uiBaselinePrompt) prompt = node.uiBaselinePrompt;
+      if (targetId && isUiCutoutSource(documentState, targetId)) {
+        cutoutColor = await detectUiCutoutColor(
+          [...sourceNodes.map((source) => source.assetPath), ...referencePaths(node)],
+          options.store.mediaUrl
+        );
+        if (options.getDocument() !== documentState) return;
+        prompt = uiCutoutPrompt(prompt, cutoutColor);
+        const inputField = node.assetPath ? 'generation' : 'generationDraft';
+        node[inputField] = {
+          ...node[inputField],
+          operation: selectedOperation,
+          prompt,
+          parameters: {
+            ...node.generation?.parameters,
+            ...node.generationDraft?.parameters,
+            model: settings.model,
+            resolution: settings.resolution,
+            aspectRatio: settings.aspectRatio,
+          },
+        };
+        drafts.set(node.id, prompt);
+        input.value = prompt;
+        options.markDirty();
+      }
       if (!(await options.flush())) {
         options.setError('画布尚未保存，保存成功后再生成。');
         return;
       }
       if (options.getDocument()?.id !== documentState.id) return;
       options.log?.(node.title + '：开始生成图片', 'info');
-      const attempt = await options.store.generateImage(documentState.id, {
-        prompt,
-        operation: selectedOperation,
-        targetNodeId: targetId,
-        model: settings.model === 'auto' ? undefined : settings.model,
-        resolution: settings.resolution,
-        aspectRatio: settings.aspectRatio,
-        targetSize: imageTargetSize(settings.resolution || '1K', settings.aspectRatio || '1:1'),
-        referenceImagePaths: [...referencePaths(node)],
-        ...(!sourceNodes.length
-          ? {}
-          : {
-              sourceImageId: sourceNodes[0].id,
-              sourceImagePath: sourceNodes[0].assetPath,
-              sourceImageIds: sourceNodes.map((source) => source.id),
-              sourceImagePaths: sourceNodes.map((source) => source.assetPath),
-            }),
-      });
+      const requestKey = documentState.id + ':' + targetId;
+      if (targetId) unconfirmedImages.set(requestKey, Date.now());
+      const attempt = await withCanvasTimeout(
+        (signal) =>
+          options.store.generateImage(
+            documentState.id,
+            {
+              prompt,
+              cutoutColor,
+              operation: selectedOperation,
+              targetNodeId: targetId,
+              model: settings.model === 'auto' ? undefined : settings.model,
+              resolution: settings.resolution,
+              aspectRatio: settings.aspectRatio,
+              targetSize: outputSize.targetSize,
+              referenceImagePaths: [...referencePaths(node)],
+              ...(!sourceNodes.length
+                ? {}
+                : {
+                    sourceImageId: sourceNodes[0].id,
+                    sourceImagePath: sourceNodes[0].assetPath,
+                    sourceImageIds: sourceNodes.map((source) => source.id),
+                    sourceImagePaths: sourceNodes.map((source) => source.assetPath),
+                  }),
+            },
+            signal
+          ),
+        5 * 60_000
+      );
+      unconfirmedImages.delete(requestKey);
       attempts.set(attempt.id, attempt);
       if (options.getDocument()?.id !== documentState.id) return;
       if (attempt.status !== 'failed' || attempt.taskId) inputBaselines.delete(referenceKey(node));
       if (attempt.status === 'succeeded') {
         options.log?.(node.title + '：图片生成完成', 'info');
         applyAttempt(attempt, true, Boolean(node.assetPath));
+        for (const warning of attempt.warnings || []) options.log?.(warning, 'warning');
+        const mismatch =
+          attempt.resultImageInfo &&
+          imageResultWarning(attempt.resultImageInfo, attempt.parameters?.targetSize);
+        if (mismatch) {
+          const result = documentState.nodes.find(
+            (item: CanvasNode) => item.generation?.attemptId === attempt.id
+          );
+          if (result?.sectionId) result.templatePending = true;
+          options.setError(mismatch);
+          options.markDirty();
+          await options.flush();
+          return;
+        }
         if (await options.flush()) {
           const result = documentState.nodes.find(
             (item: any) => item.generation?.attemptId === attempt.id
@@ -1049,6 +1178,15 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           if (result) await options.onGenerated?.(result.id, 'image');
         }
       } else {
+        if (
+          attempt.kind === 'image' &&
+          attempt.status === 'failed' &&
+          attempt.failureStage !== 'download' &&
+          attempt.remoteStatus !== 'succeeded' &&
+          attempt.executionState !== 'unknown' &&
+          (attempt.executionState === 'not_executed' || attempt.remoteStatus === 'failed')
+        )
+          retryableImages.add(node.id);
         options.setError(
           attempt.error || '图片生成未完成，请检查任务状态。',
           attempt.status === 'unknown' ? 'warning' : 'error'
@@ -1261,13 +1399,15 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   }
 
   async function runTemplateImage(nodeId: string): Promise<boolean> {
+    retryableImages.delete(nodeId);
     const current = options.getDocument();
     const node = current?.nodes.find((item: any) => item.id === nodeId);
     if (!node || node.type !== 'image') return false;
     const list = await options.store.listGeneration(current.id);
     if (options.getDocument() !== current) return false;
-    for (const attempt of list) attempts.set(attempt.id, attempt);
+    for (const attempt of list) recordAttempt(attempt);
     if (
+      unconfirmedImages.has(current.id + ':' + nodeId) ||
       list.some(
         (attempt: any) =>
           attempt.targetNodeId === nodeId &&
@@ -1285,7 +1425,16 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       latest.id !== previous &&
       latest.prompt === (node.generationDraft?.prompt || node.generation?.prompt)
     ) {
-      if (recoverImage(latest, list)) return options.flush();
+      if (recoverImage(latest, list)) {
+        const saved = await options.flush();
+        return (
+          saved &&
+          !(
+            latest.resultImageInfo &&
+            imageResultWarning(latest.resultImageInfo, latest.parameters?.targetSize)
+          )
+        );
+      }
       options.setError('原图片已生成，但卡片或输入已变化，未覆盖当前内容，也未重复生成。');
       return false;
     }
@@ -1312,7 +1461,14 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       templateRun: true,
     });
     return Boolean(
-      node.generation?.attemptId &&
+      !(
+        attempts.get(node.generation?.attemptId)?.resultImageInfo &&
+        imageResultWarning(
+          attempts.get(node.generation?.attemptId)!.resultImageInfo!,
+          attempts.get(node.generation?.attemptId)!.parameters?.targetSize
+        )
+      ) &&
+        node.generation?.attemptId &&
         node.generation.attemptId !== previous &&
         (await options.flush())
     );
@@ -1755,7 +1911,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       imageResolution = selectControl('分辨率', ['1K', '2K'], saved?.resolution || '1K');
       imageRatio = selectControl(
         '比例',
-        ['1:1', '16:9', '9:16', '4:3', '3:4'],
+        ['source', ...IMAGE_OUTPUT_RATIOS],
         saved?.aspectRatio || '1:1'
       );
       fields.addEventListener('change', () => {
@@ -2148,6 +2304,8 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     return '卡片结果未确认或已失败，请先在卡片或视频历史中处理，再继续队列。';
   }
   function nodeState(nodeId: string) {
+    if (unconfirmedImages.has(options.getDocument()?.id + ':' + nodeId))
+      return { status: 'unknown', canQuery: true };
     const attempt = latestNodeAttempt(nodeId);
     if (!attempt) return;
     const stopped =
@@ -2197,6 +2355,19 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   return {
     render,
     restore,
+    imageSizing(nodeId: string) {
+      const current = options.getDocument();
+      const node = current?.nodes.find((item: CanvasNode) => item.id === nodeId);
+      const attempt = attempts.get(node?.generation?.attemptId);
+      if (!attempt || attempt.kind !== 'image' || attempt.canvasId !== current?.id) return;
+      return {
+        requestedSize: attempt.parameters?.targetSize,
+        referenceImages: attempt.referenceImages,
+        originalImage: attempt.originalImage,
+        actual: attempt.resultImageInfo,
+        warnings: attempt.warnings || [],
+      };
+    },
     imageTarget(node: any) {
       const attempt = attempts.get(node.generation?.attemptId);
       if (attempt?.canvasId !== options.getDocument()?.id) return;
@@ -2239,6 +2410,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       }
     },
     queueBlockReason,
+    retryableImage(nodeId: string) {
+      return retryableImages.has(nodeId);
+    },
     nodeState,
     canStopWaiting(nodeId: string) {
       return videoWaits.has(videoKey(options.getDocument()?.id, nodeId));
@@ -2255,7 +2429,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           const list = await options.store.listGeneration(documentState.id);
           if (options.getDocument() !== documentState)
             throw new Error('画布已切换，请重新 inspect。');
-          for (const item of list) attempts.set(item.id, item);
+          for (const item of list) recordAttempt(item);
+          if (unconfirmedImages.has(documentState.id + ':' + nodeId))
+            throw new Error('原图片请求尚未核实，请稍后查询；不会重新生成。');
           const image = latestNodeAttempt(nodeId);
           if (!image) throw new Error('此卡片没有原图片生成记录。');
           if (recoverImage(image, list)) {
@@ -2288,13 +2464,16 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       if (attempt?.kind === 'video' && attempt.taskId) await action(attempt, 'query', throwOnError);
     },
     hasUnsettledResult(nodeId: string) {
-      return [...attempts.values()].some(
-        (attempt) =>
-          attempt.canvasId === options.getDocument()?.id &&
-          attempt.targetNodeId === nodeId &&
-          !explicitPreExecutionRejection(attempt) &&
-          attempt.kind !== 'video' &&
-          ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status)
+      return (
+        unconfirmedImages.has(options.getDocument()?.id + ':' + nodeId) ||
+        [...attempts.values()].some(
+          (attempt) =>
+            attempt.canvasId === options.getDocument()?.id &&
+            attempt.targetNodeId === nodeId &&
+            !explicitPreExecutionRejection(attempt) &&
+            attempt.kind !== 'video' &&
+            ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status)
+        )
       );
     },
     isNodeBusy(nodeId: string) {

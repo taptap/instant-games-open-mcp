@@ -70,7 +70,11 @@ export async function prepareCanvasImportedNode(
         width: video.videoWidth,
         height: video.videoHeight,
       };
-    } else if (!(media as HTMLImageElement).naturalWidth) throw new Error('图片尺寸无效。');
+    } else {
+      const image = media as HTMLImageElement;
+      if (!image.naturalWidth) throw new Error('图片尺寸无效。');
+      node.imageInfo = { width: image.naturalWidth, height: image.naturalHeight };
+    }
     return node;
   } finally {
     media.removeAttribute('src');

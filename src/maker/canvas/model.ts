@@ -3,6 +3,9 @@ import type { FrameSetInfo, SequenceSettings, VideoInfo } from './sequenceModel.
 import type { CanvasSourceSnapshot } from './dependencies.js';
 import type { ImageAssetsInfo } from './imageAssets.js';
 import type { MergeIconSettings } from './mergeIcons.js';
+import type { UiRecognitionSettings, UiElementCategory } from './uiRecognition.js';
+import type { ImageAtlasGrid } from './imageAtlasExport.js';
+import type { CanvasImageInfo } from './imageSizing.js';
 
 export const HISTORY_LIMIT = 60;
 
@@ -36,6 +39,7 @@ export type CanvasVideoMode = 'first_frame' | 'first_last_frame' | 'multi_modal_
 
 export interface CanvasGenerationResult {
   prompt: string;
+  cutoutColor?: '#FF00FF' | '#00FF00';
   referenceImagePaths?: string[];
   parameters?: {
     model?: string;
@@ -83,6 +87,7 @@ export interface CanvasNode {
   templatePending?: boolean;
   text?: string;
   assetPath?: string;
+  imageInfo?: CanvasImageInfo;
   referenceInput?: { includeSelf: boolean };
   generationDraft?: CanvasGenerationDraft;
   sourceSnapshot?: CanvasSourceSnapshot;
@@ -95,6 +100,13 @@ export interface CanvasNode {
   imageAssetsInfo?: ImageAssetsInfo;
   mergeIcons?: MergeIconSettings;
   generation?: CanvasGenerationResult;
+  uiRecognition?: UiRecognitionSettings;
+  uiRecognitionSourceId?: string;
+  uiAnnotation?: UiElementCategory[];
+  uiExtraction?: UiElementCategory;
+  uiEmpty?: boolean;
+  uiBaselinePrompt?: string;
+  uiBaselineGrid?: ImageAtlasGrid;
 }
 
 export interface CanvasEdge {

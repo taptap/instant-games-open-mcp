@@ -157,6 +157,7 @@ export const CANVAS_CARD_UI_STYLES = `
 .canvas-card-menu:focus-visible { outline:2px solid #f5dc56; outline-offset:1px; }
 .card.template-locked .canvas-card-menu, .card[aria-busy=true] .canvas-card-menu { visibility:hidden; }
 .canvas-card-content { position:relative; display:flex; flex-direction:column; min-height:0; height:calc(100% - 40px); box-sizing:border-box; overflow:hidden; }
+.card.image.canvas-card:has(.canvas-card-content > img) { min-width:0; min-height:0; }
 .card.image .canvas-card-content > img { width:100%; height:100%; display:block; object-fit:contain; }
 .card.image .canvas-card-content, .card.animation .animation-preview, .sequence-result-grid canvas { background:repeating-conic-gradient(#252c30 0% 25%,#20262a 0% 50%) 0/16px 16px; }
 .card.video-source .canvas-card-content > video { flex:1; min-height:0; width:100%; height:100%; object-fit:contain; }
