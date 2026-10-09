@@ -2220,7 +2220,10 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         generationParameters({
           parameters: { ...target.generation?.parameters, ...target.generationDraft?.parameters },
         })
-      ).some(([key, value]) => generationParameters(attempt)[key] !== value)
+      ).some(([key, value]) => {
+        const recorded = generationParameters(attempt)[key];
+        return key === 'model' ? (recorded || 'auto') !== (value || 'auto') : recorded !== value;
+      })
     )
       return false;
     const sources = referenceSources(target);

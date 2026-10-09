@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { createImageAssetsUi } from '../imageAssetsUi.js';
 import { emptyDocument } from '../model.js';
+import { snapshotCanvasSource } from '../dependencies.js';
+import { setUiRecognitionMode } from '../uiRecognition.js';
 import { drawImageAtlasPreview, openImageAtlasDialog } from '../imageAtlasUi.js';
 
 jest.mock('../imageAtlasUi.js', () => ({
@@ -153,6 +155,105 @@ function savedGridFixture() {
   };
   return { ...setup, target };
 }
+
+test('confirmed grid overrides the template for preview and subsequent atlas runs', async () => {
+  const { current, target, ui } = savedGridFixture();
+  const source = current.nodes[0];
+  source.uiBaselineGrid = { columns: 1, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 };
+  const custom = { columns: 2, rows: 2, marginX: 3, marginY: 4, gapX: 2, gapY: 2 };
+  const review = await ui.preview(target.id, custom);
+  await ui.confirm(target.id, review.reviewId);
+  expect(source.uiBaselineGrid).toEqual(custom);
+  expect((await ui.preview(target.id)).grid).toEqual(custom);
+  expect(await ui.runSavedGrid(target.id)).toBe(true);
+  expect(target.imageAssetsInfo!.grid).toEqual(custom);
+  expect(target.imageAssetsInfo!.items).toHaveLength(4);
+  source.assetPath = 'replacement-atlas.png';
+  expect(await ui.runSavedGrid(target.id)).toBe(true);
+  expect(target.imageAssetsInfo!.grid).toEqual(custom);
+});
+
+test('an existing confirmed grid takes precedence over a different template baseline', async () => {
+  const { current, target, ui } = savedGridFixture();
+  const source = current.nodes[0];
+  source.uiBaselineGrid = { columns: 1, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 };
+  target.sourceSnapshot = snapshotCanvasSource(source);
+  const custom = { ...target.imageAssetsInfo!.grid, marginX: 3, marginY: 4, gapX: 2 };
+  target.imageAssetsInfo!.grid = custom;
+  expect((await ui.preview(target.id)).grid).toEqual(custom);
+  expect(await ui.runSavedGrid(target.id)).toBe(true);
+  expect(target.imageAssetsInfo!.grid).toEqual(custom);
+  expect(source.uiBaselineGrid).toEqual(custom);
+});
+
+test('new recognized atlases use recognition grids without overwriting the no-recognition grid', async () => {
+  const { current, target, ui } = savedGridFixture();
+  const source = current.nodes[0];
+  const baseline = { columns: 2, rows: 1, marginX: 3, marginY: 4, gapX: 2, gapY: 0 };
+  source.uiBaselineGrid = { ...baseline };
+  source.uiExtraction = 'action';
+  const id = randomUUID();
+  const recognition = {
+    ...source,
+    id: 'recognition',
+    assetPath: 'textless.png',
+    uiExtraction: undefined,
+    uiRecognition: {
+      enabled: true,
+      selectedId: id,
+      results: [
+        {
+          id,
+          model: 'test-model',
+          prompt: 'recognize',
+          createdAt: new Date().toISOString(),
+          durationMs: 1,
+          sourcePath: 'textless.png',
+          sourceSha256: 'a'.repeat(64),
+          width: 80,
+          height: 60,
+          elements: ['B32', 'B34', 'B36'].map((elementId) => ({
+            id: elementId,
+            name: 'button',
+            category: 'action' as const,
+            rect: [0, 0, 10, 10] as [number, number, number, number],
+            parentId: null,
+            zIndex: 1,
+            states: ['normal'],
+            cutout: true,
+          })),
+        },
+      ],
+    },
+  };
+  current.nodes.push(recognition);
+  current.edges.push({
+    id: 'reference',
+    kind: 'image-variant',
+    from: recognition.id,
+    to: source.id,
+  });
+  target.sourceSnapshot = snapshotCanvasSource(source);
+  source.assetPath = 'recognized-atlas.png';
+  expect(await ui.runSavedGrid(target.id)).toBe(true);
+  expect(target.imageAssetsInfo!.grid).toMatchObject({ columns: 3, rows: 2 });
+  expect(source.uiBaselineGrid).toEqual(baseline);
+  setUiRecognitionMode(current, recognition, false);
+  source.assetPath = 'baseline-atlas.png';
+  expect(await ui.runSavedGrid(target.id)).toBe(true);
+  expect(target.imageAssetsInfo!.grid).toEqual(baseline);
+});
+
+test('failed save restores both the baseline grid and the previous resource card', async () => {
+  const { current, target, options, ui } = savedGridFixture();
+  const source = current.nodes[0];
+  source.uiBaselineGrid = { columns: 1, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 };
+  target.sourceSnapshot = snapshotCanvasSource(source);
+  const before = structuredClone(current);
+  options.save.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+  await expect(ui.runSavedGrid(target.id)).rejects.toThrow('保存失败');
+  expect(current).toEqual(before);
+});
 
 test('workflow prepares real items from current atlas and saved grid without a review dialog', async () => {
   const { current, target, options, ui } = savedGridFixture();

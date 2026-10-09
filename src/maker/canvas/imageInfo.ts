@@ -7,6 +7,7 @@ export function imageCardSize(width: number, imageWidth: number, imageHeight: nu
   const ratio = imageWidth / imageHeight;
   const contentWidth = Math.min(1998, Math.max(118, width - 2));
   const contentHeight = Math.min(1558, contentWidth / ratio);
+  if (contentHeight * ratio + 2 < 48) return;
   return { width: contentHeight * ratio + 2, height: contentHeight + 42 };
 }
 

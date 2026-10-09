@@ -140,6 +140,8 @@ describe('TapTap Maker plugin release version', () => {
     expect(workBuddyEntries).toContain('.mcp.json');
     expect(workBuddyEntries).toContain('SKILL.md');
     expect(workBuddyEntries).toContain('skills/taptap-maker-local/SKILL.md');
+    expect(workBuddyEntries).toContain('skills/lua-ui-to-json/nanovg.md');
+    expect(workBuddyEntries).toContain('skills/lua-ui-to-json/MakerNanoVG.lua');
     expect(workBuddyEntries).not.toContain('.codebuddy-plugin/marketplace.json');
     expect(workBuddyEntries.some((entry) => entry.startsWith('plugins/'))).toBe(false);
     expect(

@@ -26,6 +26,15 @@ test('tall images shrink proportionally within the existing media card bounds', 
   expect(imageCardSize(size.width, 1080, 1920)).toEqual(size);
 });
 
+test('extremely tall images keep a saveable card instead of shrinking below the minimum width', () => {
+  const node = imageNode();
+  node.imageInfo = { width: 100, height: 4000 };
+  const before = { ...node };
+  expect(imageCardSize(node.width, 100, 4000)).toBeUndefined();
+  expect(fitImageCard(node)).toBe(false);
+  expect(node).toEqual(before);
+});
+
 test.each([
   [400, 0, 100],
   [400, 100, NaN],
@@ -111,7 +120,7 @@ test.each([
   const node = imageNode();
   fitImageCard(node);
   const html = getCanvasPageHtml();
-  const script = html.match(/<script>([\s\S]*?)<\/script>/)![1];
+  const script = html.slice(html.indexOf('<script>') + 8, html.indexOf('</script>'));
   const start = script.indexOf("else if (drag.kind === 'resize') {");
   const end = script.indexOf("} else if (drag.kind === 'wire') {", start);
   const render = jest.fn(() => fitImageCard(node));
@@ -132,7 +141,7 @@ test.each([
 
 test('page embeds sizing, decode notifications and proportional resize in its browser script', () => {
   const html = getCanvasPageHtml();
-  const script = html.match(/<script>([\s\S]*?)<\/script>/)![1];
+  const script = html.slice(html.indexOf('<script>') + 8, html.indexOf('</script>'));
   expect(() => new Script(script)).not.toThrow();
   const size = new Script('(' + imageCardSize.toString() + ')').runInNewContext();
   expect(size(400, 1920, 1080)).toEqual(imageCardSize(400, 1920, 1080));

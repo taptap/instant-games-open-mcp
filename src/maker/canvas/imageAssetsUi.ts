@@ -5,7 +5,7 @@ import type { CanvasDocumentStore } from './store.js';
 import type { ImageAtlasGrid } from './imageAtlasExport.js';
 import { splitImageAtlas } from './imageAtlasExport.js';
 import { applyImageAssets } from './imageAssets.js';
-import { canvasNodeVersion } from './dependencies.js';
+import { canvasNodeVersion, isCanvasSourceCurrent } from './dependencies.js';
 import { openImageAtlasDialog, drawImageAtlasPreview } from './imageAtlasUi.js';
 import { mergeIconGrid, mergeIconNeedsGeneration } from './mergeIcons.js';
 import { isGameUiResource } from './uiWorkflowHandoff.js';
@@ -39,6 +39,14 @@ export function createImageAssetsUi(options: {
         grid: ImageAtlasGrid;
       }
     | undefined;
+  function savedGrid(current: CanvasDocument, source: CanvasNode, target?: CanvasNode) {
+    if (source.mergeIcons) return mergeIconGrid(source.mergeIcons);
+    const plan = selectedUiExtraction(current, source);
+    // A confirmed grid belongs to this atlas; new atlases use the active mode's grid.
+    if (target?.imageAssetsInfo && isCanvasSourceCurrent(target.sourceSnapshot, source))
+      return target.imageAssetsInfo.grid;
+    return plan?.grid || source.uiBaselineGrid || target?.imageAssetsInfo?.grid;
+  }
   function reviewed(id: string) {
     const current = options.current();
     if (!review || review.targetId !== id) return;
@@ -103,10 +111,7 @@ export function createImageAssetsUi(options: {
       marginY: 0,
       gapX: 0,
       gapY: 0,
-      ...(source.mergeIcons
-        ? mergeIconGrid(source.mergeIcons)
-        : source.uiBaselineGrid || target.imageAssetsInfo?.grid),
-      ...selectedUiExtraction(current, source)?.grid,
+      ...savedGrid(current, source, target),
       ...(input as Partial<ImageAtlasGrid> | undefined),
     };
     review = undefined;
@@ -189,13 +194,9 @@ export function createImageAssetsUi(options: {
       busy
     )
       throw new Error('请先完成并保存来源图集，再处理资源包。');
-    const savedGrid = source.mergeIcons
-      ? mergeIconGrid(source.mergeIcons)
-      : selectedUiExtraction(current, source)?.grid ||
-        source.uiBaselineGrid ||
-        target.imageAssetsInfo?.grid;
-    if (!savedGrid) throw new Error('资源卡缺少切图参数，请先调整并保存网格后继续。');
-    const grid = { ...savedGrid };
+    const configuredGrid = savedGrid(current, source, target);
+    if (!configuredGrid) throw new Error('资源卡缺少切图参数，请先调整并保存网格后继续。');
+    const grid = { ...configuredGrid };
     const savedSource = structuredClone(source);
     const targetGrid = JSON.stringify(target.imageAssetsInfo?.grid);
     function checkTarget() {
@@ -301,8 +302,13 @@ export function createImageAssetsUi(options: {
         edgeId,
         targetId
       );
+      const liveSource = current.nodes.find((node) => node.id === source.id)!;
+      const previousGrid = liveSource.uiBaselineGrid;
+      if (liveSource.uiBaselineGrid && !selectedUiExtraction(current, liveSource))
+        liveSource.uiBaselineGrid = { ...split.grid };
       options.changed();
       if (!(await options.save())) {
+        liveSource.uiBaselineGrid = previousGrid;
         if (previous) {
           for (const key of Object.keys(result))
             delete (result as unknown as Record<string, unknown>)[key];
@@ -352,7 +358,7 @@ export function createImageAssetsUi(options: {
     return new Promise((resolve) => {
       let succeeded = false;
       openImageAtlasDialog(saved, options.store.mediaUrl, {
-        grid: source.mergeIcons ? mergeIconGrid(source.mergeIcons) : target?.imageAssetsInfo?.grid,
+        grid: savedGrid(current!, source, target),
         create: async (blob, grid) => {
           succeeded = await generate(saved, blob, grid, targetId);
           return succeeded;
@@ -368,12 +374,7 @@ export function createImageAssetsUi(options: {
       const current = options.current();
       const target = current?.nodes.find((node) => node.id === id);
       const source = current?.nodes.find((node) => node.id === failedAtlas?.sourceId);
-      const grid =
-        current && source
-          ? selectedUiExtraction(current, source)?.grid ||
-            source.uiBaselineGrid ||
-            target?.imageAssetsInfo?.grid
-          : undefined;
+      const grid = current && source ? savedGrid(current, source, target) : undefined;
       if (failedAtlas?.targetId !== id || !grid) return '';
       return uiCutoutPrompt(
         '输出排版校正：必须恰好 ' +

@@ -359,6 +359,30 @@ test.each(['target', 'source', 'prompt', 'parameters', 'draft-parameters', 'refe
   }
 );
 
+test.each(['restore', 'query', 'run'])(
+  'recovers the automatic image model across wire normalization through %s',
+  async (entry) => {
+    const { options, target, completed, ui } = imageRecoveryFixture();
+    target.generation.parameters.model = 'auto';
+    completed.parameters = {} as typeof completed.parameters;
+    if (entry === 'query') await ui.queryNode(target.id, true);
+    else if (entry === 'run') expect(await ui.runTemplateImage(target.id)).toBe(true);
+    else await ui.restore();
+    expect(target.assetPath).toBe('new.png');
+    expect(target.templatePending).toBeUndefined();
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+  }
+);
+
+test('an explicitly changed image model still refuses the old automatic result', async () => {
+  const { options, target, completed, ui } = imageRecoveryFixture();
+  target.generation.parameters.model = 'nanobanana';
+  completed.parameters = {} as typeof completed.parameters;
+  await ui.restore();
+  expect(target.assetPath).toBe('old.png');
+  expect(options.store.generateImage).not.toHaveBeenCalled();
+});
+
 test.each(['restore', 'run'])(
   'wrong-ratio results remain pending after %s without another paid request',
   async (entry) => {

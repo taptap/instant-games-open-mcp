@@ -312,12 +312,13 @@ async function main() {
   const luaSkill = join(pluginRoot, 'skills/lua-ui-to-json');
   for (const [directory, names] of [
     ['scripts', ['check-ui.cjs', 'ui-json-check.cjs']],
-    ['references', ['conversion.md', 'diagnostics.md']],
+    ['references', ['conversion.md', 'diagnostics.md', 'nanovg.md']],
+    ['runtime', ['MakerNanoVG.lua']],
   ]) {
     for (const name of names) renameSync(join(luaSkill, directory, name), join(luaSkill, name));
     rmSync(join(luaSkill, directory), { recursive: true });
   }
-  for (const name of ['SKILL.md', 'conversion.md', 'diagnostics.md']) {
+  for (const name of ['SKILL.md', 'conversion.md', 'diagnostics.md', 'nanovg.md']) {
     const file = join(luaSkill, name);
     writeFileSync(
       file,
@@ -326,6 +327,8 @@ async function main() {
         .replaceAll('scripts/ui-json-check.cjs', 'ui-json-check.cjs')
         .replaceAll('references/conversion.md', 'conversion.md')
         .replaceAll('references/diagnostics.md', 'diagnostics.md')
+        .replaceAll('references/nanovg.md', 'nanovg.md')
+        .replaceAll('../runtime/MakerNanoVG.lua', 'MakerNanoVG.lua')
     );
   }
 
