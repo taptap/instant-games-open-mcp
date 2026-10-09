@@ -6,6 +6,11 @@ import {
   type CanvasCommand,
 } from './automation.js';
 import { invalidateCanvasDependents } from './templateWorkflow.js';
+import {
+  setUiRecognitionMode,
+  uiRecognitionSource,
+  selectedUiRecognition,
+} from './uiRecognition.js';
 import { selectCanvasSnapshot } from './automationInfo.js';
 import {
   applyCanvasReferences,
@@ -42,6 +47,8 @@ export function createCanvasAutomationUi(options: {
   group(): void;
   connect(from: string, to: string): void;
   resetDraft(id: string): void;
+  checkRecognition?(node: CanvasNode): Promise<void>;
+  ensureRecognitionNote?(node: CanvasNode): void;
   run(id: string): Promise<boolean>;
   stop(id: string): void;
   canStop(id: string): boolean;
@@ -64,14 +71,18 @@ export function createCanvasAutomationUi(options: {
   );
   function snapshot() {
     const current = options.current();
-    return current
+    const saved = current && canvasAutomationSnapshot(current);
+    return current && saved
       ? JSON.parse(
           JSON.stringify({
             source: 'live',
             capturedAt: new Date().toISOString(),
-            ...canvasAutomationSnapshot(current),
+            ...saved,
             blocked: options.blocked() || null,
-            nodes: current.nodes.map((node) => ({ ...node, state: options.nodeStatus(node.id) })),
+            nodes: saved.nodes.map((node) => ({
+              ...node,
+              state: options.nodeStatus(node.id),
+            })),
             queues: current.nodes
               .filter((node) => node.type === 'section')
               .map((node) => options.queue.view(node.id))
@@ -116,7 +127,7 @@ export function createCanvasAutomationUi(options: {
       group: ['ids'],
       connect: ['from', 'to'],
       disconnect: ['edgeId'],
-      run: ['id'],
+      run: ['id', 'recognition'],
       'confirm-model': ['id', 'reviewId'],
       'preview-model': ['id'],
       'preview-image-assets': ['id', 'grid'],
@@ -129,6 +140,8 @@ export function createCanvasAutomationUi(options: {
     };
     for (const key of Object.keys(input))
       if (!fields[command.action].includes(key)) throw new Error('不支持的 input 字段：' + key);
+    if (input.recognition !== undefined && typeof input.recognition !== 'boolean')
+      throw new Error('recognition 必须是布尔值；无识图对比请显式传 false。');
     if (command.action === 'inspect') {
       if (input.id !== undefined && typeof input.id !== 'string')
         throw new Error('id 必须是卡片或分组标识。');
@@ -196,6 +209,44 @@ export function createCanvasAutomationUi(options: {
       running = true;
       options.busyChanged(true);
       try {
+        if (command.action === 'run') {
+          const source = target.type === 'image' ? uiRecognitionSource(current, target) : undefined;
+          const sources =
+            target.type === 'section'
+              ? current.nodes.filter((item) => item.sectionId === target.id && item.uiRecognition)
+              : source
+                ? [source]
+                : [];
+          const enabled = input.recognition !== false;
+          if (sources.some((item) => item.uiRecognition!.enabled !== enabled)) {
+            options.remember();
+            for (const item of sources) setUiRecognitionMode(current, item, enabled);
+            options.changed();
+            options.render();
+            if (!(await options.save())) throw new Error('识图开关尚未保存，未启动工作流。');
+          }
+          // The calling AI supplies recognition; CLI must not invoke a separate provider.
+          if (enabled)
+            for (const item of sources) {
+              // The recognition card is the text-free output; produce it before asking AI.
+              if (item.templatePending || !item.assetPath) {
+                if (item.id === target.id) continue;
+                if (!(await options.run(item.id)))
+                  throw new Error(options.error() || '去文字尚未完成，不能识图。');
+                if (!(await options.save())) throw new Error('去文字结果尚未保存，不能识图。');
+                if (item.templatePending || !item.assetPath)
+                  throw new Error('去文字尚未完成，不能识图。');
+              }
+              if (!selectedUiRecognition(item))
+                throw new Error(
+                  '需要当前 AI 看图（去文字后的图片，卡片 ' +
+                    item.id +
+                    '）：' +
+                    item.assetPath +
+                    '。请按 maker-ui-workflow Skill 识别元素，通过 update-nodes 的 uiRecognition.result 保存清单后继续；不需要配置 TAPTAP_MAKER_VISION_CONFIG。模型无法看图时请切换支持图片输入的模型，不要关闭识图跳过。'
+                );
+            }
+        }
         if (command.action === 'query') await options.query(target.id);
         else if (command.action === 'confirm-model') {
           if (
@@ -211,8 +262,8 @@ export function createCanvasAutomationUi(options: {
         } else if (target.type === 'section') {
           if (canvasModelGroup(current, target.id))
             throw new Error('模型流程需要人工确认角色和多视图，请分步执行卡片，不能自动批准。');
-          options.queue.start(target.id, true);
-          if (options.error()) throw new Error(options.error());
+          if (options.queue.start(target.id, true) === false)
+            throw new Error(options.error() || '队列未启动。');
           if (!options.queue.view(target.id)) throw new Error(options.error() || '队列未启动。');
           for (;;) {
             if (options.current() !== current) throw new Error('画布已切换，原队列状态待确认。');
@@ -230,6 +281,7 @@ export function createCanvasAutomationUi(options: {
       } finally {
         running = false;
         options.busyChanged(false);
+        options.render();
       }
     }
     editing = true;
@@ -306,10 +358,25 @@ export function createCanvasAutomationUi(options: {
         const updates = prepareCanvasNodeUpdates(current, input);
         if (updates.some(({ node }) => options.nodeBlocked(node.id)))
           throw new Error('卡片任务尚未确认或存在未保存草稿，请先处理原任务。');
+        const recognized = updates.filter(
+          ({ node: next }) =>
+            next.uiRecognition?.selectedId !== node(next.id, current).uiRecognition?.selectedId
+        );
+        for (const { node: next } of recognized) {
+          if (!options.checkRecognition || !options.ensureRecognitionNote)
+            throw new Error('请刷新画布后写入识图清单。');
+          await options.checkRecognition(next);
+        }
         options.remember();
         for (const update of updates) {
           const target = node(update.node.id, current);
+          if (update.node.uiRecognition)
+            setUiRecognitionMode(current, target, update.node.uiRecognition.enabled);
           Object.assign(target, update.node);
+          if (recognized.includes(update)) {
+            delete target.templatePending;
+            options.ensureRecognitionNote!(target);
+          }
           if (update.contentChanged) {
             options.resetDraft(target.id);
             invalidateCanvasDependents(current, target.id);

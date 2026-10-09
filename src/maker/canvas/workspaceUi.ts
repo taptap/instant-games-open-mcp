@@ -532,11 +532,13 @@ body {
 }
 .workspace-bottom {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   border-top: 1px solid #343b3d;
   min-height: 42px;
   padding: 0 14px;
   gap: 16px;
+  row-gap: 0;
 }
 .workspace-bottom #canvas-log {
   flex: 1;
@@ -544,6 +546,9 @@ body {
   border: 0;
   padding: 8px 0;
   background: transparent;
+}
+.workspace-bottom #canvas-log:has(details[open]) {
+  flex-basis: 100%;
 }
 .workspace-bottom .canvas-log summary {
   display: inline-block;
@@ -575,6 +580,7 @@ body {
   flex: none;
   gap: 5px;
   height: 42px;
+  margin-left: auto;
 }
 .workspace-view-controls output {
   min-width: 42px;
@@ -591,6 +597,7 @@ body {
 @media (max-width: 850px) {
   .workspace-bottom {
     gap: 8px;
+    row-gap: 0;
     padding-inline: 10px;
   }
 }

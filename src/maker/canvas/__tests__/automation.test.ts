@@ -217,6 +217,60 @@ test('imported image parameters require a prompt before changing the document', 
   expect(document.nodes[0].generation).toBeUndefined();
 });
 
+test('CLI resizes image cards proportionally without changing content, position or viewport', () => {
+  const document = documentFixture();
+  const source = document.nodes[0];
+  source.imageInfo = { width: 1920, height: 1080 };
+  source.sectionId = 'group';
+  source.templatePending = false;
+  const before = JSON.stringify(document);
+  for (const patch of [{ width: 800 }, { height: 490.875 }, { width: 800, height: 490.875 }]) {
+    const [update] = prepareCanvasNodeUpdates(document, { nodes: [{ id: source.id, ...patch }] });
+    expect(update.contentChanged).toBe(false);
+    expect(update.node).toEqual({ ...source, width: 800, height: 490.875 });
+  }
+  expect(JSON.stringify(document)).toBe(before);
+  expect(() =>
+    prepareCanvasNodeUpdates(document, {
+      nodes: [{ id: source.id, width: 800, height: 800 }],
+    })
+  ).toThrow('原图比例');
+});
+
+test('CLI rejects invalid geometry atomically and accepts independent note dimensions', () => {
+  const document = documentFixture();
+  const before = JSON.stringify(document);
+  for (const patch of [{ width: 0 }, { height: NaN }, { width: 2001 }, { height: 1601 }])
+    expect(() =>
+      prepareCanvasNodeUpdates(document, {
+        nodes: [
+          { id: 'image', title: 'changed' },
+          { id: 'sequence', ...patch },
+        ],
+      })
+    ).toThrow('卡片');
+  expect(JSON.stringify(document)).toBe(before);
+  document.nodes[1].type = 'note';
+  expect(
+    prepareCanvasNodeUpdates(document, {
+      nodes: [{ id: 'sequence', width: 600, height: 300 }],
+    })[0]
+  ).toMatchObject({ node: { width: 600, height: 300 }, contentChanged: false });
+});
+
+test('CLI recognition settings cannot overwrite results or attach to unrelated cards', () => {
+  const document = documentFixture();
+  const patch = { id: 'image', uiRecognition: { enabled: true } };
+  expect(() => prepareCanvasNodeUpdates(document, { nodes: [patch] })).toThrow('原稿卡');
+  document.nodes[0].uiRecognition = { enabled: false, results: [] };
+  for (const uiRecognition of [{ enabled: 'true' }, { results: [] }, { pendingId: 'new' }]) {
+    expect(() =>
+      prepareCanvasNodeUpdates(document, { nodes: [{ id: 'image', uiRecognition }] })
+    ).toThrow('识图设置');
+  }
+  expect(document.nodes[0].uiRecognition.enabled).toBe(false);
+});
+
 test.each([
   { fps: 100 },
   { end: 0 },

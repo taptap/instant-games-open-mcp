@@ -1,12 +1,13 @@
 import type { CanvasDocument, CanvasNode } from './model.js';
 import type { CanvasGroupQueueState } from './groupQueue.js';
+import { IMAGE_OUTPUT_RATIOS } from './imageSizing.js';
 
 export function canvasGenerationParameterChoices(image: boolean): Record<string, unknown[]> {
   return image
     ? {
         model: ['auto', 'gpt', 'nanobanana'],
         resolution: ['1K', '2K'],
-        aspectRatio: ['1:1', '16:9', '9:16', '4:3', '3:4'],
+        aspectRatio: ['source', ...IMAGE_OUTPUT_RATIOS],
       }
     : {
         model: ['2.0', '2.5'],

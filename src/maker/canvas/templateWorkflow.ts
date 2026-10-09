@@ -10,12 +10,14 @@ import { CanvasStoreError } from './model.js';
 import { canvasReferences, canvasDependents, isCanvasNodeStale } from './dependencies.js';
 import { framePairSources } from './framePair.js';
 import { mergeIconNeedsGeneration } from './mergeIcons.js';
+import { selectedUiRecognition } from './uiRecognition.js';
 
 export function canvasNeedsProcessing(
   document: CanvasDocument,
   node: CanvasNode,
   visiting = new Set<string>()
 ): boolean {
+  if (node.uiRecognition?.enabled && !selectedUiRecognition(node)) return true;
   if (node.templatePending || mergeIconNeedsGeneration(node)) return true;
   if (node.videoInputMode === 'first_last_frame') {
     const { first, last } = framePairSources(document, node.id);

@@ -265,7 +265,11 @@ test.each(['failed', 'unknown'])(
     await jest.advanceTimersByTimeAsync(20000);
 
     expect(options.run).not.toHaveBeenCalled();
-    expect(queue.view('group')).toMatchObject({ phase: 'paused', completed: 0, message: problem });
+    expect(queue.view('group')).toMatchObject({
+      phase: 'paused',
+      completed: 0,
+      message: 'image：' + problem,
+    });
     expect(options.error).toHaveBeenCalledWith(problem);
   }
 );
@@ -334,4 +338,119 @@ test('switching canvas during execution prevents continuation or restoration', a
   expect(queue.view('group')).toBeUndefined();
   await jest.advanceTimersByTimeAsync(10000);
   expect(options.run.mock.calls).toEqual([['image']]);
+});
+
+test.each(['throw', 'unknown'])(
+  'isolates a %s branch including transitive dependents and joins',
+  async (failure) => {
+    const { document, options, completed, problems, queue } = fixture();
+    document.nodes.push(
+      node('independent', 'image'),
+      node('package', 'image-assets'),
+      node('join', 'image')
+    );
+    document.edges.push(
+      { id: 'ip', from: 'independent', to: 'package', kind: 'image-assets' },
+      { id: 'ij', from: 'independent', to: 'join', kind: 'image-variant' },
+      { id: 'aj', from: 'animation', to: 'join', kind: 'image-variant' }
+    );
+    if (failure === 'unknown') problems.set('image', '结果未知');
+    else
+      options.run.mockImplementation(async (id) => {
+        if (id === 'image') throw new Error('生成失败');
+        completed.add(id);
+        return true;
+      });
+    queue.start('group');
+    await jest.advanceTimersByTimeAsync(20000);
+    expect(completed).toEqual(new Set(['independent', 'package']));
+    expect(queue.view('group')).toMatchObject({ phase: 'paused', completed: 2, total: 7 });
+    expect(queue.blockedBy('group', 'join')).toBe('image');
+    expect(queue.blockedBy('group', 'independent')).toBeUndefined();
+    const before = options.run.mock.calls.length;
+    problems.clear();
+    options.run.mockImplementation(async (id) => {
+      completed.add(id);
+      return true;
+    });
+    queue.start('group');
+    await jest.advanceTimersByTimeAsync(0);
+    expect(options.run.mock.calls.slice(before).map(([id]) => id)).toEqual([
+      'image',
+      'video',
+      'sequence',
+      'animation',
+      'join',
+    ]);
+    expect(queue.view('group')).toMatchObject({ phase: 'complete', completed: 7, total: 7 });
+  }
+);
+
+test('quality failure regenerates only its source twice and then continues independent work', async () => {
+  const { document, options, completed } = fixture();
+  document.nodes = [
+    node('group', 'section'),
+    node('source', 'image'),
+    node('assets', 'image-assets'),
+    node('other', 'image'),
+  ];
+  document.edges = [{ id: 'sa', from: 'source', to: 'assets', kind: 'image-assets' }];
+  options.run.mockImplementation(async (id) => {
+    if (id === 'assets') throw new Error('图集排版不合格');
+    completed.add(id);
+    return true;
+  });
+  const queue = createCanvasGroupQueue({
+    ...options,
+    retryTarget: (id) => (id === 'assets' ? 'source' : undefined),
+    prepareRetry: (id) => {
+      completed.delete(id);
+    },
+  });
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(20000);
+  expect(options.run.mock.calls.map(([id]) => id)).toEqual([
+    'source',
+    'assets',
+    'other',
+    'source',
+    'assets',
+    'source',
+    'assets',
+  ]);
+  expect(queue.view('group')).toMatchObject({
+    phase: 'paused',
+    completed: 2,
+    total: 3,
+    retries: { source: 2 },
+    failures: { assets: '图集排版不合格' },
+  });
+});
+
+test('stopping a failed attempt suppresses its automatic retry', async () => {
+  const { options } = fixture();
+  const active = deferred<boolean>();
+  options.run.mockReturnValueOnce(active.promise);
+  const retry = jest.fn(() => 'image');
+  const queue = createCanvasGroupQueue({ ...options, retryTarget: retry });
+  queue.start('group');
+  queue.stop('group');
+  active.resolve(false);
+  await jest.advanceTimersByTimeAsync(20000);
+  expect(retry).not.toHaveBeenCalled();
+  expect(options.run).toHaveBeenCalledTimes(1);
+});
+
+test('a save failure pauses all queued groups before another paid step', async () => {
+  const { options } = twoGroups();
+  const active = deferred<boolean>();
+  options.run.mockReturnValueOnce(active.promise);
+  const queue = createCanvasGroupQueue({ ...options, haltReason: () => '画布保存失败' });
+  queue.start('group');
+  queue.start('other-group');
+  active.resolve(false);
+  await jest.advanceTimersByTimeAsync(20000);
+  expect(options.run).toHaveBeenCalledTimes(1);
+  expect(queue.view('group')).toMatchObject({ phase: 'paused', pending: ['video'] });
+  expect(queue.view('other-group')?.phase).toBe('paused');
 });

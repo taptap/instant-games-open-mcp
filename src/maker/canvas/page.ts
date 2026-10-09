@@ -3,6 +3,19 @@ import { consoleThemeScript } from '../webTheme.js';
 import { CANVAS_THEME_STYLES } from './themeStyles.js';
 import { canvasWireGeometry, canvasWirePath } from './wirePath.js';
 import { createCanvasWireUi, CANVAS_WIRE_STYLES } from './wireUi.js';
+import { createUiRecognitionUi, drawUiRecognition } from './uiRecognitionUi.js';
+import {
+  UI_ELEMENT_CATEGORIES,
+  validateUiElements,
+  validateUiRecognition,
+  selectedUiRecognition,
+  uiRecognitionSource,
+  uiRecognitionNote,
+  uiRecognitionStatus,
+  uiExtractionPlan,
+  selectedUiExtraction,
+  setUiRecognitionMode,
+} from './uiRecognition.js';
 import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from './templates.js';
 import { createCanvasTemplateUi } from './templateUi.js';
 import { openCanvasTemplatePreview } from './templatePreview.js';
@@ -47,6 +60,14 @@ import {
   CANVAS_CARD_UI_STYLES,
 } from './cardUi.js';
 import { createBrowserCanvasDocumentStore, dispatchCanvasStoreRequest } from './store.js';
+import { withCanvasTimeout } from './requestTimeout.js';
+import {
+  isUiCutoutSource,
+  uiCutoutRgb,
+  chooseUiCutoutColor,
+  detectUiCutoutColor,
+  uiCutoutPrompt,
+} from './uiCutout.js';
 import {
   createSequenceProcessor,
   defaultSequenceSettings,
@@ -101,6 +122,7 @@ import {
 import { editMergeIcons } from './mergeIconsUi.js';
 import { validateImageAssetsInfo, applyImageAssets, createImageAssetsZip } from './imageAssets.js';
 import { splitImageAtlas } from './imageAtlasExport.js';
+import { alignAtlasCells, atlasLayoutError } from './atlasAlignment.js';
 import { createImageAssetsUi, IMAGE_ASSETS_STYLES } from './imageAssetsUi.js';
 import {
   canvasExportIdentity,
@@ -119,7 +141,15 @@ import {
   downloadCanvasResource,
   createCanvasResourceExport,
 } from './resourceExport.js';
-import { imageSizeLabel, renderImageInfo } from './imageInfo.js';
+import { imageCardSize, fitImageCard, imageSizeLabel, renderImageInfo } from './imageInfo.js';
+import {
+  IMAGE_OUTPUT_RATIOS,
+  IMAGE_COMMON_RATIOS,
+  imageRatioInfo,
+  resolveImageSize,
+  canvasOriginalImage,
+  imageResultWarning,
+} from './imageSizing.js';
 import { createImageEditing } from './imageEditing.js';
 import { applyLocalImageResult } from './localImageResult.js';
 import { createVideoHistoryUi } from './videoHistoryUi.js';
@@ -163,6 +193,18 @@ const template =
 
 export function getCanvasPageHtml(): string {
   const helpers = [
+    'const UI_ELEMENT_CATEGORIES = ' + JSON.stringify(UI_ELEMENT_CATEGORIES) + ';',
+    validateUiElements.toString(),
+    validateUiRecognition.toString(),
+    selectedUiRecognition.toString(),
+    uiRecognitionSource.toString(),
+    uiRecognitionNote.toString(),
+    uiRecognitionStatus.toString(),
+    uiExtractionPlan.toString(),
+    selectedUiExtraction.toString(),
+    setUiRecognitionMode.toString(),
+    drawUiRecognition.toString(),
+    createUiRecognitionUi.toString(),
     canvasWireGeometry.toString(),
     canvasWirePath.toString(),
     createCanvasWireUi.toString(),
@@ -263,6 +305,8 @@ export function getCanvasPageHtml(): string {
     configureMergeIcons.toString(),
     editMergeIcons.toString(),
     splitImageAtlas.toString(),
+    alignAtlasCells.toString(),
+    atlasLayoutError.toString(),
     validateImageAssetsInfo.toString(),
     applyImageAssets.toString(),
     createImageAssetsZip.toString(),
@@ -276,6 +320,14 @@ export function getCanvasPageHtml(): string {
     isGameUiResource.toString(),
     gameUiHandoffText.toString(),
     openGameUiHandoff.toString(),
+    'const IMAGE_OUTPUT_RATIOS = ' + JSON.stringify(IMAGE_OUTPUT_RATIOS) + ';',
+    'const IMAGE_COMMON_RATIOS = ' + JSON.stringify(IMAGE_COMMON_RATIOS) + ';',
+    imageRatioInfo.toString(),
+    resolveImageSize.toString(),
+    canvasOriginalImage.toString(),
+    imageResultWarning.toString(),
+    imageCardSize.toString(),
+    fitImageCard.toString(),
     imageSizeLabel.toString(),
     renderImageInfo.toString(),
     createImageEditing.toString(),
@@ -298,6 +350,12 @@ export function getCanvasPageHtml(): string {
     invalidateCanvasDependents.toString(),
     createSequenceUiController.toString(),
     createBrowserCanvasDocumentStore.toString(),
+    withCanvasTimeout.toString(),
+    isUiCutoutSource.toString(),
+    uiCutoutRgb.toString(),
+    chooseUiCutoutColor.toString(),
+    detectUiCutoutColor.toString(),
+    uiCutoutPrompt.toString(),
     dispatchCanvasStoreRequest.toString(),
     saveAcknowledgement.toString(),
     nodesInMarquee.toString(),
@@ -357,9 +415,13 @@ export function getCanvasPageHtml(): string {
       '    selectionMenu.style.maxWidth = Math.max(0, bounds.width - gap * 2) + "px";',
       '    const menuWidth = selectionMenu.offsetWidth;',
       '    const menuHeight = selectionMenu.offsetHeight;',
+      '    const menuTop = Math.max(gap, cardTop - menuHeight - gap);',
+      '    const rail = document.querySelector(".workspace-toolbar")?.getBoundingClientRect();',
+      '    const menuMinLeft = rail && menuTop < rail.bottom - bounds.top && menuTop + menuHeight > rail.top - bounds.top ? Math.max(gap, rail.right - bounds.left + gap) : gap;',
+      '    selectionMenu.style.maxWidth = Math.max(0, bounds.width - menuMinLeft - gap) + "px";',
       '    const menuLeft = cardLeft + (anchor.width - menuWidth) / 2;',
-      '    selectionMenu.style.left = Math.max(gap, Math.min(menuLeft, bounds.width - menuWidth - gap)) + "px";',
-      '    selectionMenu.style.top = Math.max(gap, cardTop - menuHeight - gap) + "px";',
+      '    selectionMenu.style.left = Math.max(menuMinLeft, Math.min(menuLeft, bounds.width - menuWidth - gap)) + "px";',
+      '    selectionMenu.style.top = menuTop + "px";',
       '    if (selectionToolbar.hidden) return;',
       '    selectionToolbar.style.width = Math.min(440, Math.max(0, bounds.width - gap * 2)) + "px";',
       '    selectionToolbar.style.maxHeight = Math.max(0, bounds.height - gap * 2) + "px";',
@@ -593,7 +655,7 @@ export function getCanvasPageHtml(): string {
       '      if (!drag.moved && Math.hypot(dx, dy) > 2) { remember(); drag.moved = true; }',
       '      if (drag.moved) {',
       '        const node = documentState.nodes.find(function (item) { return item.id === drag.id; });',
-      "        const dimensions = node.type === 'video-source' && (videoDimensions.get(node.assetPath) || node.videoInfo);",
+      "        const dimensions = node.type === 'image' && node.assetPath ? node.imageInfo : node.type === 'video-source' && (videoDimensions.get(node.assetPath) || node.videoInfo);",
       '        const widthDelta = dimensions && dimensions.height > 0 && Math.abs(dy) > Math.abs(dx) ? dy * dimensions.width / dimensions.height : dx;',
       '        node.width = Math.min(2000, Math.max(120, drag.width + widthDelta));',
       '        node.height = Math.min(2000, Math.max(100, drag.height + dy));',
@@ -1199,8 +1261,8 @@ export function getCanvasPageHtml(): string {
       '    isQueued: function (id) { return Boolean(groupQueue && groupQueue.protects(id)); },',
       '    hasFailure: function (id) { return Boolean(generationUi.nodeState(id)) || sequenceUi.view(id).run?.status === "failed"; },',
       '    video: function (id, duration, confirmed) { return generationUi.runTemplateVideo(id, duration, confirmed, canvasAutomationBusy); }, sequence: sequenceUi.runTemplate, importImage: requestImageImport,',
-      '    image: generationUi.runTemplateImage,',
-      '    assets: function (id) { return imageAssetsUi.runSavedGrid(id); },',
+      '    image: function (id) { return uiRecognitionUi.runImage(id, function () { return generationUi.runTemplateImage(id); }, Boolean((groupQueue && groupQueue.isBusy) || canvasAutomationBusy)); },',
+      '    assets: function (id) { return uiRecognitionUi.runAssets(id, function () { return imageAssetsUi.runSavedGrid(id); }); },',
       '    refreshAnimation: function (id) { if (!refreshAnimationFromSource(documentState, id)) throw new Error("动画来源图集或连线尚未就绪。"); markDirty(); },',
       '    select: function (id) { selected.clear(); selected.add(id); render(); },',
       '    animation: function (flow) {',
@@ -1273,7 +1335,7 @@ export function getCanvasPageHtml(): string {
   page = replaceCanvasPageText(
     page,
     '    for (const node of documentState.nodes) {',
-    "    const orderedNodes = documentState.nodes.slice().sort(function (left, right) { return (left.type === 'section' ? -1 : 0) - (right.type === 'section' ? -1 : 0); });\n    for (const node of orderedNodes) {\n      if (node.type === 'video-source') fitVideoCard(node);"
+    "    const orderedNodes = documentState.nodes.slice().sort(function (left, right) { return (left.type === 'section' ? -1 : 0) - (right.type === 'section' ? -1 : 0); });\n    for (const node of orderedNodes) {\n      if (node.type === 'video-source') fitVideoCard(node);\n      if (fitImageCard(node)) markDirty();"
   );
   page = replaceCanvasPageText(
     page,
@@ -1328,7 +1390,10 @@ export function getCanvasPageHtml(): string {
     '      world.append(card);\n    }\n    wires.setAttribute',
     [
       '      world.append(card);',
-      '      if (node.type === "image" && node.assetPath) renderImageInfo(card, generationUi.imageTarget(node));',
+      '      if (node.type === "image" && node.assetPath) renderImageInfo(card, generationUi.imageTarget(node), node, function () {',
+      '        if (!card.isConnected || !documentState || !documentState.nodes.includes(node)) return;',
+      '        if (fitImageCard(node)) { markDirty(); requestAnimationFrame(render); }',
+      '      });',
       '    }',
       '    function renderSelectionToolbar() {',
       '      selectionToolbar.replaceChildren();',
@@ -1672,8 +1737,11 @@ export function getCanvasPageHtml(): string {
       '    problem: function (id) { if (sequenceUi.hasDraft(id)) return "此卡片有未保存的帧处理，请先保存或放弃后再继续队列。"; return generationUi.queueBlockReason(id); },',
       '    busy: function () { return templateWorkflow.isBusy || generationUi.isBusy || imageAssetsUi.isBusy || sequenceUi.isBusy || Boolean(sequenceEditor && sequenceEditor.isOpen) || Boolean(imageEditing && imageEditing.isBusy) || Boolean(videoHistory && videoHistory.isBusy) || pendingAssetImports > 0; },',
       '    stopActive: function (id) { generationUi.stopWaiting(id); },',
+      '    retryTarget: function (id) { return generationUi.retryableImage(id) ? id : imageAssetsUi.retrySource(id); },',
+      '    prepareRetry: function (id, failedId) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (!node) return; const correction = imageAssetsUi.retryPrompt(failedId); const input = node.generation || node.generationDraft; if (correction && input && !input.prompt.includes(correction)) input.prompt += String.fromCharCode(10) + correction; node.templatePending = true; invalidateCanvasDependents(documentState, id); markDirty(); canvasLogs.add(node.title + "：重新生图（每次分组运行最多2次），其余分支保留", "warning"); },',
       '    run: async function (id) { error.textContent = ""; const ok = await templateWorkflow.runQueued(id); if (ok) return true; throw new Error(error.textContent || "步骤未完成，已暂停。请查看卡片状态和运行日志。"); },',
       '    confirm: function (message) { return window.confirm(message); }, error: setError,',
+      '    haltReason: function () { return dirty() ? "画布结果尚未保存，已停止后续生成；请先保存再继续。" : undefined; },',
       '    changed: function () { if (groupQueueUi) groupQueueUi.refresh(); if (documentState) refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; }); publishDirty(); },',
       '  });',
       '  groupQueueUi = createCanvasGroupQueueUi({ queue: groupQueue, node: function (id) { return documentState && documentState.nodes.find(function (node) { return node.id === id; }); }, scale: function () { return documentState && documentState.viewport.scale || 1; },',
@@ -1768,6 +1836,8 @@ export function getCanvasPageHtml(): string {
       '    blocked: function () { return canvasOpening || generationUi.isBusy || sequenceUi.isBusy || templateWorkflow.isBusy || groupQueue.isBusy || pendingAssetImports || Boolean(imageEditing && imageEditing.isBusy); },',
       '    sourceBlocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || generationUi.hasInputDraft() || sequenceUi.hasUnsavedFrames; } });',
       '  const automation = createCanvasAutomationUi({',
+      '    checkRecognition: function (node) { return uiRecognitionUi.checkRecognition(node); },',
+      '    ensureRecognitionNote: function (node) { uiRecognitionUi.ensureNote(node); },',
       '    current: function () { return documentState; },',
       '    blocked: function () {',
       '      if (canvasOpening) return "画布正在加载，请稍后重新 inspect。";',
@@ -1777,7 +1847,7 @@ export function getCanvasPageHtml(): string {
       '      if (drag || pendingAssetImports || pendingImageImport || pendingVideoImport || document.querySelector("dialog[open]") || selectionAction || sequenceUi.hasUnsavedFrames) return "请先完成或关闭正在编辑的面板、草稿和导入操作。";',
       '      if (generationUi.isBusy || sequenceUi.isBusy || templateWorkflow.isBusy || groupQueue.isBusy || (imageEditing && imageEditing.isBusy) || (videoHistory && videoHistory.isBusy)) return "当前画布任务执行中，请等待完成。";',
       '    },',
-      '    nodeStatus: function (id) { const run = sequenceUi.view(id).run; const saved = documentState.nodes.find(function (node) { return node.id === id; })?.frameSetInfo; return { imageAssets: imageAssetsUi.reviewState(id), model: modelUi.state(id), workflow: templateWorkflow.status(id), generation: generationUi.nodeState(id), sequence: run && { status: run.status, stage: run.stage, error: run.error, frameCount: run.status === "complete" && saved ? saved.frameCount : run.frames.length }, canStop: generationUi.canStopWaiting(id) || modelUi.canStop(id) }; },',
+      '    nodeStatus: function (id) { const run = sequenceUi.view(id).run; const saved = documentState.nodes.find(function (node) { return node.id === id; })?.frameSetInfo; return { imageSizing: generationUi.imageSizing(id), imageAssets: imageAssetsUi.reviewState(id), model: modelUi.state(id), workflow: templateWorkflow.status(id), generation: generationUi.nodeState(id), sequence: run && { status: run.status, stage: run.stage, error: run.error, frameCount: run.status === "complete" && saved ? saved.frameCount : run.frames.length }, canStop: generationUi.canStopWaiting(id) || modelUi.canStop(id) }; },',
       '    nodeBlocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || Boolean(generationUi.queueBlockReason(id)) || sequenceUi.hasDraft(id) || templateWorkflow.locked(id); },',
       '    remember: remember, changed: markDirty, render: render, save: flush,',
       '    select: function (ids) { selected.clear(); ids.forEach(function (id) { selected.add(id); }); }, selected: function () { return Array.from(selected); },',
@@ -1833,14 +1903,14 @@ export function getCanvasPageHtml(): string {
       '      const node = documentState.nodes.find(function (item) { return item.id === id; });',
       '      if (!node || generationUi.queueBlockReason(id)) throw new Error("请先处理原任务，不会重复生成。");',
       '      let ok = false;',
-      '      if (node.type === "image") ok = await generationUi.runTemplateImage(id);',
+      '      if (node.type === "image") ok = await uiRecognitionUi.runImage(id, function () { return generationUi.runTemplateImage(id); }, true);',
       '      else if (node.type === "video" || node.type === "video-source") ok = await generationUi.runTemplateVideo(id, node.generation?.parameters?.duration || 4, true, true);',
       '      else if (node.type === "sequence") { await sequenceUi.runTemplate(id); ok = true; }',
       '      else if (node.type === "animation") ok = refreshAnimationFromSource(documentState, id);',
       '      if (ok) { invalidateCanvasDependents(documentState, id); markDirty(); render(); }',
       '      return ok;',
       '    },',
-      '    query: async function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (node && ["model", "model-views"].includes(node.type)) await modelUi.execute(id, "query"); else await generationUi.queryNode(id, true); },',
+      '    query: async function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (node && node.uiRecognition?.pendingId) await uiRecognitionUi.query(id); else if (node && ["model", "model-views"].includes(node.type)) await modelUi.execute(id, "query"); else await generationUi.queryNode(id, true); },',
       '    error: function () { return error.textContent; }, clearError: function () { error.textContent = ""; }, queue: groupQueue,',
       '    busyChanged: function (busy) { canvasAutomationBusy = busy; publishDirty(); }',
       '  });',
@@ -1943,8 +2013,61 @@ export function getCanvasPageHtml(): string {
     '  async function leaveCurrent() {',
     '  async function leaveCurrent() { if (wireUi && wireUi.isBusy) return false;'
   );
+  page = replaceCanvasPageText(
+    page,
+    '  let sequenceUi = null;',
+    '  let uiRecognitionUi = null; let sequenceUi = null;'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  groupQueue = createCanvasGroupQueue({',
+    [
+      '  uiRecognitionUi = createUiRecognitionUi({ current: function () { return documentState; }, store: store, save: flush, remember: remember, changed: markDirty, render: render, error: setError, loadMedia: loadMedia,',
+      '    blocked: function () { return Boolean(groupQueue && groupQueue.isBusy) || generationUi.isBusy || sequenceUi.isBusy || pendingAssetImports > 0; },',
+      '    openCanvas: async function (id) { const saved = await store.load(id); const option = document.createElement("option"); option.value = id; option.textContent = saved.title; select.append(option); await openDocument(id); },',
+      '  });',
+      '  groupQueue = createCanvasGroupQueue({',
+    ].join(String.fromCharCode(10))
+  );
+  page = replaceCanvasPageText(
+    page,
+    '      world.append(card);',
+    '      if (uiRecognitionUi) uiRecognitionUi.render(card, node);' +
+      String.fromCharCode(10) +
+      '      world.append(card);'
+  );
+  page = replaceCanvasPageText(
+    page,
+    'const sequenceRunning = Boolean(',
+    'const sequenceRunning = Boolean((uiRecognitionUi && uiRecognitionUi.isBusy) || '
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    busy: function () { return templateWorkflow.isBusy',
+    '    busy: function () { return (uiRecognitionUi && uiRecognitionUi.isBusy) || templateWorkflow.isBusy'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  async function leaveCurrent() {',
+    '  async function leaveCurrent() { if (uiRecognitionUi && uiRecognitionUi.isBusy) { setError("识图仍在执行，请等待结果保存后再切换画布。"); return false; }'
+  );
   page = replaceCanvasPageText(page, '<script>', '<script>' + consoleThemeScript);
+  page = replaceCanvasPageText(
+    page,
+    '      if (generationUi.isBusy || sequenceUi.isBusy || templateWorkflow.isBusy || groupQueue.isBusy',
+    '      if ((uiRecognitionUi && uiRecognitionUi.isBusy) || generationUi.isBusy || sequenceUi.isBusy || templateWorkflow.isBusy || groupQueue.isBusy'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    referencesBlocked: function () { return canvasAutomationBusy ||',
+    '    referencesBlocked: function () { return (uiRecognitionUi && uiRecognitionUi.isBusy) || canvasAutomationBusy ||'
+  );
   page = replaceCanvasPageText(page, '</style>', CANVAS_THEME_STYLES + '</style>');
+  page = replaceCanvasPageText(
+    page,
+    '    delete copy.revision;',
+    '    delete copy.revision; copy.nodes.forEach(function (node) { delete node.imageInfo; });'
+  );
   return page.replace(
     '<title data-maker-canvas="maker-canvas-page">创作画布</title>',
     '<title data-maker-canvas="maker-canvas-page">序列帧动画</title>'

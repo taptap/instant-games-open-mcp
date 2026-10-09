@@ -8,6 +8,9 @@ import {
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
+import { readImageDimensions } from './imageDimensions.js';
+import type { CanvasImageInfo } from './imageSizing.js';
+import { upgradeUiWorkflowSizing } from './uiWorkflowPresets.js';
 import { validateFramePairGraph } from './framePair.js';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -38,6 +41,8 @@ import { builtinCanvasTemplates, canvasPresets } from './presets.js';
 import { readTemplatePage } from './templateCatalog.js';
 import { validateImageAssetsInfo } from './imageAssets.js';
 import { validateMergeIcons, mergeIconPrompt } from './mergeIcons.js';
+import { validateUiRecognition, UI_ELEMENT_CATEGORIES } from './uiRecognition.js';
+import { imageAtlasRegions } from './imageAtlasExport.js';
 
 const execFileAsync = promisify(execFile);
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -467,6 +472,9 @@ export class MakerCanvasFiles {
           written.push(path.join(folder!, name));
         });
       }
+      for (const node of document.nodes)
+        if (node.type === 'image' && node.assetPath)
+          node.imageInfo = this.imageInfo(node.assetPath);
       this.write(document);
     } catch (error) {
       for (const filename of written) fs.rmSync(filename, { force: true });
@@ -651,6 +659,14 @@ export class MakerCanvasFiles {
 
   async load(id: string): Promise<CanvasDocument> {
     return this.read(id);
+  }
+
+  imageInfo(assetPath: string): CanvasImageInfo | undefined {
+    try {
+      return readImageDimensions(this.readMedia(assetPath).file);
+    } catch {
+      return undefined;
+    }
   }
 
   async getActiveCanvasId(): Promise<string | undefined> {
@@ -937,6 +953,8 @@ export class MakerCanvasFiles {
       fail('画布节点过多。', 413, 'STORAGE_LIMIT');
     }
     const nodes = input.nodes.map((item) => this.parseNode(item));
+    for (const node of nodes)
+      if (node.type === 'image' && node.assetPath) node.imageInfo = this.imageInfo(node.assetPath);
     const nodeIds = new Set<string>();
     for (const node of nodes) {
       if (nodeIds.has(node.id)) fail('画布节点标识重复。', 400, 'INVALID_DOCUMENT');
@@ -958,6 +976,7 @@ export class MakerCanvasFiles {
       }
     }
     const edges = input.edges.map((item) => this.parseEdge(item, nodes));
+    upgradeUiWorkflowSizing({ nodes, edges });
     const seen = new Set<string>();
     const edgeIds = new Set<string>();
     for (const edge of edges) {
@@ -1031,6 +1050,48 @@ export class MakerCanvasFiles {
     )
       fail('首尾帧约束只能用于视频卡。', 400, 'INVALID_DOCUMENT');
     let mergeIcons: CanvasNode['mergeIcons'];
+    if (node.uiBaselineGrid !== undefined) {
+      try {
+        imageAtlasRegions(4096, 4096, node.uiBaselineGrid as any);
+      } catch {
+        fail('对照流程的原始网格无效。', 400, 'INVALID_DOCUMENT');
+      }
+    }
+    if (
+      node.uiEmpty !== undefined &&
+      (typeof node.uiEmpty !== 'boolean' || !['image', 'image-assets'].includes(String(node.type)))
+    )
+      fail('空分类状态无效。', 400, 'INVALID_DOCUMENT');
+    let uiRecognition: CanvasNode['uiRecognition'];
+    if (node.uiRecognition !== undefined) {
+      if (node.type !== 'image') fail('识图设置只能用于原稿图片卡。', 400, 'INVALID_DOCUMENT');
+      try {
+        uiRecognition = validateUiRecognition(node.uiRecognition);
+      } catch (error) {
+        fail((error as Error).message, 400, 'INVALID_DOCUMENT');
+      }
+    }
+    if (
+      node.uiRecognitionSourceId !== undefined &&
+      (node.type !== 'note' ||
+        typeof node.uiRecognitionSourceId !== 'string' ||
+        !ID.test(node.uiRecognitionSourceId))
+    )
+      fail('识图清单便签的来源无效。', 400, 'INVALID_DOCUMENT');
+    if (
+      node.uiExtraction !== undefined &&
+      (node.type !== 'image' || !UI_ELEMENT_CATEGORIES.includes(node.uiExtraction as any))
+    )
+      fail('切图分类无效。', 400, 'INVALID_DOCUMENT');
+    if (
+      node.uiAnnotation !== undefined &&
+      (node.type !== 'image' ||
+        !Array.isArray(node.uiAnnotation) ||
+        !node.uiAnnotation.length ||
+        node.uiAnnotation.length > 10 ||
+        node.uiAnnotation.some((item) => !UI_ELEMENT_CATEGORIES.includes(item as any)))
+    )
+      fail('标注分类无效。', 400, 'INVALID_DOCUMENT');
     if (node.mergeIcons !== undefined) {
       if (node.type !== 'image') fail('二合图标设置只能用于图片卡。', 400, 'INVALID_DOCUMENT');
       try {
@@ -1221,8 +1282,16 @@ export class MakerCanvasFiles {
           ))
       )
         fail('参考图片路径无效。', 400, 'UNSAFE_PATH');
+      if (
+        input.cutoutColor !== undefined &&
+        !['#FF00FF', '#00FF00'].includes(String(input.cutoutColor))
+      )
+        fail('抠图底色无效。', 400, 'INVALID_DOCUMENT');
       generation = {
         prompt: text(input.prompt, 8000, '生成提示词'),
+        ...(input.cutoutColor === undefined
+          ? {}
+          : { cutoutColor: input.cutoutColor as '#FF00FF' | '#00FF00' }),
         ...(referenceImagePaths === undefined
           ? {}
           : { referenceImagePaths: [...(referenceImagePaths as string[])] }),
@@ -1333,6 +1402,23 @@ export class MakerCanvasFiles {
       ...(mergeIcons ? { mergeIcons } : {}),
       ...(generation ? { generation } : {}),
       ...(generationDraft ? { generationDraft } : {}),
+      ...(uiRecognition ? { uiRecognition } : {}),
+      ...(node.uiBaselineGrid
+        ? { uiBaselineGrid: structuredClone(node.uiBaselineGrid) as CanvasNode['uiBaselineGrid'] }
+        : {}),
+      ...(node.uiEmpty ? { uiEmpty: true } : {}),
+      ...(node.uiBaselinePrompt === undefined
+        ? {}
+        : { uiBaselinePrompt: text(node.uiBaselinePrompt, 16000, '原始拆图提示词') }),
+      ...(node.uiRecognitionSourceId
+        ? { uiRecognitionSourceId: node.uiRecognitionSourceId as string }
+        : {}),
+      ...(node.uiExtraction
+        ? { uiExtraction: node.uiExtraction as CanvasNode['uiExtraction'] }
+        : {}),
+      ...(node.uiAnnotation
+        ? { uiAnnotation: node.uiAnnotation as CanvasNode['uiAnnotation'] }
+        : {}),
     };
   }
 

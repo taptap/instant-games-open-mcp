@@ -81,7 +81,16 @@ try {
       const target = canvas.nodes.find(node => node.id === input.targetNodeId);
       response = { ...input, id: randomUUID(), canvasId, kind, status: failNext ? 'unknown' : 'succeeded', error: failNext ? '模拟结果未知；禁止自动重提' : undefined, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), targetAssetPath: target?.assetPath || '', resultAssetPath: failNext ? undefined : kind === 'image' ? 'assets/image/' + randomUUID() + '.jpg' : 'assets/video/result.mp4', sourceSnapshots: (input.sourceImageIds || [input.sourceImageId]).map(id => snapshotCanvasSource(canvas.nodes.find(node => node.id === id))), parameters: { mode: input.mode, duration: input.duration, model: input.model } };
       failNext = false;
-      if (generatedImageFixture && kind === 'image' && response.resultAssetPath) pngImports.set(response.resultAssetPath, generatedImageFixture);
+      if (generatedImageFixture && kind === 'image' && response.resultAssetPath) {
+        const pixels = PNG.sync.read(generatedImageFixture);
+        if (input.cutoutColor === '#00FF00') {
+          for (let i = 0; i < pixels.data.length; i += 4) {
+            if (pixels.data[i] === 255 && pixels.data[i + 1] === 0 && pixels.data[i + 2] === 255)
+              pixels.data.set([0, 255, 0, 255], i);
+          }
+        }
+        pngImports.set(response.resultAssetPath, PNG.sync.write(pixels));
+      }
       attempts.push(response);
       if (holdNext) { holdNext = false; await new Promise(resolve => { release = resolve; }); }
     } else if (url.pathname.endsWith('/generation')) response = attempts;
@@ -287,6 +296,9 @@ try {
     assert.equal(canvas.nodes.find(node => node.id === atlas.id).title, atlas.title);
     assert.equal(canvas.nodes.some(node => node.templatePending), false);
     assert.equal(await page.locator('[data-image-atlas-dialog]').count(), 0);
+    const atlasResult = canvas.nodes.find(node => node.id === atlas.id).generation;
+    assert.ok(['#FF00FF', '#00FF00'].includes(atlasResult.cutoutColor));
+    assert.ok(atlasResult.prompt.includes(atlasResult.cutoutColor));
     const output = canvas.nodes.find(node => node.id === assets.id).imageAssetsInfo;
     for (const item of output.items) {
       assert.ok(item.assetPath.startsWith('.maker/canvases/' + canvasId + '/resources/'));
@@ -306,6 +318,7 @@ try {
   const blankAtlas = new PNG({ width: 80, height: 60 });
   for (let offset = 0; offset < blankAtlas.data.length; offset += 4) blankAtlas.data.set([255, 0, 255, 255], offset);
   generatedImageFixture = PNG.sync.write(blankAtlas);
+  const beforeBlank = calls.length;
   canvas.nodes.find(node => node.id === references[1].id).templatePending = true;
   await page.reload();
   await startQueue('▶ 完成剩余流程');
@@ -313,6 +326,7 @@ try {
   assert.deepEqual(canvas.nodes.find(node => node.type === 'image-assets').imageAssetsInfo, previousAssets);
   assert.equal(canvas.nodes.find(node => node.type === 'image-assets').templatePending, true);
   assert.ok((await page.locator('body').innerText()).includes('没有有效内容'));
+  assert.equal(calls.length, beforeBlank + 3, 'initial generation plus at most two quality retries');
   for (let y = 10; y < 50; y++) {
     for (let x = 10; x < 70; x++) blankAtlas.data.set([20, 100, 200, 255], (y * 80 + x) * 4);
   }
@@ -323,9 +337,9 @@ try {
   await queue.getByText('已暂停', { exact: true }).waitFor();
   assert.deepEqual(canvas.nodes.find(node => node.type === 'image-assets').imageAssetsInfo, previousAssets);
   assert.equal(canvas.nodes.find(node => node.type === 'image-assets').templatePending, true);
-  assert.ok((await page.locator('body').innerText()).includes('边界仍有明显内容'));
+  assert.ok((await page.locator('body').innerText()).includes('没有可靠的透明分隔'));
   assert.deepEqual(errors, []);
-  console.log('PASS UI模板：自动切图去洋红底、保留主体和步骤名称；空白格暂停并保留旧资源，不假报完成。');
+  console.log('PASS UI模板：记录底色并自动抠图、保留主体和步骤名称；空白格暂停并保留旧资源，不假报完成。');
   console.log('PASS UI模板：页面整组、单卡继续、CLI整组均接续两步生图和PNG资源卡，实际PNG可解码，保存重开不重跑。');
   console.log('PASS 模板图片参考可全部移除，文本草稿保留，纯文本/仅导入图生成不隐式携带旧图或上游图，原位更新且未知结果保留旧图。');
   console.log('PASS 横向参考图列表：空态加号、多选14张、横向滚动、达到上限禁用、删除后恢复添加，底部不再有导入按钮。');

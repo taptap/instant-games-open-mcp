@@ -441,7 +441,6 @@ test('group queue uses saved single steps to finish video, frames and animation 
     getDocument: options.getDocument,
     needs: (id) => flow.status(id) === 'pending',
     busy: () => flow.isBusy,
-    videoBusy: async () => false,
     run: flow.runQueued,
     confirm: () => true,
     changed: jest.fn(),
