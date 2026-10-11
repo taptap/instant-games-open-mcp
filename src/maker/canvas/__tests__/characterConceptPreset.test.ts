@@ -68,7 +68,7 @@ test('character concept uses a real transparent reference and one complete prese
   ).toBe(true);
 });
 
-test('concept preset reloads ready, remaps its reference, and preserves old art on replacement', async () => {
+test('concept preset reloads pending, remaps its reference, and preserves old art on replacement', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-concept-'));
   try {
     const files = new MakerCanvasFiles(root);
@@ -83,11 +83,13 @@ test('concept preset reloads ready, remaps its reference, and preserves old art 
     const loaded = await files.load(canvas.id);
     const [reference, sheet] = loaded.nodes.filter((node) => node.type === 'image');
     expect(loaded.nodes).toHaveLength(3);
-    expect(loaded.nodes.every((node) => !node.templatePending)).toBe(true);
+    expect(reference.templatePending).toBeUndefined();
+    expect(sheet.templatePending).toBe(true);
     expect(sheet.generation?.sourceImageIds).toEqual([reference.id]);
     expect(isCanvasNodeStale(sheet, [reference])).toBe(false);
     for (const node of [reference, sheet])
       expect(fs.statSync(files.readMedia(node.assetPath!).file).size).toBeGreaterThan(10000);
+    delete sheet.templatePending;
     const original = sheet.assetPath;
     reference.assetPath = sheet.assetPath;
     invalidateCanvasDependents(loaded, reference.id);

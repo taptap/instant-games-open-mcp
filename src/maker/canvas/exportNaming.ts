@@ -58,7 +58,7 @@ export function canvasExportFilename(
     .replace(/·.*$/, '')
     .replace(/[^\p{L}\p{N}]/gu, '');
   const kind =
-    format === 'images'
+    format === 'images' || format === 'bundle'
       ? '资'
       : format === 'atlas'
         ? '集'

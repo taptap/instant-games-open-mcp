@@ -3,11 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { MakerCanvasFiles } from '../files.js';
-import { createId } from '../model.js';
+import { createId, emptyDocument } from '../model.js';
 import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from '../templates.js';
 import { isCanvasNodeStale } from '../dependencies.js';
 import { canvasNeedsProcessing, invalidateCanvasDependents } from '../templateWorkflow.js';
-import { canvasPresets } from '../presets.js';
+import { canvasPresets, builtinCanvasTemplates } from '../presets.js';
 import { builtinPresetDescriptions } from '../presetDescriptions.js';
 
 jest.setTimeout(30000);
@@ -44,6 +44,35 @@ test('lists portable presets without importing assets or creating a canvas', asy
   expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
 });
 
+test.each(['005', '006', '008', '009', '010', '011'])(
+  'static template %s keeps examples visible but starts only downstream work',
+  (suffix) => {
+    const template = builtinCanvasTemplates().find((item) => item.id.endsWith(suffix))!;
+    const original = structuredClone(template);
+    const instance = model.instantiate(template, { x: 0, y: 0 });
+    const document = { ...emptyDocument(), nodes: instance.nodes, edges: instance.edges };
+    const reference = instance.nodes[1];
+    const outputs = instance.nodes.slice(2);
+    expect(reference.templatePending).toBeUndefined();
+    expect(canvasNeedsProcessing(document, reference)).toBe(false);
+    expect(outputs.every((node) => node.templatePending)).toBe(true);
+    expect(outputs.every((node) => canvasNeedsProcessing(document, node))).toBe(true);
+    expect(outputs.every((node) => node.assetPath || node.imageAssetsInfo?.items.length)).toBe(
+      true
+    );
+    expect(instance.section.templateSkills).toBeUndefined();
+    expect(template).toEqual(original);
+    for (const node of outputs) delete node.templatePending;
+    expect(document.nodes.every((node) => !canvasNeedsProcessing(document, node))).toBe(true);
+    model.instantiate(template, { x: 1000, y: 0 });
+    expect(outputs.every((node) => !node.templatePending)).toBe(true);
+    if (suffix === '006') {
+      expect(outputs[0].generation?.prompt).toContain('不能自行增减格数');
+      expect(outputs[0].generation?.prompt).not.toContain('最终只画4列');
+    }
+  }
+);
+
 test.each([4, 5, 6, 7, 8])(
   'asset preset %i persists transparent generated examples with independent references',
   async (index) => {
@@ -69,7 +98,7 @@ test.each([4, 5, 6, 7, 8])(
     expect(Object.keys(preset.assets)).toHaveLength(itemCount + 2);
     const collection = saved.nodes.find((node) => node.type === 'image-assets')!;
     expect(collection.imageAssetsInfo?.items).toHaveLength(itemCount);
-    expect(collection.templatePending).toBeUndefined();
+    expect(collection.templatePending).toBe(true);
     expect(saved.edges).toContainEqual(
       expect.objectContaining({ kind: 'image-assets', from: results[0].id, to: collection.id })
     );
@@ -81,7 +110,7 @@ test.each([4, 5, 6, 7, 8])(
       expect(result.generationDraft).toBeUndefined();
       expect(result.generation?.attemptId).toBeUndefined();
       expect(result.generation?.taskId).toBeUndefined();
-      expect(result.templatePending).toBeUndefined();
+      expect(result.templatePending).toBe(true);
       expect(result.referenceInput).toEqual({ includeSelf: false });
       expect(result.generation?.referenceImagePaths).toEqual([]);
       expect(result.generation).toMatchObject({
@@ -230,8 +259,8 @@ test('crop preset contains five aligned transparent stages whose pixels match th
   expect(bounds[2].top).toBeGreaterThan(bounds[3].top);
   const prompt = images[1].generation!.prompt!;
   for (const stage of ['播种', '幼苗', '开花', '结果', '枯萎']) expect(prompt).toContain(stage);
-  expect(prompt).toContain('4列×1行或5列×1行');
-  expect(prompt).toContain('不画种子或花');
+  expect(prompt).toContain('不能自行增减格数');
+  expect(prompt).toContain('排列：5列×1行');
 });
 
 test('new game UI workflow keeps examples but starts every downstream step pending', async () => {
@@ -246,7 +275,7 @@ test('new game UI workflow keeps examples but starts every downstream step pendi
     (node) => node.type === 'image' && !canvas.edges.some((edge) => edge.to === node.id)
   )!;
   expect(source.assetPath).toBeTruthy();
-  expect(source.uiRecognition).toBeUndefined();
+  expect(source.uiRecognition).toEqual({ enabled: false, inputRole: 'design', results: [] });
   const clean = canvas.nodes.find((node) => node.title === '② 去文字设计稿')!;
   expect(clean.uiRecognition).toEqual({ enabled: false, results: [] });
   expect(canvasNeedsProcessing(canvas, source)).toBe(false);
@@ -271,14 +300,17 @@ test('new game UI workflow keeps examples but starts every downstream step pendi
 });
 
 test.each([4, 5, 6])(
-  'saved asset preset %i is ready without payment, then becomes pending after changing reference',
+  'asset preset %i starts pending and preserves completed state until reference changes',
   async (index) => {
     const canvas = await files.create('完整素材模板');
     const prepared = await files.prepareTemplate(canvasPresets()[index].id, canvas.id);
     const instance = model.instantiate(prepared, { x: 0, y: 0 });
     canvas.nodes = instance.nodes;
     canvas.edges = instance.edges;
-    expect(canvas.nodes.every((node) => !node.templatePending)).toBe(true);
+    expect(canvas.nodes.filter((node) => node.templatePending)).toHaveLength(2);
+    for (const node of canvas.nodes) delete node.templatePending;
+    const saved = await files.save(canvas.id, canvas, canvas.revision);
+    expect((await files.load(saved.id)).nodes.every((node) => !node.templatePending)).toBe(true);
     const source = canvas.nodes.find(
       (node) => node.type === 'image' && !canvas.edges.some((edge) => edge.to === node.id)
     )!;

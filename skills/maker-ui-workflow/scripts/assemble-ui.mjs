@@ -264,16 +264,242 @@ export function assemble(layout, correction = null) {
   };
 }
 
+export function layoutFromBbox(input) {
+  const bbox = input.bbox;
+  if (input.ui) {
+    assert(
+      typeof input.ui.id === 'string' && input.ui.id.length > 0,
+      'Missing UI archive identity'
+    );
+    assert.equal(
+      input.ui.bboxSha256,
+      digest(JSON.stringify(bbox)),
+      'Bbox does not match this UI resource bundle'
+    );
+  }
+  assert(
+    bbox &&
+      bbox.version === 1 &&
+      bbox.coordinateSpace === 'design-pixels' &&
+      bbox.bboxFormat === 'xywh',
+    'Expected version=1 design-pixels xywh Bbox JSON'
+  );
+  assert(
+    bbox.design &&
+      bbox.cutSource &&
+      Array.isArray(bbox.elements) &&
+      bbox.elements.length > 0 &&
+      bbox.elements.length <= 500 &&
+      Array.isArray(bbox.texts) &&
+      bbox.texts.length <= 1000,
+    'Missing Bbox sources or two-pass results'
+  );
+  for (const image of [bbox.design, bbox.cutSource]) {
+    assert(
+      typeof image.path === 'string' &&
+        /^[a-f0-9]{64}$/.test(image.sha256) &&
+        Number.isInteger(image.width) &&
+        image.width > 0 &&
+        Number.isInteger(image.height) &&
+        image.height > 0,
+      'Invalid Bbox source identity'
+    );
+  }
+  const elements = unique(bbox.elements, 'bbox.elements');
+  const texts = unique(bbox.texts, 'bbox.texts');
+  const bindings = new Map();
+  assert(input.confirmed !== false, 'UI asset bindings are not confirmed');
+  assert(
+    Array.isArray(input.bindings) && Array.isArray(input.assets),
+    'Explicit assets and bindings are required'
+  );
+  for (const binding of input.bindings) {
+    assert(binding.review !== 'unreviewed', 'Unreviewed UI binding: ' + binding.elementId);
+    assert(
+      elements.has(binding.elementId) &&
+        !bindings.has(binding.elementId) &&
+        typeof binding.assetId === 'string',
+      'Unknown or duplicate Bbox binding'
+    );
+    bindings.set(binding.elementId, binding);
+  }
+  const checkRect = (value, id) => {
+    rect(value, id);
+    assert(
+      value[0] >= 0 &&
+        value[1] >= 0 &&
+        value[0] + value[2] <= bbox.design.width &&
+        value[1] + value[3] <= bbox.design.height,
+      'Bbox outside design: ' + id
+    );
+  };
+  const root = {
+    id: 'root',
+    type: 'Panel',
+    parentId: null,
+    render: 'container',
+    rect: [0, 0, bbox.design.width, bbox.design.height],
+    props: {},
+  };
+  const images = bbox.elements.map((element) => {
+    assert(
+      /^E[0-9]{3,}$/.test(element.id) &&
+        ['icon', 'frame', 'panel', 'button', 'tab', 'title'].includes(element.type) &&
+        (element.parent === null || elements.has(element.parent)),
+      'Invalid Bbox element'
+    );
+    checkRect(element.bbox, element.id);
+    const binding = bindings.get(element.id);
+    assert(binding, 'Missing explicit PNG binding: ' + element.id);
+    return {
+      id: element.id,
+      parentId: element.parent || 'root',
+      type:
+        element.type === 'button' || element.type === 'tab' || binding.pressedAssetId
+          ? 'Button'
+          : 'Image',
+      render: 'image',
+      rect: [...element.bbox],
+      props: {},
+      assetId: binding.assetId,
+      ...(binding.pressedAssetId ? { pressedAssetId: binding.pressedAssetId } : {}),
+    };
+  });
+  const labels = bbox.texts.map((text) => {
+    assert(
+      /^T[0-9]{3,}$/.test(text.id) &&
+        !elements.has(text.id) &&
+        typeof text.text === 'string' &&
+        text.text.trim() &&
+        text.cutout === false &&
+        (text.parentId === null || elements.has(text.parentId)) &&
+        ['left', 'center', 'right'].includes(text.align) &&
+        /^#[a-f0-9]{6}$/i.test(text.color) &&
+        typeof text.bold === 'boolean',
+      'Invalid Bbox text'
+    );
+    checkRect(text.bbox, text.id);
+    const color = text.color.slice(1);
+    return {
+      id: text.id,
+      parentId: text.parentId || 'root',
+      type: 'Label',
+      render: 'text',
+      rect: [...text.bbox],
+      props: {
+        text: text.text,
+        textAlign: text.align,
+        verticalAlign: 'middle',
+        fontSize: Math.max(1, Math.round(text.bbox[3])),
+        fontWeight: text.bold ? 'bold' : 'normal',
+        color: [
+          parseInt(color.slice(0, 2), 16),
+          parseInt(color.slice(2, 4), 16),
+          parseInt(color.slice(4, 6), 16),
+          255,
+        ],
+      },
+    };
+  });
+  assert.equal(texts.size, labels.length);
+  return {
+    version: 1,
+    coordinateSpace: 'design-pixels',
+    rectBasis: 'asset-canvas',
+    provenance: 'recognition',
+    design: { ...bbox.design },
+    assets: input.assets,
+    elements: [
+      root,
+      ...(input.backgroundAssetId
+        ? [
+            {
+              id: 'background',
+              parentId: 'root',
+              type: 'Image',
+              render: 'image',
+              rect: [...root.rect],
+              props: {},
+              assetId: input.backgroundAssetId,
+            },
+          ]
+        : []),
+      ...images,
+      ...labels,
+    ],
+  };
+}
+
 export function run(project, layoutFile, outputDirectory, correctionFile) {
-  const layout = JSON.parse(fs.readFileSync(layoutFile, 'utf8'));
+  const input = JSON.parse(fs.readFileSync(layoutFile, 'utf8'));
+  const cropped = [];
+  if (input.bbox) {
+    for (const asset of input.assets || []) {
+      verifyImage(project, asset);
+      if (!asset.contentRect) continue;
+      const box = asset.contentRect;
+      assert(
+        Array.isArray(box) &&
+          box.length === 4 &&
+          box.every(Number.isInteger) &&
+          box[0] >= 0 &&
+          box[1] >= 0 &&
+          box[2] > 0 &&
+          box[3] > 0 &&
+          box[0] + box[2] <= asset.width &&
+          box[1] + box[3] <= asset.height,
+        'Invalid content rect: ' + asset.id
+      );
+      if (box[0] === 0 && box[1] === 0 && box[2] === asset.width && box[3] === asset.height)
+        continue;
+      assert(/^[A-Za-z][A-Za-z0-9_-]*$/.test(asset.id), 'Invalid crop asset ID');
+      const relative = path
+        .relative(
+          fs.realpathSync(project),
+          path.join(
+            fs.realpathSync(path.dirname(path.resolve(outputDirectory))),
+            path.basename(outputDirectory),
+            'images',
+            asset.id + '.png'
+          )
+        )
+        .split(path.sep)
+        .join('/');
+      assert(
+        relative.startsWith('assets/') && !relative.split('/').includes('..'),
+        'Cropped UI output must be inside project assets/'
+      );
+      const source = PNG.sync.read(readAsset(project, asset.path));
+      const target = new PNG({ width: box[2], height: box[3] });
+      PNG.bitblt(source, target, ...box, 0, 0);
+      const bytes = PNG.sync.write(target);
+      cropped.push({ relative, bytes });
+      asset.sourceContentRect = [...box];
+      asset.sourcePath = asset.path;
+      Object.assign(asset, {
+        path: relative,
+        width: box[2],
+        height: box[3],
+        sha256: digest(bytes),
+      });
+      delete asset.contentRect;
+    }
+  }
+  const layout = input.bbox ? layoutFromBbox(input) : input;
+  if (input.bbox) verifyImage(project, input.bbox.cutSource);
   const correction = correctionFile ? JSON.parse(fs.readFileSync(correctionFile, 'utf8')) : null;
   const result = assemble(layout, correction);
-  for (const item of [layout.design, ...layout.assets]) verifyImage(project, item);
+  for (const item of [layout.design, ...layout.assets])
+    if (!cropped.some((crop) => crop.relative === item.path)) verifyImage(project, item);
   // A new output directory prevents overwriting UI files edited by the user.
   fs.mkdirSync(outputDirectory);
+  if (cropped.length) fs.mkdirSync(path.join(outputDirectory, 'images'));
+  for (const crop of cropped)
+    fs.writeFileSync(path.join(project, crop.relative), crop.bytes, { flag: 'wx' });
   for (const [name, value] of [
     ['assembled.ui.json', result.ui],
     ['assembly-map.json', result.report],
+    ...(input.bbox ? [['layout.json', layout]] : []),
   ]) {
     fs.writeFileSync(path.join(outputDirectory, name), JSON.stringify(value, null, 2), {
       flag: 'wx',

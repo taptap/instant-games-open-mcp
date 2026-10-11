@@ -24,6 +24,7 @@ export interface CanvasGenerationAttempt {
   status: 'running' | 'pending' | 'succeeded' | 'failed' | 'unknown' | 'canceled';
   prompt: string;
   cutoutColor?: '#FF00FF' | '#00FF00';
+  uiAtlasPlan?: UiAtlasPlan;
   operation?: 'generate' | 'variant' | 'outpaint';
   taskId?: string;
   sourceImagePath?: string;
@@ -42,7 +43,9 @@ export interface CanvasGenerationAttempt {
 }
 
 export interface CanvasDocumentStore {
-  recognitionModels?(): Promise<Array<{ id: string; model: string }>>;
+  recognitionModels?(): Promise<
+    Array<{ id: string; model: string; source?: 'local' | 'server' | 'custom' }>
+  >;
   recognizeUi?(
     canvasId: string,
     input: {
@@ -235,7 +238,7 @@ export function createBrowserCanvasDocumentStore(
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
-        signal: AbortSignal.timeout(195000),
+        signal: AbortSignal.timeout(375000),
       }),
     recognitionStatus: (canvasId, id) => request('/canvases/' + canvasId + '/recognition/' + id),
     listModels: (canvasId) => request<CanvasModelAttempt[]>('/canvases/' + canvasId + '/models'),
@@ -489,3 +492,4 @@ export class MemoryCanvasDocumentStore implements CanvasDocumentStore {
     throw new Error('Memory canvas store does not call Maker MCP.');
   }
 }
+import type { UiAtlasPlan } from './uiAssetBindings.js';

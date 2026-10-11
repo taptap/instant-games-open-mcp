@@ -17,6 +17,7 @@
 | Maker CLI、PAT、项目初始化、客户端集成  | [docs/MAKER.md](docs/MAKER.md)                                                                 |
 | Maker 控制台、UI 编辑器                 | [docs/MAKER_CONSOLE.md](docs/MAKER_CONSOLE.md)                                                 |
 | Maker Canvas                            | [src/maker/canvas/README.md](src/maker/canvas/README.md)                                       |
+| 图片卡专用功能、菜单与生命周期          | [docs/MAKER_CANVAS_IMAGE_FEATURES.md](docs/MAKER_CANVAS_IMAGE_FEATURES.md)                     |
 | Maker Runtime、本地预览、验证和进程清理 | [docs/MAKER_LOCAL_PREVIEW.md](docs/MAKER_LOCAL_PREVIEW.md)                                     |
 | Maker 环境变量                          | [docs/MAKER_ENVIRONMENT_VARIABLES.md](docs/MAKER_ENVIRONMENT_VARIABLES.md)                     |
 | UI 设计稿、切图和布局复原               | [docs/MAKER_UI_WORKFLOW.md](docs/MAKER_UI_WORKFLOW.md)                                         |

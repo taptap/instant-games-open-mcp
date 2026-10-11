@@ -37,7 +37,7 @@ export function createCanvasAutomationUi(options: {
   addDerived(type: 'sequence' | 'animation' | 'model-views' | 'model', sourceId: string): void;
   confirmModel?(id: string, reviewId: string): Promise<unknown>;
   previewModel?(id: string): unknown;
-  previewImageAssets?(id: string, grid?: unknown): Promise<unknown>;
+  previewImageAssets?(id: string, grid?: unknown, cut?: unknown): Promise<unknown>;
   confirmImageAssets?(id: string, reviewId: string): Promise<unknown>;
   importAsset(input: Record<string, unknown>): Promise<void>;
   exportAsset(command: CanvasCommand, node: CanvasNode): Promise<unknown>;
@@ -130,7 +130,7 @@ export function createCanvasAutomationUi(options: {
       run: ['id', 'recognition'],
       'confirm-model': ['id', 'reviewId'],
       'preview-model': ['id'],
-      'preview-image-assets': ['id', 'grid'],
+      'preview-image-assets': ['id', 'grid', 'cut'],
       'confirm-image-assets': ['id', 'reviewId'],
       stop: ['id'],
       query: ['id'],
@@ -181,7 +181,7 @@ export function createCanvasAutomationUi(options: {
       try {
         return command.action === 'confirm-image-assets'
           ? await options.confirmImageAssets(target.id, input.reviewId as string)
-          : await options.previewImageAssets(target.id, input.grid);
+          : await options.previewImageAssets(target.id, input.grid, input.cut);
       } finally {
         running = false;
         options.busyChanged(false);
@@ -213,8 +213,13 @@ export function createCanvasAutomationUi(options: {
           const source = target.type === 'image' ? uiRecognitionSource(current, target) : undefined;
           const sources =
             target.type === 'section'
-              ? current.nodes.filter((item) => item.sectionId === target.id && item.uiRecognition)
-              : source
+              ? current.nodes.filter(
+                  (item) =>
+                    item.sectionId === target.id &&
+                    item.uiRecognition &&
+                    item.uiRecognition.inputRole !== 'design'
+                )
+              : source && source.uiRecognition?.inputRole !== 'design'
                 ? [source]
                 : [];
           const enabled = input.recognition !== false;
@@ -225,7 +230,6 @@ export function createCanvasAutomationUi(options: {
             options.render();
             if (!(await options.save())) throw new Error('识图开关尚未保存，未启动工作流。');
           }
-          // The calling AI supplies recognition; CLI must not invoke a separate provider.
           if (enabled)
             for (const item of sources) {
               // The recognition card is the text-free output; produce it before asking AI.
@@ -237,13 +241,17 @@ export function createCanvasAutomationUi(options: {
                 if (item.templatePending || !item.assetPath)
                   throw new Error('去文字尚未完成，不能识图。');
               }
+              if (!selectedUiRecognition(item) && !(await options.run(item.id)))
+                throw new Error(
+                  options.error() || '两次识图未完成，请配置 GPT-6.1 Sol 后查询原请求。'
+                );
               if (!selectedUiRecognition(item))
                 throw new Error(
-                  '需要当前 AI 看图（去文字后的图片，卡片 ' +
+                  '两次识图尚未保存 Bbox JSON（去文字卡 ' +
                     item.id +
                     '）：' +
                     item.assetPath +
-                    '。请按 maker-ui-workflow Skill 识别元素，通过 update-nodes 的 uiRecognition.result 保存清单后继续；不需要配置 TAPTAP_MAKER_VISION_CONFIG。模型无法看图时请切换支持图片输入的模型，不要关闭识图跳过。'
+                    '。请在控制台设置 GPT-6.1 Sol 接口和 Key，运行两次识图后继续；不要改用当前 AI 猜框或关闭识图跳过。'
                 );
             }
         }

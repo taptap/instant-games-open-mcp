@@ -9,6 +9,7 @@ import {
   validateCanvasCommand,
 } from './automation.js';
 import type { CanvasDocument } from './model.js';
+import { MakerCanvasFiles } from './files.js';
 
 export async function runCanvasCli(
   action: string | undefined,
@@ -22,6 +23,18 @@ export async function runCanvasCli(
   }
   if (typeof options.target_dir !== 'string')
     throw new Error('canvas 操作必须显式传入 --target-dir 项目绝对路径。');
+  if (action === 'ui-archives' || action === 'archive-ui') {
+    const files = new MakerCanvasFiles(options.target_dir);
+    const canvasId = typeof options.canvas_id === 'string' ? options.canvas_id : undefined;
+    if (action === 'archive-ui' && !canvasId) throw new Error('缺少 --canvas-id。');
+    print({
+      source: 'local',
+      project: files.root,
+      archives:
+        action === 'archive-ui' ? await files.archiveUi(canvasId!) : files.listUiArchives(canvasId),
+    });
+    return;
+  }
   const known = [
     'list',
     'templates',

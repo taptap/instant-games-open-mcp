@@ -10,8 +10,22 @@ export function metadataVersion(node: CanvasNode): string {
     return node.frameSetInfo ? 'saved-frame-set' : 'missing-frame-set';
   }
   if (node.type === 'image' || node.type === 'video-source') {
-    const asset = node.generation?.attemptId || 'manual-asset';
-    return node.uiRecognition
+    const asset =
+      (node.generation?.attemptId || 'manual-asset') +
+      (node.generation?.uiAtlasPlan
+        ? '|uiAtlas:' +
+          JSON.stringify([
+            node.generation.uiAtlasPlan.bbox.design.sha256,
+            node.generation.uiAtlasPlan.bbox.cutSource.sha256,
+            node.generation.uiAtlasPlan.grid,
+            node.generation.uiAtlasPlan.slots.map((slot) => [
+              slot.elementIds,
+              slot.state,
+              slot.role,
+            ]),
+          ])
+        : '');
+    return node.uiRecognition && node.uiRecognition.inputRole !== 'design'
       ? asset +
           '|recognition:' +
           (node.uiRecognition.enabled ? node.uiRecognition.selectedId || 'pending' : 'off')

@@ -3254,6 +3254,8 @@ function printHelp(): void {
       '  taptap-maker ui patch --target-dir PATH --file assets/ui/screen.ui.json --revision SHA256 --input-file FILE [--dry-run]',
       '  taptap-maker canvas capabilities',
       '  taptap-maker canvas list|pages|templates --target-dir PROJECT_ABSOLUTE_PATH',
+      '  taptap-maker canvas ui-archives --target-dir PATH [--canvas-id ID]',
+      '  taptap-maker canvas archive-ui --target-dir PATH --canvas-id ID',
       '  taptap-maker canvas <action> --target-dir PATH --page-id ID --canvas-id ID --revision N --input-file FILE',
       '  taptap-maker canvas status|wait --target-dir PATH --operation-id ID',
       '  taptap-maker canvas import --target-dir PATH --page-id ID --canvas-id ID --revision N --file ABSOLUTE_FILE',

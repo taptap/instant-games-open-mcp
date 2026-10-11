@@ -16,15 +16,37 @@ const models = [
   { id: 'vision-a', model: 'test-vision', endpoint: 'https://example.invalid/chat/completions' },
 ];
 const element = {
-  id: 'B1',
+  id: 'E001',
   name: '购买按钮',
-  category: 'action',
-  rect: [0, 0, 1, 1],
-  parentId: null,
-  zIndex: 1,
-  states: ['normal'],
-  cutout: true,
+  type: 'button',
+  bbox: [0, 0, 1, 1],
+  parent: null,
 };
+function modelResponse(data: unknown) {
+  return new Response(
+    JSON.stringify({ choices: [{ message: { content: JSON.stringify(data) } }] })
+  );
+}
+const cutResponse = () =>
+  modelResponse({ pass: 'cut', image: { width: 1, height: 1 }, elements: [element] });
+const textResponse = () =>
+  modelResponse({
+    pass: 'text',
+    image: { width: 1, height: 1 },
+    texts: [
+      {
+        id: 'T001',
+        text: '购买',
+        bbox: [0, 0, 1, 1],
+        parentId: 'E001',
+        role: 'button',
+        align: 'center',
+        color: '#F2D48A',
+        bold: true,
+        cutout: false,
+      },
+    ],
+  });
 async function setup() {
   const files = new MakerCanvasFiles(root);
   const document = await files.create('识图测试', 'empty');
@@ -46,7 +68,18 @@ async function setup() {
     assetPath: media.relativePath,
     uiRecognition: { enabled: true, model: 'vision-a', results: [], pendingId: id },
   };
-  document.nodes.push(node);
+  const original = { ...node, id: randomUUID(), title: '原设计稿', uiRecognition: undefined };
+  Object.assign(node, {
+    generation: {
+      operation: 'variant',
+      prompt: '去文字',
+      sourceImageId: original.id,
+      sourceImageIds: [original.id],
+      referenceImagePaths: [media.relativePath],
+    },
+  });
+  document.nodes.push(original, node);
+  document.edges.push({ id: randomUUID(), from: original.id, to: node.id, kind: 'image-variant' });
   const saved = await files.save(document.id, document, document.revision);
   return {
     canvasId: saved.id,
@@ -63,30 +96,36 @@ async function setup() {
 
 test('persists results, binds image identity and deduplicates concurrent requests', async () => {
   const { canvasId, input } = await setup();
-  const fetcher = jest.fn(
-    async () =>
-      new Response(
-        JSON.stringify({
-          choices: [{ message: { content: JSON.stringify({ elements: [element] }) } }],
-        })
-      )
-  );
+  const fetcher = jest
+    .fn()
+    .mockResolvedValueOnce(cutResponse())
+    .mockResolvedValueOnce(textResponse());
   const service = new CanvasRecognitionService(root, models, fetcher);
   const [first, duplicate] = await Promise.all([
     service.run(canvasId, input),
     service.run(canvasId, input),
   ]);
-  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher).toHaveBeenCalledTimes(2);
   expect(first).toEqual(duplicate);
   expect(first.status).toBe('succeeded');
   expect(first.result?.sourceSha256).toMatch(/^[a-f0-9]{64}$/);
-  expect(first.result?.elements[0].id).toBe('B1');
+  expect(first.result?.elements[0].id).toBe('E001');
+  expect(first.result?.bbox?.texts[0].text).toBe('购买');
+  const firstBody = JSON.parse(fetcher.mock.calls[0][1].body);
+  const secondBody = JSON.parse(fetcher.mock.calls[1][1].body);
+  expect(firstBody.reasoning_effort).toBe('low');
+  expect(secondBody.reasoning_effort).toBe('low');
+  expect(firstBody.messages[0].content[0].text).toContain('不要输出文字层');
+  expect(secondBody.messages[0].content[0].text).toContain('这次只识别');
+  expect(secondBody.messages[0].content[0].text).toContain('E001');
   expect(new CanvasRecognitionService(root, models, fetcher).query(canvasId, input.id)).toEqual(
     first
   );
   await service.run(canvasId, input);
-  expect(fetcher).toHaveBeenCalledTimes(1);
-  expect(service.modelsForDisplay()).toEqual([{ id: 'vision-a', model: 'test-vision' }]);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(service.modelsForDisplay()).toEqual([
+    { id: 'vision-a', model: 'test-vision', source: 'custom' },
+  ]);
 });
 
 test('a lost response stays unknown and reusing the ID never repeats a paid request', async () => {
@@ -102,8 +141,33 @@ test('a lost response stays unknown and reusing the ID never repeats a paid requ
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
+test.each([
+  ['local', '画布不能直接调用客户端模型'],
+  ['server', '当前选择的是 Server API，但服务端识图尚未开通'],
+])(
+  'unsupported vision source %s stops clearly before submitting a local request',
+  async (source, message) => {
+    const { canvasId, input } = await setup();
+    const fetcher = jest.fn();
+    const service = new CanvasRecognitionService(
+      root,
+      [
+        {
+          id: 'vision-a',
+          model: 'gpt-6.1-sol',
+          endpoint: '',
+          source: source as 'local' | 'server',
+        },
+      ],
+      fetcher
+    );
+    await expect(service.run(canvasId, input)).rejects.toThrow(message);
+    expect(fetcher).not.toHaveBeenCalled();
+  }
+);
+
 test.each(['{"elements":[]}', 'null', 'not JSON'])(
-  'invalid recognition output %s gives model-switch guidance',
+  'invalid recognition output %s stops without switching models',
   async (content) => {
     const { canvasId, input } = await setup();
     const service = new CanvasRecognitionService(
@@ -114,7 +178,7 @@ test.each(['{"elements":[]}', 'null', 'not JSON'])(
     const attempt = await service.run(canvasId, input);
     expect(attempt.status).toBe('failed');
     expect(attempt.result).toBeUndefined();
-    expect(attempt.error).toContain('切换识图模型');
+    expect(attempt.error).toContain('GPT-6.1 Sol');
   }
 );
 
@@ -141,6 +205,48 @@ test('querying missing attempts does not create storage', () => {
   expect(fs.existsSync(path.join(root, '.maker', 'canvases', 'recognition-attempts'))).toBe(false);
 });
 
+test.each([503, 'invalid'])(
+  'second-pass failure %s retains cut results without replay',
+  async (failure) => {
+    const { canvasId, input } = await setup();
+    const fetcher = jest
+      .fn()
+      .mockResolvedValueOnce(cutResponse())
+      .mockResolvedValueOnce(
+        failure === 503
+          ? new Response('provider detail', { status: 503 })
+          : modelResponse({
+              pass: 'text',
+              image: { width: 1, height: 1 },
+              texts: [{ id: 'invalid' }],
+            })
+      );
+    const service = new CanvasRecognitionService(root, models, fetcher);
+    const attempt = await service.run(canvasId, input);
+    expect(attempt.status).toBe(failure === 503 ? 'unknown' : 'failed');
+    expect(attempt.phase).toBe('text');
+    expect(attempt.cut?.elements[0].id).toBe('E001');
+    expect(attempt.result).toBeUndefined();
+    await service.run(canvasId, input);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  }
+);
+
+test('actual image sizes and a unique original are checked before billing', async () => {
+  const { canvasId, input } = await setup();
+  const fetcher = jest.fn();
+  const service = new CanvasRecognitionService(root, models, fetcher);
+  await expect(service.run(canvasId, { ...input, width: 2 })).rejects.toThrow('真实尺寸');
+  const files = new MakerCanvasFiles(root);
+  const document = await files.load(canvasId);
+  document.edges = [];
+  const saved = await files.save(canvasId, document, document.revision);
+  await expect(service.run(canvasId, { ...input, revision: saved.revision })).rejects.toThrow(
+    '唯一'
+  );
+  expect(fetcher).not.toHaveBeenCalled();
+});
+
 test('pending text removal cannot submit recognition of an old image', async () => {
   const { canvasId, input } = await setup();
   const files = new MakerCanvasFiles(root);
@@ -155,8 +261,9 @@ test('pending text removal cannot submit recognition of an old image', async () 
     width: 400,
     height: 400,
   });
-  document.nodes[0].sectionId = groupId;
-  document.nodes[0].templatePending = true;
+  const source = document.nodes.find((node) => node.id === input.nodeId)!;
+  source.sectionId = groupId;
+  source.templatePending = true;
   const saved = await files.save(canvasId, document, document.revision);
   const fetcher = jest.fn();
   const service = new CanvasRecognitionService(root, models, fetcher);
@@ -165,8 +272,8 @@ test('pending text removal cannot submit recognition of an old image', async () 
 });
 
 test.each([
-  [400, 'failed', '切换'],
-  [422, 'failed', '切换'],
+  [400, 'failed', 'GPT-6.1 Sol'],
+  [422, 'failed', 'GPT-6.1 Sol'],
   [401, 'failed', '密钥'],
   [429, 'failed', '限流'],
   [503, 'unknown', '原请求'],

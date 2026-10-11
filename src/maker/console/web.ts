@@ -37,6 +37,7 @@ export function getConsoleHtml(): string {
     <select id="project-picker" aria-label="当前项目" disabled><option value="">选择本地项目</option></select>
     <button id="projects-button" class="icon-button" aria-label="本地项目列表" title="本地项目列表"></button>
     <label class="theme">深色<input id="theme" type="checkbox" role="switch" checked aria-label="深色模式"></label>
+    <button id="settings-button" class="icon-button" aria-label="设置" title="设置"></button>
   </div>
 </header>
 <div class="navigation">

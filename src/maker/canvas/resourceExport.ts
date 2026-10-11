@@ -11,8 +11,31 @@ import { createSequenceExport } from './sequenceExport.js';
 import { openImageAtlasDialog } from './imageAtlasUi.js';
 import { createImageAssetsZip } from './imageAssets.js';
 import { isGameUiResource, openGameUiHandoff } from './uiWorkflowHandoff.js';
+import {
+  createResourceBundleZip,
+  resourceBundleMembers,
+  validateResourceBundle,
+} from './resourceBundle.js';
 
-export function canvasExportFormats(node?: CanvasNode): Array<{ format: string; label: string }> {
+export function canvasExportFormats(
+  node?: CanvasNode,
+  current?: CanvasDocument
+): Array<{ format: string; label: string }> {
+  if (
+    node &&
+    ['section', 'resource-bundle'].includes(node.type) &&
+    current &&
+    resourceBundleMembers(current, node.id).length
+  )
+    return [
+      {
+        format: 'bundle',
+        label:
+          node.type === 'resource-bundle'
+            ? '导出已完成素材（分类 ZIP）'
+            : '下载全部素材（PNG ZIP）',
+      },
+    ];
   if (node?.type === 'image-assets') return [{ format: 'images', label: '独立 PNG 素材包' }];
   if (node?.type === 'model') return [{ format: 'model', label: 'Maker 模型包（含材质贴图）' }];
   if (!node || !['image', 'video', 'video-source', 'sequence', 'animation'].includes(node.type))
@@ -37,12 +60,18 @@ export async function downloadCanvasResource(
   progress?: (message: string) => void,
   identity = canvasExportIdentity(undefined, node),
   loop = true,
-  sink?: (blob: Blob, filename: string) => Promise<void>
+  sink?: (blob: Blob, filename: string) => Promise<void>,
+  current?: CanvasDocument
 ): Promise<void> {
+  const bundle =
+    ['section', 'resource-bundle'].includes(node.type) && format === 'bundle' && current;
+  if (bundle) validateResourceBundle(current, node.id);
   if (
-    (!node.assetPath && !(node.type === 'image-assets' && node.imageAssetsInfo?.items.length)) ||
+    (!bundle &&
+      !node.assetPath &&
+      !(node.type === 'image-assets' && node.imageAssetsInfo?.items.length)) ||
     node.templatePending ||
-    !canvasExportFormats(node).some((item) => item.format === format)
+    !canvasExportFormats(node, current).some((item) => item.format === format)
   )
     throw new Error('此卡片尚无可导出的生成结果。');
   const sequence = node.type === 'sequence' || node.type === 'animation';
@@ -59,7 +88,8 @@ export async function downloadCanvasResource(
     );
     return;
   }
-  const extension = sequence || assets ? 'zip' : node.assetPath!.split('.').pop()?.toLowerCase();
+  const extension =
+    sequence || assets || bundle ? 'zip' : node.assetPath!.split('.').pop()?.toLowerCase();
   const types: Record<string, string> = {
     zip: 'application/zip',
     mp4: 'video/mp4',
@@ -77,7 +107,11 @@ export async function downloadCanvasResource(
         suggestedName: filename,
         types: [
           {
-            description: sequence ? '序列帧资源包' : assets ? '独立 PNG 素材包' : '视频原文件',
+            description: sequence
+              ? '序列帧资源包'
+              : assets || bundle
+                ? '独立 PNG 素材包'
+                : '视频原文件',
             accept: { [mime]: ['.' + extension] },
           },
         ],
@@ -88,7 +122,9 @@ export async function downloadCanvasResource(
     throw error;
   }
   let blob: Blob;
-  if (sequence) {
+  if (bundle) {
+    blob = await createResourceBundleZip(current, node.id, mediaUrl, progress);
+  } else if (sequence) {
     progress?.('正在准备序列帧导出包…');
     blob = await createSequenceExport(
       mediaUrl(node.assetPath!),
@@ -145,7 +181,7 @@ export function createCanvasResourceExport(options: {
   error(message: string): void;
   progress?(message: string): void;
   model?: { ready(id: string): boolean; download(id: string): Promise<void> };
-  assets?: { open(id: string): Promise<boolean> };
+  assets?: { open(id: string, targetId?: string): Promise<boolean> };
 }) {
   let busy = false;
   async function download(node: CanvasNode, format: string, loop = true) {
@@ -159,7 +195,8 @@ export function createCanvasResourceExport(options: {
         return;
       }
       const identity = canvasExportIdentity(options.getDocument(), saved);
-      const current = options.getDocument();
+      const document = options.getDocument();
+      const current = document && structuredClone(document);
       const handoff = isGameUiResource(current, saved);
       let downloaded = false;
       await downloadCanvasResource(
@@ -171,7 +208,9 @@ export function createCanvasResourceExport(options: {
           options.progress?.(message);
         },
         identity,
-        loop
+        loop,
+        undefined,
+        current
       );
       if (downloaded && handoff && current?.id === options.getDocument()?.id)
         openGameUiHandoff(current!.id);
@@ -185,7 +224,7 @@ export function createCanvasResourceExport(options: {
     download,
     context(menu: HTMLElement, node?: CanvasNode) {
       menu.querySelector('[data-resource-export]')?.remove();
-      const formats = canvasExportFormats(node);
+      const formats = canvasExportFormats(node, options.getDocument());
       if (!node || !formats.length) return;
       const saved = structuredClone(node);
       const group = document.createElement('div');
@@ -196,25 +235,50 @@ export function createCanvasResourceExport(options: {
       toggle.setAttribute('aria-expanded', 'false');
       toggle.disabled =
         busy ||
-        (saved.type === 'model'
-          ? !options.model?.ready(saved.id)
-          : (!saved.assetPath &&
-              !(saved.type === 'image-assets' && saved.imageAssetsInfo?.items.length)) ||
-            Boolean(saved.templatePending) ||
-            (['sequence', 'animation'].includes(saved.type) && !saved.frameSetInfo?.frames.length));
+        (saved.type === 'section'
+          ? false
+          : saved.type === 'model'
+            ? !options.model?.ready(saved.id)
+            : (!saved.assetPath &&
+                !(saved.type === 'image-assets' && saved.imageAssetsInfo?.items.length)) ||
+              Boolean(saved.templatePending) ||
+              (['sequence', 'animation'].includes(saved.type) &&
+                !saved.frameSetInfo?.frames.length));
       toggle.title = busy
         ? '资源正在导出，请稍候'
         : toggle.disabled
           ? '尚无已保存的生成结果'
           : '导出当前已保存的资源，不包含未保存的处理草稿';
-      if (saved.type === 'image-assets') {
-        toggle.textContent = '下载素材（PNG ZIP）';
+      if (saved.type === 'image-assets' || saved.type === 'section') {
+        toggle.textContent =
+          saved.type === 'section' ? '下载全部素材（PNG ZIP）' : '下载素材（PNG ZIP）';
         toggle.removeAttribute('aria-expanded');
         toggle.addEventListener('click', () => {
           menu.hidden = true;
-          void download(saved, 'images');
+          void download(saved, saved.type === 'section' ? 'bundle' : 'images');
         });
         group.append(toggle);
+        if (options.assets && saved.type === 'image-assets') {
+          const adjust = document.createElement('button');
+          adjust.type = 'button';
+          adjust.textContent = '调整切图参数';
+          const current = options.getDocument();
+          const edge = current?.edges.find(
+            (item) => item.kind === 'image-assets' && item.to === saved.id
+          );
+          const source = current?.nodes.find(
+            (item) => item.id === edge?.from && item.type === 'image'
+          );
+          adjust.disabled = busy || !source?.assetPath || Boolean(source.templatePending);
+          adjust.addEventListener('click', () => {
+            menu.hidden = true;
+            if (source)
+              void options.assets!.open(source.id, saved.id).catch((error) => {
+                options.error((error as Error).message);
+              });
+          });
+          group.append(adjust);
+        }
         if (isGameUiResource(options.getDocument(), saved)) {
           const next = document.createElement('button');
           next.type = 'button';

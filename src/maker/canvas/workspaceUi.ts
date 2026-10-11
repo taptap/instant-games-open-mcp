@@ -47,6 +47,7 @@ export function createCanvasWorkspace(options: {
   for (const id of [
     'add-generation',
     'add-image',
+    'add-ui-recognition',
     'add-video-source',
     'add-video',
     'add-note',

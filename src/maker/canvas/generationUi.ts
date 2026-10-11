@@ -11,6 +11,7 @@ import {
 } from './dependencies.js';
 import { createPromptEditor, formatBuiltinPrompt } from './promptEditor.js';
 import { selectedUiExtraction } from './uiRecognition.js';
+import { imageAllowsOutpaint } from './imageFeatures.js';
 import {
   IMAGE_OUTPUT_RATIOS,
   canvasOriginalImage,
@@ -21,7 +22,7 @@ import {
 import { createVideoPrompts } from './videoPrompts.js';
 import { videoTaskTiming } from './videoTaskTiming.js';
 import type { TemplateOutputDecision } from './templateWorkflow.js';
-import type { CanvasDocument, CanvasNode } from './model.js';
+import type { CanvasDocument, CanvasEdge, CanvasNode } from './model.js';
 import type { CanvasGenerationAttempt } from '../console/canvasGeneration.js';
 import { videoInputSources, videoAttemptMatchesSources } from './videoInputs.js';
 import { withCanvasTimeout } from './requestTimeout.js';
@@ -159,6 +160,19 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   const attempts = new Map<string, any>();
   const retryableImages = new Set<string>();
   const unconfirmedImages = new Map<string, number>();
+  function imageSizeBlockReason(attempt: any): string | undefined {
+    if (!attempt?.resultImageInfo) return;
+    const current = options.getDocument();
+    if (
+      attempt.cutoutColor &&
+      current?.edges.some(
+        (edge: CanvasEdge) => edge.from === attempt.targetNodeId && edge.kind === 'image-assets'
+      ) &&
+      !isUiCutoutSource(current, attempt.targetNodeId)
+    )
+      return;
+    return imageResultWarning(attempt.resultImageInfo, attempt.parameters?.targetSize);
+  }
   function recordAttempt(attempt: any) {
     attempts.set(attempt.id, attempt);
     const key = attempt.canvasId + ':' + attempt.targetNodeId;
@@ -802,6 +816,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       delete resultNode.generationDraft;
       resultNode.generation = {
         prompt: attempt.prompt,
+        ...(attempt.uiAtlasPlan ? { uiAtlasPlan: structuredClone(attempt.uiAtlasPlan) } : {}),
         ...(attempt.cutoutColor ? { cutoutColor: attempt.cutoutColor } : {}),
         referenceImagePaths: attempt.referenceImagePaths || [],
         parameters: generationParameters(attempt, resultNode),
@@ -956,8 +971,10 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       output.imageInfo = attempt.resultImageInfo;
       const warning = imageResultWarning(attempt.resultImageInfo, attempt.parameters?.targetSize);
       if (warning) {
-        if (output.sectionId) output.templatePending = true;
-        options.setError(warning);
+        if (imageSizeBlockReason(attempt)) {
+          if (output.sectionId) output.templatePending = true;
+          options.setError(warning);
+        } else options.log?.(warning, 'warning');
       }
     }
     void options.loadMedia(attempt.resultAssetPath).then(() => options.render());
@@ -981,7 +998,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const documentState = options.getDocument();
     if (!documentState || inFlight.has(node.id) || importingReferences.has(referenceKey(node)))
       return;
-    if (node.mergeIcons && operation === 'outpaint') {
+    if (node.type === 'image' && !imageAllowsOutpaint(node) && operation === 'outpaint') {
       options.setError('二合图标卡用于阶段图集生成，不支持扩展画面；请使用普通图片卡。');
       return;
     }
@@ -1089,6 +1106,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           .find((line: string) => line.startsWith('输出排版校正：'));
         prompt = extraction.prompt + (correction ? String.fromCharCode(10) + correction : '');
       } else if (node.uiExtraction && node.uiBaselinePrompt) prompt = node.uiBaselinePrompt;
+      const atlasPlan = selectedUiAtlasPlan(documentState, node);
+      if (atlasPlan)
+        prompt = prompt.split('UI 槽位绑定：')[0].trim() + '\n' + uiAtlasOrderPrompt(atlasPlan);
       if (targetId && isUiCutoutSource(documentState, targetId)) {
         cutoutColor = await detectUiCutoutColor(
           [...sourceNodes.map((source) => source.assetPath), ...referencePaths(node)],
@@ -1112,6 +1132,13 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         drafts.set(node.id, prompt);
         input.value = prompt;
         options.markDirty();
+      } else if (
+        targetId &&
+        documentState.edges.some(
+          (edge: CanvasEdge) => edge.from === targetId && edge.kind === 'image-assets'
+        )
+      ) {
+        cutoutColor = node.generation?.cutoutColor;
       }
       if (!(await options.flush())) {
         options.setError('画布尚未保存，保存成功后再生成。');
@@ -1156,9 +1183,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         options.log?.(node.title + '：图片生成完成', 'info');
         applyAttempt(attempt, true, Boolean(node.assetPath));
         for (const warning of attempt.warnings || []) options.log?.(warning, 'warning');
-        const mismatch =
-          attempt.resultImageInfo &&
-          imageResultWarning(attempt.resultImageInfo, attempt.parameters?.targetSize);
+        const mismatch = imageSizeBlockReason(attempt);
         if (mismatch) {
           const result = documentState.nodes.find(
             (item: CanvasNode) => item.generation?.attemptId === attempt.id
@@ -1422,21 +1447,16 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     const latest = latestNodeAttempt(nodeId);
     if (
       latest?.status === 'succeeded' &&
-      latest.id !== previous &&
       latest.prompt === (node.generationDraft?.prompt || node.generation?.prompt)
     ) {
       if (recoverImage(latest, list)) {
         const saved = await options.flush();
-        return (
-          saved &&
-          !(
-            latest.resultImageInfo &&
-            imageResultWarning(latest.resultImageInfo, latest.parameters?.targetSize)
-          )
-        );
+        return saved && !imageSizeBlockReason(latest);
       }
-      options.setError('原图片已生成，但卡片或输入已变化，未覆盖当前内容，也未重复生成。');
-      return false;
+      if (latest.id !== previous) {
+        options.setError('原图片已生成，但卡片或输入已变化，未覆盖当前内容，也未重复生成。');
+        return false;
+      }
     }
     const recorded = list.find(
       (attempt: any) => attempt.id === previous && attempt.targetNodeId === nodeId
@@ -1461,13 +1481,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       templateRun: true,
     });
     return Boolean(
-      !(
-        attempts.get(node.generation?.attemptId)?.resultImageInfo &&
-        imageResultWarning(
-          attempts.get(node.generation?.attemptId)!.resultImageInfo!,
-          attempts.get(node.generation?.attemptId)!.parameters?.targetSize
-        )
-      ) &&
+      !imageSizeBlockReason(attempts.get(node.generation?.attemptId)) &&
         node.generation?.attemptId &&
         node.generation.attemptId !== previous &&
         (await options.flush())
@@ -2200,13 +2214,21 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       return false;
     const target = current.nodes.find((node: any) => node.id === attempt.targetNodeId);
     if (!target?.assetPath) return applyAttempt(attempt, persist);
-    if (target.generation?.attemptId === attempt.id) return false;
+    const applied = target.generation?.attemptId === attempt.id;
+    if (
+      applied &&
+      (!target.templatePending ||
+        !attempt.resultImageInfo ||
+        !imageResultWarning(attempt.resultImageInfo, attempt.parameters?.targetSize) ||
+        imageSizeBlockReason(attempt))
+    )
+      return false;
     if (target.type !== 'image' || latestNodeAttempt(target.id)?.id !== attempt.id) return false;
     // Legacy image attempts lack target snapshots; only a still-pending, unchanged
     // prior generated result can be replaced by their completed successor.
     const prior = list.find((item: any) => item.id === target.generation?.attemptId);
     const targetPath =
-      attempt.targetAssetPath ??
+      (applied ? attempt.resultAssetPath : attempt.targetAssetPath) ??
       (target.templatePending &&
       prior?.targetNodeId === target.id &&
       prior.createdAt < attempt.createdAt
@@ -2251,6 +2273,15 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       JSON.stringify(referencePaths(target)) !== JSON.stringify(attempt.referenceImagePaths || [])
     )
       return false;
+    if (applied) {
+      if (persist) options.remember();
+      delete target.templatePending;
+      if (persist) {
+        options.markDirty();
+        options.render();
+      }
+      return true;
+    }
     return applyAttempt(attempt, persist, true);
   }
 
@@ -2491,3 +2522,4 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     },
   };
 }
+import { selectedUiAtlasPlan, uiAtlasOrderPrompt } from './uiAssetBindings.js';

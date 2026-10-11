@@ -1226,10 +1226,11 @@ function updateChrome() {
   $('context').title = currentProject()?.name || '本地项目';
   $('footer-path').textContent = currentProject()?.path || '';
   document.querySelectorAll('nav [data-page]').forEach(b => {
-    b.disabled = !loaded || (b.dataset.page !== 'documents' && !currentProject()?.valid);
+    b.disabled = !loaded || (!['documents','settings'].includes(b.dataset.page) && !currentProject()?.valid);
     if (b.dataset.page === page) b.setAttribute('aria-current','page');
     else b.removeAttribute('aria-current');
   });
+  $('settings-button')?.setAttribute('aria-pressed',String(page === 'settings'));
   if ($('heading-actions')) replace($('heading-actions'),headingActionButtons());
   if ($('overview-task')) {
     replace($('overview-task'),overviewTasks());
@@ -2784,8 +2785,117 @@ function renderCanvas() {
   $('close-canvas').hidden = false;
   canvasFrames.forEach((item, itemKey) => { item.hidden = itemKey !== key; });
 }
+async function renderVisionSettings() {
+  if ($('ui-vision-settings')) return;
+  const epoch = viewEpoch;
+  const panel = node('section',undefined,'card');
+  panel.id = 'ui-vision-settings';
+  panel.append(node('h2','识图设置'));
+  replace($('view'),[panel]);
+  try {
+    const settings = await api('/api/settings/ui-vision');
+    if (page !== 'settings' || epoch !== viewEpoch) return;
+    const form = node('form');
+    form.noValidate = true;
+    const source = node('select');
+    source.append(
+      node('option','本地模型'),
+      node('option','Server API'),
+      node('option','自定义 API')
+    );
+    source.options[0].value = 'local';
+    source.options[1].value = 'server';
+    source.options[2].value = 'custom';
+    source.value = settings.source || 'local';
+    const baseUrl = node('input');
+    baseUrl.type = 'url'; baseUrl.value = settings.baseUrl || '';
+    const key = node('input');
+    key.type = 'password'; key.autocomplete = 'off'; key.maxLength = 4096;
+    const field = (title,input) => { const label = node('label',title,'field'); label.append(input); return label; };
+    const baseField = field('Base URL',baseUrl);
+    const keyField = field('API Key',key);
+    const status = node('p',settings.error || '','muted');
+    const customConfig = node('div');
+    const actions = node('div',undefined,'actions');
+    key.placeholder = settings.configured ? '已保存（不回显），留空保持不变' : '输入 API Key';
+    const syncSourceFields = () => {
+      const custom = source.value === 'custom';
+      customConfig.hidden = !custom;
+      baseField.hidden = !custom;
+      keyField.hidden = !custom;
+      baseUrl.required = custom;
+      key.required = custom && !settings.configured;
+    };
+    const save = button('保存设置',() => {},{className:'primary'});
+    save.type = 'submit';
+    const clear = button('清除设置',async () => {
+      if (!window.confirm('清除本机识图接口和 API Key？不会取消已提交的请求。')) return;
+      save.disabled = clear.disabled = true;
+      try { await api('/api/settings/ui-vision',{method:'DELETE'}); key.value = ''; if (page === 'settings') { panel.remove(); void renderVisionSettings(); } }
+      catch (error) { status.className = 'bad'; status.textContent = error.message; }
+      finally { save.disabled = clear.disabled = false; }
+    });
+    let sourceSaveRequest = 0;
+    const saveSource = async () => {
+      const request = ++sourceSaveRequest;
+      source.disabled = true;
+      try {
+        const saved = await api('/api/settings/ui-vision',{method:'PUT',body:{source:source.value,baseUrl:'',apiKey:''}});
+        if (request === sourceSaveRequest) {
+          Object.assign(settings,saved);
+          status.className = 'muted';
+          status.textContent = '识图方式已切换。';
+        }
+      } catch (error) {
+        if (request !== sourceSaveRequest) return;
+        status.className = 'bad';
+        status.textContent = error.message;
+        source.value = settings.source || 'local';
+        syncSourceFields();
+      } finally {
+        if (request === sourceSaveRequest) source.disabled = false;
+      }
+    };
+    source.onchange = () => {
+      syncSourceFields();
+      status.className = 'muted';
+      status.textContent = '';
+      if (source.value !== 'custom') void saveSource();
+    };
+    actions.append(save,clear);
+    customConfig.append(baseField,keyField,actions);
+    form.append(field('识图方式',source),customConfig,status);
+    form.onsubmit = async event => {
+      event.preventDefault();
+      if (source.value === 'custom') {
+        if (!baseUrl.value.trim()) {
+          status.className = 'bad';
+          status.textContent = '请填写 Base URL，例如 https://api.openai.com/v1。';
+          return;
+        }
+        if (!key.value.trim() && !settings.configured) {
+          status.className = 'bad';
+          status.textContent = '请填写 API Key。';
+          return;
+        }
+      }
+      source.disabled = save.disabled = clear.disabled = true;
+      try {
+        const saved = await api('/api/settings/ui-vision',{method:'PUT',body:{source:source.value,baseUrl:baseUrl.value.trim(),apiKey:key.value}});
+        Object.assign(settings,saved);
+        baseUrl.value = saved.baseUrl;
+        syncSourceFields();
+        key.value = ''; key.placeholder = '已保存（不回显），留空保持不变';
+        status.className = 'muted'; status.textContent = '已保存。';
+      } catch (error) { status.className = 'bad'; status.textContent = error.message; }
+      finally { source.disabled = save.disabled = clear.disabled = false; }
+    };
+    panel.append(form);
+    syncSourceFields();
+  } catch (error) { if (page === 'settings' && epoch === viewEpoch) panel.append(node('p',error.message)); }
+}
 function navigate(next) {
-  if (!currentProject()?.valid && next !== 'projects' && next !== 'documents') return;
+  if (!currentProject()?.valid && !['projects','documents','settings'].includes(next)) return;
   viewEpoch++; commitRequest++; gitLoading = false; page = next;
   render();
   if (next === 'overview' && !detail) void loadProject();
@@ -2808,6 +2918,7 @@ function render() {
   if (page === 'ui-editor') { renderUiEditor(); return; }
   if (plugin) { renderPlugin(plugin); return; }
   if (page === 'documents') { void renderDocuments(); return; }
+  if (page === 'settings') { void renderVisionSettings(); return; }
   if (page === 'projects' || !currentProject()?.valid) renderProjects();
   else if (page === 'build') renderBuild();
   else if (page === 'git') renderGit();
@@ -2869,6 +2980,7 @@ async function pollState() {
     initialUiProject = selected;
   }
   if (first && initialQuery.get('page') === 'documents') page = 'documents';
+  if (first && initialQuery.get('page') === 'settings') page = 'settings';
   const settled = [];
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
@@ -2887,11 +2999,11 @@ async function pollState() {
   $('connection').title = '最近连接：' + new Date().toLocaleTimeString('zh-CN');
   $('connection').className = 'good';
   lastStateError = '';
-  if (selected && !currentProject()?.valid && page !== 'projects' && page !== 'documents') page = 'projects';
+  if (selected && !currentProject()?.valid && !['projects','documents','settings'].includes(page)) page = 'projects';
   let projectChanged = false;
   if (first && projectNotice === '') projectNotice = currentProjectNotice();
   else projectChanged = publishProjectChange();
-  if (projectChanged || (first && ['ui-editor', 'documents'].includes(page))) render();
+  if (projectChanged || (first && ['ui-editor', 'documents', 'settings'].includes(page))) render();
   else {
     updateChrome();
     if (page === 'projects' && (first || priorProjects !== JSON.stringify(state.projects))) renderProjects();
@@ -2995,6 +3107,7 @@ document.addEventListener('DOMContentLoaded',async () => {
     }
   });
   $('projects-button').append(icon('folder'));
+  $('settings-button').append(icon('settings'));
   const fortunePanel = $('fortune-panel');
   const fortuneFrame = $('fortune-frame');
   fortunePanel.classList.add('fortune-preload');
@@ -3015,6 +3128,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   window.addEventListener('resize',() => { if (!$('fortune-panel').hidden) positionFortune(); });
   document.addEventListener('keydown',event => { if (event.key === 'Escape') closeFortune(); });
   $('projects-button').addEventListener('click',() => navigate('projects'));
+  $('settings-button').addEventListener('click',() => navigate('settings'));
   $('close-canvas').addEventListener('click',closeCurrentCanvas);
   $('project-picker').addEventListener('change',event => chooseProject(event.target.value));
   $('maker-version-picker').addEventListener('change',selectMakerVersion);

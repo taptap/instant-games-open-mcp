@@ -176,12 +176,12 @@ function recognitionRunFixture() {
   return { ...state, source, run, start, command };
 }
 
-test('CLI enables recognition and asks the calling AI for a list without invoking a provider', async () => {
+test('CLI enables recognition and invokes the fixed-provider workflow before downstream work', async () => {
   const { ui, command, source, run, start, options } = recognitionRunFixture();
-  await expect(ui.execute(command)).rejects.toThrow('当前 AI 看图');
+  await expect(ui.execute(command)).rejects.toThrow('Bbox JSON');
   expect(source.uiRecognition?.enabled).toBe(true);
   expect(options.save).toHaveBeenCalled();
-  expect(run).not.toHaveBeenCalled();
+  expect(run).toHaveBeenCalledWith(source.id);
   expect(start).not.toHaveBeenCalled();
 });
 
@@ -264,7 +264,7 @@ test('an asynchronous template insertion serializes mutations but permits inspec
   expect(globals.document.body.inert).toBe(false);
 });
 
-test('CLI completes text removal before asking AI to recognize its output', async () => {
+test('CLI completes text removal before recognizing its output', async () => {
   const { ui, command, source, run, start } = recognitionRunFixture();
   source.templatePending = true;
   source.assetPath = 'old-example.png';

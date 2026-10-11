@@ -17,7 +17,12 @@ export function canvasNeedsProcessing(
   node: CanvasNode,
   visiting = new Set<string>()
 ): boolean {
-  if (node.uiRecognition?.enabled && !selectedUiRecognition(node)) return true;
+  if (
+    node.uiRecognition?.enabled &&
+    node.uiRecognition.inputRole !== 'design' &&
+    !selectedUiRecognition(node)
+  )
+    return true;
   if (node.templatePending || mergeIconNeedsGeneration(node)) return true;
   if (node.videoInputMode === 'first_last_frame') {
     const { first, last } = framePairSources(document, node.id);
@@ -40,7 +45,10 @@ export function canvasNeedsProcessing(
 
 export function invalidateCanvasDependents(document: CanvasDocument, nodeId: string): void {
   for (const node of canvasDependents(document, nodeId)) {
-    if (node.sectionId && !['section', 'model', 'model-views'].includes(node.type))
+    if (
+      node.sectionId &&
+      !['section', 'model', 'model-views', 'resource-bundle'].includes(node.type)
+    )
       node.templatePending = true;
   }
 }
@@ -126,7 +134,7 @@ export function createTemplateWorkflow(options: {
     const flow = document?.templateFlow;
     return Boolean(
       node &&
-        !['model', 'model-views'].includes(node.type) &&
+        !['model', 'model-views', 'resource-bundle'].includes(node.type) &&
         ((node.sectionId &&
           document?.nodes.some((section) => section.id === node.sectionId && section.templateId)) ||
           (flow && [flow.imageId, flow.videoId, flow.sequenceId, flow.animationId].includes(id)))
@@ -225,7 +233,7 @@ export function createTemplateWorkflow(options: {
     const document = options.getDocument();
     const node = document?.nodes.find((node) => node.id === id);
     const member = templateMember(id);
-    if (node && ['model', 'model-views'].includes(node.type)) return;
+    if (node && ['model', 'model-views', 'resource-bundle'].includes(node.type)) return;
     if (member)
       return options.isNodeBusy?.(id)
         ? 'loading'
@@ -433,7 +441,9 @@ export function createTemplateWorkflow(options: {
     if (!automatic && options.isQueued?.(id)) return false;
     if (!document || !start || !(firstStep ? canAdjust(id) : canContinue(id, false))) return false;
     const candidates = [start, ...(automatic ? [] : canvasDependents(document, id))].filter(
-      (node) => node.sectionId === start.sectionId && !['model', 'model-views'].includes(node.type)
+      (node) =>
+        node.sectionId === start.sectionId &&
+        !['model', 'model-views', 'resource-bundle'].includes(node.type)
     );
     const remaining = new Set(candidates.map((node) => node.id));
     const ordered: typeof candidates = [];
@@ -565,8 +575,8 @@ export function createTemplateWorkflow(options: {
         container.hidden = false;
         const hint = document.createElement('span');
         hint.textContent = documentState?.nodes.some((node) => node.type === 'image-assets')
-          ? '替换游戏画面、调整道具清单后，继续生成图集；确认网格后解析为独立 PNG 素材。'
-          : '图片已就绪。请先核对朝向、站姿与完整构图，再点击下游待处理卡片的「处理并继续」。';
+          ? '使用或替换参考图，调整内容和网格后运行分组；完成后下载独立 PNG，旧示例不代表本次制作结果。'
+          : '使用或替换参考图，调整提示词后运行分组，或只处理需要的下游卡片；完成后下载图片。';
         container.append(hint);
       }
       return;
