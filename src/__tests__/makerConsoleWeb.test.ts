@@ -149,18 +149,18 @@ describe('Maker console standalone UI', () => {
       ok: true,
       status: 200,
       json: async () => ({
-        configured: false,
-        model: 'gpt-6.1-sol',
-        endpoint: 'https://example.invalid/v1/chat/completions',
+        vision: { source: 'local' },
+        generation: { source: 'maker' },
+        profiles: [],
       }),
     });
     await api.renderVisionSettings();
     expect(view.replaceChildren).toHaveBeenCalledTimes(1);
     expect(view.replaceChildren.mock.calls[0][0].id).toBe('ui-vision-settings');
-    expect(fetch.mock.calls[0][0]).toBe('/api/settings/ui-vision');
+    expect(fetch.mock.calls[0][0]).toBe('/api/settings/models');
   });
 
-  it('keeps a saved vision key when submitting the form again with an empty password', async () => {
+  it('reuses a named API for generation without requesting or submitting its key', async () => {
     const { api, fetch, context } = harness('', '?page=settings');
     api.setPage('settings');
     const view = { querySelectorAll: () => [], contains: () => false, replaceChildren: jest.fn() };
@@ -178,33 +178,42 @@ describe('Maker console standalone UI', () => {
       created.push(element);
       return element;
     }) as any;
-    const response = (configured: boolean) => ({
+    const response = () => ({
       ok: true,
       status: 200,
       json: async () => ({
-        configured,
-        source: configured ? 'custom' : 'local',
-        baseUrl: 'https://example.invalid',
+        vision: { source: 'local' },
+        generation: { source: 'maker' },
+        profiles: [
+          {
+            id: 'shared',
+            name: 'GPT',
+            model: 'image-model',
+            baseUrl: 'https://example.invalid',
+            hasKey: true,
+          },
+        ],
       }),
     });
-    fetch.mockResolvedValue(response(true));
-    fetch.mockResolvedValueOnce(response(false));
+    fetch.mockResolvedValue(response());
     await api.renderVisionSettings();
-    const source = created.find((element) => element.tagName === 'select');
-    const password = created.find((element) => element.type === 'password');
-    const form = created.find((element) => element.tagName === 'form');
+    const selects = created.filter((element) => element.tagName === 'select');
+    expect(selects).toHaveLength(4);
+    const source = selects[2];
+    const profiles = selects[3];
     source.value = 'custom';
-    source.onchange();
-    password.value = 'fixture-key';
-    await form.onsubmit({ preventDefault() {} });
-    expect(password.value).toBe('');
-    expect(password.required).toBe(false);
-    await form.onsubmit({ preventDefault() {} });
-    expect(fetch).toHaveBeenCalledTimes(3);
-    expect(JSON.parse(fetch.mock.calls[2][1].body!)).toMatchObject({
+    await source.onchange();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    profiles.value = 'shared';
+    await profiles.onchange();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetch.mock.calls[1][1].body!)).toEqual({
+      action: 'select',
+      kind: 'generation',
       source: 'custom',
-      apiKey: '',
+      profileId: 'shared',
     });
+    expect(created.some((element) => element.type === 'password')).toBe(false);
     expect(source.disabled).toBe(false);
   });
 

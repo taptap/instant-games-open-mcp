@@ -24,6 +24,7 @@ import { videoTaskTiming } from './videoTaskTiming.js';
 import type { TemplateOutputDecision } from './templateWorkflow.js';
 import type { CanvasDocument, CanvasEdge, CanvasNode } from './model.js';
 import type { CanvasGenerationAttempt } from '../console/canvasGeneration.js';
+import type { CanvasModelSettings } from './store.js';
 import { videoInputSources, videoAttemptMatchesSources } from './videoInputs.js';
 import { withCanvasTimeout } from './requestTimeout.js';
 import {
@@ -58,6 +59,7 @@ export function imageEditSources(
 export interface CanvasGenerationUiOptions {
   videoPrompts?: ReturnType<typeof createVideoPrompts>;
   store: {
+    modelSettings?(): Promise<CanvasModelSettings>;
     importImage(
       canvasId: string,
       bytes: ArrayBuffer,
@@ -1937,6 +1939,26 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         });
       });
       fields.append(imageModel, imageResolution, imageRatio);
+      if (options.store.modelSettings) {
+        void options.store
+          .modelSettings()
+          .then((settings) => {
+            if (!panel.isConnected) return;
+            imageModel.hidden = settings.generation.source !== 'maker';
+            if (settings.generation.source !== 'maker') {
+              const provider = document.createElement('div');
+              const profile = settings.profiles.find(
+                (item) => item.id === settings.generation.profileId
+              );
+              provider.textContent =
+                settings.generation.source === 'local'
+                  ? '本地模型（仅限 CLI 调用）'
+                  : '自定义 API：' + (profile ? profile.name + ' · ' + profile.model : '尚未配置');
+              fields.prepend(provider);
+            }
+          })
+          .catch((error) => options.setError(error.message));
+      }
       panel.append(fields);
     } else {
       const fields = document.createElement('div');

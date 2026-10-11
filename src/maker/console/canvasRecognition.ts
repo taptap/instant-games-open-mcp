@@ -40,7 +40,7 @@ export function configuredUiVisionModels(): UiVisionModel[] {
       return [
         {
           id: UI_VISION_MODEL,
-          model: UI_VISION_MODEL,
+          model: local.model || UI_VISION_MODEL,
           endpoint: visionChatCompletionsUrl(local.baseUrl),
           source: 'custom',
           apiKey: local.apiKey,
@@ -258,7 +258,7 @@ export class CanvasRecognitionService {
     const model = (this.models || configuredUiVisionModels()).find(
       (model) => model.id === input.model
     );
-    if (!model) throw new ConsoleError('请在控制台「设置」配置 GPT-6.1 Sol 识图接口和 API Key。');
+    if (!model) throw new ConsoleError('识图配置已变化，请刷新后重试，并检查设置中的 API 配置。');
     const source = model.source || 'custom';
     if (source === 'local')
       throw new ConsoleError(
@@ -340,7 +340,7 @@ export class CanvasRecognitionService {
             },
             body: JSON.stringify({
               model: model.model,
-              reasoning_effort: 'low',
+              ...(model.model === UI_VISION_MODEL ? { reasoning_effort: 'low' } : {}),
               response_format: { type: 'json_object' },
               messages: [
                 {
@@ -366,11 +366,11 @@ export class CanvasRecognitionService {
               response.status +
               '。' +
               (response.status === 400 || response.status === 422
-                ? '请核对 GPT-6.1 Sol 的模型 ID，以及接口对图片、JSON 和 low 档位的支持。'
+                ? '请核对模型名称，以及接口对图片、JSON 和请求参数的支持。'
                 : response.status === 401 || response.status === 403
                   ? '请检查模型服务密钥和访问权限。'
                   : response.status === 404
-                    ? '请在控制台设置中检查接口地址及 GPT-6.1 Sol 的模型 ID。'
+                    ? '请在控制台设置中检查接口地址及模型名称。'
                     : response.status === 429
                       ? '请检查模型服务额度或限流，稍后再试。'
                       : '请先核对模型服务中的原请求状态，结果可能未知，不会自动重试。');
@@ -424,7 +424,7 @@ export class CanvasRecognitionService {
         };
         attempt.result = {
           id: input.id,
-          model: 'GPT-6.1 Sol / ' + model.model + ' / low',
+          model: model.model + (model.model === UI_VISION_MODEL ? ' / low' : ''),
           prompt: prompt + String.fromCharCode(10, 10) + textPrompt,
           createdAt: new Date().toISOString(),
           durationMs: Date.now() - started,
@@ -441,7 +441,7 @@ export class CanvasRecognitionService {
         const validation = /^(识图|普通文字)/.test(message);
         attempt.status = validation ? 'failed' : 'unknown';
         attempt.error = validation
-          ? message + ' 请核对 GPT-6.1 Sol 接口配置与原稿；不会切换其他模型。'
+          ? message + ' 请核对所选模型的接口配置与原稿；不会切换其他模型。'
           : '识图连接中断或响应无法确认，结果未知；请查询原请求，不会自动重试。';
       } finally {
         this.write(attempt);

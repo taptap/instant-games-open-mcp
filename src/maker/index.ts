@@ -95,6 +95,7 @@ function printHelp(): void {
       '  taptap-maker canvas capabilities',
       '  taptap-maker canvas list|pages|templates --target-dir PROJECT_ABSOLUTE_PATH',
       '  taptap-maker canvas ui-archives --target-dir PATH [--canvas-id ID]',
+      '  taptap-maker canvas model-settings',
       '  taptap-maker canvas archive-ui --target-dir PATH --canvas-id ID',
       '  taptap-maker canvas <action> --target-dir PATH --page-id ID --canvas-id ID --revision N --input-file FILE',
       '  taptap-maker canvas status|wait --target-dir PATH --operation-id ID',

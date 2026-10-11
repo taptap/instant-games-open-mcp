@@ -248,6 +248,36 @@ dialog{background:var(--bg);color:var(--text);border:1px solid var(--border);bor
 dialog::backdrop{background:#0009}
 dialog h2{font-size:18px}dialog .actions{justify-content:flex-end;margin-top:22px}
 dialog p{white-space:pre-wrap;overflow-wrap:anywhere}
+#ui-vision-settings{max-width:720px;padding:28px}
+#ui-vision-settings>h2{margin:0 0 8px;font-size:20px}
+.model-settings-choice{display:grid;gap:14px;padding:24px 0}
+.model-settings-choice+.model-settings-choice{border-top:1px solid var(--border)}
+.model-setting-field{display:grid;gap:8px;min-width:0}
+.model-setting-field>span{font-size:13px;font-weight:500;color:var(--muted);line-height:1.5}
+.model-setting-field>input,.model-setting-field>select{width:100%;min-width:0;min-height:44px;box-sizing:border-box;border-radius:7px;padding:10px 12px}
+.model-settings-choice>.model-setting-field{grid-template-columns:108px minmax(0,1fr);align-items:center;gap:20px}
+.model-settings-custom{margin-left:128px}
+.model-settings-custom>select{flex:1;min-width:0;width:0;min-height:40px;text-overflow:ellipsis}
+.model-settings-custom>button{flex-shrink:0}
+dialog.model-api-dialog{width:480px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);box-sizing:border-box;overflow-y:auto;padding:28px;border-radius:12px;box-shadow:0 24px 80px #0005}
+.model-api-dialog::backdrop{background:#0008;backdrop-filter:blur(4px)}
+.model-api-dialog form{display:grid;gap:18px;min-width:0}
+.model-api-dialog h2{margin:0 0 6px;font-size:20px;line-height:1.4;letter-spacing:-.3px}
+.model-api-dialog input:focus-visible,#ui-vision-settings select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.model-api-dialog input::placeholder{color:var(--muted);opacity:.65}
+.model-api-dialog .bad{margin:0;font-size:13px;line-height:1.6}
+.model-api-dialog .bad:empty,#ui-vision-settings>p:empty{display:none}
+.model-api-dialog .model-api-actions{margin-top:6px;padding-top:20px;border-top:1px solid var(--border);gap:10px}
+.model-api-actions>button{min-height:40px;min-width:76px;border-radius:7px}
+.model-api-actions>.model-api-delete{margin-right:auto;min-width:0;background:transparent;color:var(--muted);border-color:transparent}
+.model-api-actions>.model-api-delete:hover{color:var(--red);border-color:var(--border)}
+@media(max-width:520px){
+  #ui-vision-settings{padding:20px}
+  .model-settings-choice>.model-setting-field{grid-template-columns:minmax(0,1fr);gap:8px}
+  .model-settings-custom{margin-left:0}
+  dialog.model-api-dialog{padding:24px}
+  .model-api-dialog input{font-size:16px}
+}
 .plugin-tabs{display:contents}
 nav{overflow-x:auto;white-space:nowrap}
 .plugin-workspace{min-width:0}

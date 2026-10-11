@@ -14,6 +14,7 @@ import { callRemoteProxyTool } from '../../server/mcp.js';
 import { MakerCanvasFiles } from '../../canvas/files.js';
 import { createId } from '../../canvas/model.js';
 import { CanvasGenerationService } from '../canvasGeneration.js';
+import { updateModelSettings } from '../visionSettings.js';
 import { RemoteProxyToolResultError, RemoteProxyToolCallError } from '../../server/proxyAssets.js';
 
 const callRemoteProxyToolMock = jest.mocked(callRemoteProxyTool);
@@ -53,6 +54,127 @@ describe('CanvasGenerationService', () => {
     fs.rmSync(root, { recursive: true, force: true });
     if (originalMakerHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
     else process.env.TAPTAP_MAKER_HOME = originalMakerHome;
+  });
+
+  function useCustomApi() {
+    const { profiles } = updateModelSettings({
+      action: 'save-profile',
+      name: 'Test images',
+      baseUrl: 'https://images.invalid/v1',
+      apiKey: 'fixture-private-image-key',
+      model: 'test-image-model',
+    });
+    updateModelSettings({
+      action: 'select',
+      kind: 'generation',
+      source: 'custom',
+      profileId: profiles[0].id,
+    });
+  }
+
+  const customPng =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=';
+
+  test('custom generation uses configured model, persists the result and never calls Maker', async () => {
+    useCustomApi();
+    const files = new MakerCanvasFiles(root);
+    const canvas = await files.create('custom', 'empty');
+    const request = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ data: [{ b64_json: customPng }] })));
+    const service = new CanvasGenerationService(root, {} as any);
+    const result = await service.generateImage({
+      canvasId: canvas.id,
+      prompt: 'test',
+      model: 'gpt',
+    });
+    expect(result.status).toBe('succeeded');
+    expect(result).toMatchObject({ provider: 'custom', apiModel: 'test-image-model' });
+    expect(fs.existsSync(path.join(root, result.resultAssetPath!))).toBe(true);
+    expect(request.mock.calls[0][0]).toBe('https://images.invalid/v1/images/generations');
+    expect(JSON.parse(request.mock.calls[0][1]!.body as string)).toMatchObject({
+      model: 'test-image-model',
+      n: 1,
+    });
+    expect(JSON.stringify(result)).not.toContain('fixture-private-image-key');
+    expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
+  });
+
+  test('reference images use multipart edits and a changed setting does not redirect the in-flight request', async () => {
+    useCustomApi();
+    const files = new MakerCanvasFiles(root);
+    const canvas = await files.create('edit', 'empty');
+    const reference = await files.importImage(Buffer.from(customPng, 'base64'));
+    const request = jest.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      updateModelSettings({ action: 'select', kind: 'generation', source: 'local' });
+      return new Response(JSON.stringify({ data: [{ b64_json: customPng }] }));
+    });
+    const result = await new CanvasGenerationService(root, {} as any).generateImage({
+      canvasId: canvas.id,
+      prompt: 'edit',
+      referenceImagePaths: [reference.relativePath],
+    });
+    expect(result.status).toBe('succeeded');
+    expect(request.mock.calls[0][0]).toBe('https://images.invalid/v1/images/edits');
+    const form = request.mock.calls[0][1]!.body as FormData;
+    expect(form.get('model')).toBe('test-image-model');
+    expect(form.getAll('image[]')).toHaveLength(1);
+    expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
+  });
+
+  test('local generation never submits either provider and reports the CLI boundary', async () => {
+    updateModelSettings({ action: 'select', kind: 'generation', source: 'local' });
+    const request = jest.spyOn(globalThis, 'fetch');
+    await expect(
+      new CanvasGenerationService(root, {} as any).generateImage({
+        canvasId: createId(),
+        prompt: 'test',
+      })
+    ).rejects.toThrow('仅限 CLI');
+    expect(request).not.toHaveBeenCalled();
+    expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
+  });
+
+  test('custom API failures are sanitized and never retried or routed to Maker', async () => {
+    useCustomApi();
+    const files = new MakerCanvasFiles(root);
+    const canvas = await files.create('failed', 'empty');
+    const request = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('fixture-private-image-key', { status: 401 }));
+    const service = new CanvasGenerationService(root, {} as any);
+    const result = await service.generateImage({ canvasId: canvas.id, prompt: 'test' });
+    expect(result.status).toBe('failed');
+    expect(result.error).toContain('HTTP 401');
+    expect(JSON.stringify(result)).not.toContain('fixture-private-image-key');
+    await expect(service.retry(result.id, canvas.id)).rejects.toThrow('无法确认');
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
+  });
+
+  test('custom URL download is recoverable without submitting again after settings change', async () => {
+    useCustomApi();
+    const files = new MakerCanvasFiles(root);
+    const canvas = await files.create('download', 'empty');
+    const request = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: [{ url: 'https://cdn.invalid/result.png' }] }))
+      )
+      .mockResolvedValueOnce(new Response('', { status: 503 }))
+      .mockResolvedValueOnce(new Response(Buffer.from(customPng, 'base64')));
+    const service = new CanvasGenerationService(root, {} as any);
+    const failed = await service.generateImage({ canvasId: canvas.id, prompt: 'test' });
+    expect(failed).toMatchObject({ remoteStatus: 'succeeded', failureStage: 'download' });
+    updateModelSettings({ action: 'select', kind: 'generation', source: 'local' });
+    const result = await service.retry(failed.id, canvas.id);
+    expect(result.status).toBe('succeeded');
+    expect(request.mock.calls.map(([url]) => url)).toEqual([
+      'https://images.invalid/v1/images/generations',
+      'https://cdn.invalid/result.png',
+      'https://cdn.invalid/result.png',
+    ]);
+    expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
   });
 
   test('source sizing uses original pixels across intermediates and sends dimensions for every reference', async () => {
@@ -625,11 +747,7 @@ describe('CanvasGenerationService', () => {
       remoteAssetUrl: previewUrl,
     });
     const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
-    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      status: 200,
-      arrayBuffer: async () => png.buffer,
-    } as Response);
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(png));
     const recovered = await new CanvasGenerationService(root, {} as any).retry(
       failed.id,
       document.id
@@ -713,11 +831,7 @@ describe('CanvasGenerationService', () => {
       message: '该图片正在恢复本地下载，请等待当前操作完成。',
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    release({
-      ok: true,
-      status: 200,
-      arrayBuffer: async () => png.buffer,
-    } as Response);
+    release(new Response(png));
     const recovered = await first;
     expect(recovered).toMatchObject({ id: failed.id, status: 'succeeded' });
     expect(recovered.resultAssetPath).toMatch(/^assets\/image\/canvas-/);

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { modelSettingsForDisplay } from '../console/visionSettings.js';
 import { canvasExportDirectory, readCanvasImport, writeCanvasExport } from './automationFiles.js';
 import { selectCanvasSnapshot } from './automationInfo.js';
 import { randomUUID } from 'node:crypto';
@@ -19,6 +20,10 @@ export async function runCanvasCli(
     process.stdout.write(JSON.stringify(value) + String.fromCharCode(10));
   if (action === 'capabilities') {
     print(canvasAutomationCapabilities());
+    return;
+  }
+  if (action === 'model-settings') {
+    print(modelSettingsForDisplay());
     return;
   }
   if (typeof options.target_dir !== 'string')

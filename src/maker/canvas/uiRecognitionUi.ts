@@ -163,7 +163,7 @@ export function createUiRecognitionUi(options: {
       !settings.pendingId &&
       !confirmed &&
       !window.confirm(
-        '使用 GPT-6.1 Sol / low 顺序识图两次：去文字图识别 UI，原稿识别文字。可能产生两次模型费用；不会启动后续生图。'
+        '使用设置中选定的模型顺序识图两次：去文字图识别 UI，原稿识别文字。可能产生两次模型费用；不会启动后续生图。'
       )
     )
       return false;
