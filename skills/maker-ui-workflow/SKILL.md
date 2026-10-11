@@ -24,6 +24,12 @@ check 检查声明和资源，open --no-open 返回控制台 UI 编辑器地址�
 
 ## 准备
 
+调用生图或识图前先执行 `taptap-maker canvas model-settings`，读取全局设置；不自行选择或回退渠道。
+generation=maker 时沿用 Maker；custom 时通过画布 run 调用选定 API，不读取或传递密钥。
+local 时由当前客户端使用自身能力执行，缺少对应能力则提示用户；画布 run 无法调用客户端模型。
+本地图片可用 canvas import 导入，但它只新增图片卡，不会自动回填或完成已有模板节点，
+不得把导入成功当成原工作流完成。已有 Bbox 仍通过 update-nodes 写入所属识图卡并按原契约校验。
+
 读取 Maker 状态并绑定明确的项目目录；沿用对话中已选项目。控制台打开、画布 CLI 和付费生成遵循
 同包 taptap-maker-local 与工具实际 schema。保持同一 target-dir，不凭全局当前项目推断。
 打开控制台后用 canvas pages / snapshot 读取当前页面、画布和 revision；通过页面桥接操作和保存，
@@ -48,8 +54,9 @@ submittedPrompt 包含实际发送的参考图尺寸。实际结果比例不符�
 带当前 page-id、canvas-id、revision 和 target-dir 执行；只有用户明确要求无识图对照时，
 在本次及后续 run 的 input 中显式传 `"recognition":false`，例如
 `{"id":"分组ID","recognition":false}`。仅提前关闭卡片开关不能覆盖 CLI run 的默认值。
-识图使用控制台「设置」选择的本地模型、Server API 或自定义 API，思考档 low，不使用当前对话模型代替。
-自定义 API 只配置 Base URL 和 Key；模型固定为 gpt-6.1-sol，Key 只存本机。
+识图遵循设置：local 才使用当前客户端模型；custom 使用选中的命名 API 配置和模型；
+Server API 未开通时明确提示，不回退。GPT-6.1 Sol 使用 low 档位，其它模型不强加该参数。
+以下两次接口执行步骤适用于 custom；local 按同样输入与 Bbox 契约由客户端识别后写回。
 取得两次识图的付费授权后执行：
 
 1. run「去文字设计稿」，确认其已完成，且直接连线引用唯一原稿。

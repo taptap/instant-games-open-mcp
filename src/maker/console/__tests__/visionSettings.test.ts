@@ -8,6 +8,9 @@ import {
   deleteVisionSettings,
   validateVisionEndpoint,
   visionChatCompletionsUrl,
+  readModelSettings,
+  modelSettingsForDisplay,
+  updateModelSettings,
 } from '../visionSettings.js';
 import { configuredUiVisionModels } from '../canvasRecognition.js';
 import { startConsoleServer } from '../server.js';
@@ -68,6 +71,29 @@ test('settings HTTP route works without a project, requires same origin and reda
     expect(await saved.text()).not.toContain(input.apiKey);
     const status = await fetch(url);
     expect(await status.json()).toMatchObject({ configured: true, source: 'custom' });
+    const modelsUrl = server.origin + '/api/settings/models';
+    const models = await fetch(modelsUrl);
+    const display = await models.json();
+    expect(JSON.stringify(display)).not.toContain(input.apiKey);
+    expect(display.generation.source).toBe('maker');
+    const denied = await fetch(modelsUrl, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', origin: 'https://foreign.invalid' },
+      body: JSON.stringify({ action: 'select', kind: 'generation', source: 'local' }),
+    });
+    expect(denied.status).toBe(403);
+    const switched = await fetch(modelsUrl, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', origin: server.origin },
+      body: JSON.stringify({
+        action: 'select',
+        kind: 'generation',
+        source: 'custom',
+        profileId: display.profiles[0].id,
+      }),
+    });
+    expect(switched.status).toBe(200);
+    expect((await switched.json()).vision.source).toBe('custom');
     const clear = await fetch(url, { method: 'DELETE', headers: { origin: server.origin } });
     expect(await clear.json()).toMatchObject({ configured: false });
   } finally {
@@ -141,4 +167,88 @@ test('a corrupt settings file can be explicitly replaced using a new key', () =>
   fs.writeFileSync(path.join(home, 'ui-vision.json'), 'invalid JSON');
   expect(() => saveVisionSettings({ ...input, apiKey: '' })).toThrow('无法读取');
   expect(saveVisionSettings(input).configured).toBe(true);
+});
+
+test('migrates a legacy API into a shared named profile without changing defaults or exposing keys', () => {
+  fs.writeFileSync(path.join(home, 'ui-vision.json'), JSON.stringify(input));
+  const display = modelSettingsForDisplay();
+  expect(display.vision).toEqual({ source: 'custom', profileId: 'legacy-vision' });
+  expect(display.generation).toEqual({ source: 'maker' });
+  expect(display.profiles).toMatchObject([
+    { name: '识图 API', model: 'gpt-6.1-sol', hasKey: true },
+  ]);
+  expect(JSON.stringify(display)).not.toContain(input.apiKey);
+  updateModelSettings({
+    action: 'select',
+    kind: 'generation',
+    source: 'custom',
+    profileId: 'legacy-vision',
+  });
+  expect(readVisionSettings()?.apiKey).toBe(input.apiKey);
+  expect(readModelSettings().generation.profileId).toBe('legacy-vision');
+  expect(JSON.parse(fs.readFileSync(path.join(home, 'ui-vision.json'), 'utf8')).version).toBe(2);
+});
+
+test('profiles can be edited without retyping a key but not sent silently to another URL', () => {
+  const profile = {
+    action: 'save-profile',
+    name: 'GPT',
+    baseUrl: 'https://example.invalid/v1',
+    apiKey: input.apiKey,
+    model: 'image-model',
+  };
+  const display = updateModelSettings(profile);
+  const id = display.profiles[0].id;
+  expect(JSON.stringify(display)).not.toContain(input.apiKey);
+  updateModelSettings({ ...profile, id, name: '图片模型', apiKey: '' });
+  expect(readModelSettings().profiles[0].apiKey).toBe(input.apiKey);
+  expect(() =>
+    updateModelSettings({ ...profile, id, baseUrl: 'https://other.invalid', apiKey: '' })
+  ).toThrow('重新填写');
+  expect(() => updateModelSettings({ ...profile, name: '图片模型' })).toThrow('名称已存在');
+  expect(modelSettingsForDisplay().generation.source).toBe('maker');
+});
+
+test('selecting and deleting profiles preserves independent choices and rejects dangling references', () => {
+  const { profiles } = updateModelSettings({
+    action: 'save-profile',
+    name: 'GPT',
+    baseUrl: 'https://example.invalid',
+    apiKey: input.apiKey,
+    model: 'gpt-6.1-sol',
+  });
+  const id = profiles[0].id;
+  for (const kind of ['vision', 'generation'])
+    updateModelSettings({ action: 'select', kind, source: 'custom', profileId: id });
+  expect(() => updateModelSettings({ action: 'delete-profile', id })).toThrow('正在使用');
+  updateModelSettings({ action: 'select', kind: 'generation', source: 'local' });
+  expect(readVisionSettings()?.source).toBe('custom');
+  expect(() =>
+    updateModelSettings({
+      action: 'select',
+      kind: 'generation',
+      source: 'custom',
+      profileId: 'missing',
+    })
+  ).toThrow('请选择');
+  updateModelSettings({ action: 'select', kind: 'vision', source: 'local' });
+  expect(updateModelSettings({ action: 'delete-profile', id }).profiles).toEqual([]);
+  expect(readModelSettings().generation).toEqual({ source: 'local' });
+});
+
+test('recognition uses the selected custom model instead of the old fixed model', () => {
+  const { profiles } = updateModelSettings({
+    action: 'save-profile',
+    name: '新模型',
+    baseUrl: 'https://example.invalid',
+    apiKey: input.apiKey,
+    model: 'other-model',
+  });
+  updateModelSettings({
+    action: 'select',
+    kind: 'vision',
+    source: 'custom',
+    profileId: profiles[0].id,
+  });
+  expect(configuredUiVisionModels()).toMatchObject([{ model: 'other-model', source: 'custom' }]);
 });

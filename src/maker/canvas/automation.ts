@@ -29,6 +29,11 @@ export interface CanvasOperation {
 
 export function canvasAutomationCapabilities() {
   return {
+    modelSettings: {
+      command: 'canvas model-settings',
+      policy:
+        'Read global image generation and vision choices before invoking any model. Never choose or fall back to another provider. Local means the current AI client executes its own capability; browser run cannot invoke it. Import client-generated images with canvas import; import creates a new card and does not complete an existing workflow node. API keys are never returned.',
+    },
     uiArchives: {
       list: 'canvas ui-archives --target-dir PATH [--canvas-id ID]',
       archiveSaved: 'canvas archive-ui --target-dir PATH --canvas-id ID',

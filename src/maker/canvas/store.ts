@@ -42,7 +42,13 @@ export interface CanvasGenerationAttempt {
   updatedAt: string;
 }
 
+export interface CanvasModelSettings {
+  generation: { source: string; profileId?: string };
+  profiles: Array<{ id: string; name: string; model: string }>;
+}
+
 export interface CanvasDocumentStore {
+  modelSettings?(): Promise<CanvasModelSettings>;
   recognitionModels?(): Promise<
     Array<{ id: string; model: string; source?: 'local' | 'server' | 'custom' }>
   >;
@@ -232,6 +238,12 @@ export function createBrowserCanvasDocumentStore(
   return {
     videoHistory: (offset = 0, limit = 30) =>
       request<CanvasVideoHistory>('/canvases/video-history?offset=' + offset + '&limit=' + limit),
+    modelSettings: async () => {
+      const response = await fetcher('/api/settings/models');
+      const body = await response.json();
+      if (!response.ok) throw new Error('模型设置读取失败，请检查控制台设置。');
+      return body as CanvasModelSettings;
+    },
     recognitionModels: () => request('/canvases/recognition-models'),
     recognizeUi: (canvasId, input) =>
       request('/canvases/' + canvasId + '/recognition', {

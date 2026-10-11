@@ -1,7 +1,18 @@
 # Maker 本地控制台
 
-右上角齿轮「设置」只配置游戏 UI 识图方式：本地模型、Server API 或自定义 API。选择自定义 API 时填写
-Base URL 和 API Key；模型固定为 GPT-6.1 Sol，思考档固定 low。API Key 仅保存在本机，不回显、不写入项目。
+右上角齿轮「设置」提供识图方式（本地模型、Server API、自定义 API）与生图方式
+（Maker MCP、本地模型、自定义 API）。两者复用已保存的命名 API 配置；新增、编辑弹窗填写
+名称、Base URL、API Key、模型名称。密钥仅保存在本机，不回显、不写入项目；编辑时留空保留，
+修改地址必须重填密钥。正在使用的配置须先切换后删除；旧识图配置自动映射为「识图 API」。
+生图方式对画布单图、变体、分组和 CLI run 统一生效，默认 Maker MCP。自定义 API 使用
+OpenAI 兼容图片协议：无参考图调用 /images/generations，有参考图调用 /images/edits，
+按原顺序上传 image[]；接收 data[0].b64_json 或 HTTPS 图片 URL。只支持这一种协议，
+不自动探测、回退或重试付费请求。标准尺寸直接传 size，其它比例用 auto 并在提示词声明目标尺寸，
+结果沿用实际图片尺寸检查，不保证模型严格输出指定像素。下载失败恢复原图片，不重新生图。
+识图使用所选配置的模型，GPT-6.1 Sol 保持 low，其它模型不强加思考档位。Server API 尚未开通。
+本地模型仅限 CLI 客户端自身执行；画布直接运行会提示，不能唤起客户端或偷偷改用 Maker。
+`taptap-maker canvas model-settings` 可离线读取设置，不要求项目、不返回密钥。
+本地结果可用现有 canvas import 新增图片卡；它不是模板节点回填接口，不代表原工作流已完成。
 保存设置不调用模型。去文字卡的「运行两次识图」先提取图片 UI，再从原稿提取文本，
 结果可导出固定 Bbox JSON；契约与恢复方式见 [Maker UI 工作流](MAKER_UI_WORKFLOW.md#元素识图与-bbox-json)。
 

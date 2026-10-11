@@ -94,6 +94,21 @@ async function setup() {
   };
 }
 
+test('preserves low reasoning for the existing Sol model', async () => {
+  const { canvasId, input } = await setup();
+  const fetcher = jest
+    .fn()
+    .mockResolvedValueOnce(cutResponse())
+    .mockResolvedValueOnce(textResponse());
+  const service = new CanvasRecognitionService(
+    root,
+    [{ ...models[0], model: 'gpt-6.1-sol' }],
+    fetcher
+  );
+  expect((await service.run(canvasId, input)).status).toBe('succeeded');
+  expect(JSON.parse(fetcher.mock.calls[0][1].body).reasoning_effort).toBe('low');
+});
+
 test('persists results, binds image identity and deduplicates concurrent requests', async () => {
   const { canvasId, input } = await setup();
   const fetcher = jest
@@ -113,8 +128,8 @@ test('persists results, binds image identity and deduplicates concurrent request
   expect(first.result?.bbox?.texts[0].text).toBe('购买');
   const firstBody = JSON.parse(fetcher.mock.calls[0][1].body);
   const secondBody = JSON.parse(fetcher.mock.calls[1][1].body);
-  expect(firstBody.reasoning_effort).toBe('low');
-  expect(secondBody.reasoning_effort).toBe('low');
+  expect(firstBody.reasoning_effort).toBeUndefined();
+  expect(secondBody.reasoning_effort).toBeUndefined();
   expect(firstBody.messages[0].content[0].text).toContain('不要输出文字层');
   expect(secondBody.messages[0].content[0].text).toContain('这次只识别');
   expect(secondBody.messages[0].content[0].text).toContain('E001');
@@ -178,7 +193,7 @@ test.each(['{"elements":[]}', 'null', 'not JSON'])(
     const attempt = await service.run(canvasId, input);
     expect(attempt.status).toBe('failed');
     expect(attempt.result).toBeUndefined();
-    expect(attempt.error).toContain('GPT-6.1 Sol');
+    expect(attempt.error).toContain('所选模型');
   }
 );
 
@@ -272,8 +287,8 @@ test('pending text removal cannot submit recognition of an old image', async () 
 });
 
 test.each([
-  [400, 'failed', 'GPT-6.1 Sol'],
-  [422, 'failed', 'GPT-6.1 Sol'],
+  [400, 'failed', '模型名称'],
+  [422, 'failed', '模型名称'],
   [401, 'failed', '密钥'],
   [429, 'failed', '限流'],
   [503, 'unknown', '原请求'],

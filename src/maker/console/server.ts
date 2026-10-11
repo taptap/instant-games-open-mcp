@@ -33,6 +33,8 @@ import {
   visionSettingsForDisplay,
   saveVisionSettings,
   deleteVisionSettings,
+  modelSettingsForDisplay,
+  updateModelSettings,
 } from './visionSettings.js';
 import {
   createMakerRemoteProxyManager,
@@ -264,6 +266,12 @@ export async function startConsoleServer(options: {
         throw new ConsoleError('Same-origin writes are required.', 403);
       if (request.method === 'GET' && url.pathname === '/api/health') {
         json(200, { instanceId: options.instanceId, draining, shutdownError });
+        return;
+      }
+      if (url.pathname === '/api/settings/models') {
+        if (request.method === 'GET') json(200, modelSettingsForDisplay());
+        else if (request.method === 'PUT') json(200, updateModelSettings(await readBody(request)));
+        else throw new ConsoleError('模型设置接口不支持此操作。', 405);
         return;
       }
       if (url.pathname === '/api/settings/ui-vision') {

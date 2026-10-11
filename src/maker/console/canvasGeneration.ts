@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import { generationProvider } from './visionSettings.js';
+import { generateCustomImage, ImageApiResponseError, readImageResponse } from './customImageApi.js';
 import {
   selectedUiAtlasPlan,
   uiAtlasOrderPrompt,
@@ -48,6 +50,9 @@ export type CanvasGenerationStatus =
   | 'canceled';
 
 export interface CanvasGenerationAttempt {
+  provider?: 'maker' | 'custom';
+  apiProfileId?: string;
+  apiModel?: string;
   uiAtlasPlan?: UiAtlasPlan;
   id: string;
   canvasId: string;
@@ -176,6 +181,13 @@ export class CanvasGenerationService {
     referenceImagePaths?: string[];
     targetNodeId?: string;
   }): Promise<CanvasGenerationAttempt> {
+    const provider = generationProvider();
+    if (provider.source === 'local')
+      throw new ConsoleError(
+        '当前使用本地模型（仅限 CLI 调用）。请让 Codex 等客户端读取 canvas model-settings，使用自身生图能力生成并通过 canvas import 导入图片；本次未提交生图，不会改用 Maker MCP。'
+      );
+    if (provider.source === 'custom' && !provider.profile)
+      throw new ConsoleError('请在设置中选择已保存的生图 API。');
     const files = new MakerCanvasFiles(this.projectRoot);
     if (options.cutoutColor !== undefined && !['#FF00FF', '#00FF00'].includes(options.cutoutColor))
       throw new Error('抠图底色无效。');
@@ -347,12 +359,38 @@ export class CanvasGenerationService {
       targetSize,
       aspectRatio: requestedRatio,
     };
+    attempt.provider = provider.source;
+    if (provider.source === 'custom') {
+      attempt.apiProfileId = provider.profile!.id;
+      attempt.apiModel = provider.profile!.model;
+    }
     attempt.referenceImages = references;
     attempt.originalImage = originalImage;
     attempt.warnings = warnings;
     attempt.submittedPrompt = options.prompt + '\n' + sizingPrompt;
     this.writeAttempt(attempt);
     try {
+      if (provider.source === 'custom') {
+        const result = await generateCustomImage(provider.profile!, {
+          prompt: attempt.submittedPrompt,
+          references: remoteReferences,
+          files,
+          targetSize,
+        });
+        attempt.remoteStatus = 'succeeded';
+        attempt.failureStage = 'download';
+        if (result.url) {
+          attempt.remoteAssetUrl = result.url;
+          this.writeAttempt(attempt);
+          attempt.deliveredAssetPath = await this.downloadRemoteImage(result.url);
+        } else {
+          attempt.deliveredAssetPath = (await files.importImage(result.bytes!)).relativePath;
+        }
+        attempt.resultAssetPath = attempt.deliveredAssetPath;
+        this.writeAttempt(attempt);
+        this.finishImageDelivery(attempt, files);
+        return attempt;
+      }
       const result = await callRemoteProxyTool({
         targetDir: this.projectRoot,
         name: 'generate_image',
@@ -399,6 +437,13 @@ export class CanvasGenerationService {
       return attempt;
     } catch (error) {
       this.failAttempt(attempt, error);
+      if (
+        error instanceof ImageApiResponseError &&
+        [400, 401, 403, 404, 422].includes(error.status)
+      ) {
+        attempt.status = 'failed';
+        this.writeAttempt(attempt);
+      }
       return attempt;
     }
   }
@@ -668,6 +713,8 @@ export class CanvasGenerationService {
     if (previous.kind === 'image') {
       if (previous.executionState !== 'not_executed')
         throw new Error('无法确认原图片请求未执行，请先核实原结果；不能重试付费生成。');
+      if ((previous.provider || 'maker') !== generationProvider().source)
+        throw new Error('生图方式已改变，不能用新渠道重试旧任务；请确认后发起新的生成。');
       return this.generateImage({
         canvasId: previous.canvasId,
         prompt: previous.prompt,
@@ -906,15 +953,10 @@ export class CanvasGenerationService {
     try {
       const response = await fetch(parsed.href, { signal: controller.signal, redirect: 'error' });
       if (!response.ok) throw new Error(`原图片下载失败：HTTP ${response.status}`);
-      const bytes = Buffer.from(await response.arrayBuffer());
+      const bytes = await readImageResponse(response, 20 * 1024 * 1024);
       if (bytes.length === 0 || bytes.length > 20 * 1024 * 1024)
         throw new Error('原图片下载失败：文件大小无效。');
-      const extension = /\.jpe?g$/i.test(parsed.pathname) ? 'jpg' : 'png';
-      const relative = `assets/image/canvas-recovered-${randomUUID()}.${extension}`;
-      const absolute = path.join(this.projectRoot, ...relative.split('/'));
-      fs.mkdirSync(path.dirname(absolute), { recursive: true });
-      fs.writeFileSync(absolute, bytes, { flag: 'wx', mode: 0o644 });
-      return relative;
+      return (await new MakerCanvasFiles(this.projectRoot).importImage(bytes)).relativePath;
     } finally {
       clearTimeout(timer);
     }
