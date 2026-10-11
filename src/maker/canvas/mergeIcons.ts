@@ -1,4 +1,5 @@
 import type { CanvasNode } from './model.js';
+import { hasImageFeature } from './imageFeatures.js';
 
 export interface MergeIconSettings {
   stageCount: number;
@@ -87,8 +88,8 @@ export function mergeIconGrid(settings: MergeIconSettings) {
 
 export function mergeIconNeedsGeneration(node: CanvasNode): boolean {
   return Boolean(
-    node.mergeIcons &&
-      (!node.assetPath || node.generation?.prompt !== mergeIconPrompt(node.mergeIcons))
+    hasImageFeature(node, 'merge-icons') &&
+      (!node.assetPath || node.generation?.prompt !== mergeIconPrompt(node.mergeIcons!))
   );
 }
 

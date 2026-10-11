@@ -14,6 +14,7 @@ test('game UI template promotes the complete banana example with explicit handof
   const preset = createUiWorkflowPreset();
   expect(preset.name).toBe('游戏UI制作');
   expect(preset.skills).toEqual(['maker-ui-workflow']);
+  expect(preset.nodes.find((node) => node.uiRecognition)?.uiRecognition?.enabled).toBe(true);
   expect(preset.nodes.filter((n) => n.type === 'image')).toHaveLength(15);
   const exports = preset.nodes.filter((n) => n.type === 'image-assets');
   expect(exports).toHaveLength(9);
@@ -116,7 +117,8 @@ test('handoff names the exact project and canvas, requires layout, and forbids u
   const text = gameUiHandoffText('canvas-test', 'project-test');
   expect(text).toContain('canvas-test');
   expect(text).toContain('project-test');
-  expect(text).toContain('没有时先对照原稿补录');
+  expect(text).toContain('bbox.json 和 bindings.json');
+  expect(text).toContain('不做视觉纠偏');
   expect(text).toContain('不上传用户素材');
   expect(isGameUiResource(undefined, createUiWorkflowPreset().nodes[14])).toBe(false);
 });

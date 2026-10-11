@@ -2,19 +2,62 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { MakerCanvasFiles } from '../canvas/files.js';
-import { validateUiElements, type UiRecognitionResult } from '../canvas/uiRecognition.js';
+import {
+  bboxRecognitionElements,
+  uiRecognitionInputs,
+  type UiRecognitionResult,
+} from '../canvas/uiRecognition.js';
+import {
+  scaleCutElements,
+  validateCutElements,
+  validateBboxTexts,
+  validateBboxImage,
+  type UiBboxElement,
+  type UiBboxImage,
+} from '../canvas/uiBbox.js';
+import {
+  readVisionSettings,
+  UI_VISION_MODEL,
+  validateVisionEndpoint,
+  visionChatCompletionsUrl,
+  type VisionSource,
+} from './visionSettings.js';
 import { ConsoleError } from './types.js';
 
 export interface UiVisionModel {
   id: string;
   model: string;
   endpoint: string;
+  source?: VisionSource;
   apiKeyEnv?: string;
+  apiKey?: string;
 }
 
 export function configuredUiVisionModels(): UiVisionModel[] {
+  const local = readVisionSettings();
+  if (local) {
+    if (local.source === 'custom' && local.baseUrl && local.apiKey)
+      return [
+        {
+          id: UI_VISION_MODEL,
+          model: UI_VISION_MODEL,
+          endpoint: visionChatCompletionsUrl(local.baseUrl),
+          source: 'custom',
+          apiKey: local.apiKey,
+        },
+      ];
+    return [
+      {
+        id: UI_VISION_MODEL,
+        model: UI_VISION_MODEL,
+        endpoint: '',
+        source: local.source,
+      },
+    ];
+  }
   const filename = process.env.TAPTAP_MAKER_VISION_CONFIG;
-  if (!filename) return [];
+  if (!filename)
+    return [{ id: UI_VISION_MODEL, model: UI_VISION_MODEL, endpoint: '', source: 'local' }];
   let values: unknown;
   try {
     values = JSON.parse(fs.readFileSync(filename, 'utf8'));
@@ -24,49 +67,91 @@ export function configuredUiVisionModels(): UiVisionModel[] {
   if (!Array.isArray(values) || values.length > 20)
     throw new ConsoleError('识图模型配置应为模型列表。');
   const ids = new Set<string>();
-  return values.map((value) => {
-    if (
-      !value ||
-      typeof value.id !== 'string' ||
-      !/^[a-zA-Z0-9_.-]{1,80}$/.test(value.id) ||
-      ids.has(value.id) ||
-      typeof value.model !== 'string' ||
-      !value.model ||
-      value.model.length > 120 ||
-      typeof value.endpoint !== 'string' ||
-      (value.apiKeyEnv !== undefined && !/^[A-Z][A-Z0-9_]{0,100}$/.test(value.apiKeyEnv))
-    )
-      throw new ConsoleError('识图模型配置字段无效。');
-    let url: URL;
-    try {
-      url = new URL(value.endpoint);
-    } catch {
-      throw new ConsoleError('识图服务地址无效。');
-    }
-    if (
-      url.username ||
-      url.password ||
-      url.search ||
-      url.hash ||
-      (url.protocol !== 'https:' &&
-        !(url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)))
-    )
-      throw new ConsoleError('识图服务应使用 HTTPS，或本机 HTTP；地址不能包含凭证、查询参数。');
-    ids.add(value.id);
-    return { id: value.id, model: value.model, endpoint: url.href, apiKeyEnv: value.apiKeyEnv };
-  });
+  return values
+    .map((value) => {
+      if (
+        !value ||
+        typeof value.id !== 'string' ||
+        !/^[a-zA-Z0-9_.-]{1,80}$/.test(value.id) ||
+        ids.has(value.id) ||
+        typeof value.model !== 'string' ||
+        !value.model ||
+        value.model.length > 120 ||
+        typeof value.endpoint !== 'string' ||
+        (value.apiKeyEnv !== undefined && !/^[A-Z][A-Z0-9_]{0,100}$/.test(value.apiKeyEnv))
+      )
+        throw new ConsoleError('识图模型配置字段无效。');
+      ids.add(value.id);
+      return {
+        id: value.id,
+        model: value.model,
+        endpoint: validateVisionEndpoint(value.endpoint),
+        source: 'custom' as const,
+        apiKeyEnv: value.apiKeyEnv,
+      };
+    })
+    .filter((value) => value.model === UI_VISION_MODEL)
+    .slice(0, 1);
 }
 
 export function uiRecognitionPrompt(width: number, height: number): string {
   return [
-    '分析这张游戏 UI 原设计稿，返回 JSON 对象 {"elements":[...]}，不要生成图片或 Markdown。',
-    '原图尺寸为 ' + width + '×' + height + '。rect 必须使用原图绝对像素 [x,y,width,height]。',
-    '从上到下、从左到右覆盖全部可见 UI 元素，特别核对底部、重复行、小按钮和不同配色的按钮；重复实例也逐个记录。',
-    '每项字段：id（字母开头的唯一编号）、name（含颜色/形状等区分信息）、category、rect、parentId（无父级为null）、zIndex（整数）、states（实际可见状态名称数组）、cutout（布尔）。',
-    'category 仅使用：icon（独立图标和前景装饰）、frame（内部底框、信息条、进度条各层）、tab（页签底板）、action（主操作/购买/领取按钮底板）、shortcut（快捷入口底板）、close（关闭/返回底板）、title（标题底板）、panel（完整外部主面板或背景）、art_text（装饰性美术字）、text（普通文字）。',
-    '按钮上的图标与底板分别记录；面板边框与其所属底色保持一体；叠加的上层控件分别记录。不要把底板覆盖的所有控件合成一个元素。',
-    '普通文字、数字记录为 text，cutout=false；需要图片素材的元素 cutout=true。不能凭空添加原稿不存在的组件或状态。',
-    'ID 在本次清单中稳定且唯一，父级只能引用本清单 ID。仅返回 JSON，不省略字段。',
+    '这是一张已经去掉文字字形的游戏 UI 图，尺寸 ' +
+      width +
+      '×' +
+      height +
+      '。只根据这张图里看得见的内容作答，不根据文件名、旧清单或上一张稿的数量猜测。',
+    '列出可独立切图、可独立拼装的最小 UI 单位。type 只用 icon、frame、panel、button、tab、title。',
+    'icon 包括图标、箭头、叉号、加号、星星、物品图、人物。frame 包括槽位格、进度条、头像框、细底条。panel 是大面板，button 是按钮底板，tab 是页签底板，title 是标题底板。',
+    '必须分开按钮底板和符号、物品格和物品图、每颗星星、进度条底槽和填充、头像和头像框。不要拆开底板的边框和内部底色，不要拆插画内部纹理。',
+    '不要输出文字层，不要根据残留痕迹新造文字或数字。箭头、叉号、加号和星星是图标。重复实例逐个保留，不用大框代替一排。',
+    'bbox 是所看图片的像素 [x,y,w,h]，左上角原点，禁止归一化和对角点。包含主体及自身阴影，不带相邻元素。parent 引用本次所属底板或面板 id，没有则 null。id 从 E001 递增。',
+    '只输出一个 JSON，不要 Markdown，不要解释：' +
+      JSON.stringify({
+        pass: 'cut',
+        image: { width, height },
+        elements: [
+          { id: 'E001', name: '中文短名', type: 'icon', bbox: ['x', 'y', 'w', 'h'], parent: null },
+        ],
+      }),
+  ].join(String.fromCharCode(10));
+}
+
+export function uiTextRecognitionPrompt(
+  width: number,
+  height: number,
+  elements: UiBboxElement[]
+): string {
+  return [
+    '这是同一张游戏 UI 的原稿，尺寸 ' +
+      width +
+      '×' +
+      height +
+      '，文字还在。下面是已确定的切图元素，坐标已换算到原稿像素空间：',
+    JSON.stringify(elements),
+    '这次只识别要拼回界面的文字和数字。不要输出图标、底板、人物、星星、箭头、叉号、加号，不新造切图元素。',
+    '每个可见文字块单独一项，不合并属性名与数值，不漏页签、按钮、槽位名、数量和货币数字。text 只写图上实际画出的字，不翻译、不补全。',
+    'bbox 是原稿像素 [x,y,w,h]，左上角原点，禁止归一化和对角点。parentId 填文字中心所在的已知底板 id，优先最小底板，对不上为 null。id 从 T001 递增。',
+    'role 只用 title、tab、button、slot_name、stat_name、stat_value、currency、count、caption、other。标题、页签、按钮字、槽位名 align=center；属性名与说明 left；数值、货币、数量 right；经验和进度数字用墨迹框，align=left。',
+    'color 取文字高光近似 #RRGGBB，不一律白色；bold 是布尔。文字全部 cutout=false，后续做 Label，不进 PNG。特殊美术字仍由原稿独立切图支线处理。',
+    '只输出 JSON，不要 Markdown，不要解释：' +
+      JSON.stringify({
+        pass: 'text',
+        image: { width, height },
+        texts: [
+          {
+            id: 'T001',
+            text: '实际文字',
+            bbox: ['x', 'y', 'w', 'h'],
+            parentId: null,
+            role: 'caption',
+            align: 'left',
+            color: '#F2D48A',
+            bold: false,
+            cutout: false,
+          },
+        ],
+      }),
   ].join(String.fromCharCode(10));
 }
 
@@ -75,7 +160,10 @@ export interface RecognitionAttempt {
   canvasId: string;
   nodeId: string;
   model: string;
+  source?: VisionSource;
   sourcePath: string;
+  phase?: 'cut' | 'text';
+  cut?: { image: UiBboxImage; elements: UiBboxElement[] };
   status: 'running' | 'succeeded' | 'failed' | 'unknown';
   result?: UiRecognitionResult;
   error?: string;
@@ -86,13 +174,17 @@ export class CanvasRecognitionService {
   private files: MakerCanvasFiles;
   constructor(
     root: string,
-    private models = configuredUiVisionModels(),
+    private models?: UiVisionModel[],
     private fetcher = fetch
   ) {
     this.files = new MakerCanvasFiles(root);
   }
   modelsForDisplay() {
-    return this.models.map(({ id, model }) => ({ id, model }));
+    return (this.models || configuredUiVisionModels()).map(({ id, model, source }) => ({
+      id,
+      model,
+      source: source || 'custom',
+    }));
   }
   private filename(id: string, create = false) {
     if (!/^[a-f0-9-]{36}$/.test(id)) throw new ConsoleError('识图请求编号无效。');
@@ -163,113 +255,197 @@ export class CanvasRecognitionService {
       node.uiRecognition.pendingId !== input.id
     )
       throw new ConsoleError('请先保存原稿及本次识图请求。');
-    const model = this.models.find((model) => model.id === input.model);
-    if (!model) throw new ConsoleError('尚未配置所选识图模型，请配置 TAPTAP_MAKER_VISION_CONFIG。');
+    const model = (this.models || configuredUiVisionModels()).find(
+      (model) => model.id === input.model
+    );
+    if (!model) throw new ConsoleError('请在控制台「设置」配置 GPT-6.1 Sol 识图接口和 API Key。');
+    const source = model.source || 'custom';
+    if (source === 'local')
+      throw new ConsoleError(
+        '当前使用本地模型。请让 AI 客户端读取设计稿，通过 Maker CLI 写入 Bbox；画布不能直接调用客户端模型。也可在设置中选择自定义 API。',
+        503
+      );
+    if (source === 'server')
+      throw new ConsoleError(
+        '当前选择的是 Server API，但服务端识图尚未开通。请暂时切换为自定义 API。',
+        503
+      );
     if (![input.width, input.height].every((n) => Number.isInteger(n) && n > 0 && n <= 16384))
       throw new ConsoleError('原稿尺寸无效。');
-    const key = model.apiKeyEnv ? process.env[model.apiKeyEnv] : undefined;
+    const key = model.apiKey || (model.apiKeyEnv ? process.env[model.apiKeyEnv] : undefined);
     if (model.apiKeyEnv && !key) throw new ConsoleError('识图模型的密钥环境变量未配置。');
     const media = this.files.readMedia(node.assetPath);
     const bytes = fs.readFileSync(media.file);
     if (bytes.length > 20 * 1024 * 1024) throw new ConsoleError('识图原稿超过 20 MiB。');
-    const prompt = uiRecognitionPrompt(input.width, input.height);
+    const cutSize = this.files.imageInfo(node.assetPath);
+    if (!cutSize || cutSize.width !== input.width || cutSize.height !== input.height)
+      throw new ConsoleError('去文字图真实尺寸与识图请求不一致。');
+    let originalPath: string;
+    try {
+      const inputs = uiRecognitionInputs(document, node);
+      if (inputs.cut.id !== node.id) throw new Error('请从去文字稿提交识图请求。');
+      originalPath = inputs.design.assetPath!;
+    } catch (error) {
+      throw new ConsoleError((error as Error).message);
+    }
+    const originalMedia = this.files.readMedia(originalPath);
+    const originalBytes = fs.readFileSync(originalMedia.file);
+    const originalSize = this.files.imageInfo(originalPath);
+    if (!originalSize || originalBytes.length > 20 * 1024 * 1024)
+      throw new ConsoleError('原 UI 设计稿尺寸无效或超过 20 MiB。');
+    const design: UiBboxImage = {
+      path: originalPath,
+      sha256: createHash('sha256').update(originalBytes).digest('hex'),
+      width: originalSize.width,
+      height: originalSize.height,
+    };
+    const cutSource: UiBboxImage = {
+      path: node.assetPath,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      width: cutSize.width,
+      height: cutSize.height,
+    };
+    const prompt = uiRecognitionPrompt(cutSize.width, cutSize.height);
+    validateBboxImage(design);
+    validateBboxImage(cutSource);
     const attempt: RecognitionAttempt = {
       id: input.id,
       canvasId,
       nodeId: node.id,
       model: model.id,
+      source,
       sourcePath: node.assetPath,
       status: 'running',
+      phase: 'cut',
     };
     // Persist before sending: a lost HTTP response must not replay a potentially billed request.
     this.write(attempt);
     const task = (async () => {
       const started = Date.now();
       try {
-        const response = await this.fetcher(model.endpoint, {
-          method: 'POST',
-          redirect: 'error',
-          signal: AbortSignal.timeout(180000),
-          headers: {
-            'content-type': 'application/json',
-            ...(key ? { Authorization: 'Bearer ' + key } : {}),
-          },
-          body: JSON.stringify({
-            model: model.model,
-            response_format: { type: 'json_object' },
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  { type: 'text', text: prompt },
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: 'data:' + media.type + ';base64,' + bytes.toString('base64'),
+        const request = async (
+          requestPrompt: string,
+          imageBytes: Buffer,
+          imageType: string,
+          pass: 'cut' | 'text',
+          size: { width: number; height: number }
+        ) => {
+          const response = await this.fetcher(model.endpoint, {
+            method: 'POST',
+            redirect: 'error',
+            signal: AbortSignal.timeout(180000),
+            headers: {
+              'content-type': 'application/json',
+              ...(key ? { Authorization: 'Bearer ' + key } : {}),
+            },
+            body: JSON.stringify({
+              model: model.model,
+              reasoning_effort: 'low',
+              response_format: { type: 'json_object' },
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: requestPrompt },
+                    {
+                      type: 'image_url',
+                      image_url: {
+                        url: 'data:' + imageType + ';base64,' + imageBytes.toString('base64'),
+                        detail: 'high',
+                      },
                     },
-                  },
-                ],
-              },
-            ],
-          }),
-        });
-        if (!response.ok) {
-          attempt.status = response.status >= 500 ? 'unknown' : 'failed';
-          attempt.error =
-            '识图服务返回 HTTP ' +
-            response.status +
-            '。' +
-            (response.status === 400 || response.status === 422
-              ? '所选模型或接口可能不支持图片输入或 JSON 输出；建议切换支持这两项能力的识图模型后重试。'
-              : response.status === 401 || response.status === 403
-                ? '请检查模型服务密钥和访问权限。'
-                : response.status === 404
-                  ? '请检查接口地址及模型名称，或切换已配置的识图模型。'
-                  : response.status === 429
-                    ? '请检查模型服务额度或限流，稍后再试或切换可用模型。'
-                    : '请先核对模型服务中的原请求状态，结果可能未知，不会自动重试。');
-        } else {
-          const text = await response.text();
-          if (text.length > 2 * 1024 * 1024) throw new Error('识图响应超过 2 MiB。');
-          let body;
-          try {
-            body = JSON.parse(text);
-          } catch {
-            throw new Error('识图响应不是有效协议 JSON。');
+                  ],
+                },
+              ],
+            }),
+          });
+          if (!response.ok) {
+            attempt.status = response.status >= 500 ? 'unknown' : 'failed';
+            attempt.error =
+              '识图服务返回 HTTP ' +
+              response.status +
+              '。' +
+              (response.status === 400 || response.status === 422
+                ? '请核对 GPT-6.1 Sol 的模型 ID，以及接口对图片、JSON 和 low 档位的支持。'
+                : response.status === 401 || response.status === 403
+                  ? '请检查模型服务密钥和访问权限。'
+                  : response.status === 404
+                    ? '请在控制台设置中检查接口地址及 GPT-6.1 Sol 的模型 ID。'
+                    : response.status === 429
+                      ? '请检查模型服务额度或限流，稍后再试。'
+                      : '请先核对模型服务中的原请求状态，结果可能未知，不会自动重试。');
+            return undefined;
+          } else {
+            const text = await response.text();
+            if (text.length > 2 * 1024 * 1024) throw new Error('识图响应超过 2 MiB。');
+            let body;
+            try {
+              body = JSON.parse(text);
+            } catch {
+              throw new Error('识图响应不是有效协议 JSON。');
+            }
+            const content = body?.choices?.[0]?.message?.content;
+            if (typeof content !== 'string' || body.choices?.[0]?.finish_reason === 'length')
+              throw new Error('识图响应缺少完整文本结果。');
+            let data;
+            try {
+              data = JSON.parse(content);
+            } catch {
+              throw new Error('识图返回的内容不是有效 JSON。');
+            }
+            if (
+              !data ||
+              data.pass !== pass ||
+              data.image?.width !== size.width ||
+              data.image?.height !== size.height
+            )
+              throw new Error('识图结果阶段或图片尺寸无效。');
+            return data;
           }
-          const content = body?.choices?.[0]?.message?.content;
-          if (typeof content !== 'string' || body.choices?.[0]?.finish_reason === 'length')
-            throw new Error('识图响应缺少完整文本结果。');
-          let data: { elements: unknown };
-          try {
-            data = JSON.parse(content);
-          } catch {
-            throw new Error('识图返回的内容不是有效 JSON。');
-          }
-          const elements = validateUiElements(data?.elements, input.width, input.height);
-          attempt.result = {
-            id: input.id,
-            model: model.id + ' / ' + model.model,
-            prompt,
-            createdAt: new Date().toISOString(),
-            durationMs: Date.now() - started,
-            sourcePath: node.assetPath!,
-            sourceSha256: createHash('sha256').update(bytes).digest('hex'),
-            width: input.width,
-            height: input.height,
-            elements,
-          };
-          attempt.status = 'succeeded';
-        }
+        };
+        const cut = await request(prompt, bytes, media.type, 'cut', cutSize);
+        if (!cut) return attempt;
+        const cutElements = validateCutElements(cut.elements, cutSize.width, cutSize.height);
+        attempt.cut = { image: cutSource, elements: cutElements };
+        attempt.phase = 'text';
+        this.write(attempt);
+        const elements = scaleCutElements(cutElements, cutSize, design);
+        const textPrompt = uiTextRecognitionPrompt(design.width, design.height, elements);
+        const text = await request(textPrompt, originalBytes, originalMedia.type, 'text', design);
+        if (!text) return attempt;
+        const bbox = {
+          version: 1 as const,
+          coordinateSpace: 'design-pixels' as const,
+          bboxFormat: 'xywh' as const,
+          design,
+          cutSource,
+          elements,
+          texts: validateBboxTexts(text.texts, design.width, design.height, elements),
+        };
+        attempt.result = {
+          id: input.id,
+          model: 'GPT-6.1 Sol / ' + model.model + ' / low',
+          prompt: prompt + String.fromCharCode(10, 10) + textPrompt,
+          createdAt: new Date().toISOString(),
+          durationMs: Date.now() - started,
+          sourcePath: node.assetPath!,
+          sourceSha256: cutSource.sha256,
+          width: input.width,
+          height: input.height,
+          elements: bboxRecognitionElements(bbox),
+          bbox,
+        };
+        attempt.status = 'succeeded';
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
         const validation = /^(识图|普通文字)/.test(message);
         attempt.status = validation ? 'failed' : 'unknown';
         attempt.error = validation
-          ? message + ' 请核对模型是否支持图片输入和 JSON 输出；建议切换识图模型后重试。'
+          ? message + ' 请核对 GPT-6.1 Sol 接口配置与原稿；不会切换其他模型。'
           : '识图连接中断或响应无法确认，结果未知；请查询原请求，不会自动重试。';
+      } finally {
+        this.write(attempt);
       }
-      this.write(attempt);
       return attempt;
     })();
     active.set(filename, task);

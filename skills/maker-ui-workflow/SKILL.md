@@ -48,25 +48,27 @@ submittedPrompt 包含实际发送的参考图尺寸。实际结果比例不符�
 带当前 page-id、canvas-id、revision 和 target-dir 执行；只有用户明确要求无识图对照时，
 在本次及后续 run 的 input 中显式传 `"recognition":false`，例如
 `{"id":"分组ID","recognition":false}`。仅提前关闭卡片开关不能覆盖 CLI run 的默认值。
-识图由当前对话 AI 自己完成，不要求配置 TAPTAP_MAKER_VISION_CONFIG 或另一个模型服务。
-沿用看图 → CLI 写入 → 继续流程：
+识图使用控制台「设置」选择的本地模型、Server API 或自定义 API，思考档 low，不使用当前对话模型代替。
+自定义 API 只配置 Base URL 和 Key；模型固定为 gpt-6.1-sol，Key 只存本机。
+取得两次识图的付费授权后执行：
 
-1. 先 run「去文字设计稿」卡片；分组 run 也会先完成去文字，然后提示当前 AI 识图。
-   inspect 确认去文字卡已完成，读取它的 assetPath 和 imageInfo，使用当前模型识别这张去文字图。
-   原设计稿只作为去文字输入，以及美术字独立支线的参考；不能用原稿代替去文字图识别。
-   不能以生图的标框图片代替清单；当前模型无法读取图片时，明确建议切换支持图片输入的模型。
-2. 逐项记录元素 id、name、category、rect（去文字图像素 x/y/宽/高）、parentId、zIndex、states、cutout。
-   category 取 icon/frame/tab/action/shortcut/close/title/panel/art_text/text；普通文字 cutout=false。
-   重复按钮逐个记录，不能漏掉实例。坐标是 AI 识别估计，不能宣称精确测量。
-3. 用现有 canvas update-nodes 写去文字卡的 uiRecognition.result，自动显示便签并供标框/拆图引用。
-   input：`{"nodes":[{"id":"去文字卡ID","uiRecognition":{"enabled":true,"result":{...}}}]}`。
-   result 字段：id（新 UUID）、model（实际当前模型名，未知写 unknown）、prompt（本次识别要求）、
-   createdAt（ISO 时间）、durationMs（识别耗时，未计时写 0）、sourcePath（assetPath）、sourceSha256
-   （去文字图字节的 SHA-256）、width/height（真实像素）、elements（上述元素数组）。
-   重新 inspect 取得 revision 后写入；系统校验去文字图路径、哈希、尺寸、坐标和编号，保存并选用清单。
-4. inspect 的 recognitionState=ready 且便签 text 有实际编号后，再 run 分组。
-   换模型测试时读取同一去文字图，写入新的 result；历史清单保留，画布「对比」可查看和切换。
-   报错时按具体原因修正，不自动关闭识图跳过。远端生图超时或 unknown 先查询原任务，不盲目重提。
+1. run「去文字设计稿」，确认其已完成，且直接连线引用唯一原稿。
+2. 运行去文字卡的两次识图（分组 run 也会自动执行）：第一次只看去文字图提取 UI；
+   第二次只看原稿提取文字，并带第一次已换算到原稿像素的清单。不要加入旧稿数量或额外识图 Skill。
+3. inspect 读取选用结果的 uiRecognition.results[].bbox，或在识图面板导出 Bbox JSON。
+   固定 version=1、coordinateSpace=design-pixels、bboxFormat=xywh，design/cutSource 保存图片路径、
+   哈希及真实尺寸；elements 为 E 编号的 icon/frame/panel/button/tab/title，texts 为 T 编号的文字。
+   所有 bbox 都是原稿像素 [x,y,w,h]；切去文字图才按两张图的实际宽高换算。
+4. 完整结果保存后继续拆图。文字的 text、parentId、role、align、color、bold 全部保留，cutout=false，
+   后续做 Label，不入切图清单。unknown 或中断只查询原请求，不重放；第二次失败不把第一次当作完成。
+
+不要重新看图猜坐标或让用户换当前对话模型。已有 Bbox 时直接复用；换原稿或重新去文字后再识别。
+旧版单次清单没有文字 Bbox，需要双次识图后才能按本流程完整组装。
+
+新建或优化拆图流程时，先按素材尺寸和处理要求合批，不按每个语义分类各建一张图集。
+小素材可用约 5×5 的密集图集，大素材少量合图；行列与数量由实际清单、输出分辨率和留白决定，
+不是固定 3×3 或 5×5 上限。先规划整套批次，再调用生成；具体规则见 references/workflow.md
+的「图集合批」。已有结果保留，不为了合批重新付费生成。
 
 只执行已配置的画布模板时，确认输入和参数后使用分组 run（取得付费授权后传 --allow-paid）。
 队列按连线自动接续图片与资源卡，资源卡按已保存网格裁切并保存独立 PNG，不必逐张调用。
@@ -77,15 +79,21 @@ submittedPrompt 包含实际发送的参考图尺寸。实际结果比例不符�
 
 布局字段、坐标依据、冗余资源和双重对位契约见 [workflow.md](references/workflow.md)。
 
-1. 先从原设计稿生成去文字稿；再由当前 AI 识别去文字稿，保存稳定元素 ID、该图像素位置、类型、父级及绘制顺序。
-   相似按钮逐个记录，清单通过上述 CLI 写入便签，再用于标框和拆图。重新去文字后必须重新识别。
+1. 模板一先去文字，再分别识别 UI 与原稿文字；模板二在原稿一次识别 UI 与文字，并去文字供切图。
+   两条流程都保存同格式 Bbox JSON，按设置使用识图来源。
+   相似按钮逐个记录，切图清单用于标框和拆图；原稿文字清单留给组装。重新去文字后必须重新识别。
 2. 按去文字稿的清单分别标注按钮、图标；背景在去文字后再去除前景。
    美术字是独立支线：标注和提取始终引用未去文字的原设计稿，不能因去文字清单没有美术字而跳过。
    提取提示词分开写“参考与目标”“保留”“移除”“输出”。按钮默认/按下态分别生成、统一画布与锚点，
    图标与按钮底板分离；美术字只保留字形及字效，不带后方底框。
-   后续组装需要的普通文字及原稿布局单独对照原稿补录，不混入去文字切图清单。
-3. 查看真实结果。透明处理、必要的重新排版要明确使用已有能力或可重复的本地处理，不能把人工修图冒充模板自动能力。
+   普通文字从第二次识图的 texts 还原为 Label，不混入去文字切图清单，不重新猜位置。
+3. 切图前固定 uiAtlasPlan：每格关联元素 ID、状态，按从左到右、从上到下输出，
+   提示词带名称和换算到参考图的 Bbox。生成结果保存本次清单，不用后续修改的清单解释旧图。
+   模板一按分类生成清单；模板二合批时显式规划清单。更换原稿或识图结果后重新规划，不能沿用旧绑定。
+   查看真实结果。透明处理、必要的重新排版要明确使用已有能力或可重复的本地处理，不能把人工修图冒充模板自动能力。
    用图集预览核对完整边界后确认，再导出独立 PNG；未知远端任务只查原任务，不自动重提。
+   数量相同不能证明内容顺序正确。未核对的切图保持 unreviewed，不允许直接拼装。
+   导出资源包同时包含 bbox.json、bindings.json，PNG 仍按分类分文件夹。
 4. 正式素材按 assets/ui/<界面>/images/ 归档；备用图同目录 reserve/ 保留但不入布局。
    过程文件、layout.json、corrections.json 留在项目 .maker/ui-workflows/<界面>/，不混入正式 PNG。
    明确绑定资源 ID 与元素 ID、默认/按下态，记录图片尺寸与哈希；显式调用 generate_resource_meta。
@@ -97,6 +105,20 @@ submittedPrompt 包含实际发送的参考图尺寸。实际结果比例不符�
 
 ## 组装和打开
 
+### 隔一段时间继续拼 UI
+
+模板一、二共用本地归档，不依赖聊天记忆或控制台保持开启。
+先运行 `taptap-maker canvas ui-archives --target-dir <项目>`，按名称、uiId 和 revision 选择用户指定的 UI；
+读取返回的同一条记录的 bboxPath、bindingsPath。多个版本不能擅自选最新，也不跨界面借用坐标。
+旧画布尚无归档时，先保存，再运行 `canvas archive-ui --target-dir <项目> --canvas-id <ID>`；
+该命令只归档已保存数据，不生图、不识图、不读取未保存草稿。
+recognized 记录只有 Bbox；resources 记录才包含分类 PNG、设计稿、去文字稿和 bindings.json。
+资源版本为不可变快照，重识图或重切保存新版本；改名称不改变 uiId，复制新画布产生新 uiId。
+从该归档目录或用户解压的资源包导入图片，保留 bbox.design/cutSource 的 assets/ 路径和哈希；
+素材按分类放入 assets/ui/<界面>/images/，只改 bindings.assets 中的 path，不改元素 ID 或 Bbox。
+合并 bbox.json 与 bindings.json 为 assembly.json，保留 ui 字段；脚本检查 Bbox 哈希，拒绝混搭版本。
+原参考图目标路径已存在时先核对哈希，不覆盖不同图片。归档不自动清理，删除整个项目仍需自行备份 ZIP。
+
 在已安装的 Skill 目录运行（正式分发的脚本已打包依赖，无需 npm install）：
 
     node scripts/assemble-ui.mjs <项目绝对路径> <layout.json> <新输出目录> [corrections.json]
@@ -107,6 +129,26 @@ submittedPrompt 包含实际发送的参考图尺寸。实际结果比例不符�
 控制台已打开时也可进入「UI 编辑器」并刷新文件列表。不要启动独立 UrhoxUIEditor 或 Python 服务。
 也可直接运行 taptap-maker ui open --target-dir <项目> --file <assets/相对UI路径> --no-open --json，
 取得含项目与 checkout 身份的直达地址；不要手工拼接另一个项目的 URL。
+
+### 直接使用 Bbox JSON 组装
+
+已有单次或两次识图的 Bbox 时，不手工重建另一份坐标。准备一个 assembly.json，包含：
+
+- bbox：导出的完整 Bbox JSON 对象；所有框已是原稿像素 [x,y,w,h]。
+- assets：沿用 layout 格式的资源记录（id、assets/ 相对 path、sha256、width、height、role）。
+- bindings：每个 E 元素的显式 {elementId,assetId}，按钮可附 pressedAssetId；备用素材 role=reserve。
+
+资源包的 bindings.json 可直接与 bbox.json 合并，仅将资源 path 改为导入后的 assets/ 路径；
+保留 confirmed、review、哈希、contentRect 和 backgroundAssetId。缺件或未确认清单不能拼装。
+contentRect 是 PNG 内的有效区域，脚本确定性裁掉透明边距到新目录，原素材不变；不是视觉纠偏。
+已有素材只有存在明确的元素 ID/路径/哈希记录才能回填为 recorded，不能按文件顺序臆测旧关联。
+
+将 assembly.json 作为 assemble-ui.mjs 的第二个参数。脚本按 Bbox 生成图像节点和 Label，
+自动换算父子相对位置，保留文本、对齐、颜色和粗体；字号以墨迹高度初拟合，字体沿用编辑器 PingFang SC。
+输出额外的 layout.json，后续纠偏使用该文件与已有 corrections 契约。不从 PNG 名称或相似外观猜绑定，
+缺少任一 E 元素的绑定即停止；文字无需 PNG。组装目前仍要求参考源和素材为 PNG，
+非 PNG 参考先在项目中转为 PNG 并明确更新路径、哈希与尺寸，不修改 bbox 坐标。
+字体度量、素材透明边距、图层顺序和生图形变仍需编辑器对照；Bbox 通过校验不代表视觉验收通过。
 
 ## 完成检查
 

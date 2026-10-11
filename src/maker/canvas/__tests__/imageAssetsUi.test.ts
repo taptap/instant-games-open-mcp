@@ -4,10 +4,13 @@ import { emptyDocument } from '../model.js';
 import { snapshotCanvasSource } from '../dependencies.js';
 import { setUiRecognitionMode } from '../uiRecognition.js';
 import { drawImageAtlasPreview, openImageAtlasDialog } from '../imageAtlasUi.js';
+import * as imageAtlasExport from '../imageAtlasExport.js';
 
 jest.mock('../imageAtlasUi.js', () => ({
   openImageAtlasDialog: jest.fn(),
-  drawImageAtlasPreview: jest.fn(() => [{ name: 'item_001' }]),
+  drawImageAtlasPreview: jest.fn(
+    (_canvas, _bitmap, _grid, crops) => crops || [{ name: 'item_001' }]
+  ),
 }));
 
 const globals = globalThis as any;
@@ -20,7 +23,11 @@ beforeEach(() => {
   globals.document = {
     createElement: () => ({
       toDataURL: () => 'data:image/png;base64,preview',
-      getContext: () => ({ drawImage: jest.fn() }),
+      getContext: () => ({
+        drawImage: jest.fn(),
+        getImageData: () => ({ data: new Uint8ClampedArray(80 * 60 * 4).fill(255) }),
+        putImageData: jest.fn(),
+      }),
       toBlob: (done: (blob: Blob) => void) => done(new Blob(['png'], { type: 'image/png' })),
     }),
   };
@@ -89,7 +96,7 @@ test('preview is read-only, reports a confirmation step and releases the decoded
   expect(ui.reviewState('target')?.reviewId).toBe(review.reviewId);
 });
 
-test.each(['revision', 'source', 'edge', 'pending', 'target', 'canvas'])(
+test.each(['revision', 'source', 'edge', 'pending', 'target', 'canvas', 'cut'])(
   'invalidates confirmation after %s changes',
   async (change) => {
     const { current, ui, options } = fixture();
@@ -100,10 +107,79 @@ test.each(['revision', 'source', 'edge', 'pending', 'target', 'canvas'])(
     if (change === 'pending') current.nodes[0].templatePending = true;
     if (change === 'target') current.nodes.pop();
     if (change === 'canvas') current.id = randomUUID();
+    if (change === 'cut')
+      current.nodes[1].imageAssetsInfo = {
+        width: 80,
+        height: 60,
+        grid: { columns: 2, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
+        items: [],
+      };
     await expect(ui.confirm('target', review.reviewId)).rejects.toThrow('预览已失效');
     expect(options.store.importImage).not.toHaveBeenCalled();
   }
 );
+
+test('content confirmation uses precisely the prepared pixels and regions that were previewed', async () => {
+  const { current, ui } = fixture();
+  const prepared = {
+    width: 80,
+    height: 60,
+    grid: { columns: 2, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
+    mode: 'content' as const,
+    background: { color: [0, 255, 0] as [number, number, number], mode: 'all' as const },
+    regions: [
+      { name: 'item_001', x: 2, y: 2, width: 70, height: 10 },
+      { name: 'item_002', x: 5, y: 20, width: 20, height: 35 },
+    ],
+    canvas: {} as HTMLCanvasElement,
+  };
+  const prepare = jest.spyOn(imageAtlasExport, 'prepareImageAtlas').mockResolvedValue(prepared);
+  const split = jest.spyOn(imageAtlasExport, 'splitImageAtlas').mockResolvedValue({
+    ...prepared,
+    items: prepared.regions.map((region) => ({
+      name: region.name,
+      width: region.width,
+      height: region.height,
+      blob: new Blob(['png']),
+    })),
+  });
+  try {
+    const result = await ui.preview('target', prepared.grid, { mode: 'content', expectedCount: 2 });
+    expect(result.regions).toEqual(prepared.regions);
+    expect(result.cutMode).toBe('content');
+    await ui.confirm('target', result.reviewId);
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(split.mock.calls[0][5]).toBe(prepared);
+    expect(current.nodes[1].imageAssetsInfo?.regions).toEqual(prepared.regions);
+    expect(current.nodes[1].imageAssetsInfo?.background).toEqual(prepared.background);
+    await ui.preview('target');
+    expect(prepare).toHaveBeenLastCalledWith(
+      expect.any(Blob),
+      prepared.grid,
+      prepared.background.color,
+      'all',
+      expect.objectContaining({ mode: 'content', regions: prepared.regions })
+    );
+  } finally {
+    prepare.mockRestore();
+    split.mockRestore();
+  }
+});
+
+test('layout failure keeps the current assets and offers local crop repair, not paid regeneration', async () => {
+  const { target, options, ui } = savedGridFixture();
+  const before = JSON.stringify(target);
+  const split = jest
+    .spyOn(imageAtlasExport, 'splitImageAtlas')
+    .mockRejectedValue(Object.assign(new Error('layout'), { code: 'ATLAS_LAYOUT_INVALID' }));
+  try {
+    await expect(ui.runSavedGrid(target.id)).rejects.toThrow('不会自动重新生图');
+    expect(JSON.stringify(target)).toBe(before);
+    expect(options.store.importImage).not.toHaveBeenCalled();
+  } finally {
+    split.mockRestore();
+  }
+});
 
 test('a new grid preview invalidates the old token and rejects unknown fields', async () => {
   const { ui } = fixture();
@@ -132,7 +208,7 @@ test('grid render failures dispose the bitmap and invalidate the previous previe
   (drawImageAtlasPreview as jest.Mock).mockImplementationOnce(() => {
     throw new Error('invalid grid');
   });
-  await expect(ui.preview('target', { columns: 0 })).rejects.toThrow('invalid grid');
+  await expect(ui.preview('target', { columns: 2 })).rejects.toThrow('invalid grid');
   expect(close).toHaveBeenCalledTimes(2);
   expect(ui.reviewState('target')).toBeUndefined();
   expect(ui.isBusy).toBe(false);
@@ -284,6 +360,62 @@ test('workflow prepares real items from current atlas and saved grid without a r
   expect(ui.reviewState(target.id)).toBeUndefined();
   expect(ui.isBusy).toBe(false);
 });
+
+test.each([
+  ['#FF00FF', false],
+  ['#00FF00', false],
+  [undefined, false],
+  ['#FF00FF', true],
+] as const)(
+  'atlas splitting selects recorded color %s and preserves UI interior=%s',
+  async (cutoutColor, gameUi) => {
+    const { current, target, ui } = savedGridFixture();
+    if (gameUi) {
+      target.sectionId = 'group';
+      current.nodes.push({
+        id: 'group',
+        type: 'section',
+        title: 'UI',
+        x: 0,
+        y: 0,
+        width: 900,
+        height: 600,
+        templateId: '7e1cb6ad-732f-4dc3-a951-000000000012',
+      });
+    }
+    current.nodes[0].generation = { prompt: 'atlas', ...(cutoutColor ? { cutoutColor } : {}) };
+    const split = jest.spyOn(imageAtlasExport, 'splitImageAtlas').mockResolvedValue({
+      width: 80,
+      height: 60,
+      grid: target.imageAssetsInfo!.grid,
+      background: { mode: 'connected' },
+      items: [1, 2].map((index) => ({
+        name: 'item_00' + index,
+        width: 40,
+        height: 60,
+        blob: new Blob(['png'], { type: 'image/png' }),
+      })),
+    });
+    try {
+      expect(await ui.runSavedGrid(target.id)).toBe(true);
+      expect(split).toHaveBeenCalledWith(
+        expect.any(Blob),
+        target.imageAssetsInfo!.grid,
+        cutoutColor === '#FF00FF'
+          ? [255, 0, 255]
+          : cutoutColor === '#00FF00'
+            ? [0, 255, 0]
+            : undefined,
+        cutoutColor && !gameUi ? 'all' : 'connected',
+        {},
+        undefined
+      );
+      expect(target.templatePending).toBeUndefined();
+    } finally {
+      split.mockRestore();
+    }
+  }
+);
 
 test('workflow refuses missing or invalid grid without importing files or guessing defaults', async () => {
   const { target, options, ui } = savedGridFixture();

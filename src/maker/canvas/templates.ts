@@ -1,6 +1,8 @@
 import type { CanvasDocument, CanvasNode, CanvasEdge } from './model.js';
 import { builtinPresetDescriptions } from './presetDescriptions.js';
 import { templatePresentation } from './templatePresentation.js';
+import { resetImageFeatureCopy } from './imageFeatures.js';
+import { canvasNodeVersion } from './dependencies.js';
 
 export interface CanvasWorkflowTemplate {
   id: string;
@@ -150,12 +152,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       delete node.templateRevision;
       delete node.templateSkills;
       delete node.templatePending;
-      if (node.uiRecognition)
-        node.uiRecognition = {
-          enabled: node.uiRecognition.enabled,
-          model: node.uiRecognition.model,
-          results: [],
-        };
+      resetImageFeatureCopy(node, true);
       if (node.uiRecognitionSourceId && !selected.has(node.uiRecognitionSourceId))
         delete node.uiRecognitionSourceId;
       if (node.sourceVideoId && !selected.has(node.sourceVideoId))
@@ -194,17 +191,8 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       ]) {
         const source = document.nodes.find((item) => item.id === snapshot.nodeId);
         const copy = nodes.find((item) => item.id === snapshot.nodeId);
-        if (source && copy && source.generation?.attemptId) {
-          const oldVersion = [
-            source.type,
-            source.assetPath || 'missing-asset',
-            source.generation.attemptId,
-          ].join('|');
-          if (snapshot.version === oldVersion)
-            snapshot.version = [copy.type, copy.assetPath || 'missing-asset', 'manual-asset'].join(
-              '|'
-            );
-        }
+        if (source && copy && snapshot.version === canvasNodeVersion(source))
+          snapshot.version = canvasNodeVersion(copy)!;
       }
     }
     const sectionIds = new Set(members(document, ids).map((node) => node.sectionId));
@@ -240,23 +228,12 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
   function instantiate(template: CanvasWorkflowTemplate, position: { x: number; y: number }) {
     const nodes: CanvasNode[] = JSON.parse(JSON.stringify(template.nodes));
     const modelWorkflow = nodes.some((node) => node.type === 'model-views');
-    const savedExampleWorkflow =
-      template.builtin &&
-      // UI production examples remain visible, but do not complete a new workflow.
-      template.id !== '7e1cb6ad-732f-4dc3-a951-000000000012' &&
-      (nodes.some((node) => node.type === 'image-assets' && node.imageAssetsInfo?.items.length) ||
-        nodes.every((node) => node.type === 'image' && node.assetPath));
     const ids = new Map(nodes.map((node) => [node.id, createId()]));
     for (const node of nodes) {
       node.id = ids.get(node.id)!;
       if (node.uiRecognitionSourceId)
         node.uiRecognitionSourceId = ids.get(node.uiRecognitionSourceId);
-      if (node.uiRecognition)
-        node.uiRecognition = {
-          enabled: node.uiRecognition.enabled,
-          model: node.uiRecognition.model,
-          results: [],
-        };
+      resetImageFeatureCopy(node, true);
       node.x += position.x;
       node.y += position.y;
       if (node.sourceVideoId) node.sourceVideoId = ids.get(node.sourceVideoId);
@@ -274,8 +251,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       if (node.generation?.sourceImageIds)
         node.generation.sourceImageIds = node.generation.sourceImageIds.map((id) => ids.get(id)!);
       if (
-        !['model', 'model-views'].includes(node.type) &&
-        !savedExampleWorkflow &&
+        !['model', 'model-views', 'resource-bundle'].includes(node.type) &&
         template.edges.some((edge) => ids.get(edge.to) === node.id)
       )
         node.templatePending = true;
@@ -294,6 +270,16 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       from: ids.get(edge.from)!,
       to: ids.get(edge.to)!,
     }));
+    for (const node of nodes) {
+      if (!node.uiRecognition || node.uiRecognition.inputRole === 'design') continue;
+      const inputs = edges.filter((edge) => edge.to === node.id && edge.kind === 'image-variant');
+      if (inputs.length !== 1) continue;
+      const design = nodes.find(
+        (candidate) => candidate.id === inputs[0].from && candidate.type === 'image'
+      );
+      if (design && !design.uiRecognition)
+        design.uiRecognition = { enabled: false, inputRole: 'design', results: [] };
+    }
     return { nodes: [section, ...nodes], edges, section };
   }
   function updateMembership(document: CanvasDocument, movedIds: string[]): void {

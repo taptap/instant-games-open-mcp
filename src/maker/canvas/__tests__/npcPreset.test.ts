@@ -25,6 +25,10 @@ test('NPC preset keeps a style reference and eight distinct transparent full-bod
   expect(atlas.generation?.referenceImagePaths).toEqual([]);
   expect(atlas.generation?.sourceImageIds).toEqual([reference.id]);
   expect(atlas.generation?.prompt).toContain('不是同一人物换装');
+  expect(atlas.generation?.prompt).toContain('参考图的身材比例');
+  expect(atlas.generation?.prompt).not.toContain('四至五头身');
+  expect(atlas.generation?.prompt).not.toContain('单个主体');
+  expect(atlas.generation?.cutoutColor).toBe('#FF00FF');
   for (const role of [
     '铁匠',
     '面包师',

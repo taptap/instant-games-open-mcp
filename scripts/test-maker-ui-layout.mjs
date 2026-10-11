@@ -4,7 +4,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { PNG } from 'pngjs';
-import { assemble, digest, layoutDigest, readAsset, run } from './assemble-maker-ui.mjs';
+import {
+  assemble,
+  digest,
+  layoutDigest,
+  layoutFromBbox,
+  readAsset,
+  run,
+} from './assemble-maker-ui.mjs';
 
 function fixture() {
   const layout = {
@@ -78,6 +85,65 @@ function fixture() {
   };
   return layout;
 }
+
+function bboxInput() {
+  const layout = fixture();
+  return {
+    bbox: {
+      version: 1,
+      coordinateSpace: 'design-pixels',
+      bboxFormat: 'xywh',
+      design: layout.design,
+      cutSource: { ...layout.design },
+      elements: [
+        { id: 'E001', name: '按钮', type: 'button', bbox: [40, 80, 100, 50], parent: null },
+      ],
+      texts: [
+        {
+          id: 'T001',
+          text: '购买',
+          bbox: [50, 90, 80, 30],
+          parentId: 'E001',
+          role: 'button',
+          align: 'center',
+          color: '#F2D48A',
+          bold: true,
+          cutout: false,
+        },
+      ],
+    },
+    assets: layout.assets,
+    bindings: [{ elementId: 'E001', assetId: 'button' }],
+  };
+}
+
+test('two-pass Bbox assembly preserves positions, Label content, alignment and real editor colors', () => {
+  const layout = layoutFromBbox(bboxInput());
+  const result = assemble(layout);
+  const button = result.ui.children[0];
+  assert.equal(button.left, 40);
+  assert.equal(button.top, 80);
+  const label = button.children[0];
+  assert.equal(label.type, 'Label');
+  assert.equal(label.left, 10);
+  assert.equal(label.top, 10);
+  assert.equal(label.text, '购买');
+  assert.equal(label.textAlign, 'center');
+  assert.equal(label.fontWeight, 'bold');
+  assert.deepEqual(label.color, [242, 212, 138, 255]);
+  assert.equal(label.fontSize, 30);
+});
+
+test('Bbox assembly refuses missing bindings, invalid parents, cycles and text-as-cutout', () => {
+  for (const failure of ['binding', 'parent', 'cycle', 'text']) {
+    const input = bboxInput();
+    if (failure === 'binding') input.bindings = [];
+    if (failure === 'parent') input.bbox.texts[0].parentId = 'E999';
+    if (failure === 'cycle') input.bbox.elements[0].parent = 'E001';
+    if (failure === 'text') input.bbox.texts[0].cutout = true;
+    assert.throws(() => assemble(layoutFromBbox(input)));
+  }
+});
 function corrections(layout, adjustments) {
   return {
     version: 1,
@@ -198,5 +264,94 @@ test('real PNG hashes are checked; output is new-only and assets stay untouched'
     assert.throws(() => readAsset(dir, 'assets/../layout.json'), /Unsafe asset path/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('unreviewed bindings refuse assembly and background keeps explicit design bounds', () => {
+  const input = bboxInput();
+  assert.throws(() => layoutFromBbox({ ...input, confirmed: false }), /not confirmed/);
+  input.bindings[0].review = 'unreviewed';
+  assert.throws(() => layoutFromBbox(input), /Unreviewed/);
+  input.bindings[0].review = 'recorded';
+  input.backgroundAssetId = input.assets[1].id;
+  const layout = layoutFromBbox(input);
+  assert.deepEqual(layout.elements[1].rect, [0, 0, 400, 800]);
+  assert.equal(layout.elements[1].assetId, input.backgroundAssetId);
+});
+
+test('bundle Bbox identity prevents mixing another revision into assembly', () => {
+  const input = bboxInput();
+  input.ui = { id: 'test-ui', bboxSha256: digest(JSON.stringify(input.bbox)) };
+  assert.doesNotThrow(() => layoutFromBbox(input));
+  input.bbox.elements[0].bbox[0] += 1;
+  assert.throws(() => layoutFromBbox(input), /does not match/);
+});
+
+test('contentRect crops deterministically without changing Bbox or original bytes', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-ui-crop-'));
+  try {
+    fs.mkdirSync(path.join(directory, 'assets'));
+    const input = bboxInput();
+    for (const item of [input.bbox.design, ...input.assets]) {
+      const png = new PNG({ width: item.width, height: item.height });
+      png.data.fill(255);
+      const bytes = PNG.sync.write(png);
+      item.sha256 = digest(bytes);
+      fs.writeFileSync(path.join(directory, item.path), bytes);
+    }
+    input.bbox.cutSource = { ...input.bbox.design };
+    input.assets[0].contentRect = [5, 6, 50, 30];
+    const original = structuredClone(input.assets[0]);
+    const file = path.join(directory, 'input.json');
+    fs.writeFileSync(file, JSON.stringify(input));
+    const output = path.join(directory, 'assets', 'assembled');
+    run(directory, file, output);
+    const layout = JSON.parse(fs.readFileSync(path.join(output, 'layout.json')));
+    assert.equal(layout.assets[0].width, 50);
+    assert.equal(layout.assets[0].height, 30);
+    assert.deepEqual(
+      layout.elements.find((item) => item.id === 'E001').rect,
+      input.bbox.elements[0].bbox
+    );
+    assert.equal(digest(readAsset(directory, original.path)), original.sha256);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('Bbox file input produces editable UI, reference and a reusable correction layout', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-ui-bbox-'));
+  try {
+    fs.mkdirSync(path.join(directory, 'assets'));
+    const input = bboxInput();
+    for (const item of [input.bbox.design, ...input.assets]) {
+      const png = new PNG({ width: item.width, height: item.height });
+      png.data.fill(255);
+      const bytes = PNG.sync.write(png);
+      item.sha256 = digest(bytes);
+      fs.writeFileSync(path.join(directory, item.path), bytes);
+    }
+    input.bbox.cutSource = { ...input.bbox.design };
+    const filename = path.join(directory, 'assembly.json');
+    fs.writeFileSync(filename, JSON.stringify(input));
+    const output = path.join(directory, 'output');
+    run(directory, filename, output);
+    const layout = JSON.parse(fs.readFileSync(path.join(output, 'layout.json'), 'utf8'));
+    assert.deepEqual(
+      layout.elements.find((element) => element.id === 'T001').rect,
+      [50, 90, 80, 30]
+    );
+    assert(fs.existsSync(path.join(output, 'assembled.reference.png')));
+    assert.equal(
+      JSON.parse(fs.readFileSync(path.join(output, 'assembled.ui.json'), 'utf8')).children[0]
+        .children[0].text,
+      '购买'
+    );
+    input.bbox.cutSource.sha256 = 'f'.repeat(64);
+    fs.writeFileSync(filename, JSON.stringify(input));
+    assert.throws(() => run(directory, filename, path.join(directory, 'stale')), /Image changed/);
+    assert(!fs.existsSync(path.join(directory, 'stale')));
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
 });

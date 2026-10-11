@@ -1,4 +1,9 @@
 import fs from 'node:fs';
+import {
+  selectedUiAtlasPlan,
+  uiAtlasOrderPrompt,
+  type UiAtlasPlan,
+} from '../canvas/uiAssetBindings.js';
 import { validateFramePairVideo } from '../canvas/framePair.js';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
@@ -43,6 +48,7 @@ export type CanvasGenerationStatus =
   | 'canceled';
 
 export interface CanvasGenerationAttempt {
+  uiAtlasPlan?: UiAtlasPlan;
   id: string;
   canvasId: string;
   kind: CanvasGenerationKind;
@@ -226,6 +232,9 @@ export class CanvasGenerationService {
       }
     }
     const target = document.nodes.find((node) => node.id === options.targetNodeId);
+    const uiAtlasPlan = target && selectedUiAtlasPlan(document, target);
+    if (uiAtlasPlan && !options.prompt.includes(uiAtlasOrderPrompt(uiAtlasPlan)))
+      throw new Error('UI 槽位清单或提示词已变化，请重新确认后生成。');
     const recognitionSource = target && uiRecognitionSource(document, target);
     const recognition =
       recognitionSource && recognitionSource.id !== target?.id
@@ -313,6 +322,7 @@ export class CanvasGenerationService {
       kind: 'image',
       toolName: 'generate_image',
       prompt: options.prompt,
+      uiAtlasPlan,
       cutoutColor: options.cutoutColor,
       operation,
       sourceImagePath: options.sourceImagePath || sourceImagePaths[0],
@@ -864,6 +874,7 @@ export class CanvasGenerationService {
       | 'toolName'
       | 'prompt'
       | 'cutoutColor'
+      | 'uiAtlasPlan'
       | 'operation'
       | 'sourceImagePath'
       | 'sourceImageId'

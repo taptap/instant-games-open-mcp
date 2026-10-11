@@ -1,7 +1,7 @@
 {
   "id": "7e1cb6ad-732f-4dc3-a951-000000000012",
   "name": "游戏UI制作",
-  "revision": 9,
+  "revision": 11,
   "skills": ["maker-ui-workflow"],
   "nodes": [
     {
@@ -23,7 +23,7 @@
       "height": 755.0,
       "title": "② 去文字设计稿",
       "uiRecognition": {
-        "enabled": false,
+        "enabled": true,
         "results": []
       },
       "assetPath": "assets/image/preset-game-ui-066.png",
@@ -890,7 +890,7 @@
       "y": 5990.0,
       "width": 1000,
       "height": 340,
-      "text": "模板到独立 PNG 资源包结束。各资源卡分别下载，全部保留；示例仅供参考；开启识图时按清单计算网格，关闭时沿用示例网格；按记录底色抠图，完成后核对清单与边界。\n下一步：把设计稿和素材包交给接入 Maker MCP 的 AI，说“使用 maker-ui-workflow，把这些素材导入当前游戏项目、生成 meta、组装 UI.json，并打开控制台 UI 编辑器对照调整”。\n有布局清单则按原坐标组装；没有则由 AI 对照原稿补录，不能猜配相似素材。开启识图可取得元素编号和原稿坐标；后续仍需核对素材绑定并准备 layout.json，再由 CLI 组装。\n用户模板和生成素材只保存在本机，不自动上传 CDN 或 GitHub。"
+      "text": "切图后汇总资源并导出分类 ZIP，内含 bbox.json、bindings.json、PNG 和参考图。保存时同时保留本地归档。\n以后继续拼 UI：让 AI 使用 maker-ui-workflow，通过 canvas ui-archives 查找本界面及版本，按同一份 Bbox 和素材绑定组装，不重新猜配。\n重识图和重切保留新版本，不覆盖旧归档；示例素材不能当成新设计稿结果。资源仅存本机，不自动上传。"
     },
     {
       "id": "7e1cb6ad-732f-4dc3-a951-000000001298",

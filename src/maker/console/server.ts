@@ -30,6 +30,11 @@ import { getCanvasPageHtml } from '../canvas/page.js';
 import { writePrivateJson } from '../system/privateJson.js';
 import { logLifecycleEvent } from '../lifecycle.js';
 import {
+  visionSettingsForDisplay,
+  saveVisionSettings,
+  deleteVisionSettings,
+} from './visionSettings.js';
+import {
   createMakerRemoteProxyManager,
   type MakerRemoteProxyManager,
 } from '../server/remoteProxyManager.js';
@@ -259,6 +264,13 @@ export async function startConsoleServer(options: {
         throw new ConsoleError('Same-origin writes are required.', 403);
       if (request.method === 'GET' && url.pathname === '/api/health') {
         json(200, { instanceId: options.instanceId, draining, shutdownError });
+        return;
+      }
+      if (url.pathname === '/api/settings/ui-vision') {
+        if (request.method === 'GET') json(200, visionSettingsForDisplay());
+        else if (request.method === 'PUT') json(200, saveVisionSettings(await readBody(request)));
+        else if (request.method === 'DELETE') json(200, deleteVisionSettings());
+        else throw new ConsoleError('识图设置接口不支持此操作。', 405);
         return;
       }
       if (request.method === 'GET' && url.pathname === '/api/console-preferences') {

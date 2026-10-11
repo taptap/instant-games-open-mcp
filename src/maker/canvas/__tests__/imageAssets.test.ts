@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 const { PNG } = require('pngjs');
 import { applyImageAssets, validateImageAssetsInfo, createImageAssetsZip } from '../imageAssets.js';
+import type { ImageAssetsInfo } from '../imageAssets.js';
 import { imageAtlasRegions } from '../imageAtlasExport.js';
 import { emptyDocument, createId } from '../model.js';
 import type { CanvasNode } from '../model.js';
@@ -80,6 +81,44 @@ test('creates a real collection with source relation; updates it without replaci
   ).toThrow('先完成');
 });
 
+test('content crops are authoritative for variable-size items, without migrating legacy grids', () => {
+  const saved = info();
+  const regions = [
+    { name: 'item_001', x: 2, y: 2, width: 70, height: 10 },
+    { name: 'item_002', x: 5, y: 20, width: 20, height: 35 },
+  ];
+  const content = {
+    ...saved,
+    regions,
+    items: regions.map((region, index) => ({
+      name: region.name,
+      width: region.width,
+      height: region.height,
+      assetPath: saved.items[index].assetPath,
+    })),
+  };
+  expect(validateImageAssetsInfo(content)).toEqual(content);
+  expect(() => validateImageAssetsInfo({ ...content, items: saved.items })).toThrow();
+  expect(() =>
+    validateImageAssetsInfo({ ...content, regions: [regions[0], { ...regions[1], y: 4 }] })
+  ).toThrow('重叠');
+  expect(validateImageAssetsInfo(saved)).not.toHaveProperty('regions');
+});
+
+test('validates and preserves saved background processing, including explicit keep', () => {
+  for (const background of [{ mode: 'connected' }, { mode: 'all', color: [0, 255, 0] }])
+    expect(validateImageAssetsInfo({ ...info(), background }).background).toEqual(background);
+  for (const background of [
+    null,
+    {},
+    { mode: 'unknown' },
+    { mode: 'all', color: [0, 255] },
+    { mode: 'all', color: [0, -1, 256] },
+  ])
+    expect(() => validateImageAssetsInfo({ ...info(), background })).toThrow('背景处理');
+  expect(validateImageAssetsInfo(info())).not.toHaveProperty('background');
+});
+
 test.each(['legacy', 'resource'])(
   'exports %s PNGs and rejects missing or mismatched media',
   async (storage) => {
@@ -113,7 +152,7 @@ test.each(['legacy', 'resource'])(
   }
 );
 
-test.each(['legacy', 'resource'])(
+test.each(['legacy', 'resource', 'content'])(
   'persists %s PNGs and retains them after source deletion',
   async (storage) => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-image-assets-'));
@@ -134,12 +173,25 @@ test.each(['legacy', 'resource'])(
         height: 200,
         assetPath: sourceFile.relativePath,
       };
-      const saved = info();
+      const saved: ImageAssetsInfo = info();
+      if (storage === 'content') {
+        saved.background = { color: [0, 255, 0], mode: 'all' };
+        saved.regions = [
+          { name: 'item_001', x: 2, y: 2, width: 70, height: 10 },
+          { name: 'item_002', x: 5, y: 20, width: 20, height: 35 },
+        ];
+        saved.items = saved.regions.map((region, index) => ({
+          name: region.name,
+          width: region.width,
+          height: region.height,
+          assetPath: saved.items[index].assetPath,
+        }));
+      }
       for (const item of saved.items)
         item.assetPath = (
           await files.importImage(
             PNG.sync.write(new PNG({ width: item.width, height: item.height })),
-            storage === 'resource' ? document.id : undefined
+            storage !== 'legacy' ? document.id : undefined
           )
         ).relativePath;
       document.nodes.push(source);
@@ -149,7 +201,9 @@ test.each(['legacy', 'resource'])(
       document.nodes = [target];
       document.edges = [];
       document = await files.save(document.id, document, document.revision);
-      expect((await files.load(document.id)).nodes[0].imageAssetsInfo?.items).toHaveLength(12);
+      expect((await files.load(document.id)).nodes[0].imageAssetsInfo?.items).toHaveLength(
+        saved.items.length
+      );
       for (const item of saved.items)
         expect(fs.existsSync(files.readMedia(item.assetPath).file)).toBe(true);
       await expect(
