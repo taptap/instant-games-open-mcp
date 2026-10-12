@@ -32,9 +32,9 @@ export function canvasPresets(): CanvasPreset[] {
         );
         if (reference) {
           reference.exportDirection = direction;
-          reference.generationDraft = {
+          reference.generation = {
             operation: 'variant',
-            sourceImageId: reference.generationDraft?.sourceImageId,
+            sourceImageId: reference.generation?.sourceImageId,
             prompt: prompts.referenceImage(direction),
           };
         }
@@ -68,13 +68,17 @@ export function canvasPresets(): CanvasPreset[] {
   const views = '7e1cb6ad-732f-4dc3-a951-000000000042';
   const model = '7e1cb6ad-732f-4dc3-a951-000000000043';
   const characterPath = 'assets/image/preset-model-cat-reference.png';
+  const viewsPath = 'assets/image/preset-model-cat-views.png';
   return [
     ...sequences,
     {
       id: '7e1cb6ad-732f-4dc3-a951-000000000004',
       name: '角色模型 · 多视图确认',
-      revision: 3,
-      assets: { [characterPath]: { ...modelPresetData.asset } },
+      revision: 4,
+      assets: {
+        [characterPath]: { ...modelPresetData.asset },
+        [viewsPath]: { ...modelPresetData.viewsAsset },
+      },
       nodes: [
         {
           id: character,
@@ -90,6 +94,7 @@ export function canvasPresets(): CanvasPreset[] {
         {
           id: views,
           type: 'model-views',
+          assetPath: viewsPath,
           title: '多视图 · 确认后生模',
           x: 340,
           y: 0,

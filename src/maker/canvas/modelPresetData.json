@@ -12,5 +12,9 @@
   "asset": {
     "type": "image/png",
     "resourceId": "1aacb35ec0a151342888b03e28384f31dd3b46b6e82230e14cd13b25386b6444"
+  },
+  "viewsAsset": {
+    "type": "image/png",
+    "resourceId": "703cf7774bdf887a9057ed7b626798169aaf81c214754274d6b96d6ec1f8c972"
   }
 }

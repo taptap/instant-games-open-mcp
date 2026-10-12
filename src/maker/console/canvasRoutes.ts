@@ -176,7 +176,8 @@ export async function handleCanvasProjectRoute(options: {
       const result = await files.readTemplatePreviewImage(
         previewImage[1],
         Number(searchParams.get('revision')),
-        searchParams.get('node') || ''
+        searchParams.get('node') || '',
+        searchParams.has('item') ? Number(searchParams.get('item')) : undefined
       );
       response.writeHead(200, {
         'Content-Type': result.type,

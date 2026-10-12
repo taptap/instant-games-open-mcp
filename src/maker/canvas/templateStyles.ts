@@ -72,7 +72,10 @@ export const TEMPLATE_LIBRARY_STYLES = `
 .template-preview-card { position:absolute; box-sizing:border-box; display:flex; flex-direction:column; gap:8px; padding:10px; border:1px solid #4b5261; border-radius:10px; background:#20252e; overflow:hidden; z-index:2; }
 .template-preview-card>strong { font-size:14px; line-height:20px; flex-shrink:0; }
 .template-preview-content { flex:1; min-height:0; overflow:hidden; white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; color:#adb4c1; }
-.template-preview-content img { width:100%; height:100%; object-fit:contain; display:block; }
+.template-preview-content img, .template-preview-content canvas { width:100%; height:100%; object-fit:contain; display:block; }
+.template-preview-content iframe { width:100%; height:100%; border:0; pointer-events:auto; }
+.template-preview-assets { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); grid-auto-rows:minmax(0,1fr); gap:6px; }
+.template-preview-asset { min-width:0; min-height:0; border-radius:4px; background:#161a20; }
 .template-preview-card.preview-section { z-index:0; background:#252a3433; border:1px dashed #59616e; }
 .workflow-template-dialog .template-add { border:0; color:#f1d681; background:#efd07517; padding:6px 10px; font-weight:600; white-space:nowrap; }
 .workflow-template-dialog .template-add:hover:not(:disabled) { background:#efcf71; color:#292313; }

@@ -295,7 +295,7 @@ export function createBrowserCanvasDocumentStore(
         encodeURIComponent(projectKey) +
         '&skill=' +
         encodeURIComponent(name),
-      getPreviewImage: async (id, revision, nodeId, signal) => {
+      getPreviewImage: async (id, revision, nodeId, signal, itemIndex) => {
         const response = await fetcher(
           base +
             '/canvases/templates/' +
@@ -303,7 +303,8 @@ export function createBrowserCanvasDocumentStore(
             '/preview-image?revision=' +
             revision +
             '&node=' +
-            encodeURIComponent(nodeId),
+            encodeURIComponent(nodeId) +
+            (itemIndex === undefined ? '' : '&item=' + itemIndex),
           { signal }
         );
         if (!response.ok) throw new Error('预览图片加载失败');

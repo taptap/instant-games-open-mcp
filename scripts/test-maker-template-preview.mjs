@@ -17,6 +17,13 @@ try {
   const playwright = await import(
     process.env.PLAYWRIGHT_MODULE || pathToFileURL(path.join(root, 'playwright/index.mjs')).href
   );
+  const previewClient = await build({
+    entryPoints: [path.join(repo, 'src/maker/canvas/modelPreviewClient.ts')],
+    bundle: true,
+    platform: 'browser',
+    format: 'iife',
+    write: false,
+  });
   const bundle = path.join(temporary, 'harness.mjs');
   await build({
     stdin: {
@@ -28,6 +35,7 @@ try {
     platform: 'node',
     format: 'esm',
     outfile: bundle,
+    define: { __MAKER_MODEL_PREVIEW_SCRIPT__: JSON.stringify(previewClient.outputFiles[0].text) },
     external: ['./native/index.js'],
     logLevel: 'silent',
     banner: {
@@ -106,7 +114,9 @@ try {
     await preview.locator('.template-preview-card').first().waitFor();
   }
   await page.locator('.template-search').fill(template.name);
-  const skillLink = page.locator('[data-template-id="7e1cb6ad-732f-4dc3-a951-000000000013"] .template-card-metadata a');
+  const skillLink = page.locator(
+    '[data-template-id="7e1cb6ad-732f-4dc3-a951-000000000013"] .template-card-metadata a'
+  );
   assert.equal(await skillLink.innerText(), 'Skill · maker-ui-workflow');
   assert.equal(await skillLink.getAttribute('target'), '_blank');
   const skillUrl = new URL(await skillLink.getAttribute('href'), server.origin);
@@ -186,18 +196,102 @@ try {
   await page.getByLabel('模板 ZIP 文件', { exact: true }).setInputFiles(zipPath);
   await page.getByRole('button', { name: '导入', exact: true }).click();
   await page.locator('.template-library').waitFor();
-  const imported = (await files.listTemplatePage()).items.find(item => item.id !== custom.id);
+  const imported = (await files.listTemplatePage()).items.find((item) => item.id !== custom.id);
   assert(imported);
   assert.equal(imported.name, custom.name);
   assert.deepEqual(imported.skills, custom.skills);
   await open(imported.id);
-  await page.waitForFunction(() => [...document.querySelectorAll('.template-workflow-preview img')].every(img => img.complete && img.naturalWidth > 0));
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('.template-workflow-preview img')].every(
+      (img) => img.complete && img.naturalWidth > 0
+    )
+  );
   assert.equal(await preview.locator('.template-preview-card').count(), custom.nodes.length);
   assert.equal(JSON.stringify(await files.load(canvas.id)), original);
-  assert.equal(writes.filter(url => url.endsWith('/templates/import')).length, 1);
+  assert.equal(writes.filter((url) => url.endsWith('/templates/import')).length, 1);
   assert.equal(paidRequests, 0);
   assert.deepEqual(browserErrors, []);
-  console.log('PASS: custom ZIP download -> upload -> new template -> preview, original canvas unchanged');
+  await preview.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.locator('.template-search').fill('');
+  await page.getByRole('button', { name: '全部', exact: true }).click();
+  for (const suffix of [
+    '000001',
+    '000002',
+    '000003',
+    '000004',
+    '000005',
+    '000006',
+    '000008',
+    '000009',
+    '000010',
+    '000011',
+    '000013',
+  ]) {
+    await open('7e1cb6ad-732f-4dc3-a951-000000' + suffix);
+    if (suffix === '000004') {
+      const frame = preview.locator('iframe');
+      await frame.waitFor();
+      await frame.contentFrame().locator('canvas').waitFor();
+      await page.waitForFunction(
+        () => {
+          const frame = document.querySelector('.template-workflow-preview iframe');
+          return frame?.contentDocument?.body.dataset.state === 'ready';
+        },
+        undefined,
+        { timeout: 15000 }
+      );
+      assert(!(await preview.innerText()).includes('暂无多视图示例'));
+    } else if (['000001', '000002', '000003'].includes(suffix)) {
+      const expected = suffix === '000002' ? 4 : 1;
+      await page.waitForFunction((count) => {
+        const covers = [...document.querySelectorAll('.template-preview-content canvas')];
+        return (
+          covers.length === count &&
+          covers.every((canvas) =>
+            canvas
+              .getContext('2d')
+              .getImageData(0, 0, canvas.width, canvas.height)
+              .data.some((value) => value > 0)
+          )
+        );
+      }, expected);
+      assert.equal(await preview.getByText('视频 · 抽帧预览', { exact: true }).count(), expected);
+      assert.equal(await preview.locator('video').count(), 0);
+    } else {
+      await page.waitForFunction(() => {
+        const images = [...document.querySelectorAll('.template-workflow-preview img')];
+        return (
+          images.length > 0 &&
+          images.every((img) => img.complete && img.naturalWidth > 0) &&
+          !document.querySelector('.template-workflow-preview').textContent.includes('图片加载中')
+        );
+      });
+      assert.equal(await preview.getByText('图片不可用', { exact: true }).count(), 0);
+    }
+    assert(
+      !(await preview.innerText()).includes('暂无'),
+      'Official template is missing example assets: ' + suffix
+    );
+    await page.waitForFunction(
+      () => {
+        const dialog = document.querySelector('.template-workflow-preview');
+        return (
+          !dialog.textContent.includes('图片加载中') &&
+          [...dialog.querySelectorAll('img')].every((img) => img.complete && img.naturalWidth > 0)
+        );
+      },
+      undefined,
+      { timeout: 30000 }
+    );
+    assert.equal(await preview.getByText('图片不可用', { exact: true }).count(), 0);
+    await page.screenshot({ path: '/tmp/maker-template-preview-' + suffix + '.png' });
+    await preview.getByRole('button', { name: '关闭', exact: true }).click();
+  }
+  assert.equal(paidRequests, 0);
+  assert.deepEqual(browserErrors, []);
+  console.log(
+    'PASS: custom ZIP download -> upload -> new template -> preview, original canvas unchanged'
+  );
   console.log(
     'PASS: builtin/custom preview, images, wires, zoom/pan/fit, modal lifecycle, missing images, mobile, no canvas writes or generation'
   );

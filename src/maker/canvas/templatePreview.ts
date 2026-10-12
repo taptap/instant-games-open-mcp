@@ -195,36 +195,158 @@ export function openCanvasTemplatePreview(store: CanvasTemplateStore, id: string
           content.textContent =
             node.type === 'note' ? node.text || '' : labels[node.type] || node.type;
           previewCard.append(content);
-          if (
-            node.assetPath &&
-            ['image', 'sequence', 'animation'].includes(node.type) &&
-            store.getPreviewImage
-          ) {
-            content.textContent = '图片加载中…';
-            jobs.set(previewCard, async () => {
+          const loadImage = (
+            target: HTMLElement,
+            sourceId: string,
+            title: string,
+            itemIndex?: number,
+            frameSet?: (typeof node)['frameSetInfo']
+          ) => {
+            target.textContent = '图片加载中…';
+            jobs.set(target, async () => {
               try {
                 const blob = await store.getPreviewImage!(
                   template.id,
                   template.revision,
-                  node.id,
-                  abort.signal
+                  sourceId,
+                  abort.signal,
+                  itemIndex
                 );
                 if (abort.signal.aborted) return;
                 const url = URL.createObjectURL(blob);
                 urls.add(url);
                 const img = document.createElement('img');
-                img.alt = node.title;
+                img.alt = title;
                 img.draggable = false;
                 img.onerror = () => {
-                  content.textContent = '图片不可用';
+                  target.textContent = '图片不可用';
                 };
+                if (frameSet?.frames.length) {
+                  img.onload = () => {
+                    const frame = frameSet.frames[0];
+                    const canvas = document.createElement('canvas');
+                    canvas.width = frame.width;
+                    canvas.height = frame.height;
+                    const context = canvas.getContext('2d');
+                    if (!context) {
+                      target.textContent = '图片不可用';
+                      return;
+                    }
+                    // Preview images may be scaled thumbnails of the original atlas.
+                    const sx = img.naturalWidth / frameSet.width;
+                    const sy = img.naturalHeight / frameSet.height;
+                    context.drawImage(
+                      img,
+                      frame.x * sx,
+                      frame.y * sy,
+                      frame.width * sx,
+                      frame.height * sy,
+                      0,
+                      0,
+                      frame.width,
+                      frame.height
+                    );
+                    canvas.setAttribute('role', 'img');
+                    canvas.setAttribute('aria-label', title);
+                    target.replaceChildren(canvas);
+                  };
+                }
                 img.src = url;
-                content.replaceChildren(img);
+                target.replaceChildren(img);
               } catch {
-                if (!abort.signal.aborted) content.textContent = '图片不可用';
+                if (!abort.signal.aborted) target.textContent = '图片不可用';
               }
             });
-            observer.observe(previewCard);
+            observer!.observe(target);
+          };
+          if (
+            node.assetPath &&
+            ['image', 'sequence', 'animation', 'model-views'].includes(node.type) &&
+            store.getPreviewImage
+          ) {
+            loadImage(content, node.id, node.title);
+          } else if (['video', 'video-source'].includes(node.type)) {
+            const sequence = nodes.find(
+              (source) =>
+                source.type === 'sequence' &&
+                source.sourceVideoId === node.id &&
+                source.assetPath &&
+                source.frameSetInfo?.frames.length
+            );
+            const reference = nodes.find(
+              (source) =>
+                source.type === 'image' &&
+                source.assetPath &&
+                template.edges.some(
+                  (edge) =>
+                    edge.from === source.id &&
+                    edge.to === node.id &&
+                    ['image-to-video', 'frame-first'].includes(edge.kind)
+                )
+            );
+            const source = sequence || reference;
+            if (source && store.getPreviewImage) {
+              const summary = document.createElement('small');
+              summary.textContent = sequence ? '视频 · 抽帧预览' : '视频 · 输入参考图';
+              previewCard.insertBefore(summary, content);
+              loadImage(
+                content,
+                source.id,
+                node.title + '静态预览',
+                undefined,
+                sequence?.frameSetInfo
+              );
+            } else {
+              content.textContent = '暂无视频封面，添加模板后查看或生成视频';
+            }
+          } else if (['image-assets', 'resource-bundle'].includes(node.type)) {
+            const sources =
+              node.type === 'image-assets'
+                ? [node]
+                : nodes.filter(
+                    (source) =>
+                      source.type === 'image-assets' &&
+                      template.edges.some(
+                        (edge) =>
+                          edge.to === node.id &&
+                          edge.from === source.id &&
+                          edge.kind === 'resource-bundle'
+                      )
+                  );
+            const items = sources.flatMap((source) =>
+              (source.imageAssetsInfo?.items || []).map((item, index) => ({
+                sourceId: source.id,
+                item,
+                index,
+              }))
+            );
+            content.textContent = items.length ? '' : '暂无 PNG 示例，完成上游后生成';
+            if (items.length && store.getPreviewImage) {
+              const summary = document.createElement('small');
+              summary.textContent =
+                items.length + ' 个 PNG' + (items.length > 12 ? ' · 展示前 12 个' : '');
+              previewCard.insertBefore(summary, content);
+              content.classList.add('template-preview-assets');
+              for (const entry of items.slice(0, 12)) {
+                const cell = document.createElement('div');
+                cell.className = 'template-preview-asset';
+                content.append(cell);
+                loadImage(cell, entry.sourceId, entry.item.name, entry.index);
+              }
+            }
+          } else if (
+            node.type === 'model' &&
+            template.builtin &&
+            template.id === '7e1cb6ad-732f-4dc3-a951-000000000004' &&
+            store.modelPreviewUrl
+          ) {
+            const frame = document.createElement('iframe');
+            frame.title = node.title + '真实模型预览';
+            frame.src = store.modelPreviewUrl(template.id, template.revision);
+            content.replaceChildren(frame);
+          } else if (node.type !== 'note') {
+            content.textContent =
+              '暂无' + (labels[node.type] || '结果') + '示例，添加后运行此步骤生成';
           }
         }
         previewWorld.append(previewCard);
