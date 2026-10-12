@@ -8,7 +8,7 @@ import { ConsoleError } from './types.js';
 export const UI_VISION_MODEL = 'gpt-6.1-sol';
 export const UI_VISION_BASE_URL = 'https://api.openai.com/v1';
 export const UI_VISION_ENDPOINT = UI_VISION_BASE_URL + '/chat/completions';
-export type VisionSource = 'local' | 'server' | 'custom';
+export type VisionSource = 'local' | 'server' | 'custom' | 'chatgpt-web';
 export interface VisionSettings {
   source: VisionSource;
   baseUrl?: string;
@@ -17,7 +17,8 @@ export interface VisionSettings {
   model?: string;
 }
 export function validateVisionSource(value: unknown): VisionSource {
-  if (value === 'local' || value === 'server' || value === 'custom') return value;
+  if (value === 'local' || value === 'server' || value === 'custom' || value === 'chatgpt-web')
+    return value;
   throw new ConsoleError('识图来源无效。');
 }
 function validateUrl(value: unknown): URL {
@@ -357,7 +358,9 @@ export function updateModelSettings(input: Record<string, unknown>) {
     if (input.kind !== 'vision' && input.kind !== 'generation')
       throw new ConsoleError('模型用途无效。');
     const allowed =
-      input.kind === 'vision' ? ['local', 'server', 'custom'] : ['maker', 'local', 'custom'];
+      input.kind === 'vision'
+        ? ['local', 'server', 'custom', 'chatgpt-web']
+        : ['maker', 'local', 'custom'];
     if (!allowed.includes(String(input.source))) throw new ConsoleError('模型来源无效。');
     const choice = settings[input.kind];
     if (input.source === 'custom') {

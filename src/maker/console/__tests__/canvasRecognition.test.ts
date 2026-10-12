@@ -4,6 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { MakerCanvasFiles } from '../../canvas/files.js';
 import { CanvasRecognitionService } from '../canvasRecognition.js';
+import { webRecognitionInput } from '../../canvas/webRecognition.js';
 
 let root: string;
 beforeEach(() => {
@@ -47,6 +48,59 @@ const textResponse = () =>
       },
     ],
   });
+
+test('web source hands off to the host Agent without sending API requests', async () => {
+  const { canvasId, input } = await setup();
+  const fetcher = jest.fn();
+  const service = new CanvasRecognitionService(
+    root,
+    [{ ...models[0], source: 'chatgpt-web' }],
+    fetcher
+  );
+  await expect(service.run(canvasId, input)).rejects.toThrow('登录可选');
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(() => service.query(canvasId, input.id)).toThrow('未找到');
+});
+
+test('host browser replies support an unknown guest model and reject changed image identities', async () => {
+  const { canvasId, input } = await setup();
+  const files = new MakerCanvasFiles(root);
+  const document = await files.load(canvasId);
+  delete document.nodes.find((node) => node.id === input.nodeId)!.uiRecognition!.pendingId;
+  await files.save(canvasId, document, document.revision);
+  const prepared = await webRecognitionInput(root, canvasId, input.nodeId, {}, false);
+  const cut = JSON.parse((await cutResponse().json()).choices[0].message.content);
+  const text = JSON.parse((await textResponse().json()).choices[0].message.content);
+  const replies = { ...prepared, cut, text, model: 'ChatGPT web / unknown model' };
+  const second = await webRecognitionInput(root, canvasId, input.nodeId, replies, false);
+  expect(second).toMatchObject({ phase: 'text' });
+  const result = await webRecognitionInput(root, canvasId, input.nodeId, replies, true);
+  expect(result).toMatchObject({
+    nodes: [
+      {
+        id: input.nodeId,
+        uiRecognition: {
+          result: {
+            model: 'ChatGPT web / unknown model',
+            bbox: { texts: [{ text: '购买' }] },
+          },
+        },
+      },
+    ],
+  });
+  await expect(
+    webRecognitionInput(
+      root,
+      canvasId,
+      input.nodeId,
+      {
+        ...replies,
+        design: { ...('design' in prepared ? prepared.design : {}), sha256: '0'.repeat(64) },
+      },
+      true
+    )
+  ).rejects.toThrow('输入已变化');
+});
 async function setup() {
   const files = new MakerCanvasFiles(root);
   const document = await files.create('识图测试', 'empty');

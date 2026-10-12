@@ -8,7 +8,7 @@ export function isGameUiResource(document: CanvasDocument | undefined, node: Can
         (section) =>
           section.id === node.sectionId &&
           section.type === 'section' &&
-          section.templateId === '7e1cb6ad-732f-4dc3-a951-000000000012'
+          section.templateId === '7e1cb6ad-732f-4dc3-a951-000000000013'
       )
     )
   );

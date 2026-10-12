@@ -62,8 +62,8 @@ async function renderVisionSettings() {
         const selection = settings[kind];
         const section = node('div',undefined,'model-settings-choice');
         const source = node('select');
-        const choices = kind==='vision' ? [['local','本地模型（仅限 CLI 调用）'],['server','Server API'],['custom','自定义 API']] : [['maker','Maker MCP 生图'],['local','本地模型（仅限 CLI 调用）'],['custom','自定义 API']];
-        choices.forEach(([value,label])=>{const option=node('option',label);option.value=value;source.append(option);});
+        const choices = kind==='vision' ? [['local','本地模型（仅限 CLI 调用）'],['chatgpt-web','ChatGPT 网页识图'],['server','Server API（开发中）'],['custom','自定义 API']] : [['maker','Maker MCP 生图'],['local','本地模型（仅限 CLI 调用）'],['custom','自定义 API']];
+        choices.forEach(([value,label])=>{const option=node('option',label);option.value=value;option.disabled=kind==='vision' && value==='server';source.append(option);});
         source.value=selection.source;
         const custom=node('div',undefined,'actions model-settings-custom');
         const profiles=node('select'); profiles.setAttribute('aria-label',(kind==='vision'?'识图':'生图')+' API 配置');
@@ -83,6 +83,7 @@ async function renderVisionSettings() {
         source.onchange=select; profiles.onchange=select;
         custom.append(profiles,add,edit);
         section.append(field(kind==='vision'?'识图方式':'生图方式',source),custom);
+        if(kind==='vision' && selection.source==='chatgpt-web') section.append(node('p','由当前 AI 使用已有浏览器完成 ChatGPT 网页识图，无需安装执行器。登录可选：未登录时可选择直接识图，或登录后识图；未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。已登录则沿用当前模型和思考程度。图片会上传至 ChatGPT，受网页额度限制。','muted'));
         body.append(section);sync();
       }
     };

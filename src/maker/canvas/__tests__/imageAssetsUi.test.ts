@@ -380,7 +380,7 @@ test.each([
         y: 0,
         width: 900,
         height: 600,
-        templateId: '7e1cb6ad-732f-4dc3-a951-000000000012',
+        templateId: '7e1cb6ad-732f-4dc3-a951-000000000013',
       });
     }
     current.nodes[0].generation = { prompt: 'atlas', ...(cutoutColor ? { cutoutColor } : {}) };

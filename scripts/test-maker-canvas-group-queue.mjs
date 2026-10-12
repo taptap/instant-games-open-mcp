@@ -14,9 +14,9 @@ let browser;
 try {
   const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE || path.join(execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(), 'playwright/index.mjs')).href);
   const bundle = path.join(temporary, 'page.mjs');
-  await build({ stdin: { contents: 'export { getCanvasPageHtml } from "./src/maker/canvas/page.ts"; export { STARTER_IMAGE_BASE64 } from "./src/maker/canvas/starterImages.ts"; export { snapshotCanvasSource } from "./src/maker/canvas/dependencies.ts"; export { createUiWorkflowPreset } from "./src/maker/canvas/uiWorkflowPresets.ts";', resolveDir: repo }, bundle: true, platform: 'node', format: 'esm', outfile: bundle, logLevel: 'silent' });
-  const { getCanvasPageHtml, STARTER_IMAGE_BASE64, snapshotCanvasSource, createUiWorkflowPreset } = await import(pathToFileURL(bundle).href);
-  const uiTemplate = { ...createUiWorkflowPreset(), builtin: true };
+  await build({ stdin: { contents: 'export { getCanvasPageHtml } from "./src/maker/canvas/page.ts"; export { STARTER_IMAGE_BASE64 } from "./src/maker/canvas/starterImages.ts"; export { snapshotCanvasSource } from "./src/maker/canvas/dependencies.ts"; export { canvasPresets } from "./src/maker/canvas/presets.ts";', resolveDir: repo }, bundle: true, platform: 'node', format: 'esm', outfile: bundle, logLevel: 'silent' });
+  const { getCanvasPageHtml, STARTER_IMAGE_BASE64, snapshotCanvasSource, canvasPresets } = await import(pathToFileURL(bundle).href);
+  const uiTemplate = { ...canvasPresets().find(t => t.id.endsWith("000013")), builtin: true };
   const html = getCanvasPageHtml();
   const image = Buffer.from(STARTER_IMAGE_BASE64[0], 'base64');
   fs.writeFileSync(path.join(temporary, 'source.jpg'), image);

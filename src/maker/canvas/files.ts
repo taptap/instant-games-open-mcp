@@ -11,7 +11,6 @@ import fs from 'node:fs';
 import { validateUiAtlasPlan } from './uiAssetBindings.js';
 import { readImageDimensions } from './imageDimensions.js';
 import type { CanvasImageInfo } from './imageSizing.js';
-import { upgradeUiWorkflowSizing } from './uiWorkflowPresets.js';
 import { validateFramePairGraph } from './framePair.js';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -201,15 +200,7 @@ export class MakerCanvasFiles {
             : await this.importImage(bytes);
         paths.set(source, imported.relativePath);
       }
-      for (const node of template.nodes) {
-        if (node.assetPath) node.assetPath = paths.get(node.assetPath)!;
-        for (const item of node.imageAssetsInfo?.items || [])
-          item.assetPath = paths.get(item.assetPath)!;
-        if (node.generation?.referenceImagePaths)
-          node.generation.referenceImagePaths = node.generation.referenceImagePaths.map(
-            (source) => paths.get(source)!
-          );
-      }
+      remapTemplateAssets(template, paths);
       for (const node of template.nodes) {
         if (node.sourceSnapshot)
           node.sourceSnapshot = snapshotCanvasSource(
@@ -1091,7 +1082,6 @@ export class MakerCanvasFiles {
       }
     }
     const edges = input.edges.map((item) => this.parseEdge(item, nodes));
-    upgradeUiWorkflowSizing({ nodes, edges });
     const seen = new Set<string>();
     const edgeIds = new Set<string>();
     for (const edge of edges) {

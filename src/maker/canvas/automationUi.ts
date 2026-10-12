@@ -243,7 +243,7 @@ export function createCanvasAutomationUi(options: {
               }
               if (!selectedUiRecognition(item) && !(await options.run(item.id)))
                 throw new Error(
-                  options.error() || '两次识图未完成，请配置 GPT-6.1 Sol 后查询原请求。'
+                  options.error() || '两次识图未完成，请按当前识图设置完成；已有请求先查询原请求。'
                 );
               if (!selectedUiRecognition(item))
                 throw new Error(
@@ -251,7 +251,7 @@ export function createCanvasAutomationUi(options: {
                     item.id +
                     '）：' +
                     item.assetPath +
-                    '。请在控制台设置 GPT-6.1 Sol 接口和 Key，运行两次识图后继续；不要改用当前 AI 猜框或关闭识图跳过。'
+                    '。请按当前识图设置完成两轮识图：本地或 ChatGPT 网页由 AI 按 maker-ui-workflow 校验回填，自定义 API 查询原请求；保存后继续，不关闭识图跳过。'
                 );
             }
         }

@@ -50,13 +50,7 @@ export function checkDemoResources(root, { requireCdn = false } = {}) {
       walk(item);
     }
   }
-  for (const name of [
-    'presetData',
-    'assetPresetData',
-    'modelPresetData',
-    'templateModelData',
-    'uiWorkflowData',
-  ])
+  for (const name of ['presetData', 'assetPresetData', 'modelPresetData', 'templateModelData'])
     walk(JSON.parse(fs.readFileSync(path.join(root, 'src/maker/canvas', name + '.json'), 'utf8')));
   return { resources: Object.keys(resources).length };
 }

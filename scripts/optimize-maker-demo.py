@@ -78,10 +78,11 @@ def main():
         if isinstance(value, list):
             return [replace(item) for item in value]
         return value
-    for name in ('presetData', 'assetPresetData', 'modelPresetData', 'templateModelData', 'uiWorkflowData'):
+    for name in ('presetData', 'assetPresetData', 'modelPresetData', 'templateModelData'):
         filename = ROOT / 'src/maker/canvas' / (name + '.json')
         filename.write_text(json.dumps(replace(json.loads(filename.read_text())), ensure_ascii=False, indent=2) + '\n')
-    manifest['editor'] = replace(manifest['editor'])
+    if 'editor' in manifest:
+        manifest['editor'] = replace(manifest['editor'])
     manifest['resources'] = resources
     MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
     print(json.dumps({'imagesChecked': checked, 'bytesBefore': before, 'bytesAfter': after,

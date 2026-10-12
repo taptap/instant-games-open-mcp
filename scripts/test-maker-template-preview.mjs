@@ -79,7 +79,7 @@ try {
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
   page.setDefaultTimeout(7000);
   page.on('pageerror', (error) => browserErrors.push(error.message));
-  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000012');
+  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000013');
   const prepared = await files.prepareTemplate(template.id, canvas.id);
   const custom = await files.saveTemplate({
     ...prepared,
@@ -106,7 +106,7 @@ try {
     await preview.locator('.template-preview-card').first().waitFor();
   }
   await page.locator('.template-search').fill(template.name);
-  const skillLink = page.locator('[data-template-id="7e1cb6ad-732f-4dc3-a951-000000000012"] .template-card-metadata a');
+  const skillLink = page.locator('[data-template-id="7e1cb6ad-732f-4dc3-a951-000000000013"] .template-card-metadata a');
   assert.equal(await skillLink.innerText(), 'Skill · maker-ui-workflow');
   assert.equal(await skillLink.getAttribute('target'), '_blank');
   const skillUrl = new URL(await skillLink.getAttribute('href'), server.origin);
