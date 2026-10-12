@@ -43,7 +43,7 @@ test('UI atlas color preparation saves an existing image through the real docume
         y: 0,
         width: 900,
         height: 600,
-        templateId: '7e1cb6ad-732f-4dc3-a951-000000000012',
+        templateId: '7e1cb6ad-732f-4dc3-a951-000000000013',
       },
       {
         id: assetsId,
@@ -527,7 +527,7 @@ test.each(['source', 'prompt', 'model', 'ui'])(
       {
         id: 'group',
         type: 'section',
-        templateId: change === 'ui' ? '7e1cb6ad-732f-4dc3-a951-000000000012' : 'template',
+        templateId: change === 'ui' ? '7e1cb6ad-732f-4dc3-a951-000000000013' : 'template',
       },
       { id: 'assets', type: 'image-assets', sectionId: 'group' }
     );

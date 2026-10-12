@@ -50,7 +50,7 @@ export interface CanvasModelSettings {
 export interface CanvasDocumentStore {
   modelSettings?(): Promise<CanvasModelSettings>;
   recognitionModels?(): Promise<
-    Array<{ id: string; model: string; source?: 'local' | 'server' | 'custom' }>
+    Array<{ id: string; model: string; source?: 'local' | 'server' | 'custom' | 'chatgpt-web' }>
   >;
   recognizeUi?(
     canvasId: string,

@@ -72,6 +72,8 @@ export function createUiRecognitionUi(options: {
   loadMedia(path: string): Promise<void>;
   openCanvas(id: string): Promise<void>;
 }) {
+  const webRecognitionHint =
+    '请让当前 AI 按 maker-ui-workflow 使用已有浏览器完成 ChatGPT 网页识图并回填。无需安装执行器。登录可选：未登录时可选择直接识图，或登录后识图；未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。已登录则沿用当前模型和思考程度。';
   let busy = false;
   let preparing = false;
   async function sourceBlob(path: string) {
@@ -147,6 +149,7 @@ export function createUiRecognitionUi(options: {
     if (!settings.pendingId) {
       const models = await options.store.recognitionModels?.();
       const configured = models?.[0];
+      if (configured?.source === 'chatgpt-web') throw new Error(webRecognitionHint);
       if (models && (!configured || configured.source === 'local'))
         throw new Error(
           '当前使用本地模型，请让 AI 客户端读取设计稿，通过 Maker CLI 写入 Bbox。画布不能直接调用客户端模型；也可在设置中选择自定义 API。'
@@ -355,6 +358,10 @@ export function createUiRecognitionUi(options: {
       if (node.uiRecognition?.pendingId) return await recognize(node, true);
       const models = await options.store.recognitionModels?.();
       const configured = models?.[0];
+      if (configured?.source === 'chatgpt-web') {
+        window.alert(webRecognitionHint);
+        return false;
+      }
       if (
         !node.uiRecognition?.pendingId &&
         models &&

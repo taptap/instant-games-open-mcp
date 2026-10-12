@@ -1,13 +1,14 @@
 # 序列帧动画：AI 使用说明
 
-游戏 UI 模板一、二的识图与资源随保存自动归档到 `.maker/canvases/ui-archives/`。
+游戏 UI 官方合批模板与历史分类模板的识图与资源随保存自动归档到 `.maker/canvases/ui-archives/`。
 用 `canvas ui-archives --target-dir <项目>` 离线查询 UI 名称、唯一 ID、版本和两个 JSON 路径；
 旧画布用 `canvas archive-ui --target-dir <项目> --canvas-id <ID>` 补归档，不重跑生成。
 完整资源归档保留 PNG 和参考图，ZIP 同样携带 Bbox、绑定与参考图；重识图不会覆盖旧版。
 模板不保存实例的归档路径，复制到新画布后按新 UI 身份归档，防止不同界面串用数据。
 
 图片卡专用功能按 [图片功能开发规范](../../../docs/MAKER_CANVAS_IMAGE_FEATURES.md) 接入。
-UI 设计稿沿用普通图片卡，选中后顶部提供「识别 UI」及有结果时的「查看标注」。
+UI 设计稿沿用普通图片卡，自定义 API / Server API 模式提供「识别 UI」，有结果时提供「查看标注」。
+Server API 开发中，在设置里禁选；ChatGPT 网页识图由 Agent 按 maker-ui-workflow 完成并回填。
 标注在独立弹层显示，支持 UI、文本、名称编号开关和原图尺寸查看；卡片内不放识图按钮。
 
 含切图素材的分组在选中后的顶部菜单提供「下载全部素材」，一次导出按分类文件夹组织的

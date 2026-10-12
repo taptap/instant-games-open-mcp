@@ -23,13 +23,7 @@ function fixture(run) {
   fs.mkdirSync(path.join(root, 'src/maker/canvas'), { recursive: true });
   const image = path.join(root, 'resources/maker-demo', entry.file);
   fs.writeFileSync(image, bytes);
-  for (const name of [
-    'presetData',
-    'assetPresetData',
-    'modelPresetData',
-    'templateModelData',
-    'uiWorkflowData',
-  ])
+  for (const name of ['presetData', 'assetPresetData', 'modelPresetData', 'templateModelData'])
     fs.writeFileSync(
       path.join(root, 'src/maker/canvas', name + '.json'),
       JSON.stringify({ resourceId: id })

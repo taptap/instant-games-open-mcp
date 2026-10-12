@@ -12,6 +12,6 @@ export const builtinPresetDescriptions: Record<string, string> = {
     '同一UI布局 → 温暖手绘 / 暗黑奇幻 / 科幻终端，三张独立设计稿',
   '7e1cb6ad-732f-4dc3-a951-000000000011':
     '角色参考 → 动作立绘＋正侧背三视图＋六种表情，一张完整概念展示图',
-  '7e1cb6ad-732f-4dc3-a951-000000000012':
-    '香蕉物流示例：UI设计稿 → 分析拆图 → 分层PNG资源包；再交给AI组装UI.json并在编辑器对照',
+  '7e1cb6ad-732f-4dc3-a951-000000000013':
+    'UI设计稿 → 去文字与双轮识图 → 合批图集 → PNG资源包；AI按Bbox和素材绑定组装UI',
 };

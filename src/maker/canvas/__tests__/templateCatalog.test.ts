@@ -65,7 +65,7 @@ test('template Skills survive local save, instantiation, reload and CLI inspecti
 });
 
 test('workflow preview reads only images belonging to the template without importing assets', async () => {
-  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000012');
+  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000013');
   const node = template.nodes.find((item) => item.type === 'image' && item.assetPath)!;
   const result = await files.readTemplatePreviewImage(template.id, template.revision, node.id);
   expect(result.type).toMatch(/^image\//);

@@ -34,6 +34,22 @@ const input = {
   apiKey: 'fixture-private-key',
 };
 
+test('web vision selection survives reload and preserves custom profiles without exposing keys', () => {
+  saveVisionSettings(input);
+  const original = readModelSettings();
+  const result = updateModelSettings({ action: 'select', kind: 'vision', source: 'chatgpt-web' });
+  expect(result.vision.source).toBe('chatgpt-web');
+  expect(JSON.stringify(result)).not.toContain(input.apiKey);
+  expect(readVisionSettings()?.source).toBe('chatgpt-web');
+  expect(readModelSettings().profiles).toEqual(original.profiles);
+  expect(configuredUiVisionModels()).toEqual([
+    { id: 'chatgpt-web', model: 'ChatGPT 网页当前模型', endpoint: '', source: 'chatgpt-web' },
+  ]);
+  expect(() =>
+    updateModelSettings({ action: 'select', kind: 'generation', source: 'chatgpt-web' })
+  ).toThrow('模型来源无效');
+});
+
 test.each([
   ['https://example.invalid', 'https://example.invalid/chat/completions'],
   ['https://example.invalid/', 'https://example.invalid/chat/completions'],

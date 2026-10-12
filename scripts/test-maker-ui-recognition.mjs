@@ -67,7 +67,7 @@ try {
     {
       id: groupId,
       type: 'section',
-      templateId: '7e1cb6ad-732f-4dc3-a951-000000000012',
+      templateId: '7e1cb6ad-732f-4dc3-a951-000000000013',
       templateRevision: 9,
       title: '游戏UI制作',
       x: 0,

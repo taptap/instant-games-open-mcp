@@ -36,6 +36,10 @@ export interface UiVisionModel {
 export function configuredUiVisionModels(): UiVisionModel[] {
   const local = readVisionSettings();
   if (local) {
+    if (local.source === 'chatgpt-web')
+      return [
+        { id: 'chatgpt-web', model: 'ChatGPT 网页当前模型', endpoint: '', source: 'chatgpt-web' },
+      ];
     if (local.source === 'custom' && local.baseUrl && local.apiKey)
       return [
         {
@@ -260,6 +264,11 @@ export class CanvasRecognitionService {
     );
     if (!model) throw new ConsoleError('识图配置已变化，请刷新后重试，并检查设置中的 API 配置。');
     const source = model.source || 'custom';
+    if (source === 'chatgpt-web')
+      throw new ConsoleError(
+        '当前使用 ChatGPT 网页识图，请让当前 AI 按 maker-ui-workflow 使用已有浏览器完成识图并回填。无需安装执行器；登录可选，未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。',
+        503
+      );
     if (source === 'local')
       throw new ConsoleError(
         '当前使用本地模型。请让 AI 客户端读取设计稿，通过 Maker CLI 写入 Bbox；画布不能直接调用客户端模型。也可在设置中选择自定义 API。',
