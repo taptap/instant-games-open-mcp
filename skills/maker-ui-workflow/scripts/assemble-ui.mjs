@@ -357,10 +357,10 @@ export function layoutFromBbox(input) {
       type:
         element.type === 'button' || element.type === 'tab' || binding.pressedAssetId
           ? 'Button'
-          : 'Image',
+          : 'Panel',
       render: 'image',
       rect: [...element.bbox],
-      props: {},
+      props: { backgroundFit: element.type === 'icon' ? 'contain' : 'fill' },
       assetId: binding.assetId,
       ...(binding.pressedAssetId ? { pressedAssetId: binding.pressedAssetId } : {}),
     };
@@ -380,6 +380,14 @@ export function layoutFromBbox(input) {
     );
     checkRect(text.bbox, text.id);
     const color = text.color.slice(1);
+    // Ink-box height alone can overflow narrow labels. Final font metrics are checked in the editor.
+    const lines = text.text.split('\n');
+    const widthUnits = Math.max(
+      1,
+      ...lines.map((line) =>
+        Array.from(line).reduce((sum, char) => sum + (char.codePointAt(0) < 128 ? 0.6 : 1), 0)
+      )
+    );
     return {
       id: text.id,
       parentId: text.parentId || 'root',
@@ -390,9 +398,12 @@ export function layoutFromBbox(input) {
         text: text.text,
         textAlign: text.align,
         verticalAlign: 'middle',
-        fontSize: Math.max(1, Math.round(text.bbox[3])),
+        fontSize: Math.max(
+          1,
+          Math.floor(Math.min(text.bbox[3] / lines.length, text.bbox[2] / widthUnits))
+        ),
         fontWeight: text.bold ? 'bold' : 'normal',
-        color: [
+        fontColor: [
           parseInt(color.slice(0, 2), 16),
           parseInt(color.slice(2, 4), 16),
           parseInt(color.slice(4, 6), 16),

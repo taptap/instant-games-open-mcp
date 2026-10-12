@@ -84,6 +84,12 @@ export async function webRecognitionInput(
     throw new Error('识图文字回复阶段或尺寸不符。');
   if (typeof input.model !== 'string' || !input.model.trim() || input.model.length > 240)
     throw new Error('请记录网页实际模型；未登录或无法确认时填写 ChatGPT web / unknown model。');
+  if (
+    typeof input.durationMs !== 'number' ||
+    !Number.isFinite(input.durationMs) ||
+    input.durationMs <= 0
+  )
+    throw new Error('请记录网页识图耗时 durationMs；缺失时间不能写成 0。');
   const bbox = {
     version: 1 as const,
     coordinateSpace: 'design-pixels' as const,
@@ -104,7 +110,7 @@ export async function webRecognitionInput(
             model: input.model,
             prompt: cutPrompt + '\n\n' + textPrompt,
             createdAt: new Date().toISOString(),
-            durationMs: 0,
+            durationMs: Math.round(input.durationMs),
             sourcePath: cutSource.path,
             sourceSha256: cutSource.sha256,
             width: cutSource.width,

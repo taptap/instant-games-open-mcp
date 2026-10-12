@@ -1,5 +1,6 @@
 import type { CanvasNode } from './model.js';
 import type { createCanvasGroupQueue } from './groupQueue.js';
+import { canvasFlowDuration, formatCanvasWorkDuration } from './workTiming.js';
 
 export const GROUP_QUEUE_STYLES = [
   '.card.section:has(.group-queue) { overflow:visible; }',
@@ -39,15 +40,15 @@ export function createCanvasGroupQueueUi(options: {
               : '动画';
     return (node?.title || '卡片') + ' · ' + action;
   }
-  function elapsed(startedAt?: number): string {
-    const seconds = Math.max(0, Math.floor((Date.now() - (startedAt || Date.now())) / 1000));
-    return (
-      Math.floor(seconds / 60)
-        .toString()
-        .padStart(2, '0') +
-      ':' +
-      (seconds % 60).toString().padStart(2, '0')
+  function totalDuration(groupId: string): string | undefined {
+    const state = options.queue.view(groupId);
+    const node = options.node(groupId);
+    const duration = canvasFlowDuration(
+      node,
+      state ? { elapsedMs: state.elapsedMs, runStartedAt: state.runStartedAt } : undefined
     );
+    if (duration === undefined) return;
+    return '总耗时 ' + formatCanvasWorkDuration(duration);
   }
   function paint(root: HTMLElement, groupId: string) {
     const scroll = root.querySelector('.group-queue-tasks')?.scrollLeft || 0;
@@ -68,17 +69,12 @@ export function createCanvasGroupQueueUi(options: {
       const spinner = document.createElement('span');
       spinner.className = 'group-queue-spinner';
       spinner.setAttribute('aria-hidden', 'true');
-      const current = button(
-        title(state.active),
-        () => options.focus(state.active!),
-        'group-queue-current'
-      );
-      current.title = title(state.active) + '（点击定位卡片）';
-      const time = document.createElement('span');
-      time.className = 'group-queue-count';
-      time.dataset.elapsed = groupId;
-      time.textContent = elapsed(state.startedAt);
-      root.append(spinner, current, time);
+      root.append(spinner);
+      for (const id of Object.keys(state.running)) {
+        const current = button(title(id), () => options.focus(id), 'group-queue-current');
+        current.title = title(id) + '（点击定位卡片）';
+        root.append(current);
+      }
     } else if (!active && !options.queue.remaining(groupId)) {
       const done = document.createElement('span');
       done.className = 'group-queue-count';
@@ -101,17 +97,24 @@ export function createCanvasGroupQueueUi(options: {
         '识图按模型服务计费；生图和视频会消耗积分，Seedance 2.5 按较高费用计费。生图确定失败时最多重新生图2次；切图失败保留原图，调整裁切框，不自动重新生图。未知结果不重提。失败只阻塞依赖分支，其余继续。请保持页面打开。';
       root.append(hint);
     } else {
+      const continuing =
+        state?.phase === 'paused' || (!state && options.node(groupId)?.workTimingOpen);
       root.append(
-        button(
-          active ? state!.message : state?.phase === 'paused' ? '继续剩余流程' : '▶ 完成剩余流程',
-          () => {
-            if (active) return;
-            confirming.add(groupId);
-            paint(root, groupId);
-          }
-        )
+        button(active ? state!.message : continuing ? '继续剩余流程' : '▶ 完成剩余流程', () => {
+          if (active) return;
+          confirming.add(groupId);
+          paint(root, groupId);
+        })
       );
       (root.firstElementChild as HTMLButtonElement).disabled = Boolean(active);
+    }
+    const durationLabel = totalDuration(groupId);
+    if (durationLabel) {
+      const time = document.createElement('span');
+      time.className = 'group-queue-count';
+      time.dataset.elapsed = groupId;
+      time.textContent = durationLabel;
+      root.append(time);
     }
     const tasks = document.createElement('div');
     tasks.className = 'group-queue-tasks';
@@ -268,7 +271,8 @@ export function createCanvasGroupQueueUi(options: {
           continue;
         }
         const time = root.querySelector<HTMLElement>('[data-elapsed]');
-        if (time) time.textContent = elapsed(options.queue.view(id)?.startedAt);
+        const label = totalDuration(id);
+        if (time && label) time.textContent = label;
       }
     },
   };

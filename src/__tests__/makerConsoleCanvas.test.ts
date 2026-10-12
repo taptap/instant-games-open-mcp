@@ -11,6 +11,7 @@ import { getCanvasPageHtml, CANVAS_PAGE_MARKER } from '../maker/canvas/page';
 import { createBrowserCanvasDocumentStore } from '../maker/canvas/store';
 import { sequenceActionsForCard } from '../maker/canvas/sequence';
 import { canvasParameterSchema } from '../maker/canvas/automationInfo';
+import { canvasAutomationCapabilities } from '../maker/canvas/automation';
 
 function makeProject(directory: string, name: string, id = name): string {
   const root = path.join(directory, name);
@@ -36,6 +37,33 @@ describe('Maker console canvas', () => {
   });
 
   afterEach(() => fs.rmSync(directory, { recursive: true, force: true }));
+
+  test('CLI bundle export passes its canvas to the resource exporter', async () => {
+    const script = getCanvasPageHtml().match(/<script>([\s\S]*?)<\/script>/i)![1];
+    const start = script.indexOf('exportAsset: async function (command, node) {');
+    const end = script.indexOf('\n    addTemplate:', start);
+    const handler = script
+      .slice(start + 'exportAsset: '.length, end)
+      .trim()
+      .replace(/,$/, '');
+    const node = { id: 'bundle', type: 'resource-bundle' };
+    const documentState = { id: 'canvas', revision: 1, nodes: [node], edges: [] };
+    const downloadCanvasResource = jest.fn(async (..._args: unknown[]) => undefined);
+    const run = new Script('(' + handler + ')').runInNewContext({
+      documentState,
+      downloadCanvasResource,
+      canvasNeedsProcessing: () => false,
+      canvasExportIdentity: () => ({}),
+      isGameUiResource: () => false,
+      structuredClone,
+      store: { mediaUrl: (value: string) => value },
+    });
+    await run({ input: { format: 'bundle' } }, node);
+    expect(downloadCanvasResource.mock.calls[0]).toHaveLength(8);
+    expect(downloadCanvasResource.mock.calls[0][7]).toBe(documentState);
+    expect(canvasAutomationCapabilities().exportFormats['resource-bundle']).toEqual(['bundle']);
+    expect(canvasAutomationCapabilities().exportFormats.section).toEqual(['bundle']);
+  });
 
   test('serves a same-origin canvas page without widening the console script policy', async () => {
     const server = await startConsoleServer({

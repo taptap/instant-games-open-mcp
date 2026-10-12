@@ -21,6 +21,10 @@ export function templateAssetPaths(template: CanvasWorkflowTemplate): string[] {
       template.nodes.flatMap((node) => [
         ...(node.assetPath ? [node.assetPath] : []),
         ...(node.generation?.referenceImagePaths || []),
+        ...(node.uiRecognition?.results || []).flatMap((result) => [
+          result.sourcePath,
+          ...(result.bbox ? [result.bbox.design.path, result.bbox.cutSource.path] : []),
+        ]),
         ...[node.uiAtlasPlan, node.generation?.uiAtlasPlan].flatMap((plan) =>
           plan ? [plan.bbox.design.path, plan.bbox.cutSource.path] : []
         ),
@@ -39,6 +43,13 @@ export function remapTemplateAssets(
   );
   for (const node of template.nodes) {
     if (node.assetPath) node.assetPath = paths.get(node.assetPath)!;
+    for (const result of node.uiRecognition?.results || []) {
+      result.sourcePath = paths.get(result.sourcePath)!;
+      if (result.bbox) {
+        result.bbox.design.path = paths.get(result.bbox.design.path)!;
+        result.bbox.cutSource.path = paths.get(result.bbox.cutSource.path)!;
+      }
+    }
     for (const plan of [node.uiAtlasPlan, node.generation?.uiAtlasPlan]) {
       if (!plan) continue;
       plan.bbox.design.path = paths.get(plan.bbox.design.path)!;

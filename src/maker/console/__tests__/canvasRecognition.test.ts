@@ -71,7 +71,13 @@ test('host browser replies support an unknown guest model and reject changed ima
   const prepared = await webRecognitionInput(root, canvasId, input.nodeId, {}, false);
   const cut = JSON.parse((await cutResponse().json()).choices[0].message.content);
   const text = JSON.parse((await textResponse().json()).choices[0].message.content);
-  const replies = { ...prepared, cut, text, model: 'ChatGPT web / unknown model' };
+  const replies = {
+    ...prepared,
+    cut,
+    text,
+    model: 'ChatGPT web / unknown model',
+    durationMs: 18400,
+  };
   const second = await webRecognitionInput(root, canvasId, input.nodeId, replies, false);
   expect(second).toMatchObject({ phase: 'text' });
   const result = await webRecognitionInput(root, canvasId, input.nodeId, replies, true);
@@ -82,12 +88,16 @@ test('host browser replies support an unknown guest model and reject changed ima
         uiRecognition: {
           result: {
             model: 'ChatGPT web / unknown model',
+            durationMs: 18400,
             bbox: { texts: [{ text: '购买' }] },
           },
         },
       },
     ],
   });
+  await expect(
+    webRecognitionInput(root, canvasId, input.nodeId, { ...replies, durationMs: 0 }, true)
+  ).rejects.toThrow('durationMs');
   await expect(
     webRecognitionInput(
       root,

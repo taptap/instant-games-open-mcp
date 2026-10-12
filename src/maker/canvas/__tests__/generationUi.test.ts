@@ -25,8 +25,10 @@ test('UI atlas color preparation saves an existing image through the real docume
       assetPath: source.assetPath,
       sectionId,
       templatePending: true,
+      uiAtlasGroup: 'controls',
+      uiBaselineGrid: { columns: 3, rows: 3, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
       generation: {
-        prompt: 'UI atlas',
+        prompt: 'UI atlas: only buttons in a 3 by 3 grid',
         operation: 'variant',
         sourceImageId: source.id,
         sourceImageIds: [source.id],
@@ -77,6 +79,10 @@ test('UI atlas color preparation saves an existing image through the real docume
     await createCanvasGenerationUi(options).runTemplateImage(target.id);
     expect(options.setError.mock.calls).toEqual([['fixture failure', 'error']]);
     expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+    expect(options.store.generateImage.mock.calls[0][1].prompt).toContain(
+      'only buttons in a 3 by 3 grid'
+    );
+    expect(options.store.generateImage.mock.calls[0][1].prompt).not.toContain('按槽位清单');
     expect(target.generationDraft).toBeUndefined();
     expect(
       (await files.load(document.id)).nodes.find((node) => node.id === target.id)?.generation
@@ -548,6 +554,39 @@ test.each(['source', 'prompt', 'model', 'ui'])(
     await ui.restore();
     expect(target.templatePending).toBe(true);
     expect(options.store.generateImage).not.toHaveBeenCalled();
+  }
+);
+
+test.each(['query', 'restore'])(
+  'successful %s recovery clears stale image failure and retry eligibility without regenerating',
+  async (entry) => {
+    const { options, target, completed, previous, ui } = imageRecoveryFixture();
+    options.store.listGeneration.mockResolvedValue([]);
+    options.store.generateImage.mockResolvedValue({
+      ...completed,
+      status: 'failed',
+      remoteStatus: 'failed',
+      error: 'old failure',
+    });
+    expect(await ui.runTemplateImage(target.id)).toBe(false);
+    expect(ui.failure(target.id)).toBe('old failure');
+    expect(ui.retryableImage(target.id)).toBe(true);
+    options.store.listGeneration.mockResolvedValue([
+      previous,
+      {
+        ...completed,
+        status: 'succeeded',
+        remoteStatus: 'succeeded',
+        error: undefined,
+        resultAssetPath: 'recovered.png',
+      },
+    ]);
+    if (entry === 'query') await ui.queryNode(target.id, true);
+    else await ui.restore();
+    expect(target.assetPath).toBe('recovered.png');
+    expect(ui.failure(target.id)).toBeUndefined();
+    expect(ui.retryableImage(target.id)).toBe(false);
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
   }
 );
 

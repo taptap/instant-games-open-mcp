@@ -245,8 +245,6 @@ export class CanvasGenerationService {
     }
     const target = document.nodes.find((node) => node.id === options.targetNodeId);
     const uiAtlasPlan = target && selectedUiAtlasPlan(document, target);
-    if (uiAtlasPlan && !options.prompt.includes(uiAtlasOrderPrompt(uiAtlasPlan)))
-      throw new Error('UI 槽位清单或提示词已变化，请重新确认后生成。');
     const recognitionSource = target && uiRecognitionSource(document, target);
     const recognition =
       recognitionSource && recognitionSource.id !== target?.id
@@ -286,6 +284,11 @@ export class CanvasGenerationService {
     const [targetWidth, targetHeight] = targetSize.split('x').map(Number);
     if (imageResultWarning({ width: targetWidth, height: targetHeight }, size.targetSize))
       throw new Error('目标尺寸与输出比例冲突，请检查生成参数；尚未提交生图。');
+    if (
+      uiAtlasPlan &&
+      !options.prompt.includes(uiAtlasOrderPrompt(uiAtlasPlan, size.width / size.height))
+    )
+      throw new Error('UI 槽位清单或提示词已变化，请重新确认后生成。');
     const warnings = [
       ...new Set(
         [...references, ...(originalImage ? [originalImage] : [])].flatMap(

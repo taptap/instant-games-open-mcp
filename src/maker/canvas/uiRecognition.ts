@@ -300,9 +300,8 @@ export function uiRecognitionNote(result: UiRecognitionResult): string {
     result.model +
       ' · ' +
       result.elements.length +
-      ' 个元素 · ' +
-      (result.durationMs / 1000).toFixed(1) +
-      ' 秒',
+      ' 个元素' +
+      (result.durationMs > 0 ? ' · ' + (result.durationMs / 1000).toFixed(1) + ' 秒' : ''),
     '坐标为识别输入图像素 [x, y, 宽, 高]；模型识别结果仍需核对。',
     ...result.elements.map(
       (item) =>

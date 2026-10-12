@@ -13,5 +13,5 @@ export const builtinPresetDescriptions: Record<string, string> = {
   '7e1cb6ad-732f-4dc3-a951-000000000011':
     '角色参考 → 动作立绘＋正侧背三视图＋六种表情，一张完整概念展示图',
   '7e1cb6ad-732f-4dc3-a951-000000000013':
-    'UI设计稿 → 去文字与双轮识图 → 合批图集 → PNG资源包；AI按Bbox和素材绑定组装UI',
+    'UI设计稿 → UI识别 → 去文字 → 合批图集 → PNG资源包；AI按Bbox和素材绑定组装UI',
 };

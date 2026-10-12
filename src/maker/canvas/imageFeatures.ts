@@ -10,12 +10,19 @@ export type ImageFeatureAction = 'recognize-ui' | 'view-bbox';
 
 export interface ImageFeatureDefinition {
   id: ImageFeatureId;
-  field: 'uiRecognition' | 'uiExtraction' | 'uiAnnotation' | 'mergeIcons' | 'uiAtlasPlan';
+  field:
+    | 'uiRecognition'
+    | 'uiExtraction'
+    | 'uiAnnotation'
+    | 'mergeIcons'
+    | 'uiAtlasPlan'
+    | 'uiAtlasGroup';
   actions: readonly ImageFeatureAction[];
   blocksOutpaint?: boolean;
 }
 
 export const IMAGE_FEATURES: readonly ImageFeatureDefinition[] = [
+  { id: 'ui-atlas', field: 'uiAtlasGroup', actions: [], blocksOutpaint: true },
   { id: 'ui-atlas', field: 'uiAtlasPlan', actions: [], blocksOutpaint: true },
   { id: 'ui-recognition', field: 'uiRecognition', actions: ['recognize-ui', 'view-bbox'] },
   { id: 'ui-extraction', field: 'uiExtraction', actions: [] },

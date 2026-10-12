@@ -292,6 +292,38 @@ try {
   console.log(
     'PASS: custom ZIP download -> upload -> new template -> preview, original canvas unchanged'
   );
+  const restoredCanvas = await files.create('Restored UI workflow');
+  await files.setActiveCanvasId(restoredCanvas.id);
+  await page.goto(server.origin + '/canvas?project=' + entry.key);
+  await page.locator('#add-template').click();
+  const saved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/canvases/' + restoredCanvas.id) &&
+      response.request().method() === 'PUT'
+  );
+  await page
+    .locator('[data-template-id="7e1cb6ad-732f-4dc3-a951-000000000013"] .template-add')
+    .click();
+  await page.waitForFunction(() => !document.querySelector('.template-library[open]'));
+  assert.equal((await saved).status(), 200);
+  const restored = await files.load(restoredCanvas.id);
+  const recognition = restored.nodes.find((node) => node.uiRecognition?.inputRole === 'design');
+  assert.equal(recognition.type, 'image');
+  assert(recognition.assetPath);
+  const cut = restored.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free');
+  assert.equal(cut.uiRecognition.results.length, 0);
+  assert.equal(cut.templatePending, true);
+  for (const atlas of restored.nodes.filter((node) => node.uiAtlasGroup)) {
+    assert(atlas.uiBaselineGrid, 'new UI template must retain the no-recognition grid');
+    assert(!/E[0-9]{3}|1920x1080|2048x1152/.test(atlas.generation.prompt));
+    assert.equal(atlas.uiAtlasPlan, undefined, 'new instance must not reuse example slots');
+  }
+  assert(restored.edges.some((edge) => edge.from === recognition.id && edge.to === cut.id));
+  assert.equal(paidRequests, 0);
+  assert.deepEqual(browserErrors, []);
+  console.log(
+    'PASS: adding the UI preset retains example images and edges, and requires fresh recognition'
+  );
   console.log(
     'PASS: builtin/custom preview, images, wires, zoom/pan/fit, modal lifecycle, missing images, mobile, no canvas writes or generation'
   );

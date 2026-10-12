@@ -119,52 +119,95 @@ test.each(['revision', 'source', 'edge', 'pending', 'target', 'canvas', 'cut'])(
   }
 );
 
-test('content confirmation uses precisely the prepared pixels and regions that were previewed', async () => {
-  const { current, ui } = fixture();
-  const prepared = {
-    width: 80,
-    height: 60,
-    grid: { columns: 2, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
-    mode: 'content' as const,
-    background: { color: [0, 255, 0] as [number, number, number], mode: 'all' as const },
-    regions: [
-      { name: 'item_001', x: 2, y: 2, width: 70, height: 10 },
-      { name: 'item_002', x: 5, y: 20, width: 20, height: 35 },
-    ],
-    canvas: {} as HTMLCanvasElement,
-  };
-  const prepare = jest.spyOn(imageAtlasExport, 'prepareImageAtlas').mockResolvedValue(prepared);
-  const split = jest.spyOn(imageAtlasExport, 'splitImageAtlas').mockResolvedValue({
-    ...prepared,
-    items: prepared.regions.map((region) => ({
-      name: region.name,
-      width: region.width,
-      height: region.height,
-      blob: new Blob(['png']),
-    })),
-  });
-  try {
-    const result = await ui.preview('target', prepared.grid, { mode: 'content', expectedCount: 2 });
-    expect(result.regions).toEqual(prepared.regions);
-    expect(result.cutMode).toBe('content');
-    await ui.confirm('target', result.reviewId);
-    expect(prepare).toHaveBeenCalledTimes(1);
-    expect(split.mock.calls[0][5]).toBe(prepared);
-    expect(current.nodes[1].imageAssetsInfo?.regions).toEqual(prepared.regions);
-    expect(current.nodes[1].imageAssetsInfo?.background).toEqual(prepared.background);
-    await ui.preview('target');
-    expect(prepare).toHaveBeenLastCalledWith(
-      expect.any(Blob),
-      prepared.grid,
-      prepared.background.color,
-      'all',
-      expect.objectContaining({ mode: 'content', regions: prepared.regions })
-    );
-  } finally {
-    prepare.mockRestore();
-    split.mockRestore();
+test.each(['grid', 'content'] as const)(
+  '%s confirmation persists actual crop sizes and reuses the saved mode',
+  async (mode) => {
+    const { current, ui } = fixture();
+    const prepared = {
+      width: 80,
+      height: 60,
+      grid: { columns: 2, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
+      mode,
+      background: { color: [0, 255, 0] as [number, number, number], mode: 'all' as const },
+      regions: [
+        { name: 'item_001', x: 2, y: 2, width: 70, height: 10 },
+        { name: 'item_002', x: 5, y: 20, width: 20, height: 35 },
+      ],
+      canvas: {} as HTMLCanvasElement,
+    };
+    const prepare = jest.spyOn(imageAtlasExport, 'prepareImageAtlas').mockResolvedValue(prepared);
+    if (mode === 'grid') {
+      current.nodes[0].generation = {
+        prompt: 'test',
+        uiAtlasPlan: {
+          version: 1,
+          grid: prepared.grid,
+          bbox: {
+            version: 1,
+            coordinateSpace: 'design-pixels',
+            bboxFormat: 'xywh',
+            design: {
+              path: 'assets/image/canvas-' + randomUUID() + '.png',
+              sha256: 'a'.repeat(64),
+              width: 80,
+              height: 60,
+            },
+            cutSource: {
+              path: 'assets/image/canvas-' + randomUUID() + '.png',
+              sha256: 'b'.repeat(64),
+              width: 80,
+              height: 60,
+            },
+            elements: [
+              { id: 'E001', name: '按钮', type: 'button', bbox: [2, 2, 20, 10], parent: null },
+            ],
+            texts: [],
+          },
+          slots: [
+            { elementIds: ['E001'], state: 'normal', role: 'element' },
+            { elementIds: ['E001'], state: 'pressed', role: 'element' },
+          ],
+        },
+      };
+    }
+    const split = jest.spyOn(imageAtlasExport, 'splitImageAtlas').mockResolvedValue({
+      ...prepared,
+      cutMode: mode,
+      items: prepared.regions.map((region) => ({
+        name: region.name,
+        width: region.width,
+        height: region.height,
+        contentRect: [0, 0, region.width, region.height] as [number, number, number, number],
+        blob: new Blob(['png']),
+      })),
+    });
+    try {
+      const result = await ui.preview('target', prepared.grid, {
+        mode,
+        expectedCount: 2,
+        regions: prepared.regions,
+      });
+      expect(result.regions).toEqual(prepared.regions);
+      expect(result.cutMode).toBe(mode);
+      await ui.confirm('target', result.reviewId);
+      expect(prepare).toHaveBeenCalledTimes(1);
+      expect(split.mock.calls[0][5]).toBe(prepared);
+      expect(current.nodes[1].imageAssetsInfo?.regions).toEqual(prepared.regions);
+      expect(current.nodes[1].imageAssetsInfo?.background).toEqual(prepared.background);
+      await ui.preview('target');
+      expect(prepare).toHaveBeenLastCalledWith(
+        expect.any(Blob),
+        prepared.grid,
+        prepared.background.color,
+        'all',
+        expect.objectContaining({ mode, regions: prepared.regions })
+      );
+    } finally {
+      prepare.mockRestore();
+      split.mockRestore();
+    }
   }
-});
+);
 
 test('layout failure keeps the current assets and offers local crop repair, not paid regeneration', async () => {
   const { target, options, ui } = savedGridFixture();
@@ -260,6 +303,25 @@ test('an existing confirmed grid takes precedence over a different template base
   expect(await ui.runSavedGrid(target.id)).toBe(true);
   expect(target.imageAssetsInfo!.grid).toEqual(custom);
   expect(source.uiBaselineGrid).toEqual(custom);
+});
+
+test('unrecognized UI sheets allow unused baseline cells but ordinary atlases do not', async () => {
+  const { current, target, ui } = savedGridFixture();
+  const source = current.nodes[0];
+  source.uiAtlasGroup = 'icons';
+  source.uiBaselineGrid = { ...target.imageAssetsInfo!.grid };
+  const split = jest.spyOn(imageAtlasExport, 'splitImageAtlas');
+  try {
+    expect(await ui.runSavedGrid(target.id)).toBe(true);
+    expect(split.mock.calls[0][4]).toMatchObject({ allowEmpty: true });
+    expect(split.mock.calls[0][3]).toBe('all');
+    delete source.uiAtlasGroup;
+    source.assetPath = 'ordinary-atlas.png';
+    expect(await ui.runSavedGrid(target.id)).toBe(true);
+    expect(split.mock.calls[1][4]?.allowEmpty).toBeUndefined();
+  } finally {
+    split.mockRestore();
+  }
 });
 
 test('new recognized atlases use recognition grids without overwriting the no-recognition grid', async () => {
@@ -388,6 +450,8 @@ test.each([
       width: 80,
       height: 60,
       grid: target.imageAssetsInfo!.grid,
+      cutMode: 'grid',
+      regions: imageAtlasExport.imageAtlasRegions(80, 60, target.imageAssetsInfo!.grid),
       background: { mode: 'connected' },
       items: [1, 2].map((index) => ({
         name: 'item_00' + index,

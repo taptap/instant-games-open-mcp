@@ -176,13 +176,13 @@ function recognitionRunFixture() {
   return { ...state, source, run, start, command };
 }
 
-test('CLI enables recognition and invokes the fixed-provider workflow before downstream work', async () => {
+test('CLI enables recognition and lets the group queue time the complete workflow', async () => {
   const { ui, command, source, run, start, options } = recognitionRunFixture();
-  await expect(ui.execute(command)).rejects.toThrow('Bbox JSON');
+  await ui.execute(command);
   expect(source.uiRecognition?.enabled).toBe(true);
   expect(options.save).toHaveBeenCalled();
-  expect(run).toHaveBeenCalledWith(source.id);
-  expect(start).not.toHaveBeenCalled();
+  expect(run).not.toHaveBeenCalled();
+  expect(start).toHaveBeenCalledWith('group', true);
 });
 
 test('CLI continues with an existing selected list without invoking recognition', async () => {
@@ -205,11 +205,10 @@ test('explicit CLI no-recognition comparison skips vision and persists the disab
   expect(start).toHaveBeenCalled();
 });
 
-test.each(['recognition error', 'save error', 'missing authorization', 'invalid switch'])(
+test.each(['save error', 'missing authorization', 'invalid switch'])(
   'CLI blocks downstream work on %s without silently disabling recognition',
   async (failure) => {
-    const { ui, command, source, options, run, start } = recognitionRunFixture();
-    if (failure === 'recognition error') run.mockRejectedValue(new Error('识图模型未配置'));
+    const { ui, command, source, options, start } = recognitionRunFixture();
     if (failure === 'save error') options.save.mockResolvedValue(false);
     if (failure === 'missing authorization') command.allowPaid = false;
     const input =
@@ -264,7 +263,7 @@ test('an asynchronous template insertion serializes mutations but permits inspec
   expect(globals.document.body.inert).toBe(false);
 });
 
-test('CLI completes text removal before recognizing its output', async () => {
+test('CLI includes pending text removal in the group queue instead of running it before timing', async () => {
   const { ui, command, source, run, start } = recognitionRunFixture();
   source.templatePending = true;
   source.assetPath = 'old-example.png';
@@ -273,9 +272,10 @@ test('CLI completes text removal before recognizing its output', async () => {
     delete source.templatePending;
     return true;
   });
-  await expect(ui.execute(command)).rejects.toThrow('text-free.png');
-  expect(run).toHaveBeenCalledWith(source.id);
-  expect(start).not.toHaveBeenCalled();
+  await ui.execute(command);
+  expect(run).not.toHaveBeenCalled();
+  expect(source.templatePending).toBe(true);
+  expect(start).toHaveBeenCalledWith('group', true);
 });
 
 test('CLI can run text removal alone without requiring recognition of the original', async () => {
@@ -286,10 +286,65 @@ test('CLI can run text removal alone without requiring recognition of the origin
   expect(source.uiRecognition!.enabled).toBe(true);
 });
 
-test('failed text removal does not request recognition or start downstream queue', async () => {
-  const { ui, command, source, run, start } = recognitionRunFixture();
+test('CLI propagates a group recognition failure without starting a second workflow', async () => {
+  const { ui, command, source, run, start, options } = recognitionRunFixture();
   source.templatePending = true;
-  run.mockResolvedValue(false);
-  await expect(ui.execute(command)).rejects.toThrow('去文字尚未完成');
-  expect(start).not.toHaveBeenCalled();
+  Object.assign(options.queue, { view: () => ({ phase: 'paused', message: '识图模型未配置' }) });
+  await expect(ui.execute(command)).rejects.toThrow('识图模型未配置');
+  expect(start).toHaveBeenCalledTimes(1);
+  expect(run).not.toHaveBeenCalled();
+});
+
+test('external recognition adds to image work once and preserves the paused flow total', async () => {
+  const { current, options, ui, command } = fixture();
+  Object.assign(options, { checkRecognition: async () => {}, ensureRecognitionNote: () => {} });
+  const source = current.nodes[0];
+  source.assetPath = 'assets/image/canvas-00000000-0000-4000-8000-000000000001.png';
+  source.sectionId = 'group';
+  source.workDurationMs = 30000;
+  source.uiRecognition = { enabled: true, results: [] };
+  current.nodes.push({
+    id: 'group',
+    type: 'section',
+    title: 'UI',
+    x: 0,
+    y: 0,
+    width: 500,
+    height: 500,
+    workStartedAt: 1000,
+    workDurationMs: 30000,
+    workTimingOpen: true,
+  });
+  const result = {
+    id: '00000000-0000-4000-8000-000000000002',
+    sourcePath: source.assetPath,
+    sourceSha256: 'a'.repeat(64),
+    width: 100,
+    height: 100,
+    model: 'ChatGPT web',
+    prompt: 'recognize',
+    createdAt: new Date().toISOString(),
+    durationMs: 90000,
+    elements: [
+      {
+        id: 'E001',
+        name: '按钮',
+        category: 'action',
+        rect: [1, 1, 10, 10],
+        parentId: null,
+        zIndex: 0,
+        cutout: true,
+        states: ['normal'],
+      },
+    ],
+  };
+  const input = { nodes: [{ id: source.id, uiRecognition: { result } }] };
+  await ui.execute({ ...command, action: 'update-nodes', input });
+  expect(source.workDurationMs).toBe(120000);
+  expect(current.nodes[1].workDurationMs).toBe(120000);
+  await expect(
+    ui.execute({ ...command, revision: current.revision, action: 'update-nodes', input })
+  ).rejects.toThrow('识图记录');
+  expect(source.workDurationMs).toBe(120000);
+  expect(current.nodes[1].workDurationMs).toBe(120000);
 });

@@ -18,6 +18,35 @@ function gitignore(root: string): void {
 }
 
 describe('Maker canvas files', () => {
+  test('saves and reopens only the total and per-card work duration', async () => {
+    const root = project('maker-canvas-timing-');
+    try {
+      gitignore(root);
+      const files = new MakerCanvasFiles(root);
+      const canvas = await files.create('timing', 'empty');
+      canvas.nodes = ['section', 'image'].map((type, index) => ({
+        id: createId(),
+        type: type as 'section' | 'image',
+        title: type,
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 200,
+        workDurationMs: index ? 15000 : 90000,
+      }));
+      const saved = await files.save(canvas.id, canvas, canvas.revision);
+      expect((await files.load(canvas.id)).nodes.map((node) => node.workDurationMs)).toEqual([
+        90000, 15000,
+      ]);
+      saved.nodes[1].workDurationMs = -1;
+      await expect(files.save(saved.id, saved, saved.revision)).rejects.toMatchObject({
+        code: 'INVALID_DOCUMENT',
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('keeps resource PNGs in canvas storage without creating game assets', async () => {
     const root = project('maker-canvas-resource-');
     try {

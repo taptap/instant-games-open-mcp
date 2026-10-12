@@ -120,14 +120,29 @@ export function createTemplateWorkflow(options: {
   isNodeBusy?(nodeId: string): boolean;
   hasUnsettledResult?(nodeId: string): boolean;
   hasFailure?(nodeId: string): boolean;
-  image?(nodeId: string): Promise<boolean>;
+  image?(nodeId: string, automatic?: boolean): Promise<boolean>;
   refreshAnimation?(nodeId: string): void;
   assets?(nodeId: string): Promise<boolean>;
   isQueued?(nodeId: string): boolean;
+  failure?(nodeId: string): string | undefined;
 }) {
   let running = false;
   let activeNodeId: string | undefined;
-  const protectedNodes = new Set<string>();
+  const protectedNodes = new Map<string, number>();
+  const queuedRuns = new Set<string>();
+  const workStarts = new Map<string, number>();
+  const failures = new Map<string, string>();
+  function finishWork(document: CanvasDocument, nodeId: string) {
+    const started = workStarts.get(nodeId);
+    workStarts.delete(nodeId);
+    const node = document.nodes.find((item) => item.id === nodeId);
+    if (node && started !== undefined && options.getDocument() === document) {
+      // The design card only copies the reference. That local time is not recognition work.
+      if (node.uiRecognition?.inputRole === 'design') delete node.workDurationMs;
+      else node.workDurationMs = (node.workDurationMs || 0) + Math.max(0, Date.now() - started);
+      options.changed();
+    }
+  }
   function isMember(id: string): boolean {
     const document = options.getDocument();
     const node = document?.nodes.find((node) => node.id === id);
@@ -228,7 +243,7 @@ export function createTemplateWorkflow(options: {
     return;
   }
   function status(id: string): TemplateNodeStatus | undefined {
-    if (activeNodeId === id) return 'loading';
+    if (activeNodeId === id || workStarts.has(id)) return 'loading';
     if (isMember(id) && options.hasFailure?.(id)) return 'pending';
     const document = options.getDocument();
     const node = document?.nodes.find((node) => node.id === id);
@@ -426,6 +441,7 @@ export function createTemplateWorkflow(options: {
         ) &&
         (canvasReferences(document, id).length || node.type === 'image') &&
         !running &&
+        !queuedRuns.has(id) &&
         (!requireReady || !waitingForSource(id)) &&
         !options.isNodeBusy?.(id) &&
         !options.hasUnsettledResult?.(id)
@@ -438,6 +454,7 @@ export function createTemplateWorkflow(options: {
   ): Promise<boolean> {
     const document = options.getDocument();
     const start = document?.nodes.find((node) => node.id === id);
+    if (!automatic && queuedRuns.size) return false;
     if (!automatic && options.isQueued?.(id)) return false;
     if (!document || !start || !(firstStep ? canAdjust(id) : canContinue(id, false))) return false;
     const candidates = [start, ...(automatic ? [] : canvasDependents(document, id))].filter(
@@ -460,10 +477,18 @@ export function createTemplateWorkflow(options: {
       ordered.push(next);
       remaining.delete(next.id);
     }
-    running = true;
-    for (const node of candidates) protectedNodes.add(node.id);
-    for (const node of candidates)
-      for (const source of canvasReferences(document, node.id)) protectedNodes.add(source.id);
+    const started = Date.now();
+    failures.delete(id);
+    if (automatic) queuedRuns.add(id);
+    else running = true;
+    const protectedIds = new Set(
+      candidates.flatMap((node) => [
+        node.id,
+        ...canvasReferences(document, node.id).map((source) => source.id),
+      ])
+    );
+    for (const nodeId of protectedIds)
+      protectedNodes.set(nodeId, (protectedNodes.get(nodeId) || 0) + 1);
     try {
       if (!(await options.save())) throw new Error('画布尚未保存，请保存后继续。');
       for (const node of ordered) {
@@ -495,10 +520,12 @@ export function createTemplateWorkflow(options: {
           )
         )
           return false;
-        activeNodeId = node.id;
+        if (!automatic) activeNodeId = node.id;
+        if (!automatic) node.workDurationMs = 0;
+        workStarts.set(node.id, node.id === id ? started : Date.now());
         options.render();
         if (node.id === id && firstStep) {
-          if (!(await firstStep())) return false;
+          if (!(await firstStep())) throw new Error(options.failure?.(node.id) || '卡片处理未完成');
         } else if (node.type === 'video' || node.type === 'video-source') {
           if (
             !(await options.video(
@@ -507,12 +534,14 @@ export function createTemplateWorkflow(options: {
               automatic
             ))
           )
-            return false;
+            throw new Error(options.failure?.(node.id) || '视频处理未完成');
         } else if (node.type === 'image' && options.image) {
-          if (!(await options.image(node.id))) return false;
+          if (!(await options.image(node.id, automatic)))
+            throw new Error(options.failure?.(node.id) || '图片处理未完成，请核查此卡片的原任务');
         } else if (node.type === 'sequence') await options.sequence(node.id);
         else if (node.type === 'image-assets' && options.assets) {
-          if (!(await options.assets(node.id))) return false;
+          if (!(await options.assets(node.id)))
+            throw new Error(options.failure?.(node.id) || '切图未完成，请查看此卡片');
         } else if (node.type === 'animation' && options.refreshAnimation)
           options.refreshAnimation(node.id);
         else throw new Error('此卡片暂不支持直接继续，请手动处理。');
@@ -531,7 +560,8 @@ export function createTemplateWorkflow(options: {
         }
         options.changed();
         if (!(await options.save())) throw new Error('结果保存失败，已停止后续步骤，请先保存。');
-        activeNodeId = undefined;
+        finishWork(document, node.id);
+        if (!automatic) activeNodeId = undefined;
         // Video workflows retain their reference-image checkpoint. Static image
         // workflows continue through every dependent image and saved-grid export.
         if (
@@ -545,12 +575,22 @@ export function createTemplateWorkflow(options: {
       options.select(ordered[ordered.length - 1].id);
       return true;
     } catch (error) {
-      options.error(error instanceof Error ? error.message : '处理未完成，已保留旧结果。');
+      const message = error instanceof Error ? error.message : '处理未完成，已保留旧结果。';
+      failures.set(id, message);
+      options.error(message);
       return false;
     } finally {
-      activeNodeId = undefined;
-      protectedNodes.clear();
-      running = false;
+      for (const node of candidates) finishWork(document, node.id);
+      for (const nodeId of protectedIds) {
+        const count = (protectedNodes.get(nodeId) || 0) - 1;
+        if (count) protectedNodes.set(nodeId, count);
+        else protectedNodes.delete(nodeId);
+      }
+      if (automatic) queuedRuns.delete(id);
+      else {
+        activeNodeId = undefined;
+        running = false;
+      }
       options.render();
     }
   }
@@ -618,6 +658,16 @@ export function createTemplateWorkflow(options: {
     canContinue,
     runFrom,
     runQueued: (id: string) => runFrom(id, undefined, true),
+    failure: (id: string) => failures.get(id),
+    workDuration(id: string) {
+      const node = options.getDocument()?.nodes.find((item) => item.id === id);
+      const started = workStarts.get(id);
+      if (node?.workDurationMs === undefined && started === undefined) return;
+      return (
+        (node?.workDurationMs || 0) +
+        (started === undefined ? 0 : Math.max(0, Date.now() - started))
+      );
+    },
     nodeChanged,
     canEditImage,
     canEditVideo,
@@ -625,14 +675,16 @@ export function createTemplateWorkflow(options: {
     status,
     isNodeLoading(id: string) {
       const flow = options.getDocument()?.templateFlow;
-      return activeNodeId === id || Boolean(flow && loadingNodeId(flow) === id);
+      return (
+        workStarts.has(id) || activeNodeId === id || Boolean(flow && loadingNodeId(flow) === id)
+      );
     },
     headChanged,
     videoChanged,
     render,
     run,
     get isBusy() {
-      return running;
+      return running || queuedRuns.size > 0;
     },
   };
 }

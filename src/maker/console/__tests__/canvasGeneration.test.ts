@@ -16,6 +16,7 @@ import { createId } from '../../canvas/model.js';
 import { CanvasGenerationService } from '../canvasGeneration.js';
 import { updateModelSettings } from '../visionSettings.js';
 import { RemoteProxyToolResultError, RemoteProxyToolCallError } from '../../server/proxyAssets.js';
+import * as uiAssetBindings from '../../canvas/uiAssetBindings.js';
 
 const callRemoteProxyToolMock = jest.mocked(callRemoteProxyTool);
 
@@ -74,6 +75,66 @@ describe('CanvasGenerationService', () => {
 
   const customPng =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=';
+
+  test('validates atlas slot prompts against the requested landscape output ratio', async () => {
+    useCustomApi();
+    const files = new MakerCanvasFiles(root);
+    let doc = await files.create('landscape atlas', 'empty');
+    const target: CanvasNode = {
+      id: createId(),
+      type: 'image',
+      title: 'background',
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 200,
+    };
+    doc.nodes = [target];
+    doc = await files.save(doc.id, doc, doc.revision);
+    const source = {
+      path: 'assets/image/source.png',
+      sha256: 'a'.repeat(64),
+      width: 1920,
+      height: 1080,
+    };
+    const plan: uiAssetBindings.UiAtlasPlan = {
+      version: 1,
+      bbox: {
+        version: 1,
+        coordinateSpace: 'design-pixels',
+        bboxFormat: 'xywh',
+        design: source,
+        cutSource: source,
+        elements: [
+          { id: 'E001', name: 'background', type: 'panel', bbox: [0, 0, 1920, 1080], parent: null },
+        ],
+        texts: [],
+      },
+      grid: { columns: 1, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
+      slots: [{ elementIds: ['E001'], state: 'normal', role: 'element' }],
+    };
+    jest.spyOn(uiAssetBindings, 'selectedUiAtlasPlan').mockReturnValue(plan);
+    const request = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ data: [{ b64_json: customPng }] })));
+    const service = new CanvasGenerationService(root, {} as any);
+    const input = {
+      canvasId: doc.id,
+      targetNodeId: target.id,
+      aspectRatio: '16:9',
+      resolution: '2K',
+    };
+    await expect(
+      service.generateImage({ ...input, prompt: uiAssetBindings.uiAtlasOrderPrompt(plan) })
+    ).rejects.toThrow('UI 槽位清单或提示词已变化');
+    expect(request).not.toHaveBeenCalled();
+    const result = await service.generateImage({
+      ...input,
+      prompt: uiAssetBindings.uiAtlasOrderPrompt(plan, 16 / 9),
+    });
+    expect(result.status).toBe('succeeded');
+    expect(request).toHaveBeenCalledTimes(1);
+  });
 
   test('custom generation uses configured model, persists the result and never calls Maker', async () => {
     useCustomApi();

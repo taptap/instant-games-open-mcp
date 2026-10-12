@@ -102,9 +102,13 @@ export function openImageAtlasDialog(
   }
   const mode = selectField('切图方式', [
     ['grid', '规则网格'],
+    ...(node.generation?.uiAtlasPlan ? [['slots', '按槽位调整裁切框'] as [string, string]] : []),
     ['content', '按内容切图'],
   ]);
-  mode.value = actions?.cut?.mode || 'grid';
+  mode.value =
+    node.generation?.uiAtlasPlan && actions?.cut?.mode === 'grid' && actions.cut.regions
+      ? 'slots'
+      : actions?.cut?.mode || 'grid';
   const background = selectField('背景处理', [
     ['keep', '保留原图透明度'],
     ['magenta', '去洋红底'],
@@ -181,7 +185,7 @@ export function openImageAtlasDialog(
     try {
       drawImageAtlasPreview(preview, prepared.canvas, grid, prepared.regions, bindingLabels);
       const region = prepared.regions[selected];
-      if (region && mode.value === 'content') {
+      if (region && mode.value !== 'grid') {
         const context = preview.getContext('2d');
         context.strokeStyle = '#ffba49';
         context.lineWidth = 3;
@@ -243,16 +247,31 @@ export function openImageAtlasDialog(
     valid = false;
     prepared = undefined;
     enable();
-    editor.hidden = mode.value !== 'content';
-    editor.style.display = mode.value === 'content' ? 'flex' : 'none';
+    editor.hidden = mode.value === 'grid';
+    editor.style.display = mode.value !== 'grid' ? 'flex' : 'none';
+    for (const action of ['delete', 'merge', 'split'])
+      editor.querySelector('[data-atlas-' + action + ']').disabled = mode.value === 'slots';
     expectedLabel.hidden = mode.value !== 'content';
     if (!source || busy || closed) return;
     try {
       for (const key of Object.keys(grid) as Array<keyof ImageAtlasGrid>) {
         grid[key] = fields[key].value === '' ? NaN : Number(fields[key].value);
-        fields[key].disabled = mode.value === 'content';
+        fields[key].disabled = mode.value !== 'grid';
       }
       if (reset) regions = undefined;
+      if (mode.value === 'slots' && !regions) {
+        const bitmap = await createImageBitmap(source);
+        try {
+          if (token !== revision || closed) return;
+          regions = imageAtlasRegions(bitmap.width, bitmap.height, grid).map((region, index) =>
+            bindingPlan?.slots[index].role === 'reserve'
+              ? { name: region.name, x: 0, y: 0, width: 1, height: 1, blank: true }
+              : region
+          );
+        } finally {
+          bitmap.close();
+        }
+      }
       status.textContent = '正在计算实际裁切区域…';
       const result = await prepareImageAtlas(
         source,
@@ -263,16 +282,23 @@ export function openImageAtlasDialog(
             ? [0, 255, 0]
             : [255, 0, 255],
         actions?.backgroundMode || 'all',
-        { mode: mode.value, ...(mode.value === 'content' && regions ? { regions } : {}) }
+        {
+          mode: mode.value === 'slots' ? 'grid' : mode.value,
+          ...(mode.value !== 'grid' && regions ? { regions } : {}),
+        }
       );
       if (token !== revision || closed) return;
       prepared = result;
-      if (mode.value === 'content') regions = result.regions;
+      if (mode.value !== 'grid') regions = result.regions;
       selected = Math.min(selected, result.regions.length - 1);
       draw();
     } catch (error) {
       if (token === revision && !closed)
-        status.textContent = (error as Error).message + ' 可切换「按内容切图」；原图未改变。';
+        status.textContent =
+          (error as Error).message +
+          (bindingPlan
+            ? ' 可切换「按槽位调整裁切框」，按编号核对；原图未改变。'
+            : ' 可切换「按内容切图」；原图未改变。');
     }
   }
   for (const [key, labelText] of Object.entries({
@@ -302,6 +328,7 @@ export function openImageAtlasDialog(
   }
   function commit(next: ImageAtlasCrop[]) {
     if (!prepared || busy) return;
+    if (mode.value === 'slots' && next.length !== bindingPlan?.slots.length) return;
     regions = next.map((region, index) => ({
       ...region,
       name: 'item_' + String(index + 1).padStart(3, '0'),
@@ -402,7 +429,7 @@ export function openImageAtlasDialog(
     };
   };
   preview.addEventListener('pointerdown', (event: PointerEvent) => {
-    if (!prepared || mode.value !== 'content' || busy) return;
+    if (!prepared || mode.value === 'grid' || busy) return;
     const position = point(event),
       index = prepared.regions.findIndex(
         (region) =>
@@ -411,6 +438,7 @@ export function openImageAtlasDialog(
           position.y >= region.y &&
           position.y < region.y + region.height
       );
+    if (mode.value === 'slots' && index < 0) return;
     const region = prepared.regions[index];
     selected = index < 0 ? prepared.regions.length : index;
     drag = {
@@ -540,8 +568,10 @@ export function openImageAtlasDialog(
           element.disabled = false;
         });
         Object.values(fields).forEach((input: any) => {
-          input.disabled = mode.value === 'content';
+          input.disabled = mode.value !== 'grid';
         });
+        for (const action of ['delete', 'merge', 'split'])
+          editor.querySelector('[data-atlas-' + action + ']').disabled = mode.value === 'slots';
         enable();
       }
     });

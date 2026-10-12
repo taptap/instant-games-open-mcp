@@ -33,7 +33,7 @@
     命令验证 UI 清单，返回原稿 imagePath 和包含已换算坐标的文字轮 prompt。
     上传并发送，保存完整的 text JSON 和对话 URL。失败或中断先查原对话，不自动重发。
 
-3.  在 reply.json 增加 text 和 model（实际网页模型说明），执行：
+3.  在 reply.json 增加 text、model（实际网页模型说明）和 durationMs。durationMs 是从第一次上传开始到两轮回复收齐的毫秒数，必须大于 0。没有测到的时间不要写 0。执行：
 
         taptap-maker canvas recognition-result --target-dir <项目> --canvas-id <画布> --id <识图卡> --input-file <reply.json>
 

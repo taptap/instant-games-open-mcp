@@ -70,6 +70,24 @@ test('Bbox is authoritative and cutout coordinates are derived in the text-free 
   ).toEqual([10, 20, 80, 40]);
 });
 
+test('preserves explicit duplicate links and positions without inferring from names', () => {
+  const bbox = bboxFixture();
+  bbox.texts = [];
+  bbox.elements = [
+    { id: 'E001', name: '金币', type: 'icon', bbox: [1, 1, 10, 10], parent: null },
+    {
+      id: 'E002',
+      name: '金币实例',
+      type: 'icon',
+      bbox: [20, 1, 10, 10],
+      parent: null,
+      duplicateOf: 'E001',
+    },
+    { id: 'E003', name: '银币', type: 'icon', bbox: [1, 20, 10, 10], parent: null },
+  ];
+  expect(validateUiBbox(bbox).elements).toEqual(bbox.elements);
+});
+
 test.each(['parent', 'bounds', 'duplicate', 'text', 'format', 'cycle'])(
   'invalid Bbox %s is rejected',
   (failure) => {

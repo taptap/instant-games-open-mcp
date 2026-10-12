@@ -3,7 +3,8 @@ declare const createImageBitmap: any;
 import { createCanvasZip } from './zipArchive.js';
 import { uiBindingContentRect } from './uiAssetBindings.js';
 import { createBackgroundRemoval } from './backgroundRemoval.js';
-import { alignAtlasCells, atlasLayoutError } from './atlasAlignment.js';
+import { alignAtlasCells, assignAtlasCellsByCenter, atlasLayoutError } from './atlasAlignment.js';
+import type { AtlasAlignedCell } from './atlasAlignment.js';
 import { findAtlasContentRegions, validateAtlasCrops } from './atlasContent.js';
 import type { ImageAtlasCrop, ImageAtlasCutSettings } from './atlasContent.js';
 
@@ -145,8 +146,6 @@ export async function prepareImageAtlas(
     (!Number.isInteger(cut.expectedCount) || cut.expectedCount < 0 || cut.expectedCount > 120)
   )
     throw new Error('预期数量必须为0～120，0表示不限制。');
-  if (cut.regions !== undefined && cut.mode !== 'content')
-    throw new Error('自定义区域仅用于按内容切图。');
   const bitmap = await createImageBitmap(source);
   try {
     const nominal = imageAtlasRegions(bitmap.width, bitmap.height, grid);
@@ -177,7 +176,10 @@ export async function prepareImageAtlas(
     }
     const transparent = pixels?.data.some((value, index) => index % 4 === 3 && value === 0);
     let regions: ImageAtlasCrop[] = nominal;
-    if (cut.mode === 'content') {
+    if (cut.regions !== undefined && cut.mode === 'grid') {
+      regions = validateAtlasCrops(bitmap.width, bitmap.height, cut.regions);
+      if (regions.length !== nominal.length) throw new Error('规则切图区域数量与网格不一致。');
+    } else if (cut.mode === 'content') {
       if (!transparent) throw atlasLayoutError('按内容切图需要透明间隔，请先去除纯色背景。');
       regions =
         cut.regions !== undefined
@@ -191,19 +193,56 @@ export async function prepareImageAtlas(
             regions.length +
             ' 个候选区域；请调整裁切框或确认数量，不会重新生图。'
         );
+    } else if (grid.columns === 1 && grid.rows === 1 && backgroundColor && !cut.mode) {
+      // A single background is the whole keyed image. Edge contact is the scene, not a clipped cell.
+      regions = [
+        {
+          name: nominal[0].name,
+          x: 0,
+          y: 0,
+          width: bitmap.width,
+          height: bitmap.height,
+        },
+      ];
     } else if (transparent && !grid.marginX && !grid.marginY && !grid.gapX && !grid.gapY) {
-      const aligned = alignAtlasCells(pixels!.data, bitmap.width, bitmap.height, grid);
-      regions = aligned.map((cell, index) => ({
-        name: nominal[index].name,
-        x: cell.x,
-        y: cell.y,
-        width: cell.width,
-        height: cell.height,
-        outputWidth: nominal[index].width,
-        outputHeight: nominal[index].height,
-        offsetX: cell.dx,
-        offsetY: cell.dy,
-      }));
+      let aligned: AtlasAlignedCell[];
+      try {
+        aligned = alignAtlasCells(pixels!.data, bitmap.width, bitmap.height, grid, cut.allowEmpty);
+      } catch (error) {
+        // Only UI slot sheets may recover. Content order and margin grids stay unchanged.
+        if (
+          !cut.allowEmpty ||
+          !(error instanceof Error) ||
+          (error as { code?: string }).code !== 'ATLAS_LAYOUT_INVALID' ||
+          (error as { reason?: string }).reason !== 'missing-separator'
+        )
+          throw error;
+        aligned = assignAtlasCellsByCenter(pixels!.data, bitmap.width, bitmap.height, grid, true);
+      }
+      regions = aligned.map((cell, index) =>
+        cell.empty
+          ? {
+              name: nominal[index].name,
+              x: 0,
+              y: 0,
+              width: 1,
+              height: 1,
+              outputWidth: nominal[index].width,
+              outputHeight: nominal[index].height,
+              blank: true,
+            }
+          : {
+              name: nominal[index].name,
+              x: cell.x,
+              y: cell.y,
+              width: cell.width,
+              height: cell.height,
+              outputWidth: cell.outputWidth ?? nominal[index].width,
+              outputHeight: cell.outputHeight ?? nominal[index].height,
+              offsetX: cell.dx,
+              offsetY: cell.dy,
+            }
+      );
     } else if (backgroundColor) {
       for (const region of regions) {
         let occupied = false;
@@ -257,17 +296,18 @@ export async function encodeImageAtlasRegions(prepared: PreparedImageAtlas) {
   for (const region of regions) {
     canvas.width = region.outputWidth ?? region.width;
     canvas.height = region.outputHeight ?? region.height;
-    context.drawImage(
-      prepared.canvas,
-      region.x,
-      region.y,
-      region.width,
-      region.height,
-      region.offsetX || 0,
-      region.offsetY || 0,
-      region.width,
-      region.height
-    );
+    if (!region.blank)
+      context.drawImage(
+        prepared.canvas,
+        region.x,
+        region.y,
+        region.width,
+        region.height,
+        region.offsetX || 0,
+        region.offsetY || 0,
+        region.width,
+        region.height
+      );
     const blob = await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(
         (result: Blob | null) => (result ? resolve(result) : reject(new Error('素材编码失败。'))),
@@ -293,7 +333,8 @@ export async function encodeImageAtlasRegions(prepared: PreparedImageAtlas) {
     width: prepared.width,
     height: prepared.height,
     grid: { ...prepared.grid },
-    ...(prepared.mode === 'content' ? { regions } : {}),
+    regions,
+    cutMode: prepared.mode,
     background: structuredClone(prepared.background),
     items,
   };

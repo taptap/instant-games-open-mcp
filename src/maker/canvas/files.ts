@@ -8,7 +8,7 @@ import {
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
-import { validateUiAtlasPlan } from './uiAssetBindings.js';
+import { validateUiAtlasPlan, validateUiAtlasGroup } from './uiAssetBindings.js';
 import { readImageDimensions } from './imageDimensions.js';
 import type { CanvasImageInfo } from './imageSizing.js';
 import { validateFramePairGraph } from './framePair.js';
@@ -1137,7 +1137,10 @@ export class MakerCanvasFiles {
   private parseNode(value: unknown): CanvasNode {
     if (!value || typeof value !== 'object') fail('节点无效。', 400, 'INVALID_DOCUMENT');
     const node = value as Record<string, unknown>;
-    if (node.uiAtlasPlan !== undefined && node.type !== 'image')
+    if (
+      (node.uiAtlasPlan !== undefined || node.uiAtlasGroup !== undefined) &&
+      node.type !== 'image'
+    )
       fail('只有图片卡可以配置 UI 槽位清单。', 400, 'INVALID_DOCUMENT');
     if (typeof node.id !== 'string' || !ID.test(node.id))
       fail('节点标识无效。', 400, 'INVALID_DOCUMENT');
@@ -1277,6 +1280,16 @@ export class MakerCanvasFiles {
     if (node.templateRevision !== undefined)
       numberIn(node.templateRevision, 1, 1_000_000, '模板版本');
     const skills = templateSkills(node.templateSkills);
+    if (node.workDurationMs !== undefined)
+      numberIn(node.workDurationMs, 0, Number.MAX_SAFE_INTEGER, '工作耗时');
+    if (node.workStartedAt !== undefined)
+      numberIn(node.workStartedAt, 1, Number.MAX_SAFE_INTEGER, '流程起点');
+    if (
+      node.workTimingOpen !== undefined &&
+      (typeof node.workTimingOpen !== 'boolean' || node.type !== 'section')
+    )
+      fail('流程计时状态无效。', 400, 'INVALID_DOCUMENT');
+    if (node.uiAtlasBatch !== undefined) numberIn(node.uiAtlasBatch, 0, 7, '图集分批');
     if (skills && node.type !== 'section')
       fail('Skill 只能关联模板分组。', 400, 'INVALID_DOCUMENT');
     if (
@@ -1513,6 +1526,11 @@ export class MakerCanvasFiles {
       ...(node.templateRevision ? { templateRevision: node.templateRevision as number } : {}),
       ...(skills?.length ? { templateSkills: skills } : {}),
       ...(node.templatePending ? { templatePending: true } : {}),
+      ...(node.workStartedAt === undefined ? {} : { workStartedAt: node.workStartedAt as number }),
+      ...(node.workTimingOpen ? { workTimingOpen: true } : {}),
+      ...(node.workDurationMs === undefined
+        ? {}
+        : { workDurationMs: node.workDurationMs as number }),
       ...(sourceSnapshot ? { sourceSnapshot } : {}),
       ...(sourceSnapshots ? { sourceSnapshots } : {}),
       ...(node.text === undefined ? {} : { text: text(node.text, 4000, '文字') }),
@@ -1531,6 +1549,12 @@ export class MakerCanvasFiles {
       ...(node.uiAtlasPlan === undefined
         ? {}
         : { uiAtlasPlan: validateUiAtlasPlan(node.uiAtlasPlan) }),
+      ...(node.uiAtlasGroup === undefined
+        ? {}
+        : { uiAtlasGroup: validateUiAtlasGroup(node.uiAtlasGroup) }),
+      ...(node.uiAtlasBatch === undefined
+        ? {}
+        : { uiAtlasBatch: Math.floor(node.uiAtlasBatch as number) }),
       ...(generationDraft ? { generationDraft } : {}),
       ...(uiRecognition ? { uiRecognition } : {}),
       ...(node.uiBaselineGrid

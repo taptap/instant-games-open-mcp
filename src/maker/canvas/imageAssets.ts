@@ -14,6 +14,7 @@ export interface ImageAssetsInfo {
   height: number;
   grid: ImageAtlasGrid;
   regions?: ImageAtlasCrop[];
+  cutMode?: 'grid' | 'content';
   background?: { color?: [number, number, number]; mode: 'all' | 'connected' };
   items: Array<{
     name: string;
@@ -46,11 +47,15 @@ export function validateImageAssetsInfo(value: unknown): ImageAssetsInfo {
   )
     throw new Error('游戏资产背景处理设置无效。');
   const nominal = imageAtlasRegions(info.width, info.height, info.grid);
+  if (info.cutMode !== undefined && !['grid', 'content'].includes(info.cutMode))
+    throw new Error('游戏资产切图模式无效。');
   const regions =
     info.regions !== undefined
       ? validateAtlasCrops(info.width, info.height, info.regions)
       : nominal;
   if (info.items.length !== regions.length) throw new Error('游戏资产数量与网格不一致。');
+  if (info.cutMode === 'grid' && regions.length !== nominal.length)
+    throw new Error('规则切图区域数量与网格不一致。');
   const paths = new Set<string>();
   const items = info.items.map((item, index) => {
     const region = regions[index];
@@ -95,6 +100,7 @@ export function validateImageAssetsInfo(value: unknown): ImageAssetsInfo {
   return {
     ...(info.uiBindingReview ? { uiBindingReview: info.uiBindingReview } : {}),
     width: info.width,
+    ...(info.cutMode ? { cutMode: info.cutMode } : {}),
     height: info.height,
     ...(info.regions !== undefined
       ? { regions: validateAtlasCrops(info.width, info.height, info.regions) }

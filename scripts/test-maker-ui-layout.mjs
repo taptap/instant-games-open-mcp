@@ -130,8 +130,45 @@ test('two-pass Bbox assembly preserves positions, Label content, alignment and r
   assert.equal(label.text, '购买');
   assert.equal(label.textAlign, 'center');
   assert.equal(label.fontWeight, 'bold');
-  assert.deepEqual(label.color, [242, 212, 138, 255]);
+  assert.deepEqual(label.fontColor, [242, 212, 138, 255]);
+  assert.equal(label.color, undefined);
   assert.equal(label.fontSize, 30);
+});
+
+test('generated foreground uses a supported image panel and narrow labels fit their box', () => {
+  const input = bboxInput();
+  input.bbox.elements[0].type = 'icon';
+  input.bbox.texts[0].text = '整理背包';
+  input.bbox.texts[0].bbox = [50, 90, 80, 30];
+  const result = assemble(layoutFromBbox(input));
+  const icon = result.ui.children[0];
+  assert.equal(icon.type, 'Panel');
+  assert.equal(icon.backgroundFit, 'contain');
+  assert.equal(icon.children[0].fontSize, 20);
+});
+
+test('24 duplicate stars stay at 24 Bbox positions while sharing one image', () => {
+  const input = bboxInput();
+  input.bbox.texts = [];
+  input.bbox.elements = Array.from({ length: 24 }, (_, index) => ({
+    id: 'E' + String(index + 1).padStart(3, '0'),
+    name: '金色五角星',
+    type: 'icon',
+    parent: null,
+    bbox: [(index % 8) * 30, Math.floor(index / 8) * 30, 20, 20],
+    ...(index ? { duplicateOf: 'E001' } : {}),
+  }));
+  input.bindings = input.bbox.elements.map((element) => ({
+    elementId: element.id,
+    assetId: 'button',
+  }));
+  const result = assemble(layoutFromBbox(input));
+  assert.equal(result.ui.children.length, 24);
+  assert.equal(new Set(result.ui.children.map((node) => node.backgroundImage)).size, 1);
+  result.ui.children.forEach((node, index) => {
+    assert.equal(node.left, input.bbox.elements[index].bbox[0]);
+    assert.equal(node.top, input.bbox.elements[index].bbox[1]);
+  });
 });
 
 test('Bbox assembly refuses missing bindings, invalid parents, cycles and text-as-cutout', () => {

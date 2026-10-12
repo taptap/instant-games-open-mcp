@@ -1400,7 +1400,7 @@
   {
     "id": "7e1cb6ad-732f-4dc3-a951-000000000013",
     "name": "游戏UI制作",
-    "revision": 3,
+    "revision": 9,
     "nodes": [
       {
         "id": "dea229bb-9d79-4cbb-b38d-f12a6269a17e",
@@ -1414,11 +1414,29 @@
         "imageInfo": {
           "width": 1920,
           "height": 1080
+        }
+      },
+      {
+        "id": "2ae5d4af-ba1a-4682-9c17-dc145ec6e606",
+        "type": "image",
+        "x": 939.9951544229791,
+        "y": 0.7749816593456842,
+        "width": 560,
+        "height": 355.875,
+        "title": "② 原稿与识图输入",
+        "sourceSnapshot": {
+          "nodeId": "dea229bb-9d79-4cbb-b38d-f12a6269a17e",
+          "version": "image|assets/image/preset-game-ui-batch-000.png|manual-asset"
         },
+        "assetPath": "assets/image/preset-game-ui-batch-000.png",
         "uiRecognition": {
-          "enabled": false,
+          "enabled": true,
           "inputRole": "design",
           "results": []
+        },
+        "imageInfo": {
+          "width": 1920,
+          "height": 1080
         }
       },
       {
@@ -1428,14 +1446,14 @@
         "y": 0,
         "width": 560,
         "height": 355.875,
-        "title": "② 去文字与双轮识图",
+        "title": "③ 去文字与元素识别",
         "sourceSnapshot": {
-          "nodeId": "dea229bb-9d79-4cbb-b38d-f12a6269a17e",
+          "nodeId": "2ae5d4af-ba1a-4682-9c17-dc145ec6e606",
           "version": "image|assets/image/preset-game-ui-batch-000.png|manual-asset"
         },
         "sourceSnapshots": [
           {
-            "nodeId": "dea229bb-9d79-4cbb-b38d-f12a6269a17e",
+            "nodeId": "2ae5d4af-ba1a-4682-9c17-dc145ec6e606",
             "version": "image|assets/image/preset-game-ui-batch-000.png|manual-asset"
           }
         ],
@@ -1452,15 +1470,3854 @@
             "aspectRatio": "source"
           },
           "operation": "variant",
-          "sourceImageId": "dea229bb-9d79-4cbb-b38d-f12a6269a17e",
+          "sourceImageId": "2ae5d4af-ba1a-4682-9c17-dc145ec6e606",
           "sourceImageIds": [
-            "dea229bb-9d79-4cbb-b38d-f12a6269a17e"
+            "2ae5d4af-ba1a-4682-9c17-dc145ec6e606"
           ]
         },
         "uiRecognition": {
           "enabled": true,
           "inputRole": "text-free",
-          "results": []
+          "selectedId": "058ed1ec-e885-4df2-816d-cc28d1d9e58c",
+          "results": [
+            {
+              "id": "058ed1ec-e885-4df2-816d-cc28d1d9e58c",
+              "model": "local-client",
+              "prompt": "原设计稿单次识图：复用同一 SHA256 原稿的本地视觉识别（UI103/文本51），本次复核去文字稿构图后仅更新 cutSource 身份及像素换算；未对去文字稿重新调用识图。",
+              "createdAt": "2026-10-11T10:31:43.727Z",
+              "durationMs": 0,
+              "sourcePath": "assets/image/preset-game-ui-batch-001.png",
+              "sourceSha256": "4fcc4fafe2f4ff34f5be493df42fda6352ec7313b26611d602db640b7f4d0aaa",
+              "width": 2048,
+              "height": 1152,
+              "elements": [
+                {
+                  "id": "E001",
+                  "name": "顶栏底板",
+                  "category": "panel",
+                  "rect": [
+                    115.2,
+                    7.466666666666667,
+                    1824,
+                    80
+                  ],
+                  "parentId": null,
+                  "zIndex": 0,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E002",
+                  "name": "档案标题底板",
+                  "category": "frame",
+                  "rect": [
+                    712.5333333333333,
+                    8.533333333333333,
+                    618.6666666666666,
+                    72.53333333333333
+                  ],
+                  "parentId": "E001",
+                  "zIndex": 1,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E003",
+                  "name": "返回按钮底板",
+                  "category": "action",
+                  "rect": [
+                    160,
+                    17.066666666666666,
+                    99.2,
+                    56.53333333333333
+                  ],
+                  "parentId": "E001",
+                  "zIndex": 2,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E004",
+                  "name": "返回箭头",
+                  "category": "icon",
+                  "rect": [
+                    181.33333333333334,
+                    28.8,
+                    53.333333333333336,
+                    34.13333333333333
+                  ],
+                  "parentId": "E003",
+                  "zIndex": 3,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E005",
+                  "name": "关闭按钮底板",
+                  "category": "action",
+                  "rect": [
+                    1938.1333333333332,
+                    16,
+                    89.6,
+                    87.46666666666667
+                  ],
+                  "parentId": null,
+                  "zIndex": 4,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E006",
+                  "name": "关闭叉号",
+                  "category": "icon",
+                  "rect": [
+                    1960.5333333333333,
+                    33.06666666666666,
+                    46.93333333333333,
+                    42.666666666666664
+                  ],
+                  "parentId": "E005",
+                  "zIndex": 5,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E007",
+                  "name": "金币数字底板",
+                  "category": "frame",
+                  "rect": [
+                    1544.5333333333333,
+                    27.733333333333334,
+                    156.8,
+                    39.46666666666667
+                  ],
+                  "parentId": "E001",
+                  "zIndex": 6,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E008",
+                  "name": "金币图标",
+                  "category": "icon",
+                  "rect": [
+                    1528.5333333333333,
+                    25.6,
+                    41.6,
+                    41.6
+                  ],
+                  "parentId": "E007",
+                  "zIndex": 7,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E009",
+                  "name": "钻石数字底板",
+                  "category": "frame",
+                  "rect": [
+                    1746.1333333333332,
+                    27.733333333333334,
+                    153.6,
+                    39.46666666666667
+                  ],
+                  "parentId": "E001",
+                  "zIndex": 8,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E010",
+                  "name": "钻石图标",
+                  "category": "icon",
+                  "rect": [
+                    1731.2,
+                    24.53333333333333,
+                    38.4,
+                    43.733333333333334
+                  ],
+                  "parentId": "E009",
+                  "zIndex": 9,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E011",
+                  "name": "装备页签底板",
+                  "category": "tab",
+                  "rect": [
+                    653.8666666666667,
+                    93.86666666666666,
+                    233.6,
+                    57.6
+                  ],
+                  "parentId": null,
+                  "zIndex": 10,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E012",
+                  "name": "技能页签底板",
+                  "category": "tab",
+                  "rect": [
+                    905.6,
+                    93.86666666666666,
+                    233.6,
+                    57.6
+                  ],
+                  "parentId": null,
+                  "zIndex": 11,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E013",
+                  "name": "档案页签底板",
+                  "category": "tab",
+                  "rect": [
+                    1153.0666666666666,
+                    93.86666666666666,
+                    233.6,
+                    57.6
+                  ],
+                  "parentId": null,
+                  "zIndex": 12,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E014",
+                  "name": "角色属性面板",
+                  "category": "panel",
+                  "rect": [
+                    45.86666666666667,
+                    173.86666666666667,
+                    532.2666666666667,
+                    728.5333333333333
+                  ],
+                  "parentId": null,
+                  "zIndex": 13,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E015",
+                  "name": "头像边框",
+                  "category": "frame",
+                  "rect": [
+                    69.33333333333333,
+                    186.66666666666666,
+                    206.93333333333334,
+                    209.06666666666666
+                  ],
+                  "parentId": "E014",
+                  "zIndex": 14,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E016",
+                  "name": "艾达头像",
+                  "category": "icon",
+                  "rect": [
+                    97.06666666666666,
+                    205.86666666666667,
+                    158.93333333333334,
+                    172.8
+                  ],
+                  "parentId": "E015",
+                  "zIndex": 15,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E017",
+                  "name": "职业准星符号",
+                  "category": "icon",
+                  "rect": [
+                    283.73333333333335,
+                    336,
+                    38.4,
+                    36.266666666666666
+                  ],
+                  "parentId": "E014",
+                  "zIndex": 16,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E018",
+                  "name": "经验进度轨道",
+                  "category": "frame",
+                  "rect": [
+                    158.93333333333334,
+                    417.06666666666666,
+                    372.26666666666665,
+                    25.6
+                  ],
+                  "parentId": "E014",
+                  "zIndex": 17,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E019",
+                  "name": "经验进度填充",
+                  "category": "panel",
+                  "rect": [
+                    161.06666666666666,
+                    420.26666666666665,
+                    115.2,
+                    19.2
+                  ],
+                  "parentId": "E018",
+                  "zIndex": 18,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E020",
+                  "name": "生命图标",
+                  "category": "icon",
+                  "rect": [
+                    109.86666666666666,
+                    514.1333333333333,
+                    41.6,
+                    39.46666666666667
+                  ],
+                  "parentId": "E014",
+                  "zIndex": 19,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E021",
+                  "name": "攻击图标",
+                  "category": "icon",
+                  "rect": [
+                    108.8,
+                    585.6,
+                    43.733333333333334,
+                    42.666666666666664
+                  ],
+                  "parentId": "E014",
+                  "zIndex": 20,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E022",
+                  "name": "防御图标",
+                  "category": "icon",
+                  "rect": [
+                    110.93333333333334,
+                    658.1333333333333,
+                    38.4,
+                    43.733333333333334
+                  ],
+                  "parentId": "E014",
+                  "zIndex": 21,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E023",
+                  "name": "速度图标",
+                  "category": "icon",
+                  "rect": [
+                    109.86666666666666,
+                    733.8666666666667,
+                    41.6,
+                    40.53333333333333
+                  ],
+                  "parentId": "E014",
+                  "zIndex": 22,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E024",
+                  "name": "暴击图标",
+                  "category": "icon",
+                  "rect": [
+                    108.8,
+                    804.2666666666667,
+                    43.733333333333334,
+                    45.86666666666667
+                  ],
+                  "parentId": "E014",
+                  "zIndex": 23,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E025",
+                  "name": "角色装备展示面板",
+                  "category": "panel",
+                  "rect": [
+                    593.0666666666666,
+                    165.33333333333334,
+                    830.9333333333333,
+                    746.6666666666666
+                  ],
+                  "parentId": null,
+                  "zIndex": 24,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E026",
+                  "name": "人物展示台",
+                  "category": "panel",
+                  "rect": [
+                    762.6666666666666,
+                    828.8,
+                    486.4,
+                    81.06666666666666
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 25,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E027",
+                  "name": "艾达全身立绘（含手持武器）",
+                  "category": "icon",
+                  "rect": [
+                    779.7333333333333,
+                    164.26666666666665,
+                    378.6666666666667,
+                    740.2666666666667
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 26,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E028",
+                  "name": "帽子槽底与边框",
+                  "category": "frame",
+                  "rect": [
+                    622.9333333333333,
+                    187.73333333333332,
+                    132.26666666666665,
+                    130.13333333333333
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 27,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E029",
+                  "name": "帽子物品图",
+                  "category": "icon",
+                  "rect": [
+                    641.0666666666666,
+                    215.46666666666667,
+                    102.4,
+                    59.733333333333334
+                  ],
+                  "parentId": "E028",
+                  "zIndex": 28,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E030",
+                  "name": "帽子星级1",
+                  "category": "icon",
+                  "rect": [
+                    656,
+                    284.8,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E028",
+                  "zIndex": 29,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E031",
+                  "name": "帽子星级2",
+                  "category": "icon",
+                  "rect": [
+                    677.3333333333334,
+                    284.8,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E028",
+                  "zIndex": 30,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E032",
+                  "name": "帽子星级3",
+                  "category": "icon",
+                  "rect": [
+                    698.6666666666666,
+                    284.8,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E028",
+                  "zIndex": 31,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E033",
+                  "name": "帽子名称底板",
+                  "category": "panel",
+                  "rect": [
+                    624,
+                    318.93333333333334,
+                    130.13333333333333,
+                    32
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 32,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E034",
+                  "name": "胸甲槽底与边框",
+                  "category": "frame",
+                  "rect": [
+                    622.9333333333333,
+                    363.73333333333335,
+                    132.26666666666665,
+                    130.13333333333333
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 33,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E035",
+                  "name": "胸甲物品图",
+                  "category": "icon",
+                  "rect": [
+                    641.0666666666666,
+                    375.46666666666664,
+                    102.4,
+                    93.86666666666666
+                  ],
+                  "parentId": "E034",
+                  "zIndex": 34,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E036",
+                  "name": "胸甲星级1",
+                  "category": "icon",
+                  "rect": [
+                    656,
+                    459.73333333333335,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E034",
+                  "zIndex": 35,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E037",
+                  "name": "胸甲星级2",
+                  "category": "icon",
+                  "rect": [
+                    677.3333333333334,
+                    459.73333333333335,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E034",
+                  "zIndex": 36,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E038",
+                  "name": "胸甲星级3",
+                  "category": "icon",
+                  "rect": [
+                    698.6666666666666,
+                    459.73333333333335,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E034",
+                  "zIndex": 37,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E039",
+                  "name": "胸甲名称底板",
+                  "category": "panel",
+                  "rect": [
+                    624,
+                    494.93333333333334,
+                    130.13333333333333,
+                    32
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 38,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E040",
+                  "name": "武器槽底与边框",
+                  "category": "frame",
+                  "rect": [
+                    622.9333333333333,
+                    540.8,
+                    132.26666666666665,
+                    130.13333333333333
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 39,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E041",
+                  "name": "武器物品图",
+                  "category": "icon",
+                  "rect": [
+                    641.0666666666666,
+                    553.6,
+                    100.26666666666667,
+                    93.86666666666666
+                  ],
+                  "parentId": "E040",
+                  "zIndex": 40,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E042",
+                  "name": "武器星级1",
+                  "category": "icon",
+                  "rect": [
+                    656,
+                    637.8666666666667,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E040",
+                  "zIndex": 41,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E043",
+                  "name": "武器星级2",
+                  "category": "icon",
+                  "rect": [
+                    677.3333333333334,
+                    637.8666666666667,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E040",
+                  "zIndex": 42,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E044",
+                  "name": "武器星级3",
+                  "category": "icon",
+                  "rect": [
+                    698.6666666666666,
+                    637.8666666666667,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E040",
+                  "zIndex": 43,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E045",
+                  "name": "武器名称底板",
+                  "category": "panel",
+                  "rect": [
+                    624,
+                    672,
+                    130.13333333333333,
+                    32
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 44,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E046",
+                  "name": "靴子槽底与边框",
+                  "category": "frame",
+                  "rect": [
+                    622.9333333333333,
+                    720,
+                    132.26666666666665,
+                    130.13333333333333
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 45,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E047",
+                  "name": "靴子物品图",
+                  "category": "icon",
+                  "rect": [
+                    642.1333333333333,
+                    733.8666666666667,
+                    100.26666666666667,
+                    91.73333333333333
+                  ],
+                  "parentId": "E046",
+                  "zIndex": 46,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E048",
+                  "name": "靴子星级1",
+                  "category": "icon",
+                  "rect": [
+                    656,
+                    816,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E046",
+                  "zIndex": 47,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E049",
+                  "name": "靴子星级2",
+                  "category": "icon",
+                  "rect": [
+                    677.3333333333334,
+                    816,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E046",
+                  "zIndex": 48,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E050",
+                  "name": "靴子星级3",
+                  "category": "icon",
+                  "rect": [
+                    698.6666666666666,
+                    816,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E046",
+                  "zIndex": 49,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E051",
+                  "name": "靴子名称底板",
+                  "category": "panel",
+                  "rect": [
+                    624,
+                    851.1999999999999,
+                    130.13333333333333,
+                    32
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 50,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E052",
+                  "name": "护符槽底与边框",
+                  "category": "frame",
+                  "rect": [
+                    1258.6666666666667,
+                    187.73333333333332,
+                    132.26666666666665,
+                    130.13333333333333
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 51,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E053",
+                  "name": "护符物品图",
+                  "category": "icon",
+                  "rect": [
+                    1298.1333333333332,
+                    197.33333333333334,
+                    65.06666666666666,
+                    86.4
+                  ],
+                  "parentId": "E052",
+                  "zIndex": 52,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E054",
+                  "name": "护符星级1",
+                  "category": "icon",
+                  "rect": [
+                    1291.7333333333333,
+                    284.8,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E052",
+                  "zIndex": 53,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E055",
+                  "name": "护符星级2",
+                  "category": "icon",
+                  "rect": [
+                    1313.0666666666666,
+                    284.8,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E052",
+                  "zIndex": 54,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E056",
+                  "name": "护符星级3",
+                  "category": "icon",
+                  "rect": [
+                    1334.4,
+                    284.8,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E052",
+                  "zIndex": 55,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E057",
+                  "name": "护符名称底板",
+                  "category": "panel",
+                  "rect": [
+                    1259.7333333333333,
+                    318.93333333333334,
+                    130.13333333333333,
+                    32
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 56,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E058",
+                  "name": "机械臂槽底与边框",
+                  "category": "frame",
+                  "rect": [
+                    1258.6666666666667,
+                    364.8,
+                    132.26666666666665,
+                    130.13333333333333
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 57,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E059",
+                  "name": "机械臂物品图",
+                  "category": "icon",
+                  "rect": [
+                    1274.6666666666667,
+                    376.5333333333333,
+                    94.93333333333334,
+                    94.93333333333334
+                  ],
+                  "parentId": "E058",
+                  "zIndex": 58,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E060",
+                  "name": "机械臂星级1",
+                  "category": "icon",
+                  "rect": [
+                    1291.7333333333333,
+                    460.8,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E058",
+                  "zIndex": 59,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E061",
+                  "name": "机械臂星级2",
+                  "category": "icon",
+                  "rect": [
+                    1313.0666666666666,
+                    460.8,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E058",
+                  "zIndex": 60,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E062",
+                  "name": "机械臂星级3",
+                  "category": "icon",
+                  "rect": [
+                    1334.4,
+                    460.8,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E058",
+                  "zIndex": 61,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E063",
+                  "name": "机械臂名称底板",
+                  "category": "panel",
+                  "rect": [
+                    1259.7333333333333,
+                    496,
+                    130.13333333333333,
+                    32
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 62,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E064",
+                  "name": "饰品槽底与边框",
+                  "category": "frame",
+                  "rect": [
+                    1258.6666666666667,
+                    540.8,
+                    132.26666666666665,
+                    130.13333333333333
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 63,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E065",
+                  "name": "饰品物品图",
+                  "category": "icon",
+                  "rect": [
+                    1283.2,
+                    566.4,
+                    86.4,
+                    71.46666666666667
+                  ],
+                  "parentId": "E064",
+                  "zIndex": 64,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E066",
+                  "name": "饰品星级1",
+                  "category": "icon",
+                  "rect": [
+                    1291.7333333333333,
+                    638.9333333333333,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E064",
+                  "zIndex": 65,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E067",
+                  "name": "饰品星级2",
+                  "category": "icon",
+                  "rect": [
+                    1313.0666666666666,
+                    638.9333333333333,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E064",
+                  "zIndex": 66,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E068",
+                  "name": "饰品星级3",
+                  "category": "icon",
+                  "rect": [
+                    1334.4,
+                    638.9333333333333,
+                    23.466666666666665,
+                    25.6
+                  ],
+                  "parentId": "E064",
+                  "zIndex": 67,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E069",
+                  "name": "饰品名称底板",
+                  "category": "panel",
+                  "rect": [
+                    1259.7333333333333,
+                    672,
+                    130.13333333333333,
+                    32
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 68,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E070",
+                  "name": "空槽槽底与边框",
+                  "category": "frame",
+                  "rect": [
+                    1258.6666666666667,
+                    720,
+                    132.26666666666665,
+                    130.13333333333333
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 69,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E071",
+                  "name": "空槽加号",
+                  "category": "icon",
+                  "rect": [
+                    1293.8666666666666,
+                    759.4666666666667,
+                    55.46666666666667,
+                    52.266666666666666
+                  ],
+                  "parentId": "E070",
+                  "zIndex": 70,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E072",
+                  "name": "空槽名称底板",
+                  "category": "panel",
+                  "rect": [
+                    1259.7333333333333,
+                    851.1999999999999,
+                    130.13333333333333,
+                    32
+                  ],
+                  "parentId": "E025",
+                  "zIndex": 71,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E073",
+                  "name": "装备详情面板",
+                  "category": "panel",
+                  "rect": [
+                    1441.0666666666666,
+                    173.86666666666667,
+                    560,
+                    728.5333333333333
+                  ],
+                  "parentId": null,
+                  "zIndex": 72,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E074",
+                  "name": "详情武器槽底与边框",
+                  "category": "frame",
+                  "rect": [
+                    1482.6666666666667,
+                    214.4,
+                    187.73333333333332,
+                    221.86666666666667
+                  ],
+                  "parentId": "E073",
+                  "zIndex": 73,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E075",
+                  "name": "详情脉冲枪物品图",
+                  "category": "icon",
+                  "rect": [
+                    1497.6,
+                    228.26666666666665,
+                    152.53333333333333,
+                    179.2
+                  ],
+                  "parentId": "E074",
+                  "zIndex": 74,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E076",
+                  "name": "详情武器星级1",
+                  "category": "icon",
+                  "rect": [
+                    1534.9333333333334,
+                    400,
+                    26.666666666666668,
+                    26.666666666666668
+                  ],
+                  "parentId": "E074",
+                  "zIndex": 75,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E077",
+                  "name": "详情武器星级2",
+                  "category": "icon",
+                  "rect": [
+                    1559.4666666666667,
+                    400,
+                    26.666666666666668,
+                    26.666666666666668
+                  ],
+                  "parentId": "E074",
+                  "zIndex": 76,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E078",
+                  "name": "详情武器星级3",
+                  "category": "icon",
+                  "rect": [
+                    1584,
+                    400,
+                    26.666666666666668,
+                    26.666666666666668
+                  ],
+                  "parentId": "E074",
+                  "zIndex": 77,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E079",
+                  "name": "史诗品质底板",
+                  "category": "panel",
+                  "rect": [
+                    1688.5333333333333,
+                    269.8666666666667,
+                    118.39999999999999,
+                    40.53333333333333
+                  ],
+                  "parentId": "E073",
+                  "zIndex": 78,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E080",
+                  "name": "详情攻击图标",
+                  "category": "icon",
+                  "rect": [
+                    1693.8666666666666,
+                    338.1333333333333,
+                    34.13333333333333,
+                    34.13333333333333
+                  ],
+                  "parentId": "E073",
+                  "zIndex": 79,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E081",
+                  "name": "详情暴击图标",
+                  "category": "icon",
+                  "rect": [
+                    1697.0666666666666,
+                    392.5333333333333,
+                    25.6,
+                    35.2
+                  ],
+                  "parentId": "E073",
+                  "zIndex": 80,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E082",
+                  "name": "详情速度图标",
+                  "category": "icon",
+                  "rect": [
+                    1693.8666666666666,
+                    445.8666666666667,
+                    34.13333333333333,
+                    32
+                  ],
+                  "parentId": "E073",
+                  "zIndex": 81,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E083",
+                  "name": "强化进度轨道",
+                  "category": "frame",
+                  "rect": [
+                    1483.7333333333333,
+                    682.6666666666666,
+                    474.6666666666667,
+                    26.666666666666668
+                  ],
+                  "parentId": "E073",
+                  "zIndex": 82,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E084",
+                  "name": "强化进度填充",
+                  "category": "panel",
+                  "rect": [
+                    1488,
+                    686.9333333333333,
+                    172.8,
+                    19.2
+                  ],
+                  "parentId": "E083",
+                  "zIndex": 83,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E085",
+                  "name": "强化按钮底板",
+                  "category": "action",
+                  "rect": [
+                    1486.9333333333334,
+                    770.1333333333333,
+                    221.86666666666667,
+                    85.33333333333333
+                  ],
+                  "parentId": "E073",
+                  "zIndex": 84,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E086",
+                  "name": "卸下按钮底板",
+                  "category": "action",
+                  "rect": [
+                    1736.5333333333333,
+                    770.1333333333333,
+                    222.93333333333334,
+                    85.33333333333333
+                  ],
+                  "parentId": "E073",
+                  "zIndex": 85,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E087",
+                  "name": "背包物品栏底板",
+                  "category": "panel",
+                  "rect": [
+                    464,
+                    918.4,
+                    1111.4666666666667,
+                    188.8
+                  ],
+                  "parentId": null,
+                  "zIndex": 86,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E088",
+                  "name": "工作台预览框",
+                  "category": "frame",
+                  "rect": [
+                    88.53333333333333,
+                    918.4,
+                    340.26666666666665,
+                    187.73333333333332
+                  ],
+                  "parentId": null,
+                  "zIndex": 87,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E089",
+                  "name": "工作台场景图",
+                  "category": "icon",
+                  "rect": [
+                    102.4,
+                    930.1333333333333,
+                    309.3333333333333,
+                    165.33333333333334
+                  ],
+                  "parentId": "E088",
+                  "zIndex": 88,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E090",
+                  "name": "背包药水格底",
+                  "category": "frame",
+                  "rect": [
+                    499.2,
+                    947.1999999999999,
+                    133.33333333333334,
+                    134.4
+                  ],
+                  "parentId": "E087",
+                  "zIndex": 89,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E091",
+                  "name": "背包药水物品图",
+                  "category": "icon",
+                  "rect": [
+                    523.7333333333333,
+                    960,
+                    82.13333333333333,
+                    97.06666666666666
+                  ],
+                  "parentId": "E090",
+                  "zIndex": 90,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E092",
+                  "name": "背包蓝水晶格底",
+                  "category": "frame",
+                  "rect": [
+                    656,
+                    947.1999999999999,
+                    133.33333333333334,
+                    134.4
+                  ],
+                  "parentId": "E087",
+                  "zIndex": 91,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E093",
+                  "name": "背包蓝水晶物品图",
+                  "category": "icon",
+                  "rect": [
+                    684.8,
+                    966.4,
+                    68.26666666666667,
+                    88.53333333333333
+                  ],
+                  "parentId": "E092",
+                  "zIndex": 92,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E094",
+                  "name": "背包齿轮格底",
+                  "category": "frame",
+                  "rect": [
+                    812.8,
+                    947.1999999999999,
+                    133.33333333333334,
+                    134.4
+                  ],
+                  "parentId": "E087",
+                  "zIndex": 93,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E095",
+                  "name": "背包齿轮物品图",
+                  "category": "icon",
+                  "rect": [
+                    830.9333333333333,
+                    965.3333333333334,
+                    90.66666666666667,
+                    87.46666666666667
+                  ],
+                  "parentId": "E094",
+                  "zIndex": 94,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E096",
+                  "name": "背包皮革卷格底",
+                  "category": "frame",
+                  "rect": [
+                    968.5333333333333,
+                    947.1999999999999,
+                    133.33333333333334,
+                    134.4
+                  ],
+                  "parentId": "E087",
+                  "zIndex": 95,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E097",
+                  "name": "背包皮革卷物品图",
+                  "category": "icon",
+                  "rect": [
+                    983.4666666666667,
+                    962.1333333333333,
+                    102.4,
+                    91.73333333333333
+                  ],
+                  "parentId": "E096",
+                  "zIndex": 96,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E098",
+                  "name": "背包黄铜管格底",
+                  "category": "frame",
+                  "rect": [
+                    1125.3333333333333,
+                    947.1999999999999,
+                    133.33333333333334,
+                    134.4
+                  ],
+                  "parentId": "E087",
+                  "zIndex": 97,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E099",
+                  "name": "背包黄铜管物品图",
+                  "category": "icon",
+                  "rect": [
+                    1144.5333333333333,
+                    961.0666666666666,
+                    89.6,
+                    92.8
+                  ],
+                  "parentId": "E098",
+                  "zIndex": 98,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E100",
+                  "name": "背包紫水晶格底",
+                  "category": "frame",
+                  "rect": [
+                    1281.0666666666666,
+                    947.1999999999999,
+                    133.33333333333334,
+                    134.4
+                  ],
+                  "parentId": "E087",
+                  "zIndex": 99,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E101",
+                  "name": "背包紫水晶物品图",
+                  "category": "icon",
+                  "rect": [
+                    1307.7333333333333,
+                    964.2666666666667,
+                    80,
+                    96
+                  ],
+                  "parentId": "E100",
+                  "zIndex": 100,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E102",
+                  "name": "整理背包按钮底板",
+                  "category": "action",
+                  "rect": [
+                    1598.9333333333334,
+                    952.5333333333333,
+                    327.46666666666664,
+                    119.46666666666667
+                  ],
+                  "parentId": null,
+                  "zIndex": 101,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                },
+                {
+                  "id": "E103",
+                  "name": "整理背包袋子符号",
+                  "category": "icon",
+                  "rect": [
+                    1670.3999999999999,
+                    987.7333333333333,
+                    42.666666666666664,
+                    42.666666666666664
+                  ],
+                  "parentId": "E102",
+                  "zIndex": 102,
+                  "states": [
+                    "normal"
+                  ],
+                  "cutout": true
+                }
+              ],
+              "bbox": {
+                "version": 1,
+                "coordinateSpace": "design-pixels",
+                "bboxFormat": "xywh",
+                "design": {
+                  "path": "assets/image/preset-game-ui-batch-000.png",
+                  "sha256": "cfddca2cb37d37491de866092248a5bb54fbec007f511f670c0ab5b395f0160b",
+                  "width": 1920,
+                  "height": 1080
+                },
+                "cutSource": {
+                  "path": "assets/image/preset-game-ui-batch-001.png",
+                  "sha256": "4fcc4fafe2f4ff34f5be493df42fda6352ec7313b26611d602db640b7f4d0aaa",
+                  "width": 2048,
+                  "height": 1152
+                },
+                "elements": [
+                  {
+                    "id": "E001",
+                    "name": "顶栏底板",
+                    "type": "panel",
+                    "bbox": [
+                      108,
+                      7,
+                      1710,
+                      75
+                    ],
+                    "parent": null
+                  },
+                  {
+                    "id": "E002",
+                    "name": "档案标题底板",
+                    "type": "frame",
+                    "bbox": [
+                      668,
+                      8,
+                      580,
+                      68
+                    ],
+                    "parent": "E001"
+                  },
+                  {
+                    "id": "E003",
+                    "name": "返回按钮底板",
+                    "type": "button",
+                    "bbox": [
+                      150,
+                      16,
+                      93,
+                      53
+                    ],
+                    "parent": "E001"
+                  },
+                  {
+                    "id": "E004",
+                    "name": "返回箭头",
+                    "type": "icon",
+                    "bbox": [
+                      170,
+                      27,
+                      50,
+                      32
+                    ],
+                    "parent": "E003"
+                  },
+                  {
+                    "id": "E005",
+                    "name": "关闭按钮底板",
+                    "type": "button",
+                    "bbox": [
+                      1817,
+                      15,
+                      84,
+                      82
+                    ],
+                    "parent": null
+                  },
+                  {
+                    "id": "E006",
+                    "name": "关闭叉号",
+                    "type": "icon",
+                    "bbox": [
+                      1838,
+                      31,
+                      44,
+                      40
+                    ],
+                    "parent": "E005"
+                  },
+                  {
+                    "id": "E007",
+                    "name": "金币数字底板",
+                    "type": "frame",
+                    "bbox": [
+                      1448,
+                      26,
+                      147,
+                      37
+                    ],
+                    "parent": "E001"
+                  },
+                  {
+                    "id": "E008",
+                    "name": "金币图标",
+                    "type": "icon",
+                    "bbox": [
+                      1433,
+                      24,
+                      39,
+                      39
+                    ],
+                    "parent": "E007"
+                  },
+                  {
+                    "id": "E009",
+                    "name": "钻石数字底板",
+                    "type": "frame",
+                    "bbox": [
+                      1637,
+                      26,
+                      144,
+                      37
+                    ],
+                    "parent": "E001"
+                  },
+                  {
+                    "id": "E010",
+                    "name": "钻石图标",
+                    "type": "icon",
+                    "bbox": [
+                      1623,
+                      23,
+                      36,
+                      41
+                    ],
+                    "parent": "E009"
+                  },
+                  {
+                    "id": "E011",
+                    "name": "装备页签底板",
+                    "type": "tab",
+                    "bbox": [
+                      613,
+                      88,
+                      219,
+                      54
+                    ],
+                    "parent": null
+                  },
+                  {
+                    "id": "E012",
+                    "name": "技能页签底板",
+                    "type": "tab",
+                    "bbox": [
+                      849,
+                      88,
+                      219,
+                      54
+                    ],
+                    "parent": null
+                  },
+                  {
+                    "id": "E013",
+                    "name": "档案页签底板",
+                    "type": "tab",
+                    "bbox": [
+                      1081,
+                      88,
+                      219,
+                      54
+                    ],
+                    "parent": null
+                  },
+                  {
+                    "id": "E014",
+                    "name": "角色属性面板",
+                    "type": "panel",
+                    "bbox": [
+                      43,
+                      163,
+                      499,
+                      683
+                    ],
+                    "parent": null
+                  },
+                  {
+                    "id": "E015",
+                    "name": "头像边框",
+                    "type": "frame",
+                    "bbox": [
+                      65,
+                      175,
+                      194,
+                      196
+                    ],
+                    "parent": "E014"
+                  },
+                  {
+                    "id": "E016",
+                    "name": "艾达头像",
+                    "type": "icon",
+                    "bbox": [
+                      91,
+                      193,
+                      149,
+                      162
+                    ],
+                    "parent": "E015"
+                  },
+                  {
+                    "id": "E017",
+                    "name": "职业准星符号",
+                    "type": "icon",
+                    "bbox": [
+                      266,
+                      315,
+                      36,
+                      34
+                    ],
+                    "parent": "E014"
+                  },
+                  {
+                    "id": "E018",
+                    "name": "经验进度轨道",
+                    "type": "frame",
+                    "bbox": [
+                      149,
+                      391,
+                      349,
+                      24
+                    ],
+                    "parent": "E014"
+                  },
+                  {
+                    "id": "E019",
+                    "name": "经验进度填充",
+                    "type": "panel",
+                    "bbox": [
+                      151,
+                      394,
+                      108,
+                      18
+                    ],
+                    "parent": "E018"
+                  },
+                  {
+                    "id": "E020",
+                    "name": "生命图标",
+                    "type": "icon",
+                    "bbox": [
+                      103,
+                      482,
+                      39,
+                      37
+                    ],
+                    "parent": "E014"
+                  },
+                  {
+                    "id": "E021",
+                    "name": "攻击图标",
+                    "type": "icon",
+                    "bbox": [
+                      102,
+                      549,
+                      41,
+                      40
+                    ],
+                    "parent": "E014"
+                  },
+                  {
+                    "id": "E022",
+                    "name": "防御图标",
+                    "type": "icon",
+                    "bbox": [
+                      104,
+                      617,
+                      36,
+                      41
+                    ],
+                    "parent": "E014"
+                  },
+                  {
+                    "id": "E023",
+                    "name": "速度图标",
+                    "type": "icon",
+                    "bbox": [
+                      103,
+                      688,
+                      39,
+                      38
+                    ],
+                    "parent": "E014"
+                  },
+                  {
+                    "id": "E024",
+                    "name": "暴击图标",
+                    "type": "icon",
+                    "bbox": [
+                      102,
+                      754,
+                      41,
+                      43
+                    ],
+                    "parent": "E014"
+                  },
+                  {
+                    "id": "E025",
+                    "name": "角色装备展示面板",
+                    "type": "panel",
+                    "bbox": [
+                      556,
+                      155,
+                      779,
+                      700
+                    ],
+                    "parent": null
+                  },
+                  {
+                    "id": "E026",
+                    "name": "人物展示台",
+                    "type": "panel",
+                    "bbox": [
+                      715,
+                      777,
+                      456,
+                      76
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E027",
+                    "name": "艾达全身立绘（含手持武器）",
+                    "type": "icon",
+                    "bbox": [
+                      731,
+                      154,
+                      355,
+                      694
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E028",
+                    "name": "帽子槽底与边框",
+                    "type": "frame",
+                    "bbox": [
+                      584,
+                      176,
+                      124,
+                      122
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E029",
+                    "name": "帽子物品图",
+                    "type": "icon",
+                    "bbox": [
+                      601,
+                      202,
+                      96,
+                      56
+                    ],
+                    "parent": "E028"
+                  },
+                  {
+                    "id": "E030",
+                    "name": "帽子星级1",
+                    "type": "icon",
+                    "bbox": [
+                      615,
+                      267,
+                      22,
+                      24
+                    ],
+                    "parent": "E028"
+                  },
+                  {
+                    "id": "E031",
+                    "name": "帽子星级2",
+                    "type": "icon",
+                    "bbox": [
+                      635,
+                      267,
+                      22,
+                      24
+                    ],
+                    "parent": "E028"
+                  },
+                  {
+                    "id": "E032",
+                    "name": "帽子星级3",
+                    "type": "icon",
+                    "bbox": [
+                      655,
+                      267,
+                      22,
+                      24
+                    ],
+                    "parent": "E028"
+                  },
+                  {
+                    "id": "E033",
+                    "name": "帽子名称底板",
+                    "type": "panel",
+                    "bbox": [
+                      585,
+                      299,
+                      122,
+                      30
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E034",
+                    "name": "胸甲槽底与边框",
+                    "type": "frame",
+                    "bbox": [
+                      584,
+                      341,
+                      124,
+                      122
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E035",
+                    "name": "胸甲物品图",
+                    "type": "icon",
+                    "bbox": [
+                      601,
+                      352,
+                      96,
+                      88
+                    ],
+                    "parent": "E034"
+                  },
+                  {
+                    "id": "E036",
+                    "name": "胸甲星级1",
+                    "type": "icon",
+                    "bbox": [
+                      615,
+                      431,
+                      22,
+                      24
+                    ],
+                    "parent": "E034"
+                  },
+                  {
+                    "id": "E037",
+                    "name": "胸甲星级2",
+                    "type": "icon",
+                    "bbox": [
+                      635,
+                      431,
+                      22,
+                      24
+                    ],
+                    "parent": "E034"
+                  },
+                  {
+                    "id": "E038",
+                    "name": "胸甲星级3",
+                    "type": "icon",
+                    "bbox": [
+                      655,
+                      431,
+                      22,
+                      24
+                    ],
+                    "parent": "E034"
+                  },
+                  {
+                    "id": "E039",
+                    "name": "胸甲名称底板",
+                    "type": "panel",
+                    "bbox": [
+                      585,
+                      464,
+                      122,
+                      30
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E040",
+                    "name": "武器槽底与边框",
+                    "type": "frame",
+                    "bbox": [
+                      584,
+                      507,
+                      124,
+                      122
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E041",
+                    "name": "武器物品图",
+                    "type": "icon",
+                    "bbox": [
+                      601,
+                      519,
+                      94,
+                      88
+                    ],
+                    "parent": "E040"
+                  },
+                  {
+                    "id": "E042",
+                    "name": "武器星级1",
+                    "type": "icon",
+                    "bbox": [
+                      615,
+                      598,
+                      22,
+                      24
+                    ],
+                    "parent": "E040"
+                  },
+                  {
+                    "id": "E043",
+                    "name": "武器星级2",
+                    "type": "icon",
+                    "bbox": [
+                      635,
+                      598,
+                      22,
+                      24
+                    ],
+                    "parent": "E040"
+                  },
+                  {
+                    "id": "E044",
+                    "name": "武器星级3",
+                    "type": "icon",
+                    "bbox": [
+                      655,
+                      598,
+                      22,
+                      24
+                    ],
+                    "parent": "E040"
+                  },
+                  {
+                    "id": "E045",
+                    "name": "武器名称底板",
+                    "type": "panel",
+                    "bbox": [
+                      585,
+                      630,
+                      122,
+                      30
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E046",
+                    "name": "靴子槽底与边框",
+                    "type": "frame",
+                    "bbox": [
+                      584,
+                      675,
+                      124,
+                      122
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E047",
+                    "name": "靴子物品图",
+                    "type": "icon",
+                    "bbox": [
+                      602,
+                      688,
+                      94,
+                      86
+                    ],
+                    "parent": "E046"
+                  },
+                  {
+                    "id": "E048",
+                    "name": "靴子星级1",
+                    "type": "icon",
+                    "bbox": [
+                      615,
+                      765,
+                      22,
+                      24
+                    ],
+                    "parent": "E046"
+                  },
+                  {
+                    "id": "E049",
+                    "name": "靴子星级2",
+                    "type": "icon",
+                    "bbox": [
+                      635,
+                      765,
+                      22,
+                      24
+                    ],
+                    "parent": "E046"
+                  },
+                  {
+                    "id": "E050",
+                    "name": "靴子星级3",
+                    "type": "icon",
+                    "bbox": [
+                      655,
+                      765,
+                      22,
+                      24
+                    ],
+                    "parent": "E046"
+                  },
+                  {
+                    "id": "E051",
+                    "name": "靴子名称底板",
+                    "type": "panel",
+                    "bbox": [
+                      585,
+                      798,
+                      122,
+                      30
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E052",
+                    "name": "护符槽底与边框",
+                    "type": "frame",
+                    "bbox": [
+                      1180,
+                      176,
+                      124,
+                      122
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E053",
+                    "name": "护符物品图",
+                    "type": "icon",
+                    "bbox": [
+                      1217,
+                      185,
+                      61,
+                      81
+                    ],
+                    "parent": "E052"
+                  },
+                  {
+                    "id": "E054",
+                    "name": "护符星级1",
+                    "type": "icon",
+                    "bbox": [
+                      1211,
+                      267,
+                      22,
+                      24
+                    ],
+                    "parent": "E052"
+                  },
+                  {
+                    "id": "E055",
+                    "name": "护符星级2",
+                    "type": "icon",
+                    "bbox": [
+                      1231,
+                      267,
+                      22,
+                      24
+                    ],
+                    "parent": "E052"
+                  },
+                  {
+                    "id": "E056",
+                    "name": "护符星级3",
+                    "type": "icon",
+                    "bbox": [
+                      1251,
+                      267,
+                      22,
+                      24
+                    ],
+                    "parent": "E052"
+                  },
+                  {
+                    "id": "E057",
+                    "name": "护符名称底板",
+                    "type": "panel",
+                    "bbox": [
+                      1181,
+                      299,
+                      122,
+                      30
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E058",
+                    "name": "机械臂槽底与边框",
+                    "type": "frame",
+                    "bbox": [
+                      1180,
+                      342,
+                      124,
+                      122
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E059",
+                    "name": "机械臂物品图",
+                    "type": "icon",
+                    "bbox": [
+                      1195,
+                      353,
+                      89,
+                      89
+                    ],
+                    "parent": "E058"
+                  },
+                  {
+                    "id": "E060",
+                    "name": "机械臂星级1",
+                    "type": "icon",
+                    "bbox": [
+                      1211,
+                      432,
+                      22,
+                      24
+                    ],
+                    "parent": "E058"
+                  },
+                  {
+                    "id": "E061",
+                    "name": "机械臂星级2",
+                    "type": "icon",
+                    "bbox": [
+                      1231,
+                      432,
+                      22,
+                      24
+                    ],
+                    "parent": "E058"
+                  },
+                  {
+                    "id": "E062",
+                    "name": "机械臂星级3",
+                    "type": "icon",
+                    "bbox": [
+                      1251,
+                      432,
+                      22,
+                      24
+                    ],
+                    "parent": "E058"
+                  },
+                  {
+                    "id": "E063",
+                    "name": "机械臂名称底板",
+                    "type": "panel",
+                    "bbox": [
+                      1181,
+                      465,
+                      122,
+                      30
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E064",
+                    "name": "饰品槽底与边框",
+                    "type": "frame",
+                    "bbox": [
+                      1180,
+                      507,
+                      124,
+                      122
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E065",
+                    "name": "饰品物品图",
+                    "type": "icon",
+                    "bbox": [
+                      1203,
+                      531,
+                      81,
+                      67
+                    ],
+                    "parent": "E064"
+                  },
+                  {
+                    "id": "E066",
+                    "name": "饰品星级1",
+                    "type": "icon",
+                    "bbox": [
+                      1211,
+                      599,
+                      22,
+                      24
+                    ],
+                    "parent": "E064"
+                  },
+                  {
+                    "id": "E067",
+                    "name": "饰品星级2",
+                    "type": "icon",
+                    "bbox": [
+                      1231,
+                      599,
+                      22,
+                      24
+                    ],
+                    "parent": "E064"
+                  },
+                  {
+                    "id": "E068",
+                    "name": "饰品星级3",
+                    "type": "icon",
+                    "bbox": [
+                      1251,
+                      599,
+                      22,
+                      24
+                    ],
+                    "parent": "E064"
+                  },
+                  {
+                    "id": "E069",
+                    "name": "饰品名称底板",
+                    "type": "panel",
+                    "bbox": [
+                      1181,
+                      630,
+                      122,
+                      30
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E070",
+                    "name": "空槽槽底与边框",
+                    "type": "frame",
+                    "bbox": [
+                      1180,
+                      675,
+                      124,
+                      122
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E071",
+                    "name": "空槽加号",
+                    "type": "icon",
+                    "bbox": [
+                      1213,
+                      712,
+                      52,
+                      49
+                    ],
+                    "parent": "E070"
+                  },
+                  {
+                    "id": "E072",
+                    "name": "空槽名称底板",
+                    "type": "panel",
+                    "bbox": [
+                      1181,
+                      798,
+                      122,
+                      30
+                    ],
+                    "parent": "E025"
+                  },
+                  {
+                    "id": "E073",
+                    "name": "装备详情面板",
+                    "type": "panel",
+                    "bbox": [
+                      1351,
+                      163,
+                      525,
+                      683
+                    ],
+                    "parent": null
+                  },
+                  {
+                    "id": "E074",
+                    "name": "详情武器槽底与边框",
+                    "type": "frame",
+                    "bbox": [
+                      1390,
+                      201,
+                      176,
+                      208
+                    ],
+                    "parent": "E073"
+                  },
+                  {
+                    "id": "E075",
+                    "name": "详情脉冲枪物品图",
+                    "type": "icon",
+                    "bbox": [
+                      1404,
+                      214,
+                      143,
+                      168
+                    ],
+                    "parent": "E074"
+                  },
+                  {
+                    "id": "E076",
+                    "name": "详情武器星级1",
+                    "type": "icon",
+                    "bbox": [
+                      1439,
+                      375,
+                      25,
+                      25
+                    ],
+                    "parent": "E074"
+                  },
+                  {
+                    "id": "E077",
+                    "name": "详情武器星级2",
+                    "type": "icon",
+                    "bbox": [
+                      1462,
+                      375,
+                      25,
+                      25
+                    ],
+                    "parent": "E074"
+                  },
+                  {
+                    "id": "E078",
+                    "name": "详情武器星级3",
+                    "type": "icon",
+                    "bbox": [
+                      1485,
+                      375,
+                      25,
+                      25
+                    ],
+                    "parent": "E074"
+                  },
+                  {
+                    "id": "E079",
+                    "name": "史诗品质底板",
+                    "type": "panel",
+                    "bbox": [
+                      1583,
+                      253,
+                      111,
+                      38
+                    ],
+                    "parent": "E073"
+                  },
+                  {
+                    "id": "E080",
+                    "name": "详情攻击图标",
+                    "type": "icon",
+                    "bbox": [
+                      1588,
+                      317,
+                      32,
+                      32
+                    ],
+                    "parent": "E073"
+                  },
+                  {
+                    "id": "E081",
+                    "name": "详情暴击图标",
+                    "type": "icon",
+                    "bbox": [
+                      1591,
+                      368,
+                      24,
+                      33
+                    ],
+                    "parent": "E073"
+                  },
+                  {
+                    "id": "E082",
+                    "name": "详情速度图标",
+                    "type": "icon",
+                    "bbox": [
+                      1588,
+                      418,
+                      32,
+                      30
+                    ],
+                    "parent": "E073"
+                  },
+                  {
+                    "id": "E083",
+                    "name": "强化进度轨道",
+                    "type": "frame",
+                    "bbox": [
+                      1391,
+                      640,
+                      445,
+                      25
+                    ],
+                    "parent": "E073"
+                  },
+                  {
+                    "id": "E084",
+                    "name": "强化进度填充",
+                    "type": "panel",
+                    "bbox": [
+                      1395,
+                      644,
+                      162,
+                      18
+                    ],
+                    "parent": "E083"
+                  },
+                  {
+                    "id": "E085",
+                    "name": "强化按钮底板",
+                    "type": "button",
+                    "bbox": [
+                      1394,
+                      722,
+                      208,
+                      80
+                    ],
+                    "parent": "E073"
+                  },
+                  {
+                    "id": "E086",
+                    "name": "卸下按钮底板",
+                    "type": "button",
+                    "bbox": [
+                      1628,
+                      722,
+                      209,
+                      80
+                    ],
+                    "parent": "E073"
+                  },
+                  {
+                    "id": "E087",
+                    "name": "背包物品栏底板",
+                    "type": "panel",
+                    "bbox": [
+                      435,
+                      861,
+                      1042,
+                      177
+                    ],
+                    "parent": null
+                  },
+                  {
+                    "id": "E088",
+                    "name": "工作台预览框",
+                    "type": "frame",
+                    "bbox": [
+                      83,
+                      861,
+                      319,
+                      176
+                    ],
+                    "parent": null
+                  },
+                  {
+                    "id": "E089",
+                    "name": "工作台场景图",
+                    "type": "icon",
+                    "bbox": [
+                      96,
+                      872,
+                      290,
+                      155
+                    ],
+                    "parent": "E088"
+                  },
+                  {
+                    "id": "E090",
+                    "name": "背包药水格底",
+                    "type": "frame",
+                    "bbox": [
+                      468,
+                      888,
+                      125,
+                      126
+                    ],
+                    "parent": "E087"
+                  },
+                  {
+                    "id": "E091",
+                    "name": "背包药水物品图",
+                    "type": "icon",
+                    "bbox": [
+                      491,
+                      900,
+                      77,
+                      91
+                    ],
+                    "parent": "E090"
+                  },
+                  {
+                    "id": "E092",
+                    "name": "背包蓝水晶格底",
+                    "type": "frame",
+                    "bbox": [
+                      615,
+                      888,
+                      125,
+                      126
+                    ],
+                    "parent": "E087"
+                  },
+                  {
+                    "id": "E093",
+                    "name": "背包蓝水晶物品图",
+                    "type": "icon",
+                    "bbox": [
+                      642,
+                      906,
+                      64,
+                      83
+                    ],
+                    "parent": "E092"
+                  },
+                  {
+                    "id": "E094",
+                    "name": "背包齿轮格底",
+                    "type": "frame",
+                    "bbox": [
+                      762,
+                      888,
+                      125,
+                      126
+                    ],
+                    "parent": "E087"
+                  },
+                  {
+                    "id": "E095",
+                    "name": "背包齿轮物品图",
+                    "type": "icon",
+                    "bbox": [
+                      779,
+                      905,
+                      85,
+                      82
+                    ],
+                    "parent": "E094"
+                  },
+                  {
+                    "id": "E096",
+                    "name": "背包皮革卷格底",
+                    "type": "frame",
+                    "bbox": [
+                      908,
+                      888,
+                      125,
+                      126
+                    ],
+                    "parent": "E087"
+                  },
+                  {
+                    "id": "E097",
+                    "name": "背包皮革卷物品图",
+                    "type": "icon",
+                    "bbox": [
+                      922,
+                      902,
+                      96,
+                      86
+                    ],
+                    "parent": "E096"
+                  },
+                  {
+                    "id": "E098",
+                    "name": "背包黄铜管格底",
+                    "type": "frame",
+                    "bbox": [
+                      1055,
+                      888,
+                      125,
+                      126
+                    ],
+                    "parent": "E087"
+                  },
+                  {
+                    "id": "E099",
+                    "name": "背包黄铜管物品图",
+                    "type": "icon",
+                    "bbox": [
+                      1073,
+                      901,
+                      84,
+                      87
+                    ],
+                    "parent": "E098"
+                  },
+                  {
+                    "id": "E100",
+                    "name": "背包紫水晶格底",
+                    "type": "frame",
+                    "bbox": [
+                      1201,
+                      888,
+                      125,
+                      126
+                    ],
+                    "parent": "E087"
+                  },
+                  {
+                    "id": "E101",
+                    "name": "背包紫水晶物品图",
+                    "type": "icon",
+                    "bbox": [
+                      1226,
+                      904,
+                      75,
+                      90
+                    ],
+                    "parent": "E100"
+                  },
+                  {
+                    "id": "E102",
+                    "name": "整理背包按钮底板",
+                    "type": "button",
+                    "bbox": [
+                      1499,
+                      893,
+                      307,
+                      112
+                    ],
+                    "parent": null
+                  },
+                  {
+                    "id": "E103",
+                    "name": "整理背包袋子符号",
+                    "type": "icon",
+                    "bbox": [
+                      1566,
+                      926,
+                      40,
+                      40
+                    ],
+                    "parent": "E102"
+                  }
+                ],
+                "texts": [
+                  {
+                    "id": "T001",
+                    "text": "机械师档案",
+                    "bbox": [
+                      870,
+                      23,
+                      182,
+                      35
+                    ],
+                    "parentId": "E002",
+                    "role": "title",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": true,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T002",
+                    "text": "12580",
+                    "bbox": [
+                      1479,
+                      32,
+                      72,
+                      25
+                    ],
+                    "parentId": "E007",
+                    "role": "currency",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T003",
+                    "text": "342",
+                    "bbox": [
+                      1666,
+                      32,
+                      47,
+                      25
+                    ],
+                    "parentId": "E009",
+                    "role": "currency",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T004",
+                    "text": "装备",
+                    "bbox": [
+                      697,
+                      101,
+                      61,
+                      31
+                    ],
+                    "parentId": "E011",
+                    "role": "tab",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": true,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T005",
+                    "text": "技能",
+                    "bbox": [
+                      927,
+                      101,
+                      61,
+                      31
+                    ],
+                    "parentId": "E012",
+                    "role": "tab",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": true,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T006",
+                    "text": "档案",
+                    "bbox": [
+                      1158,
+                      101,
+                      61,
+                      31
+                    ],
+                    "parentId": "E013",
+                    "role": "tab",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": true,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T007",
+                    "text": "艾达",
+                    "bbox": [
+                      268,
+                      210,
+                      73,
+                      38
+                    ],
+                    "parentId": "E014",
+                    "role": "title",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": true,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T008",
+                    "text": "Lv.28",
+                    "bbox": [
+                      268,
+                      267,
+                      79,
+                      28
+                    ],
+                    "parentId": "E014",
+                    "role": "stat_value",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T009",
+                    "text": "蒸汽游侠",
+                    "bbox": [
+                      305,
+                      319,
+                      99,
+                      28
+                    ],
+                    "parentId": "E014",
+                    "role": "caption",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T010",
+                    "text": "经验",
+                    "bbox": [
+                      86,
+                      390,
+                      55,
+                      29
+                    ],
+                    "parentId": "E014",
+                    "role": "stat_name",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T011",
+                    "text": "2480 / 7200",
+                    "bbox": [
+                      357,
+                      402,
+                      135,
+                      26
+                    ],
+                    "parentId": "E018",
+                    "role": "stat_value",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T012",
+                    "text": "生命",
+                    "bbox": [
+                      153,
+                      484,
+                      62,
+                      32
+                    ],
+                    "parentId": "E014",
+                    "role": "stat_name",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T013",
+                    "text": "1860",
+                    "bbox": [
+                      422,
+                      488,
+                      63,
+                      27
+                    ],
+                    "parentId": "E014",
+                    "role": "stat_value",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T014",
+                    "text": "攻击",
+                    "bbox": [
+                      153,
+                      552,
+                      62,
+                      32
+                    ],
+                    "parentId": "E014",
+                    "role": "stat_name",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T015",
+                    "text": "312",
+                    "bbox": [
+                      433,
+                      556,
+                      52,
+                      27
+                    ],
+                    "parentId": "E014",
+                    "role": "stat_value",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T016",
+                    "text": "防御",
+                    "bbox": [
+                      153,
+                      620,
+                      62,
+                      32
+                    ],
+                    "parentId": "E014",
+                    "role": "stat_name",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T017",
+                    "text": "198",
+                    "bbox": [
+                      433,
+                      624,
+                      52,
+                      27
+                    ],
+                    "parentId": "E014",
+                    "role": "stat_value",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T018",
+                    "text": "速度",
+                    "bbox": [
+                      153,
+                      689,
+                      62,
+                      32
+                    ],
+                    "parentId": "E014",
+                    "role": "stat_name",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T019",
+                    "text": "135",
+                    "bbox": [
+                      433,
+                      693,
+                      52,
+                      27
+                    ],
+                    "parentId": "E014",
+                    "role": "stat_value",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T020",
+                    "text": "暴击",
+                    "bbox": [
+                      153,
+                      759,
+                      62,
+                      32
+                    ],
+                    "parentId": "E014",
+                    "role": "stat_name",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T021",
+                    "text": "18%",
+                    "bbox": [
+                      433,
+                      763,
+                      52,
+                      27
+                    ],
+                    "parentId": "E014",
+                    "role": "stat_value",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T022",
+                    "text": "帽子",
+                    "bbox": [
+                      624,
+                      302,
+                      45,
+                      25
+                    ],
+                    "parentId": "E033",
+                    "role": "slot_name",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T023",
+                    "text": "胸甲",
+                    "bbox": [
+                      624,
+                      467,
+                      45,
+                      25
+                    ],
+                    "parentId": "E039",
+                    "role": "slot_name",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T024",
+                    "text": "武器",
+                    "bbox": [
+                      624,
+                      633,
+                      45,
+                      25
+                    ],
+                    "parentId": "E045",
+                    "role": "slot_name",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T025",
+                    "text": "靴子",
+                    "bbox": [
+                      624,
+                      801,
+                      45,
+                      25
+                    ],
+                    "parentId": "E051",
+                    "role": "slot_name",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T026",
+                    "text": "护符",
+                    "bbox": [
+                      1220,
+                      302,
+                      45,
+                      25
+                    ],
+                    "parentId": "E057",
+                    "role": "slot_name",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T027",
+                    "text": "机械臂",
+                    "bbox": [
+                      1205,
+                      468,
+                      70,
+                      25
+                    ],
+                    "parentId": "E063",
+                    "role": "slot_name",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T028",
+                    "text": "饰品",
+                    "bbox": [
+                      1220,
+                      633,
+                      45,
+                      25
+                    ],
+                    "parentId": "E069",
+                    "role": "slot_name",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T029",
+                    "text": "空槽",
+                    "bbox": [
+                      1220,
+                      801,
+                      45,
+                      25
+                    ],
+                    "parentId": "E072",
+                    "role": "slot_name",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T030",
+                    "text": "黄铜脉冲枪",
+                    "bbox": [
+                      1582,
+                      203,
+                      157,
+                      33
+                    ],
+                    "parentId": "E073",
+                    "role": "title",
+                    "align": "left",
+                    "color": "#FFCF19",
+                    "bold": true,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T031",
+                    "text": "史诗",
+                    "bbox": [
+                      1614,
+                      260,
+                      51,
+                      26
+                    ],
+                    "parentId": "E079",
+                    "role": "caption",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T032",
+                    "text": "攻击",
+                    "bbox": [
+                      1625,
+                      320,
+                      55,
+                      27
+                    ],
+                    "parentId": "E073",
+                    "role": "stat_name",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T033",
+                    "text": "+62",
+                    "bbox": [
+                      1778,
+                      321,
+                      45,
+                      27
+                    ],
+                    "parentId": "E073",
+                    "role": "stat_value",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T034",
+                    "text": "暴击",
+                    "bbox": [
+                      1625,
+                      370,
+                      55,
+                      27
+                    ],
+                    "parentId": "E073",
+                    "role": "stat_name",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T035",
+                    "text": "+12%",
+                    "bbox": [
+                      1755,
+                      371,
+                      70,
+                      27
+                    ],
+                    "parentId": "E073",
+                    "role": "stat_value",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T036",
+                    "text": "速度",
+                    "bbox": [
+                      1625,
+                      420,
+                      55,
+                      27
+                    ],
+                    "parentId": "E073",
+                    "role": "stat_name",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T037",
+                    "text": "+8",
+                    "bbox": [
+                      1778,
+                      421,
+                      45,
+                      27
+                    ],
+                    "parentId": "E073",
+                    "role": "stat_value",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T038",
+                    "text": "黄铜打造的脉冲枪，能量稳定，",
+                    "bbox": [
+                      1390,
+                      488,
+                      298,
+                      28
+                    ],
+                    "parentId": "E073",
+                    "role": "caption",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T039",
+                    "text": "在近距离作战中表现出色。",
+                    "bbox": [
+                      1390,
+                      518,
+                      273,
+                      28
+                    ],
+                    "parentId": "E073",
+                    "role": "caption",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T040",
+                    "text": "强化等级",
+                    "bbox": [
+                      1390,
+                      597,
+                      114,
+                      31
+                    ],
+                    "parentId": "E073",
+                    "role": "stat_name",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T041",
+                    "text": "+3",
+                    "bbox": [
+                      1517,
+                      599,
+                      36,
+                      28
+                    ],
+                    "parentId": "E073",
+                    "role": "stat_value",
+                    "align": "left",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T042",
+                    "text": "120 / 300",
+                    "bbox": [
+                      1560,
+                      652,
+                      112,
+                      27
+                    ],
+                    "parentId": "E083",
+                    "role": "stat_value",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T043",
+                    "text": "强化",
+                    "bbox": [
+                      1467,
+                      744,
+                      66,
+                      37
+                    ],
+                    "parentId": "E085",
+                    "role": "button",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": true,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T044",
+                    "text": "卸下",
+                    "bbox": [
+                      1698,
+                      744,
+                      68,
+                      37
+                    ],
+                    "parentId": "E086",
+                    "role": "button",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": true,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T045",
+                    "text": "x12",
+                    "bbox": [
+                      540,
+                      981,
+                      43,
+                      27
+                    ],
+                    "parentId": "E090",
+                    "role": "count",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T046",
+                    "text": "x8",
+                    "bbox": [
+                      687,
+                      981,
+                      43,
+                      27
+                    ],
+                    "parentId": "E092",
+                    "role": "count",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T047",
+                    "text": "x15",
+                    "bbox": [
+                      834,
+                      981,
+                      43,
+                      27
+                    ],
+                    "parentId": "E094",
+                    "role": "count",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T048",
+                    "text": "x6",
+                    "bbox": [
+                      980,
+                      981,
+                      43,
+                      27
+                    ],
+                    "parentId": "E096",
+                    "role": "count",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T049",
+                    "text": "x9",
+                    "bbox": [
+                      1127,
+                      981,
+                      43,
+                      27
+                    ],
+                    "parentId": "E098",
+                    "role": "count",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T050",
+                    "text": "x4",
+                    "bbox": [
+                      1273,
+                      981,
+                      43,
+                      27
+                    ],
+                    "parentId": "E100",
+                    "role": "count",
+                    "align": "right",
+                    "color": "#EFE5C7",
+                    "bold": false,
+                    "cutout": false
+                  },
+                  {
+                    "id": "T051",
+                    "text": "整理背包",
+                    "bbox": [
+                      1613,
+                      930,
+                      132,
+                      37
+                    ],
+                    "parentId": "E102",
+                    "role": "button",
+                    "align": "center",
+                    "color": "#EFE5C7",
+                    "bold": true,
+                    "cutout": false
+                  }
+                ]
+              }
+            }
+          ]
         },
         "imageInfo": {
           "width": 2048,
@@ -1474,7 +5331,8 @@
         "y": 520.5036293461784,
         "width": 340,
         "height": 328.8458274398869,
-        "title": "③ 控件与状态",
+        "title": "④ 控件与状态",
+        "uiAtlasGroup": "controls",
         "sourceSnapshot": {
           "nodeId": "75c4d33f-edd4-4b10-86c4-bc8e8a1a7765",
           "version": "image|assets/image/preset-game-ui-batch-001.png|manual-asset|recognition:pending"
@@ -6559,7 +10417,8 @@
         "y": 520.5036293461784,
         "width": 340,
         "height": 380,
-        "title": "③ 图标与背包",
+        "title": "④ 图标与背包",
+        "uiAtlasGroup": "icons",
         "sourceSnapshot": {
           "nodeId": "75c4d33f-edd4-4b10-86c4-bc8e8a1a7765",
           "version": "image|assets/image/preset-game-ui-batch-001.png|manual-asset|recognition:pending"
@@ -11607,7 +15466,8 @@
         "y": 520.5036293461784,
         "width": 340,
         "height": 420.3582089552239,
-        "title": "③ 装备与槽框",
+        "title": "④ 装备与槽框",
+        "uiAtlasGroup": "equipment",
         "sourceSnapshot": {
           "nodeId": "75c4d33f-edd4-4b10-86c4-bc8e8a1a7765",
           "version": "image|assets/image/preset-game-ui-batch-001.png|manual-asset|recognition:pending"
@@ -16399,7 +20259,8 @@
         "y": 520.5036293461784,
         "width": 340,
         "height": 232.17142857142858,
-        "title": "③ 面板与长条",
+        "title": "④ 面板与长条",
+        "uiAtlasGroup": "panels",
         "sourceSnapshot": {
           "nodeId": "75c4d33f-edd4-4b10-86c4-bc8e8a1a7765",
           "version": "image|assets/image/preset-game-ui-batch-001.png|manual-asset|recognition:pending"
@@ -20843,7 +24704,8 @@
         "y": 520.5036293461784,
         "width": 340,
         "height": 346.61728395061726,
-        "title": "③ 角色与插画",
+        "title": "④ 角色与插画",
+        "uiAtlasGroup": "artwork",
         "sourceSnapshot": {
           "nodeId": "75c4d33f-edd4-4b10-86c4-bc8e8a1a7765",
           "version": "image|assets/image/preset-game-ui-batch-001.png|manual-asset|recognition:pending"
@@ -25198,7 +29060,8 @@
         "y": 520.5036293461784,
         "width": 340,
         "height": 233.83783783783784,
-        "title": "③ 环境背景",
+        "title": "④ 环境背景",
+        "uiAtlasGroup": "background",
         "sourceSnapshot": {
           "nodeId": "75c4d33f-edd4-4b10-86c4-bc8e8a1a7765",
           "version": "image|assets/image/preset-game-ui-batch-001.png|manual-asset|recognition:pending"
@@ -29472,7 +33335,7 @@
         "y": 520.7749816593457,
         "width": 340,
         "height": 300,
-        "title": "③ 美术字提取 · 示例含底板，待重提取",
+        "title": "④ 美术字提取 · 示例含底板，待重提取",
         "referenceInput": {
           "includeSelf": false
         },
@@ -29501,7 +33364,7 @@
           "sourceImageIds": [
             "dea229bb-9d79-4cbb-b38d-f12a6269a17e"
           ],
-          "prompt": "从原UI设计稿提取主标题“机械师档案”（原稿1920x1080，Bbox [870,23,182,35]），保留原字形、金属高光、描边、阴影和字效。只提取这组标题美术字，不把人物名、按钮文字、数字、属性等普通文本画入图集。移除文字后方的标题底板、外框和全部其它UI，字内空隙使用与外部相同的纯洋红RGB(255,0,255)。输出一组完整文字，居中、保留比例、四周充分留白，不加编号和新装饰。",
+          "prompt": "参考与目标：仅提取当前原设计稿中需要作为图片保留的主标题美术字。保留：原字形、颜色、描边、阴影和字效。移除：字后底板、外框、人物、图标以及普通按钮文字、数量和正文。输出：一组完整标题字形居中，保留比例，四周充分留白，背景纯洋红 RGB(255,0,255)，不新增文字或装饰。不要沿用示例标题内容和坐标。",
           "parameters": {
             "model": "gpt",
             "resolution": "2K",
@@ -29551,7 +33414,7 @@
     "edges": [
       {
         "id": "c9c7d1d3-3876-4811-9e56-c38ba929dd16",
-        "from": "dea229bb-9d79-4cbb-b38d-f12a6269a17e",
+        "from": "2ae5d4af-ba1a-4682-9c17-dc145ec6e606",
         "to": "75c4d33f-edd4-4b10-86c4-bc8e8a1a7765",
         "kind": "image-variant"
       },
@@ -29684,6 +33547,12 @@
         "from": "5c1678f2-f1b4-431a-be78-0e38589c879e",
         "to": "a2178208-af5f-400f-abca-02afad546461",
         "kind": "resource-bundle"
+      },
+      {
+        "id": "16eeece6-5a30-44fe-95e8-4e73a7c6e527",
+        "from": "dea229bb-9d79-4cbb-b38d-f12a6269a17e",
+        "to": "2ae5d4af-ba1a-4682-9c17-dc145ec6e606",
+        "kind": "image-variant"
       }
     ],
     "skills": [

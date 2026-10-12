@@ -153,7 +153,10 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       delete node.templateRevision;
       delete node.templateSkills;
       delete node.templatePending;
-      resetImageFeatureCopy(node, true);
+      delete node.workDurationMs;
+      delete node.workStartedAt;
+      delete node.workTimingOpen;
+      resetImageFeatureCopy(node, false);
       if (node.uiRecognitionSourceId && !selected.has(node.uiRecognitionSourceId))
         delete node.uiRecognitionSourceId;
       if (node.sourceVideoId && !selected.has(node.sourceVideoId))
@@ -232,9 +235,13 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
     const ids = new Map(nodes.map((node) => [node.id, createId()]));
     for (const node of nodes) {
       node.id = ids.get(node.id)!;
+      delete node.workDurationMs;
+      delete node.workStartedAt;
+      delete node.workTimingOpen;
       if (node.uiRecognitionSourceId)
         node.uiRecognitionSourceId = ids.get(node.uiRecognitionSourceId);
       resetImageFeatureCopy(node, true);
+      if (node.uiAtlasGroup) delete node.uiAtlasPlan;
       node.x += position.x;
       node.y += position.y;
       if (node.sourceVideoId) node.sourceVideoId = ids.get(node.sourceVideoId);

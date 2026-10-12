@@ -10,12 +10,14 @@ export interface ImageAtlasCrop {
   outputHeight?: number;
   offsetX?: number;
   offsetY?: number;
+  blank?: boolean;
 }
 
 export interface ImageAtlasCutSettings {
   mode?: 'grid' | 'content';
   regions?: ImageAtlasCrop[];
   expectedCount?: number;
+  allowEmpty?: boolean;
 }
 
 export function validateAtlasCrops(
@@ -44,6 +46,7 @@ export function validateAtlasCrops(
             'outputHeight',
             'offsetX',
             'offsetY',
+            'blank',
           ].includes(key)
       ) ||
       region.name !== 'item_' + String(index + 1).padStart(3, '0') ||
@@ -72,7 +75,9 @@ export function validateAtlasCrops(
       throw new Error('裁切输出尺寸或偏移无效。');
     pixels += outputWidth * outputHeight;
     if (pixels > 4096 * 4096) throw new Error('裁切输出总像素超过限制。');
+    if (region.blank) return { ...region, blank: true };
     for (const previous of input.slice(0, index)) {
+      if (previous.blank) continue;
       if (
         region.x < previous.x + previous.width &&
         previous.x < region.x + region.width &&

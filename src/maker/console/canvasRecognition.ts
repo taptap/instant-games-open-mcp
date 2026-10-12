@@ -108,7 +108,9 @@ export function uiRecognitionPrompt(width: number, height: number): string {
     '列出可独立切图、可独立拼装的最小 UI 单位。type 只用 icon、frame、panel、button、tab、title。',
     'icon 包括图标、箭头、叉号、加号、星星、物品图、人物。frame 包括槽位格、进度条、头像框、细底条。panel 是大面板，button 是按钮底板，tab 是页签底板，title 是标题底板。',
     '必须分开按钮底板和符号、物品格和物品图、每颗星星、进度条底槽和填充、头像和头像框。不要拆开底板的边框和内部底色，不要拆插画内部纹理。',
-    '不要输出文字层，不要根据残留痕迹新造文字或数字。箭头、叉号、加号和星星是图标。重复实例逐个保留，不用大框代替一排。',
+    '不要输出文字层，不要根据残留痕迹新造文字或数字。箭头、叉号、加号和星星是图标。重复实例逐个保留坐标，不用大框代替一排。',
+    '逐项检查重复素材：只有形状、颜色、纹理和状态一致、可复用同一张PNG的实例，才用 duplicateOf 指向第一个原始实例id。不同颜色的装备框、选中与未选中、实心与空心星星不能合并。不确定时保留独立元素；原始实例省略 duplicateOf，不引用另一个重复实例。',
+    '相同金色星星即使属于不同装备或位于不同面板，也共享一个原始实例；每颗星星仍保留自己的id、bbox和parent。name描述素材本身，例如“金色五角星”，不要写成“头盔第一颗星”而让后续生图误画出头盔。',
     'bbox 是所看图片的像素 [x,y,w,h]，左上角原点，禁止归一化和对角点。包含主体及自身阴影，不带相邻元素。parent 引用本次所属底板或面板 id，没有则 null。id 从 E001 递增。',
     '只输出一个 JSON，不要 Markdown，不要解释：' +
       JSON.stringify({
@@ -116,6 +118,14 @@ export function uiRecognitionPrompt(width: number, height: number): string {
         image: { width, height },
         elements: [
           { id: 'E001', name: '中文短名', type: 'icon', bbox: ['x', 'y', 'w', 'h'], parent: null },
+          {
+            id: 'E002',
+            name: '相同素材的另一实例',
+            type: 'icon',
+            bbox: ['x', 'y', 'w', 'h'],
+            parent: null,
+            duplicateOf: 'E001',
+          },
         ],
       }),
   ].join(String.fromCharCode(10));

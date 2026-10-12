@@ -246,7 +246,7 @@ test('API recognition requires a distinct ready text-free input, including for d
   expect(() => uiRecognitionInputs(document, design)).toThrow('去文字稿');
 });
 
-test('duplicates retain completed results but not pending requests; templates retain roles and configuration only', () => {
+test('duplicates retain examples but new template instances clear recognition results', () => {
   const { document, cut, result } = fixture();
   cut.uiRecognition!.pendingId = randomUUID();
   const duplicate = structuredClone(cut);
@@ -265,9 +265,13 @@ test('duplicates retain completed results but not pending requests; templates re
     .filter((node) => node.uiRecognition)
     .map((node) => node.uiRecognition!);
   expect(settings.map((item) => item.inputRole)).toEqual(['design', 'text-free']);
+  expect(settings[1].results).toHaveLength(0);
+  expect(settings[1].selectedId).toBeUndefined();
   expect(
-    settings.every((item) => !item.pendingId && !item.selectedId && item.results.length === 0)
+    instantiated.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')
+      ?.templatePending
   ).toBe(true);
+  expect(settings.every((item) => !item.pendingId)).toBe(true);
 });
 
 test('legacy special cards migrate on save without dropping results or changing placement', async () => {

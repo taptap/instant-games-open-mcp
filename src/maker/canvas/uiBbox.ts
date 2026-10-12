@@ -11,6 +11,8 @@ export interface UiBboxElement {
   type: (typeof UI_CUT_TYPES)[number];
   bbox: [number, number, number, number];
   parent: string | null;
+  /** Another element that uses the same cut asset. This instance keeps its own position. */
+  duplicateOf?: string;
 }
 export interface UiBboxText {
   id: string;
@@ -108,6 +110,7 @@ export function validateCutElements(
       type: entry.type,
       bbox: validateBboxRect(entry.bbox, width, height),
       parent: entry.parent,
+      ...(entry.duplicateOf === undefined ? {} : { duplicateOf: entry.duplicateOf }),
     };
   });
   const byId = new Map(elements.map((entry) => [entry.id, entry]));
@@ -119,6 +122,12 @@ export function validateCutElements(
       visited.add(parent);
       parent = byId.get(parent)!.parent;
     }
+    if (entry.duplicateOf === undefined) continue;
+    if (!/^E[0-9]{3,}$/.test(entry.duplicateOf) || entry.duplicateOf === entry.id)
+      throw new Error('重复素材引用无效。');
+    const source = byId.get(entry.duplicateOf);
+    if (!source || source.duplicateOf || source.type !== entry.type)
+      throw new Error('重复素材必须引用同类型的原始元素。');
   }
   return elements;
 }

@@ -177,7 +177,7 @@ export function canvasAutomationCapabilities() {
       },
       export: {
         id: 'result node ID',
-        format: 'png/jpg/video/atlas/frames/model/images',
+        format: 'png/jpg/video/atlas/frames/model/images/bundle',
         loop: 'optional boolean; default true',
       },
       download: {
@@ -186,6 +186,8 @@ export function canvasAutomationCapabilities() {
       },
     },
     exportFormats: {
+      'resource-bundle': ['bundle'],
+      section: ['bundle'],
       'image-assets': ['images'],
       model: ['model'],
       image: ['png', 'jpg'],

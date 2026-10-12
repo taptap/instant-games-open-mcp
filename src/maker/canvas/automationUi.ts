@@ -230,7 +230,7 @@ export function createCanvasAutomationUi(options: {
             options.render();
             if (!(await options.save())) throw new Error('识图开关尚未保存，未启动工作流。');
           }
-          if (enabled)
+          if (enabled && target.type !== 'section')
             for (const item of sources) {
               // The recognition card is the text-free output; produce it before asking AI.
               if (item.templatePending || !item.assetPath) {
@@ -378,12 +378,25 @@ export function createCanvasAutomationUi(options: {
         options.remember();
         for (const update of updates) {
           const target = node(update.node.id, current);
+          const previousRecognitionIds = new Set(
+            target.uiRecognition?.results.map((item) => item.id)
+          );
+          const previousDuration = target.workDurationMs || 0;
           if (update.node.uiRecognition)
             setUiRecognitionMode(current, target, update.node.uiRecognition.enabled);
           Object.assign(target, update.node);
           if (recognized.includes(update)) {
             delete target.templatePending;
             options.ensureRecognitionNote!(target);
+            const result = target.uiRecognition?.results.find(
+              (item) => item.id === target.uiRecognition?.selectedId
+            );
+            if (result && result.durationMs > 0 && !previousRecognitionIds.has(result.id)) {
+              target.workDurationMs = previousDuration + result.durationMs;
+              const group = current.nodes.find((item) => item.id === target.sectionId);
+              if (group?.workTimingOpen)
+                group.workDurationMs = (group.workDurationMs || 0) + result.durationMs;
+            }
           }
           if (update.contentChanged) {
             options.resetDraft(target.id);

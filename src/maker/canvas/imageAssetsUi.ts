@@ -58,17 +58,27 @@ export function createImageAssetsUi(options: {
         source.generation?.cutoutColor || gameUi
           ? uiCutoutRgb(source.generation?.cutoutColor)
           : undefined,
-      mode: source.generation?.cutoutColor && !gameUi ? ('all' as const) : ('connected' as const),
+      mode:
+        (source.uiAtlasGroup && source.uiAtlasGroup !== 'background') ||
+        (source.generation?.cutoutColor && !gameUi)
+          ? ('all' as const)
+          : ('connected' as const),
     };
   }
   function savedCut(source: CanvasNode, target?: CanvasNode): ImageAtlasCutSettings {
+    const allowEmpty = Boolean(
+      source.generation?.uiAtlasPlan || (source.uiAtlasGroup && source.uiBaselineGrid)
+    );
     return target?.imageAssetsInfo?.regions && isCanvasSourceCurrent(target.sourceSnapshot, source)
       ? {
-          mode: 'content',
+          mode: target.imageAssetsInfo.cutMode || 'content',
           regions: structuredClone(target.imageAssetsInfo.regions),
           expectedCount: target.imageAssetsInfo.regions.length,
+          ...(allowEmpty ? { allowEmpty } : {}),
         }
-      : {};
+      : allowEmpty
+        ? { allowEmpty }
+        : {};
   }
   function reviewed(id: string) {
     const current = options.current();
@@ -139,6 +149,12 @@ export function createImageAssetsUi(options: {
         Object.keys(cutInput).some((key) => !['mode', 'regions', 'expectedCount'].includes(key)))
     )
       throw new Error('cut 只接受 mode、regions、expectedCount。');
+    if (
+      cutInput &&
+      (cutInput as ImageAtlasCutSettings).regions !== undefined &&
+      !['grid', 'content'].includes((cutInput as ImageAtlasCutSettings).mode || '')
+    )
+      throw new Error('自定义区域必须指定切图方式。');
     const grid = {
       columns: 4,
       rows: 3,
@@ -364,6 +380,7 @@ export function createImageAssetsUi(options: {
           height: split.height,
           grid: split.grid,
           ...(split.regions ? { regions: split.regions } : {}),
+          cutMode: split.cutMode,
           background: split.background,
           ...(source.generation?.uiAtlasPlan
             ? { uiBindingReview: prepared ? ('confirmed' as const) : ('unreviewed' as const) }
@@ -398,8 +415,9 @@ export function createImageAssetsUi(options: {
       return true;
     } catch (error) {
       if ((error as Error & { code?: string }).code === 'ATLAS_LAYOUT_INVALID')
-        (error as Error).message +=
-          ' 请打开「调整参数」选择「按内容切图」并核对裁切框；原有资产保留，不会自动重新生图。';
+        (error as Error).message += source.generation?.uiAtlasPlan
+          ? ' 请核对图集的槽位数量、顺序和主体完整性，修正图集后重试；原有资产保留，不会自动重新生图。'
+          : ' 请打开「调整参数」选择「按内容切图」并核对裁切框；原有资产保留，不会自动重新生图。';
       options.error((error as Error).message);
       throw error;
     } finally {

@@ -15,6 +15,7 @@ import {
 import { withCanvasTimeout } from './requestTimeout.js';
 import { openUiBboxPreview } from './uiBboxPreview.js';
 import { hasImageFeature } from './imageFeatures.js';
+import { selectedUiAtlasPlan } from './uiAssetBindings.js';
 
 export async function drawUiRecognition(
   source: Blob,
@@ -266,22 +267,47 @@ export function createUiRecognitionUi(options: {
   async function runImage(
     id: string,
     fallback: () => Promise<boolean>,
-    confirmed = false
+    confirmed = false,
+    completeRecognition = false
   ): Promise<boolean> {
     const current = options.current();
     const node = current?.nodes.find((item) => item.id === id);
     if (!current || !node) return false;
     if (node.uiRecognition?.enabled && node.uiRecognition.inputRole !== 'design') {
-      if (node.templatePending || !node.assetPath) return fallback();
+      if (node.templatePending || !node.assetPath) {
+        const generated = await fallback();
+        if (!generated || !completeRecognition) return generated;
+        if (options.current() !== current || node.templatePending || !node.assetPath) return false;
+      }
       return selectedUiRecognition(node) ? true : recognize(node, confirmed);
     }
-    if (node.uiRecognition?.inputRole === 'design') return fallback();
+    if (node.uiRecognition?.inputRole === 'design') {
+      const references = canvasReferences(current, node.id);
+      if (references.length === 1 && !node.generation && !node.generationDraft) {
+        const source = references[0];
+        if (source.type !== 'image' || !source.assetPath || source.templatePending)
+          throw new Error('请先准备原始 UI 设计稿。');
+        options.remember();
+        node.assetPath = source.assetPath;
+        node.imageInfo = source.imageInfo ? { ...source.imageInfo } : undefined;
+        node.sourceSnapshot = snapshotCanvasSource(source);
+        node.uiRecognition.results = [];
+        delete node.uiRecognition.selectedId;
+        invalidate(node);
+        return options.save();
+      }
+      return fallback();
+    }
     const source = uiRecognitionSource(current, node);
     if (!source?.uiRecognition?.enabled) return fallback();
     const result = selectedUiRecognition(source);
     if (!result) throw new Error('当前原稿还没有可用的识图清单。');
     const plan = selectedUiExtraction(current, node);
-    if (plan && !plan.elements.length) {
+    const batch = node.uiAtlasGroup && selectedUiAtlasPlan(current, node);
+    if (
+      (plan && !plan.elements.length) ||
+      (batch && batch.slots.every((slot) => slot.role === 'reserve'))
+    ) {
       options.remember();
       node.uiEmpty = true;
       delete node.templatePending;
@@ -394,7 +420,12 @@ export function createUiRecognitionUi(options: {
     const source = current && canvasReferences(current, id).find((item) => item.type === 'image');
     if (!current || !node || !source) return fallback();
     const plan = selectedUiExtraction(current, source);
-    if (!plan || plan.elements.length) return fallback();
+    const batch = source.uiAtlasGroup && selectedUiAtlasPlan(current, source);
+    if (
+      !(plan && !plan.elements.length) &&
+      !(batch && batch.slots.every((slot) => slot.role === 'reserve'))
+    )
+      return fallback();
     options.remember();
     node.uiEmpty = true;
     delete node.imageAssetsInfo;

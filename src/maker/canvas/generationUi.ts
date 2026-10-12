@@ -135,6 +135,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   hasUnsettledResult(nodeId: string): boolean;
   nodeState(nodeId: string): { status: string; canQuery: boolean } | undefined;
   queueBlockReason(nodeId: string): string | undefined;
+  failure(nodeId: string): string | undefined;
   retryableImage(nodeId: string): boolean;
   queryNode(nodeId: string, throwOnError?: boolean): Promise<void>;
   recoverVideo(attempt: any): Promise<boolean>;
@@ -187,6 +188,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       unconfirmedImages.delete(key);
   }
   const inFlight = new Set<string>();
+  const imageFailures = new Map<string, string>();
   const drafts = new Map<string, string>();
   const references = new Map<string, string[]>();
   const removedImageSources = new Map<string, Map<string, string>>();
@@ -1109,8 +1111,15 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         prompt = extraction.prompt + (correction ? String.fromCharCode(10) + correction : '');
       } else if (node.uiExtraction && node.uiBaselinePrompt) prompt = node.uiBaselinePrompt;
       const atlasPlan = selectedUiAtlasPlan(documentState, node);
+      if (node.uiAtlasGroup && atlasPlan) {
+        node.uiBaselinePrompt ??= prompt;
+        prompt = uiBatchAtlasPrompt(node.uiAtlasGroup);
+      } else if (node.uiAtlasGroup && node.uiBaselinePrompt) prompt = node.uiBaselinePrompt;
       if (atlasPlan)
-        prompt = prompt.split('UI 槽位绑定：')[0].trim() + '\n' + uiAtlasOrderPrompt(atlasPlan);
+        prompt =
+          prompt.split('UI 槽位绑定：')[0].trim() +
+          '\n' +
+          uiAtlasOrderPrompt(atlasPlan, outputSize.width / outputSize.height);
       if (targetId && isUiCutoutSource(documentState, targetId)) {
         cutoutColor = await detectUiCutoutColor(
           [...sourceNodes.map((source) => source.assetPath), ...referencePaths(node)],
@@ -1197,6 +1206,8 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           return;
         }
         if (await options.flush()) {
+          imageFailures.delete(node.id);
+          retryableImages.delete(node.id);
           const result = documentState.nodes.find(
             (item: any) => item.generation?.attemptId === attempt.id
           );
@@ -1214,6 +1225,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           (attempt.executionState === 'not_executed' || attempt.remoteStatus === 'failed')
         )
           retryableImages.add(node.id);
+        imageFailures.set(node.id, attempt.error || '图片生成未完成，请检查任务状态。');
         options.setError(
           attempt.error || '图片生成未完成，请检查任务状态。',
           attempt.status === 'unknown' ? 'warning' : 'error'
@@ -1221,6 +1233,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         options.render();
       }
     } catch (error) {
+      imageFailures.set(node.id, error instanceof Error ? error.message : String(error));
       options.setError(error instanceof Error ? error.message : String(error));
     } finally {
       inFlight.delete(node.id);
@@ -1426,6 +1439,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
   }
 
   async function runTemplateImage(nodeId: string): Promise<boolean> {
+    imageFailures.delete(nodeId);
     retryableImages.delete(nodeId);
     const current = options.getDocument();
     const node = current?.nodes.find((item: any) => item.id === nodeId);
@@ -2146,6 +2160,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     if (options.getDocument()?.id !== documentState.id) return;
     list.forEach((attempt) => attempts.set(attempt.id, attempt));
     let restored = false;
+    const recoveredImages: string[] = [];
     for (const node of documentState.nodes) {
       const recorded = list.find(
         (attempt) => attempt.id === node.generation?.attemptId && attempt.targetNodeId === node.id
@@ -2196,12 +2211,19 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         (attempt.localWaitCanceledAt || stoppedAttempts.has(attempt.id))
       )
         continue;
-      restored =
-        (attempt.kind === 'video'
+      const recovered =
+        attempt.kind === 'video'
           ? await recoverVideo(attempt, list, false)
-          : recoverImage(attempt, list, false)) || restored;
+          : recoverImage(attempt, list, false);
+      if (recovered && attempt.kind === 'image') recoveredImages.push(attempt.targetNodeId);
+      restored = recovered || restored;
     }
-    if (restored) await options.flush();
+    if (restored && (await options.flush())) {
+      for (const nodeId of recoveredImages) {
+        imageFailures.delete(nodeId);
+        retryableImages.delete(nodeId);
+      }
+    }
     options.render();
   }
 
@@ -2466,6 +2488,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       }
     },
     queueBlockReason,
+    failure: (nodeId: string) => imageFailures.get(nodeId) || latestNodeAttempt(nodeId)?.error,
     retryableImage(nodeId: string) {
       return retryableImages.has(nodeId);
     },
@@ -2500,6 +2523,8 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           ) {
             throw new Error('原图片已保存，但卡片或输入已变化，未覆盖当前内容。');
           }
+          imageFailures.delete(nodeId);
+          retryableImages.delete(nodeId);
           options.render();
         } catch (error) {
           options.setError(error instanceof Error ? error.message : String(error));
@@ -2544,4 +2569,4 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     },
   };
 }
-import { selectedUiAtlasPlan, uiAtlasOrderPrompt } from './uiAssetBindings.js';
+import { selectedUiAtlasPlan, uiAtlasOrderPrompt, uiBatchAtlasPrompt } from './uiAssetBindings.js';
