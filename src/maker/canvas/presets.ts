@@ -3,6 +3,7 @@ import modelPresetData from './modelPresetData.json';
 import type { CanvasWorkflowTemplate } from './templates.js';
 import { createVideoPrompts } from './videoPrompts.js';
 import { createAssetPresets } from './assetPresets.js';
+import { snapshotCanvasSource } from './dependencies.js';
 
 export interface CanvasPreset extends CanvasWorkflowTemplate {
   assets: Record<string, { type: string; resourceId: string }>;
@@ -37,6 +38,9 @@ export function canvasPresets(): CanvasPreset[] {
             sourceImageId: reference.generation?.sourceImageId,
             prompt: prompts.referenceImage(direction),
           };
+          reference.sourceSnapshot = snapshotCanvasSource(
+            template.nodes.find((node) => node.id === reference.generation?.sourceImageId)
+          );
         }
       }
     }

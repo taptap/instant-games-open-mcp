@@ -93,6 +93,7 @@ export interface CanvasGenerationAttempt {
   };
   resultAssetPath?: string;
   deliveredAssetPath?: string;
+  cachedImage?: boolean;
   remoteAssetUrl?: string;
   credits?: number;
   error?: string;
@@ -387,6 +388,8 @@ export class CanvasGenerationService {
           this.writeAttempt(attempt);
           attempt.deliveredAssetPath = await this.downloadRemoteImage(result.url);
         } else {
+          // Keep paid bytes independently of the assets directory before attempting import.
+          this.cacheImageResponse(attempt, result.bytes!);
           attempt.deliveredAssetPath = (await files.importImage(result.bytes!)).relativePath;
         }
         attempt.resultAssetPath = attempt.deliveredAssetPath;
@@ -629,6 +632,12 @@ export class CanvasGenerationService {
       await files.load(current.canvasId);
       signal?.throwIfAborted();
       try {
+        if (!current.deliveredAssetPath && current.cachedImage) {
+          current.deliveredAssetPath = (
+            await files.importImage(fs.readFileSync(this.imageResponseFile(current.id)))
+          ).relativePath;
+          this.writeAttempt(current);
+        }
         if (!current.deliveredAssetPath && current.remoteAssetUrl) {
           current.deliveredAssetPath = await this.downloadRemoteImage(current.remoteAssetUrl);
           this.writeAttempt(current);
@@ -699,7 +708,7 @@ export class CanvasGenerationService {
       previous.kind === 'image' &&
       previous.remoteStatus === 'succeeded' &&
       previous.failureStage === 'download' &&
-      (previous.deliveredAssetPath || previous.remoteAssetUrl)
+      (previous.deliveredAssetPath || previous.remoteAssetUrl || previous.cachedImage)
     ) {
       return this.recoverImageDownload(previous, signal);
     }
@@ -982,7 +991,9 @@ export class CanvasGenerationService {
   private failAttempt(attempt: CanvasGenerationAttempt, error: unknown, queryFailed = false): void {
     const detail = executionError(error);
     const delivered = attempt.kind === 'image' && attempt.remoteStatus === 'succeeded';
-    const canRecoverLocally = Boolean(attempt.deliveredAssetPath || attempt.remoteAssetUrl);
+    const canRecoverLocally = Boolean(
+      attempt.deliveredAssetPath || attempt.remoteAssetUrl || attempt.cachedImage
+    );
     attempt.status = delivered
       ? canRecoverLocally
         ? 'failed'
@@ -996,7 +1007,7 @@ export class CanvasGenerationService {
       detail.message +
       (delivered
         ? ' 图片请求已返回，不会重新付费生成；' +
-          (attempt.deliveredAssetPath
+          (attempt.deliveredAssetPath || attempt.cachedImage
             ? '可重试本地导入。'
             : attempt.remoteAssetUrl
               ? '已保留原图片地址，可重试本地下载。'
@@ -1017,7 +1028,20 @@ export class CanvasGenerationService {
   }
 
   private normalizeAttempt(value: CanvasGenerationAttempt): CanvasGenerationAttempt {
-    if (value.kind === 'image' && value.status === 'running' && value.deliveredAssetPath)
+    if (
+      value.kind === 'image' &&
+      value.provider === 'custom' &&
+      fs.existsSync(this.imageResponseFile(value.id))
+    ) {
+      value.cachedImage = true;
+      value.remoteStatus = 'succeeded';
+      if (value.status !== 'succeeded') value.failureStage = 'download';
+    }
+    if (
+      value.kind === 'image' &&
+      value.status === 'running' &&
+      (value.deliveredAssetPath || value.cachedImage)
+    )
       return {
         ...value,
         status: 'failed',
@@ -1103,5 +1127,29 @@ export class CanvasGenerationService {
     const temporary = filename + '.' + randomUUID() + '.tmp';
     fs.writeFileSync(temporary, JSON.stringify(attempt), { flag: 'wx', mode: 0o600 });
     fs.renameSync(temporary, filename);
+  }
+
+  private imageResponseFile(id: string): string {
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('生成尝试标识无效。');
+    let file = this.projectRoot;
+    for (const part of ['.maker', 'canvases', 'attempts', id + '.image']) {
+      file = path.join(file, part);
+      if (fs.existsSync(file) && fs.lstatSync(file).isSymbolicLink())
+        throw new Error('图片恢复路径不能是符号链接。');
+    }
+    return file;
+  }
+
+  private cacheImageResponse(attempt: CanvasGenerationAttempt, bytes: Buffer): void {
+    const filename = this.imageResponseFile(attempt.id);
+    const temporary = filename + '.' + randomUUID() + '.tmp';
+    try {
+      fs.writeFileSync(temporary, bytes, { flag: 'wx', mode: 0o600 });
+      fs.renameSync(temporary, filename);
+    } finally {
+      fs.rmSync(temporary, { force: true });
+    }
+    attempt.cachedImage = true;
+    this.writeAttempt(attempt);
   }
 }

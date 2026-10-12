@@ -161,6 +161,55 @@ describe('CanvasGenerationService', () => {
     expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
   });
 
+  test.each([false, true])(
+    'base64 image recovers without another paid request (lost marker: %s)',
+    async (lostMarker) => {
+      useCustomApi();
+      const files = new MakerCanvasFiles(root);
+      const canvas = await files.create('custom recovery', 'empty');
+      const request = jest
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(new Response(JSON.stringify({ data: [{ b64_json: customPng }] })));
+      const importer = jest
+        .spyOn(MakerCanvasFiles.prototype, 'importImage')
+        .mockRejectedValueOnce(new Error('assets directory is not writable'));
+      const failed = await new CanvasGenerationService(root, {} as any).generateImage({
+        canvasId: canvas.id,
+        prompt: 'test',
+      });
+      expect(failed).toMatchObject({
+        status: 'failed',
+        remoteStatus: 'succeeded',
+        failureStage: 'download',
+        cachedImage: true,
+      });
+      const responseFile = path.join(root, '.maker/canvases/attempts', failed.id + '.image');
+      expect(fs.readFileSync(responseFile)).toEqual(Buffer.from(customPng, 'base64'));
+      if (lostMarker) {
+        const interrupted = { ...failed, status: 'running' };
+        delete interrupted.cachedImage;
+        delete interrupted.remoteStatus;
+        delete interrupted.failureStage;
+        fs.writeFileSync(
+          path.join(root, '.maker/canvases/attempts', failed.id + '.json'),
+          JSON.stringify(interrupted)
+        );
+      }
+      importer.mockRestore();
+      updateModelSettings({ action: 'select', kind: 'generation', source: 'local' });
+      const recovered = await new CanvasGenerationService(root, {} as any).retry(
+        failed.id,
+        canvas.id
+      );
+      expect(recovered.status).toBe('succeeded');
+      expect(fs.readFileSync(path.join(root, recovered.resultAssetPath!))).toEqual(
+        Buffer.from(customPng, 'base64')
+      );
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
+    }
+  );
+
   test('reference images use multipart edits and a changed setting does not redirect the in-flight request', async () => {
     useCustomApi();
     const files = new MakerCanvasFiles(root);

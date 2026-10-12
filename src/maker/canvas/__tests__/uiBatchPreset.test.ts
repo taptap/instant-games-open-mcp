@@ -185,3 +185,43 @@ test('browser helpers expand only the requested instance and preserve generation
     fs.rmSync(root, { recursive: true, force: true });
   }
 }, 30000);
+
+test('a ninth size-aware atlas batch survives save and reopen', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-ui-nine-batches-'));
+  try {
+    const files = new MakerCanvasFiles(root);
+    const canvas = await files.create('nine batches');
+    const prepared = await files.prepareTemplate(id, canvas.id);
+    const instance = createCanvasTemplateModel().instantiate(prepared, { x: 0, y: 0 });
+    canvas.nodes = instance.nodes;
+    canvas.edges = instance.edges;
+    const cut = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!;
+    cut.uiRecognition = structuredClone(
+      prepared.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!.uiRecognition!
+    );
+    const result = cut.uiRecognition.results[0];
+    const original = result.bbox!.elements.find((element) => element.type === 'icon')!;
+    result.bbox!.elements = Array.from({ length: 41 }, (_, index) => ({
+      ...original,
+      id: 'E' + String(index + 1).padStart(3, '0'),
+      name: 'long mark ' + index,
+      bbox: [0, 0, 200, 20],
+      parent: null,
+      duplicateOf: undefined,
+    }));
+    result.bbox!.texts = [];
+    cut.uiRecognition.selectedId = result.id;
+    for (const node of canvas.nodes.filter((node) => node.uiRecognition))
+      delete node.templatePending;
+    expect(ensureUiAtlasBatchCards(canvas)).toBe(true);
+    const batches = canvas.nodes.filter((node) => node.uiAtlasGroup === 'icons');
+    expect(batches.map((node) => node.uiAtlasBatch || 0).sort((a, b) => a - b)).toEqual([
+      0, 1, 2, 3, 4, 5, 6, 7, 8,
+    ]);
+    const saved = await files.save(canvas.id, canvas, canvas.revision);
+    const reopened = await files.load(saved.id);
+    expect(reopened.nodes.find((node) => node.uiAtlasBatch === 8)?.id).toBe(batches[8].id);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}, 30000);

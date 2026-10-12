@@ -90,7 +90,8 @@ export async function prepareUiWorkflowArchives(
     const members = resourceBundleMembers(document, target.id);
     if (!members.some((node) => node.imageAssetsInfo?.items.length)) continue;
     try {
-      validateResourceBundle(document, target.id);
+      // Local archives retain the byte budget without the download ZIP's file-count cap.
+      validateResourceBundle(document, target.id, Number.MAX_SAFE_INTEGER);
     } catch {
       continue;
     }
@@ -122,19 +123,26 @@ export async function prepareUiWorkflowArchives(
       target.id,
       (value) => value,
       undefined,
-      readBlob
+      readBlob,
+      Number.MAX_SAFE_INTEGER
     );
     const bindingEntry = entries.find((entry) => entry.name === 'bindings.json');
     if (!bindingEntry) continue;
     const bindings = JSON.parse(await bindingEntry.blob.text());
-    const revision = 'assets-' + hash(bindings);
-    const folder = directory(bindings.ui.id, revision);
     const files = await Promise.all(
       entries.map(async (entry) => ({
         name: entry.name,
         bytes: Buffer.from(await entry.blob.arrayBuffer()),
       }))
     );
+    const revision =
+      'assets-' +
+      hash(
+        files
+          .map((file) => [file.name, createHash('sha256').update(file.bytes).digest('hex')])
+          .sort(([left], [right]) => left.localeCompare(right))
+      );
+    const folder = directory(bindings.ui.id, revision);
     if (files.reduce((total, entry) => total + entry.bytes.length, 0) > 128 * 1024 * 1024)
       throw new Error('UI 归档超过 128 MiB，请拆分资源包。');
     archives.push({

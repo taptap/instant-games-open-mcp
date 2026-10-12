@@ -34,16 +34,25 @@ test('preserves a tall character that crosses a grid line and exceeds the nomina
   for (let row = 0; row < 4; row++)
     for (let column = 0; column < 4; column++) fill(column * 100 + 20, row * 100 + 35, 50, 40);
   fill(220, 15, 50, 100);
-  expect(() =>
-    alignAtlasCells(data, width, height, {
-      columns: 4,
-      rows: 4,
-      marginX: 0,
-      marginY: 0,
-      gapX: 0,
-      gapY: 0,
-    })
-  ).toThrow('容量');
+  const aligned = alignAtlasCells(data, width, height, {
+    columns: 4,
+    rows: 4,
+    marginX: 0,
+    marginY: 0,
+    gapX: 0,
+    gapY: 0,
+  });
+  expect(aligned).toHaveLength(16);
+  expect(aligned[2]).toEqual({
+    x: 220,
+    y: 15,
+    width: 50,
+    height: 100,
+    dx: 1,
+    dy: 1,
+    outputWidth: 52,
+    outputHeight: 102,
+  });
   const regions = findAtlasContentRegions(data, width, height);
   expect(regions).toHaveLength(16);
   expect(regions[2]).toEqual({ name: 'item_003', x: 220, y: 15, width: 50, height: 100 });

@@ -1242,7 +1242,7 @@ export class MakerCanvasFiles {
       fail('视频素材卡必须引用本画布导入的视频。', 400, 'UNSAFE_PATH');
     }
     if (
-      (node.type === 'image' || node.type === 'sequence' || node.type === 'animation') &&
+      ['image', 'sequence', 'animation', 'model-views'].includes(String(node.type)) &&
       assetPath &&
       !RELATIVE.test(assetPath)
     ) {
@@ -1253,6 +1253,7 @@ export class MakerCanvasFiles {
       node.type !== 'video-source' &&
       node.type !== 'sequence' &&
       node.type !== 'animation' &&
+      node.type !== 'model-views' &&
       assetPath
     ) {
       fail('当前节点类型不能保存素材路径。', 400, 'INVALID_DOCUMENT');
@@ -1289,7 +1290,8 @@ export class MakerCanvasFiles {
       (typeof node.workTimingOpen !== 'boolean' || node.type !== 'section')
     )
       fail('流程计时状态无效。', 400, 'INVALID_DOCUMENT');
-    if (node.uiAtlasBatch !== undefined) numberIn(node.uiAtlasBatch, 0, 7, '图集分批');
+    // A category has at most 120 slots; size grouping may place each slot in its own batch.
+    if (node.uiAtlasBatch !== undefined) numberIn(node.uiAtlasBatch, 0, 119, '图集分批');
     if (skills && node.type !== 'section')
       fail('Skill 只能关联模板分组。', 400, 'INVALID_DOCUMENT');
     if (

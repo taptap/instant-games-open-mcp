@@ -329,10 +329,17 @@ export function openImageAtlasDialog(
   function commit(next: ImageAtlasCrop[]) {
     if (!prepared || busy) return;
     if (mode.value === 'slots' && next.length !== bindingPlan?.slots.length) return;
-    regions = next.map((region, index) => ({
-      ...region,
-      name: 'item_' + String(index + 1).padStart(3, '0'),
-    }));
+    const previous = prepared.regions;
+    regions = next.map((region, index) => {
+      const crop = { ...region, name: 'item_' + String(index + 1).padStart(3, '0') };
+      if (!previous.includes(region)) {
+        delete crop.outputWidth;
+        delete crop.outputHeight;
+        delete crop.offsetX;
+        delete crop.offsetY;
+      }
+      return crop;
+    });
     prepared.regions = regions;
     draw();
   }

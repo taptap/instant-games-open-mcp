@@ -25,6 +25,7 @@ export interface ServerRecognitionState {
   environment: string;
   apiBase: string;
   startedAt: string;
+  durationMs?: number;
   design: UiBboxImage;
   cut: ServerRecognitionStep;
   text?: ServerRecognitionStep;
@@ -42,10 +43,7 @@ export function serverRecognitionContext(root: string) {
   return { appId, environment, apiBase };
 }
 
-export function serverRecognitionBody(files: MakerCanvasFiles, step: ServerRecognitionStep) {
-  const { prompt, image } = step;
-  if (!prompt.trim() || prompt.length > 10000)
-    throw new ConsoleError('识图 Server API 提示词必须为 1～10000 字符。');
+export function serverRecognitionImage(files: MakerCanvasFiles, image: UiBboxImage) {
   const media = files.readMedia(image.path);
   const bytes = fs.readFileSync(media.file);
   const size = files.imageInfo(image.path);
@@ -64,9 +62,17 @@ export function serverRecognitionBody(files: MakerCanvasFiles, step: ServerRecog
     !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(media.type)
   )
     throw new ConsoleError('识图 Server API 图片超过尺寸、像素或 10 MiB 限制，或格式不支持。');
+  return { bytes, type: media.type };
+}
+
+export function serverRecognitionBody(files: MakerCanvasFiles, step: ServerRecognitionStep) {
+  const { prompt, image } = step;
+  if (!prompt.trim() || prompt.length > 10000)
+    throw new ConsoleError('识图 Server API 提示词必须为 1～10000 字符。');
+  const media = serverRecognitionImage(files, image);
   const body = JSON.stringify({
     prompt,
-    image: { mime_type: media.type, data: bytes.toString('base64') },
+    image: { mime_type: media.type, data: media.bytes.toString('base64') },
     response_format: 'json_object',
   });
   if (Buffer.byteLength(body) > 14 * 1024 * 1024)

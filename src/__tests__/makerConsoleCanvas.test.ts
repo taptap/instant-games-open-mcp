@@ -10,6 +10,7 @@ import { CanvasGenerationService } from '../maker/console/canvasGeneration';
 import { getCanvasPageHtml, CANVAS_PAGE_MARKER } from '../maker/canvas/page';
 import { createBrowserCanvasDocumentStore } from '../maker/canvas/store';
 import { sequenceActionsForCard } from '../maker/canvas/sequence';
+import { imageFeatures, imageAllowsOutpaint } from '../maker/canvas/imageFeatures';
 import { canvasParameterSchema } from '../maker/canvas/automationInfo';
 import { canvasAutomationCapabilities } from '../maker/canvas/automation';
 
@@ -228,6 +229,8 @@ describe('Maker console canvas', () => {
         modelUi,
         templateWorkflow,
         positionSelectionToolbar: jest.fn(),
+        imageFeatures,
+        imageAllowsOutpaint,
       });
       expect(selectionMenu.hidden).toBe(!assetPath || Boolean(blocked));
       expect(selectionMenu.append).toHaveBeenCalledTimes(blocked ? 0 : 1);

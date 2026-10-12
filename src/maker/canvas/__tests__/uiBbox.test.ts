@@ -104,12 +104,9 @@ test.each(['parent', 'bounds', 'duplicate', 'text', 'format', 'cycle'])(
 
 test('serialized browser validators include all Bbox dependencies', () => {
   const html = getCanvasPageHtml();
-  const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]
-    .map((match) => match[1])
-    .find((source) => source.includes('const UI_CUT_TYPES'))!;
-  const start = script.indexOf('const UI_CUT_TYPES');
-  const helpers = script
-    .slice(start, script.indexOf('(function ()', start))
+  const start = html.indexOf('const UI_CUT_TYPES');
+  const helpers = html
+    .slice(start, html.indexOf('(function ()', start))
     .replace(/\b[A-Za-z0-9_]+_js_\d+\./g, '')
     .replace(/\bexports\./g, '');
   const bbox = bboxFixture();

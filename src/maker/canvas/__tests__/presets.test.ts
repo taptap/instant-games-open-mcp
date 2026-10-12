@@ -275,27 +275,34 @@ test('new game UI workflow keeps examples but starts every downstream step pendi
     (node) => node.type === 'image' && !canvas.edges.some((edge) => edge.to === node.id)
   )!;
   expect(source.assetPath).toBeTruthy();
-  expect(source.uiRecognition).toEqual({ enabled: false, inputRole: 'design', results: [] });
-  const clean = canvas.nodes.find((node) => node.title === '② 去文字设计稿')!;
-  expect(clean.uiRecognition).toEqual({ enabled: false, results: [] });
+  expect(source.uiRecognition).toBeUndefined();
+  const design = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
+  const clean = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!;
+  expect(design.uiRecognition?.results).toEqual([]);
+  expect(clean.uiRecognition?.results).toEqual([]);
   expect(canvasNeedsProcessing(canvas, source)).toBe(false);
-  expect(canvas.nodes.find((node) => node.uiRecognitionSourceId)?.uiRecognitionSourceId).toBe(
-    clean.id
-  );
+  const atlases = canvas.nodes.filter((node) => node.uiAtlasGroup);
+  expect(atlases).toHaveLength(6);
+  for (const atlas of atlases)
+    expect(canvas.edges).toContainEqual(
+      expect.objectContaining({ from: clean.id, to: atlas.id, kind: 'image-variant' })
+    );
   const downstream = canvas.nodes.filter((node) =>
     canvas.edges.some((edge) => edge.to === node.id)
   );
-  expect(downstream).toHaveLength(23);
+  expect(downstream).toHaveLength(17);
   for (const node of downstream) {
-    expect(node.templatePending).toBe(true);
+    expect(Boolean(node.templatePending)).toBe(node.type !== 'resource-bundle');
     expect(canvasNeedsProcessing(canvas, node)).toBe(true);
     if (node.type === 'image') expect(node.assetPath).toBeTruthy();
     if (node.type === 'image-assets') expect(node.imageAssetsInfo?.items.length).toBeGreaterThan(0);
   }
-  expect(canvas.nodes.find((node) => node.uiRecognitionSourceId)?.templatePending).toBeUndefined();
+  expect(clean.templatePending).toBe(true);
   const saved = await files.save(canvas.id, canvas, canvas.revision);
   const reopened = await files.load(saved.id);
-  expect(reopened.nodes.filter((node) => node.templatePending)).toHaveLength(downstream.length);
+  expect(reopened.nodes.filter((node) => node.templatePending)).toHaveLength(
+    downstream.filter((node) => node.type !== 'resource-bundle').length
+  );
   expect(JSON.stringify(prepared)).toBe(before);
 });
 
@@ -454,18 +461,18 @@ test('protects builtins and rejects invalid preparation before importing media',
   expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
 });
 
-test('four directions use distinct empty neutral references and keep old results explicitly pending', async () => {
+test('four directions preserve distinct neutral examples and keep outputs explicitly pending', async () => {
   const preset = canvasPresets()[1];
   const images = preset.nodes.filter((node) => node.type === 'image');
   const head = images.find((node) => node.assetPath)!;
   expect(images).toHaveLength(5);
   const references = images.filter((node) => node !== head);
-  expect(new Set(references.map((node) => node.generationDraft?.prompt)).size).toBe(4);
+  expect(new Set(references.map((node) => node.generation?.prompt)).size).toBe(4);
   for (const reference of references) {
-    expect(reference.assetPath).toBeUndefined();
-    expect(reference.generationDraft?.prompt).toContain('calm neutral standing idle pose');
-    expect(reference.generation).toBeUndefined();
-    expect(reference.generationDraft).toMatchObject({
+    expect(reference.assetPath).toBeTruthy();
+    expect(reference.generation?.prompt).toContain('calm neutral standing idle pose');
+    expect(reference.sourceSnapshot?.nodeId).toBe(head.id);
+    expect(reference.generation).toMatchObject({
       operation: 'variant',
       sourceImageId: head.id,
     });
@@ -517,8 +524,11 @@ test('pending reference links still reject missing or mismatched draft sources',
   const canvas = await files.create();
   const preset = await files.prepareTemplate(canvasPresets()[1].id, canvas.id);
   const instance = model.instantiate(preset, { x: 0, y: 0 });
-  const reference = instance.nodes.find((node) => node.generationDraft)!;
-  const draft = reference.generationDraft!;
+  const reference = instance.nodes.find((node) => node.generation?.operation === 'variant')!;
+  const draft = { ...reference.generation!, operation: 'variant' as const };
+  delete reference.assetPath;
+  delete reference.generation;
+  delete reference.sourceSnapshot;
   delete reference.generationDraft;
   await expect(
     files.save(canvas.id, { ...canvas, ...instance }, canvas.revision)

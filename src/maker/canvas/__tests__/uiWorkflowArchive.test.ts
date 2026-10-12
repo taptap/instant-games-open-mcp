@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { MakerCanvasFiles } from '../files.js';
 import { createId, type CanvasNode } from '../model.js';
 import { applyImageAssets } from '../imageAssets.js';
-import { addResourceBundle } from '../resourceBundle.js';
+import { addResourceBundle, validateResourceBundle } from '../resourceBundle.js';
 import { validateUiAtlasPlan } from '../uiAssetBindings.js';
 import { validateUiRecognition } from '../uiRecognition.js';
 import { snapshotCanvasSource } from '../dependencies.js';
@@ -145,6 +145,46 @@ test('archives recognition and resource snapshots independently of the canvas, p
     document = await files.save(document.id, document, document.revision);
     await files.archiveUi(document.id);
     expect(fs.statSync(path.join(root, resource.bindingsPath!)).mtimeMs).toBe(before);
+    const unboundAtlas = { ...atlas, id: createId(), generation: { ...atlas.generation! } };
+    delete unboundAtlas.generation.uiAtlasPlan;
+    document.nodes.push(unboundAtlas);
+    document.edges.push({
+      id: createId(),
+      from: source.id,
+      to: unboundAtlas.id,
+      kind: 'image-variant',
+    });
+    const boundAsset = document.nodes.find((node) => node.type === 'image-assets')!;
+    const bundle = document.nodes.find((node) => node.type === 'resource-bundle')!;
+    let lastAsset: CanvasNode = boundAsset;
+    for (let index = 0; index < 124; index++) {
+      lastAsset = structuredClone(boundAsset);
+      lastAsset.id = createId();
+      lastAsset.title = 'unbound-' + index;
+      lastAsset.sourceSnapshot = snapshotCanvasSource(unboundAtlas);
+      document.nodes.push(lastAsset);
+      document.edges.push(
+        { id: createId(), from: unboundAtlas.id, to: lastAsset.id, kind: 'image-assets' },
+        { id: createId(), from: lastAsset.id, to: bundle.id, kind: 'resource-bundle' }
+      );
+    }
+    expect(() => validateResourceBundle(document, bundle.id)).toThrow('122');
+    document = await files.save(document.id, document, document.revision);
+    const largeArchive = files
+      .listUiArchives(document.id)
+      .find((record) => record.stage === 'resources' && record.revision !== resource.revision)!;
+    expect(largeArchive).toBeDefined();
+    png.data[0] = 0;
+    const replacement = await files.importImage(PNG.sync.write(png));
+    document.nodes.find((node) => node.id === lastAsset.id)!.imageAssetsInfo!.items[0].assetPath =
+      replacement.relativePath;
+    document = await files.save(document.id, document, document.revision);
+    const recutArchives = files
+      .listUiArchives(document.id)
+      .filter((record) => record.stage === 'resources');
+    expect(recutArchives).toHaveLength(3);
+    expect(new Set(recutArchives.map((record) => record.revision)).size).toBe(3);
+    expect(fs.existsSync(path.join(root, largeArchive.bindingsPath!))).toBe(true);
     const changed = document.nodes.find((node) => node.id === source.id)!;
     changed.uiRecognition!.results[0].bbox!.elements[0].name = 'new-name';
     document = await files.save(document.id, document, document.revision);
@@ -153,10 +193,10 @@ test('archives recognition and resource snapshots independently of the canvas, p
     ).toHaveLength(2);
     expect(
       files.listUiArchives(document.id).filter((record) => record.stage === 'resources')
-    ).toHaveLength(1);
+    ).toHaveLength(3);
     fs.unlinkSync(path.join(root, '.maker/canvases', document.id + '.json'));
     const reloaded = new MakerCanvasFiles(root).listUiArchives(document.id);
-    expect(reloaded).toHaveLength(3);
+    expect(reloaded).toHaveLength(5);
     expect(fs.existsSync(path.join(root, resource.bboxPath))).toBe(true);
     expect(snapshotCanvasSource(atlas)).toBeDefined();
   } finally {

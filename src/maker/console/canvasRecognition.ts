@@ -26,6 +26,7 @@ import { ConsoleError } from './types.js';
 import {
   serverRecognitionContext,
   serverRecognitionBody,
+  serverRecognitionImage,
   serverRecognitionRequest,
   type ServerRecognitionState,
 } from './serverRecognition.js';
@@ -257,8 +258,20 @@ export class CanvasRecognitionService {
     if (existing) return existing;
     const task = (async () => {
       const state = attempt.server!;
+      const started = Date.now();
       try {
         const request = async (step: ServerRecognitionState['cut'], pass: 'cut' | 'text') => {
+          const document = await this.files.load(attempt.canvasId);
+          const node = document.nodes.find((item) => item.id === attempt.nodeId);
+          if (!node) throw new ConsoleError('识图输入卡片已变化，不能恢复原请求。');
+          const inputs = uiRecognitionInputs(document, node);
+          if (
+            inputs.cut.assetPath !== state.cut.image.path ||
+            inputs.design.assetPath !== state.design.path
+          )
+            throw new ConsoleError('识图输入图片已变化，不能恢复原请求。');
+          serverRecognitionImage(this.files, state.cut.image);
+          serverRecognitionImage(this.files, state.design);
           const data = await serverRecognitionRequest(
             this.files,
             state,
@@ -299,11 +312,15 @@ export class CanvasRecognitionService {
         attempt.cut = { image: cutSource, elements: cutElements };
         attempt.phase = 'text';
         const elements = scaleCutElements(cutElements, cutSource, design);
-        state.text ||= {
-          key: attempt.id + ':text',
-          prompt: uiTextRecognitionPrompt(design.width, design.height, elements),
-          image: design,
-        };
+        if (!state.text || (!state.text.submittedAt && !state.text.requestId))
+          state.text = {
+            key: attempt.id + ':text',
+            // Parent geometry is already known locally; keep the paid text prompt bounded.
+            prompt:
+              uiTextRecognitionPrompt(design.width, design.height, []) +
+              '\n本轮不附带切图清单，parentId 全部填写 null。本地按文字中心所在的最小底板关联父级。',
+            image: design,
+          };
         this.write(attempt);
         const text = await request(state.text, 'text');
         if (!text) return attempt;
@@ -314,14 +331,27 @@ export class CanvasRecognitionService {
           design,
           cutSource,
           elements,
-          texts: validateBboxTexts(text.texts, design.width, design.height, elements),
+          texts: validateBboxTexts(text.texts, design.width, design.height, elements).map(
+            (item) => {
+              if (item.parentId) return item;
+              const cx = item.bbox[0] + item.bbox[2] / 2;
+              const cy = item.bbox[1] + item.bbox[3] / 2;
+              const parents = elements
+                .filter(
+                  ({ type, bbox: [x, y, width, height] }) =>
+                    type !== 'icon' && cx >= x && cx < x + width && cy >= y && cy < y + height
+                )
+                .sort((a, b) => a.bbox[2] * a.bbox[3] - b.bbox[2] * b.bbox[3]);
+              return { ...item, parentId: parents[0]?.id || null };
+            }
+          ),
         };
         attempt.result = {
           id: attempt.id,
           model: UI_VISION_MODEL + ' / low',
           prompt: state.cut.prompt + '\n\n' + state.text.prompt,
           createdAt: new Date().toISOString(),
-          durationMs: Date.now() - Date.parse(state.startedAt),
+          durationMs: Math.max(1, (state.durationMs || 0) + Date.now() - started),
           sourcePath: cutSource.path,
           sourceSha256: cutSource.sha256,
           width: cutSource.width,
@@ -342,6 +372,7 @@ export class CanvasRecognitionService {
           ? message
           : '识图连接或响应无法确认；请查询原请求，不会自动重试。';
       } finally {
+        state.durationMs = (state.durationMs || 0) + Math.max(0, Date.now() - started);
         this.write(attempt);
       }
       return attempt;

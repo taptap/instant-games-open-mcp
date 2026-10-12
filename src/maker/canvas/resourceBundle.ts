@@ -223,7 +223,11 @@ export function renderResourceBundle(
   card.append(list);
 }
 
-export function validateResourceBundle(document: CanvasDocument, sectionId: string): CanvasNode[] {
+export function validateResourceBundle(
+  document: CanvasDocument,
+  sectionId: string,
+  maxFiles = 122
+): CanvasNode[] {
   const terminal = document.nodes.some(
     (node) => node.id === sectionId && node.type === 'resource-bundle'
   );
@@ -267,7 +271,7 @@ export function validateResourceBundle(document: CanvasDocument, sectionId: stri
       throw new Error('「' + member.title + '」尚未完成切图，未导出文件。');
     count += validateImageAssetsInfo(member.imageAssetsInfo).items.length;
   }
-  if (count > 122) throw new Error('素材总数超过单包上限 122 张，请按分类分别下载。');
+  if (count > maxFiles) throw new Error('素材总数超过单包上限 122 张，请按分类分别下载。');
   return members;
 }
 
@@ -276,9 +280,10 @@ export async function resourceBundleEntries(
   sectionId: string,
   mediaUrl: (path: string) => string,
   progress?: (message: string) => void,
-  readBlob?: (path: string) => Promise<Blob>
+  readBlob?: (path: string) => Promise<Blob>,
+  maxFiles = 122
 ): Promise<Array<{ name: string; blob: Blob }>> {
-  const members = validateResourceBundle(document, sectionId);
+  const members = validateResourceBundle(document, sectionId, maxFiles);
   const entries: Array<{ name: string; blob: Blob }> = [];
   const budget = { bytes: 0 };
   for (const [index, member] of members.entries()) {
@@ -327,7 +332,7 @@ export async function resourceBundleEntries(
       blob: new Blob([JSON.stringify(metadata.manifest, null, 2)], { type: 'application/json' }),
     });
   }
-  if (entries.length > 122)
+  if (entries.length > maxFiles)
     throw new Error('包含 Bbox 和参考图后超过单包 122 个文件，请拆分资源包。');
   return entries;
 }

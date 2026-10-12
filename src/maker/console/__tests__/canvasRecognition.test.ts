@@ -481,6 +481,119 @@ describe('unreleased Server API integration', () => {
     expect(fetcher.mock.calls[1][1].headers).toEqual(fetcher.mock.calls[0][1].headers);
   });
 
+  test('500 elements keep the text prompt bounded and attach text to the smallest known panel', async () => {
+    const { canvasId, input } = await setup();
+    const elements = Array.from({ length: 500 }, (_, index) => ({
+      ...element,
+      id: 'E' + String(index + 1).padStart(3, '0'),
+      name: '素材'.repeat(100),
+      type: index === 0 ? 'panel' : index === 1 ? 'button' : 'icon',
+      bbox: index === 1 ? [0, 0, 0.5, 0.5] : [0, 0, 1, 1],
+    }));
+    const text = {
+      id: 'T001',
+      text: '购买',
+      bbox: [0.1, 0.1, 0.1, 0.1],
+      parentId: null,
+      role: 'button',
+      align: 'center',
+      color: '#FFFFFF',
+      bold: true,
+      cutout: false,
+    };
+    const fetcher = jest
+      .fn()
+      .mockResolvedValueOnce(
+        reply('cut', {
+          output: { pass: 'cut', image: { width: 1, height: 1 }, elements },
+        })
+      )
+      .mockResolvedValueOnce(
+        reply('text', {
+          output: { pass: 'text', image: { width: 1, height: 1 }, texts: [text] },
+        })
+      );
+    const result = await new CanvasRecognitionService(root, serverModels, fetcher).run(
+      canvasId,
+      input
+    );
+    expect(result.status).toBe('succeeded');
+    expect(result.result?.bbox?.elements).toHaveLength(500);
+    expect(result.result?.bbox?.texts[0]).toEqual({ ...text, parentId: 'E002' });
+    expect(JSON.parse(fetcher.mock.calls[1][1].body).prompt.length).toBeLessThanOrEqual(10000);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  test.each(['cut-bytes', 'design-bytes', 'cut-path', 'design-path'])(
+    'completed cut cannot continue text after %s changes',
+    async (change) => {
+      const { canvasId, input } = await setup();
+      const files = new MakerCanvasFiles(root);
+      let document = await files.load(canvasId);
+      const cutNode = document.nodes.find((node) => node.id === input.nodeId)!;
+      const designNode = document.nodes.find((node) => node.id !== input.nodeId)!;
+      cutNode.assetPath = (
+        await files.importImage(fs.readFileSync(files.readMedia(cutNode.assetPath!).file))
+      ).relativePath;
+      document = await files.save(canvasId, document, document.revision);
+      input.revision = document.revision;
+      const fetcher = jest
+        .fn()
+        .mockResolvedValueOnce(reply('cut', { status: 'running', output: null }, 202))
+        .mockResolvedValueOnce(reply('cut'));
+      const service = new CanvasRecognitionService(root, serverModels, fetcher);
+      await service.run(canvasId, input);
+      expect((await service.refresh(canvasId, input.id)).phase).toBe('text');
+      const node = document.nodes.find(
+        (item) => item.id === (change.startsWith('cut') ? cutNode.id : designNode.id)
+      )!;
+      if (change.endsWith('bytes'))
+        fs.appendFileSync(files.readMedia(node.assetPath!).file, 'changed');
+      else {
+        node.assetPath = (
+          await files.importImage(fs.readFileSync(files.readMedia(node.assetPath!).file))
+        ).relativePath;
+        await files.save(canvasId, document, document.revision);
+      }
+      const result = await service.run(canvasId, { ...input, recover: true });
+      expect(result.status).toBe('failed');
+      expect(result.error).toContain('变化');
+      expect(result.result).toBeUndefined();
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  test('server recognition duration excludes waiting between explicit recovery operations', async () => {
+    const { canvasId, input } = await setup();
+    let now = Date.now();
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const fetcher = jest
+      .fn()
+      .mockImplementationOnce(async () => {
+        now += 100;
+        return reply('cut', { status: 'running', output: null }, 202);
+      })
+      .mockImplementationOnce(async () => {
+        now += 200;
+        return reply('cut');
+      })
+      .mockImplementationOnce(async () => {
+        now += 300;
+        return reply('text');
+      });
+    const service = new CanvasRecognitionService(root, serverModels, fetcher);
+    await service.run(canvasId, input);
+    now += 3600000;
+    await service.refresh(canvasId, input.id);
+    now += 3600000;
+    const result = await new CanvasRecognitionService(root, serverModels, fetcher).run(canvasId, {
+      ...input,
+      recover: true,
+    });
+    expect(result.result?.durationMs).toBe(600);
+    expect(result.server?.durationMs).toBe(600);
+  });
+
   test('HTTP 200 business failure cannot trigger text generation or paid retry', async () => {
     const { canvasId, input } = await setup();
     const fetcher = jest.fn().mockImplementation(async () =>

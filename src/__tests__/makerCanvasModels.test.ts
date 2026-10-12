@@ -30,7 +30,8 @@ beforeEach(async () => {
   files = new MakerCanvasFiles(root);
   document = await files.create('model test');
   const template = canvasPresets().find((item) => item.name.includes('角色模型'))!;
-  const instance = createCanvasTemplateModel(createId).instantiate(template, { x: 0, y: 0 });
+  const prepared = await files.prepareTemplate(template.id, document.id);
+  const instance = createCanvasTemplateModel(createId).instantiate(prepared, { x: 0, y: 0 });
   document.nodes = instance.nodes;
   document.edges = instance.edges;
   viewsId = document.nodes.find((node) => node.type === 'model-views')!.id;
