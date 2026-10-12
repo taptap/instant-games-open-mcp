@@ -34,6 +34,7 @@ export interface UiRecognitionResult {
   prompt: string;
   createdAt: string;
   durationMs: number;
+  credits?: number;
   sourcePath: string;
   sourceSha256: string;
   width: number;
@@ -152,6 +153,7 @@ export function validateUiRecognition(value: unknown): UiRecognitionSettings {
       !Number.isFinite(Date.parse(result.createdAt)) ||
       !Number.isFinite(result.durationMs) ||
       result.durationMs < 0 ||
+      (result.credits !== undefined && (!Number.isFinite(result.credits) || result.credits < 0)) ||
       typeof result.sourcePath !== 'string' ||
       !/^assets\/image\/canvas-[a-f0-9-]{36}\.(png|jpg|webp)$/i.test(result.sourcePath) ||
       !/^[a-f0-9]{64}$/.test(result.sourceSha256)
@@ -173,6 +175,7 @@ export function validateUiRecognition(value: unknown): UiRecognitionSettings {
       prompt: result.prompt,
       createdAt: result.createdAt,
       durationMs: result.durationMs,
+      ...(result.credits !== undefined ? { credits: result.credits } : {}),
       sourcePath: result.sourcePath,
       sourceSha256: result.sourceSha256,
       width: result.width,
@@ -301,7 +304,8 @@ export function uiRecognitionNote(result: UiRecognitionResult): string {
       ' · ' +
       result.elements.length +
       ' 个元素' +
-      (result.durationMs > 0 ? ' · ' + (result.durationMs / 1000).toFixed(1) + ' 秒' : ''),
+      (result.durationMs > 0 ? ' · ' + (result.durationMs / 1000).toFixed(1) + ' 秒' : '') +
+      (result.credits !== undefined ? ' · ' + result.credits + ' 积分' : ''),
     '坐标为识别输入图像素 [x, y, 宽, 高]；模型识别结果仍需核对。',
     ...result.elements.map(
       (item) =>

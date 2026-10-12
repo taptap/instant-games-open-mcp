@@ -23,6 +23,12 @@ import {
   type VisionSource,
 } from './visionSettings.js';
 import { ConsoleError } from './types.js';
+import {
+  serverRecognitionContext,
+  serverRecognitionBody,
+  serverRecognitionRequest,
+  type ServerRecognitionState,
+} from './serverRecognition.js';
 
 export interface UiVisionModel {
   id: string;
@@ -181,6 +187,7 @@ export interface RecognitionAttempt {
   status: 'running' | 'succeeded' | 'failed' | 'unknown';
   result?: UiRecognitionResult;
   error?: string;
+  server?: ServerRecognitionState;
 }
 const active = new Map<string, Promise<RecognitionAttempt>>();
 
@@ -230,13 +237,121 @@ export class CanvasRecognitionService {
       throw new ConsoleError('未找到识图请求记录；不会自动重新提交。', 404);
     const attempt = JSON.parse(fs.readFileSync(filename, 'utf8')) as RecognitionAttempt;
     if (attempt.canvasId !== canvasId) throw new ConsoleError('识图请求不属于当前画布。', 404);
-    if (attempt.status === 'running' && !active.has(filename))
+    if (attempt.status === 'running' && !attempt.server && !active.has(filename))
       return {
         ...attempt,
         status: 'unknown',
         error: '识图等待已中断，远端结果未知；请核对服务端请求记录，不会自动重试。',
       };
     return attempt;
+  }
+  async refresh(canvasId: string, id: string): Promise<RecognitionAttempt> {
+    const attempt = this.query(canvasId, id);
+    return attempt.server && attempt.status !== 'succeeded'
+      ? this.runServer(attempt, false, false)
+      : attempt;
+  }
+  private async runServer(attempt: RecognitionAttempt, allowPost: boolean, recover: boolean) {
+    const filename = this.filename(attempt.id);
+    const existing = active.get(filename);
+    if (existing) return existing;
+    const task = (async () => {
+      const state = attempt.server!;
+      try {
+        const request = async (step: ServerRecognitionState['cut'], pass: 'cut' | 'text') => {
+          const data = await serverRecognitionRequest(
+            this.files,
+            state,
+            step,
+            this.fetcher,
+            () => this.write(attempt),
+            allowPost,
+            recover
+          );
+          if (!data) {
+            attempt.status =
+              step.status === 'failed' && step.error?.retryable === false
+                ? 'failed'
+                : step.status === 'running' && !step.error
+                  ? 'running'
+                  : 'unknown';
+            attempt.error = step.error
+              ? [step.error.code, step.error.message].filter(Boolean).join(': ')
+              : step.requestId
+                ? '识图任务仍在执行，请继续查询原请求。'
+                : '识图等待恢复；需要明确确认后使用原请求继续，不会自动提交。';
+            return undefined;
+          }
+          const size = data.image as { width?: number; height?: number } | undefined;
+          if (
+            data.pass !== pass ||
+            size?.width !== step.image.width ||
+            size?.height !== step.image.height
+          )
+            throw new ConsoleError('识图结果阶段或图片尺寸无效。');
+          return data;
+        };
+        const cut = await request(state.cut, 'cut');
+        if (!cut) return attempt;
+        const cutSource = state.cut.image;
+        const design = state.design;
+        const cutElements = validateCutElements(cut.elements, cutSource.width, cutSource.height);
+        attempt.cut = { image: cutSource, elements: cutElements };
+        attempt.phase = 'text';
+        const elements = scaleCutElements(cutElements, cutSource, design);
+        state.text ||= {
+          key: attempt.id + ':text',
+          prompt: uiTextRecognitionPrompt(design.width, design.height, elements),
+          image: design,
+        };
+        this.write(attempt);
+        const text = await request(state.text, 'text');
+        if (!text) return attempt;
+        const bbox = {
+          version: 1 as const,
+          coordinateSpace: 'design-pixels' as const,
+          bboxFormat: 'xywh' as const,
+          design,
+          cutSource,
+          elements,
+          texts: validateBboxTexts(text.texts, design.width, design.height, elements),
+        };
+        attempt.result = {
+          id: attempt.id,
+          model: UI_VISION_MODEL + ' / low',
+          prompt: state.cut.prompt + '\n\n' + state.text.prompt,
+          createdAt: new Date().toISOString(),
+          durationMs: Date.now() - Date.parse(state.startedAt),
+          sourcePath: cutSource.path,
+          sourceSha256: cutSource.sha256,
+          width: cutSource.width,
+          height: cutSource.height,
+          elements: bboxRecognitionElements(bbox),
+          bbox,
+          ...(state.cut.credits !== undefined && state.text.credits !== undefined
+            ? { credits: state.cut.credits + state.text.credits }
+            : {}),
+        };
+        attempt.status = 'succeeded';
+        delete attempt.error;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        const validation = /^(识图|普通文字)/.test(message);
+        attempt.status = validation ? 'failed' : 'unknown';
+        attempt.error = validation
+          ? message
+          : '识图连接或响应无法确认；请查询原请求，不会自动重试。';
+      } finally {
+        this.write(attempt);
+      }
+      return attempt;
+    })();
+    active.set(filename, task);
+    try {
+      return await task;
+    } finally {
+      active.delete(filename);
+    }
   }
   async run(
     canvasId: string,
@@ -247,6 +362,7 @@ export class CanvasRecognitionService {
       revision: number;
       width: number;
       height: number;
+      recover?: boolean;
     }
   ): Promise<RecognitionAttempt> {
     const filename = this.filename(input.id);
@@ -254,7 +370,12 @@ export class CanvasRecognitionService {
       const previous = this.query(canvasId, input.id);
       if (previous.nodeId !== input.nodeId || previous.model !== input.model)
         throw new ConsoleError('识图请求编号已被其他输入使用。', 409);
-      return active.get(filename) || previous;
+      return (
+        active.get(filename) ||
+        (previous.server && previous.status !== 'succeeded'
+          ? this.runServer(previous, input.recover === true, input.recover === true)
+          : previous)
+      );
     }
     const document = await this.files.load(canvasId);
     if (fs.existsSync(filename)) return this.run(canvasId, input);
@@ -284,11 +405,7 @@ export class CanvasRecognitionService {
         '当前使用本地模型。请让 AI 客户端读取设计稿，通过 Maker CLI 写入 Bbox；画布不能直接调用客户端模型。也可在设置中选择自定义 API。',
         503
       );
-    if (source === 'server')
-      throw new ConsoleError(
-        '当前选择的是 Server API，但服务端识图尚未开通。请暂时切换为自定义 API。',
-        503
-      );
+    if (source === 'server') serverRecognitionContext(this.files.root);
     if (![input.width, input.height].every((n) => Number.isInteger(n) && n > 0 && n <= 16384))
       throw new ConsoleError('原稿尺寸无效。');
     const key = model.apiKey || (model.apiKeyEnv ? process.env[model.apiKeyEnv] : undefined);
@@ -337,6 +454,22 @@ export class CanvasRecognitionService {
       status: 'running',
       phase: 'cut',
     };
+    if (source === 'server') {
+      attempt.server = {
+        ...serverRecognitionContext(this.files.root),
+        startedAt: new Date().toISOString(),
+        design,
+        cut: { key: input.id + ':cut', prompt, image: cutSource },
+      };
+      serverRecognitionBody(this.files, attempt.server.cut);
+      serverRecognitionBody(this.files, {
+        key: input.id + ':text',
+        prompt: 'validate',
+        image: design,
+      });
+      this.write(attempt);
+      return this.runServer(attempt, true, false);
+    }
     // Persist before sending: a lost HTTP response must not replay a potentially billed request.
     this.write(attempt);
     const task = (async () => {

@@ -7,6 +7,7 @@ import { createCanvasGroupQueue } from '../groupQueue.js';
 import {
   validateUiElements,
   validateUiRecognition,
+  uiRecognitionNote,
   selectedUiRecognition,
   uiRecognitionStatus,
   setUiRecognitionMode,
@@ -36,6 +37,16 @@ const result = (): UiRecognitionResult => ({
   width: 1080,
   height: 1920,
   elements: ['B32', 'B34', 'B36'].map(element),
+});
+
+test('server credits survive result validation and appear once in the note', () => {
+  const record = { ...result(), credits: 8 };
+  const settings = validateUiRecognition({ enabled: true, results: [record] });
+  expect(settings?.results[0].credits).toBe(8);
+  expect(uiRecognitionNote(settings!.results[0])).toContain('8 积分');
+  expect(() =>
+    validateUiRecognition({ enabled: true, results: [{ ...record, credits: -1 }] })
+  ).toThrow('识图记录');
 });
 
 test.each([true, false])(

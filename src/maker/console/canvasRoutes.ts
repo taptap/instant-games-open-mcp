@@ -69,7 +69,7 @@ export async function handleCanvasProjectRoute(options: {
       await files.load(recognition[1]);
       const service = new CanvasRecognitionService(project.path);
       if (method === 'GET' && recognition[2])
-        send(response, 200, service.query(recognition[1], recognition[2]));
+        send(response, 200, await service.refresh(recognition[1], recognition[2]));
       else if (method === 'POST' && !recognition[2]) {
         const input = JSON.parse((await readBytes(request, 4096)).toString('utf8'));
         if (input.allowPaid !== true) throw new ConsoleError('识图可能计费，需要明确确认执行。');

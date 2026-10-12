@@ -5,6 +5,10 @@ import { randomUUID } from 'node:crypto';
 import { MakerCanvasFiles } from '../../canvas/files.js';
 import { CanvasRecognitionService } from '../canvasRecognition.js';
 import { webRecognitionInput } from '../../canvas/webRecognition.js';
+import { saveProjectConfig } from '../../storage.js';
+import * as pat from '../../git/pat.js';
+import * as config from '../../config.js';
+import { serverRecognitionBody } from '../serverRecognition.js';
 
 let root: string;
 beforeEach(() => {
@@ -222,7 +226,7 @@ test('a lost response stays unknown and reusing the ID never repeats a paid requ
 
 test.each([
   ['local', '画布不能直接调用客户端模型'],
-  ['server', '当前选择的是 Server API，但服务端识图尚未开通'],
+  ['server', '需要当前目录绑定有效的 Maker 项目'],
 ])(
   'unsupported vision source %s stops clearly before submitting a local request',
   async (source, message) => {
@@ -372,3 +376,249 @@ test.each([
     expect(fetcher).toHaveBeenCalledTimes(1);
   }
 );
+
+describe('unreleased Server API integration', () => {
+  const appId = '11111111-1111-4111-8111-111111111111';
+  beforeEach(() => {
+    saveProjectConfig(root, { project_id: appId });
+    jest.spyOn(pat, 'requireMakerPat').mockReturnValue({ token: 'mock-pat-secret' });
+    jest.spyOn(config, 'getMakerEnvironment').mockReturnValue('rnd');
+    jest.spyOn(config, 'getMakerApiBaseUrl').mockReturnValue('https://example.invalid/api/v1');
+  });
+  afterEach(() => jest.restoreAllMocks());
+  const serverModels = [
+    { id: 'vision-a', model: 'gpt-6.1-sol', endpoint: '', source: 'server' as const },
+  ];
+  const reply = (pass: 'cut' | 'text', extra: Record<string, unknown> = {}, status = 200) =>
+    new Response(
+      JSON.stringify({
+        request_id: pass + '-request',
+        model: 'gpt-6.1-sol',
+        reasoning_effort: 'low',
+        output_format: 'json_object',
+        status: 'succeeded',
+        credits: 5,
+        output: {
+          pass,
+          image: { width: 1, height: 1 },
+          ...(pass === 'cut' ? { elements: [element] } : { texts: [] }),
+        },
+        ...extra,
+      }),
+      { status }
+    );
+
+  test('two persisted calls use PAT, bound project, fixed protocol and deduplicated credits', async () => {
+    const { canvasId, input } = await setup();
+    const fetcher = jest
+      .fn()
+      .mockImplementationOnce(async () => {
+        const stored = new CanvasRecognitionService(root).query(canvasId, input.id);
+        expect(stored.server?.cut.submittedAt).toBeDefined();
+        return reply('cut');
+      })
+      .mockResolvedValueOnce(reply('text', { credits: 3 }));
+    const service = new CanvasRecognitionService(root, serverModels, fetcher);
+    const [result, concurrent] = await Promise.all([
+      service.run(canvasId, input),
+      service.run(canvasId, input),
+    ]);
+    expect(result.status).toBe('succeeded');
+    expect(concurrent.result?.id).toBe(result.result?.id);
+    expect(result.result?.credits).toBe(8);
+    expect(result.result?.bbox?.elements).toHaveLength(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    const [url, options] = fetcher.mock.calls[0];
+    expect(url).toBe('https://example.invalid/api/v1/apps/' + appId + '/model-inference');
+    expect(options.headers.Authorization).toBe('Bearer mock-pat-secret');
+    expect(options.headers['Idempotency-Key']).toBe(input.id + ':cut');
+    const body = JSON.parse(options.body);
+    expect(Object.keys(body).sort()).toEqual(['image', 'prompt', 'response_format']);
+    expect(body.response_format).toBe('json_object');
+    expect(body.image.mime_type).toBe('image/png');
+    expect(body.image.data).not.toContain('data:');
+    expect(JSON.stringify(result)).not.toContain('mock-pat-secret');
+    expect((await service.refresh(canvasId, input.id)).result?.credits).toBe(8);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  test('202 survives restart; GET finishes cut without submitting text; explicit recovery continues', async () => {
+    const { canvasId, input } = await setup();
+    const fetcher = jest
+      .fn()
+      .mockResolvedValueOnce(reply('cut', { status: 'running', output: null }, 202))
+      .mockResolvedValueOnce(reply('cut'))
+      .mockResolvedValueOnce(reply('text'));
+    const first = new CanvasRecognitionService(root, serverModels, fetcher);
+    expect((await first.run(canvasId, input)).status).toBe('running');
+    const service = new CanvasRecognitionService(root, serverModels, fetcher);
+    const queried = await service.refresh(canvasId, input.id);
+    expect(queried.phase).toBe('text');
+    expect(queried.result).toBeUndefined();
+    expect(fetcher.mock.calls.map((call) => call[1].method)).toEqual(['POST', 'GET']);
+    expect(fetcher.mock.calls[1][0]).toContain('/cut-request');
+    const result = await service.run(canvasId, { ...input, recover: true });
+    expect(result.result?.credits).toBe(10);
+    expect(fetcher.mock.calls.map((call) => call[1].method)).toEqual(['POST', 'GET', 'POST']);
+  });
+
+  test('lost response requires explicit recovery with exactly the same key and body', async () => {
+    const { canvasId, input } = await setup();
+    const fetcher = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('mock-pat-secret'))
+      .mockResolvedValueOnce(reply('cut'))
+      .mockResolvedValueOnce(reply('text'));
+    const service = new CanvasRecognitionService(root, serverModels, fetcher);
+    const unknown = await service.run(canvasId, input);
+    expect(unknown.status).toBe('unknown');
+    expect(unknown.error).not.toContain('mock-pat-secret');
+    await service.refresh(canvasId, input.id);
+    await service.run(canvasId, input);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect((await service.run(canvasId, { ...input, recover: true })).status).toBe('succeeded');
+    expect(fetcher.mock.calls[1][1].body).toBe(fetcher.mock.calls[0][1].body);
+    expect(fetcher.mock.calls[1][1].headers).toEqual(fetcher.mock.calls[0][1].headers);
+  });
+
+  test('HTTP 200 business failure cannot trigger text generation or paid retry', async () => {
+    const { canvasId, input } = await setup();
+    const fetcher = jest.fn().mockImplementation(async () =>
+      reply('cut', {
+        status: 'failed',
+        output: null,
+        error: { code: 'MODEL_OUTPUT_INVALID', message: '无效输出', retryable: false },
+      })
+    );
+    const service = new CanvasRecognitionService(root, serverModels, fetcher);
+    const result = await service.run(canvasId, input);
+    expect(result.status).toBe('failed');
+    expect(result.server?.cut.credits).toBe(5);
+    expect(result.error).toContain('MODEL_OUTPUT_INVALID');
+    expect(result.result).toBeUndefined();
+    await service.run(canvasId, { ...input, recover: true });
+    expect(fetcher.mock.calls.filter((call) => call[1].method === 'POST')).toHaveLength(1);
+  });
+
+  test('billing recovery preserves key and replaces credits', async () => {
+    const { canvasId, input } = await setup();
+    const fetcher = jest
+      .fn()
+      .mockResolvedValueOnce(
+        reply('cut', {
+          status: 'failed',
+          output: null,
+          error: { code: 'MODEL_INFERENCE_BILLING_FAILED', message: '等待结算', retryable: true },
+        })
+      )
+      .mockResolvedValueOnce(reply('cut', { credits: 7 }))
+      .mockResolvedValueOnce(reply('text'));
+    const service = new CanvasRecognitionService(root, serverModels, fetcher);
+    expect((await service.run(canvasId, input)).status).toBe('unknown');
+    const result = await service.run(canvasId, { ...input, recover: true });
+    expect(result.result?.credits).toBe(12);
+    expect(fetcher.mock.calls[0][1].body).toBe(fetcher.mock.calls[1][1].body);
+    expect(fetcher.mock.calls[0][1].headers).toEqual(fetcher.mock.calls[1][1].headers);
+  });
+
+  test.each(['project', 'environment', 'expiry', 'image'])(
+    'refuses unsafe %s recovery',
+    async (change) => {
+      const { canvasId, input } = await setup();
+      const fetcher = jest.fn().mockRejectedValue(new Error('lost'));
+      const service = new CanvasRecognitionService(root, serverModels, fetcher);
+      const attempt = await service.run(canvasId, input);
+      if (change === 'project') saveProjectConfig(root, { project_id: randomUUID() });
+      if (change === 'environment')
+        jest.spyOn(config, 'getMakerEnvironment').mockReturnValue('production');
+      if (change === 'expiry') {
+        attempt.server!.cut.submittedAt = '2020-01-01T00:00:00.000Z';
+        fs.writeFileSync(
+          path.join(root, '.maker/canvases/recognition-attempts', input.id + '.json'),
+          JSON.stringify(attempt)
+        );
+      }
+      if (change === 'image')
+        fs.appendFileSync(new MakerCanvasFiles(root).readMedia(attempt.sourcePath).file, 'changed');
+      expect((await service.run(canvasId, { ...input, recover: true })).status).toBe('failed');
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  test('simple HTTP errors preserve diagnostics and never imply free usage', async () => {
+    const { canvasId, input } = await setup();
+    const fetcher = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ code: 'INVALID_REQUEST', error: '请求无效' }), {
+        status: 400,
+      })
+    );
+    const service = new CanvasRecognitionService(root, serverModels, fetcher);
+    const result = await service.run(canvasId, input);
+    expect(result.server?.cut.error).toEqual({
+      httpStatus: 400,
+      code: 'INVALID_REQUEST',
+      message: '请求无效',
+    });
+    expect(result.result).toBeUndefined();
+    expect(result.server?.cut.credits).toBeUndefined();
+    await service.refresh(canvasId, input.id);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  test('validates prompt and total pixels before any POST', async () => {
+    const { canvasId, input } = await setup();
+    const fetcher = jest.fn().mockRejectedValue(new Error('lost'));
+    const result = await new CanvasRecognitionService(root, serverModels, fetcher).run(
+      canvasId,
+      input
+    );
+    const step = result.server!.cut;
+    const files = new MakerCanvasFiles(root);
+    expect(() => serverRecognitionBody(files, { ...step, prompt: 'x'.repeat(10001) })).toThrow(
+      '10000'
+    );
+    jest.spyOn(files, 'imageInfo').mockReturnValue({ width: 8192, height: 8192 });
+    expect(() =>
+      serverRecognitionBody(files, { ...step, image: { ...step.image, width: 8192, height: 8192 } })
+    ).toThrow('像素');
+  });
+});
+
+test('invalid server Bbox preserves charged result without generating again', async () => {
+  const { canvasId, input } = await setup();
+  saveProjectConfig(root, { project_id: randomUUID() });
+  const credential = jest.spyOn(pat, 'requireMakerPat').mockReturnValue({ token: 'mock' });
+  const fetcher = jest.fn().mockImplementation(
+    async () =>
+      new Response(
+        JSON.stringify({
+          request_id: 'cut-request',
+          status: 'succeeded',
+          model: 'gpt-6.1-sol',
+          reasoning_effort: 'low',
+          output_format: 'json_object',
+          credits: 5,
+          output: {
+            pass: 'cut',
+            image: { width: 1, height: 1 },
+            elements: [{ ...element, bbox: [0, 0, 20, 20] }],
+          },
+        })
+      )
+  );
+  try {
+    const service = new CanvasRecognitionService(
+      root,
+      [{ ...models[0], source: 'server' }],
+      fetcher
+    );
+    const result = await service.run(canvasId, input);
+    expect(result.status).toBe('failed');
+    expect(result.server?.cut.credits).toBe(5);
+    expect(result.result).toBeUndefined();
+    await service.run(canvasId, { ...input, recover: true });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  } finally {
+    credential.mockRestore();
+  }
+});
