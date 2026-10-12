@@ -22,7 +22,8 @@ export interface CanvasTemplateStore {
     id: string,
     revision: number,
     nodeId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    itemIndex?: number
   ): Promise<Blob>;
   modelPreviewUrl?(id: string, revision: number): string;
   listTemplatePage(page: number, query: string): Promise<CanvasTemplatePage>;

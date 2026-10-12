@@ -248,20 +248,27 @@ export class MakerCanvasFiles {
     return JSON.parse(JSON.stringify({ ...template, builtin: true }));
   }
 
-  async readTemplatePreviewImage(id: string, revision: number, nodeId: string) {
+  async readTemplatePreviewImage(id: string, revision: number, nodeId: string, itemIndex?: number) {
     const template = this.getTemplate(id);
     if (template.revision !== revision) fail('模板已更新，请刷新列表。', 409, 'CONFLICT');
     const node = template.nodes.find((item) => item.id === nodeId);
-    if (!node?.assetPath || !['image', 'sequence', 'animation'].includes(node.type))
-      fail('模板没有此预览图片。', 404, 'NOT_FOUND');
+    const assetPath =
+      itemIndex === undefined
+        ? node && ['image', 'sequence', 'animation', 'model-views'].includes(node.type)
+          ? node.assetPath
+          : undefined
+        : node?.type === 'image-assets' && Number.isInteger(itemIndex) && itemIndex >= 0
+          ? node.imageAssetsInfo?.items[itemIndex]?.assetPath
+          : undefined;
+    if (!assetPath) fail('模板没有此预览图片。', 404, 'NOT_FOUND');
     if (template.builtin) {
-      const asset = canvasPresets().find((preset) => preset.id === id)!.assets[node.assetPath];
+      const asset = canvasPresets().find((preset) => preset.id === id)!.assets[assetPath];
       if (!asset) fail('模板没有此预览图片。', 404, 'NOT_FOUND');
       const resource = demoResourceInfo(asset.resourceId);
       const resourceId = resource.thumbnail || asset.resourceId;
       return { bytes: await readDemoResource(resourceId), type: demoResourceInfo(resourceId).type };
     }
-    const media = this.readMedia(node.assetPath);
+    const media = this.readMedia(assetPath);
     if (!media.type.startsWith('image/')) fail('只支持图片预览。', 400, 'INVALID_IMAGE');
     if (fs.statSync(media.file).size > 20 * 1024 * 1024)
       fail('图片超过 20 MiB。', 413, 'STORAGE_LIMIT');

@@ -322,3 +322,21 @@ test('revision-bound thumbnails are small, isolated, invalidate on replace and r
   fs.symlinkSync(external, cache);
   await expect(files.readTemplateCover(builtin.id, builtin.revision)).rejects.toThrow('链接');
 });
+
+test('asset preview reads only a selected PNG within its template and checks revision', async () => {
+  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000005');
+  const assets = template.nodes.find((node) => node.type === 'image-assets')!;
+  const image = await files.readTemplatePreviewImage(template.id, template.revision, assets.id, 0);
+  expect(PNG.sync.read(image.bytes).width).toBeGreaterThan(0);
+  for (const index of [-1, 0.5, 999]) {
+    await expect(
+      files.readTemplatePreviewImage(template.id, template.revision, assets.id, index)
+    ).rejects.toThrow('预览图片');
+  }
+  await expect(files.readTemplatePreviewImage(template.id, 999, assets.id, 0)).rejects.toThrow(
+    '更新'
+  );
+  await expect(
+    files.readTemplatePreviewImage(template.id, template.revision, template.nodes[0].id, 0)
+  ).rejects.toThrow('预览图片');
+});

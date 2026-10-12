@@ -1400,7 +1400,7 @@
   {
     "id": "7e1cb6ad-732f-4dc3-a951-000000000013",
     "name": "游戏UI制作",
-    "revision": 1,
+    "revision": 3,
     "nodes": [
       {
         "id": "dea229bb-9d79-4cbb-b38d-f12a6269a17e",
@@ -29472,22 +29472,9 @@
         "y": 520.7749816593457,
         "width": 340,
         "height": 300,
-        "title": "③ 美术字提取",
+        "title": "③ 美术字提取 · 示例含底板，待重提取",
         "referenceInput": {
           "includeSelf": false
-        },
-        "generationDraft": {
-          "operation": "variant",
-          "sourceImageId": "dea229bb-9d79-4cbb-b38d-f12a6269a17e",
-          "sourceImageIds": [
-            "dea229bb-9d79-4cbb-b38d-f12a6269a17e"
-          ],
-          "prompt": "从原UI设计稿提取主标题“机械师档案”（原稿1920x1080，Bbox [870,23,182,35]），保留原字形、金属高光、描边、阴影和字效。只提取这组标题美术字，不把人物名、按钮文字、数字、属性等普通文本画入图集。移除文字后方的标题底板、外框和全部其它UI，字内空隙使用与外部相同的纯洋红RGB(255,0,255)。输出一组完整文字，居中、保留比例、四周充分留白，不加编号和新装饰。",
-          "parameters": {
-            "model": "gpt",
-            "resolution": "2K",
-            "aspectRatio": "1:1"
-          }
         },
         "uiBaselineGrid": {
           "columns": 1,
@@ -29506,7 +29493,21 @@
             "nodeId": "dea229bb-9d79-4cbb-b38d-f12a6269a17e",
             "version": "image|assets/image/preset-game-ui-batch-000.png|manual-asset"
           }
-        ]
+        ],
+        "assetPath": "assets/image/preset-ui-lettering-example.png",
+        "generation": {
+          "operation": "variant",
+          "sourceImageId": "dea229bb-9d79-4cbb-b38d-f12a6269a17e",
+          "sourceImageIds": [
+            "dea229bb-9d79-4cbb-b38d-f12a6269a17e"
+          ],
+          "prompt": "从原UI设计稿提取主标题“机械师档案”（原稿1920x1080，Bbox [870,23,182,35]），保留原字形、金属高光、描边、阴影和字效。只提取这组标题美术字，不把人物名、按钮文字、数字、属性等普通文本画入图集。移除文字后方的标题底板、外框和全部其它UI，字内空隙使用与外部相同的纯洋红RGB(255,0,255)。输出一组完整文字，居中、保留比例、四周充分留白，不加编号和新装饰。",
+          "parameters": {
+            "model": "gpt",
+            "resolution": "2K",
+            "aspectRatio": "1:1"
+          }
+        }
       },
       {
         "id": "5c1678f2-f1b4-431a-be78-0e38589c879e",
@@ -29515,13 +29516,33 @@
         "y": 1000.7749816593456,
         "width": 340,
         "height": 300,
-        "title": "美术字"
+        "title": "美术字 · 示例含底板，待重提取",
+        "imageAssetsInfo": {
+          "width": 2048,
+          "height": 2048,
+          "grid": {
+            "columns": 1,
+            "rows": 1,
+            "marginX": 0,
+            "marginY": 0,
+            "gapX": 0,
+            "gapY": 0
+          },
+          "items": [
+            {
+              "name": "item_001",
+              "assetPath": "assets/image/preset-ui-lettering-example.png",
+              "width": 2048,
+              "height": 2048
+            }
+          ]
+        }
       },
       {
         "id": "a2178208-af5f-400f-abca-02afad546461",
         "type": "resource-bundle",
         "x": 890,
-        "y": 1000.7749816593456,
+        "y": 1420.7749816593455,
         "width": 920,
         "height": 420,
         "title": "UI 资源包"
@@ -29992,6 +30013,10 @@
       "assets/image/preset-game-ui-batch-080.png": {
         "type": "image/png",
         "resourceId": "f0ebd137a4cd90c0d7c94fa17969fe108f07d5ac276fc2deed49086bb4838974"
+      },
+      "assets/image/preset-ui-lettering-example.png": {
+        "type": "image/png",
+        "resourceId": "3a7958195626ea5c89188e476de6ccbe27c0ca60b95fcb30cfa9e3d15ad004e0"
       }
     }
   }

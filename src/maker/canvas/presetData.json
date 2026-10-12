@@ -323,7 +323,7 @@
   {
     "id": "7e1cb6ad-732f-4dc3-a951-000000000002",
     "name": "角色四方向",
-    "revision": 2,
+    "revision": 3,
     "nodes": [
       {
         "id": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00",
@@ -1422,7 +1422,8 @@
         "width": 280,
         "height": 300,
         "title": "02 正面 · 站姿参考（待确认）",
-        "generationDraft": {
+        "assetPath": "assets/image/preset-standing-front.png",
+        "generation": {
           "operation": "variant",
           "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00"
         }
@@ -1435,7 +1436,8 @@
         "width": 280,
         "height": 300,
         "title": "02 背面 · 站姿参考（待确认）",
-        "generationDraft": {
+        "assetPath": "assets/image/preset-standing-back.png",
+        "generation": {
           "operation": "variant",
           "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00"
         }
@@ -1448,7 +1450,8 @@
         "width": 280,
         "height": 300,
         "title": "02 左侧 · 站姿参考（待确认）",
-        "generationDraft": {
+        "assetPath": "assets/image/preset-standing-left.png",
+        "generation": {
           "operation": "variant",
           "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00"
         }
@@ -1461,7 +1464,8 @@
         "width": 280,
         "height": 300,
         "title": "02 右侧 · 站姿参考（待确认）",
-        "generationDraft": {
+        "assetPath": "assets/image/preset-standing-right.png",
+        "generation": {
           "operation": "variant",
           "sourceImageId": "c7b6d5e7-2cb4-4732-9809-6ec8654dfa00"
         }
@@ -1601,6 +1605,22 @@
       "assets/image/canvas-07726790-2ae9-415d-8d63-09500f0e76d3.png": {
         "type": "image/png",
         "resourceId": "9a47857f41c7a2f9005bbe9da5a94345fec1cdb97421edbce6289e6d8757edf9"
+      },
+      "assets/image/preset-standing-front.png": {
+        "type": "image/png",
+        "resourceId": "d9ea0efdf8bfd320313dd4319bbfd3c83ced43b0c7309ebf951669795d32ebb5"
+      },
+      "assets/image/preset-standing-back.png": {
+        "type": "image/png",
+        "resourceId": "4ace7fa78c2f1d19218c9fb633b753cebf3b694f35d60141dffb5155c3c97119"
+      },
+      "assets/image/preset-standing-left.png": {
+        "type": "image/png",
+        "resourceId": "3db500d72aae729ee155c0ea176f64096305888094f30e1080812f1234416608"
+      },
+      "assets/image/preset-standing-right.png": {
+        "type": "image/png",
+        "resourceId": "a0586f98a0b3e22d71fdbd375909f602f1e0a203907d0ba6018d545358e6e2f4"
       }
     }
   },

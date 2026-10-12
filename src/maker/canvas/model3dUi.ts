@@ -445,7 +445,20 @@ export function createCanvasModelUi(options: {
         gallery.append(link);
       }
       body.append(gallery);
-      if (!value?.previews.length) {
+      if (!value && node.assetPath) {
+        const example = document.createElement('a');
+        example.style.gridArea = '1 / 1 / -1 / -1';
+        example.href = options.store.mediaUrl(node.assetPath);
+        example.target = '_blank';
+        example.rel = 'noopener';
+        const image = document.createElement('img');
+        image.src = example.href;
+        image.alt = '模板多视图示例';
+        const caption = document.createElement('small');
+        caption.textContent = '模板示例 · 生成后替换，仍需确认多视图';
+        example.append(image, caption);
+        gallery.append(example);
+      } else if (!value?.previews.length) {
         const placeholder = document.createElement('span');
         placeholder.className = 'model-empty';
         placeholder.textContent = '多视图预览';
