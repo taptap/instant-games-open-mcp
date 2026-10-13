@@ -7,6 +7,8 @@ description: 'TapTap Maker 游戏 UI 设计稿拆解、按钮/图标/背景切�
 
 Maker 是流程入口；自由画布展示分析与切图，脚本按显式布局组装，控制台 UI 编辑器负责对照和调整。
 本 Skill 不新增 MCP tool，不执行游戏构建、提交或更换游戏加载入口。
+「游戏UI制作 · Bbox预排参考图（实验）」及包含 uiAtlasPrelayout 的副本使用独立
+`maker-ui-bbox-workflow` Skill，不按本 Skill 的普通模板拆图步骤执行。
 
 ## 从用户需要的阶段开始
 

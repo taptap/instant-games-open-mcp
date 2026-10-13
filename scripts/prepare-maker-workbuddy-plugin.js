@@ -31,6 +31,7 @@ const PLUGIN_SOURCE_URL =
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const SHARED_SKILLS = [
   'maker-ui-workflow',
+  'maker-ui-bbox-workflow',
   'lua-ui-to-json',
   'taptap-maker-local',
   'taptap-maker-dev-kit-guide',

@@ -178,7 +178,7 @@ export function uiBatchAtlasPlan(bbox: UiBboxDocument, group: UiAtlasGroup): UiA
   return uiBatchAtlasPlans(bbox, group)[0];
 }
 
-export function uiBatchAtlasPrompt(group: UiAtlasGroup): string {
+export function uiBatchAtlasPrompt(group: UiAtlasGroup, prelayout = false): string {
   const lines =
     group === 'background'
       ? [
@@ -199,7 +199,10 @@ export function uiBatchAtlasPrompt(group: UiAtlasGroup): string {
           '外部背景使用纯绿色 RGB(0,255,0)。',
           group === 'panels'
             ? '只提取空面板底板。不要画角色、图标或道具，不要重绘整张界面，不要跨格。'
-            : '不要按参考图的界面位置摆放，不要重绘整张界面，不要跨格，不要添加清单之外的装饰、编号或网格线。清单指定的装饰本身应完整提取。底板不要带图标、人物或物品。',
+            : (prelayout
+                ? '保持预排参考图中各素材的格位和中心。'
+                : '不要按参考图的界面位置摆放，') +
+              '不要重绘整张界面，不要跨格，不要添加清单之外的装饰、编号或网格线。清单指定的装饰本身应完整提取。底板不要带图标、人物或物品。',
         ];
   return lines.join('\n');
 }
@@ -245,6 +248,7 @@ export function uiWorkflowAtlasPlans(
     .filter(
       (item) =>
         item.type === 'image' &&
+        !item.uiAtlasPrelayout &&
         item.sectionId === node.sectionId &&
         item.uiAtlasGroup === node.uiAtlasGroup &&
         (!item.templatePending || Boolean(item.generation?.attemptId)) &&
@@ -317,10 +321,17 @@ export function selectedUiAtlasPlan(
   });
 }
 
-export function uiAtlasOrderPrompt(plan: UiAtlasPlan, outputAspect = 1): string {
+export function uiAtlasOrderPrompt(plan: UiAtlasPlan, outputAspect = 1, prelayout = false): string {
   const bbox = plan.bbox;
   return [
     'UI 槽位绑定：',
+    ...(prelayout
+      ? [
+          '参考图已经按 Bbox 裁片并预排到输出格位。直接逐格编辑，不要重新查找原界面位置或重新排列。',
+          '保留：每格指定主体的中心、比例、轮廓、颜色和细节。裁片仍包含原图背景和遮挡物，不是已完成的切图。',
+          '移除：按下列逐格要求清理非主体内容，并补齐被遮挡的主体。输出保持同样网格和纯色底，不画编号、分割线。',
+        ]
+      : []),
     '按下面的行列放入等分格子。一格一个，中心对齐，不跨格。',
     '输出区域以整张输出图左上角为原点，用宽高百分比表示；这是输出位置，和后面的参考图像素框分开使用。每格可用区域之外全部保留纯底色，不能合并格子或让长条贯穿整行。',
     '清单已合并重复素材：每格只画代表实例一次，不按它在原稿中的出现次数复制。名称只用于定位，框内主体才是提取对象；星星所在装备、图标所在底框不属于该主体。',
@@ -328,7 +339,9 @@ export function uiAtlasOrderPrompt(plan: UiAtlasPlan, outputAspect = 1): string 
       plan.grid.columns +
       ' 列 × ' +
       plan.grid.rows +
-      ' 行，不超过 5×5。坐标只用来辨认参考图上的素材，不是输出位置。',
+      (prelayout
+        ? ' 行，不超过 5×5。参考图与输出的格位一一对应。'
+        : ' 行，不超过 5×5。坐标只用来辨认参考图上的素材，不是输出位置。'),
     ...plan.slots.map((slot, index) => {
       const column = index % plan.grid.columns;
       const row = Math.floor(index / plan.grid.columns);
@@ -371,9 +384,7 @@ export function uiAtlasOrderPrompt(plan: UiAtlasPlan, outputAspect = 1): string 
           ? element.id +
             ' ' +
             element.name +
-            ' [' +
-            rect!.join(',') +
-            '] ' +
+            (prelayout ? '（参考图同一格） ' : ' [' + rect!.join(',') + '] ') +
             slot.state +
             '；主体目标宽 ' +
             (fitWidth * 100).toFixed(2) +
@@ -406,6 +417,7 @@ export function ensureUiAtlasBatchCards(document: CanvasDocument, groupId?: stri
   for (const seed of [...document.nodes]) {
     if (
       seed.type !== 'image' ||
+      seed.uiAtlasPrelayout ||
       !seed.uiAtlasGroup ||
       (seed.uiAtlasBatch ?? 0) !== 0 ||
       (groupId && seed.sectionId !== groupId)
@@ -424,6 +436,7 @@ export function ensureUiAtlasBatchCards(document: CanvasDocument, groupId?: stri
         document.nodes.some(
           (node) =>
             node.sectionId === seed.sectionId &&
+            !node.uiAtlasPrelayout &&
             node.uiAtlasGroup === seed.uiAtlasGroup &&
             uiRecognitionSource(document, node)?.id === sourceId &&
             (node.uiAtlasBatch ?? 0) === batch
@@ -437,7 +450,11 @@ export function ensureUiAtlasBatchCards(document: CanvasDocument, groupId?: stri
   return changed;
 }
 
-export function cloneUiAtlasBatch(document: CanvasDocument, seed: CanvasNode, batch: number) {
+export function cloneUiAtlasBatch(
+  document: CanvasDocument,
+  seed: CanvasNode,
+  batch: number
+): CanvasNode {
   const imageId = crypto.randomUUID();
   const offset = batch * (seed.width + 48);
   const image: CanvasNode = {
@@ -461,14 +478,34 @@ export function cloneUiAtlasBatch(document: CanvasDocument, seed: CanvasNode, ba
   delete image.imageInfo;
   delete image.sourceSnapshot;
   delete image.uiAtlasPlan;
+  if (seed.uiAtlasPrelayout) {
+    // Keep a preview so existing reference edges remain valid; templatePending blocks reuse.
+    image.assetPath = seed.assetPath;
+    image.imageInfo = seed.imageInfo ? { ...seed.imageInfo } : undefined;
+    image.referenceInput = { includeSelf: false };
+    if (image.assetPath) {
+      image.generation = { ...image.generationDraft!, prompt: image.generationDraft!.prompt || '' };
+      delete image.generationDraft;
+    }
+  }
   document.nodes.push(image);
-  for (const edge of document.edges.filter((item) => item.to === seed.id))
-    document.edges.push({ ...structuredClone(edge), id: crypto.randomUUID(), to: imageId });
+  for (const edge of document.edges.filter((item) => item.to === seed.id)) {
+    const source = document.nodes.find((node) => node.id === edge.from);
+    const from =
+      source?.uiAtlasPrelayout && !seed.uiAtlasPrelayout
+        ? cloneUiAtlasBatch(document, source, batch).id
+        : edge.from;
+    document.edges.push({ ...structuredClone(edge), id: crypto.randomUUID(), from, to: imageId });
+    if (source?.uiAtlasPrelayout && !seed.uiAtlasPrelayout) {
+      image.generationDraft!.sourceImageId = from;
+      image.generationDraft!.sourceImageIds = [from];
+    }
+  }
   const assetsEdge = document.edges.find(
     (edge) => edge.kind === 'image-assets' && edge.from === seed.id
   );
   const assets = assetsEdge && document.nodes.find((node) => node.id === assetsEdge.to);
-  if (!assets) return;
+  if (!assets) return image;
   const assetsId = crypto.randomUUID();
   const copy: CanvasNode = {
     ...structuredClone(assets),
@@ -493,6 +530,7 @@ export function cloneUiAtlasBatch(document: CanvasDocument, seed: CanvasNode, ba
       document.nodes.some((node) => node.id === item.to && node.type === 'resource-bundle')
   ))
     document.edges.push({ ...structuredClone(edge), id: crypto.randomUUID(), from: assetsId });
+  return image;
 }
 
 export function uiBindingContentRect(

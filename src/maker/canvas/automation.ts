@@ -79,6 +79,7 @@ export function canvasAutomationCapabilities() {
       'mergeIcons',
       'uiRecognition',
       'uiAtlasPlan',
+      'uiAtlasPrelayout',
     ],
     modelWorkflow: {
       quality: ['fast', 'balanced', 'high_quality'],
@@ -104,10 +105,11 @@ export function canvasAutomationCapabilities() {
     },
     uiWorkflow: {
       skill: 'maker-ui-workflow',
+      prelayoutSkill: 'maker-ui-bbox-workflow',
       imageSizing:
         'imageInfo reports actual image pixels and ratio, not card geometry. originalImage traces the unique original through existing references. Use parameters.aspectRatio=source for full-screen processing, or a supported fixed ratio for atlases. Uncommon input ratios carry warnings; unsupported source ratios stop before billing. Generation history separates referenceImages, originalImage, parameters.targetSize, resultImageInfo and submittedPrompt. Never infer actual dimensions from requested size.',
       recognition:
-        'The default source is the local AI client: read the images with the client vision capability and submit uiRecognition.result via update-nodes. The browser cannot invoke the client model. Custom API calls require explicit configuration and paid authorization. When vision.source=chatgpt-web, follow maker-ui-workflow with the host Agent browser, reuse its session and current model/effort, and submit validated Bbox via update-nodes. No executor installation. Login is optional: if logged out, explain that model selection is unavailable and recognition quality/Bbox accuracy may vary, then offer continue without login or login first. Honor the choice without repeated prompts. Never bypass an actual login/captcha/upload restriction. Prepare prompts with canvas recognition-input; validate both replies with canvas recognition-result. Images are uploaded to ChatGPT and subject to website quota. CLI run enables recognition for text-free cards; input.recognition=false disables it. Two-pass API recognition requires a text-free image linked from the original design: detect UI elements first, then original text. Export version=1 Bbox JSON with coordinateSpace=design-pixels, bboxFormat=xywh, design/cutSource identities, elements and texts. Sources never switch automatically; unknown requests must be queried, never replayed.',
+        'The default source is the local AI client: read the images with the client vision capability and submit uiRecognition.result via update-nodes. The browser cannot invoke the client model. Custom API calls require explicit configuration and paid authorization. When vision.source=chatgpt-web, follow the current section.templateSkills with the host Agent browser, reuse its session and current model/effort, and submit validated Bbox via update-nodes. No executor installation. Login is optional: if logged out, explain that model selection is unavailable and recognition quality/Bbox accuracy may vary, then offer continue without login or login first. Honor the choice without repeated prompts. Never bypass an actual login/captcha/upload restriction. Prepare prompts with canvas recognition-input; validate both replies with canvas recognition-result. Images are uploaded to ChatGPT and subject to website quota. CLI run enables recognition for text-free cards; input.recognition=false disables it. Two-pass API recognition requires a text-free image linked from the original design: detect UI elements first, then original text. Export version=1 Bbox JSON with coordinateSpace=design-pixels, bboxFormat=xywh, design/cutSource identities, elements and texts. Sources never switch automatically; unknown requests must be queried, never replayed.',
       steps:
         'design/layout -> reviewed PNG assets -> import into project -> generate_resource_meta -> assemble-ui.mjs -> console UI editor comparison',
       completion:
@@ -302,6 +304,11 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
         if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max)
           throw new Error('卡片' + key + '必须为 ' + min + '～' + max + '。');
         next[key] = value;
+      } else if (key === 'uiAtlasPrelayout') {
+        if (node.type !== 'image' || typeof value !== 'boolean')
+          throw new Error('Bbox 预排开关只能配置在图片卡上。');
+        next.uiAtlasPrelayout = value;
+        contentChanged = next.uiAtlasPrelayout !== node.uiAtlasPrelayout || contentChanged;
       } else if (key === 'uiAtlasPlan') {
         if (node.type !== 'image') throw new Error('UI 槽位清单只能配置在图片卡上。');
         next.uiAtlasPlan = validateUiAtlasPlan(value);

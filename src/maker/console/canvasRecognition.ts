@@ -428,7 +428,7 @@ export class CanvasRecognitionService {
     const source = model.source || 'custom';
     if (source === 'chatgpt-web')
       throw new ConsoleError(
-        '当前使用 ChatGPT 网页识图，请让当前 AI 按 maker-ui-workflow 使用已有浏览器完成识图并回填。无需安装执行器；登录可选，未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。',
+        '当前使用 ChatGPT 网页识图，请让当前 AI 按当前模板关联的 Skill 使用已有浏览器完成识图并回填。无需安装执行器；登录可选，未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。',
         503
       );
     if (source === 'local')

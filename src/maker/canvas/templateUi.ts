@@ -338,7 +338,7 @@ export function createCanvasTemplateUi(options: {
       const heading = document.createElement('div');
       heading.className = 'template-card-heading';
       const name = document.createElement('strong');
-      name.textContent = summary.builtin ? summary.name.split(' · ')[0] : summary.name;
+      name.textContent = summary.name;
       name.title = summary.name;
       heading.append(name);
       const description = document.createElement('small');

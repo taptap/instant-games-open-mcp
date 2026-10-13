@@ -29,6 +29,7 @@ checkDemoResources(projectRoot, { requireCdn: true });
 
 const REQUIRED_SKILLS = [
   'maker-ui-workflow',
+  'maker-ui-bbox-workflow',
   'lua-ui-to-json',
   'taptap-maker-local',
   'taptap-maker-dev-kit-guide',
@@ -119,6 +120,7 @@ function createPackageJson(version) {
       'bin/taptap-maker',
       'dist/maker.js',
       'skills/maker-ui-workflow/',
+      'skills/maker-ui-bbox-workflow/',
       'skills/lua-ui-to-json/',
       'skills/taptap-maker-local/',
       'skills/taptap-maker-dev-kit-guide/',

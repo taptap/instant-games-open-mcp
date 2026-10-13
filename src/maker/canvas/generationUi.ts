@@ -803,13 +803,15 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           (node: CanvasNode) => node.id === targetNode.sectionId && node.templateId
         );
       if (!templateTarget)
-        resultNode.title = resultNode.mergeIcons
-          ? '二合图标 · 已保存结果'
-          : attempt.operation === 'variant'
-            ? '图片变体 · 已保存结果'
-            : attempt.operation === 'outpaint'
-              ? '扩展画面 · 已保存结果'
-              : '生图结果';
+        resultNode.title = resultNode.uiAtlasPrelayout
+          ? 'Bbox 预排参考图'
+          : resultNode.mergeIcons
+            ? '二合图标 · 已保存结果'
+            : attempt.operation === 'variant'
+              ? '图片变体 · 已保存结果'
+              : attempt.operation === 'outpaint'
+                ? '扩展画面 · 已保存结果'
+                : '生图结果';
       resultNode.assetPath = attempt.resultAssetPath;
       resultNode.imageInfo = attempt.resultImageInfo;
       if (resultNode.referenceInput)
@@ -1009,7 +1011,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     let selectedOperation = node.mergeIcons
       ? 'generate'
       : node.generationDraft?.operation || operation;
-    const refreshUpstream = Boolean(settings.templateRun && settings.refreshSource);
+    const refreshUpstream = Boolean(
+      node.uiAtlasPrelayout || (settings.templateRun && settings.refreshSource)
+    );
     const sourceImageId = node.referenceInput
       ? referenceSources(node)[0]?.id
       : node.assetPath && !refreshUpstream
@@ -1027,13 +1031,14 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       options.setError(decision.message);
       return;
     }
-    const targetId = node.mergeIcons
-      ? node.id
-      : decision?.kind === 'reuse'
-        ? decision.nodeId
-        : !node.assetPath
-          ? node.id
-          : undefined;
+    const targetId =
+      node.mergeIcons || node.uiAtlasPrelayout
+        ? node.id
+        : decision?.kind === 'reuse'
+          ? decision.nodeId
+          : !node.assetPath
+            ? node.id
+            : undefined;
     const sourceNodes = (
       node.referenceInput
         ? referenceSources(node)
@@ -1111,15 +1116,17 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         prompt = extraction.prompt + (correction ? String.fromCharCode(10) + correction : '');
       } else if (node.uiExtraction && node.uiBaselinePrompt) prompt = node.uiBaselinePrompt;
       const atlasPlan = selectedUiAtlasPlan(documentState, node);
+      const usesPrelayout =
+        !node.uiAtlasPrelayout && sourceNodes.some((source) => source.uiAtlasPrelayout);
       if (node.uiAtlasGroup && atlasPlan) {
         node.uiBaselinePrompt ??= prompt;
-        prompt = uiBatchAtlasPrompt(node.uiAtlasGroup);
+        prompt = uiBatchAtlasPrompt(node.uiAtlasGroup, usesPrelayout);
       } else if (node.uiAtlasGroup && node.uiBaselinePrompt) prompt = node.uiBaselinePrompt;
       if (atlasPlan)
         prompt =
           prompt.split('UI 槽位绑定：')[0].trim() +
           '\n' +
-          uiAtlasOrderPrompt(atlasPlan, outputSize.width / outputSize.height);
+          uiAtlasOrderPrompt(atlasPlan, outputSize.width / outputSize.height, usesPrelayout);
       if (targetId && isUiCutoutSource(documentState, targetId)) {
         cutoutColor = await detectUiCutoutColor(
           [...sourceNodes.map((source) => source.assetPath), ...referencePaths(node)],
@@ -1846,6 +1853,29 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     workflow?: CanvasWorkflowEdit
   ): void {
     if (node.type !== 'image' && node.type !== 'video' && node.type !== 'video-source') return;
+    if (node.uiAtlasPrelayout) {
+      const panel = document.createElement('div');
+      panel.className = 'generation-panel';
+      const hint = document.createElement('small');
+      hint.textContent = '按当前 Bbox 裁片并排列到规则网格。本地处理，不调用 AI、不消耗积分。';
+      panel.append(
+        hint,
+        button(
+          '执行预排',
+          async () => {
+            try {
+              await runTemplateImage(node.id);
+            } catch (error) {
+              options.setError((error as Error).message);
+            }
+          },
+          { disabled: inFlight.has(node.id) || Boolean(workflow && !workflow.canSubmit) }
+        )
+      );
+      renderAttemptStatus(panel, node);
+      card.append(panel);
+      return;
+    }
     const stale = isCanvasNodeStale(node, canvasReferences(options.getDocument(), node.id));
     const panel = document.createElement('div');
     panel.className = 'generation-panel';

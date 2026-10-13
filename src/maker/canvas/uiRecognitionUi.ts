@@ -74,7 +74,7 @@ export function createUiRecognitionUi(options: {
   openCanvas(id: string): Promise<void>;
 }) {
   const webRecognitionHint =
-    '请让当前 AI 按 maker-ui-workflow 使用已有浏览器完成 ChatGPT 网页识图并回填。无需安装执行器。登录可选：未登录时可选择直接识图，或登录后识图；未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。已登录则沿用当前模型和思考程度。';
+    '请让当前 AI 按当前模板关联的 Skill 使用已有浏览器完成 ChatGPT 网页识图并回填。无需安装执行器。登录可选：未登录时可选择直接识图，或登录后识图；未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。已登录则沿用当前模型和思考程度。';
   let busy = false;
   let preparing = false;
   async function sourceBlob(path: string) {
@@ -296,6 +296,7 @@ export function createUiRecognitionUi(options: {
     const current = options.current();
     const node = current?.nodes.find((item) => item.id === id);
     if (!current || !node) return false;
+    if (node.uiAtlasPrelayout) return fallback();
     if (node.uiRecognition?.enabled && node.uiRecognition.inputRole !== 'design') {
       if (node.templatePending || !node.assetPath) {
         const generated = await fallback();

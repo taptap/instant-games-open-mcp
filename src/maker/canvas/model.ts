@@ -118,6 +118,8 @@ export interface CanvasNode {
   uiBaselinePrompt?: string;
   uiBaselineGrid?: ImageAtlasGrid;
   uiAtlasGroup?: UiAtlasGroup;
+  /** Local Bbox crop/layout step; its output is a visible reference for downstream generation. */
+  uiAtlasPrelayout?: boolean;
   /** Zero-based sheet index when a group is split into 5×5 atlases. */
   uiAtlasBatch?: number;
   uiAtlasPlan?: UiAtlasPlan;

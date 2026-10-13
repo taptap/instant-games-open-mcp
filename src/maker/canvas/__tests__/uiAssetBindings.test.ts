@@ -14,6 +14,30 @@ import { imageAssetsBindingPlan } from '../imageAssets.js';
 import { uiBundleManifest } from '../resourceBundle.js';
 import { snapshotCanvasSource, isCanvasNodeStale } from '../dependencies.js';
 import { createCanvasTemplateModel } from '../templates.js';
+import { isGameUiResource } from '../uiWorkflowHandoff.js';
+
+test('personal UI atlas resources retain cutout semantics without an official template id', () => {
+  const { document, atlas } = fixture();
+  atlas.uiAtlasGroup = 'icons';
+  atlas.generation = { prompt: 'test', uiAtlasPlan: selectedUiAtlasPlan(document, atlas) };
+  const assets: CanvasNode = {
+    id: createId(),
+    type: 'image-assets',
+    title: 'resources',
+    x: 0,
+    y: 0,
+    width: 200,
+    height: 200,
+  };
+  document.nodes.push(assets);
+  document.edges.push({ id: createId(), from: atlas.id, to: assets.id, kind: 'image-assets' });
+  expect(isGameUiResource(document, assets)).toBe(true);
+  atlas.uiAtlasPrelayout = true;
+  expect(isGameUiResource(document, assets)).toBe(false);
+  delete atlas.uiAtlasPrelayout;
+  delete atlas.uiAtlasGroup;
+  expect(isGameUiResource(document, assets)).toBe(false);
+});
 
 function fixture() {
   const bbox = bboxFixture();

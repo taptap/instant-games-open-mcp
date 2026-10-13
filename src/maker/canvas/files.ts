@@ -1141,10 +1141,14 @@ export class MakerCanvasFiles {
     if (!value || typeof value !== 'object') fail('节点无效。', 400, 'INVALID_DOCUMENT');
     const node = value as Record<string, unknown>;
     if (
-      (node.uiAtlasPlan !== undefined || node.uiAtlasGroup !== undefined) &&
+      (node.uiAtlasPlan !== undefined ||
+        node.uiAtlasGroup !== undefined ||
+        node.uiAtlasPrelayout !== undefined) &&
       node.type !== 'image'
     )
       fail('只有图片卡可以配置 UI 槽位清单。', 400, 'INVALID_DOCUMENT');
+    if (node.uiAtlasPrelayout !== undefined && typeof node.uiAtlasPrelayout !== 'boolean')
+      fail('Bbox 预排开关无效。', 400, 'INVALID_DOCUMENT');
     if (typeof node.id !== 'string' || !ID.test(node.id))
       fail('节点标识无效。', 400, 'INVALID_DOCUMENT');
     if (
@@ -1557,6 +1561,9 @@ export class MakerCanvasFiles {
       ...(node.uiAtlasGroup === undefined
         ? {}
         : { uiAtlasGroup: validateUiAtlasGroup(node.uiAtlasGroup) }),
+      ...(node.uiAtlasPrelayout === undefined
+        ? {}
+        : { uiAtlasPrelayout: node.uiAtlasPrelayout as boolean }),
       ...(node.uiAtlasBatch === undefined
         ? {}
         : { uiAtlasBatch: Math.floor(node.uiAtlasBatch as number) }),

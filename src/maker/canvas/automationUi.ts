@@ -202,6 +202,7 @@ export function createCanvasAutomationUi(options: {
       if (
         command.action !== 'query' &&
         command.allowPaid !== true &&
+        !(target.type === 'image' && target.uiAtlasPrelayout) &&
         (target.type === 'section' ||
           ['image', 'video', 'video-source', 'model', 'model-views'].includes(target.type))
       )
@@ -210,7 +211,17 @@ export function createCanvasAutomationUi(options: {
       options.busyChanged(true);
       try {
         if (command.action === 'run') {
-          const source = target.type === 'image' ? uiRecognitionSource(current, target) : undefined;
+          const prelayoutRecognition =
+            target.uiAtlasPrelayout && uiRecognitionSource(current, target);
+          if (
+            target.uiAtlasPrelayout &&
+            (!prelayoutRecognition || !selectedUiRecognition(prelayoutRecognition))
+          )
+            throw new Error('请先完成当前去文字图的识图，再执行本地预排。');
+          const source =
+            target.type === 'image' && !target.uiAtlasPrelayout
+              ? uiRecognitionSource(current, target)
+              : undefined;
           const sources =
             target.type === 'section'
               ? current.nodes.filter(
@@ -251,7 +262,7 @@ export function createCanvasAutomationUi(options: {
                     item.id +
                     '）：' +
                     item.assetPath +
-                    '。请按当前识图设置完成两轮识图：本地或 ChatGPT 网页由 AI 按 maker-ui-workflow 校验回填，自定义 API 查询原请求；保存后继续，不关闭识图跳过。'
+                    '。请按当前识图设置完成两轮识图：本地或 ChatGPT 网页由 AI 按当前分组 templateSkills 关联的 Skill 校验回填，自定义 API 查询原请求；保存后继续，不关闭识图跳过。'
                 );
             }
         }

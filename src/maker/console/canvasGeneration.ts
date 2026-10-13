@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { assertUiAtlasSources, prepareUiAtlasReference } from './uiAtlasPrelayout.js';
 import { generationProvider } from './visionSettings.js';
 import { generateCustomImage, ImageApiResponseError, readImageResponse } from './customImageApi.js';
 import {
@@ -27,7 +28,11 @@ import {
 } from '../server/proxyAssets.js';
 import type { MakerRemoteProxyManager } from '../server/remoteProxyManager.js';
 import { MakerCanvasFiles } from '../canvas/files.js';
-import { snapshotCanvasSource, type CanvasSourceSnapshot } from '../canvas/dependencies.js';
+import {
+  snapshotCanvasSource,
+  isCanvasNodeStale,
+  type CanvasSourceSnapshot,
+} from '../canvas/dependencies.js';
 import { ConsoleError } from './types.js';
 import { videoTaskTiming } from '../canvas/videoTaskTiming.js';
 import {
@@ -50,14 +55,14 @@ export type CanvasGenerationStatus =
   | 'canceled';
 
 export interface CanvasGenerationAttempt {
-  provider?: 'maker' | 'custom';
+  provider?: 'maker' | 'custom' | 'local';
   apiProfileId?: string;
   apiModel?: string;
   uiAtlasPlan?: UiAtlasPlan;
   id: string;
   canvasId: string;
   kind: CanvasGenerationKind;
-  toolName: 'generate_image' | 'create_video_task';
+  toolName: 'generate_image' | 'create_video_task' | 'prepare_ui_atlas';
   status: CanvasGenerationStatus;
   prompt: string;
   cutoutColor?: '#FF00FF' | '#00FF00';
@@ -183,17 +188,22 @@ export class CanvasGenerationService {
     targetNodeId?: string;
   }): Promise<CanvasGenerationAttempt> {
     const provider = generationProvider();
-    if (provider.source === 'local')
-      throw new ConsoleError(
-        '当前使用本地模型（仅限 CLI 调用）。请让 Codex 等客户端读取 canvas model-settings，使用自身生图能力生成并通过 canvas import 导入图片；本次未提交生图，不会改用 Maker MCP。'
-      );
-    if (provider.source === 'custom' && !provider.profile)
-      throw new ConsoleError('请在设置中选择已保存的生图 API。');
+    if (provider.source === 'local' && !options.targetNodeId)
+      throw new ConsoleError('当前使用本地模型（仅限 CLI 调用），画布不能直接提交生图。');
     const files = new MakerCanvasFiles(this.projectRoot);
     if (options.cutoutColor !== undefined && !['#FF00FF', '#00FF00'].includes(options.cutoutColor))
       throw new Error('抠图底色无效。');
     await files.assertWritableForGeneration();
     const document = await files.load(options.canvasId);
+    const localPrelayout = document.nodes.some(
+      (node) => node.id === options.targetNodeId && node.uiAtlasPrelayout
+    );
+    if (!localPrelayout && provider.source === 'local')
+      throw new ConsoleError(
+        '当前使用本地模型（仅限 CLI 调用）。请让 Codex 等客户端读取 canvas model-settings，使用自身生图能力生成并通过 canvas import 导入图片；本次未提交生图，不会改用 Maker MCP。'
+      );
+    if (!localPrelayout && provider.source === 'custom' && !provider.profile)
+      throw new ConsoleError('请在设置中选择已保存的生图 API。');
     const sourceImagePaths = options.sourceImagePaths?.length
       ? options.sourceImagePaths
       : options.sourceImagePath
@@ -246,6 +256,25 @@ export class CanvasGenerationService {
     }
     const target = document.nodes.find((node) => node.id === options.targetNodeId);
     const uiAtlasPlan = target && selectedUiAtlasPlan(document, target);
+    const prelayoutSource = sourceImageIds
+      .map((id) => document.nodes.find((node) => node.id === id))
+      .find((node) => node?.uiAtlasPrelayout);
+    const usesPrelayout = Boolean(prelayoutSource && !localPrelayout);
+    if (
+      usesPrelayout &&
+      (!prelayoutSource ||
+        sourceImageIds.length !== 1 ||
+        referenceImagePaths.length ||
+        prelayoutSource.templatePending ||
+        JSON.stringify(prelayoutSource.generation?.uiAtlasPlan) !== JSON.stringify(uiAtlasPlan) ||
+        isCanvasNodeStale(
+          prelayoutSource,
+          document.edges
+            .filter((edge) => edge.to === prelayoutSource.id)
+            .map((edge) => document.nodes.find((node) => node.id === edge.from)!)
+        ))
+    )
+      throw new Error('预排参考图已过期或槽位不匹配，请先重新执行预排。');
     const recognitionSource = target && uiRecognitionSource(document, target);
     const recognition =
       recognitionSource && recognitionSource.id !== target?.id
@@ -265,10 +294,6 @@ export class CanvasGenerationService {
       originalPath && originalInfo
         ? { assetPath: originalPath, nodeId: originalNode?.id, ...originalInfo }
         : undefined;
-    const references = remoteReferences.flatMap((assetPath) => {
-      const info = files.imageInfo(assetPath);
-      return info ? [{ assetPath, ...info }] : [];
-    });
     const requestedPixels = options.targetSize?.split('x').map(Number);
     const requestedRatio =
       options.aspectRatio ||
@@ -283,13 +308,45 @@ export class CanvasGenerationService {
     const targetSize =
       options.aspectRatio === 'source' ? size.targetSize : options.targetSize || size.targetSize;
     const [targetWidth, targetHeight] = targetSize.split('x').map(Number);
+    if (usesPrelayout) {
+      assertUiAtlasSources(files, uiAtlasPlan!);
+      const preparedInfo = prelayoutSource?.assetPath && files.imageInfo(prelayoutSource.assetPath);
+      if (
+        !preparedInfo ||
+        Math.abs(preparedInfo.width / preparedInfo.height / (targetWidth / targetHeight) - 1) > 0.01
+      )
+        throw new Error('输出比例与预排图不一致，请使用相同比例或重新预排；尚未提交生图。');
+    }
     if (imageResultWarning({ width: targetWidth, height: targetHeight }, size.targetSize))
       throw new Error('目标尺寸与输出比例冲突，请检查生成参数；尚未提交生图。');
     if (
       uiAtlasPlan &&
-      !options.prompt.includes(uiAtlasOrderPrompt(uiAtlasPlan, size.width / size.height))
+      !options.prompt.includes(
+        uiAtlasOrderPrompt(uiAtlasPlan, size.width / size.height, usesPrelayout)
+      )
     )
       throw new Error('UI 槽位清单或提示词已变化，请重新确认后生成。');
+    let preparedPath: string | undefined;
+    if (localPrelayout) {
+      if (!uiAtlasPlan) throw new Error('Bbox 预排需要当前识图清单，请先完成识图；尚未提交生图。');
+      if (
+        operation === 'outpaint' ||
+        remoteReferences.length !== 1 ||
+        remoteReferences[0] !== uiAtlasPlan.bbox.cutSource.path
+      )
+        throw new Error('Bbox 预排必须仅引用当前去文字图，不能混入其它参考图或扩图。');
+      preparedPath = await prepareUiAtlasReference(
+        files,
+        uiAtlasPlan,
+        targetWidth,
+        targetHeight,
+        options.cutoutColor || '#00FF00'
+      );
+    }
+    const references = remoteReferences.flatMap((assetPath) => {
+      const info = files.imageInfo(assetPath);
+      return info ? [{ assetPath, ...info }] : [];
+    });
     const warnings = [
       ...new Set(
         [...references, ...(originalImage ? [originalImage] : [])].flatMap(
@@ -313,7 +370,7 @@ export class CanvasGenerationService {
       ...(originalImage
         ? ['原设计稿实际尺寸：' + originalImage.width + '×' + originalImage.height + '。']
         : []),
-      ...(recognition
+      ...(recognition && !usesPrelayout
         ? [
             '元素清单坐标基准为去文字识别输入图：' +
               recognition.width +
@@ -336,7 +393,7 @@ export class CanvasGenerationService {
     const attempt = this.createAttempt({
       canvasId: options.canvasId,
       kind: 'image',
-      toolName: 'generate_image',
+      toolName: localPrelayout ? 'prepare_ui_atlas' : 'generate_image',
       prompt: options.prompt,
       uiAtlasPlan,
       cutoutColor: options.cutoutColor,
@@ -363,8 +420,8 @@ export class CanvasGenerationService {
       targetSize,
       aspectRatio: requestedRatio,
     };
-    attempt.provider = provider.source;
-    if (provider.source === 'custom') {
+    attempt.provider = localPrelayout ? 'local' : provider.source;
+    if (!localPrelayout && provider.source === 'custom') {
       attempt.apiProfileId = provider.profile!.id;
       attempt.apiModel = provider.profile!.model;
     }
@@ -372,6 +429,12 @@ export class CanvasGenerationService {
     attempt.originalImage = originalImage;
     attempt.warnings = warnings;
     attempt.submittedPrompt = options.prompt + '\n' + sizingPrompt;
+    if (preparedPath) {
+      attempt.deliveredAssetPath = preparedPath;
+      attempt.resultAssetPath = preparedPath;
+      this.finishImageDelivery(attempt, files);
+      return attempt;
+    }
     this.writeAttempt(attempt);
     try {
       if (provider.source === 'custom') {
