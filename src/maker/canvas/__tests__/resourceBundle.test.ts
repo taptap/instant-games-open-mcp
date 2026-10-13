@@ -116,6 +116,21 @@ test('terminal rejects lost category references and missing results', () => {
   document.nodes = document.nodes.filter((node) => node !== assets[0]);
   expect(() => validateResourceBundle(document, bundle.id)).toThrow('来源已丢失');
 });
+
+test('completed empty categories are skipped but stale empty branches still block export', async () => {
+  const { document, section, assets } = fixture();
+  const bundle = addResourceBundle(document, section.id);
+  assets[0].uiEmpty = true;
+  delete assets[0].imageAssetsInfo;
+  expect(validateResourceBundle(document, bundle.id)).toEqual([assets[1]]);
+  const bytes = PNG.sync.write(new PNG({ width: 2, height: 2 }));
+  globalThis.fetch = jest.fn(async () => new Response(bytes));
+  expect(await zipNames(await createResourceBundleZip(document, bundle.id, (p) => p))).toHaveLength(
+    1
+  );
+  invalidateCanvasDependents(document, assets[0].sourceSnapshot!.nodeId);
+  expect(() => validateResourceBundle(document, bundle.id)).toThrow('尚未完成');
+});
 const originalWindow = (globalThis as any).window;
 beforeEach(() => {
   (globalThis as any).window = {};

@@ -62,6 +62,7 @@ export interface CanvasDocumentStore {
       width: number;
       height: number;
       allowPaid: boolean;
+      recover?: boolean;
     }
   ): Promise<RecognitionAttempt>;
   recognitionStatus?(canvasId: string, id: string): Promise<RecognitionAttempt>;

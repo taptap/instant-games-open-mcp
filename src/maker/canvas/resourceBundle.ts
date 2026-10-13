@@ -203,7 +203,9 @@ export function renderResourceBundle(
         },
         node.id
       );
-      status.textContent = member.imageAssetsInfo!.items.length + ' 张';
+      status.textContent = member.uiEmpty
+        ? '无需素材'
+        : member.imageAssetsInfo!.items.length + ' 张';
     } catch {
       status.textContent = '待完成';
     }
@@ -232,7 +234,8 @@ export function validateResourceBundle(
     (node) => node.id === sectionId && node.type === 'resource-bundle'
   );
   const members = resourceBundleMembers(document, sectionId).filter(
-    (node) => !terminal || node.imageAssetsInfo?.items.length || !node.templatePending
+    (node) =>
+      !terminal || node.uiEmpty || node.imageAssetsInfo?.items.length || !node.templatePending
   );
   if (
     terminal &&
@@ -257,7 +260,7 @@ export function validateResourceBundle(
       document.edges.some(
         (edge) => edge.to === node.id && !sources.some((source) => source.id === edge.from)
       ) ||
-      (node.type === 'image' && !node.assetPath)
+      (node.type === 'image' && !node.assetPath && !node.uiEmpty)
     )
       throw new Error('「' + node.title + '」尚未完成或来源已变化，请重新生成并切图后再下载。');
     sources.forEach(check);
@@ -265,14 +268,17 @@ export function validateResourceBundle(
     checked.add(node.id);
   }
   let count = 0;
+  const completed: CanvasNode[] = [];
   for (const member of members) {
     check(member);
+    if (member.uiEmpty) continue;
     if (!member.imageAssetsInfo?.items.length)
       throw new Error('「' + member.title + '」尚未完成切图，未导出文件。');
     count += validateImageAssetsInfo(member.imageAssetsInfo).items.length;
+    completed.push(member);
   }
   if (count > maxFiles) throw new Error('素材总数超过单包上限 122 张，请按分类分别下载。');
-  return members;
+  return completed;
 }
 
 export async function resourceBundleEntries(
@@ -284,6 +290,7 @@ export async function resourceBundleEntries(
   maxFiles = 122
 ): Promise<Array<{ name: string; blob: Blob }>> {
   const members = validateResourceBundle(document, sectionId, maxFiles);
+  if (!members.length) throw new Error('此分组没有需要导出的素材。');
   const entries: Array<{ name: string; blob: Blob }> = [];
   const budget = { bytes: 0 };
   for (const [index, member] of members.entries()) {

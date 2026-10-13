@@ -142,7 +142,11 @@ export function createUiRecognitionUi(options: {
       uiRecognitionSourceId: source.id,
     });
   }
-  async function recognize(source: CanvasNode, confirmed: boolean): Promise<boolean> {
+  async function recognize(
+    source: CanvasNode,
+    confirmed: boolean,
+    recover = false
+  ): Promise<boolean> {
     const current = options.current();
     if (!current || !source.assetPath || !source.uiRecognition || busy) return false;
     const settings = source.uiRecognition;
@@ -186,6 +190,25 @@ export function createUiRecognitionUi(options: {
       if (settings.pendingId) {
         if (!options.store.recognitionStatus) throw new Error('识图接口尚未就绪。');
         attempt = await options.store.recognitionStatus(current.id, settings.pendingId);
+        if (options.current() !== current || !current.nodes.includes(source)) return false;
+        if (
+          recover &&
+          attempt.server &&
+          (attempt.status === 'running' || attempt.status === 'unknown') &&
+          window.confirm('继续原识图请求？将复用原请求编号恢复或接续文字识别，后续识别可能计费。')
+        ) {
+          if (!options.store.recognizeUi) throw new Error('识图接口尚未就绪。');
+          attempt = await options.store.recognizeUi(current.id, {
+            id: settings.pendingId,
+            nodeId: source.id,
+            model: attempt.model,
+            revision: current.revision,
+            width: attempt.server.cut.image.width,
+            height: attempt.server.cut.image.height,
+            allowPaid: true,
+            recover: true,
+          });
+        }
       } else {
         if (!options.store.recognizeUi) throw new Error('识图接口尚未就绪。');
         const bitmap = await createImageBitmap(await sourceBlob(source.assetPath));
@@ -279,7 +302,7 @@ export function createUiRecognitionUi(options: {
         if (!generated || !completeRecognition) return generated;
         if (options.current() !== current || node.templatePending || !node.assetPath) return false;
       }
-      return selectedUiRecognition(node) ? true : recognize(node, confirmed);
+      return selectedUiRecognition(node) ? true : recognize(node, confirmed, true);
     }
     if (node.uiRecognition?.inputRole === 'design') {
       const references = canvasReferences(current, node.id);
@@ -381,7 +404,7 @@ export function createUiRecognitionUi(options: {
     try {
       const current = options.current();
       if (!current) return false;
-      if (node.uiRecognition?.pendingId) return await recognize(node, true);
+      if (node.uiRecognition?.pendingId) return await recognize(node, true, true);
       const models = await options.store.recognitionModels?.();
       const configured = models?.[0];
       if (configured?.source === 'chatgpt-web') {

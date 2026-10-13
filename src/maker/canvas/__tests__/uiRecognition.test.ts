@@ -39,6 +39,73 @@ const result = (): UiRecognitionResult => ({
   elements: ['B32', 'B34', 'B36'].map(element),
 });
 
+test.each(['continue', 'query', 'decline', 'custom'])(
+  'pending recognition recovery preserves the original request and respects %s',
+  async (action) => {
+    const document = emptyDocument();
+    const recognized = result();
+    const source: CanvasNode = {
+      id: randomUUID(),
+      type: 'image',
+      title: '识图',
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      assetPath: recognized.sourcePath,
+      uiRecognition: { enabled: true, pendingId: recognized.id, results: [] },
+    };
+    document.nodes.push(source);
+    const attempt = {
+      id: recognized.id,
+      model: 'original-model',
+      status: 'unknown',
+      server: action === 'custom' ? undefined : { cut: { image: { width: 1080, height: 1920 } } },
+    };
+    const submit = jest.fn(async () => ({ status: 'succeeded', result: recognized }));
+    const previousWindow = (globalThis as any).window;
+    (globalThis as any).window = { confirm: jest.fn(() => action !== 'decline') };
+    try {
+      const controller = createUiRecognitionUi({
+        current: () => document,
+        store: { recognitionStatus: async () => attempt, recognizeUi: submit } as any,
+        save: async () => true,
+        remember() {},
+        changed() {},
+        render() {},
+        blocked: () => false,
+        error() {},
+        loadMedia: async () => {},
+        openCanvas: async () => {},
+      });
+      const run =
+        action === 'query'
+          ? controller.query(source.id)
+          : controller.runImage(source.id, async () => true, true);
+      if (action === 'continue') {
+        await run;
+        expect(submit).toHaveBeenCalledWith(
+          document.id,
+          expect.objectContaining({
+            id: recognized.id,
+            nodeId: source.id,
+            model: 'original-model',
+            recover: true,
+            allowPaid: true,
+          })
+        );
+        expect(source.uiRecognition!.pendingId).toBeUndefined();
+      } else {
+        await expect(run).rejects.toThrow('识图仍在执行');
+        expect(submit).not.toHaveBeenCalled();
+        expect(source.uiRecognition!.pendingId).toBe(recognized.id);
+      }
+    } finally {
+      (globalThis as any).window = previousWindow;
+    }
+  }
+);
+
 test('server credits survive result validation and appear once in the note', () => {
   const record = { ...result(), credits: 8 };
   const settings = validateUiRecognition({ enabled: true, results: [record] });
