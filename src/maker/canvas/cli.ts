@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { modelSettingsForDisplay } from '../console/visionSettings.js';
 import { canvasExportDirectory, readCanvasImport, writeCanvasExport } from './automationFiles.js';
 import { selectCanvasSnapshot } from './automationInfo.js';
 import { randomUUID } from 'node:crypto';
@@ -9,6 +10,8 @@ import {
   validateCanvasCommand,
 } from './automation.js';
 import type { CanvasDocument } from './model.js';
+import { MakerCanvasFiles } from './files.js';
+import { webRecognitionInput } from './webRecognition.js';
 
 export async function runCanvasCli(
   action: string | undefined,
@@ -20,8 +23,47 @@ export async function runCanvasCli(
     print(canvasAutomationCapabilities());
     return;
   }
+  if (action === 'model-settings') {
+    print(modelSettingsForDisplay());
+    return;
+  }
   if (typeof options.target_dir !== 'string')
     throw new Error('canvas 操作必须显式传入 --target-dir 项目绝对路径。');
+  if (action === 'recognition-input' || action === 'recognition-result') {
+    if (typeof options.canvas_id !== 'string' || typeof options.id !== 'string')
+      throw new Error('缺少 --canvas-id 或 --id 识图卡片 ID。');
+    let input: Record<string, any> = {};
+    if (typeof options.input_file === 'string') {
+      const stat = fs.statSync(options.input_file);
+      if (!stat.isFile() || stat.size > 2 * 1024 * 1024)
+        throw new Error('识图 JSON 文件必须小于 2 MiB。');
+      input = JSON.parse(fs.readFileSync(options.input_file, 'utf8'));
+      if (!input || typeof input !== 'object' || Array.isArray(input))
+        throw new Error('识图输入必须是 JSON 对象。');
+    }
+    print(
+      await webRecognitionInput(
+        options.target_dir,
+        options.canvas_id,
+        options.id,
+        input,
+        action === 'recognition-result'
+      )
+    );
+    return;
+  }
+  if (action === 'ui-archives' || action === 'archive-ui') {
+    const files = new MakerCanvasFiles(options.target_dir);
+    const canvasId = typeof options.canvas_id === 'string' ? options.canvas_id : undefined;
+    if (action === 'archive-ui' && !canvasId) throw new Error('缺少 --canvas-id。');
+    print({
+      source: 'local',
+      project: files.root,
+      archives:
+        action === 'archive-ui' ? await files.archiveUi(canvasId!) : files.listUiArchives(canvasId),
+    });
+    return;
+  }
   const known = [
     'list',
     'templates',

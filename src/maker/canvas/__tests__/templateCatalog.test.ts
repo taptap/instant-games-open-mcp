@@ -65,7 +65,7 @@ test('template Skills survive local save, instantiation, reload and CLI inspecti
 });
 
 test('workflow preview reads only images belonging to the template without importing assets', async () => {
-  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000012');
+  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000013');
   const node = template.nodes.find((item) => item.type === 'image' && item.assetPath)!;
   const result = await files.readTemplatePreviewImage(template.id, template.revision, node.id);
   expect(result.type).toMatch(/^image\//);
@@ -89,7 +89,9 @@ test('workflow preview reads only images belonging to the template without impor
 
 test('asset previews use real selected images and never reuse old placeholder covers', async () => {
   const templates = (await files.listTemplates()).filter(
-    (template) => Number(template.id.slice(-3)) >= 5
+    (template) =>
+      Boolean(templatePresentation(template.id).previews) &&
+      !templatePresentation(template.id).modelPreview
   );
   for (const template of templates) {
     const previews = templatePresentation(template.id).previews!;
@@ -178,7 +180,7 @@ test('500 templates use paged summaries, cached parsing, global search and no co
   const first = await readTemplatePage(folder, read, 1, '');
   expect(first.total).toBe(500);
   expect(first.items).toHaveLength(24);
-  expect(first.presets).toHaveLength(11);
+  expect(first.presets).toHaveLength(12);
   expect(first.items.every((item) => !('nodes' in item) && !('edges' in item))).toBe(true);
   expect(read).toHaveBeenCalledTimes(500);
   const second = await readTemplatePage(folder, read, 2, '');
@@ -211,7 +213,7 @@ test('bad files and symbolic links do not break the library or expose outside te
   const result = await files.listTemplatePage();
   expect(result.skipped).toBe(2);
   expect(result.items).toEqual([]);
-  expect(result.presets).toHaveLength(11);
+  expect(result.presets).toHaveLength(12);
 });
 
 test('cover source chooses a starting image, falling back to a stable image or no cover', async () => {
@@ -230,7 +232,7 @@ test('cover source chooses a starting image, falling back to a stable image or n
 });
 
 test('covers prefer animation then saved frames, sampling the whole action within a bounded preview', async () => {
-  const template = (await files.listTemplates())[2];
+  const template = (await files.listTemplates()).find((item) => item.id.endsWith('003'))!;
   const animation = template.nodes.find((node) => node.type === 'animation')!;
   expect(templateCoverSource(template)).toBe(animation.assetPath);
   const preview = templateCoverAnimation(template)!;
@@ -321,4 +323,22 @@ test('revision-bound thumbnails are small, isolated, invalidate on replace and r
   fs.writeFileSync(external, png);
   fs.symlinkSync(external, cache);
   await expect(files.readTemplateCover(builtin.id, builtin.revision)).rejects.toThrow('链接');
+});
+
+test('asset preview reads only a selected PNG within its template and checks revision', async () => {
+  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000005');
+  const assets = template.nodes.find((node) => node.type === 'image-assets')!;
+  const image = await files.readTemplatePreviewImage(template.id, template.revision, assets.id, 0);
+  expect(PNG.sync.read(image.bytes).width).toBeGreaterThan(0);
+  for (const index of [-1, 0.5, 999]) {
+    await expect(
+      files.readTemplatePreviewImage(template.id, template.revision, assets.id, index)
+    ).rejects.toThrow('预览图片');
+  }
+  await expect(files.readTemplatePreviewImage(template.id, 999, assets.id, 0)).rejects.toThrow(
+    '更新'
+  );
+  await expect(
+    files.readTemplatePreviewImage(template.id, template.revision, template.nodes[0].id, 0)
+  ).rejects.toThrow('预览图片');
 });

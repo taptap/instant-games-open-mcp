@@ -18,7 +18,7 @@ import { prepareCanvasNodeUpdates } from '../automation.js';
 
 function fixture() {
   const instance = createCanvasTemplateModel().instantiate(
-    { ...canvasPresets()[2], builtin: true },
+    { ...canvasPresets().find((preset) => preset.id.endsWith('003'))!, builtin: true },
     { x: 0, y: 0 }
   );
   const document = { ...emptyDocument(), nodes: instance.nodes, edges: instance.edges };

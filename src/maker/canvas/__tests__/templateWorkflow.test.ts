@@ -549,3 +549,62 @@ test('unsettled tasks, duplicate clicks, save failures and cycles never start ex
   expect(options.video).toHaveBeenCalledTimes(1);
   expect(flow.isBusy).toBe(false);
 });
+
+test('parallel queued cards keep a shared upstream protected and time their complete work', async () => {
+  const { document, options } = userTemplate();
+  document.nodes = document.nodes.filter((node) => ['image', 'group'].includes(node.id));
+  const source = document.nodes.find((node) => node.id === 'image')!;
+  source.assetPath = 'reference.png';
+  delete source.templatePending;
+  const outputs = ['left', 'right'].map((id) => ({
+    ...source,
+    id,
+    title: id,
+    assetPath: undefined,
+    templatePending: true,
+  }));
+  document.nodes.push(...outputs);
+  document.edges = outputs.map((node) => ({
+    id: node.id,
+    from: source.id,
+    to: node.id,
+    kind: 'image-variant',
+  }));
+  let clock = 1000;
+  const now = jest.spyOn(Date, 'now').mockImplementation(() => clock);
+  const finishes = new Map<string, (value: boolean) => void>();
+  const image = jest.fn(async (id: string) => {
+    await new Promise<boolean>((resolve) => {
+      finishes.set(id, resolve);
+    });
+    const node = document.nodes.find((item) => item.id === id)!;
+    node.assetPath = id + '.png';
+    node.sourceSnapshot = snapshotCanvasSource(source);
+    return true;
+  });
+  const flow = createTemplateWorkflow({ ...options, image });
+  try {
+    const left = flow.runQueued('left');
+    const right = flow.runQueued('right');
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(image.mock.calls.map(([id]) => id)).toEqual(['left', 'right']);
+    expect(flow.locked('image')).toBe(true);
+    expect(flow.isNodeLoading('left')).toBe(true);
+    expect(await flow.runQueued('left')).toBe(false);
+    clock = 2000;
+    expect(flow.workDuration('left')).toBe(1000);
+    finishes.get('left')!(true);
+    expect(await left).toBe(true);
+    expect(flow.locked('image')).toBe(true);
+    expect(flow.isNodeLoading('right')).toBe(true);
+    expect(flow.workDuration('left')).toBe(1000);
+    clock = 3500;
+    finishes.get('right')!(true);
+    expect(await right).toBe(true);
+    expect(flow.locked('image')).toBe(false);
+    expect(flow.isBusy).toBe(false);
+    expect(outputs.map((node) => node.workDurationMs)).toEqual([1000, 2500]);
+  } finally {
+    now.mockRestore();
+  }
+});

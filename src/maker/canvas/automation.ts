@@ -29,6 +29,17 @@ export interface CanvasOperation {
 
 export function canvasAutomationCapabilities() {
   return {
+    modelSettings: {
+      command: 'canvas model-settings',
+      policy:
+        'Read global image generation and vision choices before invoking any model. Never choose or fall back to another provider. Local means the current AI client executes its own capability; browser run cannot invoke it. Import client-generated images with canvas import; import creates a new card and does not complete an existing workflow node. API keys are never returned.',
+    },
+    uiArchives: {
+      list: 'canvas ui-archives --target-dir PATH [--canvas-id ID]',
+      archiveSaved: 'canvas archive-ui --target-dir PATH --canvas-id ID',
+      lifecycle:
+        'Recognition and completed resource bundles are archived locally on save. Commands work without a browser or model. ui-archives is read-only; archive-ui snapshots saved data, never unsaved drafts. Use bboxPath and bindingsPath from the same revision; never guess the latest file.',
+    },
     actions: [
       'inspect',
       'create',
@@ -67,6 +78,7 @@ export function canvasAutomationCapabilities() {
       'modelQuality',
       'mergeIcons',
       'uiRecognition',
+      'uiAtlasPlan',
     ],
     modelWorkflow: {
       quality: ['fast', 'balanced', 'high_quality'],
@@ -79,7 +91,7 @@ export function canvasAutomationCapabilities() {
     },
     imageAssetsWorkflow: {
       groupRun:
-        'Run a template group once with --allow-paid after user authorization. Images execute in dependency order, then resource cards split the current atlas with their saved grids and save final PNG items without per-card dialogs. Failed or unknown steps block only their dependent branch; independent branches continue. Definite image failures or uncuttable UI atlas layouts allow at most two paid regenerations per source per authorized group run; unknown tasks and download failures are never regenerated. Completion means prepared resource cards, not visual approval or installation into the game.',
+        'Run a template group once with --allow-paid after user authorization. Images execute in dependency order, then resource cards use their current saved grid or confirmed content regions. Definite image generation failures allow at most two paid retries per source. Atlas slicing failures keep the existing image and assets and require local crop review; they do not trigger paid regeneration. Unknown tasks and download/save failures are never regenerated. Independent branches continue. Completion means saved assets, not visual approval or installation into the game.',
       steps:
         'preview-image-assets -> inspect the returned grid preview -> confirm-image-assets -> export images',
       confirmation:
@@ -95,13 +107,13 @@ export function canvasAutomationCapabilities() {
       imageSizing:
         'imageInfo reports actual image pixels and ratio, not card geometry. originalImage traces the unique original through existing references. Use parameters.aspectRatio=source for full-screen processing, or a supported fixed ratio for atlases. Uncommon input ratios carry warnings; unsupported source ratios stop before billing. Generation history separates referenceImages, originalImage, parameters.targetSize, resultImageInfo and submittedPrompt. Never infer actual dimensions from requested size.',
       recognition:
-        'Canvas templates default recognition off. CLI run on a UI group or image enables recognition by default and completes it before downstream generation. Explicit no-recognition comparisons must pass input.recognition=false on run. First run the text-removal card. The calling AI then views its completed text-free output and saves its list using update-nodes nodes:[{id:TEXT_FREE_CARD_ID,uiRecognition:{enabled:true,result:RESULT}}]. RESULT fields: id(UUID), model(actual agent model or unknown), prompt, createdAt(ISO), durationMs, sourcePath, sourceSha256, width/height(text-free image pixels), elements:[{id,name,category,rect:[x,y,w,h],parentId,zIndex,states,cutout}]. Categories: icon,frame,tab,action,shortcut,close,title,panel,art_text,text. Art-text annotation/extraction stays on a separate original-image branch. No separate vision service or TAPTAP_MAKER_VISION_CONFIG required. If the current AI cannot view images, recommend switching its model.',
+        'The default source is the local AI client: read the images with the client vision capability and submit uiRecognition.result via update-nodes. The browser cannot invoke the client model. Custom API calls require explicit configuration and paid authorization. When vision.source=chatgpt-web, follow maker-ui-workflow with the host Agent browser, reuse its session and current model/effort, and submit validated Bbox via update-nodes. No executor installation. Login is optional: if logged out, explain that model selection is unavailable and recognition quality/Bbox accuracy may vary, then offer continue without login or login first. Honor the choice without repeated prompts. Never bypass an actual login/captcha/upload restriction. Prepare prompts with canvas recognition-input; validate both replies with canvas recognition-result. Images are uploaded to ChatGPT and subject to website quota. CLI run enables recognition for text-free cards; input.recognition=false disables it. Two-pass API recognition requires a text-free image linked from the original design: detect UI elements first, then original text. Export version=1 Bbox JSON with coordinateSpace=design-pixels, bboxFormat=xywh, design/cutSource identities, elements and texts. Sources never switch automatically; unknown requests must be queried, never replayed.',
       steps:
         'design/layout -> reviewed PNG assets -> import into project -> generate_resource_meta -> assemble-ui.mjs -> console UI editor comparison',
       completion:
         'For an editable game UI request, PNG export is an intermediate result: the Agent continues with the Skill through assembly and editor verification. Stop at PNG only when the user requests extraction alone. Do not ask the user to copy a handoff prompt when the Agent is already operating the CLI.',
       boundary:
-        'Enabled CLI recognition uses the calling AI and its saved element list; assembly remains a separate Skill task. Read every resource card and pending state; one successful export does not mean all assets or the UI are complete. Reuse verified layout records, or record layout from the design with explicit provenance before assembly.',
+        'Enabled CLI recognition follows the selected vision source and saves the same two-pass Bbox JSON; assembly remains a separate Skill task. Read every resource card and pending state; one successful export does not mean all assets or the UI are complete. Use saved Bbox coordinates and explicit PNG bindings before assembly.',
     },
     sequenceSettings: [
       'start',
@@ -139,6 +151,7 @@ export function canvasAutomationCapabilities() {
       'preview-image-assets': {
         id: 'image-assets card ID; read-only preview, no final files',
         grid: 'optional object: columns/rows positive integers (at most 120 cells); marginX/marginY/gapX/gapY nonnegative integer pixels; omitted fields use saved/default grid',
+        cut: 'optional object: mode=grid/content; content detects transparent separators without AI. expectedCount=0..120 (0 unrestricted); regions optionally provides confirmed source-pixel rectangles {name:item_001...,x,y,width,height} for manual corrections. Rectangles must not overlap. Existing confirmed content regions are reused only for an unchanged source. Always inspect the actual preview before confirmation.',
       },
       'confirm-image-assets': {
         id: 'image-assets card ID',
@@ -164,7 +177,7 @@ export function canvasAutomationCapabilities() {
       },
       export: {
         id: 'result node ID',
-        format: 'png/jpg/video/atlas/frames/model/images',
+        format: 'png/jpg/video/atlas/frames/model/images/bundle',
         loop: 'optional boolean; default true',
       },
       download: {
@@ -173,6 +186,8 @@ export function canvasAutomationCapabilities() {
       },
     },
     exportFormats: {
+      'resource-bundle': ['bundle'],
+      section: ['bundle'],
       'image-assets': ['images'],
       model: ['model'],
       image: ['png', 'jpg'],
@@ -287,6 +302,9 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
         if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max)
           throw new Error('卡片' + key + '必须为 ' + min + '～' + max + '。');
         next[key] = value;
+      } else if (key === 'uiAtlasPlan') {
+        if (node.type !== 'image') throw new Error('UI 槽位清单只能配置在图片卡上。');
+        next.uiAtlasPlan = validateUiAtlasPlan(value);
       } else if (key === 'uiRecognition') {
         const settings = value as Record<string, unknown>;
         if (
@@ -436,3 +454,4 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
     return { node: next, contentChanged };
   });
 }
+import { validateUiAtlasPlan } from './uiAssetBindings.js';

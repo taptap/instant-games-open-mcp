@@ -62,6 +62,10 @@ export function uiCutoutPrompt(prompt: string, color: UiCutoutColor): string {
   // Normalize the template's background clauses, never replace generic subject color names.
   const base = prompt
     .replace(/\n抠图底色约定：[^\n]*/g, '')
+    .replace(
+      /(背景(?:使用|为)?(?:平涂)?纯)(?:洋红|绿色)(?:\s*#(?:FF00FF|00FF00))?(?:\s*[，,]?\s*RGB\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\))?/gi,
+      '$1' + name + ' ' + color + ' RGB(' + rgb + ')'
+    )
     .replace(/使用纯(?:洋红|绿色)底便于后续透明处理/g, '使用纯' + name + '底便于后续透明处理')
     .replace(/去除与格子边界连通的(?:洋红|绿色)底/g, '去除与格子边界连通的' + name + '底')
     .replace(/(四周至少留(?:10|15)%纯)(?:洋红|绿色)空白/g, '$1' + name + '空白')

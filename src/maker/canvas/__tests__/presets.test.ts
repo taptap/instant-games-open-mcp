@@ -3,11 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { MakerCanvasFiles } from '../files.js';
-import { createId } from '../model.js';
+import { createId, emptyDocument } from '../model.js';
 import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from '../templates.js';
 import { isCanvasNodeStale } from '../dependencies.js';
 import { canvasNeedsProcessing, invalidateCanvasDependents } from '../templateWorkflow.js';
-import { canvasPresets } from '../presets.js';
+import { canvasPresets, builtinCanvasTemplates } from '../presets.js';
 import { builtinPresetDescriptions } from '../presetDescriptions.js';
 
 jest.setTimeout(30000);
@@ -16,6 +16,8 @@ const { PNG } = require('pngjs');
 let root: string;
 let files: MakerCanvasFiles;
 const model = createCanvasTemplateModel();
+const presetByNumber = (number: number) =>
+  canvasPresets().find((preset) => preset.id.endsWith(String(number).padStart(3, '0')))!;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-presets-'));
@@ -28,6 +30,7 @@ test('lists portable presets without importing assets or creating a canvas', asy
   const templates = await files.listTemplates();
   expect(templates.map((template) => template.name)).toEqual([
     '序列帧动画',
+    '动态立绘 · 萌娘轻呼吸 Idle',
     '角色四方向',
     '首尾帧变身 · 灰狼→狼王',
     '角色模型 · 多视图确认',
@@ -44,10 +47,39 @@ test('lists portable presets without importing assets or creating a canvas', asy
   expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
 });
 
+test.each(['005', '006', '008', '009', '010', '011'])(
+  'static template %s keeps examples visible but starts only downstream work',
+  (suffix) => {
+    const template = builtinCanvasTemplates().find((item) => item.id.endsWith(suffix))!;
+    const original = structuredClone(template);
+    const instance = model.instantiate(template, { x: 0, y: 0 });
+    const document = { ...emptyDocument(), nodes: instance.nodes, edges: instance.edges };
+    const reference = instance.nodes[1];
+    const outputs = instance.nodes.slice(2);
+    expect(reference.templatePending).toBeUndefined();
+    expect(canvasNeedsProcessing(document, reference)).toBe(false);
+    expect(outputs.every((node) => node.templatePending)).toBe(true);
+    expect(outputs.every((node) => canvasNeedsProcessing(document, node))).toBe(true);
+    expect(outputs.every((node) => node.assetPath || node.imageAssetsInfo?.items.length)).toBe(
+      true
+    );
+    expect(instance.section.templateSkills).toBeUndefined();
+    expect(template).toEqual(original);
+    for (const node of outputs) delete node.templatePending;
+    expect(document.nodes.every((node) => !canvasNeedsProcessing(document, node))).toBe(true);
+    model.instantiate(template, { x: 1000, y: 0 });
+    expect(outputs.every((node) => !node.templatePending)).toBe(true);
+    if (suffix === '006') {
+      expect(outputs[0].generation?.prompt).toContain('不能自行增减格数');
+      expect(outputs[0].generation?.prompt).not.toContain('最终只画4列');
+    }
+  }
+);
+
 test.each([4, 5, 6, 7, 8])(
   'asset preset %i persists transparent generated examples with independent references',
   async (index) => {
-    const preset = canvasPresets()[index];
+    const preset = presetByNumber(index + 1);
     const canvas = await files.create('素材模板验证');
     const prepared = await files.prepareTemplate(preset.id, canvas.id);
     const instance = model.instantiate(prepared, { x: 0, y: 0 });
@@ -69,7 +101,7 @@ test.each([4, 5, 6, 7, 8])(
     expect(Object.keys(preset.assets)).toHaveLength(itemCount + 2);
     const collection = saved.nodes.find((node) => node.type === 'image-assets')!;
     expect(collection.imageAssetsInfo?.items).toHaveLength(itemCount);
-    expect(collection.templatePending).toBeUndefined();
+    expect(collection.templatePending).toBe(true);
     expect(saved.edges).toContainEqual(
       expect.objectContaining({ kind: 'image-assets', from: results[0].id, to: collection.id })
     );
@@ -81,7 +113,7 @@ test.each([4, 5, 6, 7, 8])(
       expect(result.generationDraft).toBeUndefined();
       expect(result.generation?.attemptId).toBeUndefined();
       expect(result.generation?.taskId).toBeUndefined();
-      expect(result.templatePending).toBeUndefined();
+      expect(result.templatePending).toBe(true);
       expect(result.referenceInput).toEqual({ includeSelf: false });
       expect(result.generation?.referenceImagePaths).toEqual([]);
       expect(result.generation).toMatchObject({
@@ -129,7 +161,7 @@ test.each([4, 5, 6, 7, 8])(
 );
 
 test('full game scene retains its background; atlas and standalone items have real alpha and intact borders', async () => {
-  const preset = canvasPresets()[4];
+  const preset = presetByNumber(5);
   const canvas = await files.create('透明素材验证');
   const prepared = await files.prepareTemplate(preset.id, canvas.id);
   const images = prepared.nodes.filter((node) => node.type === 'image');
@@ -180,7 +212,7 @@ test('full game scene retains its background; atlas and standalone items have re
 });
 
 test('crop preset contains five aligned transparent stages whose pixels match the atlas', async () => {
-  const preset = canvasPresets()[5];
+  const preset = presetByNumber(6);
   const images = preset.nodes.filter((node) => node.type === 'image');
   const collection = preset.nodes.find((node) => node.type === 'image-assets')!;
   const info = collection.imageAssetsInfo!;
@@ -230,8 +262,8 @@ test('crop preset contains five aligned transparent stages whose pixels match th
   expect(bounds[2].top).toBeGreaterThan(bounds[3].top);
   const prompt = images[1].generation!.prompt!;
   for (const stage of ['播种', '幼苗', '开花', '结果', '枯萎']) expect(prompt).toContain(stage);
-  expect(prompt).toContain('4列×1行或5列×1行');
-  expect(prompt).toContain('不画种子或花');
+  expect(prompt).toContain('不能自行增减格数');
+  expect(prompt).toContain('排列：5列×1行');
 });
 
 test('new game UI workflow keeps examples but starts every downstream step pending', async () => {
@@ -247,38 +279,48 @@ test('new game UI workflow keeps examples but starts every downstream step pendi
   )!;
   expect(source.assetPath).toBeTruthy();
   expect(source.uiRecognition).toBeUndefined();
-  const clean = canvas.nodes.find((node) => node.title === '② 去文字设计稿')!;
-  expect(clean.uiRecognition).toEqual({ enabled: false, results: [] });
+  const design = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
+  const clean = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!;
+  expect(design.uiRecognition?.results).toEqual([]);
+  expect(clean.uiRecognition?.results).toEqual([]);
   expect(canvasNeedsProcessing(canvas, source)).toBe(false);
-  expect(canvas.nodes.find((node) => node.uiRecognitionSourceId)?.uiRecognitionSourceId).toBe(
-    clean.id
-  );
+  const atlases = canvas.nodes.filter((node) => node.uiAtlasGroup);
+  expect(atlases).toHaveLength(6);
+  for (const atlas of atlases)
+    expect(canvas.edges).toContainEqual(
+      expect.objectContaining({ from: clean.id, to: atlas.id, kind: 'image-variant' })
+    );
   const downstream = canvas.nodes.filter((node) =>
     canvas.edges.some((edge) => edge.to === node.id)
   );
-  expect(downstream).toHaveLength(23);
+  expect(downstream).toHaveLength(17);
   for (const node of downstream) {
-    expect(node.templatePending).toBe(true);
+    expect(Boolean(node.templatePending)).toBe(node.type !== 'resource-bundle');
     expect(canvasNeedsProcessing(canvas, node)).toBe(true);
     if (node.type === 'image') expect(node.assetPath).toBeTruthy();
     if (node.type === 'image-assets') expect(node.imageAssetsInfo?.items.length).toBeGreaterThan(0);
   }
-  expect(canvas.nodes.find((node) => node.uiRecognitionSourceId)?.templatePending).toBeUndefined();
+  expect(clean.templatePending).toBe(true);
   const saved = await files.save(canvas.id, canvas, canvas.revision);
   const reopened = await files.load(saved.id);
-  expect(reopened.nodes.filter((node) => node.templatePending)).toHaveLength(downstream.length);
+  expect(reopened.nodes.filter((node) => node.templatePending)).toHaveLength(
+    downstream.filter((node) => node.type !== 'resource-bundle').length
+  );
   expect(JSON.stringify(prepared)).toBe(before);
 });
 
 test.each([4, 5, 6])(
-  'saved asset preset %i is ready without payment, then becomes pending after changing reference',
+  'asset preset %i starts pending and preserves completed state until reference changes',
   async (index) => {
     const canvas = await files.create('完整素材模板');
-    const prepared = await files.prepareTemplate(canvasPresets()[index].id, canvas.id);
+    const prepared = await files.prepareTemplate(presetByNumber(index + 1).id, canvas.id);
     const instance = model.instantiate(prepared, { x: 0, y: 0 });
     canvas.nodes = instance.nodes;
     canvas.edges = instance.edges;
-    expect(canvas.nodes.every((node) => !node.templatePending)).toBe(true);
+    expect(canvas.nodes.filter((node) => node.templatePending)).toHaveLength(2);
+    for (const node of canvas.nodes) delete node.templatePending;
+    const saved = await files.save(canvas.id, canvas, canvas.revision);
+    expect((await files.load(saved.id)).nodes.every((node) => !node.templatePending)).toBe(true);
     const source = canvas.nodes.find(
       (node) => node.type === 'image' && !canvas.edges.some((edge) => edge.to === node.id)
     )!;
@@ -301,21 +343,23 @@ test('all presets have protected ids and descriptions without sharing mutable de
   expect(isBuiltinCanvasTemplate(createId())).toBe(false);
   expect(
     presets
-      .slice(4)
+      .slice(5)
       .every((preset) =>
         preset.nodes.every((node) => !node.generation?.taskId && !node.generation?.attemptId)
       )
   ).toBe(true);
-  const before = JSON.stringify(presets.slice(4));
-  presets[4].nodes[1].generation!.prompt = 'changed';
-  Object.values(presets[4].assets)[0].resourceId = 'changed';
-  expect(JSON.stringify(canvasPresets().slice(4))).toBe(before);
+  const before = JSON.stringify(presets.slice(5));
+  presets[5].nodes[1].generation!.prompt = 'changed';
+  Object.values(presets[5].assets)[0].resourceId = 'changed';
+  expect(JSON.stringify(canvasPresets().slice(5))).toBe(before);
 });
 
 test.each([0, 1, 2])(
   'prepares, duplicates and persists preset %i with independent internal references',
   async (index) => {
-    const listed = (await files.listTemplates())[index];
+    const listed = (await files.listTemplates()).find(
+      (item) => item.id === presetByNumber(index + 1).id
+    )!;
     const original = JSON.stringify(listed);
     const canvas = await files.create('预设验证');
     const prepared = await files.prepareTemplate(listed.id, canvas.id);
@@ -402,7 +446,9 @@ test.each([0, 1, 2])(
     );
     expect(custom.id).not.toBe(listed.id);
     expect(custom.builtin).toBeUndefined();
-    expect(JSON.stringify((await files.listTemplates())[index])).toBe(original);
+    expect(
+      JSON.stringify((await files.listTemplates()).find((item) => item.id === listed.id))
+    ).toBe(original);
   }
 );
 
@@ -422,18 +468,18 @@ test('protects builtins and rejects invalid preparation before importing media',
   expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
 });
 
-test('four directions use distinct empty neutral references and keep old results explicitly pending', async () => {
-  const preset = canvasPresets()[1];
+test('four directions preserve distinct neutral examples and keep outputs explicitly pending', async () => {
+  const preset = presetByNumber(2);
   const images = preset.nodes.filter((node) => node.type === 'image');
   const head = images.find((node) => node.assetPath)!;
   expect(images).toHaveLength(5);
   const references = images.filter((node) => node !== head);
-  expect(new Set(references.map((node) => node.generationDraft?.prompt)).size).toBe(4);
+  expect(new Set(references.map((node) => node.generation?.prompt)).size).toBe(4);
   for (const reference of references) {
-    expect(reference.assetPath).toBeUndefined();
-    expect(reference.generationDraft?.prompt).toContain('calm neutral standing idle pose');
-    expect(reference.generation).toBeUndefined();
-    expect(reference.generationDraft).toMatchObject({
+    expect(reference.assetPath).toBeTruthy();
+    expect(reference.generation?.prompt).toContain('calm neutral standing idle pose');
+    expect(reference.sourceSnapshot?.nodeId).toBe(head.id);
+    expect(reference.generation).toMatchObject({
       operation: 'variant',
       sourceImageId: head.id,
     });
@@ -483,10 +529,13 @@ test('preparing prompt metadata never mutates future templates', async () => {
 
 test('pending reference links still reject missing or mismatched draft sources', async () => {
   const canvas = await files.create();
-  const preset = await files.prepareTemplate(canvasPresets()[1].id, canvas.id);
+  const preset = await files.prepareTemplate(presetByNumber(2).id, canvas.id);
   const instance = model.instantiate(preset, { x: 0, y: 0 });
-  const reference = instance.nodes.find((node) => node.generationDraft)!;
-  const draft = reference.generationDraft!;
+  const reference = instance.nodes.find((node) => node.generation?.operation === 'variant')!;
+  const draft = { ...reference.generation!, operation: 'variant' as const };
+  delete reference.assetPath;
+  delete reference.generation;
+  delete reference.sourceSnapshot;
   delete reference.generationDraft;
   await expect(
     files.save(canvas.id, { ...canvas, ...instance }, canvas.revision)
@@ -502,4 +551,38 @@ test('pending reference links still reject missing or mismatched draft sources',
   reference.generationDraft = draft;
   const saved = await files.save(canvas.id, { ...canvas, ...instance }, canvas.revision);
   expect(saved.nodes.find((node) => node.id === reference.id)?.assetPath).toBeUndefined();
+});
+
+test('idle portrait imports a transparent full-size reference and preserves the completed animation', async () => {
+  const preset = presetByNumber(14);
+  expect(canvasPresets()[1].id).toBe(preset.id);
+  const canvas = await files.create('动态立绘');
+  const prepared = await files.prepareTemplate(preset.id, canvas.id);
+  const [portrait, video, sequence, animation] = prepared.nodes;
+  const png = PNG.sync.read(fs.readFileSync(files.readMedia(portrait.assetPath!).file));
+  expect([png.width, png.height]).toEqual([1152, 2048]);
+  expect(png.data[3]).toBe(0);
+  expect(
+    Array.from(png.data as Buffer).filter((value, index) => index % 4 === 3 && value === 255).length
+  ).toBeGreaterThan(200000);
+  expect(video.generation?.prompt).toContain('very subtle living portrait idle loop');
+  expect(video.generation?.prompt).toContain('uniformly solid magenta');
+  expect(video.generation?.parameters?.duration).toBe(5);
+  expect(sequence.sequenceSettings).toMatchObject({ fps: 12, end: 5, width: 288, height: 512 });
+  expect(sequence.frameSetInfo?.frameCount).toBe(60);
+  expect(animation.assetPath).toBe(sequence.assetPath);
+  expect(animation.frameSetInfo).toEqual(sequence.frameSetInfo);
+  expect(preset.assets[preset.nodes[1].assetPath!].resourceId).toBe(
+    'b4c0602b6aa091bfcf810643a3c0376eb03207fcafacf95f94a36749439b7b80'
+  );
+  const instance = model.instantiate(prepared, { x: 0, y: 0 });
+  expect(instance.nodes.filter((node) => node.templatePending)).toHaveLength(3);
+  const saved = await files.save(
+    canvas.id,
+    { ...canvas, nodes: instance.nodes, edges: instance.edges },
+    canvas.revision
+  );
+  expect((await files.load(canvas.id)).nodes).toEqual(saved.nodes);
+  expect(portrait.generation?.taskId).toBeUndefined();
+  expect(video.generation?.taskId).toBeUndefined();
 });

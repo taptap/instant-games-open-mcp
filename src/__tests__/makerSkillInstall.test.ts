@@ -43,7 +43,9 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain(
       'Local proxy may convert resolvable local reference media to data URLs'
     );
-    expect(status).toContain('Use generate_image, batch_generate_images, edit_image');
+    expect(status).toContain(
+      'With generation=maker use generate_image, batch_generate_images, edit_image'
+    );
     expect(status).not.toMatch(
       /prefer Maker(?:-managed)?(?: MCP)? proxy tools|over native AI|client-native/iu
     );

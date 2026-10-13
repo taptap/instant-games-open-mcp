@@ -25,6 +25,7 @@ export function decorateCanvasCard(
     sequence: '序列帧',
     animation: '动画',
     'image-assets': '游戏资产',
+    'resource-bundle': '资源汇总',
     'model-views': '多视图确认',
     model: '3D 模型',
     section: '工作流',
@@ -122,7 +123,8 @@ export function refreshCanvasGroupHeaders(
     const badge = cards.get(group.id)?.querySelector<HTMLElement>('.canvas-group-state');
     if (!badge) continue;
     const members = nodes.filter(
-      (node) => node.sectionId === group.id && !['note', 'section'].includes(node.type)
+      (node) =>
+        node.sectionId === group.id && !['note', 'section', 'resource-bundle'].includes(node.type)
     );
     const states = members.map((node) => {
       if (node.type === 'model' || node.type === 'model-views')

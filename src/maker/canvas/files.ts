@@ -8,9 +8,9 @@ import {
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
+import { validateUiAtlasPlan, validateUiAtlasGroup } from './uiAssetBindings.js';
 import { readImageDimensions } from './imageDimensions.js';
 import type { CanvasImageInfo } from './imageSizing.js';
-import { upgradeUiWorkflowSizing } from './uiWorkflowPresets.js';
 import { validateFramePairGraph } from './framePair.js';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -43,6 +43,11 @@ import { validateImageAssetsInfo } from './imageAssets.js';
 import { validateMergeIcons, mergeIconPrompt } from './mergeIcons.js';
 import { validateUiRecognition, UI_ELEMENT_CATEGORIES } from './uiRecognition.js';
 import { imageAtlasRegions } from './imageAtlasExport.js';
+import {
+  prepareUiWorkflowArchives,
+  uiArchiveFingerprint,
+  type UiWorkflowArchive,
+} from './uiWorkflowArchive.js';
 
 const execFileAsync = promisify(execFile);
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -195,15 +200,7 @@ export class MakerCanvasFiles {
             : await this.importImage(bytes);
         paths.set(source, imported.relativePath);
       }
-      for (const node of template.nodes) {
-        if (node.assetPath) node.assetPath = paths.get(node.assetPath)!;
-        for (const item of node.imageAssetsInfo?.items || [])
-          item.assetPath = paths.get(item.assetPath)!;
-        if (node.generation?.referenceImagePaths)
-          node.generation.referenceImagePaths = node.generation.referenceImagePaths.map(
-            (source) => paths.get(source)!
-          );
-      }
+      remapTemplateAssets(template, paths);
       for (const node of template.nodes) {
         if (node.sourceSnapshot)
           node.sourceSnapshot = snapshotCanvasSource(
@@ -251,20 +248,27 @@ export class MakerCanvasFiles {
     return JSON.parse(JSON.stringify({ ...template, builtin: true }));
   }
 
-  async readTemplatePreviewImage(id: string, revision: number, nodeId: string) {
+  async readTemplatePreviewImage(id: string, revision: number, nodeId: string, itemIndex?: number) {
     const template = this.getTemplate(id);
     if (template.revision !== revision) fail('模板已更新，请刷新列表。', 409, 'CONFLICT');
     const node = template.nodes.find((item) => item.id === nodeId);
-    if (!node?.assetPath || !['image', 'sequence', 'animation'].includes(node.type))
-      fail('模板没有此预览图片。', 404, 'NOT_FOUND');
+    const assetPath =
+      itemIndex === undefined
+        ? node && ['image', 'sequence', 'animation', 'model-views'].includes(node.type)
+          ? node.assetPath
+          : undefined
+        : node?.type === 'image-assets' && Number.isInteger(itemIndex) && itemIndex >= 0
+          ? node.imageAssetsInfo?.items[itemIndex]?.assetPath
+          : undefined;
+    if (!assetPath) fail('模板没有此预览图片。', 404, 'NOT_FOUND');
     if (template.builtin) {
-      const asset = canvasPresets().find((preset) => preset.id === id)!.assets[node.assetPath];
+      const asset = canvasPresets().find((preset) => preset.id === id)!.assets[assetPath];
       if (!asset) fail('模板没有此预览图片。', 404, 'NOT_FOUND');
       const resource = demoResourceInfo(asset.resourceId);
       const resourceId = resource.thumbnail || asset.resourceId;
       return { bytes: await readDemoResource(resourceId), type: demoResourceInfo(resourceId).type };
     }
-    const media = this.readMedia(node.assetPath);
+    const media = this.readMedia(assetPath);
     if (!media.type.startsWith('image/')) fail('只支持图片预览。', 400, 'INVALID_IMAGE');
     if (fs.statSync(media.file).size > 20 * 1024 * 1024)
       fail('图片超过 20 MiB。', 413, 'STORAGE_LIMIT');
@@ -703,8 +707,117 @@ export class MakerCanvasFiles {
     const next = this.parse(input, id);
     next.revision = current.revision + 1;
     this.assertAssets(next);
+    const archives =
+      uiArchiveFingerprint(current) === uiArchiveFingerprint(next)
+        ? []
+        : await prepareUiWorkflowArchives(
+            next,
+            async (relative) => new Blob([fs.readFileSync(this.readMedia(relative).file)])
+          );
+    if (this.read(id).revision !== baseRevision)
+      fail('画布已被其他保存更新。请保留当前编辑，刷新后再合并。', 409, 'CONFLICT');
+    this.writeUiArchives(archives);
     this.write(next);
     return next;
+  }
+
+  listUiArchives(canvasId?: string): UiWorkflowArchive[] {
+    this.assertStorageShape();
+    if (canvasId && !ID.test(canvasId)) fail('画布标识无效。', 400, 'INVALID_ID');
+    const relative = '.maker/canvases/ui-archives';
+    const root = path.join(this.root, relative);
+    if (!fs.existsSync(root)) return [];
+    if (fs.lstatSync(root).isSymbolicLink())
+      fail('UI 归档目录不能是符号链接。', 400, 'UNSAFE_PATH');
+    const records: UiWorkflowArchive[] = [];
+    for (const uiId of fs.readdirSync(root)) {
+      if (
+        !/^[a-f0-9-]{36}_[a-f0-9-]{36}$/i.test(uiId) ||
+        (canvasId && !uiId.startsWith(canvasId + '_'))
+      )
+        continue;
+      const uiFolder = path.join(root, uiId);
+      if (fs.lstatSync(uiFolder).isSymbolicLink() || !fs.statSync(uiFolder).isDirectory())
+        fail('UI 归档目录无效。', 400, 'UNSAFE_PATH');
+      for (const revision of fs.readdirSync(uiFolder)) {
+        if (!/^(bbox|assets)-[a-f0-9]{64}$/.test(revision)) continue;
+        const directory = relative + '/' + uiId + '/' + revision;
+        const marker = directory + '/workflow.json';
+        if (!fs.existsSync(path.join(this.root, marker))) continue;
+        if (fs.lstatSync(path.join(this.root, directory)).isSymbolicLink())
+          fail('UI 归档不能是符号链接。', 400, 'UNSAFE_PATH');
+        const record = JSON.parse(
+          fs.readFileSync(this.safeProjectFile(marker), 'utf8')
+        ) as UiWorkflowArchive;
+        if (
+          record.directory !== directory ||
+          record.uiId !== uiId ||
+          record.revision !== revision ||
+          record.bboxPath !== directory + '/bbox.json' ||
+          (record.bindingsPath && record.bindingsPath !== directory + '/bindings.json')
+        )
+          fail('UI 归档索引不匹配。', 400, 'INVALID_DOCUMENT');
+        this.safeProjectFile(record.bboxPath);
+        if (record.bindingsPath) this.safeProjectFile(record.bindingsPath);
+        records.push({
+          ...record,
+          savedAt: record.savedAt || fs.statSync(this.safeProjectFile(marker)).mtime.toISOString(),
+        });
+      }
+    }
+    return records.sort((left, right) => right.savedAt!.localeCompare(left.savedAt!));
+  }
+
+  async archiveUi(canvasId: string): Promise<UiWorkflowArchive[]> {
+    this.assertStorageShape();
+    await this.assertIgnored();
+    const document = this.read(canvasId);
+    const archives = await prepareUiWorkflowArchives(
+      document,
+      async (relative) => new Blob([fs.readFileSync(this.readMedia(relative).file)])
+    );
+    this.writeUiArchives(archives);
+    return this.listUiArchives(canvasId);
+  }
+
+  private writeUiArchives(archives: Awaited<ReturnType<typeof prepareUiWorkflowArchives>>): void {
+    for (const archive of archives) {
+      const relative = archive.record.directory;
+      const final = path.join(this.root, relative);
+      const parent = this.ensureDir(path.dirname(final));
+      if (fs.existsSync(final)) {
+        if (fs.lstatSync(final).isSymbolicLink())
+          fail('UI 归档不能是符号链接。', 400, 'UNSAFE_PATH');
+        for (const file of archive.files) {
+          if (!fs.readFileSync(this.safeProjectFile(relative + '/' + file.name)).equals(file.bytes))
+            fail('已有 UI 归档被修改，不会覆盖：' + relative, 409, 'CONFLICT');
+        }
+        continue;
+      }
+      const staging = this.ensureDir(path.join(parent, randomUUID() + '.tmp'));
+      try {
+        for (const file of archive.files) {
+          if (
+            file.name.split('/').some((part) => !part || part === '.' || part === '..') ||
+            /[\\:]/.test(file.name)
+          )
+            fail('UI 归档文件名无效。', 400, 'UNSAFE_PATH');
+          const folder = this.ensureDir(path.join(staging, path.dirname(file.name)));
+          this.atomicWrite(folder, path.basename(file.name), file.bytes);
+        }
+        this.atomicWrite(
+          staging,
+          'workflow.json',
+          Buffer.from(
+            JSON.stringify({ ...archive.record, savedAt: new Date().toISOString() }, null, 2)
+          )
+        );
+        fs.renameSync(staging, final);
+      } catch (error) {
+        fs.rmSync(staging, { recursive: true, force: true });
+        throw error;
+      }
+    }
   }
 
   async importImage(bytes: Buffer, resourceCanvasId?: string): Promise<{ relativePath: string }> {
@@ -976,7 +1089,6 @@ export class MakerCanvasFiles {
       }
     }
     const edges = input.edges.map((item) => this.parseEdge(item, nodes));
-    upgradeUiWorkflowSizing({ nodes, edges });
     const seen = new Set<string>();
     const edgeIds = new Set<string>();
     for (const edge of edges) {
@@ -984,7 +1096,7 @@ export class MakerCanvasFiles {
       edgeIds.add(edge.id);
       const connection = ['frame-first', 'frame-last'].includes(edge.kind)
         ? edge.to + ':' + edge.kind
-        : ['image-to-video', 'first-frame', 'image-variant'].includes(edge.kind)
+        : ['image-to-video', 'first-frame', 'image-variant', 'resource-bundle'].includes(edge.kind)
           ? edge.to + ':' + edge.from
           : edge.to;
       if (seen.has(connection)) fail('画布来源连线不能重复。', 400, 'INVALID_EDGE');
@@ -1025,6 +1137,11 @@ export class MakerCanvasFiles {
   private parseNode(value: unknown): CanvasNode {
     if (!value || typeof value !== 'object') fail('节点无效。', 400, 'INVALID_DOCUMENT');
     const node = value as Record<string, unknown>;
+    if (
+      (node.uiAtlasPlan !== undefined || node.uiAtlasGroup !== undefined) &&
+      node.type !== 'image'
+    )
+      fail('只有图片卡可以配置 UI 槽位清单。', 400, 'INVALID_DOCUMENT');
     if (typeof node.id !== 'string' || !ID.test(node.id))
       fail('节点标识无效。', 400, 'INVALID_DOCUMENT');
     if (
@@ -1035,6 +1152,7 @@ export class MakerCanvasFiles {
       node.type !== 'sequence' &&
       node.type !== 'animation' &&
       node.type !== 'image-assets' &&
+      node.type !== 'resource-bundle' &&
       node.type !== 'model-views' &&
       node.type !== 'model' &&
       node.type !== 'section'
@@ -1063,10 +1181,19 @@ export class MakerCanvasFiles {
     )
       fail('空分类状态无效。', 400, 'INVALID_DOCUMENT');
     let uiRecognition: CanvasNode['uiRecognition'];
-    if (node.uiRecognition !== undefined) {
+    if (
+      node.uiRecognitionCard !== undefined &&
+      (node.type !== 'image' || typeof node.uiRecognitionCard !== 'boolean')
+    )
+      fail('UI 识图卡标记无效。', 400, 'INVALID_DOCUMENT');
+    if (node.uiRecognition !== undefined || node.uiRecognitionCard === true) {
       if (node.type !== 'image') fail('识图设置只能用于原稿图片卡。', 400, 'INVALID_DOCUMENT');
       try {
-        uiRecognition = validateUiRecognition(node.uiRecognition);
+        uiRecognition = validateUiRecognition(
+          node.uiRecognitionCard === true
+            ? { ...(node.uiRecognition || { enabled: true, results: [] }), inputRole: 'design' }
+            : node.uiRecognition
+        );
       } catch (error) {
         fail((error as Error).message, 400, 'INVALID_DOCUMENT');
       }
@@ -1115,7 +1242,7 @@ export class MakerCanvasFiles {
       fail('视频素材卡必须引用本画布导入的视频。', 400, 'UNSAFE_PATH');
     }
     if (
-      (node.type === 'image' || node.type === 'sequence' || node.type === 'animation') &&
+      ['image', 'sequence', 'animation', 'model-views'].includes(String(node.type)) &&
       assetPath &&
       !RELATIVE.test(assetPath)
     ) {
@@ -1126,6 +1253,7 @@ export class MakerCanvasFiles {
       node.type !== 'video-source' &&
       node.type !== 'sequence' &&
       node.type !== 'animation' &&
+      node.type !== 'model-views' &&
       assetPath
     ) {
       fail('当前节点类型不能保存素材路径。', 400, 'INVALID_DOCUMENT');
@@ -1153,6 +1281,17 @@ export class MakerCanvasFiles {
     if (node.templateRevision !== undefined)
       numberIn(node.templateRevision, 1, 1_000_000, '模板版本');
     const skills = templateSkills(node.templateSkills);
+    if (node.workDurationMs !== undefined)
+      numberIn(node.workDurationMs, 0, Number.MAX_SAFE_INTEGER, '工作耗时');
+    if (node.workStartedAt !== undefined)
+      numberIn(node.workStartedAt, 1, Number.MAX_SAFE_INTEGER, '流程起点');
+    if (
+      node.workTimingOpen !== undefined &&
+      (typeof node.workTimingOpen !== 'boolean' || node.type !== 'section')
+    )
+      fail('流程计时状态无效。', 400, 'INVALID_DOCUMENT');
+    // A category has at most 120 slots; size grouping may place each slot in its own batch.
+    if (node.uiAtlasBatch !== undefined) numberIn(node.uiAtlasBatch, 0, 119, '图集分批');
     if (skills && node.type !== 'section')
       fail('Skill 只能关联模板分组。', 400, 'INVALID_DOCUMENT');
     if (
@@ -1289,6 +1428,9 @@ export class MakerCanvasFiles {
         fail('抠图底色无效。', 400, 'INVALID_DOCUMENT');
       generation = {
         prompt: text(input.prompt, 8000, '生成提示词'),
+        ...(input.uiAtlasPlan === undefined
+          ? {}
+          : { uiAtlasPlan: validateUiAtlasPlan(input.uiAtlasPlan) }),
         ...(input.cutoutColor === undefined
           ? {}
           : { cutoutColor: input.cutoutColor as '#FF00FF' | '#00FF00' }),
@@ -1386,6 +1528,11 @@ export class MakerCanvasFiles {
       ...(node.templateRevision ? { templateRevision: node.templateRevision as number } : {}),
       ...(skills?.length ? { templateSkills: skills } : {}),
       ...(node.templatePending ? { templatePending: true } : {}),
+      ...(node.workStartedAt === undefined ? {} : { workStartedAt: node.workStartedAt as number }),
+      ...(node.workTimingOpen ? { workTimingOpen: true } : {}),
+      ...(node.workDurationMs === undefined
+        ? {}
+        : { workDurationMs: node.workDurationMs as number }),
       ...(sourceSnapshot ? { sourceSnapshot } : {}),
       ...(sourceSnapshots ? { sourceSnapshots } : {}),
       ...(node.text === undefined ? {} : { text: text(node.text, 4000, '文字') }),
@@ -1401,6 +1548,15 @@ export class MakerCanvasFiles {
       ...(imageAssetsInfo ? { imageAssetsInfo } : {}),
       ...(mergeIcons ? { mergeIcons } : {}),
       ...(generation ? { generation } : {}),
+      ...(node.uiAtlasPlan === undefined
+        ? {}
+        : { uiAtlasPlan: validateUiAtlasPlan(node.uiAtlasPlan) }),
+      ...(node.uiAtlasGroup === undefined
+        ? {}
+        : { uiAtlasGroup: validateUiAtlasGroup(node.uiAtlasGroup) }),
+      ...(node.uiAtlasBatch === undefined
+        ? {}
+        : { uiAtlasBatch: Math.floor(node.uiAtlasBatch as number) }),
       ...(generationDraft ? { generationDraft } : {}),
       ...(uiRecognition ? { uiRecognition } : {}),
       ...(node.uiBaselineGrid
@@ -1558,7 +1714,8 @@ export class MakerCanvasFiles {
       edge.kind !== 'sequence-animation' &&
       edge.kind !== 'frame-first' &&
       edge.kind !== 'frame-last' &&
-      edge.kind !== 'image-assets'
+      edge.kind !== 'image-assets' &&
+      edge.kind !== 'resource-bundle'
     ) {
       fail('画布连线类型无效。', 400, 'INVALID_EDGE');
     }
@@ -1573,6 +1730,11 @@ export class MakerCanvasFiles {
     if (edge.from === edge.to) fail('不能把卡片连到自身。', 400, 'INVALID_EDGE');
     const from = nodes.find((node) => node.id === edge.from);
     const to = nodes.find((node) => node.id === edge.to);
+    if (
+      edge.kind === 'resource-bundle' &&
+      (from?.type !== 'image-assets' || to?.type !== 'resource-bundle')
+    )
+      fail('资源包只能汇总游戏资产卡。', 400, 'INVALID_EDGE');
     if (
       ['frame-first', 'frame-last'].includes(String(edge.kind)) &&
       (from?.type !== 'image' || to?.videoInputMode !== 'first_last_frame')

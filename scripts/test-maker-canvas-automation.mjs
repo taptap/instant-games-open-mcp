@@ -641,7 +641,7 @@ try {
   const importedAtlas = await files.importImage(PNG.sync.write(atlas));
   const atlasId = randomUUID(), assetsId = randomUUID(), uiSectionId = randomUUID();
   atlasDocument.nodes.push(
-    { id: uiSectionId, type: 'section', title: '游戏UI制作', x: -20, y: -60, width: 880, height: 580, templateId: '7e1cb6ad-732f-4dc3-a951-000000000012', templateRevision: 5, templateSkills: ['maker-ui-workflow'] },
+    { id: uiSectionId, type: 'section', title: '游戏UI制作', x: -20, y: -60, width: 880, height: 580, templateId: '7e1cb6ad-732f-4dc3-a951-000000000013', templateRevision: 5, templateSkills: ['maker-ui-workflow'] },
     { id: atlasId, type: 'image', title: '图集', x: 0, y: 0, width: 300, height: 240, assetPath: importedAtlas.relativePath },
     { id: assetsId, type: 'image-assets', title: '游戏资产', x: 360, y: 0, width: 480, height: 460, sectionId: uiSectionId }
   );

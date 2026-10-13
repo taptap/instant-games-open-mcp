@@ -102,6 +102,9 @@ test('browser injection parses and includes route controller and shared fanout',
   );
   expect(html).toContain('wireUi.sync()');
   expect(html).toContain('createCanvasWireUi');
+  expect(html).toContain('id="canvas-wire-arrow"');
+  expect(html).toContain('markerUnits="userSpaceOnUse" orient="auto"');
+  expect(html).toContain("path.setAttribute('marker-end', 'url(#canvas-wire-arrow)')");
   const fn = new Script(
     canvasWireGeometry.toString() + ';(' + canvasWirePath.toString() + ')'
   ).runInNewContext();

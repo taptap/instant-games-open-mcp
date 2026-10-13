@@ -3,9 +3,11 @@ import { emptyDocument, type CanvasNode } from '../model.js';
 import { canvasNeedsProcessing, createTemplateWorkflow } from '../templateWorkflow.js';
 import { createUiRecognitionUi } from '../uiRecognitionUi.js';
 import { snapshotCanvasSource } from '../dependencies.js';
+import { createCanvasGroupQueue } from '../groupQueue.js';
 import {
   validateUiElements,
   validateUiRecognition,
+  uiRecognitionNote,
   selectedUiRecognition,
   uiRecognitionStatus,
   setUiRecognitionMode,
@@ -36,6 +38,133 @@ const result = (): UiRecognitionResult => ({
   height: 1920,
   elements: ['B32', 'B34', 'B36'].map(element),
 });
+
+test('server credits survive result validation and appear once in the note', () => {
+  const record = { ...result(), credits: 8 };
+  const settings = validateUiRecognition({ enabled: true, results: [record] });
+  expect(settings?.results[0].credits).toBe(8);
+  expect(uiRecognitionNote(settings!.results[0])).toContain('8 积分');
+  expect(() =>
+    validateUiRecognition({ enabled: true, results: [{ ...record, credits: -1 }] })
+  ).toThrow('识图记录');
+});
+
+test.each([true, false])(
+  'queued text removal includes recognition and blocks downstream on failure: %s',
+  async (succeeded) => {
+    const document = emptyDocument();
+    const recognition = result();
+    const source: CanvasNode = {
+      id: 'cut',
+      type: 'image',
+      title: '去文字',
+      sectionId: 'group',
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 200,
+      assetPath: 'old.png',
+      templatePending: true,
+      uiRecognition: { enabled: true, inputRole: 'text-free', results: [] },
+    };
+    document.nodes = [
+      {
+        ...source,
+        id: 'group',
+        type: 'section',
+        uiRecognition: undefined,
+        sectionId: undefined,
+        templatePending: undefined,
+      },
+      source,
+      { ...source, id: 'atlas', uiRecognition: undefined },
+    ];
+    document.edges = [{ id: 'edge', from: source.id, to: 'atlas', kind: 'image-variant' }];
+    const events: string[] = [];
+    let clock = 1000;
+    const now = jest.spyOn(Date, 'now').mockImplementation(() => clock);
+    const fetcher = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue({ ok: true, blob: async () => new Blob(['image']) } as Response);
+    const previousBitmap = globalThis.createImageBitmap;
+    globalThis.createImageBitmap = jest.fn(
+      async () => ({ width: 1080, height: 1920, close() {} }) as ImageBitmap
+    );
+    const controller = createUiRecognitionUi({
+      current: () => document,
+      store: {
+        mediaUrl: () => 'http://localhost/image',
+        recognitionModels: async () => [{ id: 'custom', model: 'custom', source: 'custom' }],
+        recognizeUi: async () => {
+          events.push('recognize');
+          clock += 2000;
+          if (!succeeded) throw new Error('识图失败');
+          return { status: 'succeeded', result: recognition };
+        },
+      } as any,
+      save: async () => true,
+      remember: () => {},
+      changed: () => {},
+      render: () => {},
+      blocked: () => false,
+      error: () => {},
+      loadMedia: async () => {},
+      openCanvas: async () => {},
+    });
+    const workflow = createTemplateWorkflow({
+      getDocument: () => document,
+      save: async () => true,
+      changed: () => {},
+      render: () => {},
+      error: () => {},
+      confirm: () => true,
+      video: async () => false,
+      sequence: async () => {},
+      animation: () => {},
+      select: () => {},
+      importImage: () => {},
+      image: (id, automatic) =>
+        controller.runImage(
+          id,
+          async () => {
+            events.push(id);
+            clock += 1000;
+            if (id === source.id) {
+              source.assetPath = recognition.sourcePath;
+              delete source.templatePending;
+            }
+            return true;
+          },
+          true,
+          automatic
+        ),
+    });
+    const queue = createCanvasGroupQueue({
+      getDocument: () => document,
+      needs: (id) => workflow.status(id) === 'pending',
+      busy: () => workflow.isBusy,
+      run: workflow.runQueued,
+      save: async () => true,
+      confirm: () => true,
+      changed: () => {},
+      error: () => {},
+    });
+    try {
+      queue.start('group');
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(workflow.failure('cut')).toBe(succeeded ? undefined : '识图失败');
+      expect(events).toEqual(succeeded ? ['cut', 'recognize', 'atlas'] : ['cut', 'recognize']);
+      expect(source.workDurationMs).toBe(3000);
+      expect(document.nodes[0].workDurationMs).toBe(succeeded ? 4000 : 3000);
+      expect(queue.view('group')?.phase).toBe(succeeded ? 'complete' : 'paused');
+    } finally {
+      queue.stop('group');
+      now.mockRestore();
+      fetcher.mockRestore();
+      globalThis.createImageBitmap = previousBitmap;
+    }
+  }
+);
 
 test('all button IDs survive into extraction slots and count, instead of the example 2x2', () => {
   const plan = uiExtractionPlan(result(), 'action');

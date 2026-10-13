@@ -32,7 +32,7 @@ test('UI styles preset is one complete reference and three independently generat
     expect(node.generation?.parameters).toMatchObject({
       model: 'gpt',
       resolution: '2K',
-      aspectRatio: '16:9',
+      aspectRatio: node === reference ? '16:9' : 'source',
     });
     const bytes = await readDemoResource(preset.assets[node.assetPath!].resourceId);
     hashes.add(createHash('sha256').update(bytes).digest('hex'));
@@ -95,12 +95,15 @@ test('UI styles instances persist real assets and isolate source replacement and
     const [reference, ...variants] = firstImages;
     for (const node of [...firstImages, ...secondImages]) {
       expect(fs.statSync(files.readMedia(node.assetPath!).file).size).toBeGreaterThan(10000);
-      expect(node.templatePending).toBeUndefined();
+      expect(node.templatePending).toBe(
+        node === firstImages[0] || node === secondImages[0] ? undefined : true
+      );
     }
     for (const variant of variants) {
       expect(variant.generation?.sourceImageIds).toEqual([reference.id]);
       expect(isCanvasNodeStale(variant, [reference])).toBe(false);
     }
+    for (const node of document.nodes) delete node.templatePending;
     invalidateCanvasDependents(document, variants[0].id);
     expect(document.nodes.some((node) => node.templatePending)).toBe(false);
     const oldAssets = variants.map((node) => node.assetPath);
@@ -112,5 +115,16 @@ test('UI styles instances persist real assets and isolate source replacement and
     expect(variants.every((node) => isCanvasNodeStale(node, [reference]))).toBe(true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('UI styles layout leaves room for portrait inputs and outputs without covering the group footer', () => {
+  const preset = canvasPresets().find((item) => item.id === presetId)!;
+  const instance = createCanvasTemplateModel().instantiate(preset, { x: 80, y: 80 });
+  const images = instance.nodes.filter((node) => node.type === 'image');
+  for (const [index, node] of images.entries()) {
+    const portraitHeight = (node.width * 16) / 9 + 44;
+    expect(node.y + portraitHeight).toBeLessThan(instance.section.y + instance.section.height - 28);
+    if (index > 0) expect(node.x).toBeGreaterThan(images[index - 1].x + images[index - 1].width);
   }
 });

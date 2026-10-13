@@ -3,14 +3,16 @@ import type { CanvasDocument, CanvasNode } from './model.js';
 import { selectedUiExtraction } from './uiRecognition.js';
 import type { CanvasDocumentStore } from './store.js';
 import type { ImageAtlasGrid } from './imageAtlasExport.js';
-import { splitImageAtlas } from './imageAtlasExport.js';
-import { applyImageAssets } from './imageAssets.js';
+import { splitImageAtlas, prepareImageAtlas } from './imageAtlasExport.js';
+import type { PreparedImageAtlas } from './imageAtlasExport.js';
+import type { ImageAtlasCutSettings } from './atlasContent.js';
+import { applyImageAssets, imageAssetsBindingPlan } from './imageAssets.js';
 import { canvasNodeVersion, isCanvasSourceCurrent } from './dependencies.js';
 import { openImageAtlasDialog, drawImageAtlasPreview } from './imageAtlasUi.js';
 import { mergeIconGrid, mergeIconNeedsGeneration } from './mergeIcons.js';
 import { isGameUiResource } from './uiWorkflowHandoff.js';
 import { withCanvasTimeout } from './requestTimeout.js';
-import { uiCutoutRgb, uiCutoutPrompt } from './uiCutout.js';
+import { uiCutoutRgb } from './uiCutout.js';
 
 export function createImageAssetsUi(options: {
   current(): CanvasDocument | null;
@@ -25,9 +27,6 @@ export function createImageAssetsUi(options: {
   error(message: string): void;
 }) {
   let busy = false;
-  let failedAtlas:
-    | { targetId: string; canvasId: string; sourceId: string; version?: string }
-    | undefined;
   let review:
     | {
         id: string;
@@ -37,6 +36,8 @@ export function createImageAssetsUi(options: {
         source: CanvasNode;
         blob: Blob;
         grid: ImageAtlasGrid;
+        prepared: PreparedImageAtlas;
+        targetInfo: string;
       }
     | undefined;
   function savedGrid(current: CanvasDocument, source: CanvasNode, target?: CanvasNode) {
@@ -45,7 +46,39 @@ export function createImageAssetsUi(options: {
     // A confirmed grid belongs to this atlas; new atlases use the active mode's grid.
     if (target?.imageAssetsInfo && isCanvasSourceCurrent(target.sourceSnapshot, source))
       return target.imageAssetsInfo.grid;
+    if (source.generation?.uiAtlasPlan) return source.generation.uiAtlasPlan.grid;
     return plan?.grid || source.uiBaselineGrid || target?.imageAssetsInfo?.grid;
+  }
+  function backgroundFor(source: CanvasNode, target?: CanvasNode) {
+    if (target?.imageAssetsInfo?.background && isCanvasSourceCurrent(target.sourceSnapshot, source))
+      return target.imageAssetsInfo.background;
+    const gameUi = Boolean(target && isGameUiResource(options.current() || undefined, target));
+    return {
+      color:
+        source.generation?.cutoutColor || gameUi
+          ? uiCutoutRgb(source.generation?.cutoutColor)
+          : undefined,
+      mode:
+        (source.uiAtlasGroup && source.uiAtlasGroup !== 'background') ||
+        (source.generation?.cutoutColor && !gameUi)
+          ? ('all' as const)
+          : ('connected' as const),
+    };
+  }
+  function savedCut(source: CanvasNode, target?: CanvasNode): ImageAtlasCutSettings {
+    const allowEmpty = Boolean(
+      source.generation?.uiAtlasPlan || (source.uiAtlasGroup && source.uiBaselineGrid)
+    );
+    return target?.imageAssetsInfo?.regions && isCanvasSourceCurrent(target.sourceSnapshot, source)
+      ? {
+          mode: target.imageAssetsInfo.cutMode || 'content',
+          regions: structuredClone(target.imageAssetsInfo.regions),
+          expectedCount: target.imageAssetsInfo.regions.length,
+          ...(allowEmpty ? { allowEmpty } : {}),
+        }
+      : allowEmpty
+        ? { allowEmpty }
+        : {};
   }
   function reviewed(id: string) {
     const current = options.current();
@@ -56,6 +89,8 @@ export function createImageAssetsUi(options: {
       current.revision !== review.revision ||
       canvasNodeVersion(source) !== canvasNodeVersion(review.source) ||
       source?.templatePending ||
+      JSON.stringify(current?.nodes.find((node) => node.id === id)?.imageAssetsInfo) !==
+        review.targetInfo ||
       !current.nodes.some((node) => node.id === id && node.type === 'image-assets') ||
       !current.edges.some(
         (edge) => edge.kind === 'image-assets' && edge.from === source?.id && edge.to === id
@@ -73,13 +108,15 @@ export function createImageAssetsUi(options: {
         status: 'waiting_for_confirmation',
         reviewId: value.id,
         grid: { ...value.grid },
+        bindings: value.source.generation?.uiAtlasPlan?.slots,
+        cutMode: value.prepared.mode,
         nextAction: 'confirm-image-assets',
         message:
           '请查看网格预览，核对每格物品完整且不跨格，再携带当前 reviewId 显式确认。参数变化需重新预览。',
       }
     );
   }
-  async function preview(id: string, input?: unknown) {
+  async function preview(id: string, input?: unknown, cutInput?: unknown) {
     const current = options.current();
     const target = current?.nodes.find((node) => node.id === id && node.type === 'image-assets');
     const edge = current?.edges.find((edge) => edge.kind === 'image-assets' && edge.to === id);
@@ -104,6 +141,20 @@ export function createImageAssetsUi(options: {
         ))
     )
       throw new Error('grid 只接受 columns、rows、marginX、marginY、gapX、gapY。');
+    if (
+      cutInput !== undefined &&
+      (!cutInput ||
+        typeof cutInput !== 'object' ||
+        Array.isArray(cutInput) ||
+        Object.keys(cutInput).some((key) => !['mode', 'regions', 'expectedCount'].includes(key)))
+    )
+      throw new Error('cut 只接受 mode、regions、expectedCount。');
+    if (
+      cutInput &&
+      (cutInput as ImageAtlasCutSettings).regions !== undefined &&
+      !['grid', 'content'].includes((cutInput as ImageAtlasCutSettings).mode || '')
+    )
+      throw new Error('自定义区域必须指定切图方式。');
     const grid = {
       columns: 4,
       rows: 3,
@@ -125,34 +176,43 @@ export function createImageAssetsUi(options: {
         return response.blob();
       });
       if (!blob.size || blob.size > 128 * 1024 * 1024) throw new Error('图片为空或超过 128 MiB。');
-      const bitmap = await createImageBitmap(blob);
-      try {
-        const canvas = document.createElement('canvas');
-        const regions = drawImageAtlasPreview(canvas, bitmap, grid);
-        review = {
-          id: crypto.randomUUID(),
-          canvasId: current.id,
-          revision,
-          targetId: id,
-          source: saved,
-          blob,
-          grid,
-        };
-        const state = reviewState(id);
-        if (!state || options.blocked(source.id)) throw new Error('图集或画布已变化，请重新预览。');
-        return {
-          ...state,
-          canvasId: current.id,
-          nodeId: id,
-          revision,
-          width: bitmap.width,
-          height: bitmap.height,
-          regions,
-          preview: { mimeType: 'image/png', dataUrl: canvas.toDataURL('image/png') },
-        };
-      } finally {
-        bitmap.close();
-      }
+      const background = backgroundFor(saved, target);
+      const cut =
+        cutInput === undefined ? savedCut(saved, target) : (cutInput as ImageAtlasCutSettings);
+      const prepared = await prepareImageAtlas(blob, grid, background.color, background.mode, cut);
+      if (saved.generation?.uiAtlasPlan && cut.mode === 'content')
+        throw new Error('UI 顺序绑定请使用规则网格预览，不能按内容检测顺序自动配对。');
+      const canvas = document.createElement('canvas');
+      const regions = drawImageAtlasPreview(
+        canvas,
+        prepared.canvas,
+        grid,
+        prepared.regions,
+        saved.generation?.uiAtlasPlan?.slots.map((slot) => slot.elementIds.join('/') || slot.role)
+      );
+      review = {
+        id: crypto.randomUUID(),
+        canvasId: current.id,
+        revision,
+        targetId: id,
+        source: saved,
+        blob,
+        grid,
+        prepared,
+        targetInfo: JSON.stringify(target.imageAssetsInfo),
+      };
+      const state = reviewState(id);
+      if (!state || options.blocked(source.id)) throw new Error('图集或画布已变化，请重新预览。');
+      return {
+        ...state,
+        canvasId: current.id,
+        nodeId: id,
+        revision,
+        width: prepared.width,
+        height: prepared.height,
+        regions,
+        preview: { mimeType: 'image/png', dataUrl: canvas.toDataURL('image/png') },
+      };
     } catch (error) {
       review = undefined;
       throw error;
@@ -166,7 +226,7 @@ export function createImageAssetsUi(options: {
       throw new Error('解析预览已失效或未完成，请重新 preview-image-assets 并核对网格。');
     // 确认只使用本次已预览的字节与参数；成功或失败后都不能重放旧确认。
     review = undefined;
-    if (!(await generate(value.source, value.blob, value.grid, id)))
+    if (!(await generate(value.source, value.blob, value.grid, id, undefined, value.prepared)))
       throw new Error('游戏资产未生成，请检查画布后重新预览。');
     const node = options.current()?.nodes.find((node) => node.id === id);
     return {
@@ -179,7 +239,6 @@ export function createImageAssetsUi(options: {
     };
   }
   async function runSavedGrid(id: string): Promise<boolean> {
-    failedAtlas = undefined;
     const current = options.current();
     const target = current?.nodes.find((node) => node.id === id && node.type === 'image-assets');
     const edge = current?.edges.find((edge) => edge.kind === 'image-assets' && edge.to === id);
@@ -198,12 +257,20 @@ export function createImageAssetsUi(options: {
     if (!configuredGrid) throw new Error('资源卡缺少切图参数，请先调整并保存网格后继续。');
     const grid = { ...configuredGrid };
     const savedSource = structuredClone(source);
-    const targetGrid = JSON.stringify(target.imageAssetsInfo?.grid);
+    const targetGrid = JSON.stringify({
+      grid: target.imageAssetsInfo?.grid,
+      regions: target.imageAssetsInfo?.regions,
+      background: target.imageAssetsInfo?.background,
+    });
     function checkTarget() {
       if (
         options.current() !== current ||
         !current!.nodes.includes(target!) ||
-        JSON.stringify(target!.imageAssetsInfo?.grid) !== targetGrid ||
+        JSON.stringify({
+          grid: target!.imageAssetsInfo?.grid,
+          regions: target!.imageAssetsInfo?.regions,
+          background: target!.imageAssetsInfo?.background,
+        }) !== targetGrid ||
         !current!.edges.some(
           (item) => item.kind === 'image-assets' && item.from === source!.id && item.to === id
         )
@@ -230,7 +297,8 @@ export function createImageAssetsUi(options: {
     blob: Blob,
     grid: ImageAtlasGrid,
     targetId?: string,
-    checkTarget?: () => void
+    checkTarget?: () => void,
+    prepared?: PreparedImageAtlas
   ) {
     const canvasId = options.current()?.id;
     const version = canvasNodeVersion(source);
@@ -253,24 +321,33 @@ export function createImageAssetsUi(options: {
     try {
       currentSource();
       const target = options.current()?.nodes.find((node) => node.id === targetId);
-      // The game UI template explicitly generates magenta-backed atlases.
-      const background =
-        target && isGameUiResource(options.current() || undefined, target)
-          ? uiCutoutRgb(source.generation?.cutoutColor)
-          : undefined;
-      let split: Awaited<ReturnType<typeof splitImageAtlas>>;
-      try {
-        split = await splitImageAtlas(blob, grid, background);
-      } catch (error) {
-        currentSource();
-        if (
-          background &&
-          targetId &&
-          (error as Error & { code?: string }).code === 'ATLAS_LAYOUT_INVALID'
+      const background = backgroundFor(source, target);
+      if (
+        source.generation?.uiAtlasPlan &&
+        (prepared?.mode === 'content' || (!prepared && savedCut(source, target).mode === 'content'))
+      )
+        throw new Error('UI 顺序绑定只支持规则网格确认，请先重新预览；旧素材已保留。');
+      const split = await splitImageAtlas(
+        blob,
+        grid,
+        background.color,
+        background.mode,
+        savedCut(source, target),
+        prepared
+      );
+      currentSource();
+      imageAssetsBindingPlan(source, {
+        ...split,
+        items: split.items.map((item) => ({ ...item, assetPath: '' })),
+      });
+      if (
+        source.generation?.uiAtlasPlan &&
+        split.items.some(
+          (item, index) =>
+            !item.contentRect && source.generation!.uiAtlasPlan!.slots[index].role !== 'reserve'
         )
-          failedAtlas = { targetId, canvasId: canvasId!, sourceId: source.id, version };
-        throw error;
-      }
+      )
+        throw new Error('UI 图集的组件格为空，原绑定未替换。');
       const items = [];
       for (const item of split.items) {
         currentSource();
@@ -285,6 +362,7 @@ export function createImageAssetsUi(options: {
           width: item.width,
           height: item.height,
           assetPath: imported.relativePath,
+          ...(source.generation?.uiAtlasPlan ? { contentRect: item.contentRect } : {}),
         });
       }
       if (!(await options.save())) throw new Error('画布保存失败，原有游戏资产未替换。');
@@ -297,7 +375,18 @@ export function createImageAssetsUi(options: {
       const result = applyImageAssets(
         current,
         source.id,
-        { width: split.width, height: split.height, grid: split.grid, items },
+        {
+          width: split.width,
+          height: split.height,
+          grid: split.grid,
+          ...(split.regions ? { regions: split.regions } : {}),
+          cutMode: split.cutMode,
+          background: split.background,
+          ...(source.generation?.uiAtlasPlan
+            ? { uiBindingReview: prepared ? ('confirmed' as const) : ('unreviewed' as const) }
+            : {}),
+          items,
+        },
         nodeId,
         edgeId,
         targetId
@@ -325,6 +414,10 @@ export function createImageAssetsUi(options: {
       options.render();
       return true;
     } catch (error) {
+      if ((error as Error & { code?: string }).code === 'ATLAS_LAYOUT_INVALID')
+        (error as Error).message += source.generation?.uiAtlasPlan
+          ? ' 请核对图集的槽位数量、顺序和主体完整性，修正图集后重试；原有资产保留，不会自动重新生图。'
+          : ' 请打开「调整参数」选择「按内容切图」并核对裁切框；原有资产保留，不会自动重新生图。';
       options.error((error as Error).message);
       throw error;
     } finally {
@@ -355,12 +448,34 @@ export function createImageAssetsUi(options: {
     if (document.querySelector('[data-image-atlas-dialog]')) return Promise.resolve(false);
     const saved = structuredClone(source);
     const target = current?.nodes.find((node) => node.id === targetId);
+    const targetInfo = JSON.stringify(target?.imageAssetsInfo);
     return new Promise((resolve) => {
       let succeeded = false;
       openImageAtlasDialog(saved, options.store.mediaUrl, {
         grid: savedGrid(current!, source, target),
-        create: async (blob, grid) => {
-          succeeded = await generate(saved, blob, grid, targetId);
+        cut: {
+          ...savedCut(source, target),
+          expectedCount: target?.imageAssetsInfo?.items.length || 0,
+        },
+        backgroundColor: backgroundFor(saved, target).color,
+        backgroundMode: backgroundFor(saved, target).mode,
+        create: async (blob, grid, prepared) => {
+          succeeded = await generate(
+            saved,
+            blob,
+            grid,
+            targetId,
+            () => {
+              if (
+                options.current() !== current ||
+                (target &&
+                  (!current!.nodes.includes(target) ||
+                    JSON.stringify(target.imageAssetsInfo) !== targetInfo))
+              )
+                throw new Error('目标资源卡已变化，请重新打开解析，原有资产已保留。');
+            },
+            prepared
+          );
           return succeeded;
         },
         closed: () => resolve(succeeded),
@@ -370,39 +485,6 @@ export function createImageAssetsUi(options: {
   return {
     open,
     runSavedGrid,
-    retryPrompt(id: string) {
-      const current = options.current();
-      const target = current?.nodes.find((node) => node.id === id);
-      const source = current?.nodes.find((node) => node.id === failedAtlas?.sourceId);
-      const grid = current && source ? savedGrid(current, source, target) : undefined;
-      if (failedAtlas?.targetId !== id || !grid) return '';
-      return uiCutoutPrompt(
-        '输出排版校正：必须恰好 ' +
-          grid.columns * grid.rows +
-          ' 个完整独立素材，' +
-          grid.columns +
-          ' 列 × ' +
-          grid.rows +
-          ' 行，每格只包含一个完整对象，不得在同一格摆放多个独立对象或减少格子数量。' +
-          '保持本步骤要求的素材类别及保留、移除规则。每格四周至少留15%纯洋红空白，' +
-          '所有格外像素为RGB(255,0,255)，不要噪点、渐变、网格线；保持每个主体完整。',
-        source?.generation?.cutoutColor || '#FF00FF'
-      );
-    },
-    retrySource(id: string) {
-      const current = options.current();
-      const source = current?.nodes.find((node) => node.id === failedAtlas?.sourceId);
-      if (
-        failedAtlas?.targetId === id &&
-        current?.id === failedAtlas.canvasId &&
-        source?.generation?.prompt &&
-        canvasNodeVersion(source) === failedAtlas.version &&
-        current.edges.some(
-          (edge) => edge.from === source.id && edge.to === id && edge.kind === 'image-assets'
-        )
-      )
-        return source.id;
-    },
     preview,
     confirm,
     reviewState,

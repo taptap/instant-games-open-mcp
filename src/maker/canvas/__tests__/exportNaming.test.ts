@@ -15,7 +15,7 @@ function card(id: string, title: string, type: CanvasNode['type'] = 'image'): Ca
 }
 
 test('all four branches find the root title and direction through video, sequence and animation', () => {
-  const preset = canvasPresets()[1];
+  const preset = canvasPresets().find((preset) => preset.id.endsWith('002'))!;
   const document = documentFor(preset.nodes, preset.edges);
   const before = JSON.stringify(document);
   for (const type of ['video-source', 'sequence', 'animation']) {
@@ -46,7 +46,7 @@ test('structured direction survives renamed reference cards', () => {
 });
 
 test('first-last frame follows the explicit first image, not document ordering', () => {
-  const preset = canvasPresets()[2];
+  const preset = canvasPresets().find((preset) => preset.id.endsWith('003'))!;
   const document = documentFor([...preset.nodes].reverse(), preset.edges);
   const output = document.nodes.find((node) => node.type === 'animation')!;
   expect(canvasExportIdentity(document, output).title).toBe('首帧 · 四足灰狼');

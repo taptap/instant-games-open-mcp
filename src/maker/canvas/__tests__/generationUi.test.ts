@@ -6,6 +6,7 @@ import { createCanvasGroupQueue } from '../groupQueue.js';
 import { MakerCanvasFiles } from '../files.js';
 import { createId } from '../model.js';
 import * as uiCutout from '../uiCutout.js';
+import { canvasPresets } from '../presets.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,8 +25,10 @@ test('UI atlas color preparation saves an existing image through the real docume
       assetPath: source.assetPath,
       sectionId,
       templatePending: true,
+      uiAtlasGroup: 'controls',
+      uiBaselineGrid: { columns: 3, rows: 3, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
       generation: {
-        prompt: 'UI atlas',
+        prompt: 'UI atlas: only buttons in a 3 by 3 grid',
         operation: 'variant',
         sourceImageId: source.id,
         sourceImageIds: [source.id],
@@ -42,7 +45,7 @@ test('UI atlas color preparation saves an existing image through the real docume
         y: 0,
         width: 900,
         height: 600,
-        templateId: '7e1cb6ad-732f-4dc3-a951-000000000012',
+        templateId: '7e1cb6ad-732f-4dc3-a951-000000000013',
       },
       {
         id: assetsId,
@@ -76,6 +79,10 @@ test('UI atlas color preparation saves an existing image through the real docume
     await createCanvasGenerationUi(options).runTemplateImage(target.id);
     expect(options.setError.mock.calls).toEqual([['fixture failure', 'error']]);
     expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+    expect(options.store.generateImage.mock.calls[0][1].prompt).toContain(
+      'only buttons in a 3 by 3 grid'
+    );
+    expect(options.store.generateImage.mock.calls[0][1].prompt).not.toContain('按槽位清单');
     expect(target.generationDraft).toBeUndefined();
     expect(
       (await files.load(document.id)).nodes.find((node) => node.id === target.id)?.generation
@@ -230,6 +237,87 @@ test.each(['succeeded', 'failed', 'missing', 'unknown'])(
   }
 );
 
+test.each(['005', '006', '008', '009'])(
+  'static atlas %s records its fixed cutout color without recognition or prompt rewriting',
+  async (suffix) => {
+    const { document, options } = fixture();
+    delete document.templateFlow;
+    const preset = canvasPresets().find((item) => item.id.endsWith(suffix))!;
+    const reference = { ...structuredClone(preset.nodes[0]), id: 'head' };
+    const target = { ...structuredClone(preset.nodes[1]), id: 'atlas', templatePending: true };
+    target.generation!.sourceImageId = reference.id;
+    target.generation!.sourceImageIds = [reference.id];
+    target.generation!.referenceImagePaths = [];
+    document.nodes = [reference, target, { ...preset.nodes[2], id: 'assets' }];
+    document.edges = [
+      { id: 'reference', from: reference.id, to: target.id, kind: 'image-variant' },
+      { id: 'assets', from: target.id, to: 'assets', kind: 'image-assets' },
+    ];
+    options.store.listGeneration.mockResolvedValue([]);
+    options.store.generateImage.mockImplementation(async (canvasId, input) => ({
+      ...input,
+      id: 'result',
+      canvasId,
+      kind: 'image',
+      status: 'succeeded',
+      resultAssetPath: 'new-atlas.png',
+      resultImageInfo: { width: 2304, height: 1536 },
+      parameters: { ...input, targetSize: '2048x1536' },
+    }));
+    const color = jest.spyOn(uiCutout, 'detectUiCutoutColor');
+    try {
+      const ui = createCanvasGenerationUi(options);
+      expect(await ui.runTemplateImage(target.id)).toBe(true);
+      expect(options.store.generateImage).toHaveBeenCalledWith(
+        document.id,
+        expect.objectContaining({
+          cutoutColor: '#FF00FF',
+          prompt: preset.nodes[1].generation!.prompt,
+          sourceImageIds: [reference.id],
+        }),
+        expect.any(AbortSignal)
+      );
+      expect(color).not.toHaveBeenCalled();
+      expect(target.generation?.cutoutColor).toBe('#FF00FF');
+      expect(canvasNeedsProcessing(document, target)).toBe(false);
+    } finally {
+      color.mockRestore();
+    }
+  }
+);
+
+test('UI style variants follow a portrait reference without applying atlas cutout', async () => {
+  const { document, options } = fixture();
+  delete document.templateFlow;
+  const preset = canvasPresets().find((item) => item.id.endsWith('010'))!;
+  const reference = { ...preset.nodes[0], id: 'head', imageInfo: { width: 1080, height: 1920 } };
+  const target = { ...structuredClone(preset.nodes[1]), id: 'variant', templatePending: true };
+  target.generation!.sourceImageId = reference.id;
+  target.generation!.sourceImageIds = [reference.id];
+  document.nodes = [reference, target];
+  document.edges = [{ id: 'reference', from: reference.id, to: target.id, kind: 'image-variant' }];
+  options.store.listGeneration.mockResolvedValue([]);
+  options.store.generateImage.mockImplementation(async (canvasId, input) => ({
+    ...input,
+    id: 'result',
+    canvasId,
+    kind: 'image',
+    status: 'succeeded',
+    resultAssetPath: 'portrait.png',
+  }));
+  const ui = createCanvasGenerationUi(options);
+  expect(await ui.runTemplateImage(target.id)).toBe(true);
+  expect(options.store.generateImage).toHaveBeenCalledWith(
+    document.id,
+    expect.objectContaining({
+      aspectRatio: 'source',
+      targetSize: '1152x2048',
+      cutoutColor: undefined,
+    }),
+    expect.any(AbortSignal)
+  );
+});
+
 test('updating an existing template image preserves its workflow step title', async () => {
   const { document, options } = fixture();
   delete document.templateFlow;
@@ -383,6 +471,38 @@ test('an explicitly changed image model still refuses the old automatic result',
   expect(options.store.generateImage).not.toHaveBeenCalled();
 });
 
+test.each(['restore', 'run', 'applied-restore', 'applied-run'])(
+  'static atlas ratio warnings do not block recovery or repeat payment through %s',
+  async (entry) => {
+    const { document, options, target, completed, ui } = imageRecoveryFixture();
+    target.sectionId = 'group';
+    document.nodes.push(
+      { id: 'group', type: 'section', templateId: 'template' },
+      { id: 'assets', type: 'image-assets', sectionId: 'group' }
+    );
+    document.edges.push({
+      id: 'atlas-assets',
+      from: target.id,
+      to: 'assets',
+      kind: 'image-assets',
+    });
+    Object.assign(completed, {
+      cutoutColor: '#FF00FF',
+      resultImageInfo: { width: 2304, height: 1536 },
+      parameters: { ...completed.parameters, targetSize: '2048x1536' },
+    });
+    if (entry.startsWith('applied-')) {
+      target.assetPath = completed.resultAssetPath;
+      target.generation.attemptId = completed.id;
+    }
+    if (entry.endsWith('restore')) await ui.restore();
+    else expect(await ui.runTemplateImage(target.id)).toBe(true);
+    expect(target.assetPath).toBe('new.png');
+    expect(target.templatePending).toBeUndefined();
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+  }
+);
+
 test.each(['restore', 'run'])(
   'wrong-ratio results remain pending after %s without another paid request',
   async (entry) => {
@@ -399,6 +519,74 @@ test.each(['restore', 'run'])(
     expect(target.templatePending).toBe(true);
     expect(options.store.generateImage).not.toHaveBeenCalled();
     expect(options.setError).toHaveBeenCalledWith(expect.stringContaining('比例与请求不一致'));
+  }
+);
+
+test.each(['source', 'prompt', 'model', 'ui'])(
+  'a previously applied atlas does not clear pending after %s changes',
+  async (change) => {
+    const { document, options, target, completed, ui } = imageRecoveryFixture();
+    target.sectionId = 'group';
+    target.assetPath = completed.resultAssetPath;
+    target.generation.attemptId = completed.id;
+    document.nodes.push(
+      {
+        id: 'group',
+        type: 'section',
+        templateId: change === 'ui' ? '7e1cb6ad-732f-4dc3-a951-000000000013' : 'template',
+      },
+      { id: 'assets', type: 'image-assets', sectionId: 'group' }
+    );
+    document.edges.push({
+      id: 'atlas-assets',
+      from: target.id,
+      to: 'assets',
+      kind: 'image-assets',
+    });
+    Object.assign(completed, {
+      cutoutColor: '#FF00FF',
+      resultImageInfo: { width: 2304, height: 1536 },
+      parameters: { ...completed.parameters, targetSize: '2048x1536' },
+    });
+    if (change === 'source') document.nodes[0].assetPath = 'replacement.png';
+    if (change === 'prompt') target.generation.prompt = 'new items';
+    if (change === 'model') target.generation.parameters.model = 'nanobanana';
+    await ui.restore();
+    expect(target.templatePending).toBe(true);
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+  }
+);
+
+test.each(['query', 'restore'])(
+  'successful %s recovery clears stale image failure and retry eligibility without regenerating',
+  async (entry) => {
+    const { options, target, completed, previous, ui } = imageRecoveryFixture();
+    options.store.listGeneration.mockResolvedValue([]);
+    options.store.generateImage.mockResolvedValue({
+      ...completed,
+      status: 'failed',
+      remoteStatus: 'failed',
+      error: 'old failure',
+    });
+    expect(await ui.runTemplateImage(target.id)).toBe(false);
+    expect(ui.failure(target.id)).toBe('old failure');
+    expect(ui.retryableImage(target.id)).toBe(true);
+    options.store.listGeneration.mockResolvedValue([
+      previous,
+      {
+        ...completed,
+        status: 'succeeded',
+        remoteStatus: 'succeeded',
+        error: undefined,
+        resultAssetPath: 'recovered.png',
+      },
+    ]);
+    if (entry === 'query') await ui.queryNode(target.id, true);
+    else await ui.restore();
+    expect(target.assetPath).toBe('recovered.png');
+    expect(ui.failure(target.id)).toBeUndefined();
+    expect(ui.retryableImage(target.id)).toBe(false);
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
   }
 );
 

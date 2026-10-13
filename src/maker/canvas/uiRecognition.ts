@@ -1,5 +1,7 @@
 import type { CanvasDocument, CanvasNode } from './model.js';
-import { canvasDependents } from './dependencies.js';
+import { canvasDependents, canvasReferences } from './dependencies.js';
+import { scaleCutElements, validateUiBbox, type UiBboxDocument } from './uiBbox.js';
+import { hasImageFeature } from './imageFeatures.js';
 
 export const UI_ELEMENT_CATEGORIES = [
   'icon',
@@ -32,15 +34,31 @@ export interface UiRecognitionResult {
   prompt: string;
   createdAt: string;
   durationMs: number;
+  credits?: number;
   sourcePath: string;
   sourceSha256: string;
   width: number;
   height: number;
   elements: UiElement[];
+  bbox?: UiBboxDocument;
+}
+
+export function bboxRecognitionElements(bbox: UiBboxDocument): UiElement[] {
+  return scaleCutElements(bbox.elements, bbox.design, bbox.cutSource).map((element, index) => ({
+    id: element.id,
+    name: element.name,
+    category: element.type === 'button' ? 'action' : element.type,
+    rect: element.bbox,
+    parentId: element.parent,
+    zIndex: index,
+    states: ['normal'],
+    cutout: true,
+  }));
 }
 
 export interface UiRecognitionSettings {
   enabled: boolean;
+  inputRole?: 'design' | 'text-free';
   model?: string;
   selectedId?: string;
   pendingId?: string;
@@ -112,6 +130,7 @@ export function validateUiRecognition(value: unknown): UiRecognitionSettings {
   if (
     !input ||
     typeof input.enabled !== 'boolean' ||
+    (input.inputRole !== undefined && !['design', 'text-free'].includes(input.inputRole)) ||
     !Array.isArray(input.results) ||
     input.results.length > 12 ||
     (input.model !== undefined &&
@@ -129,28 +148,44 @@ export function validateUiRecognition(value: unknown): UiRecognitionSettings {
       !result.model ||
       result.model.length > 240 ||
       typeof result.prompt !== 'string' ||
-      result.prompt.length > 16000 ||
+      result.prompt.length > 200000 ||
       typeof result.createdAt !== 'string' ||
       !Number.isFinite(Date.parse(result.createdAt)) ||
       !Number.isFinite(result.durationMs) ||
       result.durationMs < 0 ||
+      (result.credits !== undefined && (!Number.isFinite(result.credits) || result.credits < 0)) ||
       typeof result.sourcePath !== 'string' ||
       !/^assets\/image\/canvas-[a-f0-9-]{36}\.(png|jpg|webp)$/i.test(result.sourcePath) ||
       !/^[a-f0-9]{64}$/.test(result.sourceSha256)
     )
       throw new Error('识图记录或原稿身份无效。');
     ids.add(result.id);
+    const bbox = result.bbox ? validateUiBbox(result.bbox) : undefined;
+    if (
+      bbox &&
+      (bbox.cutSource.path !== result.sourcePath ||
+        bbox.cutSource.sha256 !== result.sourceSha256 ||
+        bbox.cutSource.width !== result.width ||
+        bbox.cutSource.height !== result.height)
+    )
+      throw new Error('识图 Bbox 与去文字图片身份不一致。');
     return {
       id: result.id,
       model: result.model,
       prompt: result.prompt,
       createdAt: result.createdAt,
       durationMs: result.durationMs,
+      ...(result.credits !== undefined ? { credits: result.credits } : {}),
       sourcePath: result.sourcePath,
       sourceSha256: result.sourceSha256,
       width: result.width,
       height: result.height,
-      elements: validateUiElements(result.elements, result.width, result.height),
+      elements: validateUiElements(
+        bbox ? bboxRecognitionElements(bbox) : result.elements,
+        result.width,
+        result.height
+      ),
+      ...(bbox ? { bbox } : {}),
     };
   });
   if (input.selectedId !== undefined && !ids.has(input.selectedId))
@@ -159,11 +194,52 @@ export function validateUiRecognition(value: unknown): UiRecognitionSettings {
     throw new Error('识图请求标识无效。');
   return {
     enabled: input.enabled,
+    ...(input.inputRole ? { inputRole: input.inputRole } : {}),
     ...(input.model ? { model: input.model } : {}),
     ...(input.pendingId ? { pendingId: input.pendingId } : {}),
     ...(input.selectedId ? { selectedId: input.selectedId } : {}),
     results,
   };
+}
+
+export function uiRecognitionInputs(document: CanvasDocument, node: CanvasNode) {
+  const designInput = node.uiRecognition?.inputRole === 'design';
+  const cut = designInput
+    ? document.nodes.filter(
+        (candidate) =>
+          candidate.type === 'image' &&
+          candidate.uiRecognition &&
+          candidate.uiRecognition.inputRole !== 'design' &&
+          canvasReferences(document, candidate.id).some((source) => source.id === node.id)
+      )
+    : [node];
+  if (cut.length !== 1 || !cut[0].assetPath || cut[0].templatePending)
+    throw new Error('请先准备一张去文字稿，并从原 UI 设计稿连线到它，再执行识别。');
+  const originals = canvasReferences(document, cut[0].id).filter(
+    (source) => source.type === 'image' && source.assetPath
+  );
+  if (originals.length !== 1 || originals[0].templatePending)
+    throw new Error('去文字稿需要连线引用唯一的原 UI 设计稿。');
+  return { design: originals[0], cut: cut[0] };
+}
+
+export function uiRecognitionPreview(document: CanvasDocument, node: CanvasNode) {
+  const direct = selectedUiRecognition(node);
+  if (
+    node.uiRecognition?.inputRole === 'design' &&
+    direct?.bbox &&
+    direct.bbox.design.path === node.assetPath
+  )
+    return { source: node, result: direct };
+  try {
+    const inputs = uiRecognitionInputs(document, node);
+    const result = selectedUiRecognition(inputs.cut);
+    if (result?.bbox && result.bbox.design.path === inputs.design.assetPath)
+      return { source: inputs.cut, result };
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 export function setUiRecognitionMode(
@@ -184,12 +260,17 @@ export function setUiRecognitionMode(
 }
 
 export function selectedUiExtraction(document: CanvasDocument, node: CanvasNode) {
-  if (!node.uiExtraction) return;
+  if (!hasImageFeature(node, 'ui-extraction')) return;
   const source = uiRecognitionSource(document, node);
   if (!source?.uiRecognition?.enabled) return;
   const result = selectedUiRecognition(source);
   if (!result) throw new Error('请先完成当前去文字图的识图，再拆图。');
-  return uiExtractionPlan(result, node.uiExtraction);
+  if (
+    result.bbox &&
+    uiRecognitionInputs(document, source).design.assetPath !== result.bbox.design.path
+  )
+    throw new Error('原 UI 设计稿已变化，请重新识别再拆图。');
+  return uiExtractionPlan(result, node.uiExtraction!);
 }
 
 export function selectedUiRecognition(node: CanvasNode): UiRecognitionResult | undefined {
@@ -222,9 +303,9 @@ export function uiRecognitionNote(result: UiRecognitionResult): string {
     result.model +
       ' · ' +
       result.elements.length +
-      ' 个元素 · ' +
-      (result.durationMs / 1000).toFixed(1) +
-      ' 秒',
+      ' 个元素' +
+      (result.durationMs > 0 ? ' · ' + (result.durationMs / 1000).toFixed(1) + ' 秒' : '') +
+      (result.credits !== undefined ? ' · ' + result.credits + ' 积分' : ''),
     '坐标为识别输入图像素 [x, y, 宽, 高]；模型识别结果仍需核对。',
     ...result.elements.map(
       (item) =>

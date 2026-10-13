@@ -6,6 +6,7 @@ import type { MergeIconSettings } from './mergeIcons.js';
 import type { UiRecognitionSettings, UiElementCategory } from './uiRecognition.js';
 import type { ImageAtlasGrid } from './imageAtlasExport.js';
 import type { CanvasImageInfo } from './imageSizing.js';
+import type { UiAtlasPlan, UiAtlasGroup } from './uiAssetBindings.js';
 
 export const HISTORY_LIMIT = 60;
 
@@ -17,6 +18,7 @@ export type CanvasNodeType =
   | 'sequence'
   | 'animation'
   | 'image-assets'
+  | 'resource-bundle'
   | 'model-views'
   | 'model'
   | 'section';
@@ -29,6 +31,7 @@ export type CanvasEdgeKind =
   | 'views-model'
   | 'sequence-animation'
   | 'image-assets'
+  | 'resource-bundle'
   | 'frame-first'
   | 'frame-last';
 
@@ -39,6 +42,7 @@ export type CanvasVideoMode = 'first_frame' | 'first_last_frame' | 'multi_modal_
 
 export interface CanvasGenerationResult {
   prompt: string;
+  uiAtlasPlan?: UiAtlasPlan;
   cutoutColor?: '#FF00FF' | '#00FF00';
   referenceImagePaths?: string[];
   parameters?: {
@@ -85,6 +89,11 @@ export interface CanvasNode {
   templateRevision?: number;
   templateSkills?: string[];
   templatePending?: boolean;
+  /** Wall-clock start of the current template flow. Absent means the duration was not measured. */
+  workStartedAt?: number;
+  /** True after a flow starts until it completes. Reload uses this to resume instead of resetting. */
+  workTimingOpen?: boolean;
+  workDurationMs?: number;
   text?: string;
   assetPath?: string;
   imageInfo?: CanvasImageInfo;
@@ -107,6 +116,10 @@ export interface CanvasNode {
   uiEmpty?: boolean;
   uiBaselinePrompt?: string;
   uiBaselineGrid?: ImageAtlasGrid;
+  uiAtlasGroup?: UiAtlasGroup;
+  /** Zero-based sheet index when a group is split into 5×5 atlases. */
+  uiAtlasBatch?: number;
+  uiAtlasPlan?: UiAtlasPlan;
 }
 
 export interface CanvasEdge {

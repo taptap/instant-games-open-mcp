@@ -105,7 +105,7 @@ describe('video and frame data downloads', () => {
           {
             ...node('section'),
             id: 'section',
-            templateId: state === 'custom' ? 'custom' : '7e1cb6ad-732f-4dc3-a951-000000000012',
+            templateId: state === 'custom' ? 'custom' : '7e1cb6ad-732f-4dc3-a951-000000000013',
           },
         ],
         edges: [],

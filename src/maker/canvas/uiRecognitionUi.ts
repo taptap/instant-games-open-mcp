@@ -6,12 +6,16 @@ import {
   selectedUiRecognition,
   selectedUiExtraction,
   setUiRecognitionMode,
-  uiRecognitionNote,
+  uiRecognitionInputs,
+  uiRecognitionPreview,
   uiRecognitionStatus,
   uiRecognitionSource,
   type UiRecognitionResult,
 } from './uiRecognition.js';
 import { withCanvasTimeout } from './requestTimeout.js';
+import { openUiBboxPreview } from './uiBboxPreview.js';
+import { hasImageFeature } from './imageFeatures.js';
+import { selectedUiAtlasPlan } from './uiAssetBindings.js';
 
 export async function drawUiRecognition(
   source: Blob,
@@ -69,13 +73,46 @@ export function createUiRecognitionUi(options: {
   loadMedia(path: string): Promise<void>;
   openCanvas(id: string): Promise<void>;
 }) {
+  const webRecognitionHint =
+    '请让当前 AI 按 maker-ui-workflow 使用已有浏览器完成 ChatGPT 网页识图并回填。无需安装执行器。登录可选：未登录时可选择直接识图，或登录后识图；未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。已登录则沿用当前模型和思考程度。';
   let busy = false;
+  let preparing = false;
   async function sourceBlob(path: string) {
     return withCanvasTimeout(async (signal) => {
       const response = await fetch(options.store.mediaUrl(path), { signal });
       if (!response.ok) throw new Error('无法读取识图原稿。');
       return response.blob();
     });
+  }
+  async function checkDesign(result: UiRecognitionResult, source: CanvasNode) {
+    if (!result.bbox) return;
+    if (source.uiRecognition?.inputRole === 'design') {
+      if (result.bbox.design.path !== source.assetPath)
+        throw new Error('识图结果与当前 UI 设计稿不匹配，请重新识别。');
+    } else {
+      const originals = canvasReferences(options.current()!, source.id).filter(
+        (node) => node.type === 'image' && node.assetPath
+      );
+      if (
+        originals.length !== 1 ||
+        originals[0].templatePending ||
+        originals[0].assetPath !== result.bbox.design.path
+      )
+        throw new Error('原 UI 设计稿已变化，请重新运行两次识图。');
+    }
+    const image = await sourceBlob(result.bbox.design.path);
+    await drawUiRecognition(
+      image,
+      {
+        ...result,
+        sourcePath: result.bbox.design.path,
+        sourceSha256: result.bbox.design.sha256,
+        width: result.bbox.design.width,
+        height: result.bbox.design.height,
+        elements: [],
+      },
+      []
+    );
   }
   function invalidate(source: CanvasNode) {
     const current = options.current();
@@ -109,6 +146,19 @@ export function createUiRecognitionUi(options: {
     const current = options.current();
     if (!current || !source.assetPath || !source.uiRecognition || busy) return false;
     const settings = source.uiRecognition;
+    let model = { id: 'gpt-6.1-sol', model: 'gpt-6.1-sol' };
+    if (!settings.pendingId) {
+      const models = await options.store.recognitionModels?.();
+      const configured = models?.[0];
+      if (configured?.source === 'chatgpt-web') throw new Error(webRecognitionHint);
+      if (models && (!configured || configured.source === 'local'))
+        throw new Error(
+          '当前使用本地模型，请让 AI 客户端读取设计稿，通过 Maker CLI 写入 Bbox。画布不能直接调用客户端模型；也可在设置中选择自定义 API。'
+        );
+      if (configured?.source === 'server')
+        throw new Error('Server API 识图尚未开通，请使用本地 AI 或在设置中选择自定义 API。');
+      if (configured) model = configured;
+    }
     if (source.templatePending && !settings.pendingId)
       throw new Error('请先完成去文字，再识别当前去文字图。');
     if (settings.results.length >= 12 && !settings.pendingId)
@@ -116,9 +166,19 @@ export function createUiRecognitionUi(options: {
     if (
       !settings.pendingId &&
       !confirmed &&
-      !window.confirm('仅运行一次元素识图，可能产生模型费用；不会启动后续生图。')
+      !window.confirm(
+        '使用设置中选定的模型顺序识图两次：去文字图识别 UI，原稿识别文字。可能产生两次模型费用；不会启动后续生图。'
+      )
     )
       return false;
+    if (!settings.enabled) {
+      options.remember();
+      setUiRecognitionMode(current, source, true);
+      options.changed();
+    }
+    const querying = Boolean(settings.pendingId);
+    let pendingCreated = false;
+    let submitted = false;
     busy = true;
     options.render();
     try {
@@ -127,12 +187,7 @@ export function createUiRecognitionUi(options: {
         if (!options.store.recognitionStatus) throw new Error('识图接口尚未就绪。');
         attempt = await options.store.recognitionStatus(current.id, settings.pendingId);
       } else {
-        const models = (await options.store.recognitionModels?.()) || [];
-        const model =
-          models.find((model) => model.id === settings.model) ||
-          (models.length === 1 ? models[0] : undefined);
-        if (!model || !options.store.recognizeUi)
-          throw new Error('请先配置并选择识图模型。识图关闭时仍可运行原图片流程。');
+        if (!options.store.recognizeUi) throw new Error('识图接口尚未就绪。');
         const bitmap = await createImageBitmap(await sourceBlob(source.assetPath));
         const width = bitmap.width,
           height = bitmap.height;
@@ -141,8 +196,10 @@ export function createUiRecognitionUi(options: {
         options.remember();
         settings.model = model.id;
         settings.pendingId = crypto.randomUUID();
+        pendingCreated = true;
         options.changed();
         if (!(await options.save())) throw new Error('识图请求尚未保存，未提交模型。');
+        submitted = true;
         attempt = await options.store.recognizeUi(current.id, {
           id: settings.pendingId,
           nodeId: source.id,
@@ -156,18 +213,12 @@ export function createUiRecognitionUi(options: {
       if (options.current() !== current || !current.nodes.includes(source)) return false;
       if (attempt.status === 'succeeded' && attempt.result) {
         const result = attempt.result;
+        await checkDesign(result, source);
         const previousSelection = settings.selectedId;
         if (!settings.results.some((item) => item.id === result.id)) settings.results.push(result);
         delete settings.pendingId;
-        if (
-          !source.templatePending &&
-          result.sourcePath === source.assetPath &&
-          !settings.results.some(
-            (item) => item.id === settings.selectedId && item.sourcePath === source.assetPath
-          )
-        )
+        if (!source.templatePending && result.sourcePath === source.assetPath)
           settings.selectedId = result.id;
-        ensureNote(source);
         if (settings.enabled && settings.selectedId !== previousSelection) invalidate(source);
         else options.changed();
         if (!(await options.save()))
@@ -182,6 +233,26 @@ export function createUiRecognitionUi(options: {
       throw new Error(attempt.error || '识图仍在执行，请查询原请求；不会重复提交。');
     } catch (error) {
       const status = (error as { status?: number }).status;
+      if (pendingCreated && !submitted) {
+        delete settings.pendingId;
+        options.changed();
+        throw error;
+      }
+      if (
+        querying &&
+        status === 404 &&
+        window.confirm(
+          '未找到原识图请求记录。是否结束本地等待？不会取消远端任务，也不会重新提交；如曾提交，请先核对服务端记录。'
+        )
+      ) {
+        options.remember();
+        delete settings.pendingId;
+        options.changed();
+        if (!(await options.save()))
+          throw new Error('本地等待已结束，但画布尚未保存，请先保存画布。');
+        options.error('已结束本地等待，未提交新的识图请求。');
+        return false;
+      }
       if (status === 400 || status === 409) {
         delete settings.pendingId;
         options.changed();
@@ -196,21 +267,47 @@ export function createUiRecognitionUi(options: {
   async function runImage(
     id: string,
     fallback: () => Promise<boolean>,
-    confirmed = false
+    confirmed = false,
+    completeRecognition = false
   ): Promise<boolean> {
     const current = options.current();
     const node = current?.nodes.find((item) => item.id === id);
     if (!current || !node) return false;
-    if (node.uiRecognition?.enabled) {
-      if (node.templatePending || !node.assetPath) return fallback();
+    if (node.uiRecognition?.enabled && node.uiRecognition.inputRole !== 'design') {
+      if (node.templatePending || !node.assetPath) {
+        const generated = await fallback();
+        if (!generated || !completeRecognition) return generated;
+        if (options.current() !== current || node.templatePending || !node.assetPath) return false;
+      }
       return selectedUiRecognition(node) ? true : recognize(node, confirmed);
+    }
+    if (node.uiRecognition?.inputRole === 'design') {
+      const references = canvasReferences(current, node.id);
+      if (references.length === 1 && !node.generation && !node.generationDraft) {
+        const source = references[0];
+        if (source.type !== 'image' || !source.assetPath || source.templatePending)
+          throw new Error('请先准备原始 UI 设计稿。');
+        options.remember();
+        node.assetPath = source.assetPath;
+        node.imageInfo = source.imageInfo ? { ...source.imageInfo } : undefined;
+        node.sourceSnapshot = snapshotCanvasSource(source);
+        node.uiRecognition.results = [];
+        delete node.uiRecognition.selectedId;
+        invalidate(node);
+        return options.save();
+      }
+      return fallback();
     }
     const source = uiRecognitionSource(current, node);
     if (!source?.uiRecognition?.enabled) return fallback();
     const result = selectedUiRecognition(source);
     if (!result) throw new Error('当前原稿还没有可用的识图清单。');
     const plan = selectedUiExtraction(current, node);
-    if (plan && !plan.elements.length) {
+    const batch = node.uiAtlasGroup && selectedUiAtlasPlan(current, node);
+    if (
+      (plan && !plan.elements.length) ||
+      (batch && batch.slots.every((slot) => slot.role === 'reserve'))
+    ) {
       options.remember();
       node.uiEmpty = true;
       delete node.templatePending;
@@ -232,7 +329,8 @@ export function createUiRecognitionUi(options: {
       return saved;
     }
     delete node.uiEmpty;
-    if (!node.uiAnnotation) return fallback();
+    if (!hasImageFeature(node, 'ui-annotation')) return fallback();
+    await checkDesign(result, source);
     node.uiBaselinePrompt ??= node.generationDraft?.prompt || node.generation?.prompt || '';
     busy = true;
     try {
@@ -276,201 +374,44 @@ export function createUiRecognitionUi(options: {
       options.render();
     }
   }
-  async function open(source: CanvasNode) {
-    if (busy || options.blocked()) return;
-    const current = options.current()!;
-    if (!source.uiRecognition) {
-      options.remember();
-      source.uiRecognition = { enabled: false, results: [] };
-      options.changed();
-    }
-    const settings = source.uiRecognition;
-    const dialog = document.createElement('dialog');
-    dialog.className = 'workflow-template-dialog ui-recognition-dialog';
-    dialog.style.cssText = 'width:min(1100px,94vw);max-height:90vh;overflow:auto';
-    const heading = document.createElement('h2');
-    heading.textContent = '元素识图 / 模型对比';
-    const label = document.createElement('label');
-    const toggle = document.createElement('input');
-    toggle.type = 'checkbox';
-    toggle.checked = settings.enabled;
-    label.append(toggle, document.createTextNode(' 启用识图清单（关闭后按原图片流程执行）'));
-    toggle.onchange = () => {
-      options.remember();
-      setUiRecognitionMode(current, source, toggle.checked);
-      options.changed();
-      options.render();
-      void options.save().catch((error) => options.error(error.message));
-    };
-    const model = document.createElement('select');
-    model.setAttribute('aria-label', '识图模型');
-    model.onchange = () => {
-      options.remember();
-      settings.model = model.value;
-      options.changed();
-      void options.save().catch((error) => options.error(error.message));
-    };
-    const hint = document.createElement('p');
-    hint.textContent = '同一原稿使用相同识图提示词；编号各自独立。只识图不生成素材。';
-    const message = document.createElement('p');
-    message.setAttribute('role', 'status');
-    const history = document.createElement('div');
-    history.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:16px';
-    const drawHistory = () => {
-      history.replaceChildren();
-      for (const result of settings.results) {
-        const panel = document.createElement('section');
-        const title = document.createElement('strong');
-        title.textContent = result.model + ' · ' + result.createdAt;
-        const details = document.createElement('pre');
-        details.textContent = uiRecognitionNote(result);
-        details.style.cssText =
-          'white-space:pre-wrap;max-height:220px;overflow:auto;font-size:12px';
-        const use = document.createElement('button');
-        use.textContent = settings.selectedId === result.id ? '已选用' : '用于后续拆图';
-        use.disabled =
-          source.templatePending ||
-          result.sourcePath !== source.assetPath ||
-          settings.selectedId === result.id ||
-          busy;
-        use.onclick = async () => {
-          if (busy || options.blocked() || source.templatePending) return;
-          options.remember();
-          settings.selectedId = result.id;
-          if (settings.enabled) invalidate(source);
-          else options.changed();
-          await options.save();
-          drawHistory();
-          options.render();
-        };
-        const download = document.createElement('button');
-        download.textContent = '下载清单 JSON';
-        download.onclick = () => {
-          const url = URL.createObjectURL(
-            new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' })
-          );
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = 'ui-elements-' + result.id + '.json';
-          link.click();
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-        };
-        panel.append(title, use, download, details);
-        history.append(panel);
-        void sourceBlob(result.sourcePath)
-          .then((blob) => drawUiRecognition(blob, result))
-          .then((canvas) => {
-            canvas.style.cssText = 'width:100%;height:auto';
-            if (panel.isConnected) panel.append(canvas);
-          })
-          .catch(() => {
-            details.textContent += '（原稿预览暂不可用）';
-          });
-      }
-    };
-    const run = document.createElement('button');
-    run.textContent = settings.pendingId ? '查询原识图请求' : '仅运行识图';
-    const release = document.createElement('button');
-    release.textContent = '结束本地等待';
-    release.hidden = !settings.pendingId;
-    release.onclick = async () => {
-      if (
-        busy ||
-        !settings.pendingId ||
-        !window.confirm(
-          '这不会取消远端请求。请先核对模型服务记录；以后重新识图可能重复计费。确认结束本地等待？'
-        )
-      )
-        return;
-      options.remember();
-      delete settings.pendingId;
-      options.changed();
-      if (await options.save()) {
-        release.hidden = true;
-        run.textContent = '仅运行识图';
-        message.textContent = '本地等待已结束，原请求记录仍保留。';
-      }
-    };
-    run.onclick = async () => {
-      run.disabled = true;
-      toggle.disabled = true;
-      model.disabled = true;
-      message.textContent = '正在识图或查询原请求，请等待结果；不会启动后续生图。';
-      run.textContent = '识图处理中…';
-      try {
-        settings.model = model.value || settings.model;
-        const completed = await recognize(source, false);
-        message.textContent = completed ? '识图结果已保存。' : '已取消识图或原稿已变化。';
-      } catch (error) {
-        message.textContent = (error as Error).message;
-      } finally {
-        run.disabled = false;
-        toggle.disabled = false;
-        model.disabled = false;
-        run.textContent = settings.pendingId ? '查询原识图请求' : '仅运行识图';
-        release.hidden = !settings.pendingId;
-        drawHistory();
-      }
-    };
-    const copy = document.createElement('button');
-    copy.textContent = '新建对照画布（保留本页结果）';
-    copy.onclick = async () => {
-      if (busy || options.blocked()) return;
-      copy.disabled = true;
-      try {
-        if (!(await options.save())) throw new Error('请先保存当前画布。');
-        const created = await options.store.create(current.title + ' · 对照', 'empty');
-        const duplicate = structuredClone(current);
-        duplicate.id = created.id;
-        duplicate.title = created.title;
-        duplicate.revision = created.revision;
-        for (const node of duplicate.nodes)
-          if (node.uiRecognition) {
-            delete node.uiRecognition.pendingId;
-            node.uiRecognition.results = [];
-            delete node.uiRecognition.selectedId;
-          }
-        const root = duplicate.nodes.find((node) => node.id === source.id)!;
-        setUiRecognitionMode(duplicate, root, !settings.enabled);
-        await options.store.save(duplicate);
-        dialog.close();
-        await options.openCanvas(created.id);
-      } catch (error) {
-        message.textContent = (error as Error).message;
-        copy.disabled = false;
-      }
-    };
-    const close = document.createElement('button');
-    close.textContent = '关闭';
-    close.onclick = () => {
-      if (!busy) dialog.close();
-    };
-    dialog.addEventListener('cancel', (event) => {
-      if (busy) event.preventDefault();
-    });
-    dialog.addEventListener('keydown', (event) => event.stopPropagation());
-    dialog.addEventListener('close', () => dialog.remove(), { once: true });
-    dialog.append(heading, label, hint, model, run, release, copy, close, message, history);
-    document.body.append(dialog);
-    dialog.showModal();
-    drawHistory();
+  async function runRecognition(node: CanvasNode): Promise<boolean> {
+    if (busy || preparing || options.blocked() || !hasImageFeature(node, 'ui-recognition'))
+      return false;
+    preparing = true;
     try {
-      const models = (await options.store.recognitionModels?.()) || [];
-      for (const item of models) {
-        const option = document.createElement('option');
-        option.value = item.id;
-        option.textContent = item.id + ' / ' + item.model;
-        model.append(option);
+      const current = options.current();
+      if (!current) return false;
+      if (node.uiRecognition?.pendingId) return await recognize(node, true);
+      const models = await options.store.recognitionModels?.();
+      const configured = models?.[0];
+      if (configured?.source === 'chatgpt-web') {
+        window.alert(webRecognitionHint);
+        return false;
       }
-      if (settings.model) model.value = settings.model;
-      if (!models.length) {
-        model.hidden = true;
-        run.hidden = !settings.pendingId;
-        message.textContent =
-          '由当前对话 AI 看图，通过 CLI 写入元素清单即可；无需配置独立识图服务。换模型后写入新清单，可在此对比。';
+      if (
+        !node.uiRecognition?.pendingId &&
+        models &&
+        (!configured || configured.source === 'local')
+      ) {
+        window.alert(
+          '当前使用本地模型。请让 AI 客户端识别 UI 设计稿，通过 Maker CLI 写入 Bbox 后，在这里查看标注。'
+        );
+        return false;
       }
-    } catch (error) {
-      message.textContent = (error as Error).message;
+      if (configured?.source === 'server')
+        throw new Error('Server API 识图尚未开通，请使用本地 AI 或自定义 API。');
+      if (
+        options.current() !== current ||
+        !current.nodes.includes(node) ||
+        busy ||
+        options.blocked()
+      )
+        return false;
+      const source = uiRecognitionInputs(current, node).cut;
+      return await recognize(source, false);
+    } finally {
+      preparing = false;
+      options.render();
     }
   }
   async function runAssets(id: string, fallback: () => Promise<boolean>) {
@@ -479,7 +420,12 @@ export function createUiRecognitionUi(options: {
     const source = current && canvasReferences(current, id).find((item) => item.type === 'image');
     if (!current || !node || !source) return fallback();
     const plan = selectedUiExtraction(current, source);
-    if (!plan || plan.elements.length) return fallback();
+    const batch = source.uiAtlasGroup && selectedUiAtlasPlan(current, source);
+    if (
+      !(plan && !plan.elements.length) &&
+      !(batch && batch.slots.every((slot) => slot.role === 'reserve'))
+    )
+      return fallback();
     options.remember();
     node.uiEmpty = true;
     delete node.imageAssetsInfo;
@@ -511,31 +457,21 @@ export function createUiRecognitionUi(options: {
         editor.value = uiRecognitionStatus(source).text;
       }
     }
-    if (node.type !== 'image' || !node.assetPath || !node.uiRecognition) return;
-    const button = document.createElement('button');
-    button.className = 'ui-recognition-open';
-    button.style.cssText =
-      'position:relative;z-index:9;pointer-events:auto;opacity:1;flex:none;font-size:11px;padding:4px 6px';
-    button.textContent = '识图：' + (node.uiRecognition?.enabled ? '开' : '关') + ' · 对比';
-    button.disabled = busy || options.blocked();
-    button.onpointerdown = (event) => event.stopPropagation();
-    button.onclick = (event) => {
-      event.stopPropagation();
-      void open(node).catch((error) => options.error(error.message));
-    };
-    (card.querySelector('.canvas-card-header') || card).append(button);
-    const status = document.createElement('small');
-    status.className = 'ui-recognition-status';
-    status.setAttribute('role', 'status');
-    const recognition = uiRecognitionStatus(node);
-    status.textContent = '元素识图：' + recognition.label;
-    status.title = recognition.text;
-    status.style.cssText =
-      'position:absolute;top:44px;left:6px;z-index:9;padding:3px 6px;border-radius:4px;background:#202630e8;color:#e5eaf0;max-width:calc(100% - 24px);font-size:11px';
-    card.append(status);
   }
   return {
     ensureNote,
+    runRecognition,
+    async openPreview(node: CanvasNode) {
+      const current = options.current();
+      if (!current) return;
+      const preview = uiRecognitionPreview(current, node);
+      if (!preview?.result.bbox) throw new Error('当前图片没有匹配的 Bbox，请先识别。');
+      await drawUiRecognition(await sourceBlob(preview.result.sourcePath), preview.result, []);
+      await checkDesign(preview.result, preview.source);
+      const source = await sourceBlob(preview.result.bbox.design.path);
+      if (options.current() !== current || !current.nodes.includes(node)) return;
+      await openUiBboxPreview(preview.result.bbox, source);
+    },
     async checkRecognition(node: CanvasNode) {
       const result = node.uiRecognition?.results.find(
         (item) => item.id === node.uiRecognition?.selectedId
@@ -550,6 +486,7 @@ export function createUiRecognitionUi(options: {
         throw new Error('画布卡片已达到容量限制，无法写入识图便签。');
       // Reuse the annotation guard to verify bytes and pixel coordinates before saving.
       await drawUiRecognition(await sourceBlob(result.sourcePath), result, []);
+      await checkDesign(result, node);
     },
     render,
     runImage,
@@ -559,7 +496,7 @@ export function createUiRecognitionUi(options: {
       if (source?.uiRecognition?.pendingId) await recognize(source, true);
     },
     get isBusy() {
-      return busy;
+      return busy || preparing;
     },
   };
 }

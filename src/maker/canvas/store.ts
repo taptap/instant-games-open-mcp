@@ -24,6 +24,7 @@ export interface CanvasGenerationAttempt {
   status: 'running' | 'pending' | 'succeeded' | 'failed' | 'unknown' | 'canceled';
   prompt: string;
   cutoutColor?: '#FF00FF' | '#00FF00';
+  uiAtlasPlan?: UiAtlasPlan;
   operation?: 'generate' | 'variant' | 'outpaint';
   taskId?: string;
   sourceImagePath?: string;
@@ -41,8 +42,16 @@ export interface CanvasGenerationAttempt {
   updatedAt: string;
 }
 
+export interface CanvasModelSettings {
+  generation: { source: string; profileId?: string };
+  profiles: Array<{ id: string; name: string; model: string }>;
+}
+
 export interface CanvasDocumentStore {
-  recognitionModels?(): Promise<Array<{ id: string; model: string }>>;
+  modelSettings?(): Promise<CanvasModelSettings>;
+  recognitionModels?(): Promise<
+    Array<{ id: string; model: string; source?: 'local' | 'server' | 'custom' | 'chatgpt-web' }>
+  >;
   recognizeUi?(
     canvasId: string,
     input: {
@@ -229,13 +238,19 @@ export function createBrowserCanvasDocumentStore(
   return {
     videoHistory: (offset = 0, limit = 30) =>
       request<CanvasVideoHistory>('/canvases/video-history?offset=' + offset + '&limit=' + limit),
+    modelSettings: async () => {
+      const response = await fetcher('/api/settings/models');
+      const body = await response.json();
+      if (!response.ok) throw new Error('模型设置读取失败，请检查控制台设置。');
+      return body as CanvasModelSettings;
+    },
     recognitionModels: () => request('/canvases/recognition-models'),
     recognizeUi: (canvasId, input) =>
       request('/canvases/' + canvasId + '/recognition', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
-        signal: AbortSignal.timeout(195000),
+        signal: AbortSignal.timeout(375000),
       }),
     recognitionStatus: (canvasId, id) => request('/canvases/' + canvasId + '/recognition/' + id),
     listModels: (canvasId) => request<CanvasModelAttempt[]>('/canvases/' + canvasId + '/models'),
@@ -280,7 +295,7 @@ export function createBrowserCanvasDocumentStore(
         encodeURIComponent(projectKey) +
         '&skill=' +
         encodeURIComponent(name),
-      getPreviewImage: async (id, revision, nodeId, signal) => {
+      getPreviewImage: async (id, revision, nodeId, signal, itemIndex) => {
         const response = await fetcher(
           base +
             '/canvases/templates/' +
@@ -288,7 +303,8 @@ export function createBrowserCanvasDocumentStore(
             '/preview-image?revision=' +
             revision +
             '&node=' +
-            encodeURIComponent(nodeId),
+            encodeURIComponent(nodeId) +
+            (itemIndex === undefined ? '' : '&item=' + itemIndex),
           { signal }
         );
         if (!response.ok) throw new Error('预览图片加载失败');
@@ -489,3 +505,4 @@ export class MemoryCanvasDocumentStore implements CanvasDocumentStore {
     throw new Error('Memory canvas store does not call Maker MCP.');
   }
 }
+import type { UiAtlasPlan } from './uiAssetBindings.js';

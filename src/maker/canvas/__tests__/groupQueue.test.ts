@@ -454,3 +454,238 @@ test('a save failure pauses all queued groups before another paid step', async (
   expect(queue.view('group')).toMatchObject({ phase: 'paused', pending: ['video'] });
   expect(queue.view('other-group')?.phase).toBe('paused');
 });
+
+function parallelFixture() {
+  const setup = fixture();
+  const images = ['first', 'second', 'third', 'fourth'];
+  setup.document.nodes = [
+    node('group', 'section'),
+    node('reference', 'image'),
+    ...images.flatMap((id) => [node(id, 'image'), node(id + '-assets', 'image-assets')]),
+  ];
+  setup.document.edges = images.flatMap((id) => [
+    { id: 'ref-' + id, from: 'reference', to: id, kind: 'image-variant' as const },
+    { id: 'assets-' + id, from: id, to: id + '-assets', kind: 'image-assets' as const },
+  ]);
+  setup.completed.add('reference');
+  const controls = new Map(images.map((id) => [id, deferred<boolean>()]));
+  setup.options.run.mockImplementation(async (id) => {
+    const success = controls.has(id) ? await controls.get(id)!.promise : true;
+    if (success) setup.completed.add(id);
+    return success;
+  });
+  const queue = createCanvasGroupQueue({
+    ...setup.options,
+    parallel: (id) => images.includes(id),
+  });
+  return { ...setup, queue, images, controls };
+}
+
+test('runs three independent images and immediately fills a freed slot while cutting ready output', async () => {
+  const { queue, controls, options } = parallelFixture();
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  expect(options.run.mock.calls.map(([id]) => id)).toEqual(['first', 'second', 'third']);
+  expect(Object.keys(queue.view('group')!.running)).toEqual(['first', 'second', 'third']);
+
+  options.busy.mockReturnValue(true);
+  controls.get('second')!.resolve(true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(options.run.mock.calls.map(([id]) => id)).toEqual([
+    'first',
+    'second',
+    'third',
+    'second-assets',
+    'fourth',
+  ]);
+  expect(Object.keys(queue.view('group')!.running)).toEqual(['first', 'third', 'fourth']);
+  options.busy.mockReturnValue(false);
+  for (const control of controls.values()) control.resolve(true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(queue.view('group')).toMatchObject({ phase: 'complete', completed: 8, total: 8 });
+});
+
+test('does not start parallel descendants while their upstream is still running', async () => {
+  const { document, options, completed } = fixture();
+  document.nodes = [
+    node('group', 'section'),
+    node('source', 'image'),
+    node('left', 'image'),
+    node('right', 'image'),
+  ];
+  document.edges = ['left', 'right'].map((id) => ({
+    id,
+    from: 'source',
+    to: id,
+    kind: 'image-variant',
+  }));
+  const upstream = deferred<boolean>();
+  options.run.mockImplementation(async (id) => {
+    if (id === 'source') await upstream.promise;
+    completed.add(id);
+    return true;
+  });
+  const queue = createCanvasGroupQueue({ ...options, parallel: (id) => id !== 'source' });
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(1000);
+  expect(options.run.mock.calls).toEqual([['source']]);
+  upstream.resolve(true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(options.run.mock.calls).toEqual([['source'], ['left'], ['right']]);
+  expect(queue.view('group')?.phase).toBe('complete');
+});
+
+test('shares the image concurrency limit across groups and completes each group independently', async () => {
+  const { document, options, controls, completed } = parallelFixture();
+  document.nodes.push(node('other-group', 'section'), node('other', 'image', 'other-group'));
+  const other = deferred<boolean>();
+  options.run.mockImplementation(async (id) => {
+    const success =
+      id === 'other'
+        ? await other.promise
+        : controls.has(id)
+          ? await controls.get(id)!.promise
+          : true;
+    if (success) completed.add(id);
+    return success;
+  });
+  const queue = createCanvasGroupQueue({
+    ...options,
+    parallel: (id) => id === 'other' || controls.has(id),
+  });
+  queue.start('group');
+  queue.start('other-group');
+  expect(options.run).toHaveBeenCalledTimes(3);
+  for (const control of controls.values()) control.resolve(true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(queue.view('group')?.phase).toBe('complete');
+  expect(queue.view('other-group')?.phase).toBe('running');
+  expect(queue.view('group')?.elapsedMs).toBe(document.nodes[0].workDurationMs);
+  other.resolve(true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(queue.isBusy).toBe(false);
+});
+
+test('stops every in-flight card and never starts a fourth image or a dependent after stopping', async () => {
+  const { queue, controls, options, document } = parallelFixture();
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(1200);
+  queue.stop('group');
+  expect(options.stopActive.mock.calls).toEqual([['first'], ['second'], ['third']]);
+  for (const control of controls.values()) control.resolve(true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(options.run).toHaveBeenCalledTimes(3);
+  expect(queue.view('group')).toMatchObject({ phase: 'paused', completed: 3, elapsedMs: 1200 });
+  expect(document.nodes[0].workDurationMs).toBe(1200);
+  await jest.advanceTimersByTimeAsync(10000);
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  expect(queue.view('group')).toMatchObject({ phase: 'complete', completed: 8, elapsedMs: 1200 });
+});
+
+test('a reloaded paused flow keeps the saved elapsed time instead of starting at zero', async () => {
+  const { document, options, controls } = parallelFixture();
+  const queue = createCanvasGroupQueue(options);
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(1200);
+  queue.stop('group');
+  for (const control of controls.values()) control.resolve(true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(document.nodes[0]).toMatchObject({ workTimingOpen: true, workDurationMs: 1200 });
+  const startedAt = document.nodes[0].workStartedAt;
+  document.nodes[0].workDurationMs = 1200 + 90000;
+  const reloaded = createCanvasGroupQueue(options);
+  expect(reloaded.view('group')).toBeUndefined();
+  reloaded.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  expect(reloaded.view('group')?.elapsedMs).toBeGreaterThanOrEqual(91200);
+  expect(document.nodes[0].workStartedAt).toBe(startedAt);
+  expect(document.nodes[0].workDurationMs).toBeGreaterThanOrEqual(91200);
+});
+
+test('an unknown image blocks only its dependent while other parallel branches finish', async () => {
+  const { queue, controls, problems, options } = parallelFixture();
+  problems.set('first', '结果未知，不重提');
+  queue.start('group');
+  for (const control of controls.values()) control.resolve(true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(options.run.mock.calls.map(([id]) => id)).not.toContain('first-assets');
+  expect(queue.view('group')).toMatchObject({
+    phase: 'paused',
+    completed: 6,
+    failures: { first: '结果未知，不重提' },
+  });
+});
+
+test('does not report completion until the final save succeeds', async () => {
+  const { options, completed } = fixture();
+  for (const id of ['image', 'video', 'sequence']) completed.add(id);
+  const saved = deferred<boolean>();
+  const queue = createCanvasGroupQueue({ ...options, save: () => saved.promise });
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  expect(queue.view('group')).toMatchObject({ phase: 'waiting', message: '保存执行结果' });
+  saved.resolve(false);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(queue.view('group')?.phase).toBe('paused');
+});
+
+test('stopping while the final save is pending does not start duplicate saves', async () => {
+  const { options } = fixture();
+  const pending = deferred<boolean>();
+  const save = jest.fn(() => pending.promise);
+  const queue = createCanvasGroupQueue({ ...options, save });
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  queue.stop('group');
+  await jest.advanceTimersByTimeAsync(5000);
+  expect(save).toHaveBeenCalledTimes(1);
+  pending.resolve(true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(queue.isBusy).toBe(false);
+});
+
+test('a rejected final save pauses instead of leaving a busy queue or unhandled rejection', async () => {
+  const { options } = fixture();
+  const queue = createCanvasGroupQueue({
+    ...options,
+    save: async () => {
+      throw new Error('保存失败');
+    },
+  });
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  expect(queue.view('group')?.phase).toBe('paused');
+  expect(queue.isBusy).toBe(false);
+});
+
+test('saves elapsed wall time while cards are still running and resumes without offline time', async () => {
+  const { document, options } = parallelFixture();
+  const queue = createCanvasGroupQueue(options);
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(10500);
+  queue.checkpoint();
+  const saved = structuredClone(document);
+  expect(saved.nodes[0].workDurationMs).toBe(10500);
+  await jest.advanceTimersByTimeAsync(30000);
+  const restored = createCanvasGroupQueue({ ...options, getDocument: () => saved });
+  restored.start('group');
+  await jest.advanceTimersByTimeAsync(1000);
+  restored.checkpoint();
+  expect(saved.nodes[0].workDurationMs).toBe(11500);
+});
+
+test('a batch expansion error pauses instead of leaving the queue permanently busy', async () => {
+  const { options } = fixture();
+  const queue = createCanvasGroupQueue({
+    ...options,
+    expand: () => {
+      throw new Error('bad batch');
+    },
+  });
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  expect(queue.view('group')).toMatchObject({ phase: 'paused', message: 'bad batch' });
+  expect(queue.isBusy).toBe(false);
+  expect(options.run).not.toHaveBeenCalled();
+});

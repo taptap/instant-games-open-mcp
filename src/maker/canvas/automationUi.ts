@@ -37,7 +37,7 @@ export function createCanvasAutomationUi(options: {
   addDerived(type: 'sequence' | 'animation' | 'model-views' | 'model', sourceId: string): void;
   confirmModel?(id: string, reviewId: string): Promise<unknown>;
   previewModel?(id: string): unknown;
-  previewImageAssets?(id: string, grid?: unknown): Promise<unknown>;
+  previewImageAssets?(id: string, grid?: unknown, cut?: unknown): Promise<unknown>;
   confirmImageAssets?(id: string, reviewId: string): Promise<unknown>;
   importAsset(input: Record<string, unknown>): Promise<void>;
   exportAsset(command: CanvasCommand, node: CanvasNode): Promise<unknown>;
@@ -130,7 +130,7 @@ export function createCanvasAutomationUi(options: {
       run: ['id', 'recognition'],
       'confirm-model': ['id', 'reviewId'],
       'preview-model': ['id'],
-      'preview-image-assets': ['id', 'grid'],
+      'preview-image-assets': ['id', 'grid', 'cut'],
       'confirm-image-assets': ['id', 'reviewId'],
       stop: ['id'],
       query: ['id'],
@@ -181,7 +181,7 @@ export function createCanvasAutomationUi(options: {
       try {
         return command.action === 'confirm-image-assets'
           ? await options.confirmImageAssets(target.id, input.reviewId as string)
-          : await options.previewImageAssets(target.id, input.grid);
+          : await options.previewImageAssets(target.id, input.grid, input.cut);
       } finally {
         running = false;
         options.busyChanged(false);
@@ -213,8 +213,13 @@ export function createCanvasAutomationUi(options: {
           const source = target.type === 'image' ? uiRecognitionSource(current, target) : undefined;
           const sources =
             target.type === 'section'
-              ? current.nodes.filter((item) => item.sectionId === target.id && item.uiRecognition)
-              : source
+              ? current.nodes.filter(
+                  (item) =>
+                    item.sectionId === target.id &&
+                    item.uiRecognition &&
+                    item.uiRecognition.inputRole !== 'design'
+                )
+              : source && source.uiRecognition?.inputRole !== 'design'
                 ? [source]
                 : [];
           const enabled = input.recognition !== false;
@@ -225,8 +230,7 @@ export function createCanvasAutomationUi(options: {
             options.render();
             if (!(await options.save())) throw new Error('识图开关尚未保存，未启动工作流。');
           }
-          // The calling AI supplies recognition; CLI must not invoke a separate provider.
-          if (enabled)
+          if (enabled && target.type !== 'section')
             for (const item of sources) {
               // The recognition card is the text-free output; produce it before asking AI.
               if (item.templatePending || !item.assetPath) {
@@ -237,13 +241,17 @@ export function createCanvasAutomationUi(options: {
                 if (item.templatePending || !item.assetPath)
                   throw new Error('去文字尚未完成，不能识图。');
               }
+              if (!selectedUiRecognition(item) && !(await options.run(item.id)))
+                throw new Error(
+                  options.error() || '两次识图未完成，请按当前识图设置完成；已有请求先查询原请求。'
+                );
               if (!selectedUiRecognition(item))
                 throw new Error(
-                  '需要当前 AI 看图（去文字后的图片，卡片 ' +
+                  '两次识图尚未保存 Bbox JSON（去文字卡 ' +
                     item.id +
                     '）：' +
                     item.assetPath +
-                    '。请按 maker-ui-workflow Skill 识别元素，通过 update-nodes 的 uiRecognition.result 保存清单后继续；不需要配置 TAPTAP_MAKER_VISION_CONFIG。模型无法看图时请切换支持图片输入的模型，不要关闭识图跳过。'
+                    '。请按当前识图设置完成两轮识图：本地或 ChatGPT 网页由 AI 按 maker-ui-workflow 校验回填，自定义 API 查询原请求；保存后继续，不关闭识图跳过。'
                 );
             }
         }
@@ -370,12 +378,25 @@ export function createCanvasAutomationUi(options: {
         options.remember();
         for (const update of updates) {
           const target = node(update.node.id, current);
+          const previousRecognitionIds = new Set(
+            target.uiRecognition?.results.map((item) => item.id)
+          );
+          const previousDuration = target.workDurationMs || 0;
           if (update.node.uiRecognition)
             setUiRecognitionMode(current, target, update.node.uiRecognition.enabled);
           Object.assign(target, update.node);
           if (recognized.includes(update)) {
             delete target.templatePending;
             options.ensureRecognitionNote!(target);
+            const result = target.uiRecognition?.results.find(
+              (item) => item.id === target.uiRecognition?.selectedId
+            );
+            if (result && result.durationMs > 0 && !previousRecognitionIds.has(result.id)) {
+              target.workDurationMs = previousDuration + result.durationMs;
+              const group = current.nodes.find((item) => item.id === target.sectionId);
+              if (group?.workTimingOpen)
+                group.workDurationMs = (group.workDurationMs || 0) + result.durationMs;
+            }
           }
           if (update.contentChanged) {
             options.resetDraft(target.id);

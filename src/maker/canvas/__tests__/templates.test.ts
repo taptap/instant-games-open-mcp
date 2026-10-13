@@ -11,6 +11,20 @@ import { imageEditSources } from '../generationUi.js';
 
 const model = createCanvasTemplateModel();
 
+test('saved templates and new instances never inherit prior work duration', () => {
+  const document = fixture();
+  for (const node of document.nodes) node.workDurationMs = 15000;
+  const template = model.snapshot(
+    document,
+    document.nodes.map((node) => node.id),
+    'timed'
+  );
+  expect(template.nodes.every((node) => node.workDurationMs === undefined)).toBe(true);
+  for (const node of template.nodes) node.workDurationMs = 30000;
+  const copy = model.instantiate(template, { x: 0, y: 0 });
+  expect(copy.nodes.every((node) => node.workDurationMs === undefined)).toBe(true);
+});
+
 test('two-source snapshots and video input mode survive independent template copies', () => {
   const document = fixture();
   const tail = { ...document.nodes[0], id: createId(), assetPath: 'assets/image/tail.png' };

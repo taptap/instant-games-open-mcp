@@ -1,5 +1,6 @@
 import type { CanvasDocument, CanvasEdge } from './model.js';
 import { canvasWireGeometry, canvasWirePath } from './wirePath.js';
+import { resourceBundleOwner } from './resourceBundle.js';
 
 export function createCanvasWireUi(options: {
   board: HTMLElement;
@@ -28,8 +29,10 @@ export function createCanvasWireUi(options: {
   }
   function geometry(item: CanvasEdge) {
     const doc = options.current();
+    if (doc && resourceBundleOwner(doc, item.from)) return null;
     const from = doc?.nodes.find((node) => node.id === item.from);
-    const to = doc?.nodes.find((node) => node.id === item.to);
+    const to =
+      doc && (resourceBundleOwner(doc, item.to) || doc.nodes.find((node) => node.id === item.to));
     return doc && from && to
       ? canvasWireGeometry(from, to, doc.nodes, doc.edges, item.route)
       : null;
@@ -48,7 +51,7 @@ export function createCanvasWireUi(options: {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     const path = document.createElementNS(svg.namespaceURI, 'path');
     const from = doc.nodes.find((node) => node.id === item.from)!;
-    const to = doc.nodes.find((node) => node.id === item.to)!;
+    const to = resourceBundleOwner(doc, item.to) || doc.nodes.find((node) => node.id === item.to)!;
     path.setAttribute('d', canvasWirePath(from, to, doc.nodes, view, doc.edges, item.route));
     path.setAttribute('class', 'wire wire-focused');
     svg.append(path);

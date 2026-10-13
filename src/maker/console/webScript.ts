@@ -1,5 +1,6 @@
 import { consoleIcons } from './webIcons.js';
 import { consoleThemeScript } from '../webTheme.js';
+import { modelSettingsScript } from './modelSettingsUi.js';
 
 export const consoleScript = String.raw`
 ${consoleThemeScript}
@@ -1226,10 +1227,11 @@ function updateChrome() {
   $('context').title = currentProject()?.name || '本地项目';
   $('footer-path').textContent = currentProject()?.path || '';
   document.querySelectorAll('nav [data-page]').forEach(b => {
-    b.disabled = !loaded || (b.dataset.page !== 'documents' && !currentProject()?.valid);
+    b.disabled = !loaded || (!['documents','settings'].includes(b.dataset.page) && !currentProject()?.valid);
     if (b.dataset.page === page) b.setAttribute('aria-current','page');
     else b.removeAttribute('aria-current');
   });
+  $('settings-button')?.setAttribute('aria-pressed',String(page === 'settings'));
   if ($('heading-actions')) replace($('heading-actions'),headingActionButtons());
   if ($('overview-task')) {
     replace($('overview-task'),overviewTasks());
@@ -2784,8 +2786,9 @@ function renderCanvas() {
   $('close-canvas').hidden = false;
   canvasFrames.forEach((item, itemKey) => { item.hidden = itemKey !== key; });
 }
+${modelSettingsScript}
 function navigate(next) {
-  if (!currentProject()?.valid && next !== 'projects' && next !== 'documents') return;
+  if (!currentProject()?.valid && !['projects','documents','settings'].includes(next)) return;
   viewEpoch++; commitRequest++; gitLoading = false; page = next;
   render();
   if (next === 'overview' && !detail) void loadProject();
@@ -2808,6 +2811,7 @@ function render() {
   if (page === 'ui-editor') { renderUiEditor(); return; }
   if (plugin) { renderPlugin(plugin); return; }
   if (page === 'documents') { void renderDocuments(); return; }
+  if (page === 'settings') { void renderVisionSettings(); return; }
   if (page === 'projects' || !currentProject()?.valid) renderProjects();
   else if (page === 'build') renderBuild();
   else if (page === 'git') renderGit();
@@ -2869,6 +2873,7 @@ async function pollState() {
     initialUiProject = selected;
   }
   if (first && initialQuery.get('page') === 'documents') page = 'documents';
+  if (first && initialQuery.get('page') === 'settings') page = 'settings';
   const settled = [];
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
@@ -2887,11 +2892,11 @@ async function pollState() {
   $('connection').title = '最近连接：' + new Date().toLocaleTimeString('zh-CN');
   $('connection').className = 'good';
   lastStateError = '';
-  if (selected && !currentProject()?.valid && page !== 'projects' && page !== 'documents') page = 'projects';
+  if (selected && !currentProject()?.valid && !['projects','documents','settings'].includes(page)) page = 'projects';
   let projectChanged = false;
   if (first && projectNotice === '') projectNotice = currentProjectNotice();
   else projectChanged = publishProjectChange();
-  if (projectChanged || (first && ['ui-editor', 'documents'].includes(page))) render();
+  if (projectChanged || (first && ['ui-editor', 'documents', 'settings'].includes(page))) render();
   else {
     updateChrome();
     if (page === 'projects' && (first || priorProjects !== JSON.stringify(state.projects))) renderProjects();
@@ -2995,6 +3000,7 @@ document.addEventListener('DOMContentLoaded',async () => {
     }
   });
   $('projects-button').append(icon('folder'));
+  $('settings-button').append(icon('settings'));
   const fortunePanel = $('fortune-panel');
   const fortuneFrame = $('fortune-frame');
   fortunePanel.classList.add('fortune-preload');
@@ -3015,6 +3021,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   window.addEventListener('resize',() => { if (!$('fortune-panel').hidden) positionFortune(); });
   document.addEventListener('keydown',event => { if (event.key === 'Escape') closeFortune(); });
   $('projects-button').addEventListener('click',() => navigate('projects'));
+  $('settings-button').addEventListener('click',() => navigate('settings'));
   $('close-canvas').addEventListener('click',closeCurrentCanvas);
   $('project-picker').addEventListener('change',event => chooseProject(event.target.value));
   $('maker-version-picker').addEventListener('change',selectMakerVersion);

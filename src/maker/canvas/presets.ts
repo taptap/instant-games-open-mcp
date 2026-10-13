@@ -3,7 +3,7 @@ import modelPresetData from './modelPresetData.json';
 import type { CanvasWorkflowTemplate } from './templates.js';
 import { createVideoPrompts } from './videoPrompts.js';
 import { createAssetPresets } from './assetPresets.js';
-import { createUiWorkflowPreset } from './uiWorkflowPresets.js';
+import { snapshotCanvasSource } from './dependencies.js';
 
 export interface CanvasPreset extends CanvasWorkflowTemplate {
   assets: Record<string, { type: string; resourceId: string }>;
@@ -11,21 +11,23 @@ export interface CanvasPreset extends CanvasWorkflowTemplate {
 
 export function canvasPresets(): CanvasPreset[] {
   const prompts = createVideoPrompts();
-  const sequences = (presetData as unknown as CanvasPreset[]).map((preset, index) => {
+  const sequences = (presetData as unknown as CanvasPreset[]).map((preset) => {
+    const kind = Number(preset.id.slice(-3));
     const template = { ...preset, nodes: structuredClone(preset.nodes) };
     const videos = template.nodes.filter((node) => node.type === 'video-source');
     for (const video of videos) {
+      if (kind === 14) continue;
       video.generation = {
         ...video.generation,
         prompt: prompts.build({
-          kind: index === 2 ? 'generic' : 'character',
-          play: index === 0 ? 'attack' : index === 1 ? 'loop' : 'once',
+          kind: kind === 3 ? 'generic' : 'character',
+          play: kind === 1 ? 'attack' : kind === 2 ? 'loop' : 'once',
           action: video.generation?.prompt || '',
-          keyColor: index === 2 ? 'green' : 'magenta',
+          keyColor: kind === 3 ? 'green' : 'magenta',
         }),
       };
     }
-    if (index === 1) {
+    if (kind === 2) {
       const directions = ['front', 'back', 'left', 'right'] as const;
       for (const [directionIndex, direction] of directions.entries()) {
         const reference = template.nodes.find(
@@ -33,15 +35,18 @@ export function canvasPresets(): CanvasPreset[] {
         );
         if (reference) {
           reference.exportDirection = direction;
-          reference.generationDraft = {
+          reference.generation = {
             operation: 'variant',
-            sourceImageId: reference.generationDraft?.sourceImageId,
+            sourceImageId: reference.generation?.sourceImageId,
             prompt: prompts.referenceImage(direction),
           };
+          reference.sourceSnapshot = snapshotCanvasSource(
+            template.nodes.find((node) => node.id === reference.generation?.sourceImageId)
+          );
         }
       }
     }
-    if (index === 2) {
+    if (kind === 3) {
       const video = videos[0];
       const images = template.nodes.filter((node) => node.type === 'image');
       template.revision = 3;
@@ -69,13 +74,17 @@ export function canvasPresets(): CanvasPreset[] {
   const views = '7e1cb6ad-732f-4dc3-a951-000000000042';
   const model = '7e1cb6ad-732f-4dc3-a951-000000000043';
   const characterPath = 'assets/image/preset-model-cat-reference.png';
+  const viewsPath = 'assets/image/preset-model-cat-views.png';
   return [
     ...sequences,
     {
       id: '7e1cb6ad-732f-4dc3-a951-000000000004',
       name: '角色模型 · 多视图确认',
-      revision: 3,
-      assets: { [characterPath]: { ...modelPresetData.asset } },
+      revision: 4,
+      assets: {
+        [characterPath]: { ...modelPresetData.asset },
+        [viewsPath]: { ...modelPresetData.viewsAsset },
+      },
       nodes: [
         {
           id: character,
@@ -91,6 +100,7 @@ export function canvasPresets(): CanvasPreset[] {
         {
           id: views,
           type: 'model-views',
+          assetPath: viewsPath,
           title: '多视图 · 确认后生模',
           x: 340,
           y: 0,
@@ -111,7 +121,6 @@ export function canvasPresets(): CanvasPreset[] {
       ],
     },
     ...createAssetPresets(),
-    createUiWorkflowPreset(),
   ];
 }
 

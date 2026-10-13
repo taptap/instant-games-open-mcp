@@ -1,8 +1,12 @@
 declare const document: any;
 declare const createImageBitmap: any;
 import { createCanvasZip } from './zipArchive.js';
+import { uiBindingContentRect } from './uiAssetBindings.js';
 import { createBackgroundRemoval } from './backgroundRemoval.js';
-import { alignAtlasCells, atlasLayoutError } from './atlasAlignment.js';
+import { alignAtlasCells, assignAtlasCellsByCenter, atlasLayoutError } from './atlasAlignment.js';
+import type { AtlasAlignedCell } from './atlasAlignment.js';
+import { findAtlasContentRegions, validateAtlasCrops } from './atlasContent.js';
+import type { ImageAtlasCrop, ImageAtlasCutSettings } from './atlasContent.js';
 
 export interface ImageAtlasGrid {
   columns: number;
@@ -46,17 +50,35 @@ export function imageAtlasRegions(width: number, height: number, grid: ImageAtla
   });
 }
 
-export function imageAtlasManifest(width: number, height: number, grid: ImageAtlasGrid) {
+export function imageAtlasManifest(
+  width: number,
+  height: number,
+  grid: ImageAtlasGrid,
+  crops?: ImageAtlasCrop[]
+) {
   return {
     frames: Object.fromEntries(
-      imageAtlasRegions(width, height, grid).map((region) => [
+      (crops
+        ? validateAtlasCrops(width, height, crops)
+        : imageAtlasRegions(width, height, grid)
+      ).map((region: ImageAtlasCrop) => [
         region.name,
         {
           frame: { x: region.x, y: region.y, w: region.width, h: region.height },
-          sourceSize: { w: region.width, h: region.height },
-          spriteSourceSize: { x: 0, y: 0, w: region.width, h: region.height },
+          sourceSize: {
+            w: region.outputWidth ?? region.width,
+            h: region.outputHeight ?? region.height,
+          },
+          spriteSourceSize: {
+            x: region.offsetX || 0,
+            y: region.offsetY || 0,
+            w: region.width,
+            h: region.height,
+          },
           rotated: false,
-          trimmed: false,
+          trimmed:
+            (region.outputWidth ?? region.width) !== region.width ||
+            (region.outputHeight ?? region.height) !== region.height,
         },
       ])
     ),
@@ -64,14 +86,24 @@ export function imageAtlasManifest(width: number, height: number, grid: ImageAtl
   };
 }
 
-export function imageAtlasInstructions(mode: 'atlas' | 'images', grid: ImageAtlasGrid) {
+export function imageAtlasInstructions(
+  mode: 'atlas' | 'images',
+  grid: ImageAtlasGrid,
+  cutMode: 'grid' | 'content' = 'grid'
+) {
   return [
     '# Maker 静态物品资源',
     '',
-    '排列：' + grid.columns + ' 列 × ' + grid.rows + ' 行。item_001 起，按从左到右、从上到下编号。',
-    '保留每格原像素、透明度和留白，不缩放、不裁透明边、不生成动画。',
-    '这是规则网格裁切，不是语义识别。导出前请核对网格；跨格、遗漏或多余物品需先调整原图。',
-    '裁切不会自动抠背景；需要透明资源时先用画布已有的抠背景功能。',
+    cutMode === 'content'
+      ? '按已确认的内容区域切图，各图尺寸可能不同，编号顺序与预览一致。'
+      : '排列：' +
+        grid.columns +
+        ' 列 × ' +
+        grid.rows +
+        ' 行。item_001 起，按从左到右、从上到下编号。',
+    '保留原像素与透明度，不缩放、不重绘、不生成动画；规则模式保留单格尺寸。',
+    '裁切不识别物品语义，按预览确认的实际区域导出；请核对主体完整、数量和边缘。',
+    '选择去底时复用本地纯色去底，未选择时保留原图透明度。',
     '',
     '## 使用',
     '将 items 目录完整放到 Maker 项目的 assets/image/items/；Lua 中不带 assets/ 前缀。',
@@ -90,194 +122,304 @@ export function imageAtlasInstructions(mode: 'atlas' | 'images', grid: ImageAtla
   ].join(String.fromCharCode(10));
 }
 
-export async function createImageAtlasExport(
+export interface PreparedImageAtlas {
+  width: number;
+  height: number;
+  grid: ImageAtlasGrid;
+  mode: 'grid' | 'content';
+  regions: ImageAtlasCrop[];
+  background: { color?: [number, number, number]; mode: 'all' | 'connected' };
+  canvas: HTMLCanvasElement;
+}
+
+export async function prepareImageAtlas(
   source: Blob,
   grid: ImageAtlasGrid,
-  mode: 'atlas' | 'images',
-  progress?: (message: string) => void
-): Promise<Blob> {
-  if (!['atlas', 'images'].includes(mode)) throw new Error('图集导出格式无效。');
+  backgroundColor?: [number, number, number],
+  backgroundMode: 'all' | 'connected' = 'connected',
+  cut: ImageAtlasCutSettings = {}
+): Promise<PreparedImageAtlas> {
   if (!source.size || source.size > 128 * 1024 * 1024) throw new Error('图片为空或超过 128 MiB。');
+  if (cut.mode && !['grid', 'content'].includes(cut.mode)) throw new Error('切图模式无效。');
+  if (
+    cut.expectedCount !== undefined &&
+    (!Number.isInteger(cut.expectedCount) || cut.expectedCount < 0 || cut.expectedCount > 120)
+  )
+    throw new Error('预期数量必须为0～120，0表示不限制。');
   const bitmap = await createImageBitmap(source);
   try {
-    const regions = imageAtlasRegions(bitmap.width, bitmap.height, grid);
-    const entries = [
-      { name: 'items/README.md', blob: new Blob([imageAtlasInstructions(mode, grid)]) },
-    ];
+    const nominal = imageAtlasRegions(bitmap.width, bitmap.height, grid);
     const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
     const context = canvas.getContext('2d');
-    if (!context) throw new Error('无法创建图集导出画布。');
-    const encode = () =>
-      new Promise<Blob>((resolve, reject) =>
-        canvas.toBlob(
-          (blob: Blob | null) =>
-            blob ? resolve(blob) : reject(new Error('图片编码失败，未导出文件。')),
-          'image/png'
-        )
-      );
-    if (mode === 'atlas') {
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      context.drawImage(bitmap, 0, 0);
-      entries.push({ name: 'items/spritesheet.png', blob: await encode() });
-      entries.push({
-        name: 'items/spritesheet.json',
-        blob: new Blob([
-          JSON.stringify(imageAtlasManifest(bitmap.width, bitmap.height, grid), null, 2),
-        ]),
-      });
-    } else {
-      let bytes = 0;
-      for (const region of regions) {
-        canvas.width = region.width;
-        canvas.height = region.height;
-        context.drawImage(
-          bitmap,
-          region.x,
-          region.y,
-          region.width,
-          region.height,
-          0,
-          0,
-          region.width,
-          region.height
-        );
-        const blob = await encode();
-        bytes += blob.size;
-        if (bytes > 128 * 1024 * 1024) throw new Error('导出包超过 128 MiB，请减少行列或尺寸。');
-        entries.push({ name: 'items/' + region.name + '.png', blob });
-        progress?.('正在导出 ' + (entries.length - 1) + '/' + regions.length);
+    if (!context) throw new Error('无法创建素材裁切画布。');
+    context.drawImage(bitmap, 0, 0);
+    let pixels: ImageData | undefined;
+    if (
+      backgroundColor ||
+      cut.mode === 'content' ||
+      (!grid.marginX && !grid.marginY && !grid.gapX && !grid.gapY)
+    ) {
+      pixels = context.getImageData(0, 0, bitmap.width, bitmap.height);
+      if (backgroundColor) {
+        createBackgroundRemoval().process(pixels!.data, bitmap.width, bitmap.height, {
+          color: backgroundColor,
+          automatic: false,
+          mode: backgroundMode,
+          tolerance: 48,
+          softness: 16,
+          despill: 0.5,
+        });
+        context.putImageData(pixels!, 0, 0);
       }
-      entries.push({
-        name: 'items/index.json',
-        blob: new Blob([
-          JSON.stringify(
-            {
-              size: { width: bitmap.width, height: bitmap.height },
-              grid,
-              items: regions.map((region) => ({ ...region, file: region.name + '.png' })),
-            },
-            null,
-            2
-          ),
-        ]),
-      });
     }
-    return await createCanvasZip(entries);
+    const transparent = pixels?.data.some((value, index) => index % 4 === 3 && value === 0);
+    let regions: ImageAtlasCrop[] = nominal;
+    if (cut.regions !== undefined && cut.mode === 'grid') {
+      regions = validateAtlasCrops(bitmap.width, bitmap.height, cut.regions);
+      if (regions.length !== nominal.length) throw new Error('规则切图区域数量与网格不一致。');
+    } else if (cut.mode === 'content') {
+      if (!transparent) throw atlasLayoutError('按内容切图需要透明间隔，请先去除纯色背景。');
+      regions =
+        cut.regions !== undefined
+          ? validateAtlasCrops(bitmap.width, bitmap.height, cut.regions)
+          : findAtlasContentRegions(pixels!.data, bitmap.width, bitmap.height);
+      if (cut.expectedCount && regions.length !== cut.expectedCount)
+        throw atlasLayoutError(
+          '预期 ' +
+            cut.expectedCount +
+            ' 件，实际找到 ' +
+            regions.length +
+            ' 个候选区域；请调整裁切框或确认数量，不会重新生图。'
+        );
+    } else if (grid.columns === 1 && grid.rows === 1 && backgroundColor && !cut.mode) {
+      // A single background is the whole keyed image. Edge contact is the scene, not a clipped cell.
+      regions = [
+        {
+          name: nominal[0].name,
+          x: 0,
+          y: 0,
+          width: bitmap.width,
+          height: bitmap.height,
+        },
+      ];
+    } else if (transparent && !grid.marginX && !grid.marginY && !grid.gapX && !grid.gapY) {
+      let aligned: AtlasAlignedCell[];
+      try {
+        aligned = alignAtlasCells(pixels!.data, bitmap.width, bitmap.height, grid, cut.allowEmpty);
+      } catch (error) {
+        // Only UI slot sheets may recover. Content order and margin grids stay unchanged.
+        if (
+          !cut.allowEmpty ||
+          !(error instanceof Error) ||
+          (error as { code?: string }).code !== 'ATLAS_LAYOUT_INVALID' ||
+          (error as { reason?: string }).reason !== 'missing-separator'
+        )
+          throw error;
+        aligned = assignAtlasCellsByCenter(pixels!.data, bitmap.width, bitmap.height, grid, true);
+      }
+      regions = aligned.map((cell, index) =>
+        cell.empty
+          ? {
+              name: nominal[index].name,
+              x: 0,
+              y: 0,
+              width: 1,
+              height: 1,
+              outputWidth: nominal[index].width,
+              outputHeight: nominal[index].height,
+              blank: true,
+            }
+          : {
+              name: nominal[index].name,
+              x: cell.x,
+              y: cell.y,
+              width: cell.width,
+              height: cell.height,
+              outputWidth: cell.outputWidth ?? nominal[index].width,
+              outputHeight: cell.outputHeight ?? nominal[index].height,
+              offsetX: cell.dx,
+              offsetY: cell.dy,
+            }
+      );
+    } else if (backgroundColor) {
+      for (const region of regions) {
+        let occupied = false;
+        let border = 0;
+        for (let row = region.y; row < region.y + region.height; row++)
+          for (let column = region.x; column < region.x + region.width; column++) {
+            const alpha = pixels!.data[(row * bitmap.width + column) * 4 + 3];
+            if (alpha) occupied = true;
+            if (
+              alpha >= 128 &&
+              (row === region.y ||
+                column === region.x ||
+                row === region.y + region.height - 1 ||
+                column === region.x + region.width - 1)
+            )
+              border++;
+          }
+        if (!occupied || border / (2 * region.width + 2 * region.height) > 0.01)
+          throw atlasLayoutError(
+            '图集 ' + region.name + ' 为空或边界穿过素材，请调整裁切框，原资产未替换。'
+          );
+      }
+    }
+    return {
+      width: bitmap.width,
+      height: bitmap.height,
+      grid: { ...grid },
+      mode: cut.mode || 'grid',
+      regions: validateAtlasCrops(bitmap.width, bitmap.height, regions),
+      background: { color: backgroundColor && [...backgroundColor], mode: backgroundMode },
+      canvas,
+    };
   } finally {
     bitmap.close();
   }
 }
 
+export async function encodeImageAtlasRegions(prepared: PreparedImageAtlas) {
+  const regions = validateAtlasCrops(prepared.width, prepared.height, prepared.regions);
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('无法创建素材裁切画布。');
+  const items: Array<{
+    name: string;
+    width: number;
+    height: number;
+    blob: Blob;
+    contentRect?: [number, number, number, number];
+  }> = [];
+  let bytes = 0;
+  for (const region of regions) {
+    canvas.width = region.outputWidth ?? region.width;
+    canvas.height = region.outputHeight ?? region.height;
+    if (!region.blank)
+      context.drawImage(
+        prepared.canvas,
+        region.x,
+        region.y,
+        region.width,
+        region.height,
+        region.offsetX || 0,
+        region.offsetY || 0,
+        region.width,
+        region.height
+      );
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (result: Blob | null) => (result ? resolve(result) : reject(new Error('素材编码失败。'))),
+        'image/png'
+      )
+    );
+    bytes += blob.size;
+    if (blob.size > 20 * 1024 * 1024 || bytes > 128 * 1024 * 1024)
+      throw new Error('素材过大，请减少数量或图集尺寸。');
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const contentRect = pixels.some((value: number, index: number) => index % 4 === 3 && value >= 8)
+      ? uiBindingContentRect(pixels, canvas.width, canvas.height)
+      : undefined;
+    items.push({
+      name: region.name,
+      width: canvas.width,
+      height: canvas.height,
+      blob,
+      contentRect,
+    });
+  }
+  return {
+    width: prepared.width,
+    height: prepared.height,
+    grid: { ...prepared.grid },
+    regions,
+    cutMode: prepared.mode,
+    background: structuredClone(prepared.background),
+    items,
+  };
+}
+
+export async function createImageAtlasExport(
+  source: Blob,
+  grid: ImageAtlasGrid,
+  mode: 'atlas' | 'images',
+  progress?: (message: string) => void,
+  settings: ImageAtlasCutSettings & {
+    backgroundColor?: [number, number, number];
+    backgroundMode?: 'all' | 'connected';
+  } = {},
+  reviewed?: PreparedImageAtlas
+): Promise<Blob> {
+  if (!['atlas', 'images'].includes(mode)) throw new Error('图集导出格式无效。');
+  if (!source.size || source.size > 128 * 1024 * 1024) throw new Error('图片为空或超过 128 MiB。');
+  const prepared =
+    reviewed ||
+    (await prepareImageAtlas(
+      source,
+      grid,
+      settings.backgroundColor,
+      settings.backgroundMode,
+      settings
+    ));
+  const entries = [
+    {
+      name: 'items/README.md',
+      blob: new Blob([imageAtlasInstructions(mode, grid, prepared.mode)]),
+    },
+  ];
+  if (mode === 'atlas') {
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      prepared.canvas.toBlob(
+        (result) => (result ? resolve(result) : reject(new Error('图集编码失败。'))),
+        'image/png'
+      )
+    );
+    entries.push({ name: 'items/spritesheet.png', blob });
+    entries.push({
+      name: 'items/spritesheet.json',
+      blob: new Blob([
+        JSON.stringify(
+          imageAtlasManifest(prepared.width, prepared.height, grid, prepared.regions),
+          null,
+          2
+        ),
+      ]),
+    });
+  } else {
+    const result = await encodeImageAtlasRegions(prepared);
+    for (const item of result.items) {
+      entries.push({ name: 'items/' + item.name + '.png', blob: item.blob });
+      progress?.('正在导出 ' + (entries.length - 1) + '/' + result.items.length);
+    }
+    entries.push({
+      name: 'items/index.json',
+      blob: new Blob([
+        JSON.stringify(
+          {
+            size: { width: prepared.width, height: prepared.height },
+            grid,
+            mode: prepared.mode,
+            items: prepared.regions.map((region) => ({ ...region, file: region.name + '.png' })),
+          },
+          null,
+          2
+        ),
+      ]),
+    });
+  }
+  return createCanvasZip(entries);
+}
+
 export async function splitImageAtlas(
   source: Blob,
   grid: ImageAtlasGrid,
-  backgroundColor?: [number, number, number]
+  backgroundColor?: [number, number, number],
+  backgroundMode: 'all' | 'connected' = 'connected',
+  cut: ImageAtlasCutSettings = {},
+  reviewed?: PreparedImageAtlas
 ) {
-  if (!source.size || source.size > 128 * 1024 * 1024) throw new Error('图片为空或超过 128 MiB。');
-  const bitmap = await createImageBitmap(source);
-  try {
-    const regions = imageAtlasRegions(bitmap.width, bitmap.height, grid);
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('无法创建素材裁切画布。');
-    const removal = backgroundColor && createBackgroundRemoval();
-    let aligned: ReturnType<typeof alignAtlasCells> | undefined;
-    let keyed: any;
-    if (removal && !grid.marginX && !grid.marginY && !grid.gapX && !grid.gapY) {
-      keyed = document.createElement('canvas');
-      keyed.width = bitmap.width;
-      keyed.height = bitmap.height;
-      const ctx = keyed.getContext('2d');
-      if (!ctx) throw new Error('无法创建素材对齐画布。');
-      ctx.drawImage(bitmap, 0, 0);
-      const pixels = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-      removal.process(pixels.data, bitmap.width, bitmap.height, {
-        color: backgroundColor,
-        automatic: false,
-        mode: 'connected',
-        tolerance: 48,
-        softness: 16,
-        despill: 0.5,
-      });
-      aligned = alignAtlasCells(pixels.data, bitmap.width, bitmap.height, grid);
-      ctx.putImageData(pixels, 0, 0);
-    }
-    const items = [];
-    let bytes = 0;
-    for (const region of regions) {
-      canvas.width = region.width;
-      canvas.height = region.height;
-      const cell = aligned?.[items.length];
-      if (cell)
-        context.drawImage(
-          keyed,
-          cell.x,
-          cell.y,
-          cell.width,
-          cell.height,
-          cell.dx,
-          cell.dy,
-          cell.width,
-          cell.height
-        );
-      else
-        context.drawImage(
-          bitmap,
-          region.x,
-          region.y,
-          region.width,
-          region.height,
-          0,
-          0,
-          region.width,
-          region.height
-        );
-      if (removal && !aligned) {
-        const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-        removal.process(pixels.data, canvas.width, canvas.height, {
-          color: backgroundColor,
-          automatic: false,
-          mode: 'connected',
-          tolerance: 24,
-          softness: 12,
-          despill: 0.5,
-        });
-        if (!pixels.data.some((value: number, index: number) => index % 4 === 3 && value > 0))
-          throw atlasLayoutError(
-            '图集第 ' + (items.length + 1) + ' 格没有有效内容，资源包未更新。请检查图集和网格。'
-          );
-        // UI atlases require padding: occupied borders indicate a cut subject or unkeyed background.
-        let opaqueBorder = 0;
-        let borderPixels = 0;
-        for (let y = 0; y < canvas.height; y++) {
-          for (let x = 0; x < canvas.width; x++) {
-            if (x !== 0 && y !== 0 && x !== canvas.width - 1 && y !== canvas.height - 1) continue;
-            borderPixels++;
-            if (pixels.data[(y * canvas.width + x) * 4 + 3] >= 128) opaqueBorder++;
-          }
-        }
-        if (opaqueBorder / borderPixels > 0.01)
-          throw atlasLayoutError(
-            '图集第 ' +
-              (items.length + 1) +
-              ' 格边界仍有明显内容，可能跨格或底色未去净，资源包未更新。请调整图集或网格。'
-          );
-        context.putImageData(pixels, 0, 0);
-      }
-      const blob = await new Promise<Blob>((resolve, reject) =>
-        canvas.toBlob(
-          (result: Blob | null) => (result ? resolve(result) : reject(new Error('素材编码失败。'))),
-          'image/png'
-        )
-      );
-      bytes += blob.size;
-      if (blob.size > 20 * 1024 * 1024 || bytes > 128 * 1024 * 1024)
-        throw new Error('素材过大，请减少网格数量或图集尺寸。');
-      items.push({ name: region.name, width: region.width, height: region.height, blob });
-    }
-    return { width: bitmap.width, height: bitmap.height, grid: { ...grid }, items };
-  } finally {
-    bitmap.close();
-  }
+  return encodeImageAtlasRegions(
+    reviewed || (await prepareImageAtlas(source, grid, backgroundColor, backgroundMode, cut))
+  );
 }

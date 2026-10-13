@@ -47,6 +47,8 @@ function fixture(): CanvasInfoSnapshot & { title: string; capturedAt: string } {
       finished: [],
       failures: {},
       retries: {},
+      running: groupId === 'group' ? { video: 0 } : {},
+      elapsedMs: 0,
       total: 5,
       active: groupId === 'group' ? 'video' : undefined,
       phase: 'running',
