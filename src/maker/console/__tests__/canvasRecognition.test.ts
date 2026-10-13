@@ -9,6 +9,7 @@ import { saveProjectConfig } from '../../storage.js';
 import * as pat from '../../git/pat.js';
 import * as config from '../../config.js';
 import { serverRecognitionBody } from '../serverRecognition.js';
+import { saveVisionSettings } from '../visionSettings.js';
 
 let root: string;
 beforeEach(() => {
@@ -206,7 +207,7 @@ test('persists results, binds image identity and deduplicates concurrent request
   );
   await service.run(canvasId, input);
   expect(fetcher).toHaveBeenCalledTimes(2);
-  expect(service.modelsForDisplay()).toEqual([
+  expect(await service.modelsForDisplay()).toEqual([
     { id: 'vision-a', model: 'test-vision', source: 'custom' },
   ]);
 });
@@ -377,7 +378,7 @@ test.each([
   }
 );
 
-describe('unreleased Server API integration', () => {
+describe('Server API integration', () => {
   const appId = '11111111-1111-4111-8111-111111111111';
   beforeEach(() => {
     saveProjectConfig(root, { project_id: appId });
@@ -407,6 +408,45 @@ describe('unreleased Server API integration', () => {
       }),
       { status }
     );
+
+  test.each([true, false])(
+    'new submissions honor availability (%s) without changing existing attempts',
+    async (available) => {
+      const previousHome = process.env.TAPTAP_MAKER_HOME;
+      process.env.TAPTAP_MAKER_HOME = path.join(root, 'home');
+      try {
+        saveVisionSettings({ source: 'server' });
+        const { canvasId, input } = await setup();
+        input.model = 'gpt-6.1-sol';
+        const fetcher = jest
+          .fn()
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                error: { code: available ? 'MODEL_INFERENCE_NOT_FOUND' : 'PROJECT_NOT_FOUND' },
+              }),
+              { status: 404 }
+            )
+          )
+          .mockResolvedValueOnce(reply('cut', { status: 'running', output: null }, 202))
+          .mockResolvedValueOnce(reply('cut'));
+        const service = new CanvasRecognitionService(root, undefined, fetcher);
+        if (available) {
+          expect((await service.run(canvasId, input)).status).toBe('running');
+          await service.refresh(canvasId, input.id);
+          expect(fetcher.mock.calls.map((call) => call[1].method)).toEqual(['GET', 'POST', 'GET']);
+          expect(fetcher.mock.calls[2][0]).toContain('/cut-request');
+        } else {
+          await expect(service.run(canvasId, input)).rejects.toMatchObject({ status: 409 });
+          expect(fetcher).toHaveBeenCalledTimes(1);
+          expect(() => service.query(canvasId, input.id)).toThrow('未找到识图请求记录');
+        }
+      } finally {
+        if (previousHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
+        else process.env.TAPTAP_MAKER_HOME = previousHome;
+      }
+    }
+  );
 
   test('two persisted calls use PAT, bound project, fixed protocol and deduplicated credits', async () => {
     const { canvasId, input } = await setup();

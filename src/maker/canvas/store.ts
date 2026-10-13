@@ -240,7 +240,9 @@ export function createBrowserCanvasDocumentStore(
     videoHistory: (offset = 0, limit = 30) =>
       request<CanvasVideoHistory>('/canvases/video-history?offset=' + offset + '&limit=' + limit),
     modelSettings: async () => {
-      const response = await fetcher('/api/settings/models');
+      const response = await fetcher(
+        '/api/settings/models?project=' + encodeURIComponent(projectKey)
+      );
       const body = await response.json();
       if (!response.ok) throw new Error('模型设置读取失败，请检查控制台设置。');
       return body as CanvasModelSettings;

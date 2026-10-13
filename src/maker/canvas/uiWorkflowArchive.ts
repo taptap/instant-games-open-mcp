@@ -87,11 +87,11 @@ export async function prepareUiWorkflowArchives(
         ))
   );
   for (const target of targets) {
-    const members = resourceBundleMembers(document, target.id);
+    let members = resourceBundleMembers(document, target.id);
     if (!members.some((node) => node.imageAssetsInfo?.items.length)) continue;
     try {
       // Local archives retain the byte budget without the download ZIP's file-count cap.
-      validateResourceBundle(document, target.id, Number.MAX_SAFE_INTEGER);
+      members = validateResourceBundle(document, target.id, Number.MAX_SAFE_INTEGER);
     } catch {
       continue;
     }

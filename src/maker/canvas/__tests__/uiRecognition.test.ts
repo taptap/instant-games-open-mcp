@@ -338,6 +338,48 @@ test('observed selected states are preserved in addition to the template default
   );
 });
 
+test('replacing a design source updates both snapshot forms before continuing', async () => {
+  const document = emptyDocument();
+  const source: CanvasNode = {
+    id: randomUUID(),
+    type: 'image',
+    title: 'new design',
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    assetPath: result().sourcePath,
+  };
+  const oldSnapshot = snapshotCanvasSource({ ...source, assetPath: result().sourcePath });
+  const design: CanvasNode = {
+    ...source,
+    id: randomUUID(),
+    templatePending: true,
+    sourceSnapshot: oldSnapshot,
+    sourceSnapshots: [oldSnapshot!],
+    uiRecognition: { enabled: true, inputRole: 'design', results: [] },
+  };
+  document.nodes.push(source, design);
+  document.edges.push({ id: randomUUID(), from: source.id, to: design.id, kind: 'image-variant' });
+  const fallback = jest.fn(async () => true);
+  const controller = createUiRecognitionUi({
+    current: () => document,
+    store: {} as any,
+    save: async () => true,
+    remember() {},
+    changed() {},
+    render() {},
+    blocked: () => false,
+    error() {},
+    loadMedia: async () => {},
+    openCanvas: async () => {},
+  });
+  expect(await controller.runImage(design.id, fallback)).toBe(true);
+  expect(fallback).not.toHaveBeenCalled();
+  expect(design.sourceSnapshots).toEqual([snapshotCanvasSource(source)]);
+  expect(canvasNeedsProcessing(document, design)).toBe(false);
+});
+
 test('an empty branch completes through the real template executor without exporting old example assets', async () => {
   const document = emptyDocument();
   const recognized = result();

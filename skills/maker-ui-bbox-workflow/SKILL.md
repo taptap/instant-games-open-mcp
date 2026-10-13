@@ -13,10 +13,10 @@ description: 操作 Maker「游戏UI制作 · Bbox预排参考图（实验）」
 
 1. 沿用用户已选项目，通过 `canvas pages`、`canvas inspect` 读取 page-id、canvas-id、revision
    与当前分组。操作使用当前 CLI schema，通过受控接口保存，不改写打开中的画布文件。
-2. 调用 `canvas model-settings`，识图与生图分别遵循用户配置，不自动切换渠道。
+2. 调用 `canvas model-settings --target-dir <项目>`，识图按返回的 vision.source 执行；默认 Server API 不可用时由系统临时降级为 chatgpt-web，用户主动选择优先，不自行切换渠道。
    付费识图、生图遵循已有授权；本地预排不调用生图模型、不消耗模型积分。
 3. 原始设计稿 → 原稿与识图输入 → 去文字与元素识别。先完成去字，再识别去字图的 UI
-   与原稿的文字。local 由当前 AI 客户端识别；custom 用已配置 API；Server API 未开放时不启用。
+   与原稿的文字。local 由当前 AI 客户端识别；custom 用已配置 API；server 用画布两轮识图。已有任务不因接口不可用换渠道重做。
    chatgpt-web 仅复用同包的[网页识图协议](../maker-ui-workflow/references/chatgpt-web.md)，
    不因此切换为普通模板的拆图流程。
 4. 用 `canvas recognition-input` 取当前输入，用 `canvas recognition-result` 校验两轮结果

@@ -159,8 +159,6 @@ export function createUiRecognitionUi(options: {
         throw new Error(
           '当前使用本地模型，请让 AI 客户端读取设计稿，通过 Maker CLI 写入 Bbox。画布不能直接调用客户端模型；也可在设置中选择自定义 API。'
         );
-      if (configured?.source === 'server')
-        throw new Error('Server API 识图尚未开通，请使用本地 AI 或在设置中选择自定义 API。');
       if (configured) model = configured;
     }
     if (source.templatePending && !settings.pendingId)
@@ -296,7 +294,6 @@ export function createUiRecognitionUi(options: {
     const current = options.current();
     const node = current?.nodes.find((item) => item.id === id);
     if (!current || !node) return false;
-    if (node.uiAtlasPrelayout) return fallback();
     if (node.uiRecognition?.enabled && node.uiRecognition.inputRole !== 'design') {
       if (node.templatePending || !node.assetPath) {
         const generated = await fallback();
@@ -315,6 +312,7 @@ export function createUiRecognitionUi(options: {
         node.assetPath = source.assetPath;
         node.imageInfo = source.imageInfo ? { ...source.imageInfo } : undefined;
         node.sourceSnapshot = snapshotCanvasSource(source);
+        node.sourceSnapshots = [node.sourceSnapshot!];
         node.uiRecognition.results = [];
         delete node.uiRecognition.selectedId;
         invalidate(node);
@@ -353,7 +351,7 @@ export function createUiRecognitionUi(options: {
       return saved;
     }
     delete node.uiEmpty;
-    if (!hasImageFeature(node, 'ui-annotation')) return fallback();
+    if (node.uiAtlasPrelayout || !hasImageFeature(node, 'ui-annotation')) return fallback();
     await checkDesign(result, source);
     node.uiBaselinePrompt ??= node.generationDraft?.prompt || node.generation?.prompt || '';
     busy = true;
@@ -422,8 +420,6 @@ export function createUiRecognitionUi(options: {
         );
         return false;
       }
-      if (configured?.source === 'server')
-        throw new Error('Server API 识图尚未开通，请使用本地 AI 或自定义 API。');
       if (
         options.current() !== current ||
         !current.nodes.includes(node) ||
@@ -448,8 +444,10 @@ export function createUiRecognitionUi(options: {
     if (
       !(plan && !plan.elements.length) &&
       !(batch && batch.slots.every((slot) => slot.role === 'reserve'))
-    )
+    ) {
+      delete node.uiEmpty;
       return fallback();
+    }
     options.remember();
     node.uiEmpty = true;
     delete node.imageAssetsInfo;

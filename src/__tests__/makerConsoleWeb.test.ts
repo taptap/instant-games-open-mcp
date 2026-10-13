@@ -217,47 +217,57 @@ describe('Maker console standalone UI', () => {
     expect(source.disabled).toBe(false);
   });
 
-  it('saves ChatGPT web as a vision-only choice without requesting an API key', async () => {
-    const { api, fetch, context } = harness('', '?page=settings');
-    api.setPage('settings');
-    const view = { querySelectorAll: () => [], contains: () => false, replaceChildren: jest.fn() };
-    context.document.getElementById.mockImplementation(((id: string) =>
-      id === 'view' ? view : null) as any);
-    const created: any[] = [];
-    const create = context.document.createElement;
-    context.document.createElement = ((tag: string) => {
-      const el: any = create(tag);
-      el.value = '';
-      el.options = [];
-      el.append = jest.fn((...children) => {
-        if (tag === 'select') el.options.push(...children);
+  it.each([true, false])(
+    'uses project availability (%s) while preserving a web selection',
+    async (serverAvailable) => {
+      const { api, fetch, context } = harness('', '?page=settings&project=alpha');
+      api.setPage('settings');
+      const view = {
+        querySelectorAll: () => [],
+        contains: () => false,
+        replaceChildren: jest.fn(),
+      };
+      context.document.getElementById.mockImplementation(((id: string) =>
+        id === 'view' ? view : null) as any);
+      const created: any[] = [];
+      const create = context.document.createElement;
+      context.document.createElement = ((tag: string) => {
+        const el: any = create(tag);
+        el.value = '';
+        el.options = [];
+        el.append = jest.fn((...children) => {
+          if (tag === 'select') el.options.push(...children);
+        });
+        created.push(el);
+        return el;
+      }) as any;
+      fetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          vision: { source: 'chatgpt-web', serverAvailable },
+          generation: { source: 'maker' },
+          profiles: [],
+        }),
       });
-      created.push(el);
-      return el;
-    }) as any;
-    fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        vision: { source: 'chatgpt-web' },
-        generation: { source: 'maker' },
-        profiles: [],
-      }),
-    });
-    await api.renderVisionSettings();
-    const selects = created.filter((el) => el.tagName === 'select');
-    expect(selects[0].options.some((el: any) => el.value === 'chatgpt-web')).toBe(true);
-    expect(selects[2].options.some((el: any) => el.value === 'chatgpt-web')).toBe(false);
-    expect(selects[0].options.find((el: any) => el.value === 'server').disabled).toBe(true);
-    expect(selects[0].value).toBe('chatgpt-web');
-    await selects[0].onchange();
-    expect(JSON.parse(fetch.mock.calls[1][1].body!)).toMatchObject({
-      action: 'select',
-      kind: 'vision',
-      source: 'chatgpt-web',
-    });
-    expect(created.some((el) => el.type === 'password')).toBe(false);
-  });
+      await api.renderVisionSettings();
+      const selects = created.filter((el) => el.tagName === 'select');
+      expect(selects[0].options.some((el: any) => el.value === 'chatgpt-web')).toBe(true);
+      expect(selects[2].options.some((el: any) => el.value === 'chatgpt-web')).toBe(false);
+      expect(selects[0].options.find((el: any) => el.value === 'server').disabled).toBe(
+        !serverAvailable
+      );
+      expect(fetch.mock.calls[0][0]).toBe('/api/settings/models?project=alpha');
+      expect(selects[0].value).toBe('chatgpt-web');
+      await selects[0].onchange();
+      expect(JSON.parse(fetch.mock.calls[1][1].body!)).toMatchObject({
+        action: 'select',
+        kind: 'vision',
+        source: 'chatgpt-web',
+      });
+      expect(created.some((el) => el.type === 'password')).toBe(false);
+    }
+  );
 
   it('keeps settings open when a requested project is missing', async () => {
     const { api, fetch } = harness('', '?project=missing&page=settings');

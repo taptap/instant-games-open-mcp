@@ -297,9 +297,15 @@ export function selectedUiAtlasPlan(
     if (uiRecognitionInputs(current, source!).design.assetPath !== result.bbox.design.path)
       throw new Error('原 UI 设计稿已变化，请重新识别再拆图。');
     const plans = uiWorkflowAtlasPlans(current, node, result.bbox);
-    const plan = plans[node.uiAtlasBatch ?? 0];
-    if (!plan) throw new Error('当前识图清单已不需要此续批，请移除多余续批及其资源卡后继续。');
-    return plan;
+    // A smaller input can leave saved batch cards behind; treat them as an empty branch.
+    return (
+      plans[node.uiAtlasBatch ?? 0] || {
+        version: 1,
+        bbox: result.bbox,
+        grid: { columns: 1, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
+        slots: [{ elementIds: [], state: 'normal', role: 'reserve' }],
+      }
+    );
   }
   if (node.uiAtlasPlan) {
     const plan = validateUiAtlasPlan(node.uiAtlasPlan);

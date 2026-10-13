@@ -8,7 +8,7 @@
 
 图片卡专用功能按 [图片功能开发规范](../../../docs/MAKER_CANVAS_IMAGE_FEATURES.md) 接入。
 UI 设计稿沿用普通图片卡，自定义 API / Server API 模式提供「识别 UI」，有结果时提供「查看标注」。
-Server API 开发中，在设置里禁选；ChatGPT 网页识图由 Agent 按 maker-ui-workflow 完成并回填。
+默认 Server API；按当前项目只读检测，不可用时禁选并临时使用 ChatGPT 网页，恢复后自动启用。用户主动选择优先，不改写设置；ChatGPT 网页识图由 Agent 按 maker-ui-workflow 完成并回填。
 标注在独立弹层显示，支持 UI、文本、名称编号开关和原图尺寸查看；卡片内不放识图按钮。
 
 含切图素材的分组在选中后的顶部菜单提供「下载全部素材」，一次导出按分类文件夹组织的
@@ -27,7 +27,7 @@ PNG ZIP；分类资源卡仍可单独检查和下载，不复制持久化素材�
 游戏 UI 模板新实例默认开启；CLI run UI 分组或图片步骤默认开启并先完成识图，显式 input.recognition=false 才关闭。
 添加模板会清空实例识图结果；官方合批卡仅保留分类配置，每次生成按当前识图清单计算槽位、网格和提示词，
 不复用示例编号或坐标。示例图片和生成记录仍供预览；手工指定的固定槽位清单仍严格校验来源。
-调用模型前用 `canvas model-settings` 读取全局配置；画布生图遵循 Maker MCP 或自定义 API，
+调用模型前用 `canvas model-settings --target-dir <项目>` 读取有效配置；画布生图遵循 Maker MCP 或自定义 API，
 本地模型仅限客户端自身执行，画布直接调用会提示，不自动改用其它渠道。
 自定义生图仅支持 OpenAI 兼容图片协议，参考图使用 edits；新设置不改变已有任务的下载恢复。
 识图使用所选 API 配置的模型，GPT-6.1 Sol 保持 low；去文字图只识别 UI，原稿只识别文字，

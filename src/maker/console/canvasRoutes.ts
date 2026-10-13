@@ -59,7 +59,7 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     if (suffix === 'canvases/recognition-models' && method === 'GET') {
-      send(response, 200, new CanvasRecognitionService(project.path).modelsForDisplay());
+      send(response, 200, await new CanvasRecognitionService(project.path).modelsForDisplay());
       return true;
     }
     const recognition = suffix.match(

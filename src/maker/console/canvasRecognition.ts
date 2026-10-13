@@ -20,11 +20,13 @@ import {
   UI_VISION_MODEL,
   validateVisionEndpoint,
   visionChatCompletionsUrl,
+  modelSettingsForDisplay,
   type VisionSource,
 } from './visionSettings.js';
 import { ConsoleError } from './types.js';
 import {
   serverRecognitionContext,
+  serverRecognitionAvailable,
   serverRecognitionBody,
   serverRecognitionImage,
   serverRecognitionRequest,
@@ -68,7 +70,7 @@ export function configuredUiVisionModels(): UiVisionModel[] {
   }
   const filename = process.env.TAPTAP_MAKER_VISION_CONFIG;
   if (!filename)
-    return [{ id: UI_VISION_MODEL, model: UI_VISION_MODEL, endpoint: '', source: 'local' }];
+    return [{ id: UI_VISION_MODEL, model: UI_VISION_MODEL, endpoint: '', source: 'server' }];
   let values: unknown;
   try {
     values = JSON.parse(fs.readFileSync(filename, 'utf8'));
@@ -103,6 +105,33 @@ export function configuredUiVisionModels(): UiVisionModel[] {
     })
     .filter((value) => value.model === UI_VISION_MODEL)
     .slice(0, 1);
+}
+
+export async function resolvedUiVisionModels(
+  root?: string,
+  fetcher = fetch
+): Promise<UiVisionModel[]> {
+  const models = configuredUiVisionModels();
+  if (models[0]?.source !== 'server' || (await serverRecognitionAvailable(root, fetcher)))
+    return models;
+  return [
+    { id: 'chatgpt-web', model: 'ChatGPT 网页当前模型', endpoint: '', source: 'chatgpt-web' },
+  ];
+}
+
+export async function resolvedModelSettingsForDisplay(root?: string, fetcher = fetch) {
+  const settings = modelSettingsForDisplay();
+  const available = await serverRecognitionAvailable(root, fetcher);
+  const source = configuredUiVisionModels()[0]?.source || settings.vision.source;
+  return {
+    ...settings,
+    vision: {
+      ...settings.vision,
+      selectedSource: source,
+      source: source === 'server' && !available ? 'chatgpt-web' : source,
+      serverAvailable: available,
+    },
+  };
 }
 
 export function uiRecognitionPrompt(width: number, height: number): string {
@@ -201,12 +230,14 @@ export class CanvasRecognitionService {
   ) {
     this.files = new MakerCanvasFiles(root);
   }
-  modelsForDisplay() {
-    return (this.models || configuredUiVisionModels()).map(({ id, model, source }) => ({
-      id,
-      model,
-      source: source || 'custom',
-    }));
+  async modelsForDisplay() {
+    return (this.models || (await resolvedUiVisionModels(this.files.root, this.fetcher))).map(
+      ({ id, model, source }) => ({
+        id,
+        model,
+        source: source || 'custom',
+      })
+    );
   }
   private filename(id: string, create = false) {
     if (!/^[a-f0-9-]{36}$/.test(id)) throw new ConsoleError('识图请求编号无效。');
@@ -408,6 +439,7 @@ export class CanvasRecognitionService {
           : previous)
       );
     }
+    const models = this.models || (await resolvedUiVisionModels(this.files.root, this.fetcher));
     const document = await this.files.load(canvasId);
     if (fs.existsSync(filename)) return this.run(canvasId, input);
     if (document.revision !== input.revision)
@@ -421,16 +453,14 @@ export class CanvasRecognitionService {
       node.uiRecognition.pendingId !== input.id
     )
       throw new ConsoleError('请先保存原稿及本次识图请求。');
-    const model = (this.models || configuredUiVisionModels()).find(
-      (model) => model.id === input.model
-    );
-    if (!model) throw new ConsoleError('识图配置已变化，请刷新后重试，并检查设置中的 API 配置。');
-    const source = model.source || 'custom';
-    if (source === 'chatgpt-web')
+    const model = models.find((model) => model.id === input.model);
+    if (models[0]?.source === 'chatgpt-web')
       throw new ConsoleError(
         '当前使用 ChatGPT 网页识图，请让当前 AI 按当前模板关联的 Skill 使用已有浏览器完成识图并回填。无需安装执行器；登录可选，未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。',
-        503
+        409
       );
+    if (!model) throw new ConsoleError('识图配置已变化，请刷新后重试，并检查设置中的 API 配置。');
+    const source = model.source || 'custom';
     if (source === 'local')
       throw new ConsoleError(
         '当前使用本地模型。请让 AI 客户端读取设计稿，通过 Maker CLI 写入 Bbox；画布不能直接调用客户端模型。也可在设置中选择自定义 API。',

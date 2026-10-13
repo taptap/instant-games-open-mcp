@@ -128,6 +128,23 @@ test('archives recognition and resource snapshots independently of the canvas, p
       createId(),
       createId()
     );
+    // A skipped batch keeps its old output, but its old Bbox must not block the new archive.
+    const skippedAtlas = structuredClone(atlas);
+    skippedAtlas.id = createId();
+    skippedAtlas.uiEmpty = true;
+    skippedAtlas.generation!.uiAtlasPlan!.bbox.elements[0].name = 'old input';
+    skippedAtlas.sourceSnapshot = snapshotCanvasSource(source);
+    const skippedAssets = structuredClone(
+      document.nodes.find((node) => node.type === 'image-assets')!
+    );
+    skippedAssets.id = createId();
+    skippedAssets.uiEmpty = true;
+    skippedAssets.sourceSnapshot = snapshotCanvasSource(skippedAtlas);
+    document.nodes.push(skippedAtlas, skippedAssets);
+    document.edges.push(
+      { id: createId(), from: source.id, to: skippedAtlas.id, kind: 'image-variant' },
+      { id: createId(), from: skippedAtlas.id, to: skippedAssets.id, kind: 'image-assets' }
+    );
     addResourceBundle(document, section.id);
     document = await files.save(document.id, document, document.revision);
     const resource = files
@@ -135,6 +152,7 @@ test('archives recognition and resource snapshots independently of the canvas, p
       .find((record) => record.stage === 'resources')!;
     expect(resource.confirmed).toBe(true);
     const bindings = JSON.parse(fs.readFileSync(path.join(root, resource.bindingsPath!), 'utf8'));
+    expect(bindings.assets).toHaveLength(1);
     expect(bindings.ui.id).toBe(resource.uiId);
     expect(fs.readFileSync(path.join(root, resource.directory, bindings.assets[0].path))).toEqual(
       bytes

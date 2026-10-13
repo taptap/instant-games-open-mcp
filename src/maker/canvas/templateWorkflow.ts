@@ -173,7 +173,7 @@ export function createTemplateWorkflow(options: {
     if (!document) return true;
     return canvasReferences(document, id).some(
       (source) =>
-        !source.assetPath ||
+        (!source.assetPath && !source.uiEmpty) ||
         status(source.id) === 'pending' ||
         options.isNodeBusy?.(source.id) ||
         options.hasUnsettledResult?.(source.id)
@@ -499,7 +499,7 @@ export function createTemplateWorkflow(options: {
           (!sources.length && node.type !== 'image') ||
           sources.some(
             (source) =>
-              !source.assetPath ||
+              (!source.assetPath && !source.uiEmpty) ||
               status(source.id) === 'pending' ||
               canvasNeedsProcessing(document, source) ||
               options.isNodeBusy?.(source.id) ||

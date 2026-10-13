@@ -6,6 +6,14 @@ import {
 } from '../store.js';
 
 describe('CanvasDocumentStore port', () => {
+  test('resolves model settings using the canvas project', async () => {
+    const fetcher = jest.fn(
+      async () => new Response(JSON.stringify({ vision: { source: 'server' } }))
+    );
+    const store = createBrowserCanvasDocumentStore('project-a', fetcher);
+    expect(await store.modelSettings!()).toMatchObject({ vision: { source: 'server' } });
+    expect(fetcher).toHaveBeenCalledWith('/api/settings/models?project=project-a');
+  });
   test('routes resource PNGs separately from project image imports', async () => {
     const memory = new MemoryCanvasDocumentStore();
     const canvas = await memory.create();

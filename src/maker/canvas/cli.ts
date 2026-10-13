@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { modelSettingsForDisplay } from '../console/visionSettings.js';
+import { resolvedModelSettingsForDisplay } from '../console/canvasRecognition.js';
 import { canvasExportDirectory, readCanvasImport, writeCanvasExport } from './automationFiles.js';
 import { selectCanvasSnapshot } from './automationInfo.js';
 import { randomUUID } from 'node:crypto';
@@ -24,7 +24,11 @@ export async function runCanvasCli(
     return;
   }
   if (action === 'model-settings') {
-    print(modelSettingsForDisplay());
+    const root =
+      typeof options.target_dir === 'string'
+        ? new MakerCanvasFiles(options.target_dir).root
+        : undefined;
+    print(await resolvedModelSettingsForDisplay(root));
     return;
   }
   if (typeof options.target_dir !== 'string')
