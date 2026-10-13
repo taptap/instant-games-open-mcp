@@ -11,21 +11,23 @@ export interface CanvasPreset extends CanvasWorkflowTemplate {
 
 export function canvasPresets(): CanvasPreset[] {
   const prompts = createVideoPrompts();
-  const sequences = (presetData as unknown as CanvasPreset[]).map((preset, index) => {
+  const sequences = (presetData as unknown as CanvasPreset[]).map((preset) => {
+    const kind = Number(preset.id.slice(-3));
     const template = { ...preset, nodes: structuredClone(preset.nodes) };
     const videos = template.nodes.filter((node) => node.type === 'video-source');
     for (const video of videos) {
+      if (kind === 14) continue;
       video.generation = {
         ...video.generation,
         prompt: prompts.build({
-          kind: index === 2 ? 'generic' : 'character',
-          play: index === 0 ? 'attack' : index === 1 ? 'loop' : 'once',
+          kind: kind === 3 ? 'generic' : 'character',
+          play: kind === 1 ? 'attack' : kind === 2 ? 'loop' : 'once',
           action: video.generation?.prompt || '',
-          keyColor: index === 2 ? 'green' : 'magenta',
+          keyColor: kind === 3 ? 'green' : 'magenta',
         }),
       };
     }
-    if (index === 1) {
+    if (kind === 2) {
       const directions = ['front', 'back', 'left', 'right'] as const;
       for (const [directionIndex, direction] of directions.entries()) {
         const reference = template.nodes.find(
@@ -44,7 +46,7 @@ export function canvasPresets(): CanvasPreset[] {
         }
       }
     }
-    if (index === 2) {
+    if (kind === 3) {
       const video = videos[0];
       const images = template.nodes.filter((node) => node.type === 'image');
       template.revision = 3;

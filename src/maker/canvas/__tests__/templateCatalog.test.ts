@@ -89,7 +89,9 @@ test('workflow preview reads only images belonging to the template without impor
 
 test('asset previews use real selected images and never reuse old placeholder covers', async () => {
   const templates = (await files.listTemplates()).filter(
-    (template) => Number(template.id.slice(-3)) >= 5
+    (template) =>
+      Boolean(templatePresentation(template.id).previews) &&
+      !templatePresentation(template.id).modelPreview
   );
   for (const template of templates) {
     const previews = templatePresentation(template.id).previews!;
@@ -178,7 +180,7 @@ test('500 templates use paged summaries, cached parsing, global search and no co
   const first = await readTemplatePage(folder, read, 1, '');
   expect(first.total).toBe(500);
   expect(first.items).toHaveLength(24);
-  expect(first.presets).toHaveLength(11);
+  expect(first.presets).toHaveLength(12);
   expect(first.items.every((item) => !('nodes' in item) && !('edges' in item))).toBe(true);
   expect(read).toHaveBeenCalledTimes(500);
   const second = await readTemplatePage(folder, read, 2, '');
@@ -211,7 +213,7 @@ test('bad files and symbolic links do not break the library or expose outside te
   const result = await files.listTemplatePage();
   expect(result.skipped).toBe(2);
   expect(result.items).toEqual([]);
-  expect(result.presets).toHaveLength(11);
+  expect(result.presets).toHaveLength(12);
 });
 
 test('cover source chooses a starting image, falling back to a stable image or no cover', async () => {
@@ -230,7 +232,7 @@ test('cover source chooses a starting image, falling back to a stable image or n
 });
 
 test('covers prefer animation then saved frames, sampling the whole action within a bounded preview', async () => {
-  const template = (await files.listTemplates())[2];
+  const template = (await files.listTemplates()).find((item) => item.id.endsWith('003'))!;
   const animation = template.nodes.find((node) => node.type === 'animation')!;
   expect(templateCoverSource(template)).toBe(animation.assetPath);
   const preview = templateCoverAnimation(template)!;

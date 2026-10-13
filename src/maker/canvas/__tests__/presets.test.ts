@@ -16,6 +16,8 @@ const { PNG } = require('pngjs');
 let root: string;
 let files: MakerCanvasFiles;
 const model = createCanvasTemplateModel();
+const presetByNumber = (number: number) =>
+  canvasPresets().find((preset) => preset.id.endsWith(String(number).padStart(3, '0')))!;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-presets-'));
@@ -28,6 +30,7 @@ test('lists portable presets without importing assets or creating a canvas', asy
   const templates = await files.listTemplates();
   expect(templates.map((template) => template.name)).toEqual([
     '序列帧动画',
+    '动态立绘 · 萌娘轻呼吸 Idle',
     '角色四方向',
     '首尾帧变身 · 灰狼→狼王',
     '角色模型 · 多视图确认',
@@ -76,7 +79,7 @@ test.each(['005', '006', '008', '009', '010', '011'])(
 test.each([4, 5, 6, 7, 8])(
   'asset preset %i persists transparent generated examples with independent references',
   async (index) => {
-    const preset = canvasPresets()[index];
+    const preset = presetByNumber(index + 1);
     const canvas = await files.create('素材模板验证');
     const prepared = await files.prepareTemplate(preset.id, canvas.id);
     const instance = model.instantiate(prepared, { x: 0, y: 0 });
@@ -158,7 +161,7 @@ test.each([4, 5, 6, 7, 8])(
 );
 
 test('full game scene retains its background; atlas and standalone items have real alpha and intact borders', async () => {
-  const preset = canvasPresets()[4];
+  const preset = presetByNumber(5);
   const canvas = await files.create('透明素材验证');
   const prepared = await files.prepareTemplate(preset.id, canvas.id);
   const images = prepared.nodes.filter((node) => node.type === 'image');
@@ -209,7 +212,7 @@ test('full game scene retains its background; atlas and standalone items have re
 });
 
 test('crop preset contains five aligned transparent stages whose pixels match the atlas', async () => {
-  const preset = canvasPresets()[5];
+  const preset = presetByNumber(6);
   const images = preset.nodes.filter((node) => node.type === 'image');
   const collection = preset.nodes.find((node) => node.type === 'image-assets')!;
   const info = collection.imageAssetsInfo!;
@@ -310,7 +313,7 @@ test.each([4, 5, 6])(
   'asset preset %i starts pending and preserves completed state until reference changes',
   async (index) => {
     const canvas = await files.create('完整素材模板');
-    const prepared = await files.prepareTemplate(canvasPresets()[index].id, canvas.id);
+    const prepared = await files.prepareTemplate(presetByNumber(index + 1).id, canvas.id);
     const instance = model.instantiate(prepared, { x: 0, y: 0 });
     canvas.nodes = instance.nodes;
     canvas.edges = instance.edges;
@@ -340,21 +343,23 @@ test('all presets have protected ids and descriptions without sharing mutable de
   expect(isBuiltinCanvasTemplate(createId())).toBe(false);
   expect(
     presets
-      .slice(4)
+      .slice(5)
       .every((preset) =>
         preset.nodes.every((node) => !node.generation?.taskId && !node.generation?.attemptId)
       )
   ).toBe(true);
-  const before = JSON.stringify(presets.slice(4));
-  presets[4].nodes[1].generation!.prompt = 'changed';
-  Object.values(presets[4].assets)[0].resourceId = 'changed';
-  expect(JSON.stringify(canvasPresets().slice(4))).toBe(before);
+  const before = JSON.stringify(presets.slice(5));
+  presets[5].nodes[1].generation!.prompt = 'changed';
+  Object.values(presets[5].assets)[0].resourceId = 'changed';
+  expect(JSON.stringify(canvasPresets().slice(5))).toBe(before);
 });
 
 test.each([0, 1, 2])(
   'prepares, duplicates and persists preset %i with independent internal references',
   async (index) => {
-    const listed = (await files.listTemplates())[index];
+    const listed = (await files.listTemplates()).find(
+      (item) => item.id === presetByNumber(index + 1).id
+    )!;
     const original = JSON.stringify(listed);
     const canvas = await files.create('预设验证');
     const prepared = await files.prepareTemplate(listed.id, canvas.id);
@@ -441,7 +446,9 @@ test.each([0, 1, 2])(
     );
     expect(custom.id).not.toBe(listed.id);
     expect(custom.builtin).toBeUndefined();
-    expect(JSON.stringify((await files.listTemplates())[index])).toBe(original);
+    expect(
+      JSON.stringify((await files.listTemplates()).find((item) => item.id === listed.id))
+    ).toBe(original);
   }
 );
 
@@ -462,7 +469,7 @@ test('protects builtins and rejects invalid preparation before importing media',
 });
 
 test('four directions preserve distinct neutral examples and keep outputs explicitly pending', async () => {
-  const preset = canvasPresets()[1];
+  const preset = presetByNumber(2);
   const images = preset.nodes.filter((node) => node.type === 'image');
   const head = images.find((node) => node.assetPath)!;
   expect(images).toHaveLength(5);
@@ -522,7 +529,7 @@ test('preparing prompt metadata never mutates future templates', async () => {
 
 test('pending reference links still reject missing or mismatched draft sources', async () => {
   const canvas = await files.create();
-  const preset = await files.prepareTemplate(canvasPresets()[1].id, canvas.id);
+  const preset = await files.prepareTemplate(presetByNumber(2).id, canvas.id);
   const instance = model.instantiate(preset, { x: 0, y: 0 });
   const reference = instance.nodes.find((node) => node.generation?.operation === 'variant')!;
   const draft = { ...reference.generation!, operation: 'variant' as const };
@@ -544,4 +551,38 @@ test('pending reference links still reject missing or mismatched draft sources',
   reference.generationDraft = draft;
   const saved = await files.save(canvas.id, { ...canvas, ...instance }, canvas.revision);
   expect(saved.nodes.find((node) => node.id === reference.id)?.assetPath).toBeUndefined();
+});
+
+test('idle portrait imports a transparent full-size reference and preserves the completed animation', async () => {
+  const preset = presetByNumber(14);
+  expect(canvasPresets()[1].id).toBe(preset.id);
+  const canvas = await files.create('动态立绘');
+  const prepared = await files.prepareTemplate(preset.id, canvas.id);
+  const [portrait, video, sequence, animation] = prepared.nodes;
+  const png = PNG.sync.read(fs.readFileSync(files.readMedia(portrait.assetPath!).file));
+  expect([png.width, png.height]).toEqual([1152, 2048]);
+  expect(png.data[3]).toBe(0);
+  expect(
+    Array.from(png.data as Buffer).filter((value, index) => index % 4 === 3 && value === 255).length
+  ).toBeGreaterThan(200000);
+  expect(video.generation?.prompt).toContain('very subtle living portrait idle loop');
+  expect(video.generation?.prompt).toContain('uniformly solid magenta');
+  expect(video.generation?.parameters?.duration).toBe(5);
+  expect(sequence.sequenceSettings).toMatchObject({ fps: 12, end: 5, width: 288, height: 512 });
+  expect(sequence.frameSetInfo?.frameCount).toBe(60);
+  expect(animation.assetPath).toBe(sequence.assetPath);
+  expect(animation.frameSetInfo).toEqual(sequence.frameSetInfo);
+  expect(preset.assets[preset.nodes[1].assetPath!].resourceId).toBe(
+    'b4c0602b6aa091bfcf810643a3c0376eb03207fcafacf95f94a36749439b7b80'
+  );
+  const instance = model.instantiate(prepared, { x: 0, y: 0 });
+  expect(instance.nodes.filter((node) => node.templatePending)).toHaveLength(3);
+  const saved = await files.save(
+    canvas.id,
+    { ...canvas, nodes: instance.nodes, edges: instance.edges },
+    canvas.revision
+  );
+  expect((await files.load(canvas.id)).nodes).toEqual(saved.nodes);
+  expect(portrait.generation?.taskId).toBeUndefined();
+  expect(video.generation?.taskId).toBeUndefined();
 });
