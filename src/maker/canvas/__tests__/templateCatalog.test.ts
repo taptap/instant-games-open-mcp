@@ -15,6 +15,7 @@ import { readTemplatePage } from '../templateCatalog.js';
 import { templatePresentation } from '../templatePresentation.js';
 import { readBuiltinTemplateModel } from '../templateModelPreview.js';
 import { readCanvasModelMesh } from '../modelMesh.js';
+import { builtinCanvasTemplates } from '../presets.js';
 
 let root: string;
 let files: MakerCanvasFiles;
@@ -87,13 +88,16 @@ test('workflow preview reads only images belonging to the template without impor
   ).rejects.toThrow('不存在');
 });
 
-test('asset previews use real selected images and never reuse old placeholder covers', async () => {
-  const templates = (await files.listTemplates()).filter(
+test.each(
+  builtinCanvasTemplates().filter(
     (template) =>
       Boolean(templatePresentation(template.id).previews) &&
       !templatePresentation(template.id).modelPreview
-  );
-  for (const template of templates) {
+  )
+)(
+  '$name: asset previews use real selected images and never reuse old placeholder covers',
+  async (template) => {
+    await files.listTemplates();
     const previews = templatePresentation(template.id).previews!;
     const images = template.nodes.filter((node) => node.type === 'image');
     for (const [slot, preview] of previews.entries()) {
@@ -131,6 +135,9 @@ test('asset previews use real selected images and never reuse old placeholder co
       '预览'
     );
   }
+);
+
+test('catalog search and model preview metadata use the expected builtin templates', async () => {
   const found = await files.listTemplatePage(1, '科幻终端');
   expect(found.presets.map((template) => template.id)).toEqual([
     '7e1cb6ad-732f-4dc3-a951-000000000010',
