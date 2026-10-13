@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createReadStream, statSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
-import { CanvasStoreError } from '../canvas/model.js';
+import { CANVAS_JSON_LIMIT, CanvasStoreError } from '../canvas/model.js';
 import { MakerCanvasFiles } from '../canvas/files.js';
 import { TEMPLATE_ARCHIVE_LIMIT } from '../canvas/templateArchive.js';
 import { readBuiltinTemplateModel } from '../canvas/templateModelPreview.js';
@@ -243,7 +243,7 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     if (template && (method === 'PUT' || method === 'DELETE')) {
-      const body = JSON.parse((await readBytes(request, 1024 * 1024)).toString('utf8'));
+      const body = JSON.parse((await readBytes(request, CANVAS_JSON_LIMIT)).toString('utf8'));
       if (!body || typeof body !== 'object') throw new ConsoleError('模板内容无效。');
       if (method === 'PUT') {
         if (body.id !== template[1]) throw new ConsoleError('模板标识不匹配。');
@@ -532,7 +532,7 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     if (one && method === 'PUT') {
-      const input = JSON.parse((await readBytes(request, 1024 * 1024)).toString('utf8'));
+      const input = JSON.parse((await readBytes(request, CANVAS_JSON_LIMIT)).toString('utf8'));
       if (!input || typeof input !== 'object' || typeof input.revision !== 'number') {
         throw new ConsoleError('缺少画布 revision。');
       }

@@ -9,6 +9,7 @@ import type { CanvasImageInfo } from './imageSizing.js';
 import type { UiAtlasPlan, UiAtlasGroup } from './uiAssetBindings.js';
 
 export const HISTORY_LIMIT = 60;
+export const CANVAS_JSON_LIMIT = 2 * 1024 * 1024;
 
 export type CanvasNodeType =
   | 'image'

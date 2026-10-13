@@ -18,6 +18,57 @@ function gitignore(root: string): void {
 }
 
 describe('Maker canvas files', () => {
+  test('round-trips canvas and template JSON above 1 MiB with a shared byte limit', async () => {
+    const root = project('maker-canvas-size-');
+    try {
+      gitignore(root);
+      const files = new MakerCanvasFiles(root);
+      const canvas = await files.create('large UI', 'empty');
+      canvas.nodes = Array.from({ length: 320 }, () => ({
+        id: createId(),
+        type: 'note' as const,
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 200,
+        text: 'x'.repeat(3900),
+      }));
+      const source = {
+        id: createId(),
+        type: 'image' as const,
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+      };
+      const output = { ...source, id: createId(), type: 'image-assets' as const };
+      canvas.nodes.push(source, output);
+      canvas.edges = [{ id: createId(), from: source.id, to: output.id, kind: 'image-assets' }];
+      expect(Buffer.byteLength(JSON.stringify(canvas))).toBeGreaterThan(1024 * 1024);
+      const saved = await files.save(canvas.id, canvas, canvas.revision);
+      expect((await files.load(saved.id)).nodes).toEqual(saved.nodes);
+      const template = await files.saveTemplate({
+        id: createId(),
+        name: 'large UI',
+        revision: 0,
+        nodes: saved.nodes,
+        edges: saved.edges,
+      });
+      expect(files.getTemplate(template.id).nodes).toEqual(saved.nodes);
+      const oversized = saved.nodes.map((node) => ({ ...node, text: '界'.repeat(3900) }));
+      await expect(
+        files.save(saved.id, { ...saved, nodes: oversized }, saved.revision)
+      ).rejects.toMatchObject({ code: 'STORAGE_LIMIT' });
+      await expect(files.saveTemplate({ ...template, nodes: oversized })).rejects.toMatchObject({
+        code: 'STORAGE_LIMIT',
+      });
+      expect((await files.load(saved.id)).revision).toBe(saved.revision);
+      expect(files.getTemplate(template.id).revision).toBe(template.revision);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('saves and reopens only the total and per-card work duration', async () => {
     const root = project('maker-canvas-timing-');
     try {

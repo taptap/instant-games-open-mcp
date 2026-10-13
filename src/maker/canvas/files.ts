@@ -17,6 +17,7 @@ import { promisify } from 'node:util';
 import { getGitCommand } from '../system/git.js';
 import {
   CanvasStoreError,
+  CANVAS_JSON_LIMIT,
   emptyDocument,
   starterDocument,
   type CanvasCreateTemplate,
@@ -353,7 +354,7 @@ export class MakerCanvasFiles {
   private readTemplate(id: string): CanvasWorkflowTemplate {
     if (!ID.test(id)) fail('模板标识无效。', 400, 'INVALID_ID');
     const file = this.safeProjectFile('.maker/canvases/templates/' + id + '.json');
-    if (fs.statSync(file).size > 1024 * 1024) fail('模板过大。', 413, 'STORAGE_LIMIT');
+    if (fs.statSync(file).size > CANVAS_JSON_LIMIT) fail('模板过大。', 413, 'STORAGE_LIMIT');
     return this.parseTemplate(JSON.parse(fs.readFileSync(file, 'utf8')));
   }
 
@@ -437,7 +438,7 @@ export class MakerCanvasFiles {
     this.assertAssets({ nodes: template.nodes } as CanvasDocument);
     const saved = { ...template, revision: revision + 1 };
     const bytes = Buffer.from(JSON.stringify(saved));
-    if (bytes.length > 1024 * 1024) fail('模板过大。', 413, 'STORAGE_LIMIT');
+    if (bytes.length > CANVAS_JSON_LIMIT) fail('模板过大。', 413, 'STORAGE_LIMIT');
     this.atomicWrite(folder, template.id + '.json', bytes);
     this.removeTemplateCover(template.id, revision);
     return saved;
@@ -1019,13 +1020,15 @@ export class MakerCanvasFiles {
   private read(id: string): CanvasDocument {
     const file = this.file(id);
     const raw = fs.readFileSync(file, 'utf8');
-    if (raw.length > 1024 * 1024) fail('画布文档过大。', 413, 'STORAGE_LIMIT');
+    if (Buffer.byteLength(raw) > CANVAS_JSON_LIMIT) fail('画布文档过大。', 413, 'STORAGE_LIMIT');
     return this.parse(JSON.parse(raw), id);
   }
 
   private write(document: CanvasDocument): void {
     const folder = this.canvasDir(true)!;
-    this.atomicWrite(folder, `${document.id}.json`, Buffer.from(JSON.stringify(document)));
+    const bytes = Buffer.from(JSON.stringify(document));
+    if (bytes.length > CANVAS_JSON_LIMIT) fail('画布文档过大。', 413, 'STORAGE_LIMIT');
+    this.atomicWrite(folder, `${document.id}.json`, bytes);
   }
 
   private atomicWrite(folder: string, name: string, bytes: Buffer): void {
