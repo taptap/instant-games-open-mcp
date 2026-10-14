@@ -48,9 +48,28 @@ export function canvasExportFilename(
   extension: string,
   code: string
 ): string {
-  const title = identity.title
-    .replace(/\.(png|jpe?g|webp|mp4|mov|webm|json|zip)$/i, '')
-    .replace(/（[^）]*）|\([^)]*\)/g, '')
+  const source = identity.title.replace(/\.(png|jpe?g|webp|mp4|mov|webm|json|zip)$/i, '');
+  const lastFullWidthClose = source.lastIndexOf('）');
+  const lastAsciiClose = source.lastIndexOf(')');
+  const parts: string[] = [];
+  let start = 0;
+  // Preserve first-closing-delimiter matching without rescanning unmatched openings.
+  for (let index = 0; index < source.length; index++) {
+    const character = source[index];
+    const close =
+      character === '（' && index < lastFullWidthClose
+        ? source.indexOf('）', index + 1)
+        : character === '(' && index < lastAsciiClose
+          ? source.indexOf(')', index + 1)
+          : -1;
+    if (close < 0) continue;
+    parts.push(source.slice(start, index));
+    start = close + 1;
+    index = close;
+  }
+  parts.push(source.slice(start));
+  const title = parts
+    .join('')
     .replace(/^\s*\d+[\s.、_-]*/, '')
     .replace(/生图参考|站姿参考|首帧|尾帧|首图|参考图/g, '')
     .replace(/^[\s·:：_-]+/, '')

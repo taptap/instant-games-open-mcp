@@ -97,6 +97,35 @@ test.each([
   ).toBe('四足灰集TH8K2A.zip');
 });
 
+test.each([
+  ['猫（说明）咪(edit).png', '猫咪'],
+  ['（外（内）尾）猫', '尾猫'],
+  ['(外(内)尾)猫', '尾猫'],
+  ['（甲(乙）丙)猫', '丙猫'],
+  ['(甲（乙)丙）猫', '丙猫'],
+  ['（未闭(删)猫', '未闭猫'],
+  ['(未闭（删）猫', '未闭猫'],
+  ['（未闭猫', '未闭猫'],
+  ['(未闭猫', '未闭猫'],
+])('preserves first-closing-parenthesis cleanup for %s', (title, subject) => {
+  expect(canvasExportFilename({ title, direction: '' }, 'images', 'zip', 'TH8K2A')).toBe(
+    subject + '资TH8K2A.zip'
+  );
+});
+
+test('handles long runs of unmatched openings and disjoint matched spans', () => {
+  for (const title of [
+    '('.repeat(100000) + '猫',
+    '（'.repeat(100000) + '猫',
+    '(（'.repeat(50000) + '猫',
+    '(删除)（删除）'.repeat(10000) + '('.repeat(10000) + '猫',
+  ]) {
+    expect(canvasExportFilename({ title, direction: '' }, 'images', 'zip', 'TH8K2A')).toBe(
+      '猫资TH8K2A.zip'
+    );
+  }
+});
+
 describe('time code allocation', () => {
   const globals = globalThis as any;
   const originalWindow = globals.window;
