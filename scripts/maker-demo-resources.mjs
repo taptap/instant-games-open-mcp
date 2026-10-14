@@ -41,19 +41,98 @@ function add(filename) {
   }
   return id;
 }
+const VERIFY_ATTEMPTS = 3;
+const VERIFY_TIMEOUT_MS = 60000;
+
+function downloadErrorDetail(error) {
+  const cause = error?.cause;
+  return [error?.message || String(error), cause?.code, cause?.message]
+    .filter((part, index, parts) => part && parts.indexOf(part) === index)
+    .join('；');
+}
+
+function isTransientDownloadError(error, status) {
+  if (status === 429 || status >= 500) return true;
+  const detail = downloadErrorDetail(error).toLowerCase();
+  return (
+    error?.name === 'TimeoutError' ||
+    error?.name === 'AbortError' ||
+    /timeout|aborted|fetch failed|econnreset|etimedout|enotfound|eai_again|econnrefused|socket|network/.test(
+      detail
+    )
+  );
+}
+
+export async function verifyDemoResourceDownload({
+  entry,
+  source,
+  url,
+  localBytes,
+  fetchImpl = fetch,
+  attempts = VERIFY_ATTEMPTS,
+  timeoutMs = VERIFY_TIMEOUT_MS,
+  sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
+}) {
+  if (hash(localBytes) !== entry.sha256 || localBytes.length !== entry.size)
+    throw new Error('本地文件不匹配：' + entry.file);
+  if (!url || new URL(url).protocol !== 'https:') throw new Error('缺少 HTTPS 地址：' + entry.file);
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    let status;
+    try {
+      const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
+      status = response.status;
+      if (!response.ok) throw new Error('下载失败 HTTP ' + response.status);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.length !== entry.size || hash(bytes) !== entry.sha256)
+        throw new Error('远端文件不匹配');
+      return;
+    } catch (error) {
+      lastError = error;
+      const transient = isTransientDownloadError(error, status);
+      if (!transient || attempt === attempts) {
+        throw new Error(
+          source +
+            ' 下载失败（第 ' +
+            attempt +
+            '/' +
+            attempts +
+            ' 次）：' +
+            entry.file +
+            ' ' +
+            url +
+            ' ' +
+            downloadErrorDetail(error)
+        );
+      }
+      console.error(
+        source +
+          ' 下载将重试 ' +
+          attempt +
+          '/' +
+          (attempts - 1) +
+          '：' +
+          entry.file +
+          ' ' +
+          downloadErrorDetail(error)
+      );
+      await sleep(1000 * attempt);
+    }
+  }
+  throw lastError;
+}
+
 async function verify(entry, source) {
   const local = fs.readFileSync(path.join(directory, entry.file));
-  if (hash(local) !== entry.sha256 || local.length !== entry.size)
-    throw new Error('本地文件不匹配：' + entry.file);
   const url = source === 'github' ? manifest.githubBaseUrl + entry.file : entry.cdn;
-  if (!url || new URL(url).protocol !== 'https:') throw new Error('缺少 HTTPS 地址：' + entry.file);
-  const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
-  if (!response.ok) throw new Error('下载失败 HTTP ' + response.status + '：' + entry.file);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length !== entry.size || hash(bytes) !== entry.sha256)
-    throw new Error('远端文件不匹配：' + entry.file);
+  await verifyDemoResourceDownload({ entry, source, url, localBytes: local });
 }
-try {
+
+const isDirectRun =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (!isDirectRun) {
+  /* Imported by tests. */
+} else try {
   const [command, input, extra] = process.argv.slice(2);
   if (command === 'add' && input) {
     const id = add(path.resolve(input));
@@ -124,12 +203,15 @@ try {
     if (input && input !== 'github' && input !== 'cdn')
       throw new Error('verify 仅支持 cdn 或 github');
     const queue = Object.values(manifest.resources);
+    const total = queue.length;
     let complete = 0;
     await Promise.all(
       Array.from({ length: 4 }, async () => {
         while (queue.length) {
           await verify(queue.shift(), input || 'cdn');
           complete++;
+          if (complete % 50 === 0 || complete === total)
+            console.log('已校验 ' + complete + '/' + total + ' 个 ' + (input || 'cdn') + ' 文件');
         }
       })
     );
