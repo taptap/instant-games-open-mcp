@@ -69,8 +69,31 @@ describe('Maker tool description override coverage', () => {
     expect(toolSchema('create_3d_asset')?.properties.payload.properties).toHaveProperty(
       'subject_type'
     );
-    expect(toolSchema('create_video_task')?.properties.model.enum).toEqual(['2.0', '2.5']);
-    expect(toolSchema('create_video_task')?.properties.resolution.enum).toEqual(['480p', '720p']);
+    expect(toolSchema('generate_image')?.properties.model.enum).toEqual([
+      'default',
+      'nanobanana',
+      'gpt',
+      'image3',
+    ]);
+    expect(toolSchema('generate_image')?.properties.quality.enum).toEqual([
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+      'auto',
+    ]);
+    expect(toolSchema('create_video_task')?.properties.model.enum).toEqual([
+      'default',
+      '2.0',
+      '2.5',
+      'wan',
+    ]);
+    expect(toolSchema('create_video_task')?.properties.resolution.enum).toEqual([
+      '480p',
+      '720p',
+      '1080p',
+    ]);
     expect(toolSchema('create_video_task')?.properties).not.toHaveProperty('seed');
   });
 

@@ -27,6 +27,11 @@ const AUDIO_REFERENCE_MAX_BYTES = 15 * 1024 * 1024;
 const AUDIO_DIALOGUE_REFERENCE_MAX_BYTES = 20 * 1024 * 1024;
 const AUDIO_DIALOGUE_INPUT_TOTAL_MAX_BYTES = 28 * 1024 * 1024;
 const AUDIO_CONFIRM_MAX_BYTES = 1 * 1024 * 1024;
+
+const MUSIC_IMAGE_REFERENCE_MAX_BYTES = 10 * 1024 * 1024;
+const MUSIC_VIDEO_REFERENCE_MAX_BYTES = 100 * 1024 * 1024;
+const MUSIC_AUDIO_REFERENCE_MAX_BYTES = 500 * 1024 * 1024;
+const MUSIC_REFERENCE_TOTAL_MAX_ITEMS = 10;
 const VOICE_CONFIRMATION_NEXT_STEP_HINT =
   'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically.';
 const DEBUG_FEEDBACK_PATH_HINT =
@@ -127,6 +132,9 @@ export function prepareRemoteProxyToolArgs(options: {
   }
   if (options.toolName === 'text_to_dialogue') {
     return rewriteTextToDialogueArgs(options.targetDir, options.args);
+  }
+  if (options.toolName === 'text_to_music') {
+    return rewriteTextToMusicArgs(options.targetDir, options.args);
   }
   return options.args;
 }
@@ -1943,6 +1951,134 @@ function normalizeBatchImageReferenceAssetArgs(
       isRecord(item) ? normalizeImageReferenceAssetArgs(targetDir, item) : item
     ),
   };
+}
+
+function rewriteTextToMusicArgs(
+  targetDir: string,
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const registry = readGeneratedAssetRegistry(targetDir);
+  const imageUrls = rewriteMusicReferenceField(targetDir, args.imageUrls, registry, {
+    field: 'imageUrls',
+    assetDirs: IMAGE_ASSET_DIRS,
+    extensions: ['.bmp', '.jpeg', '.jpg', '.png', '.webp'],
+    maxBytes: MUSIC_IMAGE_REFERENCE_MAX_BYTES,
+    maxItems: 5,
+  });
+  const videoUrls = rewriteMusicReferenceField(targetDir, args.videoUrls, registry, {
+    field: 'videoUrls',
+    assetDirs: VIDEO_ASSET_DIRS,
+    extensions: ['.mov', '.mp4', '.webm'],
+    maxBytes: MUSIC_VIDEO_REFERENCE_MAX_BYTES,
+    maxItems: 1,
+  });
+  const audioUrls = rewriteMusicReferenceField(targetDir, args.audioUrls, registry, {
+    field: 'audioUrls',
+    assetDirs: AUDIO_ASSET_DIRS,
+    maxBytes: MUSIC_AUDIO_REFERENCE_MAX_BYTES,
+    maxItems: 10,
+  });
+  const total = [imageUrls, videoUrls, audioUrls].reduce(
+    (count, items) => count + (items?.length ?? 0),
+    0
+  );
+  if (total > MUSIC_REFERENCE_TOTAL_MAX_ITEMS) {
+    throw new Error('text_to_music imageUrls, videoUrls, and audioUrls together cannot exceed 10.');
+  }
+  if (total > 0 && args.customMode === true) {
+    throw new Error('text_to_music reference media requires customMode false.');
+  }
+  return {
+    ...args,
+    ...(imageUrls ? { imageUrls } : {}),
+    ...(videoUrls ? { videoUrls } : {}),
+    ...(audioUrls ? { audioUrls } : {}),
+  };
+}
+
+function rewriteMusicReferenceField(
+  targetDir: string,
+  value: unknown,
+  registry: GeneratedAssetRegistry,
+  options: {
+    field: string;
+    assetDirs: string[];
+    extensions?: string[];
+    maxBytes: number;
+    maxItems: number;
+  }
+): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`${options.field} must be an array of strings.`);
+  }
+  if (value.length > options.maxItems) {
+    throw new Error(`${options.field} cannot exceed ${options.maxItems} item(s).`);
+  }
+  return value.map((item, index) =>
+    rewriteMusicReference(targetDir, item, registry, options, index)
+  );
+}
+
+function rewriteMusicReference(
+  targetDir: string,
+  value: unknown,
+  registry: GeneratedAssetRegistry,
+  options: {
+    field: string;
+    assetDirs: string[];
+    extensions?: string[];
+    maxBytes: number;
+  },
+  index: number
+): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`${options.field}[${index}] must be a non-empty string.`);
+  }
+  const trimmed = value.trim();
+  if (/^data:/i.test(trimmed)) {
+    throw new Error(
+      `${options.field} rejects data URLs. Pass a public http(s) URL or a generated asset that already has a remote URL.`
+    );
+  }
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  const localPath = resolveLocalAssetReference(targetDir, trimmed, registry, options.assetDirs);
+  const remoteUrl = localPath
+    ? stringField(registry[localPath]?.cdnUrl) || stringField(registry[localPath]?.previewUrl)
+    : undefined;
+  if (remoteUrl && /^https?:\/\//i.test(remoteUrl)) {
+    return remoteUrl;
+  }
+
+  const absolutePath = resolveLocalAssetAbsolutePath(targetDir, {
+    value: trimmed,
+    localPath,
+  });
+  if (absolutePath) {
+    const extension = path.extname(absolutePath).toLowerCase();
+    if (options.extensions && !options.extensions.includes(extension)) {
+      throw new Error(`${options.field}[${index}] has an unsupported file type.`);
+    }
+    const stat = fs.statSync(absolutePath);
+    if (!stat.isFile()) {
+      throw new Error(`${options.field}[${index}] must be a file.`);
+    }
+    if (stat.size > options.maxBytes) {
+      throw new Error(
+        `${options.field}[${index}] exceeds the ${Math.floor(options.maxBytes / 1024 / 1024)} MiB limit.`
+      );
+    }
+    throw new Error(
+      `${options.field} local file has no remote URL. text_to_music cannot upload it or convert it to a data URL. Pass a public http(s) URL, or use a generated asset that already has a remote URL.`
+    );
+  }
+
+  return trimmed;
 }
 
 function rewriteVideoReferenceAssetArgs(

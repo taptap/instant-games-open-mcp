@@ -53,7 +53,7 @@
           "reference_images": {
             "type": "array",
             "items": { "type": "string" },
-            "description": "List of reference images (up to 14). Each item can be a file path (relative to workspace root) OR a base64 data URL. Takes priority over reference_image. The generated image will incorporate style/content from these references."
+            "description": "List of reference images (up to 14; Image3 at most 3). Each item can be a file path (relative to workspace root) OR a base64 data URL. Takes priority over reference_image. The generated image will incorporate style/content from these references."
           },
           "seed": {
             "type": "number",
@@ -71,13 +71,14 @@
           },
           "model": {
             "type": "string",
-            "enum": ["nanobanana", "gpt"],
-            "description": "Model to use for generation. \"nanobanana\" uses Nano Banana 2 (Gemini). \"gpt\" uses GPT Image 2 (OpenAI). IMPORTANT: Do NOT set this parameter unless the user has explicitly named a model (e.g. \"use nanobanana\" / \"switch to gpt\"), or another parameter of this same tool documents that it requires a specific model. When the user does not specify, omit this field entirely so the server picks the default — never guess or default it yourself."
+            "enum": ["default", "nanobanana", "gpt", "image3"],
+            "default": "default",
+            "description": "Model to use for generation. Pass \"default\" unless the user has explicitly named a backend (e.g. \"use nanobanana\" / \"switch to gpt\" / \"use image3\"). \"default\" uses the conversation tool-config or the GPT image route. \"nanobanana\" uses Nano Banana 2.1 (Gemini). \"gpt\" prefers GPT Image 2.5 Flare (OpenAI), with other models as fallbacks. \"image3\" uses Image3 (Qwen Image 3.0 Pro); Image3 accepts at most 3 input images in total (the source image counts as 1 when editing). Do not guess a concrete backend when the user did not name one."
           },
           "quality": {
             "type": "string",
-            "enum": ["low", "medium", "high", "auto"],
-            "description": "Image quality. One of \"low\", \"medium\", \"high\", \"auto\" (default). GPT Image 2 uses this setting; other models may ignore it."
+            "enum": ["low", "medium", "high", "xhigh", "max", "auto"],
+            "description": "Image quality. One of \"low\", \"medium\", \"high\", \"xhigh\", \"max\", \"auto\". When omitted, the GPT route uses \"medium\"; \"auto\" lets the model choose. GPT Image 2.5 Flare supports all values. On older-model fallbacks, \"xhigh\" and \"max\" are reduced to \"high\" where quality is supported; other models may ignore quality."
           },
           "target_dir": {
             "type": "string",
@@ -127,7 +128,7 @@
                 "reference_images": {
                   "type": "array",
                   "items": { "type": "string" },
-                  "description": "List of reference images (up to 14). Each item can be a file path (relative to workspace root) OR a base64 data URL. Takes priority over reference_image. The generated image will incorporate style/content from these references."
+                  "description": "List of reference images (up to 14; Image3 at most 3). Each item can be a file path (relative to workspace root) OR a base64 data URL. Takes priority over reference_image. The generated image will incorporate style/content from these references."
                 },
                 "seed": {
                   "type": "number",
@@ -145,13 +146,14 @@
                 },
                 "model": {
                   "type": "string",
-                  "enum": ["nanobanana", "gpt"],
-                  "description": "Model to use for generation. \"nanobanana\" uses Nano Banana 2 (Gemini). \"gpt\" uses GPT Image 2 (OpenAI). IMPORTANT: Do NOT set this parameter unless the user has explicitly named a model (e.g. \"use nanobanana\" / \"switch to gpt\"), or another parameter of this same tool documents that it requires a specific model. When the user does not specify, omit this field entirely so the server picks the default — never guess or default it yourself."
+                  "enum": ["default", "nanobanana", "gpt", "image3"],
+                  "default": "default",
+                  "description": "Model to use for generation. Pass \"default\" unless the user has explicitly named a backend (e.g. \"use nanobanana\" / \"switch to gpt\" / \"use image3\"). \"default\" uses the conversation tool-config or the GPT image route. \"nanobanana\" uses Nano Banana 2.1 (Gemini). \"gpt\" prefers GPT Image 2.5 Flare (OpenAI), with other models as fallbacks. \"image3\" uses Image3 (Qwen Image 3.0 Pro); Image3 accepts at most 3 input images in total (the source image counts as 1 when editing). Do not guess a concrete backend when the user did not name one."
                 },
                 "quality": {
                   "type": "string",
-                  "enum": ["low", "medium", "high", "auto"],
-                  "description": "Image quality. One of \"low\", \"medium\", \"high\", \"auto\" (default). GPT Image 2 uses this setting; other models may ignore it."
+                  "enum": ["low", "medium", "high", "xhigh", "max", "auto"],
+                  "description": "Image quality. One of \"low\", \"medium\", \"high\", \"xhigh\", \"max\", \"auto\". When omitted, the GPT route uses \"medium\"; \"auto\" lets the model choose. GPT Image 2.5 Flare supports all values. On older-model fallbacks, \"xhigh\" and \"max\" are reduced to \"high\" where quality is supported; other models may ignore quality."
                 }
               },
               "required": ["prompt", "name", "target_size"]
@@ -199,7 +201,7 @@
           "reference_images": {
             "type": "array",
             "items": { "type": "string" },
-            "description": "List of reference images for style/character consistency (up to 13). Each item can be a file path (relative to workspace root), remote http/https image URL, OR a base64 data URL. Combined with the original image, total must not exceed 14 (Nano Banana 2 limit)."
+            "description": "List of reference images for style/character consistency (up to 13; Image3 at most 2 extra because the original counts as 1, totaling 3). Each item can be a file path (relative to workspace root), remote http/https image URL, OR a base64 data URL. Combined with the original image, total must not exceed 14 (Nano Banana 2.1 limit)."
           },
           "seed": {
             "type": "number",
@@ -217,13 +219,14 @@
           },
           "model": {
             "type": "string",
-            "enum": ["nanobanana", "gpt"],
-            "description": "Model to use for generation. \"nanobanana\" uses Nano Banana 2 (Gemini). \"gpt\" uses GPT Image 2 (OpenAI). IMPORTANT: Do NOT set this parameter unless the user has explicitly named a model (e.g. \"use nanobanana\" / \"switch to gpt\"), or another parameter of this same tool documents that it requires a specific model. When the user does not specify, omit this field entirely so the server picks the default — never guess or default it yourself."
+            "enum": ["default", "nanobanana", "gpt", "image3"],
+            "default": "default",
+            "description": "Model to use for generation. Pass \"default\" unless the user has explicitly named a backend (e.g. \"use nanobanana\" / \"switch to gpt\" / \"use image3\"). \"default\" uses the conversation tool-config or the GPT image route. \"nanobanana\" uses Nano Banana 2.1 (Gemini). \"gpt\" prefers GPT Image 2.5 Flare (OpenAI), with other models as fallbacks. \"image3\" uses Image3 (Qwen Image 3.0 Pro); Image3 accepts at most 3 input images in total (the source image counts as 1 when editing). Do not guess a concrete backend when the user did not name one."
           },
           "quality": {
             "type": "string",
-            "enum": ["low", "medium", "high", "auto"],
-            "description": "Image quality. One of \"low\", \"medium\", \"high\", \"auto\" (default). GPT Image 2 uses this setting; other models may ignore it."
+            "enum": ["low", "medium", "high", "xhigh", "max", "auto"],
+            "description": "Image quality. One of \"low\", \"medium\", \"high\", \"xhigh\", \"max\", \"auto\". When omitted, the GPT route uses \"medium\"; \"auto\" lets the model choose. GPT Image 2.5 Flare supports all values. On older-model fallbacks, \"xhigh\" and \"max\" are reduced to \"high\" where quality is supported; other models may ignore quality."
           },
           "target_dir": {
             "type": "string",
@@ -319,7 +322,7 @@
     },
     {
       "name": "text_to_music",
-      "description": "Generate AI music for a Maker game, including background music or vocal tracks; do not use this tool for sound effects. The remote call polls server-side every 20 seconds and may wait up to 50 minutes. If generation is still running when the call times out, the result includes the task ID for operational tracking. Simple and custom generation controls are defined by the input schema. The local proxy attempts to materialize successful audio and metadata into the Maker project and record them for later Maker references; use returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
+      "description": "Generate AI music for a Maker game, including background music or vocal tracks; do not use this tool for sound effects. The remote call polls server-side every 20 seconds and may wait up to 50 minutes. If generation is still running when the call times out, the result includes the task ID for operational tracking. Simple and custom generation controls are defined by the input schema. imageUrls, videoUrls, and audioUrls accept public http(s) URLs. Previously generated assets are rewritten to their recorded remote URL. Unsynced local files are rejected because these fields forbid data URLs and this proxy has no upload step. The local proxy attempts to materialize successful audio and metadata into the Maker project and record them for later Maker references; use returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -332,12 +335,6 @@
             "type": "boolean",
             "description": "Generate instrumental track without vocals. Default false (with vocals). Only effective in custom mode.",
             "default": false
-          },
-          "model": {
-            "type": "string",
-            "description": "Model version. V4_5 recommended for best quality. Newer models (V4_5+) support longer prompts and styles.",
-            "enum": ["V3_5", "V4", "V4_5", "V4_5PLUS", "V5"],
-            "default": "V4_5"
           },
           "prompt": {
             "type": "string",
@@ -359,6 +356,24 @@
             "type": "string",
             "description": "Preferred vocal gender when instrumental=false. Use \"m\" for male, \"f\" for female."
           },
+          "imageUrls": {
+            "type": "array",
+            "description": "Simple-mode image references. Up to 5 public http(s) URLs or project file paths. jpeg, png, webp, or bmp. imageUrls + videoUrls + audioUrls together cannot exceed 10. Data URLs and NAS project files over 10 MB are rejected here. Public URLs and clouddisk files are forwarded; Suno enforces its own size limit. Requires customMode false.",
+            "items": { "type": "string" },
+            "maxItems": 5
+          },
+          "videoUrls": {
+            "type": "array",
+            "description": "Simple-mode video reference. One public http(s) URL or project file path. mp4, mov, or webm. Data URLs and NAS project files over 100 MB are rejected here. This tool does not probe duration. Suno rejects video longer than 241 seconds and oversize public or clouddisk files. Requires customMode false.",
+            "items": { "type": "string" },
+            "maxItems": 1
+          },
+          "audioUrls": {
+            "type": "array",
+            "description": "Simple-mode audio references. Public http(s) URLs or project file paths. Data URLs and NAS project files over 500 MB are rejected here. This tool does not probe duration. Suno rejects audio outside 6 seconds to 30 minutes and oversize public or clouddisk files. Requires customMode false.",
+            "items": { "type": "string" },
+            "maxItems": 10
+          },
           "target_dir": {
             "type": "string",
             "description": "Optional local Maker project directory. When omitted, Maker MCP uses one unambiguous MCP Roots workspace and process cwd only as the final fallback. Pass it explicitly when Roots are unavailable or ambiguous, or when the fallback is not the intended project. This local-only value is not persisted in user-level MCP config and is not forwarded to the remote Maker tool."
@@ -369,7 +384,7 @@
     },
     {
       "name": "create_video_task",
-      "description": "Create a video generation task only after the user explicitly requests video generation. Do not proactively or automatically generate videos while designing gameplay, implementing features, filling asset gaps, or self-improving the game. Estimate the intended duration before calling. The confirmation estimate is 200 credits per second for model=\"2.0\" and 300 credits per second for model=\"2.5\"; it is only a rough estimate, while actual billing follows upstream token usage. When duration exceeds 10 seconds or model=\"2.5\" is used, show the estimate and billing disclaimer, wait for explicit user confirmation, then repeat the same request with user_confirmed=true. Default model=\"2.0\" with omitted duration or duration=-1 does not require confirmation. The remote service normally performs server-side polling and waits for the final result in this call. If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later. Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema. Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less. The local proxy attempts to materialize successful video results into the Maker project; prefer returned workspace paths when present, unless the user needs an external share URL. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
+      "description": "Create a video generation task only after the user explicitly requests video generation. Do not proactively or automatically generate videos while designing gameplay, implementing features, filling asset gaps, or self-improving the game. Estimate credit cost before calling as duration seconds times the tier rate: 200 credits per second for model=\"2.0\", 300 credits per second for model=\"2.5\", and for model=\"wan\" 42 credits per second at 480p, 84 at 720p, and 168 at 1080p, which is 70% of the Beijing list price. When resolution is omitted, wan is billed as 1080p, so use 168 credits per second. This estimate is only for confirmation; actual billing is determined when the video is generated. If duration is omitted or -1, estimate using the selected model maximum duration. When the estimate exceeds 1000 credits, show the estimate and billing disclaimer, wait for explicit user confirmation, then repeat the same request with user_confirmed=true. Do not pass user_confirmed=true before that confirmation or when the estimate does not exceed 1000 credits. The remote service normally performs server-side polling and waits for the final result in this call. If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later. Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema. Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less. The local proxy attempts to materialize successful video results into the Maker project; prefer returned workspace paths when present, unless the user needs an external share URL. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -380,8 +395,9 @@
           },
           "model": {
             "type": "string",
-            "enum": ["2.0", "2.5"],
-            "description": "Seedance 模型版本，默认 \"2.0\"。\n- \"2.0\": Seedance 2.0 fast。duration 4-15s，参考图最多 9 张、参考视频 3 个、参考音频 3 个，音频不能单独输入。\n- \"2.5\": Seedance 2.5，效果与可控性更强、成本更高。duration 4-30s，参考图最多 30 张、参考视频 10 个、参考音频 10 个，支持仅传音频驱动生成。\n需要超过 15s 时长、大量参考素材或纯音频驱动时用 \"2.5\"，其余场景保持默认。使用 \"2.5\" 前须向开发者展示积分预估并二次确认。"
+            "enum": ["default", "2.0", "2.5", "wan"],
+            "default": "default",
+            "description": "视频模型。用户未点名时传 \"default\"（等价于省略：MCP 入口按会话/平台默认与锁定解析为具体模型，缺省 Seedance 2.0）。\n也可显式传 \"2.0\"。\n- \"2.0\": Seedance 2.0 fast。duration 4-15s，参考图最多 9 张、参考视频 3 个、参考音频 3 个，音频不能单独输入。\n- \"2.5\": Seedance 2.5，效果与可控性更强、成本更高。duration 4-30s，参考图最多 30 张、参考视频 10 个、参考音频 10 个，支持仅传音频驱动生成。预计消耗超过 1000 积分时须二次确认。\n- \"wan\": 百炼 Wan3.0。duration 2-30s，支持 480p/720p/1080p，参考图最多 10 张、参考视频 5 个、参考音频 5 个。预计消耗超过 1000 积分时须向开发者展示积分预估并二次确认。"
           },
           "prompt": {
             "type": "string",
@@ -389,13 +405,13 @@
           },
           "images": {
             "type": "array",
-            "description": "Image inputs. How images are used depends on the `mode` parameter:\n- mode=\"text_to_video\": Do NOT provide images.\n- mode=\"first_frame\": Provide exactly 1 image (role=first_frame).\n- mode=\"first_last_frame\": Provide exactly 2 images (role=first_frame + last_frame).\n- mode=\"multi_modal_reference\": Provide reference images (role=reference_image), up to 9 for model=\"2.0\" / 30 for model=\"2.5\". Can combine with videos/audios.\nRoles are auto-assigned based on mode. You may override by setting each image's role explicitly.\nSupported sources: local file path, https URL, asset://<asset_id> (from asset library), or data URL (data:image/png;base64,...).",
+            "description": "Image inputs. How images are used depends on the `mode` parameter:\n- mode=\"text_to_video\": Do NOT provide images.\n- mode=\"first_frame\": Provide exactly 1 image (role=first_frame).\n- mode=\"first_last_frame\": Provide exactly 2 images (role=first_frame + last_frame).\n- mode=\"multi_modal_reference\": Provide reference images (role=reference_image), up to 9 for model=\"2.0\" / 30 for model=\"2.5\". Can combine with videos/audios.\nRoles are auto-assigned based on mode. You may override by setting each image's role explicitly.\nSupported sources: local file path, https URL, asset://<asset_id> (from asset library, Seedance only), or data URL (data:image/png;base64,...). model=\"wan\" 不支持 asset://。",
             "items": {
               "type": "object",
               "properties": {
                 "url": {
                   "type": "string",
-                  "description": "图片本地文件路径、远程 URL、素材库资产 URI（asset://<asset_id>）或 data URL（data:image/png;base64,...）。"
+                  "description": "图片本地文件路径、远程 URL、素材库资产 URI（asset://<asset_id>，仅 Seedance）或 data URL（data:image/png;base64,...）。"
                 },
                 "role": {
                   "type": "string",
@@ -450,25 +466,25 @@
           },
           "resolution": {
             "type": "string",
-            "enum": ["480p", "720p"],
-            "description": "输出分辨率，默认 720p。两个模型版本均仅支持 480p/720p。"
+            "enum": ["480p", "720p", "1080p"],
+            "description": "输出分辨率。Seedance（2.0/2.5）仅 480p/720p，默认 720p。model=\"wan\" 支持 480p/720p/1080p，不传按 1080p 计费。"
           },
           "ratio": {
             "type": "string",
             "enum": ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"],
-            "description": "输出宽高比，默认 \"adaptive\"（由模型按输入或 prompt 自动选择）。\nmodel=\"2.5\" 的以下场景只接受 \"adaptive\"，指定具体比例会被上游拒绝：mode=\"first_frame\" / \"first_last_frame\"（跟随首帧图片）、以参考视频做视频编辑/延长（跟随输入视频）。\nmodel=\"2.0\" 各场景均可指定具体比例。"
+            "description": "输出宽高比，默认 \"adaptive\"（由模型按输入或 prompt 自动选择）。\nmodel=\"2.5\" 的以下场景只接受 \"adaptive\"，指定具体比例会被上游拒绝：mode=\"first_frame\" / \"first_last_frame\"（跟随首帧图片）、以参考视频做视频编辑/延长（跟随输入视频）。\nmodel=\"2.0\" 各场景均可指定具体比例。\nmodel=\"wan\" 仅支持 16:9 / 4:3 / 1:1 / 3:4 / 9:16 / adaptive，不支持 21:9。"
           },
           "duration": {
             "type": "integer",
-            "description": "视频时长（秒）。model=\"2.0\" 支持 4-15，model=\"2.5\" 支持 4-30；也可传 -1。明确传入超过 10 秒时，先按档位单价向开发者展示粗估并二次确认（2.0 为 200 积分/秒，2.5 为 300 积分/秒；仅供确认参考，实际按上游 token 扣费），再设 user_confirmed=true。不建议设为 -1；模型会自主选择时长。默认 2.0 下未指定或 -1 不触发确认。\nmodel=\"2.5\" 以参考视频做视频编辑时只接受 -1（输出时长跟随输入视频），且输入视频时长需在 4-30s 内。"
+            "description": "视频时长（秒）。model=\"2.0\" 支持 4-15，model=\"2.5\" 支持 4-30，model=\"wan\" 支持 2-30；也可传 -1。未指定或传 -1 时按对应模型的最长时长保守估算；预估消耗超过 1000 积分时，须二次确认并设 user_confirmed=true。"
           },
           "user_confirmed": {
             "type": "boolean",
-            "description": "仅当开发者已确认本次粗估（含「实际按上游 token 扣费」说明）后设为 true。触发条件：明确传入 duration 超过 10 秒，或使用 model=\"2.5\"。未确认时不要传 true。默认 2.0 且时长未超过 10 秒时无需此参数。"
+            "description": "仅当开发者已确认本次粗估后设为 true。触发条件：预估消耗超过 1000 积分。未确认时不要传 true；预估未超过该阈值时无需此参数。"
           },
           "return_last_frame": {
             "type": "boolean",
-            "description": "是否返回尾帧图片 URL。默认 true；如不需要可显式传 false。"
+            "description": "是否返回尾帧图片 URL。默认 true；如不需要可显式传 false。Seedance 支持。model=\"wan\" 忽略此参数且不返回尾帧。"
           },
           "suppress_preview_links": {
             "type": "boolean",
