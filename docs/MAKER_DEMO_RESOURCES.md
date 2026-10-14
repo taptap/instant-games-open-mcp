@@ -79,6 +79,8 @@ node scripts/maker-demo-resources.mjs verify cdn
 node scripts/maker-demo-resources.mjs verify github
 ```
 
+校验对每个文件最多尝试 3 次，单次下载超时 60 秒。超时、连接失败和 HTTP 429/5xx 会重试；
+内容不匹配不重试。失败信息包含来源、文件名、URL 和底层错误码。
 GitHub 尚未合入或验证失败时，不应发布依赖该批资源的新包。npm 发布仍沿用现有手动 Actions。
 
 下载模块 src/maker/demoResources.ts 每个源最多尝试一次，超时或校验失败转备用源。
@@ -89,5 +91,6 @@ GitHub 尚未合入或验证失败时，不应发布依赖该批资源的新包�
 回归：makerDemoResources.test.ts 覆盖回退、缓存、损坏及并发；模板测试覆盖导入和预览，
 node scripts/test-maker-ui-editor.mjs 覆盖项目编辑器与外部示例入口。
 node --test scripts/test-maker-demo-upload.mjs 覆盖上传协议、并发上限、失败恢复、授权失败及重复运行。
+node --test scripts/test-maker-demo-resource-verify.mjs 覆盖下载超时重试、失败文件定位和内容不匹配不重试。
 node --test scripts/test-maker-demo-resource-check.mjs 覆盖入库/打包拦截，包括缺压缩记录、文件改动、
 未上传、引用缺失和内嵌图片。
