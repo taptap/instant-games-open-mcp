@@ -192,9 +192,20 @@ export class MakerCanvasFiles {
     // Retired presets remain readable for existing references, but are absent from the catalog.
     const { assets: _assets, ...definition } = preset;
     const template: CanvasWorkflowTemplate = { ...structuredClone(definition), builtin: true };
+    if (template.id === '7e1cb6ad-732f-4dc3-a951-000000000015') {
+      template.nodes = template.nodes.filter(
+        (node) =>
+          (node.type === 'image' && !template.edges.some((edge) => edge.to === node.id)) ||
+          Boolean(node.uiRecognition)
+      );
+      const kept = new Set(template.nodes.map((node) => node.id));
+      template.edges = template.edges.filter((edge) => kept.has(edge.from) && kept.has(edge.to));
+    }
+    const needed = new Set(templateAssetPaths(template));
     const paths = new Map<string, string>();
     try {
       for (const [source, asset] of Object.entries(preset.assets)) {
+        if (template.cliOnly && !needed.has(source)) continue;
         const bytes = await readDemoResource(asset.resourceId);
         const imported =
           asset.type === 'video/mp4'
@@ -373,11 +384,14 @@ export class MakerCanvasFiles {
       name
     );
     const skills = templateSkills(input.skills);
+    if (input.cliOnly !== undefined && typeof input.cliOnly !== 'boolean')
+      fail('模板执行标识无效。', 400, 'INVALID_DOCUMENT');
     return {
       ...template,
       id: input.id,
       revision: parsed.revision,
       ...(skills?.length ? { skills } : {}),
+      ...(input.cliOnly ? { cliOnly: true } : {}),
     };
   }
 
@@ -1148,6 +1162,13 @@ export class MakerCanvasFiles {
       node.type !== 'image'
     )
       fail('只有图片卡可以配置 UI 槽位清单。', 400, 'INVALID_DOCUMENT');
+    if (
+      node.uiArtTextId !== undefined &&
+      (node.type !== 'image' ||
+        typeof node.uiArtTextId !== 'string' ||
+        !/^[A-Za-z0-9_-]{1,80}$/.test(node.uiArtTextId))
+    )
+      fail('美术字标识无效。', 400, 'INVALID_DOCUMENT');
     if (node.uiAtlasPrelayout !== undefined && typeof node.uiAtlasPrelayout !== 'boolean')
       fail('Bbox 预排开关无效。', 400, 'INVALID_DOCUMENT');
     if (typeof node.id !== 'string' || !ID.test(node.id))
@@ -1299,6 +1320,11 @@ export class MakerCanvasFiles {
     if (node.templateRevision !== undefined)
       numberIn(node.templateRevision, 1, 1_000_000, '模板版本');
     const skills = templateSkills(node.templateSkills);
+    if (
+      node.templateCliOnly !== undefined &&
+      (typeof node.templateCliOnly !== 'boolean' || node.type !== 'section')
+    )
+      fail('模板执行标识只能用于分组。', 400, 'INVALID_DOCUMENT');
     if (node.workDurationMs !== undefined)
       numberIn(node.workDurationMs, 0, Number.MAX_SAFE_INTEGER, '工作耗时');
     if (node.workStartedAt !== undefined)
@@ -1555,6 +1581,7 @@ export class MakerCanvasFiles {
       ...(node.templateId ? { templateId: node.templateId as string } : {}),
       ...(node.templateRevision ? { templateRevision: node.templateRevision as number } : {}),
       ...(skills?.length ? { templateSkills: skills } : {}),
+      ...(node.templateCliOnly ? { templateCliOnly: true } : {}),
       ...(node.templatePending ? { templatePending: true } : {}),
       ...(node.workStartedAt === undefined ? {} : { workStartedAt: node.workStartedAt as number }),
       ...(node.workTimingOpen ? { workTimingOpen: true } : {}),
@@ -1585,6 +1612,7 @@ export class MakerCanvasFiles {
       ...(node.uiAtlasPrelayout === undefined
         ? {}
         : { uiAtlasPrelayout: node.uiAtlasPrelayout as boolean }),
+      ...(node.uiArtTextId ? { uiArtTextId: node.uiArtTextId as string } : {}),
       ...(node.uiAtlasBatch === undefined
         ? {}
         : { uiAtlasBatch: Math.floor(node.uiAtlasBatch as number) }),

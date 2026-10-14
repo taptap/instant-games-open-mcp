@@ -2,6 +2,7 @@ declare const document: any;
 declare const createImageBitmap: any;
 import { createCanvasZip } from './zipArchive.js';
 import { uiBindingContentRect } from './uiAssetBindings.js';
+import type { UiAtlasPlan } from './uiAssetBindings.js';
 import { createBackgroundRemoval } from './backgroundRemoval.js';
 import { alignAtlasCells, assignAtlasCellsByCenter, atlasLayoutError } from './atlasAlignment.js';
 import type { AtlasAlignedCell } from './atlasAlignment.js';
@@ -137,7 +138,8 @@ export async function prepareImageAtlas(
   grid: ImageAtlasGrid,
   backgroundColor?: [number, number, number],
   backgroundMode: 'all' | 'connected' = 'connected',
-  cut: ImageAtlasCutSettings = {}
+  cut: ImageAtlasCutSettings = {},
+  nativePlan?: UiAtlasPlan
 ): Promise<PreparedImageAtlas> {
   if (!source.size || source.size > 128 * 1024 * 1024) throw new Error('图片为空或超过 128 MiB。');
   if (cut.mode && !['grid', 'content'].includes(cut.mode)) throw new Error('切图模式无效。');
@@ -170,6 +172,7 @@ export async function prepareImageAtlas(
           tolerance: 48,
           softness: 16,
           despill: 0.5,
+          edgeDespill: Boolean(nativePlan?.nativeLayout),
         });
         context.putImageData(pixels!, 0, 0);
       }
@@ -265,6 +268,35 @@ export async function prepareImageAtlas(
             '图集 ' + region.name + ' 为空或边界穿过素材，请调整裁切框，原资产未替换。'
           );
       }
+    }
+    if (nativePlan?.nativeLayout) {
+      const layout = nativePlan.nativeLayout;
+      if (
+        layout.width !== bitmap.width ||
+        layout.height !== bitmap.height ||
+        JSON.stringify(regions) !== JSON.stringify(layout.regions)
+      )
+        throw new Error('原尺寸状态处理必须使用生成时的图集尺寸与裁切坐标。');
+      nativePlan.slots.forEach((slot, index) => {
+        if (slot.state !== 'pressed') return;
+        const normalIndex = nativePlan.slots.findIndex(
+          (candidate) =>
+            candidate.state === 'normal' && candidate.elementIds[0] === slot.elementIds[0]
+        );
+        if (normalIndex < 0) return;
+        const normal = regions[normalIndex];
+        const pressed = regions[index];
+        if (normal.width !== pressed.width || normal.height !== pressed.height)
+          throw new Error('按下态与正常态尺寸不一致，不能缩放派生。');
+        const statePixels = context.getImageData(normal.x, normal.y, normal.width, normal.height);
+        for (let offset = 0; offset < statePixels.data.length; offset += 4) {
+          for (let channel = 0; channel < 3; channel++)
+            statePixels.data[offset + channel] = Math.round(
+              statePixels.data[offset + channel] * 0.8
+            );
+        }
+        context.putImageData(statePixels, pressed.x, pressed.y);
+      });
     }
     return {
       width: bitmap.width,
@@ -417,9 +449,11 @@ export async function splitImageAtlas(
   backgroundColor?: [number, number, number],
   backgroundMode: 'all' | 'connected' = 'connected',
   cut: ImageAtlasCutSettings = {},
-  reviewed?: PreparedImageAtlas
+  reviewed?: PreparedImageAtlas,
+  nativePlan?: UiAtlasPlan
 ) {
   return encodeImageAtlasRegions(
-    reviewed || (await prepareImageAtlas(source, grid, backgroundColor, backgroundMode, cut))
+    reviewed ||
+      (await prepareImageAtlas(source, grid, backgroundColor, backgroundMode, cut, nativePlan))
   );
 }

@@ -48,6 +48,7 @@ export function canvasAutomationCapabilities() {
       'rename',
       'add-template',
       'add-node',
+      'sync-ui-batches',
       'update-nodes',
       'delete-nodes',
       'duplicate',
@@ -106,6 +107,8 @@ export function canvasAutomationCapabilities() {
         'Before executing a template, read its associated Skills using the paths in Maker status or the current project Skill directories. If unavailable, report the missing Skill; do not claim to have followed it. Skills guide the Agent, not automatic console execution, and do not bypass review or paid-operation confirmation.',
     },
     uiWorkflow: {
+      syncBboxBatches:
+        'sync-ui-batches input: {id: section ID, artText: string[] | boolean, background: boolean}. Bbox experimental template only. Pass Bbox text IDs for all required art text (one PNG per ID); [] means none, true retains the legacy main-title branch. Requires current validated recognition and revision. Creates missing batch cards and links without model calls, preserves existing work. Skill decides art text and unlisted environment background. Reinspect after saving; never replay paid jobs.',
       skill: 'maker-ui-workflow',
       prelayoutSkill: 'maker-ui-bbox-workflow',
       imageSizing:

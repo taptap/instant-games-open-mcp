@@ -33892,7 +33892,8 @@
   {
     "id": "7e1cb6ad-732f-4dc3-a951-000000000015",
     "name": "游戏UI制作 · Bbox预排参考图（实验）",
-    "revision": 3,
+    "revision": 8,
+    "cliOnly": true,
     "nodes": [
       {
         "id": "f5c68c71-35f4-431c-9028-e104c1814858",
@@ -33961,7 +33962,7 @@
           "includeSelf": false
         },
         "generation": {
-          "prompt": "参考与目标：对输入的机械师档案 UI 原设计稿精准去除文字，保持整张图的构图和所有非文字像素结构。\n保留：原始视角、人物、武器、所有物品、按钮底板、页签、底框、背景纹理、分隔线、星星、金币、钻石、箭头、叉号、加号、进度条。任何非文字符号都必须保留。所有元素位置和大小不变，不裁边，不缩放局部。\n移除：仅删除所有汉字、英文字母、数字、百分号、斜杠和正文标点，包括标题、按钮文字、装备名、数量、等级和属性数值；用各自底板的原有纹理修复文字遮挡。不要把图标当文字删除。\n输出：一张与输入相同16:9构图的完整去文字 UI 图片，不添加任何新文字或物体，不加标记，不重设计。",
+          "prompt": "参考与目标：对输入的游戏 UI 原设计稿精准去除文字，保持整张图的构图和所有非文字像素结构。\n保留：原始视角、人物、武器、所有物品、按钮底板、页签、底框、背景纹理、分隔线、星星、金币、钻石、箭头、叉号、加号、进度条。任何非文字符号都必须保留。所有元素位置和大小不变，不裁边，不缩放局部。\n移除：仅删除所有汉字、英文字母、数字、百分号、斜杠和正文标点，包括标题、按钮文字、装备名、数量、等级和属性数值；用各自底板的原有纹理修复文字遮挡。不要把图标当文字删除。\n输出：一张与输入相同宽高比和构图的完整去文字 UI 图片，不添加任何新文字或物体，不加标记，不重设计。",
           "referenceImagePaths": [],
           "parameters": {
             "model": "gpt",
@@ -123128,11 +123129,11 @@
       },
       "assets/image/preset-ui-bbox-8bfd6242daba45e74eee.png": {
         "type": "image/png",
-        "resourceId": "31fd70cc0d2eedaa33757b33b07348c46653586f0aa8c5a0728c127d1b707058"
+        "resourceId": "aa8520baf9105029d8d78bf571372a4a3b9e0ca3725cce87b1516ed4d385d2d8"
       },
       "assets/image/preset-ui-bbox-10aef35c7d24ec091b09.png": {
         "type": "image/png",
-        "resourceId": "7391bb2bbe49d42a930da4d39195a04e1cdceb7ded38a46a91d84917aeb54a61"
+        "resourceId": "55ea988827e01cce74427ffd126108f1daf94d91aafdae2ebef15ba9f8389970"
       },
       "assets/image/preset-ui-bbox-5cc8b251c8994ee24a53.png": {
         "type": "image/png",
@@ -123144,11 +123145,11 @@
       },
       "assets/image/preset-ui-bbox-c86cef258dcdf180b2e8.png": {
         "type": "image/png",
-        "resourceId": "2e47a15e71119f0d21661011eb0f5414d3c1e7218b1b39ff8636697c1e09b5d6"
+        "resourceId": "0c6996e4975c05ec031410327be221fec009c33753a7eeee2b1b3a49c6c92834"
       },
       "assets/image/preset-ui-bbox-ce6e731b1422d748cefa.png": {
         "type": "image/png",
-        "resourceId": "d26c6a41c63a3c5021309a0a4f4bf74c03c80ff4433e00f6f8f613f79c646ee1"
+        "resourceId": "c10e96c20f66376e0ae7a759240992f4198fd427a2a3ca7fe8255dca591f47f0"
       },
       "assets/image/preset-ui-bbox-a2ababc780122f5657d7.png": {
         "type": "image/png",
@@ -123236,7 +123237,7 @@
       },
       "assets/image/preset-ui-bbox-95641438280f26bf70bd.png": {
         "type": "image/png",
-        "resourceId": "0bb8cb6c27b34289c9ff750af41fe98fad59a69e5e33e1dd71dd6a35bc8a3ba6"
+        "resourceId": "6c18c38c4027c3bab47f51f05c6f63cbd2b5ecfd9b95a3e68879760517bb9831"
       },
       "assets/image/preset-ui-bbox-4ca0cdd1316d223d8563.png": {
         "type": "image/png",
@@ -123248,7 +123249,7 @@
       },
       "assets/image/preset-ui-bbox-9d6a83b7e99166976a23.png": {
         "type": "image/png",
-        "resourceId": "e73dde012e617c1e65953144f3a77018d9fe02ae14e6c57bfa1fdcdbe9a645be"
+        "resourceId": "cfb5e5a7f7f82bd5be98126ae74edd7cd0b90e3915715c2fdc5bc761cff2756f"
       },
       "assets/image/preset-ui-bbox-48c3b1adcf64c44a85d2.png": {
         "type": "image/png",
@@ -123264,11 +123265,11 @@
       },
       "assets/image/preset-ui-bbox-2759e796e85319d7f9b1.png": {
         "type": "image/png",
-        "resourceId": "3113207b5c1f43172632f6afea9797ee7bfe06618a130a7025bfb13567b24e5f"
+        "resourceId": "2053f1b45f8fb239ae4c58dd7cf48719f9b89d937b43342f44c41748d1bf8317"
       },
       "assets/image/preset-ui-bbox-327eba1daa7fe7f31186.png": {
         "type": "image/png",
-        "resourceId": "6a449fc7f4f0ebedf66448467fb188ef40016e2952571f4bc8e14a67d7cc15f9"
+        "resourceId": "ce13d5312abe552faaade54c100d5867c29fdd97f59e15834f95fc019cac534e"
       },
       "assets/image/preset-ui-bbox-5b4854d71d550983cfa5.png": {
         "type": "image/png",
@@ -123296,7 +123297,7 @@
       },
       "assets/image/preset-ui-bbox-2b7800849d3f6f8da251.png": {
         "type": "image/png",
-        "resourceId": "3b9d59872288a70c713790967a7b9a4a9473ad6addb6137d0df284195f09cb12"
+        "resourceId": "17dd5807cf3816c11256fb1705370820200ea9a57b3d653dbc17c5027de98c7d"
       },
       "assets/image/preset-ui-bbox-0f6ee341852b911bfafa.png": {
         "type": "image/png",
@@ -123312,11 +123313,11 @@
       },
       "assets/image/preset-ui-bbox-e0e0e33562c585dc47d1.png": {
         "type": "image/png",
-        "resourceId": "3bff15e8b0baeaaa3c0269fe2b216f89ba1707e648c3205249d810df857b0574"
+        "resourceId": "982e3a4e8f793f29ce3792cb35f2bf20b33515ce59ada1868ca1273cf4c80b43"
       },
       "assets/image/preset-ui-bbox-8e6814e6abc4f9cd0db9.png": {
         "type": "image/png",
-        "resourceId": "3298da8638bc93364e35b22e7ffba674da3c620687f2afbe0e0cd64033953d01"
+        "resourceId": "c94c399452712c694cbeeaefb7401b2fbc1ab776fa5f1e52584d4f4265123e1a"
       },
       "assets/image/preset-ui-bbox-2602841e327a1699cef9.png": {
         "type": "image/png",
@@ -123324,11 +123325,11 @@
       },
       "assets/image/preset-ui-bbox-219eb200f4829dcec251.png": {
         "type": "image/png",
-        "resourceId": "e845a5d05c2907b487e678cf53700218007701073e6211607bd921757297a92d"
+        "resourceId": "e939ca230c8c50064bb248ba9be77a8309065a63538337bedc95d2852d18473c"
       },
       "assets/image/preset-ui-bbox-817aa0d12c09ddf6b7bc.png": {
         "type": "image/png",
-        "resourceId": "091fe1ddd2c74e448b880016b7d0047de1ce09572bdaff5866a22d4438108b54"
+        "resourceId": "ddceb5d1bc9294176531f20f4c66a40edd65305ce3920580a3bac6298954626c"
       },
       "assets/image/preset-ui-bbox-e6eea364e6f9575c4cbb.png": {
         "type": "image/png",
@@ -123344,7 +123345,7 @@
       },
       "assets/image/preset-ui-bbox-0a342f569b3eb4b5b623.png": {
         "type": "image/png",
-        "resourceId": "856c4b785ca1c8144e29f38db781ce62ceb624e54a2ec1b9020d7e4669cbdc74"
+        "resourceId": "2ce8d2d6ad2d73844512e5dd01f0b984d6cd124e02181c34d9ef0e6c07f15384"
       },
       "assets/image/preset-ui-bbox-b56b7cb4c82494a72003.png": {
         "type": "image/png",
@@ -123368,11 +123369,11 @@
       },
       "assets/image/preset-ui-bbox-93d4957a5d6f23cd78a5.png": {
         "type": "image/png",
-        "resourceId": "43920db9e00ce83c930823fc5a6191e7464840729db004f076ea47141bd8ec43"
+        "resourceId": "0e91519227a540fdaaa9fe9e447cf959a658bc318a3cb0df84aab80e242acc64"
       },
       "assets/image/preset-ui-bbox-ddcc583ab60f70ce083d.png": {
         "type": "image/png",
-        "resourceId": "8d2da5829ba70bc42436afcfee8494bc752cb9b352f868c9976b8419c0bcf7c2"
+        "resourceId": "d48982191207325f8959932b4fa20546597e1beff37d4a0f6cd09711d5b223ec"
       },
       "assets/image/preset-ui-bbox-ff19a976a86016f21f6e.png": {
         "type": "image/png",
@@ -123404,7 +123405,7 @@
       },
       "assets/image/preset-ui-bbox-4b8477d27ca483ba9668.png": {
         "type": "image/png",
-        "resourceId": "5addf424d47a7f4aaadbfc59b386d6ab298ca2b51fda8aee0bcdb6f6a80e5c0e"
+        "resourceId": "43019f9962d6199984d67b977bbb9ea587327343865c0eb33866824b4178e71c"
       },
       "assets/image/preset-ui-bbox-4de02910c049bc24eab6.png": {
         "type": "image/png",
@@ -123420,7 +123421,7 @@
       },
       "assets/image/preset-ui-bbox-471fccc0be372052e428.png": {
         "type": "image/png",
-        "resourceId": "c3c4b6d66b7585dd43b9fb3f465bbe0836d493388f6648a65dab8aff94fc8c42"
+        "resourceId": "856e3cac11dc8002adfd541a2875b392032f422e27b8c8950d1f5184924d244a"
       },
       "assets/image/preset-ui-bbox-69767b596b6475f4f69a.png": {
         "type": "image/png",
@@ -123436,11 +123437,11 @@
       },
       "assets/image/preset-ui-bbox-cfa2b5697cbafeb58eef.png": {
         "type": "image/png",
-        "resourceId": "c39d02003fec587e9380554413b3b669449c65b45c34e3c0d66d73875fa2600f"
+        "resourceId": "40149cae08dcdbbc7008fe30a800cdc99fc59ad466bed58765f73bb42476aff5"
       },
       "assets/image/preset-ui-bbox-dfc83d1283d39fe50f84.png": {
         "type": "image/png",
-        "resourceId": "f5c3c6c1757e6f2a1f2c894ddffd33b1a831aecc2400ac01bb60efc79097b8b8"
+        "resourceId": "90a289cba766609b5b4436499ab6be6fed46b8d6c33660c7af7f3b58dbd355a4"
       },
       "assets/image/preset-ui-bbox-fa0ac8537e16fb2eff66.png": {
         "type": "image/png",
@@ -123452,23 +123453,23 @@
       },
       "assets/image/preset-ui-bbox-c90ac0db05139b880640.png": {
         "type": "image/png",
-        "resourceId": "15e924f30e20e66db01580334f763ca3d53651e1caa5619335f03c140dc88792"
+        "resourceId": "2089b55747975509de7031f5ddb486e0ff6bf29a46f2dbaef5fcf3ea3866b22b"
       },
       "assets/image/preset-ui-bbox-cd7b992eddc44a12ee2b.png": {
         "type": "image/png",
-        "resourceId": "4e7b4cfb74eae26ac1997262cd1cdb4a37a4d80f70991e3a9d73a95bad444eda"
+        "resourceId": "c8cc658104afee6d83405d06a2ea850d5a69acf60f194a0647a90e3ebc9c50fb"
       },
       "assets/image/preset-ui-bbox-05182651e24fb2a7351f.png": {
         "type": "image/png",
-        "resourceId": "f5b42b2478d8b9d5a4ba22f1cb43b726118aac113521c8aa2c1036af7d8695c4"
+        "resourceId": "7f9787b2ed309f0bea9639b4b4b050de37a4580cf394dc3b29cfe797de2f3260"
       },
       "assets/image/preset-ui-bbox-fd47017189563d3fb1c5.png": {
         "type": "image/png",
-        "resourceId": "bfb39ba6ed3c51a55a8898df410a56f4bd0a1ad2f294eb0ed59c3cf5cf616e9d"
+        "resourceId": "915e7c8582c06829d1f193f90a6f8b1ee55001f7ea820845d8e43c8afb4a8393"
       },
       "assets/image/preset-ui-bbox-d941a4cb71e7dda612f9.png": {
         "type": "image/png",
-        "resourceId": "d51acb4b1518eaea74cd8c4223e9691bacf7d606e87d4ed717e0e00188e3555d"
+        "resourceId": "8a20a4ecc5e28201f554f1f19ab8f7c2e60aa6e299128aabb563b3c614975a4b"
       },
       "assets/image/preset-ui-bbox-9185a75c49742af8b308.png": {
         "type": "image/png",
@@ -123476,7 +123477,7 @@
       },
       "assets/image/preset-ui-bbox-d588e31ee2b4902d8500.png": {
         "type": "image/png",
-        "resourceId": "4c3d5505cbc59fed06438e840703c08111dc877398ff3577f83fa3ffe16c2674"
+        "resourceId": "89a252543e2fea92cc757ebccdbe1805509ecf2eb9b7067e9af86083a0d024b4"
       },
       "assets/image/preset-ui-bbox-5f678a2a72cbe649dcc6.png": {
         "type": "image/png",
@@ -123488,11 +123489,11 @@
       },
       "assets/image/preset-ui-bbox-923b07f3a4e12b3e84c3.png": {
         "type": "image/png",
-        "resourceId": "dab1b5e6764988461c9adfb22066c894bdf962c8ec9d0b2b937c40650a248fa5"
+        "resourceId": "b164eb4947a9e69ecc176064c883389c10f121edccb915503f007fd1578622e3"
       },
       "assets/image/preset-ui-bbox-1e22d5cbf916f826ed46.png": {
         "type": "image/png",
-        "resourceId": "e54461aaab4a656753c14c66cd7b00ea28b86eb5e7e75c991a00ac7e99d08160"
+        "resourceId": "a8fe27bbcf08a0acb377cab5d85ec1c1f9390d43fe7c7e7c4d64250d35a8d633"
       },
       "assets/image/preset-ui-bbox-47408c3db78aa1fa2647.png": {
         "type": "image/png",
@@ -123536,7 +123537,7 @@
       },
       "assets/image/preset-ui-bbox-c42976caf7a26ff5e3b8.png": {
         "type": "image/png",
-        "resourceId": "cd8014a963eee1e039f2cb560fed76dbb302c8547b73101b214d9dfe19514353"
+        "resourceId": "0f224430f3786f724a1725e785419f23712fbe3a97f22cea822cf79d34b83207"
       },
       "assets/image/preset-ui-bbox-fe1c8e0e8243bf303b1d.png": {
         "type": "image/png",
@@ -123548,15 +123549,15 @@
       },
       "assets/image/preset-ui-bbox-1742cf67c575d652c3b4.png": {
         "type": "image/png",
-        "resourceId": "a7937bf804b397eda6cba5d59f1228c5fea2f1c462071a1725d6f723fbd21b89"
+        "resourceId": "3bc0ad7d4621ad03bbec8cf7380d9cad97aabc57c3558998b6bd4baff30f0e4f"
       },
       "assets/image/preset-ui-bbox-9bb8ef05ab40d36d6aa9.png": {
         "type": "image/png",
-        "resourceId": "1d3412c4a89606e91bd4c4d915259c499fe4c8e3183f3178400a24026bc68b22"
+        "resourceId": "f158622e346a1e71a8799891fa7c9b017b8a1a3160c5914bbb4275861bc7725b"
       },
       "assets/image/preset-ui-bbox-d0444f9c9baed2564b23.png": {
         "type": "image/png",
-        "resourceId": "1db1abe9a11c5aaf325d080d5b45827eff888c9427ec951818e50e2abdb67397"
+        "resourceId": "912d76a048b2fc72f1c76faf3e4c9f27afc99a0b76a85d283ee1a8027f9414b4"
       },
       "assets/image/preset-ui-bbox-98ca0d68d85104c8fc97.png": {
         "type": "image/png",
@@ -123568,7 +123569,7 @@
       },
       "assets/image/preset-ui-bbox-28b109dbfdff0c64a983.png": {
         "type": "image/png",
-        "resourceId": "25a1bffaec011735ffdb9c74dfe28628ca5b66ecb9e0f28f6fec3c4389f97fa5"
+        "resourceId": "c95a92d74e5724b31deef4b30afe84003d440ea4d0703b3f55224e84636888be"
       },
       "assets/image/preset-ui-bbox-091f502fdd92a16e904c.png": {
         "type": "image/png",
@@ -123576,7 +123577,7 @@
       },
       "assets/image/preset-ui-bbox-00cc389b3d6f52ab5b9e.png": {
         "type": "image/png",
-        "resourceId": "6e9ea138cb821ad89d0cde01ca8d003d504a2143328c9849ae1bdbdd9c087dd8"
+        "resourceId": "007fa009f63231d42ab1913e4a4e9a05b5a1e1948abbba1c070d3228d46981f7"
       },
       "assets/image/preset-ui-bbox-ab96a8efaaf73117d9fd.png": {
         "type": "image/png",
@@ -123592,7 +123593,7 @@
       },
       "assets/image/preset-ui-bbox-ed8524cd3ed0edf1b77b.png": {
         "type": "image/png",
-        "resourceId": "762f9a98d10adc98c57e923fb2509f05f8848f897813cb33f31d715298a325e7"
+        "resourceId": "ba7fab28d7f87f1270e9320a3431b77b8b9d54234834af724e11058a65508709"
       },
       "assets/image/preset-ui-bbox-32b1149a46d1f71f0d3a.png": {
         "type": "image/png",

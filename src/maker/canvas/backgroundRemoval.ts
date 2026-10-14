@@ -5,6 +5,7 @@ export interface BackgroundOptions {
   mode: 'all' | 'connected';
   automatic: boolean;
   color?: [number, number, number];
+  edgeDespill?: boolean;
 }
 
 export function backgroundColorsDiffer(
@@ -164,6 +165,61 @@ export function createBackgroundRemoval() {
           : 0;
       }
       data[pixel * 4 + 3] = Math.round(data[pixel * 4 + 3] * alpha);
+    }
+    if (settings.edgeDespill) {
+      const high = [0, 1, 2].filter((channel) => color[channel] >= 128);
+      const low = [0, 1, 2].filter((channel) => color[channel] < 128);
+      const keyDifference =
+        high.length && low.length
+          ? Math.min(...high.map((channel) => color[channel])) -
+            Math.max(...low.map((channel) => color[channel]))
+          : 0;
+      if (keyDifference >= 128) {
+        const alphaMask = Uint8Array.from(
+          { length: width * height },
+          (_, pixel) => data[pixel * 4 + 3]
+        );
+        for (let pixel = 0; pixel < width * height; pixel++) {
+          if (!alphaMask[pixel]) continue;
+          const offset = pixel * 4;
+          const difference =
+            Math.min(...high.map((channel) => data[offset + channel])) -
+            Math.max(...low.map((channel) => data[offset + channel]));
+          const spill = Math.max(0, Math.min(1, difference / keyDifference));
+          if (!spill) continue;
+          const column = pixel % width;
+          const row = Math.floor(pixel / width);
+          let edge = alphaMask[pixel] < 255;
+          for (
+            let nearRow = Math.max(0, row - 4);
+            !edge && nearRow <= Math.min(height - 1, row + 4);
+            nearRow++
+          ) {
+            for (
+              let nearColumn = Math.max(0, column - 4);
+              nearColumn <= Math.min(width - 1, column + 4);
+              nearColumn++
+            ) {
+              if (!alphaMask[nearRow * width + nearColumn]) {
+                edge = true;
+                break;
+              }
+            }
+          }
+          if (!edge) continue;
+          const alpha = 1 - spill;
+          for (let channel = 0; channel < 3; channel++) {
+            data[offset + channel] =
+              alpha > 0.01
+                ? Math.max(
+                    0,
+                    Math.min(255, (data[offset + channel] - color[channel] * spill) / alpha)
+                  )
+                : 0;
+          }
+          data[offset + 3] = Math.round(data[offset + 3] * alpha);
+        }
+      }
     }
     return color;
   }

@@ -55,6 +55,10 @@ export function createCanvasGroupQueueUi(options: {
     root.replaceChildren();
     const state = options.queue.view(groupId);
     root.dataset.phase = state?.phase || 'idle';
+    const group = options.node(groupId);
+    const cliOnly =
+      group?.templateCliOnly || group?.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015';
+    if (cliOnly) confirming.delete(groupId);
     root.dataset.confirming = confirming.has(groupId) ? 'true' : 'false';
     function button(label: string, action: () => void, className = '') {
       const element = document.createElement('button');
@@ -65,6 +69,13 @@ export function createCanvasGroupQueueUi(options: {
       return element;
     }
     const active = state && ['queued', 'running', 'waiting'].includes(state.phase);
+    if (cliOnly) {
+      const label = document.createElement('span');
+      label.className = 'group-queue-count';
+      label.textContent = '仅 CLI 执行';
+      label.title = '由 Skill 按当前设计稿编排；单张卡片仍可独立操作';
+      root.append(label);
+    }
     if (state?.active) {
       const spinner = document.createElement('span');
       spinner.className = 'group-queue-spinner';
@@ -80,10 +91,15 @@ export function createCanvasGroupQueueUi(options: {
       done.className = 'group-queue-count';
       done.textContent = '✓ 已完成';
       root.append(done);
-    } else if (!active && confirming.has(groupId)) {
+    } else if (!cliOnly && !active && confirming.has(groupId)) {
       root.append(
         button('确认执行', () => {
           confirming.delete(groupId);
+          if (
+            options.node(groupId)?.templateCliOnly ||
+            options.node(groupId)?.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015'
+          )
+            return;
           options.queue.start(groupId, true);
         }),
         button('取消', () => {
@@ -96,7 +112,7 @@ export function createCanvasGroupQueueUi(options: {
       hint.textContent =
         '识图按模型服务计费；生图和视频会消耗积分，Seedance 2.5 按较高费用计费。生图确定失败时最多重新生图2次；切图失败保留原图，调整裁切框，不自动重新生图。未知结果不重提。失败只阻塞依赖分支，其余继续。请保持页面打开。';
       root.append(hint);
-    } else {
+    } else if (!cliOnly) {
       const continuing =
         state?.phase === 'paused' || (!state && options.node(groupId)?.workTimingOpen);
       root.append(
@@ -187,7 +203,11 @@ export function createCanvasGroupQueueUi(options: {
     if (!state?.pending.length) {
       const hint = document.createElement('span');
       hint.className = 'group-queue-status';
-      hint.textContent = state ? state.message : '按连线顺序完成此分组；可拖动待执行任务';
+      hint.textContent = state
+        ? state.message
+        : cliOnly
+          ? '由 CLI 按需编排；单卡仍可独立操作'
+          : '按连线顺序完成此分组；可拖动待执行任务';
       tasks.append(hint);
     }
     root.append(tasks);

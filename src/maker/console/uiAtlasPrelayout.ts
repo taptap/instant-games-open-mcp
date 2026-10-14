@@ -37,9 +37,17 @@ export async function prepareUiAtlasReference(
   const plan = validateUiAtlasPlan(input);
   if ([plan.grid.marginX, plan.grid.marginY, plan.grid.gapX, plan.grid.gapY].some(Boolean))
     throw new Error('Bbox 预排使用无间距的等分网格，请重新按当前清单分批。');
-  const regions = imageAtlasRegions(width, height, plan.grid);
+  if (
+    plan.nativeLayout &&
+    (width !== plan.nativeLayout.width || height !== plan.nativeLayout.height)
+  )
+    throw new Error('预排输出尺寸与原尺寸排版不一致，不会缩放坐标。');
+  const regions = plan.nativeLayout?.regions || imageAtlasRegions(width, height, plan.grid);
   assertUiAtlasSources(files, plan);
-  const bytes = fs.readFileSync(files.readMedia(plan.bbox.cutSource.path).file);
+  const textOnly = plan.slots.every((slot) => slot.role === 'text');
+  const bytes = fs.readFileSync(
+    files.readMedia(textOnly ? plan.bbox.design.path : plan.bbox.cutSource.path).file
+  );
   if (!bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
     throw new Error('Bbox 预排实验模板需要 PNG 去文字图，请转换后重新识图；尚未提交生图。');
   const source = PNG.sync.read(bytes);
@@ -53,12 +61,14 @@ export async function prepareUiAtlasReference(
   }
   plan.slots.forEach((slot, index) => {
     if (slot.role === 'reserve') return;
-    const element = plan.bbox.elements.find((entry) => entry.id === slot.elementIds[0]);
+    const element = (slot.role === 'text' ? plan.bbox.texts : plan.bbox.elements).find(
+      (entry) => entry.id === slot.elementIds[0]
+    );
     const rect = element?.bbox || [0, 0, plan.bbox.design.width, plan.bbox.design.height];
     const region = regions[index];
     const scale = Math.min((region.width * 0.8) / rect[2], (region.height * 0.8) / rect[3]);
-    const outWidth = Math.max(1, Math.round(rect[2] * scale));
-    const outHeight = Math.max(1, Math.round(rect[3] * scale));
+    const outWidth = plan.nativeLayout ? region.width : Math.max(1, Math.round(rect[2] * scale));
+    const outHeight = plan.nativeLayout ? region.height : Math.max(1, Math.round(rect[3] * scale));
     const left = region.x + Math.floor((region.width - outWidth) / 2);
     const top = region.y + Math.floor((region.height - outHeight) / 2);
     const sx = source.width / plan.bbox.design.width;

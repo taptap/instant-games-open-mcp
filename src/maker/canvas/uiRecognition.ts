@@ -292,6 +292,18 @@ export function uiRecognitionSource(
     if (visited.has(id)) continue;
     visited.add(id);
     const current = document.nodes.find((item) => item.id === id);
+    if (node.uiArtTextId && current?.uiRecognition?.inputRole === 'design') {
+      const sources = document.nodes.filter(
+        (candidate) =>
+          candidate.sectionId === node.sectionId &&
+          candidate.uiRecognition?.inputRole === 'text-free' &&
+          document.edges.some(
+            (edge) =>
+              edge.from === current.id && edge.to === candidate.id && edge.kind === 'image-variant'
+          )
+      );
+      if (sources.length === 1) return sources[0];
+    }
     if (current?.uiRecognition) return current;
     pending.push(...document.edges.filter((edge) => edge.to === id).map((edge) => edge.from));
   }

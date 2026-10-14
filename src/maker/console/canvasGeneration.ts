@@ -62,7 +62,7 @@ export interface CanvasGenerationAttempt {
   id: string;
   canvasId: string;
   kind: CanvasGenerationKind;
-  toolName: 'generate_image' | 'create_video_task' | 'prepare_ui_atlas';
+  toolName: 'generate_image' | 'edit_image' | 'create_video_task' | 'prepare_ui_atlas';
   status: CanvasGenerationStatus;
   prompt: string;
   cutoutColor?: '#FF00FF' | '#00FF00';
@@ -255,6 +255,12 @@ export class CanvasGenerationService {
       }
     }
     const target = document.nodes.find((node) => node.id === options.targetNodeId);
+    const section = document.nodes.find((node) => node.id === target?.sectionId);
+    const editTextFree =
+      target?.uiRecognition?.inputRole === 'text-free' &&
+      (section?.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
+        (section?.templateCliOnly && section.templateSkills?.includes('maker-ui-bbox-workflow'))) &&
+      remoteReferences.length === 1;
     const uiAtlasPlan = target && selectedUiAtlasPlan(document, target);
     const prelayoutSource = sourceImageIds
       .map((id) => document.nodes.find((node) => node.id === id))
@@ -308,6 +314,12 @@ export class CanvasGenerationService {
     const targetSize =
       options.aspectRatio === 'source' ? size.targetSize : options.targetSize || size.targetSize;
     const [targetWidth, targetHeight] = targetSize.split('x').map(Number);
+    if (
+      uiAtlasPlan?.nativeLayout &&
+      (targetWidth !== uiAtlasPlan.nativeLayout.width ||
+        targetHeight !== uiAtlasPlan.nativeLayout.height)
+    )
+      throw new Error('输出尺寸与原尺寸预排记录不一致；尚未提交生图。');
     if (usesPrelayout) {
       assertUiAtlasSources(files, uiAtlasPlan!);
       const preparedInfo = prelayoutSource?.assetPath && files.imageInfo(prelayoutSource.assetPath);
@@ -332,7 +344,10 @@ export class CanvasGenerationService {
       if (
         operation === 'outpaint' ||
         remoteReferences.length !== 1 ||
-        remoteReferences[0] !== uiAtlasPlan.bbox.cutSource.path
+        remoteReferences[0] !==
+          (uiAtlasPlan.slots.every((slot) => slot.role === 'text')
+            ? uiAtlasPlan.bbox.design.path
+            : uiAtlasPlan.bbox.cutSource.path)
       )
         throw new Error('Bbox 预排必须仅引用当前去文字图，不能混入其它参考图或扩图。');
       preparedPath = await prepareUiAtlasReference(
@@ -393,7 +408,12 @@ export class CanvasGenerationService {
     const attempt = this.createAttempt({
       canvasId: options.canvasId,
       kind: 'image',
-      toolName: localPrelayout ? 'prepare_ui_atlas' : 'generate_image',
+      toolName: localPrelayout
+        ? 'prepare_ui_atlas'
+        : ((usesPrelayout && uiAtlasPlan?.nativeLayout) || editTextFree) &&
+            provider.source === 'maker'
+          ? 'edit_image'
+          : 'generate_image',
       prompt: options.prompt,
       uiAtlasPlan,
       cutoutColor: options.cutoutColor,
@@ -462,7 +482,7 @@ export class CanvasGenerationService {
       }
       const result = await callRemoteProxyTool({
         targetDir: this.projectRoot,
-        name: 'generate_image',
+        name: attempt.toolName === 'edit_image' ? 'edit_image' : 'generate_image',
         manager: this.remoteProxyManager,
         args: {
           prompt: attempt.submittedPrompt,
@@ -471,7 +491,11 @@ export class CanvasGenerationService {
           aspect_ratio: size.aspectRatio,
           ...(options.model ? { model: options.model } : {}),
           ...(options.resolution ? { resolution: options.resolution } : {}),
-          ...(remoteReferences.length ? { reference_images: remoteReferences } : {}),
+          ...(attempt.toolName === 'edit_image'
+            ? { image: remoteReferences[0] }
+            : remoteReferences.length
+              ? { reference_images: remoteReferences }
+              : {}),
         },
       });
       const payload = resultPayload(result);

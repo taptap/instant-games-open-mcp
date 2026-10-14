@@ -67,12 +67,20 @@ test('official Bbox preset preserves tested prompts, media and final export layo
     for (const file of templateAssetPaths(prepared)) {
       expect(fs.statSync(path.join(root, file)).size).toBeGreaterThan(0);
     }
-    expect(prepared.nodes.flatMap((node) => node.imageAssetsInfo?.items || [])).toHaveLength(91);
+    expect(prepared.cliOnly).toBe(true);
+    expect(prepared.nodes).toHaveLength(3);
+    expect(prepared.nodes.flatMap((node) => node.imageAssetsInfo?.items || [])).toHaveLength(0);
     const instance = createCanvasTemplateModel(createId).instantiate(prepared, { x: 0, y: 0 });
     canvas.nodes = instance.nodes;
     canvas.edges = instance.edges;
     await files.save(canvas.id, canvas, canvas.revision);
-    expect((await files.load(canvas.id)).nodes).toHaveLength(59);
+    const reopened = await files.load(canvas.id);
+    expect(reopened.nodes).toHaveLength(4);
+    expect(reopened.nodes.find((node) => node.type === 'section')?.templateCliOnly).toBe(true);
+    const snapshot = createCanvasTemplateModel().snapshot(reopened, [instance.section.id], 'copy');
+    expect(snapshot.cliOnly).toBe(true);
+    const saved = await files.saveTemplate(snapshot);
+    expect(files.getTemplate(saved.id).cliOnly).toBe(true);
     expect(
       instance.nodes.filter((node) => node.uiAtlasPrelayout).every((node) => node.templatePending)
     ).toBe(true);

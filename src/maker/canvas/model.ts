@@ -91,6 +91,7 @@ export interface CanvasNode {
   templateId?: string;
   templateRevision?: number;
   templateSkills?: string[];
+  templateCliOnly?: boolean;
   templatePending?: boolean;
   /** Wall-clock start of the current template flow. Absent means the duration was not measured. */
   workStartedAt?: number;
@@ -122,6 +123,7 @@ export interface CanvasNode {
   uiAtlasGroup?: UiAtlasGroup;
   /** Local Bbox crop/layout step; its output is a visible reference for downstream generation. */
   uiAtlasPrelayout?: boolean;
+  uiArtTextId?: string;
   /** Zero-based sheet index when a group is split into 5×5 atlases. */
   uiAtlasBatch?: number;
   uiAtlasPlan?: UiAtlasPlan;

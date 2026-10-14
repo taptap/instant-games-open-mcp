@@ -19,6 +19,7 @@ import {
 } from './automationReferences.js';
 import type { createCanvasGroupQueue } from './groupQueue.js';
 import { canvasModelGroup } from './model3d.js';
+import { syncUiBboxWorkflow } from './uiBboxWorkflow.js';
 import { canvasMarkFromInput } from './marks.js';
 
 export function createCanvasAutomationUi(options: {
@@ -137,6 +138,7 @@ export function createCanvasAutomationUi(options: {
         'from',
         'to',
       ],
+      'sync-ui-batches': ['id', 'artText', 'background'],
       'update-nodes': ['nodes'],
       'delete-nodes': ['ids'],
       duplicate: ['ids'],
@@ -229,6 +231,16 @@ export function createCanvasAutomationUi(options: {
         if (command.action === 'run' && target.type === 'mark')
           throw new Error('标注不能执行生成。');
         if (command.action === 'run') {
+          if (
+            target.type === 'section' &&
+            (target.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
+              (target.templateCliOnly && target.templateSkills?.includes('maker-ui-bbox-workflow')))
+          ) {
+            if (input.recognition === false)
+              throw new Error('实验模板需要当前识图结果，不能关闭识图。');
+            if (syncUiBboxWorkflow(structuredClone(current), target.id, false).length)
+              throw new Error('请先按 Skill 执行 sync-ui-batches，再运行分组。');
+          }
           const prelayoutRecognition =
             target.uiAtlasPrelayout && uiRecognitionSource(current, target);
           if (
@@ -364,6 +376,39 @@ export function createCanvasAutomationUi(options: {
       } else if (command.action === 'add-template') {
         if (typeof input.id !== 'string') throw new Error('缺少模板 id。');
         await options.addTemplate(input.id);
+      } else if (command.action === 'sync-ui-batches') {
+        const target = node(input.id, current);
+        if (
+          target.type !== 'section' ||
+          !(
+            typeof input.artText === 'boolean' ||
+            (Array.isArray(input.artText) &&
+              input.artText.length <= 120 &&
+              input.artText.every((id) => typeof id === 'string'))
+          ) ||
+          typeof input.background !== 'boolean'
+        )
+          throw new Error(
+            '请指定实验模板分组、artText 文字 ID 数组（或布尔值）及 background 布尔值。'
+          );
+        const members = current.nodes.filter((item) => item.sectionId === target.id);
+        if (members.some((item) => options.nodeBlocked(item.id)))
+          throw new Error('分组存在未确认任务或草稿，请先处理原任务。');
+        const source = members.find((item) => item.uiRecognition?.inputRole === 'text-free');
+        if (!source || !options.checkRecognition) throw new Error('缺少当前识图结果。');
+        await options.checkRecognition(source);
+        const next = structuredClone(current);
+        const created = syncUiBboxWorkflow(
+          next,
+          target.id,
+          input.artText as boolean | string[],
+          input.background
+        );
+        options.remember();
+        current.nodes = next.nodes;
+        current.edges = next.edges;
+        options.select(created.length ? created : [target.id]);
+        options.changed();
       } else if (command.action === 'add-node') {
         if (
           ![

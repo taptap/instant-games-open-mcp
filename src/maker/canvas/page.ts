@@ -55,6 +55,7 @@ import {
 } from './automation.js';
 import { connectCanvasAutomation } from './automationClient.js';
 import { createCanvasAutomationUi } from './automationUi.js';
+import { syncUiBboxWorkflow } from './uiBboxWorkflow.js';
 import { createCanvasModelUi, CANVAS_MODEL_STYLES } from './model3dUi.js';
 import {
   canvasModelInput,
@@ -304,6 +305,7 @@ export function getCanvasPageHtml(): string {
     validateCanvasCommand.toString(),
     connectCanvasAutomation.toString(),
     createCanvasAutomationUi.toString(),
+    syncUiBboxWorkflow.toString(),
     prepareCanvasImportedNode.toString(),
     prepareCanvasReferences.toString(),
     applyCanvasReferences.toString(),
@@ -416,6 +418,10 @@ export function getCanvasPageHtml(): string {
     `const UI_ATLAS_MAX_EDGE = ${UI_ATLAS_MAX_EDGE}; const UI_ATLAS_MAX_CELLS = ${UI_ATLAS_MAX_CELLS};`,
     uiBatchAtlasPlan.toString(),
     uiBatchAtlasPlans.toString(),
+    uiNativeAtlasPlans.toString(),
+    uiNativeArtTextPlan.toString(),
+    uiNativeSlotPlans.toString(),
+    uiNativeAtlasPrompt.toString(),
     uiWorkflowAtlasPlans.toString(),
     ensureUiAtlasBatchCards.toString(),
     uiBatchAtlasPrompt.toString(),
@@ -1909,7 +1915,7 @@ export function getCanvasPageHtml(): string {
       '  groupQueue = createCanvasGroupQueue({',
       '    getDocument: function () { return documentState; },',
       '    needs: function (id) { return templateWorkflow.status(id) === "pending"; },',
-      '    parallel: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); const group = node && documentState.nodes.find(function (item) { return item.id === node.sectionId; }); return Boolean(group && group.templateId === "7e1cb6ad-732f-4dc3-a951-000000000013" && node.type === "image" && !node.uiRecognition && canvasReferences(documentState, id).length); },',
+      '    parallel: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); const group = node && documentState.nodes.find(function (item) { return item.id === node.sectionId; }); return Boolean(group && (["7e1cb6ad-732f-4dc3-a951-000000000013", "7e1cb6ad-732f-4dc3-a951-000000000015"].includes(group.templateId) || (group.templateCliOnly && group.templateSkills?.includes("maker-ui-bbox-workflow"))) && node.type === "image" && !node.uiRecognition && !node.uiAtlasPrelayout && canvasReferences(documentState, id).length); },',
       '    save: flush,',
       '    problem: function (id) { if (sequenceUi.hasDraft(id)) return "此卡片有未保存的帧处理，请先保存或放弃后再继续队列。"; return generationUi.queueBlockReason(id); },',
       '    busy: function () { return templateWorkflow.isBusy || generationUi.isBusy || imageAssetsUi.isBusy || sequenceUi.isBusy || Boolean(sequenceEditor && sequenceEditor.isOpen) || Boolean(imageEditing && imageEditing.isBusy) || Boolean(videoHistory && videoHistory.isBusy) || pendingAssetImports > 0; },',
@@ -2333,6 +2339,10 @@ import {
   UI_ATLAS_MAX_CELLS,
   uiBatchAtlasPlan,
   uiBatchAtlasPlans,
+  uiNativeAtlasPlans,
+  uiNativeArtTextPlan,
+  uiNativeSlotPlans,
+  uiNativeAtlasPrompt,
   uiWorkflowAtlasPlans,
   ensureUiAtlasBatchCards,
   uiBatchAtlasPrompt,

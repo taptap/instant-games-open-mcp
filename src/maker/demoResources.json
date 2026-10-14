@@ -4167,6 +4167,545 @@
         "pixelSha256": "57b52eba416e3405346169c4633d4a528dab38574ff3fc68e8a0fb5c557a8ba7"
       },
       "cdn": "https://app-res.tapimg.com/img/2026-10-13/2e67f76b9d3f9affa65f89f2bc979e1b.png"
+    },
+    "6c18c38c4027c3bab47f51f05c6f63cbd2b5ecfd9b95a3e68879760517bb9831": {
+      "file": "6c18c38c4027c3bab47f51f05c6f63cbd2b5ecfd9b95a3e68879760517bb9831.png",
+      "size": 1595599,
+      "sha256": "6c18c38c4027c3bab47f51f05c6f63cbd2b5ecfd9b95a3e68879760517bb9831",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1753945,
+        "pixelSha256": "203e098f7d63710ed2c320a43138e1023a28ae889584354b51802503329e277a"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/275d43894e301735f74a6e256fe40792.png"
+    },
+    "7f9787b2ed309f0bea9639b4b4b050de37a4580cf394dc3b29cfe797de2f3260": {
+      "file": "7f9787b2ed309f0bea9639b4b4b050de37a4580cf394dc3b29cfe797de2f3260.png",
+      "size": 1661029,
+      "sha256": "7f9787b2ed309f0bea9639b4b4b050de37a4580cf394dc3b29cfe797de2f3260",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1802557,
+        "pixelSha256": "deb3a15573b2f94c4b152ebb34f3889ef727d0a779284eecf1d4c0848528d753"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/74ea9299edef82f1f850e947027e4955.png"
+    },
+    "c94c399452712c694cbeeaefb7401b2fbc1ab776fa5f1e52584d4f4265123e1a": {
+      "file": "c94c399452712c694cbeeaefb7401b2fbc1ab776fa5f1e52584d4f4265123e1a.png",
+      "size": 1412290,
+      "sha256": "c94c399452712c694cbeeaefb7401b2fbc1ab776fa5f1e52584d4f4265123e1a",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1547720,
+        "pixelSha256": "213d24c173fb4153d107f42bf980f34bf2d65affcb3f3dfd792ba4986cc6b946"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/ced6eee6e77be11054e4bb10258b64a4.png"
+    },
+    "099ba30073ac101d95b4f4cb3222441dc8b5644451df2a217c5ec244b1f2d291": {
+      "file": "099ba30073ac101d95b4f4cb3222441dc8b5644451df2a217c5ec244b1f2d291.png",
+      "size": 1083613,
+      "sha256": "099ba30073ac101d95b4f4cb3222441dc8b5644451df2a217c5ec244b1f2d291",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1256619,
+        "pixelSha256": "91bf788cda562f92044cf248a5b243dbd9991c3222f74c205245e6dd8cc82e16"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/444fcd6a1286ce6687565500c20ce4ac.png"
+    },
+    "be6e39463460d2d7895a1e0478785eaf2ddb6b0fa24d4a840154e9a10586188d": {
+      "file": "be6e39463460d2d7895a1e0478785eaf2ddb6b0fa24d4a840154e9a10586188d.png",
+      "size": 1269945,
+      "sha256": "be6e39463460d2d7895a1e0478785eaf2ddb6b0fa24d4a840154e9a10586188d",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1364082,
+        "pixelSha256": "cab0ca592293efb47dcaef85e47cb150c522482f8aeb4560cae60c853a9f4fae"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/b2e50d984b9ec0d1da3fe0e4e385aa4f.png"
+    },
+    "2a33da5665461a8b324d389bdcf19a6a0caa849693751b5fb76347b2ac90c831": {
+      "file": "2a33da5665461a8b324d389bdcf19a6a0caa849693751b5fb76347b2ac90c831.png",
+      "size": 2094250,
+      "sha256": "2a33da5665461a8b324d389bdcf19a6a0caa849693751b5fb76347b2ac90c831",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 2185163,
+        "pixelSha256": "c74d00c491744eec96915ec2d7110d61be3cb629ad3b4d7edb4fbb0340d6e2eb"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/5265aee21884f64db739b5265e6d599e.png"
+    },
+    "777b43cdda3ffb7fd8d628d7e075a6a3df72409e455b36deddf00a85a26e25c5": {
+      "file": "777b43cdda3ffb7fd8d628d7e075a6a3df72409e455b36deddf00a85a26e25c5.png",
+      "size": 861577,
+      "sha256": "777b43cdda3ffb7fd8d628d7e075a6a3df72409e455b36deddf00a85a26e25c5",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 944590,
+        "pixelSha256": "7a99fe2434cca2f133eab31b50a612db1ecf4c6e0bb0a601e65bc4bfbe663c21"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/2aac07dbcc8b117326cab484e9b62b6b.png"
+    },
+    "982e3a4e8f793f29ce3792cb35f2bf20b33515ce59ada1868ca1273cf4c80b43": {
+      "file": "982e3a4e8f793f29ce3792cb35f2bf20b33515ce59ada1868ca1273cf4c80b43.png",
+      "size": 773227,
+      "sha256": "982e3a4e8f793f29ce3792cb35f2bf20b33515ce59ada1868ca1273cf4c80b43",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 981611,
+        "pixelSha256": "279e46059f758628809284b8db17f675a558cdd70e8391713db9f4b2b6fb352e"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/803e394605b5b93fdff82fcd4c98c769.png"
+    },
+    "2089b55747975509de7031f5ddb486e0ff6bf29a46f2dbaef5fcf3ea3866b22b": {
+      "file": "2089b55747975509de7031f5ddb486e0ff6bf29a46f2dbaef5fcf3ea3866b22b.png",
+      "size": 1541525,
+      "sha256": "2089b55747975509de7031f5ddb486e0ff6bf29a46f2dbaef5fcf3ea3866b22b",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1892089,
+        "pixelSha256": "bdff7a66874be1790df0ae7f9c277dbd57186279146235631b73ddc8db693d62"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/2ffeec9c0d69623d76518d919d937f1d.png"
+    },
+    "17dd5807cf3816c11256fb1705370820200ea9a57b3d653dbc17c5027de98c7d": {
+      "file": "17dd5807cf3816c11256fb1705370820200ea9a57b3d653dbc17c5027de98c7d.png",
+      "size": 1517069,
+      "sha256": "17dd5807cf3816c11256fb1705370820200ea9a57b3d653dbc17c5027de98c7d",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1763192,
+        "pixelSha256": "49aa23e1884cac57c26b2c31a41a5d84c984b72a7620d0698c4bb4309b3bce9a"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/446e4dda9b4894bca98dd717a8b6dd6f.png"
+    },
+    "007fa009f63231d42ab1913e4a4e9a05b5a1e1948abbba1c070d3228d46981f7": {
+      "file": "007fa009f63231d42ab1913e4a4e9a05b5a1e1948abbba1c070d3228d46981f7.png",
+      "size": 1746642,
+      "sha256": "007fa009f63231d42ab1913e4a4e9a05b5a1e1948abbba1c070d3228d46981f7",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1907778,
+        "pixelSha256": "667af9fe13b212c1cd0a81b26341f1949af503540558b44215f76ce735b6b9a4"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/9a68a0f4ab802b986c0897dd5b88772c.png"
+    },
+    "c95a92d74e5724b31deef4b30afe84003d440ea4d0703b3f55224e84636888be": {
+      "file": "c95a92d74e5724b31deef4b30afe84003d440ea4d0703b3f55224e84636888be.png",
+      "size": 1410508,
+      "sha256": "c95a92d74e5724b31deef4b30afe84003d440ea4d0703b3f55224e84636888be",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1595109,
+        "pixelSha256": "d9c1475cf478626efe1ef4100a511be97e4ba34b80fa9cf3a6622626fc8b21a7"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/930e409d7ae7328eac037a8e57309e17.png"
+    },
+    "c10e96c20f66376e0ae7a759240992f4198fd427a2a3ca7fe8255dca591f47f0": {
+      "file": "c10e96c20f66376e0ae7a759240992f4198fd427a2a3ca7fe8255dca591f47f0.png",
+      "size": 1831720,
+      "sha256": "c10e96c20f66376e0ae7a759240992f4198fd427a2a3ca7fe8255dca591f47f0",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 2001326,
+        "pixelSha256": "53106e5300842f45e636ab000adaeb925a073b63c16af6ffa424032ccf6066e1"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/fb9a9685d9aee1ab96409b0aeaba08ee.png"
+    },
+    "94eb29c6c2be32d5afaaa5a192251fd20de46541d5350d4cd7c8a01398e11b9b": {
+      "file": "94eb29c6c2be32d5afaaa5a192251fd20de46541d5350d4cd7c8a01398e11b9b.png",
+      "size": 1369234,
+      "sha256": "94eb29c6c2be32d5afaaa5a192251fd20de46541d5350d4cd7c8a01398e11b9b",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1625557,
+        "pixelSha256": "686ae327f68bd438120c028197674871ab67e3cd9846ad0a2fbf44d9d199c898"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/7f57a0357e70fd4742387ef7110c750f.png"
+    },
+    "cfb5e5a7f7f82bd5be98126ae74edd7cd0b90e3915715c2fdc5bc761cff2756f": {
+      "file": "cfb5e5a7f7f82bd5be98126ae74edd7cd0b90e3915715c2fdc5bc761cff2756f.png",
+      "size": 664176,
+      "sha256": "cfb5e5a7f7f82bd5be98126ae74edd7cd0b90e3915715c2fdc5bc761cff2756f",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1480329,
+        "pixelSha256": "94e3c7cc2f5fe32ffe13d56e01259cbf28d77fc04638c9397b67f884f282a89b"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/f42c51e908376f9f7230a6d57f18aa43.png"
+    },
+    "e561e1b4a6e92f1dfae49e547be6f02e77b4efded3a04339c4ae4c3f4a7fd018": {
+      "file": "e561e1b4a6e92f1dfae49e547be6f02e77b4efded3a04339c4ae4c3f4a7fd018.png",
+      "size": 301876,
+      "sha256": "e561e1b4a6e92f1dfae49e547be6f02e77b4efded3a04339c4ae4c3f4a7fd018",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 368219,
+        "pixelSha256": "55e792b8d9e6d467166851124e2e7dd28af12e10697b6ac856a91516c750456e"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/91dc42793b060d516e4e6ce09fbb5702.png"
+    },
+    "d48982191207325f8959932b4fa20546597e1beff37d4a0f6cd09711d5b223ec": {
+      "file": "d48982191207325f8959932b4fa20546597e1beff37d4a0f6cd09711d5b223ec.png",
+      "size": 163087,
+      "sha256": "d48982191207325f8959932b4fa20546597e1beff37d4a0f6cd09711d5b223ec",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 212424,
+        "pixelSha256": "391fa8959e5820c5c8c7802ec209e8e1c732338cc27cdc119eefe6a14ef6dfc2"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/31502cf86895602ac8d360b6b09cb2fe.png"
+    },
+    "45a00d5a150b796788d589c74d9542c97d7dd24033d5504f040372095736a7cb": {
+      "file": "45a00d5a150b796788d589c74d9542c97d7dd24033d5504f040372095736a7cb.png",
+      "size": 669248,
+      "sha256": "45a00d5a150b796788d589c74d9542c97d7dd24033d5504f040372095736a7cb",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 839125,
+        "pixelSha256": "19fb3c2f5f4d7cccbc871ede9c533d3c90949f1ac05f6170a6116bf9c2f33814"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/28049572ef5d5a6b24e01ebd86a9f9f0.png"
+    },
+    "89a252543e2fea92cc757ebccdbe1805509ecf2eb9b7067e9af86083a0d024b4": {
+      "file": "89a252543e2fea92cc757ebccdbe1805509ecf2eb9b7067e9af86083a0d024b4.png",
+      "size": 425466,
+      "sha256": "89a252543e2fea92cc757ebccdbe1805509ecf2eb9b7067e9af86083a0d024b4",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 568684,
+        "pixelSha256": "3c2a33b76f68274f270d538fb02ff9293e69f446f3d4addb4d2296812414b7bb"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/d64ec496ecdd230b6b3b4d9d846a4e4e.png"
+    },
+    "f629adb97d4a8472cd8790f5b410c140f8f4510400f001f4b3eedac27aecf545": {
+      "file": "f629adb97d4a8472cd8790f5b410c140f8f4510400f001f4b3eedac27aecf545.png",
+      "size": 112341,
+      "sha256": "f629adb97d4a8472cd8790f5b410c140f8f4510400f001f4b3eedac27aecf545",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 132437,
+        "pixelSha256": "4ddefaa943d99e791ad02e43cced8721c8176a45ffcf5e270b4d02da8b9c2e4b"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/b8716c9e38360d9330dc36e76d916ab1.png"
+    },
+    "aa8520baf9105029d8d78bf571372a4a3b9e0ca3725cce87b1516ed4d385d2d8": {
+      "file": "aa8520baf9105029d8d78bf571372a4a3b9e0ca3725cce87b1516ed4d385d2d8.png",
+      "size": 53720,
+      "sha256": "aa8520baf9105029d8d78bf571372a4a3b9e0ca3725cce87b1516ed4d385d2d8",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 64921,
+        "pixelSha256": "10082e691454b05dd0c39f6e422f5c177a5db90a133127b65c5274ca8e76d303"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/c9eca8b19da3c67149c0ae1132e45b9a.png"
+    },
+    "146ef0524ca9b633bd5bb4d0317636e29cd684b5d7ef720d020560c8b1460a85": {
+      "file": "146ef0524ca9b633bd5bb4d0317636e29cd684b5d7ef720d020560c8b1460a85.png",
+      "size": 160547,
+      "sha256": "146ef0524ca9b633bd5bb4d0317636e29cd684b5d7ef720d020560c8b1460a85",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 206339,
+        "pixelSha256": "3779012e300e21cd9f9b26591c7ace19f1d5f1ca3b7917be88e36c6ed22e1287"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/1317f2812347d087f4124be4089f0bac.png"
+    },
+    "b164eb4947a9e69ecc176064c883389c10f121edccb915503f007fd1578622e3": {
+      "file": "b164eb4947a9e69ecc176064c883389c10f121edccb915503f007fd1578622e3.png",
+      "size": 84124,
+      "sha256": "b164eb4947a9e69ecc176064c883389c10f121edccb915503f007fd1578622e3",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 119522,
+        "pixelSha256": "eaece5ca9dfec429eddc26ce023c7178a8397b1620f76162c65234a7de905860"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/9215902eac2f97c539e1d67e66c201d5.png"
+    },
+    "1ba9757c3aae5cb068eab275ce457e8b8ccfadb12d7d0b3533c99f232fcec8d7": {
+      "file": "1ba9757c3aae5cb068eab275ce457e8b8ccfadb12d7d0b3533c99f232fcec8d7.png",
+      "size": 1063499,
+      "sha256": "1ba9757c3aae5cb068eab275ce457e8b8ccfadb12d7d0b3533c99f232fcec8d7",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1162400,
+        "pixelSha256": "560c07aa5b337f118b195c6678fc017fd18456745e5e8e08da5035e30c2569a0"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/432a88cdb09c078e0209db2697da9636.png"
+    },
+    "90a289cba766609b5b4436499ab6be6fed46b8d6c33660c7af7f3b58dbd355a4": {
+      "file": "90a289cba766609b5b4436499ab6be6fed46b8d6c33660c7af7f3b58dbd355a4.png",
+      "size": 906295,
+      "sha256": "90a289cba766609b5b4436499ab6be6fed46b8d6c33660c7af7f3b58dbd355a4",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1346963,
+        "pixelSha256": "0302fd96e7c7b6625aa22c0c329836c5f7cad2f3f6202c98ce1b8845e6f7bbbf"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/16a8c07c9ec3920c924ff36836bb6c7f.png"
+    },
+    "ec87c4968f7f752758bd65dc5a95165b450f9e20f35b83632ae5356d09e0bfd0": {
+      "file": "ec87c4968f7f752758bd65dc5a95165b450f9e20f35b83632ae5356d09e0bfd0.png",
+      "size": 768091,
+      "sha256": "ec87c4968f7f752758bd65dc5a95165b450f9e20f35b83632ae5356d09e0bfd0",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 900422,
+        "pixelSha256": "2e8612e6b03a648b1564840aa344306aa884c942da582f2ca95b3e83894f2e2d"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/480dc5fa96a0f23e75ef2ff279d455a3.png"
+    },
+    "e939ca230c8c50064bb248ba9be77a8309065a63538337bedc95d2852d18473c": {
+      "file": "e939ca230c8c50064bb248ba9be77a8309065a63538337bedc95d2852d18473c.png",
+      "size": 585323,
+      "sha256": "e939ca230c8c50064bb248ba9be77a8309065a63538337bedc95d2852d18473c",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 871239,
+        "pixelSha256": "e74b6518fa46e539fb3363329e2d1140168555e64434c547f1c561784ee9f7c6"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/383b2d8ca45fbcae3c5de31cecafce42.png"
+    },
+    "9c3c3a8732db7966298e20ef0384632888d57ef7c2c766ea70bc09b0d671397b": {
+      "file": "9c3c3a8732db7966298e20ef0384632888d57ef7c2c766ea70bc09b0d671397b.png",
+      "size": 597442,
+      "sha256": "9c3c3a8732db7966298e20ef0384632888d57ef7c2c766ea70bc09b0d671397b",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 786580,
+        "pixelSha256": "5a46dd869e534bb8ea7aaddfc06f73a0ca2a70ea55d9e8bdb0fb5493925ef4a9"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/63097ff227cd89cfe82efb833b27faac.png"
+    },
+    "ddceb5d1bc9294176531f20f4c66a40edd65305ce3920580a3bac6298954626c": {
+      "file": "ddceb5d1bc9294176531f20f4c66a40edd65305ce3920580a3bac6298954626c.png",
+      "size": 283953,
+      "sha256": "ddceb5d1bc9294176531f20f4c66a40edd65305ce3920580a3bac6298954626c",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 376371,
+        "pixelSha256": "bb085ed17185c60c34f15f6d0e1cbf50a5e31c64a18a881c94821aff78965a07"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/406d67f1649a0dd71525cbc53c08a95f.png"
+    },
+    "f158622e346a1e71a8799891fa7c9b017b8a1a3160c5914bbb4275861bc7725b": {
+      "file": "f158622e346a1e71a8799891fa7c9b017b8a1a3160c5914bbb4275861bc7725b.png",
+      "size": 937341,
+      "sha256": "f158622e346a1e71a8799891fa7c9b017b8a1a3160c5914bbb4275861bc7725b",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1114911,
+        "pixelSha256": "fcd2cb7eb87abe217a138a0099484c36bc5daf10ef7f2ad0c94e5985a8483ebe"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/1ad7282e984a756e678074db853c1eb0.png"
+    },
+    "2ce8d2d6ad2d73844512e5dd01f0b984d6cd124e02181c34d9ef0e6c07f15384": {
+      "file": "2ce8d2d6ad2d73844512e5dd01f0b984d6cd124e02181c34d9ef0e6c07f15384.png",
+      "size": 1115277,
+      "sha256": "2ce8d2d6ad2d73844512e5dd01f0b984d6cd124e02181c34d9ef0e6c07f15384",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1310470,
+        "pixelSha256": "c7bb13a86d49f3b7f9d93a04f05ec1ca2eae0e53ed35fcff6962769fdf5ca048"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/709455f703d7a7ef36ffdb1662c4b42c.png"
+    },
+    "60df8c2943a40f401703a1d832b86f0ffc084c2587a9db8c775483c67fbcc0ed": {
+      "file": "60df8c2943a40f401703a1d832b86f0ffc084c2587a9db8c775483c67fbcc0ed.png",
+      "size": 132878,
+      "sha256": "60df8c2943a40f401703a1d832b86f0ffc084c2587a9db8c775483c67fbcc0ed",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 150520,
+        "pixelSha256": "bc2370ffa89cdea688ac37b954ef8c03e0e3d6b673608c317874fcde1a46f57d"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/bfe1f6a50f8ce576ae55d0ad2e75392c.png"
+    },
+    "912d76a048b2fc72f1c76faf3e4c9f27afc99a0b76a85d283ee1a8027f9414b4": {
+      "file": "912d76a048b2fc72f1c76faf3e4c9f27afc99a0b76a85d283ee1a8027f9414b4.png",
+      "size": 148729,
+      "sha256": "912d76a048b2fc72f1c76faf3e4c9f27afc99a0b76a85d283ee1a8027f9414b4",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 163380,
+        "pixelSha256": "f04a041a0d37f9f6cf6bde8ac28505a49658de75966284ee2821e5f66de603c8"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/e8ae79f24a9c70f0a44349e4c44688d5.png"
+    },
+    "abd49dbfcdf806aa66a2a771c885e0f1867346d8ecbcc61405ee5c79e7d6b5f0": {
+      "file": "abd49dbfcdf806aa66a2a771c885e0f1867346d8ecbcc61405ee5c79e7d6b5f0.png",
+      "size": 1627165,
+      "sha256": "abd49dbfcdf806aa66a2a771c885e0f1867346d8ecbcc61405ee5c79e7d6b5f0",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1822213,
+        "pixelSha256": "3cce489a2ca0a6b46cdd099ebbd346d4acf95f935393994a966309c7a3ebae81"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/13d6f98683a4f3ed91997736135a6bbb.png"
+    },
+    "a8fe27bbcf08a0acb377cab5d85ec1c1f9390d43fe7c7e7c4d64250d35a8d633": {
+      "file": "a8fe27bbcf08a0acb377cab5d85ec1c1f9390d43fe7c7e7c4d64250d35a8d633.png",
+      "size": 1197373,
+      "sha256": "a8fe27bbcf08a0acb377cab5d85ec1c1f9390d43fe7c7e7c4d64250d35a8d633",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1537220,
+        "pixelSha256": "bb0f211ad7e64ece2fe2e4107f1f2abeacdfa557608532e0e1eca4390ed14b60"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/c41482ec354718592ef2c7a00fc12e8d.png"
+    },
+    "55ea988827e01cce74427ffd126108f1daf94d91aafdae2ebef15ba9f8389970": {
+      "file": "55ea988827e01cce74427ffd126108f1daf94d91aafdae2ebef15ba9f8389970.png",
+      "size": 900773,
+      "sha256": "55ea988827e01cce74427ffd126108f1daf94d91aafdae2ebef15ba9f8389970",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1585284,
+        "pixelSha256": "c153c0cec3f8e10c6be8640ed2a12fa9eadd2e25bcced870d7d251caae2e6725"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/988a86ffb9535242a9ebdcb9073aeabd.png"
+    },
+    "3bc0ad7d4621ad03bbec8cf7380d9cad97aabc57c3558998b6bd4baff30f0e4f": {
+      "file": "3bc0ad7d4621ad03bbec8cf7380d9cad97aabc57c3558998b6bd4baff30f0e4f.png",
+      "size": 1311077,
+      "sha256": "3bc0ad7d4621ad03bbec8cf7380d9cad97aabc57c3558998b6bd4baff30f0e4f",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 2460450,
+        "pixelSha256": "a8b3b324a9a21b58bb78e34337f9430e228c9d4c18d30a7e353e481f03ef84eb"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/e2c707599bea41fe2a26e6e8fd98dec3.png"
+    },
+    "ce13d5312abe552faaade54c100d5867c29fdd97f59e15834f95fc019cac534e": {
+      "file": "ce13d5312abe552faaade54c100d5867c29fdd97f59e15834f95fc019cac534e.png",
+      "size": 1388452,
+      "sha256": "ce13d5312abe552faaade54c100d5867c29fdd97f59e15834f95fc019cac534e",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 2264510,
+        "pixelSha256": "8c2bc63ab5b44916fb94f844c788fa4087f0607e60f238cc5022fe0576a213ee"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/fdf33c03c8f8880862d34c25f68bd36a.png"
+    },
+    "0f224430f3786f724a1725e785419f23712fbe3a97f22cea822cf79d34b83207": {
+      "file": "0f224430f3786f724a1725e785419f23712fbe3a97f22cea822cf79d34b83207.png",
+      "size": 3112729,
+      "sha256": "0f224430f3786f724a1725e785419f23712fbe3a97f22cea822cf79d34b83207",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 3856061,
+        "pixelSha256": "b0b64a73f5f06c09fe472d6a144748b403abffe359bb1359eeb5f89777030c37"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/2bff50d35aa07e371428df50e65b485d.png"
+    },
+    "ba7fab28d7f87f1270e9320a3431b77b8b9d54234834af724e11058a65508709": {
+      "file": "ba7fab28d7f87f1270e9320a3431b77b8b9d54234834af724e11058a65508709.png",
+      "size": 1708817,
+      "sha256": "ba7fab28d7f87f1270e9320a3431b77b8b9d54234834af724e11058a65508709",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 3396697,
+        "pixelSha256": "918b7bb5c1ddacf02360470a61cdeacb2e79ed773c1b09746b4f53e6cead3e48"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/2bfd7dbbbb5b1ce7f45567ab30ac6189.png"
+    },
+    "0e91519227a540fdaaa9fe9e447cf959a658bc318a3cb0df84aab80e242acc64": {
+      "file": "0e91519227a540fdaaa9fe9e447cf959a658bc318a3cb0df84aab80e242acc64.png",
+      "size": 527574,
+      "sha256": "0e91519227a540fdaaa9fe9e447cf959a658bc318a3cb0df84aab80e242acc64",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1016337,
+        "pixelSha256": "1bedc98e717377cfb28966d339ce857f079d92365b9dc2d65d2990d0fc449623"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/d6a5b56a91a3516d8a7d3ea23491fe36.png"
+    },
+    "c8cc658104afee6d83405d06a2ea850d5a69acf60f194a0647a90e3ebc9c50fb": {
+      "file": "c8cc658104afee6d83405d06a2ea850d5a69acf60f194a0647a90e3ebc9c50fb.png",
+      "size": 728049,
+      "sha256": "c8cc658104afee6d83405d06a2ea850d5a69acf60f194a0647a90e3ebc9c50fb",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1457998,
+        "pixelSha256": "0d8b02d33b6c209f4350900e16e0a60b781158d9334b53c584f086d0979b25eb"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/8e5fbc1d0cf6e95fc9f607f05cca74a3.png"
+    },
+    "856e3cac11dc8002adfd541a2875b392032f422e27b8c8950d1f5184924d244a": {
+      "file": "856e3cac11dc8002adfd541a2875b392032f422e27b8c8950d1f5184924d244a.png",
+      "size": 169865,
+      "sha256": "856e3cac11dc8002adfd541a2875b392032f422e27b8c8950d1f5184924d244a",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 333076,
+        "pixelSha256": "3a71b1886b4d9d3ecdcb95336e2c292f8b3bbac113b08af83b53264a3f4e8087"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/21f02a0e84892e6ece8efcde86e52ff7.png"
+    },
+    "43019f9962d6199984d67b977bbb9ea587327343865c0eb33866824b4178e71c": {
+      "file": "43019f9962d6199984d67b977bbb9ea587327343865c0eb33866824b4178e71c.png",
+      "size": 249015,
+      "sha256": "43019f9962d6199984d67b977bbb9ea587327343865c0eb33866824b4178e71c",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 548029,
+        "pixelSha256": "a2fa9ba5e4dab570a4d132ac25e41e7a52c3b0599e89d015a2432739e0403a63"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/1a2efd56d2b5940fe243ca238812b3df.png"
+    },
+    "40149cae08dcdbbc7008fe30a800cdc99fc59ad466bed58765f73bb42476aff5": {
+      "file": "40149cae08dcdbbc7008fe30a800cdc99fc59ad466bed58765f73bb42476aff5.png",
+      "size": 1699291,
+      "sha256": "40149cae08dcdbbc7008fe30a800cdc99fc59ad466bed58765f73bb42476aff5",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 2508081,
+        "pixelSha256": "bbeefcdb806339d38b1919e0004c76fe0ec3e51c3bf906f4ca78e87f68120387"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/7014e4ed9643609a34f3e354e1f9d332.png"
+    },
+    "0c6996e4975c05ec031410327be221fec009c33753a7eeee2b1b3a49c6c92834": {
+      "file": "0c6996e4975c05ec031410327be221fec009c33753a7eeee2b1b3a49c6c92834.png",
+      "size": 623690,
+      "sha256": "0c6996e4975c05ec031410327be221fec009c33753a7eeee2b1b3a49c6c92834",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1219079,
+        "pixelSha256": "9a36797a994beb0aa9efa0beac8d98801896ff28f8c16bd14bbddb789961faa6"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/c0fb1b06f394fc35dac1741c47dd2cf5.png"
+    },
+    "8a20a4ecc5e28201f554f1f19ab8f7c2e60aa6e299128aabb563b3c614975a4b": {
+      "file": "8a20a4ecc5e28201f554f1f19ab8f7c2e60aa6e299128aabb563b3c614975a4b.png",
+      "size": 175981,
+      "sha256": "8a20a4ecc5e28201f554f1f19ab8f7c2e60aa6e299128aabb563b3c614975a4b",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 304425,
+        "pixelSha256": "50bd15607ee7faacc2af8497e70ddf37a7b96e5c93ef377cfb506f395a9d0d65"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/22e29f6ad44e41afb0e2532225dfe1cf.png"
+    },
+    "915e7c8582c06829d1f193f90a6f8b1ee55001f7ea820845d8e43c8afb4a8393": {
+      "file": "915e7c8582c06829d1f193f90a6f8b1ee55001f7ea820845d8e43c8afb4a8393.png",
+      "size": 1868265,
+      "sha256": "915e7c8582c06829d1f193f90a6f8b1ee55001f7ea820845d8e43c8afb4a8393",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 3302415,
+        "pixelSha256": "f179491943a374b0fa42297a4408735280d4b72870ebed7c64ad0d0f1b0fcb78"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/37acf372b5c737a5aabf6b7a266797f8.png"
+    },
+    "2053f1b45f8fb239ae4c58dd7cf48719f9b89d937b43342f44c41748d1bf8317": {
+      "file": "2053f1b45f8fb239ae4c58dd7cf48719f9b89d937b43342f44c41748d1bf8317.png",
+      "size": 966380,
+      "sha256": "2053f1b45f8fb239ae4c58dd7cf48719f9b89d937b43342f44c41748d1bf8317",
+      "type": "image/png",
+      "lossless": {
+        "sourceSize": 1692568,
+        "pixelSha256": "9190e59d83088520852ad0d712574cc65ca6e697d03bbd2cfd31b6cdfc7d083b"
+      },
+      "cdn": "https://app-res.tapimg.com/img/2026-10-14/bbe2a4803822396985870187458f8477.png"
     }
   }
 }

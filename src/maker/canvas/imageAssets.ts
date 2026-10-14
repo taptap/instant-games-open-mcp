@@ -133,6 +133,20 @@ export function imageAssetsBindingPlan(
 ): UiAtlasPlan | undefined {
   if (!source.generation?.uiAtlasPlan) return;
   const plan = validateUiAtlasPlan(source.generation.uiAtlasPlan);
+  if (plan.nativeLayout) {
+    const layout = plan.nativeLayout;
+    if (
+      info.width !== layout.width ||
+      info.height !== layout.height ||
+      JSON.stringify(info.regions) !== JSON.stringify(layout.regions) ||
+      info.items.length !== layout.regions.length ||
+      info.items.some(
+        (item, index) =>
+          item.width !== layout.regions[index].width || item.height !== layout.regions[index].height
+      )
+    )
+      throw new Error('原尺寸切图与已记录的位置或尺寸不一致，不能沿用绑定。');
+  }
   if (
     plan.slots.length !== info.items.length &&
     !(

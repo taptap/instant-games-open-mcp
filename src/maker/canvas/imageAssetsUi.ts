@@ -66,6 +66,14 @@ export function createImageAssetsUi(options: {
     };
   }
   function savedCut(source: CanvasNode, target?: CanvasNode): ImageAtlasCutSettings {
+    const layout = source.generation?.uiAtlasPlan?.nativeLayout;
+    if (layout)
+      return {
+        mode: 'grid',
+        regions: structuredClone(layout.regions),
+        expectedCount: layout.regions.length,
+        allowEmpty: true,
+      };
     const allowEmpty = Boolean(
       source.generation?.uiAtlasPlan || (source.uiAtlasGroup && source.uiBaselineGrid)
     );
@@ -179,7 +187,23 @@ export function createImageAssetsUi(options: {
       const background = backgroundFor(saved, target);
       const cut =
         cutInput === undefined ? savedCut(saved, target) : (cutInput as ImageAtlasCutSettings);
-      const prepared = await prepareImageAtlas(blob, grid, background.color, background.mode, cut);
+      if (
+        saved.generation?.uiAtlasPlan?.nativeLayout &&
+        JSON.stringify(cut.regions) !==
+          JSON.stringify(saved.generation.uiAtlasPlan.nativeLayout.regions)
+      )
+        throw new Error('原尺寸图集必须使用已记录的裁切坐标。');
+      const layout = saved.generation?.uiAtlasPlan?.nativeLayout;
+      const prepared = await prepareImageAtlas(
+        blob,
+        grid,
+        background.color,
+        background.mode,
+        cut,
+        saved.generation?.uiAtlasPlan
+      );
+      if (layout && (prepared.width !== layout.width || prepared.height !== layout.height))
+        throw new Error('实际图集尺寸与预排记录不一致，不能按原尺寸坐标切图。');
       if (saved.generation?.uiAtlasPlan && cut.mode === 'content')
         throw new Error('UI 顺序绑定请使用规则网格预览，不能按内容检测顺序自动配对。');
       const canvas = document.createElement('canvas');
@@ -333,7 +357,8 @@ export function createImageAssetsUi(options: {
         background.color,
         background.mode,
         savedCut(source, target),
-        prepared
+        prepared,
+        source.generation?.uiAtlasPlan
       );
       currentSource();
       imageAssetsBindingPlan(source, {

@@ -8,7 +8,9 @@ export function isGameUiResource(document: CanvasDocument | undefined, node: Can
         (section) =>
           section.id === node.sectionId &&
           section.type === 'section' &&
-          section.templateId === '7e1cb6ad-732f-4dc3-a951-000000000013'
+          (section.templateId === '7e1cb6ad-732f-4dc3-a951-000000000013' ||
+            section.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
+            (section.templateCliOnly && section.templateSkills?.includes('maker-ui-bbox-workflow')))
       ) ||
         document?.edges.some(
           (edge) =>

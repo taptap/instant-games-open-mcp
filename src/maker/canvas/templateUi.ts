@@ -164,6 +164,7 @@ export function createCanvasTemplateUi(options: {
         group.title = saved.name;
         group.templateId = saved.id;
         group.templateRevision = saved.revision;
+        if (saved.cliOnly) group.templateCliOnly = true;
         if (saved.skills?.length) group.templateSkills = [...saved.skills];
         else delete group.templateSkills;
         nodes.forEach((node) => {
@@ -350,6 +351,7 @@ export function createCanvasTemplateUi(options: {
       actions.className = 'template-card-actions';
       const count = document.createElement('small');
       count.textContent = summary.nodeCount + ' 张卡片';
+      if (summary.cliOnly) count.textContent = '仅 CLI 执行 · 按需创建卡片';
       const metadata = document.createElement('div');
       metadata.className = 'template-card-metadata';
       metadata.append(count);

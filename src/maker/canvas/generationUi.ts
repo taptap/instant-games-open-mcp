@@ -1100,27 +1100,40 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         : paths.length === 1
           ? sizes.get(paths[0])
           : undefined;
-      const outputSize = resolveImageSize(
+      let outputSize = resolveImageSize(
         settings.aspectRatio || '1:1',
         settings.resolution,
         originalInfo
       );
       if (options.getDocument() !== documentState) return;
       let cutoutColor: UiCutoutColor | undefined;
+      const correction = (node.generationDraft?.prompt || node.generation?.prompt || '')
+        .split(String.fromCharCode(10))
+        .find((line: string) => line.startsWith('输出排版校正：'));
       const extraction = selectedUiExtraction(documentState, node);
       if (extraction) {
         node.uiBaselinePrompt ??= prompt;
-        const correction = (node.generationDraft?.prompt || node.generation?.prompt || '')
-          .split(String.fromCharCode(10))
-          .find((line: string) => line.startsWith('输出排版校正：'));
         prompt = extraction.prompt + (correction ? String.fromCharCode(10) + correction : '');
       } else if (node.uiExtraction && node.uiBaselinePrompt) prompt = node.uiBaselinePrompt;
       const atlasPlan = selectedUiAtlasPlan(documentState, node);
+      if (atlasPlan?.nativeLayout) {
+        const { width, height } = atlasPlan.nativeLayout;
+        settings.aspectRatio = imageRatioInfo({ width, height }).common;
+        settings.resolution = Math.max(width, height) <= 1024 ? '1K' : '2K';
+        outputSize = {
+          aspectRatio: settings.aspectRatio!,
+          width,
+          height,
+          targetSize: width + 'x' + height,
+        };
+      }
       const usesPrelayout =
         !node.uiAtlasPrelayout && sourceNodes.some((source) => source.uiAtlasPrelayout);
-      if (node.uiAtlasGroup && atlasPlan) {
+      if (atlasPlan && (node.uiAtlasGroup || atlasPlan.nativeLayout)) {
         node.uiBaselinePrompt ??= prompt;
-        prompt = uiBatchAtlasPrompt(node.uiAtlasGroup, usesPrelayout);
+        prompt = atlasPlan.nativeLayout
+          ? uiNativeAtlasPrompt() + (correction ? String.fromCharCode(10) + correction : '')
+          : uiBatchAtlasPrompt(node.uiAtlasGroup!, usesPrelayout);
       } else if (node.uiAtlasGroup && node.uiBaselinePrompt) prompt = node.uiBaselinePrompt;
       if (atlasPlan)
         prompt =
@@ -1857,7 +1870,7 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       const panel = document.createElement('div');
       panel.className = 'generation-panel';
       const hint = document.createElement('small');
-      hint.textContent = '按当前 Bbox 裁片并排列到规则网格。本地处理，不调用 AI、不消耗积分。';
+      hint.textContent = '按当前 Bbox 和批次坐标预排。本地处理，不调用 AI、不消耗积分。';
       panel.append(
         hint,
         button(
@@ -2599,4 +2612,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     },
   };
 }
-import { selectedUiAtlasPlan, uiAtlasOrderPrompt, uiBatchAtlasPrompt } from './uiAssetBindings.js';
+import {
+  selectedUiAtlasPlan,
+  uiAtlasOrderPrompt,
+  uiBatchAtlasPrompt,
+  uiNativeAtlasPrompt,
+} from './uiAssetBindings.js';
