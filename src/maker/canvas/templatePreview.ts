@@ -1,5 +1,6 @@
 import type { CanvasTemplateStore } from './templates.js';
 import { canvasWirePath } from './wirePath.js';
+import { resourceBundleOwner } from './resourceBundle.js';
 
 export function openCanvasTemplatePreview(store: CanvasTemplateStore, id: string, name: string) {
   const dialog = document.createElement('dialog');
@@ -109,7 +110,7 @@ export function openCanvasTemplatePreview(store: CanvasTemplateStore, id: string
         return;
       }
       status.textContent = '';
-      const nodes = template.nodes;
+      const nodes = template.nodes.filter((node) => !resourceBundleOwner(template, node.id));
       const left = Math.min(...nodes.map((node) => node.x));
       const top = Math.min(...nodes.map((node) => node.y));
       const width = Math.max(...nodes.map((node) => node.x + node.width)) - left;
@@ -129,8 +130,10 @@ export function openCanvasTemplatePreview(store: CanvasTemplateStore, id: string
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.classList.add('template-preview-wires');
       for (const edge of template.edges) {
+        if (resourceBundleOwner(template, edge.from)) continue;
         const from = nodes.find((node) => node.id === edge.from);
-        const to = nodes.find((node) => node.id === edge.to);
+        const to =
+          resourceBundleOwner(template, edge.to) || nodes.find((node) => node.id === edge.to);
         if (!from || !to) continue;
         const path = document.createElementNS(svg.namespaceURI, 'path');
         path.setAttribute(
@@ -303,7 +306,7 @@ export function openCanvasTemplatePreview(store: CanvasTemplateStore, id: string
             const sources =
               node.type === 'image-assets'
                 ? [node]
-                : nodes.filter(
+                : template.nodes.filter(
                     (source) =>
                       source.type === 'image-assets' &&
                       template.edges.some(
