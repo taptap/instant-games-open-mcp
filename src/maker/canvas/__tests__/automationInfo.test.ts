@@ -70,7 +70,10 @@ test.each([true, false])('choices match update validation and schema (image=%s)'
   const schema = canvasParameterSchema()[image ? 'image' : 'video'];
   const document = emptyDocument();
   document.nodes = [node('target', image ? 'image' : 'video')];
-  expect(Object.keys(schema.properties)).toEqual(Object.keys(choices));
+  expect(Object.keys(schema.properties)).toEqual([
+    ...Object.keys(choices),
+    ...(image ? ['model'] : []),
+  ]);
   expect(schema.additionalProperties).toBe(false);
   for (const [name, values] of Object.entries(choices)) {
     expect(schema.properties[name].enum).toEqual(values);
@@ -88,13 +91,15 @@ test.each([true, false])('choices match update validation and schema (image=%s)'
       ).toThrow();
     }
   }
-  choices.model.push('mutated');
-  expect(canvasGenerationParameterChoices(image).model).not.toContain('mutated');
+  const key = image ? 'resolution' : 'model';
+  choices[key].push('mutated');
+  expect(canvasGenerationParameterChoices(image)[key]).not.toContain('mutated');
 });
 
 test('schema documents the execution combination without widening CLI choices', () => {
   const { image, video } = canvasParameterSchema();
-  expect(image.properties.model.enum).toEqual(['auto', 'gpt', 'nanobanana']);
+  expect(image.properties.model).toMatchObject({ type: 'string', minLength: 1, maxLength: 200 });
+  expect(image.properties.model.enum).toBeUndefined();
   expect(video.properties.duration).toEqual({ type: 'integer', enum: [4, 5, 6, 7, 8] });
   expect(video.properties.ratio.enum).toEqual(['adaptive', '1:1', '16:9', '9:16']);
   expect(video.allOf).toEqual([

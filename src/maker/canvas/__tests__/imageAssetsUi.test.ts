@@ -1,13 +1,18 @@
+import { imageAtlasRegions } from '../imageAtlasExport.js';
 import { randomUUID } from 'node:crypto';
 import { createImageAssetsUi } from '../imageAssetsUi.js';
 import { emptyDocument } from '../model.js';
 import { snapshotCanvasSource } from '../dependencies.js';
 import { setUiRecognitionMode } from '../uiRecognition.js';
-import { drawImageAtlasPreview, openImageAtlasDialog } from '../imageAtlasUi.js';
-import * as imageAtlasExport from '../imageAtlasExport.js';
+import { openImageAtlasDialog } from '../imageAtlasUi.js';
+import { drawImageAtlasPreview } from '../../../../packages/maker-canvas/src/browser/imageAtlasUi.js';
+import * as imageAtlasExport from '../../../../packages/maker-canvas/src/browser/imageAtlasExport.js';
 
 jest.mock('../imageAtlasUi.js', () => ({
   openImageAtlasDialog: jest.fn(),
+}));
+
+jest.mock('../../../../packages/maker-canvas/src/browser/imageAtlasUi.js', () => ({
   drawImageAtlasPreview: jest.fn(
     (_canvas, _bitmap, _grid, crops) => crops || [{ name: 'item_001' }]
   ),
@@ -60,7 +65,7 @@ function fixture() {
   );
   current.edges.push({ id: 'edge', kind: 'image-assets', from: 'source', to: 'target' });
   const options = {
-    current: () => current,
+    current: jest.fn(() => current),
     store: {
       mediaUrl: (path: string) => path,
       importImage: jest.fn(async () => ({
@@ -452,7 +457,7 @@ test.each([
       height: 60,
       grid: target.imageAssetsInfo!.grid,
       cutMode: 'grid',
-      regions: imageAtlasExport.imageAtlasRegions(80, 60, target.imageAssetsInfo!.grid),
+      regions: imageAtlasRegions(80, 60, target.imageAssetsInfo!.grid),
       background: { mode: 'connected' },
       items: [1, 2].map((index) => ({
         name: 'item_00' + index,
@@ -501,7 +506,7 @@ test.each(['source', 'grid', 'edge', 'canvas'])(
       if (change === 'source') current.nodes[0].assetPath = 'new-atlas.png';
       if (change === 'grid') target.imageAssetsInfo!.grid.rows = 2;
       if (change === 'edge') current.edges = [];
-      if (change === 'canvas') options.current = () => emptyDocument();
+      if (change === 'canvas') options.current.mockImplementation(() => emptyDocument());
       return new Response(new Blob(['image']));
     });
     await expect(ui.runSavedGrid(target.id)).rejects.toThrow('已变化');

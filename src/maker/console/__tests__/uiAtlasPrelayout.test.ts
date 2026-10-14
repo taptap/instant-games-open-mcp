@@ -1,3 +1,5 @@
+import * as imageModelDiscovery from '../canvasImageModels.js';
+import { imageModelsFixture } from '../../canvas/__tests__/imageModelsFixture.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -19,6 +21,8 @@ import * as bindings from '../../canvas/uiAssetBindings.js';
 import * as settings from '../visionSettings.js';
 import { callRemoteProxyTool } from '../../server/mcp.js';
 
+const discoverImageModels = imageModelDiscovery.canvasImageModels;
+
 jest.mock('../../server/mcp.js', () => ({ callRemoteProxyTool: jest.fn() }));
 
 const PNG = pngjs.PNG;
@@ -27,6 +31,20 @@ let files: MakerCanvasFiles;
 let plan: UiAtlasPlan;
 beforeEach(async () => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-ui-prelayout-'));
+  jest
+    .spyOn(imageModelDiscovery, 'canvasImageModels')
+    .mockImplementation((root, manager, tool, configured) => {
+      if (configured?.source === 'maker')
+        return Promise.resolve({
+          ...imageModelsFixture(tool),
+          provider: {
+            source: 'maker',
+            identity: imageModelDiscovery.canvasImageProviderIdentity(configured),
+          },
+        });
+      return discoverImageModels(root, manager, tool, configured);
+    });
+
   execFileSync('git', ['init'], { cwd: root });
   fs.writeFileSync(path.join(root, '.gitignore'), '.maker\n');
   files = new MakerCanvasFiles(root);

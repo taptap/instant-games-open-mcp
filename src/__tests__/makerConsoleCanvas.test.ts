@@ -102,7 +102,8 @@ describe('Maker console canvas', () => {
       const homeCsp = home.headers.get('content-security-policy') || '';
       expect(homeCsp).toContain("frame-ancestors 'none'");
       expect(homeCsp).not.toContain('maker-canvas');
-      expect(getCanvasPageHtml()).not.toContain('generate_image');
+      expect(getCanvasPageHtml()).toContain('image-models?tool=');
+      expect(getCanvasPageHtml()).not.toContain('callRemoteProxyTool');
       expect(getCanvasPageHtml()).not.toContain('create_video_task');
     } finally {
       await server.close();

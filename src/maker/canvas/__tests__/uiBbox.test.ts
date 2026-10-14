@@ -111,6 +111,6 @@ test('serialized browser validators include all Bbox dependencies', () => {
     .replace(/\bexports\./g, '');
   const bbox = bboxFixture();
   expect(
-    vm.runInNewContext(helpers + ';validateUiBbox(input)', { input: bbox }).elements[0].id
+    vm.runInNewContext(helpers + ';validateUiBboxStructure(input)', { input: bbox }).elements[0].id
   ).toBe('E001');
 });

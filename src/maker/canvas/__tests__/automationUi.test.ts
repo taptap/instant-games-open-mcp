@@ -1,4 +1,5 @@
-import { createCanvasAutomationUi } from '../automationUi.js';
+import { createCanvasAutomationUiWithHost as createCanvasAutomationUi } from '../../../../packages/maker-canvas/src/browser/automationUi.js';
+import { prepareCanvasNodeUpdates } from '../automation.js';
 import { emptyDocument } from '../model.js';
 
 const globals = globalThis as any;
@@ -25,6 +26,7 @@ function fixture() {
     generation: { prompt: 'old prompt' },
   });
   const options = {
+    prepareNodeUpdates: prepareCanvasNodeUpdates,
     current: () => current,
     blocked: jest.fn(() => undefined as string | undefined),
     nodeStatus: () => ({}),

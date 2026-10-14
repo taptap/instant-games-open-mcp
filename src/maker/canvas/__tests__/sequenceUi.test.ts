@@ -1,6 +1,9 @@
 import { createId, emptyDocument, type CanvasNode } from '../model.js';
 import { snapshotCanvasSource } from '../dependencies.js';
-import { createSequenceUiController, type SequenceUiOptions } from '../sequenceUi.js';
+import {
+  createSequenceUiControllerWithMedia as createSequenceUiController,
+  type SequenceUiOptions,
+} from '../../../../packages/maker-canvas/src/browser/sequenceUi.js';
 import {
   createSequenceProcessor,
   defaultSequenceSettings,
@@ -52,6 +55,11 @@ describe('sequence workflow recovery', () => {
     const snapshots: string[] = [];
     const options = {
       store: { mediaUrl: (value: string) => value, importImage: upload },
+      readAtlas: async (path: string, signal?: AbortSignal) => {
+        const response = await fetch(path, { signal });
+        if (!response.ok) throw new Error('无法读取已保存图集。');
+        return response.blob();
+      },
       processor: {
         extract: async () => [frame],
         findDuplicates: async () => [],
@@ -505,6 +513,9 @@ describe('sequence workflow recovery', () => {
     } as unknown as HTMLVideoElement;
     let lastRun: SequenceRunView | undefined;
     const controller = createSequenceUiController({
+      readAtlas: async () => {
+        throw new Error('saved atlas reading is not used in extraction');
+      },
       store: {
         list: async () => [],
         load: async () => document,
