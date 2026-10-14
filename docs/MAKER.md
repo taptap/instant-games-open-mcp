@@ -541,7 +541,8 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
   `create_video_task` 只在用户明确要求生成视频时调用，不得在实现玩法、补齐素材或自我优化时主动调用。
   当预估消耗超过 1000 积分时，必须先展示粗估并说明实际扣费以生成为准，得到用户明确确认后，
   再以相同参数并带 `user_confirmed=true` 重试。粗估按时长乘单价：`2.0` 为 200 积分/秒，`2.5` 为
-  300 积分/秒，`wan` 按北京刊例 7 折为 42/84/168 积分/秒。未指定时长或 `duration=-1` 按对应模型
+  300 积分/秒，`wan` 按北京刊例 7 折为 480p 42、720p 84、1080p 168 积分/秒；省略 `resolution`
+  时按 1080p 计费。未指定时长或 `duration=-1` 按对应模型
   最长时长保守估算；未超过该阈值或尚未确认时不要传 `user_confirmed=true`。
 - 发生冲突时解释为什么冲突、冲突文件在哪里、冲突内容是什么，并让 Agent 给出解决建议。
 - 冲突解决前必须让用户确认，不隐藏 unresolved conflict。
@@ -875,8 +876,9 @@ ElevenLabs，对话使用 Eleven v3 的 `stability` 与表演标签，角色试�
 `query_video_task` 用于按远端指引刷新视频任务状态、释放已完成任务额度并拿到最终视频结果。
 `edit_image` 和 `create_video_task` 调用前会基于映射优先把本地新生成素材路径改写为远端 URL；如果没有远端 URL
 但能解析到本地文件，`generate_image` / `batch_generate_images` 的参考图、`edit_image` 的输入图
-和参考图，以及 `create_video_task` 的参考图片/视频/音频会被改写成标准 data URL。其他支持的输入
-形态以远端 tool schema 为准。
+和参考图，以及 `create_video_task` 的参考图片/视频/音频会被改写成标准 data URL。`text_to_music`
+的 `imageUrls`、`videoUrls`、`audioUrls` 禁止 data URL：已有远端 URL 的生成素材会改写成该 URL，
+未同步的本地文件会拒绝，不会上传。其他支持的输入形态以远端 tool schema 为准。
 `create_3d_asset` 通过 `action=start/query/continue/get_options/post_process` 管理完整 3D
 资产生命周期。远端返回的未知字段和审核数据会完整保留；`payload.images` 中可解析的本地图片会
 转换为 CDN URL 或标准 data URL 后再转发。local runtime 的 `query` 结果通过 `model_files`

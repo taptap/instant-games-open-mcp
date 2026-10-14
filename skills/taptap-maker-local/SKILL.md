@@ -408,7 +408,8 @@ supports it. Follow the selected tool schema when one of these tools is used.
 - Only call `create_video_task` after the user explicitly requests video generation. Do not generate
   video proactively while implementing gameplay, filling asset gaps, or improving the game.
 - Estimate video cost as duration times 200 credits per second for `model="2.0"`, 300 for
-  `model="2.5"`, and 42/84/168 for `model="wan"`. If duration is omitted or `duration=-1`, estimate
+  `model="2.5"`, and for `model="wan"` 42 at 480p, 84 at 720p, and 168 at 1080p. When resolution is
+  omitted, wan is billed as 1080p, so use 168 credits per second. If duration is omitted or `duration=-1`, estimate
   at the model maximum. When the estimate exceeds 1000 credits, show the estimate and say actual
   billing is determined at generation, wait for explicit confirmation, then repeat the same request
   with `user_confirmed=true`. Do not pass `user_confirmed=true` before confirmation or at or below

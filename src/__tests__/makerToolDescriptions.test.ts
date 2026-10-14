@@ -172,8 +172,9 @@ describe('Maker non-audio tool descriptions', () => {
     expect(descriptions.create_video_task).toMatch(/200 credits per second.{0,40}model="2\.0"/iu);
     expect(descriptions.create_video_task).toMatch(/300 credits per second.{0,40}model="2\.5"/iu);
     expect(descriptions.create_video_task).toMatch(
-      /42\/84\/168 credits per second.{0,40}model="wan"/iu
+      /model="wan".{0,80}42 credits per second at 480p.{0,40}84 at 720p.{0,40}168 at 1080p/iu
     );
+    expect(descriptions.create_video_task).toMatch(/omitted, wan is billed as 1080p/iu);
     expect(descriptions.create_video_task).toMatch(
       /actual billing is determined when the video is generated/iu
     );

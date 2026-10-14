@@ -1017,6 +1017,68 @@ describe('Maker audio proxy tools', () => {
       fs.rmSync(outside, { recursive: true, force: true });
     }
   });
+
+  test('rewrites text_to_music remote urls and rejects unsynced local files', () => {
+    fs.mkdirSync(path.join(targetDir, '.maker/assets'), { recursive: true });
+    fs.mkdirSync(path.join(targetDir, 'assets/audio'), { recursive: true });
+    fs.mkdirSync(path.join(targetDir, 'assets/image'), { recursive: true });
+    fs.writeFileSync(path.join(targetDir, 'assets/audio/local.mp3'), 'audio');
+    fs.writeFileSync(
+      path.join(targetDir, '.maker/assets/generated-assets.json'),
+      JSON.stringify({
+        'assets/audio/theme.mp3': { cdnUrl: 'https://example.test/theme.mp3' },
+      })
+    );
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'text_to_music',
+      targetDir,
+      args: {
+        prompt: 'theme',
+        customMode: false,
+        audioUrls: ['assets/audio/theme.mp3', 'https://example.test/public.mp3'],
+        imageUrls: ['https://example.test/cover.png'],
+      },
+    });
+    expect(args.audioUrls).toEqual([
+      'https://example.test/theme.mp3',
+      'https://example.test/public.mp3',
+    ]);
+    expect(args.imageUrls).toEqual(['https://example.test/cover.png']);
+
+    expect(() =>
+      prepareRemoteProxyToolArgs({
+        toolName: 'text_to_music',
+        targetDir,
+        args: { prompt: 'theme', audioUrls: ['assets/audio/local.mp3'] },
+      })
+    ).toThrow(/no remote URL/);
+    expect(() =>
+      prepareRemoteProxyToolArgs({
+        toolName: 'text_to_music',
+        targetDir,
+        args: { prompt: 'theme', imageUrls: ['data:image/png;base64,YQ=='] },
+      })
+    ).toThrow(/data URL/);
+    expect(() =>
+      prepareRemoteProxyToolArgs({
+        toolName: 'text_to_music',
+        targetDir,
+        args: {
+          prompt: 'theme',
+          customMode: true,
+          audioUrls: ['https://example.test/public.mp3'],
+        },
+      })
+    ).toThrow(/customMode false/);
+
+    const remotePath = prepareRemoteProxyToolArgs({
+      toolName: 'text_to_music',
+      targetDir,
+      args: { prompt: 'theme', audioUrls: ['assets/audio/already-on-remote.mp3'] },
+    });
+    expect(remotePath.audioUrls).toEqual(['assets/audio/already-on-remote.mp3']);
+  });
 });
 
 function proxyTextResult(value: unknown): any {
