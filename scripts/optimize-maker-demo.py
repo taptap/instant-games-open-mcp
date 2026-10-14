@@ -80,7 +80,7 @@ def main():
         return value
     for name in ('presetData', 'assetPresetData', 'modelPresetData', 'templateModelData'):
         filename = ROOT / 'src/maker/canvas' / (name + '.json')
-        filename.write_text(json.dumps(replace(json.loads(filename.read_text())), ensure_ascii=False, indent=2) + '\n')
+        filename.write_text(json.dumps(replace(json.loads(filename.read_text())), ensure_ascii=False, separators=(',', ':')) + '\n')
     if 'editor' in manifest:
         manifest['editor'] = replace(manifest['editor'])
     manifest['resources'] = resources

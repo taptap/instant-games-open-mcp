@@ -7,6 +7,7 @@ import { templateAssetPaths } from '../templateArchive.js';
 import { createCanvasTemplateModel, templateCoverSource } from '../templates.js';
 import { createId } from '../model.js';
 import { templatePresentation } from '../templatePresentation.js';
+import { resourceBundleOwner } from '../resourceBundle.js';
 import presetData from '../assetPresetData.json';
 import { demoResourceInfo } from '../../demoResources.js';
 import { formatMakerSkillStatus, resolveMakerSkillSourceDir } from '../../cli/skill.js';
@@ -25,8 +26,8 @@ test('official Bbox preset preserves tested prompts, media and final export layo
     expect(
       fs.existsSync(path.join(resolveMakerSkillSourceDir('maker-ui-bbox-workflow'), 'SKILL.md'))
     ).toBe(true);
-    expect(preset.nodes).toHaveLength(58);
-    expect(preset.nodes.filter((node) => node.uiAtlasPrelayout)).toHaveLength(17);
+    expect(preset.nodes).toHaveLength(22);
+    expect(preset.nodes.filter((node) => node.uiAtlasPrelayout)).toHaveLength(6);
     for (const node of preset.nodes) {
       expect(node.generation?.prompt).toBe(
         original.nodes.find((item) => item.id === node.id)?.generation?.prompt
@@ -55,9 +56,11 @@ test('official Bbox preset preserves tested prompts, media and final export layo
       )
     );
     const bundle = preset.nodes.find((node) => node.type === 'resource-bundle')!;
+    const visibleNodes = preset.nodes.filter((node) => !resourceBundleOwner(preset, node.id));
+    expect(visibleNodes).toHaveLength(16);
     expect(bundle.y).toBeGreaterThan(
       Math.max(
-        ...preset.nodes.filter((node) => node !== bundle).map((node) => node.y + node.height)
+        ...visibleNodes.filter((node) => node !== bundle).map((node) => node.y + node.height)
       )
     );
     expect(templateAssetPaths(preset).every((file) => Boolean(preset.assets[file]))).toBe(true);

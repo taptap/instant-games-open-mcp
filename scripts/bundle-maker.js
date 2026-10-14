@@ -63,6 +63,26 @@ try {
     target: 'node16',
     format: 'esm',
     outfile,
+    plugins: [
+      {
+        name: 'compact-canvas-template-data',
+        setup(build) {
+          build.onLoad(
+            {
+              filter: /[\\/]canvas[\\/](?:presetData|assetPresetData|modelPresetData|templateModelData)\.json$/,
+            },
+            ({ path }) => {
+              // Keep template JSON compact even when the surrounding bundle is not minified.
+              const compact = JSON.stringify(JSON.parse(readFileSync(path, 'utf8')));
+              return {
+                contents: `export default JSON.parse(${JSON.stringify(compact)});`,
+                loader: 'js',
+              };
+            }
+          );
+        },
+      },
+    ],
     external: [
       'node:*',
       'fs',

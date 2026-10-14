@@ -1,6 +1,6 @@
 # Maker 示例资源维护
 
-官方画布模板使用 src/maker/demoResources.json。每个图片/视频一个地址，
+官方画布模板使用 src/maker/demoResources.json。每个图片/视频/MDL 模型一个地址，
 不打 ZIP，不增加 MCP tool。编辑器代码和 WASM 随包分发，示例改为外部链接，不再内置。
 
 ```text
@@ -23,7 +23,7 @@ node scripts/maker-demo-resources.mjs upload
 add 可选第二个文件参数作为列表缩略图。素材按 SHA-256 命名并去重，模板引用 resourceId。
 optimize 更新 ID 及已有模板/编辑器引用，PNG 优化编码，JPEG 优化熵编码，不缩放、量化或重新有损编码。
 压缩前后逐像素核对 RGBA、尺寸及颜色元数据，变大则保留原字节；验证失败立即停止。
-缩略图是单独的列表预览，不用于导入素材或游戏贴图；视频保留原字节。
+缩略图是单独的列表预览，不用于导入素材或游戏贴图；视频和 MDL 模型保留原字节。
 upload 在本地文件或无损检查不合格时拒绝上传；pending 可只查看待上传列表。
 
 这是官方模板图片的固定入库流程，包括缩略图；新图片先 add，再 prepare，最后引用
@@ -32,7 +32,7 @@ prepare 对已有合格记录跳过压缩，不反复处理已上传图片；不
 打包不自动压缩或上传，避免构建临时修改资源身份和 CDN 地址。
 
 Maker bundle 和独立 npm 包准备阶段自动执行同一检查：未压缩、文件哈希不匹配、资源引用缺失、
-图片内嵌或未登记 CDN 地址都会阻止打包。可手动运行 check --release 提前检查。
+图片或 MDL 模型内嵌、未登记 CDN 地址都会阻止打包。可手动运行 check --release 提前检查。
 主包和 Maker 的发布 Actions 还必须下载验证 CDN、GitHub 两个来源，任一失败即停止发布。
 这只约束随产品维护的官方模板；用户项目里的图片和自定义模板继续读本机，
 不会被自动压缩、上传或改写。
@@ -63,6 +63,10 @@ record 下载核对大小和 SHA-256 后才登记公司 CDN 地址；记录中�
 同一批全部通过才写索引，失败可修正后重跑。旧原图上传地址不能用于已压缩的新哈希文件。
 
 ## GitHub 备用与 npm
+
+画布模板的四份 `*Data.json` 使用无缩进 JSON，资源优化脚本也保持该格式。Maker bundle
+将这些定义作为紧凑 JSON 字符串加载，避免构建器重新展开缩进；模板数据本身仍随包分发。
+模型预览中的 MDL 与贴图引用 resourceId，少量材质、prefab 和 meta 描述仍内置。
 
 resources/maker-demo/ 存入公司仓库，但由 npm 排除规则排除。主包 Maker bundle 和
 独立 Maker 包/插件只包含资源索引，不包含这些媒体。资源使用 main 上的内容哈希文件名，

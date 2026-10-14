@@ -147,7 +147,7 @@ export function resourceBundleMembers(document: CanvasDocument, sectionId: strin
 }
 
 export function resourceBundleOwner(
-  document: CanvasDocument,
+  document: Pick<CanvasDocument, 'nodes' | 'edges'>,
   nodeId: string
 ): CanvasNode | undefined {
   const links = document.edges.filter((edge) => edge.from === nodeId);
