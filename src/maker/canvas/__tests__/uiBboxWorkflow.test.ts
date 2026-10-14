@@ -19,6 +19,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+// The complex fixture encodes native-size PNGs and exports the complete ZIP.
+jest.setTimeout(60000);
+
 function fixture(simple = true) {
   const preset = canvasPresets().find((item) => item.id.endsWith('000015'))!;
   const paths = new Map(
@@ -310,7 +313,9 @@ test('complex inputs expand beyond the simple case without duplicating existing 
 
 test('retires unselected art text branches and restores them without deleting previous assets', () => {
   const { current, group, cut } = fixture();
-  const texts = fixture(false).cut.uiRecognition!.results[0].bbox!.texts.slice(0, 2);
+  const texts = fixture(false)
+    .cut.uiRecognition!.results[0].bbox!.texts.slice(0, 2)
+    .map((text) => ({ ...text, parentId: null }));
   const bbox = cut.uiRecognition!.results[0].bbox!;
   bbox.texts = [texts[0]];
   syncUiBboxWorkflow(current, group.id, [texts[0].id]);
