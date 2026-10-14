@@ -125,217 +125,225 @@ export class CanvasGenerationService {
     referenceImagePaths?: string[];
     targetNodeId?: string;
   }): Promise<CanvasGenerationAttempt> {
-    const provider = generationProvider();
-    const files = new MakerCanvasFiles(this.projectRoot);
-    if (options.cutoutColor !== undefined && !['#FF00FF', '#00FF00'].includes(options.cutoutColor))
-      throw new Error('抠图底色无效。');
-    await files.assertWritableForGeneration();
-    const document = await files.load(options.canvasId);
-    const localPrelayout = document.nodes.some(
-      (node) => node.id === options.targetNodeId && node.uiAtlasPrelayout
-    );
-    const sourceImagePaths = options.sourceImagePaths?.length
-      ? options.sourceImagePaths
-      : options.sourceImagePath
-        ? [options.sourceImagePath]
-        : [];
-    const sourceImageIds = options.sourceImageIds?.length
-      ? options.sourceImageIds
-      : options.sourceImageId
-        ? [options.sourceImageId]
-        : [];
-    const operation = options.operation || (sourceImagePaths.length ? 'variant' : 'generate');
-    if (operation !== 'generate' && sourceImagePaths.length === 0) {
-      throw new Error('图片变体或扩展画面必须提供来源图片。');
-    }
-    const referenceImagePaths = options.referenceImagePaths || [];
-    if (sourceImagePaths.length + referenceImagePaths.length > 14 || sourceImageIds.length > 14) {
-      throw new Error('图片生成最多支持 14 张参考图。');
-    }
-    if (options.resolution && !['1K', '2K'].includes(options.resolution))
-      throw new Error('图片分辨率无效。');
-    if (options.aspectRatio && !['source', ...IMAGE_OUTPUT_RATIOS].includes(options.aspectRatio))
-      throw new Error('图片比例无效。');
-    if (options.targetSize && !/^[1-9]\d{0,3}x[1-9]\d{0,3}$/.test(options.targetSize))
-      throw new Error('图片目标尺寸无效。');
-    this.assertImageSources(document, sourceImageIds, sourceImagePaths, files);
-    for (const referencePath of referenceImagePaths) {
-      if (!files.readMedia(referencePath).type.startsWith('image/'))
-        throw new Error('参考图必须是项目内的图片素材。');
-    }
-    const remoteReferences = [...new Set([...sourceImagePaths, ...referenceImagePaths])];
-    if (options.targetNodeId) {
+    let attemptCreated = false;
+    try {
+      const provider = generationProvider();
+      const files = new MakerCanvasFiles(this.projectRoot);
+      if (
+        options.cutoutColor !== undefined &&
+        !['#FF00FF', '#00FF00'].includes(options.cutoutColor)
+      )
+        throw new Error('抠图底色无效。');
+      await files.assertWritableForGeneration();
+      const document = await files.load(options.canvasId);
+      const localPrelayout = document.nodes.some(
+        (node) => node.id === options.targetNodeId && node.uiAtlasPrelayout
+      );
+      const sourceImagePaths = options.sourceImagePaths?.length
+        ? options.sourceImagePaths
+        : options.sourceImagePath
+          ? [options.sourceImagePath]
+          : [];
+      const sourceImageIds = options.sourceImageIds?.length
+        ? options.sourceImageIds
+        : options.sourceImageId
+          ? [options.sourceImageId]
+          : [];
+      const operation = options.operation || (sourceImagePaths.length ? 'variant' : 'generate');
+      if (operation !== 'generate' && sourceImagePaths.length === 0) {
+        throw new Error('图片变体或扩展画面必须提供来源图片。');
+      }
+      const referenceImagePaths = options.referenceImagePaths || [];
+      if (sourceImagePaths.length + referenceImagePaths.length > 14 || sourceImageIds.length > 14) {
+        throw new Error('图片生成最多支持 14 张参考图。');
+      }
+      if (options.resolution && !['1K', '2K'].includes(options.resolution))
+        throw new Error('图片分辨率无效。');
+      if (options.aspectRatio && !['source', ...IMAGE_OUTPUT_RATIOS].includes(options.aspectRatio))
+        throw new Error('图片比例无效。');
+      if (options.targetSize && !/^[1-9]\d{0,3}x[1-9]\d{0,3}$/.test(options.targetSize))
+        throw new Error('图片目标尺寸无效。');
+      this.assertImageSources(document, sourceImageIds, sourceImagePaths, files);
+      for (const referencePath of referenceImagePaths) {
+        if (!files.readMedia(referencePath).type.startsWith('image/'))
+          throw new Error('参考图必须是项目内的图片素材。');
+      }
+      const remoteReferences = [...new Set([...sourceImagePaths, ...referenceImagePaths])];
+      if (options.targetNodeId) {
+        const target = document.nodes.find((node) => node.id === options.targetNodeId);
+        if (!target || target.type !== 'image') {
+          throw new Error('图片生成目标卡不存在或不是图片卡。');
+        }
+        const original = uiRecognitionSource(document, target);
+        if (original?.uiRecognition?.enabled && original.id !== target.id) {
+          const recognition = selectedUiRecognition(original);
+          if (
+            !recognition ||
+            !original.assetPath ||
+            createHash('sha256')
+              .update(fs.readFileSync(files.readMedia(original.assetPath).file))
+              .digest('hex') !== recognition.sourceSha256
+          )
+            throw new Error('原稿识图清单缺失或已过期，请重新识图后再生成。');
+        }
+      }
       const target = document.nodes.find((node) => node.id === options.targetNodeId);
-      if (!target || target.type !== 'image') {
-        throw new Error('图片生成目标卡不存在或不是图片卡。');
-      }
-      const original = uiRecognitionSource(document, target);
-      if (original?.uiRecognition?.enabled && original.id !== target.id) {
-        const recognition = selectedUiRecognition(original);
-        if (
-          !recognition ||
-          !original.assetPath ||
-          createHash('sha256')
-            .update(fs.readFileSync(files.readMedia(original.assetPath).file))
-            .digest('hex') !== recognition.sourceSha256
-        )
-          throw new Error('原稿识图清单缺失或已过期，请重新识图后再生成。');
-      }
-    }
-    const target = document.nodes.find((node) => node.id === options.targetNodeId);
-    const uiAtlasPlan = target && selectedUiAtlasPlan(document, target);
-    const prelayoutSource = sourceImageIds
-      .map((id) => document.nodes.find((node) => node.id === id))
-      .find((node) => node?.uiAtlasPrelayout);
-    const usesPrelayout = Boolean(prelayoutSource && !localPrelayout);
-    if (
-      usesPrelayout &&
-      (!prelayoutSource ||
-        sourceImageIds.length !== 1 ||
-        referenceImagePaths.length ||
-        prelayoutSource.templatePending ||
-        JSON.stringify(prelayoutSource.generation?.uiAtlasPlan) !== JSON.stringify(uiAtlasPlan) ||
-        isCanvasNodeStale(
-          prelayoutSource,
-          document.edges
-            .filter((edge) => edge.to === prelayoutSource.id)
-            .map((edge) => document.nodes.find((node) => node.id === edge.from)!)
-        ))
-    )
-      throw new Error('预排参考图已过期或槽位不匹配，请先重新执行预排。');
-    const recognitionSource = target && uiRecognitionSource(document, target);
-    const recognition =
-      recognitionSource && recognitionSource.id !== target?.id
-        ? selectedUiRecognition(recognitionSource)
-        : undefined;
-    const seed =
-      target && document.edges.some((edge) => edge.to === target.id)
-        ? target
-        : sourceImageIds.length === 1
-          ? document.nodes.find((node) => node.id === sourceImageIds[0])
+      const uiAtlasPlan = target && selectedUiAtlasPlan(document, target);
+      const prelayoutSource = sourceImageIds
+        .map((id) => document.nodes.find((node) => node.id === id))
+        .find((node) => node?.uiAtlasPrelayout);
+      const usesPrelayout = Boolean(prelayoutSource && !localPrelayout);
+      if (
+        usesPrelayout &&
+        (!prelayoutSource ||
+          sourceImageIds.length !== 1 ||
+          referenceImagePaths.length ||
+          prelayoutSource.templatePending ||
+          JSON.stringify(prelayoutSource.generation?.uiAtlasPlan) !== JSON.stringify(uiAtlasPlan) ||
+          isCanvasNodeStale(
+            prelayoutSource,
+            document.edges
+              .filter((edge) => edge.to === prelayoutSource.id)
+              .map((edge) => document.nodes.find((node) => node.id === edge.from)!)
+          ))
+      )
+        throw new Error('预排参考图已过期或槽位不匹配，请先重新执行预排。');
+      const recognitionSource = target && uiRecognitionSource(document, target);
+      const recognition =
+        recognitionSource && recognitionSource.id !== target?.id
+          ? selectedUiRecognition(recognitionSource)
           : undefined;
-    const originalNode = seed ? canvasOriginalImage(document, seed) : undefined;
-    const originalPath =
-      originalNode?.assetPath || (remoteReferences.length === 1 ? remoteReferences[0] : undefined);
-    const originalInfo = originalPath ? files.imageInfo(originalPath) : undefined;
-    const originalImage =
-      originalPath && originalInfo
-        ? { assetPath: originalPath, nodeId: originalNode?.id, ...originalInfo }
-        : undefined;
-    const requestedPixels = options.targetSize?.split('x').map(Number);
-    const requestedRatio =
-      options.aspectRatio ||
-      (requestedPixels
-        ? imageRatioInfo({ width: requestedPixels[0], height: requestedPixels[1] }).common
-        : '1:1');
-    if (!requestedRatio)
-      throw new Error(
-        '目标尺寸为非常见比例，可能影响结果；请明确选择支持的输出比例，尚未提交生图。'
-      );
-    const size = resolveImageSize(requestedRatio, options.resolution, originalInfo);
-    const targetSize =
-      options.aspectRatio === 'source' ? size.targetSize : options.targetSize || size.targetSize;
-    const [targetWidth, targetHeight] = targetSize.split('x').map(Number);
-    if (
-      uiAtlasPlan?.nativeLayout &&
-      (targetWidth !== uiAtlasPlan.nativeLayout.width ||
-        targetHeight !== uiAtlasPlan.nativeLayout.height)
-    )
-      throw new Error('输出尺寸与原尺寸预排记录不一致；尚未提交生图。');
-    if (usesPrelayout) {
-      assertUiAtlasSources(files, uiAtlasPlan!);
-      const preparedInfo = prelayoutSource?.assetPath && files.imageInfo(prelayoutSource.assetPath);
+      const seed =
+        target && document.edges.some((edge) => edge.to === target.id)
+          ? target
+          : sourceImageIds.length === 1
+            ? document.nodes.find((node) => node.id === sourceImageIds[0])
+            : undefined;
+      const originalNode = seed ? canvasOriginalImage(document, seed) : undefined;
+      const originalPath =
+        originalNode?.assetPath ||
+        (remoteReferences.length === 1 ? remoteReferences[0] : undefined);
+      const originalInfo = originalPath ? files.imageInfo(originalPath) : undefined;
+      const originalImage =
+        originalPath && originalInfo
+          ? { assetPath: originalPath, nodeId: originalNode?.id, ...originalInfo }
+          : undefined;
+      const requestedPixels = options.targetSize?.split('x').map(Number);
+      const requestedRatio =
+        options.aspectRatio ||
+        (requestedPixels
+          ? imageRatioInfo({ width: requestedPixels[0], height: requestedPixels[1] }).common
+          : '1:1');
+      if (!requestedRatio)
+        throw new Error(
+          '目标尺寸为非常见比例，可能影响结果；请明确选择支持的输出比例，尚未提交生图。'
+        );
+      const size = resolveImageSize(requestedRatio, options.resolution, originalInfo);
+      const targetSize =
+        options.aspectRatio === 'source' ? size.targetSize : options.targetSize || size.targetSize;
+      const [targetWidth, targetHeight] = targetSize.split('x').map(Number);
       if (
-        !preparedInfo ||
-        Math.abs(preparedInfo.width / preparedInfo.height / (targetWidth / targetHeight) - 1) > 0.01
+        uiAtlasPlan?.nativeLayout &&
+        (targetWidth !== uiAtlasPlan.nativeLayout.width ||
+          targetHeight !== uiAtlasPlan.nativeLayout.height)
       )
-        throw new Error('输出比例与预排图不一致，请使用相同比例或重新预排；尚未提交生图。');
-    }
-    if (imageResultWarning({ width: targetWidth, height: targetHeight }, size.targetSize))
-      throw new Error('目标尺寸与输出比例冲突，请检查生成参数；尚未提交生图。');
-    if (
-      uiAtlasPlan &&
-      !options.prompt.includes(
-        uiAtlasOrderPrompt(uiAtlasPlan, size.width / size.height, usesPrelayout)
-      )
-    )
-      throw new Error('UI 槽位清单或提示词已变化，请重新确认后生成。');
-    let preparedPath: string | undefined;
-    if (localPrelayout) {
-      if (!uiAtlasPlan) throw new Error('Bbox 预排需要当前识图清单，请先完成识图；尚未提交生图。');
-      if (
-        operation === 'outpaint' ||
-        remoteReferences.length !== 1 ||
-        remoteReferences[0] !==
-          (uiAtlasPlan.slots.every((slot) => slot.role === 'text')
-            ? uiAtlasPlan.bbox.design.path
-            : uiAtlasPlan.bbox.cutSource.path)
-      )
-        throw new Error('Bbox 预排必须仅引用当前去文字图，不能混入其它参考图或扩图。');
-      preparedPath = await prepareUiAtlasReference(
-        files,
-        uiAtlasPlan,
-        targetWidth,
-        targetHeight,
-        options.cutoutColor || '#00FF00'
-      );
-    }
-    const references = remoteReferences.flatMap((assetPath) => {
-      const info = files.imageInfo(assetPath);
-      return info ? [{ assetPath, ...info }] : [];
-    });
-    const warnings = [
-      ...new Set(
-        [...references, ...(originalImage ? [originalImage] : [])].flatMap(
-          (info) => imageRatioInfo(info).warning || []
+        throw new Error('输出尺寸与原尺寸预排记录不一致；尚未提交生图。');
+      if (usesPrelayout) {
+        assertUiAtlasSources(files, uiAtlasPlan!);
+        const preparedInfo =
+          prelayoutSource?.assetPath && files.imageInfo(prelayoutSource.assetPath);
+        if (
+          !preparedInfo ||
+          Math.abs(preparedInfo.width / preparedInfo.height / (targetWidth / targetHeight) - 1) >
+            0.01
         )
-      ),
-    ];
-    const sizingPrompt = [
-      ...references.map(
-        (info) =>
-          '参考图' +
-          (remoteReferences.indexOf(info.assetPath) + 1) +
-          '实际尺寸：' +
-          info.width +
-          '×' +
-          info.height +
+          throw new Error('输出比例与预排图不一致，请使用相同比例或重新预排；尚未提交生图。');
+      }
+      if (imageResultWarning({ width: targetWidth, height: targetHeight }, size.targetSize))
+        throw new Error('目标尺寸与输出比例冲突，请检查生成参数；尚未提交生图。');
+      if (
+        uiAtlasPlan &&
+        !options.prompt.includes(
+          uiAtlasOrderPrompt(uiAtlasPlan, size.width / size.height, usesPrelayout)
+        )
+      )
+        throw new Error('UI 槽位清单或提示词已变化，请重新确认后生成。');
+      let preparedPath: string | undefined;
+      if (localPrelayout) {
+        if (!uiAtlasPlan)
+          throw new Error('Bbox 预排需要当前识图清单，请先完成识图；尚未提交生图。');
+        if (
+          operation === 'outpaint' ||
+          remoteReferences.length !== 1 ||
+          remoteReferences[0] !==
+            (uiAtlasPlan.slots.every((slot) => slot.role === 'text')
+              ? uiAtlasPlan.bbox.design.path
+              : uiAtlasPlan.bbox.cutSource.path)
+        )
+          throw new Error('Bbox 预排必须仅引用当前去文字图，不能混入其它参考图或扩图。');
+        preparedPath = await prepareUiAtlasReference(
+          files,
+          uiAtlasPlan,
+          targetWidth,
+          targetHeight,
+          options.cutoutColor || '#00FF00'
+        );
+      }
+      const references = remoteReferences.flatMap((assetPath) => {
+        const info = files.imageInfo(assetPath);
+        return info ? [{ assetPath, ...info }] : [];
+      });
+      const warnings = [
+        ...new Set(
+          [...references, ...(originalImage ? [originalImage] : [])].flatMap(
+            (info) => imageRatioInfo(info).warning || []
+          )
+        ),
+      ];
+      const sizingPrompt = [
+        ...references.map(
+          (info) =>
+            '参考图' +
+            (remoteReferences.indexOf(info.assetPath) + 1) +
+            '实际尺寸：' +
+            info.width +
+            '×' +
+            info.height +
+            '，比例 ' +
+            imageRatioInfo(info).ratio +
+            '。'
+        ),
+        ...(originalImage
+          ? ['原设计稿实际尺寸：' + originalImage.width + '×' + originalImage.height + '。']
+          : []),
+        ...(recognition && !usesPrelayout
+          ? [
+              '元素清单坐标基准为去文字识别输入图：' +
+                recognition.width +
+                '×' +
+                recognition.height +
+                '；参考图若尺寸不同，请按比例对应位置，不以原设计稿尺寸或图集格子坐标代替。',
+            ]
+          : []),
+        '本次输出尺寸：' +
+          targetSize +
           '，比例 ' +
-          imageRatioInfo(info).ratio +
-          '。'
-      ),
-      ...(originalImage
-        ? ['原设计稿实际尺寸：' + originalImage.width + '×' + originalImage.height + '。']
-        : []),
-      ...(recognition && !usesPrelayout
-        ? [
-            '元素清单坐标基准为去文字识别输入图：' +
-              recognition.width +
-              '×' +
-              recognition.height +
-              '；参考图若尺寸不同，请按比例对应位置，不以原设计稿尺寸或图集格子坐标代替。',
-          ]
-        : []),
-      '本次输出尺寸：' +
-        targetSize +
-        '，比例 ' +
-        (options.aspectRatio
-          ? size.aspectRatio
-          : imageRatioInfo({ width: targetWidth, height: targetHeight }).ratio) +
-        '。',
-      ...(options.aspectRatio === 'source'
-        ? ['保持原设计稿方向、构图和元素自身比例，不旋转、拉伸、裁去界面内容。']
-        : []),
-    ].join('\n');
-    const toolName = canvasImageTool(
-      document,
-      options.targetNodeId,
-      sourceImageIds,
-      remoteReferences.length
-    );
-    let model: string | undefined;
-    if (!localPrelayout) {
-      try {
+          (options.aspectRatio
+            ? size.aspectRatio
+            : imageRatioInfo({ width: targetWidth, height: targetHeight }).ratio) +
+          '。',
+        ...(options.aspectRatio === 'source'
+          ? ['保持原设计稿方向、构图和元素自身比例，不旋转、拉伸、裁去界面内容。']
+          : []),
+      ].join('\n');
+      const toolName = canvasImageTool(
+        document,
+        options.targetNodeId,
+        sourceImageIds,
+        remoteReferences.length
+      );
+      let model: string | undefined;
+      if (!localPrelayout) {
         if (provider.source === 'local')
           throw new ConsoleError(
             '当前使用本地模型（仅限 CLI 调用）。请让 Codex 等客户端读取 canvas model-settings，使用自身生图能力生成并通过 canvas import 导入图片；本次未提交生图，不会改用 Maker MCP。'
@@ -377,147 +385,148 @@ export class CanvasGenerationService {
                 ' 张输入图片（含来源图）；本次未提交。'
             );
         }
-      } catch (error) {
-        if (error instanceof Error)
-          throw Object.assign(error, {
-            code: 'CANVAS_IMAGE_NOT_SUBMITTED',
-            executionState: 'not_executed',
-          });
-        throw error;
       }
-    }
-    const attempt = this.createAttempt({
-      canvasId: options.canvasId,
-      kind: 'image',
-      toolName: localPrelayout
-        ? 'prepare_ui_atlas'
-        : provider.source === 'maker'
-          ? toolName
-          : 'generate_image',
-      prompt: options.prompt,
-      uiAtlasPlan,
-      cutoutColor: options.cutoutColor,
-      operation,
-      sourceImagePath: options.sourceImagePath || sourceImagePaths[0],
-      sourceImageId: options.sourceImageId || sourceImageIds[0],
-      sourceImagePaths,
-      sourceImageIds,
-      referenceImagePaths,
-      targetNodeId: options.targetNodeId,
-    });
-    attempt.sourceSnapshot = snapshotCanvasSource(
-      document.nodes.find((node) => node.id === sourceImageIds[0])
-    );
-    attempt.sourceSnapshots = sourceImageIds.flatMap((id) => {
-      const snapshot = snapshotCanvasSource(document.nodes.find((node) => node.id === id));
-      return snapshot ? [snapshot] : [];
-    });
-    attempt.targetAssetPath =
-      document.nodes.find((node) => node.id === options.targetNodeId)?.assetPath || '';
-    attempt.parameters = {
-      model: provider.source === 'custom' ? provider.profile?.model : model,
-      resolution: options.resolution,
-      targetSize,
-      aspectRatio: requestedRatio,
-    };
-    attempt.provider = localPrelayout ? 'local' : provider.source;
-    if (!localPrelayout && provider.source === 'custom') {
-      attempt.apiProfileId = provider.profile!.id;
-      attempt.apiModel = provider.profile!.model;
-    }
-    attempt.referenceImages = references;
-    attempt.originalImage = originalImage;
-    attempt.warnings = warnings;
-    attempt.submittedPrompt = options.prompt + '\n' + sizingPrompt;
-    if (preparedPath) {
-      attempt.deliveredAssetPath = preparedPath;
-      attempt.resultAssetPath = preparedPath;
-      this.finishImageDelivery(attempt, files);
-      return attempt;
-    }
-    this.writeAttempt(attempt);
-    try {
-      if (provider.source === 'custom') {
-        const result = await generateCustomImage(provider.profile!, {
-          prompt: attempt.submittedPrompt,
-          references: remoteReferences,
-          files,
-          targetSize,
-        });
-        attempt.remoteStatus = 'succeeded';
-        attempt.failureStage = 'download';
-        if (result.url) {
-          attempt.remoteAssetUrl = result.url;
-          this.writeAttempt(attempt);
-          attempt.deliveredAssetPath = await this.downloadRemoteImage(result.url);
-        } else {
-          // Keep paid bytes independently of the assets directory before attempting import.
-          this.cacheImageResponse(attempt, result.bytes!);
-          attempt.deliveredAssetPath = (await files.importImage(result.bytes!)).relativePath;
-        }
-        attempt.resultAssetPath = attempt.deliveredAssetPath;
-        this.writeAttempt(attempt);
+      const attempt = this.createAttempt({
+        canvasId: options.canvasId,
+        kind: 'image',
+        toolName: localPrelayout
+          ? 'prepare_ui_atlas'
+          : provider.source === 'maker'
+            ? toolName
+            : 'generate_image',
+        prompt: options.prompt,
+        uiAtlasPlan,
+        cutoutColor: options.cutoutColor,
+        operation,
+        sourceImagePath: options.sourceImagePath || sourceImagePaths[0],
+        sourceImageId: options.sourceImageId || sourceImageIds[0],
+        sourceImagePaths,
+        sourceImageIds,
+        referenceImagePaths,
+        targetNodeId: options.targetNodeId,
+      });
+      attemptCreated = true;
+      attempt.sourceSnapshot = snapshotCanvasSource(
+        document.nodes.find((node) => node.id === sourceImageIds[0])
+      );
+      attempt.sourceSnapshots = sourceImageIds.flatMap((id) => {
+        const snapshot = snapshotCanvasSource(document.nodes.find((node) => node.id === id));
+        return snapshot ? [snapshot] : [];
+      });
+      attempt.targetAssetPath =
+        document.nodes.find((node) => node.id === options.targetNodeId)?.assetPath || '';
+      attempt.parameters = {
+        model: provider.source === 'custom' ? provider.profile?.model : model,
+        resolution: options.resolution,
+        targetSize,
+        aspectRatio: requestedRatio,
+      };
+      attempt.provider = localPrelayout ? 'local' : provider.source;
+      if (!localPrelayout && provider.source === 'custom') {
+        attempt.apiProfileId = provider.profile!.id;
+        attempt.apiModel = provider.profile!.model;
+      }
+      attempt.referenceImages = references;
+      attempt.originalImage = originalImage;
+      attempt.warnings = warnings;
+      attempt.submittedPrompt = options.prompt + '\n' + sizingPrompt;
+      if (preparedPath) {
+        attempt.deliveredAssetPath = preparedPath;
+        attempt.resultAssetPath = preparedPath;
         this.finishImageDelivery(attempt, files);
         return attempt;
       }
-      const result = await callRemoteProxyTool({
-        targetDir: this.projectRoot,
-        name: attempt.toolName === 'edit_image' ? 'edit_image' : 'generate_image',
-        manager: this.remoteProxyManager,
-        args: {
-          prompt: attempt.submittedPrompt,
-          name: options.name || 'canvas-image',
-          target_size: targetSize,
-          aspect_ratio: size.aspectRatio,
-          ...(model ? { model } : {}),
-          ...(options.resolution ? { resolution: options.resolution } : {}),
-          ...(attempt.toolName === 'edit_image'
-            ? { image: remoteReferences[0] }
-            : remoteReferences.length
-              ? { reference_images: remoteReferences }
-              : {}),
-        },
-      });
-      const payload = resultPayload(result);
-      const source = stringField(payload.localPath);
-      const remoteAssetUrl = stringField(payload.previewUrl);
-      const download = isRecord(payload.download) ? payload.download : undefined;
-      attempt.credits = returnedCredits(payload.credits);
-      if (!source || !source.startsWith('assets/image/')) {
-        const downloadError = stringField(download?.error);
-        const recoverable = payload.success === true && Boolean(remoteAssetUrl);
-        if (recoverable) {
-          // Persist the paid URL before failing so a crash cannot drop it.
+      this.writeAttempt(attempt);
+      try {
+        if (provider.source === 'custom') {
+          const result = await generateCustomImage(provider.profile!, {
+            prompt: attempt.submittedPrompt,
+            references: remoteReferences,
+            files,
+            targetSize,
+          });
           attempt.remoteStatus = 'succeeded';
-          attempt.remoteAssetUrl = remoteAssetUrl;
-          attempt.status = 'failed';
           attempt.failureStage = 'download';
+          if (result.url) {
+            attempt.remoteAssetUrl = result.url;
+            this.writeAttempt(attempt);
+            attempt.deliveredAssetPath = await this.downloadRemoteImage(result.url);
+          } else {
+            // Keep paid bytes independently of the assets directory before attempting import.
+            this.cacheImageResponse(attempt, result.bytes!);
+            attempt.deliveredAssetPath = (await files.importImage(result.bytes!)).relativePath;
+          }
+          attempt.resultAssetPath = attempt.deliveredAssetPath;
+          this.writeAttempt(attempt);
+          this.finishImageDelivery(attempt, files);
+          return attempt;
+        }
+        const result = await callRemoteProxyTool({
+          targetDir: this.projectRoot,
+          name: attempt.toolName === 'edit_image' ? 'edit_image' : 'generate_image',
+          manager: this.remoteProxyManager,
+          args: {
+            prompt: attempt.submittedPrompt,
+            name: options.name || 'canvas-image',
+            target_size: targetSize,
+            aspect_ratio: size.aspectRatio,
+            ...(model ? { model } : {}),
+            ...(options.resolution ? { resolution: options.resolution } : {}),
+            ...(attempt.toolName === 'edit_image'
+              ? { image: remoteReferences[0] }
+              : remoteReferences.length
+                ? { reference_images: remoteReferences }
+                : {}),
+          },
+        });
+        const payload = resultPayload(result);
+        const source = stringField(payload.localPath);
+        const remoteAssetUrl = stringField(payload.previewUrl);
+        const download = isRecord(payload.download) ? payload.download : undefined;
+        attempt.credits = returnedCredits(payload.credits);
+        if (!source || !source.startsWith('assets/image/')) {
+          const downloadError = stringField(download?.error);
+          const recoverable = payload.success === true && Boolean(remoteAssetUrl);
+          if (recoverable) {
+            // Persist the paid URL before failing so a crash cannot drop it.
+            attempt.remoteStatus = 'succeeded';
+            attempt.remoteAssetUrl = remoteAssetUrl;
+            attempt.status = 'failed';
+            attempt.failureStage = 'download';
+            this.writeAttempt(attempt);
+          }
+          throw new Error(
+            recoverable
+              ? '图片已生成，本地下载未完成' +
+                (downloadError ? '：' + downloadError : '') +
+                '。已保留原地址，可重试本地下载，不会重新付费生成。'
+              : 'Maker MCP 已返回，但没有可用于画布的本地图片素材。'
+          );
+        }
+        attempt.remoteStatus = 'succeeded';
+        attempt.deliveredAssetPath = source;
+        attempt.failureStage = 'download';
+        this.writeAttempt(attempt);
+        this.finishImageDelivery(attempt, files);
+        return attempt;
+      } catch (error) {
+        this.failAttempt(attempt, error);
+        if (
+          error instanceof ImageApiResponseError &&
+          [400, 401, 403, 404, 422].includes(error.status)
+        ) {
+          attempt.status = 'failed';
           this.writeAttempt(attempt);
         }
-        throw new Error(
-          recoverable
-            ? '图片已生成，本地下载未完成' +
-              (downloadError ? '：' + downloadError : '') +
-              '。已保留原地址，可重试本地下载，不会重新付费生成。'
-            : 'Maker MCP 已返回，但没有可用于画布的本地图片素材。'
-        );
+        return attempt;
       }
-      attempt.remoteStatus = 'succeeded';
-      attempt.deliveredAssetPath = source;
-      attempt.failureStage = 'download';
-      this.writeAttempt(attempt);
-      this.finishImageDelivery(attempt, files);
-      return attempt;
     } catch (error) {
-      this.failAttempt(attempt, error);
-      if (
-        error instanceof ImageApiResponseError &&
-        [400, 401, 403, 404, 422].includes(error.status)
-      ) {
-        attempt.status = 'failed';
-        this.writeAttempt(attempt);
-      }
-      return attempt;
+      if (!attemptCreated && error instanceof Error)
+        Object.assign(error, {
+          code: 'CANVAS_IMAGE_NOT_SUBMITTED',
+          executionState: 'not_executed',
+        });
+      throw error;
     }
   }
 

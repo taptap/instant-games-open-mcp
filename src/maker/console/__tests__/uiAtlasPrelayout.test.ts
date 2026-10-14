@@ -1,5 +1,5 @@
 import * as imageModelDiscovery from '../canvasImageModels.js';
-import { imageModelsFixture } from '../../canvas/__tests__/imageModelsFixture.js';
+import { imageModelsFixture } from '../../canvas/__fixtures__/imageModels.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -193,7 +193,12 @@ test('local preparation works without an image provider and records a visible re
   expect(separated.referenceImages?.map((image) => image.assetPath)).toEqual([target.assetPath]);
   expect(submit.mock.calls[0][0].args?.reference_images).toEqual([target.assetPath]);
   plan.bbox.cutSource.sha256 = '0'.repeat(64);
-  await expect(service.generateImage(next)).rejects.toThrow('预排');
+  const stale = service.generateImage(next);
+  await expect(stale).rejects.toThrow('预排');
+  await expect(stale).rejects.toMatchObject({
+    code: 'CANVAS_IMAGE_NOT_SUBMITTED',
+    executionState: 'not_executed',
+  });
   expect(submit).toHaveBeenCalledTimes(1);
   jest.mocked(settings.generationProvider).mockReturnValue({ source: 'local', profile: undefined });
   await expect(

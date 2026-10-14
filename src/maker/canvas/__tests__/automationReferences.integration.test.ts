@@ -1,4 +1,4 @@
-import { imageModelsFixture } from './imageModelsFixture.js';
+import { imageModelsFixture } from '../__fixtures__/imageModels.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

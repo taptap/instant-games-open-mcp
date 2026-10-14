@@ -1,5 +1,5 @@
 import * as imageModelDiscovery from '../canvasImageModels.js';
-import { imageModelsFixture } from '../../canvas/__tests__/imageModelsFixture.js';
+import { imageModelsFixture } from '../../canvas/__fixtures__/imageModels.js';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -93,6 +93,24 @@ describe('CanvasGenerationService', () => {
 
   const customPng =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=';
+
+  test.each([
+    { resolution: 'invalid' },
+    { operation: 'variant' as const },
+    { targetNodeId: 'missing' },
+  ])('marks preflight rejection as unsubmitted before model discovery: %j', async (input) => {
+    const canvas = await new MakerCanvasFiles(root).create('preflight', 'empty');
+    const service = new CanvasGenerationService(root, {} as any);
+    await expect(
+      service.generateImage({ canvasId: canvas.id, prompt: 'test', ...input })
+    ).rejects.toMatchObject({
+      code: 'CANVAS_IMAGE_NOT_SUBMITTED',
+      executionState: 'not_executed',
+    });
+    expect(imageModelDiscovery.canvasImageModels).not.toHaveBeenCalled();
+    expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
+    expect(service.list(canvas.id)).toEqual([]);
+  });
 
   test('validates atlas slot prompts against the requested landscape output ratio', async () => {
     useCustomApi();

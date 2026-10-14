@@ -1,4 +1,4 @@
-import { imageModelsFixture } from './imageModelsFixture.js';
+import { imageModelsFixture } from '../__fixtures__/imageModels.js';
 import { createCanvasGenerationUi } from '../generationUi.js';
 import { snapshotCanvasSource } from '../dependencies.js';
 import { canvasNeedsProcessing } from '../templateWorkflow.js';
@@ -877,6 +877,66 @@ describe('image reference drafts and refresh', () => {
   function displayedPaths() {
     return elements.filter((element) => element.tag === 'img').map((element) => element.src);
   }
+
+  test.each([true, false])(
+    'only an explicit unsubmitted rejection clears unknown state (%s)',
+    async (explicit) => {
+      const { options, ui, image } = imageFixture();
+      const error = new Error('source changed before submission');
+      if (explicit)
+        Object.assign(error, {
+          code: 'CANVAS_IMAGE_NOT_SUBMITTED',
+          executionState: 'not_executed',
+        });
+      options.store.generateImage.mockRejectedValue(error);
+      expect(await ui.runTemplateImage(image.id)).toBe(false);
+      expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+      expect(ui.nodeState(image.id)?.status).toBe(explicit ? undefined : 'unknown');
+    }
+  );
+
+  test('changing the displayed provider refuses submission without creating an unknown request', async () => {
+    const { document, options, ui, image } = imageFixture();
+    ui.render({ append: jest.fn() }, image, document.nodes);
+    await Promise.resolve();
+    options.store.imageModels.mockResolvedValue({
+      ...imageModelsFixture(),
+      provider: { source: 'maker', identity: 'changed' },
+    });
+    expect(await ui.runTemplateImage(image.id)).toBe(false);
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+    expect(options.setError).toHaveBeenCalledWith(expect.stringContaining('配置已变化'));
+    expect(ui.nodeState(image.id)).toBeUndefined();
+  });
+
+  test('changing size while model discovery is pending preserves the saved model', async () => {
+    const { document, options, ui, image } = imageFixture();
+    (image.generation as any).parameters = { model: 'gpt' };
+    let complete!: (value: ReturnType<typeof imageModelsFixture>) => void;
+    options.store.imageModels.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        })
+    );
+    ui.render({ append: jest.fn() }, image, document.nodes);
+    const fields = elements.find((element) => element.className === 'generation-fields');
+    const selects = elements.filter((element) => element.tag === 'select');
+    selects[1].value = '2K';
+    fields.events.change();
+    complete(imageModelsFixture());
+    await Promise.resolve();
+    expect(selects[0].value).toBe('gpt');
+    options.store.imageModels.mockResolvedValue(imageModelsFixture());
+    elements
+      .find((element) => element.textContent === '刷新结果')
+      .events.click({ stopPropagation() {} });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(options.store.generateImage.mock.calls[0][1]).toMatchObject({
+      model: 'gpt',
+      resolution: '2K',
+    });
+  });
 
   test.each([false, true])(
     'local image retry does not start a new generation, including merge icons: %s',
