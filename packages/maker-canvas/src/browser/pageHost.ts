@@ -1,5 +1,5 @@
 import type { createCanvasTemplateUiWithHost } from './templateUi.js';
-import type { CanvasCommand, CanvasNode } from '../contracts.js';
+import type { CanvasCommand, CanvasDocument, CanvasNode } from '../contracts.js';
 import type { CanvasDocumentStore } from './store.js';
 import type { createCanvasGenerationUiWithHost } from './generationUi.js';
 import type { createUiRecognitionUiWithHost } from './uiRecognitionUi.js';
@@ -10,9 +10,33 @@ import type { createSequenceUiControllerWithMedia } from './sequenceUi.js';
 import type { createCanvasResourceExportWithHost } from './resourceExport.js';
 import type { validateUiAtlasPlanStructure } from '../features/uiAssetBindings.js';
 
+/** Document-only draft; dialogs, frame buffers and active requests are not serialized. */
+export interface CanvasEditorDraft {
+  document: CanvasDocument;
+  savedLayout: string;
+}
+
+export interface CanvasEditorHandle {
+  current(): CanvasDocument | null;
+  draft(): CanvasEditorDraft | null;
+  save(): Promise<boolean>;
+  /** Call before unmounting; false means the editor must remain mounted. */
+  prepareLeave(): Promise<boolean>;
+  execute(command: CanvasCommand): Promise<unknown>;
+  /** Human asset selection may extend a dirty document; automation keeps its dirty guard. */
+  importProjectAsset(input: {
+    assetPath: string;
+    kind: 'image' | 'video';
+    title: string;
+  }): Promise<void>;
+}
+
 /** Host bindings for the existing page. Factories supply host callbacks to the shared controllers. */
 export interface CanvasPageHost {
   store: CanvasDocumentStore;
+  onReady?(editor: CanvasEditorHandle): void;
+  /** Called only after the normal authorized load. Scope drafts by user, project and canvas. */
+  recoverDraft?(loaded: CanvasDocument): Promise<CanvasEditorDraft | null | undefined>;
   deliverCanvasSnapshot(dataUrl: string, filename: string): void | Promise<void>;
   createCanvasTemplateUi(
     options: Omit<Parameters<typeof createCanvasTemplateUiWithHost>[0], 'deliver'>
@@ -28,8 +52,9 @@ export interface CanvasPageHost {
   }): void;
   deliverAutomationExport(
     command: Pick<CanvasCommand, 'requestId' | 'pageId'>,
-    blob: Blob
-  ): Promise<void>;
+    blob: Blob,
+    filename: string
+  ): Promise<{ path?: string } | void>;
   gameUiNextStep(canvasId: string): { skill: string; instruction: string } | undefined;
   prepareCanvasImportedNode(
     canvasId: string,

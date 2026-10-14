@@ -1,3 +1,4 @@
+import type { CanvasHostCapabilities } from './capabilities.js';
 import type { CanvasImageModels } from '../contracts.js';
 import type {
   CanvasCreateTemplate,
@@ -46,6 +47,7 @@ export interface CanvasTemplateStore {
 }
 
 export interface CanvasDocumentStore {
+  capabilities?: CanvasHostCapabilities;
   modelSettings?(): Promise<CanvasModelSettings>;
   imageModels?(tool: 'generate_image' | 'edit_image'): Promise<CanvasImageModels>;
   recognitionModels?(): Promise<

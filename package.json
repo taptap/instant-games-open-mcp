@@ -39,7 +39,8 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"packages/maker-canvas/src/**/*.ts\" --end-of-line auto",
     "prepare": "husky",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "maker:canvas:build": "node scripts/build-maker-canvas.mjs"
   },
   "keywords": [
     "mcp",

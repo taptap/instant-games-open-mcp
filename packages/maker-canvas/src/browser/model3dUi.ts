@@ -1,3 +1,4 @@
+import { canvasCapabilityReason } from './capabilities.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import type { CanvasDocumentStore } from '../browser/store.js';
 import {
@@ -210,6 +211,8 @@ export function createCanvasModelUiWithHost(options: {
     }
   }
   async function execute(id: string, action: 'start' | 'query' | 'confirm', reviewId?: string) {
+    const unavailable = action !== 'query' && canvasCapabilityReason(options.store, 'model');
+    if (unavailable) throw new Error(unavailable);
     if (waiting || options.blocked()) throw new Error('请先完成当前画布操作。');
     const current = options.current();
     if (!current || !options.store.modelAction) throw new Error('模型功能尚未就绪。');
@@ -380,6 +383,12 @@ export function createCanvasModelUiWithHost(options: {
     menu.addEventListener('wheel', (event) => event.stopPropagation(), { passive: true });
     toolbar.append(menu);
     body.append(toolbar);
+    const unavailable = canvasCapabilityReason(options.store, 'model');
+    if (unavailable) {
+      const hint = document.createElement('p');
+      hint.textContent = unavailable;
+      body.append(hint);
+    }
     const footer = document.createElement('div');
     footer.className = 'model-footer';
     card.dataset.state = canStop(node.id)
@@ -474,7 +483,7 @@ export function createCanvasModelUiWithHost(options: {
               return;
             return execute(node.id, 'start');
           },
-          waiting || loading
+          Boolean(unavailable) || waiting || loading
         );
     } else if (value?.modelPath) {
       showThumbnail(body, node.id, value);
@@ -505,7 +514,7 @@ export function createCanvasModelUiWithHost(options: {
             return;
           return execute(node.id, 'confirm', value.reviewId);
         },
-        waiting || loading
+        Boolean(unavailable) || waiting || loading
       );
     if (value?.assetId || value?.taskId)
       button(actions, '查询原任务', () => execute(node.id, 'query'), waiting || loading);

@@ -1,3 +1,4 @@
+import { canvasCapabilityReason } from './capabilities.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import type { CanvasDocumentStore } from '../browser/store.js';
 import { canvasDependents, canvasReferences, snapshotCanvasSource } from '../core/dependencies.js';
@@ -150,6 +151,9 @@ export function createUiRecognitionUiWithHost(options: {
   ): Promise<boolean> {
     const current = options.current();
     if (!current || !source.assetPath || !source.uiRecognition || busy) return false;
+    const unavailable =
+      !source.uiRecognition.pendingId && canvasCapabilityReason(options.store, 'recognition');
+    if (unavailable) throw new Error(unavailable);
     const settings = source.uiRecognition;
     let model = { id: 'gpt-6.1-sol', model: 'gpt-6.1-sol' };
     if (!settings.pendingId) {
@@ -398,6 +402,9 @@ export function createUiRecognitionUiWithHost(options: {
   async function runRecognition(node: CanvasNode): Promise<boolean> {
     if (busy || preparing || options.blocked() || !hasImageFeature(node, 'ui-recognition'))
       return false;
+    const unavailable =
+      !node.uiRecognition?.pendingId && canvasCapabilityReason(options.store, 'recognition');
+    if (unavailable) throw new Error(unavailable);
     preparing = true;
     try {
       const current = options.current();

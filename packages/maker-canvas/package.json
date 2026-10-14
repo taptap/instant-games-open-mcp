@@ -2,5 +2,26 @@
   "name": "@taptap/maker-canvas",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/types/browser.d.ts",
+      "import": "./dist/browser.mjs"
+    },
+    "./browser": {
+      "types": "./dist/types/browser.d.ts",
+      "import": "./dist/browser.mjs"
+    },
+    "./domain": {
+      "types": "./dist/types/domain.d.ts",
+      "import": "./dist/domain.mjs"
+    },
+    "./contracts": {
+      "types": "./dist/types/contracts.d.ts",
+      "import": "./dist/contracts.mjs"
+    }
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-maker-canvas.mjs"
+  }
 }

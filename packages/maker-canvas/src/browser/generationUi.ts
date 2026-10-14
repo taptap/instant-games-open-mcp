@@ -1,3 +1,4 @@
+import { canvasCapabilityReason, type CanvasHostCapabilities } from './capabilities.js';
 import { canvasImageTool } from '../features/imageModels.js';
 import type { CanvasImageModels } from '../contracts.js';
 declare const document: any;
@@ -61,6 +62,7 @@ export interface CanvasGenerationUiOptions {
   detectUiCutoutColor(paths: string[], mediaUrl: (path: string) => string): Promise<UiCutoutColor>;
   videoPrompts?: ReturnType<typeof createVideoPrompts>;
   store: {
+    capabilities?: CanvasHostCapabilities;
     modelSettings?(): Promise<CanvasModelSettings>;
     imageModels?(tool: 'generate_image' | 'edit_image'): Promise<CanvasImageModels>;
     importImage(
@@ -1005,6 +1007,12 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       templateRun?: boolean;
     } = {}
   ): Promise<void> {
+    const unavailable =
+      !node.uiAtlasPrelayout && canvasCapabilityReason(options.store, 'imageGeneration');
+    if (unavailable) {
+      options.setError(unavailable);
+      return;
+    }
     const documentState = options.getDocument();
     if (!documentState || inFlight.has(node.id) || importingReferences.has(referenceKey(node)))
       return;
@@ -1338,6 +1346,11 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       mode?: string;
     } = {}
   ): Promise<boolean> {
+    const unavailable = canvasCapabilityReason(options.store, 'videoGeneration');
+    if (unavailable) {
+      options.setError(unavailable);
+      return false;
+    }
     const documentState = options.getDocument();
     const inputKey = documentState && referenceKey(node);
     if (!documentState || inFlight.has(node.id)) return false;
@@ -2027,6 +2040,15 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       panel.append(details);
     } else panel.append(createPromptEditor(input));
     renderReferences(panel, node, busy, workflow);
+    const unavailable =
+      node.type === 'image'
+        ? !node.uiAtlasPrelayout && canvasCapabilityReason(options.store, 'imageGeneration')
+        : canvasCapabilityReason(options.store, 'videoGeneration');
+    if (unavailable) {
+      const hint = document.createElement('small');
+      hint.textContent = unavailable;
+      panel.append(hint);
+    }
     let imageModel: any;
     let imageResolution: any;
     let imageRatio: any;
@@ -2084,6 +2106,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       displayedImageModels.delete(settingsKey);
       if (node.uiAtlasPrelayout) {
         modelSelect.options[0].textContent = '本地预排（无需模型）';
+      } else if (unavailable) {
+        modelSelect.options[0].textContent = unavailable;
       } else if (options.store.imageModels) {
         void options.store
           .imageModels(tool)
@@ -2279,7 +2303,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
                 }),
           {
             className: 'generation-action generation-action-primary',
-            disabled: busy || missingFrame,
+            disabled: Boolean(unavailable) || busy || missingFrame,
           }
         )
       );
@@ -2290,7 +2314,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         button(workflow ? '应用并继续' : '生成', submitGeneration, {
           className: 'generation-action generation-action-primary',
           title: '在当前图片槽中生成结果',
-          disabled: busy || Boolean(workflow && !workflow.canSubmit),
+          disabled: Boolean(unavailable) || busy || Boolean(workflow && !workflow.canSubmit),
         })
       );
       panel.append(actions);
@@ -2310,7 +2334,11 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         button(workflow ? '应用并继续' : '生成视频', submitGeneration, {
           className: 'generation-action generation-action-primary',
           title: '从已连接图片创建视频结果',
-          disabled: busy || missingFrame || Boolean(workflow && !workflow.canSubmit),
+          disabled:
+            Boolean(unavailable) ||
+            busy ||
+            missingFrame ||
+            Boolean(workflow && !workflow.canSubmit),
         })
       );
       panel.append(actions);

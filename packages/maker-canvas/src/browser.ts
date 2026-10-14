@@ -145,8 +145,26 @@ export { encodeCanvasImage } from './browser/imageExport.js';
 
 export { getCanvasPageHtml, CANVAS_PAGE_MARKER } from './browser/page.js';
 export type { CanvasPageIntegration } from './browser/page.js';
-export type { CanvasPageHost } from './browser/pageHost.js';
+export type { CanvasPageHost, CanvasEditorHandle, CanvasEditorDraft } from './browser/pageHost.js';
+export { restoreCanvasEditorDraft } from './browser/editorLifecycle.js';
 
 export { cloneDocument } from './browser/document.js';
 export { pushHistory, undoHistory, redoHistory } from './browser/history.js';
 export type { HistoryStacks } from './browser/history.js';
+
+export { prepareCanvasImportedNodeFromMedia } from './browser/automationAssets.js';
+export { detectUiCutoutColorFromReader } from './browser/uiCutout.js';
+export { downloadCanvasImage } from './browser/imageExport.js';
+export { nextCanvasExportCode } from './browser/exportNaming.js';
+export { downloadCanvasResourceWithHost } from './browser/resourceDownload.js';
+export type { CanvasResourceExportHost } from './browser/resourceDownload.js';
+export {
+  uiDataHash,
+  uiBundleManifestWithValidation,
+  resourceBundleEntriesFromReader,
+  createResourceBundleZipWithHost,
+} from './browser/resourceBundle.js';
+export type { CanvasBundleValidation, CanvasResourceBundleHost } from './browser/resourceBundle.js';
+
+export { canvasCapabilityReason } from './browser/capabilities.js';
+export type { CanvasCapability, CanvasHostCapabilities } from './browser/capabilities.js';

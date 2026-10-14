@@ -51,21 +51,65 @@ Web 应直接消费同一份 `browser.getCanvasPageHtml({ hostScript, themeScrip
   不维护第二份 UI。视频/图片展示继续使用宿主 Store 的可访问地址。
 - `publishUnsaved`、`publishActivity`、`unavailableReason` 提供宿主编辑状态通知和就绪信息；
   `connectAutomation` 只负责命令传输，命令语义与执行器由共享实现维护。
+- `onReady(editor)` 在首次授权加载完成后交付 `CanvasEditorHandle`。`current()` 与
+  `draft()` 返回副本；`save()` 等待文档保存，`prepareLeave()` 检查编辑面板、帧草稿、
+  活动请求及保存结果，返回 false 时宿主必须保留实例。iframe 卸载由宿主负责，
+  不在 React cleanup 中发起保存后直接销毁页面；同一 iframe 内不要重复挂载页面。
+- `recoverDraft(loaded)` 只在 `store.load` 成功后调用。宿主按用户、项目、画布隔离
+  内存草稿，返回先前 `draft()` 的 `{ document, savedLayout }`。保存基线相同时采用
+  最新 revision；基线变化时保留草稿原 revision 和基线，让正常保存冲突拒绝覆盖。
+  草稿只含已进入文档的编辑，不包含弹窗帧缓冲、生成参数缓存或运行中的请求。
+- `editor.importProjectAsset({assetPath, kind, title})` 用于人工素材选择，可在未保存
+  文档上添加图片/视频，再调用原保存流程。宿主仍需授权、准备媒体并验证路径；
+  保存失败保留原编辑及新卡片。`editor.execute(command)` 继续使用 CLI 的脏状态保护。
 - `prepareCanvasImportedNode`、`validateUiAtlasPlan` 保留宿主素材读取及路径约束；
   `downloadCanvasResource`、`deliverCanvasSnapshot`、`deliverAutomationExport`
   负责实际交付，`gameUiNextStep` 提供宿主工作流说明。
+  `deliverAutomationExport(command, blob, filename)` 在交付成功后可返回 `{path}`；
+  共享执行器把它写入 `export.path`。只有真实项目落盘才能返回路径，浏览器下载
+  不应伪造沙箱路径；返回 void 保持本地原导出通道。失败必须抛出，不能回报成功。
 
-Web 需要接齐契约中的必需能力；可选服务使用现有 Store/组件可选字段与不可用提示，
+Web 需要接齐契约中的必需能力；`store.capabilities` 可声明 imageGeneration、
+videoGeneration、recognition、model、templateExchange、uiArchive 的 `{available, reason}`。
+显式不可用时生成/识图/模型提交入口禁用并显示原因，模板交换隐藏并显示原因；
+CLI 实时 inspect 同步能力状态，实际提交仍经相同控制器检查。未声明沿用原行为；
+uiArchive 表达宿主保存归档能力，不禁用通用 ZIP 导出，也不替代宿主归档实现。
+查询已提交任务及本地预排不等于发起新生成，不由生图能力禁用代替任务恢复规则。
+可选服务使用现有 Store/组件可选字段与不可用提示，
 不能暗中创建本地 Store，也不能绕过确认门来模拟能力。生成、识图、模型服务及其任务
 持久化恢复、认证、项目隔离、预览允许来源、目录和下载策略始终属于宿主。
 
 通用图片/图集/序列帧编码、PNG 校验与 ZIP 字节处理共享；素材读取和下载落点显式传入。
-完整 UI 资源包的原文件读取、Bbox 引用作为 ZIP entry 的本地命名、归档和保存选择器
-仍在本地外围，经导出回调接入；这次不改变归档格式或设计引用重映射。
+`prepareCanvasImportedNodeFromMedia` 共享图片/视频解码、超时与元数据检查，路径授权
+在调用前完成；`detectUiCutoutColorFromReader` 共享底色采样，读取携带取消信号。
+`downloadCanvasResourceWithHost` 共享格式选择和导出编排；宿主传入媒体访问、编号、
+独立 PNG 与资源包适配，可沿用浏览器保存选择器或提供 sink 写入项目。
+`resourceBundleEntriesFromReader` / `createResourceBundleZipWithHost` 共享完整包算法，
+接收严格 validation、readSource 和 referenceEntryName。原媒体引用只用于读取，
+referenceEntryName 返回包内相对路径；映射后同步 Bbox 路径和 bindings 的 Bbox hash，
+源图字节 hash、状态绑定、预算及 ZIP 路径校验仍保留。本地传原路径保持旧格式。
+归档落点、项目写入与权限校验仍在外围。
 大预设 JSON、Node 文件服务、CLI 说明与命令轮询也保留本地。
 
+已有 Web 接入可按下表移除 localHostHelpers（均从共享 browser/domain 入口消费）：
+
+| 原本地 helper                                           | 共享接法                                                          |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| downloadCanvasResource                                  | downloadCanvasResourceWithHost，注入读取、编号和包适配            |
+| validateResourceBundle                                  | validateResourceBundleStructure，第五参传 Web 严格验证器          |
+| uiBundleManifest                                        | uiBundleManifestWithValidation，显式传同一组验证器                |
+| resourceBundleEntries / createResourceBundleZip         | resourceBundleEntriesFromReader / createResourceBundleZipWithHost |
+| uiDataHash / downloadCanvasImage / nextCanvasExportCode | browser 入口同名导出                                              |
+| createSequenceExport                                    | createSequenceExportFromReader，传读取回调                        |
+| detectUiCutoutColor                                     | detectUiCutoutColorFromReader，传可取消读取回调                   |
+
+Web 原 `addProjectAsset({path,name,type})` 可在自己的桥接中映射到
+`editor.importProjectAsset({assetPath:path,title:name,kind:type})`；无需修改父页面协议。
+原 `store.recoverDraft(id)` 可通过 `host.recoverDraft = loaded => store.recoverDraft(loaded.id)`
+适配。导出落盘若原先返回字符串，应改为成功后返回 `{path: savedPath}`。
+
 旧 Canvas 入口继续薄转导出或适配，依赖只从宿主指向共享包，包括类型引用。
-本包仍为 private 源码包，Web 外围实现与发布产物并未在此仓库交付。
+本包保持 private，不单独发布 npm；Web 外围实现仍由 Web 仓库维护。
 完整入口与宿主接线已落到源码，静态约束与运行验收应分开看待；
 先前单条链路的验证不代表本次整体结构或 Web 已验收。
 
@@ -132,6 +176,20 @@ Web 需要接齐契约中的必需能力；可选服务使用现有 Store/组件
 修改本地适配前同时查看调用方和下游，尤其是保存、任务恢复、模板引用和归档。
 
 ## 检查与交付
+
+在仓库根目录运行 `npm run maker:canvas:build`，生成被 Git 忽略的
+`packages/maker-canvas/dist/{browser,domain,contracts}.mjs` 和 `dist/types/` 声明。
+包的根入口及 `./browser`、`./domain`、`./contracts` exports 对应这些产物。
+Web 可在自己的生成脚本中导入 `dist/browser.mjs` 的 `getCanvasPageHtml`，传入宿主
+脚本和主题，把生成结果作为 Vite raw 资源消费。生成的 HTML 是构建产物，不能手改，
+无需导入 `src/maker/canvas` 的私有 helper，草稿、人工导入和导出回执通过正式接口接入。
+保留源码 revision/内容指纹用于更新核对；复制产物时包含整个 dist 和 package.json。
+
+构建固定 ES2020、保留函数名且不压缩；不要让消费端先压缩/重命名此生成器再调用它。
+宿主应按导出的 `CanvasPageHost` 类型检查返回对象，并验证最终生成页面。
+当前仍要求现代浏览器的 `structuredClone`、`createImageBitmap` 等 API；该产物不承诺
+Chrome 74 兼容。若 Web 必须支持旧 WebView，需要单独核定运行时能力及脚本转译，
+仅把 Vite target 设为 es2018 不会转译 HTML 内脚本，也不能补齐缺失的 API。
 
 从仓库根目录运行共享包的独立类型检查：
 

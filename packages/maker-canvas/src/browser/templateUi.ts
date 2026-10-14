@@ -14,6 +14,7 @@ import type {
 export function createCanvasTemplateUiWithHost(options: {
   deliver(blob: Blob, filename: string): Promise<void>;
   store?: CanvasTemplateStore;
+  exchangeUnavailableReason?: string;
   model: ReturnType<typeof createCanvasTemplateModel>;
   getDocument(): CanvasDocument | null;
   selected: Set<string>;
@@ -237,11 +238,16 @@ export function createCanvasTemplateUiWithHost(options: {
     search.className = 'template-search';
     const toolbar = document.createElement('div');
     toolbar.className = 'template-library-toolbar';
+    if (options.exchangeUnavailableReason) {
+      const hint = document.createElement('span');
+      hint.textContent = options.exchangeUnavailableReason;
+      toolbar.append(hint);
+    }
     const total = document.createElement('span');
     total.className = 'template-library-total';
     total.setAttribute('aria-live', 'polite');
     toolbar.append(search, total);
-    if (store!.importTemplate)
+    if (store!.importTemplate && !options.exchangeUnavailableReason)
       toolbar.append(
         button('导入 ZIP', () => {
           const form = open(
@@ -392,7 +398,7 @@ export function createCanvasTemplateUiWithHost(options: {
           button('重命名', () => showRename(summary)),
           remove
         );
-        if (store!.exportTemplate)
+        if (store!.exportTemplate && !options.exchangeUnavailableReason)
           menu.prepend(
             button('导出 ZIP', async () => {
               const blob = await store!.exportTemplate!(summary.id, summary.revision);

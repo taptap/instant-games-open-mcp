@@ -21,7 +21,6 @@ import { createBrowserCanvasDocumentStore } from './store.js';
 import { detectUiCutoutColor } from './uiCutout.js';
 import { createSequenceUiController } from './sequenceUi.js';
 import { createCanvasGenerationUi } from './generationUi.js';
-import { downloadCanvasImage } from './imageExport.js';
 import { openImageAtlasDialog } from './imageAtlasUi.js';
 import { validateImageAssetsInfo } from './imageAssets.js';
 import { imageAssetsBindingPlan } from './imageAssets.js';
@@ -32,9 +31,7 @@ import { uiBundleManifest } from './resourceBundle.js';
 import { validateResourceBundle } from './resourceBundle.js';
 import { createResourceBundleZip } from './resourceBundle.js';
 import { resourceBundleEntries } from './resourceBundle.js';
-import { uiDataHash } from './resourceBundle.js';
 import { createImageAssetsUi } from './imageAssetsUi.js';
-import { nextCanvasExportCode } from './exportNaming.js';
 import { createSequenceExport } from './sequenceExport.js';
 import { downloadCanvasResource } from './resourceExport.js';
 import { createCanvasResourceExport } from './resourceExport.js';
@@ -62,7 +59,6 @@ export function getCanvasPageHtml(): string {
     detectUiCutoutColor.toString(),
     createSequenceUiController.toString(),
     createCanvasGenerationUi.toString(),
-    downloadCanvasImage.toString(),
     openImageAtlasDialog.toString(),
     validateImageAssetsInfo.toString(),
     imageAssetsBindingPlan.toString(),
@@ -73,9 +69,7 @@ export function getCanvasPageHtml(): string {
     validateResourceBundle.toString(),
     createResourceBundleZip.toString(),
     resourceBundleEntries.toString(),
-    uiDataHash.toString(),
     createImageAssetsUi.toString(),
-    nextCanvasExportCode.toString(),
     createSequenceExport.toString(),
     downloadCanvasResource.toString(),
     createCanvasResourceExport.toString(),
