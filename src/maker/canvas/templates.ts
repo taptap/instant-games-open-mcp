@@ -259,7 +259,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       if (node.generation?.sourceImageIds)
         node.generation.sourceImageIds = node.generation.sourceImageIds.map((id) => ids.get(id)!);
       if (
-        !['model', 'model-views', 'resource-bundle'].includes(node.type) &&
+        !['model', 'model-views', 'resource-bundle', 'mark'].includes(node.type) &&
         template.edges.some((edge) => ids.get(edge.to) === node.id)
       )
         node.templatePending = true;

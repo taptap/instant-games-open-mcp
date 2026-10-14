@@ -47,7 +47,7 @@ export function invalidateCanvasDependents(document: CanvasDocument, nodeId: str
   for (const node of canvasDependents(document, nodeId)) {
     if (
       node.sectionId &&
-      !['section', 'model', 'model-views', 'resource-bundle'].includes(node.type)
+      !['section', 'model', 'model-views', 'resource-bundle', 'mark'].includes(node.type)
     )
       node.templatePending = true;
   }
@@ -149,7 +149,7 @@ export function createTemplateWorkflow(options: {
     const flow = document?.templateFlow;
     return Boolean(
       node &&
-        !['model', 'model-views', 'resource-bundle'].includes(node.type) &&
+        !['model', 'model-views', 'resource-bundle', 'mark'].includes(node.type) &&
         ((node.sectionId &&
           document?.nodes.some((section) => section.id === node.sectionId && section.templateId)) ||
           (flow && [flow.imageId, flow.videoId, flow.sequenceId, flow.animationId].includes(id)))
@@ -248,7 +248,7 @@ export function createTemplateWorkflow(options: {
     const document = options.getDocument();
     const node = document?.nodes.find((node) => node.id === id);
     const member = templateMember(id);
-    if (node && ['model', 'model-views', 'resource-bundle'].includes(node.type)) return;
+    if (node && ['model', 'model-views', 'resource-bundle', 'mark'].includes(node.type)) return;
     if (member)
       return options.isNodeBusy?.(id)
         ? 'loading'
@@ -460,7 +460,7 @@ export function createTemplateWorkflow(options: {
     const candidates = [start, ...(automatic ? [] : canvasDependents(document, id))].filter(
       (node) =>
         node.sectionId === start.sectionId &&
-        !['model', 'model-views', 'resource-bundle'].includes(node.type)
+        !['model', 'model-views', 'resource-bundle', 'mark'].includes(node.type)
     );
     const remaining = new Set(candidates.map((node) => node.id));
     const ordered: typeof candidates = [];

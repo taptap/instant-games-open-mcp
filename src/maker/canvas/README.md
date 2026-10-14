@@ -322,24 +322,32 @@ AI 可以通过当前安装的 Maker CLI 操作已打开的画布，无需浏览
 
 ### 支持的操作
 
-| 命令                             | input JSON                                                 | 说明                                                                        |
-| -------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------- |
-| create / rename                  | {"title":"新画布"}                                         | 新建并切换 / 重命名当前画布                                                 |
-| open                             | {"id":"目标画布ID"}                                        | 从当前画布安全切换                                                          |
-| add-template                     | {"id":"模板ID"}                                            | 添加内置或用户模板的独立副本，不修改模板库                                  |
-| add-node                         | {"type":"image"}                                           | 新建 image、video、note；sequence/animation 另传 sourceId，复用现有派生流程 |
-| import                           | {"title":"角色参考"}                                       | 另传 --file 本地绝对路径，导入为新卡片，不覆盖已有卡片                      |
-| set-references                   | {"id":"目标ID","sourceIds":["图片ID"],"includeSelf":false} | 有序替换全部图片参考；[] 清空，includeSelf 仅图片卡可用                     |
-| export                           | {"id":"结果ID","format":"atlas","loop":true}               | 导出已有结果；另传 --output-dir 已存在的绝对目录可直接保存                  |
-| update-nodes                     | {"nodes":[{"id":"卡片ID","prompt":"完整猫咪，站立"}]}      | 批量校验后修改，不自动生成                                                  |
-| delete-nodes / duplicate / group | {"ids":["卡片ID"]}                                         | 删除 / 复制 / 分组；删除分组本身不删除成员                                  |
-| connect                          | {"from":"图片ID","to":"视频输入卡ID"}                      | 已保存图片连接到尚未生成的视频输入卡                                        |
-| disconnect                       | {"edgeId":"连线ID"}                                        | 只移除图片参考线，不拆断序列帧/动画来源                                     |
-| run                              | {"id":"卡片或分组ID"}                                      | 单卡执行或运行分组剩余步骤；已完成模板卡先修改参数                          |
-| stop                             | {"id":"视频卡或分组ID"}                                    | 停止本地视频等待或后续队列，不取消远端任务                                  |
-| query                            | {"id":"视频卡ID"}                                          | 查询原视频任务，不发起新生成；历史面板仍由人工操作                          |
+| 命令                             | input JSON                                                 | 说明                                                            |
+| -------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
+| create / rename                  | {"title":"新画布"}                                         | 新建并切换 / 重命名当前画布                                     |
+| open                             | {"id":"目标画布ID"}                                        | 从当前画布安全切换                                              |
+| add-template                     | {"id":"模板ID"}                                            | 添加内置或用户模板的独立副本，不修改模板库                      |
+| add-node                         | {"type":"image"}                                           | 新建 image、video、note、mark；sequence/animation 另传 sourceId |
+| import                           | {"title":"角色参考"}                                       | 另传 --file 本地绝对路径，导入为新卡片，不覆盖已有卡片          |
+| set-references                   | {"id":"目标ID","sourceIds":["图片ID"],"includeSelf":false} | 有序替换全部图片参考；[] 清空，includeSelf 仅图片卡可用         |
+| export                           | {"id":"结果ID","format":"atlas","loop":true}               | 导出已有结果；另传 --output-dir 已存在的绝对目录可直接保存      |
+| update-nodes                     | {"nodes":[{"id":"卡片ID","prompt":"完整猫咪，站立"}]}      | 批量校验后修改，不自动生成                                      |
+| delete-nodes / duplicate / group | {"ids":["卡片ID"]}                                         | 删除 / 复制 / 分组；删除分组本身不删除成员                      |
+| connect                          | {"from":"图片ID","to":"视频输入卡ID"}                      | 已保存图片连接到尚未生成的视频输入卡                            |
+| disconnect                       | {"edgeId":"连线ID"}                                        | 只移除图片参考线，不拆断序列帧/动画来源                         |
+| run                              | {"id":"卡片或分组ID"}                                      | 单卡执行或运行分组剩余步骤；已完成模板卡先修改参数              |
+| stop                             | {"id":"视频卡或分组ID"}                                    | 停止本地视频等待或后续队列，不取消远端任务                      |
+| query                            | {"id":"视频卡ID"}                                          | 查询原视频任务，不发起新生成；历史面板仍由人工操作              |
 
 update-nodes 支持 title、便签 text、单卡位置 x/y、prompt、parameters、sequenceSettings。
+标注不参与生成。左侧工具条的标注框和箭头点一下就放到画布上，可以再移动和缩放。
+标注框是中间透明的矩形，四条边可以分别拖动改变大小，也保留右下角缩放手柄。箭头选中时两端各显示一个点，拖动端点改变方向和长度，拖动箭身可以移动。
+鼠标是默认模式，选择、移动卡片、框选和空格平移保持不变。拖拽模式只平移和缩放，
+适合触控板：按住左键拖动画布，双指滑动也会平移；捏合、Ctrl/⌘+滚轮和底部加减号仍可缩放。
+再点鼠标或按 Escape 回到鼠标模式。鼠标和拖拽不写入画布，也没有单独的 CLI 命令。
+CLI 用 add-node，type=mark，shape=ellipse 或 arrow，可传 x/y/width/height、color（#RRGGBB）、
+stroke（1～8）。箭头可传成对的 from/to 局部坐标 {x,y}；point=nw/ne/sw/se 保留兼容。update-nodes 的 mark 字段修改样式和方向。
+删除、复制沿用原命令。工具条默认左侧居中，顶部手柄可拖动位置，刷新后恢复默认。
 generation 的任务标识、结果路径、来源快照不允许写入。空图片和视频卡使用生成草稿保存输入；
 已有素材保留，模板修改只标记待处理，不覆盖下游结果。
 
