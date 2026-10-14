@@ -17,6 +17,7 @@ const types = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.mp4': 'video/mp4',
+  '.mdl': 'application/octet-stream',
 };
 function save() {
   fs.writeFileSync(manifestPath + '.tmp', JSON.stringify(manifest, null, 2) + '\n');
@@ -28,7 +29,7 @@ function checkLocal() {
 function add(filename) {
   const bytes = fs.readFileSync(filename),
     ext = path.extname(filename).toLowerCase();
-  if (!types[ext]) throw new Error('仅支持 PNG/JPEG/MP4 素材');
+  if (!types[ext]) throw new Error('仅支持 PNG/JPEG/MP4/MDL 素材');
   const id = hash(bytes),
     file = id + ext;
   fs.mkdirSync(directory, { recursive: true });

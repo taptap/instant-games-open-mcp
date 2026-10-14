@@ -4706,6 +4706,13 @@
         "pixelSha256": "9190e59d83088520852ad0d712574cc65ca6e697d03bbd2cfd31b6cdfc7d083b"
       },
       "cdn": "https://app-res.tapimg.com/img/2026-10-14/bbe2a4803822396985870187458f8477.png"
+    },
+    "0376d7f994836cc98231908cad9f4dd13d52705b72cddaf905eb1e10c1e96489": {
+      "file": "0376d7f994836cc98231908cad9f4dd13d52705b72cddaf905eb1e10c1e96489.mdl",
+      "size": 1019202,
+      "sha256": "0376d7f994836cc98231908cad9f4dd13d52705b72cddaf905eb1e10c1e96489",
+      "type": "application/octet-stream",
+      "cdn": "https://app-res.tapimg.com/file/2026-10-14/e14799bddb38887d462cd3a33467cb47.mdl"
     }
   }
 }

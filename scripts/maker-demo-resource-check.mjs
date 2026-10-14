@@ -16,7 +16,7 @@ export function checkDemoResources(root, { requireCdn = false } = {}) {
     if (
       !/^[a-f0-9]{64}$/.test(id) ||
       entry.sha256 !== id ||
-      !['.png', '.jpg', '.jpeg', '.mp4'].some((ext) => entry.file === id + ext)
+      !['.png', '.jpg', '.jpeg', '.mp4', '.mdl'].some((ext) => entry.file === id + ext)
     )
       throw new Error('资源身份或文件名无效：' + id);
     const bytes = fs.readFileSync(path.join(directory, entry.file));
@@ -30,7 +30,10 @@ export function checkDemoResources(root, { requireCdn = false } = {}) {
         entry.lossless.sourceSize < entry.size
       )
         throw new Error('图片尚未无损压缩与像素验证，请先运行 optimize：' + entry.file);
-    } else if (entry.type !== 'video/mp4' || !entry.file.endsWith('.mp4')) {
+    } else if (
+      !(entry.type === 'video/mp4' && entry.file.endsWith('.mp4')) &&
+      !(entry.type === 'application/octet-stream' && entry.file.endsWith('.mdl'))
+    ) {
       throw new Error('不支持的示例媒体类型：' + entry.file);
     }
     if (entry.thumbnail) reference(entry.thumbnail);
@@ -47,6 +50,8 @@ export function checkDemoResources(root, { requireCdn = false } = {}) {
     for (const [key, item] of Object.entries(value)) {
       if (key === 'resourceId') reference(item);
       if (key === 'base64') throw new Error('官方模板不能内嵌媒体，请使用 resourceId。');
+      if (key.endsWith('.mdl') && (typeof item !== 'object' || !item?.resourceId))
+        throw new Error('官方模板模型不能内嵌，请使用 resourceId。');
       walk(item);
     }
   }
