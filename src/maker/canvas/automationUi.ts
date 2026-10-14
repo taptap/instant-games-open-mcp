@@ -19,6 +19,7 @@ import {
 } from './automationReferences.js';
 import type { createCanvasGroupQueue } from './groupQueue.js';
 import { canvasModelGroup } from './model3d.js';
+import { canvasMarkFromInput } from './marks.js';
 
 export function createCanvasAutomationUi(options: {
   current(): CanvasDocument | null;
@@ -34,6 +35,7 @@ export function createCanvasAutomationUi(options: {
   open(id: string): Promise<void>;
   create(title: string): Promise<void>;
   add(type: string): void;
+  placeMark?(shape: string): { x: number; y: number; width: number; height: number };
   addDerived(type: 'sequence' | 'animation' | 'model-views' | 'model', sourceId: string): void;
   confirmModel?(id: string, reviewId: string): Promise<unknown>;
   previewModel?(id: string): unknown;
@@ -120,7 +122,21 @@ export function createCanvasAutomationUi(options: {
       open: ['id'],
       rename: ['title'],
       'add-template': ['id'],
-      'add-node': ['type', 'sourceId'],
+      'add-node': [
+        'type',
+        'sourceId',
+        'shape',
+        'x',
+        'y',
+        'width',
+        'height',
+        'color',
+        'stroke',
+        'point',
+        'direction',
+        'from',
+        'to',
+      ],
       'update-nodes': ['nodes'],
       'delete-nodes': ['ids'],
       duplicate: ['ids'],
@@ -210,6 +226,8 @@ export function createCanvasAutomationUi(options: {
       running = true;
       options.busyChanged(true);
       try {
+        if (command.action === 'run' && target.type === 'mark')
+          throw new Error('标注不能执行生成。');
         if (command.action === 'run') {
           const prelayoutRecognition =
             target.uiAtlasPrelayout && uiRecognitionSource(current, target);
@@ -348,13 +366,44 @@ export function createCanvasAutomationUi(options: {
         await options.addTemplate(input.id);
       } else if (command.action === 'add-node') {
         if (
-          !['image', 'video', 'note', 'sequence', 'animation', 'model-views', 'model'].includes(
-            String(input.type)
-          )
+          ![
+            'image',
+            'video',
+            'note',
+            'mark',
+            'sequence',
+            'animation',
+            'model-views',
+            'model',
+          ].includes(String(input.type))
         )
           throw new Error('不支持的卡片类型，请查询 capabilities。');
         if (current.nodes.length >= 400) throw new Error('画布卡片已达到容量限制。');
-        if (input.type === 'model' || input.type === 'model-views') {
+        if (input.type === 'mark') {
+          if (input.sourceId !== undefined) throw new Error('标注不接受 sourceId。');
+          const placed =
+            input.x === undefined && input.y === undefined
+              ? options.placeMark?.(String(input.shape))
+              : undefined;
+          const node = canvasMarkFromInput(
+            {
+              ...input,
+              ...(placed
+                ? {
+                    x: placed.x,
+                    y: placed.y,
+                    width: input.width === undefined ? placed.width : input.width,
+                    height: input.height === undefined ? placed.height : input.height,
+                  }
+                : {}),
+            },
+            crypto.randomUUID()
+          );
+          options.remember();
+          current.nodes.push(node);
+          options.select([node.id]);
+          options.changed();
+        } else if (input.type === 'model' || input.type === 'model-views') {
           const source = node(input.sourceId, current);
           if (options.nodeBlocked(source.id)) throw new Error('来源卡片正在执行，请稍后创建。');
           options.addDerived(input.type, source.id);

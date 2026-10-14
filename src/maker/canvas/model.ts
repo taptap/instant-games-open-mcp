@@ -7,6 +7,7 @@ import type { UiRecognitionSettings, UiElementCategory } from './uiRecognition.j
 import type { ImageAtlasGrid } from './imageAtlasExport.js';
 import type { CanvasImageInfo } from './imageSizing.js';
 import type { UiAtlasPlan, UiAtlasGroup } from './uiAssetBindings.js';
+import type { CanvasMark } from './marks.js';
 
 export const HISTORY_LIMIT = 60;
 export const CANVAS_JSON_LIMIT = 2 * 1024 * 1024;
@@ -22,7 +23,8 @@ export type CanvasNodeType =
   | 'resource-bundle'
   | 'model-views'
   | 'model'
-  | 'section';
+  | 'section'
+  | 'mark';
 export type CanvasEdgeKind =
   | 'first-frame'
   | 'image-to-video'
@@ -123,6 +125,8 @@ export interface CanvasNode {
   /** Zero-based sheet index when a group is split into 5×5 atlases. */
   uiAtlasBatch?: number;
   uiAtlasPlan?: UiAtlasPlan;
+  /** Screenshot-style overlay. Not a generation card. */
+  mark?: CanvasMark;
 }
 
 export interface CanvasEdge {
@@ -210,6 +214,7 @@ export function cloneDocument(document: CanvasDocument): CanvasDocument {
     viewport: { ...document.viewport },
     nodes: document.nodes.map((node) => ({
       ...node,
+      ...(node.mark ? { mark: { ...node.mark } } : {}),
       ...(node.referenceInput ? { referenceInput: { ...node.referenceInput } } : {}),
       ...(node.mergeIcons ? { mergeIcons: structuredClone(node.mergeIcons) } : {}),
       ...(node.sourceSnapshot ? { sourceSnapshot: { ...node.sourceSnapshot } } : {}),

@@ -31,6 +31,7 @@ import { STARTER_IMAGE_BASE64 } from './starterImages.js';
 import type { FrameSetInfo, SequenceSettings, VideoInfo } from './sequenceModel.js';
 import { snapshotCanvasSource, type CanvasSourceSnapshot } from './dependencies.js';
 import { parseTemplateFlow } from './templateWorkflow.js';
+import { validateCanvasMark } from './marks.js';
 import {
   createCanvasTemplateModel,
   isBuiltinCanvasTemplate,
@@ -1162,7 +1163,8 @@ export class MakerCanvasFiles {
       node.type !== 'resource-bundle' &&
       node.type !== 'model-views' &&
       node.type !== 'model' &&
-      node.type !== 'section'
+      node.type !== 'section' &&
+      node.type !== 'mark'
     ) {
       fail('节点类型无效。', 400, 'INVALID_DOCUMENT');
     }
@@ -1241,6 +1243,15 @@ export class MakerCanvasFiles {
         fail('只有游戏资产卡可以保存素材列表。', 400, 'INVALID_DOCUMENT');
       try {
         imageAssetsInfo = validateImageAssetsInfo(node.imageAssetsInfo);
+      } catch (error) {
+        fail((error as Error).message, 400, 'INVALID_DOCUMENT');
+      }
+    }
+    let mark: CanvasNode['mark'] | undefined;
+    if (node.mark !== undefined || node.type === 'mark') {
+      if (node.type !== 'mark') fail('只有标注可以使用圈或箭头样式。', 400, 'INVALID_DOCUMENT');
+      try {
+        mark = validateCanvasMark(node.mark);
       } catch (error) {
         fail((error as Error).message, 400, 'INVALID_DOCUMENT');
       }
@@ -1521,8 +1532,18 @@ export class MakerCanvasFiles {
       type: node.type,
       x: numberIn(node.x, -100000, 100000, '坐标'),
       y: numberIn(node.y, -100000, 100000, '坐标'),
-      width: numberIn(node.width, 48, node.type === 'section' ? 100000 : 2000, '尺寸'),
-      height: numberIn(node.height, 36, node.type === 'section' ? 100000 : 1600, '尺寸'),
+      width: numberIn(
+        node.width,
+        node.type === 'mark' ? 8 : 48,
+        node.type === 'section' ? 100000 : node.type === 'mark' ? 8000 : 2000,
+        '尺寸'
+      ),
+      height: numberIn(
+        node.height,
+        node.type === 'mark' ? 8 : 36,
+        node.type === 'section' ? 100000 : node.type === 'mark' ? 8000 : 1600,
+        '尺寸'
+      ),
       title: text(node.title, 80, '标题', '未命名'),
       ...(node.modelQuality
         ? { modelQuality: node.modelQuality as CanvasNode['modelQuality'] }
@@ -1585,6 +1606,7 @@ export class MakerCanvasFiles {
       ...(node.uiAnnotation
         ? { uiAnnotation: node.uiAnnotation as CanvasNode['uiAnnotation'] }
         : {}),
+      ...(mark ? { mark } : {}),
     };
   }
 

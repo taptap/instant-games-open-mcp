@@ -4,6 +4,7 @@ import { canvasOriginalImage, imageRatioInfo } from './imageSizing.js';
 import { canvasGenerationParameterChoices, canvasParameterSchema } from './automationInfo.js';
 import { imageCardSize } from './imageInfo.js';
 import { uiRecognitionStatus, validateUiRecognition } from './uiRecognition.js';
+import { validateCanvasMark } from './marks.js';
 
 export interface CanvasCommand {
   requestId: string;
@@ -64,10 +65,11 @@ export function canvasAutomationCapabilities() {
       'confirm-image-assets',
       'export',
     ],
-    nodeTypes: ['image', 'video', 'note', 'sequence', 'animation', 'model-views', 'model'],
+    nodeTypes: ['image', 'video', 'note', 'mark', 'sequence', 'animation', 'model-views', 'model'],
     editable: [
       'title',
       'text',
+      'mark',
       'x',
       'y',
       'width',
@@ -148,7 +150,7 @@ export function canvasAutomationCapabilities() {
       },
       'update-nodes': {
         nodes:
-          'Array of patches with id and editable fields. width/height resize only the card, not the image or viewport (width 48..2000, height 36..1600; sections up to 100000). For image cards with known pixels, set width OR height and the other axis follows the image ratio including the header; if both are supplied they must match. Layout-only changes do not invalidate generated results.',
+          'Array of patches with id and editable fields. width/height resize only the card, not the image or viewport (width 48..2000, height 36..1600; sections up to 100000; marks 8..8000). For image cards with known pixels, set width OR height and the other axis follows the image ratio including the header; if both are supplied they must match. Layout-only changes do not invalidate generated results. mark patches accept shape ellipse/arrow, color #RRGGBB, stroke 1..8, and paired from/to {x,y} endpoints in local coordinates for arrows.',
       },
       'preview-image-assets': {
         id: 'image-assets card ID; read-only preview, no final files',
@@ -174,8 +176,19 @@ export function canvasAutomationCapabilities() {
         includeSelf: 'optional boolean, image only; default false',
       },
       'add-node': {
-        type: 'image/video/note/sequence/animation/model-views/model',
-        sourceId: 'required for sequence/animation/model-views/model',
+        type: 'image/video/note/mark/sequence/animation/model-views/model',
+        shape: 'ellipse or arrow when type is mark',
+        x: 'optional mark origin; omitted marks use a visible default in the current view',
+        y: 'optional mark origin',
+        width: 'optional mark width, 8..8000',
+        height: 'optional mark height, 8..8000',
+        color: 'optional #RRGGBB; default #ff4d4f',
+        stroke: 'optional integer 1..8; default 3',
+        point: 'legacy arrow head corner nw/ne/sw/se; not accepted by ellipse',
+        direction: 'optional initial arrow direction n/e/s/w; not accepted by ellipse',
+        from: 'optional local start {x,y}; requires to; not accepted by ellipse',
+        to: 'optional local end {x,y}; requires from; not accepted by ellipse',
+        sourceId: 'required for sequence/animation/model-views/model; not accepted by mark',
       },
       export: {
         id: 'result node ID',
@@ -299,8 +312,9 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
         if (node.type === 'section') throw new Error('首版不支持移动整个分组。');
         next[key] = value;
       } else if (key === 'width' || key === 'height') {
-        const min = key === 'width' ? 48 : 36;
-        const max = node.type === 'section' ? 100000 : key === 'width' ? 2000 : 1600;
+        const mark = node.type === 'mark';
+        const min = mark ? 8 : key === 'width' ? 48 : 36;
+        const max = node.type === 'section' ? 100000 : mark ? 8000 : key === 'width' ? 2000 : 1600;
         if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max)
           throw new Error('卡片' + key + '必须为 ' + min + '～' + max + '。');
         next[key] = value;
@@ -430,6 +444,19 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
           throw new Error('抽帧参数超出支持范围。');
         next.sequenceSettings = settings;
         contentChanged = true;
+      } else if (key === 'mark') {
+        if (node.type !== 'mark' || !node.mark) throw new Error('标注样式只能修改标注。');
+        if (!value || typeof value !== 'object' || Array.isArray(value))
+          throw new Error('标注样式无效。');
+        const patch = value as Record<string, unknown>;
+        const shape = patch.shape === undefined ? node.mark.shape : patch.shape;
+        next.mark = validateCanvasMark({
+          ...node.mark,
+          ...patch,
+          ...(shape === 'ellipse'
+            ? { point: undefined, direction: undefined, from: undefined, to: undefined }
+            : {}),
+        });
       } else throw new Error('不支持的卡片字段：' + key);
     }
     if (
