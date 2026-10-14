@@ -1,12 +1,16 @@
+import { canvasImageModels, canvasImageProviderIdentity } from './canvasImageModels.js';
+import { canvasImageTool } from '../../../packages/maker-canvas/src/features/imageModels.js';
+import type { CanvasGenerationAttempt } from '../../../packages/maker-canvas/src/contracts.js';
+export type {
+  CanvasGenerationKind,
+  CanvasGenerationStatus,
+  CanvasGenerationAttempt,
+} from '../../../packages/maker-canvas/src/contracts.js';
 import fs from 'node:fs';
 import { assertUiAtlasSources, prepareUiAtlasReference } from './uiAtlasPrelayout.js';
 import { generationProvider } from './visionSettings.js';
 import { generateCustomImage, ImageApiResponseError, readImageResponse } from './customImageApi.js';
-import {
-  selectedUiAtlasPlan,
-  uiAtlasOrderPrompt,
-  type UiAtlasPlan,
-} from '../canvas/uiAssetBindings.js';
+import { selectedUiAtlasPlan, uiAtlasOrderPrompt } from '../canvas/uiAssetBindings.js';
 import { validateFramePairVideo } from '../canvas/framePair.js';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
@@ -17,7 +21,6 @@ import {
   imageRatioInfo,
   resolveImageSize,
   imageResultWarning,
-  type CanvasImageInfo,
 } from '../canvas/imageSizing.js';
 import { callRemoteProxyTool } from '../server/mcp.js';
 import {
@@ -28,11 +31,7 @@ import {
 } from '../server/proxyAssets.js';
 import type { MakerRemoteProxyManager } from '../server/remoteProxyManager.js';
 import { MakerCanvasFiles } from '../canvas/files.js';
-import {
-  snapshotCanvasSource,
-  isCanvasNodeStale,
-  type CanvasSourceSnapshot,
-} from '../canvas/dependencies.js';
+import { snapshotCanvasSource, isCanvasNodeStale } from '../canvas/dependencies.js';
 import { ConsoleError } from './types.js';
 import { videoTaskTiming } from '../canvas/videoTaskTiming.js';
 import {
@@ -44,68 +43,6 @@ import {
 
 const videoOperations = new Set<string>();
 const imageRecoveries = new Set<string>();
-
-export type CanvasGenerationKind = 'image' | 'video';
-export type CanvasGenerationStatus =
-  | 'running'
-  | 'pending'
-  | 'succeeded'
-  | 'failed'
-  | 'unknown'
-  | 'canceled';
-
-export interface CanvasGenerationAttempt {
-  provider?: 'maker' | 'custom' | 'local';
-  apiProfileId?: string;
-  apiModel?: string;
-  uiAtlasPlan?: UiAtlasPlan;
-  id: string;
-  canvasId: string;
-  kind: CanvasGenerationKind;
-  toolName: 'generate_image' | 'edit_image' | 'create_video_task' | 'prepare_ui_atlas';
-  status: CanvasGenerationStatus;
-  prompt: string;
-  cutoutColor?: '#FF00FF' | '#00FF00';
-  referenceImages?: Array<CanvasImageInfo & { assetPath: string }>;
-  originalImage?: CanvasImageInfo & { assetPath: string; nodeId?: string };
-  resultImageInfo?: CanvasImageInfo;
-  warnings?: string[];
-  submittedPrompt?: string;
-  operation?: 'generate' | 'variant' | 'outpaint';
-  taskId?: string;
-  sourceImagePath?: string;
-  sourceImageId?: string;
-  sourceImagePaths?: string[];
-  sourceImageIds?: string[];
-  referenceImagePaths?: string[];
-  targetNodeId?: string;
-  targetAssetPath?: string;
-  remoteStatus?: 'pending' | 'succeeded' | 'failed';
-  failureStage?: 'submission' | 'remote' | 'query' | 'download';
-  localWaitCanceledAt?: string;
-  nextQueryAt?: string;
-  sourceSnapshot?: CanvasSourceSnapshot;
-  sourceSnapshots?: CanvasSourceSnapshot[];
-  parameters?: {
-    model?: string;
-    resolution?: string;
-    targetSize?: string;
-    aspectRatio?: string;
-    duration?: number;
-    ratio?: string;
-    userConfirmed?: boolean;
-    mode?: 'first_frame' | 'first_last_frame' | 'multi_modal_reference';
-  };
-  resultAssetPath?: string;
-  deliveredAssetPath?: string;
-  cachedImage?: boolean;
-  remoteAssetUrl?: string;
-  credits?: number;
-  error?: string;
-  executionState?: RemoteProxyExecutionState;
-  createdAt: string;
-  updatedAt: string;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -177,6 +114,7 @@ export class CanvasGenerationService {
     name?: string;
     targetSize?: string;
     aspectRatio?: string;
+    provider?: unknown;
     model?: string;
     resolution?: string;
     operation?: 'generate' | 'variant' | 'outpaint';
@@ -188,8 +126,6 @@ export class CanvasGenerationService {
     targetNodeId?: string;
   }): Promise<CanvasGenerationAttempt> {
     const provider = generationProvider();
-    if (provider.source === 'local' && !options.targetNodeId)
-      throw new ConsoleError('当前使用本地模型（仅限 CLI 调用），画布不能直接提交生图。');
     const files = new MakerCanvasFiles(this.projectRoot);
     if (options.cutoutColor !== undefined && !['#FF00FF', '#00FF00'].includes(options.cutoutColor))
       throw new Error('抠图底色无效。');
@@ -198,12 +134,6 @@ export class CanvasGenerationService {
     const localPrelayout = document.nodes.some(
       (node) => node.id === options.targetNodeId && node.uiAtlasPrelayout
     );
-    if (!localPrelayout && provider.source === 'local')
-      throw new ConsoleError(
-        '当前使用本地模型（仅限 CLI 调用）。请让 Codex 等客户端读取 canvas model-settings，使用自身生图能力生成并通过 canvas import 导入图片；本次未提交生图，不会改用 Maker MCP。'
-      );
-    if (!localPrelayout && provider.source === 'custom' && !provider.profile)
-      throw new ConsoleError('请在设置中选择已保存的生图 API。');
     const sourceImagePaths = options.sourceImagePaths?.length
       ? options.sourceImagePaths
       : options.sourceImagePath
@@ -222,8 +152,6 @@ export class CanvasGenerationService {
     if (sourceImagePaths.length + referenceImagePaths.length > 14 || sourceImageIds.length > 14) {
       throw new Error('图片生成最多支持 14 张参考图。');
     }
-    if (options.model && !['nanobanana', 'gpt'].includes(options.model))
-      throw new Error('图片模型无效。');
     if (options.resolution && !['1K', '2K'].includes(options.resolution))
       throw new Error('图片分辨率无效。');
     if (options.aspectRatio && !['source', ...IMAGE_OUTPUT_RATIOS].includes(options.aspectRatio))
@@ -255,12 +183,6 @@ export class CanvasGenerationService {
       }
     }
     const target = document.nodes.find((node) => node.id === options.targetNodeId);
-    const section = document.nodes.find((node) => node.id === target?.sectionId);
-    const editTextFree =
-      target?.uiRecognition?.inputRole === 'text-free' &&
-      (section?.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
-        (section?.templateCliOnly && section.templateSkills?.includes('maker-ui-bbox-workflow'))) &&
-      remoteReferences.length === 1;
     const uiAtlasPlan = target && selectedUiAtlasPlan(document, target);
     const prelayoutSource = sourceImageIds
       .map((id) => document.nodes.find((node) => node.id === id))
@@ -405,14 +327,72 @@ export class CanvasGenerationService {
         ? ['保持原设计稿方向、构图和元素自身比例，不旋转、拉伸、裁去界面内容。']
         : []),
     ].join('\n');
+    const toolName = canvasImageTool(
+      document,
+      options.targetNodeId,
+      sourceImageIds,
+      remoteReferences.length
+    );
+    let model: string | undefined;
+    if (!localPrelayout) {
+      try {
+        if (provider.source === 'local')
+          throw new ConsoleError(
+            '当前使用本地模型（仅限 CLI 调用）。请让 Codex 等客户端读取 canvas model-settings，使用自身生图能力生成并通过 canvas import 导入图片；本次未提交生图，不会改用 Maker MCP。'
+          );
+        if (provider.source === 'custom' && !provider.profile)
+          throw new ConsoleError('请在设置中选择已保存的生图 API。');
+        const available = await canvasImageModels(
+          this.projectRoot,
+          this.remoteProxyManager,
+          toolName,
+          provider
+        );
+        if (
+          options.provider !== undefined &&
+          (!isRecord(options.provider) ||
+            options.provider.source !== available.provider.source ||
+            options.provider.profileId !== available.provider.profileId ||
+            options.provider.model !== available.provider.model ||
+            options.provider.identity !== available.provider.identity)
+        )
+          throw new ConsoleError(
+            '生图来源或模型配置已变化，请重新打开图片参数后确认；本次未提交。',
+            409
+          );
+        if (canvasImageProviderIdentity() !== canvasImageProviderIdentity(provider))
+          throw new ConsoleError('生图来源或模型配置已变化，请重新确认后提交。', 409);
+        if (provider.source === 'maker') {
+          model =
+            !options.model || options.model === 'auto' ? available.defaultModel : options.model;
+          const choice = available.models.find((item) => item.id === model);
+          if (model && !choice)
+            throw new ConsoleError(
+              '当前 Maker MCP 图片操作不支持模型 ' + model + '，请重新选择；本次未提交。'
+            );
+          if (remoteReferences.length > (choice?.maxReferenceImages ?? 14))
+            throw new ConsoleError(
+              '当前模型最多支持 ' +
+                choice!.maxReferenceImages +
+                ' 张输入图片（含来源图）；本次未提交。'
+            );
+        }
+      } catch (error) {
+        if (error instanceof Error)
+          throw Object.assign(error, {
+            code: 'CANVAS_IMAGE_NOT_SUBMITTED',
+            executionState: 'not_executed',
+          });
+        throw error;
+      }
+    }
     const attempt = this.createAttempt({
       canvasId: options.canvasId,
       kind: 'image',
       toolName: localPrelayout
         ? 'prepare_ui_atlas'
-        : ((usesPrelayout && uiAtlasPlan?.nativeLayout) || editTextFree) &&
-            provider.source === 'maker'
-          ? 'edit_image'
+        : provider.source === 'maker'
+          ? toolName
           : 'generate_image',
       prompt: options.prompt,
       uiAtlasPlan,
@@ -435,7 +415,7 @@ export class CanvasGenerationService {
     attempt.targetAssetPath =
       document.nodes.find((node) => node.id === options.targetNodeId)?.assetPath || '';
     attempt.parameters = {
-      model: options.model,
+      model: provider.source === 'custom' ? provider.profile?.model : model,
       resolution: options.resolution,
       targetSize,
       aspectRatio: requestedRatio,
@@ -489,7 +469,7 @@ export class CanvasGenerationService {
           name: options.name || 'canvas-image',
           target_size: targetSize,
           aspect_ratio: size.aspectRatio,
-          ...(options.model ? { model: options.model } : {}),
+          ...(model ? { model } : {}),
           ...(options.resolution ? { resolution: options.resolution } : {}),
           ...(attempt.toolName === 'edit_image'
             ? { image: remoteReferences[0] }

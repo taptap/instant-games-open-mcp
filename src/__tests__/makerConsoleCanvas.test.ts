@@ -8,6 +8,7 @@ import { ConsoleProjects } from '../maker/console/projects';
 import { startConsoleServer } from '../maker/console/server';
 import { CanvasGenerationService } from '../maker/console/canvasGeneration';
 import { getCanvasPageHtml, CANVAS_PAGE_MARKER } from '../maker/canvas/page';
+import { createLocalCanvasHost } from '../maker/canvas/localBrowserHost';
 import { createBrowserCanvasDocumentStore } from '../maker/canvas/store';
 import { sequenceActionsForCard } from '../maker/canvas/sequence';
 import { imageFeatures, imageAllowsOutpaint } from '../maker/canvas/imageFeatures';
@@ -111,7 +112,11 @@ describe('Maker console canvas', () => {
   test('loads page images through the encoded same-origin project media route', async () => {
     const html = getCanvasPageHtml();
     const script = html.match(/<script>([\s\S]*?)<\/script>/i)?.[1] || '';
-    expect(script).toContain('const store = createBrowserCanvasDocumentStore(key)');
+    expect(script).toContain('function createCanvasHost()');
+    expect(script).toContain('return createLocalCanvasHost(projectKey)');
+    expect(script).toContain(createLocalCanvasHost.toString());
+    expect(script).toContain('const host = createCanvasHost()');
+    expect(script).toContain('const store = host.store');
     expect(script).toContain('return store.mediaUrl(assetPath)');
     expect(script).toContain('store.importVideo(canvasId');
     expect(script).toContain('sequenceUi = createSequenceUiController({');

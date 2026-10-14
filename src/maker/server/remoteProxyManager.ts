@@ -154,6 +154,7 @@ export function createMakerRemoteProxyManager(
   const closeEntry = (entry: ConnectionEntry): Promise<void> => {
     if (connections.get(entry.key) === entry) {
       connections.delete(entry.key);
+      cachedTools.delete(entry.key);
     }
     entry.retiring = true;
     if (entry.closePromise) {
@@ -182,6 +183,7 @@ export function createMakerRemoteProxyManager(
   const retireEntry = (entry: ConnectionEntry): void => {
     if (connections.get(entry.key) === entry) {
       connections.delete(entry.key);
+      cachedTools.delete(entry.key);
     }
     entry.retiring = true;
     retiredEntries.add(entry);
@@ -291,14 +293,14 @@ export function createMakerRemoteProxyManager(
   return {
     async listTools(context): Promise<RemoteProxyToolDefinition[]> {
       const key = createContextKey(context);
-      const result = await run(context, (client) =>
-        withRequestCleanup(undefined, (requestOptions) =>
+      return await run(context, async (client) => {
+        const result = await withRequestCleanup(undefined, (requestOptions) =>
           client.listTools(undefined, requestOptions)
-        )
-      );
-      const tools = result.tools as RemoteProxyToolDefinition[];
-      cachedTools.set(key, tools);
-      return tools;
+        );
+        const tools = result.tools as RemoteProxyToolDefinition[];
+        if (connections.get(key)?.client === client) cachedTools.set(key, tools);
+        return tools;
+      });
     },
 
     async callTool(context, request, requestOptions, onDispatch): Promise<CallToolResult> {

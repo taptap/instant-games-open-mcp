@@ -1,5 +1,7 @@
 # 序列帧动画：AI 使用说明
 
+架构、双端对接与开发迭代规范见 [Maker Canvas 开发指南](../../../packages/maker-canvas/README.md)。
+
 游戏 UI 官方合批模板与历史分类模板的识图与资源随保存自动归档到 `.maker/canvases/ui-archives/`。
 用 `canvas ui-archives --target-dir <项目>` 离线查询 UI 名称、唯一 ID、版本和两个 JSON 路径；
 旧画布用 `canvas archive-ui --target-dir <项目> --canvas-id <ID>` 补归档，不重跑生成。
@@ -351,7 +353,9 @@ stroke（1～8）。箭头可传成对的 from/to 局部坐标 {x,y}；point=nw/
 generation 的任务标识、结果路径、来源快照不允许写入。空图片和视频卡使用生成草稿保存输入；
 已有素材保留，模板修改只标记待处理，不覆盖下游结果。
 
-图片 parameters：model=auto/gpt/nanobanana，resolution=1K/2K，aspectRatio=1:1/16:9/9:16/4:3/3:4。
+图片 parameters：Maker 的 model 使用当前 MCP 工具声明的模型 ID，auto 使用服务默认模型；
+自定义 API 使用已选配置的模型，本地模式由当前 AI 客户端执行。resolution=1K/2K，
+aspectRatio=1:1/16:9/9:16/4:3/3:4。
 视频 parameters：model=2.0/2.5，resolution=720p/480p，duration=4～8，ratio=adaptive/16:9/9:16/1:1，
 mode=first_frame/first_last_frame/multi_modal_reference。Seedance 2.5 的首帧/首尾帧模式必须使用
 ratio=adaptive。参考图数量和来源仍按原界面校验。

@@ -335,7 +335,12 @@ try {
           maxSourceSide: 1024,
           estimateFrameCount: () => 4,
         });
-        const controller = window.createSequenceUiController({
+        const controller = window.createSequenceUiControllerWithMedia({
+          readAtlas: async (path, signal) => {
+            const response = await fetch(path, { signal });
+            if (!response.ok) throw new Error('无法读取已保存图集。');
+            return response.blob();
+          },
           store: { mediaUrl: (value) => value },
           processor,
           video,

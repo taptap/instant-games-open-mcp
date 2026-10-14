@@ -9,24 +9,24 @@
 先判断任务属于哪个模块，再定位并阅读对应文档的相关章节，不要预读整张索引或无关全文。
 文档是实现细节的来源，本文件只保留索引和不可违反的通用规则。
 
-| 任务范围                                | 先读                                                                                           |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 仓库架构、模块依赖、认证                | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                                   |
-| MCP 部署、传输协议、通用环境变量        | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)、[docs/MCP_USAGE.md](docs/MCP_USAGE.md)               |
-| MCP Proxy、私有参数、连接生命周期       | [src/mcp-proxy/README.md](src/mcp-proxy/README.md)、[docs/PROXY.md](docs/PROXY.md)             |
-| Maker CLI、PAT、项目初始化、客户端集成  | [docs/MAKER.md](docs/MAKER.md)                                                                 |
-| Maker 控制台、UI 编辑器                 | [docs/MAKER_CONSOLE.md](docs/MAKER_CONSOLE.md)                                                 |
-| Maker Canvas                            | [src/maker/canvas/README.md](src/maker/canvas/README.md)                                       |
-| 图片卡专用功能、菜单与生命周期          | [docs/MAKER_CANVAS_IMAGE_FEATURES.md](docs/MAKER_CANVAS_IMAGE_FEATURES.md)                     |
-| Maker Runtime、本地预览、验证和进程清理 | [docs/MAKER_LOCAL_PREVIEW.md](docs/MAKER_LOCAL_PREVIEW.md)                                     |
-| Maker 环境变量                          | [docs/MAKER_ENVIRONMENT_VARIABLES.md](docs/MAKER_ENVIRONMENT_VARIABLES.md)                     |
-| UI 设计稿、切图和布局复原               | [docs/MAKER_UI_WORKFLOW.md](docs/MAKER_UI_WORKFLOW.md)                                         |
-| 示例资源、CDN 和打包校验                | [docs/MAKER_DEMO_RESOURCES.md](docs/MAKER_DEMO_RESOURCES.md)                                   |
-| 小游戏/H5 广告                          | [docs/MCP_USAGE.md](docs/MCP_USAGE.md)、[src/features/ads/tools.ts](src/features/ads/tools.ts) |
-| 代码审核                                | [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md)                                                     |
-| 资源 `.meta` 和 UUID                    | [docs/MAKER_RESOURCE_META_WORKFLOW.md](docs/MAKER_RESOURCE_META_WORKFLOW.md)                   |
-| 发布、版本、Native 构建、Release guard  | [docs/CI_CD.md](docs/CI_CD.md)、[docs/RELEASE_PR_GUARDS.md](docs/RELEASE_PR_GUARDS.md)         |
-| 本地 Maker 操作指引                     | [skills/taptap-maker-local/SKILL.md](skills/taptap-maker-local/SKILL.md)                       |
+| 任务范围                                | 先读                                                                                                          |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 仓库架构、模块依赖、认证                | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                                                  |
+| MCP 部署、传输协议、通用环境变量        | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)、[docs/MCP_USAGE.md](docs/MCP_USAGE.md)                              |
+| MCP Proxy、私有参数、连接生命周期       | [src/mcp-proxy/README.md](src/mcp-proxy/README.md)、[docs/PROXY.md](docs/PROXY.md)                            |
+| Maker CLI、PAT、项目初始化、客户端集成  | [docs/MAKER.md](docs/MAKER.md)                                                                                |
+| Maker 控制台、UI 编辑器                 | [docs/MAKER_CONSOLE.md](docs/MAKER_CONSOLE.md)                                                                |
+| Maker Canvas                            | [src/maker/canvas/README.md](src/maker/canvas/README.md)、[共享画布开发指南](packages/maker-canvas/README.md) |
+| 图片卡专用功能、菜单与生命周期          | [docs/MAKER_CANVAS_IMAGE_FEATURES.md](docs/MAKER_CANVAS_IMAGE_FEATURES.md)                                    |
+| Maker Runtime、本地预览、验证和进程清理 | [docs/MAKER_LOCAL_PREVIEW.md](docs/MAKER_LOCAL_PREVIEW.md)                                                    |
+| Maker 环境变量                          | [docs/MAKER_ENVIRONMENT_VARIABLES.md](docs/MAKER_ENVIRONMENT_VARIABLES.md)                                    |
+| UI 设计稿、切图和布局复原               | [docs/MAKER_UI_WORKFLOW.md](docs/MAKER_UI_WORKFLOW.md)                                                        |
+| 示例资源、CDN 和打包校验                | [docs/MAKER_DEMO_RESOURCES.md](docs/MAKER_DEMO_RESOURCES.md)                                                  |
+| 小游戏/H5 广告                          | [docs/MCP_USAGE.md](docs/MCP_USAGE.md)、[src/features/ads/tools.ts](src/features/ads/tools.ts)                |
+| 代码审核                                | [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md)                                                                    |
+| 资源 `.meta` 和 UUID                    | [docs/MAKER_RESOURCE_META_WORKFLOW.md](docs/MAKER_RESOURCE_META_WORKFLOW.md)                                  |
+| 发布、版本、Native 构建、Release guard  | [docs/CI_CD.md](docs/CI_CD.md)、[docs/RELEASE_PR_GUARDS.md](docs/RELEASE_PR_GUARDS.md)                        |
+| 本地 Maker 操作指引                     | [skills/taptap-maker-local/SKILL.md](skills/taptap-maker-local/SKILL.md)                                      |
 
 修改模块前先查相邻源码、测试和上述文档；不要把一次 bug 的解决步骤直接升级成全仓库
 永久规则。只有稳定的架构契约、安全边界或 Agent 行为变化才需要更新本文件。

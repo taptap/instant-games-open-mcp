@@ -1,3 +1,4 @@
+import { canvasImageModels } from './canvasImageModels.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createReadStream, statSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
@@ -123,6 +124,14 @@ export async function handleCanvasProjectRoute(options: {
             : options.automation.exchange(key, body)
         );
       } else throw new ConsoleError('Unknown canvas automation route.', 404);
+      return true;
+    }
+    if (suffix === 'canvases/image-models' && method === 'GET') {
+      if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
+      const tool = searchParams.get('tool');
+      if (tool !== 'generate_image' && tool !== 'edit_image')
+        throw new ConsoleError('图片操作无效。');
+      send(response, 200, await canvasImageModels(project.path, options.remoteProxyManager, tool));
       return true;
     }
     if (suffix === 'canvases/video-history' && method === 'GET') {
@@ -413,6 +422,7 @@ export async function handleCanvasProjectRoute(options: {
         name: typeof body.name === 'string' ? body.name : undefined,
         targetSize: typeof body.targetSize === 'string' ? body.targetSize : undefined,
         aspectRatio: typeof body.aspectRatio === 'string' ? body.aspectRatio : undefined,
+        provider: body.provider,
         model: typeof body.model === 'string' ? body.model : undefined,
         resolution: typeof body.resolution === 'string' ? body.resolution : undefined,
         operation:
@@ -564,6 +574,17 @@ export async function handleCanvasProjectRoute(options: {
     }
     throw new ConsoleError('Not found.', 404);
   } catch (error) {
+    if (
+      error instanceof Error &&
+      (error as { code?: string }).code === 'CANVAS_IMAGE_NOT_SUBMITTED'
+    ) {
+      send(response, error instanceof ConsoleError ? error.status : 400, {
+        code: 'CANVAS_IMAGE_NOT_SUBMITTED',
+        executionState: 'not_executed',
+        error: error.message,
+      });
+      return true;
+    }
     if ((error as { code?: string }).code === 'CANVAS_PAGE_EXPIRED') {
       send(response, 409, { code: 'CANVAS_PAGE_EXPIRED', error: (error as Error).message });
       return true;
