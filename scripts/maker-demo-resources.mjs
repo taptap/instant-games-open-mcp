@@ -63,6 +63,15 @@ function isTransientDownloadError(error, status) {
   );
 }
 
+
+async function cancelResponseBody(response) {
+  try {
+    await response?.body?.cancel?.();
+  } catch {
+    /* The HTTP status remains the failure; a cancel error must not hide it. */
+  }
+}
+
 export async function verifyDemoResourceDownload({
   entry,
   source,
@@ -82,7 +91,10 @@ export async function verifyDemoResourceDownload({
     try {
       const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
       status = response.status;
-      if (!response.ok) throw new Error('下载失败 HTTP ' + response.status);
+      if (!response.ok) {
+        await cancelResponseBody(response);
+        throw new Error('下载失败 HTTP ' + response.status);
+      }
       const bytes = Buffer.from(await response.arrayBuffer());
       if (bytes.length !== entry.size || hash(bytes) !== entry.sha256)
         throw new Error('远端文件不匹配');
