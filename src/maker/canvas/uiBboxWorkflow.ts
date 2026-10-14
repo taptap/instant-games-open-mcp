@@ -1,6 +1,7 @@
 import type { CanvasDocument, CanvasNode, CanvasEdge } from './model.js';
 import { selectedUiRecognition, uiRecognitionInputs } from './uiRecognition.js';
 import { imageRatioInfo } from './imageSizing.js';
+import { canvasReferences, snapshotCanvasSource } from './dependencies.js';
 import {
   uiWorkflowAtlasPlans,
   uiBatchAtlasPrompt,
@@ -35,6 +36,7 @@ export function syncUiBboxWorkflow(
   if (design.templatePending || design.assetPath !== bbox.design.path)
     throw new Error('原稿已变化，请先更新识图结果。');
   const textIds = Array.isArray(artText) ? [...new Set(artText)] : [];
+  const wantedArtText = textIds.length ? textIds : artText === true ? ['main-title'] : [];
   if (textIds.some((id) => !bbox.texts.some((text) => text.id === id)))
     throw new Error('美术字 ID 不在当前识图文字清单中。');
   const nodes: CanvasNode[] = [];
@@ -187,7 +189,7 @@ export function syncUiBboxWorkflow(
     connect(design, prelayout, 'image-variant');
     connect(prelayout, image, 'image-variant');
   }
-  for (const textId of textIds.length ? textIds : artText === true ? ['main-title'] : []) {
+  for (const textId of wantedArtText) {
     const text = bbox.texts.find((item) => item.id === textId);
     const existing = members.find(
       (node) =>
@@ -240,6 +242,37 @@ export function syncUiBboxWorkflow(
   group.templateCliOnly = true;
   current.nodes.push(...nodes);
   current.edges.push(...edges);
+  // Keep previous artwork and connections, but retire unselected branches until requested again.
+  for (const image of current.nodes.filter(
+    (node) => node.sectionId === groupId && node.type === 'image' && node.uiArtTextId
+  )) {
+    const active = wantedArtText.includes(image.uiArtTextId!);
+    const branch = [
+      image,
+      ...current.nodes.filter(
+        (node) =>
+          node.sectionId === groupId &&
+          node.type === 'image-assets' &&
+          current.edges.some(
+            (edge) => edge.from === image.id && edge.to === node.id && edge.kind === 'image-assets'
+          )
+      ),
+    ];
+    for (const node of branch) {
+      if (active) {
+        if (!node.uiEmpty) continue;
+        delete node.uiEmpty;
+        node.templatePending = true;
+      } else {
+        node.uiEmpty = true;
+        delete node.templatePending;
+        node.sourceSnapshots = canvasReferences(current, node.id).map(
+          (source) => snapshotCanvasSource(source)!
+        );
+        delete node.sourceSnapshot;
+      }
+    }
+  }
   const all = [...members, ...nodes];
   group.width = Math.max(group.width, ...all.map((node) => node.x + node.width + 28 - group.x));
   group.height = Math.max(group.height, ...all.map((node) => node.y + node.height + 28 - group.y));

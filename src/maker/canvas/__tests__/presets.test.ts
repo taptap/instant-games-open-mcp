@@ -41,6 +41,7 @@ test('lists portable presets without importing assets or creating a canvas', asy
     'UI风格裂变 · 同一界面→三种风格',
     '角色概念设计 · 角色参考→完整展示图',
     '游戏UI制作',
+    '游戏UI制作 · Bbox预排参考图（实验）',
   ]);
   expect(templates.every((template) => template.builtin && !('assets' in template))).toBe(true);
   expect(await files.list()).toEqual([]);

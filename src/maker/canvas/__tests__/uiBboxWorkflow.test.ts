@@ -99,9 +99,6 @@ test('default complex design completes the real queue and export logic with simu
   expect(planned).toEqual(expected);
   expect(syncUiBboxWorkflow(current, group.id, artIds, true)).toEqual([]);
   expect(() => validateResourceBundle(current, bundle.id)).toThrow('尚未完成');
-  const png = new Blob([new Uint8Array(PNG.sync.write(new PNG({ width: 32, height: 32 })))], {
-    type: 'image/png',
-  });
   const errors: string[] = [];
   const calls: string[] = [];
   let failOnce = atlas[1].id;
@@ -208,8 +205,17 @@ test('default complex design completes the real queue and export logic with simu
         throw new Error('No network URL');
       },
       undefined,
-      async (file) =>
-        media.has(file) ? new Blob([new Uint8Array(fs.readFileSync(media.get(file)!))]) : png
+      async (file) => {
+        if (media.has(file)) return new Blob([new Uint8Array(fs.readFileSync(media.get(file)!))]);
+        const item = current.nodes
+          .flatMap((node) => node.imageAssetsInfo?.items || [])
+          .find((item) => item.assetPath === file);
+        if (!item) throw new Error('Unknown simulated resource: ' + file);
+        return new Blob(
+          [new Uint8Array(PNG.sync.write(new PNG({ width: item.width, height: item.height })))],
+          { type: 'image/png' }
+        );
+      }
     );
     const manifest = JSON.parse(
       await entries.find((entry) => entry.name === 'bindings.json')!.blob.text()
@@ -257,6 +263,8 @@ test('default complex design completes the real queue and export logic with simu
     expect(bbox.elements).toHaveLength(119);
     expect(bbox.texts).toHaveLength(50);
     expect(expected).toHaveLength(127);
+    // Duplicate elements share PNGs, so binding count is not the ZIP file count.
+    expect(entries.length).toBeLessThanOrEqual(122);
     expect(exported.reduce((count, node) => count + node.imageAssetsInfo!.items.length, 0)).toBe(
       atlas.reduce((count, node) => count + node.generation!.uiAtlasPlan!.slots.length, 0) +
         artIds.length
@@ -298,6 +306,42 @@ test('complex inputs expand beyond the simple case without duplicating existing 
   const before = JSON.stringify(current);
   expect(syncUiBboxWorkflow(current, group.id, true)).toEqual([]);
   expect(JSON.stringify(current)).toBe(before);
+});
+
+test('retires unselected art text branches and restores them without deleting previous assets', () => {
+  const { current, group, cut } = fixture();
+  const texts = fixture(false).cut.uiRecognition!.results[0].bbox!.texts.slice(0, 2);
+  const bbox = cut.uiRecognition!.results[0].bbox!;
+  bbox.texts = [texts[0]];
+  syncUiBboxWorkflow(current, group.id, [texts[0].id]);
+  const branch = current.nodes.filter((node) => node.uiArtTextId === texts[0].id);
+  const image = branch.find((node) => !node.uiAtlasPrelayout)!;
+  const assets = current.nodes.find((node) =>
+    current.edges.some(
+      (edge) => edge.from === image.id && edge.to === node.id && edge.kind === 'image-assets'
+    )
+  )!;
+  assets.imageAssetsInfo = {
+    width: 32,
+    height: 32,
+    grid: { columns: 1, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
+    items: [{ name: 'title', width: 32, height: 32, assetPath: 'old-title.png' }],
+  };
+  const previousAssets = structuredClone(assets.imageAssetsInfo);
+  bbox.texts = [texts[1]];
+  syncUiBboxWorkflow(current, group.id, [texts[1].id]);
+  for (const node of [...branch, assets]) {
+    expect(node.uiEmpty).toBe(true);
+    expect(canvasNeedsProcessing(current, node)).toBe(false);
+  }
+  expect(assets.imageAssetsInfo).toEqual(previousAssets);
+  bbox.texts = texts;
+  expect(syncUiBboxWorkflow(current, group.id, [texts[0].id])).toEqual([]);
+  for (const node of [...branch, assets]) {
+    expect(node.uiEmpty).toBeUndefined();
+    expect(node.templatePending).toBe(true);
+  }
+  expect(assets.imageAssetsInfo).toEqual(previousAssets);
 });
 
 test('refuses missing recognition, ordinary templates and overflow without partial changes', () => {

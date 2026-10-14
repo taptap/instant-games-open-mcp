@@ -200,7 +200,8 @@ test.each(['grid', 'content'] as const)(
         prepared.grid,
         prepared.background.color,
         'all',
-        expect.objectContaining({ mode, regions: prepared.regions })
+        expect.objectContaining({ mode, regions: prepared.regions }),
+        current.nodes[0].generation?.uiAtlasPlan
       );
     } finally {
       prepare.mockRestore();
@@ -472,7 +473,8 @@ test.each([
             : undefined,
         cutoutColor && !gameUi ? 'all' : 'connected',
         {},
-        undefined
+        undefined,
+        current.nodes[0].generation?.uiAtlasPlan
       );
       expect(target.templatePending).toBeUndefined();
     } finally {

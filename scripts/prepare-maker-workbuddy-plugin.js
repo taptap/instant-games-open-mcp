@@ -298,15 +298,17 @@ async function main() {
   const uiSkill = join(pluginRoot, 'skills/maker-ui-workflow');
   renameSync(join(uiSkill, 'scripts/assemble-ui.mjs'), join(uiSkill, 'assemble-ui.mjs'));
   renameSync(join(uiSkill, 'references/workflow.md'), join(uiSkill, 'workflow.md'));
+  renameSync(join(uiSkill, 'references/chatgpt-web.md'), join(uiSkill, 'chatgpt-web.md'));
   for (const directory of ['scripts', 'references'])
     rmSync(join(uiSkill, directory), { recursive: true });
-  for (const name of ['SKILL.md', 'workflow.md']) {
+  for (const name of ['SKILL.md', 'workflow.md', '../maker-ui-bbox-workflow/SKILL.md']) {
     const file = join(uiSkill, name);
     writeFileSync(
       file,
       readFileSync(file, 'utf8')
         .replaceAll('scripts/assemble-ui.mjs', 'assemble-ui.mjs')
         .replaceAll('references/workflow.md', 'workflow.md')
+        .replaceAll('references/chatgpt-web.md', 'chatgpt-web.md')
     );
   }
 

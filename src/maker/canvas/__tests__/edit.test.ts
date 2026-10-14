@@ -118,7 +118,7 @@ describe('canvas edit acknowledgements', () => {
     expect(html).toContain('waitForPendingAssets()');
     expect(html).toContain('window.makerCanvasUnsaved = dirty() || pendingAssetImports > 0');
     expect(html).toContain('if (!drag.additive) selected.clear()');
-    expect(html).toContain('if (space || event.button === 1) return;');
+    expect(html).toContain('if (space || handMode() || event.button === 1) return;');
     expect(html).toContain("event.key.toLowerCase() === 'z'");
     expect(html).toContain('previous.viewport = { ...documentState.viewport }');
     expect(html).toContain('next.viewport = { ...documentState.viewport }');

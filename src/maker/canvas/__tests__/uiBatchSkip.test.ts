@@ -93,6 +93,7 @@ test.each([
         controller.runAssets(id, async () => {
           const source = canvasReferences(document, id)[0];
           const plan = source.generation?.uiAtlasPlan;
+          const layout = plan?.nativeLayout;
           const grid = plan?.grid || {
             columns: 1,
             rows: 1,
@@ -105,13 +106,16 @@ test.each([
             document,
             source.id,
             {
-              width: grid.columns * 32,
-              height: grid.rows * 32,
+              width: layout?.width ?? grid.columns * 32,
+              height: layout?.height ?? grid.rows * 32,
               grid,
+              ...(layout
+                ? { regions: structuredClone(layout.regions), cutMode: 'grid' as const }
+                : {}),
               items: Array.from({ length: grid.columns * grid.rows }, (_, index) => ({
                 name: 'item_' + String(index + 1).padStart(3, '0'),
-                width: 32,
-                height: 32,
+                width: layout?.regions[index].width ?? 32,
+                height: layout?.regions[index].height ?? 32,
                 assetPath: 'assets/image/canvas-' + createId() + '.png',
               })),
             },
