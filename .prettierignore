@@ -13,6 +13,9 @@ CHANGELOG.md
 *.min.js
 *.min.css
 src/maker/canvas/assetPresetData.json
+src/maker/canvas/presetData.json
+src/maker/canvas/modelPresetData.json
+src/maker/canvas/templateModelData.json
 
 # Binary files
 bin/
