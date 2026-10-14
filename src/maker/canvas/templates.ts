@@ -9,6 +9,7 @@ export interface CanvasWorkflowTemplate {
   name: string;
   revision: number;
   builtin?: boolean;
+  cliOnly?: boolean;
   skills?: string[];
   nodes: CanvasNode[];
   edges: CanvasEdge[];
@@ -56,6 +57,7 @@ export interface CanvasTemplateSummary {
   name: string;
   revision: number;
   builtin?: boolean;
+  cliOnly?: boolean;
   skills?: string[];
   nodeCount: number;
   hasCover: boolean;
@@ -152,6 +154,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       delete node.templateId;
       delete node.templateRevision;
       delete node.templateSkills;
+      delete node.templateCliOnly;
       delete node.templatePending;
       delete node.workDurationMs;
       delete node.workStartedAt;
@@ -211,6 +214,14 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       id: createId(),
       name: name.trim(),
       ...(skills.length ? { skills } : {}),
+      ...(document.nodes.some(
+        (node) =>
+          node.type === 'section' &&
+          sectionIds.has(node.id) &&
+          (node.templateCliOnly || node.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015')
+      )
+        ? { cliOnly: true }
+        : {}),
       revision: 0,
       nodes,
       edges: JSON.parse(JSON.stringify(edges)),
@@ -259,7 +270,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       if (node.generation?.sourceImageIds)
         node.generation.sourceImageIds = node.generation.sourceImageIds.map((id) => ids.get(id)!);
       if (
-        !['model', 'model-views', 'resource-bundle'].includes(node.type) &&
+        !['model', 'model-views', 'resource-bundle', 'mark'].includes(node.type) &&
         template.edges.some((edge) => ids.get(edge.to) === node.id)
       )
         node.templatePending = true;
@@ -268,6 +279,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
     const section = group(nodes, template.name);
     section.templateId = template.id;
     section.templateRevision = template.revision;
+    if (template.cliOnly) section.templateCliOnly = true;
     if (template.skills?.length) section.templateSkills = [...template.skills];
     nodes.forEach((node) => {
       node.sectionId = section.id;

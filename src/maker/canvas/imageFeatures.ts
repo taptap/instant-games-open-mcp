@@ -16,12 +16,14 @@ export interface ImageFeatureDefinition {
     | 'uiAnnotation'
     | 'mergeIcons'
     | 'uiAtlasPlan'
+    | 'uiAtlasPrelayout'
     | 'uiAtlasGroup';
   actions: readonly ImageFeatureAction[];
   blocksOutpaint?: boolean;
 }
 
 export const IMAGE_FEATURES: readonly ImageFeatureDefinition[] = [
+  { id: 'ui-atlas', field: 'uiAtlasPrelayout', actions: [], blocksOutpaint: true },
   { id: 'ui-atlas', field: 'uiAtlasGroup', actions: [], blocksOutpaint: true },
   { id: 'ui-atlas', field: 'uiAtlasPlan', actions: [], blocksOutpaint: true },
   { id: 'ui-recognition', field: 'uiRecognition', actions: ['recognize-ui', 'view-bbox'] },

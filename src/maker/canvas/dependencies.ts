@@ -23,7 +23,10 @@ export function metadataVersion(node: CanvasNode): string {
               slot.state,
               slot.role,
             ]),
-          ])
+          ]) +
+          (node.generation.uiAtlasPlan.nativeLayout
+            ? '|nativeLayout:' + JSON.stringify(node.generation.uiAtlasPlan.nativeLayout)
+            : '')
         : '');
     return node.uiRecognition && node.uiRecognition.inputRole !== 'design'
       ? asset +

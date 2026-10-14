@@ -78,9 +78,40 @@ export function createCanvasWorkspace(options: {
   for (const id of ['undo', 'redo', 'duplicate-selected', 'delete-selected', 'export-canvas']) {
     more.panel.append(document.getElementById(id)!);
   }
+  const selectTool = document.getElementById('tool-select')!;
+  const panTool = document.getElementById('tool-pan')!;
+  const ellipse = document.getElementById('mark-ellipse')!;
+  const arrow = document.getElementById('mark-arrow')!;
+  iconButton(
+    selectTool,
+    '鼠标',
+    '<path fill="currentColor" stroke="none" d="M5.2 3.2 5.8 16.6 9.6 13.4 12.1 19.2 14.4 18.2 11.9 12.4 17.4 12.1 5.2 3.2z"/>'
+  );
+  iconButton(
+    panTool,
+    '拖拽画布',
+    '<g transform="translate(1 1) scale(0.9)"><path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></g>'
+  );
+  panTool.title = '拖拽画布：只平移和缩放，适合触控板';
+  iconButton(ellipse, '标注框', '<rect x="5" y="6" width="14" height="12" rx="1"/>');
+  iconButton(arrow, '箭头', '<path d="M4 12h12"/><path d="m13 6 6 6-6 6"/>');
+  const toolSep = document.createElement('span');
+  toolSep.className = 'workspace-tool-sep';
+  toolSep.setAttribute('aria-hidden', 'true');
   const actions = document.createElement('div');
   actions.className = 'workspace-actions';
-  actions.append(add.root, template, document.getElementById('status')!, save, more.root);
+  actions.append(
+    selectTool,
+    panTool,
+    ellipse,
+    arrow,
+    toolSep,
+    add.root,
+    template,
+    document.getElementById('status')!,
+    save,
+    more.root
+  );
   header.append(actions);
   header.setAttribute('aria-label', '画布操作');
   const main = document.createElement('div');
@@ -90,6 +121,69 @@ export function createCanvasWorkspace(options: {
   header.before(main);
   main.append(header, stage);
   stage.append(document.getElementById('error')!, board);
+  const grip = document.createElement('button');
+  grip.type = 'button';
+  grip.className = 'workspace-toolbar-grip';
+  grip.textContent = '⠿';
+  grip.title = '拖动工具条（方向键也可移动）';
+  grip.setAttribute('aria-label', '移动工具条');
+  header.prepend(grip);
+  let toolbarPosition: { x: number; y: number } | null = null;
+  let toolbarDrag: { id: number; x: number; y: number } | null = null;
+  function positionToolbar() {
+    if (!toolbarPosition) return;
+    const { x, y } = toolbarPosition;
+    const left = Math.max(0, Math.min(x, main.clientWidth - header.offsetWidth));
+    const top = Math.max(0, Math.min(y, main.clientHeight - header.offsetHeight));
+    header.style.left = left + 'px';
+    header.style.top = top + 'px';
+    header.style.transform = 'none';
+    toolbarPosition = { x: left, y: top };
+  }
+  grip.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const rect = header.getBoundingClientRect();
+    toolbarDrag = {
+      id: event.pointerId,
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+    for (const item of [add, more]) item.root.open = false;
+    grip.setPointerCapture(event.pointerId);
+    grip.classList.add('dragging');
+  });
+  grip.addEventListener('pointermove', (event) => {
+    if (!toolbarDrag || toolbarDrag.id !== event.pointerId) return;
+    const rect = main.getBoundingClientRect();
+    toolbarPosition = {
+      x: event.clientX - rect.left - toolbarDrag.x,
+      y: event.clientY - rect.top - toolbarDrag.y,
+    };
+    positionToolbar();
+  });
+  function stopToolbarDrag() {
+    toolbarDrag = null;
+    grip.classList.remove('dragging');
+  }
+  grip.addEventListener('pointerup', stopToolbarDrag);
+  grip.addEventListener('pointercancel', stopToolbarDrag);
+  grip.addEventListener('lostpointercapture', stopToolbarDrag);
+  grip.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    const rect = header.getBoundingClientRect();
+    const area = main.getBoundingClientRect();
+    toolbarPosition = {
+      x:
+        rect.left -
+        area.left +
+        (event.key === 'ArrowRight' ? 10 : event.key === 'ArrowLeft' ? -10 : 0),
+      y: rect.top - area.top + (event.key === 'ArrowDown' ? 10 : event.key === 'ArrowUp' ? -10 : 0),
+    };
+    positionToolbar();
+  });
+  new ResizeObserver(positionToolbar).observe(main);
   const bottom = document.createElement('footer');
   bottom.className = 'workspace-bottom';
   const controls = document.createElement('div');
@@ -111,6 +205,16 @@ export function createCanvasWorkspace(options: {
   for (const item of menus) {
     item.root.addEventListener('toggle', () => {
       if (item.root.open) for (const other of menus) if (other !== item) other.root.open = false;
+      if (item.root.open && item !== library) {
+        const rect = item.root.getBoundingClientRect();
+        const panel = item.panel;
+        panel.style.position = 'fixed';
+        panel.style.bottom = 'auto';
+        panel.style.left =
+          Math.max(0, Math.min(rect.right + 8, window.innerWidth - panel.offsetWidth)) + 'px';
+        panel.style.top =
+          Math.max(0, Math.min(rect.top, window.innerHeight - panel.offsetHeight)) + 'px';
+      }
     });
     item.panel.addEventListener('click', (event) => {
       if ((event.target as HTMLElement).closest('button')) item.root.open = false;
@@ -370,7 +474,8 @@ body {
 .workspace-toolbar {
   position: absolute;
   left: 12px;
-  top: 16px;
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 40;
   display: flex;
   flex-direction: column;
@@ -383,6 +488,18 @@ body {
   border-radius: 12px;
   box-shadow: 0 6px 24px #0006;
 }
+.workspace-toolbar .workspace-toolbar-grip {
+  min-height: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #a7b1b4;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.workspace-toolbar .workspace-toolbar-grip.dragging { cursor: grabbing; }
 .workspace-tab #rename-canvas {
   align-self: center;
   flex-basis: 26px;
@@ -397,6 +514,11 @@ body {
   align-items: stretch;
   gap: 8px;
   flex: 1;
+}
+.workspace-tool-sep {
+  height: 1px;
+  margin: 2px 6px;
+  background: #343b3d;
 }
 .workspace-toolbar #status {
   margin: 2px 0 0;
@@ -442,6 +564,11 @@ body {
   height: 38px;
   line-height: 20px;
   padding: 0;
+}
+.workspace-actions > button[aria-pressed="true"] {
+  background: #f5dc56;
+  color: #252820;
+  border-color: #f5dc56;
 }
 .workspace-actions summary {
   width: 100%;

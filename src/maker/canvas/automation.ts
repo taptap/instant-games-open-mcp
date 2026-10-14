@@ -4,6 +4,7 @@ import { canvasOriginalImage, imageRatioInfo } from './imageSizing.js';
 import { canvasGenerationParameterChoices, canvasParameterSchema } from './automationInfo.js';
 import { imageCardSize } from './imageInfo.js';
 import { uiRecognitionStatus, validateUiRecognition } from './uiRecognition.js';
+import { validateCanvasMark } from './marks.js';
 
 export interface CanvasCommand {
   requestId: string;
@@ -30,9 +31,9 @@ export interface CanvasOperation {
 export function canvasAutomationCapabilities() {
   return {
     modelSettings: {
-      command: 'canvas model-settings',
+      command: 'canvas model-settings --target-dir PATH',
       policy:
-        'Read global image generation and vision choices before invoking any model. Never choose or fall back to another provider. Local means the current AI client executes its own capability; browser run cannot invoke it. Import client-generated images with canvas import; import creates a new card and does not complete an existing workflow node. API keys are never returned.',
+        'Read effective image generation and vision choices for the target project before invoking any model. Default vision is Server API; a read-only availability check resolves it to chatgpt-web when unavailable, without changing the saved selection. Explicit user choices take precedence. Follow vision.source; never switch providers yourself or replay submitted tasks. Local means the current AI client executes its own capability; browser run cannot invoke it. Import client-generated images with canvas import; import creates a new card and does not complete an existing workflow node. API keys are never returned.',
     },
     uiArchives: {
       list: 'canvas ui-archives --target-dir PATH [--canvas-id ID]',
@@ -47,6 +48,7 @@ export function canvasAutomationCapabilities() {
       'rename',
       'add-template',
       'add-node',
+      'sync-ui-batches',
       'update-nodes',
       'delete-nodes',
       'duplicate',
@@ -64,10 +66,11 @@ export function canvasAutomationCapabilities() {
       'confirm-image-assets',
       'export',
     ],
-    nodeTypes: ['image', 'video', 'note', 'sequence', 'animation', 'model-views', 'model'],
+    nodeTypes: ['image', 'video', 'note', 'mark', 'sequence', 'animation', 'model-views', 'model'],
     editable: [
       'title',
       'text',
+      'mark',
       'x',
       'y',
       'width',
@@ -79,6 +82,7 @@ export function canvasAutomationCapabilities() {
       'mergeIcons',
       'uiRecognition',
       'uiAtlasPlan',
+      'uiAtlasPrelayout',
     ],
     modelWorkflow: {
       quality: ['fast', 'balanced', 'high_quality'],
@@ -103,11 +107,14 @@ export function canvasAutomationCapabilities() {
         'Before executing a template, read its associated Skills using the paths in Maker status or the current project Skill directories. If unavailable, report the missing Skill; do not claim to have followed it. Skills guide the Agent, not automatic console execution, and do not bypass review or paid-operation confirmation.',
     },
     uiWorkflow: {
+      syncBboxBatches:
+        'sync-ui-batches input: {id: section ID, artText: string[] | boolean, background: boolean}. Bbox experimental template only. Pass Bbox text IDs for all required art text (one PNG per ID); [] means none, true retains the legacy main-title branch. Requires current validated recognition and revision. Creates missing batch cards and links without model calls, preserves existing work. Skill decides art text and unlisted environment background. Reinspect after saving; never replay paid jobs.',
       skill: 'maker-ui-workflow',
+      prelayoutSkill: 'maker-ui-bbox-workflow',
       imageSizing:
         'imageInfo reports actual image pixels and ratio, not card geometry. originalImage traces the unique original through existing references. Use parameters.aspectRatio=source for full-screen processing, or a supported fixed ratio for atlases. Uncommon input ratios carry warnings; unsupported source ratios stop before billing. Generation history separates referenceImages, originalImage, parameters.targetSize, resultImageInfo and submittedPrompt. Never infer actual dimensions from requested size.',
       recognition:
-        'The default source is the local AI client: read the images with the client vision capability and submit uiRecognition.result via update-nodes. The browser cannot invoke the client model. Custom API calls require explicit configuration and paid authorization. When vision.source=chatgpt-web, follow maker-ui-workflow with the host Agent browser, reuse its session and current model/effort, and submit validated Bbox via update-nodes. No executor installation. Login is optional: if logged out, explain that model selection is unavailable and recognition quality/Bbox accuracy may vary, then offer continue without login or login first. Honor the choice without repeated prompts. Never bypass an actual login/captcha/upload restriction. Prepare prompts with canvas recognition-input; validate both replies with canvas recognition-result. Images are uploaded to ChatGPT and subject to website quota. CLI run enables recognition for text-free cards; input.recognition=false disables it. Two-pass API recognition requires a text-free image linked from the original design: detect UI elements first, then original text. Export version=1 Bbox JSON with coordinateSpace=design-pixels, bboxFormat=xywh, design/cutSource identities, elements and texts. Sources never switch automatically; unknown requests must be queried, never replayed.',
+        'Default vision uses Server API when the target project availability check succeeds, otherwise chatgpt-web. Explicit choices take precedence. For local, read images with the client vision capability and submit uiRecognition.result via update-nodes; the browser cannot invoke the client model. Server and custom API calls require paid authorization. When vision.source=chatgpt-web, follow the current section.templateSkills with the host Agent browser, reuse its session and current model/effort, and submit validated Bbox via update-nodes. No executor installation. Login is optional: if logged out, explain that model selection is unavailable and recognition quality/Bbox accuracy may vary, then offer continue without login or login first. Honor the choice without repeated prompts. Never bypass an actual login/captcha/upload restriction. Prepare prompts with canvas recognition-input; validate both replies with canvas recognition-result. Images are uploaded to ChatGPT and subject to website quota. CLI run enables recognition for text-free cards; input.recognition=false disables it. Two-pass API recognition requires a text-free image linked from the original design: detect UI elements first, then original text. Export version=1 Bbox JSON with coordinateSpace=design-pixels, bboxFormat=xywh, design/cutSource identities, elements and texts. Submitted and unknown requests must be queried, never replayed or switched to another provider.',
       steps:
         'design/layout -> reviewed PNG assets -> import into project -> generate_resource_meta -> assemble-ui.mjs -> console UI editor comparison',
       completion:
@@ -146,7 +153,7 @@ export function canvasAutomationCapabilities() {
       },
       'update-nodes': {
         nodes:
-          'Array of patches with id and editable fields. width/height resize only the card, not the image or viewport (width 48..2000, height 36..1600; sections up to 100000). For image cards with known pixels, set width OR height and the other axis follows the image ratio including the header; if both are supplied they must match. Layout-only changes do not invalidate generated results.',
+          'Array of patches with id and editable fields. width/height resize only the card, not the image or viewport (width 48..2000, height 36..1600; sections up to 100000; marks 8..8000). For image cards with known pixels, set width OR height and the other axis follows the image ratio including the header; if both are supplied they must match. Layout-only changes do not invalidate generated results. mark patches accept shape ellipse/arrow, color #RRGGBB, stroke 1..8, and paired from/to {x,y} endpoints in local coordinates for arrows.',
       },
       'preview-image-assets': {
         id: 'image-assets card ID; read-only preview, no final files',
@@ -172,8 +179,19 @@ export function canvasAutomationCapabilities() {
         includeSelf: 'optional boolean, image only; default false',
       },
       'add-node': {
-        type: 'image/video/note/sequence/animation/model-views/model',
-        sourceId: 'required for sequence/animation/model-views/model',
+        type: 'image/video/note/mark/sequence/animation/model-views/model',
+        shape: 'ellipse or arrow when type is mark',
+        x: 'optional mark origin; omitted marks use a visible default in the current view',
+        y: 'optional mark origin',
+        width: 'optional mark width, 8..8000',
+        height: 'optional mark height, 8..8000',
+        color: 'optional #RRGGBB; default #ff4d4f',
+        stroke: 'optional integer 1..8; default 3',
+        point: 'legacy arrow head corner nw/ne/sw/se; not accepted by ellipse',
+        direction: 'optional initial arrow direction n/e/s/w; not accepted by ellipse',
+        from: 'optional local start {x,y}; requires to; not accepted by ellipse',
+        to: 'optional local end {x,y}; requires from; not accepted by ellipse',
+        sourceId: 'required for sequence/animation/model-views/model; not accepted by mark',
       },
       export: {
         id: 'result node ID',
@@ -297,11 +315,17 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
         if (node.type === 'section') throw new Error('首版不支持移动整个分组。');
         next[key] = value;
       } else if (key === 'width' || key === 'height') {
-        const min = key === 'width' ? 48 : 36;
-        const max = node.type === 'section' ? 100000 : key === 'width' ? 2000 : 1600;
+        const mark = node.type === 'mark';
+        const min = mark ? 8 : key === 'width' ? 48 : 36;
+        const max = node.type === 'section' ? 100000 : mark ? 8000 : key === 'width' ? 2000 : 1600;
         if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max)
           throw new Error('卡片' + key + '必须为 ' + min + '～' + max + '。');
         next[key] = value;
+      } else if (key === 'uiAtlasPrelayout') {
+        if (node.type !== 'image' || typeof value !== 'boolean')
+          throw new Error('Bbox 预排开关只能配置在图片卡上。');
+        next.uiAtlasPrelayout = value;
+        contentChanged = next.uiAtlasPrelayout !== node.uiAtlasPrelayout || contentChanged;
       } else if (key === 'uiAtlasPlan') {
         if (node.type !== 'image') throw new Error('UI 槽位清单只能配置在图片卡上。');
         next.uiAtlasPlan = validateUiAtlasPlan(value);
@@ -423,6 +447,19 @@ export function prepareCanvasNodeUpdates(document: CanvasDocument, input: Record
           throw new Error('抽帧参数超出支持范围。');
         next.sequenceSettings = settings;
         contentChanged = true;
+      } else if (key === 'mark') {
+        if (node.type !== 'mark' || !node.mark) throw new Error('标注样式只能修改标注。');
+        if (!value || typeof value !== 'object' || Array.isArray(value))
+          throw new Error('标注样式无效。');
+        const patch = value as Record<string, unknown>;
+        const shape = patch.shape === undefined ? node.mark.shape : patch.shape;
+        next.mark = validateCanvasMark({
+          ...node.mark,
+          ...patch,
+          ...(shape === 'ellipse'
+            ? { point: undefined, direction: undefined, from: undefined, to: undefined }
+            : {}),
+        });
       } else throw new Error('不支持的卡片字段：' + key);
     }
     if (

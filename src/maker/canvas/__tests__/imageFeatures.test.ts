@@ -72,6 +72,15 @@ describe('recognition user action recovery', () => {
     expect(cut.uiRecognition!.selectedId).toBe(next.id);
     expect(uiRecognitionPreview(document, cut)?.result.id).toBe(next.id);
   });
+  test('available server recognition uses the existing two-pass execution entry', async () => {
+    const { controller, cut, store, next } = setup();
+    store.recognitionModels = async () => [
+      { id: 'gpt-6.1-sol', model: 'gpt-6.1-sol', source: 'server' },
+    ];
+    await controller.runRecognition(cut);
+    expect(store.recognizeUi).toHaveBeenCalledTimes(1);
+    expect(cut.uiRecognition!.selectedId).toBe(next.id);
+  });
   test.each(['false', 'throw'])('clears an unsubmitted request after save %s', async (failure) => {
     const { controller, cut, store, save, next } = setup();
     if (failure === 'false') save.mockResolvedValueOnce(false);
@@ -82,6 +91,15 @@ describe('recognition user action recovery', () => {
     await controller.runRecognition(cut);
     expect(store.recognizeUi).toHaveBeenCalledTimes(1);
     expect(cut.uiRecognition!.selectedId).toBe(next.id);
+  });
+  test('clears local waiting when server becomes unavailable before submission', async () => {
+    const { controller, cut, store } = setup();
+    store.recognizeUi.mockRejectedValueOnce(
+      Object.assign(new Error('ChatGPT 网页识图'), { status: 409 })
+    );
+    await expect(controller.runRecognition(cut)).rejects.toThrow('ChatGPT 网页识图');
+    expect(cut.uiRecognition!.pendingId).toBeUndefined();
+    expect(store.recognitionStatus).not.toHaveBeenCalled();
   });
   test('cancelling leaves the document and downstream cards untouched', async () => {
     const { controller, cut, document, changed, save } = setup();
@@ -292,7 +310,7 @@ test('legacy special cards migrate on save without dropping results or changing 
   }
 });
 
-test.each(['local', 'server'] as const)(
+test.each(['local', 'chatgpt-web'] as const)(
   'unavailable browser source %s does not create a pending request',
   async (source) => {
     const { document, cut } = fixture();
@@ -316,7 +334,7 @@ test.each(['local', 'server'] as const)(
     cut.uiRecognition!.results = [];
     delete cut.uiRecognition!.selectedId;
     await expect(controller.runImage(cut.id, async () => true)).rejects.toThrow(
-      source === 'local' ? 'AI 客户端' : '尚未开通'
+      source === 'local' ? 'AI 客户端' : 'ChatGPT'
     );
     expect(recognizeUi).not.toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();

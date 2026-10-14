@@ -61,6 +61,7 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
         repository: pluginSourceUrl,
         skills: [
           './skills/maker-ui-workflow',
+          './skills/maker-ui-bbox-workflow',
           './skills/lua-ui-to-json',
           './skills/taptap-maker-local',
           './skills/taptap-maker-dev-kit-guide',
@@ -106,6 +107,15 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     expect(run.status).toBe(1);
     expect(run.stderr).toContain('Usage:');
     expect(run.stderr).not.toContain('Cannot find');
+    const bbox = fs.readFileSync(
+      path.join(pluginRoot, 'skills/maker-ui-bbox-workflow/SKILL.md'),
+      'utf8'
+    );
+    for (const name of ['chatgpt-web.md', 'workflow.md', 'assemble-ui.mjs']) {
+      expect(bbox).toContain('../maker-ui-workflow/' + name);
+      expect(fs.existsSync(path.join(skill, name))).toBe(true);
+    }
+    expect(bbox).not.toMatch(/maker-ui-workflow\/(references|scripts)\//);
   });
 
   test('launches the bundled runtime through WorkBuddy-provided Node', () => {

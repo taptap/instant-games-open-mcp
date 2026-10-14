@@ -1,6 +1,7 @@
 import type { CanvasDocument, CanvasNode } from './model.js';
 import type { ImageAtlasGrid } from './imageAtlasExport.js';
 import { imageAtlasRegions } from './imageAtlasExport.js';
+import { validateAtlasCrops, type ImageAtlasCrop } from './atlasContent.js';
 import { validateUiBbox, type UiBboxDocument } from './uiBbox.js';
 import {
   selectedUiExtraction,
@@ -12,7 +13,7 @@ import {
 export interface UiAtlasSlot {
   elementIds: string[];
   state: 'normal' | 'pressed';
-  role: 'element' | 'background' | 'reserve';
+  role: 'element' | 'text' | 'background' | 'reserve';
 }
 
 export interface UiAtlasPlan {
@@ -20,6 +21,7 @@ export interface UiAtlasPlan {
   bbox: UiBboxDocument;
   grid: ImageAtlasGrid;
   slots: UiAtlasSlot[];
+  nativeLayout?: { width: number; height: number; regions: ImageAtlasCrop[] };
 }
 
 export type UiAtlasGroup = 'controls' | 'icons' | 'equipment' | 'panels' | 'artwork' | 'background';
@@ -178,7 +180,140 @@ export function uiBatchAtlasPlan(bbox: UiBboxDocument, group: UiAtlasGroup): UiA
   return uiBatchAtlasPlans(bbox, group)[0];
 }
 
-export function uiBatchAtlasPrompt(group: UiAtlasGroup): string {
+export function uiNativeAtlasPlans(bbox: UiBboxDocument, group: UiAtlasGroup): UiAtlasPlan[] {
+  const slots = uiAtlasElementSlots(bbox, group);
+  if (slots.length > 120) throw new Error('此分类超过 120 个素材，请先拆分清单。');
+  if (!slots.length && group === 'background')
+    slots.push({ elementIds: [], state: 'normal', role: 'background' });
+  return uiNativeSlotPlans(bbox, slots);
+}
+
+export function uiNativeArtTextPlan(bbox: UiBboxDocument, textId: string): UiAtlasPlan {
+  if (!bbox.texts.some((text) => text.id === textId))
+    throw new Error('美术字 ID 不在当前识图文字清单中。');
+  return uiNativeSlotPlans(bbox, [{ elementIds: [textId], state: 'normal', role: 'text' }])[0];
+}
+
+export function uiNativeSlotPlans(bbox: UiBboxDocument, slots: UiAtlasSlot[]): UiAtlasPlan[] {
+  const size = (slot: UiAtlasSlot) => {
+    const element = (slot.role === 'text' ? bbox.texts : bbox.elements).find(
+      (item) => item.id === slot.elementIds[0]
+    );
+    return {
+      width: Math.max(1, Math.round(element?.bbox[2] ?? bbox.design.width)),
+      height: Math.max(1, Math.round(element?.bbox[3] ?? bbox.design.height)),
+    };
+  };
+  const sheets: Array<{
+    slots: UiAtlasSlot[];
+    regions: ImageAtlasCrop[];
+    rows: Array<{ y: number; height: number; right: number }>;
+  }> = [];
+  for (const slot of [...slots].sort(
+    (first, second) =>
+      size(second).height - size(first).height || size(second).width - size(first).width
+  )) {
+    const { width, height } = size(slot);
+    if (width > 2048 || height > 2048)
+      throw new Error(
+        '素材 ' +
+          (slot.elementIds[0] || '背景') +
+          ' 超过 2048 像素，不能原尺寸放入图集；未缩小或截断。'
+      );
+    let sheet = sheets.find(
+      (candidate) =>
+        candidate.rows.some((row) => height <= row.height && row.right + 8 + width <= 2048) ||
+        candidate.rows[candidate.rows.length - 1].y +
+          candidate.rows[candidate.rows.length - 1].height +
+          8 +
+          height <=
+          2048
+    );
+    if (!sheet) {
+      sheet = { slots: [], regions: [], rows: [] };
+      sheets.push(sheet);
+    }
+    let row = sheet.rows.find((item) => height <= item.height && item.right + 8 + width <= 2048);
+    const x = row ? row.right + 8 : 0;
+    if (!row) {
+      const previous = sheet.rows[sheet.rows.length - 1];
+      row = { y: previous ? previous.y + previous.height + 8 : 0, height, right: 0 };
+      sheet.rows.push(row);
+    }
+    sheet.slots.push(slot);
+    sheet.regions.push({
+      name: 'item_' + String(sheet.slots.length).padStart(3, '0'),
+      x,
+      y: row.y,
+      width,
+      height,
+    });
+    row.right = x + width;
+  }
+  return sheets.map((sheet) => {
+    let layout = { width: 2048, height: 2048, regions: sheet.regions };
+    const minimumWidth = Math.max(...sheet.regions.map((region) => region.width));
+    const margin = Math.min(
+      8,
+      Math.floor((2048 - minimumWidth) / 2),
+      Math.floor((2048 - Math.max(...sheet.regions.map((region) => region.height))) / 2)
+    );
+    for (let limit = minimumWidth; limit <= 2048; limit = Math.min(2048, limit + 32)) {
+      const rows: Array<{ y: number; height: number; right: number }> = [];
+      const regions = sheet.regions.map((region) => {
+        let row = rows.find(
+          (item) => region.height <= item.height && item.right + 8 + region.width <= limit
+        );
+        const left = row ? row.right + 8 : 0;
+        if (!row) {
+          const previous = rows[rows.length - 1];
+          row = {
+            y: previous ? previous.y + previous.height + 8 : 0,
+            height: region.height,
+            right: 0,
+          };
+          rows.push(row);
+        }
+        row.right = left + region.width;
+        return { ...region, x: left + margin, y: row.y + margin };
+      });
+      const usedWidth = Math.max(...regions.map((region) => region.x + region.width)) + margin;
+      const usedHeight = Math.max(...regions.map((region) => region.y + region.height)) + margin;
+      for (const [ratioWidth, ratioHeight] of [
+        [1, 1],
+        [3, 2],
+        [2, 3],
+      ]) {
+        const unit =
+          Math.ceil(Math.max(usedWidth / ratioWidth, usedHeight / ratioHeight) / 16) * 16;
+        const width = unit * ratioWidth;
+        const height = unit * ratioHeight;
+        if (width <= 2048 && height <= 2048 && width * height < layout.width * layout.height)
+          layout = { width, height, regions };
+      }
+      if (limit === 2048) break;
+    }
+    return validateUiAtlasPlan({
+      version: 1,
+      bbox,
+      slots: sheet.slots,
+      grid: { columns: 1, rows: sheet.slots.length, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
+      nativeLayout: layout,
+    });
+  });
+}
+
+export function uiNativeAtlasPrompt(): string {
+  return [
+    '任务：在预排参考图上逐项清理 UI 素材，输出尺寸与参考图完全相同，不重新排版。',
+    '保留：每个主体的像素位置、宽高、轮廓、颜色和细节，包括最细小的分隔线。只处理清单指定的矩形区域，不移动、不缩放、不拉伸、不旋转，不省略任何一项。',
+    '移除：前景素材背后的底板、槽框和背景；底板上覆盖的图标、人物、物品和文字。保留底板本体、边框和底纹为一体，并补齐遮挡。',
+    '状态：正常态保持原样；按下态只改变明暗，不改变尺寸或位置。环境背景只补全场景，不保留界面控件。',
+    '输出：保持原尺寸坐标布局，背景使用纯绿色 RGB(0,255,0)。不是等分网格，不添加编号、分割线或清单外素材。',
+  ].join('\n');
+}
+
+export function uiBatchAtlasPrompt(group: UiAtlasGroup, prelayout = false): string {
   const lines =
     group === 'background'
       ? [
@@ -199,7 +334,10 @@ export function uiBatchAtlasPrompt(group: UiAtlasGroup): string {
           '外部背景使用纯绿色 RGB(0,255,0)。',
           group === 'panels'
             ? '只提取空面板底板。不要画角色、图标或道具，不要重绘整张界面，不要跨格。'
-            : '不要按参考图的界面位置摆放，不要重绘整张界面，不要跨格，不要添加清单之外的装饰、编号或网格线。清单指定的装饰本身应完整提取。底板不要带图标、人物或物品。',
+            : (prelayout
+                ? '保持预排参考图中各素材的格位和中心。'
+                : '不要按参考图的界面位置摆放，') +
+              '不要重绘整张界面，不要跨格，不要添加清单之外的装饰、编号或网格线。清单指定的装饰本身应完整提取。底板不要带图标、人物或物品。',
         ];
   return lines.join('\n');
 }
@@ -214,23 +352,67 @@ export function validateUiAtlasPlan(value: unknown): UiAtlasPlan {
   if (plan.slots.length !== grid.columns * grid.rows)
     throw new Error('UI 顺序清单数量与图集格数不一致。');
   const ids = new Set(bbox.elements.map((element) => element.id));
+  const textIds = new Set(bbox.texts.map((text) => text.id));
   const assigned = new Set<string>();
   const slots = plan.slots.map((slot) => {
     if (
       !slot ||
       !['normal', 'pressed'].includes(slot.state) ||
-      !['element', 'background', 'reserve'].includes(slot.role) ||
+      !['element', 'text', 'background', 'reserve'].includes(slot.role) ||
       !Array.isArray(slot.elementIds) ||
-      (slot.role === 'element' ? !slot.elementIds.length : slot.elementIds.length > 0)
+      (['element', 'text'].includes(slot.role)
+        ? !slot.elementIds.length
+        : slot.elementIds.length > 0) ||
+      (slot.role === 'text' &&
+        (!plan.nativeLayout || slot.state !== 'normal' || slot.elementIds.length !== 1))
     )
       throw new Error('UI 槽位用途或状态无效。');
     for (const id of slot.elementIds) {
       const key = id + ':' + slot.state;
-      if (!ids.has(id) || assigned.has(key)) throw new Error('UI 组件绑定重复或不存在：' + id);
+      if (!(slot.role === 'text' ? textIds : ids).has(id) || assigned.has(key))
+        throw new Error('UI 组件绑定重复或不存在：' + id);
       assigned.add(key);
     }
     return { elementIds: [...slot.elementIds], state: slot.state, role: slot.role };
   });
+  const nativeLayout = plan.nativeLayout;
+  if (nativeLayout) {
+    if (
+      ![nativeLayout.width, nativeLayout.height].every(
+        (value) => Number.isSafeInteger(value) && value > 0 && value <= 2048
+      )
+    )
+      throw new Error('原尺寸预排图集每边必须为 1 到 2048 像素。');
+    const regions = validateAtlasCrops(
+      nativeLayout.width,
+      nativeLayout.height,
+      nativeLayout.regions
+    );
+    if (regions.length !== slots.length) throw new Error('原尺寸坐标与素材数量不一致。');
+    regions.forEach((region, index) => {
+      const element = (slots[index].role === 'text' ? bbox.texts : bbox.elements).find(
+        (item) => item.id === slots[index].elementIds[0]
+      );
+      if (
+        slots[index].role === 'reserve' ||
+        region.blank ||
+        region.outputWidth !== undefined ||
+        region.outputHeight !== undefined ||
+        region.offsetX !== undefined ||
+        region.offsetY !== undefined ||
+        region.width !== Math.max(1, Math.round(element?.bbox[2] ?? bbox.design.width)) ||
+        region.height !== Math.max(1, Math.round(element?.bbox[3] ?? bbox.design.height))
+      )
+        throw new Error('原尺寸区域与 Bbox 尺寸不一致，不能缩放或补齐输出。');
+    });
+    return {
+      version: 1,
+      bbox,
+      grid: { ...grid },
+      slots,
+      nativeLayout: { width: nativeLayout.width, height: nativeLayout.height, regions },
+    };
+  }
   return { version: 1, bbox, grid: { ...grid }, slots };
 }
 
@@ -239,12 +421,19 @@ export function uiWorkflowAtlasPlans(
   node: CanvasNode,
   bbox: UiBboxDocument
 ): UiAtlasPlan[] {
-  const planned = uiBatchAtlasPlans(bbox, node.uiAtlasGroup!);
+  const group = current.nodes.find((item) => item.id === node.sectionId && item.type === 'section');
+  const native =
+    group?.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
+    (group?.templateCliOnly && group.templateSkills?.includes('maker-ui-bbox-workflow'));
+  const planned = native
+    ? uiNativeAtlasPlans(bbox, node.uiAtlasGroup!)
+    : uiBatchAtlasPlans(bbox, node.uiAtlasGroup!);
   const sourceId = uiRecognitionSource(current, node)?.id;
   const recorded = current.nodes
     .filter(
       (item) =>
         item.type === 'image' &&
+        !item.uiAtlasPrelayout &&
         item.sectionId === node.sectionId &&
         item.uiAtlasGroup === node.uiAtlasGroup &&
         (!item.templatePending || Boolean(item.generation?.attemptId)) &&
@@ -287,15 +476,33 @@ export function selectedUiAtlasPlan(
 ): UiAtlasPlan | undefined {
   const source = uiRecognitionSource(current, node);
   const result = source && selectedUiRecognition(source);
+  const section = current.nodes.find((item) => item.id === node.sectionId);
+  if (
+    node.uiArtTextId &&
+    node.uiArtTextId !== 'main-title' &&
+    (section?.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
+      (section?.templateCliOnly && section.templateSkills?.includes('maker-ui-bbox-workflow')))
+  ) {
+    if (!result?.bbox) throw new Error('请先完成当前设计稿识图，再提取美术字。');
+    if (uiRecognitionInputs(current, source!).design.assetPath !== result.bbox.design.path)
+      throw new Error('原 UI 设计稿已变化，请重新识别再提取美术字。');
+    return uiNativeArtTextPlan(result.bbox, node.uiArtTextId);
+  }
   if (node.uiAtlasGroup) {
     if (!source?.uiRecognition?.enabled) return;
     if (!result?.bbox) throw new Error('请先完成当前去文字图的识图，再拆图。');
     if (uiRecognitionInputs(current, source!).design.assetPath !== result.bbox.design.path)
       throw new Error('原 UI 设计稿已变化，请重新识别再拆图。');
     const plans = uiWorkflowAtlasPlans(current, node, result.bbox);
-    const plan = plans[node.uiAtlasBatch ?? 0];
-    if (!plan) throw new Error('当前识图清单已不需要此续批，请移除多余续批及其资源卡后继续。');
-    return plan;
+    // A smaller input can leave saved batch cards behind; treat them as an empty branch.
+    return (
+      plans[node.uiAtlasBatch ?? 0] || {
+        version: 1,
+        bbox: result.bbox,
+        grid: { columns: 1, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
+        slots: [{ elementIds: [], state: 'normal', role: 'reserve' }],
+      }
+    );
   }
   if (node.uiAtlasPlan) {
     const plan = validateUiAtlasPlan(node.uiAtlasPlan);
@@ -317,10 +524,75 @@ export function selectedUiAtlasPlan(
   });
 }
 
-export function uiAtlasOrderPrompt(plan: UiAtlasPlan, outputAspect = 1): string {
+export function uiAtlasOrderPrompt(plan: UiAtlasPlan, outputAspect = 1, prelayout = false): string {
   const bbox = plan.bbox;
+  if (plan.nativeLayout)
+    return [
+      'UI 槽位绑定：',
+      '原尺寸图集为 ' +
+        plan.nativeLayout.width +
+        '×' +
+        plan.nativeLayout.height +
+        '；以下为输出像素矩形 [x,y,w,h]，不是原稿位置。保持每个矩形内的主体位置与尺寸。',
+      '每个矩形只输出清单指定的层。同一图集可同时包含空底板和前景物品；不能因为裁片中物品醒目就把底板任务改成物品任务。不要放大、居中重排或裁断主体。',
+      ...plan.slots.map((slot, index) => {
+        const element = bbox.elements.find((item) => item.id === slot.elementIds[0]);
+        const region = plan.nativeLayout!.regions[index];
+        if (slot.role === 'text') {
+          const text = bbox.texts.find((item) => item.id === slot.elementIds[0])!;
+          return (
+            text.id +
+            ' 美术字“' +
+            text.text +
+            '” [' +
+            [region.x, region.y, region.width, region.height].join(',') +
+            ']；仅保留此文字的完整字形、配色、描边和字效；移除底板、花叶装饰、其它图案与背景。保持字形原尺寸、位置，不放大、不缩小、不居中重排。'
+          );
+        }
+        const children = element && bbox.elements.filter((item) => item.parent === element.id);
+        return (
+          (element
+            ? element.id + ' ' + element.name + '（type=' + element.type + '）'
+            : '环境背景') +
+          ' ' +
+          slot.state +
+          (slot.state === 'pressed'
+            ? '（按下态：相对同 ID 的 normal 内底明显压暗约 20%，收紧高光；不要原样复制 normal，不移动轮廓）'
+            : '') +
+          ' [' +
+          [region.x, region.y, region.width, region.height].join(',') +
+          ']；' +
+          (slot.role === 'background' ||
+          (element && uiAtlasElementGroup(element, bbox) === 'background')
+            ? '仅保留环境场景与外围装饰；移除全部 UI 面板、边框、按钮、槽框、图标、人物和文字，补全被遮挡场景。'
+            : element && /填充|分隔线|横线|fill|separator|divider/i.test(element.name)
+              ? '此项是前景填充或线条，不是空底板。完整保留参考图中的颜色、渐变、细线和长度；深灰色细线也必须输出，不得清空、增粗或改色。只移除它背后的面板，不要移除此项本身。'
+              : element && /覆盖层|选中.*描边|角标/i.test(element.name)
+                ? '仅保留名称指定的前景标记（角标色带或选中描边），不是整个裁片底板。移除后方卡片、物品和其它背景，标记外侧与内部孔洞使用抠图底色；不要保留裁框带入的矩形底色或物品碎片。'
+                : element?.type === 'icon'
+                  ? '仅保留名称指定的前景图案；严格保持原有颜色与形状，移除后方底框、底板和背景。外框若单列则不得粘在图案上。'
+                  : element && /轨道|底槽|track/i.test(element.name)
+                    ? '仅保留全长的空轨道及边框。轨道内部从左到右均为空槽的底色和纹理，不得出现任何彩色进度填充。彻底移除覆盖其上的彩色填充、数值和图标；填充已在其它矩形单独输出，不能再烘焙到底槽里。'
+                    : region.height <= 16 || region.width <= 16
+                      ? '保留此项完整的细线或装饰，包括深色细线；不要将它当作背景删除。'
+                      : '此项要的是空底板，不是其上的物品。保留完整外边框和内部底色、底纹为一体；清空覆盖其上的子控件、槽框、按钮、图标、人物、物品和文字，补齐被遮住的底板。禁止用前景物品代替空底板。') +
+          (children?.length
+            ? '必须删除的独立子层：' +
+              children.map((child) => child.id + ' ' + child.name).join('、') +
+              '。这些子层会另行提取，本槽不得保留。'
+            : '')
+        );
+      }),
+    ].join('\n');
   return [
     'UI 槽位绑定：',
+    ...(prelayout
+      ? [
+          '参考图已经按 Bbox 裁片并预排到输出格位。直接逐格编辑，不要重新查找原界面位置或重新排列。',
+          '保留：每格指定主体的中心、比例、轮廓、颜色和细节。裁片仍包含原图背景和遮挡物，不是已完成的切图。',
+          '移除：按下列逐格要求清理非主体内容，并补齐被遮挡的主体。输出保持同样网格和纯色底，不画编号、分割线。',
+        ]
+      : []),
     '按下面的行列放入等分格子。一格一个，中心对齐，不跨格。',
     '输出区域以整张输出图左上角为原点，用宽高百分比表示；这是输出位置，和后面的参考图像素框分开使用。每格可用区域之外全部保留纯底色，不能合并格子或让长条贯穿整行。',
     '清单已合并重复素材：每格只画代表实例一次，不按它在原稿中的出现次数复制。名称只用于定位，框内主体才是提取对象；星星所在装备、图标所在底框不属于该主体。',
@@ -328,7 +600,9 @@ export function uiAtlasOrderPrompt(plan: UiAtlasPlan, outputAspect = 1): string 
       plan.grid.columns +
       ' 列 × ' +
       plan.grid.rows +
-      ' 行，不超过 5×5。坐标只用来辨认参考图上的素材，不是输出位置。',
+      (prelayout
+        ? ' 行，不超过 5×5。参考图与输出的格位一一对应。'
+        : ' 行，不超过 5×5。坐标只用来辨认参考图上的素材，不是输出位置。'),
     ...plan.slots.map((slot, index) => {
       const column = index % plan.grid.columns;
       const row = Math.floor(index / plan.grid.columns);
@@ -371,9 +645,7 @@ export function uiAtlasOrderPrompt(plan: UiAtlasPlan, outputAspect = 1): string 
           ? element.id +
             ' ' +
             element.name +
-            ' [' +
-            rect!.join(',') +
-            '] ' +
+            (prelayout ? '（参考图同一格） ' : ' [' + rect!.join(',') + '] ') +
             slot.state +
             '；主体目标宽 ' +
             (fitWidth * 100).toFixed(2) +
@@ -406,6 +678,7 @@ export function ensureUiAtlasBatchCards(document: CanvasDocument, groupId?: stri
   for (const seed of [...document.nodes]) {
     if (
       seed.type !== 'image' ||
+      seed.uiAtlasPrelayout ||
       !seed.uiAtlasGroup ||
       (seed.uiAtlasBatch ?? 0) !== 0 ||
       (groupId && seed.sectionId !== groupId)
@@ -424,6 +697,7 @@ export function ensureUiAtlasBatchCards(document: CanvasDocument, groupId?: stri
         document.nodes.some(
           (node) =>
             node.sectionId === seed.sectionId &&
+            !node.uiAtlasPrelayout &&
             node.uiAtlasGroup === seed.uiAtlasGroup &&
             uiRecognitionSource(document, node)?.id === sourceId &&
             (node.uiAtlasBatch ?? 0) === batch
@@ -437,7 +711,11 @@ export function ensureUiAtlasBatchCards(document: CanvasDocument, groupId?: stri
   return changed;
 }
 
-export function cloneUiAtlasBatch(document: CanvasDocument, seed: CanvasNode, batch: number) {
+export function cloneUiAtlasBatch(
+  document: CanvasDocument,
+  seed: CanvasNode,
+  batch: number
+): CanvasNode {
   const imageId = crypto.randomUUID();
   const offset = batch * (seed.width + 48);
   const image: CanvasNode = {
@@ -461,14 +739,34 @@ export function cloneUiAtlasBatch(document: CanvasDocument, seed: CanvasNode, ba
   delete image.imageInfo;
   delete image.sourceSnapshot;
   delete image.uiAtlasPlan;
+  if (seed.uiAtlasPrelayout) {
+    // Keep a preview so existing reference edges remain valid; templatePending blocks reuse.
+    image.assetPath = seed.assetPath;
+    image.imageInfo = seed.imageInfo ? { ...seed.imageInfo } : undefined;
+    image.referenceInput = { includeSelf: false };
+    if (image.assetPath) {
+      image.generation = { ...image.generationDraft!, prompt: image.generationDraft!.prompt || '' };
+      delete image.generationDraft;
+    }
+  }
   document.nodes.push(image);
-  for (const edge of document.edges.filter((item) => item.to === seed.id))
-    document.edges.push({ ...structuredClone(edge), id: crypto.randomUUID(), to: imageId });
+  for (const edge of document.edges.filter((item) => item.to === seed.id)) {
+    const source = document.nodes.find((node) => node.id === edge.from);
+    const from =
+      source?.uiAtlasPrelayout && !seed.uiAtlasPrelayout
+        ? cloneUiAtlasBatch(document, source, batch).id
+        : edge.from;
+    document.edges.push({ ...structuredClone(edge), id: crypto.randomUUID(), from, to: imageId });
+    if (source?.uiAtlasPrelayout && !seed.uiAtlasPrelayout) {
+      image.generationDraft!.sourceImageId = from;
+      image.generationDraft!.sourceImageIds = [from];
+    }
+  }
   const assetsEdge = document.edges.find(
     (edge) => edge.kind === 'image-assets' && edge.from === seed.id
   );
   const assets = assetsEdge && document.nodes.find((node) => node.id === assetsEdge.to);
-  if (!assets) return;
+  if (!assets) return image;
   const assetsId = crypto.randomUUID();
   const copy: CanvasNode = {
     ...structuredClone(assets),
@@ -493,6 +791,7 @@ export function cloneUiAtlasBatch(document: CanvasDocument, seed: CanvasNode, ba
       document.nodes.some((node) => node.id === item.to && node.type === 'resource-bundle')
   ))
     document.edges.push({ ...structuredClone(edge), id: crypto.randomUUID(), from: assetsId });
+  return image;
 }
 
 export function uiBindingContentRect(

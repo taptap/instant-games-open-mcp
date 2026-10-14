@@ -134,7 +134,7 @@ export function visionSettingsForDisplay() {
     error = '本机识图设置无效，请重新填写接口和 API Key 后保存。';
   }
   return {
-    source: settings?.source || 'local',
+    source: settings?.source || 'server',
     baseUrl: settings?.baseUrl || UI_VISION_BASE_URL,
     configured: Boolean(settings),
     ...(error ? { error } : {}),
@@ -199,7 +199,7 @@ export function deleteVisionSettings() {
   if (fs.existsSync(file) && !fs.lstatSync(file).isFile())
     throw new ConsoleError('识图设置文件无效。');
   const settings = readModelSettings();
-  settings.vision = { source: 'local' };
+  settings.vision = { source: 'server' };
   settings.visionConfigured = false;
   writePrivateJson(file, settings);
   return visionSettingsForDisplay();
@@ -223,7 +223,7 @@ function emptyModelSettings(): ModelSettings {
   return {
     version: 2,
     visionConfigured: false,
-    vision: { source: 'local' },
+    vision: { source: 'server' },
     generation: { source: 'maker' },
     profiles: [],
   };
@@ -281,7 +281,7 @@ export function readModelSettings(): ModelSettings {
     return {
       version: 2,
       visionConfigured: input.visionConfigured === true,
-      vision: input.vision,
+      vision: input.visionConfigured === true ? input.vision : { source: 'server' },
       generation: input.generation,
       profiles,
     };

@@ -19,6 +19,8 @@ import {
 } from './automationReferences.js';
 import type { createCanvasGroupQueue } from './groupQueue.js';
 import { canvasModelGroup } from './model3d.js';
+import { syncUiBboxWorkflow } from './uiBboxWorkflow.js';
+import { canvasMarkFromInput } from './marks.js';
 
 export function createCanvasAutomationUi(options: {
   current(): CanvasDocument | null;
@@ -34,6 +36,7 @@ export function createCanvasAutomationUi(options: {
   open(id: string): Promise<void>;
   create(title: string): Promise<void>;
   add(type: string): void;
+  placeMark?(shape: string): { x: number; y: number; width: number; height: number };
   addDerived(type: 'sequence' | 'animation' | 'model-views' | 'model', sourceId: string): void;
   confirmModel?(id: string, reviewId: string): Promise<unknown>;
   previewModel?(id: string): unknown;
@@ -120,7 +123,22 @@ export function createCanvasAutomationUi(options: {
       open: ['id'],
       rename: ['title'],
       'add-template': ['id'],
-      'add-node': ['type', 'sourceId'],
+      'add-node': [
+        'type',
+        'sourceId',
+        'shape',
+        'x',
+        'y',
+        'width',
+        'height',
+        'color',
+        'stroke',
+        'point',
+        'direction',
+        'from',
+        'to',
+      ],
+      'sync-ui-batches': ['id', 'artText', 'background'],
       'update-nodes': ['nodes'],
       'delete-nodes': ['ids'],
       duplicate: ['ids'],
@@ -202,6 +220,7 @@ export function createCanvasAutomationUi(options: {
       if (
         command.action !== 'query' &&
         command.allowPaid !== true &&
+        !(target.type === 'image' && target.uiAtlasPrelayout) &&
         (target.type === 'section' ||
           ['image', 'video', 'video-source', 'model', 'model-views'].includes(target.type))
       )
@@ -209,8 +228,30 @@ export function createCanvasAutomationUi(options: {
       running = true;
       options.busyChanged(true);
       try {
+        if (command.action === 'run' && target.type === 'mark')
+          throw new Error('标注不能执行生成。');
         if (command.action === 'run') {
-          const source = target.type === 'image' ? uiRecognitionSource(current, target) : undefined;
+          if (
+            target.type === 'section' &&
+            (target.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
+              (target.templateCliOnly && target.templateSkills?.includes('maker-ui-bbox-workflow')))
+          ) {
+            if (input.recognition === false)
+              throw new Error('实验模板需要当前识图结果，不能关闭识图。');
+            if (syncUiBboxWorkflow(structuredClone(current), target.id, false).length)
+              throw new Error('请先按 Skill 执行 sync-ui-batches，再运行分组。');
+          }
+          const prelayoutRecognition =
+            target.uiAtlasPrelayout && uiRecognitionSource(current, target);
+          if (
+            target.uiAtlasPrelayout &&
+            (!prelayoutRecognition || !selectedUiRecognition(prelayoutRecognition))
+          )
+            throw new Error('请先完成当前去文字图的识图，再执行本地预排。');
+          const source =
+            target.type === 'image' && !target.uiAtlasPrelayout
+              ? uiRecognitionSource(current, target)
+              : undefined;
           const sources =
             target.type === 'section'
               ? current.nodes.filter(
@@ -251,7 +292,7 @@ export function createCanvasAutomationUi(options: {
                     item.id +
                     '）：' +
                     item.assetPath +
-                    '。请按当前识图设置完成两轮识图：本地或 ChatGPT 网页由 AI 按 maker-ui-workflow 校验回填，自定义 API 查询原请求；保存后继续，不关闭识图跳过。'
+                    '。请按当前识图设置完成两轮识图：本地或 ChatGPT 网页由 AI 按当前分组 templateSkills 关联的 Skill 校验回填，自定义 API 查询原请求；保存后继续，不关闭识图跳过。'
                 );
             }
         }
@@ -335,15 +376,79 @@ export function createCanvasAutomationUi(options: {
       } else if (command.action === 'add-template') {
         if (typeof input.id !== 'string') throw new Error('缺少模板 id。');
         await options.addTemplate(input.id);
+      } else if (command.action === 'sync-ui-batches') {
+        const target = node(input.id, current);
+        if (
+          target.type !== 'section' ||
+          !(
+            typeof input.artText === 'boolean' ||
+            (Array.isArray(input.artText) &&
+              input.artText.length <= 120 &&
+              input.artText.every((id) => typeof id === 'string'))
+          ) ||
+          typeof input.background !== 'boolean'
+        )
+          throw new Error(
+            '请指定实验模板分组、artText 文字 ID 数组（或布尔值）及 background 布尔值。'
+          );
+        const members = current.nodes.filter((item) => item.sectionId === target.id);
+        if (members.some((item) => options.nodeBlocked(item.id)))
+          throw new Error('分组存在未确认任务或草稿，请先处理原任务。');
+        const source = members.find((item) => item.uiRecognition?.inputRole === 'text-free');
+        if (!source || !options.checkRecognition) throw new Error('缺少当前识图结果。');
+        await options.checkRecognition(source);
+        const next = structuredClone(current);
+        const created = syncUiBboxWorkflow(
+          next,
+          target.id,
+          input.artText as boolean | string[],
+          input.background
+        );
+        options.remember();
+        current.nodes = next.nodes;
+        current.edges = next.edges;
+        options.select(created.length ? created : [target.id]);
+        options.changed();
       } else if (command.action === 'add-node') {
         if (
-          !['image', 'video', 'note', 'sequence', 'animation', 'model-views', 'model'].includes(
-            String(input.type)
-          )
+          ![
+            'image',
+            'video',
+            'note',
+            'mark',
+            'sequence',
+            'animation',
+            'model-views',
+            'model',
+          ].includes(String(input.type))
         )
           throw new Error('不支持的卡片类型，请查询 capabilities。');
         if (current.nodes.length >= 400) throw new Error('画布卡片已达到容量限制。');
-        if (input.type === 'model' || input.type === 'model-views') {
+        if (input.type === 'mark') {
+          if (input.sourceId !== undefined) throw new Error('标注不接受 sourceId。');
+          const placed =
+            input.x === undefined && input.y === undefined
+              ? options.placeMark?.(String(input.shape))
+              : undefined;
+          const node = canvasMarkFromInput(
+            {
+              ...input,
+              ...(placed
+                ? {
+                    x: placed.x,
+                    y: placed.y,
+                    width: input.width === undefined ? placed.width : input.width,
+                    height: input.height === undefined ? placed.height : input.height,
+                  }
+                : {}),
+            },
+            crypto.randomUUID()
+          );
+          options.remember();
+          current.nodes.push(node);
+          options.select([node.id]);
+          options.changed();
+        } else if (input.type === 'model' || input.type === 'model-views') {
           const source = node(input.sourceId, current);
           if (options.nodeBlocked(source.id)) throw new Error('来源卡片正在执行，请稍后创建。');
           options.addDerived(input.type, source.id);

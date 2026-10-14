@@ -9,10 +9,10 @@ OpenAI 兼容图片协议：无参考图调用 /images/generations，有参考�
 按原顺序上传 image[]；接收 data[0].b64_json 或 HTTPS 图片 URL。只支持这一种协议，
 不自动探测、回退或重试付费请求。标准尺寸直接传 size，其它比例用 auto 并在提示词声明目标尺寸，
 结果沿用实际图片尺寸检查，不保证模型严格输出指定像素。下载失败恢复原图片，不重新生图。
-识图使用所选配置的模型，GPT-6.1 Sol 保持 low，其它模型不强加思考档位。Server API 标注「开发中」，置灰且不可选择。
-图片卡「识别 UI」仅在自定义 API 或历史 Server API 配置下显示；本地模型和 ChatGPT 网页识图不显示该按钮。已有任务仍可查询，已有结果仍可查看标注。
+识图使用所选配置的模型，GPT-6.1 Sol 保持 low，其它模型不强加思考档位。默认 Server API，按当前项目只读检查接口可用性；不可用时置灰并临时使用 ChatGPT 网页识图，不覆盖保存的选择。用户明确选择的自定义 API、本地模型或网页识图保持优先。
+图片卡「识别 UI」仅在自定义 API 或可用的 Server API 配置下显示；本地模型和 ChatGPT 网页识图不显示该按钮。已有任务仍可查询，已有结果仍可查看标注。
 本地模型仅限 CLI 客户端自身执行；画布直接运行会提示，不能唤起客户端或偷偷改用 Maker。
-`taptap-maker canvas model-settings` 可离线读取设置，不要求项目、不返回密钥。
+`taptap-maker canvas model-settings --target-dir <项目>` 返回当前有效来源并只读检查 Server API，不返回密钥。省略项目时不发远端请求，Server API 按不可用处理；`vision.selectedSource` 保留原选择，`vision.source` 为有效来源。
 本地结果可用现有 canvas import 新增图片卡；它不是模板节点回填接口，不代表原工作流已完成。
 保存设置不调用模型。去文字卡的「运行两次识图」先提取图片 UI，再从原稿提取文本，
 结果可导出固定 Bbox JSON；契约与恢复方式见 [Maker UI 工作流](MAKER_UI_WORKFLOW.md#元素识图与-bbox-json)。
@@ -48,6 +48,7 @@ Lua LSP/Python 状态在后台异步检查，同一时刻只执行一次；首�
 顶部圆圈问号打开 https://liangdong-ttm.github.io/UrhoxUIEditor/ 查看外部示例；不再内置示例入口和素材。
 
 保留节点树、属性、拖动缩放、撤销重做、静态检查和设计稿左右/透明叠加对照。
+预览画板默认透明，不额外铺白底；文档显式设置的背景色和背景图片仍正常绘制。
 同目录同名 .reference.png 自动加载，例如 main.ui.json 对应 main.reference.png。
 顶部显示当前文档相对路径和保存状态；点击「保存」或 Ctrl/Cmd+S 直接写入当前项目同一文件。
 「变更」按需查看差异，不再每次保存弹窗确认；不提供目录授权、下载后搬运或另选项目的流程。

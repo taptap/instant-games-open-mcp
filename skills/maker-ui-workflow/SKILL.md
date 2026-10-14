@@ -7,6 +7,8 @@ description: 'TapTap Maker 游戏 UI 设计稿拆解、按钮/图标/背景切�
 
 Maker 是流程入口；自由画布展示分析与切图，脚本按显式布局组装，控制台 UI 编辑器负责对照和调整。
 本 Skill 不新增 MCP tool，不执行游戏构建、提交或更换游戏加载入口。
+「游戏UI制作 · Bbox预排参考图（实验）」及包含 uiAtlasPrelayout 的副本使用独立
+`maker-ui-bbox-workflow` Skill，不按本 Skill 的普通模板拆图步骤执行。
 
 ## 从用户需要的阶段开始
 
@@ -24,7 +26,7 @@ check 检查声明和资源，open --no-open 返回控制台 UI 编辑器地址�
 
 ## 准备
 
-调用生图或识图前先执行 `taptap-maker canvas model-settings`，读取全局设置；不自行选择或回退渠道。
+调用生图或识图前先执行 `taptap-maker canvas model-settings --target-dir <项目>`，读取有效设置；遵循返回的 vision.source，不自行切换渠道。默认 Server API 不可用时由系统临时降级为 chatgpt-web，用户明确选择优先。
 generation=maker 时沿用 Maker；custom 时通过画布 run 调用选定 API，不读取或传递密钥。
 vision=chatgpt-web 时执行 [网页识图](references/chatgpt-web.md)，复用客户端浏览器；登录可选，不安装独立执行器。
 local 时由当前客户端使用自身能力执行，缺少对应能力则提示用户；画布 run 无法调用客户端模型。
@@ -56,9 +58,9 @@ submittedPrompt 包含实际发送的参考图尺寸。实际结果比例不符�
 在本次及后续 run 的 input 中显式传 `"recognition":false`，例如
 `{"id":"分组ID","recognition":false}`。仅提前关闭卡片开关不能覆盖 CLI run 的默认值。
 识图遵循设置：local 才使用当前客户端模型；custom 使用选中的命名 API 配置和模型；
-chatgpt-web 按网页识图引用完成两轮、校验和回填；Server API 开发中，不可选择，不回退。
+chatgpt-web 按网页识图引用完成两轮、校验和回填；server 使用画布现有两轮识图。已提交或结果未知的任务不因接口不可用换渠道重做。
 自定义 API 的 GPT-6.1 Sol 使用 low 档位，其它模型不强加该参数。
-以下两次接口执行步骤适用于 custom；local 按同样输入与 Bbox 契约由客户端识别后写回。
+以下两次接口执行步骤适用于 custom 和 server；local 按同样输入与 Bbox 契约由客户端识别后写回。
 取得两次识图的付费授权后执行：
 
 1. run「去文字设计稿」，确认其已完成，且直接连线引用唯一原稿。

@@ -239,10 +239,6 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(1, 0, 0, 1, o.x, o.y);
-    if (!prefab) {
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, screen.width, screen.height);
-    }
     ctx.translate(fit.x, fit.y);
     ctx.scale(fit.scale, fit.scale);
     paintTree(ctx, tree, app);

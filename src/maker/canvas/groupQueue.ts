@@ -173,7 +173,7 @@ export function createCanvasGroupQueue(options: {
     if (options.parallel?.(nodeId)) return 'image';
     const node = documentState?.nodes.find((item) => item.id === nodeId);
     if (
-      node?.type === 'image-assets' &&
+      (node?.type === 'image-assets' || (node?.type === 'image' && node.uiAtlasPrelayout)) &&
       node.sectionId &&
       members(node.sectionId).some((item) => options.parallel?.(item.id))
     )

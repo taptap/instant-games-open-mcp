@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { getMakerApiBaseUrl, getMakerEnvironment } from '../config.js';
 import { requireMakerPat } from '../git/pat.js';
 import { loadProjectConfig } from '../storage.js';
@@ -41,6 +41,30 @@ export function serverRecognitionContext(root: string) {
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash)
     throw new ConsoleError('识图 Server API 地址必须为不带凭证的 HTTPS 地址。');
   return { appId, environment, apiBase };
+}
+
+export async function serverRecognitionAvailable(root?: string, fetcher = fetch): Promise<boolean> {
+  if (!root) return false;
+  try {
+    const { appId, apiBase } = serverRecognitionContext(root);
+    const response = await fetcher(
+      apiBase + '/apps/' + encodeURIComponent(appId) + '/model-inference/' + randomUUID(),
+      {
+        method: 'GET',
+        redirect: 'error',
+        signal: AbortSignal.timeout(5000),
+        headers: { Authorization: 'Bearer ' + requireMakerPat().token },
+      }
+    );
+    if (response.status !== 404) {
+      await response.body?.cancel();
+      return false;
+    }
+    const data = await response.json();
+    return data?.error?.code === 'MODEL_INFERENCE_NOT_FOUND';
+  } catch {
+    return false;
+  }
 }
 
 export function serverRecognitionImage(files: MakerCanvasFiles, image: UiBboxImage) {

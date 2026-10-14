@@ -803,13 +803,15 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
           (node: CanvasNode) => node.id === targetNode.sectionId && node.templateId
         );
       if (!templateTarget)
-        resultNode.title = resultNode.mergeIcons
-          ? '二合图标 · 已保存结果'
-          : attempt.operation === 'variant'
-            ? '图片变体 · 已保存结果'
-            : attempt.operation === 'outpaint'
-              ? '扩展画面 · 已保存结果'
-              : '生图结果';
+        resultNode.title = resultNode.uiAtlasPrelayout
+          ? 'Bbox 预排参考图'
+          : resultNode.mergeIcons
+            ? '二合图标 · 已保存结果'
+            : attempt.operation === 'variant'
+              ? '图片变体 · 已保存结果'
+              : attempt.operation === 'outpaint'
+                ? '扩展画面 · 已保存结果'
+                : '生图结果';
       resultNode.assetPath = attempt.resultAssetPath;
       resultNode.imageInfo = attempt.resultImageInfo;
       if (resultNode.referenceInput)
@@ -1009,7 +1011,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     let selectedOperation = node.mergeIcons
       ? 'generate'
       : node.generationDraft?.operation || operation;
-    const refreshUpstream = Boolean(settings.templateRun && settings.refreshSource);
+    const refreshUpstream = Boolean(
+      node.uiAtlasPrelayout || (settings.templateRun && settings.refreshSource)
+    );
     const sourceImageId = node.referenceInput
       ? referenceSources(node)[0]?.id
       : node.assetPath && !refreshUpstream
@@ -1027,13 +1031,14 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
       options.setError(decision.message);
       return;
     }
-    const targetId = node.mergeIcons
-      ? node.id
-      : decision?.kind === 'reuse'
-        ? decision.nodeId
-        : !node.assetPath
-          ? node.id
-          : undefined;
+    const targetId =
+      node.mergeIcons || node.uiAtlasPrelayout
+        ? node.id
+        : decision?.kind === 'reuse'
+          ? decision.nodeId
+          : !node.assetPath
+            ? node.id
+            : undefined;
     const sourceNodes = (
       node.referenceInput
         ? referenceSources(node)
@@ -1095,31 +1100,46 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
         : paths.length === 1
           ? sizes.get(paths[0])
           : undefined;
-      const outputSize = resolveImageSize(
+      let outputSize = resolveImageSize(
         settings.aspectRatio || '1:1',
         settings.resolution,
         originalInfo
       );
       if (options.getDocument() !== documentState) return;
       let cutoutColor: UiCutoutColor | undefined;
+      const correction = (node.generationDraft?.prompt || node.generation?.prompt || '')
+        .split(String.fromCharCode(10))
+        .find((line: string) => line.startsWith('输出排版校正：'));
       const extraction = selectedUiExtraction(documentState, node);
       if (extraction) {
         node.uiBaselinePrompt ??= prompt;
-        const correction = (node.generationDraft?.prompt || node.generation?.prompt || '')
-          .split(String.fromCharCode(10))
-          .find((line: string) => line.startsWith('输出排版校正：'));
         prompt = extraction.prompt + (correction ? String.fromCharCode(10) + correction : '');
       } else if (node.uiExtraction && node.uiBaselinePrompt) prompt = node.uiBaselinePrompt;
       const atlasPlan = selectedUiAtlasPlan(documentState, node);
-      if (node.uiAtlasGroup && atlasPlan) {
+      if (atlasPlan?.nativeLayout) {
+        const { width, height } = atlasPlan.nativeLayout;
+        settings.aspectRatio = imageRatioInfo({ width, height }).common;
+        settings.resolution = Math.max(width, height) <= 1024 ? '1K' : '2K';
+        outputSize = {
+          aspectRatio: settings.aspectRatio!,
+          width,
+          height,
+          targetSize: width + 'x' + height,
+        };
+      }
+      const usesPrelayout =
+        !node.uiAtlasPrelayout && sourceNodes.some((source) => source.uiAtlasPrelayout);
+      if (atlasPlan && (node.uiAtlasGroup || atlasPlan.nativeLayout)) {
         node.uiBaselinePrompt ??= prompt;
-        prompt = uiBatchAtlasPrompt(node.uiAtlasGroup);
+        prompt = atlasPlan.nativeLayout
+          ? uiNativeAtlasPrompt() + (correction ? String.fromCharCode(10) + correction : '')
+          : uiBatchAtlasPrompt(node.uiAtlasGroup!, usesPrelayout);
       } else if (node.uiAtlasGroup && node.uiBaselinePrompt) prompt = node.uiBaselinePrompt;
       if (atlasPlan)
         prompt =
           prompt.split('UI 槽位绑定：')[0].trim() +
           '\n' +
-          uiAtlasOrderPrompt(atlasPlan, outputSize.width / outputSize.height);
+          uiAtlasOrderPrompt(atlasPlan, outputSize.width / outputSize.height, usesPrelayout);
       if (targetId && isUiCutoutSource(documentState, targetId)) {
         cutoutColor = await detectUiCutoutColor(
           [...sourceNodes.map((source) => source.assetPath), ...referencePaths(node)],
@@ -1846,6 +1866,29 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     workflow?: CanvasWorkflowEdit
   ): void {
     if (node.type !== 'image' && node.type !== 'video' && node.type !== 'video-source') return;
+    if (node.uiAtlasPrelayout) {
+      const panel = document.createElement('div');
+      panel.className = 'generation-panel';
+      const hint = document.createElement('small');
+      hint.textContent = '按当前 Bbox 和批次坐标预排。本地处理，不调用 AI、不消耗积分。';
+      panel.append(
+        hint,
+        button(
+          '执行预排',
+          async () => {
+            try {
+              await runTemplateImage(node.id);
+            } catch (error) {
+              options.setError((error as Error).message);
+            }
+          },
+          { disabled: inFlight.has(node.id) || Boolean(workflow && !workflow.canSubmit) }
+        )
+      );
+      renderAttemptStatus(panel, node);
+      card.append(panel);
+      return;
+    }
     const stale = isCanvasNodeStale(node, canvasReferences(options.getDocument(), node.id));
     const panel = document.createElement('div');
     panel.className = 'generation-panel';
@@ -2569,4 +2612,9 @@ export function createCanvasGenerationUi(options: CanvasGenerationUiOptions): {
     },
   };
 }
-import { selectedUiAtlasPlan, uiAtlasOrderPrompt, uiBatchAtlasPrompt } from './uiAssetBindings.js';
+import {
+  selectedUiAtlasPlan,
+  uiAtlasOrderPrompt,
+  uiBatchAtlasPrompt,
+  uiNativeAtlasPrompt,
+} from './uiAssetBindings.js';

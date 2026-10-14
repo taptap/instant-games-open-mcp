@@ -12,12 +12,16 @@ import { ensureUiAtlasBatchCards, selectedUiAtlasPlan } from '../uiAssetBindings
 
 const id = '7e1cb6ad-732f-4dc3-a951-000000000013';
 
-test('official UI catalog replaces the classified preset with the batch workflow', () => {
-  const official = builtinCanvasTemplates().filter((item) => item.name === '游戏UI制作');
-  expect(official.map((item) => item.id)).toEqual([id]);
+test('official UI catalog keeps the original workflow alongside the Bbox experiment', () => {
+  const official = builtinCanvasTemplates().filter((item) => item.name.startsWith('游戏UI制作'));
+  expect(official.map((item) => item.name)).toEqual([
+    '游戏UI制作',
+    '游戏UI制作 · Bbox预排参考图（实验）',
+  ]);
+  expect(official.map((item) => item.id)).toEqual([id, '7e1cb6ad-732f-4dc3-a951-000000000015']);
   expect(builtinCanvasTemplates().some((item) => item.id.endsWith('000012'))).toBe(false);
   expect(canvasPresets().some((item) => item.id.endsWith('000012'))).toBe(false);
-  const template = official[0];
+  const template = canvasPresets().find((item) => item.id === id)!;
   expect(template.nodes).toHaveLength(18);
   expect(template.skills).toEqual(['maker-ui-workflow']);
   const design = template.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;

@@ -23,6 +23,7 @@ import { ConsoleDocuments } from './documents.js';
 import { chooseProjectDirectory } from './folderPicker.js';
 import { discoverConsoleProjects } from './projectDiscovery.js';
 import { handleCanvasProjectRoute } from './canvasRoutes.js';
+import { resolvedModelSettingsForDisplay } from './canvasRecognition.js';
 import { handleUiEditorRoute, serveUiEditor } from './uiEditorRoutes.js';
 import { consoleThemeScript, consoleThemeStyles } from '../webTheme.js';
 import { CanvasAutomationBridge } from '../canvas/automationBridge.js';
@@ -33,7 +34,6 @@ import {
   visionSettingsForDisplay,
   saveVisionSettings,
   deleteVisionSettings,
-  modelSettingsForDisplay,
   updateModelSettings,
 } from './visionSettings.js';
 import {
@@ -269,9 +269,12 @@ export async function startConsoleServer(options: {
         return;
       }
       if (url.pathname === '/api/settings/models') {
-        if (request.method === 'GET') json(200, modelSettingsForDisplay());
-        else if (request.method === 'PUT') json(200, updateModelSettings(await readBody(request)));
-        else throw new ConsoleError('模型设置接口不支持此操作。', 405);
+        const key = url.searchParams.get('project');
+        const root = key ? options.registry.resolve(key).path : undefined;
+        if (request.method === 'PUT') updateModelSettings(await readBody(request));
+        else if (request.method !== 'GET')
+          throw new ConsoleError('模型设置接口不支持此操作。', 405);
+        json(200, await resolvedModelSettingsForDisplay(root));
         return;
       }
       if (url.pathname === '/api/settings/ui-vision') {

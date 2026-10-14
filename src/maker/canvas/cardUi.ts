@@ -124,7 +124,8 @@ export function refreshCanvasGroupHeaders(
     if (!badge) continue;
     const members = nodes.filter(
       (node) =>
-        node.sectionId === group.id && !['note', 'section', 'resource-bundle'].includes(node.type)
+        node.sectionId === group.id &&
+        !['note', 'section', 'resource-bundle', 'mark'].includes(node.type)
     );
     const states = members.map((node) => {
       if (node.type === 'model' || node.type === 'model-views')

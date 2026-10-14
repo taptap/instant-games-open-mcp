@@ -17,6 +17,7 @@ import { promisify } from 'node:util';
 import { getGitCommand } from '../system/git.js';
 import {
   CanvasStoreError,
+  CANVAS_JSON_LIMIT,
   emptyDocument,
   starterDocument,
   type CanvasCreateTemplate,
@@ -30,6 +31,7 @@ import { STARTER_IMAGE_BASE64 } from './starterImages.js';
 import type { FrameSetInfo, SequenceSettings, VideoInfo } from './sequenceModel.js';
 import { snapshotCanvasSource, type CanvasSourceSnapshot } from './dependencies.js';
 import { parseTemplateFlow } from './templateWorkflow.js';
+import { validateCanvasMark } from './marks.js';
 import {
   createCanvasTemplateModel,
   isBuiltinCanvasTemplate,
@@ -190,9 +192,20 @@ export class MakerCanvasFiles {
     // Retired presets remain readable for existing references, but are absent from the catalog.
     const { assets: _assets, ...definition } = preset;
     const template: CanvasWorkflowTemplate = { ...structuredClone(definition), builtin: true };
+    if (template.id === '7e1cb6ad-732f-4dc3-a951-000000000015') {
+      template.nodes = template.nodes.filter(
+        (node) =>
+          (node.type === 'image' && !template.edges.some((edge) => edge.to === node.id)) ||
+          Boolean(node.uiRecognition)
+      );
+      const kept = new Set(template.nodes.map((node) => node.id));
+      template.edges = template.edges.filter((edge) => kept.has(edge.from) && kept.has(edge.to));
+    }
+    const needed = new Set(templateAssetPaths(template));
     const paths = new Map<string, string>();
     try {
       for (const [source, asset] of Object.entries(preset.assets)) {
+        if (template.cliOnly && !needed.has(source)) continue;
         const bytes = await readDemoResource(asset.resourceId);
         const imported =
           asset.type === 'video/mp4'
@@ -353,7 +366,7 @@ export class MakerCanvasFiles {
   private readTemplate(id: string): CanvasWorkflowTemplate {
     if (!ID.test(id)) fail('模板标识无效。', 400, 'INVALID_ID');
     const file = this.safeProjectFile('.maker/canvases/templates/' + id + '.json');
-    if (fs.statSync(file).size > 1024 * 1024) fail('模板过大。', 413, 'STORAGE_LIMIT');
+    if (fs.statSync(file).size > CANVAS_JSON_LIMIT) fail('模板过大。', 413, 'STORAGE_LIMIT');
     return this.parseTemplate(JSON.parse(fs.readFileSync(file, 'utf8')));
   }
 
@@ -371,11 +384,14 @@ export class MakerCanvasFiles {
       name
     );
     const skills = templateSkills(input.skills);
+    if (input.cliOnly !== undefined && typeof input.cliOnly !== 'boolean')
+      fail('模板执行标识无效。', 400, 'INVALID_DOCUMENT');
     return {
       ...template,
       id: input.id,
       revision: parsed.revision,
       ...(skills?.length ? { skills } : {}),
+      ...(input.cliOnly ? { cliOnly: true } : {}),
     };
   }
 
@@ -437,7 +453,7 @@ export class MakerCanvasFiles {
     this.assertAssets({ nodes: template.nodes } as CanvasDocument);
     const saved = { ...template, revision: revision + 1 };
     const bytes = Buffer.from(JSON.stringify(saved));
-    if (bytes.length > 1024 * 1024) fail('模板过大。', 413, 'STORAGE_LIMIT');
+    if (bytes.length > CANVAS_JSON_LIMIT) fail('模板过大。', 413, 'STORAGE_LIMIT');
     this.atomicWrite(folder, template.id + '.json', bytes);
     this.removeTemplateCover(template.id, revision);
     return saved;
@@ -1019,13 +1035,15 @@ export class MakerCanvasFiles {
   private read(id: string): CanvasDocument {
     const file = this.file(id);
     const raw = fs.readFileSync(file, 'utf8');
-    if (raw.length > 1024 * 1024) fail('画布文档过大。', 413, 'STORAGE_LIMIT');
+    if (Buffer.byteLength(raw) > CANVAS_JSON_LIMIT) fail('画布文档过大。', 413, 'STORAGE_LIMIT');
     return this.parse(JSON.parse(raw), id);
   }
 
   private write(document: CanvasDocument): void {
     const folder = this.canvasDir(true)!;
-    this.atomicWrite(folder, `${document.id}.json`, Buffer.from(JSON.stringify(document)));
+    const bytes = Buffer.from(JSON.stringify(document));
+    if (bytes.length > CANVAS_JSON_LIMIT) fail('画布文档过大。', 413, 'STORAGE_LIMIT');
+    this.atomicWrite(folder, `${document.id}.json`, bytes);
   }
 
   private atomicWrite(folder: string, name: string, bytes: Buffer): void {
@@ -1138,10 +1156,21 @@ export class MakerCanvasFiles {
     if (!value || typeof value !== 'object') fail('节点无效。', 400, 'INVALID_DOCUMENT');
     const node = value as Record<string, unknown>;
     if (
-      (node.uiAtlasPlan !== undefined || node.uiAtlasGroup !== undefined) &&
+      (node.uiAtlasPlan !== undefined ||
+        node.uiAtlasGroup !== undefined ||
+        node.uiAtlasPrelayout !== undefined) &&
       node.type !== 'image'
     )
       fail('只有图片卡可以配置 UI 槽位清单。', 400, 'INVALID_DOCUMENT');
+    if (
+      node.uiArtTextId !== undefined &&
+      (node.type !== 'image' ||
+        typeof node.uiArtTextId !== 'string' ||
+        !/^[A-Za-z0-9_-]{1,80}$/.test(node.uiArtTextId))
+    )
+      fail('美术字标识无效。', 400, 'INVALID_DOCUMENT');
+    if (node.uiAtlasPrelayout !== undefined && typeof node.uiAtlasPrelayout !== 'boolean')
+      fail('Bbox 预排开关无效。', 400, 'INVALID_DOCUMENT');
     if (typeof node.id !== 'string' || !ID.test(node.id))
       fail('节点标识无效。', 400, 'INVALID_DOCUMENT');
     if (
@@ -1155,7 +1184,8 @@ export class MakerCanvasFiles {
       node.type !== 'resource-bundle' &&
       node.type !== 'model-views' &&
       node.type !== 'model' &&
-      node.type !== 'section'
+      node.type !== 'section' &&
+      node.type !== 'mark'
     ) {
       fail('节点类型无效。', 400, 'INVALID_DOCUMENT');
     }
@@ -1238,6 +1268,15 @@ export class MakerCanvasFiles {
         fail((error as Error).message, 400, 'INVALID_DOCUMENT');
       }
     }
+    let mark: CanvasNode['mark'] | undefined;
+    if (node.mark !== undefined || node.type === 'mark') {
+      if (node.type !== 'mark') fail('只有标注可以使用圈或箭头样式。', 400, 'INVALID_DOCUMENT');
+      try {
+        mark = validateCanvasMark(node.mark);
+      } catch (error) {
+        fail((error as Error).message, 400, 'INVALID_DOCUMENT');
+      }
+    }
     if (node.type === 'video-source' && (!assetPath || !VIDEO_RELATIVE.test(assetPath))) {
       fail('视频素材卡必须引用本画布导入的视频。', 400, 'UNSAFE_PATH');
     }
@@ -1281,6 +1320,11 @@ export class MakerCanvasFiles {
     if (node.templateRevision !== undefined)
       numberIn(node.templateRevision, 1, 1_000_000, '模板版本');
     const skills = templateSkills(node.templateSkills);
+    if (
+      node.templateCliOnly !== undefined &&
+      (typeof node.templateCliOnly !== 'boolean' || node.type !== 'section')
+    )
+      fail('模板执行标识只能用于分组。', 400, 'INVALID_DOCUMENT');
     if (node.workDurationMs !== undefined)
       numberIn(node.workDurationMs, 0, Number.MAX_SAFE_INTEGER, '工作耗时');
     if (node.workStartedAt !== undefined)
@@ -1514,8 +1558,18 @@ export class MakerCanvasFiles {
       type: node.type,
       x: numberIn(node.x, -100000, 100000, '坐标'),
       y: numberIn(node.y, -100000, 100000, '坐标'),
-      width: numberIn(node.width, 48, node.type === 'section' ? 100000 : 2000, '尺寸'),
-      height: numberIn(node.height, 36, node.type === 'section' ? 100000 : 1600, '尺寸'),
+      width: numberIn(
+        node.width,
+        node.type === 'mark' ? 8 : 48,
+        node.type === 'section' ? 100000 : node.type === 'mark' ? 8000 : 2000,
+        '尺寸'
+      ),
+      height: numberIn(
+        node.height,
+        node.type === 'mark' ? 8 : 36,
+        node.type === 'section' ? 100000 : node.type === 'mark' ? 8000 : 1600,
+        '尺寸'
+      ),
       title: text(node.title, 80, '标题', '未命名'),
       ...(node.modelQuality
         ? { modelQuality: node.modelQuality as CanvasNode['modelQuality'] }
@@ -1527,6 +1581,7 @@ export class MakerCanvasFiles {
       ...(node.templateId ? { templateId: node.templateId as string } : {}),
       ...(node.templateRevision ? { templateRevision: node.templateRevision as number } : {}),
       ...(skills?.length ? { templateSkills: skills } : {}),
+      ...(node.templateCliOnly ? { templateCliOnly: true } : {}),
       ...(node.templatePending ? { templatePending: true } : {}),
       ...(node.workStartedAt === undefined ? {} : { workStartedAt: node.workStartedAt as number }),
       ...(node.workTimingOpen ? { workTimingOpen: true } : {}),
@@ -1554,6 +1609,10 @@ export class MakerCanvasFiles {
       ...(node.uiAtlasGroup === undefined
         ? {}
         : { uiAtlasGroup: validateUiAtlasGroup(node.uiAtlasGroup) }),
+      ...(node.uiAtlasPrelayout === undefined
+        ? {}
+        : { uiAtlasPrelayout: node.uiAtlasPrelayout as boolean }),
+      ...(node.uiArtTextId ? { uiArtTextId: node.uiArtTextId as string } : {}),
       ...(node.uiAtlasBatch === undefined
         ? {}
         : { uiAtlasBatch: Math.floor(node.uiAtlasBatch as number) }),
@@ -1575,6 +1634,7 @@ export class MakerCanvasFiles {
       ...(node.uiAnnotation
         ? { uiAnnotation: node.uiAnnotation as CanvasNode['uiAnnotation'] }
         : {}),
+      ...(mark ? { mark } : {}),
     };
   }
 

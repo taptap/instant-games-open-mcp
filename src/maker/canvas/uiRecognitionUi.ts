@@ -74,7 +74,7 @@ export function createUiRecognitionUi(options: {
   openCanvas(id: string): Promise<void>;
 }) {
   const webRecognitionHint =
-    '请让当前 AI 按 maker-ui-workflow 使用已有浏览器完成 ChatGPT 网页识图并回填。无需安装执行器。登录可选：未登录时可选择直接识图，或登录后识图；未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。已登录则沿用当前模型和思考程度。';
+    '请让当前 AI 按当前模板关联的 Skill 使用已有浏览器完成 ChatGPT 网页识图并回填。无需安装执行器。登录可选：未登录时可选择直接识图，或登录后识图；未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。已登录则沿用当前模型和思考程度。';
   let busy = false;
   let preparing = false;
   async function sourceBlob(path: string) {
@@ -142,7 +142,11 @@ export function createUiRecognitionUi(options: {
       uiRecognitionSourceId: source.id,
     });
   }
-  async function recognize(source: CanvasNode, confirmed: boolean): Promise<boolean> {
+  async function recognize(
+    source: CanvasNode,
+    confirmed: boolean,
+    recover = false
+  ): Promise<boolean> {
     const current = options.current();
     if (!current || !source.assetPath || !source.uiRecognition || busy) return false;
     const settings = source.uiRecognition;
@@ -155,8 +159,6 @@ export function createUiRecognitionUi(options: {
         throw new Error(
           '当前使用本地模型，请让 AI 客户端读取设计稿，通过 Maker CLI 写入 Bbox。画布不能直接调用客户端模型；也可在设置中选择自定义 API。'
         );
-      if (configured?.source === 'server')
-        throw new Error('Server API 识图尚未开通，请使用本地 AI 或在设置中选择自定义 API。');
       if (configured) model = configured;
     }
     if (source.templatePending && !settings.pendingId)
@@ -186,6 +188,25 @@ export function createUiRecognitionUi(options: {
       if (settings.pendingId) {
         if (!options.store.recognitionStatus) throw new Error('识图接口尚未就绪。');
         attempt = await options.store.recognitionStatus(current.id, settings.pendingId);
+        if (options.current() !== current || !current.nodes.includes(source)) return false;
+        if (
+          recover &&
+          attempt.server &&
+          (attempt.status === 'running' || attempt.status === 'unknown') &&
+          window.confirm('继续原识图请求？将复用原请求编号恢复或接续文字识别，后续识别可能计费。')
+        ) {
+          if (!options.store.recognizeUi) throw new Error('识图接口尚未就绪。');
+          attempt = await options.store.recognizeUi(current.id, {
+            id: settings.pendingId,
+            nodeId: source.id,
+            model: attempt.model,
+            revision: current.revision,
+            width: attempt.server.cut.image.width,
+            height: attempt.server.cut.image.height,
+            allowPaid: true,
+            recover: true,
+          });
+        }
       } else {
         if (!options.store.recognizeUi) throw new Error('识图接口尚未就绪。');
         const bitmap = await createImageBitmap(await sourceBlob(source.assetPath));
@@ -279,7 +300,7 @@ export function createUiRecognitionUi(options: {
         if (!generated || !completeRecognition) return generated;
         if (options.current() !== current || node.templatePending || !node.assetPath) return false;
       }
-      return selectedUiRecognition(node) ? true : recognize(node, confirmed);
+      return selectedUiRecognition(node) ? true : recognize(node, confirmed, true);
     }
     if (node.uiRecognition?.inputRole === 'design') {
       const references = canvasReferences(current, node.id);
@@ -291,6 +312,7 @@ export function createUiRecognitionUi(options: {
         node.assetPath = source.assetPath;
         node.imageInfo = source.imageInfo ? { ...source.imageInfo } : undefined;
         node.sourceSnapshot = snapshotCanvasSource(source);
+        node.sourceSnapshots = [node.sourceSnapshot!];
         node.uiRecognition.results = [];
         delete node.uiRecognition.selectedId;
         invalidate(node);
@@ -329,7 +351,7 @@ export function createUiRecognitionUi(options: {
       return saved;
     }
     delete node.uiEmpty;
-    if (!hasImageFeature(node, 'ui-annotation')) return fallback();
+    if (node.uiAtlasPrelayout || !hasImageFeature(node, 'ui-annotation')) return fallback();
     await checkDesign(result, source);
     node.uiBaselinePrompt ??= node.generationDraft?.prompt || node.generation?.prompt || '';
     busy = true;
@@ -381,7 +403,7 @@ export function createUiRecognitionUi(options: {
     try {
       const current = options.current();
       if (!current) return false;
-      if (node.uiRecognition?.pendingId) return await recognize(node, true);
+      if (node.uiRecognition?.pendingId) return await recognize(node, true, true);
       const models = await options.store.recognitionModels?.();
       const configured = models?.[0];
       if (configured?.source === 'chatgpt-web') {
@@ -398,8 +420,6 @@ export function createUiRecognitionUi(options: {
         );
         return false;
       }
-      if (configured?.source === 'server')
-        throw new Error('Server API 识图尚未开通，请使用本地 AI 或自定义 API。');
       if (
         options.current() !== current ||
         !current.nodes.includes(node) ||
@@ -424,8 +444,10 @@ export function createUiRecognitionUi(options: {
     if (
       !(plan && !plan.elements.length) &&
       !(batch && batch.slots.every((slot) => slot.role === 'reserve'))
-    )
+    ) {
+      delete node.uiEmpty;
       return fallback();
+    }
     options.remember();
     node.uiEmpty = true;
     delete node.imageAssetsInfo;

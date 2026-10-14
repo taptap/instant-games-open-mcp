@@ -131,9 +131,9 @@ test('settings are private, take effect immediately and never return the key', (
   expect(deleteVisionSettings().configured).toBe(false);
 });
 
-test('defaults to local source and can store server source without a second key', () => {
+test('defaults to server source and can store server source without a second key', () => {
   expect(visionSettingsForDisplay()).toMatchObject({
-    source: 'local',
+    source: 'server',
   });
   const display = saveVisionSettings({
     source: 'server',

@@ -7,7 +7,14 @@ export function createAssetPresets(): CanvasPreset[] {
     const template = structuredClone(definition);
     let correctedReferences = false;
     for (const node of template.nodes) {
-      if (node.uiAtlasGroup) {
+      const usesPrelayout =
+        node.uiAtlasPrelayout ||
+        template.edges.some(
+          (edge) =>
+            edge.to === node.id &&
+            template.nodes.some((source) => source.id === edge.from && source.uiAtlasPrelayout)
+        );
+      if (node.uiAtlasGroup && !usesPrelayout) {
         const category = {
           controls: '按钮、页签、标题底板和细长条；不含文字和上层图标',
           icons: '独立小图标、星星、箭头和背包物品；不含底框',
