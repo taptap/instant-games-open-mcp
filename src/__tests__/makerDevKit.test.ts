@@ -307,7 +307,9 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain(
       'Only call `create_video_task` after the user explicitly requests video generation'
     );
-    expect(agentsGuide).toContain('duration exceeds 10 seconds or `model="2.5"`');
+    expect(agentsGuide).toContain('200 credits per second for `model="2.0"`');
+    expect(agentsGuide).toContain('estimate exceeds 1000 credits');
+    expect(agentsGuide).toContain('at or below 1000 credits');
     expect(agentsGuide).toContain('`user_confirmed=true`');
     expect(agentsGuide).toContain('batch_generate_images');
     expect(agentsGuide).toContain('`text_to_music` for game music');

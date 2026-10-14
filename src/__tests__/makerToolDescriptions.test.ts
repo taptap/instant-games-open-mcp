@@ -169,13 +169,20 @@ describe('Maker non-audio tool descriptions', () => {
     expect(descriptions.create_video_task).toMatch(
       /explicitly requests?.{0,160}do not.{0,80}(?:proactively|automatically) generate/iu
     );
-    expect(descriptions.create_video_task).toMatch(
-      /duration.{0,40}(?:exceeds?|greater than).{0,20}10 seconds.{0,160}user_confirmed=true/iu
-    );
-    expect(descriptions.create_video_task).toMatch(/model="2\.5".{0,160}user_confirmed=true/iu);
     expect(descriptions.create_video_task).toMatch(/200 credits per second.{0,40}model="2\.0"/iu);
     expect(descriptions.create_video_task).toMatch(/300 credits per second.{0,40}model="2\.5"/iu);
-    expect(descriptions.create_video_task).toMatch(/actual billing.{0,80}upstream token usage/iu);
+    expect(descriptions.create_video_task).toMatch(
+      /42\/84\/168 credits per second.{0,40}model="wan"/iu
+    );
+    expect(descriptions.create_video_task).toMatch(
+      /actual billing is determined when the video is generated/iu
+    );
+    expect(descriptions.create_video_task).toMatch(
+      /estimate exceeds 1000 credits.{0,180}user_confirmed=true/iu
+    );
+    expect(descriptions.create_video_task).toMatch(/omitted or -1.{0,80}maximum duration/iu);
+    expect(descriptions.create_video_task).toMatch(/does not exceed 1000 credits/iu);
+    expect(descriptions.create_video_task).not.toMatch(/duration exceeds 10 seconds/iu);
 
     const listed = await listMakerTools();
     const createVideoSchema = listed.tools.find(
@@ -189,7 +196,7 @@ describe('Maker non-audio tool descriptions', () => {
     );
     expect(createVideoSchema?.properties.model.description).toMatch(/2\.5.{0,120}二次确认/iu);
     expect(createVideoSchema?.properties.duration.description).toMatch(
-      /超过 10 秒.{0,180}user_confirmed=true/iu
+      /超过 1000 积分.{0,80}user_confirmed=true/iu
     );
 
     expect(descriptions.query_video_task).toMatch(/task_id.{0,180}120 seconds/iu);

@@ -50,8 +50,8 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
   ].join(' '),
   create_video_task: [
     'Create a video generation task only after the user explicitly requests video generation. Do not proactively or automatically generate videos while designing gameplay, implementing features, filling asset gaps, or self-improving the game.',
-    'Estimate the intended duration before calling. The confirmation estimate is 200 credits per second for model="2.0" and 300 credits per second for model="2.5"; it is only a rough estimate, while actual billing follows upstream token usage.',
-    'When duration exceeds 10 seconds or model="2.5" is used, show the estimate and billing disclaimer, wait for explicit user confirmation, then repeat the same request with user_confirmed=true. Default model="2.0" with omitted duration or duration=-1 does not require confirmation.',
+    'Estimate credit cost before calling as duration seconds times the tier rate: 200 credits per second for model="2.0", 300 credits per second for model="2.5", and 42/84/168 credits per second for model="wan" at 70% of the Beijing list price. This estimate is only for confirmation; actual billing is determined when the video is generated.',
+    'If duration is omitted or -1, estimate using the selected model maximum duration. When the estimate exceeds 1000 credits, show the estimate and billing disclaimer, wait for explicit user confirmation, then repeat the same request with user_confirmed=true. Do not pass user_confirmed=true before that confirmation or when the estimate does not exceed 1000 credits.',
     'The remote service normally performs server-side polling and waits for the final result in this call.',
     'If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later.',
     'Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema.',

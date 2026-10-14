@@ -53,7 +53,9 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain(
       'Only call create_video_task after the user explicitly requests video generation'
     );
-    expect(status).toContain('duration exceeds 10 seconds or model="2.5"');
+    expect(status).toContain('200 credits per second for model="2.0"');
+    expect(status).toContain('estimate exceeds 1000 credits');
+    expect(status).toContain('at or below 1000 credits');
     expect(status).toContain('user_confirmed=true');
     expect(status).toContain('Use text_to_music for game music');
     expect(status).toContain('Use text_to_sound_effect for one sound effect');
@@ -162,7 +164,10 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain(
       'Only call `create_video_task` after the user explicitly requests video generation'
     );
-    expect(skillText).toContain('duration exceeds 10 seconds or `model="2.5"`');
+    expect(skillText).toContain('200 credits per second for `model="2.0"`');
+    expect(skillText).toContain('estimate exceeds 1000 credits');
+    expect(skillText).toContain('at or below');
+    expect(skillText).toContain('1000 credits');
     expect(skillText).toContain('`user_confirmed=true`');
     expect(skillText).toContain('Use `query_video_task` to refresh video task status');
     expect(skillText).toContain('Use `text_to_music` for game music');
