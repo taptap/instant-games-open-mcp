@@ -2,7 +2,7 @@ import { refreshCanvasMedia } from './mediaVersions.js';
 import type { CanvasExportDelivery } from './exportDelivery.js';
 declare const document: any;
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
-import { selectedUiExtraction } from '../features/uiRecognition.js';
+import { selectedUiExtraction, uiRecognitionSource } from '../features/uiRecognition.js';
 import type { CanvasDocumentStore } from '../browser/store.js';
 import type { ImageAtlasGrid } from '../contracts.js';
 import { splitImageAtlas, prepareImageAtlas } from '../browser/imageAtlasExport.js';
@@ -72,6 +72,8 @@ export function createImageAssetsUiWithHost(options: {
     return plan?.grid || source.uiBaselineGrid || target?.imageAssetsInfo?.grid;
   }
   function backgroundFor(source: CanvasNode, target?: CanvasNode) {
+    if (source.uiAtlasGroup === 'background')
+      return { color: undefined, mode: 'connected' as const };
     if (target?.imageAssetsInfo?.background && canReuseSettings(source, target))
       return target.imageAssetsInfo.background;
     const gameUi = Boolean(target && isGameUiResource(options.current() || undefined, target));
@@ -81,7 +83,7 @@ export function createImageAssetsUiWithHost(options: {
           ? uiCutoutRgb(source.generation?.cutoutColor)
           : undefined,
       mode:
-        (source.uiAtlasGroup && source.uiAtlasGroup !== 'background') ||
+        source.uiAtlasGroup ||
         (source.generation?.cutoutColor && !gameUi)
           ? ('all' as const)
           : ('connected' as const),
@@ -99,6 +101,15 @@ export function createImageAssetsUiWithHost(options: {
     const allowEmpty = Boolean(
       source.generation?.uiAtlasPlan || (source.uiAtlasGroup && source.uiBaselineGrid)
     );
+    const current = options.current();
+    if (
+      current &&
+      source.uiAtlasGroup !== 'background' &&
+      !source.generation?.uiAtlasPlan &&
+      uiRecognitionSource(current, source)?.uiRecognition?.optional &&
+      !(target?.imageAssetsInfo?.regions && canReuseSettings(source, target))
+    )
+      return { mode: 'content' };
     return target?.imageAssetsInfo?.regions && canReuseSettings(source, target)
       ? {
           mode: target.imageAssetsInfo.cutMode || 'content',

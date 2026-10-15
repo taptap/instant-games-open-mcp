@@ -104,7 +104,7 @@ export interface CanvasDocumentStore {
     canvasId: string,
     input: {
       prompt: string;
-      cutoutColor?: '#FF00FF' | '#00FF00';
+      cutoutColor?: '#FF00FF' | '#00FF00' | 'transparent';
       name?: string;
       targetSize?: string;
       aspectRatio?: string;

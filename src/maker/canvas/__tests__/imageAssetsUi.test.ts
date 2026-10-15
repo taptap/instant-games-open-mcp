@@ -515,6 +515,8 @@ test('workflow prepares real items from current atlas and saved grid without a r
 test.each([
   ['#FF00FF', false],
   ['#00FF00', false],
+  ['transparent', false],
+  ['transparent', true],
   [undefined, false],
   ['#FF00FF', true],
 ] as const)(

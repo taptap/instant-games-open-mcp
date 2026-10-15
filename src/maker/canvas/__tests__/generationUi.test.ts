@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-test('UI atlas color preparation saves an existing image through the real document validator', async () => {
+test('UI atlas transparency preparation saves an existing image through the real document validator', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'canvas-cutout-save-'));
   const color = jest.spyOn(uiCutout, 'detectUiCutoutColor').mockResolvedValue('#00FF00');
   try {
@@ -88,7 +88,9 @@ test('UI atlas color preparation saves an existing image through the real docume
     expect(
       (await files.load(document.id)).nodes.find((node) => node.id === target.id)?.generation
         ?.prompt
-    ).toContain('#00FF00');
+    ).toContain('真实 Alpha 通道');
+    expect(options.store.generateImage.mock.calls[0][1].cutoutColor).toBe('transparent');
+    expect(color).not.toHaveBeenCalled();
   } finally {
     color.mockRestore();
     fs.rmSync(root, { recursive: true, force: true });
@@ -173,6 +175,53 @@ test('a hanging image releases the serial queue, preserves its dependent branch 
     expect(target.assetPath).toBe(target.id + '.png');
     expect(ui.hasUnsettledResult(target.id)).toBe(false);
     expect(submitted).toHaveLength(2);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test('stopping a hanging image releases the queue before the request timeout', async () => {
+  jest.useFakeTimers();
+  try {
+    const { document, options } = fixture();
+    delete document.templateFlow;
+    const target = document.nodes[1];
+    Object.assign(target, {
+      type: 'image',
+      assetPath: 'old.png',
+      sectionId: 'group',
+      templatePending: true,
+      referenceInput: { includeSelf: false },
+      generation: { prompt: 'atlas' },
+    });
+    document.edges[0].kind = 'image-variant';
+    document.nodes.push({ id: 'group', type: 'section', templateId: 'template' });
+    options.store.listGeneration.mockResolvedValue([]);
+    options.store.generateImage.mockImplementation(() => new Promise(() => {}));
+    const ui = createCanvasGenerationUi(options);
+    const queue = createCanvasGroupQueue({
+      getDocument: () => document,
+      needs: (id) => Boolean(document.nodes.find((node: any) => node.id === id)?.templatePending),
+      problem: ui.queueBlockReason,
+      busy: () => ui.isBusy,
+      run: ui.runTemplateImage,
+      stopActive: ui.stopWaiting,
+      confirm: () => true,
+      error: options.setError,
+      changed: () => {},
+    });
+    queue.start('group');
+    await jest.advanceTimersByTimeAsync(0);
+    expect(ui.canStopWaiting(target.id)).toBe(true);
+
+    queue.stop('group');
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(options.store.generateImage.mock.calls[0][2]?.aborted).toBe(true);
+    expect(ui.isBusy).toBe(false);
+    expect(queue.isBusy).toBe(false);
+    expect(queue.view('group')).toMatchObject({ phase: 'paused', active: undefined });
+    expect(ui.hasUnsettledResult(target.id)).toBe(true);
   } finally {
     jest.useRealTimers();
   }

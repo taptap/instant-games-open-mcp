@@ -29,6 +29,13 @@ export function canvasAutomationCapabilities() {
         'Recognition and completed resource bundles are archived locally on save. Commands work without a browser or model. ui-archives is read-only; archive-ui snapshots saved data, never unsaved drafts. Use bboxPath and bindingsPath from the same revision; never guess the latest file.',
     },
     actions: [...CANVAS_COMMAND_ACTIONS],
+    recovery: {
+      save: 'save with empty input retries saving the current page without rerunning tasks. Requires the current revision; does not bypass active tasks, dialogs, or uncommitted editor drafts.',
+      recognition:
+        'recognize-ui with input {id: recognition card ID} and --allow-paid generates Bbox only, preserving existing images. Requires a configured recognition API. For pending requests it queries the original request without replaying it; query is also available without --allow-paid. Local or web recognition remains an external Agent workflow.',
+      status:
+        'status, wait and export --output-dir exit nonzero for failed or unknown operations. Unknown does not mean failed; inspect the original card and request before any retry.',
+    },
     nodeTypes: ['image', 'video', 'note', 'mark', 'sequence', 'animation', 'model-views', 'model'],
     editable: [
       'title',

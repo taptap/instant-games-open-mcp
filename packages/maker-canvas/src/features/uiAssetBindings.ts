@@ -300,7 +300,7 @@ export function uiNativeAtlasPrompt(): string {
     '保留：每个主体的像素位置、宽高、轮廓、颜色和细节，包括最细小的分隔线。只处理清单指定的矩形区域，不移动、不缩放、不拉伸、不旋转，不省略任何一项。',
     '移除：前景素材背后的底板、槽框和背景；底板上覆盖的图标、人物、物品和文字。保留底板本体、边框和底纹为一体，并补齐遮挡。',
     '状态：正常态保持原样；按下态只改变明暗，不改变尺寸或位置。环境背景只补全场景，不保留界面控件。',
-    '输出：保持原尺寸坐标布局，背景使用纯绿色 RGB(0,255,0)。不是等分网格，不添加编号、分割线或清单外素材。',
+    '输出：保持原尺寸坐标布局，输出带真实 Alpha 通道的透明背景 PNG，所有主体外背景与间隔为 Alpha=0；保留主体的半透明边缘，不填充纯色底或绘制棋盘格。不是等分网格，不添加编号、分割线或清单外素材。',
   ].join('\n');
 }
 
@@ -310,8 +310,8 @@ export function uiBatchAtlasPrompt(group: UiAtlasGroup, prelayout = false): stri
       ? [
           '游戏素材约束：输出一张完整环境背景，用来替换界面背后的场景。',
           '补全被界面挡住的环境，保留场景的光影和材质。',
-          '画面四周留出纯色边，场景主体不贴边。',
-          '外部背景使用纯绿色 RGB(0,255,0)。',
+          '画面四周留出透明边，保留场景本身，场景主体不贴边。',
+          '输出带真实 Alpha 通道的透明背景 PNG，场景外留白为 Alpha=0，不填充纯色底或绘制棋盘格。',
           '不要画界面、按钮、图标、人物或文字。',
         ]
       : [
@@ -322,7 +322,7 @@ export function uiBatchAtlasPrompt(group: UiAtlasGroup, prelayout = false): stri
           '正常态保留原轮廓和配色。按下态只压暗内底、收紧高光，轮廓和锚点与正常态一致。',
           '保留：每个素材自身的轮廓、长宽比例、配色和细节；长条与人物保持原比例，不拉伸填满方格。',
           '分层：严格按每格指定的素材类型提取；前景和底板分别输出，不把参考图后面的底框合入前景。',
-          '外部背景使用纯绿色 RGB(0,255,0)。',
+          '输出带真实 Alpha 通道的透明背景 PNG，所有主体外背景、素材间隔和备用格均为 Alpha=0；保留半透明边缘，不填充纯色底或绘制棋盘格。',
           group === 'panels'
             ? '只提取空面板底板。不要画角色、图标或道具，不要重绘整张界面，不要跨格。'
             : (prelayout
@@ -466,6 +466,7 @@ export function selectedUiAtlasPlan(
   node: CanvasNode
 ): UiAtlasPlan | undefined {
   const source = uiRecognitionSource(current, node);
+  if (source?.uiRecognition?.optional) return;
   const result = source && selectedUiRecognition(source);
   const section = current.nodes.find((item) => item.id === node.sectionId);
   if (

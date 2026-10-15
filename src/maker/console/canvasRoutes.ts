@@ -429,7 +429,7 @@ export async function handleCanvasProjectRoute(options: {
         throw new ConsoleError('缺少图片生成提示词。');
       if (
         body.cutoutColor !== undefined &&
-        !['#FF00FF', '#00FF00'].includes(String(body.cutoutColor))
+        !['#FF00FF', '#00FF00', 'transparent'].includes(String(body.cutoutColor))
       )
         throw new ConsoleError('抠图底色无效。');
       const attempt = await new CanvasGenerationService(
@@ -438,7 +438,7 @@ export async function handleCanvasProjectRoute(options: {
       ).generateImage({
         canvasId: generationImage[1],
         prompt: body.prompt,
-        cutoutColor: body.cutoutColor as '#FF00FF' | '#00FF00' | undefined,
+        cutoutColor: body.cutoutColor as '#FF00FF' | '#00FF00' | 'transparent' | undefined,
         name: typeof body.name === 'string' ? body.name : undefined,
         targetSize: typeof body.targetSize === 'string' ? body.targetSize : undefined,
         aspectRatio: typeof body.aspectRatio === 'string' ? body.aspectRatio : undefined,

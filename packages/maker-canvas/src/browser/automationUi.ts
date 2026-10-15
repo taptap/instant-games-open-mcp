@@ -30,7 +30,7 @@ export function createCanvasAutomationUiWithHost(options: {
     input: Record<string, unknown>
   ) => ReturnType<typeof prepareCanvasNodeUpdatesWithValidation>;
   current(): CanvasDocument | null;
-  blocked(): string | undefined;
+  blocked(allowUnsaved?: boolean): string | undefined;
   nodeStatus(id: string): unknown;
   nodeBlocked(id: string): boolean;
   remember(): void;
@@ -58,6 +58,7 @@ export function createCanvasAutomationUiWithHost(options: {
   resetDraft(id: string): void;
   checkRecognition?(node: CanvasNode): Promise<void>;
   ensureRecognitionNote?(node: CanvasNode): void;
+  recognizeUi?(node: CanvasNode): Promise<boolean>;
   run(id: string): Promise<boolean>;
   stop(id: string): void;
   canStop(id: string): boolean;
@@ -126,6 +127,8 @@ export function createCanvasAutomationUiWithHost(options: {
     const input = command.input;
     const fields: Record<string, string[]> = {
       inspect: ['id'],
+      save: [],
+      'recognize-ui': ['id'],
       create: ['title'],
       open: ['id'],
       rename: ['title'],
@@ -180,11 +183,30 @@ export function createCanvasAutomationUiWithHost(options: {
       return { requested: true, remoteCanceled: false, snapshot: snapshot() };
     }
     if (editing || running) throw new Error('AI 操作执行中，请等待原操作完成。');
-    const blocked = options.blocked();
+    const blocked = options.blocked(command.action === 'save');
     if (blocked) throw new Error(blocked);
     if (command.action !== 'query' && command.revision !== current.revision)
       throw new Error('revision 已过期，请重新 inspect，不会覆盖人工修改。');
     options.clearError();
+    if (command.action === 'save' || command.action === 'recognize-ui') {
+      const target = command.action === 'recognize-ui' ? node(input.id, current) : undefined;
+      if (target && (!target.uiRecognition || !options.recognizeUi))
+        throw new Error('请选择配置了识图的设计稿或去文字卡片。');
+      if (target && command.allowPaid !== true)
+        throw new Error('识图可能计费，请取得授权并传入 --allow-paid；仅查询原请求可用 query。');
+      running = true;
+      options.busyChanged(true);
+      try {
+        if (target && !(await options.recognizeUi!(target)))
+          throw new Error(options.error() || 'Bbox 尚未完成，请检查识图卡片。');
+        if (!(await options.save())) throw new Error('保存失败，页面结果已保留，请重试 save。');
+        return snapshot();
+      } finally {
+        running = false;
+        options.busyChanged(false);
+        options.render();
+      }
+    }
     if (
       ['preview-image-assets', 'confirm-image-assets'].includes(command.action) ||
       (command.action === 'run' && node(input.id, current).type === 'image-assets')
@@ -280,6 +302,7 @@ export function createCanvasAutomationUiWithHost(options: {
           }
           if (enabled && target.type !== 'section')
             for (const item of sources) {
+              if (item.uiRecognition?.optional) continue;
               // The recognition card is the text-free output; produce it before asking AI.
               if (item.templatePending || !item.assetPath) {
                 if (item.id === target.id) continue;

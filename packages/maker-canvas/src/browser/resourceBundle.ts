@@ -52,6 +52,16 @@ export async function uiBundleManifestWithValidation(
     const info = member.imageAssetsInfo!;
     const plan = source && validation.imageAssetsBindingPlan(source, info);
     if (!plan) {
+      const recognition = source && uiRecognitionSource(document, source);
+      const supplemental =
+        recognition?.uiRecognition?.optional && selectedUiRecognition(recognition)?.bbox;
+      if (supplemental) {
+        const checked = validation.validateUiBbox(supplemental);
+        if (bbox && JSON.stringify(bbox) !== JSON.stringify(checked))
+          throw new Error('资源包混用了不同版本的 Bbox。');
+        bbox = checked;
+        recognitionId = recognition.id;
+      }
       if (source?.uiArtTextId && info.items.length === 1)
         artTextBindings.push({ textId: source.uiArtTextId, path: entries[offset].name });
       unboundCategories.push(member.title);

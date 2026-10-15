@@ -1059,7 +1059,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '    select.value = id;',
-    "    select.value = id;\n    document.getElementById('canvas-title').textContent = documentState.title;\n    select.options[select.selectedIndex].textContent = documentState.title;"
+    "    if (!Array.from(select.options).some(function (option) { return option.value === id; })) { const option = document.createElement('option'); option.value = id; select.append(option); }\n    select.value = id;\n    document.getElementById('canvas-title').textContent = documentState.title;\n    select.options[select.selectedIndex].textContent = documentState.title;"
   );
   page = replaceCanvasPageText(
     page,
@@ -1326,6 +1326,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    isQueued: function (id) { return Boolean(groupQueue && groupQueue.protects(id)); },',
       '    hasFailure: function (id) { return Boolean(generationUi.nodeState(id)) || sequenceUi.view(id).run?.status === "failed"; },',
       '    failure: function (id) { return generationUi.failure(id); },',
+      '    completed: function (id) { if (groupQueue) groupQueue.completed(id); },',
       '    video: function (id, duration, confirmed) { return generationUi.runTemplateVideo(id, duration, confirmed, canvasAutomationBusy); }, sequence: sequenceUi.runTemplate, importImage: requestImageImport,',
       '    image: function (id, automatic) { return uiRecognitionUi.runImage(id, function () { return generationUi.runTemplateImage(id); }, Boolean((groupQueue && groupQueue.isBusy) || canvasAutomationBusy), automatic); },',
       '    assets: function (id) { return uiRecognitionUi.runAssets(id, function () { return imageAssetsUi.runSavedGrid(id); }); },',
@@ -1500,7 +1501,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       "      function actionButton(text, action, active, unavailable) { const button = document.createElement('button'); button.type = 'button'; button.textContent = text; if (active) button.className = 'active'; if (unavailable) { button.disabled = true; button.title = unavailable; } button.addEventListener('click', function (event) { event.stopPropagation(); action(); }); actions.append(button); return button; }",
       "      if (node.type === 'image' && !emptyImage) {",
       '        for (const feature of imageFeatures(node)) for (const action of feature.actions) {',
-      '          if (action === "recognize-ui") { const button = actionButton(node.uiRecognition?.pendingId ? "查询识图" : "识别 UI", function () { void uiRecognitionUi.runRecognition(node).catch(function (error) { setError(error.message); }); }, false, (!node.uiRecognition?.pendingId && canvasCapabilityReason(store, "recognition")) || (uiRecognitionUi.isBusy ? "识图进行中" : undefined)); if (!node.uiRecognition?.pendingId && !canvasCapabilityReason(store, "recognition")) { button.hidden = true; if (store.recognitionModels) void store.recognitionModels().then(function (models) { if (!button.isConnected) return; button.hidden = !models.some(function (model) { return model.source === "custom" || model.source === "server"; }); positionSelectionToolbar(); }).catch(function (error) { if (button.isConnected) setError(error.message); }); } }',
+      '          if (action === "recognize-ui") { const button = actionButton(node.uiRecognition?.pendingId ? "查询识图" : node.uiRecognition?.optional ? "生成 / 重试 Bbox" : "识别 UI", function () { void uiRecognitionUi.runRecognition(node).catch(function (error) { setError(error.message); }); }, false, (!node.uiRecognition?.pendingId && canvasCapabilityReason(store, "recognition")) || (uiRecognitionUi.isBusy ? "识图进行中" : undefined)); if (!node.uiRecognition?.optional && !node.uiRecognition?.pendingId && !canvasCapabilityReason(store, "recognition")) { button.hidden = true; if (store.recognitionModels) void store.recognitionModels().then(function (models) { if (!button.isConnected) return; button.hidden = !models.some(function (model) { return model.source === "custom" || model.source === "server"; }); positionSelectionToolbar(); }).catch(function (error) { if (button.isConnected) setError(error.message); }); } }',
       '          if (action === "view-bbox" && uiRecognitionPreview(documentState, node)) actionButton("查看标注", function () { void uiRecognitionUi.openPreview(node).catch(function (error) { setError(error.message); }); });',
       '        }',
       "        if (templateWorkflow.canEditImage(node.id)) actionButton('替换图片', function () { requestImageImport(node.id); });",
@@ -1675,7 +1676,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      const nodeBusy = Boolean((generationUi && generationUi.isNodeBusy(node.id)) || (templateWorkflow && templateWorkflow.isNodeLoading(node.id)));',
       '      const generationState = generationUi && generationUi.nodeState(node.id);',
       '      const sequenceState = node.type === "sequence" && sequenceUi.view(node.id).run;',
-      '      const overlayState = node.type !== "section" && node.type !== "mark" ? canvasCardStatus({ busy: nodeBusy || sequenceUi.isNodeBusy(node.id), generation: generationState && generationState.status, sequence: sequenceState && sequenceState.status, template: templateStatus }) : undefined;',
+      '      const overlayState = node.type !== "section" && node.type !== "mark" ? canvasCardStatus({ busy: nodeBusy || sequenceUi.isNodeBusy(node.id), generation: generationState && generationState.status || (templateStatus === "pending" && templateWorkflow.failure(node.id) ? "failed" : undefined), sequence: sequenceState && sequenceState.status, template: templateStatus }) : undefined;',
       '      if (templateStatus === "pending") card.classList.add("template-pending");',
       '      if (templateStatus === "loading" || nodeBusy) card.classList.add("template-loading");',
       '      if (node.type !== "section" && node.type !== "mark" && (templateWorkflow && templateWorkflow.locked(node.id) || nodeBusy || templateWorkflow.isMember(node.id) && overlayState)) {',
@@ -1683,7 +1684,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '        card.querySelectorAll("button,input,select,textarea").forEach(function (control) { control.disabled = true; });',
       '        card.addEventListener("dblclick", function (event) { event.stopImmediatePropagation(); }, true);',
       '      }',
-      '      renderCanvasCardStatus(card, overlayState, { stopWaiting: generationUi.canStopWaiting(node.id) ? function () { generationUi.stopWaiting(node.id); } : undefined, waitingForSource: templateWorkflow.waitingForSource(node.id), adjust: templateWorkflow.canAdjust(node.id) ? function () { selected.clear(); selected.add(node.id); if (node.type === "sequence") { sequenceUi.beginEdit(node.id); sequenceEditor.open(node.id); } else if (node.type === "image-assets") { void imageAssetsUi.run(node.id).catch(function (caught) { setError(caught.message); }); } else { selectionAction = "workflow"; render(); } } : undefined, waitTimedOut: generationState && generationState.status === "timedout", resume: (!generationState || generationState.status !== "timedout") && templateWorkflow.canContinue(node.id) ? function () { selectionAction = ""; return templateWorkflow.runFrom(node.id); } : undefined, detail: sequenceState && sequenceState.error, stoppedWaiting: generationState && generationState.status === "canceled", query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
+      '      renderCanvasCardStatus(card, overlayState, { stopWaiting: generationUi.canStopWaiting(node.id) ? function () { generationUi.stopWaiting(node.id); } : undefined, waitingForSource: templateWorkflow.waitingForSource(node.id), adjust: templateWorkflow.canAdjust(node.id) ? function () { selected.clear(); selected.add(node.id); if (node.type === "sequence") { sequenceUi.beginEdit(node.id); sequenceEditor.open(node.id); } else if (node.type === "image-assets") { void imageAssetsUi.run(node.id).catch(function (caught) { setError(caught.message); }); } else { selectionAction = "workflow"; render(); } } : undefined, waitTimedOut: generationState && generationState.status === "timedout", resume: (!generationState || generationState.status !== "timedout") && templateWorkflow.canContinue(node.id) ? function () { selectionAction = ""; return templateWorkflow.runFrom(node.id); } : undefined, detail: templateWorkflow.failure(node.id) || sequenceState && sequenceState.error, stoppedWaiting: generationState && generationState.status === "canceled", query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
       '      world.append(card);',
     ].join('\n')
   );
@@ -1833,7 +1834,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  groupQueue = createCanvasGroupQueue({',
       '    getDocument: function () { return documentState; },',
       '    needs: function (id) { return templateWorkflow.status(id) === "pending"; },',
-      '    parallel: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); const group = node && documentState.nodes.find(function (item) { return item.id === node.sectionId; }); return Boolean(group && (["7e1cb6ad-732f-4dc3-a951-000000000013", "7e1cb6ad-732f-4dc3-a951-000000000015"].includes(group.templateId) || (group.templateCliOnly && group.templateSkills?.includes("maker-ui-bbox-workflow"))) && node.type === "image" && !node.uiRecognition && !node.uiAtlasPrelayout && canvasReferences(documentState, id).length); },',
+      '    parallel: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); const group = node && documentState.nodes.find(function (item) { return item.id === node.sectionId; }); return Boolean(group && (["7e1cb6ad-732f-4dc3-a951-000000000013", "7e1cb6ad-732f-4dc3-a951-000000000015"].includes(group.templateId) || (group.templateCliOnly && group.templateSkills?.includes("maker-ui-bbox-workflow"))) && node.type === "image" && (!node.uiRecognition || node.uiRecognition.optional) && !node.uiAtlasPrelayout && canvasReferences(documentState, id).length); },',
+      '    imageConcurrency: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); const group = node && documentState.nodes.find(function (item) { return item.id === node.sectionId; }); return group?.templateId === "7e1cb6ad-732f-4dc3-a951-000000000013" ? Infinity : 3; },',
       '    save: flush,',
       '    problem: function (id) { if (sequenceUi.hasDraft(id)) return "此卡片有未保存的帧处理，请先保存或放弃后再继续队列。"; return generationUi.queueBlockReason(id); },',
       '    busy: function () { return templateWorkflow.isBusy || generationUi.isBusy || imageAssetsUi.isBusy || sequenceUi.isBusy || Boolean(sequenceEditor && sequenceEditor.isOpen) || Boolean(imageEditing && imageEditing.isBusy) || Boolean(videoHistory && videoHistory.isBusy) || pendingAssetImports > 0; },',
@@ -1952,12 +1954,13 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    capabilities: store.capabilities,',
       '    checkRecognition: function (node) { return uiRecognitionUi.checkRecognition(node); },',
       '    ensureRecognitionNote: function (node) { uiRecognitionUi.ensureNote(node); },',
+      '    recognizeUi: function (node) { return uiRecognitionUi.runRecognition(node, true); },',
       '    current: function () { return documentState; },',
-      '    blocked: function () {',
+      '    blocked: function (allowUnsaved) {',
       '      if (pendingExports || (resourceExport && resourceExport.isBusy)) return "资源正在导出，请等待完成。";',
       '      if (canvasOpening) return "画布正在加载，请稍后重新 inspect。";',
       '      if (modelUi.isBusy) return "模型请求等待中，可停止本地等待后查询原任务。";',
-      '      if (dirty() || pendingSave) return "画布有未保存修改，请等待保存完成后重试。";',
+      '      if (!allowUnsaved && (dirty() || pendingSave)) return "画布有未保存修改，请等待保存完成后重试。";',
       '      if (generationUi.hasInputDraft()) return "存在尚未提交的人工生成参数草稿；请先手动完成生成，或刷新页面明确放弃草稿。关闭面板不会丢弃草稿。";',
       '      if (drag || pendingAssetImports || pendingImageImport || pendingVideoImport || document.querySelector("dialog[open]") || selectionAction || sequenceUi.hasUnsavedFrames) return "请先完成或关闭正在编辑的面板、草稿和导入操作。";',
       '      if (generationUi.isBusy || sequenceUi.isBusy || templateWorkflow.isBusy || groupQueue.isBusy || (imageEditing && imageEditing.isBusy) || (videoHistory && videoHistory.isBusy)) return "当前画布任务执行中，请等待完成。";',
@@ -2158,14 +2161,6 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       "      drag = { kind: 'pan', x: event.clientX, y: event.clientY, ox: documentState.viewport.x, oy: documentState.viewport.y };",
       '      if (board.setPointerCapture) board.setPointerCapture(event.pointerId);',
       '    },',
-      '    panBy: function (event) {',
-      '      if (!documentState) return;',
-      '      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? board.clientHeight : 1;',
-      '      documentState.viewport.x -= event.deltaX * unit;',
-      '      documentState.viewport.y -= event.deltaY * unit;',
-      '      markDirty();',
-      '      render();',
-      '    },',
       '  });',
       '  void boot().catch',
     ].join('\n')
@@ -2206,6 +2201,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  uiRecognitionUi = createUiRecognitionUi({ current: function () { return documentState; }, store: store, save: flush, remember: remember, changed: markDirty, render: render, error: setError, loadMedia: loadMedia,',
       '    blocked: function () { return Boolean(groupQueue && groupQueue.isBusy) || generationUi.isBusy || sequenceUi.isBusy || pendingAssetImports > 0; },',
+      '    focus: function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + node.height / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; markDirty(); render(); },',
       '    openCanvas: async function (id) { const saved = await store.load(id); const option = document.createElement("option"); option.value = id; option.textContent = saved.title; select.append(option); await openDocument(id); },',
       '  });',
       '  groupQueue = createCanvasGroupQueue({',

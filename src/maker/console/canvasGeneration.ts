@@ -110,7 +110,7 @@ export class CanvasGenerationService {
   async generateImage(options: {
     canvasId: string;
     prompt: string;
-    cutoutColor?: '#FF00FF' | '#00FF00';
+    cutoutColor?: '#FF00FF' | '#00FF00' | 'transparent';
     name?: string;
     targetSize?: string;
     aspectRatio?: string;
@@ -131,7 +131,7 @@ export class CanvasGenerationService {
       const files = new MakerCanvasFiles(this.projectRoot);
       if (
         options.cutoutColor !== undefined &&
-        !['#FF00FF', '#00FF00'].includes(options.cutoutColor)
+        !['#FF00FF', '#00FF00', 'transparent'].includes(options.cutoutColor)
       )
         throw new Error('抠图底色无效。');
       await files.assertWritableForGeneration();
@@ -175,7 +175,11 @@ export class CanvasGenerationService {
           throw new Error('图片生成目标卡不存在或不是图片卡。');
         }
         const original = uiRecognitionSource(document, target);
-        if (original?.uiRecognition?.enabled && original.id !== target.id) {
+        if (
+          original?.uiRecognition?.enabled &&
+          !original.uiRecognition.optional &&
+          original.id !== target.id
+        ) {
           const recognition = selectedUiRecognition(original);
           if (
             !recognition ||
@@ -210,7 +214,9 @@ export class CanvasGenerationService {
         throw new Error('预排参考图已过期或槽位不匹配，请先重新执行预排。');
       const recognitionSource = target && uiRecognitionSource(document, target);
       const recognition =
-        recognitionSource && recognitionSource.id !== target?.id
+        recognitionSource &&
+        !recognitionSource.uiRecognition?.optional &&
+        recognitionSource.id !== target?.id
           ? selectedUiRecognition(recognitionSource)
           : undefined;
       const seed =
@@ -286,7 +292,7 @@ export class CanvasGenerationService {
           uiAtlasPlan,
           targetWidth,
           targetHeight,
-          options.cutoutColor || '#00FF00'
+          options.cutoutColor || 'transparent'
         );
       }
       const references = remoteReferences.flatMap((assetPath) => {
@@ -472,6 +478,7 @@ export class CanvasGenerationService {
             aspect_ratio: size.aspectRatio,
             ...(model ? { model } : {}),
             ...(options.resolution ? { resolution: options.resolution } : {}),
+            ...(options.cutoutColor === 'transparent' ? { transparent: true } : {}),
             ...(attempt.toolName === 'edit_image'
               ? { image: remoteReferences[0] }
               : remoteReferences.length

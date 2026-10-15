@@ -101,38 +101,43 @@ export function findAtlasContentRegions(
     if (start >= 0) result.push([start, last + 1]);
     return result;
   }
-  const rows = new Uint8Array(height);
-  for (let row = 0; row < height; row++)
-    for (let column = 0; column < width; column++)
-      if (data[(row * width + column) * 4 + 3]) rows[row] = 1;
   const regions: ImageAtlasCrop[] = [];
-  for (const [top, bottom] of bands(rows)) {
-    const columns = new Uint8Array(width);
-    for (let column = 0; column < width; column++)
-      for (let row = top; row < bottom; row++)
-        if (data[(row * width + column) * 4 + 3]) columns[column] = 1;
-    for (const [left, right] of bands(columns)) {
-      let contentTop = bottom;
-      let contentBottom = top;
-      for (let row = top; row < bottom; row++)
-        for (let column = left; column < right; column++)
-          if (data[(row * width + column) * 4 + 3]) {
-            contentTop = Math.min(contentTop, row);
-            contentBottom = Math.max(contentBottom, row + 1);
-          }
-      if (left === 0 || right === width || contentTop === 0 || contentBottom === height)
-        throw atlasLayoutError('素材触及原图边界，无法确认完整；请检查原图，不会重新生图。');
-      regions.push({
-        name: 'item_' + String(regions.length + 1).padStart(3, '0'),
-        x: left,
-        y: contentTop,
-        width: right - left,
-        height: contentBottom - contentTop,
-      });
-      if (regions.length > 120)
-        throw atlasLayoutError('候选区域超过120个，可能存在噪点；请先处理背景。');
+  function split(left: number, top: number, right: number, bottom: number) {
+    const rows = new Uint8Array(bottom - top);
+    const columns = new Uint8Array(right - left);
+    for (let row = top; row < bottom; row++)
+      for (let column = left; column < right; column++)
+        if (data[(row * width + column) * 4 + 3] >= 8) {
+          rows[row - top] = 1;
+          columns[column - left] = 1;
+        }
+    const ys = bands(rows);
+    const xs = bands(columns);
+    if (!ys.length || !xs.length) return;
+    // Recheck both axes inside each strip: a tall sprite must not join stacked neighbors.
+    if (ys.length > 1) {
+      for (const [start, end] of ys) split(left, top + start, right, top + end);
+      return;
     }
+    if (xs.length > 1) {
+      for (const [start, end] of xs) split(left + start, top, left + end, bottom);
+      return;
+    }
+    const x = left + xs[0][0];
+    const y = top + ys[0][0];
+    const w = xs[0][1] - xs[0][0];
+    const h = ys[0][1] - ys[0][0];
+    if (x === 0 || y === 0 || x + w === width || y + h === height)
+      throw atlasLayoutError('素材触及原图边界，无法确认完整；请检查原图，不会重新生图。');
+    regions.push({ name: '', x, y, width: w, height: h });
+    if (regions.length > 120)
+      throw atlasLayoutError('候选区域超过120个，可能存在噪点；请先处理背景。');
   }
+  split(0, 0, width, height);
+  regions.sort((a, b) => a.y - b.y || a.x - b.x);
+  regions.forEach((region, index) => {
+    region.name = 'item_' + String(index + 1).padStart(3, '0');
+  });
   if (!regions.length) throw atlasLayoutError('图集没有可切分的内容。');
   return validateAtlasCrops(width, height, regions);
 }

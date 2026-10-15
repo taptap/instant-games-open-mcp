@@ -12,6 +12,7 @@ export function canvasNeedsProcessing(
 ): boolean {
   if (
     node.uiRecognition?.enabled &&
+    !node.uiRecognition.optional &&
     node.uiRecognition.inputRole !== 'design' &&
     !selectedUiRecognition(node)
   )

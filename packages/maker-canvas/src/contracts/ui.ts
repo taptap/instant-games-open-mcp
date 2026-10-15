@@ -93,6 +93,8 @@ export interface UiRecognitionResult {
 }
 
 export interface UiRecognitionSettings {
+  /** Supplementary Bbox data; does not drive generation or invalidate its outputs. */
+  optional?: boolean;
   enabled: boolean;
   inputRole?: 'design' | 'text-free';
   model?: string;

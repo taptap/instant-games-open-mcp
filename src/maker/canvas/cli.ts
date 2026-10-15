@@ -175,6 +175,7 @@ export async function runCanvasCli(
         Date.now() >= deadline
       ) {
         print(operation);
+        if (operation.status === 'failed' || operation.status === 'unknown') process.exitCode = 1;
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -270,12 +271,17 @@ export async function runCanvasCli(
       operation = {
         ...operation,
         next:
-          '继续查询原操作；成功后用 download --operation-id ' +
-          operation.id +
-          ' --output-dir <目录> 取回。',
+          operation.status === 'failed'
+            ? '导出失败，请按 error 修复后重新导出；不要重新生成已有素材。'
+            : operation.status === 'unknown'
+              ? '执行结果待确认，请 inspect 原卡片并查询原操作，不要重复生成。'
+              : '继续查询原操作；成功后用 download --operation-id ' +
+                operation.id +
+                ' --output-dir <目录> 取回。',
       };
     }
     print(operation);
+    if (operation.status === 'failed' || operation.status === 'unknown') process.exitCode = 1;
   } catch (error) {
     const rejected =
       typeof (error as { status?: unknown }).status === 'number' &&

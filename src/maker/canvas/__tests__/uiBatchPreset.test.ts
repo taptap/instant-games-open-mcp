@@ -12,7 +12,7 @@ import { ensureUiAtlasBatchCards, selectedUiAtlasPlan } from '../uiAssetBindings
 
 const id = '7e1cb6ad-732f-4dc3-a951-000000000013';
 
-test('official UI catalog keeps the original workflow alongside the Bbox experiment', () => {
+test('official UI catalog keeps the prompt-only workflow alongside the Bbox experiment', () => {
   const official = builtinCanvasTemplates().filter((item) => item.name.startsWith('游戏UI制作'));
   expect(official.map((item) => item.name)).toEqual([
     '游戏UI制作',
@@ -22,21 +22,28 @@ test('official UI catalog keeps the original workflow alongside the Bbox experim
   expect(builtinCanvasTemplates().some((item) => item.id.endsWith('000012'))).toBe(false);
   expect(canvasPresets().some((item) => item.id.endsWith('000012'))).toBe(false);
   const template = canvasPresets().find((item) => item.id === id)!;
-  expect(template.nodes).toHaveLength(18);
-  expect(template.skills).toEqual(['maker-ui-workflow']);
+  expect(template.nodes).toHaveLength(20);
+  expect(template.skills).toBeUndefined();
   const design = template.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
   const cut = template.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!;
   const original = template.nodes.find((node) => node.title === '① 原始设计稿')!;
-  expect(template.edges.filter((edge) => edge.to === design.id).map((edge) => edge.from)).toEqual([
-    original.id,
-  ]);
-  expect(design.title).toBe('② 原稿与识图输入');
+  expect(design.id).toBe(original.id);
+  expect(cut.uiRecognition?.optional).toBe(true);
   expect(cut.uiRecognition?.results[0].bbox?.elements).toHaveLength(103);
   expect(cut.uiRecognition?.results[0].bbox?.texts).toHaveLength(51);
   for (const node of template.nodes.filter((node) => node.uiAtlasGroup)) {
     expect(node.generation?.prompt).toBe(node.uiBaselinePrompt);
+    if (node.uiAtlasGroup === 'background') {
+      expect(node.generation?.cutoutColor).toBeUndefined();
+      expect(node.generation?.prompt).toContain('铺满整个画幅');
+    } else {
+      expect(node.generation?.cutoutColor).toBe('transparent');
+      expect(node.generation?.prompt).toContain('真实 Alpha 通道');
+    }
+    expect(node.generation?.prompt).not.toMatch(/背景使用纯|抠图底色约定/);
     expect(node.generation?.prompt).not.toMatch(/E[0-9]{3}|1920x1080|2048x1152/);
-    expect(node.generation?.prompt).toContain('重复素材只输出一次');
+    if (node.uiAtlasGroup !== 'background')
+      expect(node.generation?.prompt).toContain('重复素材只输出一次');
     expect(node.uiBaselineGrid).toEqual(node.uiAtlasPlan?.grid);
   }
   expect(template.edges.filter((edge) => edge.to === cut.id).map((edge) => edge.from)).toEqual([
@@ -64,7 +71,7 @@ test('batch preset imports, saves and reopens with one ready original and pendin
     const reopened = await files.load(saved.id);
     const design = reopened.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
     const cut = reopened.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!;
-    expect(design.templatePending).toBe(true);
+    expect(design.templatePending).toBeUndefined();
     expect(cut.templatePending).toBe(true);
     expect(cut.uiRecognition?.results).toHaveLength(0);
     expect(reopened.nodes.filter((node) => node.uiAtlasGroup)).toHaveLength(6);
@@ -86,7 +93,7 @@ test('batch preset imports, saves and reopens with one ready original and pendin
       openCanvas: async () => {},
     });
     expect(await recognitionUi.runImage(design.id, fallback)).toBe(true);
-    expect(fallback).not.toHaveBeenCalled();
+    expect(fallback).toHaveBeenCalled();
     expect(design.templatePending).toBeUndefined();
     // Recognition becomes available after the existing image step completes.
     delete cut.templatePending;
@@ -106,6 +113,11 @@ test('batch preset imports, saves and reopens with one ready original and pendin
     for (const text of fresh.bbox!.texts) if (text.parentId) text.parentId = rename(text.parentId);
     cut.uiRecognition!.results = [fresh];
     cut.uiRecognition!.selectedId = fresh.id;
+    expect(ensureUiAtlasBatchCards(reopened)).toBe(false);
+    expect(
+      selectedUiAtlasPlan(reopened, reopened.nodes.find((node) => node.uiAtlasGroup)!)
+    ).toBeUndefined();
+    cut.uiRecognition!.optional = false;
     ensureUiAtlasBatchCards(reopened);
     const plans = reopened.nodes
       .filter((node) => node.uiAtlasGroup)
@@ -147,6 +159,7 @@ test('browser helpers expand only the requested instance and preserve generation
       cut.uiRecognition = structuredClone(
         prepared.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!.uiRecognition
       );
+      cut.uiRecognition!.optional = false;
       for (const node of instance.nodes.filter((node) => node.uiRecognition))
         delete node.templatePending;
     }
@@ -203,6 +216,7 @@ test('a ninth size-aware atlas batch survives save and reopen', async () => {
     cut.uiRecognition = structuredClone(
       prepared.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!.uiRecognition!
     );
+    cut.uiRecognition.optional = false;
     const result = cut.uiRecognition.results[0];
     const original = result.bbox!.elements.find((element) => element.type === 'icon')!;
     result.bbox!.elements = Array.from({ length: 41 }, (_, index) => ({

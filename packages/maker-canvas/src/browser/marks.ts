@@ -153,7 +153,6 @@ export function createCanvasMarks(options: {
   select(id: string): void;
   place?(shape: CanvasMarkShape): void;
   beginPan?(event: PointerEvent): void;
-  panBy?(event: WheelEvent): void;
 }) {
   type CanvasTool = 'select' | 'pan';
   let mode: CanvasTool = 'select';
@@ -189,12 +188,6 @@ export function createCanvasMarks(options: {
     const board = options.board();
     board.setPointerCapture?.(event.pointerId);
     board.classList.add('grabbing');
-  }
-  function onPanWheel(event: WheelEvent) {
-    if (mode !== 'pan' || event.ctrlKey || event.metaKey || !options.panBy) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    options.panBy(event);
   }
   function releaseGrab() {
     options.board().classList.remove('grabbing');
@@ -280,7 +273,6 @@ export function createCanvasMarks(options: {
   buttons.arrow?.addEventListener('click', () => place('arrow'));
   options.board().addEventListener('pointerdown', onEditDown, true);
   options.board().addEventListener('pointerdown', onPanDown, true);
-  options.board().addEventListener('wheel', onPanWheel, { capture: true, passive: false });
   options.board().addEventListener(
     'contextmenu',
     (event) => {
