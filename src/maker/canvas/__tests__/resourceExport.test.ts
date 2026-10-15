@@ -1,10 +1,11 @@
+import { deliverCanvasExport } from '../exportDelivery.js';
 import {
   canvasExportFormats,
   createCanvasResourceExport,
   downloadCanvasResource,
 } from '../resourceExport.js';
 import type { CanvasDocument, CanvasNode } from '../model.js';
-import * as sequenceExport from '../sequenceExport.js';
+import * as sequenceExport from '../../../../packages/maker-canvas/src/browser/sequenceExport.js';
 import * as imageAssets from '../imageAssets.js';
 import * as handoff from '../uiWorkflowHandoff.js';
 
@@ -122,6 +123,7 @@ describe('video and frame data downloads', () => {
           selected = { ...current, id: 'other-canvas' };
         });
       await createCanvasResourceExport({
+        deliver: deliverCanvasExport,
         getDocument: () => selected,
         mediaUrl: (p) => p,
         error,
@@ -165,11 +167,11 @@ describe('video and frame data downloads', () => {
     const before = structuredClone(animation);
     const archive = new Blob(['archive'], { type: 'application/zip' });
     const exportSequence = jest
-      .spyOn(sequenceExport, 'createSequenceExport')
+      .spyOn(sequenceExport, 'createSequenceExportFromReader')
       .mockResolvedValue(archive);
     await downloadCanvasResource(animation, 'atlas', (path) => path);
     expect(exportSequence).toHaveBeenCalledWith(
-      animation.assetPath,
+      expect.any(Function),
       animation.frameSetInfo,
       'atlas',
       expect.stringMatching(/^角色跑集[A-Z0-9]{6}$/),
@@ -184,6 +186,9 @@ describe('video and frame data downloads', () => {
     expect(exportSequence.mock.calls[0][3] + '.zip').toBe(picker.mock.calls[0][0].suggestedName);
     expect(writable.write).toHaveBeenCalledWith(archive);
     expect(fetcher).not.toHaveBeenCalled();
+    const source = await exportSequence.mock.calls[0][0]();
+    expect(fetcher).toHaveBeenCalledWith(animation.assetPath);
+    expect(await source.text()).toBe('original-video-bytes');
     expect(animation).toEqual(before);
     await downloadCanvasResource(
       animation,

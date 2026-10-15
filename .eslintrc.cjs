@@ -4,16 +4,20 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 2022,
     sourceType: 'module',
-    project: './tsconfig.json'
+    project: './tsconfig.json',
   },
   plugins: ['@typescript-eslint'],
-  extends: [
-    'eslint:recommended',
-    'plugin:@typescript-eslint/recommended'
+  overrides: [
+    {
+      files: ['packages/maker-canvas/src/**/*.ts'],
+      parserOptions: { project: './packages/maker-canvas/tsconfig.json' },
+      env: { node: false },
+    },
   ],
+  extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended'],
   env: {
     node: true,
-    es2022: true
+    es2022: true,
   },
   rules: {
     // 允许 any 类型（MCP SDK 大量使用）
@@ -24,8 +28,8 @@ module.exports = {
       'warn',
       {
         argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_'
-      }
+        varsIgnorePattern: '^_',
+      },
     ],
 
     // 允许 require
@@ -41,12 +45,7 @@ module.exports = {
     'no-console': ['warn', { allow: ['warn', 'error'] }],
 
     // 优先使用 const
-    'prefer-const': 'error'
+    'prefer-const': 'error',
   },
-  ignorePatterns: [
-    'dist/',
-    'node_modules/',
-    '*.js',
-    'bin/'
-  ]
+  ignorePatterns: ['dist/', 'node_modules/', '*.js', 'bin/'],
 };

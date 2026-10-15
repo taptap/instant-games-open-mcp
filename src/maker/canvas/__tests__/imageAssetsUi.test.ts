@@ -1,13 +1,18 @@
+import { imageAtlasRegions } from '../imageAtlasExport.js';
 import { randomUUID } from 'node:crypto';
 import { createImageAssetsUi } from '../imageAssetsUi.js';
 import { emptyDocument } from '../model.js';
-import { snapshotCanvasSource } from '../dependencies.js';
+import { snapshotCanvasSource, isCanvasSourceCurrent } from '../dependencies.js';
 import { setUiRecognitionMode } from '../uiRecognition.js';
-import { drawImageAtlasPreview, openImageAtlasDialog } from '../imageAtlasUi.js';
-import * as imageAtlasExport from '../imageAtlasExport.js';
+import { openImageAtlasDialog } from '../imageAtlasUi.js';
+import { drawImageAtlasPreview } from '../../../../packages/maker-canvas/src/browser/imageAtlasUi.js';
+import * as imageAtlasExport from '../../../../packages/maker-canvas/src/browser/imageAtlasExport.js';
 
 jest.mock('../imageAtlasUi.js', () => ({
   openImageAtlasDialog: jest.fn(),
+}));
+
+jest.mock('../../../../packages/maker-canvas/src/browser/imageAtlasUi.js', () => ({
   drawImageAtlasPreview: jest.fn(
     (_canvas, _bitmap, _grid, crops) => crops || [{ name: 'item_001' }]
   ),
@@ -18,14 +23,20 @@ const originals = Object.fromEntries(
   ['document', 'createImageBitmap', 'fetch', 'crypto'].map((key) => [key, globals[key]])
 );
 let close: jest.Mock;
+let transparentAtlas = false;
 beforeEach(() => {
+  transparentAtlas = false;
   close = jest.fn();
   globals.document = {
     createElement: () => ({
       toDataURL: () => 'data:image/png;base64,preview',
       getContext: () => ({
         drawImage: jest.fn(),
-        getImageData: () => ({ data: new Uint8ClampedArray(80 * 60 * 4).fill(255) }),
+        getImageData: () => {
+          const data = new Uint8ClampedArray(80 * 60 * 4).fill(255);
+          if (transparentAtlas) data[3] = 0;
+          return { data };
+        },
         putImageData: jest.fn(),
       }),
       toBlob: (done: (blob: Blob) => void) => done(new Blob(['png'], { type: 'image/png' })),
@@ -60,7 +71,7 @@ function fixture() {
   );
   current.edges.push({ id: 'edge', kind: 'image-assets', from: 'source', to: 'target' });
   const options = {
-    current: () => current,
+    current: jest.fn(() => current),
     store: {
       mediaUrl: (path: string) => path,
       importImage: jest.fn(async () => ({
@@ -306,6 +317,83 @@ test('an existing confirmed grid takes precedence over a different template base
   expect(source.uiBaselineGrid).toEqual(custom);
 });
 
+test.each(['open', 'preview', 'runSavedGrid'] as const)(
+  '%s preserves legacy cut parameters without upgrading old output identity',
+  async (entry) => {
+    transparentAtlas = true;
+    const { current, target, options, ui } = savedGridFixture();
+    const source = current.nodes[0];
+    target.sourceSnapshot = snapshotCanvasSource(source);
+    const originalSnapshot = structuredClone(target.sourceSnapshot);
+    target.imageAssetsInfo!.cutMode = 'content';
+    target.imageAssetsInfo!.regions = [{ name: 'item_001', x: 2, y: 3, width: 30, height: 40 }];
+    target.imageAssetsInfo!.background = { color: [12, 34, 56], mode: 'all' };
+    const regions = structuredClone(target.imageAssetsInfo!.regions);
+    Object.assign(options.store, { mediaVersions: async () => ({ 'atlas.png': 'first-hash' }) });
+    globals.document.querySelector = () => null;
+    const prepare = jest.spyOn(imageAtlasExport, 'prepareImageAtlas');
+    const split = jest.spyOn(imageAtlasExport, 'splitImageAtlas');
+    (openImageAtlasDialog as jest.Mock).mockImplementation((_source, _url, actions) =>
+      actions.closed()
+    );
+    try {
+      if (entry === 'open') {
+        await ui.open(source.id, target.id);
+        await ui.open(source.id, target.id);
+        for (const call of (openImageAtlasDialog as jest.Mock).mock.calls)
+          expect(call[2]).toMatchObject({
+            cut: { mode: 'content', regions },
+            backgroundColor: [12, 34, 56],
+            backgroundMode: 'all',
+          });
+      } else if (entry === 'preview') {
+        await ui.preview(target.id);
+        await ui.preview(target.id);
+        expect(prepare.mock.calls[1].slice(2, 5)).toEqual([
+          [12, 34, 56],
+          'all',
+          { mode: 'content', regions, expectedCount: 1 },
+        ]);
+      } else {
+        expect(await ui.runSavedGrid(target.id)).toBe(true);
+        expect(split.mock.calls[0].slice(2, 5)).toEqual([
+          [12, 34, 56],
+          'all',
+          { mode: 'content', regions, expectedCount: 1 },
+        ]);
+      }
+      expect(source.assetVersion?.version).toBe('first-hash');
+      if (entry !== 'runSavedGrid') {
+        expect(target.sourceSnapshot).toEqual(originalSnapshot);
+        expect(isCanvasSourceCurrent(target.sourceSnapshot, source)).toBe(false);
+        expect(options.store.importImage).not.toHaveBeenCalled();
+      } else expect(isCanvasSourceCurrent(target.sourceSnapshot, source)).toBe(true);
+    } finally {
+      prepare.mockRestore();
+      split.mockRestore();
+    }
+  }
+);
+
+test('known changed content does not reuse old regions or background', async () => {
+  const { current, target, options, ui } = savedGridFixture();
+  const source = current.nodes[0];
+  source.assetVersion = { path: source.assetPath!, version: 'old-hash' };
+  target.sourceSnapshot = snapshotCanvasSource(source);
+  target.imageAssetsInfo!.regions = [{ name: 'item_001', x: 2, y: 3, width: 30, height: 40 }];
+  target.imageAssetsInfo!.background = { color: [12, 34, 56], mode: 'all' };
+  Object.assign(options.store, { mediaVersions: async () => ({ 'atlas.png': 'new-hash' }) });
+  globals.document.querySelector = () => null;
+  (openImageAtlasDialog as jest.Mock).mockImplementation((_source, _url, actions) =>
+    actions.closed()
+  );
+  await ui.open(source.id, target.id);
+  const actions = (openImageAtlasDialog as jest.Mock).mock.calls[0][2];
+  expect(actions.cut.regions).toBeUndefined();
+  expect(actions.backgroundColor).toBeUndefined();
+  expect(isCanvasSourceCurrent(target.sourceSnapshot, source)).toBe(false);
+});
+
 test('unrecognized UI sheets allow unused baseline cells but ordinary atlases do not', async () => {
   const { current, target, ui } = savedGridFixture();
   const source = current.nodes[0];
@@ -452,7 +540,7 @@ test.each([
       height: 60,
       grid: target.imageAssetsInfo!.grid,
       cutMode: 'grid',
-      regions: imageAtlasExport.imageAtlasRegions(80, 60, target.imageAssetsInfo!.grid),
+      regions: imageAtlasRegions(80, 60, target.imageAssetsInfo!.grid),
       background: { mode: 'connected' },
       items: [1, 2].map((index) => ({
         name: 'item_00' + index,
@@ -501,7 +589,7 @@ test.each(['source', 'grid', 'edge', 'canvas'])(
       if (change === 'source') current.nodes[0].assetPath = 'new-atlas.png';
       if (change === 'grid') target.imageAssetsInfo!.grid.rows = 2;
       if (change === 'edge') current.edges = [];
-      if (change === 'canvas') options.current = () => emptyDocument();
+      if (change === 'canvas') options.current.mockImplementation(() => emptyDocument());
       return new Response(new Blob(['image']));
     });
     await expect(ui.runSavedGrid(target.id)).rejects.toThrow('已变化');

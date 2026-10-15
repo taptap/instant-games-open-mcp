@@ -1,3 +1,4 @@
+import { imageModelsFixture } from '../__fixtures__/imageModels.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -114,6 +115,9 @@ async function fixture(type: 'image' | 'video' | 'video-source' = 'image') {
   };
   const options = {
     store: {
+      imageModels: jest.fn(async (tool: 'generate_image' | 'edit_image') =>
+        imageModelsFixture(tool)
+      ),
       listGeneration: jest.fn(async () => attempts),
       generateImage: jest.fn((canvasId: string, input: any) =>
         makeAttempt('image', canvasId, input)

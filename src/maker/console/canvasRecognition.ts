@@ -1,12 +1,9 @@
+import type { CanvasRecognitionAttempt } from '../../../packages/maker-canvas/src/contracts.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { MakerCanvasFiles } from '../canvas/files.js';
-import {
-  bboxRecognitionElements,
-  uiRecognitionInputs,
-  type UiRecognitionResult,
-} from '../canvas/uiRecognition.js';
+import { bboxRecognitionElements, uiRecognitionInputs } from '../canvas/uiRecognition.js';
 import {
   scaleCutElements,
   validateCutElements,
@@ -205,18 +202,7 @@ export function uiTextRecognitionPrompt(
   ].join(String.fromCharCode(10));
 }
 
-export interface RecognitionAttempt {
-  id: string;
-  canvasId: string;
-  nodeId: string;
-  model: string;
-  source?: VisionSource;
-  sourcePath: string;
-  phase?: 'cut' | 'text';
-  cut?: { image: UiBboxImage; elements: UiBboxElement[] };
-  status: 'running' | 'succeeded' | 'failed' | 'unknown';
-  result?: UiRecognitionResult;
-  error?: string;
+export interface RecognitionAttempt extends CanvasRecognitionAttempt {
   server?: ServerRecognitionState;
 }
 const active = new Map<string, Promise<RecognitionAttempt>>();

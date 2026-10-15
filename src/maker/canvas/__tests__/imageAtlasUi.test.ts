@@ -1,5 +1,5 @@
 import { runInNewContext } from 'node:vm';
-import { openImageAtlasDialog } from '../imageAtlasUi.js';
+import { openImageAtlasDialogWithHost as openImageAtlasDialog } from '../../../../packages/maker-canvas/src/browser/imageAtlasUi.js';
 import { validateAtlasCrops, type ImageAtlasCrop } from '../atlasContent.js';
 
 test('manual crop resize drops old padding while preserving unedited neighbors and validation', () => {

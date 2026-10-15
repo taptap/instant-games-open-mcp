@@ -1,3 +1,13 @@
+import type {
+  CanvasGenerationAttempt,
+  CanvasModelSettings,
+  CanvasVideoHistory,
+} from '../../../packages/maker-canvas/src/contracts.js';
+export type {
+  CanvasGenerationAttempt,
+  CanvasModelSettings,
+  CanvasVideoHistory,
+} from '../../../packages/maker-canvas/src/contracts.js';
 import {
   cloneDocument,
   emptyDocument,
@@ -7,231 +17,54 @@ import {
   type CanvasSummary,
 } from './model.js';
 import type { CanvasModelAttempt } from './model3d.js';
-import type { RecognitionAttempt } from '../console/canvasRecognition.js';
+import type { CanvasRecognitionAttempt as RecognitionAttempt } from '../../../packages/maker-canvas/src/contracts.js';
 import { withCanvasTimeout } from './requestTimeout.js';
 import { CanvasStoreError } from './model.js';
-import type {
-  CanvasTemplatePage,
-  CanvasTemplateStore,
-  CanvasWorkflowTemplate,
-} from './templates.js';
+import type { CanvasTemplatePage, CanvasWorkflowTemplate } from './templates.js';
 
-export interface CanvasGenerationAttempt {
-  id: string;
-  canvasId: string;
-  kind: 'image' | 'video';
-  toolName: 'generate_image' | 'create_video_task';
-  status: 'running' | 'pending' | 'succeeded' | 'failed' | 'unknown' | 'canceled';
-  prompt: string;
-  cutoutColor?: '#FF00FF' | '#00FF00';
-  uiAtlasPlan?: UiAtlasPlan;
-  operation?: 'generate' | 'variant' | 'outpaint';
-  taskId?: string;
-  sourceImagePath?: string;
-  sourceImageId?: string;
-  sourceImagePaths?: string[];
-  sourceImageIds?: string[];
-  referenceImagePaths?: string[];
-  targetNodeId?: string;
-  targetAssetPath?: string;
-  remoteStatus?: string;
-  resultAssetPath?: string;
-  error?: string;
-  executionState?: 'not_executed' | 'unknown';
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CanvasModelSettings {
-  generation: { source: string; profileId?: string };
-  profiles: Array<{ id: string; name: string; model: string }>;
-}
-
-export interface CanvasDocumentStore {
-  modelSettings?(): Promise<CanvasModelSettings>;
-  recognitionModels?(): Promise<
-    Array<{ id: string; model: string; source?: 'local' | 'server' | 'custom' | 'chatgpt-web' }>
-  >;
-  recognizeUi?(
-    canvasId: string,
-    input: {
-      id: string;
-      nodeId: string;
-      model: string;
-      revision: number;
-      width: number;
-      height: number;
-      allowPaid: boolean;
-      recover?: boolean;
-    }
-  ): Promise<RecognitionAttempt>;
-  recognitionStatus?(canvasId: string, id: string): Promise<RecognitionAttempt>;
-  modelPreviewUrl?(canvasId: string, nodeId: string): string;
-  listModels?(canvasId: string): Promise<CanvasModelAttempt[]>;
-  exportModel?(canvasId: string, nodeId: string): Promise<Blob>;
-  modelAction?(
-    canvasId: string,
-    input: {
-      nodeId: string;
-      action: 'start' | 'query' | 'confirm';
-      revision?: number;
-      reviewId?: string;
-    },
-    signal?: AbortSignal
-  ): Promise<CanvasModelAttempt>;
-  templates?: CanvasTemplateStore;
-  videoHistory?(offset?: number, limit?: number): Promise<CanvasVideoHistory>;
-  list(): Promise<CanvasSummary[]>;
-  load(canvasId: string): Promise<CanvasDocument>;
-  create(title?: string, template?: CanvasCreateTemplate): Promise<CanvasDocument>;
-  save(document: CanvasDocument): Promise<CanvasDocument>;
-  importImage(
-    canvasId: string,
-    bytes: ArrayBuffer,
-    contentType: string,
-    purpose?: 'resource'
-  ): Promise<{ relativePath: string }>;
-  importVideo(canvasId: string, file: Blob, contentType: string): Promise<{ relativePath: string }>;
-  mediaUrl(assetPath: string): string;
-  imageInfo?(assetPath: string): Promise<{ width: number; height: number } | undefined>;
-  getActiveCanvasId(): Promise<string | undefined>;
-  setActiveCanvasId(canvasId: string): Promise<void>;
-  listGeneration(canvasId: string): Promise<CanvasGenerationAttempt[]>;
-  generateImage(
-    canvasId: string,
-    input: {
-      prompt: string;
-      cutoutColor?: '#FF00FF' | '#00FF00';
-      name?: string;
-      targetSize?: string;
-      aspectRatio?: string;
-      operation?: 'generate' | 'variant' | 'outpaint';
-      sourceImagePath?: string;
-      sourceImageId?: string;
-      sourceImagePaths?: string[];
-      sourceImageIds?: string[];
-      referenceImagePaths?: string[];
-      targetNodeId?: string;
-    },
-    signal?: AbortSignal
-  ): Promise<CanvasGenerationAttempt>;
-  createVideo(
-    canvasId: string,
-    input: {
-      prompt: string;
-      sourceImagePath: string;
-      sourceImageId?: string;
-      targetNodeId?: string;
-      duration?: number;
-    },
-    signal?: AbortSignal
-  ): Promise<CanvasGenerationAttempt>;
-  generationAction(
-    canvasId: string,
-    attemptId: string,
-    action: 'query' | 'retry' | 'cancel',
-    signal?: AbortSignal
-  ): Promise<CanvasGenerationAttempt>;
-}
-
-export interface CanvasVideoHistory {
-  items: CanvasGenerationAttempt[];
-  total: number;
-  busy?: {
-    canvasId: string;
-    attemptId: string;
-    taskId?: string;
-    createdAt: string;
-    projectLabel?: string;
-    reason?: string;
-  };
-}
-
-export interface CanvasStoreResponse {
-  ok: boolean;
-  status: number;
-  json(): Promise<unknown>;
-}
-
-export async function dispatchCanvasStoreRequest(
-  store: CanvasDocumentStore,
-  requestPath: string,
-  options?: RequestInit
-): Promise<CanvasStoreResponse> {
-  const success = (value: unknown, status = 200): CanvasStoreResponse => ({
-    ok: true,
-    status,
-    json: async () => value,
-  });
-  const failure = (caught: unknown): CanvasStoreResponse => {
-    const error = caught as Error & { status?: number };
-    return { ok: false, status: error.status || 400, json: async () => ({ error: error.message }) };
-  };
-  try {
-    const method = options?.method || 'GET';
-    if (requestPath === '/canvases' && method === 'GET') return success(await store.list());
-    if (requestPath === '/canvases' && method === 'POST') {
-      const body = JSON.parse(String(options?.body || '{}')) as {
-        title?: string;
-        template?: CanvasCreateTemplate;
-      };
-      return success(await store.create(body.title, body.template), 201);
-    }
-    if (requestPath === '/canvases/active' && method === 'GET') {
-      return success({ canvasId: await store.getActiveCanvasId() });
-    }
-    if (requestPath === '/canvases/active' && method === 'PUT') {
-      const body = JSON.parse(String(options?.body || '{}')) as { canvasId?: string };
-      if (body.canvasId) await store.setActiveCanvasId(body.canvasId);
-      return success({ ok: true });
-    }
-    const match = requestPath.match(
-      new RegExp('^/canvases/([0-9a-f-]{36})(/images|/resource-images|/videos)?$', 'i')
-    );
-    if (!match) throw Object.assign(new Error('Not found.'), { status: 404 });
-    if (['/images', '/resource-images'].includes(match[2]) && method === 'POST') {
-      if (!(options?.body instanceof ArrayBuffer)) throw new Error('图片内容无效。');
-      const contentType = new Headers(options?.headers).get('content-type') || '';
-      return success(
-        await store.importImage(
-          match[1],
-          options.body,
-          contentType,
-          match[2] === '/resource-images' ? 'resource' : undefined
-        ),
-        201
-      );
-    }
-    if (match[2] === '/videos' && method === 'POST') {
-      if (!(options?.body instanceof Blob)) throw new Error('视频内容无效。');
-      const contentType = new Headers(options?.headers).get('content-type') || options.body.type;
-      return success(await store.importVideo(match[1], options.body, contentType), 201);
-    }
-    if (!match[2] && method === 'GET') return success(await store.load(match[1]));
-    if (!match[2] && method === 'PUT') {
-      return success(await store.save(JSON.parse(String(options?.body || '{}')) as CanvasDocument));
-    }
-    throw Object.assign(new Error('Not found.'), { status: 404 });
-  } catch (caught) {
-    return failure(caught);
-  }
-}
+import type { CanvasDocumentStore } from '../../../packages/maker-canvas/src/browser.js';
+export { dispatchCanvasStoreRequest } from '../../../packages/maker-canvas/src/browser.js';
+export type {
+  CanvasDocumentStore,
+  CanvasStoreResponse,
+} from '../../../packages/maker-canvas/src/browser.js';
 
 export function createBrowserCanvasDocumentStore(
   projectKey: string,
   fetcher: typeof fetch = fetch
 ): CanvasDocumentStore {
+  type RecognitionResponse = RecognitionAttempt & {
+    server?: { cut: { image: { width: number; height: number } } };
+  };
+  function recognitionResult(response: RecognitionResponse): RecognitionAttempt {
+    const { server, ...attempt } = response;
+    return {
+      ...attempt,
+      ...(server
+        ? { recovery: { width: server.cut.image.width, height: server.cut.image.height } }
+        : {}),
+    };
+  }
   const base = '/api/projects/' + encodeURIComponent(projectKey);
+  const mediaVersions = new Map<string, string>();
   async function request<T>(path: string, options?: RequestInit): Promise<T> {
     if (!options?.signal && (options?.method === 'PUT' || !options?.method))
       return withCanvasTimeout((signal) => request<T>(path, { ...options, signal }));
     const response = await fetcher(base + path, options);
-    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    const body = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      code?: string;
+      executionState?: string;
+    };
     if (!response.ok) {
       const error = new Error(body.error || '请求失败 ' + response.status) as Error & {
         status: number;
+        code?: string;
+        executionState?: string;
       };
       error.status = response.status;
+      error.code = body.code;
+      error.executionState = body.executionState;
       throw error;
     }
     return body as T;
@@ -247,15 +80,19 @@ export function createBrowserCanvasDocumentStore(
       if (!response.ok) throw new Error('模型设置读取失败，请检查控制台设置。');
       return body as CanvasModelSettings;
     },
+    imageModels: (tool) => request('/canvases/image-models?tool=' + encodeURIComponent(tool)),
     recognitionModels: () => request('/canvases/recognition-models'),
     recognizeUi: (canvasId, input) =>
-      request('/canvases/' + canvasId + '/recognition', {
+      request<RecognitionResponse>('/canvases/' + canvasId + '/recognition', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
         signal: AbortSignal.timeout(375000),
-      }),
-    recognitionStatus: (canvasId, id) => request('/canvases/' + canvasId + '/recognition/' + id),
+      }).then(recognitionResult),
+    recognitionStatus: (canvasId, id) =>
+      request<RecognitionResponse>('/canvases/' + canvasId + '/recognition/' + id).then(
+        recognitionResult
+      ),
     listModels: (canvasId) => request<CanvasModelAttempt[]>('/canvases/' + canvasId + '/models'),
     modelPreviewUrl: (canvasId, nodeId) =>
       '/canvas-model-preview?project=' +
@@ -411,7 +248,26 @@ export function createBrowserCanvasDocumentStore(
       if (typeof body.relativePath !== 'string') throw new Error('视频导入结果缺少项目相对路径。');
       return { relativePath: body.relativePath };
     },
-    mediaUrl: (assetPath: string) => base + '/canvas-media?path=' + encodeURIComponent(assetPath),
+    async mediaVersions(paths) {
+      const result: Record<string, string> = {};
+      for (let i = 0; i < paths.length; i += 3) {
+        await Promise.all(
+          paths.slice(i, i + 3).map(async (path) => {
+            const value = await request<{ version: string }>(
+              '/canvases/media-version?path=' + encodeURIComponent(path)
+            );
+            result[path] = value.version;
+          })
+        );
+      }
+      for (const [path, version] of Object.entries(result)) mediaVersions.set(path, version);
+      return result;
+    },
+    mediaUrl: (assetPath: string) =>
+      base +
+      '/canvas-media?path=' +
+      encodeURIComponent(assetPath) +
+      (mediaVersions.has(assetPath) ? '&version=' + mediaVersions.get(assetPath) : ''),
     imageInfo: (assetPath: string) =>
       request('/canvases/image-info?path=' + encodeURIComponent(assetPath)),
     getActiveCanvasId: async () =>
@@ -508,4 +364,3 @@ export class MemoryCanvasDocumentStore implements CanvasDocumentStore {
     throw new Error('Memory canvas store does not call Maker MCP.');
   }
 }
-import type { UiAtlasPlan } from './uiAssetBindings.js';

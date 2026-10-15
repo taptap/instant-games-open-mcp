@@ -42,7 +42,8 @@ async function renderVisionSettings() {
         catch(failure) { error.textContent = failure.message; }
         finally { busy=false; Array.from(form.elements).forEach(item=>item.disabled=false); }
       },{className:'model-api-delete'}));
-      form.append(title,field('名称',name),field('Base URL',base),field('API Key',key),field('模型名称',model),error,actions);
+      const modelHint = node('p','填写服务商提供的准确模型 ID。API Key 本身不能确定模型名称；画布会使用此配置中的模型。','muted');
+      form.append(title,field('名称',name),field('Base URL',base),field('API Key',key),field('模型名称',model),modelHint,error,actions);
       form.onsubmit = async event => {
         event.preventDefault(); if(busy) return;
         busy=true; Array.from(form.elements).forEach(item=>item.disabled=true);
@@ -84,6 +85,7 @@ async function renderVisionSettings() {
         source.onchange=select; profiles.onchange=select;
         custom.append(profiles,add,edit);
         section.append(field(kind==='vision'?'识图方式':'生图方式',source),custom);
+        if(kind==='generation') section.append(node('p',selection.source==='maker' ? '画布模型选项来自 Maker MCP，自动选项使用服务默认模型。' : selection.source==='custom' ? '画布使用所选 API 配置中的模型；修改配置后重新打开图片参数即可刷新。' : '由当前 AI 客户端生成后导入画布。','muted'));
         if(kind==='vision' && selection.selectedSource==='server' && !selection.serverAvailable) section.append(node('p','当前项目的 Server API 暂不可用，已使用 ChatGPT 网页识图；接口恢复后自动使用 Server API。','muted'));
         if(kind==='vision' && selection.source==='chatgpt-web') section.append(node('p','由当前 AI 使用已有浏览器完成 ChatGPT 网页识图，无需安装执行器。登录可选：未登录时可选择直接识图，或登录后识图；未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。已登录则沿用当前模型和思考程度。图片会上传至 ChatGPT，受网页额度限制。','muted'));
         body.append(section);sync();

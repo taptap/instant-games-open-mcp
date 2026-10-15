@@ -60,7 +60,7 @@ test.each(['continue', 'query', 'decline', 'custom'])(
       id: recognized.id,
       model: 'original-model',
       status: 'unknown',
-      server: action === 'custom' ? undefined : { cut: { image: { width: 1080, height: 1920 } } },
+      recovery: action === 'custom' ? undefined : { width: 1080, height: 1920 },
     };
     const submit = jest.fn(async () => ({ status: 'succeeded', result: recognized }));
     const previousWindow = (globalThis as any).window;

@@ -8,6 +8,7 @@ import { ConsoleProjects } from '../maker/console/projects';
 import { startConsoleServer } from '../maker/console/server';
 import { CanvasGenerationService } from '../maker/console/canvasGeneration';
 import { getCanvasPageHtml, CANVAS_PAGE_MARKER } from '../maker/canvas/page';
+import { createLocalCanvasHost } from '../maker/canvas/localBrowserHost';
 import { createBrowserCanvasDocumentStore } from '../maker/canvas/store';
 import { sequenceActionsForCard } from '../maker/canvas/sequence';
 import { imageFeatures, imageAllowsOutpaint } from '../maker/canvas/imageFeatures';
@@ -52,6 +53,7 @@ describe('Maker console canvas', () => {
     const downloadCanvasResource = jest.fn(async (..._args: unknown[]) => undefined);
     const run = new Script('(' + handler + ')').runInNewContext({
       documentState,
+      refreshSources: async () => undefined,
       downloadCanvasResource,
       canvasNeedsProcessing: () => false,
       canvasExportIdentity: () => ({}),
@@ -101,7 +103,8 @@ describe('Maker console canvas', () => {
       const homeCsp = home.headers.get('content-security-policy') || '';
       expect(homeCsp).toContain("frame-ancestors 'none'");
       expect(homeCsp).not.toContain('maker-canvas');
-      expect(getCanvasPageHtml()).not.toContain('generate_image');
+      expect(getCanvasPageHtml()).toContain('image-models?tool=');
+      expect(getCanvasPageHtml()).not.toContain('callRemoteProxyTool');
       expect(getCanvasPageHtml()).not.toContain('create_video_task');
     } finally {
       await server.close();
@@ -111,7 +114,11 @@ describe('Maker console canvas', () => {
   test('loads page images through the encoded same-origin project media route', async () => {
     const html = getCanvasPageHtml();
     const script = html.match(/<script>([\s\S]*?)<\/script>/i)?.[1] || '';
-    expect(script).toContain('const store = createBrowserCanvasDocumentStore(key)');
+    expect(script).toContain('function createCanvasHost()');
+    expect(script).toContain('return createLocalCanvasHost(projectKey)');
+    expect(script).toContain(createLocalCanvasHost.toString());
+    expect(script).toContain('const host = createCanvasHost()');
+    expect(script).toContain('const store = host.store');
     expect(script).toContain('return store.mediaUrl(assetPath)');
     expect(script).toContain('store.importVideo(canvasId');
     expect(script).toContain('sequenceUi = createSequenceUiController({');
@@ -381,6 +388,26 @@ describe('Maker console canvas', () => {
         expect(invalid.status).toBe(416);
         expect(invalid.headers.get('content-range')).toBe('bytes */16');
       }
+      const versionUrl =
+        server.origin +
+        '/api/projects/' +
+        key +
+        '/canvases/media-version?path=' +
+        encodeURIComponent(saved.relativePath);
+      const identity = (await (await fetch(versionUrl)).json()) as { version: string };
+      expect(identity.version).toBe(createHash('sha256').update(bytes).digest('hex'));
+      const pinned = await fetch(mediaUrl + '&version=' + identity.version, {
+        headers: { range: 'bytes=4-7' },
+      });
+      expect(pinned.status).toBe(206);
+      expect(Buffer.from(await pinned.arrayBuffer())).toEqual(bytes.subarray(4, 8));
+      const changed = Buffer.from(bytes);
+      changed[15] = 1;
+      fs.writeFileSync(path.join(root, saved.relativePath), changed);
+      expect((await fetch(mediaUrl + '&version=' + identity.version)).status).toBe(409);
+      expect(((await (await fetch(versionUrl)).json()) as { version: string }).version).not.toBe(
+        identity.version
+      );
     } finally {
       await server.close();
     }

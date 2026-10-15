@@ -38,6 +38,10 @@ async function fixture() {
     width: 240,
     height: 200,
     assetPath: input.relativePath,
+    assetVersion: {
+      path: input.relativePath,
+      version: createHash('sha256').update(png).digest('hex'),
+    },
   };
   const second = {
     ...first,
@@ -86,6 +90,10 @@ test('ZIP shares assets across projects, preserves skills and allows identical c
     expect(fs.readFileSync(target.readMedia(asset).file)).toEqual(png);
   }
   expect(imported.nodes[1].sourceSnapshot).toEqual(snapshotCanvasSource(imported.nodes[0]));
+  expect(imported.nodes[0].assetVersion).toEqual({
+    path: imported.nodes[0].assetPath,
+    version: createHash('sha256').update(png).digest('hex'),
+  });
   const second = await target.importTemplate(zip);
   expect(second.id).not.toBe(imported.id);
   expect(target.getTemplate(imported.id)).toEqual(imported);
@@ -96,7 +104,9 @@ test('ZIP shares assets across projects, preserves skills and allows identical c
     { ...canvas, nodes: instance.nodes, edges: instance.edges },
     canvas.revision
   );
-  expect((await target.load(canvas.id)).nodes[0].templateSkills).toEqual(template.skills);
+  const reopened = await target.load(canvas.id);
+  expect(reopened.nodes[0].templateSkills).toEqual(template.skills);
+  expect(reopened.nodes[1].assetVersion).toEqual(instance.nodes[1].assetVersion);
 });
 
 test('video bytes are imported without creating an extra canvas or retaining task identities', async () => {

@@ -7,6 +7,7 @@ const EMPTY_TREE_SHA = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const MAKER_MARKER_PATTERN = /\(maker\)/i;
 
 const MAKER_PATH_PREFIXES = [
+  'packages/maker-canvas/',
   'packages/maker/',
   'packages/dsh-maker/',
   'plugin-sources/taptap-maker/',

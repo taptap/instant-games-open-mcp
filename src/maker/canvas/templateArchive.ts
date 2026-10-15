@@ -42,7 +42,12 @@ export function remapTemplateAssets(
     template.nodes.map((node) => [node.id, snapshotCanvasSource(node)?.version])
   );
   for (const node of template.nodes) {
-    if (node.assetPath) node.assetPath = paths.get(node.assetPath)!;
+    if (node.assetPath) {
+      const previous = node.assetPath;
+      node.assetPath = paths.get(previous)!;
+      if (node.assetVersion?.path === previous)
+        node.assetVersion = { ...node.assetVersion, path: node.assetPath };
+    }
     for (const result of node.uiRecognition?.results || []) {
       result.sourcePath = paths.get(result.sourcePath)!;
       if (result.bbox) {

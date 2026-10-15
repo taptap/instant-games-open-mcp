@@ -1,5 +1,10 @@
 import { Script } from 'node:vm';
 import { downloadCanvasImage } from '../imageExport';
+import { deliverCanvasExport } from '../exportDelivery.js';
+import {
+  deliverCanvasImage,
+  encodeCanvasImage,
+} from '../../../../packages/maker-canvas/src/browser/imageExport.js';
 
 function setup(format: 'png' | 'jpg', canceled = false) {
   const blob = new Blob(['encoded'], { type: format === 'jpg' ? 'image/jpeg' : 'image/png' });
@@ -40,7 +45,16 @@ function setup(format: 'png' | 'jpg', canceled = false) {
       }
     },
   };
-  const download = new Script('(' + downloadCanvasImage.toString() + ')').runInNewContext(globals);
+  const source =
+    encodeCanvasImage.toString() +
+    ';' +
+    deliverCanvasExport.toString() +
+    ';' +
+    deliverCanvasImage.toString().replace(/\b[A-Za-z0-9_]+_js_\d+\./g, '') +
+    ';(' +
+    downloadCanvasImage.toString().replace(/\b[A-Za-z0-9_]+_js_\d+\./g, '') +
+    ')';
+  const download = new Script(source).runInNewContext(globals);
   return { download, canvas, context, picker, writable, decode, blob };
 }
 

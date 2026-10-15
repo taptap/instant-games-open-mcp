@@ -1,3 +1,4 @@
+import { imageModelsFixture } from '../__fixtures__/imageModels.js';
 import { createCanvasGenerationUi } from '../generationUi.js';
 import { snapshotCanvasSource } from '../dependencies.js';
 import { canvasNeedsProcessing } from '../templateWorkflow.js';
@@ -63,7 +64,7 @@ test('UI atlas color preparation saves an existing image through the real docume
       { id: createId(), from: target.id, to: assetsId, kind: 'image-assets' },
     ];
     const { options } = fixture();
-    options.getDocument = () => document;
+    options.getDocument.mockImplementation(() => document);
     options.store.listGeneration.mockResolvedValue([]);
     options.flush.mockImplementation(async () => {
       const saved = await files.save(document.id, document, document.revision);
@@ -663,6 +664,9 @@ function fixture(status = 'succeeded') {
   const listGeneration = jest.fn(async () => [attempt]);
   const options = {
     store: {
+      imageModels: jest.fn(async (tool: 'generate_image' | 'edit_image') =>
+        imageModelsFixture(tool)
+      ),
       listGeneration,
       createVideo: jest.fn<Promise<typeof attempt>, [string, any, AbortSignal?]>(async () => {
         listGeneration.mockResolvedValue([attempt]);
@@ -677,7 +681,7 @@ function fixture(status = 'succeeded') {
       mediaUrl: (value: string) => value,
       generateImage: jest.fn(),
     },
-    getDocument: () => document,
+    getDocument: jest.fn(() => document),
     getSelected: () => new Set<string>(),
     remember: jest.fn(),
     markDirty: jest.fn(),
@@ -785,7 +789,7 @@ test('automation query refreshes a task ID that arrived after stopping local wai
 test('automation query stops when the canvas changes during history refresh', async () => {
   const { options, ui } = fixture('pending');
   options.store.listGeneration.mockImplementation(async () => {
-    options.getDocument = () => ({ id: 'different', nodes: [] });
+    options.getDocument.mockImplementation(() => ({ id: 'different', nodes: [] }));
     return [];
   });
   await expect(ui.queryNode('video', true)).rejects.toThrow('画布已切换');
@@ -815,7 +819,20 @@ describe('image reference drafts and refresh', () => {
           tag,
           value: '',
           events: {},
-          append: jest.fn(),
+          children: [],
+          isConnected: true,
+          append(...children: any[]) {
+            this.children.push(...children);
+          },
+          replaceChildren(...children: any[]) {
+            this.children = children;
+          },
+          get options() {
+            return this.children.filter((child: any) => child.tag === 'option');
+          },
+          querySelector(selector: string) {
+            return this.children.find((child: any) => child.tag === selector);
+          },
           setAttribute: jest.fn(),
           addEventListener(event: string, callback: (event: any) => void) {
             this.events[event] = callback;
@@ -861,6 +878,66 @@ describe('image reference drafts and refresh', () => {
     return elements.filter((element) => element.tag === 'img').map((element) => element.src);
   }
 
+  test.each([true, false])(
+    'only an explicit unsubmitted rejection clears unknown state (%s)',
+    async (explicit) => {
+      const { options, ui, image } = imageFixture();
+      const error = new Error('source changed before submission');
+      if (explicit)
+        Object.assign(error, {
+          code: 'CANVAS_IMAGE_NOT_SUBMITTED',
+          executionState: 'not_executed',
+        });
+      options.store.generateImage.mockRejectedValue(error);
+      expect(await ui.runTemplateImage(image.id)).toBe(false);
+      expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+      expect(ui.nodeState(image.id)?.status).toBe(explicit ? undefined : 'unknown');
+    }
+  );
+
+  test('changing the displayed provider refuses submission without creating an unknown request', async () => {
+    const { document, options, ui, image } = imageFixture();
+    ui.render({ append: jest.fn() }, image, document.nodes);
+    await Promise.resolve();
+    options.store.imageModels.mockResolvedValue({
+      ...imageModelsFixture(),
+      provider: { source: 'maker', identity: 'changed' },
+    });
+    expect(await ui.runTemplateImage(image.id)).toBe(false);
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+    expect(options.setError).toHaveBeenCalledWith(expect.stringContaining('配置已变化'));
+    expect(ui.nodeState(image.id)).toBeUndefined();
+  });
+
+  test('changing size while model discovery is pending preserves the saved model', async () => {
+    const { document, options, ui, image } = imageFixture();
+    (image.generation as any).parameters = { model: 'gpt' };
+    let complete!: (value: ReturnType<typeof imageModelsFixture>) => void;
+    options.store.imageModels.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        })
+    );
+    ui.render({ append: jest.fn() }, image, document.nodes);
+    const fields = elements.find((element) => element.className === 'generation-fields');
+    const selects = elements.filter((element) => element.tag === 'select');
+    selects[1].value = '2K';
+    fields.events.change();
+    complete(imageModelsFixture());
+    await Promise.resolve();
+    expect(selects[0].value).toBe('gpt');
+    options.store.imageModels.mockResolvedValue(imageModelsFixture());
+    elements
+      .find((element) => element.textContent === '刷新结果')
+      .events.click({ stopPropagation() {} });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(options.store.generateImage.mock.calls[0][1]).toMatchObject({
+      model: 'gpt',
+      resolution: '2K',
+    });
+  });
+
   test.each([false, true])(
     'local image retry does not start a new generation, including merge icons: %s',
     async (mergeIcons) => {
@@ -901,7 +978,7 @@ describe('image reference drafts and refresh', () => {
     }
   );
 
-  test('unsubmitted manual inputs remain detectable after closing a panel, unlike unchanged caches', () => {
+  test('unsubmitted manual inputs remain detectable after closing a panel, unlike unchanged caches', async () => {
     const { document, ui, image } = imageFixture(true);
     ui.render({ append: jest.fn() }, image, document.nodes);
     expect(ui.hasInputDraft()).toBe(false);
@@ -913,6 +990,7 @@ describe('image reference drafts and refresh', () => {
     input.value = before;
     input.events.input();
     expect(ui.hasInputDraft()).toBe(false);
+    await Promise.resolve();
     const fields = elements.find((element) => element.className === 'generation-fields');
     const model = elements.find((element) => element.tag === 'select');
     model.value = 'nanobanana';
@@ -927,12 +1005,12 @@ describe('image reference drafts and refresh', () => {
     expect(ui.hasInputDraft()).toBe(true);
   });
 
-  test('saved automatic image model is omitted at the backend boundary', async () => {
+  test('saved automatic image model uses the discovered service default', async () => {
     const { options, ui, image } = imageFixture();
     (image.generation as any).parameters = { model: 'auto' };
     await ui.runTemplateImage(image.id);
     expect(options.store.generateImage).toHaveBeenCalled();
-    expect(options.store.generateImage.mock.calls[0][1].model).toBeUndefined();
+    expect(options.store.generateImage.mock.calls[0][1].model).toBe('default');
   });
 
   test.each(['variant', 'outpaint', 'generate'])(
@@ -1004,6 +1082,7 @@ describe('image reference drafts and refresh', () => {
       ui.render(card, image, document.nodes);
       expect(displayedPaths()).toEqual(image.generation.referenceImagePaths);
     }
+    await Promise.resolve();
     elements
       .find((element) => element.textContent === '刷新结果')
       .events.click({

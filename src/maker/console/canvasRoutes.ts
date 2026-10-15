@@ -1,3 +1,5 @@
+import { readCanvasMedia } from './canvasMedia.js';
+import { canvasImageModels } from './canvasImageModels.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createReadStream, statSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
@@ -52,6 +54,13 @@ export async function handleCanvasProjectRoute(options: {
   const project = registry.resolve(key);
   const files = new MakerCanvasFiles(project.path);
   try {
+    if (suffix === 'canvases/media-version' && method === 'GET') {
+      const media = files.readMedia(searchParams.get('path') || '');
+      const { version } = await readCanvasMedia(media.file);
+      response.setHeader('Cache-Control', 'no-store');
+      send(response, 200, { version });
+      return true;
+    }
     if (suffix === 'canvases/image-info' && method === 'GET') {
       const assetPath = searchParams.get('path') || '';
       files.readMedia(assetPath);
@@ -123,6 +132,14 @@ export async function handleCanvasProjectRoute(options: {
             : options.automation.exchange(key, body)
         );
       } else throw new ConsoleError('Unknown canvas automation route.', 404);
+      return true;
+    }
+    if (suffix === 'canvases/image-models' && method === 'GET') {
+      if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
+      const tool = searchParams.get('tool');
+      if (tool !== 'generate_image' && tool !== 'edit_image')
+        throw new ConsoleError('图片操作无效。');
+      send(response, 200, await canvasImageModels(project.path, options.remoteProxyManager, tool));
       return true;
     }
     if (suffix === 'canvases/video-history' && method === 'GET') {
@@ -258,7 +275,17 @@ export async function handleCanvasProjectRoute(options: {
       const media = files.readMedia(searchParams.get('path') || '');
       response.setHeader('Content-Type', media.type);
       response.setHeader('X-Content-Type-Options', 'nosniff');
-      const size = statSync(media.file).size;
+      response.setHeader('Cache-Control', 'no-store');
+      const expected = searchParams.get('version');
+      let pinned: Buffer | undefined;
+      if (expected) {
+        if (!/^[a-f0-9]{64}$/.test(expected)) throw new ConsoleError('素材版本无效。', 400);
+        const content = await readCanvasMedia(media.file);
+        if (content.version !== expected)
+          throw new ConsoleError('素材内容已变化，请刷新素材后重新操作。', 409);
+        pinned = content.bytes;
+      }
+      const size = pinned ? pinned.length : statSync(media.file).size;
       response.setHeader('Accept-Ranges', 'bytes');
       const range = request.headers.range;
       if (range) {
@@ -282,10 +309,12 @@ export async function handleCanvasProjectRoute(options: {
           'Content-Range': 'bytes ' + start + '-' + end + '/' + size,
           'Content-Length': end - start + 1,
         });
-        await pipeline(createReadStream(media.file, { start, end }), response);
+        if (pinned) response.end(pinned.subarray(start, end + 1));
+        else await pipeline(createReadStream(media.file, { start, end }), response);
       } else {
         response.setHeader('Content-Length', size);
-        await pipeline(createReadStream(media.file), response);
+        if (pinned) response.end(pinned);
+        else await pipeline(createReadStream(media.file), response);
       }
       return true;
     }
@@ -413,6 +442,7 @@ export async function handleCanvasProjectRoute(options: {
         name: typeof body.name === 'string' ? body.name : undefined,
         targetSize: typeof body.targetSize === 'string' ? body.targetSize : undefined,
         aspectRatio: typeof body.aspectRatio === 'string' ? body.aspectRatio : undefined,
+        provider: body.provider,
         model: typeof body.model === 'string' ? body.model : undefined,
         resolution: typeof body.resolution === 'string' ? body.resolution : undefined,
         operation:
@@ -564,6 +594,17 @@ export async function handleCanvasProjectRoute(options: {
     }
     throw new ConsoleError('Not found.', 404);
   } catch (error) {
+    if (
+      error instanceof Error &&
+      (error as { code?: string }).code === 'CANVAS_IMAGE_NOT_SUBMITTED'
+    ) {
+      send(response, error instanceof ConsoleError ? error.status : 400, {
+        code: 'CANVAS_IMAGE_NOT_SUBMITTED',
+        executionState: 'not_executed',
+        error: error.message,
+      });
+      return true;
+    }
     if ((error as { code?: string }).code === 'CANVAS_PAGE_EXPIRED') {
       send(response, 409, { code: 'CANVAS_PAGE_EXPIRED', error: (error as Error).message });
       return true;

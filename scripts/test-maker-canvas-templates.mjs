@@ -305,7 +305,8 @@ try {
     const messages = [];
     const requests = [];
     const noop = () => {};
-    const ui = createCanvasGenerationUi({
+    const ui = createCanvasGenerationUiWithHost({
+      detectUiCutoutColor: async () => { throw new Error('视频引用契约不应调用图片抠色'); },
       getDocument: () => canvas, getSelected: () => new Set(),
       store: {
         mediaUrl: () => '',

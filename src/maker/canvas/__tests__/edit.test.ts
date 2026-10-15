@@ -116,14 +116,14 @@ describe('canvas edit acknowledgements', () => {
     expect(html).toContain('makerCanvasUnsaved');
     expect(html).toContain('makerCanvasPendingImport');
     expect(html).toContain('waitForPendingAssets()');
-    expect(html).toContain('window.makerCanvasUnsaved = dirty() || pendingAssetImports > 0');
+    expect(html).toContain('host.publishUnsaved(dirty() || pendingAssetImports > 0');
     expect(html).toContain('if (!drag.additive) selected.clear()');
     expect(html).toContain('if (space || handMode() || event.button === 1) return;');
     expect(html).toContain("event.key.toLowerCase() === 'z'");
     expect(html).toContain('previous.viewport = { ...documentState.viewport }');
     expect(html).toContain('next.viewport = { ...documentState.viewport }');
-    expect(html).toContain("'/canvas-media?path=' + encodeURIComponent(assetPath)");
+    expect(html).toMatch(/'\/canvas-media\?path='\s*\+\s*encodeURIComponent\(assetPath\)/);
     expect(html).toContain('URL.revokeObjectURL');
-    expect(html).not.toContain('generate_image');
+    expect(html).not.toContain('callRemoteProxyTool');
   });
 });

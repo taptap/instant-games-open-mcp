@@ -62,6 +62,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check shared canvas types
+        run: npm run maker:canvas:check
+
       - name: Build project
         run: npm run build
 

@@ -1,9 +1,13 @@
+import * as imageModelDiscovery from '../canvasImageModels.js';
+import { imageModelsFixture } from '../../canvas/__fixtures__/imageModels.js';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import type { CanvasNode } from '../../canvas/model.js';
+
+const discoverImageModels = imageModelDiscovery.canvasImageModels;
 
 jest.mock('../../server/mcp.js', () => ({
   ...jest.requireActual('../../server/mcp.js'),
@@ -44,6 +48,20 @@ describe('CanvasGenerationService', () => {
 
   beforeEach(() => {
     root = project();
+    jest
+      .spyOn(imageModelDiscovery, 'canvasImageModels')
+      .mockImplementation((root, manager, tool, configured) => {
+        if (configured?.source === 'maker')
+          return Promise.resolve({
+            ...imageModelsFixture(tool),
+            provider: {
+              source: 'maker',
+              identity: imageModelDiscovery.canvasImageProviderIdentity(configured),
+            },
+          });
+        return discoverImageModels(root, manager, tool, configured);
+      });
+
     originalMakerHome = process.env.TAPTAP_MAKER_HOME;
     process.env.TAPTAP_MAKER_HOME = path.join(root, 'maker-home');
     callRemoteProxyToolMock.mockReset();
@@ -75,6 +93,24 @@ describe('CanvasGenerationService', () => {
 
   const customPng =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=';
+
+  test.each([
+    { resolution: 'invalid' },
+    { operation: 'variant' as const },
+    { targetNodeId: 'missing' },
+  ])('marks preflight rejection as unsubmitted before model discovery: %j', async (input) => {
+    const canvas = await new MakerCanvasFiles(root).create('preflight', 'empty');
+    const service = new CanvasGenerationService(root, {} as any);
+    await expect(
+      service.generateImage({ canvasId: canvas.id, prompt: 'test', ...input })
+    ).rejects.toMatchObject({
+      code: 'CANVAS_IMAGE_NOT_SUBMITTED',
+      executionState: 'not_executed',
+    });
+    expect(imageModelDiscovery.canvasImageModels).not.toHaveBeenCalled();
+    expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
+    expect(service.list(canvas.id)).toEqual([]);
+  });
 
   test('validates atlas slot prompts against the requested landscape output ratio', async () => {
     useCustomApi();
@@ -234,10 +270,11 @@ describe('CanvasGenerationService', () => {
 
   test('local generation never submits either provider and reports the CLI boundary', async () => {
     updateModelSettings({ action: 'select', kind: 'generation', source: 'local' });
+    const canvas = await new MakerCanvasFiles(root).create('local', 'empty');
     const request = jest.spyOn(globalThis, 'fetch');
     await expect(
       new CanvasGenerationService(root, {} as any).generateImage({
-        canvasId: createId(),
+        canvasId: canvas.id,
         prompt: 'test',
       })
     ).rejects.toThrow('仅限 CLI');
