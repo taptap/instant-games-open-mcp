@@ -75,7 +75,14 @@ export function createCanvasWorkspace(options: {
     '更多画布操作',
     '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'
   );
-  for (const id of ['undo', 'redo', 'duplicate-selected', 'delete-selected', 'export-canvas']) {
+  for (const id of [
+    'undo',
+    'redo',
+    'duplicate-selected',
+    'delete-selected',
+    'refresh-media',
+    'export-canvas',
+  ]) {
     more.panel.append(document.getElementById(id)!);
   }
   const selectTool = document.getElementById('tool-select')!;

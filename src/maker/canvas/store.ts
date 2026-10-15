@@ -46,6 +46,7 @@ export function createBrowserCanvasDocumentStore(
     };
   }
   const base = '/api/projects/' + encodeURIComponent(projectKey);
+  const mediaVersions = new Map<string, string>();
   async function request<T>(path: string, options?: RequestInit): Promise<T> {
     if (!options?.signal && (options?.method === 'PUT' || !options?.method))
       return withCanvasTimeout((signal) => request<T>(path, { ...options, signal }));
@@ -247,7 +248,26 @@ export function createBrowserCanvasDocumentStore(
       if (typeof body.relativePath !== 'string') throw new Error('视频导入结果缺少项目相对路径。');
       return { relativePath: body.relativePath };
     },
-    mediaUrl: (assetPath: string) => base + '/canvas-media?path=' + encodeURIComponent(assetPath),
+    async mediaVersions(paths) {
+      const result: Record<string, string> = {};
+      for (let i = 0; i < paths.length; i += 3) {
+        await Promise.all(
+          paths.slice(i, i + 3).map(async (path) => {
+            const value = await request<{ version: string }>(
+              '/canvases/media-version?path=' + encodeURIComponent(path)
+            );
+            result[path] = value.version;
+          })
+        );
+      }
+      for (const [path, version] of Object.entries(result)) mediaVersions.set(path, version);
+      return result;
+    },
+    mediaUrl: (assetPath: string) =>
+      base +
+      '/canvas-media?path=' +
+      encodeURIComponent(assetPath) +
+      (mediaVersions.has(assetPath) ? '&version=' + mediaVersions.get(assetPath) : ''),
     imageInfo: (assetPath: string) =>
       request('/canvases/image-info?path=' + encodeURIComponent(assetPath)),
     getActiveCanvasId: async () =>

@@ -1,3 +1,5 @@
+import { refreshCanvasMedia } from './mediaVersions.js';
+import type { CanvasExportDelivery } from './exportDelivery.js';
 declare const document: any;
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import { selectedUiExtraction } from '../features/uiRecognition.js';
@@ -19,6 +21,7 @@ import { withCanvasTimeout } from '../browser/requestTimeout.js';
 import { uiCutoutRgb } from '../features/uiCutout.js';
 
 export function createImageAssetsUiWithHost(options: {
+  deliver: CanvasExportDelivery;
   applyImageAssets: typeof applyImageAssetsToDocument;
   imageAssetsBindingPlan: typeof imageAssetsBindingPlanStructure;
   openImageAtlasDialog(
@@ -186,10 +189,17 @@ export function createImageAssetsUiWithHost(options: {
       ...(input as Partial<ImageAtlasGrid> | undefined),
     };
     review = undefined;
-    const revision = current.revision;
-    const saved = structuredClone(source);
+    let revision = current.revision;
+    let saved = structuredClone(source);
     busy = true;
     try {
+      if (await refreshCanvasMedia(current, options.store, [source], true)) {
+        options.changed();
+        if (!(await options.save())) throw new Error('来源版本未保存，请保存画布后重新预览。');
+        revision = current.revision;
+      }
+      if (options.current() !== current) throw new Error('画布已切换，请重新预览。');
+      saved = structuredClone(source);
       const blob = await withCanvasTimeout(async (signal) => {
         return options.readSource(saved.assetPath!, signal, '图片读取失败，请重新预览。');
       });
@@ -290,7 +300,7 @@ export function createImageAssetsUiWithHost(options: {
     const configuredGrid = savedGrid(current, source, target);
     if (!configuredGrid) throw new Error('资源卡缺少切图参数，请先调整并保存网格后继续。');
     const grid = { ...configuredGrid };
-    const savedSource = structuredClone(source);
+    let savedSource = structuredClone(source);
     const targetGrid = JSON.stringify({
       grid: target.imageAssetsInfo?.grid,
       regions: target.imageAssetsInfo?.regions,
@@ -315,6 +325,9 @@ export function createImageAssetsUiWithHost(options: {
     busy = true;
     let blob: Blob;
     try {
+      if (await refreshCanvasMedia(current, options.store, [source], true)) options.changed();
+      checkTarget();
+      savedSource = structuredClone(source);
       blob = await withCanvasTimeout(async (signal) => {
         return options.readSource(
           savedSource.assetPath!,
@@ -461,7 +474,7 @@ export function createImageAssetsUiWithHost(options: {
       busy = false;
     }
   }
-  function open(sourceId: string, targetId?: string): Promise<boolean> {
+  async function open(sourceId: string, targetId?: string): Promise<boolean> {
     const current = options.current();
     const source = current?.nodes.find((node) => node.id === sourceId && node.type === 'image');
     if (
@@ -483,6 +496,13 @@ export function createImageAssetsUiWithHost(options: {
       if (decision?.kind === 'reuse') targetId = decision.nodeId;
     }
     if (document.querySelector('[data-image-atlas-dialog]')) return Promise.resolve(false);
+    busy = true;
+    try {
+      if (await refreshCanvasMedia(current!, options.store, [source], true)) options.changed();
+      if (options.current() !== current) throw new Error('画布已切换，请重新打开解析。');
+    } finally {
+      busy = false;
+    }
     const saved = structuredClone(source);
     const target = current?.nodes.find((node) => node.id === targetId);
     const targetInfo = JSON.stringify(target?.imageAssetsInfo);

@@ -12,7 +12,8 @@ export function createImageAssetsUi(
     ...options,
     applyImageAssets,
     imageAssetsBindingPlan,
-    openImageAtlasDialog,
+    openImageAtlasDialog: (node, mediaUrl, actions) =>
+      openImageAtlasDialog(node, mediaUrl, actions, options.deliver),
     async readSource(path, signal, failure) {
       const response = await fetch(options.store.mediaUrl(path), { signal });
       if (!response.ok) throw new Error(failure);

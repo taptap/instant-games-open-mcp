@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { canvasImageModels } from './canvasImageModels.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createReadStream, statSync } from 'node:fs';
@@ -53,6 +55,15 @@ export async function handleCanvasProjectRoute(options: {
   const project = registry.resolve(key);
   const files = new MakerCanvasFiles(project.path);
   try {
+    if (suffix === 'canvases/media-version' && method === 'GET') {
+      const media = files.readMedia(searchParams.get('path') || '');
+      if (statSync(media.file).size > 128 * 1024 * 1024)
+        throw new ConsoleError('素材超过读取上限。', 413);
+      const bytes = await readFile(media.file);
+      response.setHeader('Cache-Control', 'no-store');
+      send(response, 200, { version: createHash('sha256').update(bytes).digest('hex') });
+      return true;
+    }
     if (suffix === 'canvases/image-info' && method === 'GET') {
       const assetPath = searchParams.get('path') || '';
       files.readMedia(assetPath);
@@ -267,7 +278,18 @@ export async function handleCanvasProjectRoute(options: {
       const media = files.readMedia(searchParams.get('path') || '');
       response.setHeader('Content-Type', media.type);
       response.setHeader('X-Content-Type-Options', 'nosniff');
-      const size = statSync(media.file).size;
+      response.setHeader('Cache-Control', 'no-store');
+      const expected = searchParams.get('version');
+      let pinned: Buffer | undefined;
+      if (expected) {
+        if (!/^[a-f0-9]{64}$/.test(expected)) throw new ConsoleError('素材版本无效。', 400);
+        if (statSync(media.file).size > 128 * 1024 * 1024)
+          throw new ConsoleError('素材超过读取上限。', 413);
+        pinned = await readFile(media.file);
+        if (createHash('sha256').update(pinned).digest('hex') !== expected)
+          throw new ConsoleError('素材内容已变化，请刷新素材后重新操作。', 409);
+      }
+      const size = pinned ? pinned.length : statSync(media.file).size;
       response.setHeader('Accept-Ranges', 'bytes');
       const range = request.headers.range;
       if (range) {
@@ -291,10 +313,12 @@ export async function handleCanvasProjectRoute(options: {
           'Content-Range': 'bytes ' + start + '-' + end + '/' + size,
           'Content-Length': end - start + 1,
         });
-        await pipeline(createReadStream(media.file, { start, end }), response);
+        if (pinned) response.end(pinned.subarray(start, end + 1));
+        else await pipeline(createReadStream(media.file, { start, end }), response);
       } else {
         response.setHeader('Content-Length', size);
-        await pipeline(createReadStream(media.file), response);
+        if (pinned) response.end(pinned);
+        else await pipeline(createReadStream(media.file), response);
       }
       return true;
     }

@@ -1,3 +1,4 @@
+import type { CanvasExportDelivery } from './exportDelivery.js';
 declare const document: any;
 import type { CanvasNode, ImageAtlasGrid, ImageAtlasCrop } from '../contracts.js';
 import { mergeIconNeedsGeneration } from '../features/mergeIcons.js';
@@ -10,7 +11,7 @@ import { uiCutoutRgb } from '../features/uiCutout.js';
 
 export interface CanvasImageAtlasHost {
   readSource(path: string): Promise<Blob>;
-  deliver(blob: Blob, filename: string): Promise<string>;
+  deliver: CanvasExportDelivery;
 }
 
 export interface ImageAtlasDialogActions {
@@ -553,20 +554,31 @@ export function openImageAtlasDialogWithHost(
           close();
           return;
         }
-        const blob = await createImageAtlasExport(
-          source,
-          { ...grid },
-          button.dataset.atlasMode,
-          (message) => {
-            status.textContent = message;
-          },
-          {},
-          prepared
-        );
-        status.textContent = await host.deliver(
-          blob,
-          button.dataset.atlasMode === 'atlas' ? 'items-atlas.zip' : 'items-images.zip'
-        );
+        const sourceSnapshot = source;
+        const gridSnapshot = { ...grid };
+        const preparedSnapshot = prepared;
+        const modeSnapshot = button.dataset.atlasMode;
+        const result = await host.deliver({
+          filename: modeSnapshot === 'atlas' ? 'items-atlas.zip' : 'items-images.zip',
+          mime: 'application/zip',
+          produce: () =>
+            createImageAtlasExport(
+              sourceSnapshot,
+              gridSnapshot,
+              modeSnapshot,
+              (message) => {
+                status.textContent = message;
+              },
+              {},
+              preparedSnapshot
+            ),
+        });
+        status.textContent =
+          result.status === 'canceled'
+            ? '已取消导出。'
+            : result.status === 'saved'
+              ? '导出已保存。'
+              : '已发起下载，请查看浏览器下载记录。';
       } catch (error) {
         status.textContent = '处理失败：' + (error as Error).message;
       } finally {

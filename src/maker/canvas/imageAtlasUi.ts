@@ -1,3 +1,4 @@
+import type { CanvasExportDelivery } from '../../../packages/maker-canvas/src/browser/exportDelivery.js';
 import type { CanvasNode } from './model.js';
 import {
   openImageAtlasDialogWithHost,
@@ -8,7 +9,8 @@ export { drawImageAtlasPreview } from '../../../packages/maker-canvas/src/browse
 export function openImageAtlasDialog(
   node: CanvasNode,
   mediaUrl: (path: string) => string,
-  actions?: ImageAtlasDialogActions
+  actions: ImageAtlasDialogActions | undefined,
+  deliver: CanvasExportDelivery
 ) {
   return openImageAtlasDialogWithHost(
     node,
@@ -18,17 +20,7 @@ export function openImageAtlasDialog(
         if (!response.ok) throw new Error('图片读取失败，请重新打开。');
         return response.blob();
       },
-      async deliver(blob, filename) {
-        const url = URL.createObjectURL(blob),
-          link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.append(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
-        return '已发起下载，请查看浏览器下载记录。原图和画布未改变。';
-      },
+      deliver,
     },
     actions
   );

@@ -1,3 +1,4 @@
+import { canvasMediaSources, refreshCanvasMedia } from './mediaVersions.js';
 import { canvasCapabilityReason } from './capabilities.js';
 import { nextCanvasExportCode } from './exportNaming.js';
 import { downloadCanvasResourceWithHost } from './resourceDownload.js';
@@ -248,7 +249,7 @@ import {
 } from '../features/automation.js';
 import { createCanvasAutomationUiWithHost } from './automationUi.js';
 import { validateResourceBundleStructure } from '../features/resourceBundle.js';
-import { encodeCanvasImage, downloadCanvasImage } from './imageExport.js';
+import { encodeCanvasImage, deliverCanvasImage } from './imageExport.js';
 export const CANVAS_PAGE_MARKER = 'maker-canvas-page';
 
 function replaceCanvasPageText(page: string, search: string, replacement: string): string {
@@ -276,7 +277,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     createCanvasAutomationUiWithHost.toString(),
     validateResourceBundleStructure.toString(),
     encodeCanvasImage.toString(),
-    downloadCanvasImage.toString(),
+    deliverCanvasImage.toString(),
     canvasEditorLayout.toString(),
     restoreCanvasEditorDraft.toString(),
     prepareCanvasImportedNodeFromMedia.toString(),
@@ -286,6 +287,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     resourceBundleEntriesFromReader.toString(),
     createResourceBundleZipWithHost.toString(),
     downloadCanvasResourceWithHost.toString(),
+    canvasMediaSources.toString(),
+    refreshCanvasMedia.toString(),
     nextCanvasExportCode.toString(),
     canvasCapabilityReason.toString(),
     integration.hostScript,
@@ -528,7 +531,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '  <button id="new-canvas" type="button">新建</button>',
-    '  <button id="new-canvas" type="button">新建</button>\n  <button id="add-generation" type="button">图片生成卡</button>\n  <button id="add-ui-recognition" type="button">导入 UI 设计稿</button>\n  <button id="fit-canvas" type="button">适配内容</button>\n  <button id="create-section" type="button">新建分区</button>\n  <button id="duplicate-selected" type="button">复制选中</button>\n  <button id="delete-selected" type="button">删除选中</button>\n  <button id="export-canvas" type="button">导出 PNG</button>'
+    '  <button id="new-canvas" type="button">新建</button>\n  <button id="add-generation" type="button">图片生成卡</button>\n  <button id="add-ui-recognition" type="button">导入 UI 设计稿</button>\n  <button id="refresh-media" type="button">刷新素材</button><button id="fit-canvas" type="button">适配内容</button>\n  <button id="create-section" type="button">新建分区</button>\n  <button id="duplicate-selected" type="button">复制选中</button>\n  <button id="delete-selected" type="button">删除选中</button>\n  <button id="export-canvas" type="button">导出 PNG</button>'
   );
   page = replaceCanvasPageText(
     page,
@@ -541,6 +544,10 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  const store = host.store;',
       '  const { createCanvasTemplateUi, createUiRecognitionUi, createCanvasAutomationUi, createCanvasModelUi, prepareCanvasImportedNode, createSequenceUiController, createCanvasGenerationUi, createImageAssetsUi, downloadCanvasResource, createCanvasResourceExport, validateUiAtlasPlan } = host;',
+      '  let pendingExports = 0; let resourceExport;',
+      '  async function refreshSources(node) { const current = documentState; if (!current) return; const changed = await refreshCanvasMedia(current, store, canvasMediaSources(current, node)); if (current !== documentState) throw new Error("画布已切换。"); for (const node of current.nodes) if (node.assetPath) media[node.assetPath] = store.mediaUrl(node.assetPath); if (changed) markDirty(); render(); }',
+      '  async function deliverExport(request) { pendingExports++; publishDirty(); try { return await host.deliverExport(request); } finally { pendingExports--; publishDirty(); } }',
+      '  function deliverResource(request, node) { const current = documentState; const identities = function () { return JSON.stringify(current && canvasMediaSources(current, node).map(function (node) { return [node.id, node.assetPath, node.assetVersion]; })); }; const before = identities(); return deliverExport({ ...request, produce: async function () { await refreshSources(node); if (current !== documentState || before !== identities()) throw new Error("素材内容或引用已变化，请核对画布后重新导出。"); return request.produce(); } }); }',
       '  const backgroundRemoval = createBackgroundRemoval(); const frameCollection = createFrameCollection();',
       '  const sequenceProcessor = createSequenceProcessor({ backgroundRemoval, maxSourceSide: MAX_SEQUENCE_SOURCE_SIDE, maxOutputSide: MAX_SEQUENCE_SIDE, maxAtlasSide: MAX_ATLAS_SIDE, estimateFrameCount: estimateSequenceFrameCount, maxAtlasFrameCount: maxSequenceFrameCount, duplicateFrameIndices: duplicateIndicesFromSignatures });',
       '  let sequenceUi = null; let generationUi = null;',
@@ -987,8 +994,10 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  }',
       '  async function exportCanvasPng() {',
       '    if (!documentState) return;',
-      "    const nodes = documentState.nodes.filter(function (node) { return node.type !== 'section'; }).sort(function (left, right) { return (left.type === 'mark' ? 1 : 0) - (right.type === 'mark' ? 1 : 0); });",
+      '    const snapshot = structuredClone(documentState);',
+      "    const nodes = snapshot.nodes.filter(function (node) { return node.type !== 'section'; }).sort(function (left, right) { return (left.type === 'mark' ? 1 : 0) - (right.type === 'mark' ? 1 : 0); });",
       "    if (!nodes.length) { setError('画布没有可导出的内容。'); return; }",
+      '    return deliverResource({ filename: (snapshot.title || "canvas") + ".png", mime: "image/png", produce: async function () {',
       '    const left = Math.min.apply(null, nodes.map(function (node) { return node.x; })) - 32;',
       '    const top = Math.min.apply(null, nodes.map(function (node) { return node.y; })) - 32;',
       '    const right = Math.max.apply(null, nodes.map(function (node) { return node.x + node.width; })) + 32;',
@@ -1005,7 +1014,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '        await new Promise(function (resolve) { const image = new Image(); image.onload = function () { const ratio = Math.min((width - 16 * scale) / image.naturalWidth, (height - 32 * scale) / image.naturalHeight); const drawWidth = image.naturalWidth * ratio; const drawHeight = image.naturalHeight * ratio; context.drawImage(image, x + (width - drawWidth) / 2, y + 24 * scale + (height - 24 * scale - drawHeight) / 2, drawWidth, drawHeight); resolve(); }; image.onerror = resolve; image.src = media[node.assetPath]; });',
       "      } else { context.fillStyle = '#b7b1a6'; context.fillText(node.type === 'video-source' ? '视频结果' : node.type === 'animation' ? '序列帧动画' : node.text || '', x + 8 * scale, y + 42 * scale); }",
       '    }',
-      "    await host.deliverCanvasSnapshot(canvas.toDataURL('image/png'), (documentState.title || 'canvas') + '.png');",
+      '    return new Promise(function (resolve, reject) { canvas.toBlob(function (blob) { if (blob) resolve(blob); else reject(new Error("画布截图编码失败。")); }, "image/png"); });',
+      '    } });',
       '  }',
       '  async function saveOnce() {',
     ].join('\n')
@@ -1094,7 +1104,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       "  document.getElementById('create-section').addEventListener('click', createSection);",
       "  document.getElementById('duplicate-selected').addEventListener('click', duplicateSelected);",
       "  document.getElementById('delete-selected').addEventListener('click', deleteSelected);",
-      "  document.getElementById('export-canvas').addEventListener('click', function () { void exportCanvasPng(); });",
+      "  document.getElementById('export-canvas').addEventListener('click', function () { void exportCanvasPng().catch(function (caught) { setError(caught.message); }); });",
       "  document.getElementById('new-canvas').addEventListener('click', function () {",
     ].join('\n')
   );
@@ -1578,8 +1588,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  let pendingPlacement = null;',
       "  const contextMenu = document.getElementById('canvas-context-menu');",
-      '  imageAssetsUi = createImageAssetsUi({ current: function () { return documentState; }, store: store, remember: remember, changed: markDirty, save: flush, render: render, select: function (id) { selected.clear(); selected.add(id); }, blocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || generationUi.hasInputDraft() || sequenceUi.hasUnsavedFrames; }, resolve: function (id) { return templateWorkflow.resolveTarget(id, "image-assets"); }, error: setError });',
-      '  const resourceExport = createCanvasResourceExport({ getDocument: function () { return documentState; }, mediaUrl: function (path) { return store.mediaUrl(path); }, error: setError, progress: function (message) { setError(message, "info"); }, assets: imageAssetsUi, model: { ready: function (id) { const state = modelUi && modelUi.state(id); return state && state.status === "completed" && !state.stale; }, download: function (id) { return modelUi.download(id); } } });',
+      '  imageAssetsUi = createImageAssetsUi({ deliver: deliverExport, current: function () { return documentState; }, store: store, remember: remember, changed: markDirty, save: flush, render: render, select: function (id) { selected.clear(); selected.add(id); }, blocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || generationUi.hasInputDraft() || sequenceUi.hasUnsavedFrames; }, resolve: function (id) { return templateWorkflow.resolveTarget(id, "image-assets"); }, error: setError });',
+      '  resourceExport = createCanvasResourceExport({ deliver: deliverResource, onBusyChange: publishDirty, getDocument: function () { return documentState; }, mediaUrl: function (path) { return store.mediaUrl(path); }, error: setError, progress: function (message) { setError(message, "info"); }, assets: imageAssetsUi, model: { ready: function (id) { const state = modelUi && modelUi.state(id); return state && state.status === "completed" && !state.stale; }, download: function (id) { return modelUi.download(id); } } });',
       '  function hideContextMenu() { contextMenu.hidden = true; }',
       '  function showContextMenu(event) {',
       '    if (handMode()) { event.preventDefault(); return; }',
@@ -1708,7 +1718,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     'void boot().catch(function (caught) { setError(caught.message); });',
     [
       '  const templateModel = createCanvasTemplateModel();',
-      '  const templateUi = createCanvasTemplateUi({',
+      '  const templateUi = createCanvasTemplateUi({ deliver: deliverExport,',
       '    store: store.templates, exchangeUnavailableReason: canvasCapabilityReason(store, "templateExchange"), model: templateModel, getDocument: function () { return documentState; }, selected: selected,',
       '    remember: remember, changed: markDirty, render: render, save: flush, error: setError,',
       '    busy: function (id) { return pendingAssetImports > 0 || Boolean(groupQueue && groupQueue.protects(id)) || sequenceUi.isBusy || generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || templateWorkflow.isNodeLoading(id); },',
@@ -1717,7 +1727,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    reveal: function (group) { const scale = Math.min(1, Math.max(.15, Math.min((board.clientWidth - 100) / group.width, (board.clientHeight - 100) / group.height))); documentState.viewport = { scale: scale, x: (board.clientWidth - group.width * scale) / 2 - group.x * scale, y: (board.clientHeight - group.height * scale) / 2 - group.y * scale }; },',
       '  });',
       '  document.getElementById("add-template").addEventListener("click", function () { void templateUi.library(); });',
-      '  videoHistory = createVideoHistoryUi({ store: store, onBusyChange: publishDirty, recover: function (attempt) { return generationUi.recoverVideo(attempt); } });',
+      '  videoHistory = createVideoHistoryUi({ store: store, deliver: deliverExport, readSource: function (path) { return host.readSource(path, AbortSignal.timeout(60000), "视频读取失败。"); }, onBusyChange: publishDirty, recover: function (attempt) { return generationUi.recoverVideo(attempt); } });',
       '  document.getElementById("video-history").addEventListener("click", function () { void videoHistory.open(); });',
       '  let videoTimingState = "";',
       '  setInterval(function () { if (!documentState || !generationUi) return; const next = documentState.id + documentState.nodes.filter(function (node) { return node.type === "video" || node.type === "video-source"; }).map(function (node) { const state = generationUi.nodeState(node.id); return node.id + (state ? state.status + state.canQuery : ""); }).join("|"); if (videoTimingState !== next) render(); videoTimingState = next; }, 1000);',
@@ -1916,13 +1926,15 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     page,
     '  void boot().catch',
     [
-      '  modelUi = createCanvasModelUi({ current: function () { return documentState; }, store: store, save: flush, render: render, error: setError, remember: remember, changed: markDirty,',
+      '  modelUi = createCanvasModelUi({ deliver: deliverExport, current: function () { return documentState; }, store: store, save: flush, render: render, error: setError, remember: remember, changed: markDirty,',
       '    blocked: function () { return canvasOpening || generationUi.isBusy || sequenceUi.isBusy || templateWorkflow.isBusy || groupQueue.isBusy || pendingAssetImports || Boolean(imageEditing && imageEditing.isBusy); },',
       '    sourceBlocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || generationUi.hasInputDraft() || sequenceUi.hasUnsavedFrames; } });',
       '  async function importProjectAsset(input) {',
       '      const current = documentState;',
       '      if (!current || current.nodes.length >= 400) throw new Error("画布未就绪或卡片已达到容量限制。");',
+      '      const versions = store.mediaVersions && typeof input.assetPath === "string" ? await store.mediaVersions([input.assetPath]) : undefined;',
       '      const node = await prepareCanvasImportedNode(current.id, input, store.mediaUrl);',
+      '      if (versions && versions[node.assetPath]) node.assetVersion = { path: node.assetPath, version: versions[node.assetPath] };',
       '      if (documentState !== current) throw new Error("画布已切换，素材没有添加到其它画布。");',
       '      const point = nextPlacement(node.type); node.x = point.x; node.y = point.y;',
       '      if (node.type === "image") await loadMedia(node.assetPath);',
@@ -1934,6 +1946,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    ensureRecognitionNote: function (node) { uiRecognitionUi.ensureNote(node); },',
       '    current: function () { return documentState; },',
       '    blocked: function () {',
+      '      if (pendingExports || (resourceExport && resourceExport.isBusy)) return "资源正在导出，请等待完成。";',
       '      if (canvasOpening) return "画布正在加载，请稍后重新 inspect。";',
       '      if (modelUi.isBusy) return "模型请求等待中，可停止本地等待后查询原任务。";',
       '      if (dirty() || pendingSave) return "画布有未保存修改，请等待保存完成后重试。";',
@@ -1970,6 +1983,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    },',
       '    importAsset: importProjectAsset,',
       '    exportAsset: async function (command, node) {',
+      '      await refreshSources(node);',
       '      if (node.type !== "model" && canvasNeedsProcessing(documentState, node)) throw new Error("来源或参数已变化，请先完成处理再导出。");',
       '      const saved = structuredClone(node); let exported;',
       '      const download = saved.type === "model" ? function (node, format, media, progress, identity, loop, sink) { if (format !== "model") throw new Error("模型导出格式必须为 model。"); return modelUi.download(node.id, sink); } : downloadCanvasResource;',
@@ -2005,6 +2019,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    error: function () { return error.textContent; }, clearError: function () { error.textContent = ""; }, queue: groupQueue,',
       '    busyChanged: function (busy) { canvasAutomationBusy = busy; publishDirty(); }',
       '  });',
+      '  document.getElementById("refresh-media").addEventListener("click", function () { const reason = hostEditBlocked(); if (reason) { setError(reason); return; } pendingExports++; publishDirty(); void refreshSources().then(function () { const unknown = documentState.nodes.some(function (node) { return node.assetPath && !node.assetVersion; }); setError(unknown ? "素材已刷新；旧结果未记录内容版本，来源待核实，不会自动重新生成。" : "素材已刷新，来源变化的结果需要重新处理。", "info"); }).catch(function (caught) { setError(caught.message); }).finally(function () { pendingExports--; publishDirty(); }); });',
       '  host.connectAutomation({ current: function () { return documentState; }, execute: automation.execute, error: setError });',
       '  const editorHandle = {',
       '    current: function () { return documentState ? structuredClone(documentState) : null; },',
@@ -2027,6 +2042,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    }',
       '  };',
       '  function hostEditBlocked() {',
+      '    if (pendingExports || (resourceExport && resourceExport.isBusy)) return "请等待资源导出完成。";',
       '    if (!documentState || canvasOpening) return "画布正在加载，请稍后再试。";',
       '    if (canvasAutomationBusy || pendingAssetImports || pendingImageImport || pendingVideoImport || drag || (wireUi && wireUi.isBusy) || document.querySelector("dialog[open]") || selectionAction || generationUi.hasInputDraft() || sequenceUi.hasUnsavedFrames) return "请先完成或关闭当前编辑、草稿和导入操作。";',
       '    if (generationUi.isBusy || sequenceUi.isBusy || modelUi.isBusy || imageAssetsUi.isBusy || uiRecognitionUi.isBusy || templateWorkflow.isBusy || groupQueue.isBusy || (imageEditing && imageEditing.isBusy) || (videoHistory && videoHistory.isBusy)) return "当前画布任务执行中，请等待完成。";',
@@ -2037,7 +2053,12 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     'const sequenceRunning = Boolean(',
-    'const sequenceRunning = Boolean(canvasAutomationBusy || (imageAssetsUi && imageAssetsUi.isBusy) || (modelUi && modelUi.isBusy) || '
+    'const sequenceRunning = Boolean(pendingExports > 0 || (resourceExport && resourceExport.isBusy) || canvasAutomationBusy || (imageAssetsUi && imageAssetsUi.isBusy) || (modelUi && modelUi.isBusy) || '
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    media[assetPath] = mediaUrl(assetPath);',
+    '    if (store.mediaVersions) { const current = documentState; const matching = current ? current.nodes.filter(function (node) { return node.assetPath === assetPath; }) : []; if (current) { try { await refreshCanvasMedia(current, store, matching); } catch (caught) { setError(caught.message); } } } media[assetPath] = mediaUrl(assetPath);'
   );
   page = replaceCanvasPageText(
     page,
@@ -2065,12 +2086,12 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '  function protectTemplateSelection() {',
-    '  function protectTemplateSelection() {\n    if (imageAssetsUi && imageAssetsUi.isBusy) { setError("请等待游戏资产保存完成，再修改卡片。"); return true; }\n    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再修改卡片。"); return true; }'
+    '  function protectTemplateSelection() {\n    if (pendingExports || (resourceExport && resourceExport.isBusy)) { setError("请等待资源导出完成。"); return true; }\n    if (imageAssetsUi && imageAssetsUi.isBusy) { setError("请等待游戏资产保存完成，再修改卡片。"); return true; }\n    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再修改卡片。"); return true; }'
   );
   page = replaceCanvasPageText(
     page,
     '  async function leaveCurrent() {',
-    '  async function leaveCurrent() {\n    if (imageAssetsUi && imageAssetsUi.isBusy) { setError("请等待游戏资产保存完成，再切换画布。"); return false; }\n    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再切换画布。"); return false; }'
+    '  async function leaveCurrent() {\n    if (pendingExports || (resourceExport && resourceExport.isBusy)) { setError("请等待资源导出完成，再切换画布。"); return false; }\n    if (imageAssetsUi && imageAssetsUi.isBusy) { setError("请等待游戏资产保存完成，再切换画布。"); return false; }\n    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再切换画布。"); return false; }'
   );
   page = replaceCanvasPageText(
     page,

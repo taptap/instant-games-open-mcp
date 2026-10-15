@@ -1,8 +1,11 @@
+import type { CanvasExportDelivery } from './exportDelivery.js';
 import type { CanvasDocumentStore } from './store.js';
 import { videoTaskTiming } from '../features/videoTaskTiming.js';
 
 export function createVideoHistoryUi(options: {
   store: CanvasDocumentStore;
+  deliver: CanvasExportDelivery;
+  readSource(path: string): Promise<Blob>;
   recover(attempt: any): Promise<boolean>;
   onBusyChange?(): void;
 }) {
@@ -173,10 +176,33 @@ export function createVideoHistoryUi(options: {
             query.dataset.createdAt = attempt.createdAt;
           }
           if (attempt.resultAssetPath) {
-            const download = document.createElement('a');
-            download.href = options.store.mediaUrl(attempt.resultAssetPath);
-            download.download = 'video-' + attempt.id + '.mp4';
-            download.textContent = '下载本地视频';
+            const download = document.createElement('button');
+            download.type = 'button';
+            download.textContent = '下载视频';
+            download.addEventListener('click', () => {
+              download.disabled = true;
+              const path = attempt.resultAssetPath!;
+              void options
+                .deliver({
+                  filename: 'video-' + attempt.id + '.mp4',
+                  mime: 'video/mp4',
+                  produce: () => options.readSource(path),
+                })
+                .then((result) => {
+                  status.textContent =
+                    result.status === 'canceled'
+                      ? '已取消导出。'
+                      : result.status === 'saved'
+                        ? '视频已保存。'
+                        : '已发起下载，请查看浏览器下载记录。';
+                })
+                .catch((error) => {
+                  status.textContent = error.message;
+                })
+                .finally(() => {
+                  download.disabled = false;
+                });
+            });
             row.append(download);
           }
           list.append(row);

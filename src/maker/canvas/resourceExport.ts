@@ -1,3 +1,8 @@
+import { deliverCanvasExport } from './exportDelivery.js';
+import type {
+  CanvasExportDelivery,
+  CanvasExportResult,
+} from '../../../packages/maker-canvas/src/browser/exportDelivery.js';
 import type { CanvasDocument, CanvasNode } from './model.js';
 import { canvasExportIdentity, nextCanvasExportCode } from './exportNaming.js';
 import { openImageAtlasDialog } from './imageAtlasUi.js';
@@ -17,13 +22,15 @@ export async function downloadCanvasResource(
   identity = canvasExportIdentity(undefined, node),
   loop = true,
   sink?: (blob: Blob, filename: string) => Promise<void>,
-  current?: CanvasDocument
-): Promise<void> {
+  current?: CanvasDocument,
+  deliver: CanvasExportDelivery = deliverCanvasExport
+): Promise<CanvasExportResult> {
   return downloadCanvasResourceWithHost(
     node,
     format,
     {
       mediaUrl,
+      deliver,
       nextCode: nextCanvasExportCode,
       validateBundle: validateResourceBundle,
       createBundle: (document, id, notify) =>
@@ -53,6 +60,6 @@ export function createCanvasResourceExport(
     ...options,
     downloadResource: downloadCanvasResource,
     openHandoff: openGameUiHandoff,
-    openAtlas: openImageAtlasDialog,
+    openAtlas: (node, mediaUrl) => openImageAtlasDialog(node, mediaUrl, undefined, options.deliver),
   });
 }

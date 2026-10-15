@@ -1,3 +1,4 @@
+import type { CanvasExportDelivery } from './exportDelivery.js';
 import type { createCanvasTemplateUiWithHost } from './templateUi.js';
 import type { CanvasCommand, CanvasDocument, CanvasNode } from '../contracts.js';
 import type { CanvasDocumentStore } from './store.js';
@@ -37,9 +38,9 @@ export interface CanvasPageHost {
   onReady?(editor: CanvasEditorHandle): void;
   /** Called only after the normal authorized load. Scope drafts by user, project and canvas. */
   recoverDraft?(loaded: CanvasDocument): Promise<CanvasEditorDraft | null | undefined>;
-  deliverCanvasSnapshot(dataUrl: string, filename: string): void | Promise<void>;
+  deliverExport: CanvasExportDelivery;
   createCanvasTemplateUi(
-    options: Omit<Parameters<typeof createCanvasTemplateUiWithHost>[0], 'deliver'>
+    options: Parameters<typeof createCanvasTemplateUiWithHost>[0]
   ): ReturnType<typeof createCanvasTemplateUiWithHost>;
   unavailableReason?: string;
   publishUnsaved(value: boolean): void;
@@ -77,7 +78,7 @@ export interface CanvasPageHost {
   createCanvasModelUi(
     options: Omit<
       Parameters<typeof createCanvasModelUiWithHost>[0],
-      'thumbnailUrl' | 'previewOrigin' | 'deliver'
+      'thumbnailUrl' | 'previewOrigin'
     >
   ): ReturnType<typeof createCanvasModelUiWithHost>;
   createImageAssetsUi(

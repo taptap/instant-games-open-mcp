@@ -1,3 +1,4 @@
+import { deliverCanvasExport } from './exportDelivery.js';
 import { createCanvasTemplateUi } from './templateUi.js';
 import { getCanvasPageHtml as createSharedCanvasPage } from '../../../packages/maker-canvas/src/browser/page.js';
 export { CANVAS_PAGE_MARKER } from '../../../packages/maker-canvas/src/browser/page.js';
@@ -52,6 +53,7 @@ export function getCanvasPageHtml(): string {
     prepareCanvasNodeUpdates.toString(),
     connectCanvasAutomation.toString(),
     createLocalCanvasHost.toString(),
+    deliverCanvasExport.toString(),
     createCanvasAutomationUi.toString(),
     createCanvasModelUi.toString(),
     prepareCanvasImportedNode.toString(),

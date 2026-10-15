@@ -105,6 +105,8 @@ export interface CanvasNode {
   workDurationMs?: number;
   text?: string;
   assetPath?: string;
+  /** Identity of the bytes used at this path; never infer an old result's input from it. */
+  assetVersion?: { path: string; version: string };
   imageInfo?: CanvasImageInfo;
   referenceInput?: { includeSelf: boolean };
   generationDraft?: CanvasGenerationDraft;

@@ -1,3 +1,4 @@
+import { refreshCanvasMedia } from './mediaVersions.js';
 import { canvasCapabilityReason, type CanvasHostCapabilities } from './capabilities.js';
 import { canvasImageTool } from '../features/imageModels.js';
 import type { CanvasImageModels } from '../contracts.js';
@@ -62,6 +63,7 @@ export interface CanvasGenerationUiOptions {
   detectUiCutoutColor(paths: string[], mediaUrl: (path: string) => string): Promise<UiCutoutColor>;
   videoPrompts?: ReturnType<typeof createVideoPrompts>;
   store: {
+    mediaVersions?(paths: string[]): Promise<Record<string, string>>;
     capabilities?: CanvasHostCapabilities;
     modelSettings?(): Promise<CanvasModelSettings>;
     imageModels?(tool: 'generate_image' | 'edit_image'): Promise<CanvasImageModels>;
@@ -1096,6 +1098,9 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     if (targetId) inFlight.add(targetId);
     options.render();
     try {
+      if (await refreshCanvasMedia(documentState, options.store, sourceNodes, true))
+        options.markDirty();
+      if (options.getDocument() !== documentState) throw new Error('画布已切换，未提交生成。');
       let available: CanvasImageModels | undefined;
       if (!node.uiAtlasPrelayout) {
         if (!options.store.imageModels) throw new Error('宿主未提供生图模型信息，不能提交。');
@@ -1469,6 +1474,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     stoppedVideos.delete(videoKey(documentState.id, node.id));
     options.render();
     try {
+      if (await refreshCanvasMedia(documentState, options.store, sources, true))
+        options.markDirty();
       if (!(await options.flush()) || options.getDocument()?.id !== documentState.id) return false;
       if (stoppedVideos.has(videoKey(documentState.id, node.id))) return false;
       options.log?.(node.title + '：开始生成视频', 'info');

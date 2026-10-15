@@ -1,3 +1,4 @@
+import { refreshCanvasMedia } from './mediaVersions.js';
 /// <reference lib="dom" />
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import type { CanvasDocumentStore } from './store.js';
@@ -341,6 +342,13 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
     run.extractionKey = undefined;
     run.inputSourceSnapshot = snapshotCanvasSource(source);
     await runStage(nodeId, 'extract', async (activeRun, signal) => {
+      const current = documentState();
+      if (!current) throw new Error('画布已关闭。');
+      if (options.store.mediaVersions) {
+        if (await refreshCanvasMedia(current, options.store, [source], true)) options.markDirty();
+        if (current !== documentState()) throw new Error('画布已切换。');
+        activeRun.inputSourceSnapshot = snapshotCanvasSource(source);
+      }
       const video = await loadVideo(source, signal);
       if (signal.aborted || sequenceNode(nodeId) !== node)
         throw new DOMException('处理已取消。', 'AbortError');

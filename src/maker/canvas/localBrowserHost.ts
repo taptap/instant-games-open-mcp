@@ -1,3 +1,4 @@
+import { deliverCanvasExport } from './exportDelivery.js';
 import { createCanvasTemplateUi } from './templateUi.js';
 import { validateUiAtlasPlan } from './uiAssetBindings.js';
 import { prepareCanvasImportedNode } from './automationAssets.js';
@@ -19,12 +20,7 @@ export function createLocalCanvasHost(projectKey: string): CanvasPageHost {
   return {
     store,
     createCanvasTemplateUi,
-    deliverCanvasSnapshot(dataUrl, filename) {
-      const link = document.createElement('a');
-      link.download = filename;
-      link.href = dataUrl;
-      link.click();
-    },
+    deliverExport: deliverCanvasExport,
     unavailableReason: projectKey ? undefined : '缺少项目标识。',
     createCanvasGenerationUi,
     createUiRecognitionUi,

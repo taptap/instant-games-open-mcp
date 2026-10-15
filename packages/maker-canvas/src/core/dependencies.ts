@@ -34,7 +34,10 @@ export function metadataVersion(node: CanvasNode): string {
 
 export function canvasNodeVersion(node: CanvasNode | undefined): string | undefined {
   if (!node) return undefined;
-  return [node.type, node.assetPath || 'missing-asset', metadataVersion(node)].join('|');
+  const version = [node.type, node.assetPath || 'missing-asset', metadataVersion(node)].join('|');
+  return node.assetVersion && node.assetVersion.path === node.assetPath
+    ? version + '|content:' + node.assetVersion.version
+    : version;
 }
 
 export function snapshotCanvasSource(

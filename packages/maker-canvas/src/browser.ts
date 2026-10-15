@@ -1,3 +1,9 @@
+export { refreshCanvasMedia } from './browser/mediaVersions.js';
+export type {
+  CanvasExportRequest,
+  CanvasExportResult,
+  CanvasExportDelivery,
+} from './browser/exportDelivery.js';
 export { dispatchCanvasStoreRequest } from './browser/store.js';
 export type {
   CanvasDocumentStore,
@@ -154,7 +160,7 @@ export type { HistoryStacks } from './browser/history.js';
 
 export { prepareCanvasImportedNodeFromMedia } from './browser/automationAssets.js';
 export { detectUiCutoutColorFromReader } from './browser/uiCutout.js';
-export { downloadCanvasImage } from './browser/imageExport.js';
+export { deliverCanvasImage } from './browser/imageExport.js';
 export { nextCanvasExportCode } from './browser/exportNaming.js';
 export { downloadCanvasResourceWithHost } from './browser/resourceDownload.js';
 export type { CanvasResourceExportHost } from './browser/resourceDownload.js';

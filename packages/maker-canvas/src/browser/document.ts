@@ -6,6 +6,7 @@ export function cloneDocument(document: CanvasDocument): CanvasDocument {
     viewport: { ...document.viewport },
     nodes: document.nodes.map((node) => ({
       ...node,
+      ...(node.assetVersion ? { assetVersion: { ...node.assetVersion } } : {}),
       ...(node.mark ? { mark: { ...node.mark } } : {}),
       ...(node.referenceInput ? { referenceInput: { ...node.referenceInput } } : {}),
       ...(node.mergeIcons ? { mergeIcons: structuredClone(node.mergeIcons) } : {}),

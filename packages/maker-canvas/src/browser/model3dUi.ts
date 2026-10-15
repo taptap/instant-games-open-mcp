@@ -1,3 +1,5 @@
+import type { CanvasExportDelivery, CanvasExportResult } from './exportDelivery.js';
+import { refreshCanvasMedia } from './mediaVersions.js';
 import { canvasCapabilityReason } from './capabilities.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import type { CanvasDocumentStore } from '../browser/store.js';
@@ -10,7 +12,7 @@ import {
 export function createCanvasModelUiWithHost(options: {
   thumbnailUrl(base: string, attemptId: string): string;
   previewOrigin(url: string): string;
-  deliver(blob: Blob, filename: string): Promise<void>;
+  deliver: CanvasExportDelivery;
   current(): CanvasDocument | null;
   store: CanvasDocumentStore;
   save(): Promise<boolean>;
@@ -228,6 +230,12 @@ export function createCanvasModelUiWithHost(options: {
     const timeout = setTimeout(() => controller?.abort(), 5 * 60 * 1000);
     options.render();
     try {
+      if (action !== 'query' && options.store.mediaVersions) {
+        if (await refreshCanvasMedia(current, options.store, [input.character], action === 'start'))
+          options.changed();
+        if (options.current() !== current) throw new Error('画布已切换，未提交模型请求。');
+      }
+      if (controller.signal.aborted) throw new Error('已停止等待。');
       if (!(await options.save())) throw new Error('画布未保存，不提交模型请求。');
       if (options.current() !== current) throw new Error('画布已切换，请重新查询状态。');
       if (action === 'confirm') {
@@ -319,7 +327,10 @@ export function createCanvasModelUiWithHost(options: {
     parent.append(element);
     return element;
   }
-  async function download(id: string, sink?: (blob: Blob, filename: string) => Promise<void>) {
+  async function download(
+    id: string,
+    sink?: (blob: Blob, filename: string) => Promise<void>
+  ): Promise<CanvasExportResult> {
     const current = options.current();
     const value = state(id);
     if (
@@ -331,9 +342,21 @@ export function createCanvasModelUiWithHost(options: {
     )
       throw new Error('模型结果尚未就绪。');
     const filename = 'mdl' + Date.now().toString(36).slice(-8) + '.zip';
-    const blob = await options.store.exportModel(current.id, id);
-    if (sink) return sink(blob, filename);
-    return options.deliver(blob, filename);
+    const produce = async () => {
+      const { character } = canvasModelInput(current, id);
+      if (await refreshCanvasMedia(current, options.store, [character])) {
+        options.changed();
+        options.render();
+      }
+      if (options.current() !== current || state(id)?.stale || state(id)?.id !== value.id)
+        throw new Error('模型来源或结果已变化，请重新核对。');
+      return options.store.exportModel!(current.id, id);
+    };
+    if (sink) {
+      await sink(await produce(), filename);
+      return { status: 'saved' };
+    }
+    return options.deliver({ filename, mime: 'application/zip', produce });
   }
   function render(card: HTMLElement, node: CanvasNode) {
     if (!['model', 'model-views'].includes(node.type)) return;

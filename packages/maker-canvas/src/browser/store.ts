@@ -47,6 +47,8 @@ export interface CanvasTemplateStore {
 }
 
 export interface CanvasDocumentStore {
+  /** Refresh content identities and the media URLs used for the same bytes. */
+  mediaVersions?(paths: string[]): Promise<Record<string, string>>;
   capabilities?: CanvasHostCapabilities;
   modelSettings?(): Promise<CanvasModelSettings>;
   imageModels?(tool: 'generate_image' | 'edit_image'): Promise<CanvasImageModels>;

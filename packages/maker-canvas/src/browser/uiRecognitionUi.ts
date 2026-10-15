@@ -1,3 +1,4 @@
+import { refreshCanvasMedia } from './mediaVersions.js';
 import { canvasCapabilityReason } from './capabilities.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import type { CanvasDocumentStore } from '../browser/store.js';
@@ -187,6 +188,17 @@ export function createUiRecognitionUiWithHost(options: {
     busy = true;
     options.render();
     try {
+      if (
+        !querying &&
+        (await refreshCanvasMedia(
+          current,
+          options.store,
+          [source, ...canvasReferences(current, source.id)],
+          true
+        ))
+      )
+        options.changed();
+      if (options.current() !== current) throw new Error('画布已切换，未提交识图。');
       let attempt;
       if (settings.pendingId) {
         if (!options.store.recognitionStatus) throw new Error('识图接口尚未就绪。');

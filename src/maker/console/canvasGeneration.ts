@@ -1194,6 +1194,12 @@ export class CanvasGenerationService {
       if (!source || source.type !== 'image' || source.assetPath !== sourceImagePath) {
         throw new Error('来源图片与画布节点不匹配。');
       }
+      if (
+        source.assetVersion?.path === sourceImagePath &&
+        source.assetVersion.version !==
+          createHash('sha256').update(fs.readFileSync(media.file)).digest('hex')
+      )
+        throw new Error('来源图片内容已变化，请刷新素材并确认参数后再生成。');
     });
   }
 

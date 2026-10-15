@@ -1,3 +1,8 @@
+import type {
+  CanvasExportDelivery,
+  CanvasExportRequest,
+  CanvasExportResult,
+} from './exportDelivery.js';
 declare const document: any;
 declare const window: any;
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
@@ -6,6 +11,8 @@ import { canvasExportFormats } from '../features/resourceExport.js';
 import { isGameUiResource } from '../features/uiWorkflow.js';
 
 export function createCanvasResourceExportWithHost(options: {
+  deliver(request: CanvasExportRequest, node?: CanvasNode): Promise<CanvasExportResult>;
+  onBusyChange?(): void;
   downloadResource(
     node: CanvasNode,
     format: string,
@@ -14,21 +21,23 @@ export function createCanvasResourceExportWithHost(options: {
     identity?: { title: string; direction: string },
     loop?: boolean,
     sink?: (blob: Blob, filename: string) => Promise<void>,
-    current?: CanvasDocument
-  ): Promise<void>;
+    current?: CanvasDocument,
+    deliver?: CanvasExportDelivery
+  ): Promise<CanvasExportResult>;
   openHandoff(canvasId: string): void;
   openAtlas(node: CanvasNode, mediaUrl: (path: string) => string): void;
   getDocument(): CanvasDocument | undefined;
   mediaUrl(path: string): string;
   error(message: string): void;
   progress?(message: string): void;
-  model?: { ready(id: string): boolean; download(id: string): Promise<void> };
+  model?: { ready(id: string): boolean; download(id: string): Promise<CanvasExportResult> };
   assets?: { open(id: string, targetId?: string): Promise<boolean> };
 }) {
   let busy = false;
   async function download(node: CanvasNode, format: string, loop = true) {
     if (busy) return;
     busy = true;
+    options.onBusyChange?.();
     const saved = structuredClone(node);
     try {
       if (saved.type === 'model') {
@@ -40,29 +49,32 @@ export function createCanvasResourceExportWithHost(options: {
       const document = options.getDocument();
       const current = document && structuredClone(document);
       const handoff = isGameUiResource(current, saved);
-      let downloaded = false;
-      await options.downloadResource(
+      const result = await options.downloadResource(
         saved,
         format,
         options.mediaUrl,
         (message) => {
-          downloaded ||= message.startsWith('导出完成：') || message.startsWith('已发起下载：');
           options.progress?.(message);
         },
         identity,
         loop,
         undefined,
-        current
+        current,
+        (request) => options.deliver(request, saved)
       );
-      if (downloaded && handoff && current?.id === options.getDocument()?.id)
+      if (result.status !== 'canceled' && handoff && current?.id === options.getDocument()?.id)
         options.openHandoff(current!.id);
     } catch (error) {
       options.error((error as Error).message || '资源导出失败，请重试。');
     } finally {
       busy = false;
+      options.onBusyChange?.();
     }
   }
   return {
+    get isBusy() {
+      return busy;
+    },
     download,
     context(menu: HTMLElement, node?: CanvasNode) {
       menu.querySelector('[data-resource-export]')?.remove();

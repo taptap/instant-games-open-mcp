@@ -631,6 +631,7 @@ export class MakerCanvasFiles {
           const destination = path.join(videoFolder, name);
           fs.copyFileSync(sourceFile, destination);
           copy.assetPath = '.maker/canvases/' + canvasId + '/videos/' + name;
+          if (copy.assetVersion) copy.assetVersion = { ...copy.assetVersion, path: copy.assetPath };
         }
         return copy;
       });
@@ -1362,6 +1363,23 @@ export class MakerCanvasFiles {
         );
       referenceInput = { includeSelf: input.includeSelf as boolean };
     }
+    let assetVersion: CanvasNode['assetVersion'];
+    if (node.assetVersion !== undefined) {
+      const value = node.assetVersion as Record<string, unknown>;
+      if (
+        !value ||
+        typeof value !== 'object' ||
+        Array.isArray(value) ||
+        typeof value.path !== 'string' ||
+        !value.path ||
+        value.path.length > 240 ||
+        typeof value.version !== 'string' ||
+        !value.version ||
+        value.version.length > 256
+      )
+        fail('素材内容版本无效。', 400, 'INVALID_DOCUMENT');
+      if (value.path === assetPath) assetVersion = { path: value.path, version: value.version };
+    }
     let sourceSnapshot: CanvasSourceSnapshot | undefined;
     if (node.sourceSnapshot !== undefined) {
       if (
@@ -1592,6 +1610,7 @@ export class MakerCanvasFiles {
       ...(sourceSnapshots ? { sourceSnapshots } : {}),
       ...(node.text === undefined ? {} : { text: text(node.text, 4000, '文字') }),
       ...(assetPath ? { assetPath } : {}),
+      ...(assetVersion ? { assetVersion } : {}),
       ...(referenceInput ? { referenceInput } : {}),
       ...(videoInfo ? { videoInfo } : {}),
       ...(node.videoInputMode === 'first_last_frame'

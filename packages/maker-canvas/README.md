@@ -63,8 +63,15 @@ Web 应直接消费同一份 `browser.getCanvasPageHtml({ hostScript, themeScrip
   文档上添加图片/视频，再调用原保存流程。宿主仍需授权、准备媒体并验证路径；
   保存失败保留原编辑及新卡片。`editor.execute(command)` 继续使用 CLI 的脏状态保护。
 - `prepareCanvasImportedNode`、`validateUiAtlasPlan` 保留宿主素材读取及路径约束；
-  `downloadCanvasResource`、`deliverCanvasSnapshot`、`deliverAutomationExport`
+  `downloadCanvasResource` 复用共享编码；`deliverExport` 和 `deliverAutomationExport`
   负责实际交付，`gameUiNextStep` 提供宿主工作流说明。
+  `deliverExport({ filename, mime, produce })` 必需提供；先准备目标，再调用
+  `produce()` 取得 Blob，以保留原生保存窗口的用户手势。返回 `{status:'saved',path?}`、
+  `{status:'downloaded'}` 或 `{status:'canceled'}`；失败抛出。核心不自行选择下载目录，
+  也不在缺少回调时偷偷发起浏览器下载。模板、图集、视频历史、模型和截图共用此语义。
+  控制器工厂必须转传页面提供的 deliver，不能绕过它直接调用宿主，否则会漏掉离开保护。
+  `createCanvasResourceExportWithHost` 的 downloadResource 第九参为本次交付回调，
+  适配到 `downloadCanvasResourceWithHost` 的 host.deliver；普通卡片的回调同时核对上游素材。
   `deliverAutomationExport(command, blob, filename)` 在交付成功后可返回 `{path}`；
   共享执行器把它写入 `export.path`。只有真实项目落盘才能返回路径，浏览器下载
   不应伪造沙箱路径；返回 void 保持本地原导出通道。失败必须抛出，不能回报成功。
@@ -83,7 +90,7 @@ uiArchive 表达宿主保存归档能力，不禁用通用 ZIP 导出，也不�
 `prepareCanvasImportedNodeFromMedia` 共享图片/视频解码、超时与元数据检查，路径授权
 在调用前完成；`detectUiCutoutColorFromReader` 共享底色采样，读取携带取消信号。
 `downloadCanvasResourceWithHost` 共享格式选择和导出编排；宿主传入媒体访问、编号、
-独立 PNG 与资源包适配，可沿用浏览器保存选择器或提供 sink 写入项目。
+独立 PNG 与资源包适配和必需的 deliver；本地适配明确选择浏览器保存，CLI 可提供 sink。
 `resourceBundleEntriesFromReader` / `createResourceBundleZipWithHost` 共享完整包算法，
 接收严格 validation、readSource 和 referenceEntryName。原媒体引用只用于读取，
 referenceEntryName 返回包内相对路径；映射后同步 Bbox 路径和 bindings 的 Bbox hash，
@@ -93,15 +100,16 @@ referenceEntryName 返回包内相对路径；映射后同步 Bbox 路径和 bin
 
 已有 Web 接入可按下表移除 localHostHelpers（均从共享 browser/domain 入口消费）：
 
-| 原本地 helper                                           | 共享接法                                                          |
-| ------------------------------------------------------- | ----------------------------------------------------------------- |
-| downloadCanvasResource                                  | downloadCanvasResourceWithHost，注入读取、编号和包适配            |
-| validateResourceBundle                                  | validateResourceBundleStructure，第五参传 Web 严格验证器          |
-| uiBundleManifest                                        | uiBundleManifestWithValidation，显式传同一组验证器                |
-| resourceBundleEntries / createResourceBundleZip         | resourceBundleEntriesFromReader / createResourceBundleZipWithHost |
-| uiDataHash / downloadCanvasImage / nextCanvasExportCode | browser 入口同名导出                                              |
-| createSequenceExport                                    | createSequenceExportFromReader，传读取回调                        |
-| detectUiCutoutColor                                     | detectUiCutoutColorFromReader，传可取消读取回调                   |
+| 原本地 helper                                   | 共享接法                                                          |
+| ----------------------------------------------- | ----------------------------------------------------------------- |
+| downloadCanvasResource                          | downloadCanvasResourceWithHost，注入读取、编号和包适配            |
+| validateResourceBundle                          | validateResourceBundleStructure，第五参传 Web 严格验证器          |
+| uiBundleManifest                                | uiBundleManifestWithValidation，显式传同一组验证器                |
+| resourceBundleEntries / createResourceBundleZip | resourceBundleEntriesFromReader / createResourceBundleZipWithHost |
+| uiDataHash / nextCanvasExportCode               | browser 入口同名导出                                              |
+| downloadCanvasImage                             | deliverCanvasImage，显式传 CanvasExportDelivery                   |
+| createSequenceExport                            | createSequenceExportFromReader，传读取回调                        |
+| detectUiCutoutColor                             | detectUiCutoutColorFromReader，传可取消读取回调                   |
 
 Web 原 `addProjectAsset({path,name,type})` 可在自己的桥接中映射到
 `editor.importProjectAsset({assetPath:path,title:name,kind:type})`；无需修改父页面协议。
@@ -128,8 +136,16 @@ Web 原 `addProjectAsset({path,name,type})` 可在自己的桥接中映射到
 素材 -> 宿主读取并提供实际内容版本 -> 共享引用/过期判断 -> 显示或处理
 ```
 
-引用身份与访问地址应区分；失效判断必须依据可核实的内容身份。
-当前版本机制的限制见下一节，不能把路径未变当成内容未变。
+引用身份与访问地址分开。宿主可提供 `store.mediaVersions(paths)`，返回路径到真实内容版本
+的映射，并让随后 `mediaUrl(path)` 对应这些字节；不能只更新版本字段而继续使用旧 Blob URL。
+处理前将实际输入记录为节点 `assetVersion:{path,version}`，已有 sourceSnapshot.version
+包含该身份。打开、刷新及再次使用时发现身份变化，已有派生结果沿原规则变为待处理，
+不自动重新生成。普通导出只核对自身和上游；整画布截图核对全部素材。
+本地使用 SHA-256 与带版本的受控 URL；读取时校验摘要，不匹配拒绝，不返回另一份字节。
+版本检查不提供远端任务的不可变上传快照，也不提供跨设备原子保存保证。
+旧结果没有内容身份时保留原数据，刷新提示来源待核实，不把当前字节冒充旧任务输入。
+未实现 mediaVersions 的宿主仍可运行，但不承诺识别同路径覆盖；Web 须同时更新 HTTP
+读取和路径到 Blob 的缓存，不能以本地验收替代 Web 接入验收。
 
 ```text
 生成 -> 宿主提交并持久化任务 -> 查询/交付
@@ -148,9 +164,9 @@ Web 原 `addProjectAsset({path,name,type})` 可在自己的桥接中映射到
 3. **区分结构与素材可用性。** 共享结构校验不检查宿主文件是否存在；
    当前本地缺素材拒绝保存的语义暂时保留。跨端策略差异由宿主明确提供，
    不借抽取校验放宽本地保护，也不因缺媒体删除原引用。
-4. **来源版本如实表达。** 当前 sourceSnapshot.version 仍由节点类型、路径和
-   元数据组成，不是内容哈希。同路径覆盖支持尚需真实内容版本与 HTTP/Blob
-   双层缓存失效配合；不能只刷新一层缓存就宣称来源与派生结果已同步。
+4. **来源版本如实表达。** sourceSnapshot.version 由类型、路径、元数据及已记录的
+   assetVersion 组成。仅在实际读取或新处理时记录身份，不迁移猜测旧任务输入。
+   嵌套外部引用、历史任务和未接入内容版本的宿主，不能宣称已获得完整字节快照保证。
 5. **模板是独立实例。** 复制时重映射节点及嵌套引用，清理原生成任务身份；
    不继承实例归档路径，不自动执行生成。示例成果不代表当前实例已完成。
 6. **保护已有数据。** 保持项目 realpath 与远端上下文隔离、revision/锁、原子写入

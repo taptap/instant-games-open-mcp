@@ -1,3 +1,4 @@
+import type { CanvasExportDelivery } from './exportDelivery.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import { builtinPresetDescriptions } from '../features/presetDescriptions.js';
 import { isBuiltinCanvasTemplate } from '../browser/templates.js';
@@ -12,7 +13,7 @@ import type {
 } from '../browser/templates.js';
 
 export function createCanvasTemplateUiWithHost(options: {
-  deliver(blob: Blob, filename: string): Promise<void>;
+  deliver: CanvasExportDelivery;
   store?: CanvasTemplateStore;
   exchangeUnavailableReason?: string;
   model: ReturnType<typeof createCanvasTemplateModel>;
@@ -401,14 +402,15 @@ export function createCanvasTemplateUiWithHost(options: {
         if (store!.exportTemplate && !options.exchangeUnavailableReason)
           menu.prepend(
             button('导出 ZIP', async () => {
-              const blob = await store!.exportTemplate!(summary.id, summary.revision);
-              await options.deliver(
-                blob,
-                summary.name
-                  .split(String.fromCharCode(92))
-                  .join('_')
-                  .replace(/[/:*?"<>|]/g, '_') + '.maker-template.zip'
-              );
+              await options.deliver({
+                filename:
+                  summary.name
+                    .split(String.fromCharCode(92))
+                    .join('_')
+                    .replace(/[/:*?"<>|]/g, '_') + '.maker-template.zip',
+                mime: 'application/zip',
+                produce: () => store!.exportTemplate!(summary.id, summary.revision),
+              });
             })
           );
         more.append(toggle, menu);

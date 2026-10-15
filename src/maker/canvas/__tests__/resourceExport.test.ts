@@ -1,3 +1,4 @@
+import { deliverCanvasExport } from '../exportDelivery.js';
 import {
   canvasExportFormats,
   createCanvasResourceExport,
@@ -122,6 +123,7 @@ describe('video and frame data downloads', () => {
           selected = { ...current, id: 'other-canvas' };
         });
       await createCanvasResourceExport({
+        deliver: deliverCanvasExport,
         getDocument: () => selected,
         mediaUrl: (p) => p,
         error,
