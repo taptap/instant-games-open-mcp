@@ -561,7 +561,7 @@ test.each([
       expect(split).toHaveBeenCalledWith(
         expect.any(Blob),
         target.imageAssetsInfo!.grid,
-        cutoutColor === '#FF00FF'
+        cutoutColor === '#FF00FF' || (cutoutColor === undefined && gameUi)
           ? [255, 0, 255]
           : cutoutColor === '#00FF00'
             ? [0, 255, 0]
@@ -577,6 +577,33 @@ test.each([
     }
   }
 );
+
+test('prompt-only full backgrounds do not use the legacy default removal color', async () => {
+  const { current, target, ui } = savedGridFixture();
+  const source = current.nodes[0];
+  source.uiAtlasGroup = 'background';
+  const clean = {
+    ...source,
+    id: 'clean',
+    uiAtlasGroup: undefined,
+    uiRecognition: { enabled: true, optional: true, results: [] },
+  };
+  current.nodes.push(clean);
+  current.edges.push({
+    id: 'clean-background',
+    from: clean.id,
+    to: source.id,
+    kind: 'image-variant',
+  });
+  globals.document.querySelector = () => null;
+  (openImageAtlasDialog as jest.Mock).mockImplementation((_source, _url, actions) =>
+    actions.closed()
+  );
+  await ui.open(source.id, target.id);
+  const actions = (openImageAtlasDialog as jest.Mock).mock.calls[0][2];
+  expect(actions.backgroundColor).toBeUndefined();
+  expect(actions.backgroundMode).toBe('connected');
+});
 
 test('background atlases reuse saved removal settings for the same source', async () => {
   const { current, target, ui } = savedGridFixture();

@@ -74,7 +74,13 @@ export function createImageAssetsUiWithHost(options: {
   function backgroundFor(source: CanvasNode, target?: CanvasNode) {
     if (target?.imageAssetsInfo?.background && canReuseSettings(source, target))
       return target.imageAssetsInfo.background;
-    if (source.uiAtlasGroup === 'background' && !source.generation?.cutoutColor)
+    const current = options.current();
+    if (
+      source.uiAtlasGroup === 'background' &&
+      !source.generation?.cutoutColor &&
+      current &&
+      uiRecognitionSource(current, source)?.uiRecognition?.optional
+    )
       return { color: undefined, mode: 'connected' as const };
     const gameUi = Boolean(target && isGameUiResource(options.current() || undefined, target));
     return {
