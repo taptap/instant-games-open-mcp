@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { verifyDemoResourceDownload } from './maker-demo-resources.mjs';
+import { referencedDemoResourceIds, verifyDemoResourceDownload } from './maker-demo-resources.mjs';
 
 const bytes = Buffer.from('demo-resource-bytes');
 const entry = {
@@ -178,4 +178,19 @@ test('stops after the attempt limit when HTTP 503 persists', async () => {
     /第 3\/3 次[\s\S]*HTTP 503/
   );
   assert.equal(calls, 3);
+});
+
+test('current template verification ignores historical resources that templates no longer reference', () => {
+  const current = 'a'.repeat(64);
+  const thumbnail = 'b'.repeat(64);
+  const historical = 'c'.repeat(64);
+  const resources = {
+    [current]: { sha256: current, thumbnail },
+    [thumbnail]: { sha256: thumbnail },
+    [historical]: { sha256: historical },
+  };
+  const ids = referencedDemoResourceIds(resources, [{ assets: { cover: { resourceId: current } } }]);
+  assert.equal(ids.has(current), true);
+  assert.equal(ids.has(thumbnail), true);
+  assert.equal(ids.has(historical), false);
 });

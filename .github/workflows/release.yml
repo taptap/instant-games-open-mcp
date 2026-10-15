@@ -485,8 +485,8 @@ jobs:
       - name: Verify demo resources before release
         run: |
           node scripts/maker-demo-resources.mjs check --release
-          node scripts/maker-demo-resources.mjs verify cdn
-          node scripts/maker-demo-resources.mjs verify github
+          node scripts/maker-demo-resources.mjs verify cdn --current
+          node scripts/maker-demo-resources.mjs verify github --current
 
       - name: Build project
         run: npm run build

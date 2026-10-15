@@ -134,6 +134,48 @@ export async function verifyDemoResourceDownload({
   throw lastError;
 }
 
+const TEMPLATE_DATA = [
+  'presetData.json',
+  'assetPresetData.json',
+  'modelPresetData.json',
+  'templateModelData.json',
+];
+
+export function referencedDemoResourceIds(resources, templates) {
+  const ids = new Set();
+  function walk(value) {
+    if (!value || typeof value !== 'object') return;
+    for (const [key, item] of Object.entries(value)) {
+      if (key === 'resourceId' && typeof item === 'string') ids.add(item);
+      walk(item);
+    }
+  }
+  for (const template of templates) walk(template);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const id of ids) {
+      const thumbnail = resources[id]?.thumbnail;
+      if (thumbnail && !ids.has(thumbnail)) {
+        ids.add(thumbnail);
+        changed = true;
+      }
+    }
+  }
+  for (const id of ids) {
+    if (!Object.hasOwn(resources, id)) throw new Error('示例资源引用缺失：' + id);
+  }
+  return ids;
+}
+
+function currentTemplateResources() {
+  const templates = TEMPLATE_DATA.map((name) =>
+    JSON.parse(fs.readFileSync(path.join(root, 'src/maker/canvas', name), 'utf8'))
+  );
+  const ids = referencedDemoResourceIds(manifest.resources, templates);
+  return Object.values(manifest.resources).filter((entry) => ids.has(entry.sha256));
+}
+
 async function verify(entry, source) {
   const local = fs.readFileSync(path.join(directory, entry.file));
   const url = source === 'github' ? manifest.githubBaseUrl + entry.file : entry.cdn;
@@ -212,25 +254,30 @@ if (!isDirectRun) {
     console.log('已登记 ' + records.length + ' 个 CDN 地址');
   } else if (command === 'verify') {
     checkLocal();
-    if (input && input !== 'github' && input !== 'cdn')
-      throw new Error('verify 仅支持 cdn 或 github');
-    const queue = Object.values(manifest.resources);
+    const args = [input, extra].filter(Boolean);
+    const source = args.find((arg) => arg === 'cdn' || arg === 'github') || 'cdn';
+    const currentOnly = args.includes('--current');
+    if (args.some((arg) => arg !== source && arg !== '--current'))
+      throw new Error('用法：verify [cdn|github] [--current]');
+    const queue = currentOnly ? currentTemplateResources() : Object.values(manifest.resources);
+    if (currentOnly)
+      console.log('只校验当前模板引用的 ' + queue.length + ' 个资源，跳过已发布但模板不再使用的历史资源');
     const total = queue.length;
     let complete = 0;
     await Promise.all(
       Array.from({ length: 4 }, async () => {
         while (queue.length) {
-          await verify(queue.shift(), input || 'cdn');
+          await verify(queue.shift(), source);
           complete++;
           if (complete % 50 === 0 || complete === total)
-            console.log('已校验 ' + complete + '/' + total + ' 个 ' + (input || 'cdn') + ' 文件');
+            console.log('已校验 ' + complete + '/' + total + ' 个 ' + source + ' 文件');
         }
       })
     );
-    console.log('已校验 ' + complete + ' 个 ' + (input || 'cdn') + ' 文件（大小与 SHA-256 一致）');
+    console.log('已校验 ' + complete + ' 个 ' + source + ' 文件（大小与 SHA-256 一致）');
   } else {
     throw new Error(
-      '用法：node scripts/maker-demo-resources.mjs add <文件> [缩略图] | optimize | check [--release] | pending | upload [--retry-unknown] | record <结果.json> | verify [cdn|github]'
+      '用法：node scripts/maker-demo-resources.mjs add <文件> [缩略图] | optimize | check [--release] | pending | upload [--retry-unknown] | record <结果.json> | verify [cdn|github] [--current]'
     );
   }
 } catch (error) {
