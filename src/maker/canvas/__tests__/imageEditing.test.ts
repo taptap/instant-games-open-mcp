@@ -30,7 +30,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function fixture() {
+function fixture(prepareSource?: ImageEditingOptions['prepareSource']) {
   const body = new Element('body');
   const confirm = jest.fn(() => true);
   const factory: typeof createImageEditing = new Script(
@@ -65,6 +65,7 @@ function fixture() {
   );
   const removal = {} as ImageEditingOptions['backgroundRemoval'];
   const controller = factory({
+    prepareSource,
     load,
     save,
     onSaved,
@@ -99,6 +100,47 @@ function fixture() {
 }
 
 describe('local image editing (serialized browser factory)', () => {
+  test('freezes the prepared content identity for edited bytes and save retries', async () => {
+    const prepare = jest.fn(async (node: Readonly<CanvasNode>) => ({
+      ...structuredClone(node),
+      assetVersion: { path: node.assetPath!, version: 'content-at-read' },
+    }));
+    const test = fixture(prepare);
+    await test.controller.open(test.node, 'edit');
+    expect(test.load).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assetVersion: { path: test.node.assetPath, version: 'content-at-read' },
+      }),
+      expect.any(AbortSignal)
+    );
+    test.apply();
+    test.node.assetVersion = { path: test.node.assetPath!, version: 'later-content' };
+    test.onSaved.mockRejectedValueOnce(new Error('save failed'));
+    test.button('保存本地 PNG').click();
+    await test.flush();
+    test.button('保存本地 PNG').click();
+    await test.flush();
+    expect(prepare).toHaveBeenCalledTimes(1);
+    for (const call of test.onSaved.mock.calls)
+      expect((call as unknown as [unknown, CanvasNode])[1].assetVersion?.version).toBe(
+        'content-at-read'
+      );
+  });
+
+  test('canceling source preparation releases busy and does not load or open the editor', async () => {
+    const pending = deferred<CanvasNode>();
+    const prepare = jest.fn(() => pending.promise);
+    const test = fixture(prepare);
+    const opening = test.controller.open(test.node, 'edit');
+    expect(test.controller.isBusy).toBe(true);
+    test.button('取消').click();
+    pending.resolve(structuredClone(test.node));
+    await opening;
+    expect(test.load).not.toHaveBeenCalled();
+    expect(test.editor).not.toHaveBeenCalled();
+    expect(test.controller.isBusy).toBe(false);
+  });
+
   test.each(['cutout', 'edit'] as const)(
     'routes %s to the injected single-image editor without saving',
     async (action) => {

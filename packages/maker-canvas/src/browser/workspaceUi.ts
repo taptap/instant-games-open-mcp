@@ -1,5 +1,9 @@
 export function createCanvasWorkspace(options: {
-  current(): { id: string; title: string; viewport: { scale: number } } | null;
+  current(): {
+    id: string;
+    title: string;
+    viewport: { x: number; y: number; scale: number };
+  } | null;
   activate(id: string): Promise<boolean>;
   create(): Promise<boolean>;
   zoom(factor: number): void;
@@ -138,14 +142,16 @@ export function createCanvasWorkspace(options: {
   let toolbarPosition: { x: number; y: number } | null = null;
   let toolbarDrag: { id: number; x: number; y: number } | null = null;
   function positionToolbar() {
-    if (!toolbarPosition) return;
-    const { x, y } = toolbarPosition;
-    const left = Math.max(0, Math.min(x, main.clientWidth - header.offsetWidth));
-    const top = Math.max(0, Math.min(y, main.clientHeight - header.offsetHeight));
-    header.style.left = left + 'px';
-    header.style.top = top + 'px';
-    header.style.transform = 'none';
-    toolbarPosition = { x: left, y: top };
+    if (toolbarPosition) {
+      const { x, y } = toolbarPosition;
+      const left = Math.max(0, Math.min(x, main.clientWidth - header.offsetWidth));
+      const top = Math.max(0, Math.min(y, main.clientHeight - header.offsetHeight));
+      header.style.left = left + 'px';
+      header.style.top = top + 'px';
+      header.style.transform = 'none';
+      toolbarPosition = { x: left, y: top };
+    }
+    for (const item of [add, more]) if (item.root.open) positionMenu(item);
   }
   grip.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
@@ -209,19 +215,27 @@ export function createCanvasWorkspace(options: {
   bottom.append(document.getElementById('canvas-log')!, controls);
   main.after(bottom);
   const menus = [library, add, more];
+  function positionMenu(item: ReturnType<typeof menu>) {
+    const anchor = item.root.querySelector('summary')!.getBoundingClientRect();
+    const origin = item.root.getBoundingClientRect();
+    const panel = item.panel;
+    const gap = 8;
+    const left =
+      anchor.right + gap + panel.offsetWidth <= window.innerWidth - gap
+        ? anchor.right + gap
+        : Math.max(gap, anchor.left - gap - panel.offsetWidth);
+    const top = Math.max(gap, Math.min(anchor.top, window.innerHeight - gap - panel.offsetHeight));
+    // The toolbar is transformed: viewport coordinates cannot be used as fixed child offsets.
+    panel.style.position = 'absolute';
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    panel.style.left = left - origin.left + 'px';
+    panel.style.top = top - origin.top + 'px';
+  }
   for (const item of menus) {
     item.root.addEventListener('toggle', () => {
       if (item.root.open) for (const other of menus) if (other !== item) other.root.open = false;
-      if (item.root.open && item !== library) {
-        const rect = item.root.getBoundingClientRect();
-        const panel = item.panel;
-        panel.style.position = 'fixed';
-        panel.style.bottom = 'auto';
-        panel.style.left =
-          Math.max(0, Math.min(rect.right + 8, window.innerWidth - panel.offsetWidth)) + 'px';
-        panel.style.top =
-          Math.max(0, Math.min(rect.top, window.innerHeight - panel.offsetHeight)) + 'px';
-      }
+      if (item.root.open && item !== library) positionMenu(item);
     });
     item.panel.addEventListener('click', (event) => {
       if ((event.target as HTMLElement).closest('button')) item.root.open = false;
@@ -371,7 +385,26 @@ export function createCanvasWorkspace(options: {
     }
     if (library.root.open) renderLibrary();
   }
-  return { sync, activate: (id: string) => transition(() => options.activate(id)) };
+  function placeMark(shape: string) {
+    const current = options.current();
+    if (!current) return;
+    const view = current.viewport;
+    const area = board.getBoundingClientRect();
+    const anchor = (shape === 'arrow' ? arrow : ellipse).getBoundingClientRect();
+    const width = Math.min(220, Math.max(8, area.width - 24));
+    const height = Math.min(shape === 'arrow' ? 80 : 140, Math.max(8, area.height - 24));
+    const preferred =
+      anchor.right + 12 + width <= area.right - 12 ? anchor.right + 12 : anchor.left - 12 - width;
+    const left = Math.max(area.left + 12, Math.min(preferred, area.right - width - 12));
+    const top = Math.max(area.top + 12, Math.min(anchor.top, area.bottom - height - 12));
+    return {
+      x: (left - area.left - view.x) / view.scale,
+      y: (top - area.top - view.y) / view.scale,
+      width: width / view.scale,
+      height: height / view.scale,
+    };
+  }
+  return { sync, placeMark, activate: (id: string) => transition(() => options.activate(id)) };
 }
 
 export const CANVAS_WORKSPACE_STYLES = `
@@ -607,6 +640,8 @@ body {
   border-color: #cdb431;
 }
 .workspace-menu-panel {
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
   position: absolute;
   right: 0;
   top: calc(100% + 7px);

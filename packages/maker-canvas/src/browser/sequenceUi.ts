@@ -140,8 +140,7 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
     if (!source.assetPath) throw new Error('视频素材路径缺失。');
     const url = options.store.mediaUrl(source.assetPath);
     const video = options.video;
-    if (video.dataset.assetPath === source.assetPath && video.readyState >= 1 && !video.error)
-      return video;
+    if (video.dataset.mediaUrl === url && video.readyState >= 1 && !video.error) return video;
     await new Promise<void>((resolve, reject) => {
       const timeout = window.setTimeout(() => finish(new Error('读取视频信息超时。')), 15000);
       const cleanup = () => {
@@ -167,6 +166,7 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
       video.addEventListener('error', onError, { once: true });
       signal.addEventListener('abort', onAbort, { once: true });
       video.dataset.assetPath = source.assetPath;
+      video.dataset.mediaUrl = url;
       video.preload = 'metadata';
       video.src = url;
       video.load();

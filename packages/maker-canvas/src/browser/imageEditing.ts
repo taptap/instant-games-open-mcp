@@ -4,6 +4,7 @@ import type { openBackgroundEditor } from './backgroundUi.js';
 import type { openFrameEditor } from './frameEditor.js';
 
 export interface ImageEditingOptions {
+  prepareSource?: (node: Readonly<CanvasNode>, signal: AbortSignal) => Promise<CanvasNode>;
   load: (node: Readonly<CanvasNode>, signal: AbortSignal) => Promise<Blob>;
   save: (blob: Blob, node: Readonly<CanvasNode>) => Promise<{ relativePath: string }>;
   onSaved: (
@@ -22,7 +23,7 @@ export function createImageEditing(options: ImageEditingOptions) {
   async function open(input: CanvasNode, action: 'cutout' | 'edit'): Promise<void> {
     if (busy) return;
     if (input.type !== 'image' || !input.assetPath) throw new Error('请选择已有图片。');
-    const node = structuredClone(input);
+    let node = structuredClone(input);
     const controller = new AbortController();
     const dialog = document.createElement('dialog');
     dialog.className = 'sequence-editor';
@@ -68,7 +69,17 @@ export function createImageEditing(options: ImageEditingOptions) {
       status.textContent = '正在加载本地图片；原图不会改变。';
       update();
       try {
-        original ??= await options.load(node, controller.signal);
+        if (!original) {
+          const prepared = options.prepareSource
+            ? await options.prepareSource(node, controller.signal)
+            : node;
+          if (closed) return;
+          const blob = await options.load(prepared, controller.signal);
+          if (closed) return;
+          // Keep the identity captured for these bytes throughout editing and save retries.
+          node = structuredClone(prepared);
+          original = blob;
+        }
         if (closed) return;
         const editorOptions = {
           frames: [{ time: 0, blob: action === 'cutout' ? original : draft || original }],

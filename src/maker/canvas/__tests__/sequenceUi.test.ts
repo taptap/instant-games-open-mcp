@@ -70,7 +70,7 @@ describe('sequence workflow recovery', () => {
         },
       },
       video: {
-        dataset: { assetPath: source.assetPath },
+        dataset: { assetPath: source.assetPath, mediaUrl: source.assetPath },
         readyState: 1,
         duration: 1,
         videoWidth: 320,
@@ -104,6 +104,47 @@ describe('sequence workflow recovery', () => {
       options,
     };
   }
+
+  test('same-path content replacement reloads decoded video before capturing new frames', async () => {
+    const { controller, document, node, options } = editorFixture();
+    const globals = globalThis as { window?: unknown };
+    const previousWindow = globals.window;
+    globals.window = { setTimeout, clearTimeout };
+    try {
+      let version = 'old';
+      const source = document.nodes[0];
+      options.store.mediaVersions = async () => ({ [source.assetPath!]: version });
+      options.store.mediaUrl = (path) => path + '?version=' + version;
+      options.video.dataset.mediaUrl = options.store.mediaUrl(source.assetPath!);
+      options.video.src = options.video.dataset.mediaUrl;
+      const events = new EventTarget();
+      options.video.addEventListener = events.addEventListener.bind(events);
+      options.video.removeEventListener = events.removeEventListener.bind(events);
+      options.video.load = jest.fn(() =>
+        queueMicrotask(() => events.dispatchEvent(new Event('loadedmetadata')))
+      );
+      const decoded: string[] = [];
+      options.processor.extract = jest.fn(async () => {
+        decoded.push(options.video.src);
+        return [{ time: 0, blob: new Blob([options.video.src]) }];
+      });
+      await controller.action(node.id, 'extract');
+      expect(options.video.load).not.toHaveBeenCalled();
+      version = 'new';
+      await controller.action(node.id, 'extract');
+      expect(options.video.load).toHaveBeenCalledTimes(1);
+      expect(decoded).toEqual([
+        source.assetPath + '?version=old',
+        source.assetPath + '?version=new',
+      ]);
+      expect(controller.view(node.id).run?.inputSourceSnapshot?.version).toContain('content:new');
+      await controller.action(node.id, 'extract');
+      expect(options.video.load).toHaveBeenCalledTimes(1);
+    } finally {
+      if (previousWindow === undefined) delete globals.window;
+      else globals.window = previousWindow;
+    }
+  });
 
   test('retains cutout input for parameter changes without altering the saved node', async () => {
     const { controller, node } = editorFixture();
@@ -267,6 +308,7 @@ describe('sequence workflow recovery', () => {
       if (change === 'source') {
         document.nodes[0].assetPath = '.maker/new-video.mp4';
         options.video.dataset.assetPath = document.nodes[0].assetPath;
+        options.video.dataset.mediaUrl = document.nodes[0].assetPath;
       } else if (change === 'reference') {
         document.nodes.push({ ...document.nodes[0], id: 'new-video' });
         node.sourceVideoId = 'new-video';
@@ -504,7 +546,7 @@ describe('sequence workflow recovery', () => {
       dispose: jest.fn(),
     } as unknown as ReturnType<typeof createSequenceProcessor>;
     const videoElement = {
-      dataset: { assetPath: video.assetPath },
+      dataset: { assetPath: video.assetPath, mediaUrl: video.assetPath },
       readyState: 1,
       duration: 1,
       videoWidth: 320,
