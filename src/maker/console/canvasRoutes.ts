@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readCanvasMedia } from './canvasMedia.js';
 import { canvasImageModels } from './canvasImageModels.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createReadStream, statSync } from 'node:fs';
@@ -57,11 +56,9 @@ export async function handleCanvasProjectRoute(options: {
   try {
     if (suffix === 'canvases/media-version' && method === 'GET') {
       const media = files.readMedia(searchParams.get('path') || '');
-      if (statSync(media.file).size > 128 * 1024 * 1024)
-        throw new ConsoleError('素材超过读取上限。', 413);
-      const bytes = await readFile(media.file);
+      const { version } = await readCanvasMedia(media.file);
       response.setHeader('Cache-Control', 'no-store');
-      send(response, 200, { version: createHash('sha256').update(bytes).digest('hex') });
+      send(response, 200, { version });
       return true;
     }
     if (suffix === 'canvases/image-info' && method === 'GET') {
@@ -283,11 +280,10 @@ export async function handleCanvasProjectRoute(options: {
       let pinned: Buffer | undefined;
       if (expected) {
         if (!/^[a-f0-9]{64}$/.test(expected)) throw new ConsoleError('素材版本无效。', 400);
-        if (statSync(media.file).size > 128 * 1024 * 1024)
-          throw new ConsoleError('素材超过读取上限。', 413);
-        pinned = await readFile(media.file);
-        if (createHash('sha256').update(pinned).digest('hex') !== expected)
+        const content = await readCanvasMedia(media.file);
+        if (content.version !== expected)
           throw new ConsoleError('素材内容已变化，请刷新素材后重新操作。', 409);
+        pinned = content.bytes;
       }
       const size = pinned ? pinned.length : statSync(media.file).size;
       response.setHeader('Accept-Ranges', 'bytes');

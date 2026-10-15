@@ -55,17 +55,24 @@ export function createImageAssetsUiWithHost(options: {
         targetInfo: string;
       }
     | undefined;
+  function canReuseSettings(source: CanvasNode, target?: CanvasNode) {
+    // Legacy parameters remain editable; this does not validate or upgrade old output files.
+    return (
+      isCanvasSourceCurrent(target?.sourceSnapshot, source) ||
+      isCanvasSourceCurrent(target?.sourceSnapshot, { ...source, assetVersion: undefined })
+    );
+  }
   function savedGrid(current: CanvasDocument, source: CanvasNode, target?: CanvasNode) {
     if (source.mergeIcons) return mergeIconGrid(source.mergeIcons);
     const plan = selectedUiExtraction(current, source);
     // A confirmed grid belongs to this atlas; new atlases use the active mode's grid.
-    if (target?.imageAssetsInfo && isCanvasSourceCurrent(target.sourceSnapshot, source))
+    if (target?.imageAssetsInfo && canReuseSettings(source, target))
       return target.imageAssetsInfo.grid;
     if (source.generation?.uiAtlasPlan) return source.generation.uiAtlasPlan.grid;
     return plan?.grid || source.uiBaselineGrid || target?.imageAssetsInfo?.grid;
   }
   function backgroundFor(source: CanvasNode, target?: CanvasNode) {
-    if (target?.imageAssetsInfo?.background && isCanvasSourceCurrent(target.sourceSnapshot, source))
+    if (target?.imageAssetsInfo?.background && canReuseSettings(source, target))
       return target.imageAssetsInfo.background;
     const gameUi = Boolean(target && isGameUiResource(options.current() || undefined, target));
     return {
@@ -92,7 +99,7 @@ export function createImageAssetsUiWithHost(options: {
     const allowEmpty = Boolean(
       source.generation?.uiAtlasPlan || (source.uiAtlasGroup && source.uiBaselineGrid)
     );
-    return target?.imageAssetsInfo?.regions && isCanvasSourceCurrent(target.sourceSnapshot, source)
+    return target?.imageAssetsInfo?.regions && canReuseSettings(source, target)
       ? {
           mode: target.imageAssetsInfo.cutMode || 'content',
           regions: structuredClone(target.imageAssetsInfo.regions),
