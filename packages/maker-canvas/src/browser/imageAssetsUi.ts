@@ -72,10 +72,10 @@ export function createImageAssetsUiWithHost(options: {
     return plan?.grid || source.uiBaselineGrid || target?.imageAssetsInfo?.grid;
   }
   function backgroundFor(source: CanvasNode, target?: CanvasNode) {
-    if (source.uiAtlasGroup === 'background')
-      return { color: undefined, mode: 'connected' as const };
     if (target?.imageAssetsInfo?.background && canReuseSettings(source, target))
       return target.imageAssetsInfo.background;
+    if (source.uiAtlasGroup === 'background' && !source.generation?.cutoutColor)
+      return { color: undefined, mode: 'connected' as const };
     const gameUi = Boolean(target && isGameUiResource(options.current() || undefined, target));
     return {
       color:
@@ -83,7 +83,7 @@ export function createImageAssetsUiWithHost(options: {
           ? uiCutoutRgb(source.generation?.cutoutColor)
           : undefined,
       mode:
-        source.uiAtlasGroup ||
+        (source.uiAtlasGroup && source.uiAtlasGroup !== 'background') ||
         (source.generation?.cutoutColor && !gameUi)
           ? ('all' as const)
           : ('connected' as const),

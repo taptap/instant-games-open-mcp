@@ -13,6 +13,7 @@ import {
 import { applyImageAssets } from '../imageAssets.js';
 import { validateResourceBundle } from '../resourceBundle.js';
 import type { CanvasDocumentStore } from '../store.js';
+import { batchRecognitionFixture } from './fixtures/uiRecognition.js';
 
 test.each([
   ['000013', false],
@@ -27,10 +28,7 @@ test.each([
     const document = { ...emptyDocument(), nodes: instance.nodes, edges: instance.edges };
     const cut = document.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!;
     const design = document.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
-    const recognized = structuredClone(
-      preset.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!.uiRecognition!
-        .results[0]
-    );
+    const recognized = batchRecognitionFixture(design, cut);
     recognized.bbox!.design.path = design.assetPath = 'assets/image/canvas-' + createId() + '.png';
     recognized.bbox!.cutSource.path =
       recognized.sourcePath =

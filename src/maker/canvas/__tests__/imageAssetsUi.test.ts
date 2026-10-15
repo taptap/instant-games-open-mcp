@@ -513,15 +513,19 @@ test('workflow prepares real items from current atlas and saved grid without a r
 });
 
 test.each([
-  ['#FF00FF', false],
-  ['#00FF00', false],
-  ['transparent', false],
-  ['transparent', true],
-  [undefined, false],
-  ['#FF00FF', true],
+  ['#FF00FF', false, false],
+  ['#00FF00', false, false],
+  ['transparent', false, false],
+  ['transparent', true, false],
+  [undefined, false, false],
+  ['#FF00FF', true, false],
+  ['#FF00FF', true, true],
+  ['#00FF00', true, true],
+  ['transparent', true, true],
+  [undefined, true, true],
 ] as const)(
-  'atlas splitting selects recorded color %s and preserves UI interior=%s',
-  async (cutoutColor, gameUi) => {
+  'atlas splitting selects recorded color %s, UI=%s, background=%s',
+  async (cutoutColor, gameUi, background) => {
     const { current, target, ui } = savedGridFixture();
     if (gameUi) {
       target.sectionId = 'group';
@@ -537,6 +541,7 @@ test.each([
       });
     }
     current.nodes[0].generation = { prompt: 'atlas', ...(cutoutColor ? { cutoutColor } : {}) };
+    if (background) current.nodes[0].uiAtlasGroup = 'background';
     const split = jest.spyOn(imageAtlasExport, 'splitImageAtlas').mockResolvedValue({
       width: 80,
       height: 60,
@@ -572,6 +577,23 @@ test.each([
     }
   }
 );
+
+test('background atlases reuse saved removal settings for the same source', async () => {
+  const { current, target, ui } = savedGridFixture();
+  const source = current.nodes[0];
+  source.uiAtlasGroup = 'background';
+  source.generation = { prompt: 'background', cutoutColor: '#00FF00' };
+  target.sourceSnapshot = snapshotCanvasSource(source);
+  target.imageAssetsInfo!.background = { color: [255, 0, 255], mode: 'connected' };
+  globals.document.querySelector = () => null;
+  (openImageAtlasDialog as jest.Mock).mockImplementation((_source, _url, actions) =>
+    actions.closed()
+  );
+  await ui.open(source.id, target.id);
+  const actions = (openImageAtlasDialog as jest.Mock).mock.calls[0][2];
+  expect(actions.backgroundColor).toEqual([255, 0, 255]);
+  expect(actions.backgroundMode).toBe('connected');
+});
 
 test('workflow refuses missing or invalid grid without importing files or guessing defaults', async () => {
   const { target, options, ui } = savedGridFixture();

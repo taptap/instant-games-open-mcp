@@ -9,6 +9,7 @@ import { invalidateCanvasDependents } from '../templateWorkflow.js';
 import { createUiRecognitionUi } from '../uiRecognitionUi.js';
 import type { CanvasDocumentStore } from '../store.js';
 import { ensureUiAtlasBatchCards, selectedUiAtlasPlan } from '../uiAssetBindings.js';
+import { batchRecognitionFixture } from './fixtures/uiRecognition.js';
 
 const id = '7e1cb6ad-732f-4dc3-a951-000000000013';
 
@@ -29,8 +30,7 @@ test('official UI catalog keeps the prompt-only workflow alongside the Bbox expe
   const original = template.nodes.find((node) => node.title === '① 原始设计稿')!;
   expect(design.id).toBe(original.id);
   expect(cut.uiRecognition?.optional).toBe(true);
-  expect(cut.uiRecognition?.results[0].bbox?.elements).toHaveLength(103);
-  expect(cut.uiRecognition?.results[0].bbox?.texts).toHaveLength(51);
+  expect(cut.uiRecognition?.results).toEqual([]);
   for (const node of template.nodes.filter((node) => node.uiAtlasGroup)) {
     expect(node.generation?.prompt).toBe(node.uiBaselinePrompt);
     if (node.uiAtlasGroup === 'background') {
@@ -44,7 +44,8 @@ test('official UI catalog keeps the prompt-only workflow alongside the Bbox expe
     expect(node.generation?.prompt).not.toMatch(/E[0-9]{3}|1920x1080|2048x1152/);
     if (node.uiAtlasGroup !== 'background')
       expect(node.generation?.prompt).toContain('重复素材只输出一次');
-    expect(node.uiBaselineGrid).toEqual(node.uiAtlasPlan?.grid);
+    expect(node.uiAtlasPlan).toBeUndefined();
+    expect(node.uiBaselineGrid).toBeDefined();
   }
   expect(template.edges.filter((edge) => edge.to === cut.id).map((edge) => edge.from)).toEqual([
     design.id,
@@ -99,10 +100,7 @@ test('batch preset imports, saves and reopens with one ready original and pendin
     delete cut.templatePending;
     delete design.templatePending;
     expect(uiRecognitionInputs(reopened, cut).design.id).toBe(design.id);
-    const fresh = structuredClone(
-      prepared.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!.uiRecognition!
-        .results[0]
-    );
+    const fresh = batchRecognitionFixture(design, cut);
     fresh.sourceSha256 = 'a'.repeat(64);
     fresh.bbox!.cutSource.sha256 = fresh.sourceSha256;
     const rename = (id: string) => 'E9' + id.slice(1);
@@ -156,10 +154,14 @@ test('browser helpers expand only the requested instance and preserve generation
       canvas.nodes.push(...instance.nodes);
       canvas.edges.push(...instance.edges);
       const cut = instance.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!;
-      cut.uiRecognition = structuredClone(
-        prepared.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!.uiRecognition
-      );
-      cut.uiRecognition!.optional = false;
+      const design = instance.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
+      const result = batchRecognitionFixture(design, cut);
+      cut.uiRecognition = {
+        ...cut.uiRecognition!,
+        optional: false,
+        results: [result],
+        selectedId: result.id,
+      };
       for (const node of instance.nodes.filter((node) => node.uiRecognition))
         delete node.templatePending;
     }
@@ -213,11 +215,14 @@ test('a ninth size-aware atlas batch survives save and reopen', async () => {
     canvas.nodes = instance.nodes;
     canvas.edges = instance.edges;
     const cut = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!;
-    cut.uiRecognition = structuredClone(
-      prepared.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!.uiRecognition!
-    );
-    cut.uiRecognition.optional = false;
-    const result = cut.uiRecognition.results[0];
+    const design = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
+    const result = batchRecognitionFixture(design, cut);
+    cut.uiRecognition = {
+      ...cut.uiRecognition!,
+      optional: false,
+      results: [result],
+      selectedId: result.id,
+    };
     const original = result.bbox!.elements.find((element) => element.type === 'icon')!;
     result.bbox!.elements = Array.from({ length: 41 }, (_, index) => ({
       ...original,
