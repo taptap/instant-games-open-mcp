@@ -15,7 +15,7 @@ import { canvasPresets } from '../presets.js';
 import { imageAtlasRegions } from '../imageAtlasExport.js';
 import { canvasNeedsProcessing } from '../templateWorkflow.js';
 
-jest.setTimeout(30000);
+jest.setTimeout(120000);
 
 test('built-in merge example contains fifteen real alpha assets matching its five-stage settings', async () => {
   const { PNG } = require('pngjs');

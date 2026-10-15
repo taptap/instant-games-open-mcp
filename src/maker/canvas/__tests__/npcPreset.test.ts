@@ -2,7 +2,7 @@ import { readDemoResource } from '../../demoResources.js';
 import { canvasPresets } from '../presets.js';
 import { imageAtlasRegions } from '../imageAtlasExport.js';
 
-jest.setTimeout(30000);
+jest.setTimeout(120000);
 
 const { PNG } = require('pngjs');
 

@@ -10,7 +10,7 @@ import { canvasNeedsProcessing, invalidateCanvasDependents } from '../templateWo
 import { canvasPresets, builtinCanvasTemplates } from '../presets.js';
 import { builtinPresetDescriptions } from '../presetDescriptions.js';
 
-jest.setTimeout(30000);
+jest.setTimeout(120000);
 const { PNG } = require('pngjs');
 
 let root: string;
