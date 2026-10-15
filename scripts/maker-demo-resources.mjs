@@ -51,6 +51,13 @@ function downloadErrorDetail(error) {
     .join('；');
 }
 
+export function isUnreachableDownloadError(error) {
+  const detail = downloadErrorDetail(error).toLowerCase();
+  return /und_err_connect_timeout|connect timeout|econnrefused|enotfound|eai_again|etimedout|econnreset|enetunreach/.test(
+    detail
+  );
+}
+
 function isTransientDownloadError(error, status) {
   if (status === 429 || status >= 500) return true;
   const detail = downloadErrorDetail(error).toLowerCase();
@@ -254,30 +261,56 @@ if (!isDirectRun) {
     console.log('已登记 ' + records.length + ' 个 CDN 地址');
   } else if (command === 'verify') {
     checkLocal();
-    const args = [input, extra].filter(Boolean);
+    const args = process.argv.slice(3);
     const source = args.find((arg) => arg === 'cdn' || arg === 'github') || 'cdn';
     const currentOnly = args.includes('--current');
-    if (args.some((arg) => arg !== source && arg !== '--current'))
-      throw new Error('用法：verify [cdn|github] [--current]');
+    const allowUnreachable = args.includes('--allow-unreachable');
+    const known = new Set(['cdn', 'github', '--current', '--allow-unreachable']);
+    if (args.some((arg) => !known.has(arg)))
+      throw new Error('用法：verify [cdn|github] [--current] [--allow-unreachable]');
     const queue = currentOnly ? currentTemplateResources() : Object.values(manifest.resources);
     if (currentOnly)
-      console.log('只校验当前模板引用的 ' + queue.length + ' 个资源，跳过已发布但模板不再使用的历史资源');
+      console.log(
+        '只校验当前模板引用的 ' + queue.length + ' 个资源，跳过已发布但模板不再使用的历史资源'
+      );
     const total = queue.length;
     let complete = 0;
+    let unreachable = 0;
+    let stop = false;
     await Promise.all(
       Array.from({ length: 4 }, async () => {
-        while (queue.length) {
-          await verify(queue.shift(), source);
-          complete++;
+        while (!stop) {
+          const entry = queue.shift();
+          if (!entry) return;
+          try {
+            await verify(entry, source);
+          } catch (error) {
+            if (allowUnreachable && isUnreachableDownloadError(error)) {
+              unreachable += 1;
+              console.error(error.message);
+              if (unreachable >= 3) stop = true;
+              continue;
+            }
+            stop = true;
+            throw error;
+          }
+          complete += 1;
           if (complete % 50 === 0 || complete === total)
             console.log('已校验 ' + complete + '/' + total + ' 个 ' + source + ' 文件');
         }
       })
     );
+    if (unreachable)
+      console.error(
+        source +
+          ' 有 ' +
+          unreachable +
+          ' 个连接失败。上传时已校验 CDN；Runner 不可达时不阻断发布，内容不匹配仍会失败。'
+      );
     console.log('已校验 ' + complete + ' 个 ' + source + ' 文件（大小与 SHA-256 一致）');
   } else {
     throw new Error(
-      '用法：node scripts/maker-demo-resources.mjs add <文件> [缩略图] | optimize | check [--release] | pending | upload [--retry-unknown] | record <结果.json> | verify [cdn|github] [--current]'
+      '用法：node scripts/maker-demo-resources.mjs add <文件> [缩略图] | optimize | check [--release] | pending | upload [--retry-unknown] | record <结果.json> | verify [cdn|github] [--current] [--allow-unreachable]'
     );
   }
 } catch (error) {

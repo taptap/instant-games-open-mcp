@@ -75,14 +75,16 @@ resources/maker-demo/ 存入公司仓库，但由 npm 排除规则排除。主�
 资源与索引合入 main 后、发布 npm 前必须执行：
 
 ```bash
-node scripts/maker-demo-resources.mjs verify cdn --current
 node scripts/maker-demo-resources.mjs verify github --current
+node scripts/maker-demo-resources.mjs verify cdn --current --allow-unreachable
 ```
 
 发布只下载校验当前官方模板仍引用的资源及其缩略图。索引里已发布、但当前模板不再使用的
 历史文件继续留在仓库和 GitHub，供旧版本下载，不在每次发布时重复下载。
 不带 `--current` 时才会校验整个索引。校验对每个文件最多尝试 3 次，单次下载超时 60 秒。
 超时、连接失败和 HTTP 429/5xx 会重试；内容不匹配不重试。失败信息包含来源、文件名、URL 和底层错误码。
+发布校验里的 CDN 使用 `--allow-unreachable`：GitHub Runner 连不上公司 CDN 时停止下载并继续，
+因为上传登记前已经校验过 CDN。内容不一致仍然失败。GitHub 备用源必须下载成功。
 GitHub 尚未合入或验证失败时，不应发布依赖该批资源的新包。npm 发布仍沿用现有手动 Actions。
 
 下载模块 src/maker/demoResources.ts 每个源最多尝试一次，超时或校验失败转备用源。
