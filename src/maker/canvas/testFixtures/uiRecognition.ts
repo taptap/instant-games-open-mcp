@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { CanvasNode } from '../../model.js';
-import { validateUiRecognition } from '../../uiRecognition.js';
+import type { CanvasNode } from '../model.js';
+import { validateUiRecognition } from '../uiRecognition.js';
 
 export function batchRecognitionFixture(design: CanvasNode, cut: CanvasNode) {
   const source = (node: CanvasNode, hash: string) => ({

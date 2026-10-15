@@ -9,7 +9,7 @@ import { invalidateCanvasDependents } from '../templateWorkflow.js';
 import { createUiRecognitionUi } from '../uiRecognitionUi.js';
 import type { CanvasDocumentStore } from '../store.js';
 import { ensureUiAtlasBatchCards, selectedUiAtlasPlan } from '../uiAssetBindings.js';
-import { batchRecognitionFixture } from './fixtures/uiRecognition.js';
+import { batchRecognitionFixture } from '../testFixtures/uiRecognition.js';
 
 const id = '7e1cb6ad-732f-4dc3-a951-000000000013';
 
