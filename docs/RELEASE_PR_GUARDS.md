@@ -110,7 +110,8 @@ release PR 的 `review` 不应该理解成完整代码审核。它更适合成�
 - 校验 PR 标题、分支和发布版本符合规则。
 
 `Claude Code Review` 显式使用工作流的 `GITHUB_TOKEN` 和既有 job 权限提交审核，
-固定模型为代理服务已验证的 `claude-opus-5[1m]`，避免 CLI 默认模型变更影响审核。
+固定模型为代理服务已验证的 `claude-opus-5`，使用默认上下文和 medium 推理强度，
+避免 CLI 默认模型变更影响审核。审核前进行限时连通性检查，仅输出脱敏错误。
 release PR 由单独的 `Release PR Review Guard` workflow 产出同名 `review` job，
 并执行确定性的 release guard，而不是调用 AI code review。
 

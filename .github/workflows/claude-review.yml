@@ -65,11 +65,14 @@ jobs:
           github_token: ${{ github.token }}
           use_sticky_comment: true
           claude_args: |
-            --model claude-opus-5[1m]
+            --model claude-opus-5
+            --effort medium
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(cat:*),Bash(grep:*),Bash(git diff:*),Bash(git log:*),Read,Glob,Grep"
           prompt: |
             Read CLAUDE.md for project conventions, then review this PR following docs/CODE_REVIEW.md
             for methodology, checklist, and output format.
+            Focus on production-code correctness and concrete regressions. Inspect generated preset
+            and CDN manifests selectively; do not dump large single-line JSON or binary assets.
             Use `gh pr diff` to get changes, verify findings with actual code before reporting.
             Post ONE PR comment using `gh pr comment` with the exact output format from docs/CODE_REVIEW.md.
             For 阻塞问题 and 警告, also add inline comments via
