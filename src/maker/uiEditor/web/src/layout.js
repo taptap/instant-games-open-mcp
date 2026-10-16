@@ -14,6 +14,9 @@
   var rightW = 320;
   var bottomH = 200;
   var projLeftW = 240;
+  var leftVisible = true;
+  var rightVisible = true;
+  var bottomVisible = true;
   var zoom = 0.5;
   var panX = 24;
   var panY = 24;
@@ -27,19 +30,48 @@
     var saved = JSON.parse(localStorage.getItem(STORAGE) || "null");
     if (saved && [saved.left,saved.right,saved.bottom,saved.project].every(function (n) { return Number.isFinite(n) && n>0; })) {
       leftW=saved.left; rightW=saved.right; bottomH=saved.bottom; projLeftW=saved.project;
+      leftVisible = saved.leftVisible !== false;
+      rightVisible = saved.rightVisible !== false;
+      bottomVisible = saved.bottomVisible !== false;
     }
   } catch (_) {}
 
   function persist() {
-    try { localStorage.setItem(STORAGE,JSON.stringify({left:leftW,right:rightW,bottom:bottomH,project:projLeftW})); } catch (_) {}
+    try { localStorage.setItem(STORAGE,JSON.stringify({left:leftW,right:rightW,bottom:bottomH,project:projLeftW,leftVisible:leftVisible,rightVisible:rightVisible,bottomVisible:bottomVisible})); } catch (_) {}
   }
 
   function applySizes() {
     var sideMax=Math.max(120,(window.innerWidth-MIN_PREVIEW-12)/2);
-    root.style.setProperty("--left-w", Math.min(leftW,sideMax) + "px");
-    root.style.setProperty("--right-w", Math.min(rightW,sideMax) + "px");
-    root.style.setProperty("--bottom-h", Math.min(bottomH,Math.max(100,window.innerHeight-240)) + "px");
+    root.style.setProperty("--left-w", leftVisible ? Math.min(leftW,sideMax) + "px" : "0px");
+    root.style.setProperty("--right-w", rightVisible ? Math.min(rightW,sideMax) + "px" : "0px");
+    root.style.setProperty("--bottom-h", bottomVisible ? Math.min(bottomH,Math.max(100,window.innerHeight-240)) + "px" : "0px");
     root.style.setProperty("--proj-left-w", Math.min(projLeftW,Math.max(100,window.innerWidth-180)) + "px");
+    root.classList.toggle("panel-left-hidden", !leftVisible);
+    root.classList.toggle("panel-right-hidden", !rightVisible);
+    root.classList.toggle("panel-bottom-hidden", !bottomVisible);
+    updateToggle("left", leftVisible);
+    updateToggle("right", rightVisible);
+    updateToggle("bottom", bottomVisible);
+  }
+
+  function updateToggle(kind, visible) {
+    var button = document.querySelector('[data-toggle="' + kind + '"]');
+    if (!button) return;
+    var name = kind === "left" ? "左侧" : kind === "right" ? "右侧" : "底部";
+    var label = (visible ? "隐藏" : "显示") + name + "面板";
+    button.textContent = visible ? (kind === "left" ? "◀" : kind === "right" ? "▶" : "▼") : (kind === "left" ? "▶" : kind === "right" ? "◀" : "▲");
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    button.setAttribute("aria-expanded", String(visible));
+  }
+
+  function togglePanel(kind) {
+    if (kind === "left") leftVisible = !leftVisible;
+    else if (kind === "right") rightVisible = !rightVisible;
+    else if (kind === "bottom") bottomVisible = !bottomVisible;
+    else return;
+    persist();
+    applySizes();
   }
 
   function applyView() {
@@ -76,7 +108,16 @@
   }
 
   function bindSplit(el, kind) {
+    var toggle = el.querySelector("[data-toggle]");
+    if (toggle) {
+      toggle.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        togglePanel(kind);
+      });
+    }
     el.addEventListener("pointerdown", function (event) {
+      if (event.target.closest && event.target.closest("[data-toggle]")) return;
       event.preventDefault();
       el.classList.add("dragging");
       var startX = event.clientX;
@@ -189,7 +230,7 @@
   if (fitBtn) fitBtn.addEventListener("click", fitPreview);
   var resetBtn=document.getElementById("resetLayoutBtn");
   if (resetBtn) resetBtn.addEventListener("click",function () {
-    leftW=280; rightW=320; bottomH=200; projLeftW=240; persist(); applySizes(); fitPreview();
+    leftW=280; rightW=320; bottomH=200; projLeftW=240; leftVisible=true; rightVisible=true; bottomVisible=true; persist(); applySizes(); fitPreview();
   });
   window.addEventListener("resize", function () { applySizes(); });
 

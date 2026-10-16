@@ -40,7 +40,7 @@
             <label><input type="radio" name="orientation" value="landscape" />横屏</label>
           </div>
           <span id="scaleBadge" class="muted">1.00×</span>
-          <button id="resetLayoutBtn" type="button" class="ghost" title="恢复默认面板尺寸">重置布局</button>
+          <button id="resetLayoutBtn" type="button" class="ghost" title="恢复默认面板尺寸和显示状态">重置布局</button>
           <span class="sep"></span>
           <span id="zoomLabel" class="muted">100%</span>
           <button id="fitBtn" type="button" class="ghost">适应</button>
@@ -67,7 +67,7 @@
         <div class="local-search"><input id="treeSearch" type="search" placeholder="搜索节点" aria-label="搜索节点" /><span id="treeSearchCount" class="muted" role="status"></span></div>
         <div id="tree" class="tree"></div>
       </aside>
-      <div class="split-v" data-split="left" title="拖动调整宽度"></div>
+      <div class="split-v" data-split="left" title="拖动调整宽度"><button type="button" class="split-toggle" data-toggle="left" aria-expanded="true" aria-label="隐藏左侧面板" title="隐藏左侧面板">◀</button></div>
 
       <section class="canvas-pane">
         <div class="canvas-toolbar">
@@ -132,7 +132,7 @@
         </div>
       </section>
 
-      <div class="split-v" data-split="right" title="拖动调整宽度"></div>
+      <div class="split-v" data-split="right" title="拖动调整宽度"><button type="button" class="split-toggle" data-toggle="right" aria-expanded="true" aria-label="隐藏右侧面板" title="隐藏右侧面板">▶</button></div>
       <aside class="inspector">
         <div class="panel-title">控件属性</div>
         <div id="inspector" class="inspector-body">
@@ -141,7 +141,7 @@
       </aside>
     </div>
 
-    <div class="split-h" data-split="bottom" title="拖动调整高度"></div>
+    <div class="split-h" data-split="bottom" title="拖动调整高度"><button type="button" class="split-toggle" data-toggle="bottom" aria-expanded="true" aria-label="隐藏底部面板" title="隐藏底部面板">▼</button></div>
 
     <footer class="project-bar">
       <div class="bottom-tabs">

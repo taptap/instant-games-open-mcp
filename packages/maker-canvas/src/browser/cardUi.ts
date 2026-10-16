@@ -150,14 +150,14 @@ export function refreshCanvasGroupHeaders(
 
 export const CANVAS_CARD_UI_STYLES = `
 .card.canvas-card { padding:0; gap:0; border:1px solid #475158; border-radius:9px; background:#1b2125; box-shadow:0 3px 10px #0003; }
-.card.canvas-card.selected { outline:2px solid #f5dc56; outline-offset:0; border-color:#f5dc56; }
+.card.canvas-card.selected { outline:2px solid var(--canvas-accent); outline-offset:0; border-color:var(--canvas-accent); }
 .canvas-card-header { height:40px; box-sizing:border-box; padding:5px 10px; display:flex; align-items:center; gap:8px; border-bottom:1px solid #343d43; background:#20272b; flex:none; }
 .canvas-card-heading { min-width:0; flex:1; display:flex; flex-direction:column; gap:2px; }
 .card .canvas-card-title { display:block; color:#edf0ed; font-size:12px; line-height:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .canvas-card-meta { color:#9ca9af; font-size:10px; line-height:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .canvas-card-menu { width:24px; height:26px; flex:none; padding:0; border:0; border-radius:4px; background:transparent; color:#bac4c7; font:700 18px/1 sans-serif; cursor:pointer; }
 .canvas-card-menu:hover { background:#374145; color:#fff; }
-.canvas-card-menu:focus-visible { outline:2px solid #f5dc56; outline-offset:1px; }
+.canvas-card-menu:focus-visible { outline:2px solid var(--canvas-accent); outline-offset:1px; }
 .card.template-locked .canvas-card-menu, .card[aria-busy=true] .canvas-card-menu { visibility:hidden; }
 .canvas-card-content { position:relative; display:flex; flex-direction:column; min-height:0; height:calc(100% - 40px); box-sizing:border-box; overflow:hidden; }
 .card.image.canvas-card:has(.canvas-card-content > img) { min-width:0; min-height:0; }
@@ -174,8 +174,8 @@ export const CANVAS_CARD_UI_STYLES = `
 .card > .generation-credits { top:45px; }
 .card .resize-handle { width:12px; height:12px; right:3px; bottom:3px; opacity:0; border-radius:0 0 4px 0; background:linear-gradient(135deg,transparent 50%,#9ca9af 50% 60%,transparent 60% 75%,#9ca9af 75% 85%,transparent 85%); }
 .card:hover > .resize-handle, .card.selected > .resize-handle, .resize-handle:focus-visible { opacity:1; }
-.card.section.canvas-card { background:#292a202b; border:1px solid #666047; box-shadow:none; overflow:visible; }
-.card.section .canvas-card-header { border-color:#514e3e; background:#252821e8; border-radius:8px 8px 0 0; }
+.card.section.canvas-card { background:#202528; border:1px solid #475256; box-shadow:none; overflow:visible; }
+.card.section .canvas-card-header { border-color:#3d474a; background:#1d2225e8; border-radius:8px 8px 0 0; }
 .canvas-group-state { display:inline-flex; align-items:center; gap:5px; flex:none; font-size:11px; color:#aeb7bb; white-space:nowrap; }
 .canvas-group-state:before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }
 .canvas-group-state[data-state=ready] { color:#69d49c; }
@@ -183,11 +183,11 @@ export const CANVAS_CARD_UI_STYLES = `
 .canvas-group-state[data-state=failed] { color:#f29c97; }
 .canvas-group-state[data-state=paused] { color:#a7bdd6; }
 .card .canvas-card-content .template-example { top:8px; }
-.card .group-queue { border-color:#514e3e; background:#232925f5; border-radius:7px; box-shadow:none; }
-.card .group-queue button { background:#30362e; border-color:#535b4a; color:#ece2bb; }
-.card .group-queue button:hover { background:#414938; }
-.card .group-queue-tasks { scrollbar-color:#58614e transparent; }
-.card .group-queue .group-queue-task { background:#2b3333; border-color:#455152; color:#d7dfdc; }
+.card .group-queue { border-color:#3d474a; background:#1e2427f5; border-radius:7px; box-shadow:none; }
+.card .group-queue button { background:#293134; border-color:#4a565a; color:#dce5e2; }
+.card .group-queue button:hover { background:#354145; }
+.card .group-queue-tasks { scrollbar-color:#526064 transparent; }
+.card .group-queue .group-queue-task { background:#273033; border-color:#455155; color:#d7dfdc; }
 .card .group-queue .group-queue-status { color:#aab6b0; }
 .card .card-state-overlay { background:#141a20d9; backdrop-filter:blur(2px); gap:8px; padding:42px 12px 12px; overflow:auto; justify-content:safe center; overscroll-behavior:contain; pointer-events:auto; }
 .card-state-caption { position:absolute; top:10px; left:12px; right:12px; font-size:12px; font-weight:600; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#c7d0d3; }

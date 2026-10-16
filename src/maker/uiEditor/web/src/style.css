@@ -134,8 +134,9 @@ mark { background:#ddbc59; color:#191c20; border-radius:2px; }
   background: var(--panel);
 }
 .icon-btn.active {
-  background: var(--yellow);
-  color: var(--on-yellow);
+  background: var(--soft);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .menubar-left, .menubar-right {
   display: flex;
@@ -163,11 +164,11 @@ mark { background:#ddbc59; color:#191c20; border-radius:2px; }
   color: var(--text);
   border: 1px solid var(--line);
 }
-.ghost.active, #saveBtn { background:var(--yellow); color:var(--on-yellow); border-color:var(--yellow); }
+.ghost.active, #saveBtn { background:var(--primary); color:var(--on-primary); border-color:var(--primary); }
 button:disabled { opacity:.5; cursor:not-allowed; }
 button:hover:not(:disabled) { border-color:var(--muted); }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:var(--yellow); }
+input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:var(--primary); }
 .muted { color: var(--muted); font-size: 12px; }
 .sep { width: 1px; height: 16px; background: var(--line); }
 .tool-group {
@@ -256,6 +257,7 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .panel-title .add-menu { display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; }
 
 .split-v, .split-h {
+  position: relative;
   background: var(--line);
   z-index: 3;
 }
@@ -263,6 +265,35 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .split-h { cursor: row-resize; }
 .split-v:hover, .split-h:hover, .split-v.dragging, .split-h.dragging {
   background: #5aa7ff;
+}
+.split-toggle {
+  position: absolute;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.split-v .split-toggle { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.split-h .split-toggle { left: 50%; top: 50%; width: 32px; height: 18px; transform: translate(-50%, -50%); }
+.split-toggle:hover, .split-toggle:focus-visible {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+.panel-left-hidden .hierarchy, .panel-right-hidden .inspector, .panel-bottom-hidden .project-bar {
+  visibility: hidden;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .tree, .inspector-body, .project-dir-tree, .project-files { flex: 1; overflow: auto; }
@@ -284,7 +315,7 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
   height: 14px;
   margin: 0 2px 0 0;
   flex: 0 0 14px;
-  accent-color: var(--yellow);
+  accent-color: var(--primary);
 }
 .tree-toggle { width: 14px; flex: 0 0 14px; padding: 0; border: 0; background: transparent; color: var(--muted); }
 .tree-type { color: var(--muted); }
@@ -557,7 +588,7 @@ body.picking-image #bottomListTitle { color: var(--accent); }
   height: 56px;
   border-radius: 6px;
   background: #3a4252;
-  color: var(--yellow);
+  color: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
