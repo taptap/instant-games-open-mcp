@@ -5,7 +5,7 @@ import {
   imageAtlasInstructions,
 } from '../features/imageAtlas.js';
 import { createCanvasZip } from './zipArchive.js';
-import { uiBindingContentRect } from '../features/uiAssetBindings.js';
+import { uiBindingContentRect, validateUiNativeRegions } from '../features/uiAssetBindings.js';
 import { createBackgroundRemoval } from './backgroundRemoval.js';
 import {
   alignAtlasCells,
@@ -167,12 +167,9 @@ export async function prepareImageAtlas(
     }
     if (nativePlan?.nativeLayout) {
       const layout = nativePlan.nativeLayout;
-      if (
-        layout.width !== bitmap.width ||
-        layout.height !== bitmap.height ||
-        JSON.stringify(regions) !== JSON.stringify(layout.regions)
-      )
-        throw new Error('原尺寸状态处理必须使用生成时的图集尺寸与裁切坐标。');
+      if (layout.width !== bitmap.width || layout.height !== bitmap.height)
+        throw new Error('原尺寸状态处理必须使用生成时的图集尺寸。');
+      regions = validateUiNativeRegions(nativePlan, regions);
       nativePlan.slots.forEach((slot, index) => {
         if (slot.state !== 'pressed') return;
         const normalIndex = nativePlan.slots.findIndex(

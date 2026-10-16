@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveMakerMcpLauncher } from '../cli/mcpLauncher.js';
@@ -9,7 +9,7 @@ import { compareMakerVersionStrings } from '../versionCheck.js';
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 type Catalog = { versions: string[]; latest?: string; beta?: string };
 type Job = {
-  status: 'idle' | 'running' | 'succeeded' | 'failed';
+  status: 'idle' | 'running' | 'succeeded' | 'failed' | 'unknown';
   version?: string;
   message?: string;
 };
@@ -20,47 +20,242 @@ export async function fetchConsoleVersions(): Promise<Catalog> {
   });
   if (!response.ok) throw new Error('暂时无法获取版本，请稍后重试');
   const data = await response.json();
-  const versions = Object.keys(data.versions || {})
+  const published = Object.keys(data.versions || {})
     .filter((v) => VERSION.test(v))
-    .sort((a, b) => Date.parse(data.time?.[b] || '') - Date.parse(data.time?.[a] || ''))
-    .slice(0, 5);
-  if (!versions.length) throw new Error('未找到可用版本');
-  return { versions, latest: data['dist-tags']?.latest, beta: data['dist-tags']?.beta };
+    .sort((a, b) => compareMakerVersionStrings(b, a));
+  if (!published.length) throw new Error('未找到可用版本');
+  const tag = (name: string): string | undefined => {
+    const value = data['dist-tags']?.[name];
+    return typeof value === 'string' && published.includes(value) ? value : undefined;
+  };
+  const latest = tag('latest');
+  const beta = tag('beta');
+  const versions = [...new Set([latest, beta, ...published].filter((v): v is string => Boolean(v)))]
+    .slice(0, 5)
+    .sort((a, b) => compareMakerVersionStrings(b, a));
+  return {
+    versions,
+    latest,
+    beta,
+  };
 }
 
 export function runConsoleUpgrade(version: string): Promise<void> {
   if (!VERSION.test(version)) throw new Error('无效版本号');
-  const launcher = resolveMakerMcpLauncher({ packageName: `@taptap/maker@${version}` });
+  let launcher: ReturnType<typeof resolveMakerMcpLauncher>;
+  try {
+    launcher = resolveConsoleUpgradeLauncher(`@taptap/maker@${version}`);
+  } catch {
+    throw new Error('未找到可用的 Node/npm/npx 启动器。请先安装带 npm 的 Node.js，再重试升级。');
+  }
   const home = getMakerHome();
   const cache = path.join(home, 'cache', 'npm');
-  fs.mkdirSync(cache, { recursive: true });
+  try {
+    fs.mkdirSync(cache, { recursive: true });
+  } catch {
+    throw new Error('Maker 专用 npm 缓存不可写，请检查目录权限后再重试升级。');
+  }
   return new Promise((resolve, reject) => {
-    // Run the selected package's existing self-install/verification workflow.
-    execFile(
+    // Do not rely on the PATH inherited by a GUI process. Keep npm's cache
+    // private to Maker and capture both streams so progress output cannot make
+    // a successful JSON result look like a failed update.
+    const child = spawn(
       launcher.command,
       [...launcher.args, 'upgrade', '--launcher', 'self', '--json'],
       {
         cwd: home,
-        env: { ...process.env, npm_config_cache: cache },
+        shell: false,
         windowsHide: true,
-        maxBuffer: 1024 * 1024,
-        timeout: 10 * 60_000,
-      },
-      (error, stdout) => {
-        if (error)
-          return reject(
-            new Error('更新未完成，请检查网络及 Node/npm 环境后重试；部分客户端配置可能已更新。')
-          );
-        try {
-          const result = JSON.parse(stdout);
-          if (result.ok !== true) throw new Error();
-          resolve();
-        } catch {
-          reject(new Error('无法确认更新结果，请检查客户端 MCP 配置后再重试。'));
-        }
+        detached: process.platform !== 'win32',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          npm_config_cache: cache,
+          PATH: [path.dirname(process.execPath), process.env.PATH]
+            .filter(Boolean)
+            .join(path.delimiter),
+        },
       }
     );
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      const finishTimeout = () => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        child.unref();
+        reject(
+          new ConsoleUpgradeUnknownError(
+            '更新超过 10 分钟，已停止本地等待，更新结果未确认。请先检查客户端配置及升级进程，再重新打开控制台。'
+          )
+        );
+      };
+      void stopConsoleUpgrade(child).then(finishTimeout, finishTimeout);
+    }, 10 * 60_000);
+    child.stdout?.setEncoding('utf8');
+    child.stderr?.setEncoding('utf8');
+    child.stdout?.on('data', (value: string) => {
+      stdout = appendOutput(stdout, value);
+    });
+    child.stderr?.on('data', (value: string) => {
+      stderr = appendOutput(stderr, value);
+    });
+    child.once('error', (error) => {
+      if (timedOut) return;
+      clearTimeout(timer);
+      reject(
+        new Error(
+          error.message.includes('ENOENT')
+            ? '未找到 Node/npm/npx。请先安装带 npm 的 Node.js，再重试升级。'
+            : '更新未完成，请检查网络及 Node/npm 环境后重试；部分客户端配置可能已更新。'
+        )
+      );
+    });
+    child.once('close', (code) => {
+      clearTimeout(timer);
+      if (timedOut) {
+        return;
+      }
+      if (code !== 0) {
+        reject(
+          new Error(
+            stderr.trim()
+              ? `更新未完成：${stderr.trim().split(/\r?\n/).slice(-1)[0]}`
+              : '更新未完成，请检查网络及 Node/npm 环境后重试；部分客户端配置可能已更新。'
+          )
+        );
+        return;
+      }
+      const result = parseLastJson(stdout);
+      if (!result || result.ok !== true) {
+        reject(new Error('无法确认更新结果，请检查客户端 MCP 配置后再重试。'));
+        return;
+      }
+      if (!hasInstalledRuntime(home, version)) {
+        reject(new Error('更新命令已返回成功，但目标 Maker runtime 未落盘，请检查缓存后再重试。'));
+        return;
+      }
+      resolve();
+    });
   });
+}
+
+class ConsoleUpgradeUnknownError extends Error {}
+
+function stopConsoleUpgrade(child: ChildProcess): Promise<void> {
+  const alive = () => child.exitCode === null && child.signalCode === null;
+  // Never use the PID after the launcher has exited: it may have been reused.
+  if (!child.pid || !alive()) return Promise.resolve();
+  if (process.platform !== 'win32') {
+    try {
+      process.kill(-child.pid, 'SIGKILL');
+    } catch {
+      if (alive()) child.kill('SIGKILL');
+    }
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+      shell: false,
+      windowsHide: true,
+      stdio: 'ignore',
+    });
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(deadline);
+      if (alive()) child.kill('SIGKILL');
+      resolve();
+    };
+    const deadline = setTimeout(() => {
+      killer.kill('SIGKILL');
+      killer.unref();
+      finish();
+    }, 5000);
+    killer.once('error', finish);
+    killer.once('close', finish);
+  });
+}
+
+function resolveConsoleUpgradeLauncher(packageName: string) {
+  const launcher = resolveMakerMcpLauncher({ packageName });
+  if (process.platform === 'win32') return launcher;
+  const args = ['-y', '--package', packageName, 'taptap-maker'];
+
+  const node = process.execPath;
+  const npmCliCandidates = [
+    path.join(path.dirname(node), 'node_modules', 'npm', 'bin', 'npx-cli.js'),
+    path.join(path.dirname(node), '..', 'lib', 'node_modules', 'npm', 'bin', 'npx-cli.js'),
+  ];
+  const npmCli = npmCliCandidates.find((candidate) => {
+    try {
+      return fs.statSync(candidate).isFile();
+    } catch {
+      return false;
+    }
+  });
+  if (npmCli) {
+    return {
+      ...launcher,
+      command: node,
+      args: [npmCli, ...args],
+      commandAndArgs: [node, npmCli, ...args],
+    };
+  }
+
+  const candidates = [
+    path.join(path.dirname(node), 'npx'),
+    ...(process.env.PATH || '')
+      .split(path.delimiter)
+      .filter(Boolean)
+      .map((directory) => path.join(directory, 'npx')),
+  ];
+  const npx = candidates.find((candidate) => {
+    try {
+      return fs.statSync(candidate).isFile();
+    } catch {
+      return false;
+    }
+  });
+  if (!npx) throw new Error('未找到 npx。请先安装带 npm 的 Node.js，再重试升级。');
+  return { ...launcher, args, command: npx, commandAndArgs: [npx, ...args] };
+}
+
+function parseLastJson(output: string): Record<string, unknown> | undefined {
+  for (const line of output.trim().split(/\r?\n/).filter(Boolean).reverse()) {
+    try {
+      const value = JSON.parse(line);
+      if (value && typeof value === 'object') return value as Record<string, unknown>;
+    } catch {
+      // npm and the CLI may print progress before the final JSON result.
+    }
+  }
+  return undefined;
+}
+
+function appendOutput(previous: string, chunk: string): string {
+  const output = previous + chunk;
+  return output.length > 2 * 1024 * 1024 ? output.slice(-2 * 1024 * 1024) : output;
+}
+
+function hasInstalledRuntime(home: string, version: string): boolean {
+  const runtimeRoot = path.join(home, 'mcp-runtime', version);
+  try {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(runtimeRoot, 'package.json'), 'utf8')
+    ) as {
+      version?: unknown;
+    };
+    return (
+      packageJson.version === version &&
+      fs.statSync(path.join(runtimeRoot, 'dist', 'maker.js')).isFile()
+    );
+  } catch {
+    return false;
+  }
 }
 
 export class ConsoleUpdates {
@@ -105,13 +300,18 @@ export class ConsoleUpdates {
   }
   async start(version: unknown): Promise<Job> {
     if (this.managed) throw new ConsoleError('此版本由插件管理，请通过插件市场更新。', 409);
-    if (this.job.status === 'running') throw new ConsoleError('正在更新，请勿重复操作。', 409);
+    if (this.job.status === 'unknown')
+      throw new ConsoleError(
+        '上次更新结果未确认，请先检查客户端配置及升级进程，再重新打开控制台。',
+        409
+      );
+    if (isUpdateRunning(this.job)) throw new ConsoleError('正在更新，请勿重复操作。', 409);
     if (typeof version !== 'string' || !VERSION.test(version) || version === this.current)
       throw new ConsoleError('请选择有效的其他版本。');
     const catalog = await this.list();
     if (!catalog.versions.includes(version))
       throw new ConsoleError('版本列表已变化，请刷新后重新选择。');
-    if (this.job.status === 'running') throw new ConsoleError('正在更新，请勿重复操作。', 409);
+    if (isUpdateRunning(this.job)) throw new ConsoleError('正在更新，请勿重复操作。', 409);
     this.job = { status: 'running', version };
     void Promise.resolve()
       .then(() => this.upgrade(version))
@@ -123,8 +323,16 @@ export class ConsoleUpdates {
         };
       })
       .catch((error: Error) => {
-        this.job = { status: 'failed', version, message: error.message };
+        this.job = {
+          status: error instanceof ConsoleUpgradeUnknownError ? 'unknown' : 'failed',
+          version,
+          message: error.message,
+        };
       });
     return this.job;
   }
+}
+
+function isUpdateRunning(job: Job): boolean {
+  return job.status === 'running';
 }

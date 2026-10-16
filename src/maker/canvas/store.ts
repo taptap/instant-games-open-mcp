@@ -34,13 +34,20 @@ export function createBrowserCanvasDocumentStore(
   fetcher: typeof fetch = fetch
 ): CanvasDocumentStore {
   type RecognitionResponse = RecognitionAttempt & {
-    server?: { cut: { image: { width: number; height: number } } };
+    server?: {
+      cut: { image: { width: number; height: number }; error?: { retryable?: boolean } };
+      text?: { error?: { retryable?: boolean } };
+    };
   };
   function recognitionResult(response: RecognitionResponse): RecognitionAttempt {
     const { server, ...attempt } = response;
     return {
       ...attempt,
-      ...(server
+      ...(server &&
+      !(
+        attempt.status === 'failed' &&
+        [server.cut, server.text].some((step) => step?.error?.retryable === false)
+      )
         ? { recovery: { width: server.cut.image.width, height: server.cut.image.height } }
         : {}),
     };
@@ -90,9 +97,9 @@ export function createBrowserCanvasDocumentStore(
         signal: AbortSignal.timeout(375000),
       }).then(recognitionResult),
     recognitionStatus: (canvasId, id) =>
-      request<RecognitionResponse>('/canvases/' + canvasId + '/recognition/' + id).then(
-        recognitionResult
-      ),
+      request<RecognitionResponse>('/canvases/' + canvasId + '/recognition/' + id, {
+        signal: AbortSignal.timeout(375000),
+      }).then(recognitionResult),
     listModels: (canvasId) => request<CanvasModelAttempt[]>('/canvases/' + canvasId + '/models'),
     modelPreviewUrl: (canvasId, nodeId) =>
       '/canvas-model-preview?project=' +

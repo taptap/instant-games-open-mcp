@@ -39,7 +39,7 @@ const result = (): UiRecognitionResult => ({
   elements: ['B32', 'B34', 'B36'].map(element),
 });
 
-test.each(['continue', 'query', 'decline', 'custom'])(
+test.each(['continue', 'query', 'decline', 'custom', 'cli-run', 'cli-continue'])(
   'pending recognition recovery preserves the original request and respects %s',
   async (action) => {
     const document = emptyDocument();
@@ -81,8 +81,10 @@ test.each(['continue', 'query', 'decline', 'custom'])(
       const run =
         action === 'query'
           ? controller.query(source.id)
-          : controller.runImage(source.id, async () => true, true);
-      if (action === 'continue') {
+          : action === 'cli-continue'
+            ? controller.runRecognition(source, true, true)
+            : controller.runImage(source.id, async () => true, action === 'cli-run');
+      if (action === 'continue' || action === 'cli-continue') {
         await run;
         expect(submit).toHaveBeenCalledWith(
           document.id,
@@ -100,6 +102,9 @@ test.each(['continue', 'query', 'decline', 'custom'])(
         expect(submit).not.toHaveBeenCalled();
         expect(source.uiRecognition!.pendingId).toBe(recognized.id);
       }
+      expect((globalThis as any).window.confirm).toHaveBeenCalledTimes(
+        action === 'continue' || action === 'decline' ? 1 : 0
+      );
     } finally {
       (globalThis as any).window = previousWindow;
     }

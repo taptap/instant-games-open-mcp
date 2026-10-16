@@ -1,6 +1,6 @@
 export const consoleThemeStyles = String.raw`
-:root{color-scheme:dark;--bg:#1b1e1f;--top:#232728;--border:#363b3c;--text:#ecefee;--muted:#9ca6a4;--yellow:#f5dc56;--on-yellow:#252820;--accent:#f5dc56;--green:#78d4ad;--red:#f08b85;--soft:#303b36;--code:#16191a;--selection:rgba(245,220,86,.18);--selection-soft:rgba(245,220,86,.08)}
-:root[data-theme="light"]{color-scheme:light;--bg:#fff;--top:#f3f5f4;--border:#dce2de;--text:#252e29;--muted:#64716a;--accent:#76600b;--green:#176c50;--red:#b3352c;--soft:#edf4ef;--code:#f5f7f6;--selection:rgba(163,127,18,.18);--selection-soft:rgba(163,127,18,.08)}
+:root{color-scheme:dark;--bg:#121516;--top:#181b1d;--border:#2d3335;--text:#e9eeec;--muted:#8f9a97;--primary:#00ad9d;--on-primary:#f2fffc;--accent:#2ab8ab;--warning:#f5dc56;--green:#78d4ad;--red:#f08b85;--soft:#23282a;--code:#0e1112;--selection:rgba(0,173,157,.14);--selection-soft:rgba(0,173,157,.06)}
+:root[data-theme="light"]{color-scheme:light;--bg:#fff;--top:#f3f5f4;--border:#dce2de;--text:#252e29;--muted:#64716a;--primary:#00dbc5;--on-primary:#06322e;--accent:#00a99d;--warning:#a87900;--green:#176c50;--red:#b3352c;--soft:#edf4ef;--code:#f5f7f6;--selection:rgba(0,169,157,.18);--selection-soft:rgba(0,169,157,.08)}
 `;
 
 export const consoleThemeScript = String.raw`

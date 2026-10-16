@@ -22,11 +22,11 @@ export const SEQUENCE_EDITOR_STYLES = String.raw`
 .prompt-editor { display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; max-height: 320px; overflow-y: auto; padding: 12px; border: 1px solid #3a3f4a; border-radius: 6px; background: #11141a; }
 .prompt-editor > textarea[hidden] { display: none; }
 .prompt-section { display: block; }
-.prompt-heading { display: block; margin-bottom: 4px; color: #edc78c; font-size: 13px; font-weight: 700; }
+.prompt-heading { display: block; margin-bottom: 4px; color: var(--canvas-accent); font-size: 13px; font-weight: 700; }
 .prompt-section-input { display: block; box-sizing: border-box; width: 100%; min-height: 42px; padding: 0; border: 0; border-radius: 2px; background: transparent; color: #e8e3d8; font: inherit; font-size: 13px; line-height: 1.65; resize: none; overflow: hidden; }
 .prompt-section-input:focus-visible { outline: 1px solid #6d5b3b; outline-offset: 2px; }
 .sequence-editor-field select { padding: 9px; border: 1px solid #41494e; border-radius: 6px; background: #13191e; color: #eef3eb; }
-.sequence-editor { --seq-bg: #171b20; --seq-line: #343a40; --seq-muted: #a6afaf; --seq-accent: #edc78c; padding: 0; width: min(1240px,94vw); height: min(900px,92dvh); max-width: 96vw; max-height: 96dvh; border: 1px solid #49504f; border-radius: 18px; color: #f1f2ed; background: var(--seq-bg); box-shadow: 0 28px 100px #0009; overflow: hidden; font-family: 'Avenir Next','PingFang SC','Microsoft YaHei',sans-serif; }
+.sequence-editor { --seq-bg: #171b20; --seq-line: #343a40; --seq-muted: #a6afaf; --seq-accent: var(--canvas-accent); padding: 0; width: min(1240px,94vw); height: min(900px,92dvh); max-width: 96vw; max-height: 96dvh; border: 1px solid #49504f; border-radius: 18px; color: #f1f2ed; background: var(--seq-bg); box-shadow: 0 28px 100px #0009; overflow: hidden; font-family: 'Avenir Next','PingFang SC','Microsoft YaHei',sans-serif; }
 .sequence-editor::backdrop { background: #070b11ba; backdrop-filter: blur(6px); }
 .sequence-editor-shell { height: 100%; display: flex; flex-direction: column; }
 .sequence-editor button { font: inherit; cursor: pointer; padding: 9px 15px; border-radius: 8px; background: #252c32; border: 1px solid #414a50; color: inherit; }
@@ -82,7 +82,7 @@ export const SEQUENCE_EDITOR_STYLES = String.raw`
 .sequence-editor-tile { min-width: 0; }
 .sequence-editor-tile canvas { width: 100%; height: 130px; }
 .sequence-editor-tile.active button { box-shadow: 0 0 0 1px var(--seq-accent); }
-.sequence-editor-tile.chosen { border-radius: 8px; outline: 2px solid var(--seq-accent); background: #594b33; }
+.sequence-editor-tile.chosen { border-radius: 8px; outline: 2px solid var(--seq-accent); background: var(--canvas-accent-soft); }
 .sequence-grid-tools { max-height: 180px; overflow-y: auto; flex-shrink: 0; }
 .sequence-preview-controls select { background: #252c32; color: inherit; border: 1px solid #414a50; padding: 5px; border-radius: 6px; }
 .sequence-preview-controls input[type=range] { width: 90px; }

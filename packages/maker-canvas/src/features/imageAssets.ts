@@ -3,7 +3,7 @@ import { imageAtlasRegions } from './imageAtlas.js';
 import { validateAtlasCrops } from './atlasContent.js';
 import { snapshotCanvasSource } from '../core/dependencies.js';
 import { mergeIconNeedsGeneration } from './mergeIcons.js';
-import { validateUiAtlasPlanStructure } from './uiAssetBindings.js';
+import { validateUiAtlasPlanStructure, validateUiNativeRegions } from './uiAssetBindings.js';
 
 export function validateImageAssetsInfoStructure(value: unknown): ImageAssetsInfo {
   const info = value as ImageAssetsInfo;
@@ -112,10 +112,10 @@ export function imageAssetsBindingPlanStructure(
   const plan = validateUiAtlasPlanStructure(source.generation.uiAtlasPlan);
   if (plan.nativeLayout) {
     const layout = plan.nativeLayout;
+    validateUiNativeRegions(plan, info.regions);
     if (
       info.width !== layout.width ||
       info.height !== layout.height ||
-      JSON.stringify(info.regions) !== JSON.stringify(layout.regions) ||
       info.items.length !== layout.regions.length ||
       info.items.some(
         (item, index) =>

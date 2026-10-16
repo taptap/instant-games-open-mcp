@@ -174,28 +174,55 @@ try {
   async function checkEditorControls() {
     const consoleColors = await page.evaluate(() => {
       const css = getComputedStyle(document.documentElement);
-      return { yellow:css.getPropertyValue('--yellow').trim(), panel:css.getPropertyValue('--top').trim() };
+      // Resolve theme tokens in the browser without duplicating palette values.
+      const probe = document.createElement('span');
+      probe.style.cssText = 'position:fixed;visibility:hidden;background:var(--primary);color:var(--on-primary)';
+      document.body.append(probe);
+      const resolved = getComputedStyle(probe);
+      const colors = {
+        primaryToken:css.getPropertyValue('--primary').trim(),
+        panel:css.getPropertyValue('--top').trim(),
+        primaryColor:resolved.backgroundColor,
+        primaryText:resolved.color,
+      };
+      probe.remove();
+      return colors;
     });
     const controls = await frame.evaluate(() => {
       const css = getComputedStyle(document.documentElement);
       return {
-        yellow:css.getPropertyValue('--yellow').trim(), panel:css.getPropertyValue('--panel').trim(),
-        primary:getComputedStyle(document.getElementById('saveBtn')).backgroundColor,
+        primaryToken:css.getPropertyValue('--primary').trim(), panel:css.getPropertyValue('--panel').trim(),
+        primaryColor:getComputedStyle(document.getElementById('saveBtn')).backgroundColor,
         primaryText:getComputedStyle(document.getElementById('saveBtn')).color,
         neutral:getComputedStyle(document.getElementById('changesBtn')).backgroundColor,
         checkbox:getComputedStyle(document.querySelector('.tree-vis')).accentColor,
         radio:getComputedStyle(document.querySelector('.orientation-control input')).accentColor,
       };
     });
-    assert.equal(controls.yellow, consoleColors.yellow);
+    assert.ok(consoleColors.primaryToken);
+    assert.notEqual(consoleColors.primaryColor, 'rgba(0, 0, 0, 0)');
+    assert.notEqual(consoleColors.primaryColor, consoleColors.primaryText);
+    assert.equal(controls.primaryToken, consoleColors.primaryToken);
     assert.equal(controls.panel, consoleColors.panel);
-    assert.equal(controls.primary, 'rgb(245, 220, 86)');
-    assert.equal(controls.primaryText, 'rgb(37, 40, 32)');
-    assert.equal(controls.checkbox, controls.primary);
-    assert.equal(controls.radio, controls.primary);
-    assert.notEqual(controls.neutral, controls.primary);
+    assert.equal(controls.primaryColor, consoleColors.primaryColor);
+    assert.equal(controls.primaryText, consoleColors.primaryText);
+    assert.equal(controls.checkbox, controls.primaryColor);
+    assert.equal(controls.radio, controls.primaryColor);
+    assert.notEqual(controls.neutral, controls.primaryColor);
   }
   await checkEditorControls();
+  async function checkPanelToggle(kind, variable) {
+    const toggle = editor.locator('[data-toggle="' + kind + '"]');
+    await toggle.click();
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+    assert.equal(await frame.evaluate((name) => getComputedStyle(document.documentElement).getPropertyValue(name), variable), '0px');
+    await toggle.click();
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
+    assert.notEqual(await frame.evaluate((name) => getComputedStyle(document.documentElement).getPropertyValue(name), variable), '0px');
+  }
+  await checkPanelToggle('left', '--left-w');
+  await checkPanelToggle('right', '--right-w');
+  await checkPanelToggle('bottom', '--bottom-h');
   const headerHeight = (await page.locator('.top').boundingBox()).height;
   for (const tab of ['overview', 'build', 'git', 'documents', 'canvas', 'ui-editor']) {
     await page.locator('nav [data-page="' + tab + '"]').click();

@@ -1,5 +1,5 @@
 export const CANVAS_THEME_STYLES = `
-:root { color-scheme: dark; }
+:root { color-scheme: dark; --canvas-bg:#101214; --canvas-panel:#171a1d; --canvas-soft:#222629; --canvas-line:#303639; --canvas-text:#e8edeb; --canvas-muted:#95a09d; --canvas-accent:#00ad9d; --canvas-accent-hover:#12b9aa; --canvas-accent-active:#008d81; --canvas-accent-foreground:#f2fffc; --canvas-accent-soft:#17302f; }
 :root[data-theme="light"] {
   color-scheme: light;
   --canvas-bg: #f5f7f6;
@@ -8,7 +8,11 @@ export const CANVAS_THEME_STYLES = `
   --canvas-line: #cdd6d0;
   --canvas-text: #252e29;
   --canvas-muted: #64716a;
-  --canvas-accent: #806510;
+  --canvas-accent: #00a99d;
+  --canvas-accent-hover: #00c0b7;
+  --canvas-accent-active: #008f86;
+  --canvas-accent-foreground: #06322e;
+  --canvas-accent-soft: #dffbf8;
 }
 :root[data-theme="light"] body { background:var(--canvas-bg); color:var(--canvas-text); }
 :root[data-theme="light"] #board { background-color:var(--canvas-bg); background-image:radial-gradient(#cdd6d0 1px,transparent 1px); }
@@ -23,18 +27,18 @@ export const CANVAS_THEME_STYLES = `
 }
 :root[data-theme="light"] :is(button:hover:not(:disabled),.workspace-menu summary:hover,.workspace-menu-panel button:hover,.workflow-template-row:hover) { background-color:var(--canvas-soft); }
 :root[data-theme="light"] :is(.workspace-tab[data-active="true"],.workspace-add summary,.generation-action-primary,.selection-actions button.active,.template-categories button[aria-pressed=true]) {
-  background:#fcf1bd; color:#58480e; border-color:#c7ab48;
+  background:var(--canvas-accent-soft); color:#007d74; border-color:#7ee7df;
 }
 :root[data-theme="light"] :is(.card .canvas-card-title,.card.section strong,.prompt-heading,.generation-result-label,.workspace-library-list [aria-current="true"]) { color:var(--canvas-accent); }
 :root[data-theme="light"] :is(.card p,.canvas-card-meta,.canvas-card-menu,.selection-label,.generation-field,.generation-reference small,.generation-status,.generation-result-details,.sequence-source-label,.sequence-info,.sequence-status,.sequence-field,.sequence-result-empty,.sequence-result-grid figure,.sequence-frame-tile,.animation-caption,.workflow-template-dialog p,.workflow-template-dialog small,.template-library h3,.template-library-total,.template-preview-content,.template-preview-toolbar span,.canvas-log-preview,.canvas-log-list,.workspace-tab button:last-child:not([role="tab"])) { color:var(--canvas-muted); }
-:root[data-theme="light"] .card.section { background:rgba(215,191,111,.12); border-color:#ad8e35; }
-:root[data-theme="light"] .card.canvas-card.selected { outline-color:#a7831b; border-color:#a7831b; }
+:root[data-theme="light"] .card.section { background:rgba(0,192,183,.10); border-color:#66cfc5; }
+:root[data-theme="light"] .card.canvas-card.selected { outline-color:var(--canvas-accent); border-color:var(--canvas-accent); }
 :root[data-theme="light"] .template-preview-viewport { background:#f5f7f6 radial-gradient(#cdd6d0 1px,transparent 1px); background-size:22px 22px; border-color:var(--canvas-line); }
-:root[data-theme="light"] .wire { stroke:#947722; }
-:root[data-theme="light"] .wire-focused { stroke:#71570b; }
+:root[data-theme="light"] .wire { stroke:var(--canvas-accent); }
+:root[data-theme="light"] .wire-focused { stroke:var(--canvas-accent-active); }
 :root[data-theme="light"] .sequence-editor { --seq-bg:var(--canvas-panel); --seq-line:var(--canvas-line); --seq-muted:var(--canvas-muted); --seq-accent:var(--canvas-accent); }
 :root[data-theme="light"] :is(.sequence-editor-panel,.sequence-editor-tabs,.sequence-editor-steps,.sequence-editor-footer,.sequence-editor-tile,.sequence-step,.prompt-editor) { background:var(--canvas-soft); color:var(--canvas-text); }
-:root[data-theme="light"] :is(.sequence-step.active,.sequence-editor-tabs button[aria-selected=true]) { background:#fcf1bd; color:#58480e; }
+:root[data-theme="light"] :is(.sequence-step.active,.sequence-editor-tabs button[aria-selected=true]) { background:var(--canvas-accent-soft); color:#007d74; }
 :root[data-theme="light"] :is(.sequence-step.complete,.generation-status-succeeded,.workspace-toolbar #status[data-state="saved"]) { color:#176c50; }
 :root[data-theme="light"] :is(.generation-error,.generation-status-failed,.generation-status-unknown,.sequence-error,.workspace-toolbar #status[data-state="error"]) { color:#b3352c; }
 :root[data-theme="light"] :is(#error,.generation-status-running,.template-card-metadata a) { color:var(--canvas-accent); }

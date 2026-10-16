@@ -2,6 +2,7 @@ import { consoleScript } from './webScript.js';
 import { consoleStyles } from './webStyles.js';
 import { consoleIconLicense } from './webIcons.js';
 import { MAKER_QR_CATEGORIES } from '../qrcodePreflight.js';
+import { MAKER_BRAND_ICON } from './brandIcon.js';
 
 const categoryLabels: Record<(typeof MAKER_QR_CATEGORIES)[number], string> = {
   rpg: '角色扮演',
@@ -30,7 +31,7 @@ export function getConsoleHtml(): string {
 <title>Maker 本地控制台</title><style>${consoleStyles}</style></head>
 <body class="compact-chrome">
 <header class="top">
-  <div class="brand"><button class="mark" id="maker-mark" type="button" aria-label="Maker 控制台品牌标记">M</button>Maker 控制台
+  <div class="brand"><button class="mark" id="maker-mark" type="button" aria-label="Maker 控制台品牌标记"><img src="${MAKER_BRAND_ICON}" alt="" aria-hidden="true"></button>Maker 控制台
     <select id="maker-version-picker" aria-label="Maker MCP 版本" disabled><option>版本加载中</option></select>
   </div>
   <div class="toolbar">

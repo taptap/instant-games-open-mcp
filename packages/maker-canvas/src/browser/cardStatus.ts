@@ -45,7 +45,7 @@ export function renderCanvasCardStatus(
     waiting: ['待处理', '来源已变化或此步骤尚未执行，旧结果暂时保留'],
     paused: ['等待继续', '选择卡片，继续处理或调整参数'],
     failed: ['处理失败', '本次未完成，可查看原因后重试'],
-    unknown: ['结果待确认', '可查询原任务；主动重新生成可能重复扣费'],
+    unknown: ['结果待确认', '请先查询原任务，确认结果后再决定是否重新生成'],
   };
   const overlay = document.createElement('div');
   overlay.className = 'card-state-overlay card-state-' + state;

@@ -349,7 +349,7 @@ try {
   assert.equal(await panel.isVisible(), false);
   assert.deepEqual(errors, []);
   await twoFrameCard.getByRole('button', { name: '调整参数' }).click();
-  await panel.getByRole('button', { name: '重新生成（消耗积分）', exact: true }).click();
+  await panel.getByRole('button', { name: '重新生成', exact: true }).click();
   await twoFrameCard.locator('.card-state-loading').waitFor();
   while (!releaseRetry) await page.waitForTimeout(20);
   assert.equal(retries, 1);

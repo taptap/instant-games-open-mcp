@@ -101,11 +101,11 @@ try {
   const queue = page.getByRole('group', { name: group.title + '执行队列', exact: true });
   async function startQueue(label) {
     await queue.getByRole('button', { name: label, exact: true }).click();
-    assert.ok(await queue.getByText(/Seedance 2.5 按较高费用计费/).isVisible());
+    assert.ok(await queue.getByText(/切图失败保留原图/).isVisible());
     await queue.getByRole('button', { name: '确认执行', exact: true }).click();
   }
   await queue.getByRole('button', { name: '▶ 完成剩余流程', exact: true }).click();
-  assert.ok(await queue.getByText(/Seedance 2.5 按较高费用计费/).isVisible());
+  assert.ok(await queue.getByText(/切图失败保留原图/).isVisible());
   await queue.getByRole('button', { name: '取消', exact: true }).click();
   assert.equal(calls.length, 0);
   await startQueue('▶ 完成剩余流程');

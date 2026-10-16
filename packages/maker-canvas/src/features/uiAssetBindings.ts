@@ -304,6 +304,30 @@ export function uiNativeAtlasPrompt(): string {
   ].join('\n');
 }
 
+export function validateUiNativeRegions(plan: UiAtlasPlan, input: unknown): ImageAtlasCrop[] {
+  const layout = plan.nativeLayout;
+  if (!layout) throw new Error('缺少原尺寸图集记录。');
+  const regions = validateAtlasCrops(layout.width, layout.height, input);
+  if (
+    regions.length !== layout.regions.length ||
+    regions.some((region, index) => {
+      const original = layout.regions[index];
+      return (
+        region.name !== original.name ||
+        region.width !== original.width ||
+        region.height !== original.height ||
+        region.blank ||
+        (region.outputWidth !== undefined && region.outputWidth !== original.width) ||
+        (region.outputHeight !== undefined && region.outputHeight !== original.height) ||
+        (region.offsetX !== undefined && region.offsetX !== 0) ||
+        (region.offsetY !== undefined && region.offsetY !== 0)
+      );
+    })
+  )
+    throw new Error('原尺寸图集只允许平移裁框，不能改变槽位顺序、数量、尺寸或输出偏移。');
+  return regions;
+}
+
 export function uiBatchAtlasPrompt(group: UiAtlasGroup, prelayout = false): string {
   const lines =
     group === 'background'

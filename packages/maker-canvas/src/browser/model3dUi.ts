@@ -498,11 +498,7 @@ export function createCanvasModelUiWithHost(options: {
           footer,
           '生成多视图',
           () => {
-            if (
-              !window.confirm(
-                '确认以当前角色图生成多视图？将消耗积分；生成后仍需检查预览，不会自动生成模型。'
-              )
-            )
+            if (!window.confirm('确认以当前角色图生成多视图？生成后需检查预览，不会自动生成模型。'))
               return;
             return execute(node.id, 'start');
           },
@@ -533,8 +529,7 @@ export function createCanvasModelUiWithHost(options: {
         footer,
         '确认视图并生成',
         () => {
-          if (!window.confirm('已检查多视图卡中的全部图片并确认外观一致？继续生成模型将消耗积分。'))
-            return;
+          if (!window.confirm('已检查多视图卡中的全部图片并确认外观一致？确认后生成模型。')) return;
           return execute(node.id, 'confirm', value.reviewId);
         },
         Boolean(unavailable) || waiting || loading

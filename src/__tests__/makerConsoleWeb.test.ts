@@ -570,7 +570,7 @@ describe('Maker console standalone UI', () => {
     expect(script()).toContain('if (offline || disposed || session.loading) return;');
   });
 
-  it('places a pale-yellow game fortune trigger beside the footer version label', () => {
+  it('places a muted game fortune trigger beside the footer version label', () => {
     const html = getConsoleHtml();
     const styles = html.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
     const footer = html.match(/<footer>[\s\S]*?<\/footer>/)?.[0] ?? '';
@@ -579,7 +579,7 @@ describe('Maker console standalone UI', () => {
     expect(footer.indexOf('id="fortune-toggle"')).toBeLessThan(footer.indexOf('id="footer-path"'));
     expect(footer).toContain('id="fortune-corner" aria-label="开发者日签" hidden');
     expect(footer).toContain('>独立游戏开发日签<');
-    expect(styles).toContain('button#fortune-toggle{border:0;background:none;color:#b5aa78;');
+    expect(styles).toContain('button#fortune-toggle{border:0;background:none;color:var(--muted);');
     expect(html).toContain('id="fortune-panel"');
     expect(html).toContain('id="fortune-frame"');
     expect(html).toContain('loading="eager"');

@@ -386,7 +386,10 @@ export class CanvasRecognitionService {
         const validation = /^(识图|普通文字)/.test(message);
         attempt.status = validation ? 'failed' : 'unknown';
         attempt.error = validation
-          ? message
+          ? message +
+            (state.cut.status === 'succeeded' && state.text?.status === 'succeeded'
+              ? ' 两轮原始结果已保留；可查询原请求重新校验，无需重新生成图片。'
+              : '')
           : '识图连接或响应无法确认；请查询原请求，不会自动重试。';
       } finally {
         state.durationMs = (state.durationMs || 0) + Math.max(0, Date.now() - started);
@@ -425,6 +428,8 @@ export class CanvasRecognitionService {
           : previous)
       );
     }
+    if (input.recover === true)
+      throw new ConsoleError('未找到原识图请求记录，不能恢复；未提交新请求。', 404);
     const models = this.models || (await resolvedUiVisionModels(this.files.root, this.fetcher));
     const document = await this.files.load(canvasId);
     if (fs.existsSync(filename)) return this.run(canvasId, input);

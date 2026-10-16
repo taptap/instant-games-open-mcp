@@ -32,7 +32,7 @@ export function canvasAutomationCapabilities() {
     recovery: {
       save: 'save with empty input retries saving the current page without rerunning tasks. Requires the current revision; does not bypass active tasks, dialogs, or uncommitted editor drafts.',
       recognition:
-        'recognize-ui with input {id: recognition card ID} and --allow-paid generates Bbox only, preserving existing images. Requires a configured recognition API. For pending requests it queries the original request without replaying it; query is also available without --allow-paid. Local or web recognition remains an external Agent workflow.',
+        'recognize-ui with input {id: recognition card ID} and --allow-paid generates Bbox only, preserving existing images. For pending requests it queries the original request; query is also available without --allow-paid. To resume Server API work, pass recover:true with --allow-paid; this reuses the original request and skips completed passes without a browser dialog. If an older client cleared pendingId, also pass the original attemptId. Recovery never creates a new attempt when the original is missing. Local or web recognition remains an external Agent workflow.',
       status:
         'status, wait and export --output-dir exit nonzero for failed or unknown operations. Unknown does not mean failed; inspect the original card and request before any retry.',
     },
@@ -65,7 +65,7 @@ export function canvasAutomationCapabilities() {
     },
     imageAssetsWorkflow: {
       groupRun:
-        'Run a template group once with --allow-paid after user authorization. Images execute in dependency order, then resource cards use their current saved grid or confirmed content regions. Definite image generation failures allow at most two paid retries per source. Atlas slicing failures keep the existing image and assets and require local crop review; they do not trigger paid regeneration. Unknown tasks and download/save failures are never regenerated. Independent branches continue. Completion means saved assets, not visual approval or installation into the game.',
+        'Run a template group once with --allow-paid for the workflow requested by the user; do not ask again at each step. Images execute in dependency order, then resource cards use their current saved grid or confirmed content regions. Definite image generation failures allow at most two retries per source. Atlas slicing failures keep the existing image and assets and require local crop review; they do not trigger regeneration. Unknown tasks and download/save failures are never regenerated. Independent branches continue. Completion means saved assets, not visual approval or installation into the game.',
       steps:
         'preview-image-assets -> inspect the returned grid preview -> confirm-image-assets -> export images',
       confirmation:
@@ -74,17 +74,17 @@ export function canvasAutomationCapabilities() {
     templateSkills: {
       source: 'templates.presets/items[].skills and inspect.skills / section.templateSkills',
       instruction:
-        'Before executing a template, read its associated Skills using the paths in Maker status or the current project Skill directories. If unavailable, report the missing Skill; do not claim to have followed it. Skills guide the Agent, not automatic console execution, and do not bypass review or paid-operation confirmation.',
+        'Before executing a template, read its associated Skills using the paths in Maker status or the current project Skill directories. If unavailable, report the missing Skill; do not claim to have followed it. Skills guide the Agent, not automatic console execution, and preserve review requirements and the user-requested scope.',
     },
     uiWorkflow: {
       syncBboxBatches:
-        'sync-ui-batches input: {id: section ID, artText: string[] | boolean, background: boolean}. Bbox experimental template only. Pass Bbox text IDs for all required art text (one PNG per ID); [] means none, true retains the legacy main-title branch. Requires current validated recognition and revision. Creates missing batch cards and links without model calls, preserves existing work. Skill decides art text and unlisted environment background. Reinspect after saving; never replay paid jobs.',
+        'sync-ui-batches input: {id: section ID, artText: string[] | boolean, background: boolean}. Bbox experimental template only. Pass Bbox text IDs for all required art text (one PNG per ID); [] means none, true retains the legacy main-title branch. Requires current validated recognition and revision. Creates missing batch cards and links without model calls, preserves existing work. Skill decides art text and unlisted environment background. Reinspect after saving; never replay submitted jobs.',
       skill: 'maker-ui-workflow',
       prelayoutSkill: 'maker-ui-bbox-workflow',
       imageSizing:
-        'imageInfo reports actual image pixels and ratio, not card geometry. originalImage traces the unique original through existing references. Use parameters.aspectRatio=source for full-screen processing, or a supported fixed ratio for atlases. Uncommon input ratios carry warnings; unsupported source ratios stop before billing. Generation history separates referenceImages, originalImage, parameters.targetSize, resultImageInfo and submittedPrompt. Never infer actual dimensions from requested size.',
+        'imageInfo reports actual image pixels and ratio, not card geometry. originalImage traces the unique original through existing references. Use parameters.aspectRatio=source for full-screen processing, or a supported fixed ratio for atlases. Uncommon input ratios carry warnings; unsupported source ratios stop before submission. Generation history separates referenceImages, originalImage, parameters.targetSize, resultImageInfo and submittedPrompt. Never infer actual dimensions from requested size.',
       recognition:
-        'Default vision uses Server API when the target project availability check succeeds, otherwise chatgpt-web. Explicit choices take precedence. For local, read images with the client vision capability and submit uiRecognition.result via update-nodes; the browser cannot invoke the client model. Server and custom API calls require paid authorization. When vision.source=chatgpt-web, follow the current section.templateSkills with the host Agent browser, reuse its session and current model/effort, and submit validated Bbox via update-nodes. No executor installation. Login is optional: if logged out, explain that model selection is unavailable and recognition quality/Bbox accuracy may vary, then offer continue without login or login first. Honor the choice without repeated prompts. Never bypass an actual login/captcha/upload restriction. Prepare prompts with canvas recognition-input; validate both replies with canvas recognition-result. Images are uploaded to ChatGPT and subject to website quota. CLI run enables recognition for text-free cards; input.recognition=false disables it. Two-pass API recognition requires a text-free image linked from the original design: detect UI elements first, then original text. Export version=1 Bbox JSON with coordinateSpace=design-pixels, bboxFormat=xywh, design/cutSource identities, elements and texts. Submitted and unknown requests must be queried, never replayed or switched to another provider.',
+        'Default vision uses Server API when the target project availability check succeeds, otherwise chatgpt-web. Explicit choices take precedence. For local, read images with the client vision capability and submit uiRecognition.result via update-nodes; the browser cannot invoke the client model. Use the existing task authorization for Server and custom API calls; do not ask again for each pass. When vision.source=chatgpt-web, follow the current section.templateSkills with the host Agent browser, reuse its session and current model/effort, and submit validated Bbox via update-nodes. No executor installation. Login is optional: if logged out, explain that model selection is unavailable and recognition quality/Bbox accuracy may vary, then offer continue without login or login first. Honor the choice without repeated prompts. Never bypass an actual login/captcha/upload restriction. Prepare prompts with canvas recognition-input; validate both replies with canvas recognition-result. Images are uploaded to ChatGPT and subject to website quota. CLI run enables recognition for text-free cards; input.recognition=false disables it. Two-pass API recognition requires a text-free image linked from the original design: detect UI elements first, then original text. Export version=1 Bbox JSON with coordinateSpace=design-pixels, bboxFormat=xywh, design/cutSource identities, elements and texts. Submitted and unknown requests must be queried, never replayed or switched to another provider.',
       steps:
         'design/layout -> reviewed PNG assets -> import into project -> generate_resource_meta -> assemble-ui.mjs -> console UI editor comparison',
       completion:
@@ -104,6 +104,13 @@ export function canvasAutomationCapabilities() {
     paidExecutionRequiresAllowPaid: true,
     parameterSchema: canvasParameterSchema(),
     inputs: {
+      'recognize-ui': {
+        id: 'text-free recognition card ID',
+        recover:
+          'optional boolean; true explicitly resumes the original Server API request with --allow-paid',
+        attemptId:
+          'optional original recognition attempt UUID, only with recover:true; restores a lost pendingId after checking canvas, card and source identity',
+      },
       run: {
         id: 'node or group ID',
         recognition:
@@ -116,14 +123,14 @@ export function canvasAutomationCapabilities() {
       'preview-image-assets': {
         id: 'image-assets card ID; read-only preview, no final files',
         grid: 'optional object: columns/rows positive integers (at most 120 cells); marginX/marginY/gapX/gapY nonnegative integer pixels; omitted fields use saved/default grid',
-        cut: 'optional object: mode=grid/content; content detects transparent separators without AI. expectedCount=0..120 (0 unrestricted); regions optionally provides confirmed source-pixel rectangles {name:item_001...,x,y,width,height} for manual corrections. Rectangles must not overlap. Existing confirmed content regions are reused only for an unchanged source. Always inspect the actual preview before confirmation.',
+        cut: 'optional object: mode=grid/content; content detects transparent separators without AI. expectedCount=0..120 (0 unrestricted); regions optionally provides source-pixel rectangles {name:item_001...,x,y,width,height} for manual corrections. Rectangles must not overlap. Native Bbox atlases require mode=grid and the complete original slot order, names and sizes; only x/y may change. Confirmed crops are reused only for an unchanged source. Missing content reports slot/element IDs: repair the affected separation card, never substitute the unseparated prelayout. Always inspect the actual preview before confirmation.',
       },
       'confirm-image-assets': {
         id: 'image-assets card ID',
         reviewId: 'current preview token; only confirm after inspecting the returned grid image',
       },
       'preview-model': {
-        id: 'completed model card ID; opens read-only rotation preview, no paid request',
+        id: 'completed model card ID; opens read-only rotation preview, no generation request',
       },
       inspect: { id: 'optional node or group ID; includes direct upstream' },
       'confirm-model': {

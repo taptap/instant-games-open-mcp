@@ -183,14 +183,6 @@ export function createUiRecognitionUiWithHost(options: {
       throw new Error('请先完成去文字，再识别当前去文字图。');
     if (settings.results.length >= 12 && !settings.pendingId)
       throw new Error('已保存 12 次识别结果，请新建对照画布继续测试。');
-    if (
-      !settings.pendingId &&
-      !confirmed &&
-      !window.confirm(
-        '使用设置中选定的模型顺序识图两次：去文字图识别 UI，原稿识别文字。可能产生两次模型费用；不会启动后续生图。'
-      )
-    )
-      return false;
     if (!settings.enabled) {
       options.remember();
       setUiRecognitionMode(current, source, true);
@@ -216,18 +208,19 @@ export function createUiRecognitionUiWithHost(options: {
       let attempt;
       if (settings.pendingId) {
         if (!options.store.recognitionStatus) throw new Error('识图接口尚未就绪。');
-        attempt = await withCanvasTimeout(() =>
-          options.store.recognitionStatus!(current.id, settings.pendingId!)
+        attempt = await withCanvasTimeout(
+          () => options.store.recognitionStatus!(current.id, settings.pendingId!),
+          375_000
         );
         if (options.current() !== current || !current.nodes.includes(source)) return false;
         if (
           recover &&
           attempt.recovery &&
-          (attempt.status === 'running' || attempt.status === 'unknown') &&
-          window.confirm('继续原识图请求？将复用原请求编号恢复或接续文字识别，后续识别可能计费。')
+          attempt.status !== 'succeeded' &&
+          (confirmed || window.confirm('继续原识图请求？将复用原请求编号恢复或接续文字识别。'))
         ) {
           if (!options.store.recognizeUi) throw new Error('识图接口尚未就绪。');
-          attempt = await options.store.recognizeUi(current.id, {
+          const input = {
             id: settings.pendingId,
             nodeId: source.id,
             model: attempt.model,
@@ -236,7 +229,11 @@ export function createUiRecognitionUiWithHost(options: {
             height: attempt.recovery.height,
             allowPaid: true,
             recover: true,
-          });
+          };
+          attempt = await withCanvasTimeout(
+            () => options.store.recognizeUi!(current.id, input),
+            375_000
+          );
         }
       } else {
         if (!options.store.recognizeUi) throw new Error('识图接口尚未就绪。');
@@ -284,7 +281,16 @@ export function createUiRecognitionUiWithHost(options: {
       if (attempt.status === 'failed') {
         delete settings.pendingId;
         options.changed();
-        await options.save();
+        if (!(await options.save()))
+          throw new Error(
+            '识图已失败，但本地等待状态尚未保存；请先保存画布。原请求：' + attempt.id
+          );
+        throw new Error(
+          (attempt.error || '识图失败。') +
+            ' 已结束本地等待，原请求记录保留（' +
+            attempt.id +
+            '）；可修正后回填 Bbox，或重新执行识图。'
+        );
       }
       throw new Error(attempt.error || '识图仍在执行，请查询原请求；不会重复提交。');
     } catch (error) {
@@ -298,6 +304,7 @@ export function createUiRecognitionUiWithHost(options: {
         querying &&
         status === 404 &&
         recover &&
+        !confirmed &&
         window.confirm(
           '未找到原识图请求记录。是否结束本地等待？不会取消远端任务，也不会重新提交；如曾提交，请先核对服务端记录。'
         )
@@ -348,7 +355,7 @@ export function createUiRecognitionUiWithHost(options: {
         }
         return options.current() === current && !node.templatePending && Boolean(node.assetPath);
       }
-      return recognize(node, confirmed, true);
+      return recognize(node, confirmed, !confirmed);
     }
     if (node.uiRecognition?.inputRole === 'design') {
       const references = canvasReferences(current, node.id);
@@ -445,18 +452,55 @@ export function createUiRecognitionUiWithHost(options: {
       options.render();
     }
   }
-  async function runRecognition(node: CanvasNode, confirmed = false): Promise<boolean> {
+  async function runRecognition(
+    node: CanvasNode,
+    confirmed = false,
+    recover = !confirmed,
+    attemptId?: string
+  ): Promise<boolean> {
     if (busy || preparing || options.blocked() || !hasImageFeature(node, 'ui-recognition'))
       return false;
     const unavailable =
-      !node.uiRecognition?.pendingId && canvasCapabilityReason(options.store, 'recognition');
+      !node.uiRecognition?.pendingId &&
+      !attemptId &&
+      canvasCapabilityReason(options.store, 'recognition');
     if (unavailable) throw new Error(unavailable);
     preparing = true;
     try {
       const current = options.current();
       if (!current) return false;
       errors.delete(current.id + ':' + node.id);
-      if (node.uiRecognition?.pendingId) return await recognize(node, true, !confirmed);
+      if (attemptId) {
+        if (!recover || !node.uiRecognition || !options.store.recognitionStatus)
+          throw new Error('请通过恢复操作指定原识图请求。');
+        if (node.uiRecognition.pendingId && node.uiRecognition.pendingId !== attemptId)
+          throw new Error('卡片已有其它识图请求，请先查询当前请求。');
+        const attempt = await withCanvasTimeout(
+          () => options.store.recognitionStatus!(current.id, attemptId),
+          375_000
+        );
+        if (options.current() !== current || !current.nodes.includes(node)) return false;
+        if (
+          attempt.canvasId !== current.id ||
+          attempt.nodeId !== node.id ||
+          attempt.sourcePath !== node.assetPath
+        )
+          throw new Error('原识图请求与当前卡片或图片不匹配。');
+        if (!attempt.recovery && attempt.status !== 'succeeded')
+          throw new Error('此识图来源不支持恢复，请核对原请求结果。');
+        if (attempt.status === 'succeeded' && attempt.result) {
+          await checkDesign(attempt.result, node);
+          await drawUiRecognition(await sourceBlob(node.assetPath!), attempt.result, []);
+          if (options.current() !== current || !current.nodes.includes(node)) return false;
+        }
+        options.remember();
+        node.uiRecognition.pendingId = attemptId;
+        options.changed();
+        if (!(await options.save())) throw new Error('原识图请求尚未保存，请先保存画布。');
+      }
+      if (node.uiRecognition?.pendingId) return await recognize(node, confirmed, recover);
+      if (recover && confirmed)
+        throw new Error('卡片没有待恢复的识图请求；旧记录请同时指定 attemptId。');
       const models = await options.store.recognitionModels?.();
       const configured = models?.[0];
       if (

@@ -101,27 +101,15 @@ describe('recognition user action recovery', () => {
     expect(cut.uiRecognition!.pendingId).toBeUndefined();
     expect(store.recognitionStatus).not.toHaveBeenCalled();
   });
-  test('cancelling leaves the document and downstream cards untouched', async () => {
-    const { controller, cut, document, changed, save } = setup();
+  test('starts recognition without an extra confirmation dialog', async () => {
+    const { controller, cut, store, next } = setup();
     cut.uiRecognition!.enabled = false;
-    document.nodes.push({
-      ...cut,
-      id: randomUUID(),
-      sectionId: randomUUID(),
-      uiRecognition: undefined,
-    });
-    document.edges.push({
-      id: randomUUID(),
-      kind: 'image-variant',
-      from: cut.id,
-      to: document.nodes[2].id,
-    });
-    const before = JSON.stringify(document);
     globals.window.confirm.mockReturnValue(false);
-    expect(await controller.runRecognition(cut)).toBe(false);
-    expect(JSON.stringify(document)).toBe(before);
-    expect(changed).not.toHaveBeenCalled();
-    expect(save).not.toHaveBeenCalled();
+    expect(await controller.runRecognition(cut)).toBe(true);
+    expect(globals.window.confirm).not.toHaveBeenCalled();
+    expect(store.recognizeUi).toHaveBeenCalledTimes(1);
+    expect(cut.uiRecognition!.enabled).toBe(true);
+    expect(cut.uiRecognition!.selectedId).toBe(next.id);
   });
   test('unknown requests remain pending and are queried rather than replayed', async () => {
     const { controller, cut, store } = setup();
@@ -131,6 +119,30 @@ describe('recognition user action recovery', () => {
     await controller.runRecognition(cut);
     expect(store.recognizeUi).toHaveBeenCalledTimes(1);
     expect(store.recognitionStatus).toHaveBeenCalledTimes(1);
+  });
+  test('failed validation releases the card and allows an explicit new recognition', async () => {
+    const { controller, cut, store, save, next } = setup();
+    const id = randomUUID();
+    const selectedId = cut.uiRecognition!.selectedId;
+    cut.uiRecognition!.pendingId = id;
+    store.recognitionStatus.mockResolvedValueOnce({
+      id,
+      status: 'failed',
+      error: '识图文字 T012 的 color 无效',
+      recovery: { width: 400, height: 300 },
+    } as any);
+    await expect(controller.query(cut.id)).rejects.toThrow(id);
+    expect(cut.uiRecognition!.pendingId).toBeUndefined();
+    expect(cut.uiRecognition!.selectedId).toBe(selectedId);
+    expect(store.recognizeUi).not.toHaveBeenCalled();
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(await controller.runRecognition(cut)).toBe(true);
+    expect(store.recognizeUi).toHaveBeenCalledTimes(1);
+    expect(store.recognizeUi.mock.calls[0]).toEqual([
+      expect.any(String),
+      expect.objectContaining({ id: expect.not.stringMatching(id) }),
+    ]);
+    expect(cut.uiRecognition!.selectedId).toBe(next.id);
   });
   test.each([false, true])(
     'missing request is cleared only with explicit confirmation: %s',
