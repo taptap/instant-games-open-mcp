@@ -16,7 +16,10 @@ const catalog = async () => ({
 });
 
 describe('console package updates', () => {
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+
   afterEach(() => {
+    Object.defineProperty(process, 'platform', originalPlatform);
     jest.restoreAllMocks();
     jest.useRealTimers();
     jest.mocked(spawn).mockReset();
@@ -54,7 +57,7 @@ describe('console package updates', () => {
     'bounds $platform timeout cleanup without close events (exited=$exited)',
     async ({ platform, exited }) => {
       jest.useFakeTimers();
-      jest.replaceProperty(process, 'platform', platform as NodeJS.Platform);
+      Object.defineProperty(process, 'platform', { ...originalPlatform, value: platform });
       jest.spyOn(fs, 'mkdirSync').mockReturnValue(undefined);
       jest.spyOn(fs, 'statSync').mockReturnValue({ isFile: () => true } as fs.Stats);
       const kill = jest.spyOn(process, 'kill').mockReturnValue(true);
