@@ -7,6 +7,9 @@ CLI 恢复入口：`canvas save` 用当前 revision 重试保存页面，不重�
 两者仍需当前 page-id、canvas-id 和 target-dir。识图 API 未配置时返回明确原因；
 已有识图请求先用 `query` 查询，不重复提交。`status`、`wait` 与导出在 failed/unknown 时
 返回非零退出码；unknown 表示待确认，不能据此重放生成。
+Server API 提示等待恢复时，用 `recognize-ui --input '{"id":"识图卡ID","recover":true}' --allow-paid`
+继续原请求；已完成轮次只复用结果。旧版已清掉 pendingId 时，input 可追加原记录的 attemptId，
+校验画布、卡片和图片身份后恢复关联；找不到原记录时拒绝创建新请求。
 
 游戏 UI 官方合批模板与历史分类模板的识图与资源随保存自动归档到 `.maker/canvases/ui-archives/`。
 用 `canvas ui-archives --target-dir <项目>` 离线查询 UI 名称、唯一 ID、版本和两个 JSON 路径；

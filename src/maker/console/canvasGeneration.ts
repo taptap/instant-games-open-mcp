@@ -507,7 +507,7 @@ export class CanvasGenerationService {
             recoverable
               ? '图片已生成，本地下载未完成' +
                 (downloadError ? '：' + downloadError : '') +
-                '。已保留原地址，可重试本地下载，不会重新付费生成。'
+                '。已保留原地址，可重试本地下载，不会重新生成。'
               : 'Maker MCP 已返回，但没有可用于画布的本地图片素材。'
           );
         }
@@ -594,7 +594,7 @@ export class CanvasGenerationService {
     if (model === '2.5' && mode !== 'multi_modal_reference' && ratio !== 'adaptive')
       throw new Error('Seedance 2.5 首帧生成只能使用自动比例。');
     if (model === '2.5' && options.userConfirmed !== true)
-      throw new Error('请先确认视频积分粗估；实际按上游 token 扣费。');
+      throw new Error('请先确认按当前参数执行视频生成。');
     if (!imagePaths.length || imagePaths.length > (model === '2.5' ? 30 : 9))
       throw new Error('视频参考图数量超出当前模型支持范围。');
     this.assertImageSources(document, sourceImageIds, sourceImagePaths, files);
@@ -798,7 +798,7 @@ export class CanvasGenerationService {
     }
     if (previous.kind === 'video' && unfinishedVideo(previous))
       throw new Error(
-        '结果未取得或未知，不能自动重试付费生成；有 taskId 可在提交后 6 小时内查询，也可明确生成新视频。'
+        '结果未取得或未知，不能自动重试生成；有 taskId 可在提交后 6 小时内查询，也可明确生成新视频。'
       );
     if (previous.status === 'unknown') {
       throw new Error('结果未知，不能自动重试；视频任务请先查询原 taskId。');
@@ -808,7 +808,7 @@ export class CanvasGenerationService {
     }
     if (previous.kind === 'image') {
       if (previous.executionState !== 'not_executed')
-        throw new Error('无法确认原图片请求未执行，请先核实原结果；不能重试付费生成。');
+        throw new Error('无法确认原图片请求未执行，请先核实原结果；不能重试生成。');
       if ((previous.provider || 'maker') !== generationProvider().source)
         throw new Error('生图方式已改变，不能用新渠道重试旧任务；请确认后发起新的生成。');
       return this.generateImage({
@@ -957,9 +957,7 @@ export class CanvasGenerationService {
       if (!attempt.resultAssetPath) {
         const source = stringField(resultPayload(result).localPath);
         if (!source || !source.startsWith('assets/video/'))
-          throw new Error(
-            '远端视频已完成，但未取得本地素材；请查询原任务重新下载，不能重提付费生成。'
-          );
+          throw new Error('远端视频已完成，但未取得本地素材；请查询原任务重新下载，不能重提生成。');
         attempt.resultAssetPath = files.importGeneratedVideo(attempt.canvasId, source);
       }
       attempt.status = 'succeeded';
@@ -1090,7 +1088,7 @@ export class CanvasGenerationService {
     attempt.error =
       detail.message +
       (delivered
-        ? ' 图片请求已返回，不会重新付费生成；' +
+        ? ' 图片请求已返回，不会重新生成；' +
           (attempt.deliveredAssetPath || attempt.cachedImage
             ? '可重试本地导入。'
             : attempt.remoteAssetUrl
@@ -1130,7 +1128,7 @@ export class CanvasGenerationService {
         ...value,
         status: 'failed',
         failureStage: 'download',
-        error: '图片已交付，本地导入未完成，可重试本地导入，不会重新付费生成。',
+        error: '图片已交付，本地导入未完成，可重试本地导入，不会重新生成。',
       };
     if (value.kind === 'video' && value.executionState === 'unknown')
       return { ...value, status: 'unknown', remoteStatus: undefined };
@@ -1152,8 +1150,7 @@ export class CanvasGenerationService {
       return {
         ...value,
         status: 'unknown',
-        error:
-          value.error || '本地等待已中断；有 taskId 可在提交后 6 小时内查询，不自动重试付费生成。',
+        error: value.error || '本地等待已中断；有 taskId 可在提交后 6 小时内查询，不自动重试生成。',
       };
     const marker = value.error?.indexOf('remote_result:') ?? -1;
     if (value.status === 'failed' && marker >= 0) {

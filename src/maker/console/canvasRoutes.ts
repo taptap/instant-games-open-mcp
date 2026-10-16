@@ -81,7 +81,8 @@ export async function handleCanvasProjectRoute(options: {
         send(response, 200, await service.refresh(recognition[1], recognition[2]));
       else if (method === 'POST' && !recognition[2]) {
         const input = JSON.parse((await readBytes(request, 4096)).toString('utf8'));
-        if (input.allowPaid !== true) throw new ConsoleError('识图可能计费，需要明确确认执行。');
+        if (input.allowPaid !== true)
+          throw new ConsoleError('识图请求缺少执行确认参数 allowPaid。');
         send(response, 200, await service.run(recognition[1], input));
       } else throw new ConsoleError('Unknown recognition route.', 404);
       return true;

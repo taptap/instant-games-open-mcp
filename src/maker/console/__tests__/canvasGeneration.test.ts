@@ -909,7 +909,7 @@ describe('CanvasGenerationService', () => {
       credits: 12,
     });
     expect(failed.deliveredAssetPath).toBeUndefined();
-    expect(failed.error).toContain('不会重新付费生成');
+    expect(failed.error).toContain('不会重新生成');
     const persisted = JSON.parse(
       fs.readFileSync(path.join(root, '.maker/canvases/attempts', failed.id + '.json'), 'utf8')
     );

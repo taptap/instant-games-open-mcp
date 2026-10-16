@@ -225,7 +225,7 @@ import { metadataVersion } from '../core/dependencies.js';
 import { snapshotCanvasSource } from '../core/dependencies.js';
 import { selectedUiAtlasPlan } from '../features/uiAssetBindings.js';
 import { uiAtlasOrderPrompt } from '../features/uiAssetBindings.js';
-import { uiBindingContentRect } from '../features/uiAssetBindings.js';
+import { uiBindingContentRect, validateUiNativeRegions } from '../features/uiAssetBindings.js';
 import { validateUiAtlasGroup } from '../features/uiAssetBindings.js';
 import { uiAtlasElementGroup } from '../features/uiAssetBindings.js';
 import { uiAtlasElementSlots } from '../features/uiAssetBindings.js';
@@ -460,6 +460,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     uiBatchAtlasPrompt.toString(),
     uiAtlasOrderPrompt.toString(),
     uiBindingContentRect.toString(),
+    validateUiNativeRegions.toString(),
     resourceBundleMembers.toString(),
     resourceBundleOwner.toString(),
     renderResourceBundle.toString(),
@@ -1672,7 +1673,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      if (node.type === "image-assets" && imageAssetsUi) { card.querySelector(".canvas-card-content")?.remove(); imageAssetsUi.render(card, node); }',
       '      if (node.type === "resource-bundle") { card.querySelector(".canvas-card-content")?.remove(); renderResourceBundle(card, node, documentState, store.mediaUrl); }',
       '      const templateStatus = templateWorkflow && templateWorkflow.status(node.id);',
-      '      const creditsLabel = generationUi && generationUi.creditsLabel(node); if (creditsLabel) { const credits = document.createElement("small"); credits.className = "generation-credits"; credits.textContent = creditsLabel; credits.title = "当前结果的 MCP 返回积分，不是累计消耗或余额；未返回不代表免费，最终扣费以账单为准。"; card.append(credits); }',
+      '      const creditsLabel = generationUi && generationUi.creditsLabel(node); if (creditsLabel) { const credits = document.createElement("small"); credits.className = "generation-credits"; credits.textContent = creditsLabel; credits.title = "当前结果的 MCP 返回积分，不是累计消耗或余额；未返回表示暂无数据。"; card.append(credits); }',
       '      const nodeBusy = Boolean((generationUi && generationUi.isNodeBusy(node.id)) || (templateWorkflow && templateWorkflow.isNodeLoading(node.id)));',
       '      const generationState = generationUi && generationUi.nodeState(node.id);',
       '      const sequenceState = node.type === "sequence" && sequenceUi.view(node.id).run;',
@@ -1954,7 +1955,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    capabilities: store.capabilities,',
       '    checkRecognition: function (node) { return uiRecognitionUi.checkRecognition(node); },',
       '    ensureRecognitionNote: function (node) { uiRecognitionUi.ensureNote(node); },',
-      '    recognizeUi: function (node) { return uiRecognitionUi.runRecognition(node, true); },',
+      '    recognizeUi: function (node, recover, attemptId) { return uiRecognitionUi.runRecognition(node, true, recover, attemptId); },',
       '    current: function () { return documentState; },',
       '    blocked: function (allowUnsaved) {',
       '      if (pendingExports || (resourceExport && resourceExport.isBusy)) return "资源正在导出，请等待完成。";',

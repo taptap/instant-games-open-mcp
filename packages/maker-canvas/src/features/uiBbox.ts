@@ -98,6 +98,9 @@ export function validateBboxTexts(
   const ids = new Set<string>();
   const elementIds = new Set(elements.map((entry) => entry.id));
   return value.map((entry): UiBboxText => {
+    const color = typeof entry?.color === 'string' ? entry.color.replace(/\s/g, '') : '';
+    if (entry && !/^#[a-f0-9]{6}$/i.test(color))
+      throw new Error('识图文字 ' + String(entry.id) + ' 的 color 无效，必须为 #RRGGBB。');
     if (
       !entry ||
       !/^T[0-9]{3,}$/.test(entry.id) ||
@@ -119,8 +122,6 @@ export function validateBboxTexts(
         'other',
       ].includes(entry.role) ||
       !['left', 'center', 'right'].includes(entry.align) ||
-      typeof entry.color !== 'string' ||
-      !/^#[a-f0-9]{6}$/i.test(entry.color) ||
       typeof entry.bold !== 'boolean' ||
       entry.cutout !== false
     )
@@ -133,7 +134,7 @@ export function validateBboxTexts(
       parentId: entry.parentId,
       role: entry.role,
       align: entry.align,
-      color: entry.color,
+      color,
       bold: entry.bold,
       cutout: false,
     };

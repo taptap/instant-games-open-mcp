@@ -58,7 +58,7 @@ export function createCanvasAutomationUiWithHost(options: {
   resetDraft(id: string): void;
   checkRecognition?(node: CanvasNode): Promise<void>;
   ensureRecognitionNote?(node: CanvasNode): void;
-  recognizeUi?(node: CanvasNode): Promise<boolean>;
+  recognizeUi?(node: CanvasNode, recover: boolean, attemptId?: string): Promise<boolean>;
   run(id: string): Promise<boolean>;
   stop(id: string): void;
   canStop(id: string): boolean;
@@ -128,7 +128,7 @@ export function createCanvasAutomationUiWithHost(options: {
     const fields: Record<string, string[]> = {
       inspect: ['id'],
       save: [],
-      'recognize-ui': ['id'],
+      'recognize-ui': ['id', 'recover', 'attemptId'],
       create: ['title'],
       open: ['id'],
       rename: ['title'],
@@ -170,6 +170,15 @@ export function createCanvasAutomationUiWithHost(options: {
       if (!fields[command.action].includes(key)) throw new Error('不支持的 input 字段：' + key);
     if (input.recognition !== undefined && typeof input.recognition !== 'boolean')
       throw new Error('recognition 必须是布尔值；无识图对比请显式传 false。');
+    if (input.recover !== undefined && typeof input.recover !== 'boolean')
+      throw new Error('recover 必须是布尔值。');
+    if (
+      input.attemptId !== undefined &&
+      (input.recover !== true ||
+        typeof input.attemptId !== 'string' ||
+        !/^[a-f0-9-]{36}$/i.test(input.attemptId))
+    )
+      throw new Error('attemptId 必须为原识图请求编号，并同时传入 recover: true。');
     if (command.action === 'inspect') {
       if (input.id !== undefined && typeof input.id !== 'string')
         throw new Error('id 必须是卡片或分组标识。');
@@ -193,11 +202,18 @@ export function createCanvasAutomationUiWithHost(options: {
       if (target && (!target.uiRecognition || !options.recognizeUi))
         throw new Error('请选择配置了识图的设计稿或去文字卡片。');
       if (target && command.allowPaid !== true)
-        throw new Error('识图可能计费，请取得授权并传入 --allow-paid；仅查询原请求可用 query。');
+        throw new Error('执行识图需传入 --allow-paid；仅查询原请求请用 query。');
       running = true;
       options.busyChanged(true);
       try {
-        if (target && !(await options.recognizeUi!(target)))
+        if (
+          target &&
+          !(await options.recognizeUi!(
+            target,
+            input.recover === true,
+            input.attemptId as string | undefined
+          ))
+        )
           throw new Error(options.error() || 'Bbox 尚未完成，请检查识图卡片。');
         if (!(await options.save())) throw new Error('保存失败，页面结果已保留，请重试 save。');
         return snapshot();
@@ -253,7 +269,7 @@ export function createCanvasAutomationUiWithHost(options: {
         (target.type === 'section' ||
           ['image', 'video', 'video-source', 'model', 'model-views'].includes(target.type))
       )
-        throw new Error('生成可能消耗积分。取得用户授权后显式传入 --allow-paid。');
+        throw new Error('执行生成需传入 --allow-paid。');
       running = true;
       options.busyChanged(true);
       try {

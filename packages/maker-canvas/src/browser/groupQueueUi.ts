@@ -110,7 +110,7 @@ export function createCanvasGroupQueueUi(options: {
       const hint = document.createElement('span');
       hint.className = 'group-queue-status group-queue-detail';
       hint.textContent =
-        '识图按模型服务计费；生图和视频会消耗积分，Seedance 2.5 按较高费用计费。生图确定失败时最多重新生图2次；切图失败保留原图，调整裁切框，不自动重新生图。未知结果不重提。失败只阻塞依赖分支，其余继续。请保持页面打开。';
+        '生图确定失败时最多重新生图2次；切图失败保留原图，调整裁切框，不自动重新生图。未知结果不重提。失败只阻塞依赖分支，其余继续。请保持页面打开。';
       root.append(hint);
     } else if (!cliOnly) {
       const continuing =

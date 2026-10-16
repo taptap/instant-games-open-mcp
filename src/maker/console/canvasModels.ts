@@ -238,7 +238,7 @@ export class CanvasModelService {
       )
     )
       throw new ConsoleError(
-        '已有模型任务，请查询原任务；需要新模型时复制模板，不会重复扣费。',
+        '已有模型任务，请查询原任务；需要新模型时复制模板，不会重复提交。',
         409
       );
     if (input.action !== 'start' && !previous) throw new ConsoleError('还没有模型任务。');
@@ -255,7 +255,7 @@ export class CanvasModelService {
       throw new ConsoleError('预览已过期或尚未完整就绪。请重新查询并确认全部视图。', 409);
     if (input.action === 'query' && !previous?.assetId && !previous?.taskId)
       throw new ConsoleError(
-        '尚未取得模型任务 ID，请先刷新本地记录；结果未知时不要重提付费请求。',
+        '尚未取得模型任务 ID，请先刷新本地记录；结果未知时不要重提请求。',
         409
       );
     active.add(key);

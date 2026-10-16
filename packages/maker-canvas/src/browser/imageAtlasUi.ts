@@ -8,6 +8,7 @@ import type { PreparedImageAtlas } from './imageAtlasExport.js';
 import { validateAtlasCrops } from '../features/atlasContent.js';
 import type { ImageAtlasCutSettings } from '../features/atlasContent.js';
 import { uiCutoutRgb } from '../features/uiCutout.js';
+import { validateUiNativeRegions } from '../features/uiAssetBindings.js';
 
 export interface CanvasImageAtlasHost {
   readSource(path: string): Promise<Blob>;
@@ -107,13 +108,21 @@ export function openImageAtlasDialogWithHost(
     toolbar.append(wrapper);
     return input;
   }
-  const mode = selectField('切图方式', [
-    ['grid', '规则网格'],
-    ...(node.generation?.uiAtlasPlan ? [['slots', '按槽位调整裁切框'] as [string, string]] : []),
-    ['content', '按内容切图'],
-  ]);
+  const mode = selectField(
+    '切图方式',
+    node.generation?.uiAtlasPlan?.nativeLayout
+      ? [['slots', '按槽位调整裁切框']]
+      : [
+          ['grid', '规则网格'],
+          ...(node.generation?.uiAtlasPlan
+            ? [['slots', '按槽位调整裁切框'] as [string, string]]
+            : []),
+          ['content', '按内容切图'],
+        ]
+  );
   mode.value =
-    node.generation?.uiAtlasPlan && actions?.cut?.mode === 'grid' && actions.cut.regions
+    node.generation?.uiAtlasPlan?.nativeLayout ||
+    (node.generation?.uiAtlasPlan && actions?.cut?.mode === 'grid' && actions.cut.regions)
       ? 'slots'
       : actions?.cut?.mode || 'grid';
   const background = selectField('背景处理', [
@@ -220,9 +229,11 @@ export function openImageAtlasDialogWithHost(
       }
       for (const [key, input] of Object.entries(boxFields)) {
         input.value = region?.[key as keyof ImageAtlasCrop] ?? '';
-        input.disabled = !region;
+        input.disabled =
+          !region || Boolean(bindingPlan?.nativeLayout && ['width', 'height'].includes(key));
       }
       prepared.regions = validateAtlasCrops(prepared.width, prepared.height, prepared.regions);
+      if (bindingPlan?.nativeLayout) validateUiNativeRegions(bindingPlan, prepared.regions);
       const count = Number(expected.value);
       if (!Number.isInteger(count) || count < 0 || count > 120)
         throw new Error('预期数量必须为0～120。');
@@ -270,11 +281,13 @@ export function openImageAtlasDialogWithHost(
         const bitmap = await createImageBitmap(source);
         try {
           if (token !== revision || closed) return;
-          regions = imageAtlasRegions(bitmap.width, bitmap.height, grid).map((region, index) =>
-            bindingPlan?.slots[index].role === 'reserve'
-              ? { name: region.name, x: 0, y: 0, width: 1, height: 1, blank: true }
-              : region
-          );
+          regions = bindingPlan?.nativeLayout
+            ? structuredClone(bindingPlan.nativeLayout.regions)
+            : imageAtlasRegions(bitmap.width, bitmap.height, grid).map((region, index) =>
+                bindingPlan?.slots[index].role === 'reserve'
+                  ? { name: region.name, x: 0, y: 0, width: 1, height: 1, blank: true }
+                  : region
+              );
         } finally {
           bitmap.close();
         }
@@ -292,7 +305,8 @@ export function openImageAtlasDialogWithHost(
         {
           mode: mode.value === 'slots' ? 'grid' : mode.value,
           ...(mode.value !== 'grid' && regions ? { regions } : {}),
-        }
+        },
+        bindingPlan
       );
       if (token !== revision || closed) return;
       prepared = result;
@@ -349,6 +363,8 @@ export function openImageAtlasDialogWithHost(
     });
     prepared.regions = regions;
     draw();
+    // Rebuild derived button states from the original image after moving native crops.
+    if (bindingPlan?.nativeLayout && valid) void render();
   }
   for (const [key, labelText] of Object.entries({ x: 'X', y: 'Y', width: '宽', height: '高' })) {
     const label = document.createElement('label');
@@ -459,7 +475,8 @@ export function openImageAtlasDialogWithHost(
       ...position,
       index,
       kind: region
-        ? (Math.abs(position.x - region.x - region.width) * preview.width) / prepared.width < 14 &&
+        ? !bindingPlan?.nativeLayout &&
+          (Math.abs(position.x - region.x - region.width) * preview.width) / prepared.width < 14 &&
           (Math.abs(position.y - region.y - region.height) * preview.height) / prepared.height < 14
           ? 'resize'
           : 'move'
@@ -591,6 +608,8 @@ export function openImageAtlasDialogWithHost(
         });
         for (const action of ['delete', 'merge', 'split'])
           editor.querySelector('[data-atlas-' + action + ']').disabled = mode.value === 'slots';
+        if (bindingPlan?.nativeLayout)
+          for (const key of ['width', 'height']) boxFields[key].disabled = true;
         enable();
       }
     });

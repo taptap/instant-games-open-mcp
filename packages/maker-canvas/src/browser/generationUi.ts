@@ -1377,8 +1377,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     const inputKey = documentState && referenceKey(node);
     if (!documentState || inFlight.has(node.id)) return false;
     if (settings.model === '2.5' && settings.userConfirmed !== true) {
-      if (!window.confirm('Seedance 2.5 成本更高，实际按上游 token 扣费。确认继续吗？'))
-        return false;
+      if (!window.confirm('按当前参数开始生成视频？')) return false;
       settings.userConfirmed = true;
     }
     const prompt = videoPrompts.prepare(input.value);
@@ -1787,7 +1786,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     }
     if (attempt?.status !== 'succeeded') {
       options.setError(
-        attempt?.error || '视频尚未完成，已停止后续流程；可继续查询原任务，不会自动重新付费生成。'
+        attempt?.error || '视频尚未完成，已停止后续流程；可继续查询原任务，不会自动重新生成。'
       );
       return false;
     }
@@ -1952,7 +1951,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         button(
           relevant.kind === 'image' && relevant.failureStage === 'download'
             ? '重试本地导入'
-            : '重新生成（消耗积分）',
+            : '重新生成',
           () => action(relevant, 'retry')
         )
       );
@@ -1970,7 +1969,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       const panel = document.createElement('div');
       panel.className = 'generation-panel';
       const hint = document.createElement('small');
-      hint.textContent = '按当前 Bbox 和批次坐标预排。本地处理，不调用 AI、不消耗积分。';
+      hint.textContent = '按当前 Bbox 和批次坐标预排。本地处理，不调用 AI。';
       panel.append(
         hint,
         button(

@@ -21,7 +21,7 @@ export function createVideoHistoryUi(options: {
     title.textContent = '视频历史';
     const hint = document.createElement('p');
     hint.textContent =
-      '不设本地生成冷却时间，能否提交由 Maker 服务判断。停止等待不取消远端任务；原 taskId 在提交后 6 小时内可查询，运行中查询至少间隔 2 分钟。此期限仅为本地策略，查询不会重新付费生成。';
+      '不设本地生成冷却时间，能否提交由 Maker 服务判断。停止等待不取消远端任务；原 taskId 在提交后 6 小时内可查询，运行中查询至少间隔 2 分钟。此期限仅为本地策略，查询不会重新生成。';
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
     const list = document.createElement('div');

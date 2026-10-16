@@ -29,7 +29,10 @@ description: 执行 Maker「游戏UI制作 · Bbox预排参考图（实验）」
    local/chatgpt-web 提示“等待 Bbox”时，若去文字图已就绪，继续下面的回填流程，不重跑去文字。
 3. 按 vision.source 选择一条路径：
    - **server/custom：** 去文字卡 run 会接续两轮识图；等待该操作结果。已有去文字图但缺 Bbox 时，
-     用 `canvas recognize-ui` 仅识图。pending/unknown 用 `canvas query` 查原请求，不转入手动回填。
+     用 `canvas recognize-ui` 仅识图。pending/unknown 先用 `canvas query` 查原请求；
+     Server API 提示“等待恢复”时，用 `canvas recognize-ui --input '{"id":"去文字卡ID","recover":true}' --allow-paid`
+     接续原请求，已成功的轮次直接复用。旧版清掉 pendingId 时，同一 input 加原记录的 `attemptId`。
+     操作仍 running 时继续 wait/status 原 operationId；不重新 run 去文字、不转入手动回填。
    - **local/chatgpt-web：** 由 Agent 完成下方“两轮回填”，画布不能替 Agent 看图。
      不反复 run 或 recognize-ui 等待它自动完成；网页操作按[网页识图协议](../maker-ui-workflow/references/chatgpt-web.md)。
 
@@ -116,6 +119,12 @@ description: 执行 Maker「游戏UI制作 · Bbox预排参考图（实验）」
 ## 遇到阻塞时
 
 - unknown 先查原任务；Server API 恢复复用原编号并按接口确认，不换渠道重提。
-- 下载、保存或切图失败先恢复已有结果；切图用已有裁框修正，不因此重新生图。
+- 下载或保存失败先恢复已有结果；切图失败按下方步骤区分裁框问题与素材缺失。
+- **分离图空格：** 先 preview-image-assets，对照返回的 regions、bindings 和预览定位缺项。
+  素材只是移位时，按原槽位顺序提交完整 `cut:{mode:"grid",regions:[...]}`，只改 x/y，
+  保留名称、数量和宽高；重新预览后用 reviewId 确认。
+  真正漏画时，保留 Bbox、预排和其它批次；只用 update-nodes 修改该分离卡的 prompt，点明缺失 ID、
+  位置及保留要求，再 run 这张分离卡并重新预览、确认切图。修复一轮仍缺失则报告具体缺项，停止重复生成。
+  成功后继续原分组到资源包归档与 UI 组装。**预排图未完成分层，不能以裁出非空 PNG 代替透明素材。**
 - 来源或 Bbox 改变后更新受影响步骤，旧生成图仍按其原规划解释；保留已有素材与用户修改。
 - 无法继续时报告当前步骤、已有产物和具体缺口，恢复后从该步继续，不把部分产物报为全部完成。

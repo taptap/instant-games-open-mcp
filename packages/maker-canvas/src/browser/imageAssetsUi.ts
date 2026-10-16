@@ -19,6 +19,7 @@ import { mergeIconGrid, mergeIconNeedsGeneration } from '../features/mergeIcons.
 import { isGameUiResource } from '../features/uiWorkflow.js';
 import { withCanvasTimeout } from '../browser/requestTimeout.js';
 import { uiCutoutRgb } from '../features/uiCutout.js';
+import { validateUiNativeRegions } from '../features/uiAssetBindings.js';
 
 export function createImageAssetsUiWithHost(options: {
   deliver: CanvasExportDelivery;
@@ -100,7 +101,11 @@ export function createImageAssetsUiWithHost(options: {
     if (layout)
       return {
         mode: 'grid',
-        regions: structuredClone(layout.regions),
+        regions: structuredClone(
+          target?.imageAssetsInfo?.regions && canReuseSettings(source, target)
+            ? target.imageAssetsInfo.regions
+            : layout.regions
+        ),
         expectedCount: layout.regions.length,
         allowEmpty: true,
       };
@@ -231,12 +236,8 @@ export function createImageAssetsUiWithHost(options: {
       const background = backgroundFor(saved, target);
       const cut =
         cutInput === undefined ? savedCut(saved, target) : (cutInput as ImageAtlasCutSettings);
-      if (
-        saved.generation?.uiAtlasPlan?.nativeLayout &&
-        JSON.stringify(cut.regions) !==
-          JSON.stringify(saved.generation.uiAtlasPlan.nativeLayout.regions)
-      )
-        throw new Error('原尺寸图集必须使用已记录的裁切坐标。');
+      if (saved.generation?.uiAtlasPlan?.nativeLayout)
+        validateUiNativeRegions(saved.generation.uiAtlasPlan, cut.regions);
       const layout = saved.generation?.uiAtlasPlan?.nativeLayout;
       const prepared = await prepareImageAtlas(
         blob,
@@ -414,14 +415,29 @@ export function createImageAssetsUiWithHost(options: {
         ...split,
         items: split.items.map((item) => ({ ...item, assetPath: '' })),
       });
-      if (
-        source.generation?.uiAtlasPlan &&
-        split.items.some(
-          (item, index) =>
-            !item.contentRect && source.generation!.uiAtlasPlan!.slots[index].role !== 'reserve'
-        )
-      )
-        throw new Error('UI 图集的组件格为空，原绑定未替换。');
+      if (source.generation?.uiAtlasPlan) {
+        const slots = source.generation.uiAtlasPlan.slots;
+        const missing = split.items.flatMap((item, index) =>
+          !item.contentRect && slots[index].role !== 'reserve'
+            ? [
+                item.name +
+                  '（' +
+                  slots[index].elementIds.join('/') +
+                  ' / ' +
+                  slots[index].state +
+                  '）',
+              ]
+            : []
+        );
+        if (missing.length)
+          throw new Error(
+            'UI 图集的组件格为空：' +
+              missing.join('、') +
+              '；原图和绑定已保留。先 preview-image-assets 查看；素材移位时调整裁框，真正缺失时只修复此分离卡（' +
+              source.id +
+              '），再确认切图并继续原分组。预排图不能直接代替透明素材。'
+          );
+      }
       const items = [];
       for (const item of split.items) {
         currentSource();
