@@ -20,6 +20,7 @@ jobs:
        github.event.issue.pull_request &&
        contains(github.event.comment.body, '@claude'))
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: write
@@ -29,6 +30,32 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Check review model connectivity
+        timeout-minutes: 2
+        env:
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          node --input-type=module <<'NODE'
+          const key = process.env.ANTHROPIC_API_KEY;
+          const base = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
+          try {
+            const response = await fetch(base.replace(/\/$/, '') + '/v1/messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+              body: JSON.stringify({ model: 'claude-opus-5', max_tokens: 16, messages: [{ role: 'user', content: 'Reply OK.' }] }),
+              signal: AbortSignal.timeout(60000),
+            });
+            const result = await response.json();
+            const message = String(result.error?.message || '').split(key).join('[REDACTED]').slice(0, 800);
+            console.log(JSON.stringify({ status: response.status, model: result.model, errorType: result.error?.type, message }));
+            if (!response.ok || result.type !== 'message') process.exitCode = 1;
+          } catch (error) {
+            console.error('Review API connectivity check failed: ' + error.name);
+            process.exitCode = 1;
+          }
+          NODE
 
       - uses: anthropics/claude-code-action@v1
         env:
