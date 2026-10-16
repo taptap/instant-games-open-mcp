@@ -450,6 +450,7 @@ export class CanvasGenerationService {
             references: remoteReferences,
             files,
             targetSize,
+            transparent: options.cutoutColor === 'transparent',
           });
           attempt.remoteStatus = 'succeeded';
           attempt.failureStage = 'download';
