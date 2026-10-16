@@ -109,7 +109,10 @@ release PR 的 `review` 不应该理解成完整代码审核。它更适合成�
 - 校验 `package.json`、`package-lock.json` 和 CHANGELOG 的版本一致。
 - 校验 PR 标题、分支和发布版本符合规则。
 
-当前实现保留 `Claude Code Review` workflow 不变，避免 Anthropic action 在修改自身 workflow 的 PR 上拒绝运行。release PR 由单独的 `Release PR Review Guard` workflow 产出同名 `review` job，并执行确定性的 release guard，而不是调用 AI code review。
+`Claude Code Review` 显式使用工作流的 `GITHUB_TOKEN` 和既有 job 权限提交审核，
+固定模型为代理服务已验证的 `claude-opus-5[1m]`，避免 CLI 默认模型变更影响审核。
+release PR 由单独的 `Release PR Review Guard` workflow 产出同名 `review` job，
+并执行确定性的 release guard，而不是调用 AI code review。
 
 ## 4. 预期合并流程
 
