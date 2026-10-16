@@ -529,7 +529,9 @@ export function createUiRecognitionUiWithHost(options: {
       !source.templatePending &&
       source.assetPath &&
       !selectedUiRecognition(source) &&
-      !card.hasAttribute('aria-busy')
+      !card.hasAttribute('aria-busy') &&
+      // Keep recovery actions for an existing remote task ahead of Bbox guidance.
+      !card.querySelector('.card-state-query:not(.card-state-resume):not(.card-state-adjust)')
     ) {
       card.querySelector('.card-state-overlay')?.remove();
       const isSource = source.id === node.id;
