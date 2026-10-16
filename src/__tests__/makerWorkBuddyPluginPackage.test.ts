@@ -111,10 +111,12 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
       path.join(pluginRoot, 'skills/maker-ui-bbox-workflow/SKILL.md'),
       'utf8'
     );
-    for (const name of ['chatgpt-web.md', 'workflow.md', 'assemble-ui.mjs']) {
+    for (const name of ['chatgpt-web.md', 'workflow.md']) {
       expect(bbox).toContain('../maker-ui-workflow/' + name);
       expect(fs.existsSync(path.join(skill, name))).toBe(true);
     }
+    expect(bbox).toContain('node <同包maker-ui-workflow目录>/assemble-ui.mjs');
+    expect(bbox).not.toContain('scripts/assemble-ui.mjs');
     expect(bbox).not.toMatch(/maker-ui-workflow\/(references|scripts)\//);
   });
 
