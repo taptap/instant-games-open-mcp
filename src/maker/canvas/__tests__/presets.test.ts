@@ -279,22 +279,31 @@ test('new game UI workflow keeps examples but starts every downstream step pendi
     (node) => node.type === 'image' && !canvas.edges.some((edge) => edge.to === node.id)
   )!;
   expect(source.assetPath).toBeTruthy();
-  expect(source.uiRecognition).toBeUndefined();
+  expect(source.uiRecognition).toMatchObject({ inputRole: 'design', optional: true });
   const design = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
   const clean = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!;
+  expect(design.id).toBe(source.id);
   expect(design.uiRecognition?.results).toEqual([]);
   expect(clean.uiRecognition?.results).toEqual([]);
   expect(canvasNeedsProcessing(canvas, source)).toBe(false);
   const atlases = canvas.nodes.filter((node) => node.uiAtlasGroup);
+  const background = canvas.nodes.find((node) => node.title.includes('背景准备'))!;
+  expect(canvas.edges).toContainEqual(
+    expect.objectContaining({ from: clean.id, to: background.id, kind: 'image-variant' })
+  );
   expect(atlases).toHaveLength(6);
   for (const atlas of atlases)
     expect(canvas.edges).toContainEqual(
-      expect.objectContaining({ from: clean.id, to: atlas.id, kind: 'image-variant' })
+      expect.objectContaining({
+        from: ['panels', 'background'].includes(atlas.uiAtlasGroup!) ? background.id : clean.id,
+        to: atlas.id,
+        kind: 'image-variant',
+      })
     );
   const downstream = canvas.nodes.filter((node) =>
     canvas.edges.some((edge) => edge.to === node.id)
   );
-  expect(downstream).toHaveLength(17);
+  expect(downstream).toHaveLength(19);
   for (const node of downstream) {
     expect(Boolean(node.templatePending)).toBe(node.type !== 'resource-bundle');
     expect(canvasNeedsProcessing(canvas, node)).toBe(true);

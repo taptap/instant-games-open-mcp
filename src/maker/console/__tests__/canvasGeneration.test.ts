@@ -194,6 +194,30 @@ describe('CanvasGenerationService', () => {
       n: 1,
     });
     expect(JSON.stringify(result)).not.toContain('fixture-private-image-key');
+    expect(JSON.parse(request.mock.calls[0][1]!.body as string)).not.toHaveProperty('background');
+    expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
+  });
+
+  test.each([false, true])('custom API requests transparency with references: %s', async (edit) => {
+    useCustomApi();
+    const files = new MakerCanvasFiles(root);
+    const canvas = await files.create('transparent', 'empty');
+    const reference = edit ? await files.importImage(Buffer.from(customPng, 'base64')) : undefined;
+    const request = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ data: [{ b64_json: customPng }] })));
+    const result = await new CanvasGenerationService(root, {} as any).generateImage({
+      canvasId: canvas.id,
+      prompt: 'transparent icons',
+      cutoutColor: 'transparent',
+      referenceImagePaths: reference ? [reference.relativePath] : [],
+    });
+    expect(result.status).toBe('succeeded');
+    const body = request.mock.calls[0][1]!.body;
+    expect(
+      edit ? (body as FormData).get('background') : JSON.parse(body as string).background
+    ).toBe('transparent');
+    expect(request).toHaveBeenCalledTimes(1);
     expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
   });
 
@@ -265,6 +289,7 @@ describe('CanvasGenerationService', () => {
     const form = request.mock.calls[0][1]!.body as FormData;
     expect(form.get('model')).toBe('test-image-model');
     expect(form.getAll('image[]')).toHaveLength(1);
+    expect(form.has('background')).toBe(false);
     expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
   });
 

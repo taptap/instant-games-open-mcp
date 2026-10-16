@@ -18,6 +18,7 @@ import { withCanvasTimeout } from '../browser/requestTimeout.js';
 import { openUiBboxPreview } from '../browser/uiBboxPreview.js';
 import { hasImageFeature } from '../features/imageFeatures.js';
 import { selectedUiAtlasPlan } from '../features/uiAssetBindings.js';
+import { renderCanvasCardStatus } from './cardStatus.js';
 
 export async function drawUiRecognition(
   source: Blob,
@@ -78,10 +79,12 @@ export function createUiRecognitionUiWithHost(options: {
   error(message: string): void;
   loadMedia(path: string): Promise<void>;
   openCanvas(id: string): Promise<void>;
+  focus?(id: string): void;
 }) {
   const webRecognitionHint = options.webRecognitionHint;
   let busy = false;
   let preparing = false;
+  const errors = new Map<string, string>();
   async function sourceBlob(path: string) {
     return withCanvasTimeout(async (signal) => {
       return options.readSource(path, signal);
@@ -120,6 +123,10 @@ export function createUiRecognitionUiWithHost(options: {
   function invalidate(source: CanvasNode) {
     const current = options.current();
     if (!current) return;
+    if (source.uiRecognition?.optional) {
+      options.changed();
+      return;
+    }
     invalidateCanvasDependents(current, source.id);
     for (const node of canvasDependents(current, source.id)) {
       const input = node.generationDraft || node.generation;
@@ -158,8 +165,15 @@ export function createUiRecognitionUiWithHost(options: {
     const settings = source.uiRecognition;
     let model = { id: 'gpt-6.1-sol', model: 'gpt-6.1-sol' };
     if (!settings.pendingId) {
-      const models = await options.store.recognitionModels?.();
+      const models = await withCanvasTimeout(() =>
+        Promise.resolve(options.store.recognitionModels?.())
+      );
       const configured = models?.[0];
+      if (
+        settings.optional &&
+        (!configured || ['local', 'chatgpt-web'].includes(configured.source || ''))
+      )
+        throw new Error('识图服务尚未就绪；配置 Server API 或自定义 API 后可手动重试 Bbox。');
       if (configured?.source === 'chatgpt-web') throw new Error(webRecognitionHint);
       if (models && (!configured || configured.source === 'local'))
         throw new Error(options.localRecognitionHint);
@@ -202,7 +216,9 @@ export function createUiRecognitionUiWithHost(options: {
       let attempt;
       if (settings.pendingId) {
         if (!options.store.recognitionStatus) throw new Error('识图接口尚未就绪。');
-        attempt = await options.store.recognitionStatus(current.id, settings.pendingId);
+        attempt = await withCanvasTimeout(() =>
+          options.store.recognitionStatus!(current.id, settings.pendingId!)
+        );
         if (options.current() !== current || !current.nodes.includes(source)) return false;
         if (
           recover &&
@@ -236,15 +252,19 @@ export function createUiRecognitionUiWithHost(options: {
         options.changed();
         if (!(await options.save())) throw new Error('识图请求尚未保存，未提交模型。');
         submitted = true;
-        attempt = await options.store.recognizeUi(current.id, {
-          id: settings.pendingId,
-          nodeId: source.id,
-          model: model.id,
-          revision: current.revision,
-          width,
-          height,
-          allowPaid: true,
-        });
+        attempt = await withCanvasTimeout(
+          () =>
+            options.store.recognizeUi!(current.id, {
+              id: settings.pendingId!,
+              nodeId: source.id,
+              model: model.id,
+              revision: current.revision,
+              width,
+              height,
+              allowPaid: true,
+            }),
+          settings.optional ? 60_000 : 375_000
+        );
       }
       if (options.current() !== current || !current.nodes.includes(source)) return false;
       if (attempt.status === 'succeeded' && attempt.result) {
@@ -277,6 +297,7 @@ export function createUiRecognitionUiWithHost(options: {
       if (
         querying &&
         status === 404 &&
+        recover &&
         window.confirm(
           '未找到原识图请求记录。是否结束本地等待？不会取消远端任务，也不会重新提交；如曾提交，请先核对服务端记录。'
         )
@@ -315,7 +336,19 @@ export function createUiRecognitionUiWithHost(options: {
         if (!generated || !completeRecognition) return generated;
         if (options.current() !== current || node.templatePending || !node.assetPath) return false;
       }
-      return selectedUiRecognition(node) ? true : recognize(node, confirmed, true);
+      if (selectedUiRecognition(node)) return true;
+      if (node.uiRecognition.optional) {
+        try {
+          await recognize(node, confirmed);
+        } catch (error) {
+          options.error(
+            'Bbox 暂未生成，继续拆图；可在去文字卡菜单手动重试。' +
+              (error instanceof Error ? error.message : String(error))
+          );
+        }
+        return options.current() === current && !node.templatePending && Boolean(node.assetPath);
+      }
+      return recognize(node, confirmed, true);
     }
     if (node.uiRecognition?.inputRole === 'design') {
       const references = canvasReferences(current, node.id);
@@ -336,6 +369,7 @@ export function createUiRecognitionUiWithHost(options: {
       return fallback();
     }
     const source = uiRecognitionSource(current, node);
+    if (source?.uiRecognition?.optional) return fallback();
     if (!source?.uiRecognition?.enabled) return fallback();
     const result = selectedUiRecognition(source);
     if (!result) throw new Error('当前原稿还没有可用的识图清单。');
@@ -411,7 +445,7 @@ export function createUiRecognitionUiWithHost(options: {
       options.render();
     }
   }
-  async function runRecognition(node: CanvasNode): Promise<boolean> {
+  async function runRecognition(node: CanvasNode, confirmed = false): Promise<boolean> {
     if (busy || preparing || options.blocked() || !hasImageFeature(node, 'ui-recognition'))
       return false;
     const unavailable =
@@ -421,20 +455,22 @@ export function createUiRecognitionUiWithHost(options: {
     try {
       const current = options.current();
       if (!current) return false;
-      if (node.uiRecognition?.pendingId) return await recognize(node, true, true);
+      errors.delete(current.id + ':' + node.id);
+      if (node.uiRecognition?.pendingId) return await recognize(node, true, !confirmed);
       const models = await options.store.recognitionModels?.();
       const configured = models?.[0];
-      if (configured?.source === 'chatgpt-web') {
-        window.alert(webRecognitionHint);
-        return false;
-      }
+      if (
+        node.uiRecognition?.optional &&
+        (!configured || ['local', 'chatgpt-web'].includes(configured.source || ''))
+      )
+        throw new Error('识图服务尚未就绪；配置 Server API 或自定义 API 后可手动重试 Bbox。');
+      if (configured?.source === 'chatgpt-web') throw new Error(webRecognitionHint);
       if (
         !node.uiRecognition?.pendingId &&
         models &&
         (!configured || configured.source === 'local')
       ) {
-        window.alert(options.localRecognitionViewHint);
-        return false;
+        throw new Error(options.localRecognitionViewHint);
       }
       if (
         options.current() !== current ||
@@ -444,7 +480,15 @@ export function createUiRecognitionUiWithHost(options: {
       )
         return false;
       const source = uiRecognitionInputs(current, node).cut;
-      return await recognize(source, false);
+      return await recognize(source, confirmed);
+    } catch (error) {
+      const current = options.current();
+      if (current?.nodes.includes(node))
+        errors.set(
+          current.id + ':' + node.id,
+          error instanceof Error ? error.message : String(error)
+        );
+      throw error;
     } finally {
       preparing = false;
       options.render();
@@ -477,6 +521,52 @@ export function createUiRecognitionUiWithHost(options: {
   function render(card: HTMLElement, node: CanvasNode) {
     const current = options.current();
     if (!current) return;
+    const source = uiRecognitionSource(current, node);
+    if (
+      source?.uiRecognition &&
+      !source.uiRecognition.optional &&
+      source.uiRecognition.inputRole === 'text-free' &&
+      !source.templatePending &&
+      source.assetPath &&
+      !selectedUiRecognition(source) &&
+      !card.hasAttribute('aria-busy') &&
+      // Keep recovery actions for an existing remote task ahead of Bbox guidance.
+      !card.querySelector('.card-state-query:not(.card-state-resume):not(.card-state-adjust)')
+    ) {
+      card.querySelector('.card-state-overlay')?.remove();
+      const isSource = source.id === node.id;
+      const pending = Boolean(source.uiRecognition.pendingId);
+      renderCanvasCardStatus(card, 'paused', {
+        title: pending ? 'Bbox 结果待确认' : '等待 Bbox 数据',
+        hint:
+          '去文字图片已保留；Bbox 完成后才能预排、分离和切图。' +
+          (pending
+            ? '请查询原识图请求，不要重复提交。'
+            : '可使用识图 API，或由 AI 按模板 Skill 识图并回填；完成后继续原卡片。') +
+          (errors.get(current.id + ':' + source.id)
+            ? '\n' + errors.get(current.id + ':' + source.id)
+            : ''),
+        resumeLabel: isSource
+          ? pending
+            ? '查询 / 恢复 Bbox'
+            : '生成 / 重试 Bbox'
+          : '定位识图卡片',
+        resume:
+          busy || preparing || options.blocked()
+            ? undefined
+            : async () => {
+                if (!isSource) {
+                  options.focus?.(source.id);
+                  return;
+                }
+                try {
+                  await runRecognition(source);
+                } catch (error) {
+                  options.error(error instanceof Error ? error.message : String(error));
+                }
+              },
+      });
+    }
     if (node.uiEmpty && !node.templatePending) {
       const content = card.querySelector('.canvas-card-content');
       if (content) {

@@ -1,9 +1,10 @@
 import type { CanvasDocument } from '../contracts.js';
 import { isGameUiResource } from './uiWorkflow.js';
 
-export type UiCutoutColor = '#FF00FF' | '#00FF00';
+export type UiCutoutColor = '#FF00FF' | '#00FF00' | 'transparent';
 
 export function isUiCutoutSource(canvas: CanvasDocument, id: string): boolean {
+  if (canvas.nodes.find((node) => node.id === id)?.uiAtlasGroup === 'background') return false;
   return canvas.edges.some(
     (edge) =>
       edge.from === id &&
@@ -12,7 +13,8 @@ export function isUiCutoutSource(canvas: CanvasDocument, id: string): boolean {
   );
 }
 
-export function uiCutoutRgb(color?: UiCutoutColor): [number, number, number] {
+export function uiCutoutRgb(color?: UiCutoutColor): [number, number, number] | undefined {
+  if (color === 'transparent') return;
   return color === '#00FF00' ? [0, 255, 0] : [255, 0, 255];
 }
 
@@ -32,8 +34,31 @@ export function chooseUiCutoutColor(samples: ArrayLike<number>[]): UiCutoutColor
 }
 
 export function uiCutoutPrompt(prompt: string, color: UiCutoutColor): string {
+  if (color === 'transparent')
+    return (
+      prompt
+        .replace(/\n(?:抠图底色约定|透明输出约定)：[^\n]*/g, '')
+        .replace(
+          /背景(?:使用|为)?(?:平涂)?纯(?:洋红|绿色)(?:\s*#(?:FF00FF|00FF00))?(?:\s*[，,]?\s*RGB\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\))?/gi,
+          '背景透明（Alpha=0）'
+        )
+        .replace(/使用纯(?:洋红|绿色)底便于后续透明处理/g, '直接输出透明背景 PNG')
+        .replace(
+          /资源卡会自动去除与格子边界连通的(?:洋红|绿色)底再裁切/g,
+          '资源卡保留原始透明度裁切'
+        )
+        .replace(/(四周至少留(?:10|15)%)纯(?:洋红|绿色)空白/g, '$1透明空白')
+        .replace(/所有格外背景必须是平涂RGB\([^)]*\)/g, '所有主体外背景和间隔必须透明（Alpha=0）')
+        .replace(/flat solid #(?:FF00FF|00FF00) background/gi, 'transparent background (alpha=0)')
+        .replace(/(?:magenta|green) space/gi, 'transparent space')
+        .replace(
+          /All pixels outside these seven small objects are exactly RGB\([^)]*\)/g,
+          'All pixels outside these seven small objects have alpha=0'
+        ) +
+      '\n透明输出约定：输出带真实 Alpha 通道的透明背景 PNG。所有主体外背景、素材间隔和备用格均为 Alpha=0；保留主体原有配色、描边、半透明边缘和字效。不得填充纯色底、白底、黑底或画出棋盘格，不添加背景纹理、渐变、投影或底色反光。环境场景本身属于主体，只将场景外留白透明化。'
+    );
   const name = color === '#00FF00' ? '绿色' : '洋红';
-  const rgb = uiCutoutRgb(color).join(',');
+  const rgb = uiCutoutRgb(color)!.join(',');
   // Normalize the template's background clauses, never replace generic subject color names.
   const base = prompt
     .replace(/\n抠图底色约定：[^\n]*/g, '')

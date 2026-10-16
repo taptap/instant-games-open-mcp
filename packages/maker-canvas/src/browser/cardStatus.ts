@@ -34,6 +34,9 @@ export function renderCanvasCardStatus(
     stoppedWaiting?: boolean;
     waitTimedOut?: boolean;
     detail?: string;
+    title?: string;
+    hint?: string;
+    resumeLabel?: string;
   } = {}
 ): void {
   if (!state) return;
@@ -145,7 +148,7 @@ export function renderCanvasCardStatus(
     const resume = document.createElement('button');
     resume.type = 'button';
     resume.className = 'card-state-query card-state-resume';
-    resume.textContent = state === 'failed' ? '重试并继续' : '处理并继续';
+    resume.textContent = options.resumeLabel || (state === 'failed' ? '重试并继续' : '处理并继续');
     resume.addEventListener('pointerdown', (event) => event.stopPropagation());
     resume.addEventListener('dblclick', (event) => event.stopPropagation());
     resume.addEventListener('click', async (event) => {
@@ -176,6 +179,8 @@ export function renderCanvasCardStatus(
     });
     overlay.append(adjust);
   }
+  if (options.title) title.textContent = options.title;
+  if (options.hint) hint.textContent = options.hint;
   card.append(overlay);
 }
 

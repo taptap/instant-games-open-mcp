@@ -96,6 +96,7 @@ export function validateUiRecognitionStructure(value: unknown): UiRecognitionSet
   if (
     !input ||
     typeof input.enabled !== 'boolean' ||
+    (input.optional !== undefined && typeof input.optional !== 'boolean') ||
     (input.inputRole !== undefined && !['design', 'text-free'].includes(input.inputRole)) ||
     !Array.isArray(input.results) ||
     input.results.length > 12 ||
@@ -160,6 +161,7 @@ export function validateUiRecognitionStructure(value: unknown): UiRecognitionSet
     throw new Error('识图请求标识无效。');
   return {
     enabled: input.enabled,
+    ...(input.optional === undefined ? {} : { optional: input.optional }),
     ...(input.inputRole ? { inputRole: input.inputRole } : {}),
     ...(input.model ? { model: input.model } : {}),
     ...(input.pendingId ? { pendingId: input.pendingId } : {}),
@@ -215,6 +217,7 @@ export function setUiRecognitionMode(
 ): void {
   if (!source.uiRecognition || source.uiRecognition.enabled === enabled) return;
   source.uiRecognition.enabled = enabled;
+  if (source.uiRecognition.optional) return;
   for (const node of canvasDependents(document, source.id)) {
     if (node.sectionId && node.type !== 'note') node.templatePending = true;
     delete node.uiEmpty;
@@ -228,6 +231,7 @@ export function setUiRecognitionMode(
 export function selectedUiExtraction(document: CanvasDocument, node: CanvasNode) {
   if (!hasImageFeature(node, 'ui-extraction')) return;
   const source = uiRecognitionSource(document, node);
+  if (source?.uiRecognition?.optional) return;
   if (!source?.uiRecognition?.enabled) return;
   const result = selectedUiRecognition(source);
   if (!result) throw new Error('请先完成当前去文字图的识图，再拆图。');
@@ -323,6 +327,12 @@ export function uiRecognitionStatus(source?: CanvasNode) {
       status: 'ready',
       label: selected.elements.length + ' 个元素',
       text: uiRecognitionNote(selected),
+    };
+  if (settings.optional)
+    return {
+      status: 'not-ready',
+      label: 'Bbox 可选',
+      text: 'Bbox 尚未生成，不影响拆图与资源包。可从去文字卡菜单选择“生成 / 重试 Bbox”。',
     };
   return {
     status: 'not-ready',

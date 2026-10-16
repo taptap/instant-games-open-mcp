@@ -134,7 +134,7 @@ test('page exposes toolbar marks and the shared draw path', () => {
   expect(page).toContain('panning: function () { return space || handMode(); }');
   expect(page).toContain('navigation: function () { return space || handMode(); }');
   expect(page).toContain('beginPan:');
-  expect(page).toContain('panBy:');
+  expect(page).not.toContain('onPanWheel');
   expect(page).toContain('pan-tool');
   expect(page).toContain('drawCanvasMark(context, node, x, y, width, height)');
   expect(page).toContain('鼠标');

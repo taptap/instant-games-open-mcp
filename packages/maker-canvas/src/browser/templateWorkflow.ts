@@ -29,6 +29,7 @@ export function createTemplateWorkflow(options: {
   assets?(nodeId: string): Promise<boolean>;
   isQueued?(nodeId: string): boolean;
   failure?(nodeId: string): string | undefined;
+  completed?(nodeId: string): void;
 }) {
   let running = false;
   let activeNodeId: string | undefined;
@@ -393,11 +394,14 @@ export function createTemplateWorkflow(options: {
     );
     for (const nodeId of protectedIds)
       protectedNodes.set(nodeId, (protectedNodes.get(nodeId) || 0) + 1);
+    let failedNodeId = id;
     try {
       if (!(await options.save())) throw new Error('画布尚未保存，请保存后继续。');
       for (const node of ordered) {
         if (options.getDocument() !== document) throw new Error('已离开原画布，后续处理停止。');
         if (status(node.id) !== 'pending' && !(node.id === id && firstStep)) continue;
+        failedNodeId = node.id;
+        failures.delete(node.id);
         const sources = canvasReferences(document, node.id);
         if (
           (!sources.length && node.type !== 'image') ||
@@ -465,6 +469,7 @@ export function createTemplateWorkflow(options: {
         options.changed();
         if (!(await options.save())) throw new Error('结果保存失败，已停止后续步骤，请先保存。');
         finishWork(document, node.id);
+        if (!automatic) options.completed?.(node.id);
         if (!automatic) activeNodeId = undefined;
         // Video workflows retain their reference-image checkpoint. Static image
         // workflows continue through every dependent image and saved-grid export.
@@ -480,7 +485,7 @@ export function createTemplateWorkflow(options: {
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : '处理未完成，已保留旧结果。';
-      failures.set(id, message);
+      failures.set(failedNodeId, message);
       options.error(message);
       return false;
     } finally {

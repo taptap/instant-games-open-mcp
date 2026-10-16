@@ -29,9 +29,14 @@ test('official Bbox preset preserves tested prompts, media and final export layo
     expect(preset.nodes).toHaveLength(22);
     expect(preset.nodes.filter((node) => node.uiAtlasPrelayout)).toHaveLength(6);
     for (const node of preset.nodes) {
-      expect(node.generation?.prompt).toBe(
-        original.nodes.find((item) => item.id === node.id)?.generation?.prompt
-      );
+      if (node.uiAtlasGroup) {
+        expect(node.generation?.cutoutColor).toBe('transparent');
+        expect(node.generation?.prompt).toContain('真实 Alpha 通道');
+        expect(node.generation?.prompt).not.toMatch(/背景使用纯|抠图底色约定/);
+      } else
+        expect(node.generation?.prompt).toBe(
+          original.nodes.find((item) => item.id === node.id)?.generation?.prompt
+        );
     }
     expect(templatePresentation(id).category).toBe('UI 设计');
     expect(templateCoverSource({ ...preset, builtin: true }, 0)).toBe(

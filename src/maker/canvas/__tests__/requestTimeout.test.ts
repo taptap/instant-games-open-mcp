@@ -19,6 +19,22 @@ test('a request that ignores abort still ends local waiting without replay', asy
   expect(request).toHaveBeenCalledTimes(1);
 });
 
+test('an explicit cancellation ends local waiting immediately', async () => {
+  jest.useFakeTimers();
+  const cancel = new AbortController();
+  let signal!: AbortSignal;
+  const request = jest.fn((input: AbortSignal) => {
+    signal = input;
+    return new Promise(() => {});
+  });
+  const result = withCanvasTimeout(request, 60_000, cancel.signal);
+  const rejected = expect(result).rejects.toMatchObject({ code: 'CANVAS_REQUEST_CANCELED' });
+  cancel.abort();
+  await rejected;
+  expect(signal.aborted).toBe(true);
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
 test.each(['read', 'save', 'import'])(
   'bounds %s including response-body waiting',
   async (action) => {

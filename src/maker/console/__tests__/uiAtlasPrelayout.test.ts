@@ -208,7 +208,7 @@ test('local preparation works without an image provider and records a visible re
 });
 
 test('scales design Bboxes to cut-source pixels, fits wide/tall crops and leaves reserve cells empty', async () => {
-  const result = await prepareUiAtlasReference(files, plan, 128, 128, '#00FF00');
+  const result = await prepareUiAtlasReference(files, plan, 128, 128);
   const image = PNG.sync.read(fs.readFileSync(files.readMedia(result).file));
   const pixel = (x: number, y: number) => [
     ...image.data.subarray((y * 128 + x) * 4, (y * 128 + x) * 4 + 4),
@@ -216,9 +216,9 @@ test('scales design Bboxes to cut-source pixels, fits wide/tall crops and leaves
   expect(pixel(32, 32)).toEqual([255, 0, 0, 255]);
   expect(pixel(96, 32)).toEqual([255, 0, 0, 255]);
   expect(pixel(32, 96)).toEqual([0, 0, 255, 255]);
-  expect(pixel(96, 96)).toEqual([0, 255, 0, 255]);
-  expect(pixel(32, 20)).toEqual([0, 255, 0, 255]);
-  expect(pixel(20, 96)).toEqual([0, 255, 0, 255]);
+  expect(pixel(96, 96)).toEqual([0, 0, 0, 0]);
+  expect(pixel(32, 20)).toEqual([0, 0, 0, 0]);
+  expect(pixel(20, 96)).toEqual([0, 0, 0, 0]);
   const updated = structuredClone(plan);
   updated.bbox.elements[0].bbox = [30, 0, 4, 20];
   const next = await prepareUiAtlasReference(files, updated, 128, 128, '#FF00FF');

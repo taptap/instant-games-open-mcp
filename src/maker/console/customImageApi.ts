@@ -45,7 +45,13 @@ export class ImageApiResponseError extends Error {
 }
 export async function generateCustomImage(
   profile: ApiProfile,
-  input: { prompt: string; references: string[]; files: MakerCanvasFiles; targetSize: string },
+  input: {
+    prompt: string;
+    references: string[];
+    files: MakerCanvasFiles;
+    targetSize: string;
+    transparent?: boolean;
+  },
   fetcher: typeof fetch = fetch
 ): Promise<{ bytes?: Buffer; url?: string }> {
   const headers: Record<string, string> = { Authorization: 'Bearer ' + profile.apiKey };
@@ -59,6 +65,7 @@ export async function generateCustomImage(
     form.set('prompt', input.prompt);
     form.set('n', '1');
     form.set('size', size);
+    if (input.transparent) form.set('background', 'transparent');
     let total = 0;
     for (const relative of input.references) {
       const media = input.files.readMedia(relative);
@@ -75,7 +82,13 @@ export async function generateCustomImage(
     body = form;
   } else {
     headers['Content-Type'] = 'application/json';
-    body = JSON.stringify({ model: profile.model, prompt: input.prompt, n: 1, size });
+    body = JSON.stringify({
+      model: profile.model,
+      prompt: input.prompt,
+      n: 1,
+      size,
+      ...(input.transparent ? { background: 'transparent' } : {}),
+    });
   }
   let response: Response;
   try {

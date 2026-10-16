@@ -23,7 +23,9 @@ export function metadataVersion(node: CanvasNode): string {
             ? '|nativeLayout:' + JSON.stringify(node.generation.uiAtlasPlan.nativeLayout)
             : '')
         : '');
-    return node.uiRecognition && node.uiRecognition.inputRole !== 'design'
+    return node.uiRecognition &&
+      !node.uiRecognition.optional &&
+      node.uiRecognition.inputRole !== 'design'
       ? asset +
           '|recognition:' +
           (node.uiRecognition.enabled ? node.uiRecognition.selectedId || 'pending' : 'off')

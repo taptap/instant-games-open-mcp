@@ -32,7 +32,7 @@ export async function prepareUiAtlasReference(
   input: UiAtlasPlan,
   width: number,
   height: number,
-  color: '#00FF00' | '#FF00FF'
+  color: '#00FF00' | '#FF00FF' | 'transparent' = 'transparent'
 ): Promise<string> {
   const plan = validateUiAtlasPlan(input);
   if ([plan.grid.marginX, plan.grid.marginY, plan.grid.gapX, plan.grid.gapY].some(Boolean))
@@ -53,12 +53,13 @@ export async function prepareUiAtlasReference(
   const source = PNG.sync.read(bytes);
   const background = color === '#00FF00' ? [0, 255, 0] : [255, 0, 255];
   const data = Buffer.alloc(width * height * 4);
-  for (let offset = 0; offset < data.length; offset += 4) {
-    data[offset] = background[0];
-    data[offset + 1] = background[1];
-    data[offset + 2] = background[2];
-    data[offset + 3] = 255;
-  }
+  if (color !== 'transparent')
+    for (let offset = 0; offset < data.length; offset += 4) {
+      data[offset] = background[0];
+      data[offset + 1] = background[1];
+      data[offset + 2] = background[2];
+      data[offset + 3] = 255;
+    }
   plan.slots.forEach((slot, index) => {
     if (slot.role === 'reserve') return;
     const element = (slot.role === 'text' ? plan.bbox.texts : plan.bbox.elements).find(
@@ -98,15 +99,26 @@ export async function prepareUiAtlasReference(
           [Math.min(x1, ix + 1), Math.min(y1, iy + 1), dx * dy],
         ];
         const dest = ((top + y) * width + left + x) * 4;
+        // Interpolate premultiplied colors, then restore straight alpha for PNG.
+        const alpha = samples.reduce(
+          (sum, [rx, ry, weight]) =>
+            sum + (weight * source.data[(ry * source.width + rx) * 4 + 3]) / 255,
+          0
+        );
+        data[dest + 3] = color === 'transparent' ? Math.round(alpha * 255) : 255;
         for (let channel = 0; channel < 3; channel++) {
           let value = 0;
           for (const [rx, ry, weight] of samples) {
             const offset = (ry * source.width + rx) * 4;
-            const alpha = source.data[offset + 3] / 255;
+            const sampleAlpha = source.data[offset + 3] / 255;
             value +=
-              weight * (source.data[offset + channel] * alpha + background[channel] * (1 - alpha));
+              weight *
+              (source.data[offset + channel] * sampleAlpha +
+                (color === 'transparent' ? 0 : background[channel] * (1 - sampleAlpha)));
           }
-          data[dest + channel] = Math.round(value);
+          data[dest + channel] = Math.round(
+            color === 'transparent' ? (alpha ? value / alpha : 0) : value
+          );
         }
       }
     }

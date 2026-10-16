@@ -202,7 +202,9 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   const inputBaselines = new Map<string, { node: any; canvasId: string; value: string }>();
   const importingReferences = new Set<string>();
   const videoWaits = new Map<string, () => void>();
+  const imageWaits = new Map<string, () => void>();
   const stoppedVideos = new Set<string>();
+  const stoppedImages = new Set<string>();
   const stoppedAttempts = new Set<string>();
   const videoKey = (canvasId: string, nodeId: string) => canvasId + ':' + nodeId;
   async function waitVideoRequest(
@@ -1207,11 +1209,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
           '\n' +
           uiAtlasOrderPrompt(atlasPlan, outputSize.width / outputSize.height, usesPrelayout);
       if (targetId && isUiCutoutSource(documentState, targetId)) {
-        cutoutColor = await options.detectUiCutoutColor(
-          [...sourceNodes.map((source) => source.assetPath), ...referencePaths(node)],
-          options.store.mediaUrl
-        );
-        if (options.getDocument() !== documentState) return;
+        cutoutColor = 'transparent';
         prompt = uiCutoutPrompt(prompt, cutoutColor);
         const inputField = node.assetPath ? 'generation' : 'generationDraft';
         node[inputField] = {
@@ -1245,6 +1243,12 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       options.log?.(node.title + '：开始生成图片', 'info');
       requestStarted = Date.now();
       if (targetId) unconfirmedImages.set(requestKey, requestStarted);
+      const imageKey = videoKey(documentState.id, node.id);
+      const controller = new AbortController();
+      imageWaits.set(imageKey, () => {
+        stoppedImages.add(imageKey);
+        controller.abort();
+      });
       const attempt = await withCanvasTimeout(
         (signal) =>
           options.store.generateImage(
@@ -1271,8 +1275,10 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
             },
             signal
           ),
-        5 * 60_000
+        5 * 60_000,
+        controller.signal
       );
+      if (stoppedImages.has(imageKey)) return;
       if (unconfirmedImages.get(requestKey) === requestStarted)
         unconfirmedImages.delete(requestKey);
       attempts.set(attempt.id, attempt);
@@ -1321,17 +1327,28 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         options.render();
       }
     } catch (error) {
-      imageFailures.set(node.id, error instanceof Error ? error.message : String(error));
-      const rejection = error as { code?: string; executionState?: string } | undefined;
-      if (
-        rejection?.code === 'CANVAS_IMAGE_NOT_SUBMITTED' &&
-        rejection.executionState === 'not_executed' &&
-        requestStarted !== undefined &&
-        unconfirmedImages.get(requestKey) === requestStarted
-      )
-        unconfirmedImages.delete(requestKey);
-      options.setError(error instanceof Error ? error.message : String(error));
+      const imageKey = documentState && videoKey(documentState.id, node.id);
+      if (imageKey && stoppedImages.has(imageKey)) {
+        imageFailures.set(node.id, '已停止本地等待；原图片任务可能仍在运行，请查询原结果。');
+        options.setError('已停止本地等待；原图片任务可能仍在运行，请查询原结果。', 'warning');
+      } else {
+        imageFailures.set(node.id, error instanceof Error ? error.message : String(error));
+        const rejection = error as { code?: string; executionState?: string } | undefined;
+        if (
+          rejection?.code === 'CANVAS_IMAGE_NOT_SUBMITTED' &&
+          rejection.executionState === 'not_executed' &&
+          requestStarted !== undefined &&
+          unconfirmedImages.get(requestKey) === requestStarted
+        )
+          unconfirmedImages.delete(requestKey);
+        options.setError(error instanceof Error ? error.message : String(error));
+      }
     } finally {
+      if (documentState) {
+        const imageKey = videoKey(documentState.id, node.id);
+        imageWaits.delete(imageKey);
+        stoppedImages.delete(imageKey);
+      }
       inFlight.delete(node.id);
       if (targetId) inFlight.delete(targetId);
       options.render();
@@ -2695,12 +2712,14 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     },
     nodeState,
     canStopWaiting(nodeId: string) {
-      return videoWaits.has(videoKey(options.getDocument()?.id, nodeId));
+      const key = videoKey(options.getDocument()?.id, nodeId);
+      return videoWaits.has(key) || imageWaits.has(key);
     },
     stopWaiting(nodeId: string) {
       const key = videoKey(options.getDocument()?.id, nodeId);
       stoppedVideos.add(key);
       videoWaits.get(key)?.();
+      imageWaits.get(key)?.();
     },
     async queryNode(nodeId: string, throwOnError = false) {
       const documentState = options.getDocument();
@@ -2762,11 +2781,12 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       return (
         inFlight.has(nodeId) ||
         videoWaits.has(videoKey(options.getDocument()?.id, nodeId)) ||
+        imageWaits.has(videoKey(options.getDocument()?.id, nodeId)) ||
         importingReferences.has(referenceKey({ id: nodeId }))
       );
     },
     get isBusy() {
-      return inFlight.size > 0 || videoWaits.size > 0;
+      return inFlight.size > 0 || videoWaits.size > 0 || imageWaits.size > 0;
     },
   };
 }

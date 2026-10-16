@@ -24,6 +24,8 @@ export const CANVAS_SEQUENCE_SETTING_FIELDS = [
 
 export const CANVAS_COMMAND_ACTIONS = [
   'inspect',
+  'save',
+  'recognize-ui',
   'create',
   'open',
   'rename',
@@ -196,7 +198,7 @@ export function prepareCanvasNodeUpdatesWithValidation(
             results: [...next.uiRecognition.results, result],
             selectedId: result.id,
           });
-          contentChanged = true;
+          contentChanged = !next.uiRecognition.optional || contentChanged;
         }
       } else if (key === 'mergeIcons') {
         configureMergeIcons(next, value);

@@ -23,7 +23,7 @@ export interface CanvasGenerationAttempt {
   toolName: 'generate_image' | 'edit_image' | 'create_video_task' | 'prepare_ui_atlas';
   status: CanvasGenerationStatus;
   prompt: string;
-  cutoutColor?: '#FF00FF' | '#00FF00';
+  cutoutColor?: '#FF00FF' | '#00FF00' | 'transparent';
   referenceImages?: Array<CanvasImageInfo & { assetPath: string }>;
   originalImage?: CanvasImageInfo & { assetPath: string; nodeId?: string };
   resultImageInfo?: CanvasImageInfo;

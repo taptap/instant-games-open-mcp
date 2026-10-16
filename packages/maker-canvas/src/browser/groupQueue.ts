@@ -7,6 +7,7 @@ export function createCanvasGroupQueue(options: {
   problem?(nodeId: string): string | undefined;
   busy(): boolean;
   parallel?(nodeId: string): boolean;
+  imageConcurrency?(nodeId: string): number;
   save?(): Promise<boolean>;
   run(nodeId: string): Promise<boolean>;
   retryTarget?(nodeId: string): string | undefined;
@@ -170,7 +171,8 @@ export function createCanvasGroupQueue(options: {
     const kind = lane(nodeId);
     if (kind === 'exclusive') return active.length === 0;
     if (active.some((id) => lane(id) === 'exclusive')) return false;
-    return active.filter((id) => lane(id) === kind).length < (kind === 'image' ? 3 : 1);
+    const limit = kind === 'image' ? (options.imageConcurrency?.(nodeId) ?? 3) : 1;
+    return active.filter((id) => lane(id) === kind).length < limit;
   }
   function updateCounts(state: CanvasGroupQueueState) {
     state.completed = state.finished.length;
@@ -451,6 +453,20 @@ export function createCanvasGroupQueue(options: {
   }
   return {
     checkpoint,
+    completed(nodeId: string) {
+      sync();
+      for (const state of queues.values()) {
+        if (state.phase !== 'paused' || !state.pending.includes(nodeId)) continue;
+        if (options.needs(nodeId) || options.problem?.(nodeId)) continue;
+        state.pending = state.pending.filter((id) => id !== nodeId);
+        delete state.failures[nodeId];
+        if (!state.finished.includes(nodeId)) state.finished.push(nodeId);
+        updateCounts(state);
+        state.message = '失败步骤已恢复，可继续剩余流程';
+        if (!state.pending.length) void settle(state, 'complete', '已完成');
+        else options.changed();
+      }
+    },
     start,
     stop,
     move,

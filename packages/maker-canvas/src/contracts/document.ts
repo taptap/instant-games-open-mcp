@@ -51,7 +51,7 @@ export type CanvasVideoMode = 'first_frame' | 'first_last_frame' | 'multi_modal_
 export interface CanvasGenerationResult {
   prompt: string;
   uiAtlasPlan?: UiAtlasPlan;
-  cutoutColor?: '#FF00FF' | '#00FF00';
+  cutoutColor?: '#FF00FF' | '#00FF00' | 'transparent';
   referenceImagePaths?: string[];
   parameters?: {
     model?: string;

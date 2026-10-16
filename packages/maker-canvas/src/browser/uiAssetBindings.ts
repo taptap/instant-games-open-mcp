@@ -15,6 +15,7 @@ export function ensureUiAtlasBatchCards(document: CanvasDocument, groupId?: stri
     )
       continue;
     const recognition = uiRecognitionSource(document, seed);
+    if (recognition?.uiRecognition?.optional) continue;
     const bbox = recognition?.uiRecognition?.enabled && selectedUiRecognition(recognition)?.bbox;
     if (!bbox) continue;
     const plans = uiWorkflowAtlasPlans(document, seed, bbox);

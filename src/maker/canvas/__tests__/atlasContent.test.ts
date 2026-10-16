@@ -55,7 +55,7 @@ test('preserves a tall character that crosses a grid line and exceeds the nomina
   });
   const regions = findAtlasContentRegions(data, width, height);
   expect(regions).toHaveLength(16);
-  expect(regions[2]).toEqual({ name: 'item_003', x: 220, y: 15, width: 50, height: 100 });
+  expect(regions[0]).toEqual({ name: 'item_001', x: 220, y: 15, width: 50, height: 100 });
 });
 
 test('rejects empty sources and original-edge truncation', () => {

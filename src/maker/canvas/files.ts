@@ -1485,7 +1485,7 @@ export class MakerCanvasFiles {
         fail('参考图片路径无效。', 400, 'UNSAFE_PATH');
       if (
         input.cutoutColor !== undefined &&
-        !['#FF00FF', '#00FF00'].includes(String(input.cutoutColor))
+        !['#FF00FF', '#00FF00', 'transparent'].includes(String(input.cutoutColor))
       )
         fail('抠图底色无效。', 400, 'INVALID_DOCUMENT');
       generation = {
@@ -1495,7 +1495,7 @@ export class MakerCanvasFiles {
           : { uiAtlasPlan: validateUiAtlasPlan(input.uiAtlasPlan) }),
         ...(input.cutoutColor === undefined
           ? {}
-          : { cutoutColor: input.cutoutColor as '#FF00FF' | '#00FF00' }),
+          : { cutoutColor: input.cutoutColor as '#FF00FF' | '#00FF00' | 'transparent' }),
         ...(referenceImagePaths === undefined
           ? {}
           : { referenceImagePaths: [...(referenceImagePaths as string[])] }),
@@ -1850,7 +1850,7 @@ export class MakerCanvasFiles {
     if (
       edge.kind === 'image-variant' &&
       (from?.type !== 'image' ||
-        !from.assetPath ||
+        (!from.assetPath && !from.generationDraft?.prompt?.trim()) ||
         to?.type !== 'image' ||
         (!to.referenceInput &&
           (to.assetPath
@@ -1860,7 +1860,7 @@ export class MakerCanvasFiles {
             : to.generationDraft?.operation !== 'variant' ||
               to.generationDraft.sourceImageId !== from.id)))
     ) {
-      fail('图片派生关系必须对应真实结果或变体草稿中的已保存来源图片。', 400, 'INVALID_EDGE');
+      fail('图片派生关系必须引用已有图片或待生成的图片草稿。', 400, 'INVALID_EDGE');
     }
     if (
       edge.kind === 'sequence-animation' &&
