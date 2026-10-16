@@ -1835,7 +1835,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    getDocument: function () { return documentState; },',
       '    needs: function (id) { return templateWorkflow.status(id) === "pending"; },',
       '    parallel: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); const group = node && documentState.nodes.find(function (item) { return item.id === node.sectionId; }); return Boolean(group && (["7e1cb6ad-732f-4dc3-a951-000000000013", "7e1cb6ad-732f-4dc3-a951-000000000015"].includes(group.templateId) || (group.templateCliOnly && group.templateSkills?.includes("maker-ui-bbox-workflow"))) && node.type === "image" && (!node.uiRecognition || node.uiRecognition.optional) && !node.uiAtlasPrelayout && canvasReferences(documentState, id).length); },',
-      '    imageConcurrency: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); const group = node && documentState.nodes.find(function (item) { return item.id === node.sectionId; }); return group?.templateId === "7e1cb6ad-732f-4dc3-a951-000000000013" ? Infinity : 3; },',
+      '    imageConcurrency: function () { return Infinity; },',
       '    save: flush,',
       '    problem: function (id) { if (sequenceUi.hasDraft(id)) return "此卡片有未保存的帧处理，请先保存或放弃后再继续队列。"; return generationUi.queueBlockReason(id); },',
       '    busy: function () { return templateWorkflow.isBusy || generationUi.isBusy || imageAssetsUi.isBusy || sequenceUi.isBusy || Boolean(sequenceEditor && sequenceEditor.isOpen) || Boolean(imageEditing && imageEditing.isBusy) || Boolean(videoHistory && videoHistory.isBusy) || pendingAssetImports > 0; },',

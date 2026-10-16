@@ -16,5 +16,5 @@ export const builtinPresetDescriptions: Record<string, string> = {
   '7e1cb6ad-732f-4dc3-a951-000000000013':
     'UI设计稿 → 去文字 / 背景准备 → 按依赖并发拆图 → PNG资源包；Bbox识别可选，失败不阻塞，可手动重试',
   '7e1cb6ad-732f-4dc3-a951-000000000015':
-    'UI设计稿 → 去文字与Bbox识别 → 本地透明预排 → 透明分离图集 → PNG资源包；Bbox缺失时按卡片提示补齐后继续，需逐批复核分离效果',
+    'AI按Skill执行：设计稿 → 去文字与Bbox识图 → 预排切图 → 资源包 → 可编辑UI；继续组装.ui.json并在UI编辑器对照验收',
 };

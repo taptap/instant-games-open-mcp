@@ -1,78 +1,121 @@
 ---
 name: maker-ui-bbox-workflow
-description: 通过 CLI 编排 Maker「游戏UI制作 · Bbox预排参考图（实验）」：复用当前识图，按需创建预排、分离与切图批次，检查并导出 PNG 资源包。用于此实验模板及其个人副本；普通「游戏UI制作」使用 maker-ui-workflow。
+description: 执行 Maker「游戏UI制作 · Bbox预排参考图（实验）」及其个人副本，从识图、预排切图到组装可编辑的 .ui.json，并在 UI 编辑器验收。仅要求切图时交付 PNG 资源包；普通「游戏UI制作」使用 maker-ui-workflow。
 ---
 
 # Bbox 预排 UI 工作流
 
-本 Skill 管理预排模板的独立执行流程。先读实际卡片、连线与参数，不按示例数量或标题序号猜输入。
-官方模板 ID 为 `7e1cb6ad-732f-4dc3-a951-000000000015`；个人副本以分组关联的本 Skill 识别。
-模板标记 `cliOnly`，整组只由 CLI 编排；用户仍可单独执行预排、生图和切图。
-新实例只有原稿、识图输入与去文字步骤，示例批次只供预览，不复制为任务。
-不要把普通模板转换成预排流程，也不要求画布自己识图决策。
+**默认交付：可在 Maker UI 编辑器中编辑的 .ui.json、独立 PNG、普通文字 Label 和参考图。**
+资源包是中间产物，完成后继续组装与验收；用户明确要求“仅切图”时才在第 3 步结束。
 
-## 准备与识图
+**全程：识图 → 预排切图 → 核对归档 → 组装 UI → 编辑器验收。**
+开始时将这五步加入任务计划；每步完成记录产物位置与下一步。中断后重读当前步骤并查询实际状态再继续。
+沿用用户已选项目和已授权范围，不逐步重复询问。命令参数以当前 CLI schema 为准，画布写入携带最新 revision。
 
-1. 沿用用户已选项目，通过 `canvas pages`、`canvas inspect` 读取 page-id、canvas-id、revision
-   与当前分组。操作使用当前 CLI schema，通过受控接口保存，不改写打开中的画布文件。
-2. 调用 `canvas model-settings --target-dir <项目>`，识图按返回的 vision.source 执行；默认 Server API 不可用时由系统临时降级为 chatgpt-web，用户主动选择优先，不自行切换渠道。
-   付费识图、生图遵循已有授权；本地预排不调用生图模型、不消耗模型积分。
-3. 原始设计稿 → 原稿与识图输入 → 去文字与元素识别。先完成去字，再识别去字图的 UI
-   与原稿的文字。local 由当前 AI 客户端识别；custom 用已配置 API；server 用画布两轮识图。已有任务不因接口不可用换渠道重做。
-   chatgpt-web 仅复用同包的[网页识图协议](../maker-ui-workflow/references/chatgpt-web.md)，
-   不因此切换为普通模板的拆图流程。
-4. 用 `canvas recognition-input` 取当前输入，用 `canvas recognition-result` 校验两轮结果
-   并按返回协议回填。Bbox 为 version=1、design-pixels、xywh，保留 design/cutSource 的
-   路径、哈希、真实尺寸及 elements/texts。换图后重新识图，不能沿用示例坐标。
-   当前原稿和去文字图身份未变且已有有效结果时直接复用，不再次调用识图或打开识图网页。
+适用于模板 7e1cb6ad-732f-4dc3-a951-000000000015 及关联本 Skill 的个人副本，由 CLI 编排。
+读取实际卡片与连线；示例结果不能算本次产物，不将普通模板转换为此流程。
 
-## 预排、分离与切图
+## 1. 准备与识图
 
-1. 先判断素材复用、按钮状态及美术字需求，必要时修正当前识图清单。保存后调用
-   `canvas sync-ui-batches`，input 如 `{"id":"分组ID","artText":["T001","T008"],"background":false}`，携带最新 revision。
-   artText 填当前 Bbox 中所有需要图片化的文字 ID，每项独立建卡；没有时传 []。
-   普通文字留作 Label，cutout=false 不自动提取；role=title 不等于美术字需求。旧 true 仅代表单个主标题，不用于多组美术字。
-   background 决定是否额外还原识图清单未列出的环境背景；纯弹窗不默认补场景。
-   接口按分类将素材以原尺寸紧凑装入图集，2048 仅为单边上限，画幅按实际占用选择支持的比例，记录每项裁切矩形，仅创建实际需要的“预排→分离→PNG”和资源包；
-   空分类不建卡。同一结果重复调用不重复建卡，不触发识图、生图或扣费。
-   已有卡片和产物保留；旧测试或换稿留下的卡片不要当作新批次完成。无结果、无任务且
-   确认无人工修改的旧占位卡才可通过 delete-nodes 清理，不删除已生成素材。
-   容量超限时停止说明需要拆分处理，不截断元素清单或宣称自动分画布已经完成。无需外部排版脚本。
-2. 每批严格沿用：当前去文字图 → Bbox 本地预排卡 → 生图分离卡 → PNG 资源卡。
-   本地预排以原稿 Bbox 像素为尺寸基准（小数宽高四舍五入），只移动、不缩放入格；去文字图分辨率不同时仅映射回该基准。画布留白与素材间隔透明，裁片保留来源 Alpha；素材间留 8 像素间隔，放不下才续批，单项超过 2048 像素停止说明，不缩小。它仍带原背景、遮挡物，不是已分离的最终素材。
-3. 分离卡只引用对应批次的预排图，不改回整屏去字图，也不混入其它参考图。提示词按
-   “保留原尺寸主体”“移除背景与覆盖物”“输出同坐标透明 PNG”分开写；明确要求真实 Alpha=0，不铺纯色底或绘制棋盘格；原稿坐标不作为预排图上的定位坐标。
-   不覆盖已有槽位清单，不重排 ID，不把预排卡当成付费生图卡。
-4. 预排与分离必须输出当前 nativeLayout 记录的相同尺寸，不固定为 2048×2048。先看预排是否紧凑、主体清晰；不要将大面积空白图直接送生图。按已记录的实际矩形裁切，不做内容检测重排或缩放；更换 Bbox、来源或布局后先重做预排。
-   下游使用本次生成记录的规划，不能用新规划解释旧结果。按上游状态恢复，不重复已完成生成。
-5. 美术字是独立支线，引用原始设计稿；普通文字使用 texts 还原 Label。不要把普通文字
-   塞进预排图集，也不要因去字图没有美术字就跳过该支线。
-6. 同步完成后先 inspect 核对批次数、元素覆盖及连线。已获授权时运行分组到资源包，保留识图开启；缺少本地/网页识图结果时先回填、保存，
-   再以最新 revision 继续。队列根据连线执行，预排、生图和裁切各有自己的完成状态。
-   生图同页最多并发 3 张；明确失败默认最多重试 2 次（首次加重试共 3 次），沿用分组队列。
-   结果未知、下载或保存失败不重新付费生成；本地预排不占用生图并发通道。
+**顺序：定位去文字卡 → 完成并保存去文字图 → 按来源执行两轮识图 → 确认结果已写回 → 进入预排。**
 
-## 检查与恢复
+1. 用 `canvas pages / inspect` 取得 page-id、canvas-id、分组与 revision，找到
+   `uiRecognition.inputRole=text-free` 的去文字卡及其唯一上游原稿；后续识图都用这张去文字卡的 ID。
+   用 `canvas model-settings --target-dir <项目>` 读取有效 vision.source。
+   **原稿与去文字图未变且已有完整、选中的 Bbox 时，直接进入第 2 节，不重做识图。**
+2. 先确认原稿已就绪；若其下游 `inputRole=design` 的“原稿与识图输入”卡仍待执行，先 run 该卡同步原稿并保存。
+   再用 `canvas run` 运行未完成的去文字卡，等待原操作并 inspect 确认图片已生成、保存。
+   **此时不运行整组：Bbox 模板须先有识图结果并 sync-ui-batches，才能运行整组。**
+   local/chatgpt-web 提示“等待 Bbox”时，若去文字图已就绪，继续下面的回填流程，不重跑去文字。
+3. 按 vision.source 选择一条路径：
+   - **server/custom：** 去文字卡 run 会接续两轮识图；等待该操作结果。已有去文字图但缺 Bbox 时，
+     用 `canvas recognize-ui` 仅识图。pending/unknown 用 `canvas query` 查原请求，不转入手动回填。
+   - **local/chatgpt-web：** 由 Agent 完成下方“两轮回填”，画布不能替 Agent 看图。
+     不反复 run 或 recognize-ui 等待它自动完成；网页操作按[网页识图协议](../maker-ui-workflow/references/chatgpt-web.md)。
 
-- 核对每批主体完整、槽位顺序、默认/按下态、背景透明度、底板与图标分离。数量相同不代表质量通过；
-  预排图只是参考约束，模型仍可能重绘、跨格、粘连。未复核资源保持 unreviewed。
-- 空分类无需生成，资源包跳过已确认完成的空分类；来源过期时先更新来源。
-- 切图失败先保留生成图，使用已有裁框与去底能力修正，不自动重新付费生图。
-- 未知请求先查询原任务。Server API 恢复需复用原编号并显式确认；不把 unknown 当作失败重提。
-- 完成必须逐项对照 Bbox：每个元素（含 duplicateOf 复用实例）有正常态绑定，按钮和页签还有按下态；
-  每个选定美术字 ID 在 bindings.json 的 artTextBindings 中有对应 PNG，普通文字保留在 texts。
-  缺项、失败、未知或过期都不报完成；美术字的 PNG 映射不代表视觉审核通过。
-  实验模板整包导出会拒绝待完成、未连入资源包及缺失元素/状态；单卡下载不代表整套完成。
-  超过 ZIP 上限时按资源卡分别下载并核对全集，不截断；超过规划容量时停止说明，不能承诺自动跨画布拆分。
-- 结束后核对批次数与资源数量，将每批“预排 → 分离 → 资源”横向对应，类别纵向紧凑排列，
-  资源包放在全部处理卡片底部。
+### 两轮回填（仅 local/chatgpt-web）
 
-## 交付边界
+以下命令均使用同一项目、canvas-id 和去文字卡 ID；输入准备读取已保存画布。
+**recognition-input 不调用模型；recognition-result 不保存画布，必须再 update-nodes。**
 
-仅请求切图时，到 PNG 与含 bbox.json、bindings.json 的资源包结束。既有示例不能当新任务完成。
-用户要求继续拼 UI 时，从同一归档版本取得 Bbox、PNG 与已确认的绑定，保留文字 Label 和原稿坐标；
-正式素材归档到 `assets/ui/<界面>/images/`，显式生成 meta。
-组装复用同包 `../maker-ui-workflow/scripts/assemble-ui.mjs`，输入 assembly.json，输出到不存在的
-新目录；脚本的 schema 与坐标契约见[组装数据说明](../maker-ui-workflow/references/workflow.md)。
-这里只复用组装工具和数据契约，不执行该文档的普通模板拆图步骤。打开 UI 编辑器左右、重叠对照，
-不覆盖用户手工编辑，不自动构建、提交或发布游戏。
+1. 调用 `canvas recognition-input`，保留返回的 canvasId、nodeId、design、cutSource。
+   按返回的 imagePath 和 prompt 识别去文字图，取得第一轮 cut JSON；local 由当前客户端看图，网页由浏览器操作。
+2. 将四个身份字段与 cut 写入 reply.json，再调用 `canvas recognition-input --input-file <reply.json>`。
+   它校验第一轮并换算坐标，返回第二轮原稿 imagePath 与文字 prompt；按此执行并取得 text JSON。
+   **两轮顺序执行，保留原始回复，不手工二次换算坐标，也不拿去文字图识别文字。**
+3. 在同一 reply.json 中加入 text、实际 model 和两轮实际耗时 durationMs（毫秒，必须大于 0），
+   调用 `canvas recognition-result --input-file <reply.json>`。校验失败先检查对应回复，保留已完成的一轮。
+4. 将成功返回的整个 `{nodes:[...]}` 保存为 update.json，重新 inspect 取得最新 page-id/revision，
+   用 `canvas update-nodes --input-file <update.json>` 写回；查询该操作确认写入、保存成功。
+
+**进入预排的条件：** inspect 确认去文字卡的 selectedId 指向本次完整结果，Bbox 含 elements、texts
+及与当前图片匹配的 design/cutSource 身份，格式为 version=1、design-pixels、xywh。
+只有 cut、只有校验输出或结果尚未保存，都先完成本节；满足条件后直接执行第 2 节的 sync-ui-batches。
+
+## 2. 预排、分离与切图
+
+1. 核对复用元素、按钮状态及美术字需求，保存后调用 `canvas sync-ui-batches`。例如：
+   `{"id":"分组ID","artText":["T001","T008"],"background":false}`。
+   artText 填需要图片化的文字 ID，无则 []；普通文字保留为 Label。background 仅在需要额外还原环境背景时开启。
+2. **先运行本地预排并看图，再继续分离生图。** 每批沿用“去文字图 → 本地预排 → 分离 → PNG”。
+   预排按原稿 Bbox 尺寸紧凑排布，只移动、不缩放；2048 是单边上限，不是固定画幅。
+   检查主体清晰、没有大面积无用留白；容量超限说明缺口，不缩图或截断清单。
+3. 分离卡只引用对应预排图，提示词分写“保留主体”“移除背景与覆盖物”“输出透明 PNG”。
+   **输出尺寸与槽位沿用本次 nativeLayout，按记录矩形裁切；真实 Alpha 透明，不绘制棋盘格。**
+   美术字独立引用原稿，不混入去文字图集。
+4. inspect 核对批次、覆盖与连线后，运行分组接续到资源包，保留识图开启；并发和重试沿用现有队列。
+   缺少 local/chatgpt-web 识图结果时先回填、保存，再带最新 revision 继续。
+
+**本步产物：** 各批独立 PNG 及资源包。等待实际结果，提交任务不算完成。
+
+## 3. 核对与归档
+
+1. 看实际 PNG：主体完整、透明正确、底板与图标分离、状态对齐；核对后确认绑定，未查看的保持 unreviewed。
+2. **逐项对照 Bbox：** 每个元素（含 duplicateOf 实例）有正常态绑定，按钮/页签有按下态；
+   每个选定美术字在 artTextBindings 中有 PNG，普通文字保留在 texts。缺项先补齐。
+3. 按类别排列画布，每批“预排 → 分离 → 资源”横向对应，资源包放底部，保存。
+   用 `canvas ui-archives --target-dir <项目>` 取得本次界面同一版本的 resources 归档；
+   尚无归档时用 `canvas archive-ui` 归档已保存画布，也可使用本次完整导出包。
+
+**本步产物：** 同一版本的 PNG、参考图、bbox.json、bindings.json。recognized 归档只有识图，不能用于完整组装。
+默认继续第 4 步；仅切图任务在此交付实际文件路径。ZIP 超限时按资源卡下载并核对全集。
+
+## 4. 组装可编辑 UI
+
+1. PNG 导入 `assets/ui/<界面>/images/`，备用图放 `reserve/`；过程文件放 `.maker/ui-workflows/<界面>/`。
+   按 bbox.design/cutSource 的路径导入原稿、去文字图并核对哈希。参考图与素材均须为 PNG。
+2. 将 bbox.json 与 bindings.json 合并为 assembly.json，保留全部绑定、审核及归档字段；
+   将 assets 和 artTextBindings 的 path 映射到导入后的 assets/ 相对路径。
+   **布局只用原稿 Bbox 坐标，素材只用已核对的 ID 绑定，不按外观或文件顺序猜配。**
+3. 用同包脚本组装，先建父目录，输出目录必须不存在：
+
+   ```sh
+   node <同包maker-ui-workflow目录>/scripts/assemble-ui.mjs <项目绝对路径> <assembly.json路径> <新输出目录>
+   ```
+
+   输出目录放在 `assets/ui/<界面>/` 下。脚本生成独立图像节点、文字 Label、父子坐标及参考图。
+   数据与纠偏格式按需读[组装数据说明](../maker-ui-workflow/references/workflow.md)的“布局文件与组装工具”，不转入其普通模板拆图步骤。
+
+4. **美术字需另行应用：脚本不自动处理 artTextBindings。** 按 textId 找对应 Label，
+   用 `ui inspect / patch` 改为引用 PNG 的图像节点，保留位置、父级和层级，移除重复文字。
+   脚本裁出新 PNG 时使用输出 layout.json 中的最终路径；patch 先 dry-run，再带同一 revision 写入。
+5. 对新 UI、参考图及 PNG 显式调用 `generate_resource_meta`，再用 `ui check` 检查引用。
+
+**本步产物：** assembled.ui.json、同名 .reference.png、assembly-map.json 和 layout.json。
+已有用户编辑内容通过编辑器或受控 patch 调整，不覆盖重建。
+
+## 5. 编辑器验收与交付
+
+1. 运行 `taptap-maker ui open --target-dir <项目> --file <assets/相对UI路径> --no-open --json`，
+   用返回地址实际打开 UI 编辑器，同名参考图用于对照。
+2. 左右检查内容、层级、素材与状态；重叠检查位置和尺寸。偏差按原 ID 修正，重新组装后重应用美术字绑定。
+3. **确认独立节点可编辑、普通文字为 Label，保存后重开检查。** 交付 UI 文件路径、素材目录、编辑器入口及核对结果。
+
+无法操作浏览器时交付文件与入口，注明“待编辑器验收”。静态 UI 交付不包含游戏逻辑接入、构建或发布。
+
+## 遇到阻塞时
+
+- unknown 先查原任务；Server API 恢复复用原编号并按接口确认，不换渠道重提。
+- 下载、保存或切图失败先恢复已有结果；切图用已有裁框修正，不因此重新生图。
+- 来源或 Bbox 改变后更新受影响步骤，旧生成图仍按其原规划解释；保留已有素材与用户修改。
+- 无法继续时报告当前步骤、已有产物和具体缺口，恢复后从该步继续，不把部分产物报为全部完成。
