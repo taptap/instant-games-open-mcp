@@ -278,10 +278,19 @@ export function createUiRecognitionUiWithHost(options: {
           throw new Error('识图完成，画布尚未保存；结果可通过原请求恢复。');
         return result.sourcePath === source.assetPath;
       }
-      if (attempt.status === 'failed' && !attempt.recovery) {
+      if (attempt.status === 'failed') {
         delete settings.pendingId;
         options.changed();
-        await options.save();
+        if (!(await options.save()))
+          throw new Error(
+            '识图已失败，但本地等待状态尚未保存；请先保存画布。原请求：' + attempt.id
+          );
+        throw new Error(
+          (attempt.error || '识图失败。') +
+            ' 已结束本地等待，原请求记录保留（' +
+            attempt.id +
+            '）；可修正后回填 Bbox，或重新执行识图。'
+        );
       }
       throw new Error(attempt.error || '识图仍在执行，请查询原请求；不会重复提交。');
     } catch (error) {

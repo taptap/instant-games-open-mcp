@@ -120,6 +120,30 @@ describe('recognition user action recovery', () => {
     expect(store.recognizeUi).toHaveBeenCalledTimes(1);
     expect(store.recognitionStatus).toHaveBeenCalledTimes(1);
   });
+  test('failed validation releases the card and allows an explicit new recognition', async () => {
+    const { controller, cut, store, save, next } = setup();
+    const id = randomUUID();
+    const selectedId = cut.uiRecognition!.selectedId;
+    cut.uiRecognition!.pendingId = id;
+    store.recognitionStatus.mockResolvedValueOnce({
+      id,
+      status: 'failed',
+      error: '识图文字 T012 的 color 无效',
+      recovery: { width: 400, height: 300 },
+    } as any);
+    await expect(controller.query(cut.id)).rejects.toThrow(id);
+    expect(cut.uiRecognition!.pendingId).toBeUndefined();
+    expect(cut.uiRecognition!.selectedId).toBe(selectedId);
+    expect(store.recognizeUi).not.toHaveBeenCalled();
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(await controller.runRecognition(cut)).toBe(true);
+    expect(store.recognizeUi).toHaveBeenCalledTimes(1);
+    expect(store.recognizeUi.mock.calls[0]).toEqual([
+      expect.any(String),
+      expect.objectContaining({ id: expect.not.stringMatching(id) }),
+    ]);
+    expect(cut.uiRecognition!.selectedId).toBe(next.id);
+  });
   test.each([false, true])(
     'missing request is cleared only with explicit confirmation: %s',
     async (accept) => {
