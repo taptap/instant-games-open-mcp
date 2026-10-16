@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveMakerMcpLauncher } from '../cli/mcpLauncher.js';
@@ -9,7 +9,7 @@ import { compareMakerVersionStrings } from '../versionCheck.js';
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 type Catalog = { versions: string[]; latest?: string; beta?: string };
 type Job = {
-  status: 'idle' | 'running' | 'succeeded' | 'failed';
+  status: 'idle' | 'running' | 'succeeded' | 'failed' | 'unknown';
   version?: string;
   message?: string;
 };
@@ -20,17 +20,23 @@ export async function fetchConsoleVersions(): Promise<Catalog> {
   });
   if (!response.ok) throw new Error('暂时无法获取版本，请稍后重试');
   const data = await response.json();
-  const versions = Object.keys(data.versions || {})
+  const published = Object.keys(data.versions || {})
     .filter((v) => VERSION.test(v))
-    .sort((a, b) => compareMakerVersionStrings(b, a))
-    .slice(0, 5);
-  if (!versions.length) throw new Error('未找到可用版本');
-  const latest = data['dist-tags']?.latest;
-  const beta = data['dist-tags']?.beta;
+    .sort((a, b) => compareMakerVersionStrings(b, a));
+  if (!published.length) throw new Error('未找到可用版本');
+  const tag = (name: string): string | undefined => {
+    const value = data['dist-tags']?.[name];
+    return typeof value === 'string' && published.includes(value) ? value : undefined;
+  };
+  const latest = tag('latest');
+  const beta = tag('beta');
+  const versions = [...new Set([latest, beta, ...published].filter((v): v is string => Boolean(v)))]
+    .slice(0, 5)
+    .sort((a, b) => compareMakerVersionStrings(b, a));
   return {
     versions,
-    latest: typeof latest === 'string' && VERSION.test(latest) ? latest : undefined,
-    beta: typeof beta === 'string' && VERSION.test(beta) ? beta : undefined,
+    latest,
+    beta,
   };
 }
 
@@ -60,6 +66,7 @@ export function runConsoleUpgrade(version: string): Promise<void> {
         cwd: home,
         shell: false,
         windowsHide: true,
+        detached: process.platform !== 'win32',
         stdio: ['ignore', 'pipe', 'pipe'],
         env: {
           ...process.env,
@@ -75,7 +82,17 @@ export function runConsoleUpgrade(version: string): Promise<void> {
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGTERM');
+      const finishTimeout = () => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        child.unref();
+        reject(
+          new ConsoleUpgradeUnknownError(
+            '更新超过 10 分钟，已停止本地等待，更新结果未确认。请先检查客户端配置及升级进程，再重新打开控制台。'
+          )
+        );
+      };
+      void stopConsoleUpgrade(child).then(finishTimeout, finishTimeout);
     }, 10 * 60_000);
     child.stdout?.setEncoding('utf8');
     child.stderr?.setEncoding('utf8');
@@ -86,6 +103,7 @@ export function runConsoleUpgrade(version: string): Promise<void> {
       stderr = appendOutput(stderr, value);
     });
     child.once('error', (error) => {
+      if (timedOut) return;
       clearTimeout(timer);
       reject(
         new Error(
@@ -98,7 +116,6 @@ export function runConsoleUpgrade(version: string): Promise<void> {
     child.once('close', (code) => {
       clearTimeout(timer);
       if (timedOut) {
-        reject(new Error('更新超过 10 分钟仍未完成，请检查网络及 npm 缓存后再重试。'));
         return;
       }
       if (code !== 0) {
@@ -122,6 +139,44 @@ export function runConsoleUpgrade(version: string): Promise<void> {
       }
       resolve();
     });
+  });
+}
+
+class ConsoleUpgradeUnknownError extends Error {}
+
+function stopConsoleUpgrade(child: ChildProcess): Promise<void> {
+  const alive = () => child.exitCode === null && child.signalCode === null;
+  // Never use the PID after the launcher has exited: it may have been reused.
+  if (!child.pid || !alive()) return Promise.resolve();
+  if (process.platform !== 'win32') {
+    try {
+      process.kill(-child.pid, 'SIGKILL');
+    } catch {
+      if (alive()) child.kill('SIGKILL');
+    }
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+      shell: false,
+      windowsHide: true,
+      stdio: 'ignore',
+    });
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(deadline);
+      if (alive()) child.kill('SIGKILL');
+      resolve();
+    };
+    const deadline = setTimeout(() => {
+      killer.kill('SIGKILL');
+      killer.unref();
+      finish();
+    }, 5000);
+    killer.once('error', finish);
+    killer.once('close', finish);
   });
 }
 
@@ -245,6 +300,11 @@ export class ConsoleUpdates {
   }
   async start(version: unknown): Promise<Job> {
     if (this.managed) throw new ConsoleError('此版本由插件管理，请通过插件市场更新。', 409);
+    if (this.job.status === 'unknown')
+      throw new ConsoleError(
+        '上次更新结果未确认，请先检查客户端配置及升级进程，再重新打开控制台。',
+        409
+      );
     if (isUpdateRunning(this.job)) throw new ConsoleError('正在更新，请勿重复操作。', 409);
     if (typeof version !== 'string' || !VERSION.test(version) || version === this.current)
       throw new ConsoleError('请选择有效的其他版本。');
@@ -263,7 +323,11 @@ export class ConsoleUpdates {
         };
       })
       .catch((error: Error) => {
-        this.job = { status: 'failed', version, message: error.message };
+        this.job = {
+          status: error instanceof ConsoleUpgradeUnknownError ? 'unknown' : 'failed',
+          version,
+          message: error.message,
+        };
       });
     return this.job;
   }
