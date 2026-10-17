@@ -81,6 +81,11 @@ export function classifyPreviewProject(
   const detectedEntry = detectedServerEntry(project);
   const hasServer = Boolean(serverEntry) || Boolean(detectedEntry);
   const network = networkEnabled(settingsConfig);
+  if (serverEntry && settingsConfig['@runtime']?.multiplayer?.enabled === false) {
+    throw new Error(
+      '源项目配置冲突：已配置 entry@server，但 @runtime.multiplayer.enabled=false。联机项目请通过 Maker 构建参数启用 multiplayer；单机项目请在 Maker 端取消服务端入口，再启动本地预览。'
+    );
+  }
   const reason = !standard
     ? 'missing_configuration'
     : network || hasServer

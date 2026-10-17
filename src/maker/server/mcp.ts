@@ -1442,6 +1442,9 @@ function formatMakerSummaryNextAction(options: {
   if (!options.git.installed) {
     return '- next_action: Git 未安装。请先安装 Git，并执行 `git --version` 验证。';
   }
+  if (options.gitDirectoryStatus.issue === 'git_inspection_failed') {
+    return '- next_action: Git 目录检查失败；先查看详细状态中的 Git 错误，检查活动 MCP 的 Git 路径与访问权限。保留项目，不要重新初始化或覆盖 clone。';
+  }
   if (!options.gitDirectoryStatus.isUsableMakerGitRepo) {
     const nextAction =
       options.gitDirectoryStatus.issue === 'inside_parent_git_repo'
@@ -3625,7 +3628,7 @@ export function formatBuildResult(
   if (result.mode === 'submit_failed_before_build') {
     return [
       result.submitResult.failure
-        ? '✗ Maker project submit blocked before commit/push; remote build was not started'
+        ? '✗ Maker project submit failed; remote build was not started'
         : result.submitResult.pushed
           ? '✓ Maker project submitted; remote build was not started'
           : result.submitResult.status === 'clean'
@@ -3801,7 +3804,7 @@ export function formatPushResult(
       : submitResult.pushed
         ? '✗ Maker project pushed, but remote build result is missing'
         : submitResult.failure
-          ? '✗ Maker project push blocked before commit/push'
+          ? '✗ Maker project push failed'
           : submitResult.status === 'clean'
             ? 'Maker project has no changes to push'
             : '✗ Maker project push failed',

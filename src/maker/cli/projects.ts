@@ -14,6 +14,7 @@ import { ensureGitAvailable, getGitCommand } from '../system/git.js';
 import { finalizeStagedDevKitGitignore } from './devKit.js';
 import { registerMakerProject } from '../projectRegistry.js';
 import { withQrcodeFastForward } from './qrcodeSync.js';
+import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 
 export interface CloneMakerProjectOptions {
   appId: string;
@@ -124,7 +125,11 @@ export interface MakerDirectoryGitStatus {
   isGitWorkTree: boolean;
   isOwnGitRoot: boolean;
   isUsableMakerGitRepo: boolean;
-  issue?: 'inside_parent_git_repo' | 'missing_git_repo' | 'missing_maker_config';
+  issue?:
+    | 'inside_parent_git_repo'
+    | 'missing_git_repo'
+    | 'git_inspection_failed'
+    | 'missing_maker_config';
   message?: string;
 }
 
@@ -169,6 +174,9 @@ class MakerGitError extends Error {
 const MAKER_FIRST_CLONE_WAIT_MESSAGE =
   'First Maker clone/fetch can take 20+ seconds while the server prepares the repository. Please keep this running; transient 503/5xx errors are retried automatically.';
 const MAKER_GIT_SHALLOW_DEPTH = 1;
+const REMOTE_WORKTREE_REJECTION =
+  /working directory has (?:unstaged|staged) changes|could not update working tree to new HEAD/i;
+const HTTP_METHOD_REJECTION = /(?:HTTP|status|response|returned)\D*405\b/i;
 
 export function getConfiguredMakerApiBase(): string | undefined {
   return getMakerEndpoints().apiBase;
@@ -1084,7 +1092,7 @@ function createGitFailure(input: {
     classification,
     retryable: retryDecision.retry,
     retryReason: retryDecision.reason,
-    nextAction: nextActionForFailure(classification),
+    nextAction: nextActionForFailure(classification, text),
   };
 }
 
@@ -1115,6 +1123,10 @@ function classifyGitFailure(message: string): MakerGitFailure['classification'] 
     )
   ) {
     return 'auth';
+  }
+
+  if (REMOTE_WORKTREE_REJECTION.test(message) || HTTP_METHOD_REJECTION.test(message)) {
+    return 'remote_rejected';
   }
 
   if (getMakerGitRetryDecision(message).retry) {
@@ -1182,12 +1194,18 @@ export function getMakerGitRetryDecision(message: string): MakerGitRetryDecision
 }
 
 function isNonRetryableGitFailure(message: string): boolean {
+  if (REMOTE_WORKTREE_REJECTION.test(message) || HTTP_METHOD_REJECTION.test(message)) {
+    return true;
+  }
   return /authentication|authorization|401|403|forbidden|unauthorized|could not read username|repository not found|only refs\/heads\/main is accepted|matches forbidden pattern|forbidden pattern|not a git repository|not empty|already exists and is not an empty directory|permission denied|Operation not permitted|non-fast-forward|fetch first|rejected|failed to push some refs|would be overwritten|conflicting local files/i.test(
     message
   );
 }
 
-function nextActionForFailure(classification: MakerGitFailure['classification']): string {
+function nextActionForFailure(
+  classification: MakerGitFailure['classification'],
+  message: string
+): string {
   switch (classification) {
     case 'git_missing':
       return '本机未检测到可用的 Git。请用户自行安装 Git，并在 `git --version` 可用后重启 MCP 客户端再重试；安装前不要执行 clone、fetch、commit 或 push。';
@@ -1200,7 +1218,16 @@ function nextActionForFailure(classification: MakerGitFailure['classification'])
     case 'forbidden_path':
       return '本地 commit 包含 Maker 远端禁止提交的路径或目录。远端 pre-receive hook 已返回具体 forbidden pattern；这不是鉴权问题，不要刷新 Maker PAT。请按 stderr 中的 pattern 找到对应文件，把这些路径从本地 commit 移除（例如保留工作区文件但取消跟踪后修正当前未推送 commit），确认 git status 不再包含这些路径后，再重试 maker_build_current_directory。';
     case 'remote_rejected':
-      return '远端已有新提交。不要新建分支、不要要任务号、不要手动执行通用 git push；先询问用户是否 pull/rebase 当前 Maker 远端变更，再重试 maker_build_current_directory。';
+      if (REMOTE_WORKTREE_REJECTION.test(message)) {
+        return 'Maker 服务端工作目录拒绝更新，不代表远端分支有新提交。保留本地 commit，不要反复 pull/rebase 或手动 git push；请将项目 ID 和远端拒绝原文反馈给 Maker 服务端维护方，待工作区恢复后再重试 maker_build_current_directory。';
+      }
+      if (HTTP_METHOD_REJECTION.test(message)) {
+        return 'Maker Git 请求被 HTTP 405 拒绝，不自动重试。请保留本地提交，向 Maker 服务端维护方反馈 HTTP 方法或网关路由拒绝信息；不要刷新 PAT 或反复 pull/rebase。';
+      }
+      if (/non-fast-forward|fetch first/i.test(message)) {
+        return '远端分支包含本地尚未整合的提交。不要新建分支或手动 git push；先询问用户是否 pull/rebase 当前 Maker 远端变更，再重试 maker_build_current_directory。';
+      }
+      return 'Maker 远端拒绝提交。保留本地 commit，先检查 stderr 的具体原因；仅在详细同步状态确认落后远端时询问用户是否 pull/rebase，不要把任意远端拒绝解释为远端有新提交。';
     case 'local':
       return '本地目录或权限异常。检查当前目录是否是 Maker git repo，以及 Codex 是否有目录写权限。';
     default:
@@ -1593,6 +1620,7 @@ function ensureOwnGitRoot(repoDir: string): void {
       'Maker project checkout did not create an independent Git repository.',
       `target_dir: ${status.targetDir}`,
       status.gitRoot ? `detected_git_root: ${status.gitRoot}` : '',
+      status.message || '',
       'A Maker project directory must have its own .git directory. Parent Git repositories must not be reused.',
     ]
       .filter(Boolean)
@@ -1602,8 +1630,17 @@ function ensureOwnGitRoot(repoDir: string): void {
 
 export function inspectMakerDirectoryGitStatus(cwd: string): MakerDirectoryGitStatus {
   const targetDir = path.resolve(cwd);
-  const gitRoot = resolveGitRoot(targetDir);
-  const gitDir = resolveGitDir(targetDir);
+  let gitRoot: string | undefined;
+  let gitInspectionError: string | undefined;
+  try {
+    gitRoot = resolveGitRoot(targetDir);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (!/not a git repository/i.test(detail)) {
+      gitInspectionError = String(sanitizeDiagnosticValue(detail)).slice(0, 4000);
+    }
+  }
+  const gitDir = gitRoot ? resolveGitDir(targetDir) : undefined;
   const makerBinding = findMakerProjectBinding(targetDir);
   const isGitWorkTree = Boolean(gitRoot);
   const isOwnGitRoot = Boolean(gitRoot && samePath(gitRoot, targetDir));
@@ -1619,6 +1656,14 @@ export function inspectMakerDirectoryGitStatus(cwd: string): MakerDirectoryGitSt
       `${makerBinding.projectRoot} contains Maker binding config, but Git root is ${gitRoot}.`,
       'The Maker directory must be an independent Git repository before build or submit.',
     ].join(' ');
+  } else if (makerBinding && gitInspectionError) {
+    issue = 'git_inspection_failed';
+    message = [
+      `Git could not inspect the bound Maker project at ${makerBinding.projectRoot}.`,
+      'Repository availability is unconfirmed; do not reinitialize or reclone over this project.',
+      'Check Git access and TAPTAP_MAKER_GIT_BIN in the active MCP process.',
+      `git_error: ${gitInspectionError}`,
+    ].join('\n');
   } else if (makerBinding && !gitRoot) {
     issue = 'missing_git_repo';
     message = `${makerBinding.projectRoot} is bound to Maker but is not a Git repository.`;
@@ -1651,6 +1696,9 @@ function resolveUsableMakerGitWorkspace(cwd: string): {
     throw new Error(status.message || `${status.targetDir} is not bound to a Maker project.`);
   }
   if (!status.gitRoot) {
+    if (status.issue === 'git_inspection_failed') {
+      throw new Error(status.message);
+    }
     throw new Error(
       [
         `${status.makerProjectRoot} is bound to a Maker project but is not a Git repository.`,
@@ -1707,12 +1755,8 @@ function findMakerProjectBinding(
   return null;
 }
 
-function resolveGitRoot(cwd: string): string | undefined {
-  try {
-    return path.resolve(readGitSync(['-C', cwd, 'rev-parse', '--show-toplevel']).trim());
-  } catch {
-    return undefined;
-  }
+function resolveGitRoot(cwd: string): string {
+  return path.resolve(readGitSync(['-C', cwd, 'rev-parse', '--show-toplevel']).trim());
 }
 
 function resolveGitDir(cwd: string): string | undefined {
@@ -1811,7 +1855,9 @@ function readGitSync(args: string[]): string {
     windowsHide: true,
   });
   if (result.status !== 0) {
-    throw new Error(result.stderr || `${gitCommand} ${args.join(' ')} failed`);
+    throw new Error(
+      result.error?.message || result.stderr || `${gitCommand} ${args.join(' ')} failed`
+    );
   }
   return result.stdout;
 }

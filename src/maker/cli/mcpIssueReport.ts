@@ -17,6 +17,7 @@ import {
   type MakerPluginDistributionId,
 } from '../pluginDistribution.js';
 import { findDshMakerPluginEntry, getDshHome, listDshMcpConfigPaths } from './dshMcpConfig.js';
+import { findCodexMcpTables, scanTomlLine } from './codexMcpConfig.js';
 import {
   resolveMakerPackageSpec,
   resolveMakerMcpLauncher,
@@ -204,6 +205,7 @@ export function inspectMakerMcpClientConfig(options: {
   platform: NodeJS.Platform;
   appData?: string;
   dshHome?: string;
+  codexHome?: string;
   mcpName?: string;
 }): MakerMcpConfigInspection {
   const ide = options.ide.trim().toLowerCase();
@@ -354,6 +356,7 @@ export async function collectMakerMcpIssueDiagnostics(options: {
           platform,
           appData: options.appData || environment.APPDATA,
           dshHome: client === 'dsh' ? getDshHome({ homeDir, environment }) : undefined,
+          codexHome: environment.CODEX_HOME,
         })
     : { status: 'not_checked', reason: 'active_client_not_provided' };
 
@@ -435,10 +438,11 @@ function getMcpConfigPaths(options: {
   platform: NodeJS.Platform;
   appData?: string;
   dshHome?: string;
+  codexHome?: string;
 }): string[] | undefined {
   const { ide, homeDir, platform } = options;
   if (ide === 'codex') {
-    return [path.join(homeDir, '.codex', 'config.toml')];
+    return [path.join(options.codexHome || path.join(homeDir, '.codex'), 'config.toml')];
   }
   if (ide === 'cursor') {
     return [path.join(homeDir, '.cursor', 'mcp.json')];
@@ -571,47 +575,41 @@ function extractCodexMcpServerConfig(
   content: string,
   mcpName: string
 ): Record<string, unknown> | undefined {
-  const rootNames = new Set([`mcp_servers.${mcpName}`, `mcp_servers."${mcpName}"`]);
-  const envNames = new Set(Array.from(rootNames, (name) => `${name}.env`));
+  const envPath = `mcp_servers.${mcpName}.env`;
+  const tables = findCodexMcpTables(content, mcpName).filter(
+    (table) => table.isMain || table.normalizedPath === envPath
+  );
+  if (tables.length === 0) return undefined;
   const server: Record<string, unknown> = {};
   const envKeys: string[] = [];
-  let section: 'root' | 'env' | 'other' = 'other';
-  let found = false;
 
-  for (const rawLine of content.split(/\r?\n/u)) {
-    const line = rawLine.trim();
-    const header = /^\[([^\]]+)\]$/u.exec(line)?.[1];
-    if (header) {
-      section = rootNames.has(header) ? 'root' : envNames.has(header) ? 'env' : 'other';
-      found ||= section !== 'other';
-      continue;
-    }
-    if (!line || line.startsWith('#') || section === 'other') {
-      continue;
-    }
-    const assignment = /^([A-Za-z0-9_-]+)\s*=\s*(.+)$/u.exec(line);
-    if (!assignment) {
-      continue;
-    }
-    const [, key, rawValue] = assignment;
-    if (section === 'env') {
-      envKeys.push(key);
-      if (key === 'TAPTAP_MCP_CLIENT_IDE') {
-        const value = parseTomlJsonValue(rawValue);
-        if (typeof value === 'string') {
-          server.client_ide = value;
+  for (const table of tables) {
+    let multiline: ReturnType<typeof scanTomlLine>;
+    for (const rawLine of content.slice(table.bodyStart, table.bodyEnd).split(/\r?\n/u)) {
+      const insideMultiline = multiline !== undefined;
+      multiline = scanTomlLine(rawLine, multiline);
+      if (insideMultiline) continue;
+      const assignment = /^([A-Za-z0-9_-]+)\s*=\s*(.+)$/u.exec(rawLine.trim());
+      if (!assignment) continue;
+      const [, key, rawValue] = assignment;
+      if (!table.isMain) {
+        envKeys.push(key);
+        if (key === 'TAPTAP_MCP_CLIENT_IDE') {
+          const value = parseTomlJsonValue(rawValue);
+          if (typeof value === 'string') {
+            server.client_ide = value;
+          }
         }
+        continue;
       }
-      continue;
-    }
-    if (['command', 'args', 'cwd', 'disabled'].includes(key)) {
-      server[key] = parseTomlJsonValue(rawValue);
+      if (['command', 'args', 'cwd', 'disabled'].includes(key)) {
+        const value = parseTomlJsonValue(rawValue);
+        server[key] =
+          key === 'args' && Array.isArray(value) ? sanitizeCommandArguments(value) : value;
+      }
     }
   }
 
-  if (!found) {
-    return undefined;
-  }
   if (envKeys.length > 0) {
     server.env_keys = envKeys.sort();
   }
@@ -620,7 +618,14 @@ function extractCodexMcpServerConfig(
 
 function parseTomlJsonValue(value: string): unknown {
   try {
-    return JSON.parse(value);
+    const normalized = value.replace(/"(?:\\.|[^"\\])*"|'[^']*'|#[^\r\n]*/gu, (token) =>
+      token.startsWith('#')
+        ? ''
+        : token.startsWith("'")
+          ? JSON.stringify(token.slice(1, -1))
+          : token
+    );
+    return JSON.parse(removeTrailingCommas(normalized));
   } catch {
     return '<unparsed>';
   }

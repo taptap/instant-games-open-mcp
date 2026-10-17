@@ -369,7 +369,7 @@ describe('maker MCP version status integration', () => {
     );
 
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('submit blocked before commit/push');
+    expect(result.content[0].text).toContain('submit failed; remote build was not started');
     expect(result.content[0].text).toContain('remote_rejected');
   });
 

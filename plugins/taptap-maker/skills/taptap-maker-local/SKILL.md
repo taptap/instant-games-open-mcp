@@ -1037,7 +1037,10 @@ MCP builds the committed remote version only and does not auto-open Maker pages.
 
 For push failures, use the returned `classification`, `retryable`, `retry_reason`, and
 `retry_attempts` fields. Temporary 5xx/network/timeout failures may be retried with the Maker build
-tool; `remote_rejected` means remote updates require pull/rebase first; `auth` means refreshing PAT;
+tool; `remote_rejected` requires reading stderr and the returned next_action. Only explicit
+non-fast-forward/fetch-first errors or confirmed behind status justify pull/rebase. Remote working-tree
+rejections require Maker server recovery; HTTP 405 must not be retried as a network interruption.
+`auth` means refreshing PAT;
 `branch_not_allowed` means Maker remote only accepts `main`; `forbidden_path` means the remote
 pre-receive hook rejected one or more paths/directories and the forbidden pattern from stderr must
 be removed from the unpushed commit before retrying.
@@ -1047,7 +1050,9 @@ When a Maker tool output contains `push_recovery`, follow it exactly:
 - Tell the user the local commit is preserved but not yet on Maker remote.
 - Do not ask for permission to run a generic `git push`.
 - Retry with `maker_build_current_directory` for submit and build requests.
-- If the failure is `remote_rejected`, ask before pull/rebase; do not create a new branch or PR.
+- If the failure is `remote_rejected`, follow next_action and inspect stderr. Ask before pull/rebase
+  only for confirmed remote commits; do not create a new branch or PR. Preserve local commits and
+  report server working-tree or HTTP method rejections to Maker server maintainers.
 - If the failure is `branch_not_allowed`, do not pull/rebase. Tell the user Maker only accepts
   `main`, switch back to `main`, cherry-pick the preserved local commit there, then retry.
 - If the failure is `forbidden_path`, do not refresh PAT. Read the forbidden pattern in stderr,
