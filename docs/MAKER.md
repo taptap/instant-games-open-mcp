@@ -379,6 +379,8 @@ Python 运行时策略：
   本地项目上下文生成脱敏报告，并尽力通过已登录的 GitHub CLI 创建 Issue。GitHub 不可达、未登录
   或提交失败时返回 `manual_required` 和完整脱敏正文，退出保持成功，不能阻塞原 Maker 任务。
   不带 `--consent` 时只生成报告并返回 `consent_required`，不会对外提交。
+  Codex 独立 MCP 诊断优先读取 `$CODEX_HOME/config.toml`；未设置时读取
+  `~/.codex/config.toml`。插件模式继续读取当前插件自己的 MCP 配置。
 - `taptap-maker agents update`：只更新当前目录 `AGENTS.md` 中 TapTap Maker 管理的策略块，
   保留用户自己的项目说明；缺少 `AGENTS.md` 时会创建文件。
 - `taptap-maker upgrade`：当前目录的一站式升级入口，刷新 AI 客户端 MCP 配置，并在当前目录
@@ -499,7 +501,9 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
 - 如果提交前发现本地仅落后于远端，`maker_build_current_directory` 会自动执行
   `git merge --ff-only origin/main`；无法 fast-forward 时会在创建 commit 前停止并保留本地文件。
   分叉、非 main 分支、认证失败或 push 被拒绝仍会在 build 前返回失败阶段。Agent 应解释失败原因，
-  并根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed`
+  并结合 `classification` 和 `stderr` 选择恢复路径：`remote_rejected` 仅在明确为
+  non-fast-forward/fetch-first 或详细状态确认落后远端时协助 pull/rebase；服务端工作目录无法
+  更新时保留本地提交并反馈 Maker 服务端维护方。HTTP 405 不作为网络中断自动重试。`branch_not_allowed`
   切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止
   路径，`auth` 才刷新 PAT。
 - 构建前本地改动检查会忽略 `.maker-mcp/` 的本地配置变化；`.gitignore` 是 Maker 项目必要文件，
@@ -1027,7 +1031,7 @@ push
 - 不因为当前分支是 `main` 就新建功能分支。
 - 不要求用户提供 TAP/Jira/飞书任务号。
 - commit message 可以由 MCP 根据变更文件自动生成，也可以由用户通过 `message` 显式提供。
-- push 被远端拒绝或出现冲突时，不自动建分支；只有 `remote_rejected` 表示远端已有新提交时，才询问用户是否先 pull/rebase 当前 Maker 远端变更。
+- push 被远端拒绝或出现冲突时，不自动建分支；`remote_rejected` 本身不能证明远端有新提交。只有明确的 non-fast-forward/fetch-first 或详细同步状态确认落后远端时，才询问用户是否先 pull/rebase。`Working directory has unstaged changes`、`Could not update working tree to new HEAD` 需要排查服务端工作目录，不能靠重复拉取本地代码恢复。
 - 如果失败是 `branch_not_allowed`，说明 Maker 远端只接受 main 分支。不要 pull/rebase、不要新建分支、不要手动 git push；保留本地 commit，切回 main（必要时从 origin/main 创建），把本地 commit cherry-pick 到 main 后重试 `maker_build_current_directory`。
 - 如果失败是 `forbidden_path`，说明本地 commit 包含 Maker 远端 pre-receive hook 禁止提交的路径或目录。不要刷新 PAT；读取 `stderr` 里的 forbidden pattern，保留工作区文件，把这些路径从未推送 commit 中移除，确认 `git status` 不再包含这些路径后重试。
 - 如果 commit 已完成但 push 失败，工具必须返回 commit hash、git ahead 状态、失败阶段、exit code、stderr/stdout、错误分类、`push_recovery` 和下一步建议。

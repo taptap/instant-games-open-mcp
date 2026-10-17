@@ -204,6 +204,7 @@ export function inspectMakerMcpClientConfig(options: {
   platform: NodeJS.Platform;
   appData?: string;
   dshHome?: string;
+  codexHome?: string;
   mcpName?: string;
 }): MakerMcpConfigInspection {
   const ide = options.ide.trim().toLowerCase();
@@ -354,6 +355,7 @@ export async function collectMakerMcpIssueDiagnostics(options: {
           platform,
           appData: options.appData || environment.APPDATA,
           dshHome: client === 'dsh' ? getDshHome({ homeDir, environment }) : undefined,
+          codexHome: environment.CODEX_HOME,
         })
     : { status: 'not_checked', reason: 'active_client_not_provided' };
 
@@ -435,10 +437,11 @@ function getMcpConfigPaths(options: {
   platform: NodeJS.Platform;
   appData?: string;
   dshHome?: string;
+  codexHome?: string;
 }): string[] | undefined {
   const { ide, homeDir, platform } = options;
   if (ide === 'codex') {
-    return [path.join(homeDir, '.codex', 'config.toml')];
+    return [path.join(options.codexHome || path.join(homeDir, '.codex'), 'config.toml')];
   }
   if (ide === 'cursor') {
     return [path.join(homeDir, '.cursor', 'mcp.json')];

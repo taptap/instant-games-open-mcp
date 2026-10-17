@@ -285,6 +285,8 @@ AI 调试 -> 前台 Node 会话 -> Runtime -> 收集日志 -> 停止本轮游戏
 - 直读项目在项目根目录启动 Runtime，使用 `<入口> -tapcode_dir=<项目根目录>
 -skip_login`；不复制项目、不创建 junction 或软链接。需要准备的项目使用受管理副本，
   默认配置只写入副本。preflight 的 preparation_reason 说明本轮分流依据。
+- 显式配置 `entry@server` 但 `@runtime.multiplayer.enabled=false` 时，在准备副本前报告源配置
+  冲突；通过 Maker 配置流程统一服务端入口和联机设置后再预览，不将其误报为副本丢配置。
 
 - 符合直读条件的单机项目在 macOS 和 Windows 都由 Runtime 直接读取原项目目录。
 - 所有需要 prepare 的项目在 Windows/macOS 均使用受管理副本生成的 client manifest 和受保护的

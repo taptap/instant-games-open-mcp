@@ -3625,7 +3625,7 @@ export function formatBuildResult(
   if (result.mode === 'submit_failed_before_build') {
     return [
       result.submitResult.failure
-        ? '✗ Maker project submit blocked before commit/push; remote build was not started'
+        ? '✗ Maker project submit failed; remote build was not started'
         : result.submitResult.pushed
           ? '✓ Maker project submitted; remote build was not started'
           : result.submitResult.status === 'clean'
@@ -3801,7 +3801,7 @@ export function formatPushResult(
       : submitResult.pushed
         ? '✗ Maker project pushed, but remote build result is missing'
         : submitResult.failure
-          ? '✗ Maker project push blocked before commit/push'
+          ? '✗ Maker project push failed'
           : submitResult.status === 'clean'
             ? 'Maker project has no changes to push'
             : '✗ Maker project push failed',
