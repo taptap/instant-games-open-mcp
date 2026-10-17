@@ -381,6 +381,8 @@ Python 运行时策略：
   不带 `--consent` 时只生成报告并返回 `consent_required`，不会对外提交。
   Codex 独立 MCP 诊断优先读取 `$CODEX_HOME/config.toml`；未设置时读取
   `~/.codex/config.toml`。插件模式继续读取当前插件自己的 MCP 配置。
+  诊断按 TOML 表边界读取 Maker 项；支持单行单引号值和行尾注释，命令参数沿用脱敏规则，
+  不把其它 MCP 的配置带入报告。无法解析的值继续显示 `<unparsed>`，不修改客户端配置。
 - `taptap-maker agents update`：只更新当前目录 `AGENTS.md` 中 TapTap Maker 管理的策略块，
   保留用户自己的项目说明；缺少 `AGENTS.md` 时会创建文件。
 - `taptap-maker upgrade`：当前目录的一站式升级入口，刷新 AI 客户端 MCP 配置，并在当前目录
@@ -645,6 +647,8 @@ big-repo/
 `submit` 会停止，避免把外层大仓库当成 Maker 项目提交或推送。初始化前，skill 应提醒
 用户优先选择独立目录；如果用户确认继续，CLI 会在目标目录内创建独立 Maker Git
 仓库，不复用父级 Git 仓库。
+Git 因安全检查、权限或启动错误无法确认目录时，状态为 `git_inspection_failed`；详细状态保留
+脱敏后的原始错误，构建和提交停止。先排查活动 MCP 的 Git 路径和访问权限，不据此重新初始化项目。
 
 Maker app 列表关键字段：
 

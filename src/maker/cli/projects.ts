@@ -14,6 +14,7 @@ import { ensureGitAvailable, getGitCommand } from '../system/git.js';
 import { finalizeStagedDevKitGitignore } from './devKit.js';
 import { registerMakerProject } from '../projectRegistry.js';
 import { withQrcodeFastForward } from './qrcodeSync.js';
+import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 
 export interface CloneMakerProjectOptions {
   appId: string;
@@ -124,7 +125,11 @@ export interface MakerDirectoryGitStatus {
   isGitWorkTree: boolean;
   isOwnGitRoot: boolean;
   isUsableMakerGitRepo: boolean;
-  issue?: 'inside_parent_git_repo' | 'missing_git_repo' | 'missing_maker_config';
+  issue?:
+    | 'inside_parent_git_repo'
+    | 'missing_git_repo'
+    | 'git_inspection_failed'
+    | 'missing_maker_config';
   message?: string;
 }
 
@@ -1615,6 +1620,7 @@ function ensureOwnGitRoot(repoDir: string): void {
       'Maker project checkout did not create an independent Git repository.',
       `target_dir: ${status.targetDir}`,
       status.gitRoot ? `detected_git_root: ${status.gitRoot}` : '',
+      status.message || '',
       'A Maker project directory must have its own .git directory. Parent Git repositories must not be reused.',
     ]
       .filter(Boolean)
@@ -1624,8 +1630,17 @@ function ensureOwnGitRoot(repoDir: string): void {
 
 export function inspectMakerDirectoryGitStatus(cwd: string): MakerDirectoryGitStatus {
   const targetDir = path.resolve(cwd);
-  const gitRoot = resolveGitRoot(targetDir);
-  const gitDir = resolveGitDir(targetDir);
+  let gitRoot: string | undefined;
+  let gitInspectionError: string | undefined;
+  try {
+    gitRoot = resolveGitRoot(targetDir);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (!/not a git repository/i.test(detail)) {
+      gitInspectionError = String(sanitizeDiagnosticValue(detail)).slice(0, 4000);
+    }
+  }
+  const gitDir = gitRoot ? resolveGitDir(targetDir) : undefined;
   const makerBinding = findMakerProjectBinding(targetDir);
   const isGitWorkTree = Boolean(gitRoot);
   const isOwnGitRoot = Boolean(gitRoot && samePath(gitRoot, targetDir));
@@ -1641,6 +1656,14 @@ export function inspectMakerDirectoryGitStatus(cwd: string): MakerDirectoryGitSt
       `${makerBinding.projectRoot} contains Maker binding config, but Git root is ${gitRoot}.`,
       'The Maker directory must be an independent Git repository before build or submit.',
     ].join(' ');
+  } else if (makerBinding && gitInspectionError) {
+    issue = 'git_inspection_failed';
+    message = [
+      `Git could not inspect the bound Maker project at ${makerBinding.projectRoot}.`,
+      'Repository availability is unconfirmed; do not reinitialize or reclone over this project.',
+      'Check Git access and TAPTAP_MAKER_GIT_BIN in the active MCP process.',
+      `git_error: ${gitInspectionError}`,
+    ].join('\n');
   } else if (makerBinding && !gitRoot) {
     issue = 'missing_git_repo';
     message = `${makerBinding.projectRoot} is bound to Maker but is not a Git repository.`;
@@ -1673,6 +1696,9 @@ function resolveUsableMakerGitWorkspace(cwd: string): {
     throw new Error(status.message || `${status.targetDir} is not bound to a Maker project.`);
   }
   if (!status.gitRoot) {
+    if (status.issue === 'git_inspection_failed') {
+      throw new Error(status.message);
+    }
     throw new Error(
       [
         `${status.makerProjectRoot} is bound to a Maker project but is not a Git repository.`,
@@ -1729,12 +1755,8 @@ function findMakerProjectBinding(
   return null;
 }
 
-function resolveGitRoot(cwd: string): string | undefined {
-  try {
-    return path.resolve(readGitSync(['-C', cwd, 'rev-parse', '--show-toplevel']).trim());
-  } catch {
-    return undefined;
-  }
+function resolveGitRoot(cwd: string): string {
+  return path.resolve(readGitSync(['-C', cwd, 'rev-parse', '--show-toplevel']).trim());
 }
 
 function resolveGitDir(cwd: string): string | undefined {
@@ -1833,7 +1855,9 @@ function readGitSync(args: string[]): string {
     windowsHide: true,
   });
   if (result.status !== 0) {
-    throw new Error(result.stderr || `${gitCommand} ${args.join(' ')} failed`);
+    throw new Error(
+      result.error?.message || result.stderr || `${gitCommand} ${args.join(' ')} failed`
+    );
   }
   return result.stdout;
 }

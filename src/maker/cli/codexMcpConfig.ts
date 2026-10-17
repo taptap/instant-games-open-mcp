@@ -146,7 +146,7 @@ function splitTomlLines(
   return lines;
 }
 
-function scanTomlLine(line: string, initial: MultilineString): MultilineString {
+export function scanTomlLine(line: string, initial: MultilineString): MultilineString {
   let multiline = initial;
   let index = 0;
 
