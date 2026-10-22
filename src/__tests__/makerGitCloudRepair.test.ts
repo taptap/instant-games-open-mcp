@@ -36,7 +36,7 @@ function git(cwd: string, args: string[]): string {
   return result.stdout;
 }
 
-type CloudMode = 'normal' | 'forbidden' | 'commit-timeout';
+type CloudMode = 'normal' | 'forbidden' | 'commit-timeout' | 'commit-body-lost';
 
 describe('Maker cloud workspace push repair', () => {
   const saved = {
@@ -135,6 +135,12 @@ describe('Maker cloud workspace push repair', () => {
       git(server, ['add', '-A']);
       git(server, ['commit', '-m', body.message]);
       if (cloudMode === 'commit-timeout') throw new Error('socket hang up');
+      if (cloudMode === 'commit-body-lost') {
+        return new Response('{"status":"committed"', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
       return json(200, {
         status: 'committed',
         commitSha: git(server, ['rev-parse', 'HEAD']).trim(),
@@ -225,6 +231,44 @@ describe('Maker cloud workspace push repair', () => {
     expect(result.cloudRepair?.status).toBe('failed');
     expect(result.cloudRepair?.message).toContain('owner');
     expect(cloudCalls).toEqual(['status', 'commit']);
+  });
+
+  test('does not commit an unfinished merge when history is diverged', async () => {
+    fs.writeFileSync(path.join(server, 'scripts', 'main.lua'), '-- web version\n');
+    git(server, ['add', '-A']);
+    git(server, ['commit', '-m', 'web agent commit']);
+    fs.writeFileSync(path.join(local, 'scripts', 'main.lua'), '-- local version\n');
+    git(local, ['add', '-A']);
+    git(local, ['commit', '-m', 'local commit']);
+    git(local, ['fetch', 'origin']);
+    const merge = spawnSync('git', ['merge', '--no-edit', 'origin/main'], {
+      cwd: local,
+      encoding: 'utf8',
+    });
+    expect(merge.status).not.toBe(0);
+    expect(fs.existsSync(path.join(local, '.git', 'MERGE_HEAD'))).toBe(true);
+    const head = git(local, ['rev-parse', 'HEAD']);
+
+    const result = await pushMakerProject({ cwd: local });
+
+    expect(result.pushed).toBe(false);
+    expect(result.committed).toBe(false);
+    expect(result.failure?.stderr).toContain('already in progress');
+    expect(git(local, ['rev-parse', 'HEAD'])).toBe(head);
+    expect(fs.existsSync(path.join(local, '.git', 'MERGE_HEAD'))).toBe(true);
+    expect(fs.readFileSync(path.join(local, 'scripts', 'main.lua'), 'utf8')).toContain('<<<<<<<');
+  });
+
+  test('treats a lost commit response body as unknown and does not commit again', async () => {
+    cloudMode = 'commit-body-lost';
+    fs.writeFileSync(path.join(server, 'scripts', 'main.lua'), '-- base\n-- cloud edit\n');
+    fs.writeFileSync(path.join(local, 'local.lua'), '-- local\n');
+
+    const result = await pushMakerProject({ cwd: local });
+
+    expect(result).toMatchObject({ pushed: true, cloudRepair: { status: 'repaired' } });
+    expect(cloudCalls).toEqual(['status', 'commit', 'status']);
+    expect(git(server, ['rev-parse', 'HEAD'])).toBe(git(local, ['rev-parse', 'HEAD']));
   });
 
   test('does not repeat a cloud commit whose response was lost', async () => {

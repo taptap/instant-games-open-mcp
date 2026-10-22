@@ -137,17 +137,34 @@ export function runGit(
         )
       );
     };
-    child.stdout.on('data', (chunk) => {
-      const text = String(chunk);
-      stdout += text;
-      options.onStdout?.(text);
+    const stdoutStream = child.stdout;
+    const stderrStream = child.stderr;
+    if (!stdoutStream || !stderrStream) {
+      child.kill();
+      reject(
+        new GitCommandError(
+          'git stdio pipes were not created',
+          describeCommand(command, args),
+          null,
+          '',
+          'git stdio pipes were not created'
+        )
+      );
+      return;
+    }
+    // Stream decoder, not per-chunk String(buffer): a UTF-8 character split
+    // across two data events must not become a replacement character.
+    stdoutStream.setEncoding('utf8');
+    stderrStream.setEncoding('utf8');
+    stdoutStream.on('data', (chunk: string) => {
+      stdout += chunk;
+      options.onStdout?.(chunk);
       if (options.maxBuffer && stdout.length > options.maxBuffer)
         kill('stdout maxBuffer length exceeded', 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER');
     });
-    child.stderr.on('data', (chunk) => {
-      const text = String(chunk);
-      stderr += text;
-      options.onStderr?.(text);
+    stderrStream.on('data', (chunk: string) => {
+      stderr += chunk;
+      options.onStderr?.(chunk);
       if (options.maxBuffer && stderr.length > options.maxBuffer)
         kill('stderr maxBuffer length exceeded', 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER');
     });

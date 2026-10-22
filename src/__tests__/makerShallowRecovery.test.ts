@@ -88,6 +88,34 @@ describe('shallow acknowledgments recovery', () => {
     expect(fs.readFileSync(path.join(local, '.git', 'shallow'), 'utf8')).toBe(`${boundary}\n`);
   });
 
+  test('does not replace shallow while another process holds the lock', () => {
+    const local = shallowClone('locked', 1);
+    const shallow = path.join(local, '.git', 'shallow');
+    const before = fs.readFileSync(shallow, 'utf8');
+    const lock = fs.openSync(shallow + '.lock', 'wx');
+    try {
+      expect(pruneRedundantShallowMarkers(local)).toBe(0);
+      expect(fs.readFileSync(shallow, 'utf8')).toBe(before);
+      expect(fs.existsSync(shallow + '.lock')).toBe(true);
+    } finally {
+      fs.closeSync(lock);
+      fs.rmSync(shallow + '.lock', { force: true });
+    }
+  });
+
+  test('releases the shallow lock after removing redundant markers', () => {
+    const local = shallowClone('unlocked', 10);
+    const rootCommit = git(local, ['rev-list', '--max-parents=0', 'HEAD']).trim();
+    fs.writeFileSync(path.join(local, '.git', 'shallow'), rootCommit + '\n');
+
+    expect(pruneRedundantShallowMarkers(local)).toBe(1);
+    expect(fs.existsSync(path.join(local, '.git', 'shallow'))).toBe(false);
+    expect(fs.existsSync(path.join(local, '.git', 'shallow.lock'))).toBe(false);
+    expect(fs.readdirSync(path.join(local, '.git')).some((name) => name.endsWith('.tmp'))).toBe(
+      false
+    );
+  });
+
   test('retries the fetch once after removing redundant markers', async () => {
     const local = shallowClone('retry', 10);
     const rootCommit = git(local, ['rev-list', '--max-parents=0', 'HEAD']).trim();

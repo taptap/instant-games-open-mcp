@@ -44,7 +44,7 @@ export class CloudGitError extends Error {
     message: string,
     readonly httpStatus: number,
     readonly code?: string,
-    /** True when a commit request may have succeeded (timeout, network error, 5xx). */
+    /** True when a commit request may have succeeded (timeout, network error, 5xx, or a lost success body). */
     readonly outcomeUnknown = false
   ) {
     super(message);
@@ -113,7 +113,20 @@ export async function commitCloudGit(
     );
   }
   if (!response.ok) throw await responseError(response, response.status >= 500);
-  return (await response.json()) as CloudGitCommitResult;
+  try {
+    return (await response.json()) as CloudGitCommitResult;
+  } catch (error) {
+    // Headers already said success. Losing the body must not look like a
+    // definite failure, or the caller would skip cloud-status and might retry.
+    throw new CloudGitError(
+      `云端 Git 提交响应读取失败，提交可能已经成功（${
+        error instanceof Error ? error.message : String(error)
+      }）`,
+      response.status,
+      undefined,
+      true
+    );
+  }
 }
 
 function authHeaders(): Record<string, string> {

@@ -188,9 +188,31 @@ export async function pushMakerProject(
   let message: string | undefined;
   let transientRetries = 0;
 
+  const failed = async (failure: MakerGitFailure, cloudRepair?: MakerCloudRepairResult) => ({
+    branch,
+    committed,
+    commitHash,
+    message,
+    pushed: false,
+    status:
+      committed || unpushed.hasUnpushedCommits
+        ? ('failed_after_commit' as const)
+        : ('clean' as const),
+    failure,
+    ahead: await readAheadState(cwd),
+    transientRetries,
+    ...(cloudRepair ? { cloudRepair } : {}),
+  });
+
   if (!statusBefore.trim() && !options.allowEmpty && unpushed.hasUnpushedCommits) {
     commitHash = (await readGit(['rev-parse', '--short', 'HEAD'], cwd)).trim();
   } else {
+    // An unfinished merge/rebase must be refused before add/commit. Otherwise
+    // `git add -A` can stage conflict markers and `git commit` completes the
+    // user's merge, then the later merge check never sees it.
+    if (await gitOperationInProgress(cwd, createGitRunner(cwd))) {
+      return failed(operationInProgressFailure('commit'));
+    }
     options.onProgress?.({
       progress: 20,
       total: 100,
@@ -227,22 +249,6 @@ export async function pushMakerProject(
       commitHash = (await readGit(['rev-parse', '--short', 'HEAD'], cwd)).trim();
     }
   }
-
-  const failed = async (failure: MakerGitFailure, cloudRepair?: MakerCloudRepairResult) => ({
-    branch,
-    committed,
-    commitHash,
-    message,
-    pushed: false,
-    status:
-      committed || unpushed.hasUnpushedCommits
-        ? ('failed_after_commit' as const)
-        : ('clean' as const),
-    failure,
-    ahead: await readAheadState(cwd),
-    transientRetries,
-    ...(cloudRepair ? { cloudRepair } : {}),
-  });
 
   // Local and remote both have new commits: merge the remote after the local commit.
   if (remoteSyncStatus.status === 'diverged') {
@@ -341,6 +347,15 @@ export async function pushMakerProject(
   };
 }
 
+function operationInProgressFailure(stage: 'commit' | 'merge'): MakerGitFailure {
+  return {
+    ...createGitFailure({ stage, stderr: 'A git operation is already in progress.' }),
+    classification: 'local',
+    nextAction:
+      '本地有未完成的 Git 操作（merge、rebase、cherry-pick 或 index.lock）。请先完成或取消该操作，再重试 maker_build_current_directory。',
+  };
+}
+
 /** Merges origin/<branch> after the local commit. Returns a failure when the merge did not happen. */
 async function mergeMakerRemote(
   cwd: string,
@@ -351,14 +366,7 @@ async function mergeMakerRemote(
   const counts = await readAheadBehind(cwd, remoteRef);
   if (counts.behindCount === 0) return undefined;
   const run = createGitRunner(cwd);
-  if (await gitOperationInProgress(cwd, run)) {
-    return {
-      ...createGitFailure({ stage: 'merge', stderr: 'A git operation is already in progress.' }),
-      classification: 'local',
-      nextAction:
-        '本地有未完成的 Git 操作（merge、rebase、cherry-pick 或 index.lock）。请先完成或取消该操作，再重试 maker_build_current_directory。',
-    };
-  }
+  if (await gitOperationInProgress(cwd, run)) return operationInProgressFailure('merge');
   onProgress?.({
     progress: 55,
     total: 100,
