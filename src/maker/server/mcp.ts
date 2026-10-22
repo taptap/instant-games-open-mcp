@@ -38,10 +38,10 @@ import {
   loadPat,
   loadTapAuth,
 } from '../storage.js';
+import { listMakerProjects } from '../cli/projects.js';
 import {
   inspectMakerDirectoryGitStatus,
   inspectMakerRemoteSyncStatus,
-  listMakerProjects,
   pushMakerProject,
   readMakerProjectLocalChanges,
   type PushMakerProjectOptions,
@@ -50,7 +50,7 @@ import {
   type MakerProjectProgress,
   type MakerProjectProgressHandler,
   type MakerGitFailure,
-} from '../cli/projects.js';
+} from '../git/index.js';
 import {
   getMakerEndpoints,
   getMakerEnvironment,
@@ -3447,57 +3447,6 @@ export function createRemoteRuntimeLogClient(
 
 export type RemoteProxyContext = ReturnType<typeof createRemoteProxyContext>;
 
-type PushThenBuildCurrentDirectoryResult = {
-  targetDir: string;
-  submitResult: PushMakerProjectResult;
-  buildResult?: RemoteBuildResult;
-  buildFailure?: MakerBuildFailure;
-};
-
-export async function pushThenBuildCurrentDirectory(options: {
-  targetDir: string;
-  message?: string;
-  files?: string[];
-  pushLocalChanges?: SubmitLocalChangesForBuild;
-  callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildResult>;
-  onProgress?: MakerProjectProgressHandler;
-}): Promise<PushThenBuildCurrentDirectoryResult> {
-  const submitResult = await (options.pushLocalChanges || pushMakerProject)({
-    cwd: options.targetDir,
-    message: options.message,
-    files: options.files,
-    onProgress: options.onProgress,
-  });
-  if (!submitResult.pushed) {
-    return {
-      targetDir: options.targetDir,
-      submitResult,
-    };
-  }
-  let buildResult: RemoteBuildResult;
-  try {
-    buildResult = await runRemoteBuildCurrentDirectory(
-      {
-        targetDir: options.targetDir,
-        callRemoteBuild: options.callRemoteBuild,
-        onProgress: options.onProgress,
-      },
-      options.targetDir
-    );
-  } catch (error) {
-    return {
-      targetDir: options.targetDir,
-      submitResult,
-      buildFailure: toMakerBuildFailure(error),
-    };
-  }
-  return {
-    targetDir: options.targetDir,
-    submitResult,
-    buildResult,
-  };
-}
-
 function toMakerBuildFailure(error: unknown): MakerBuildFailure {
   return {
     name: error instanceof Error ? error.name : typeof error,
@@ -3644,6 +3593,7 @@ export function formatBuildResult(
       result.submitResult.transientRetries
         ? `- transient_git_retries: ${result.submitResult.transientRetries}`
         : '',
+      ...formatCloudRepairLines(result.submitResult),
       ...formatProgressSummary(progressSummary),
       '',
       'note: Maker build was not started because submit did not produce a pushed state.',
@@ -3759,6 +3709,7 @@ export function formatBuildResult(
         result.submitResult.transientRetries
           ? `  - transient_git_retries: ${result.submitResult.transientRetries}`
           : '',
+        ...formatCloudRepairLines(result.submitResult).map((line) => `  ${line}`),
         '',
       ].filter(Boolean)
     : [];
@@ -3787,91 +3738,6 @@ export function formatBuildResult(
   }
   lines.push('remote_result:', indent(String(sanitizeRemoteDiagnosticValue(result.resultText))));
   return lines.join('\n');
-}
-
-export function formatPushResult(
-  targetDir: string,
-  result: PushThenBuildCurrentDirectoryResult,
-  progressSummary: ToolProgressSummary
-): string {
-  const submitResult = result.submitResult;
-  const lines = [
-    result.buildResult
-      ? '✓ Maker project pushed, then remote Maker build finished'
-      : submitResult.pushed
-        ? '✗ Maker project pushed, but remote build result is missing'
-        : submitResult.failure
-          ? '✗ Maker project push blocked before commit/push'
-          : submitResult.status === 'clean'
-            ? 'Maker project has no changes to push'
-            : '✗ Maker project push failed',
-    '',
-    `- target_dir: ${targetDir}`,
-    `- branch: ${submitResult.branch}`,
-    `- status: ${submitResult.status}`,
-    `- committed: ${submitResult.committed ? 'yes' : 'no'}`,
-    submitResult.commitHash ? `- commit_hash: ${submitResult.commitHash}` : '',
-    submitResult.message ? `- commit_message: ${submitResult.message}` : '',
-    submitResult.ahead ? `- git_state: ${submitResult.ahead}` : '',
-    submitResult.transientRetries
-      ? `- transient_git_retries: ${submitResult.transientRetries}`
-      : '',
-    ...formatProgressSummary(progressSummary),
-  ].filter(Boolean);
-
-  if (result.buildResult) {
-    return [
-      ...lines,
-      '',
-      'remote_build:',
-      indent(
-        [
-          `- project_id: ${result.buildResult.projectId}`,
-          `- maker_url: ${
-            result.buildResult.makerUrl ||
-            formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
-          }`,
-          `- project_path: ${result.buildResult.projectPath}`,
-          `- timeout_ms: ${result.buildResult.timeoutMs}`,
-          `- build_args: ${JSON.stringify(result.buildResult.buildArgs)}`,
-          ...formatPreviewRefreshLines(result.buildResult.previewRefresh),
-          '',
-          'remote_result:',
-          indent(String(sanitizeRemoteDiagnosticValue(result.buildResult.resultText))),
-        ].join('\n')
-      ),
-    ].join('\n');
-  }
-
-  if (result.buildFailure) {
-    return [
-      ...lines,
-      '',
-      'note: Maker project was pushed successfully, but remote build failed.',
-      '',
-      ...formatMakerBuildFailureLines(result.buildFailure),
-    ].join('\n');
-  }
-
-  if (!submitResult.failure) {
-    return [
-      ...lines,
-      '',
-      submitResult.pushed
-        ? 'note: This is an internal contract error: pushed=true requires remote_build or build_failure.'
-        : 'note: Maker build was not started because no push was performed.',
-    ].join('\n');
-  }
-
-  return [
-    ...lines,
-    '',
-    ...formatPushRecoveryLines(submitResult),
-    '',
-    ...formatMakerFailureLines(submitResult.failure),
-  ]
-    .filter(Boolean)
-    .join('\n');
 }
 
 function formatPreviewRefreshLines(result?: PreviewRefreshResult): string[] {
@@ -3940,6 +3806,22 @@ function formatLocalShellCommand(parts: string[]): string {
     .join(' ');
 }
 
+function formatCloudRepairLines(submitResult: PushMakerProjectResult): string[] {
+  const repair = submitResult.cloudRepair;
+  if (!repair) return [];
+  return [
+    `- cloud_workspace_repair: ${repair.status}`,
+    repair.cloudCommitSha ? `- cloud_commit_sha: ${repair.cloudCommitSha}` : '',
+    repair.cloudChangedFiles !== undefined
+      ? `- cloud_changed_files: ${repair.cloudChangedFiles}`
+      : '',
+    repair.message ? `- cloud_repair_error: ${repair.message}` : '',
+    repair.status === 'repaired'
+      ? '- note: 云端工作区的未提交改动已自动提交到远端 main，并已合并到本地。'
+      : '',
+  ].filter(Boolean);
+}
+
 function formatPushRecoveryLines(submitResult: PushMakerProjectResult): string[] {
   if (submitResult.pushed || submitResult.status !== 'failed_after_commit') {
     return [];
@@ -3964,6 +3846,10 @@ function pushRecoveryUserMessage(failure?: MakerGitFailure): string {
       return '本地提交已经保留，但包含 Maker 远端禁止提交的路径或目录；请按 failure.stderr 中的 forbidden pattern 从未推送 commit 中移除这些路径，再重试 Maker 提交/构建工具。';
     case 'remote_transient':
       return '本地提交已经保留，但还没推送到 Maker 远端；远端临时异常恢复后，直接重试 Maker 提交/构建工具即可。';
+    case 'cloud_workspace_blocked':
+      return '本地提交已经保留，但 Maker 云端工作区有未提交改动，推送被拒绝且自动修复未完成；按 failure.next_action 处理后，再重试 Maker 提交/构建工具。';
+    case 'merge_conflict':
+      return '本地提交已经保留；合并 Maker 远端 main 时有冲突，已自动取消合并。请按 failure.conflict_files 处理冲突后，再重试 Maker 提交/构建工具。';
     default:
       return '本地提交已经保留，但还没推送到 Maker 远端；请先按 failure.next_action 修复原因，再重试 Maker 提交/构建工具。';
   }
@@ -4061,6 +3947,7 @@ function isRemoteGitFailure(failure: MakerGitFailure): boolean {
     [
       'remote_transient',
       'remote_rejected',
+      'cloud_workspace_blocked',
       'auth',
       'branch_not_allowed',
       'forbidden_path',
@@ -4148,6 +4035,9 @@ function formatMakerFailureLines(failure: MakerGitFailure): string[] {
     failure.retryAttempts ? `- retry_attempts: ${failure.retryAttempts}` : '',
     `- exit_code: ${failure.exitCode ?? '(none)'}`,
     failure.command ? `- command: ${failure.command}` : '',
+    failure.conflictFiles?.length
+      ? `- conflict_files:\n${indent(failure.conflictFiles.map((file) => `- ${file}`).join('\n'))}`
+      : '',
     failure.stderr ? `- stderr:\n${indent(failure.stderr)}` : '',
     failure.stdout ? `- stdout:\n${indent(failure.stdout)}` : '',
     `- next_action: ${failure.nextAction}`,

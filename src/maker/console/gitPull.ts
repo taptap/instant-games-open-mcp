@@ -1,12 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { getGitCommand } from '../system/git.js';
+import { GitCommandError as ExecGitError, runGit } from '../git/exec.js';
 import { previewStatus } from '../preview/session.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 
-const exec = promisify(execFile);
 const MAX_CONFLICT_FILES = 30;
 const MAX_PATH_LENGTH = 180;
 const MAX_DETAIL_LENGTH = 2000;
@@ -301,8 +298,7 @@ async function git(
   options.signal?.throwIfAborted();
   options.onGit?.(args);
   try {
-    const result = await exec(
-      getGitCommand(),
+    const result = await runGit(
       [
         '-c',
         'core.fsmonitor=false',
@@ -315,15 +311,12 @@ async function git(
       ],
       {
         cwd: root,
-        encoding: 'utf8',
-        ...(timeout > 0 ? { timeout, killSignal: 'SIGTERM' as const } : {}),
+        timeoutMs: timeout,
+        killSignal: 'SIGTERM',
         maxBuffer: 1024 * 1024,
         signal: options.signal,
-        windowsHide: true,
         env: {
-          ...process.env,
           GIT_OPTIONAL_LOCKS: '0',
-          GIT_TERMINAL_PROMPT: '0',
           GIT_EDITOR: 'true',
           GIT_SEQUENCE_EDITOR: 'true',
         },
@@ -331,7 +324,7 @@ async function git(
     );
     return result.stdout;
   } catch (error) {
-    const failure = error as NodeJS.ErrnoException & { stdout?: string; stderr?: string };
+    const failure = error as Partial<ExecGitError>;
     throw new GitCommandError(
       failure.message || 'git failed',
       failure.stderr || '',

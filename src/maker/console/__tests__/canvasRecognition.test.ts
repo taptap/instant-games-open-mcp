@@ -6,7 +6,7 @@ import { MakerCanvasFiles } from '../../canvas/files.js';
 import { CanvasRecognitionService } from '../canvasRecognition.js';
 import { webRecognitionInput } from '../../canvas/webRecognition.js';
 import { saveProjectConfig } from '../../storage.js';
-import * as pat from '../../git/pat.js';
+import * as pat from '../../auth/pat.js';
 import * as config from '../../config.js';
 import { serverRecognitionBody } from '../serverRecognition.js';
 import { saveVisionSettings } from '../visionSettings.js';

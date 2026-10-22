@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { withQrcodeFastForward } from '../maker/cli/qrcodeSync.js';
+import { withQrcodeFastForward } from '../maker/git/qrcode.js';
 
 describe('restricted QR config fast-forward', () => {
   let cwd: string;

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { getMakerApiBaseUrl, getMakerEnvironment } from '../config.js';
-import { requireMakerPat } from '../git/pat.js';
+import { requireMakerPat } from '../auth/pat.js';
 import { loadProjectConfig } from '../storage.js';
 import type { MakerCanvasFiles } from '../canvas/files.js';
 import type { UiBboxImage } from '../canvas/uiBbox.js';

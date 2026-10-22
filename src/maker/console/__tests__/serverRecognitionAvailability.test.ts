@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import * as config from '../../config.js';
-import * as pat from '../../git/pat.js';
+import * as pat from '../../auth/pat.js';
 import { saveProjectConfig } from '../../storage.js';
 import { serverRecognitionAvailable } from '../serverRecognition.js';
 import { resolvedModelSettingsForDisplay, resolvedUiVisionModels } from '../canvasRecognition.js';
