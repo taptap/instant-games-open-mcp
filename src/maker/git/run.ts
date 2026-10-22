@@ -12,6 +12,7 @@ import {
   type MakerGitRetryDecision,
 } from './failure.js';
 import { getGitCommand } from '../system/git.js';
+import { isShallowAcknowledgmentsFailure, pruneRedundantShallowMarkers } from './shallow.js';
 
 export interface MakerProjectProgress {
   progress?: number;
@@ -120,11 +121,49 @@ export function gitStepWithTransientRetry(
   }
 ): Promise<number> {
   const stage = options.stage || args[0] || 'git';
-  return runMakerGitNetworkOperationWithTransientRetry(
-    args,
-    (effectiveArgs) => gitStep(effectiveArgs, { ...options, stage }),
-    { stage, onProgress: options.onProgress }
-  );
+  const attempt = () =>
+    runMakerGitNetworkOperationWithTransientRetry(
+      args,
+      (effectiveArgs) => gitStep(effectiveArgs, { ...options, stage }),
+      { stage, onProgress: options.onProgress }
+    );
+  return args[0] === 'fetch'
+    ? withShallowAcknowledgmentsRecovery(options.cwd, attempt, options.onProgress)
+    : attempt();
+}
+
+/**
+ * When a fetch fails with `expected 'acknowledgments'`, remove redundant
+ * .git/shallow markers once and retry the fetch once. Other failures, and
+ * repositories without redundant markers, keep the original error.
+ */
+export async function withShallowAcknowledgmentsRecovery<T>(
+  cwd: string,
+  fetch: () => Promise<T>,
+  onProgress?: MakerProjectProgressHandler
+): Promise<T> {
+  try {
+    return await fetch();
+  } catch (error) {
+    if (!isShallowAcknowledgmentsFailure(errorText(error))) throw error;
+    const removed = pruneRedundantShallowMarkers(cwd);
+    if (removed === 0) throw error;
+    onProgress?.({
+      phase: 'fetch',
+      message: `Fetch failed with expected 'acknowledgments'; removed ${removed} redundant .git/shallow marker(s), retrying once`,
+    });
+    return fetch();
+  }
+}
+
+function errorText(error: unknown): string {
+  if (error instanceof MakerGitError) {
+    return [error.failure.stderr, error.failure.stdout, error.failure.message]
+      .filter(Boolean)
+      .join('\n');
+  }
+  if (error instanceof GitCommandError) return `${error.stderr}\n${error.message}`;
+  return error instanceof Error ? error.message : String(error);
 }
 
 export async function runWithTransientRetry(

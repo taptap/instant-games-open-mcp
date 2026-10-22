@@ -8,6 +8,7 @@
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { GitCommandError } from './exec.js';
 import { createGitRunner, gitOperationInProgress, mergeRemote } from './merge.js';
+import { withShallowAcknowledgmentsRecovery } from './run.js';
 import { parseStatusZ } from './status.js';
 
 export interface MakerGitSyncResult {
@@ -44,7 +45,7 @@ export async function syncMakerProject(cwd: string): Promise<MakerGitSyncResult>
   }
 
   try {
-    await run(['fetch', 'origin'], FETCH_TIMEOUT_MS);
+    await withShallowAcknowledgmentsRecovery(cwd, () => run(['fetch', 'origin'], FETCH_TIMEOUT_MS));
   } catch (error) {
     return {
       ...base,
