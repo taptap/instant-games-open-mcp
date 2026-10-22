@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createDevKitGitignoreBlock, DEV_KIT_GITIGNORE_STAGING_FILE } from '../maker/cli/devKit';
-import { cloneMakerProject, getMakerGitRetryDelayMs } from '../maker/cli/projects';
+import { cloneMakerProject, getMakerGitRetryDelayMs } from '../maker/git';
 import { saveProjectConfig } from '../maker/storage';
 import { MakerProjectRegistry } from '../maker/projectRegistry';
 

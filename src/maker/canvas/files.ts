@@ -5,7 +5,6 @@ import {
   remapTemplateAssets,
   templateAssetPaths,
 } from './templateArchive.js';
-import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import { validateUiAtlasPlan, validateUiAtlasGroup } from './uiAssetBindings.js';
@@ -13,8 +12,7 @@ import { readImageDimensions } from './imageDimensions.js';
 import type { CanvasImageInfo } from './imageSizing.js';
 import { validateFramePairGraph } from './framePair.js';
 import path from 'node:path';
-import { promisify } from 'node:util';
-import { getGitCommand } from '../system/git.js';
+import { GitCommandError, runGit } from '../git/exec.js';
 import {
   CanvasStoreError,
   CANVAS_JSON_LIMIT,
@@ -51,7 +49,6 @@ import {
   type UiWorkflowArchive,
 } from './uiWorkflowArchive.js';
 
-const execFileAsync = promisify(execFile);
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RELATIVE = /^(?:assets\/image\/canvas-[0-9a-f-]{36}\.(?:png|jpg|webp))$/i;
 const RESOURCE_RELATIVE = new RegExp(
@@ -951,30 +948,16 @@ export class MakerCanvasFiles {
   private async assertIgnored(): Promise<void> {
     let insideRepo = false;
     try {
-      const { stdout } = await execFileAsync(
-        getGitCommand(),
-        ['rev-parse', '--is-inside-work-tree'],
-        {
-          cwd: this.root,
-          windowsHide: true,
-        }
-      );
+      const { stdout } = await runGit(['rev-parse', '--is-inside-work-tree'], { cwd: this.root });
       insideRepo = stdout.trim() === 'true';
     } catch {
       return;
     }
     if (!insideRepo) return;
     try {
-      await execFileAsync(
-        getGitCommand(),
-        ['check-ignore', '-q', '--', '.maker/canvases/check.json'],
-        {
-          cwd: this.root,
-          windowsHide: true,
-        }
-      );
+      await runGit(['check-ignore', '-q', '--', '.maker/canvases/check.json'], { cwd: this.root });
     } catch (error) {
-      const code = (error as { code?: number }).code;
+      const code = error instanceof GitCommandError ? error.exitCode : undefined;
       if (code === 1) {
         fail(
           '当前项目的 .maker 目录未被 Git 忽略，已拒绝写入画布，避免本地画布被提交。请先忽略 .maker。画布不会自动修改 .gitignore。',

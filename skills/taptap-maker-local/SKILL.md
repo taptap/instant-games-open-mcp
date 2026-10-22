@@ -88,8 +88,8 @@ active plugin's marketplace instead of installing or upgrading a standalone Make
 | status / is Maker ready                                   | Read `maker://status`, call `maker_status_lite` if resources are unavailable, then follow `AGENTS.md` and `Maker remote sync` hints if present.                                                                       |
 | upgrade Maker MCP / old project policy                    | Follow the active distribution's update skill. Plugin users update through the active plugin's marketplace; standalone MCP users run `taptap-maker upgrade` for the current project only.                             |
 | submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_build_current_directory` unless blocked.                                                                                                           |
-| pull / update from remote                                 | Inspect local changes first; if dirty, explain options before pulling.                                                                                                                                                |
-| conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing.                                                                                    |
+| pull / update from remote                                 | Run `taptap-maker git sync --target-dir <PROJECT_DIR>`. It fetches, then fast-forwards or merges `origin/main`; on conflicts it aborts the merge and lists `conflictFiles`.                                           |
+| conflict / merge failed                                   | Read `conflictFiles` from the sync result. Compare each local file with `origin/main`, explain both sides, propose a resolution, and ask before editing. Do not look for conflict markers.                            |
 | build / submit / push / explicitly remote Web preview     | Use `maker_build_current_directory`; preserve its original authorization and remote log watcher.                                                                                                                      |
 | local preview / refresh preview / stop preview            | Follow Local Window Preview below; use CLI with explicit project path, never remote build.                                                                                                                            |
 | finish a related code-edit batch                          | Query real local preview status; automatically refresh only a live session, then collect evidence.                                                                                                                    |
@@ -386,9 +386,27 @@ Maker project submit/build work. Do not run generic Git commit/push helpers as a
 the Maker MCP tool.
 
 `maker_build_current_directory` owns the Maker safety gate. It checks remote sync before creating a
-commit. When local `main` is only behind Maker remote, it automatically fast-forwards before
-committing. It stops when history is diverged, the branch is not `main`, remote sync cannot be
-verified, or fast-forward would overwrite local changes.
+commit. When local `main` is only behind Maker remote, it fast-forwards before committing. When
+local and remote both have new commits, it merges `origin/main` after the local commit. When the
+push is rejected because the Maker cloud workspace has uncommitted changes (`Working directory has
+unstaged changes` / `Could not update working tree to new HEAD`), it commits the cloud changes
+through the cloud Git API, merges them, and pushes once more. Merge conflicts are aborted and
+reported as `merge_conflict` with `conflict_files`; resolve them, commit, and retry. It stops when
+the branch is not `main`, remote sync cannot be verified, or fast-forward would overwrite local
+changes.
+
+Maker Git CLI (all commands print JSON; `--target-dir` defaults to the current directory):
+
+- `taptap-maker git status` - local state and ahead/behind against `origin/main` (fetches).
+- `taptap-maker git sync` - fetch, then fast-forward or merge `origin/main`; aborts on conflicts.
+- `taptap-maker git push [--message MSG]` - the same sync/commit/push/cloud-repair flow as the
+  build tool, without the remote build.
+- `taptap-maker git cloud-status` / `cloud-diff [--path PATH] [--staged]` - read the Maker cloud
+  workspace state and diff. Untracked cloud files are not in the diff.
+- `taptap-maker git cloud-commit --message MSG (--all | PATH...)` - commit cloud workspace changes
+  (project owner only). Run it only when the user explicitly asks; the web agent may still be
+  editing those files. The automatic cloud commit inside push needs no extra confirmation. Never retry it after a timeout or `outcomeUnknown`; run `cloud-status`
+  first, because the commit may already have succeeded.
 
 The root `.gitignore` is a required Maker project file. If it changes after binding or dev-kit
 updates, include it with the game changes and mention it in the submit summary. Do not omit it from
@@ -941,13 +959,12 @@ before routine work; use `maker_status_lite` with `detail: true` before explicit
 - For an explicit submit/build request, call `maker_build_current_directory` directly when status is
   `needs_pull`. The tool attempts `git merge --ff-only origin/main` before creating the local commit.
   If Git refuses because remote files overlap local edits, the tool stops and preserves the workspace.
-- `needs_pull` with `local_changes: no`: tell the user the workspace is clean and the local AI can
-  run `git pull --ff-only origin main` before editing.
-- `needs_pull` with `local_changes: yes`: do not pull immediately. Explain that remote changes exist
-  and local edits are present; ask the local AI to inspect `git status` and help the user choose
-  submit current changes, stash then pull and restore, or cancel.
-- `diverged`: do not push or blindly pull. Ask the local AI to plan a rebase or merge of current
-  Maker remote changes.
+- `needs_pull`: run `taptap-maker git sync --target-dir <PROJECT_DIR>` before editing. Local
+  uncommitted edits are kept; if remote changes touch the same files, Git refuses and keeps the
+  local files, so commit the local edits first and sync again.
+- `diverged`: run `taptap-maker git sync`, or call `maker_build_current_directory` directly for a
+  submit/build request; both merge `origin/main`. On conflicts the merge is aborted and the
+  conflict files are listed.
 - `branch_not_allowed`: Maker only accepts `main`; switch/migrate local commits to `main` before
   build or submit.
 - `remote_unavailable`: follow the failure classification and retry later only for temporary
@@ -987,9 +1004,11 @@ Use `maker_build_current_directory` for this path. Do not use generic Git task-i
 branch-creation, or PR rules inside Maker project repositories.
 
 `maker_build_current_directory` owns the safety gate before commit/push. When local `main` is only
-behind Maker remote, it automatically fast-forwards before creating a local commit. It stops before
-commit and push when history is diverged, the branch is not `main`, remote sync cannot be verified,
-or fast-forward would overwrite local changes. Do not work around this by creating a new branch,
+behind Maker remote, it automatically fast-forwards before creating a local commit. When history is
+diverged, it merges `origin/main` after the local commit. When the Maker cloud workspace blocks the
+push, it commits the cloud changes, merges them and pushes once more. It stops when the branch is
+not `main`, remote sync cannot be verified, fast-forward would overwrite local changes, or a merge
+conflicts (the merge is aborted). Do not work around this by creating a new branch,
 requesting a task id, running generic Git commit/push, or opening a PR/MR.
 
 If `.gitignore` changed after Maker binding or dev-kit update, include it in the submit summary.
@@ -1037,7 +1056,9 @@ MCP builds the committed remote version only and does not auto-open Maker pages.
 
 For push failures, use the returned `classification`, `retryable`, `retry_reason`, and
 `retry_attempts` fields. Temporary 5xx/network/timeout failures may be retried with the Maker build
-tool; `remote_rejected` means remote updates require pull/rebase first; `auth` means refreshing PAT;
+tool; `remote_rejected` means run `taptap-maker git sync` and retry; `cloud_workspace_blocked` means
+the automatic cloud commit did not finish (follow `next_action`); `merge_conflict` means resolve
+`conflict_files`, commit, and retry; `auth` means refreshing PAT;
 `branch_not_allowed` means Maker remote only accepts `main`; `forbidden_path` means the remote
 pre-receive hook rejected one or more paths/directories and the forbidden pattern from stderr must
 be removed from the unpushed commit before retrying.
@@ -1047,8 +1068,11 @@ When a Maker tool output contains `push_recovery`, follow it exactly:
 - Tell the user the local commit is preserved but not yet on Maker remote.
 - Do not ask for permission to run a generic `git push`.
 - Retry with `maker_build_current_directory` for submit and build requests.
-- If the failure is `remote_rejected`, ask before pull/rebase; do not create a new branch or PR.
-- If the failure is `branch_not_allowed`, do not pull/rebase. Tell the user Maker only accepts
+- If the failure is `remote_rejected`, run `taptap-maker git sync`, then retry; do not create a new
+  branch or PR.
+- If the failure is `merge_conflict`, the merge was already aborted. Explain both sides of each
+  `conflict_files` entry, ask before editing, commit the resolution, then retry.
+- If the failure is `branch_not_allowed`, do not sync or merge. Tell the user Maker only accepts
   `main`, switch back to `main`, cherry-pick the preserved local commit there, then retry.
 - If the failure is `forbidden_path`, do not refresh PAT. Read the forbidden pattern in stderr,
   remove those paths from the unpushed commit while keeping local files, then retry after
@@ -1056,42 +1080,27 @@ When a Maker tool output contains `push_recovery`, follow it exactly:
 
 ## Pull And Conflict Handling
 
-Before pulling:
+To pull, run `taptap-maker git sync --target-dir <PROJECT_DIR>`. It fetches, then fast-forwards or
+merges `origin/main`, and keeps local uncommitted edits. If Git refuses because remote changes touch
+locally edited files, commit the local edits first and sync again. Do not stash or rebase.
 
-1. Run `git status --short --branch`.
-2. If the workspace is dirty, explain that pulling can mix remote changes with local edits.
-3. Offer safe options:
-   - submit current local changes first
-   - stash local changes, pull, then restore
-   - cancel and let the user review local files
+If sync returns `outcome: "conflict"`, the merge was already aborted. The working tree has no
+conflict markers and `git status` will not show `UU`, `AA`, `DU`, or `UD`. Do not look for those
+states.
 
-If conflicts occur:
+1. Use `conflictFiles` from the sync JSON. Do not invent paths that are not listed.
+2. For each path, compare the local file with `origin/main` (`git show origin/main:<path>`). The
+   local file is unchanged because the merge was aborted.
+3. Explain both sides and why they conflict, in plain language.
+4. Propose a resolution that keeps the needed parts of both sides.
+5. Ask for confirmation before editing files.
+6. After the user confirms, edit the files, commit the resolution, then run sync again.
 
-1. Run `git status --short`.
-2. Identify conflicted files (`UU`, `AA`, `DU`, `UD`, or unmerged paths).
-3. Show the user the conflict files and explain why the conflict happened.
-4. Inspect conflict markers in each file.
-5. Explain the competing versions in plain language.
-6. Propose a resolution strategy.
-7. Ask for confirmation before editing files.
+If sync returns `outcome: "blocked"` because the merge could not be aborted, stop. Inspect
+`git status` and ask the user; do not sync again and do not treat leftover markers as a normal
+conflict result.
 
-When showing conflict content, keep excerpts small and focused around conflict markers:
-
-```text
-  <<<<<<<
-  local version
-  =======
-  remote version
-  >>>>>>>
-```
-
-Do not hide unresolved conflicts. After editing, run:
-
-```bash
-git status --short
-```
-
-Only submit after conflicts are fully resolved.
+Do not hide unresolved conflicts. Only submit after the listed files are resolved and committed.
 
 ## User Communication
 

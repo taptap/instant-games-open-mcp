@@ -17,7 +17,7 @@ import {
 } from '../config.js';
 import { loginWithCliAuthCode } from '../auth/cliLogin.js';
 import { requestTapAuthWithPat } from '../auth/patTap.js';
-import { saveManualMakerPat } from '../git/pat.js';
+import { saveManualMakerPat } from '../auth/pat.js';
 import {
   getMakerHome,
   getPatPath,
@@ -42,12 +42,9 @@ import { runCanvasCli } from '../canvas/cli.js';
 import { runUiCli } from '../uiEditor/cli.js';
 import { runBuildCli } from './build.js';
 import { runQrcodeCli } from './qrcode.js';
-import {
-  cloneMakerProject,
-  createMakerProject,
-  listMakerProjects,
-  type MakerProjectProgress,
-} from './projects.js';
+import { createMakerProject, listMakerProjects } from './projects.js';
+import { cloneMakerProject, type MakerProjectProgress } from '../git/index.js';
+import { GIT_CLI_USAGE, runGitCli } from './git.js';
 import type { MakerProjectSummary } from '../types.js';
 import {
   checkAiDevKitUpdate,
@@ -162,6 +159,7 @@ const TWO_PART_COMMANDS = new Set([
   'agents',
   'plugin',
   'user-skills',
+  'git',
 ]);
 const BOOLEAN_OPTIONS = new Set([
   'dry_run',
@@ -175,6 +173,7 @@ const BOOLEAN_OPTIONS = new Set([
   'pat_from_stdin',
   'reset',
   'all',
+  'staged',
   'create',
   'consent',
   'confirm',
@@ -333,6 +332,10 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'qrcode') {
     await runQrcodeCli(parsed.options);
+    return;
+  }
+  if (command === 'git') {
+    await runGitCli(subcommand, parsed.options, parsed.positionals);
     return;
   }
 
@@ -3265,6 +3268,7 @@ function printHelp(): void {
       '  taptap-maker canvas download --target-dir PATH --operation-id ID --output-dir DIRECTORY',
       '  taptap-maker build --target-dir PROJECT_ABSOLUTE_PATH [--json]',
       '  taptap-maker qrcode --target-dir PROJECT_ABSOLUTE_PATH [--confirmed-screen-orientation landscape|portrait] [--json]',
+      ...GIT_CLI_USAGE,
       '  taptap-maker preview install|prepare|start|run|status|refresh|stop|logs|screenshot|validate|check',
       '                       --target-dir PROJECT_ABSOLUTE_PATH [--json] [--duration-ms 1000..600000]',
       '                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]',

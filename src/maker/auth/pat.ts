@@ -1,10 +1,10 @@
 /**
- * Maker PAT helpers for project git operations.
+ * Maker user-level PAT helpers (login, Maker API and git origin authentication).
  */
 
 import type { MakerPat } from '../types.js';
 import { loadPat, savePat } from '../storage.js';
-import { requireMakerJwt } from '../auth/jwt.js';
+import { requireMakerJwt } from './jwt.js';
 import { getMakerEndpoints, requireMakerEndpoint } from '../config.js';
 
 function normalizePatResponse(data: unknown): MakerPat {
