@@ -70,18 +70,51 @@ function releaseShallowLock(lockFd: number | undefined, lockPath: string | undef
   if (lockPath) fs.rmSync(lockPath, { force: true });
 }
 
-/** Replaces a file while the caller holds its git lock. POSIX rename is atomic. */
+/**
+ * Replaces a file while the caller holds its git lock.
+ * The new contents are fully written and flushed to a temporary file first, so an
+ * interrupted write cannot truncate boundaries that must be kept. Windows cannot
+ * rename over an existing file; the original is moved aside and restored if the
+ * swap fails.
+ */
 function replaceFile(target: string, contents: string): void {
-  if (process.platform === 'win32') {
-    fs.writeFileSync(target, contents, 'utf8');
-    return;
-  }
   const temporary = `${target}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, contents, 'utf8');
+  writeCompleteFile(temporary, contents);
   try {
-    fs.renameSync(temporary, target);
+    if (process.platform === 'win32') replaceWithBackup(target, temporary);
+    else fs.renameSync(temporary, target);
   } finally {
     fs.rmSync(temporary, { force: true });
+  }
+}
+
+function writeCompleteFile(file: string, contents: string): void {
+  const fd = fs.openSync(file, 'w');
+  try {
+    fs.writeFileSync(fd, contents, 'utf8');
+    fs.fsyncSync(fd);
+  } catch (error) {
+    fs.closeSync(fd);
+    fs.rmSync(file, { force: true });
+    throw error;
+  }
+  fs.closeSync(fd);
+}
+
+function replaceWithBackup(target: string, source: string): void {
+  const backup = `${target}.${process.pid}.bak`;
+  fs.rmSync(backup, { force: true });
+  fs.renameSync(target, backup);
+  try {
+    fs.renameSync(source, target);
+  } catch (error) {
+    if (!fs.existsSync(target)) fs.renameSync(backup, target);
+    throw error;
+  }
+  try {
+    fs.rmSync(backup, { force: true });
+  } catch {
+    // Replacement already landed. A leftover backup must not fail the recovery.
   }
 }
 

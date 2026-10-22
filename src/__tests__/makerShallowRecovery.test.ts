@@ -116,6 +116,44 @@ describe('shallow acknowledgments recovery', () => {
     );
   });
 
+  test('windows replacement keeps the real boundary', () => {
+    const local = shallowClone('win-keep', 1);
+    const shallow = path.join(local, '.git', 'shallow');
+    const boundary = fs.readFileSync(shallow, 'utf8').trim();
+    fs.writeFileSync(shallow, boundary + '\n' + '0'.repeat(40) + '\n');
+    withPlatform('win32', () => {
+      expect(pruneRedundantShallowMarkers(local)).toBe(1);
+    });
+    expect(fs.readFileSync(shallow, 'utf8')).toBe(boundary + '\n');
+    expect(fs.existsSync(shallow + '.lock')).toBe(false);
+    expect(leftoverSwapFiles(local)).toEqual([]);
+  });
+
+  test('windows replacement restores the original shallow file when the swap fails', () => {
+    const local = shallowClone('win-restore', 1);
+    const shallow = path.join(local, '.git', 'shallow');
+    const boundary = fs.readFileSync(shallow, 'utf8').trim();
+    fs.writeFileSync(shallow, boundary + '\n' + '0'.repeat(40) + '\n');
+    const before = fs.readFileSync(shallow, 'utf8');
+    const rename = fs.renameSync;
+    const spy = jest.spyOn(fs, 'renameSync').mockImplementation((from, to, ...rest) => {
+      if (String(to) === shallow && String(from).endsWith('.tmp')) {
+        throw new Error('disk full');
+      }
+      return rename.call(fs, from, to, ...rest);
+    });
+    try {
+      withPlatform('win32', () => {
+        expect(pruneRedundantShallowMarkers(local)).toBe(0);
+      });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(fs.readFileSync(shallow, 'utf8')).toBe(before);
+    expect(fs.existsSync(shallow + '.lock')).toBe(false);
+    expect(leftoverSwapFiles(local)).toEqual([]);
+  });
+
   test('retries the fetch once after removing redundant markers', async () => {
     const local = shallowClone('retry', 10);
     const rootCommit = git(local, ['rev-list', '--max-parents=0', 'HEAD']).trim();
@@ -151,3 +189,19 @@ describe('shallow acknowledgments recovery', () => {
     expect(otherFetch).toHaveBeenCalledTimes(1);
   });
 });
+
+function withPlatform(platform: string, run: () => void): void {
+  const descriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+  Object.defineProperty(process, 'platform', { configurable: true, value: platform });
+  try {
+    run();
+  } finally {
+    if (descriptor) Object.defineProperty(process, 'platform', descriptor);
+  }
+}
+
+function leftoverSwapFiles(local: string): string[] {
+  return fs
+    .readdirSync(path.join(local, '.git'))
+    .filter((name) => name.endsWith('.tmp') || name.endsWith('.bak') || name === 'shallow.lock');
+}

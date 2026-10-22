@@ -89,7 +89,7 @@ active plugin's marketplace instead of installing or upgrading a standalone Make
 | upgrade Maker MCP / old project policy                    | Follow the active distribution's update skill. Plugin users update through the active plugin's marketplace; standalone MCP users run `taptap-maker upgrade` for the current project only.                             |
 | submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_build_current_directory` unless blocked.                                                                                                           |
 | pull / update from remote                                 | Run `taptap-maker git sync --target-dir <PROJECT_DIR>`. It fetches, then fast-forwards or merges `origin/main`; on conflicts it aborts the merge and lists `conflictFiles`.                                           |
-| conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing.                                                                                    |
+| conflict / merge failed                                   | Read `conflictFiles` from the sync result. Compare each local file with `origin/main`, explain both sides, propose a resolution, and ask before editing. Do not look for conflict markers.                            |
 | build / submit / push / explicitly remote Web preview     | Use `maker_build_current_directory`; preserve its original authorization and remote log watcher.                                                                                                                      |
 | local preview / refresh preview / stop preview            | Follow Local Window Preview below; use CLI with explicit project path, never remote build.                                                                                                                            |
 | finish a related code-edit batch                          | Query real local preview status; automatically refresh only a live session, then collect evidence.                                                                                                                    |
@@ -1084,33 +1084,23 @@ To pull, run `taptap-maker git sync --target-dir <PROJECT_DIR>`. It fetches, the
 merges `origin/main`, and keeps local uncommitted edits. If Git refuses because remote changes touch
 locally edited files, commit the local edits first and sync again. Do not stash or rebase.
 
-If conflicts occur:
+If sync returns `outcome: "conflict"`, the merge was already aborted. The working tree has no
+conflict markers and `git status` will not show `UU`, `AA`, `DU`, or `UD`. Do not look for those
+states.
 
-1. Run `git status --short`.
-2. Identify conflicted files (`UU`, `AA`, `DU`, `UD`, or unmerged paths).
-3. Show the user the conflict files and explain why the conflict happened.
-4. Inspect conflict markers in each file.
-5. Explain the competing versions in plain language.
-6. Propose a resolution strategy.
-7. Ask for confirmation before editing files.
+1. Use `conflictFiles` from the sync JSON. Do not invent paths that are not listed.
+2. For each path, compare the local file with `origin/main` (`git show origin/main:<path>`). The
+   local file is unchanged because the merge was aborted.
+3. Explain both sides and why they conflict, in plain language.
+4. Propose a resolution that keeps the needed parts of both sides.
+5. Ask for confirmation before editing files.
+6. After the user confirms, edit the files, commit the resolution, then run sync again.
 
-When showing conflict content, keep excerpts small and focused around conflict markers:
+If sync returns `outcome: "blocked"` because the merge could not be aborted, stop. Inspect
+`git status` and ask the user; do not sync again and do not treat leftover markers as a normal
+conflict result.
 
-```text
-  <<<<<<<
-  local version
-  =======
-  remote version
-  >>>>>>>
-```
-
-Do not hide unresolved conflicts. After editing, run:
-
-```bash
-git status --short
-```
-
-Only submit after conflicts are fully resolved.
+Do not hide unresolved conflicts. Only submit after the listed files are resolved and committed.
 
 ## User Communication
 
