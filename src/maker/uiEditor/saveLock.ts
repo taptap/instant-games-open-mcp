@@ -61,16 +61,21 @@ export async function claimUiSaveLock(
 async function holdLoopbackPort(
   token: string
 ): Promise<{ port: number; close: () => Promise<void> }> {
+  const sockets = new Set<net.Socket>();
   const server = net.createServer((socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
     let data = '';
     const finish = () => socket.destroy();
+    const lifetime = setTimeout(finish, LIVE_CHECK_MS);
     socket.setEncoding('utf8');
-    socket.setTimeout(LIVE_CHECK_MS, finish);
     socket.on('data', (chunk: string) => {
       data += chunk;
-      if (!data.includes('\n')) return;
-      if (data.trim() === token) socket.end('ok\n');
-      else finish();
+      if (data.length > 80 || data.includes('\n')) {
+        clearTimeout(lifetime);
+        if (data.trim() === token) socket.end('ok\n');
+        else finish();
+      }
     });
     socket.on('error', finish);
   });
@@ -87,6 +92,7 @@ async function holdLoopbackPort(
     port: address.port,
     close: () =>
       new Promise((resolve) => {
+        for (const socket of sockets) socket.destroy();
         server.close(() => resolve());
         setTimeout(resolve, 50);
       }),
@@ -159,7 +165,7 @@ function holderMatches(record: LockRecord | undefined): Promise<boolean> {
       socket.destroy();
       resolve(alive);
     };
-    const timer = setTimeout(() => done(false), LIVE_CHECK_MS);
+    const timer = setTimeout(() => done(true), LIVE_CHECK_MS);
     socket.once('error', () => {
       clearTimeout(timer);
       done(false);

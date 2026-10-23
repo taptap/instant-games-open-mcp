@@ -35,13 +35,28 @@ describe('UI save lock', () => {
   });
 
   test('still acquires when the old hashed port is already taken', async () => {
-    const peer = net.createServer((socket) => socket.destroy());
-    await listen(peer, recoveryMutexPort(lockPath));
+    let peer: net.Server | undefined;
+    for (let attempt = 0; ; attempt++) {
+      if (attempt > 0) {
+        fs.rmSync(directory, { recursive: true, force: true });
+        directory = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-ui-save-lock-'));
+        lockPath = path.join(directory, '.maker', 'ui-editor-save.lock');
+      }
+      peer = net.createServer((socket) => socket.destroy());
+      try {
+        await listen(peer, recoveryMutexPort(lockPath));
+        break;
+      } catch (error) {
+        await close(peer);
+        peer = undefined;
+        if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE' || attempt >= 19) throw error;
+      }
+    }
     try {
       const release = await claimUiSaveLock(lockPath, () => new Error('busy'));
       await release();
     } finally {
-      await close(peer);
+      if (peer) await close(peer);
     }
   });
 
