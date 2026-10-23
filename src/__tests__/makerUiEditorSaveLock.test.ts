@@ -3,6 +3,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { claimUiSaveLock } from '../maker/uiEditor/saveLock';
+import { recoveryMutexPort } from '../maker/system/recoveryMutex';
 
 describe('UI save lock', () => {
   let directory: string;
@@ -26,26 +27,67 @@ describe('UI save lock', () => {
 
   test('replaces a stale lock whose holder port is gone', async () => {
     fs.mkdirSync(path.dirname(lockPath), { recursive: true });
-    fs.writeFileSync(lockPath, JSON.stringify({ pid: 1, port: 1, id: 'stale' }));
+    fs.writeFileSync(lockPath, JSON.stringify({ pid: 1, port: 1, token: 'stale' }));
     const release = await claimUiSaveLock(lockPath, () => new Error('busy'));
     expect(fs.existsSync(lockPath)).toBe(true);
     await release();
     expect(fs.existsSync(lockPath)).toBe(false);
   });
 
-  test('does not treat an unrelated loopback listener as this project lock', async () => {
+  test('still acquires when the old hashed port is already taken', async () => {
     const peer = net.createServer((socket) => socket.destroy());
-    await new Promise<void>((resolve, reject) => {
-      peer.once('error', reject);
-      peer.listen({ host: '127.0.0.1', port: 0, exclusive: true }, resolve);
-    });
+    await listen(peer, recoveryMutexPort(lockPath));
     try {
       const release = await claimUiSaveLock(lockPath, () => new Error('busy'));
       await release();
     } finally {
-      await new Promise<void>((resolve, reject) =>
-        peer.close((error) => (error ? reject(error) : resolve()))
-      );
+      await close(peer);
     }
   });
+
+  test('replaces a stale lock whose port was reused by an unrelated listener', async () => {
+    const peer = net.createServer((socket) => socket.destroy());
+    await listen(peer, 0);
+    const port = (peer.address() as net.AddressInfo).port;
+    fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+    fs.writeFileSync(lockPath, JSON.stringify({ pid: 1, port, token: 'previous-holder' }));
+    try {
+      const release = await claimUiSaveLock(lockPath, () => new Error('busy'));
+      await release();
+    } finally {
+      await close(peer);
+    }
+  });
+
+  test('lets only one saver recover the same stale lock', async () => {
+    fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+    fs.writeFileSync(lockPath, JSON.stringify({ pid: 1, port: 1, token: 'stale' }));
+    const results = await Promise.allSettled([
+      claimUiSaveLock(lockPath, () => new Error('busy')),
+      claimUiSaveLock(lockPath, () => new Error('busy')),
+    ]);
+    const held = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
+    try {
+      expect(held).toHaveLength(1);
+      expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+      await expect(claimUiSaveLock(lockPath, () => new Error('busy'))).rejects.toThrow('busy');
+    } finally {
+      await Promise.all(held.map((release) => release()));
+    }
+    expect(fs.existsSync(lockPath)).toBe(false);
+    expect(fs.existsSync(lockPath + '.recover')).toBe(false);
+  });
 });
+
+function listen(server: net.Server, port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen({ host: '127.0.0.1', port, exclusive: true }, () => resolve());
+  });
+}
+
+function close(server: net.Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
