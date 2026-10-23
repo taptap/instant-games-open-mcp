@@ -1133,11 +1133,22 @@ export class MakerCanvasFiles {
     ) {
       fail('已删除生成记录标识无效。', 400, 'INVALID_DOCUMENT');
     }
+    const settings = input.settings as Record<string, unknown> | undefined;
+    const constraintText = settings?.assetConstraintText;
+    if (
+      (settings !== undefined && (!settings || typeof settings !== 'object')) ||
+      (constraintText !== undefined &&
+        (typeof constraintText !== 'string' || constraintText.length > 2000))
+    )
+      fail('画布设置无效。', 400, 'INVALID_DOCUMENT');
     return {
       id,
       title: text(input.title, 80, '标题', '创作画布'),
       ...(Array.isArray(input.deletedGenerationIds) && input.deletedGenerationIds.length
         ? { deletedGenerationIds: [...new Set(input.deletedGenerationIds as string[])] }
+        : {}),
+      ...(typeof constraintText === 'string'
+        ? { settings: { assetConstraintText: constraintText } }
         : {}),
       revision: numberIn(input.revision, 0, 1_000_000, 'revision'),
       ...(input.templateFlow === undefined

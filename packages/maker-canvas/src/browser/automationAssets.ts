@@ -4,7 +4,17 @@ export async function prepareCanvasImportedNodeFromMedia(
   input: Record<string, unknown>,
   mediaUrl: (path: string) => string
 ): Promise<CanvasNode> {
-  const { assetPath, kind, title } = input;
+  const { assetPath } = input;
+  const kind = input.kind === undefined ? 'image' : input.kind;
+  const title =
+    input.title === undefined && typeof assetPath === 'string'
+      ? (
+          assetPath
+            .split('/')
+            .pop()!
+            .replace(/\.[^.]+$/, '') || '图片'
+        ).slice(0, 80)
+      : input.title;
   if (
     typeof assetPath !== 'string' ||
     !['image', 'video'].includes(String(kind)) ||

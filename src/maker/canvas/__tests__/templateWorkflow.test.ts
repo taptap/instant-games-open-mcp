@@ -608,3 +608,55 @@ test('parallel queued cards keep a shared upstream protected and time their comp
     now.mockRestore();
   }
 });
+
+test('a local edit result whose source wire was removed stays complete and offers no continue', () => {
+  const document = emptyDocument();
+  const base = { type: 'image' as const, x: 0, y: 0, width: 300, height: 200 };
+  const source = { ...base, id: 'source', title: '图片变体 · 已保存结果', assetPath: 'a.png' };
+  const edited = {
+    ...base,
+    id: 'edited',
+    title: '图片变体 · 已保存结果 · 本地编辑',
+    assetPath: 'b.png',
+    sourceSnapshot: snapshotCanvasSource(source),
+    sourceSnapshots: [snapshotCanvasSource(source)!],
+  };
+  document.nodes = [source, edited];
+  const flow = createTemplateWorkflow({
+    getDocument: () => document,
+    save: jest.fn(async () => true),
+    changed: jest.fn(),
+    render: jest.fn(),
+    error: jest.fn(),
+    confirm: () => true,
+    video: jest.fn(),
+    sequence: jest.fn(),
+    animation: jest.fn(),
+    select: jest.fn(),
+    importImage: jest.fn(),
+    image: jest.fn(async () => false),
+  });
+  expect(canvasNeedsProcessing(document, edited)).toBe(false);
+  expect(flow.status('edited')).toBeUndefined();
+  // A still-wired changed source keeps an informational pending state without a failing action.
+  document.edges = [{ id: 'e', from: 'source', to: 'edited', kind: 'image-variant' }];
+  source.assetPath = 'a2.png';
+  expect(flow.status('edited')).toBe('pending');
+  expect(flow.canContinue('edited')).toBe(false);
+});
+
+test('a generated result with a missing source still needs processing', () => {
+  const document = emptyDocument();
+  const base = { type: 'image' as const, x: 0, y: 0, width: 300, height: 200 };
+  const source = { ...base, id: 'source', title: 's', assetPath: 'a.png' };
+  const result = {
+    ...base,
+    id: 'result',
+    title: 'r',
+    assetPath: 'b.png',
+    generation: { prompt: '变体' },
+    sourceSnapshots: [snapshotCanvasSource(source)!],
+  };
+  document.nodes = [source, result];
+  expect(canvasNeedsProcessing(document, result)).toBe(true);
+});

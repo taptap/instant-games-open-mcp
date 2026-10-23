@@ -206,9 +206,9 @@ export async function runCanvasCli(
       !input ||
       typeof input !== 'object' ||
       Array.isArray(input) ||
-      Object.keys(input).some((key) => key !== 'title')
+      Object.keys(input).some((key) => !['title', 'prompt', 'sourceId'].includes(key))
     )
-      throw new Error('import input 只接受可选 title；素材由 --file 指定。');
+      throw new Error('import input 只接受可选 title、prompt、sourceId；素材由 --file 指定。');
     if (
       'title' in input &&
       (typeof input.title !== 'string' || !input.title.trim() || input.title.length > 80)

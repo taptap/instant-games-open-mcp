@@ -1,9 +1,32 @@
 import type { CanvasDocument, CanvasNode, CanvasTemplateFlow } from '../contracts.js';
 import { CanvasStoreError } from '../core/errors.js';
-import { canvasReferences, canvasDependents, isCanvasNodeStale } from '../core/dependencies.js';
+import {
+  canvasReferences,
+  canvasDependents,
+  isCanvasNodeStale,
+  isCanvasSourceCurrent,
+} from '../core/dependencies.js';
 import { framePairSources } from './framePair.js';
 import { mergeIconNeedsGeneration } from './mergeIcons.js';
 import { selectedUiRecognition } from './uiRecognition.js';
+
+/** False for free saved images from a local edit, cutout or plain import: there is no saved request to re-run. */
+export function canvasImageHasRegeneratePath(node: CanvasNode): boolean {
+  return (
+    node.type !== 'image' ||
+    !node.assetPath ||
+    Boolean(
+      // Group members are re-run by the template executor (recognition, cutout, atlas) without a prompt.
+      node.sectionId ||
+        node.templatePending ||
+        node.mergeIcons ||
+        node.uiRecognition?.enabled ||
+        node.uiAtlasPrelayout ||
+        node.generation?.prompt?.trim() ||
+        node.generationDraft?.prompt?.trim()
+    )
+  );
+}
 
 export function canvasNeedsProcessing(
   document: CanvasDocument,
@@ -28,11 +51,24 @@ export function canvasNeedsProcessing(
       return true;
   }
   if (visiting.has(node.id)) return true;
-  if (isCanvasNodeStale(node, canvasReferences(document, node.id))) return true;
+  const references = canvasReferences(document, node.id);
+  if (canvasImageHasRegeneratePath(node)) {
+    if (isCanvasNodeStale(node, references)) return true;
+  } else if (
+    // A fixed image cannot re-run, so an unwired (deleted) source must not leave it stuck pending.
+    (node.sourceSnapshots?.length
+      ? node.sourceSnapshots
+      : node.sourceSnapshot
+        ? [node.sourceSnapshot]
+        : []
+    ).some((snapshot) => {
+      const source = references.find((item) => item.id === snapshot.nodeId);
+      return source && !isCanvasSourceCurrent(snapshot, source);
+    })
+  )
+    return true;
   visiting.add(node.id);
-  const pending = canvasReferences(document, node.id).some((source) =>
-    canvasNeedsProcessing(document, source, visiting)
-  );
+  const pending = references.some((source) => canvasNeedsProcessing(document, source, visiting));
   visiting.delete(node.id);
   return pending;
 }

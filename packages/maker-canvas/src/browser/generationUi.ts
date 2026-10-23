@@ -60,6 +60,8 @@ export function imageEditSources(
 }
 
 export interface CanvasGenerationUiOptions {
+  /** Web composer: drops explanatory hints and adds the game-asset constraint pill. */
+  web?: boolean;
   detectUiCutoutColor(paths: string[], mediaUrl: (path: string) => string): Promise<UiCutoutColor>;
   videoPrompts?: ReturnType<typeof createVideoPrompts>;
   store: {
@@ -144,6 +146,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   queueBlockReason(nodeId: string): string | undefined;
   failure(nodeId: string): string | undefined;
   retryableImage(nodeId: string): boolean;
+  retryImage(nodeId: string): Promise<void>;
   queryNode(nodeId: string, throwOnError?: boolean): Promise<void>;
   recoverVideo(attempt: any): Promise<boolean>;
   imageTarget(node: any): string | undefined;
@@ -158,9 +161,59 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   const GAME_ASSET_CONSTRAINTS =
     '游戏素材约束：单个主体、完整不裁切、四周保留动作空间；背景均匀纯色；不出现地面、地砖、站台、展示台、底座、台阶、接触阴影、投影、反射、文字、Logo、水印或其他角色。';
   const videoPrompts = options.videoPrompts || createVideoPrompts();
+  // Texts appended this session, so results of an edited constraint are still stripped on return.
+  const sentConstraints = new Set<string>([GAME_ASSET_CONSTRAINTS]);
+  let constraintPopover: string | undefined;
+  // Outside presses close it; otherwise it reopens whenever the same card is selected again.
+  globalThis.document?.addEventListener?.(
+    'pointerdown',
+    (event: any) => {
+      const target = event.target;
+      if (constraintPopover && !target?.closest?.('.generation-asset-wrap'))
+        constraintPopover = undefined;
+    },
+    true
+  );
+
+  /** The canvas-level edited text wins; blank or absent falls back to the built-in block. */
+  function constraintText(): string {
+    const value = options.getDocument()?.settings?.assetConstraintText;
+    return typeof value === 'string' && value.trim() ? value.trim() : GAME_ASSET_CONSTRAINTS;
+  }
+
+  function constraintSuffix(prompt: string): string | undefined {
+    const known = [constraintText(), ...sentConstraints].sort((a, b) => b.length - a.length);
+    return known.find((text) => prompt.endsWith('\n\n' + text));
+  }
 
   function withGameAssetConstraints(prompt: string): string {
-    return prompt.includes('游戏素材约束：') ? prompt : prompt + '\n\n' + GAME_ASSET_CONSTRAINTS;
+    if (prompt.includes('游戏素材约束：') || constraintSuffix(prompt)) return prompt;
+    const text = constraintText();
+    sentConstraints.add(text);
+    return prompt + '\n\n' + text;
+  }
+
+  /** The constraint block is request-only; cards store and show just the user's text. */
+  function userPrompt(prompt: string): string {
+    const suffix = constraintSuffix(prompt);
+    return suffix ? prompt.slice(0, -(suffix.length + 2)) : prompt;
+  }
+
+  function samePrompt(left: unknown, right: unknown): boolean {
+    return userPrompt(String(left ?? '')) === userPrompt(String(right ?? ''));
+  }
+
+  /** Saved choice wins; legacy cards keep their old effect (generate, or a stored block). */
+  function assetConstraintsEnabled(node: any, operation: string): boolean {
+    const saved =
+      imageSettings.get(referenceKey(node))?.assetConstraints ??
+      node.generationDraft?.parameters?.assetConstraints ??
+      node.generation?.parameters?.assetConstraints;
+    if (typeof saved === 'boolean') return saved;
+    const stored = node.generationDraft?.prompt ?? node.generation?.prompt ?? '';
+    // A result follows how it was made; reruns of edits stay unconstrained as before.
+    const made = (node.assetPath && node.generation?.operation) || operation;
+    return made === 'generate' || String(stored).includes('游戏素材约束：');
   }
 
   function templateVideoPrompt(prompt: unknown): string {
@@ -276,9 +329,28 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   }
   const imageSettings = new Map<
     string,
-    { model: string; resolution: string; aspectRatio: string }
+    { model: string; resolution: string; aspectRatio: string; assetConstraints?: boolean }
   >();
   const displayedImageModels = new Map<string, CanvasImageModels>();
+  // Composer re-renders on every state tick; refetching per render made the model select flicker.
+  const imageModelsByTool = new Map<string, CanvasImageModels>();
+  const imageModelRequests = new Map<string, Promise<CanvasImageModels>>();
+  function loadImageModels(tool: 'generate_image' | 'edit_image'): Promise<CanvasImageModels> {
+    const pending = imageModelRequests.get(tool);
+    if (pending) return pending;
+    // Callers chain on the host promise itself, so the fill keeps its original microtask timing.
+    const request = options.store.imageModels!(tool);
+    imageModelRequests.set(tool, request);
+    request.then(
+      (available) => {
+        if (imageModelRequests.get(tool) === request) imageModelsByTool.set(tool, available);
+      },
+      () => {
+        if (imageModelRequests.get(tool) === request) imageModelRequests.delete(tool);
+      }
+    );
+    return request;
+  }
   const videoSettings = new Map<
     string,
     { model: string; resolution: string; duration: number; ratio: string; mode: string }
@@ -301,7 +373,12 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       drafts.get(node.id) ?? node.generationDraft?.prompt ?? node.generation?.prompt ?? ''
     );
     return JSON.stringify({
-      prompt: node.generationDraft ? undefined : image ? prompt : videoPrompts.prepare(prompt),
+      prompt: node.generationDraft
+        ? undefined
+        : image
+          ? userPrompt(prompt)
+          : videoPrompts.prepare(prompt),
+      assetConstraints: image ? settings.assetConstraints : undefined,
       model: settings.model || (image ? 'auto' : '2.0'),
       resolution: settings.resolution || (image ? '1K' : '720p'),
       ratio: image ? settings.aspectRatio || '1:1' : settings.ratio || 'adaptive',
@@ -639,7 +716,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     add.setAttribute('aria-label', '导入参考图');
     strip.append(add);
     panel.append(strip);
-    if (node.type === 'image' && !sources.length && !paths.length) {
+    if (node.type === 'image' && !sources.length && !paths.length && !options.web) {
       const hint = document.createElement('small');
       hint.className = 'generation-reference-hint';
       hint.textContent = '未使用参考图，将仅根据提示词生成。';
@@ -684,7 +761,67 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   }
 
   function startGeneration(): void {
+    // Sending commits the constraint choice, so the popover should not reopen with the result.
+    constraintPopover = undefined;
     options.onGenerateStart?.();
+  }
+  /** Web 素材规范 popover: per-card switch plus the canvas-wide editable constraint text. */
+  function constraintPopoverPanel(enabled: boolean, toggle: () => void): HTMLElement {
+    const panel = document.createElement('div');
+    panel.className = 'generation-asset-popover';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', '素材规范');
+    const head = document.createElement('div');
+    head.className = 'generation-asset-head';
+    const label = document.createElement('b');
+    label.textContent = '素材规范';
+    const toggleSwitch = button('', toggle, { className: 'generation-asset-switch' });
+    toggleSwitch.setAttribute('role', 'switch');
+    toggleSwitch.setAttribute('aria-checked', String(enabled));
+    toggleSwitch.setAttribute('aria-label', enabled ? '关闭素材规范' : '开启素材规范');
+    head.append(label, toggleSwitch);
+    const hint = document.createElement('p');
+    hint.className = 'generation-asset-hint';
+    hint.textContent = '让结果单体完整、纯色背景，方便抠图和放进游戏';
+    const text = document.createElement('textarea');
+    text.className = 'generation-asset-text';
+    text.rows = 5;
+    text.maxLength = 2000;
+    text.value = constraintText();
+    text.setAttribute('aria-label', '素材规范内容');
+    const reset = button('恢复默认', () => write(GAME_ASSET_CONSTRAINTS), {
+      className: 'generation-asset-reset',
+    });
+    let remembered = false;
+    function write(value: string) {
+      const current = options.getDocument();
+      if (!current) return;
+      if (!remembered) {
+        options.remember();
+        remembered = true;
+      }
+      const settings = { ...(current.settings || {}) };
+      // The built-in text is the default, so storing it again would only pin today's wording.
+      if (!value.trim() || value.trim() === GAME_ASSET_CONSTRAINTS)
+        delete settings.assetConstraintText;
+      else settings.assetConstraintText = value;
+      if (Object.keys(settings).length) current.settings = settings;
+      else delete current.settings;
+      if (text.value !== value) text.value = value;
+      reset.disabled = constraintText() === GAME_ASSET_CONSTRAINTS;
+      options.markDirty();
+    }
+    reset.disabled = constraintText() === GAME_ASSET_CONSTRAINTS;
+    text.addEventListener('focus', () => (remembered = false));
+    text.addEventListener('input', () => write(text.value));
+    panel.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      constraintPopover = undefined;
+      options.render();
+    });
+    panel.append(head, hint, text, reset);
+    return panel;
   }
 
   function promptField(node: any, placeholder: string): any {
@@ -694,6 +831,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       drafts.get(node.id) ?? node.generationDraft?.prompt ?? node.generation?.prompt ?? ''
     );
     if (node.type !== 'image') input.value = videoPrompts.prepare(input.value);
+    else input.value = userPrompt(input.value);
     input.placeholder = placeholder;
     input.className = 'generation-prompt';
     input.addEventListener('pointerdown', (event: any) => event.stopPropagation());
@@ -742,15 +880,17 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       outpaint:
         '保持游戏角色主体、武器和比例不变，扩展战斗场景与背景空间，补全动作和道具区域，主体不出画面',
     };
-    const value =
+    const value = userPrompt(
       input.value.trim() ||
-      node.generationDraft?.prompt ||
-      node.generation?.prompt ||
-      defaults[operation];
-    const prompt = operation === 'generate' ? withGameAssetConstraints(value) : value;
-    input.value = prompt;
-    drafts.set(node.id, prompt);
-    return prompt;
+        node.generationDraft?.prompt ||
+        node.generation?.prompt ||
+        defaults[operation]
+    );
+    // Only the request carries the constraint block; the card keeps the user's text.
+    const constrained = assetConstraintsEnabled(node, operation);
+    input.value = value;
+    drafts.set(node.id, value);
+    return constrained ? withGameAssetConstraints(value) : value;
   }
 
   function generationParameters(attempt: any, node?: any) {
@@ -763,6 +903,17 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     );
   }
 
+  /** Mivo's slot rule: a card holding an AI result is regenerated into itself; imported images branch. */
+  function regeneratesInPlace(node: any): boolean {
+    return Boolean(
+      options.web &&
+        node.type === 'image' &&
+        node.assetPath &&
+        node.generation &&
+        !node.mergeIcons &&
+        !node.uiAtlasPrelayout
+    );
+  }
   function applyAttempt(attempt: any, persist = true, replace = false): boolean {
     const documentState = options.getDocument();
     if (!documentState || attempt.status !== 'succeeded' || !attempt.resultAssetPath) return false;
@@ -812,7 +963,11 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         documentState.nodes.some(
           (node: CanvasNode) => node.id === targetNode.sectionId && node.templateId
         );
-      if (!templateTarget)
+      // Web AI slots regenerate in place: same card, title and wiring; the old image stays in undo/assets.
+      const inPlace = Boolean(
+        replace && !templateTarget && targetNode?.assetPath && regeneratesInPlace(targetNode)
+      );
+      if (!templateTarget && !inPlace)
         resultNode.title = resultNode.uiAtlasPrelayout
           ? 'Bbox 预排参考图'
           : resultNode.mergeIcons
@@ -830,12 +985,21 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         };
       delete resultNode.templatePending;
       delete resultNode.generationDraft;
+      const sentPrompt = String(attempt.prompt || '');
+      const constrained =
+        sentPrompt.includes('游戏素材约束：') || userPrompt(sentPrompt) !== sentPrompt;
       resultNode.generation = {
-        prompt: attempt.prompt,
+        prompt: userPrompt(sentPrompt),
         ...(attempt.uiAtlasPlan ? { uiAtlasPlan: structuredClone(attempt.uiAtlasPlan) } : {}),
         ...(attempt.cutoutColor ? { cutoutColor: attempt.cutoutColor } : {}),
         referenceImagePaths: attempt.referenceImagePaths || [],
-        parameters: generationParameters(attempt, resultNode),
+        parameters: {
+          ...generationParameters(attempt, resultNode),
+          // Recovered from what was sent, so hosts need not echo the toggle.
+          ...(constrained || (attempt.operation || 'generate') === 'generate'
+            ? { assetConstraints: constrained }
+            : {}),
+        },
         operation: attempt.operation || 'generate',
         attemptId: attempt.id,
         sourceImageId: sourceImageIds[0],
@@ -858,7 +1022,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         )
         .filter(Boolean);
       if (!targetNode) documentState.nodes.push(resultNode);
-      else
+      else if (!inPlace)
         documentState.edges = documentState.edges.filter(
           (edge: any) =>
             edge.to !== resultNodeId ||
@@ -1060,7 +1224,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         ? node.id
         : decision?.kind === 'reuse'
           ? decision.nodeId
-          : !node.assetPath
+          : !node.assetPath || regeneratesInPlace(node)
             ? node.id
             : undefined;
     const sourceNodes = (
@@ -1113,6 +1277,9 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
           new Set([...sourceNodes.map((source) => source.assetPath), ...referencePaths(node)]).size
         );
         available = await options.store.imageModels(tool);
+        // Submission always reads fresh; refreshing the cache lets a reopened composer show the change.
+        imageModelsByTool.set(tool, available);
+        imageModelRequests.set(tool, Promise.resolve(available));
         if (options.getDocument() !== documentState) return;
         if (
           displayedModel &&
@@ -1582,7 +1749,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     const latest = latestNodeAttempt(nodeId);
     if (
       latest?.status === 'succeeded' &&
-      latest.prompt === (node.generationDraft?.prompt || node.generation?.prompt)
+      samePrompt(latest.prompt, node.generationDraft?.prompt || node.generation?.prompt)
     ) {
       if (recoverImage(latest, list)) {
         const saved = await options.flush();
@@ -2093,7 +2260,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       modelSelect.disabled = true;
       modelSelect.options[0].textContent = '正在读取模型…';
       const providerLabel = document.createElement('small') as HTMLElement;
-      fields.append(providerLabel);
+      if (!options.web) fields.append(providerLabel);
       imageResolution = selectControl('分辨率', ['1K', '2K'], saved?.resolution || '1K');
       imageRatio = selectControl(
         '比例',
@@ -2116,13 +2283,60 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
                 : latest?.model || 'auto',
           resolution: imageResolution.value,
           aspectRatio: imageRatio.value,
+          assetConstraints: imageSettings.get(settingsKey)?.assetConstraints,
         });
       });
       fields.append(imageModel, imageResolution, imageRatio);
+      if (options.web && !node.mergeIcons && !workflow) {
+        const enabled = assetConstraintsEnabled(node, operation);
+        const toggleConstraints = () => {
+          rememberInput(node);
+          const latest =
+            imageSettings.get(settingsKey) ||
+            node.generationDraft?.parameters ||
+            node.generation?.parameters;
+          imageSettings.set(settingsKey, {
+            model: latest?.model || 'auto',
+            resolution: latest?.resolution || imageResolution.value,
+            aspectRatio: latest?.aspectRatio || imageRatio.value,
+            assetConstraints: !enabled,
+          });
+          // Drafts persist on the card; results record the effective choice when they land.
+          if (node.generationDraft) {
+            node.generationDraft.parameters = {
+              ...node.generationDraft.parameters,
+              assetConstraints: !enabled,
+            };
+            options.markDirty();
+          }
+          options.render();
+        };
+        const wrap = document.createElement('span');
+        wrap.className = 'generation-asset-wrap';
+        const open = constraintPopover === settingsKey;
+        const pill = button(
+          '素材规范',
+          () => {
+            constraintPopover = open ? undefined : settingsKey;
+            options.render();
+          },
+          {
+            className: 'generation-asset-constraints',
+            title: (enabled ? '素材规范已开启：' : '素材规范已关闭：') + constraintText(),
+            disabled: busy,
+          }
+        );
+        pill.setAttribute('aria-pressed', String(enabled));
+        pill.setAttribute('aria-haspopup', 'dialog');
+        pill.setAttribute('aria-expanded', String(open));
+        wrap.append(pill);
+        if (open && !busy) wrap.append(constraintPopoverPanel(enabled, toggleConstraints));
+        fields.append(wrap);
+      }
       const sources = referenceSources(node, Boolean(workflow));
       const tool = canvasImageTool(
         options.getDocument(),
-        workflow || !node.assetPath ? node.id : undefined,
+        workflow || !node.assetPath || regeneratesInPlace(node) ? node.id : undefined,
         sources.map((source) => source.id),
         new Set([...sources.map((source) => source.assetPath), ...referencePaths(node)]).size
       );
@@ -2132,51 +2346,56 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       } else if (unavailable) {
         modelSelect.options[0].textContent = unavailable;
       } else if (options.store.imageModels) {
-        void options.store
-          .imageModels(tool)
-          .then((available) => {
-            if (!panel.isConnected) return;
-            displayedImageModels.set(settingsKey, available);
-            providerLabel.textContent = available.label;
-            modelSelect.replaceChildren();
-            const add = (value: string, label: string) => {
-              const option = document.createElement('option') as HTMLOptionElement;
-              option.value = value;
-              option.textContent = label;
-              modelSelect.append(option);
-            };
-            if (available.provider.source === 'maker') {
-              add('auto', '自动（服务默认）');
-              for (const model of available.models)
-                if (model.id !== available.defaultModel) add(model.id, model.label);
-              const latest =
-                imageSettings.get(settingsKey) ||
-                node.generationDraft?.parameters ||
-                node.generation?.parameters;
-              const selected =
-                !latest?.model || latest.model === available.defaultModel ? 'auto' : latest.model;
-              if (![...modelSelect.options].some((option) => option.value === selected))
-                add(selected, selected + '（当前操作已不支持，请重新选择）');
-              modelSelect.value = selected;
-              modelSelect.disabled = busy;
-              if (available.description) {
-                const details = document.createElement('details') as HTMLDetailsElement;
-                const summary = document.createElement('summary') as HTMLElement;
-                summary.textContent = '服务模型说明';
-                const text = document.createElement('p') as HTMLElement;
-                text.textContent = available.description;
-                details.append(summary, text);
-                fields.append(details);
-              }
-            } else if (available.provider.source === 'custom') {
-              add('', available.provider.model || '请先配置生图 API');
-            } else add('', '当前 AI 客户端 · 仅 CLI 生图并导入');
-          })
-          .catch((error: Error) => {
-            if (!panel.isConnected) return;
-            modelSelect.options[0].textContent = '模型读取失败';
-            providerLabel.textContent = error.message;
-          });
+        const fill = (available: CanvasImageModels) => {
+          displayedImageModels.set(settingsKey, available);
+          providerLabel.textContent = available.label;
+          modelSelect.replaceChildren();
+          const add = (value: string, label: string) => {
+            const option = document.createElement('option') as HTMLOptionElement;
+            option.value = value;
+            option.textContent = label;
+            modelSelect.append(option);
+          };
+          if (available.provider.source === 'maker') {
+            add('auto', '自动（服务默认）');
+            for (const model of available.models)
+              if (model.id !== available.defaultModel) add(model.id, model.label);
+            const latest =
+              imageSettings.get(settingsKey) ||
+              node.generationDraft?.parameters ||
+              node.generation?.parameters;
+            const selected =
+              !latest?.model || latest.model === available.defaultModel ? 'auto' : latest.model;
+            if (![...modelSelect.options].some((option) => option.value === selected))
+              add(selected, selected + '（当前操作已不支持，请重新选择）');
+            modelSelect.value = selected;
+            modelSelect.disabled = busy;
+            if (available.description && !options.web) {
+              const details = document.createElement('details') as HTMLDetailsElement;
+              const summary = document.createElement('summary') as HTMLElement;
+              summary.textContent = '服务模型说明';
+              const text = document.createElement('p') as HTMLElement;
+              text.textContent = available.description;
+              details.append(summary, text);
+              fields.append(details);
+            }
+          } else if (available.provider.source === 'custom') {
+            add('', available.provider.model || '请先配置生图 API');
+          } else add('', '当前 AI 客户端 · 仅 CLI 生图并导入');
+        };
+        const cached = imageModelsByTool.get(tool);
+        if (cached) fill(cached);
+        else
+          void loadImageModels(tool)
+            .then((available) => {
+              if (panel.isConnected) fill(available);
+            })
+            .catch((error: Error) => {
+              if (!panel.isConnected) return;
+              modelSelect.options[0].textContent = '模型读取失败';
+              modelSelect.title = error.message;
+              providerLabel.textContent = error.message;
+            });
       } else modelSelect.options[0].textContent = '宿主未提供模型信息';
       panel.append(fields);
     } else {
@@ -2247,7 +2466,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         : node.videoInputMode === 'first_last_frame'
           ? '首帧、尾帧均为必填，只使用这两张图片；更换文件请使用对应图片卡的导入入口。'
           : '已连接图片与导入参考图按显示顺序提交；首帧需1张，首尾帧需2张，多图参考按模型限制。';
-    panel.append(capabilityHint);
+    if (!(options.web && node.type === 'image')) panel.append(capabilityHint);
     async function submitGeneration(): Promise<void> {
       if (workflow && !workflow.canSubmit) return;
       if (
@@ -2496,7 +2715,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         ? prior.resultAssetPath
         : undefined);
     if (targetPath !== target.assetPath) return false;
-    if ((target.generationDraft?.prompt || target.generation?.prompt) !== attempt.prompt)
+    if (!samePrompt(target.generationDraft?.prompt || target.generation?.prompt, attempt.prompt))
       return false;
     if (
       Object.entries(
@@ -2708,6 +2927,13 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     failure: (nodeId: string) => imageFailures.get(nodeId) || latestNodeAttempt(nodeId)?.error,
     retryableImage(nodeId: string) {
       return retryableImages.has(nodeId);
+    },
+    /** Card-level retry for a failed image; same host action as the panel's retry button. */
+    retryImage(nodeId: string): Promise<void> {
+      const attempt = latestNodeAttempt(nodeId);
+      if (attempt?.kind !== 'image' || attempt.status !== 'failed' || inFlight.has(nodeId))
+        return Promise.resolve();
+      return action(attempt, 'retry');
     },
     nodeState,
     canStopWaiting(nodeId: string) {

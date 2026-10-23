@@ -29,6 +29,8 @@ export function renderCanvasCardStatus(
     query?: () => Promise<void>;
     stopWaiting?: () => void;
     resume?: () => Promise<void>;
+    /** Resubmits the failed attempt through the host's existing retry action. */
+    retry?: () => Promise<void>;
     adjust?: () => void;
     waitingForSource?: boolean;
     stoppedWaiting?: boolean;
@@ -162,6 +164,26 @@ export function renderCanvasCardStatus(
       }
     });
     overlay.append(resume);
+  }
+  if (options.retry && state === 'failed' && !options.resume) {
+    if (options.detail) hint.textContent = options.detail;
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'card-state-query card-state-retry';
+    retry.textContent = '重试';
+    retry.addEventListener('pointerdown', (event) => event.stopPropagation());
+    retry.addEventListener('dblclick', (event) => event.stopPropagation());
+    retry.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      if (retry.disabled) return;
+      retry.disabled = true;
+      try {
+        await options.retry!();
+      } finally {
+        retry.disabled = false;
+      }
+    });
+    overlay.append(retry);
   }
   if (
     options.adjust &&

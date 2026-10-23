@@ -48,30 +48,36 @@ export const CANVAS_COMMAND_ACTIONS = [
   'preview-image-assets',
   'confirm-image-assets',
   'export',
+  'undo',
+  'redo',
+  'fill-slot',
+  'replace-image',
 ];
 export function validateCanvasCommandStructure(value: unknown): CanvasCommand {
+  // Hosts map INVALID_ARGS to "rejected, not executed"; every failure here precedes execution.
+  const invalid = (message: string) => Object.assign(new Error(message), { code: 'INVALID_ARGS' });
   const command = value as CanvasCommand;
   if (!command || typeof command !== 'object' || Array.isArray(command))
-    throw new Error('命令必须是 JSON 对象。');
+    throw invalid('命令必须是 JSON 对象。');
   for (const key of Object.keys(command))
     if (
       !['requestId', 'pageId', 'canvasId', 'revision', 'action', 'input', 'allowPaid'].includes(key)
     )
-      throw new Error('不支持的命令字段：' + key);
+      throw invalid('不支持的命令字段：' + key);
   for (const key of ['requestId', 'pageId', 'canvasId'] as const)
     if (typeof command[key] !== 'string' || !/^[a-zA-Z0-9-]{1,80}$/.test(command[key]))
-      throw new Error('缺少或无效的 ' + key);
+      throw invalid('缺少或无效的 ' + key);
   if (!CANVAS_COMMAND_ACTIONS.includes(command.action))
-    throw new Error('不支持的画布操作。请先查询 capabilities。');
+    throw invalid('不支持的画布操作。请先查询 capabilities。');
   if (!command.input || typeof command.input !== 'object' || Array.isArray(command.input))
-    throw new Error('input 必须是 JSON 对象。');
+    throw invalid('input 必须是 JSON 对象。');
   if (command.allowPaid !== undefined && typeof command.allowPaid !== 'boolean')
-    throw new Error('allowPaid 必须是布尔值。');
+    throw invalid('allowPaid 必须是布尔值。');
   if (
     !['inspect', 'stop', 'query'].includes(command.action) &&
     (!Number.isSafeInteger(command.revision) || command.revision! < 0)
   )
-    throw new Error('操作前请 inspect，并传入当前 revision。');
+    throw invalid('操作前请 inspect，并传入当前 revision。');
   return command;
 }
 export function canvasAutomationSnapshot(document: CanvasDocument) {
@@ -132,7 +138,8 @@ export function prepareCanvasNodeUpdatesWithValidation(
     if (!patch || typeof patch !== 'object' || Array.isArray(patch))
       throw new Error('卡片修改无效。');
     const node = document.nodes.find((node) => node.id === patch.id);
-    if (!node || seen.has(node.id)) throw new Error('卡片不存在或重复。');
+    if (!node) throw Object.assign(new Error('卡片不存在或重复。'), { code: 'NOT_FOUND' });
+    if (seen.has(node.id)) throw new Error('卡片不存在或重复。');
     seen.add(node.id);
     const next: CanvasNode = JSON.parse(JSON.stringify(node));
     let contentChanged = false;

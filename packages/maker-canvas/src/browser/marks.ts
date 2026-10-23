@@ -162,11 +162,14 @@ export function createCanvasMarks(options: {
     ellipse: document.getElementById('mark-ellipse'),
     arrow: document.getElementById('mark-arrow'),
   };
+  // Held-Space panning is temporary: the dock and cursor show the hand without changing mode.
+  let previewPan = false;
   function sync() {
-    buttons.select?.setAttribute('aria-pressed', String(mode === 'select'));
-    buttons.pan?.setAttribute('aria-pressed', String(mode === 'pan'));
-    options.board().classList.toggle('pan-tool', mode === 'pan');
-    if (mode !== 'pan') options.board().classList.remove('grabbing');
+    const pan = mode === 'pan' || previewPan;
+    buttons.select?.setAttribute('aria-pressed', String(!pan));
+    buttons.pan?.setAttribute('aria-pressed', String(pan));
+    options.board().classList.toggle('pan-tool', pan);
+    if (!pan) options.board().classList.remove('grabbing');
   }
   function setMode(next: CanvasTool) {
     mode = next;
@@ -301,6 +304,11 @@ export function createCanvasMarks(options: {
   return {
     panning() {
       return mode === 'pan';
+    },
+    preview(on: boolean) {
+      if (previewPan === on) return;
+      previewPan = on;
+      sync();
     },
   };
 }

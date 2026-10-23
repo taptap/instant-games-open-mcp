@@ -1,4 +1,5 @@
 import type { CanvasExportDelivery } from './exportDelivery.js';
+import type { CanvasPageFeatures } from './capabilities.js';
 import type { createCanvasTemplateUiWithHost } from './templateUi.js';
 import type { CanvasCommand, CanvasDocument, CanvasNode } from '../contracts.js';
 import type { CanvasDocumentStore } from './store.js';
@@ -35,6 +36,14 @@ export interface CanvasEditorHandle {
 /** Host bindings for the existing page. Factories supply host callbacks to the shared controllers. */
 export interface CanvasPageHost {
   store: CanvasDocumentStore;
+  /** Hides page entry points; absent keeps every existing entry. Commands are not filtered. */
+  features?: CanvasPageFeatures;
+  /** Visual skin only; absent or 'default' keeps the local console look. */
+  appearance?: 'default' | 'web';
+  /** Optional: shows 「加入对话」 for selected image cards; absent hides the button. */
+  addToChat?(items: { nodeId: string; assetPath: string }[]): Promise<void> | void;
+  /** Optional: shows 「从素材库添加」 in the blank-canvas menu; paths go through prepareCanvasImportedNode. */
+  pickProjectImages?(): Promise<{ path: string; name: string }[]>;
   onReady?(editor: CanvasEditorHandle): void;
   /** Called only after the normal authorized load. Scope drafts by user, project and canvas. */
   recoverDraft?(loaded: CanvasDocument): Promise<CanvasEditorDraft | null | undefined>;

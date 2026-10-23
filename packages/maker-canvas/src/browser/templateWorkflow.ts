@@ -6,7 +6,11 @@ import type {
   CanvasEdgeKind,
 } from '../contracts.js';
 import { canvasReferences, canvasDependents } from '../core/dependencies.js';
-import { canvasNeedsProcessing, invalidateCanvasDependents } from '../features/templateWorkflow.js';
+import {
+  canvasImageHasRegeneratePath,
+  canvasNeedsProcessing,
+  invalidateCanvasDependents,
+} from '../features/templateWorkflow.js';
 import type { TemplateOutputDecision } from '../features/templateWorkflow.js';
 
 export function createTemplateWorkflow(options: {
@@ -345,6 +349,7 @@ export function createTemplateWorkflow(options: {
           node.type
         ) &&
         (canvasReferences(document, id).length || node.type === 'image') &&
+        canvasImageHasRegeneratePath(node) &&
         !running &&
         !queuedRuns.has(id) &&
         (!requireReady || !waitingForSource(id)) &&
@@ -400,6 +405,8 @@ export function createTemplateWorkflow(options: {
       for (const node of ordered) {
         if (options.getDocument() !== document) throw new Error('已离开原画布，后续处理停止。');
         if (status(node.id) !== 'pending' && !(node.id === id && firstStep)) continue;
+        // Re-running a local edit or cutout would only fail; keep its saved image instead.
+        if (!canvasImageHasRegeneratePath(node) && !(node.id === id && firstStep)) continue;
         failedNodeId = node.id;
         failures.delete(node.id);
         const sources = canvasReferences(document, node.id);

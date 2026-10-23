@@ -172,5 +172,10 @@ export {
 } from './browser/resourceBundle.js';
 export type { CanvasBundleValidation, CanvasResourceBundleHost } from './browser/resourceBundle.js';
 
-export { canvasCapabilityReason } from './browser/capabilities.js';
-export type { CanvasCapability, CanvasHostCapabilities } from './browser/capabilities.js';
+export { canvasCapabilityReason, canvasFeatureEnabled } from './browser/capabilities.js';
+export type {
+  CanvasCapability,
+  CanvasHostCapabilities,
+  CanvasPageFeature,
+  CanvasPageFeatures,
+} from './browser/capabilities.js';
