@@ -6,6 +6,8 @@
  * - results settle on `close`, after stdout/stderr are fully drained;
  * - git never waits on a terminal prompt (`GIT_TERMINAL_PROMPT=0`);
  * - git messages are English (`LC_ALL=C`) so error classification is stable;
+ * - every command gets command-local `http.version=HTTP/1.1`; this does not
+ *   change the user's global or repository Git config;
  * - errors carry command, exit code, stdout and stderr.
  */
 
@@ -56,6 +58,16 @@ export function gitEnvironment(extra?: Record<string, string>): NodeJS.ProcessEn
   };
 }
 
+/**
+ * Command-local HTTP/1.1. Git without `http.version` ignores it, local
+ * commands do not use it, and it does not write the user's Git config.
+ */
+const MAKER_GIT_HTTP_VERSION_ARGS = ['-c', 'http.version=HTTP/1.1'] as const;
+
+function withMakerGitHttpVersion(args: readonly string[]): string[] {
+  return [...MAKER_GIT_HTTP_VERSION_ARGS, ...args];
+}
+
 function describeCommand(command: string, args: readonly string[]): string {
   return `${command} ${args.join(' ')}`;
 }
@@ -65,6 +77,7 @@ export function runGit(
   options: GitExecOptions = {}
 ): Promise<GitExecResult> {
   const command = getGitCommand();
+  const gitArgs = withMakerGitHttpVersion(args);
   return new Promise((resolve, reject) => {
     if (options.signal?.aborted) {
       reject(options.signal.reason ?? new Error('git command aborted'));
@@ -74,7 +87,7 @@ export function runGit(
     let stdout = '';
     let stderr = '';
     let failure: { message: string; code?: string } | undefined;
-    const child = spawn(command, [...args], {
+    const child = spawn(command, gitArgs, {
       cwd: options.cwd,
       env: gitEnvironment(options.env),
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -89,13 +102,13 @@ export function runGit(
         ? setTimeout(
             () =>
               kill(
-                `${describeCommand(command, args)} timed out after ${options.timeoutMs}ms`,
+                `${describeCommand(command, gitArgs)} timed out after ${options.timeoutMs}ms`,
                 'ETIMEDOUT'
               ),
             options.timeoutMs
           )
         : undefined;
-    const onAbort = () => kill(`${describeCommand(command, args)} aborted`, 'ABORT_ERR');
+    const onAbort = () => kill(`${describeCommand(command, gitArgs)} aborted`, 'ABORT_ERR');
     options.signal?.addEventListener('abort', onAbort, { once: true });
     const finish = (error?: Error, code?: number | null) => {
       if (settled) return;
@@ -114,7 +127,7 @@ export function runGit(
         reject(
           new GitCommandError(
             failure.message,
-            describeCommand(command, args),
+            describeCommand(command, gitArgs),
             code ?? null,
             stdout,
             stderr,
@@ -129,8 +142,8 @@ export function runGit(
       }
       reject(
         new GitCommandError(
-          `${describeCommand(command, args)} failed with exit code ${code}: ${stderr}`,
-          describeCommand(command, args),
+          `${describeCommand(command, gitArgs)} failed with exit code ${code}: ${stderr}`,
+          describeCommand(command, gitArgs),
           code ?? null,
           stdout,
           stderr
@@ -144,7 +157,7 @@ export function runGit(
       reject(
         new GitCommandError(
           'git stdio pipes were not created',
-          describeCommand(command, args),
+          describeCommand(command, gitArgs),
           null,
           '',
           'git stdio pipes were not created'
@@ -173,7 +186,7 @@ export function runGit(
       finish(
         new GitCommandError(
           spawnError.message,
-          describeCommand(command, args),
+          describeCommand(command, gitArgs),
           null,
           stdout,
           stderr || spawnError.message,
@@ -190,7 +203,8 @@ export function runGitSync(
   options: Omit<GitExecOptions, 'signal' | 'onStdout' | 'onStderr'> = {}
 ): string {
   const command = getGitCommand();
-  const result = spawnSync(command, [...args], {
+  const gitArgs = withMakerGitHttpVersion(args);
+  const result = spawnSync(command, gitArgs, {
     cwd: options.cwd,
     encoding: 'utf8',
     env: gitEnvironment(options.env),
@@ -204,8 +218,8 @@ export function runGitSync(
     const stderr = result.stderr || '';
     const spawnError = result.error as NodeJS.ErrnoException | undefined;
     throw new GitCommandError(
-      spawnError?.message || stderr || `${describeCommand(command, args)} failed`,
-      describeCommand(command, args),
+      spawnError?.message || stderr || `${describeCommand(command, gitArgs)} failed`,
+      describeCommand(command, gitArgs),
       result.status,
       result.stdout || '',
       stderr,
