@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { canvasSupportsPlatform } from '../../../packages/maker-canvas/src/contracts/platform.js';
 import { setImmediate } from 'node:timers/promises';
 import { builtinCanvasTemplates } from './presets.js';
 import { builtinPresetDescriptions } from './presetDescriptions.js';
@@ -19,6 +20,7 @@ function summarize(template: CanvasWorkflowTemplate, updatedAt: number): CanvasT
     name: template.name,
     revision: template.revision,
     builtin: template.builtin,
+    ...(template.platforms ? { platforms: template.platforms } : {}),
     ...(template.cliOnly ? { cliOnly: true } : {}),
     ...(template.skills?.length ? { skills: template.skills } : {}),
     nodeCount: template.nodes.length,
@@ -80,6 +82,7 @@ export async function readTemplatePage(
       .toLocaleLowerCase()
       .includes(query.trim().toLocaleLowerCase());
   const filtered = summaries
+    .filter((item) => canvasSupportsPlatform(item, 'local'))
     .filter(matches)
     .sort((left, right) => right.updatedAt - left.updatedAt || left.id.localeCompare(right.id));
   const pageSize = 24;
@@ -89,6 +92,7 @@ export async function readTemplatePage(
   );
   return {
     presets: builtinCanvasTemplates()
+      .filter((item) => canvasSupportsPlatform(item, 'local'))
       .map((template) => summarize(template, 0))
       .filter(matches),
     items: filtered.slice((current - 1) * pageSize, current * pageSize),

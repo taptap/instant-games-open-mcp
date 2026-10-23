@@ -240,7 +240,6 @@
 
   window.UrhoxView = {
     fit: fitPreview,
-    panBy: function (dx, dy) { panX += dx; panY += dy; applyView(); },
     getZoom: function () { return zoom; },
     setZoom: function (value) {
       if (!preview || !canvas) return;

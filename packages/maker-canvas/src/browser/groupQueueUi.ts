@@ -40,6 +40,15 @@ export function createCanvasGroupQueueUi(options: {
               : '动画';
     return (node?.title || '卡片') + ' · ' + action;
   }
+  function stage(id: string): string {
+    const node = options.node(id);
+    if (!node) return '执行';
+    if (node.uiRecognition) return '识图';
+    if (node.uiAtlasPrelayout) return '预排切图';
+    if (node.type === 'image-assets') return '切图';
+    if (node.type === 'resource-bundle') return '组装交付';
+    return node.type === 'image' ? '生图' : '处理';
+  }
   function totalDuration(groupId: string): string | undefined {
     const state = options.queue.view(groupId);
     const node = options.node(groupId);
@@ -82,7 +91,11 @@ export function createCanvasGroupQueueUi(options: {
       spinner.setAttribute('aria-hidden', 'true');
       root.append(spinner);
       for (const id of Object.keys(state.running)) {
-        const current = button(title(id), () => options.focus(id), 'group-queue-current');
+        const current = button(
+          stage(id) + ' · ' + title(id),
+          () => options.focus(id),
+          'group-queue-current'
+        );
         current.title = title(id) + '（点击定位卡片）';
         root.append(current);
       }
@@ -215,7 +228,17 @@ export function createCanvasGroupQueueUi(options: {
     if (state) {
       const count = document.createElement('span');
       count.className = 'group-queue-count';
-      count.textContent = state.completed + '/' + state.total;
+      const inProgress = Object.keys(state.running).length;
+      const failures = Object.keys(state.failures || {}).length;
+      count.textContent =
+        '已完成 ' +
+        state.completed +
+        '/' +
+        state.total +
+        ' · 进行中 ' +
+        inProgress +
+        ' · 失败 ' +
+        failures;
       count.title = state.message;
       root.append(count);
       const failed = Object.keys(state.failures || {}).length;

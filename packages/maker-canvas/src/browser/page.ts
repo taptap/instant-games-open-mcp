@@ -1,5 +1,6 @@
 import { canvasMediaSources, refreshCanvasMedia } from './mediaVersions.js';
 import { canvasCapabilityReason } from './capabilities.js';
+import { canvasSupportsPlatform, validateCanvasPlatforms } from '../contracts/platform.js';
 import { nextCanvasExportCode } from './exportNaming.js';
 import { downloadCanvasResourceWithHost } from './resourceDownload.js';
 import {
@@ -290,6 +291,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasMediaSources.toString(),
     refreshCanvasMedia.toString(),
     nextCanvasExportCode.toString(),
+    validateCanvasPlatforms.toString(),
+    canvasSupportsPlatform.toString(),
     canvasCapabilityReason.toString(),
     integration.hostScript,
     'const IMAGE_FEATURES = ' + JSON.stringify(IMAGE_FEATURES) + ';',
@@ -955,7 +958,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  function deleteSelected() {',
       '    if (!documentState || !selected.size) return;',
-      '    if (groupQueue && groupQueue.isBusy) { setError("请先停止分组队列并等待当前步骤结束，再删除卡片。"); return; }',
+      '    if (groupQueue && Array.from(selected).some(function (id) { return groupQueue.protects(id); })) { if (!confirm("所选卡片正在执行，删除后将停止相关后续并忽略迟到结果，已提交远端任务不会取消。继续删除？")) return; groupQueue.remove(Array.from(selected)); }',
       '    if (protectTemplateSelection()) return;',
       "    if (!sequenceUi.deleteNodes(Array.from(selected))) { setError('拆帧任务运行中，请先取消后再删除。'); return; }",
       '    remember();',
@@ -1720,7 +1723,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     'void boot().catch(function (caught) { setError(caught.message); });',
     [
       '  const templateModel = createCanvasTemplateModel();',
-      '  const templateUi = createCanvasTemplateUi({ deliver: deliverExport,',
+      '  const templateUi = createCanvasTemplateUi({ deliver: deliverExport, platform: store.platform,',
       '    store: store.templates, exchangeUnavailableReason: canvasCapabilityReason(store, "templateExchange"), model: templateModel, getDocument: function () { return documentState; }, selected: selected,',
       '    remember: remember, changed: markDirty, render: render, save: flush, error: setError,',
       '    busy: function (id) { return pendingAssetImports > 0 || Boolean(groupQueue && groupQueue.protects(id)) || sequenceUi.isBusy || generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || templateWorkflow.isNodeLoading(id); },',
@@ -1952,7 +1955,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      remember(); current.nodes.push(node); selected.clear(); selected.add(node.id); markDirty();',
       '  }',
       '  const automation = createCanvasAutomationUi({',
-      '    capabilities: store.capabilities,',
+      '    capabilities: store.capabilities, platform: store.platform,',
       '    checkRecognition: function (node) { return uiRecognitionUi.checkRecognition(node); },',
       '    ensureRecognitionNote: function (node) { uiRecognitionUi.ensureNote(node); },',
       '    recognizeUi: function (node, recover, attemptId) { return uiRecognitionUi.runRecognition(node, true, recover, attemptId); },',

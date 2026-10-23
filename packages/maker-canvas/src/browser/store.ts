@@ -1,4 +1,5 @@
 import type { CanvasHostCapabilities } from './capabilities.js';
+import type { CanvasPlatform } from '../contracts/platform.js';
 import type { CanvasImageModels } from '../contracts.js';
 import type {
   CanvasCreateTemplate,
@@ -47,6 +48,7 @@ export interface CanvasTemplateStore {
 }
 
 export interface CanvasDocumentStore {
+  platform?: CanvasPlatform;
   /** Refresh content identities and the media URLs used for the same bytes. */
   mediaVersions?(paths: string[]): Promise<Record<string, string>>;
   capabilities?: CanvasHostCapabilities;

@@ -65,10 +65,20 @@ export function openGameUiHandoff(canvasId: string): void {
   close.type = 'button';
   close.textContent = '关闭';
   close.onclick = () => dialog.close();
+  const editor = document.createElement('button');
+  editor.type = 'button';
+  editor.textContent = '打开现有 UI 编辑器';
+  editor.title = '打开当前控制台的 UI 编辑器，在已有文件中选择本次组装结果';
+  editor.onclick = () => {
+    const query = new URLSearchParams(location.search);
+    query.set('page', 'ui-editor');
+    query.delete('canvas');
+    window.open('/?' + query.toString(), '_blank', 'noopener');
+  };
   dialog.addEventListener('keydown', (event) => event.stopPropagation());
   dialog.addEventListener('keyup', (event) => event.stopPropagation());
   dialog.addEventListener('close', () => dialog.remove(), { once: true });
-  dialog.append(title, message, prompt, cli, privacy, copy, close);
+  dialog.append(title, message, prompt, cli, privacy, editor, copy, close);
   document.body.append(dialog);
   dialog.showModal();
   copy.focus();

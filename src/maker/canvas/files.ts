@@ -39,6 +39,10 @@ import {
 } from './templates.js';
 import { builtinCanvasTemplates, canvasPresets } from './presets.js';
 import { readTemplatePage } from './templateCatalog.js';
+import {
+  canvasSupportsPlatform,
+  validateCanvasPlatforms,
+} from '../../../packages/maker-canvas/src/contracts/platform.js';
 import { validateImageAssetsInfo } from './imageAssets.js';
 import { validateMergeIcons, mergeIconPrompt } from './mergeIcons.js';
 import { validateUiRecognition, UI_ELEMENT_CATEGORIES } from './uiRecognition.js';
@@ -177,7 +181,7 @@ export class MakerCanvasFiles {
             !isBuiltinCanvasTemplate(name.slice(0, -5))
         )
         .map((name) => this.readTemplate(name.slice(0, -5))),
-    ];
+    ].filter((template) => canvasSupportsPlatform(template, 'local'));
   }
 
   async prepareTemplate(id: string, canvasId: string): Promise<CanvasWorkflowTemplate> {
@@ -189,6 +193,8 @@ export class MakerCanvasFiles {
     // Retired presets remain readable for existing references, but are absent from the catalog.
     const { assets: _assets, ...definition } = preset;
     const template: CanvasWorkflowTemplate = { ...structuredClone(definition), builtin: true };
+    if (!canvasSupportsPlatform(template, 'local'))
+      fail('此模板不适用于本地端。', 400, 'UNSUPPORTED_PLATFORM');
     if (template.id === '7e1cb6ad-732f-4dc3-a951-000000000015') {
       template.nodes = template.nodes.filter(
         (node) =>
@@ -368,6 +374,7 @@ export class MakerCanvasFiles {
   }
 
   private parseTemplate(input: CanvasWorkflowTemplate): CanvasWorkflowTemplate {
+    validateCanvasPlatforms(input?.platforms);
     if (!input || !ID.test(input.id)) fail('模板标识无效。', 400, 'INVALID_ID');
     const name = text(input.name, 80, '模板名称').trim();
     if (!name) fail('请输入模板名称。', 400, 'INVALID_DOCUMENT');
@@ -387,6 +394,7 @@ export class MakerCanvasFiles {
       ...template,
       id: input.id,
       revision: parsed.revision,
+      ...(input.platforms ? { platforms: [...input.platforms] } : {}),
       ...(skills?.length ? { skills } : {}),
       ...(input.cliOnly ? { cliOnly: true } : {}),
     };
@@ -1304,6 +1312,7 @@ export class MakerCanvasFiles {
     if (node.templateRevision !== undefined)
       numberIn(node.templateRevision, 1, 1_000_000, '模板版本');
     const skills = templateSkills(node.templateSkills);
+    validateCanvasPlatforms(node.templatePlatforms);
     if (
       node.templateCliOnly !== undefined &&
       (typeof node.templateCliOnly !== 'boolean' || node.type !== 'section')
@@ -1318,6 +1327,51 @@ export class MakerCanvasFiles {
       (typeof node.workTimingOpen !== 'boolean' || node.type !== 'section')
     )
       fail('流程计时状态无效。', 400, 'INVALID_DOCUMENT');
+    if (node.workflowState !== undefined) {
+      const state = node.workflowState as Record<string, unknown>;
+      const phases = ['queued', 'running', 'waiting', 'paused', 'complete'];
+      if (
+        node.type !== 'section' ||
+        !state ||
+        typeof state !== 'object' ||
+        Array.isArray(state) ||
+        !phases.includes(String(state.phase)) ||
+        typeof state.message !== 'string' ||
+        state.message.length > 400 ||
+        !Array.isArray(state.completed) ||
+        !Array.isArray(state.pending) ||
+        state.completed.some((id) => typeof id !== 'string' || !ID.test(id)) ||
+        state.pending.some((id) => typeof id !== 'string' || !ID.test(id)) ||
+        !state.failures ||
+        typeof state.failures !== 'object' ||
+        Array.isArray(state.failures) ||
+        Object.entries(state.failures).some(
+          ([id, message]) => !ID.test(id) || typeof message !== 'string' || message.length > 1000
+        ) ||
+        !state.retries ||
+        typeof state.retries !== 'object' ||
+        Array.isArray(state.retries) ||
+        Object.entries(state.retries).some(
+          ([id, count]) => !ID.test(id) || !Number.isInteger(count) || count < 0 || count > 2
+        )
+      )
+        fail('流程恢复状态无效。', 400, 'INVALID_DOCUMENT');
+      numberIn(state.updatedAt, 1, Number.MAX_SAFE_INTEGER, '流程更新时间');
+    }
+    if (node.workflowLayoutOrigin !== undefined) {
+      const origin = node.workflowLayoutOrigin as Record<string, unknown>;
+      if (
+        node.type !== 'section' ||
+        !origin ||
+        typeof origin !== 'object' ||
+        Array.isArray(origin) ||
+        typeof origin.x !== 'number' ||
+        !Number.isFinite(origin.x) ||
+        typeof origin.y !== 'number' ||
+        !Number.isFinite(origin.y)
+      )
+        fail('流程排版起点无效。', 400, 'INVALID_DOCUMENT');
+    }
     // A category has at most 120 slots; size grouping may place each slot in its own batch.
     if (node.uiAtlasBatch !== undefined) numberIn(node.uiAtlasBatch, 0, 119, '图集分批');
     if (skills && node.type !== 'section')
@@ -1582,6 +1636,7 @@ export class MakerCanvasFiles {
       ...(node.templateId ? { templateId: node.templateId as string } : {}),
       ...(node.templateRevision ? { templateRevision: node.templateRevision as number } : {}),
       ...(skills?.length ? { templateSkills: skills } : {}),
+      ...(node.templatePlatforms ? { templatePlatforms: [...node.templatePlatforms] } : {}),
       ...(node.templateCliOnly ? { templateCliOnly: true } : {}),
       ...(node.templatePending ? { templatePending: true } : {}),
       ...(node.workStartedAt === undefined ? {} : { workStartedAt: node.workStartedAt as number }),
@@ -1589,6 +1644,22 @@ export class MakerCanvasFiles {
       ...(node.workDurationMs === undefined
         ? {}
         : { workDurationMs: node.workDurationMs as number }),
+      ...(node.workflowState
+        ? {
+            workflowState: {
+              phase: node.workflowState.phase,
+              message: node.workflowState.message,
+              completed: [...node.workflowState.completed],
+              pending: [...node.workflowState.pending],
+              failures: { ...node.workflowState.failures },
+              retries: { ...node.workflowState.retries },
+              updatedAt: node.workflowState.updatedAt,
+            },
+          }
+        : {}),
+      ...(node.workflowLayoutOrigin
+        ? { workflowLayoutOrigin: { ...node.workflowLayoutOrigin } }
+        : {}),
       ...(sourceSnapshot ? { sourceSnapshot } : {}),
       ...(sourceSnapshots ? { sourceSnapshots } : {}),
       ...(node.text === undefined ? {} : { text: text(node.text, 4000, '文字') }),

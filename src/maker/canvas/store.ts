@@ -77,6 +77,7 @@ export function createBrowserCanvasDocumentStore(
     return body as T;
   }
   return {
+    platform: 'local',
     videoHistory: (offset = 0, limit = 30) =>
       request<CanvasVideoHistory>('/canvases/video-history?offset=' + offset + '&limit=' + limit),
     modelSettings: async () => {

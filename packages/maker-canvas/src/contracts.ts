@@ -1,4 +1,5 @@
 export * from './contracts/document.js';
+export * from './contracts/platform.js';
 export * from './contracts/media.js';
 export * from './contracts/ui.js';
 export type * from './contracts/operations.js';

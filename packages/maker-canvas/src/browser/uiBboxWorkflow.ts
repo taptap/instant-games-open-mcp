@@ -48,8 +48,12 @@ export function syncUiBboxWorkflow(
     artwork: '角色与插画',
     background: '环境背景',
   };
-  const baseY = Math.max(...members.map((node) => node.y + node.height)) + 100;
-  const baseX = group.x + 28;
+  const origin = group.workflowLayoutOrigin || {
+    x: group.x + 28,
+    y: Math.max(...members.map((node) => node.y + node.height)) + 100,
+  };
+  const baseY = origin.y;
+  const baseX = origin.x;
   function card(type: CanvasNode['type'], title: string, column: number, row: number): CanvasNode {
     const node: CanvasNode = {
       id: crypto.randomUUID(),
@@ -236,6 +240,7 @@ export function syncUiBboxWorkflow(
   }
   if (current.nodes.length + nodes.length > 400 || current.edges.length + edges.length > 800)
     throw new Error('批次超过当前画布容量，未创建卡片；请拆到另一个画布处理。');
+  group.workflowLayoutOrigin = { ...origin };
   if (nodes.length) bundle.y = baseY + row * 370;
   delete bundle.templatePending;
   group.templateCliOnly = true;

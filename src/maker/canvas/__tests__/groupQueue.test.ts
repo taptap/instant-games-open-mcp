@@ -583,6 +583,18 @@ test('stops every in-flight card and never starts a fourth image or a dependent 
   expect(queue.view('group')).toMatchObject({ phase: 'complete', completed: 8, elapsedMs: 1200 });
 });
 
+test('removing a queued member stops its group and ignores a late result', async () => {
+  const { queue, controls, options } = parallelFixture();
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  queue.remove(['first']);
+  expect(options.stopActive.mock.calls.length).toBeGreaterThan(0);
+  for (const control of controls.values()) control.resolve(true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(options.run.mock.calls.map(([id]) => id)).not.toContain('first-assets');
+  expect(queue.isBusy).toBe(false);
+});
+
 test('a reloaded paused flow keeps the saved elapsed time instead of starting at zero', async () => {
   const { document, options, controls } = parallelFixture();
   const queue = createCanvasGroupQueue(options);
@@ -614,6 +626,23 @@ test('an unknown image blocks only its dependent while other parallel branches f
     phase: 'paused',
     completed: 6,
     failures: { first: '结果未知，不重提' },
+  });
+});
+
+test('persists a failed checkpoint so a reloaded group still exposes the failure', async () => {
+  const { document, options } = fixture();
+  options.run.mockResolvedValue(false);
+  const queue = createCanvasGroupQueue(options);
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  expect(document.nodes[0].workflowState).toMatchObject({
+    phase: 'paused',
+    failures: { image: expect.any(String) },
+  });
+  const reloaded = createCanvasGroupQueue(options);
+  expect(reloaded.view('group')).toMatchObject({
+    phase: 'paused',
+    failures: { image: expect.any(String) },
   });
 });
 

@@ -323,6 +323,24 @@ export function layoutFromBbox(input) {
     );
     bindings.set(binding.elementId, binding);
   }
+  const artTextBindings = new Map();
+  for (const binding of input.artTextBindings || []) {
+    assert(
+      binding &&
+        typeof binding.textId === 'string' &&
+        !artTextBindings.has(binding.textId) &&
+        typeof binding.assetId === 'string' &&
+        texts.has(binding.textId),
+      'Unknown or duplicate art text binding'
+    );
+    artTextBindings.set(binding.textId, binding);
+  }
+  for (const binding of artTextBindings.values()) {
+    assert(
+      input.assets.some((asset) => asset.id === binding.assetId && asset.role === 'bound'),
+      'Missing explicit art text asset binding: ' + binding.textId
+    );
+  }
   const checkRect = (value, id) => {
     rect(value, id);
     assert(
@@ -388,6 +406,18 @@ export function layoutFromBbox(input) {
         Array.from(line).reduce((sum, char) => sum + (char.codePointAt(0) < 128 ? 0.6 : 1), 0)
       )
     );
+    const artText = artTextBindings.get(text.id);
+    if (artText) {
+      return {
+        id: text.id,
+        parentId: text.parentId || 'root',
+        type: 'Panel',
+        render: 'image',
+        rect: [...text.bbox],
+        props: { backgroundFit: 'contain' },
+        assetId: artText.assetId,
+      };
+    }
     return {
       id: text.id,
       parentId: text.parentId || 'root',
@@ -427,7 +457,7 @@ export function layoutFromBbox(input) {
             {
               id: 'background',
               parentId: 'root',
-              type: 'Image',
+              type: 'Panel',
               render: 'image',
               rect: [...root.rect],
               props: {},

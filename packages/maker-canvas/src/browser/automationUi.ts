@@ -1,4 +1,5 @@
 import type { CanvasHostCapabilities } from './capabilities.js';
+import type { CanvasPlatform } from '../contracts/platform.js';
 import type { CanvasCommand } from '../contracts.js';
 import type { prepareCanvasNodeUpdatesWithValidation } from '../features/automation.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
@@ -25,6 +26,7 @@ import { canvasMarkFromInput } from '../core/marks.js';
 
 export function createCanvasAutomationUiWithHost(options: {
   capabilities?: CanvasHostCapabilities;
+  platform?: CanvasPlatform;
   prepareNodeUpdates: (
     document: CanvasDocument,
     input: Record<string, unknown>
@@ -90,6 +92,7 @@ export function createCanvasAutomationUiWithHost(options: {
             ...saved,
             blocked: options.blocked() || null,
             capabilities: options.capabilities,
+            platform: options.platform,
             nodes: saved.nodes.map((node) => ({
               ...node,
               state: options.nodeStatus(node.id),

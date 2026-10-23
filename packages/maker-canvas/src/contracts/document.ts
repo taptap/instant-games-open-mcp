@@ -1,3 +1,4 @@
+import type { CanvasPlatform } from './platform.js';
 import type {
   FrameSetInfo,
   SequenceSettings,
@@ -82,6 +83,17 @@ export interface Viewport {
   scale: number;
 }
 
+/** Persisted checkpoint for a template group; task truth still lives on cards and deliveries. */
+export interface CanvasWorkflowState {
+  phase: 'queued' | 'running' | 'waiting' | 'paused' | 'complete';
+  message: string;
+  completed: string[];
+  pending: string[];
+  failures: Record<string, string>;
+  retries: Record<string, number>;
+  updatedAt: number;
+}
+
 export interface CanvasNode {
   id: string;
   type: CanvasNodeType;
@@ -96,6 +108,7 @@ export interface CanvasNode {
   templateId?: string;
   templateRevision?: number;
   templateSkills?: string[];
+  templatePlatforms?: CanvasPlatform[];
   templateCliOnly?: boolean;
   templatePending?: boolean;
   /** Wall-clock start of the current template flow. Absent means the duration was not measured. */
@@ -103,6 +116,8 @@ export interface CanvasNode {
   /** True after a flow starts until it completes. Reload uses this to resume instead of resetting. */
   workTimingOpen?: boolean;
   workDurationMs?: number;
+  workflowState?: CanvasWorkflowState;
+  workflowLayoutOrigin?: { x: number; y: number };
   text?: string;
   assetPath?: string;
   /** Identity of the bytes used at this path; never infer an old result's input from it. */

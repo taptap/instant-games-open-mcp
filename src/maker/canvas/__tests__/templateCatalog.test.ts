@@ -26,6 +26,36 @@ beforeEach(() => {
 });
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
+test('template platform survives storage, archive and instance; local catalog excludes web-only', async () => {
+  const model = createCanvasTemplateModel();
+  const first = createId();
+  const second = createId();
+  const template = await files.saveTemplate({
+    id: createId(),
+    name: 'Web workflow',
+    revision: 0,
+    platforms: ['web'],
+    nodes: [
+      { id: first, type: 'image', title: 'input', x: 0, y: 0, width: 200, height: 120 },
+      { id: second, type: 'image-assets', title: 'output', x: 240, y: 0, width: 200, height: 120 },
+    ],
+    edges: [{ id: createId(), from: first, to: second, kind: 'image-assets' }],
+  });
+  expect(files.getTemplate(template.id).platforms).toEqual(['web']);
+  expect((await files.listTemplatePage()).items).toHaveLength(0);
+  expect((await files.listTemplates()).some((item) => item.id === template.id)).toBe(false);
+  const copy = model.instantiate(template, { x: 0, y: 0 });
+  const canvas = await files.create();
+  canvas.nodes = copy.nodes;
+  canvas.edges = copy.edges;
+  await files.save(canvas.id, canvas, canvas.revision);
+  const loaded = await files.load(canvas.id);
+  expect(model.snapshot(loaded, [copy.section.id], 'copy').platforms).toEqual(['web']);
+  const archive = await files.exportTemplate(template.id, template.revision);
+  const imported = await files.importTemplate(archive);
+  expect(imported.platforms).toEqual(['web']);
+});
+
 test('template Skills survive local save, instantiation, reload and CLI inspection', async () => {
   const model = createCanvasTemplateModel();
   const canvas = await files.create();

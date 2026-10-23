@@ -1,4 +1,9 @@
-import type { CanvasDocument, CanvasNode, CanvasGroupQueueState } from '../contracts.js';
+import type {
+  CanvasDocument,
+  CanvasNode,
+  CanvasGroupQueueState,
+  CanvasWorkflowState,
+} from '../contracts.js';
 import { canvasReferences, canvasDependents } from '../core/dependencies.js';
 
 export function createCanvasGroupQueue(options: {
@@ -20,6 +25,7 @@ export function createCanvasGroupQueue(options: {
   haltReason?(): string | undefined;
 }) {
   const queues = new Map<string, CanvasGroupQueueState>();
+  const removed = new Set<string>();
   const settling = new Set<CanvasGroupQueueState>();
   let documentState: CanvasDocument | null = null;
   let pumping = false;
@@ -56,7 +62,27 @@ export function createCanvasGroupQueue(options: {
   function start(groupId: string, alreadyConfirmed = false) {
     sync();
     if (!documentState || (queues.get(groupId) && executing(queues.get(groupId)!))) return false;
-    const prior = queues.get(groupId);
+    const group = documentState.nodes.find((node) => node.id === groupId);
+    if (!group) return false;
+    const saved = group.workflowState;
+    const savedState: CanvasGroupQueueState | undefined = saved
+      ? {
+          groupId,
+          pending: [...saved.pending],
+          completed: saved.completed.length,
+          total: saved.completed.length + saved.pending.length,
+          finished: [...saved.completed],
+          failures: { ...saved.failures },
+          retries: { ...saved.retries },
+          running: {},
+          elapsedMs: group.workDurationMs || 0,
+          runStartedAt: undefined,
+          phase: saved.phase,
+          message: saved.message,
+          stopping: false,
+        }
+      : undefined;
+    const prior = queues.get(groupId) || savedState;
     const previous = prior?.pending || [];
     const candidates = members(groupId).filter(
       (node) => options.needs(node.id) || options.problem?.(node.id)
@@ -93,7 +119,6 @@ export function createCanvasGroupQueue(options: {
       )
     )
       return false;
-    const group = documentState.nodes.find((node) => node.id === groupId)!;
     const resumingMemory = prior?.phase === 'paused';
     const resumingSaved = !resumingMemory && Boolean(group.workTimingOpen && group.workStartedAt);
     const resuming = resumingMemory || resumingSaved;
@@ -106,18 +131,24 @@ export function createCanvasGroupQueue(options: {
       for (const node of candidates) delete node.workDurationMs;
     } else if (!group.workStartedAt) group.workStartedAt = Date.now();
     group.workTimingOpen = true;
-    const persisted = group.workDurationMs || 0;
+    const persistedDuration = group.workDurationMs || 0;
     queues.set(groupId, {
       groupId,
       pending,
       completed: finished.length,
       total: finished.length + pending.length,
       finished,
+      // A resumed queue re-evaluates failures against the current card state.
+      // Persisted failures remain visible before Continue, but must not deadlock recovery.
       failures: {},
-      retries: resumingMemory ? { ...prior.retries } : {},
+      retries: resumingMemory ? { ...(prior?.retries || {}) } : {},
       running: {},
       // A recognition result may have increased the saved total after the last pause.
-      elapsedMs: resumingMemory ? Math.max(prior.elapsedMs, persisted) : resuming ? persisted : 0,
+      elapsedMs: resumingMemory
+        ? Math.max(prior?.elapsedMs || 0, persistedDuration)
+        : resuming
+          ? persistedDuration
+          : 0,
       runStartedAt: Date.now(),
       phase: 'queued',
       message: '准备执行',
@@ -133,7 +164,32 @@ export function createCanvasGroupQueue(options: {
     state.stopping = true;
     for (const id of Object.keys(state.running)) options.stopActive?.(id);
     state.message = state.active ? '当前步骤结束后停止；不取消远端任务' : '已停止后续';
+    persistState(state);
     if (!state.active) void settle(state, 'paused', '已停止后续');
+    options.changed();
+  }
+  function remove(nodeIds: string[]) {
+    sync();
+    const ids = new Set(nodeIds);
+    for (const state of queues.values()) {
+      const affectsGroup =
+        ids.has(state.groupId) || members(state.groupId).some((node) => ids.has(node.id));
+      const runningIds = Object.keys(state.running).filter((id) => ids.has(id));
+      if (!affectsGroup && !runningIds.length) continue;
+      const discarded = affectsGroup
+        ? [...state.pending, ...Object.keys(state.running)]
+        : [...state.pending, ...Object.keys(state.running)].filter((id) => ids.has(id));
+      for (const id of discarded) removed.add(id);
+      state.pending = state.pending.filter((id) => !ids.has(id));
+      state.finished = state.finished.filter((id) => !ids.has(id));
+      for (const id of ids) delete state.failures[id];
+      state.stopping = true;
+      state.message = '已删除相关卡片，忽略迟到结果';
+      for (const id of Object.keys(state.running)) options.stopActive?.(id);
+      updateCounts(state);
+      persistState(state);
+      if (!Object.keys(state.running).length) void settle(state, 'paused', state.message);
+    }
     options.changed();
   }
   function move(groupId: string, nodeId: string, beforeId?: string): boolean {
@@ -180,6 +236,20 @@ export function createCanvasGroupQueue(options: {
     state.active = Object.keys(state.running)[0];
     state.startedAt = state.active ? state.running[state.active] : undefined;
   }
+  function persistState(state: CanvasGroupQueueState) {
+    const group = documentState?.nodes.find((node) => node.id === state.groupId);
+    if (!group || group.type !== 'section') return;
+    const workflowState: CanvasWorkflowState = {
+      phase: state.phase,
+      message: state.message.slice(0, 400),
+      completed: [...state.finished],
+      pending: [...state.pending, ...Object.keys(state.running)],
+      failures: { ...state.failures },
+      retries: { ...state.retries },
+      updatedAt: Date.now(),
+    };
+    group.workflowState = workflowState;
+  }
   function checkpoint() {
     sync();
     const now = Date.now();
@@ -214,6 +284,7 @@ export function createCanvasGroupQueue(options: {
       if (!group.workStartedAt)
         group.workStartedAt = state.elapsedMs ? Date.now() - state.elapsedMs : Date.now();
     }
+    persistState(state);
     state.phase = 'waiting';
     state.message = '保存执行结果';
     options.changed();
@@ -239,20 +310,31 @@ export function createCanvasGroupQueue(options: {
           void settle(queued, 'paused', state.message);
       options.error(state.message);
     }
+    persistState(state);
     options.changed();
     void pump();
   }
   async function execute(state: CanvasGroupQueueState, id: string, current: CanvasDocument) {
     let success = false;
     let failure = '';
+    const discarded = () => removed.has(id);
     try {
       success = await options.run(id);
     } catch (error) {
       failure = error instanceof Error ? error.message : String(error);
-      options.error(failure);
+      if (!discarded()) options.error(failure);
     }
     if (options.getDocument() !== current || queues.get(state.groupId) !== state) return;
     delete state.running[id];
+    if (discarded()) {
+      removed.delete(id);
+      updateCounts(state);
+      state.message = '已删除相关卡片，忽略迟到结果';
+      persistState(state);
+      if (!Object.keys(state.running).length) void settle(state, 'paused', state.message);
+      else void pump();
+      return;
+    }
     const halt = options.haltReason?.();
     if (halt) {
       state.pending.unshift(id);
@@ -309,6 +391,7 @@ export function createCanvasGroupQueue(options: {
     updateCounts(state);
     state.phase = Object.keys(state.running).length ? 'running' : 'queued';
     state.message = state.stopping ? '已停止后续' : '继续可执行分支';
+    persistState(state);
     options.changed();
     void pump();
   }
@@ -463,12 +546,14 @@ export function createCanvasGroupQueue(options: {
         if (!state.finished.includes(nodeId)) state.finished.push(nodeId);
         updateCounts(state);
         state.message = '失败步骤已恢复，可继续剩余流程';
+        persistState(state);
         if (!state.pending.length) void settle(state, 'complete', '已完成');
         else options.changed();
       }
     },
     start,
     stop,
+    remove,
     move,
     remaining(groupId: string) {
       sync();
@@ -477,11 +562,33 @@ export function createCanvasGroupQueue(options: {
     },
     view(groupId: string) {
       sync();
-      const state = queues.get(groupId);
       const group = documentState?.nodes.find((node) => node.id === groupId);
+      let state = queues.get(groupId);
+      if (
+        !state &&
+        group?.workflowState &&
+        (Object.keys(group.workflowState.failures).length > 0 ||
+          group.workflowState.phase === 'complete')
+      ) {
+        const saved = group.workflowState;
+        state = {
+          groupId,
+          pending: [...saved.pending],
+          completed: saved.completed.length,
+          total: saved.completed.length + saved.pending.length,
+          finished: [...saved.completed],
+          failures: { ...saved.failures },
+          retries: { ...saved.retries },
+          running: {},
+          elapsedMs: group.workDurationMs || 0,
+          phase: saved.phase,
+          message: saved.message,
+          stopping: false,
+        };
+      }
       if (state && state.runStartedAt === undefined)
         state.elapsedMs = Math.max(state.elapsedMs, group?.workDurationMs || 0);
-      return queues.get(groupId);
+      return state;
     },
     blockedBy(groupId: string, nodeId: string) {
       sync();
