@@ -90,9 +90,8 @@ describe('Maker integrated UI editor', () => {
 
   test('saves atomically with a matching baseline and rejects stale editors', async () => {
     const content = JSON.stringify({ type: 'Panel', width: 500, height: 800 });
-    expect(
-      (await save({ path: 'assets/ui/main.ui.json', expectedText: original, content })).status
-    ).toBe(200);
+    const saved = await save({ path: 'assets/ui/main.ui.json', expectedText: original, content });
+    expect({ status: saved.status, body: await saved.text() }).toMatchObject({ status: 200 });
     expect(fs.readFileSync(path.join(root, 'assets/ui/main.ui.json'), 'utf8')).toBe(content);
     expect(
       (await save({ path: 'assets/ui/main.ui.json', expectedText: original, content: original }))
