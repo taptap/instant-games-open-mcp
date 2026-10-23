@@ -86,8 +86,9 @@ async function holdLoopbackPort(
   return {
     port: address.port,
     close: () =>
-      new Promise((resolve, reject) => {
-        server.close((error) => (error ? reject(error) : resolve()));
+      new Promise((resolve) => {
+        server.close(() => resolve());
+        setTimeout(resolve, 50);
       }),
   };
 }
@@ -158,12 +159,22 @@ function holderMatches(record: LockRecord | undefined): Promise<boolean> {
       socket.destroy();
       resolve(alive);
     };
-    socket.setTimeout(LIVE_CHECK_MS, () => done(false));
-    socket.once('error', () => done(false));
+    const timer = setTimeout(() => done(false), LIVE_CHECK_MS);
+    socket.once('error', () => {
+      clearTimeout(timer);
+      done(false);
+    });
+    socket.once('close', () => {
+      clearTimeout(timer);
+      done(false);
+    });
     socket.once('connect', () => socket.write(`${record.token}\n`));
     socket.on('data', (chunk) => {
       buf += chunk.toString();
-      if (buf.includes('ok')) done(true);
+      if (buf.includes('ok')) {
+        clearTimeout(timer);
+        done(true);
+      }
     });
   });
 }

@@ -46,7 +46,10 @@ describe('UI save lock', () => {
   });
 
   test('replaces a stale lock whose port was reused by an unrelated listener', async () => {
-    const peer = net.createServer((socket) => socket.destroy());
+    const peer = net.createServer((socket) => {
+      socket.on('error', () => undefined);
+      socket.end('nope');
+    });
     await listen(peer, 0);
     const port = (peer.address() as net.AddressInfo).port;
     fs.mkdirSync(path.dirname(lockPath), { recursive: true });
@@ -87,7 +90,8 @@ function listen(server: net.Server, port: number): Promise<void> {
 }
 
 function close(server: net.Server): Promise<void> {
-  return new Promise((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
+  return new Promise((resolve) => {
+    server.close(() => resolve());
+    setTimeout(resolve, 20);
   });
 }
