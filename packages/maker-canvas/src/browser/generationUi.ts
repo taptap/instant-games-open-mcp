@@ -520,6 +520,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     }
     if (node.type !== 'image')
       return videoInputSources(current, node).filter((source) => includesImageSource(node, source));
+    if (usesResultInputs(node))
+      return resultInputSources(node).filter((source) => includesImageSource(node, source));
     const sourceId =
       node.draftSourceId ||
       node.generationDraft?.sourceImageId ||
@@ -914,6 +916,34 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         !node.uiAtlasPrelayout
     );
   }
+  /** Web AI results must resend the inputs that produced them, not their own output. */
+  function usesResultInputs(node: any): boolean {
+    const current = options.getDocument();
+    return Boolean(
+      !node.referenceInput &&
+        regeneratesInPlace(node) &&
+        !current?.nodes.some((item: any) => item.id === node.sectionId && item.templateId)
+    );
+  }
+  function resultInputSources(node: any): any[] {
+    const current = options.getDocument();
+    const image = (id: string) =>
+      id !== node.id
+        ? current.nodes.find(
+            (item: any) => item.id === id && item.type === 'image' && item.assetPath
+          )
+        : undefined;
+    const wired = current.edges
+      .filter((edge: any) => edge.to === node.id && edge.kind === 'image-variant')
+      .map((edge: any) => image(edge.from));
+    // Wires are the editable truth; the recorded ids only cover results whose wires were deleted.
+    const ids = wired.some(Boolean)
+      ? []
+      : node.generation?.sourceImageIds?.length
+        ? node.generation.sourceImageIds
+        : [node.generation?.sourceImageId];
+    return [...new Set([...wired, ...ids.filter(Boolean).map(image)].filter(Boolean))];
+  }
   function applyAttempt(attempt: any, persist = true, replace = false): boolean {
     const documentState = options.getDocument();
     if (!documentState || attempt.status !== 'succeeded' || !attempt.resultAssetPath) return false;
@@ -1202,7 +1232,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     const refreshUpstream = Boolean(
       node.uiAtlasPrelayout || (settings.templateRun && settings.refreshSource)
     );
-    const sourceImageId = node.referenceInput
+    const explicitInputs = Boolean(node.referenceInput) || usesResultInputs(node);
+    const sourceImageId = explicitInputs
       ? referenceSources(node)[0]?.id
       : node.assetPath && !refreshUpstream
         ? node.id
@@ -1228,7 +1259,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
             ? node.id
             : undefined;
     const sourceNodes = (
-      node.referenceInput
+      explicitInputs
         ? referenceSources(node)
         : refreshUpstream
           ? canvasReferences(documentState, node.id).length
@@ -1240,10 +1271,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
               : []
           : referenceSources(node, Boolean(settings.templateRun))
     ).filter((source) => includesImageSource(node, source));
-    if (
-      !sourceNodes.length &&
-      (node.referenceInput || removedImageSources.has(referenceKey(node)))
-    ) {
+    if (!sourceNodes.length && (explicitInputs || removedImageSources.has(referenceKey(node)))) {
       selectedOperation = 'generate';
     }
     if (selectedOperation !== 'generate' && !sourceNodes.length) {

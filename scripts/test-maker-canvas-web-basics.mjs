@@ -2201,6 +2201,114 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   });
+  await check('Web 外观：AI 结果面板显示生成它的来源图，原位再生成只发送来源', async () => {
+    const kneel = 'assets/image/canvas/seed-kneel.png';
+    const lying = 'assets/image/canvas/seed-lying.png';
+    const text = 'assets/image/canvas/seed-text.png';
+    const base = { type: 'image', y: 200, width: 240, height: 240 };
+    const generated = (prompt, operation, extra = {}) => ({
+      prompt,
+      operation,
+      referenceImagePaths: [],
+      parameters: {},
+      ...extra,
+    });
+    const { page, errors, settle, current, card, blank } = await webPage({
+      seedMedia: { [kneel]: '#c33', [lying]: '#3a7', [text]: '#36c' },
+      seedDocuments: [
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          title: '来源画布',
+          revision: 3,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [
+            {
+              ...base,
+              id: 'seed-k',
+              title: '生图结果',
+              x: 120,
+              assetPath: kneel,
+              generation: generated('生成跪姿女孩', 'generate'),
+            },
+            {
+              ...base,
+              id: 'seed-l',
+              title: '图片变体 · 已保存结果',
+              x: 520,
+              assetPath: lying,
+              generation: generated('生成这个女孩的躺姿势', 'variant', {
+                sourceImageId: 'seed-k',
+              }),
+              sourceSnapshot: { nodeId: 'seed-k', version: 'image|' + kneel + '|manual-asset' },
+              sourceSnapshots: [{ nodeId: 'seed-k', version: 'image|' + kneel + '|manual-asset' }],
+            },
+            {
+              ...base,
+              id: 'seed-t',
+              title: '生图结果',
+              x: 920,
+              assetPath: text,
+              generation: generated('纯文生图', 'generate'),
+            },
+          ],
+          edges: [{ id: 'seed-edge', from: 'seed-k', to: 'seed-l', kind: 'image-variant' }],
+        },
+      ],
+    });
+    await card('seed-l').waitFor();
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    const open = async (id) => {
+      await blank();
+      await card(id).click({ position: { x: 60, y: 80 } });
+      await panel.waitFor();
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('#selection-toolbar select option')].some(
+          (option) => option.textContent === '宿主模型二'
+        )
+      );
+    };
+    const srcOf = (id) => card(id).locator('img').first().getAttribute('src');
+    await open('seed-l');
+    const thumbs = panel.locator('.generation-reference img');
+    assert.equal(await thumbs.count(), 1);
+    assert.equal(await thumbs.first().getAttribute('src'), await srcOf('seed-k'), '显示来源 K');
+    assert.notEqual(await thumbs.first().getAttribute('src'), await srcOf('seed-l'));
+    const before = await current();
+    await panel.locator('.generation-action-primary').click();
+    await page.waitForFunction(
+      (path) =>
+        window.__canvasEditor.current().nodes.find((node) => node.id === 'seed-l').assetPath !==
+        path,
+      lying
+    );
+    await settle();
+    const after = await current();
+    const call = (await page.evaluate(() => window.__canvasCalls.generate)).at(-1);
+    assert.equal(call.targetNodeId, 'seed-l');
+    assert.deepEqual(call.sourceImagePaths, [kneel], '只发送来源 K，不发送 L 自身');
+    assert.deepEqual(call.referenceImagePaths, []);
+    assert.equal(after.nodes.length, before.nodes.length, '原位回填，不新建卡片');
+    const result = after.nodes.find((node) => node.id === 'seed-l');
+    assert.equal(result.title, '图片变体 · 已保存结果');
+    assert.equal(result.generation.sourceImageId, 'seed-k');
+    assert.deepEqual(after.edges, before.edges, '连线保持不变');
+    await open('seed-t');
+    assert.equal(await panel.locator('.generation-reference img').count(), 0, '文生图无参考图');
+    await panel.locator('.generation-action-primary').click();
+    await page.waitForFunction(
+      (path) =>
+        window.__canvasEditor.current().nodes.find((node) => node.id === 'seed-t').assetPath !==
+        path,
+      text
+    );
+    const textCall = (await page.evaluate(() => window.__canvasCalls.generate)).at(-1);
+    assert.equal(textCall.targetNodeId, 'seed-t');
+    assert.equal(textCall.operation, 'generate');
+    assert.equal(textCall.sourceImageIds, undefined, '文生图不带来源图');
+    assert.deepEqual(textCall.referenceImagePaths, []);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
   await check('Web 外观：普通导入图生成仍落到新连线卡片', async () => {
     const { page, errors, editor, settle, current, nodeOf, card, importImage, blank } =
       await webPage({ features: { ...webFeatures, imageEditing: true } });
