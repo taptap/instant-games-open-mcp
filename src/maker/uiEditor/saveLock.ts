@@ -2,22 +2,24 @@
  * Per-project UI save lock.
  *
  * The lock file appears only after its loopback listener is bound to an OS-assigned
- * port. A holder answers a token challenge, so a reused port or an unrelated
- * listener is not treated as this save. Stale recovery is serialized with a
- * recover file: only one caller may delete the old lock, and it rechecks the
- * holder before deleting.
+ * port. A holder answers a token challenge. A recorded process that has exited
+ * is not the holder, even if its old port stays open and silent. A live process
+ * that does not answer in time is still held, so a slow save is not replaced.
+ * Stale recovery is serialized with a recover file: only one caller may delete
+ * the old lock, and it rechecks the holder before deleting.
  */
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import net from 'node:net';
 import path from 'node:path';
+import { processPresence } from '../system/processPresence.js';
 
 const CLAIM_ATTEMPTS = 8;
 const LIVE_CHECK_MS = 300;
 const RECOVER_STALE_MS = 2000;
 const CONTENDED_DELAY_MS = 25;
 
-type LockRecord = { port: number; token: string };
+type LockRecord = { pid?: number; port: number; token: string };
 
 export async function claimUiSaveLock(
   lockPath: string,
@@ -136,7 +138,7 @@ async function removeAbandonedRecover(recoverPath: string): Promise<void> {
 
 function parseRecord(raw: string): LockRecord | undefined {
   try {
-    const value = JSON.parse(raw) as { port?: unknown; token?: unknown };
+    const value = JSON.parse(raw) as { pid?: unknown; port?: unknown; token?: unknown };
     if (
       typeof value.token !== 'string' ||
       !value.token ||
@@ -146,15 +148,24 @@ function parseRecord(raw: string): LockRecord | undefined {
     ) {
       return undefined;
     }
-    return { port: value.port as number, token: value.token };
+    const pid =
+      Number.isInteger(value.pid) && (value.pid as number) > 0 ? (value.pid as number) : undefined;
+    return { pid, port: value.port as number, token: value.token };
   } catch {
     return undefined;
   }
 }
 
-/** True only when the recorded holder answers its own token. */
+/**
+ * True when this lock is still the recorded holder's.
+ * An exited pid is stale even if its old port accepts and stays silent.
+ * A live pid that does not answer before the timeout is still held.
+ */
 function holderMatches(record: LockRecord | undefined): Promise<boolean> {
   if (!record) return Promise.resolve(false);
+  if (record.pid !== undefined && processPresence(record.pid) === 'missing') {
+    return Promise.resolve(false);
+  }
   return new Promise((resolve) => {
     const socket = net.connect({ host: '127.0.0.1', port: record.port });
     let buf = '';

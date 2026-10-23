@@ -1,8 +1,10 @@
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { claimUiSaveLock } from '../maker/uiEditor/saveLock';
+import { processPresence } from '../maker/system/processPresence';
 import { recoveryMutexPort } from '../maker/system/recoveryMutex';
 
 describe('UI save lock', () => {
@@ -77,6 +79,36 @@ describe('UI save lock', () => {
     }
   });
 
+  test('replaces a stale lock when the holder has exited and the port stays silent', async () => {
+    const peer = silentServer();
+    await listen(peer.server, 0);
+    const port = (peer.server.address() as net.AddressInfo).port;
+    fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+    fs.writeFileSync(
+      lockPath,
+      JSON.stringify({ pid: await exitedPid(), port, token: 'previous-holder' })
+    );
+    try {
+      const release = await claimUiSaveLock(lockPath, () => new Error('busy'));
+      await release();
+    } finally {
+      await peer.close();
+    }
+  });
+
+  test('keeps a lock whose process is still alive when the port stays silent', async () => {
+    const peer = silentServer();
+    await listen(peer.server, 0);
+    const port = (peer.server.address() as net.AddressInfo).port;
+    fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+    fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, port, token: 'live-holder' }));
+    try {
+      await expect(claimUiSaveLock(lockPath, () => new Error('busy'))).rejects.toThrow('busy');
+    } finally {
+      await peer.close();
+    }
+  });
+
   test('lets only one saver recover the same stale lock', async () => {
     fs.mkdirSync(path.dirname(lockPath), { recursive: true });
     fs.writeFileSync(lockPath, JSON.stringify({ pid: 1, port: 1, token: 'stale' }));
@@ -109,4 +141,34 @@ function close(server: net.Server): Promise<void> {
     server.close(() => resolve());
     setTimeout(resolve, 20);
   });
+}
+
+function silentServer(): { server: net.Server; close: () => Promise<void> } {
+  const sockets = new Set<net.Socket>();
+  const server = net.createServer((socket) => {
+    sockets.add(socket);
+    socket.on('error', () => undefined);
+    socket.on('close', () => sockets.delete(socket));
+  });
+  return {
+    server,
+    close: async () => {
+      for (const socket of sockets) socket.destroy();
+      await close(server);
+    },
+  };
+}
+
+async function exitedPid(): Promise<number> {
+  const child = spawn(process.execPath, ['-e', 'process.exit(0)'], { stdio: 'ignore' });
+  const pid = child.pid;
+  if (!pid) throw new Error('spawned process has no pid');
+  await new Promise<void>((resolve, reject) => {
+    child.once('exit', () => resolve());
+    child.once('error', reject);
+  });
+  if (processPresence(pid) !== 'missing') {
+    throw new Error(`pid ${pid} was reused before the test could use it`);
+  }
+  return pid;
 }
