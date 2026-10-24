@@ -383,7 +383,11 @@ export function createCanvasTemplateUiWithHost(options: {
       actions.className = 'template-card-actions';
       const count = document.createElement('small');
       count.textContent = summary.nodeCount + ' 张卡片';
-      if (summary.cliOnly) count.textContent = '仅 CLI 执行 · 按需创建卡片';
+      if (summary.cliOnly)
+        count.textContent =
+          summary.id === '7e1cb6ad-732f-4dc3-a951-000000000015'
+            ? summary.nodeCount + ' 张卡片 · 可在画布中继续'
+            : '仅 CLI 执行 · 按需创建卡片';
       const metadata = document.createElement('div');
       metadata.className = 'template-card-metadata';
       metadata.append(count);

@@ -14,6 +14,21 @@ import { CanvasGenerationService } from './canvasGeneration.js';
 import { CanvasModelService } from './canvasModels.js';
 import { CanvasRecognitionService } from './canvasRecognition.js';
 import type { MakerRemoteProxyManager } from '../server/remoteProxyManager.js';
+import {
+  formatMakerPythonEnvironmentStatus,
+  setupMakerPythonEnvironmentAsync,
+} from '../system/python.js';
+
+const DELIVERY_CODES = new Set([
+  'ASSEMBLY_BUSY',
+  'ASSETS_UNCONFIRMED',
+  'BUNDLE_INCOMPLETE',
+  'NON_PNG_SOURCE',
+  'ART_TEXT_UNMAPPED',
+  'ART_TEXT_ASSET_MISSING',
+  'ARCHIVE_MISMATCH',
+  'ARCHIVE_INCOMPLETE',
+]);
 
 async function readBytes(request: IncomingMessage, limit: number): Promise<Buffer> {
   let size = 0;
@@ -65,6 +80,40 @@ export async function handleCanvasProjectRoute(options: {
       const assetPath = searchParams.get('path') || '';
       files.readMedia(assetPath);
       send(response, 200, files.imageInfo(assetPath) || null);
+      return true;
+    }
+    const delivery = suffix.match(/^canvases\/([0-9a-f-]{36})\/ui-delivery$/i);
+    if (delivery && (method === 'GET' || method === 'POST')) {
+      // Loaded on demand: the assembly library is an ES module shared with the Skill CLI.
+      const { UiDeliveryService } = await import('../canvas/uiDelivery.js');
+      const service = new UiDeliveryService(project.path);
+      if (method === 'GET') {
+        send(response, 200, await service.status(delivery[1], searchParams.get('nodeId') || ''));
+      } else {
+        const body = JSON.parse((await readBytes(request, 4096)).toString('utf8') || '{}') as {
+          nodeId?: unknown;
+          newVersion?: unknown;
+        };
+        if (typeof body.nodeId !== 'string') throw new ConsoleError('缺少资源包卡片标识。');
+        if (body.newVersion !== undefined && typeof body.newVersion !== 'boolean')
+          throw new ConsoleError('newVersion 必须是布尔值。');
+        send(
+          response,
+          200,
+          await service.assemble(delivery[1], body.nodeId, { newVersion: body.newVersion === true })
+        );
+      }
+      return true;
+    }
+    if (suffix === 'canvases/python/setup' && method === 'POST') {
+      // Explicit user action; downloads the shared Maker Python runtime when it is missing.
+      const result = await setupMakerPythonEnvironmentAsync();
+      send(response, 200, {
+        ready: result.environment.ready,
+        ...(result.environment.ready
+          ? {}
+          : { message: formatMakerPythonEnvironmentStatus(result.environment) }),
+      });
       return true;
     }
     if (suffix === 'canvases/recognition-models' && method === 'GET') {
@@ -608,6 +657,10 @@ export async function handleCanvasProjectRoute(options: {
     }
     if ((error as { code?: string }).code === 'CANVAS_PAGE_EXPIRED') {
       send(response, 409, { code: 'CANVAS_PAGE_EXPIRED', error: (error as Error).message });
+      return true;
+    }
+    if (error instanceof CanvasStoreError && DELIVERY_CODES.has(error.code)) {
+      send(response, error.status, { code: error.code, error: error.message });
       return true;
     }
     if (error instanceof CanvasStoreError) {

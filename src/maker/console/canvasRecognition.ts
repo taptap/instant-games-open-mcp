@@ -51,10 +51,12 @@ export interface UiVisionModel {
 export function configuredUiVisionModels(): UiVisionModel[] {
   const local = readVisionSettings();
   if (local) {
+    /* Retired non-API recognition; retained for reference only.
     if (local.source === 'chatgpt-web')
       return [
         { id: 'chatgpt-web', model: 'ChatGPT 网页当前模型', endpoint: '', source: 'chatgpt-web' },
       ];
+    */
     if (local.source === 'custom' && local.baseUrl && local.apiKey)
       return [
         {
@@ -117,12 +119,18 @@ export async function resolvedUiVisionModels(
   root?: string,
   fetcher = fetch
 ): Promise<UiVisionModel[]> {
+  // Availability never changes providers; API errors are reported by the request.
+  void root;
+  void fetcher;
+  /* Retired website fallback (kept dormant).
   const models = configuredUiVisionModels();
   if (models[0]?.source !== 'server' || (await serverRecognitionAvailable(root, fetcher)))
     return models;
   return [
     { id: 'chatgpt-web', model: 'ChatGPT 网页当前模型', endpoint: '', source: 'chatgpt-web' },
   ];
+  */
+  return configuredUiVisionModels();
 }
 
 export async function resolvedModelSettingsForDisplay(root?: string, fetcher = fetch) {
@@ -134,7 +142,8 @@ export async function resolvedModelSettingsForDisplay(root?: string, fetcher = f
     vision: {
       ...settings.vision,
       selectedSource: source,
-      source: source === 'server' && !available ? 'chatgpt-web' : source,
+      // Retired fallback: source === 'server' && !available ? 'chatgpt-web' : source
+      source,
       serverAvailable: available,
     },
   };
@@ -286,18 +295,24 @@ export class CanvasRecognitionService {
     )
       throw new ConsoleError('请先保存原稿及本次识图请求。');
     const model = models.find((model) => model.id === input.model);
+    /* Retired non-API recognition; retained for reference only.
     if (models[0]?.source === 'chatgpt-web')
       throw new ConsoleError(
         '当前使用 ChatGPT 网页识图，请让当前 AI 按当前模板关联的 Skill 使用已有浏览器完成识图并回填。无需安装执行器；登录可选，未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。',
         409
       );
+    */
     if (!model) throw new ConsoleError('识图配置已变化，请刷新后重试，并检查设置中的 API 配置。');
     const source = model.source || 'custom';
+    /* Retired non-API recognition; retained for reference only.
     if (source === 'local')
       throw new ConsoleError(
         '当前使用本地模型。请让 AI 客户端读取设计稿，通过 Maker CLI 写入 Bbox；画布不能直接调用客户端模型。也可在设置中选择自定义 API。',
         503
       );
+    */
+    if (source !== 'server' && source !== 'custom')
+      throw new ConsoleError('旧识图来源已停用，请选择 Server API 或自定义 API。', 503);
     if (source === 'server') serverRecognitionContext(this.files.root);
     if (![input.width, input.height].every((n) => Number.isInteger(n) && n > 0 && n <= 16384))
       throw new ConsoleError('原稿尺寸无效。');

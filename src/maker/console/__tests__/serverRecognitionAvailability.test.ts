@@ -89,13 +89,13 @@ test('timeouts, invalid JSON and missing project or PAT disable the capability',
   expect(fetcher).not.toHaveBeenCalled();
 });
 
-test('defaults to server, falls back without saving, and recovers on the next check', async () => {
+test('keeps server selected while unavailable and reports recovery on the next check', async () => {
   const fetcher = jest.fn(async () => new Response('', { status: 503 }));
   expect(readModelSettings().vision.source).toBe('server');
   expect(await resolvedModelSettingsForDisplay(root, fetcher)).toMatchObject({
-    vision: { source: 'chatgpt-web', selectedSource: 'server', serverAvailable: false },
+    vision: { source: 'server', selectedSource: 'server', serverAvailable: false },
   });
-  expect(await resolvedUiVisionModels(root, fetcher)).toMatchObject([{ source: 'chatgpt-web' }]);
+  expect(await resolvedUiVisionModels(root, fetcher)).toMatchObject([{ source: 'server' }]);
   fetcher.mockImplementation(async () => available());
   expect(await resolvedModelSettingsForDisplay(root, fetcher)).toMatchObject({
     vision: { source: 'server', serverAvailable: true },
@@ -104,7 +104,7 @@ test('defaults to server, falls back without saving, and recovers on the next ch
   expect(fs.existsSync(path.join(process.env.TAPTAP_MAKER_HOME!, 'ui-vision.json'))).toBe(false);
 });
 
-test.each(['custom', 'local', 'chatgpt-web'] as const)(
+test.each(['custom'] as const)(
   'preserves an explicit %s selection when server is unavailable',
   async (source) => {
     saveVisionSettings({
@@ -112,7 +112,6 @@ test.each(['custom', 'local', 'chatgpt-web'] as const)(
       baseUrl: 'https://custom.invalid/v1',
       apiKey: 'private-custom',
     });
-    if (source !== 'custom') updateModelSettings({ action: 'select', kind: 'vision', source });
     const original = fs.readFileSync(
       path.join(process.env.TAPTAP_MAKER_HOME!, 'ui-vision.json'),
       'utf8'
@@ -136,6 +135,8 @@ test('an unconfigured legacy default does not override the new default', () => {
   settings.vision.source = 'local';
   fs.writeFileSync(filename, JSON.stringify(settings));
   expect(readModelSettings().vision.source).toBe('server');
-  updateModelSettings({ action: 'select', kind: 'vision', source: 'local' });
-  expect(readModelSettings().vision.source).toBe('local');
+  expect(() => updateModelSettings({ action: 'select', kind: 'vision', source: 'local' })).toThrow(
+    '模型来源无效'
+  );
+  expect(readModelSettings().vision.source).toBe('server');
 });

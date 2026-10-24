@@ -14,6 +14,7 @@ export const GROUP_QUEUE_STYLES = [
   '.group-queue-task[data-drop] { border-left:3px solid #ffce76; } .group-queue-count { font-variant-numeric:tabular-nums; color:#a99d86; white-space:nowrap; }',
   '.group-queue-spinner { flex:none; width:12px; height:12px; border:2px solid #715c35; border-top-color:#f0c273; border-radius:50%; animation:group-queue-spin 1s linear infinite; }',
   '.group-queue[data-phase=paused] { flex-wrap:wrap; align-items:flex-start; border-color:#886143; } .group-queue[data-confirming=true] { flex-wrap:wrap; border-color:#e6b15c; background:#3a2e1c; } .group-queue .group-queue-status.group-queue-detail { flex:1 0 100%; white-space:normal; overflow:visible; text-overflow:unset; color:#f0c273; line-height:1.45; } @keyframes group-queue-spin { to { transform:rotate(360deg); } }',
+  '.group-queue[data-workflow=true] { flex-wrap:wrap; } .group-queue .group-queue-primary { border-color:#e6b15c; background:#5a4423; color:#ffe0a6; font-weight:600; } .group-queue button:disabled { opacity:.55; cursor:default; }',
   '@media(prefers-reduced-motion:reduce) { .group-queue-spinner { animation:none; } }',
 ].join('\n');
 
@@ -22,6 +23,17 @@ export function createCanvasGroupQueueUi(options: {
   node(id: string): CanvasNode | undefined;
   focus(id: string): void;
   scale?(): number;
+  /** Template-specific stage view; undefined keeps the generic queue controls. */
+  workflow?: {
+    view(groupId: string):
+      | {
+          stage: string;
+          primary?: { label: string; run(): unknown; disabled?: boolean; title?: string };
+          extra: Array<{ label: string; run(): unknown }>;
+          hint?: string;
+        }
+      | undefined;
+  };
 }) {
   const views = new Map<string, HTMLElement>();
   const confirming = new Set<string>();
@@ -65,10 +77,12 @@ export function createCanvasGroupQueueUi(options: {
     const state = options.queue.view(groupId);
     root.dataset.phase = state?.phase || 'idle';
     const group = options.node(groupId);
-    const cliOnly =
-      group?.templateCliOnly || group?.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015';
-    if (cliOnly) confirming.delete(groupId);
+    const workflowView = options.workflow?.view(groupId);
+    const interactive015 = Boolean(workflowView);
+    const cliOnly = Boolean(group?.templateCliOnly) && !interactive015;
+    if (cliOnly || workflowView) confirming.delete(groupId);
     root.dataset.confirming = confirming.has(groupId) ? 'true' : 'false';
+    root.dataset.workflow = workflowView ? 'true' : 'false';
     function button(label: string, action: () => void, className = '') {
       const element = document.createElement('button');
       element.type = 'button';
@@ -98,6 +112,26 @@ export function createCanvasGroupQueueUi(options: {
         );
         current.title = title(id) + '（点击定位卡片）';
         root.append(current);
+      }
+    } else if (workflowView && !active) {
+      const stageLabel = document.createElement('span');
+      stageLabel.className = 'group-queue-count';
+      stageLabel.textContent = workflowView.stage;
+      root.append(stageLabel);
+      if (workflowView.primary) {
+        const primary = workflowView.primary;
+        const action = button(primary.label, () => void primary.run(), 'group-queue-primary');
+        action.disabled = Boolean(primary.disabled);
+        if (primary.title) action.title = primary.title;
+        root.append(action);
+      }
+      for (const extra of workflowView.extra)
+        root.append(button(extra.label, () => void extra.run()));
+      if (workflowView.hint) {
+        const hint = document.createElement('span');
+        hint.className = 'group-queue-status group-queue-detail';
+        hint.textContent = workflowView.hint;
+        root.append(hint);
       }
     } else if (!active && !options.queue.remaining(groupId)) {
       const done = document.createElement('span');
@@ -213,7 +247,7 @@ export function createCanvasGroupQueueUi(options: {
       dragged = undefined;
       if (source?.groupId === groupId) options.queue.move(groupId, source.nodeId);
     });
-    if (!state?.pending.length) {
+    if (!state?.pending.length && !(workflowView && !state)) {
       const hint = document.createElement('span');
       hint.className = 'group-queue-status';
       hint.textContent = state

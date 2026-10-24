@@ -26,10 +26,12 @@ check 检查声明和资源，open --no-open 返回控制台 UI 编辑器地址�
 
 ## 准备
 
-调用生图或识图前先执行 `taptap-maker canvas model-settings --target-dir <项目>`，读取有效设置；遵循返回的 vision.source，不自行切换渠道。默认 Server API 不可用时由系统临时降级为 chatgpt-web，用户明确选择优先。
+调用生图或识图前先执行 `taptap-maker canvas model-settings --target-dir <项目>`，读取有效设置；遵循返回的 vision.source，不自行切换渠道。识图仅使用 server/custom API；旧 local/chatgpt-web 已停用，API 不可用时恢复接口，不切换渠道。
 generation=maker 时沿用 Maker；custom 时通过画布 run 调用选定 API，不读取或传递密钥。
-vision=chatgpt-web 时执行 [网页识图](references/chatgpt-web.md)，复用客户端浏览器；登录可选，不安装独立执行器。
-local 时由当前客户端使用自身能力执行，缺少对应能力则提示用户；画布 run 无法调用客户端模型。
+
+<!-- 已停用：vision=chatgpt-web 时执行网页识图；旧协议仅供历史参考。 -->
+
+generation=local 时由当前客户端使用自身生图能力执行，缺少对应能力则提示用户；画布 run 无法调用客户端模型。
 本地图片可用 canvas import 导入，但它只新增图片卡，不会自动回填或完成已有模板节点，
 不得把导入成功当成原工作流完成。已有 Bbox 仍通过 update-nodes 写入所属识图卡并按原契约校验。
 
@@ -57,10 +59,10 @@ submittedPrompt 包含实际发送的参考图尺寸。实际结果比例不符�
 带当前 page-id、canvas-id、revision 和 target-dir 执行；只有用户明确要求无识图对照时，
 在本次及后续 run 的 input 中显式传 `"recognition":false`，例如
 `{"id":"分组ID","recognition":false}`。仅提前关闭卡片开关不能覆盖 CLI run 的默认值。
-识图遵循设置：local 才使用当前客户端模型；custom 使用选中的命名 API 配置和模型；
-chatgpt-web 按网页识图引用完成两轮、校验和回填；server 使用画布现有两轮识图。已提交或结果未知的任务不因接口不可用换渠道重做。
+识图遵循设置：custom 使用选中的命名 API 配置和模型；server 使用 Server API。
+两者均使用画布现有两轮识图。已提交或结果未知的任务不因接口不可用换渠道重做。
 自定义 API 的 GPT-6.1 Sol 使用 low 档位，其它模型不强加该参数。
-以下两次接口执行步骤适用于 custom 和 server；local 按同样输入与 Bbox 契约由客户端识别后写回。
+以下两次接口执行步骤仅使用 custom 和 server，不调用客户端 AI 或网页识图。
 沿用用户的任务要求执行两轮识图，无需逐轮重复询问：
 Server API 的 pending/unknown 先 query；提示等待恢复时，recognize-ui 的 input 传
 `{"id":"去文字卡ID","recover":true}` 并带 `--allow-paid`，复用原请求。旧版丢失 pendingId 时加原 `attemptId`。
@@ -85,7 +87,7 @@ Server API 的 pending/unknown 先 query；提示等待恢复时，recognize-ui 
 references/workflow.md 的「图集合批」。已有结果保留，不为了合批重新生成。
 
 只执行已配置的画布模板时，确认输入和参数后使用分组 run（执行时传 --allow-paid，沿用当前任务授权）。
-local / chatgpt-web 在缺少识图结果时交给 Agent 执行；完成回填、确认保存后读取最新 revision，
+缺少识图结果时通过所选 API 完成识图；确认保存后读取最新 revision，
 再次 run 原分组继续下游，保留 recognition=true，不通过关闭识图绕过等待。
 队列按连线自动接续图片与资源卡，资源卡按已保存网格裁切并保存独立 PNG，不必逐张调用。
 最后一步是内容就绪的资源包卡片；入项目、meta、UI.json 和编辑器属于后续独立任务，

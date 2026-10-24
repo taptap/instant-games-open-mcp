@@ -335,7 +335,9 @@ test('switching canvas during execution prevents continuation or restoration', a
   expect(options.run.mock.calls).toEqual([['image']]);
   expect(queue.isBusy).toBe(false);
   setDocument(document);
-  expect(queue.view('group')).toBeUndefined();
+  // Reopening shows the saved checkpoint as stopped; it never claims a live executor.
+  expect(queue.view('group')).toMatchObject({ phase: 'paused', running: {} });
+  expect(queue.isBusy).toBe(false);
   await jest.advanceTimersByTimeAsync(10000);
   expect(options.run.mock.calls).toEqual([['image']]);
 });
@@ -607,7 +609,8 @@ test('a reloaded paused flow keeps the saved elapsed time instead of starting at
   const startedAt = document.nodes[0].workStartedAt;
   document.nodes[0].workDurationMs = 1200 + 90000;
   const reloaded = createCanvasGroupQueue(options);
-  expect(reloaded.view('group')).toBeUndefined();
+  expect(reloaded.view('group')).toMatchObject({ phase: 'paused' });
+  expect(reloaded.isBusy).toBe(false);
   reloaded.start('group');
   await jest.advanceTimersByTimeAsync(0);
   expect(reloaded.view('group')?.elapsedMs).toBeGreaterThanOrEqual(91200);
@@ -627,6 +630,80 @@ test('an unknown image blocks only its dependent while other parallel branches f
     completed: 6,
     failures: { first: '结果未知，不重提' },
   });
+});
+
+test('deleting a card of one group keeps an unrelated group queue running', async () => {
+  const { queue, options, document, setDocument } = parallelFixture();
+  document.nodes.push(node('other', 'section'), node('other-image', 'image', 'other'));
+  queue.start('group');
+  queue.start('other');
+  await jest.advanceTimersByTimeAsync(0);
+  queue.remove(['first']);
+  setDocument({ ...document, nodes: document.nodes.filter((item) => item.id !== 'first') });
+  expect(queue.view('other')).toBeDefined();
+  expect(['queued', 'running', 'waiting', 'complete']).toContain(queue.view('other')!.phase);
+  expect(options.stopActive).toHaveBeenCalledWith('first');
+  expect(options.stopActive).not.toHaveBeenCalledWith('second');
+});
+
+test('a deleted run is ignored, while a later continue accepts results again', async () => {
+  const { queue, controls, options } = parallelFixture();
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  queue.remove(['first']);
+  for (const control of controls.values()) control.resolve(true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(options.run.mock.calls.map(([id]) => id)).not.toContain('first-assets');
+  expect(queue.view('group')?.finished).toEqual(expect.arrayContaining(['second', 'third']));
+  expect(queue.isBusy).toBe(false);
+});
+
+test('a reload after failure shows a stopped checkpoint, never a phantom running state', async () => {
+  const { document, options, controls } = parallelFixture();
+  const queue = createCanvasGroupQueue(options);
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  controls.get('first')!.resolve(false);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(['queued', 'running']).toContain(document.nodes[0].workflowState?.phase);
+  const reloaded = createCanvasGroupQueue(options);
+  expect(reloaded.view('group')).toMatchObject({ phase: 'paused', running: {} });
+  expect(reloaded.isBusy).toBe(false);
+});
+
+test('a very long failure is stored as a bounded checkpoint summary', async () => {
+  const { document, options } = fixture();
+  options.run.mockRejectedValue(new Error('x'.repeat(5000)));
+  const queue = createCanvasGroupQueue(options);
+  queue.start('group');
+  await jest.advanceTimersByTimeAsync(0);
+  const failure = document.nodes[0].workflowState?.failures.image || '';
+  expect(failure.length).toBeLessThanOrEqual(300);
+  expect(options.error).toHaveBeenCalledWith('x'.repeat(5000));
+});
+
+test('a prelayout scope stops at the review checkpoint before paid separation', async () => {
+  const { document, options, completed } = fixture();
+  document.nodes = [
+    node('group', 'section'),
+    { ...node('pre', 'image'), uiAtlasPrelayout: true, uiAtlasGroup: 'controls' },
+    { ...node('split', 'image'), uiAtlasGroup: 'controls' },
+    node('cut', 'image-assets'),
+  ];
+  document.edges = [
+    { id: 'ps', from: 'pre', to: 'split', kind: 'image-variant' },
+    { id: 'sc', from: 'split', to: 'cut', kind: 'image-assets' },
+  ];
+  const queue = createCanvasGroupQueue(options);
+  queue.start('group', true, 'prelayout');
+  await jest.advanceTimersByTimeAsync(0);
+  expect(options.run.mock.calls.map(([id]) => id)).toEqual(['pre']);
+  expect(queue.view('group')).toMatchObject({ phase: 'paused', pauseReason: 'prelayout-review' });
+  expect(document.nodes[0].workflowState?.pauseReason).toBe('prelayout-review');
+  queue.start('group', true);
+  await jest.advanceTimersByTimeAsync(0);
+  expect(options.run.mock.calls.map(([id]) => id)).toEqual(['pre', 'split', 'cut']);
+  expect(completed.has('cut')).toBe(true);
 });
 
 test('persists a failed checkpoint so a reloaded group still exposes the failure', async () => {

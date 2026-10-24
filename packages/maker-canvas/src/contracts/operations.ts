@@ -157,6 +157,46 @@ export interface CanvasGroupQueueState {
   phase: 'queued' | 'running' | 'waiting' | 'paused' | 'complete';
   message: string;
   stopping: boolean;
+  /** Structured reason for a deliberate pause; absent for failures and manual stops. */
+  pauseReason?: CanvasWorkflowPauseReason;
+  /** In-memory execution scope; 'prelayout' stops before paid separation generation. */
+  scope?: 'prelayout';
+}
+
+export type CanvasWorkflowPauseReason = 'prelayout-review';
+
+/** One local UI delivery assembled from a confirmed resource archive version. */
+export interface CanvasUiDelivery {
+  id: string;
+  archiveRevision: string;
+  uiId: string;
+  /** Project-relative folder holding images/, reserve/, source/ and ui/ of this version. */
+  directory: string;
+  uiFile: string;
+  referenceFile: string;
+  createdAt: string;
+  elements?: number;
+  steps: {
+    assembled: boolean;
+    meta: 'pending' | 'done' | 'blocked' | 'failed';
+    check: 'pending' | 'passed' | 'failed';
+  };
+  meta?: { generated: number; preserved: number; skipped: number };
+  check?: { nodes: number; errors: number; warnings: number; messages: string[] };
+  /** Last failure or blocking reason; full details stay in the delivery record. */
+  issue?: string;
+}
+
+export interface CanvasUiDeliveryStatus {
+  /** True when the saved canvas has a complete, confirmed resource archive. */
+  ready: boolean;
+  code?: string;
+  reason?: string;
+  archiveRevision?: string;
+  delivery?: CanvasUiDelivery;
+  /** Older deliveries of the same bundle; kept, never overwritten. */
+  previous?: Array<Pick<CanvasUiDelivery, 'id' | 'archiveRevision' | 'uiFile' | 'createdAt'>>;
+  python?: { ready: boolean; message?: string };
 }
 
 export interface CanvasCommand {

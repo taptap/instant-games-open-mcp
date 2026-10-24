@@ -56,6 +56,21 @@ export async function runCanvasCli(
     );
     return;
   }
+  if (action === 'assemble-ui' || action === 'ui-delivery') {
+    // Same local service as the canvas「组装 UI」button; no generation, no recognition.
+    if (typeof options.canvas_id !== 'string' || typeof options.id !== 'string')
+      throw new Error('缺少 --canvas-id 或 --id（UI 资源包卡片 ID）。');
+    const { UiDeliveryService } = await import('./uiDelivery.js');
+    const service = new UiDeliveryService(new MakerCanvasFiles(options.target_dir).root);
+    print(
+      action === 'ui-delivery'
+        ? await service.status(options.canvas_id, options.id)
+        : await service.assemble(options.canvas_id, options.id, {
+            newVersion: options.new_version === true || options.new_version === 'true',
+          })
+    );
+    return;
+  }
   if (action === 'ui-archives' || action === 'archive-ui') {
     const files = new MakerCanvasFiles(options.target_dir);
     const canvasId = typeof options.canvas_id === 'string' ? options.canvas_id : undefined;

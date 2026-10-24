@@ -69,6 +69,15 @@ export function createCanvasAutomationUiWithHost(options: {
   clearError(): void;
   busyChanged(busy: boolean): void;
   queue: ReturnType<typeof createCanvasGroupQueue>;
+  /** 015 stage coordinator shared with the canvas buttons. */
+  ui015?: {
+    isWorkflowGroup(groupId: string): boolean;
+    advance(
+      groupId: string,
+      input?: { artText?: string[]; background?: boolean }
+    ): Promise<{ status: string; stage: string; message: string; [key: string]: unknown }>;
+    inspect(groupId: string): { stage: string; message: string } | undefined;
+  };
 }) {
   let editing = false;
   let running = false;
@@ -158,7 +167,7 @@ export function createCanvasAutomationUiWithHost(options: {
       group: ['ids'],
       connect: ['from', 'to'],
       disconnect: ['edgeId'],
-      run: ['id', 'recognition'],
+      run: ['id', 'recognition', 'artText', 'background'],
       'confirm-model': ['id', 'reviewId'],
       'preview-model': ['id'],
       'preview-image-assets': ['id', 'grid', 'cut'],
@@ -278,17 +287,57 @@ export function createCanvasAutomationUiWithHost(options: {
       try {
         if (command.action === 'run' && target.type === 'mark')
           throw new Error('标注不能执行生成。');
-        if (command.action === 'run') {
+        const bbox015 =
+          target.type === 'section' &&
+          (target.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
+            (target.templateCliOnly && target.templateSkills?.includes('maker-ui-bbox-workflow')));
+        if (command.action === 'run' && bbox015) {
+          if (input.recognition === false)
+            throw new Error('实验模板需要当前识图结果，不能关闭识图。');
           if (
-            target.type === 'section' &&
-            (target.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
-              (target.templateCliOnly && target.templateSkills?.includes('maker-ui-bbox-workflow')))
-          ) {
-            if (input.recognition === false)
-              throw new Error('实验模板需要当前识图结果，不能关闭识图。');
-            if (syncUiBboxWorkflow(structuredClone(current), target.id, false).length)
-              throw new Error('请先按 Skill 执行 sync-ui-batches，再运行分组。');
+            input.artText !== undefined &&
+            !(
+              Array.isArray(input.artText) &&
+              input.artText.length <= 120 &&
+              input.artText.every((id) => typeof id === 'string')
+            )
+          )
+            throw new Error('artText 必须是 Bbox 文字 ID 数组。');
+          if (input.background !== undefined && typeof input.background !== 'boolean')
+            throw new Error('background 必须是布尔值。');
+          if (options.ui015) {
+            // Same coordinator as the canvas button: prepare, plan, run to the next checkpoint.
+            const advanced = await options.ui015.advance(target.id, {
+              ...(input.artText !== undefined ? { artText: input.artText as string[] } : {}),
+              ...(input.background !== undefined
+                ? { background: input.background as boolean }
+                : {}),
+            });
+            if (advanced.status === 'failed') throw new Error(advanced.message);
+            if (advanced.status === 'started') {
+              for (;;) {
+                if (options.current()?.id !== current.id)
+                  throw new Error('画布已切换，原队列状态待确认。');
+                const state = options.queue.view(target.id);
+                if (!state || !['queued', 'running', 'waiting'].includes(state.phase)) {
+                  if (state?.phase === 'paused' && !state.pauseReason)
+                    throw new Error(state.message);
+                  break;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 250));
+              }
+            }
+            if (!(await options.save()))
+              throw new Error('结果已留在页面，但保存失败。请手动保存，不要重复生成。');
+            return {
+              ...snapshot(),
+              workflow: { ...advanced, current: options.ui015.inspect(target.id) },
+            };
           }
+          if (syncUiBboxWorkflow(structuredClone(current), target.id, false).length)
+            throw new Error('请先按 Skill 执行 sync-ui-batches，再运行分组。');
+        }
+        if (command.action === 'run') {
           const prelayoutRecognition =
             target.uiAtlasPrelayout && uiRecognitionSource(current, target);
           if (

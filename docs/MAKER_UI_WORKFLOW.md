@@ -106,8 +106,8 @@ Maker 来源的原尺寸分离使用 edit_image 编辑唯一的预排输入，�
 
 UI 设计稿使用普通图片卡的专用配置，选中后顶部提供「识别 UI」和有结果时的「查看标注」。
 标注在独立弹层查看；图片卡扩展规则见 [图片功能开发规范](MAKER_CANVAS_IMAGE_FEATURES.md)。
-默认 Server API，不可用时临时使用 ChatGPT 网页识图；用户明确选择优先。
-本地来源由当前 AI 看图并通过 CLI 写回结果，网页无法直接调用客户端模型。
+识图仅使用 Server API（默认）或自定义 API；本地 AI 与 ChatGPT 网页来源已停用。
+旧来源读取时按 Server API 生效，不改写原配置；API 不可用时提示恢复接口，不切换渠道。
 CLI run UI 分组或图片步骤默认开启识图；显式 input.recognition=false 才走无识图对照。
 工作流按钮沿用已保存开关；有效来源按设置和 Server API 可用性解析，已提交任务不切换来源。
 
@@ -126,6 +126,7 @@ CLI run UI 分组或图片步骤默认开启识图；显式 input.recognition=fa
 两张图尺寸不同则在第二次前换算切图框到原稿像素；不从卡面尺寸或图集格子反推原稿位置。
 缩放换算假设去文字图保留整屏布局；裁剪、移位或重绘形变需要视觉复核，不能靠比例换算修复。
 
+<!-- 已停用：以下网页识图说明仅供历史参考，不作为执行流程。
 ### ChatGPT 网页识图
 
 设置选择「ChatGPT 网页识图」后，由当前 AI 按 maker-ui-workflow 使用客户端已有的浏览器。
@@ -146,9 +147,11 @@ reply 必须带大于 0 的 durationMs，表示两轮识图的实际耗时；缺
 [Skill](../skills/maker-ui-workflow/references/chatgpt-web.md)。
 已发送而中断时检查原对话，不自动重发；未得到完整结果不继续下游。
 
+-->
+
 ### 本机设置
 
-控制台右上角齿轮选择本地模型、ChatGPT 网页识图、Server API 或自定义 API。只有自定义 API 需要填写 Base URL
+控制台右上角齿轮仅提供 Server API 或自定义 API 识图。只有自定义 API 需要填写 Base URL
 和 API Key；模型固定为 gpt-6.1-sol，Key 只保存在本机且不回显。
 接口须支持 image_url data URI、response_format=json_object 和 reasoning_effort=low。
 本机 HTTP 仅允许 loopback，其他地址要求 HTTPS，禁止在地址里写凭证、查询参数或片段。
@@ -165,8 +168,8 @@ reply 必须带大于 0 的 durationMs，表示两轮识图的实际耗时；缺
 默认使用 Maker `model-inference`，设置、CLI 与画布按当前项目检查接口可用性。
 检测只 GET 随机 UUID 的任务查询地址；HTTP 404 且 error.code=MODEL_INFERENCE_NOT_FOUND
 表示查询接口可达，普通 404、鉴权失败、网络异常或 5 秒超时均视为不可用，不提交模型请求。
-不可用时 Server API 禁选，有效来源临时降级为 ChatGPT 网页；不写回选择，下次检查恢复即启用。
-明确选择的自定义 API、本地模型和网页识图不被覆盖。已有任务继续查询或显式恢复，不因检测失败换渠道重做。
+不可用时 Server API 显示暂不可用，保留 API 来源，不自动降级。
+已选自定义 API 不被覆盖。已有任务继续查询或显式恢复，不因检测失败换渠道重做。
 可信本地进程使用已有 Maker PAT、当前绑定项目和环境，顺序提交去文字图与原稿；
 服务端固定 `gpt-6.1-sol / low`，客户端不传模型覆盖参数，沿用本地 Bbox 校验。
 图片按原尺寸发送，提交前检查 10 MiB、单边 8192、总像素 4096² 和提示词 10000 字符限制。
@@ -374,9 +377,21 @@ normal/pressed，同组对象保持相同尺寸和锚点。前景格子与底图
 普通「游戏UI制作」不关联 Skill，由画布内置流程执行提示词拆分。普通模板仍保留识图卡和结构化结果：Server API 可用时由画布直接识图，已有结果继续归档并供后续拼 UI；识图服务不可用时不阻断普通模板的提示词拆分。需要完整 Bbox 覆盖、原尺寸预排和绑定时使用实验模板。
 实验模板列表只展示带 Bbox 的识别标注预览，预览不替换流程内的输入图片。
 完整示例只供预览；新实例只添加原稿、识图输入和去文字步骤，不复制固定分类与示例续批。
-模板统一标记 cliOnly（实例为 templateCliOnly），网页不提供整组启动或继续，单卡操作不受限。
-Skill 复用有效识图，判断美术字需求后通过 CLI sync-ui-batches（input.id 为分组 ID，
+模板仍标记 cliOnly（实例为 templateCliOnly，保留旧 CLI 语义），但 015 分组栏提供阶段按钮，
+画布与 CLI `canvas run` 调用同一个阶段协调器，阶段从实际卡片、队列检查点和交付记录推导：
+
+1. 准备识图输入（非 PNG 原稿转为同尺寸 PNG，原文件保留）→ 去文字 → 两轮 API 识图；
+2. 选择美术字与额外背景（分组内面板，不用浏览器弹窗；已同步的选择从有效支线推导）；
+3. 本地预排，完成后停在**检查点 A**（`workflowState.pauseReason=prelayout-review`），确认后才提交分离生图；
+4. 分离生图与切图沿用现有队列、并发和重试；队列切图为 unreviewed，**检查点 B** 需逐批预览确认；
+5. 「组装 UI」：控制台从已保存画布的同一版本 resources 归档导入 `assets/ui/<ui>/<版本>/`，
+   组装 `ui/assembled.ui.json`，显式生成资源 meta，执行引用检查，并给出编辑器入口与可选的 AI 复核提示词（**检查点 C**）。
+   同一归档版本复用已有交付，未完成的 meta/检查只补这两步；同组并发提交返回 `ASSEMBLY_BUSY`。
+
+付费步骤由用户点击（或 CLI `--allow-paid`）授权，过程写入运行日志，不逐步确认；未知结果仍先查原任务。
+AI 也可分步调用 sync-ui-batches（input.id 为分组 ID，
 input.artText 为 Bbox 文字 ID 数组，input.background 为布尔值）创建缺少的预排、分离、PNG 与资源包；空分类不建卡。
+未选中的美术字与额外背景支线标记 uiEmpty 保留（不导出），再次选中时恢复并重新执行。
 美术字每个 ID 独立按原稿像素框预排、分离和裁切，沿用普通素材的原尺寸布局与来源校验，
 识图仍只读取同组去文字卡的权威结果，不在原稿重复识图；兼容旧 artText=true 的单主标题支线。
 实验模板原尺寸图集内同时含同 ID 的正常态和按下态时，切图预览与 PNG 输出均从正常态

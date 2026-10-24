@@ -247,10 +247,17 @@ export function syncUiBboxWorkflow(
   current.nodes.push(...nodes);
   current.edges.push(...edges);
   // Keep previous artwork and connections, but retire unselected branches until requested again.
+  // The extra environment background follows the same rule unless the Bbox itself needs it.
+  const backgroundActive =
+    background ||
+    bbox.elements.some((element) => uiAtlasElementGroup(element, bbox) === 'background');
   for (const image of current.nodes.filter(
-    (node) => node.sectionId === groupId && node.type === 'image' && node.uiArtTextId
+    (node) =>
+      node.sectionId === groupId &&
+      node.type === 'image' &&
+      (node.uiArtTextId || node.uiAtlasGroup === 'background')
   )) {
-    const active = wantedArtText.includes(image.uiArtTextId!);
+    const active = image.uiArtTextId ? wantedArtText.includes(image.uiArtTextId) : backgroundActive;
     const branch = [
       image,
       ...current.nodes.filter(

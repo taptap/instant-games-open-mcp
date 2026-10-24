@@ -92,6 +92,8 @@ export interface CanvasWorkflowState {
   failures: Record<string, string>;
   retries: Record<string, number>;
   updatedAt: number;
+  /** Deliberate checkpoint pause; failures and manual stops leave it unset. */
+  pauseReason?: 'prelayout-review';
 }
 
 export interface CanvasNode {

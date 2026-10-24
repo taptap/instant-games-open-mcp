@@ -66,9 +66,10 @@ export async function drawUiRecognition(
 
 export function createUiRecognitionUiWithHost(options: {
   readSource(path: string, signal: AbortSignal): Promise<Blob>;
-  webRecognitionHint: string;
-  localRecognitionHint: string;
-  localRecognitionViewHint: string;
+  /** Retired host hints; accepted for compatibility, never dispatched. */
+  webRecognitionHint?: string;
+  localRecognitionHint?: string;
+  localRecognitionViewHint?: string;
   current(): CanvasDocument | null;
   store: CanvasDocumentStore;
   save(): Promise<boolean>;
@@ -81,7 +82,8 @@ export function createUiRecognitionUiWithHost(options: {
   openCanvas(id: string): Promise<void>;
   focus?(id: string): void;
 }) {
-  const webRecognitionHint = options.webRecognitionHint;
+  // Retired host hint retained in the interface for compatibility.
+  // const webRecognitionHint = options.webRecognitionHint;
   let busy = false;
   let preparing = false;
   const errors = new Map<string, string>();
@@ -169,6 +171,7 @@ export function createUiRecognitionUiWithHost(options: {
         Promise.resolve(options.store.recognitionModels?.())
       );
       const configured = models?.[0];
+      /* Retired local/website dispatch.
       if (
         settings.optional &&
         (!configured || ['local', 'chatgpt-web'].includes(configured.source || ''))
@@ -177,6 +180,9 @@ export function createUiRecognitionUiWithHost(options: {
       if (configured?.source === 'chatgpt-web') throw new Error(webRecognitionHint);
       if (models && (!configured || configured.source === 'local'))
         throw new Error(options.localRecognitionHint);
+      */
+      if (!configured || !['server', 'custom'].includes(configured.source || 'custom'))
+        throw new Error('识图 API 尚未就绪，请在设置中选择 Server API 或配置自定义 API。');
       if (configured) model = configured;
     }
     if (source.templatePending && !settings.pendingId)
@@ -363,9 +369,37 @@ export function createUiRecognitionUiWithHost(options: {
         const source = references[0];
         if (source.type !== 'image' || !source.assetPath || source.templatePending)
           throw new Error('请先准备原始 UI 设计稿。');
+        // UI assembly decodes the design as PNG; normalize JPEG/WebP once, keeping the original.
+        let assetPath = source.assetPath;
+        let imageInfo = source.imageInfo ? { ...source.imageInfo } : undefined;
+        if (!/\.png$/i.test(assetPath)) {
+          if (!options.store.importImage) throw new Error('当前宿主不能准备 PNG 识图输入。');
+          const blob = await options.readSource(assetPath, AbortSignal.timeout(60000));
+          const bitmap = await createImageBitmap(blob);
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+            const png = await new Promise<Blob>((resolve, reject) =>
+              canvas.toBlob(
+                (value) => (value ? resolve(value) : reject(new Error('原稿转换 PNG 失败。'))),
+                'image/png'
+              )
+            );
+            if (options.current() !== current || !current.nodes.includes(node)) return false;
+            assetPath = (
+              await options.store.importImage(current.id, await png.arrayBuffer(), 'image/png')
+            ).relativePath;
+            imageInfo = { width: bitmap.width, height: bitmap.height };
+          } finally {
+            bitmap.close();
+          }
+          if (options.current() !== current || !current.nodes.includes(node)) return false;
+        }
         options.remember();
-        node.assetPath = source.assetPath;
-        node.imageInfo = source.imageInfo ? { ...source.imageInfo } : undefined;
+        node.assetPath = assetPath;
+        node.imageInfo = imageInfo;
         node.sourceSnapshot = snapshotCanvasSource(source);
         node.sourceSnapshots = [node.sourceSnapshot!];
         node.uiRecognition.results = [];
@@ -503,6 +537,7 @@ export function createUiRecognitionUiWithHost(options: {
         throw new Error('卡片没有待恢复的识图请求；旧记录请同时指定 attemptId。');
       const models = await options.store.recognitionModels?.();
       const configured = models?.[0];
+      /* Retired local/website dispatch.
       if (
         node.uiRecognition?.optional &&
         (!configured || ['local', 'chatgpt-web'].includes(configured.source || ''))
@@ -516,6 +551,9 @@ export function createUiRecognitionUiWithHost(options: {
       ) {
         throw new Error(options.localRecognitionViewHint);
       }
+      */
+      if (!configured || !['server', 'custom'].includes(configured.source || 'custom'))
+        throw new Error('识图 API 尚未就绪，请在设置中选择 Server API 或配置自定义 API。');
       if (
         options.current() !== current ||
         !current.nodes.includes(node) ||
@@ -586,7 +624,7 @@ export function createUiRecognitionUiWithHost(options: {
           '去文字图片已保留；Bbox 完成后才能预排、分离和切图。' +
           (pending
             ? '请查询原识图请求，不要重复提交。'
-            : '可使用识图 API，或由 AI 按模板 Skill 识图并回填；完成后继续原卡片。') +
+            : '请使用识图 API；接口未就绪时检查设置，恢复后继续原卡片。') +
           (errors.get(current.id + ':' + source.id)
             ? '\n' + errors.get(current.id + ':' + source.id)
             : ''),

@@ -1353,11 +1353,15 @@ export class MakerCanvasFiles {
         Array.isArray(state.retries) ||
         Object.entries(state.retries).some(
           ([id, count]) => !ID.test(id) || !Number.isInteger(count) || count < 0 || count > 2
-        )
+        ) ||
+        (state.pauseReason !== undefined &&
+          (state.pauseReason !== 'prelayout-review' || state.phase !== 'paused'))
       )
         fail('流程恢复状态无效。', 400, 'INVALID_DOCUMENT');
       numberIn(state.updatedAt, 1, Number.MAX_SAFE_INTEGER, '流程更新时间');
     }
+    const workflowState = node.workflowState as CanvasNode['workflowState'];
+    const workflowLayoutOrigin = node.workflowLayoutOrigin as CanvasNode['workflowLayoutOrigin'];
     if (node.workflowLayoutOrigin !== undefined) {
       const origin = node.workflowLayoutOrigin as Record<string, unknown>;
       if (
@@ -1644,21 +1648,22 @@ export class MakerCanvasFiles {
       ...(node.workDurationMs === undefined
         ? {}
         : { workDurationMs: node.workDurationMs as number }),
-      ...(node.workflowState
+      ...(workflowState
         ? {
             workflowState: {
-              phase: node.workflowState.phase,
-              message: node.workflowState.message,
-              completed: [...node.workflowState.completed],
-              pending: [...node.workflowState.pending],
-              failures: { ...node.workflowState.failures },
-              retries: { ...node.workflowState.retries },
-              updatedAt: node.workflowState.updatedAt,
+              phase: workflowState.phase,
+              message: workflowState.message,
+              completed: [...workflowState.completed],
+              pending: [...workflowState.pending],
+              failures: { ...workflowState.failures },
+              retries: { ...workflowState.retries },
+              updatedAt: workflowState.updatedAt,
+              ...(workflowState.pauseReason ? { pauseReason: workflowState.pauseReason } : {}),
             },
           }
         : {}),
-      ...(node.workflowLayoutOrigin
-        ? { workflowLayoutOrigin: { ...node.workflowLayoutOrigin } }
+      ...(workflowLayoutOrigin
+        ? { workflowLayoutOrigin: { x: workflowLayoutOrigin.x, y: workflowLayoutOrigin.y } }
         : {}),
       ...(sourceSnapshot ? { sourceSnapshot } : {}),
       ...(sourceSnapshots ? { sourceSnapshots } : {}),

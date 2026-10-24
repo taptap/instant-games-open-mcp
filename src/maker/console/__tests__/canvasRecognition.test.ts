@@ -54,7 +54,7 @@ const textResponse = () =>
     ],
   });
 
-test('web source hands off to the host Agent without sending API requests', async () => {
+test('retired web source is rejected without sending API requests', async () => {
   const { canvasId, input } = await setup();
   const fetcher = jest.fn();
   const service = new CanvasRecognitionService(
@@ -62,7 +62,7 @@ test('web source hands off to the host Agent without sending API requests', asyn
     [{ ...models[0], source: 'chatgpt-web' }],
     fetcher
   );
-  await expect(service.run(canvasId, input)).rejects.toThrow('登录可选');
+  await expect(service.run(canvasId, input)).rejects.toThrow('旧识图来源已停用');
   expect(fetcher).not.toHaveBeenCalled();
   expect(() => service.query(canvasId, input.id)).toThrow('未找到');
 });
@@ -226,7 +226,7 @@ test('a lost response stays unknown and reusing the ID never repeats a paid requ
 });
 
 test.each([
-  ['local', '画布不能直接调用客户端模型'],
+  ['local', '旧识图来源已停用'],
   ['server', '需要当前目录绑定有效的 Maker 项目'],
 ])(
   'unsupported vision source %s stops clearly before submitting a local request',
@@ -409,9 +409,9 @@ describe('Server API integration', () => {
       { status }
     );
 
-  test.each([true, false])(
-    'new submissions honor availability (%s) without changing existing attempts',
-    async (available) => {
+  test.each([true])(
+    'Server API submits directly without an availability fallback (%s)',
+    async () => {
       const previousHome = process.env.TAPTAP_MAKER_HOME;
       process.env.TAPTAP_MAKER_HOME = path.join(root, 'home');
       try {
@@ -420,27 +420,13 @@ describe('Server API integration', () => {
         input.model = 'gpt-6.1-sol';
         const fetcher = jest
           .fn()
-          .mockResolvedValueOnce(
-            new Response(
-              JSON.stringify({
-                error: { code: available ? 'MODEL_INFERENCE_NOT_FOUND' : 'PROJECT_NOT_FOUND' },
-              }),
-              { status: 404 }
-            )
-          )
           .mockResolvedValueOnce(reply('cut', { status: 'running', output: null }, 202))
           .mockResolvedValueOnce(reply('cut'));
         const service = new CanvasRecognitionService(root, undefined, fetcher);
-        if (available) {
-          expect((await service.run(canvasId, input)).status).toBe('running');
-          await service.refresh(canvasId, input.id);
-          expect(fetcher.mock.calls.map((call) => call[1].method)).toEqual(['GET', 'POST', 'GET']);
-          expect(fetcher.mock.calls[2][0]).toContain('/cut-request');
-        } else {
-          await expect(service.run(canvasId, input)).rejects.toMatchObject({ status: 409 });
-          expect(fetcher).toHaveBeenCalledTimes(1);
-          expect(() => service.query(canvasId, input.id)).toThrow('未找到识图请求记录');
-        }
+        expect((await service.run(canvasId, input)).status).toBe('running');
+        await service.refresh(canvasId, input.id);
+        expect(fetcher.mock.calls.map((call) => call[1].method)).toEqual(['POST', 'GET']);
+        expect(fetcher.mock.calls[1][0]).toContain('/cut-request');
       } finally {
         if (previousHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
         else process.env.TAPTAP_MAKER_HOME = previousHome;

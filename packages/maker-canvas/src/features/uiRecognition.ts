@@ -337,7 +337,7 @@ export function uiRecognitionStatus(source?: CanvasNode) {
   return {
     status: 'not-ready',
     label: '尚未完成',
-    text: '当前去文字图尚无已选用的识图清单。请由当前 AI 看图，通过 CLI update-nodes 写入 uiRecognition.result；无需配置独立识图服务。旧图片结果不可用于当前拆图。',
+    text: '当前去文字图尚无已选用的识图清单。请通过 Server API 或自定义 API 识图；接口未就绪时检查设置，恢复后继续。旧图片结果不可用于当前拆图。',
   };
 }
 

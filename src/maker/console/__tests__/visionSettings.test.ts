@@ -34,21 +34,27 @@ const input = {
   apiKey: 'fixture-private-key',
 };
 
-test('web vision selection survives reload and preserves custom profiles without exposing keys', () => {
-  saveVisionSettings(input);
-  const original = readModelSettings();
-  const result = updateModelSettings({ action: 'select', kind: 'vision', source: 'chatgpt-web' });
-  expect(result.vision.source).toBe('chatgpt-web');
-  expect(JSON.stringify(result)).not.toContain(input.apiKey);
-  expect(readVisionSettings()?.source).toBe('chatgpt-web');
-  expect(readModelSettings().profiles).toEqual(original.profiles);
-  expect(configuredUiVisionModels()).toEqual([
-    { id: 'chatgpt-web', model: 'ChatGPT 网页当前模型', endpoint: '', source: 'chatgpt-web' },
-  ]);
-  expect(() =>
-    updateModelSettings({ action: 'select', kind: 'generation', source: 'chatgpt-web' })
-  ).toThrow('模型来源无效');
-});
+test.each(['local', 'chatgpt-web'] as const)(
+  'retired %s settings resolve to server without rewriting profiles',
+  (source) => {
+    saveVisionSettings(input);
+    const original = readModelSettings();
+    const file = path.join(home, 'ui-vision.json');
+    const stored = JSON.stringify({ ...original, vision: { source } });
+    fs.writeFileSync(file, stored);
+    const result = modelSettingsForDisplay();
+    expect(result.vision.source).toBe('server');
+    expect(JSON.stringify(result)).not.toContain(input.apiKey);
+    expect(readVisionSettings()?.source).toBe('server');
+    expect(readModelSettings().profiles).toEqual(original.profiles);
+    expect(configuredUiVisionModels()).toMatchObject([{ source: 'server' }]);
+    expect(() => updateModelSettings({ action: 'select', kind: 'vision', source })).toThrow(
+      '模型来源无效'
+    );
+    expect(() => saveVisionSettings({ source })).toThrow('旧识图来源已停用');
+    expect(fs.readFileSync(file, 'utf8')).toBe(stored);
+  }
+);
 
 test.each([
   ['https://example.invalid', 'https://example.invalid/chat/completions'],
@@ -149,9 +155,9 @@ test('defaults to server source and can store server source without a second key
 
 test('switching away from custom source preserves its private API configuration', () => {
   saveVisionSettings(input);
-  saveVisionSettings({ source: 'local', apiKey: '' });
+  saveVisionSettings({ source: 'server', apiKey: '' });
   expect(readVisionSettings()).toMatchObject({
-    source: 'local',
+    source: 'server',
     baseUrl: 'https://example.invalid/v1',
     apiKey: input.apiKey,
   });
@@ -247,7 +253,7 @@ test('selecting and deleting profiles preserves independent choices and rejects 
       profileId: 'missing',
     })
   ).toThrow('请选择');
-  updateModelSettings({ action: 'select', kind: 'vision', source: 'local' });
+  updateModelSettings({ action: 'select', kind: 'vision', source: 'server' });
   expect(updateModelSettings({ action: 'delete-profile', id }).profiles).toEqual([]);
   expect(readModelSettings().generation).toEqual({ source: 'local' });
 });

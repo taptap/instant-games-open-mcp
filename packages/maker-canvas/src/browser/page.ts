@@ -74,6 +74,7 @@ import { templatePresentation } from '../features/templatePresentation.js';
 import { canvasAutomationSnapshot } from '../features/automation.js';
 import { validateCanvasCommandStructure as validateCanvasCommand } from '../features/automation.js';
 import { syncUiBboxWorkflow } from './uiBboxWorkflow.js';
+import { createUi015Workflow } from './ui015Workflow.js';
 import { CANVAS_MODEL_STYLES } from './model3dUi.js';
 import { canvasModelInput } from '../features/model3d.js';
 import { canvasModelIsCurrent } from '../features/model3d.js';
@@ -347,6 +348,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasAutomationSnapshot.toString(),
     validateCanvasCommand.toString(),
     syncUiBboxWorkflow.toString(),
+    createUi015Workflow.toString(),
     prepareCanvasReferences.toString(),
     applyCanvasReferences.toString(),
     decorateCanvasCard.toString(),
@@ -958,9 +960,11 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  function deleteSelected() {',
       '    if (!documentState || !selected.size) return;',
-      '    if (groupQueue && Array.from(selected).some(function (id) { return groupQueue.protects(id); })) { if (!confirm("所选卡片正在执行，删除后将停止相关后续并忽略迟到结果，已提交远端任务不会取消。继续删除？")) return; groupQueue.remove(Array.from(selected)); }',
+      '    const queued = Boolean(groupQueue && Array.from(selected).some(function (id) { return groupQueue.protects(id); }));',
+      '    if (queued && !confirm("所选卡片正在执行，删除后将停止相关后续并忽略迟到结果，已提交远端任务不会取消。继续删除？")) return;',
       '    if (protectTemplateSelection()) return;',
       "    if (!sequenceUi.deleteNodes(Array.from(selected))) { setError('拆帧任务运行中，请先取消后再删除。'); return; }",
+      '    if (groupQueue) groupQueue.remove(Array.from(selected));',
       '    remember();',
       '    documentState = removeNodes(documentState, Array.from(selected));',
       '    if (documentState.templateFlow && documentState.templateFlow.stage === "complete") delete documentState.templateFlow;',
@@ -1852,7 +1856,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    expand: function (id) { if (documentState && ensureUiAtlasBatchCards(documentState, id)) markDirty(); },',
       '    changed: function () { if (dirty()) markDirty(); if (groupQueueUi) groupQueueUi.refresh(); if (documentState) refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; }); publishDirty(); },',
       '  });',
-      '  groupQueueUi = createCanvasGroupQueueUi({ queue: groupQueue, node: function (id) { return documentState && documentState.nodes.find(function (node) { return node.id === id; }); }, scale: function () { return documentState && documentState.viewport.scale || 1; },',
+      '  groupQueueUi = createCanvasGroupQueueUi({ queue: groupQueue, node: function (id) { return documentState && documentState.nodes.find(function (node) { return node.id === id; }); }, scale: function () { return documentState && documentState.viewport.scale || 1; }, workflow: { view: function (id) { return ui015Workflow ? ui015Workflow.view(id) : undefined; } },',
       '    focus: function (id) { const node = documentState && documentState.nodes.find(function (node) { return node.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + (node.height || 200) / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; render(); },',
       '  });',
       '  setInterval(function () { groupQueueUi.tick(); }, 1000);',
@@ -2032,6 +2036,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    },',
       '    query: async function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (node && node.uiRecognition?.pendingId) await uiRecognitionUi.query(id); else if (node && ["model", "model-views"].includes(node.type)) await modelUi.execute(id, "query"); else await generationUi.queryNode(id, true); },',
       '    error: function () { return error.textContent; }, clearError: function () { error.textContent = ""; }, queue: groupQueue,',
+      '    ui015: { isWorkflowGroup: function (id) { return ui015Workflow.isWorkflowGroup(id); }, advance: function (id, input) { return ui015Workflow.advance(id, input || {}); }, inspect: function (id) { const view = ui015Workflow.inspect(id); return view && { stage: view.stage, message: view.message }; } },',
       '    busyChanged: function (busy) { canvasAutomationBusy = busy; publishDirty(); }',
       '  });',
       '  document.getElementById("refresh-media").addEventListener("click", function () { const reason = hostEditBlocked(); if (reason) { setError(reason); return; } pendingExports++; publishDirty(); void refreshSources().then(function () { const unknown = documentState.nodes.some(function (node) { return node.assetPath && !node.assetVersion; }); setError(unknown ? "素材已刷新；旧结果未记录内容版本，来源待核实，不会自动重新生成。" : "素材已刷新，来源变化的结果需要重新处理。", "info"); }).catch(function (caught) { setError(caught.message); }).finally(function () { pendingExports--; publishDirty(); }); });',
@@ -2197,7 +2202,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '  let sequenceUi = null;',
-    '  let uiRecognitionUi = null; let sequenceUi = null;'
+    '  let ui015Workflow = null; let uiRecognitionUi = null; let sequenceUi = null;'
   );
   page = replaceCanvasPageText(
     page,
@@ -2207,6 +2212,17 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    blocked: function () { return Boolean(groupQueue && groupQueue.isBusy) || generationUi.isBusy || sequenceUi.isBusy || pendingAssetImports > 0; },',
       '    focus: function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + node.height / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; markDirty(); render(); },',
       '    openCanvas: async function (id) { const saved = await store.load(id); const option = document.createElement("option"); option.value = id; option.textContent = saved.title; select.append(option); await openDocument(id); },',
+      '  });',
+      '  ui015Workflow = createUi015Workflow({ current: function () { return documentState; }, store: store,',
+      '    needs: function (id) { return templateWorkflow.status(id) === "pending"; }, problem: function (id) { return generationUi.queueBlockReason(id); },',
+      '    runImage: function (id) { return uiRecognitionUi.runImage(id, function () { return generationUi.runTemplateImage(id); }, true, true); },',
+      '    recognize: function (id, recover) { const node = documentState.nodes.find(function (item) { return item.id === id; }); return node ? uiRecognitionUi.runRecognition(node, true, recover) : Promise.resolve(false); },',
+      '    chooseDesign: requestImageImport, sync: syncUiBboxWorkflow,',
+      '    queue: { start: function (id, confirmed, scope) { return groupQueue.start(id, confirmed, scope); }, hold: function (id, reason, message) { return groupQueue.hold(id, reason, message); }, view: function (id) { return groupQueue.view(id); }, remaining: function (id) { return groupQueue.remaining(id); } },',
+      '    openAssets: function (id) { return imageAssetsUi.run(id); },',
+      '    focus: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + (node.height || 200) / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; render(); },',
+      '    log: function (message, level) { canvasLogs.add(message, level || "info"); }, failure: function () { return error.textContent; },',
+      '    remember: remember, save: flush, changed: markDirty, render: render, error: setError',
       '  });',
       '  groupQueue = createCanvasGroupQueue({',
     ].join(String.fromCharCode(10))
