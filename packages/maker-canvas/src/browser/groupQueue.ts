@@ -23,6 +23,8 @@ export function createCanvasGroupQueue(options: {
   changed(): void;
   error(message: string): void;
   haltReason?(): string | undefined;
+  /** Fired once a group run has finished and its final phase is saved. */
+  settled?(groupId: string, phase: 'paused' | 'complete'): void;
 }) {
   const queues = new Map<string, CanvasGroupQueueState>();
   /** Run tokens discarded by deletion; a later run of the same ID gets a new token. */
@@ -404,6 +406,7 @@ export function createCanvasGroupQueue(options: {
     }
     options.changed();
     void pump();
+    options.settled?.(state.groupId, state.phase as 'paused' | 'complete');
   }
   async function execute(state: CanvasGroupQueueState, id: string, initial: CanvasDocument) {
     let success = false;

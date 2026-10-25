@@ -141,6 +141,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   canStopWaiting(nodeId: string): boolean;
   stopWaiting(nodeId: string): void;
   hasUnsettledResult(nodeId: string): boolean;
+  recoverForRetry(nodeId: string): Promise<'recovered' | 'released'>;
   nodeState(nodeId: string): { status: string; canQuery: boolean } | undefined;
   queueBlockReason(nodeId: string): string | undefined;
   failure(nodeId: string): string | undefined;
@@ -171,6 +172,11 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   const attempts = new Map<string, any>();
   const retryableImages = new Set<string>();
   const unconfirmedImages = new Map<string, number>();
+  /**
+   * Unconfirmed image attempts the 015 run gave up on after querying them: a later submission
+   * for the same card may proceed (it can cost one extra generation). Session-only.
+   */
+  const abandonedAttempts = new Set<string>();
   function imageSizeBlockReason(attempt: any): string | undefined {
     if (!attempt?.resultImageInfo) return;
     const current = options.getDocument();
@@ -1578,6 +1584,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       list.some(
         (attempt: any) =>
           attempt.targetNodeId === nodeId &&
+          !abandonedAttempts.has(attempt.id) &&
           ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status) &&
           !explicitPreExecutionRejection(attempt)
       )
@@ -2467,7 +2474,12 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   function latestNodeAttempt(nodeId: string) {
     const canvasId = options.getDocument()?.id;
     return [...attempts.values()]
-      .filter((attempt) => attempt.canvasId === canvasId && attempt.targetNodeId === nodeId)
+      .filter(
+        (attempt) =>
+          attempt.canvasId === canvasId &&
+          attempt.targetNodeId === nodeId &&
+          !abandonedAttempts.has(attempt.id)
+      )
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
   }
 
@@ -2770,6 +2782,37 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       const attempt = latestNodeAttempt(nodeId);
       if (attempt?.kind === 'video' && attempt.taskId) await action(attempt, 'query', throwOnError);
     },
+    /**
+     * Automatic recovery for an unattended run: query the card's original task first and keep
+     * a result that did arrive. Otherwise abandon its unconfirmed or failed attempts so the
+     * next run of the card submits again. Nothing is submitted here.
+     */
+    async recoverForRetry(nodeId: string): Promise<'recovered' | 'released'> {
+      const documentState = options.getDocument();
+      if (!documentState) return 'released';
+      const list = await options.store.listGeneration(documentState.id);
+      if (options.getDocument() !== documentState) return 'released';
+      for (const item of list) recordAttempt(item);
+      const latest = latestNodeAttempt(nodeId);
+      if (latest?.status === 'succeeded' && recoverImage(latest, list) && (await options.flush())) {
+        imageFailures.delete(nodeId);
+        retryableImages.delete(nodeId);
+        options.render();
+        return 'recovered';
+      }
+      for (const attempt of attempts.values())
+        if (
+          attempt.canvasId === documentState.id &&
+          attempt.targetNodeId === nodeId &&
+          ['pending', 'running', 'unknown', 'canceled', 'failed'].includes(attempt.status)
+        )
+          abandonedAttempts.add(attempt.id);
+      unconfirmedImages.delete(documentState.id + ':' + nodeId);
+      imageFailures.delete(nodeId);
+      retryableImages.delete(nodeId);
+      options.render();
+      return 'released';
+    },
     hasUnsettledResult(nodeId: string) {
       return (
         unconfirmedImages.has(options.getDocument()?.id + ':' + nodeId) ||
@@ -2777,6 +2820,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
           (attempt) =>
             attempt.canvasId === options.getDocument()?.id &&
             attempt.targetNodeId === nodeId &&
+            !abandonedAttempts.has(attempt.id) &&
             !explicitPreExecutionRejection(attempt) &&
             attempt.kind !== 'video' &&
             ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status)

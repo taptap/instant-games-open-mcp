@@ -246,12 +246,13 @@ export function openImageAtlasDialogWithHost(
         prepared.regions.length +
         ' 件 · ' +
         (mode.value === 'content' ? '按实际区域切图，各图尺寸可能不同' : '保留规则单格尺寸');
-      // A failed automatic match keeps the editable original; moving boxes switches to manual.
-      if (prepared.alignmentError) throw new Error(prepared.alignmentError);
+      // A failed automatic match falls back to the planned slot boxes; editing switches to manual.
       if (bindingPlan?.nativeLayout)
         status.textContent += manualNative
           ? ' · 手动裁框预览，请核对全部素材，输出尺寸不变'
-          : ' · 透明边界校正预览，输出尺寸不变';
+          : prepared.alignmentWarning
+            ? ' · 自动校正未通过，已按原槽位裁切：' + prepared.alignmentWarning
+            : ' · 透明边界校正预览，输出尺寸不变';
       if (mode.value === 'content' && count && count !== prepared.regions.length)
         throw new Error(
           '预期 ' +

@@ -41,6 +41,7 @@ export function createImageAssetsUiWithHost(options: {
   blocked(id: string): boolean;
   resolve(sourceId: string): { kind: string; nodeId?: string; message?: string } | undefined;
   error(message: string): void;
+  log?(message: string, level?: 'info' | 'warning' | 'error'): void;
 }) {
   let busy = false;
   let review:
@@ -429,15 +430,22 @@ export function createImageAssetsUiWithHost(options: {
               ]
             : []
         );
-        if (missing.length)
-          throw new Error(
-            'UI 图集的组件格为空：' +
-              missing.join('、') +
-              '；原图和绑定已保留。先 preview-image-assets 查看；素材移位时调整裁框，真正缺失时只修复此分离卡（' +
-              source.id +
-              '），再确认切图并继续原分组。预排图不能直接代替透明素材。'
-          );
+        const message =
+          'UI 图集的组件格为空：' +
+          missing.join('、') +
+          '；原图和绑定已保留。先 preview-image-assets 查看；素材移位时调整裁框，真正缺失时只修复此分离卡（' +
+          source.id +
+          '），再确认切图并继续原分组。预排图不能直接代替透明素材。';
+        // Native (015) batches finish with empty slots so the run reaches the UI; the review
+        // prompt lists every unreviewed batch. Other UI templates keep the hard stop.
+        if (missing.length && !source.generation.uiAtlasPlan.nativeLayout) throw new Error(message);
+        if (missing.length) options.log?.(source.title + '：' + message, 'warning');
       }
+      if (split.alignmentWarning)
+        options.log?.(
+          source.title + '：自动校正未通过，已按原槽位裁切，需复核：' + split.alignmentWarning,
+          'warning'
+        );
       const items = [];
       for (const item of split.items) {
         currentSource();

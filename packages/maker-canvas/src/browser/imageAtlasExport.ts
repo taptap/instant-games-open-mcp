@@ -26,8 +26,11 @@ export interface PreparedImageAtlas {
   grid: ImageAtlasGrid;
   mode: 'grid' | 'content';
   regions: ImageAtlasCrop[];
-  /** Native slot matching failed; the preview stays editable but cannot be exported. */
-  alignmentError?: string;
+  /**
+   * Native slot matching failed, so the planned slot crops are used as they are (the same
+   * boxes as before alignment existed). Export continues; the batch is flagged for review.
+   */
+  alignmentWarning?: string;
   background: { color?: [number, number, number]; mode: 'all' | 'connected' };
   canvas: HTMLCanvasElement;
 }
@@ -171,7 +174,7 @@ export async function prepareImageAtlas(
           );
       }
     }
-    let alignmentError: string | undefined;
+    let alignmentWarning: string | undefined;
     if (nativePlan?.nativeLayout) {
       const layout = nativePlan.nativeLayout;
       if (layout.width !== bitmap.width || layout.height !== bitmap.height)
@@ -216,11 +219,12 @@ export async function prepareImageAtlas(
         }
       } catch (error) {
         if ((error as { code?: string }).code !== 'ATLAS_LAYOUT_INVALID') throw error;
-        // Keep the original image and editable boxes available in the existing preview.
-        alignmentError = (error as Error).message;
+        // Fall back to the planned slot crops on the original pixels: the run must not stop
+        // on a crop judgement. The preview shows the warning and the boxes stay editable.
+        alignmentWarning = (error as Error).message;
       }
       nativePlan.slots.forEach((slot, index) => {
-        if (alignmentError || slot.state !== 'pressed') return;
+        if (slot.state !== 'pressed') return;
         const normalIndex = nativePlan.slots.findIndex(
           (candidate) =>
             candidate.state === 'normal' && candidate.elementIds[0] === slot.elementIds[0]
@@ -246,7 +250,7 @@ export async function prepareImageAtlas(
       grid: { ...grid },
       mode: cut.mode || 'grid',
       regions: validateAtlasCrops(bitmap.width, bitmap.height, regions),
-      ...(alignmentError ? { alignmentError } : {}),
+      ...(alignmentWarning ? { alignmentWarning } : {}),
       background: { color: backgroundColor && [...backgroundColor], mode: backgroundMode },
       canvas,
     };
@@ -256,7 +260,6 @@ export async function prepareImageAtlas(
 }
 
 export async function encodeImageAtlasRegions(prepared: PreparedImageAtlas) {
-  if (prepared.alignmentError) throw atlasLayoutError(prepared.alignmentError);
   const regions = validateAtlasCrops(prepared.width, prepared.height, prepared.regions);
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
@@ -313,6 +316,7 @@ export async function encodeImageAtlasRegions(prepared: PreparedImageAtlas) {
     cutMode: prepared.mode,
     background: structuredClone(prepared.background),
     items,
+    ...(prepared.alignmentWarning ? { alignmentWarning: prepared.alignmentWarning } : {}),
   };
 }
 

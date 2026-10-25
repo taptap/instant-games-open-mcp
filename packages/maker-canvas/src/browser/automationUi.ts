@@ -77,6 +77,8 @@ export function createCanvasAutomationUiWithHost(options: {
       input?: { artText?: string[]; background?: boolean }
     ): Promise<{ status: string; stage: string; message: string; [key: string]: unknown }>;
     inspect(groupId: string): { stage: string; message: string } | undefined;
+    /** True while one start is still driving the group (queue, retries or assembly). */
+    active?(groupId: string): boolean;
   };
 }) {
   let editing = false;
@@ -306,7 +308,7 @@ export function createCanvasAutomationUiWithHost(options: {
           if (input.background !== undefined && typeof input.background !== 'boolean')
             throw new Error('background 必须是布尔值。');
           if (options.ui015) {
-            // Same coordinator as the canvas button: prepare, plan, run to the next checkpoint.
+            // Same coordinator as the canvas button: one run drives the group to the UI.
             const advanced = await options.ui015.advance(target.id, {
               ...(input.artText !== undefined ? { artText: input.artText as string[] } : {}),
               ...(input.background !== undefined
@@ -319,11 +321,8 @@ export function createCanvasAutomationUiWithHost(options: {
                 if (options.current()?.id !== current.id)
                   throw new Error('画布已切换，原队列状态待确认。');
                 const state = options.queue.view(target.id);
-                if (!state || !['queued', 'running', 'waiting'].includes(state.phase)) {
-                  if (state?.phase === 'paused' && !state.pauseReason)
-                    throw new Error(state.message);
-                  break;
-                }
+                const executing = state && ['queued', 'running', 'waiting'].includes(state.phase);
+                if (!executing && !options.ui015.active?.(target.id)) break;
                 await new Promise((resolve) => setTimeout(resolve, 250));
               }
             }

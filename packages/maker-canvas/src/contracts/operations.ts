@@ -185,10 +185,19 @@ export interface CanvasUiDelivery {
   check?: { nodes: number; errors: number; warnings: number; messages: string[] };
   /** Last failure or blocking reason; full details stay in the delivery record. */
   issue?: string;
+  /**
+   * What this version accepted without review so the run could finish: element IDs whose cut
+   * was not previewed, element IDs left out for lack of any PNG, and unbound categories.
+   * Empty lists mean nothing is pending; the review prompt hands the rest to an AI.
+   */
+  review?: { unreviewed: string[]; missing: string[]; unbound: string[] };
 }
 
 export interface CanvasUiDeliveryStatus {
-  /** True when the saved canvas has a complete, confirmed resource archive. */
+  /**
+   * True when the saved canvas has a resources archive to assemble. Unreviewed or missing
+   * assets do not block; they are reported in code/reason and in delivery.review.
+   */
   ready: boolean;
   code?: string;
   reason?: string;

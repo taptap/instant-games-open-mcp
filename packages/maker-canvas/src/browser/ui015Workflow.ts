@@ -18,17 +18,18 @@ export interface Ui015Result {
   status: 'started' | 'waiting' | 'ready' | 'failed' | 'busy';
   stage: string;
   message: string;
-  /** Present while waiting for the art text/background choice. */
-  texts?: Array<{ id: string; text: string }>;
+  /** The art text/background choice applied by this run (default or explicit). */
   choice?: Ui015Choice;
-  /** Image-assets cards still awaiting a preview confirmation. */
+  /** Image-assets cards not previewed yet; listed for the final review, never blocking. */
   pendingReview?: string[];
 }
 
 /**
- * Stage coordinator for the 015 Bbox template. It derives every stage from the real cards,
- * queue checkpoint and delivery record, and only calls existing actions. It never opens
- * native browser prompts, so the canvas button and the CLI `run` share the same path.
+ * Stage coordinator for the 015 Bbox template. One "开始" (or CLI `run`) drives the whole
+ * group to an assembled UI: recognition, batches, prelayout, separation, cutting, assembly and
+ * meta. Errors are retried (at most twice per step) and quality problems are recorded instead
+ * of stopping; the final review prompt hands them to an AI with the Skill. It derives every
+ * stage from the real cards, queue state and delivery record, and only calls existing actions.
  */
 export function createUi015Workflow(options: {
   current(): CanvasDocument | null;
@@ -38,11 +39,12 @@ export function createUi015Workflow(options: {
   runImage(id: string): Promise<boolean>;
   /** Query or resume the card's original recognition request. */
   recognize(id: string, recover: boolean): Promise<boolean>;
+  /** Query an unknown/failed image result; keep it if it arrived, else allow a resubmission. */
+  recoverImage(id: string): Promise<'recovered' | 'released'>;
   chooseDesign(id: string): void;
   sync(document: CanvasDocument, groupId: string, artText: string[], background: boolean): string[];
   queue: {
-    start(groupId: string, confirmed: boolean, scope?: 'prelayout'): boolean;
-    hold(groupId: string, reason: 'prelayout-review', message: string): boolean;
+    start(groupId: string, confirmed: boolean): boolean;
     view(
       groupId: string
     ): { phase: string; pauseReason?: string; failures?: Record<string, string> } | undefined;
@@ -72,8 +74,13 @@ export function createUi015Workflow(options: {
 }) {
   const templateId = '7e1cb6ad-732f-4dc3-a951-000000000015';
   const executingPhases = ['queued', 'running', 'waiting'];
+  /** Automatic retries per failing step and per run. */
+  const RETRIES = 2;
   let running = '';
   const deliveries = new Map<string, { key: string; value?: CanvasUiDeliveryStatus }>();
+  /** Groups being driven to the end by one start; the queue settlement continues them. */
+  const autoRuns = new Map<string, { retries: Record<string, number> }>();
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   function isWorkflowGroup(group: CanvasNode | undefined): boolean {
     return Boolean(
@@ -124,13 +131,14 @@ export function createUi015Workflow(options: {
     }));
   }
   /**
-   * First-time suggestion: restore the environment background unless the recognition already
-   * found one (that branch is kept automatically). The user still confirms in the panel.
+   * Unattended default, applied without waiting: recognised titles become art text images and
+   * the environment background is restored unless the recognition already found one (that
+   * branch is kept automatically). "调整美术字/背景" changes it afterwards.
    */
   function defaultChoice(cut: CanvasNode): Ui015Choice {
     const bbox = selectedUiRecognition(cut)?.bbox;
     return {
-      artText: [],
+      artText: (bbox?.texts || []).filter((item) => item.role === 'title').map((item) => item.id),
       background: Boolean(
         bbox && !bbox.elements.some((item) => uiAtlasElementGroup(item, bbox) === 'background')
       ),
@@ -239,60 +247,17 @@ export function createUi015Workflow(options: {
     const queue = options.queue.view(groupId);
     if (queue && executingPhases.includes(queue.phase))
       return { stage: 'running' as const, message: '正在执行' };
-    const prelayouts = list.filter((node) => node.uiAtlasPrelayout && !node.uiEmpty);
-    if (prelayouts.some((node) => options.needs(node.id)))
-      return { stage: 'prelayout' as const, message: '下一步：执行本地预排（不消耗生图）' };
-    const saved = target.workflowState;
-    const reviewPaused =
-      queue?.phase === 'paused' &&
-      (queue.pauseReason === 'prelayout-review' || saved?.pauseReason === 'prelayout-review');
-    const work = separations(list);
-    const started = work.some(
-      (node) =>
-        !options.needs(node.id) ||
-        saved?.completed.includes(node.id) ||
-        saved?.failures[node.id] !== undefined ||
-        saved?.retries[node.id] !== undefined
-    );
-    if (reviewPaused || (!started && work.length))
-      return {
-        stage: 'prelayout-review' as const,
-        message: '检查点 A：查看各批预排图与识图标注，确认无漏项后继续分离生图',
-        hold: !reviewPaused,
-      };
-    if (options.queue.remaining(groupId) > 0) {
-      // A failed cut keeps its image; the fix is a crop review, not regeneration.
-      const failedCut = Object.keys(queue?.failures || {})
-        .map((id) => list.find((node) => node.id === id && node.type === 'image-assets'))
-        .find((node): node is CanvasNode => Boolean(node));
+    // Prelayout, separation and cutting run as one queue; nothing pauses for a review.
+    if (options.queue.remaining(groupId) > 0)
       return {
         stage: 'generation' as const,
-        message: failedCut
-          ? '「' +
-            failedCut.title +
-            '」切图未通过：打开预览调整裁框后确认；确实漏画时修改对应分离卡提示词并单独重做'
+        message: autoRuns.has(groupId)
+          ? '自动处理中：失败或结果未知的步骤会自动重试，完成后组装 UI'
           : queue?.phase === 'paused'
-            ? '已暂停：继续将先核对原任务，只补缺失或失败的步骤'
-            : '下一步：分离生图并切图',
-        failedCut,
+            ? '已暂停：点击继续，先核对原任务，再自动完成剩余步骤并组装 UI'
+            : '下一步：预排、分离生图与切图，完成后自动组装 UI',
       };
-    }
-    const assets = list.filter(
-      (node) => node.type === 'image-assets' && !node.uiEmpty && node.imageAssetsInfo
-    );
     const pending = assetsAwaitingReview(document, list);
-    if (pending.length)
-      return {
-        stage: 'binding-review' as const,
-        message:
-          '检查点 B：逐批预览并确认切图（已确认 ' +
-          (assets.length - pending.length) +
-          '/' +
-          assets.length +
-          '）',
-        pending,
-        total: assets.length,
-      };
     const status = delivery(document, groupId, list);
     return {
       stage: 'assemble' as const,
@@ -302,13 +267,39 @@ export function createUi015Workflow(options: {
           : 'UI 已生成，资源元数据或引用检查未完成'
         : status && !status.ready
           ? status.reason || '资源包尚未完整'
-          : '素材已确认：下一步组装可编辑 UI',
+          : '素材已切好：下一步组装可编辑 UI',
       bundle,
       status,
+      pending,
     };
   }
 
-  async function prepare(found: NonNullable<ReturnType<typeof cards>>) {
+  /**
+   * Input, text removal and two-pass recognition with automatic retries. An unknown
+   * recognition is resumed with its original request ID (no double charge); an unknown or
+   * failed image is queried first and only resubmitted when no result arrived.
+   */
+  async function prepare(groupId: string) {
+    for (let round = 0; ; round++) {
+      const found = cards(options.current()!, groupId);
+      if (!found) throw new Error('015 分组结构已变化，请检查连线。');
+      try {
+        await prepareOnce(found);
+        return;
+      } catch (error) {
+        if (round >= RETRIES) throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        options.log(
+          '015 · 识图准备未完成，第 ' + (round + 1) + ' 次自动重试：' + message.slice(0, 160),
+          'warning'
+        );
+        for (const id of [found.input.id, found.cut.id])
+          if (options.problem?.(id)) await options.recoverImage(id);
+        await wait(3000);
+      }
+    }
+  }
+  async function prepareOnce(found: NonNullable<ReturnType<typeof cards>>) {
     if (options.needs(found.input.id)) {
       options.log('015 · 准备识图输入');
       if (!(await options.runImage(found.input.id)))
@@ -387,21 +378,12 @@ export function createUi015Workflow(options: {
       }
       if (view.stage === 'running')
         return { status: 'busy', stage: 'running', message: view.message };
-      const found = cards(document, groupId)!;
       if (view.stage === 'prepare') {
-        await prepare(found);
+        await prepare(groupId);
         view = inspect(groupId)!;
       }
+      const found = cards(document, groupId)!;
       const synced = Boolean(bundleOf(members(document, groupId)));
-      const explicit = input.artText !== undefined || input.background !== undefined;
-      if (!synced && !explicit)
-        return {
-          status: 'waiting',
-          stage: 'choice',
-          message: '请选择需要图片化的美术字（可不选）及是否额外还原环境背景。',
-          texts: texts(document, found.cut),
-          choice: defaultChoice(found.cut),
-        };
       const derived = synced
         ? currentChoice(document, members(document, groupId), found.cut)
         : defaultChoice(found.cut);
@@ -410,52 +392,28 @@ export function createUi015Workflow(options: {
         background: input.background ?? derived.background,
       };
       // Re-planning also picks up batches added by a new recognition result.
-      const changed = await applyChoice(document, groupId, choice);
+      await applyChoice(document, groupId, choice);
       view = inspect(groupId)!;
-      // Batches added or restored after earlier work must also stop at checkpoint A before
-      // their paid separation; the group-wide "already started" check would skip it.
-      if (
-        changed &&
-        (view.stage === 'prelayout-review' || view.stage === 'generation') &&
-        separations(members(document, groupId)).some((node) => options.needs(node.id))
-      ) {
-        const review = '检查点 A：查看新批次的预排图后继续分离生图';
-        const pendingPrelayout = members(document, groupId).some(
-          (node) => node.uiAtlasPrelayout && !node.uiEmpty && options.needs(node.id)
-        );
-        if (pendingPrelayout) {
-          options.log('015 · 新批次执行本地预排；完成后停在检查点 A');
-          if (!options.queue.start(groupId, true, 'prelayout'))
-            throw new Error(options.failure?.() || '预排队列未启动。');
-          return { status: 'started', stage: 'prelayout', message: '正在执行本地预排' };
-        }
-        options.queue.hold(groupId, 'prelayout-review', review);
-        return { status: 'waiting', stage: 'prelayout-review', message: review };
-      }
-      if (view.stage === 'prelayout') {
-        options.log('015 · 执行本地预排；完成后停在检查点 A');
-        if (!options.queue.start(groupId, true, 'prelayout'))
-          throw new Error(options.failure?.() || '预排队列未启动。');
-        return { status: 'started', stage: 'prelayout', message: '正在执行本地预排' };
-      }
-      if (view.stage === 'prelayout-review' && 'hold' in view && view.hold) {
-        options.queue.hold(groupId, 'prelayout-review', view.message);
-        return { status: 'waiting', stage: 'prelayout-review', message: view.message };
-      }
-      if (view.stage === 'prelayout-review' || view.stage === 'generation') {
-        options.log('015 · 继续分离生图与切图（付费步骤记录在运行日志，不逐步弹窗）');
-        if (!options.queue.start(groupId, true))
+      if (view.stage === 'generation') {
+        autoRuns.set(groupId, autoRuns.get(groupId) || { retries: {} });
+        options.log('015 · 自动执行预排、分离生图与切图（付费步骤记录在运行日志）');
+        if (!options.queue.start(groupId, true)) {
+          autoRuns.delete(groupId);
           throw new Error(options.failure?.() || '此分组没有可执行的剩余步骤。');
-        return { status: 'started', stage: 'generation', message: '正在分离生图与切图' };
+        }
+        return { status: 'started', stage: 'generation', message: '正在自动生成', choice };
       }
-      if (view.stage === 'binding-review')
+      if (view.stage === 'assemble') {
+        running = '';
+        const status = await assemble(groupId, false, true);
         return {
-          status: 'waiting',
-          stage: 'binding-review',
-          message: view.message,
-          pendingReview: ('pending' in view ? view.pending : []).map((node) => node.id),
+          status: status?.delivery ? 'ready' : 'failed',
+          stage: 'assemble',
+          message: status?.delivery ? 'UI 已生成：' + status.delivery.uiFile : '组装未完成',
+          choice,
         };
-      return { status: 'ready', stage: view.stage, message: view.message };
+      }
+      return { status: 'ready', stage: view.stage, message: view.message, choice };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       options.error(message);
@@ -465,6 +423,57 @@ export function createUi015Workflow(options: {
       running = '';
       options.render();
     }
+  }
+
+  /** Queue settlement hook: continue groups that advance() is driving to the end. */
+  function settled(groupId: string) {
+    if (autoRuns.has(groupId)) setTimeout(() => void finishRun(groupId), 0);
+  }
+  /**
+   * After the queue: retry failed or unknown steps (an image result is queried first and only
+   * resubmitted when none arrived; at most RETRIES times per card), then assemble whatever
+   * exists. Anything still missing is recorded in the delivery and the review prompt.
+   */
+  async function finishRun(groupId: string) {
+    const run = autoRuns.get(groupId);
+    const document_ = options.current();
+    if (!run || !document_ || !group(document_, groupId)) {
+      autoRuns.delete(groupId);
+      return;
+    }
+    if (running) {
+      setTimeout(() => void finishRun(groupId), 2000);
+      return;
+    }
+    const queue = options.queue.view(groupId);
+    if (queue && executingPhases.includes(queue.phase)) return;
+    const failed = Object.keys(queue?.failures || {}).filter(
+      (id) => (run.retries[id] || 0) < RETRIES && document_.nodes.some((node) => node.id === id)
+    );
+    if (failed.length) {
+      for (const id of failed) {
+        run.retries[id] = (run.retries[id] || 0) + 1;
+        const node = document_.nodes.find((item) => item.id === id)!;
+        const result = node.type === 'image' ? await options.recoverImage(id) : 'released';
+        options.log(
+          '015 · 「' +
+            node.title +
+            '」' +
+            (result === 'recovered'
+              ? '已取回原任务结果'
+              : '未完成，第 ' + run.retries[id] + ' 次自动重试（生图可能多计一次费用）'),
+          'warning'
+        );
+      }
+      if (options.queue.start(groupId, true)) return;
+    }
+    autoRuns.delete(groupId);
+    if (options.queue.remaining(groupId) > 0)
+      options.log(
+        '015 · 部分步骤重试后仍未完成，按已有素材组装 UI，缺失项写入复核提示词',
+        'warning'
+      );
+    await assemble(groupId, false, true);
   }
 
   function element<K extends keyof HTMLElementTagNameMap>(
@@ -556,39 +565,61 @@ export function createUi015Workflow(options: {
     confirm.focus();
   }
 
+  /**
+   * Hand-off for the final step: everything the unattended run accepted or could not finish,
+   * and the Skill path an AI follows to bring this delivery to a reviewed, complete result.
+   */
   function reviewPrompt(document_: CanvasDocument, groupId: string, value: CanvasUiDelivery) {
     const found = cards(document_, groupId);
     const bbox = found && selectedUiRecognition(found.cut)?.bbox;
+    const review = value.review;
+    const batches = found
+      ? found.members.filter(
+          (node) => node.type === 'image-assets' && !node.uiEmpty && node.imageAssetsInfo
+        )
+      : [];
+    const pending = found ? assetsAwaitingReview(document_, found.members) : [];
+    const todo = [
+      review?.missing.length ? '缺少素材、本版 UI 未包含的元素：' + review.missing.join('、') : '',
+      review?.unbound.length ? '未绑定的分类：' + review.unbound.join('、') : '',
+      pending.length
+        ? '未人工复核的切图批次（' +
+          pending.length +
+          '/' +
+          batches.length +
+          '）：' +
+          pending.map((node) => node.title + '（' + node.id + '）').join('；')
+        : '',
+      value.steps.meta !== 'done' || value.steps.check !== 'passed'
+        ? '资源 meta ' + value.steps.meta + '，引用检查 ' + value.steps.check
+        : '',
+      value.issue ? '未解决：' + value.issue : '',
+    ].filter(Boolean);
     return [
-      '请使用 Maker 内置 maker-ui-bbox-workflow Skill 的「复核已有交付」路径检查这次 015 结果，不从头生成，不重放付费任务，不覆盖用户已做的修改。',
+      '请使用 Maker 内置 maker-ui-bbox-workflow Skill 的「复核修复」路径，把这次 015 自动生成的 UI 修到与设计稿一致。只修有问题的部分，不从头生成，不覆盖用户已做的修改。',
       '画布 ID：' + document_.id + '；分组 ID：' + groupId + '；UI 编号：' + value.uiId + '。',
-      '资源归档版本：' + value.archiveRevision + '。',
       '设计稿：' +
         (bbox?.design.path || found?.design.assetPath || '未知') +
         '；去文字稿：' +
         (bbox?.cutSource.path || found?.cut.assetPath || '未知') +
         '。',
-      '交付目录：' +
+      '当前版本：' +
         value.directory +
         '；UI 文件：' +
         value.uiFile +
         '；参考图：' +
         value.referenceFile +
         '。',
-      '已完成：组装 ' +
-        (value.steps.assembled ? '是' : '否') +
-        '，资源 meta ' +
-        value.steps.meta +
-        '，引用检查 ' +
-        value.steps.check +
-        (value.check
-          ? '（错误 ' + value.check.errors + '，警告 ' + value.check.warnings + '）'
-          : '') +
-        '。' +
-        (value.issue ? '未解决：' + value.issue : ''),
-      '检查点：A 识图/预排是否漏项、错误复用或文字与 UI 未分离；B 切图素材是否完整、透明、无粘连，按钮按下态与绑定是否正确；C 在 UI 编辑器对照参考图检查字体、层级、位置、尺寸、美术字、背景与可编辑性。',
-      '先确认 UI 文件是否已被用户手工修改；问题请定位到具体卡片或 UI 节点。默认只报告检查结果，修复范围遵循用户另外给你的授权。',
-      '若发现漏画、粘连或错误复用（获得修复授权后）：对对应分离卡用 canvas update-nodes 修改 prompt，点明缺失元素 ID、位置和保留要求，再 canvas run 这一张卡（--allow-paid），preview-image-assets 看图后 confirm-image-assets，最后 canvas assemble-ui --new-version 生成新版本；只重做受影响的批次，一轮修复仍缺失就报告具体缺项。只是裁框偏移时调整裁框，不要重新生图。',
+      todo.length
+        ? '自动运行留下的待处理项：\n- ' + todo.join('\n- ')
+        : '自动运行没有留下待处理项，仍需看图验收。',
+      '运行中自动重试、按原槽位裁切的批次记录在画布运行日志（「自动校正未通过」「组件格为空」）。',
+      '修复步骤：',
+      '1. 逐批 preview-image-assets 看图：素材完整、透明、无粘连、无多余碎片，按钮按下态正确。只是移位时提交 cut.regions（只改 x/y）后重新预览；真正漏画或粘连时用 update-nodes 改对应分离卡 prompt（写明缺失元素 ID、位置和保留要求），run 这张卡（--allow-paid），再预览。每批看过后带 reviewId confirm-image-assets。',
+      '2. 缺少素材的元素：在 inspect 中找到其所在分离卡，按第 1 步补画并确认。识图本身漏项或分类错误时才 recognize-ui 重新识图（会让下游批次失效）。',
+      '3. 所有批次确认后 canvas assemble-ui --new-version 生成新版本；新版本的 review 三个列表都应为空，meta done，引用检查 0 错误。',
+      '4. ui open 打开新 UI，对照同名参考图检查位置、尺寸、层级、字号、颜色、美术字、背景和按钮状态；偏差用 ui inspect / patch（先 dry-run 再带 revision）修正。',
+      '5. 完成标准：全部批次已确认、review 列表为空、引用检查 0 错误、编辑器对照无明显偏差。达不到时报告具体剩余项，不要把部分结果报为完成。',
       '分离卡：' +
         (found
           ? separations(found.members)
@@ -597,7 +628,6 @@ export function createUi015Workflow(options: {
           : '请 inspect 分组获取'),
     ].join('\n');
   }
-
   function openDelivery(groupId: string, status: CanvasUiDeliveryStatus) {
     const document_ = options.current();
     const value = status.delivery;
@@ -644,21 +674,21 @@ export function createUi015Workflow(options: {
       table,
       element(
         'p',
-        '生成成功不代表视觉验收通过。请在 UI 编辑器对照参考图检查并保存；也可以复制下面的提示词交给你的 AI 复核（可选）。'
+        'UI 已自动生成。待复核和缺失项列在下面的提示词里：复制给 AI（按 Skill 复核修复），或打开编辑器自行检查。'
       )
     );
     const prompt = element('textarea');
     prompt.readOnly = true;
     prompt.rows = 8;
     prompt.style.cssText = 'width:100%;box-sizing:border-box';
-    prompt.setAttribute('aria-label', 'AI 复核提示词');
+    prompt.setAttribute('aria-label', 'AI 复核修复提示词');
     prompt.value = reviewPrompt(document_, groupId, value);
     const actions = element('div');
     actions.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap';
     const open = element('button', '打开 UI 编辑器');
     open.type = 'button';
     open.onclick = () => openEditor(value.uiFile);
-    const copy = element('button', '复制复核提示词');
+    const copy = element('button', '复制 AI 复核修复提示词');
     copy.type = 'button';
     copy.onclick = async () => {
       try {
@@ -688,10 +718,14 @@ export function createUi015Workflow(options: {
     window.open(url, '_blank');
   }
 
-  /** Explicit user action. Meta generation happens only here, never on import. */
+  /**
+   * Assemble the UI, generate resource meta and check references. Runs at the end of every
+   * automatic run (auto=true also prepares Python once when meta is blocked) or on a click.
+   */
   async function assemble(
     groupId: string,
-    newVersion = false
+    newVersion = false,
+    auto = false
   ): Promise<CanvasUiDeliveryStatus | undefined> {
     const document_ = options.current();
     const found = document_ && cards(document_, groupId);
@@ -710,7 +744,19 @@ export function createUi015Workflow(options: {
       const designPath = selectedUiRecognition(found.cut)?.bbox?.design.path;
       const designPng = designPath ? await designPngData(options.store, designPath) : undefined;
       options.log('015 · 组装 UI：导入素材、组装、生成资源 meta 并检查引用');
-      const status = await options.store.assembleUi(document_.id, bundle.id, newVersion, designPng);
+      let status = await options.store.assembleUi(document_.id, bundle.id, newVersion, designPng);
+      if (
+        auto &&
+        status.delivery?.steps.meta === 'blocked' &&
+        options.store.setupPython &&
+        !status.python?.ready
+      ) {
+        options.log('015 · 资源 meta 需要 Python，正在自动准备环境（首次会下载运行时）');
+        const python = await options.store.setupPython();
+        if (python.ready)
+          status = await options.store.assembleUi(document_.id, bundle.id, false, designPng);
+        else options.log('015 · Python 环境未就绪：' + (python.message || ''), 'warning');
+      }
       deliveries.set(groupId, { key: deliveryKey(found.members), value: status });
       if (!status.ready || !status.delivery) throw new Error(status.reason || '资源包尚未完整。');
       const issue = status.delivery.issue;
@@ -718,7 +764,9 @@ export function createUi015Workflow(options: {
         '015 · UI 已生成：' + status.delivery.uiFile + (issue ? '；未完成：' + issue : ''),
         issue ? 'warning' : 'info'
       );
-      openDelivery(groupId, status);
+      // An unattended run ends on the header buttons; a modal would block CLI automation
+      // (the AI review that follows) until someone closes it.
+      if (!auto) openDelivery(groupId, status);
       return status;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -773,12 +821,8 @@ export function createUi015Workflow(options: {
       invalid: '流程结构异常',
       design: '1 设计稿',
       prepare: '2 去文字与识图',
-      choice: '3 拆分选择',
-      prelayout: '4 预排',
-      'prelayout-review': '4 预排检查',
-      generation: '5 分离与切图',
-      'binding-review': '6 素材确认',
-      assemble: '7 组装 UI',
+      generation: '3 预排、分离与切图',
+      assemble: '4 组装 UI',
       running: '执行中',
     };
     const stage = labels[state.stage] || state.stage;
@@ -788,56 +832,30 @@ export function createUi015Workflow(options: {
       case 'design':
         return { stage, primary: run('选择/替换原始设计稿', go), extra, hint: state.message };
       case 'prepare':
-        return { stage, primary: run('开始：去文字与识图', go), extra, hint: state.message };
-      case 'choice':
         return {
           stage,
-          primary: run('选择美术字/背景', () => openChoice(groupId)),
+          primary: run('开始：自动生成 UI', go, '识图、拆分、预排、分离、切图、组装一次完成'),
           extra,
           hint: state.message,
         };
-      case 'prelayout':
-        return { stage, primary: run('执行预排', go), extra, hint: state.message };
-      case 'prelayout-review':
-        return {
-          stage,
-          primary: run('预排已检查，继续分离生图', go, '确认后提交分离生图，结果写入运行日志'),
-          extra,
-          hint: state.message,
-        };
-      case 'generation': {
-        const failed = 'failedCut' in state ? state.failedCut : undefined;
-        if (failed)
-          return {
-            stage,
-            primary: run('打开失败的切图预览', () => {
-              options.focus(failed.id);
-              options.openAssets(failed.id);
-            }),
-            extra: [{ label: '继续剩余流程', run: go }, ...extra],
-            hint: state.message,
-          };
-        return { stage, primary: run('继续剩余流程', go), extra, hint: state.message };
-      }
-      case 'binding-review': {
-        const next = 'pending' in state && state.pending?.[0];
-        return {
-          stage,
-          primary: run('预览并确认下一批', () => {
-            if (!next) return;
-            options.focus(next.id);
-            options.openAssets(next.id);
-          }),
-          extra,
-          hint: state.message + '。未查看的素材不能批量确认。',
-        };
-      }
+      case 'generation':
+        return { stage, primary: run('继续自动生成', go), extra, hint: state.message };
       case 'assemble': {
         const status = 'status' in state ? state.status : undefined;
         const value = status?.delivery;
+        const pending = 'pending' in state ? state.pending || [] : [];
+        // Optional manual review of each cut batch; never required to finish.
+        if (pending.length)
+          extra.push({
+            label: '逐批复核切图（' + pending.length + '）',
+            run: () => {
+              options.focus(pending[0].id);
+              options.openAssets(pending[0].id);
+            },
+          });
         if (value?.steps.assembled) {
           const actions = [
-            { label: '复核提示词', run: () => openDelivery(groupId, status!) },
+            { label: 'AI 复核修复提示词', run: () => openDelivery(groupId, status!) },
             ...extra,
             { label: '重新组装新版本', run: () => assemble(groupId, true) },
           ];
@@ -847,12 +865,24 @@ export function createUi015Workflow(options: {
                 ? { label: '准备 Python 环境', run: () => setupPython(groupId) }
                 : { label: '补齐 meta 与检查', run: () => assemble(groupId) }
             );
+          const review = value.review;
+          const todo = review
+            ? [
+                review.missing.length ? review.missing.length + ' 个元素缺素材' : '',
+                review.unbound.length ? review.unbound.length + ' 个分类未绑定' : '',
+                review.unreviewed.length ? review.unreviewed.length + ' 个元素未复核切图' : '',
+              ].filter(Boolean)
+            : [];
           return {
-            stage: '8 UI 已生成',
+            stage: '5 UI 已生成',
             primary: run('打开 UI 编辑器', () => openEditor(value.uiFile)),
             extra: actions,
             hint:
-              state.message + '：' + value.uiFile + (value.issue ? '（' + value.issue + '）' : ''),
+              state.message +
+              '：' +
+              value.uiFile +
+              (value.issue ? '（' + value.issue + '）' : '') +
+              (todo.length ? '；待 AI 复核：' + todo.join('、') + '，点「AI 复核修复提示词」' : ''),
           };
         }
         return {
@@ -876,6 +906,10 @@ export function createUi015Workflow(options: {
     view,
     advance,
     assemble,
+    settled,
+    isActive(groupId: string) {
+      return autoRuns.has(groupId) || running === groupId;
+    },
     openChoice,
     get isBusy() {
       return Boolean(running);

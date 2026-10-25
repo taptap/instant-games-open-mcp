@@ -299,11 +299,63 @@ export function alignNativeAtlasRegions(
   const found = regions.map(() => false);
   const componentOwners = new Uint8Array(parts.length + 1);
   let split = 0;
+  // A whole sheet can drift and stretch (seen: everything ~100 px low, the bottom bar wholly
+  // below its slot). First pair components one-to-one with slots of similar size near them;
+  // only components left over go through the overlap rules below.
+  const sizeMatched = new Map<number, number>();
+  const pairs: Array<{ part: number; slot: number; score: number }> = [];
   parts.forEach((part, partIndex) => {
+    regions.forEach((region, index) => {
+      if (!usable[index]) return;
+      const rw = part.width / region.width;
+      const rh = part.height / region.height;
+      if (rw < 0.75 || rw > 1.35 || rh < 0.75 || rh > 1.35) return;
+      const distance = Math.hypot(
+        part.x + part.width / 2 - (region.x + region.width / 2),
+        part.y + part.height / 2 - (region.y + region.height / 2)
+      );
+      const reach = Math.max(region.width, region.height, part.width, part.height);
+      if (distance > reach * 0.6) return;
+      pairs.push({
+        part: partIndex,
+        slot: index,
+        score: Math.abs(Math.log(rw)) + Math.abs(Math.log(rh)) + distance / reach,
+      });
+    });
+  });
+  const pairedSlots = new Set<number>();
+  for (const pair of pairs.sort((a, b) => a.score - b.score)) {
+    if (sizeMatched.has(pair.part) || pairedSlots.has(pair.slot)) continue;
+    // Only unambiguous sizes: another slot of near-equal score would make this a guess.
+    const rival = pairs.find(
+      (other) =>
+        other.part === pair.part &&
+        other.slot !== pair.slot &&
+        !pairedSlots.has(other.slot) &&
+        other.score - pair.score < 0.05
+    );
+    if (rival) continue;
+    sizeMatched.set(pair.part, pair.slot);
+    pairedSlots.add(pair.slot);
+  }
+  parts.forEach((part, partIndex) => {
+    const paired = sizeMatched.get(partIndex);
+    // Large components only: small icons in dense sheets keep the overlap rules.
+    if (paired !== undefined && part.width * part.height >= 64 * 64) {
+      componentOwners[partIndex + 1] = paired + 1;
+      found[paired] = true;
+      return;
+    }
     const owners = regions
       .map((region, index) => ({ index, area: usable[index] ? overlap(region, part) : 0 }))
       .filter((owner) => owner.area > 0);
-    const major = owners.filter((owner) => owner.area > (part.width * part.height) / 2);
+    // A sprite that touches a single slot belongs to it however far it drifted (seen in real
+    // runs: an item drawn ~30 px low and larger than its slot). Overlap majority only decides
+    // between several slots; otherwise a drifted sprite would be split and clipped.
+    const major =
+      owners.length === 1
+        ? owners
+        : owners.filter((owner) => owner.area > (part.width * part.height) / 2);
     const coversOther =
       major.length === 1 &&
       regions.some(
@@ -324,13 +376,14 @@ export function alignNativeAtlasRegions(
       componentOwners[partIndex + 1] = SPLIT;
       split++;
     } else {
+      // Outside every slot: a small edge fragment joins the unique nearby slot; anything else
+      // is dropped (a fixed crop would not include it either). If it was some slot's subject,
+      // that slot reports a missing subject below.
       const owner = regionAt(
         part.x + Math.floor(part.width / 2),
         part.y + Math.floor(part.height / 2)
       );
-      if (!owner || part.width > 16 || part.height > 16)
-        fail('有素材落在所有槽位之外、归属不明确（' + part.x + ', ' + part.y + '）');
-      componentOwners[partIndex + 1] = owner;
+      componentOwners[partIndex + 1] = owner && part.width <= 16 && part.height <= 16 ? owner : 0;
     }
   });
   // Solid pixels: whole-component owner, or per-pixel slot for split components.

@@ -198,7 +198,9 @@ export class UiDeliveryService {
       parts.push('未绑定或待重新选择的分类：' + manifest.unboundCategories.join('、'));
     const unreviewed = manifest.bindings.filter((item) => item.review === 'unreviewed');
     if (unreviewed.length) parts.push(unreviewed.length + ' 个元素的切图尚未预览确认');
-    return (parts.join('；') || '素材尚未全部确认') + '。请在画布逐批预览确认后再组装。';
+    return (
+      (parts.join('；') || '素材尚未全部确认') + '。可直接组装；待复核项写入交付记录和复核提示词。'
+    );
   }
 
   async status(canvasId: string, nodeId: string): Promise<CanvasUiDeliveryStatus> {
@@ -218,7 +220,8 @@ export class UiDeliveryService {
       .reverse()
       .find((item) => item.archiveRevision === record.revision);
     const status: CanvasUiDeliveryStatus = {
-      ready: manifest.confirmed,
+      // Unreviewed or missing assets are reported, not blocking: the run must reach the UI.
+      ready: true,
       archiveRevision: record.revision,
       previous,
       ...(manifest.confirmed
@@ -251,6 +254,24 @@ export class UiDeliveryService {
     const bbox = JSON.parse(archiveFile('bbox.json').toString('utf8')) as UiAssemblyBbox;
     if (sha256(JSON.stringify(bbox)) !== manifest.ui.bboxSha256)
       fail('资源归档的 Bbox 与绑定记录不属于同一版本。', 409, 'ARCHIVE_MISMATCH');
+    // Elements without any PNG are left out of this version (children move to the nearest
+    // kept parent) instead of stopping the run; delivery.review lists them for repair.
+    const missing = new Set(manifest.missingElementIds);
+    if (missing.size) {
+      const parents = new Map(
+        bbox.elements.map((element) => [element.id, (element.parent as string | null) ?? null])
+      );
+      const kept = (id: unknown): string | null => {
+        let current = typeof id === 'string' ? id : null;
+        while (current && missing.has(current)) current = parents.get(current) ?? null;
+        return current;
+      };
+      bbox.elements = bbox.elements
+        .filter((element) => !missing.has(element.id))
+        .map((element) => ({ ...element, parent: kept(element.parent) }));
+      bbox.texts = bbox.texts.map((text) => ({ ...text, parentId: kept(text.parentId) }));
+      if (!bbox.elements.length) fail('没有任何可组装的素材。', 409, 'BUNDLE_INCOMPLETE');
+    }
     const sources = new Map<string, string>();
     for (const [name, image] of [
       ['design', bbox.design],
@@ -259,7 +280,7 @@ export class UiDeliveryService {
       const bytes = archiveFile(image.path);
       if (sha256(bytes) !== image.sha256)
         fail('资源归档中的参考图已变化：' + image.path, 409, 'ARCHIVE_MISMATCH');
-      let png = bytes;
+      let png: Buffer = bytes;
       if (!isPng(bytes)) {
         // JPEG/WebP designs stay unchanged upstream; the editor reference needs PNG pixels,
         // sent in memory by the canvas (or read from --design-png) and checked here.
@@ -324,17 +345,26 @@ export class UiDeliveryService {
         );
       return { textId: binding.textId, assetId };
     });
+    // Unreviewed cuts are assembled as they are (recorded in delivery.review, not here).
+    const bindings = manifest.bindings
+      .filter((binding) => !missing.has(binding.elementId) && binding.assetId)
+      .map(({ review: _review, ...binding }) => ({
+        ...binding,
+        assetId: mapId(binding.assetId),
+        ...(binding.pressedAssetId ? { pressedAssetId: mapId(binding.pressedAssetId) } : {}),
+      }));
+    const backgroundAssetId = mapId(manifest.backgroundAssetId);
+    const referenced = new Set([
+      ...bindings.flatMap((binding) => [binding.assetId, binding.pressedAssetId]),
+      backgroundAssetId,
+      ...artTextBindings.map((binding) => binding.assetId),
+    ]);
+    for (const asset of assets) if (!referenced.has(asset.id)) asset.role = 'reserve';
     return {
       bbox,
       assets,
-      bindings: manifest.bindings.map((binding) => ({
-        ...binding,
-        ...(binding.assetId ? { assetId: mapId(binding.assetId) } : {}),
-        ...(binding.pressedAssetId ? { pressedAssetId: mapId(binding.pressedAssetId) } : {}),
-      })),
-      ...(manifest.backgroundAssetId
-        ? { backgroundAssetId: mapId(manifest.backgroundAssetId) }
-        : {}),
+      bindings,
+      ...(backgroundAssetId ? { backgroundAssetId } : {}),
       ...(artTextBindings.length ? { artTextBindings } : {}),
       confirmed: true,
       // Project copies change the Bbox paths; the archive identity was verified above.
@@ -398,7 +428,6 @@ export class UiDeliveryService {
       const current = await this.archive(document, nodeId);
       if (current.reason !== undefined) fail(current.reason, 409, 'BUNDLE_INCOMPLETE');
       const { record, manifest } = current;
-      if (!manifest.confirmed) fail(this.unconfirmedReason(manifest), 409, 'ASSETS_UNCONFIRMED');
       const index = this.readIndex(canvasId, nodeId);
       let delivery = options.newVersion
         ? undefined
@@ -433,6 +462,13 @@ export class UiDeliveryService {
           createdAt: new Date().toISOString(),
           elements: summary.elements,
           steps: { assembled: true, meta: 'pending', check: 'pending' },
+          review: {
+            unreviewed: manifest.bindings
+              .filter((item) => item.review === 'unreviewed')
+              .map((item) => item.elementId),
+            missing: [...manifest.missingElementIds],
+            unbound: [...manifest.unboundCategories],
+          },
         };
         index.deliveries.push(delivery);
         this.writeIndex(index);
