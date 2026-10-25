@@ -455,8 +455,9 @@ export function findNativeAtlasComponents(
           }
         }
     }
-    if (left === 0 || top === 0 || right === width - 1 || bottom === height - 1)
-      throw atlasLayoutError('素材主体触及原图边界，无法确认完整。');
+    // A subject touching the atlas border is kept: the model drew it past the canvas and the
+    // planned slot crop could not recover more either. Checkpoint B still reviews every batch.
+    // (The Web canvas rejects these, which blocked a whole character batch in a real run.)
     parts.push({ x: left, y: top, width: right - left + 1, height: bottom - top + 1 });
     if (parts.length > 4096) throw atlasLayoutError('透明图中碎片过多，请检查背景。');
   }
