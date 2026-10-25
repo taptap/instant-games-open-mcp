@@ -124,6 +124,8 @@ export class CanvasGenerationService {
     sourceImageIds?: string[];
     referenceImagePaths?: string[];
     targetNodeId?: string;
+    /** Same-size PNG copy of a non-PNG design; used only by the local art-text prelayout. */
+    designPng?: string;
   }): Promise<CanvasGenerationAttempt> {
     let attemptCreated = false;
     try {
@@ -292,7 +294,8 @@ export class CanvasGenerationService {
           uiAtlasPlan,
           targetWidth,
           targetHeight,
-          options.cutoutColor || 'transparent'
+          options.cutoutColor || 'transparent',
+          options.designPng
         );
       }
       const references = remoteReferences.flatMap((assetPath) => {

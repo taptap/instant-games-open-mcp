@@ -2,6 +2,7 @@ import type { CanvasDocument, CanvasNode, CanvasEdge, UiAtlasGroup } from '../co
 import { selectedUiRecognition, uiRecognitionInputs } from '../features/uiRecognition.js';
 import { imageRatioInfo } from '../features/imageSizing.js';
 import { canvasReferences, snapshotCanvasSource } from '../core/dependencies.js';
+import { resourceBundleOwner } from '../features/resourceBundle.js';
 import {
   uiWorkflowAtlasPlans,
   uiBatchAtlasPrompt,
@@ -48,12 +49,9 @@ export function syncUiBboxWorkflow(
     artwork: '角色与插画',
     background: '环境背景',
   };
-  const origin = group.workflowLayoutOrigin || {
-    x: group.x + 28,
-    y: Math.max(...members.map((node) => node.y + node.height)) + 100,
-  };
-  const baseY = origin.y;
-  const baseX = origin.x;
+  // Initial positions only; layoutUiWorkflowGroup places every card below.
+  const baseY = group.y + 56;
+  const baseX = group.x + 28;
   function card(type: CanvasNode['type'], title: string, column: number, row: number): CanvasNode {
     const node: CanvasNode = {
       id: crypto.randomUUID(),
@@ -240,7 +238,6 @@ export function syncUiBboxWorkflow(
   }
   if (current.nodes.length + nodes.length > 400 || current.edges.length + edges.length > 800)
     throw new Error('批次超过当前画布容量，未创建卡片；请拆到另一个画布处理。');
-  group.workflowLayoutOrigin = { ...origin };
   if (nodes.length) bundle.y = baseY + row * 370;
   delete bundle.templatePending;
   group.templateCliOnly = true;
@@ -284,8 +281,119 @@ export function syncUiBboxWorkflow(
       }
     }
   }
-  const all = [...members, ...nodes];
-  group.width = Math.max(group.width, ...all.map((node) => node.x + node.width + 28 - group.x));
-  group.height = Math.max(group.height, ...all.map((node) => node.y + node.height + 28 - group.y));
+  layoutUiWorkflowGroup(current, groupId);
   return nodes.map((node) => node.id);
+}
+
+/**
+ * Arrange one 015 group from its fixed origin using real card sizes: inputs on the first row,
+ * then three "prelayout → separation" flows per row (cut cards stay collapsed into the bundle),
+ * then the resource bundle. Re-running never drifts. Returns true when anything moved.
+ */
+export function layoutUiWorkflowGroup(document: CanvasDocument, groupId: string): boolean {
+  const group = document.nodes.find((node) => node.id === groupId && node.type === 'section');
+  if (
+    !group ||
+    !(
+      group.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
+      group.templateSkills?.includes('maker-ui-bbox-workflow')
+    )
+  )
+    return false;
+  const before = JSON.stringify(
+    document.nodes
+      .filter((node) => node.sectionId === groupId || node.id === groupId)
+      .map((node) => [node.x, node.y, node.width, node.height])
+  );
+  const members = document.nodes.filter((node) => node.sectionId === groupId);
+  const visible = members.filter((node) => !resourceBundleOwner(document, node.id));
+  const placed = new Set<string>();
+  const left = group.x + 28;
+  let y = group.y + 56;
+  function row(nodes: CanvasNode[], x = left) {
+    let bottom = y;
+    for (const node of nodes) {
+      node.x = x;
+      node.y = y;
+      x += node.width + 28;
+      bottom = Math.max(bottom, y + node.height);
+      placed.add(node.id);
+    }
+    return bottom;
+  }
+  const inputs = ['design', 'text-free'].flatMap((role) =>
+    visible.filter((node) => node.uiRecognition?.inputRole === role)
+  );
+  const designs = inputs.flatMap((input) =>
+    canvasReferences(document, input.id).filter(
+      (node) => node.sectionId === groupId && node.type === 'image' && !inputs.includes(node)
+    )
+  );
+  y = row([...new Set([...designs, ...inputs])]) + 80;
+  const categories = ['controls', 'icons', 'equipment', 'panels', 'artwork', 'background'];
+  const rank = (node: CanvasNode) =>
+    categories.indexOf(node.uiAtlasGroup || '') < 0 ? 6 : categories.indexOf(node.uiAtlasGroup!);
+  const sources = visible
+    .filter(
+      (node) =>
+        node.type === 'image' &&
+        !node.uiAtlasPrelayout &&
+        !placed.has(node.id) &&
+        document.edges.some(
+          (edge) =>
+            edge.from === node.id &&
+            members.some((item) => item.id === edge.to && item.type === 'image-assets')
+        )
+    )
+    .sort(
+      (a, b) =>
+        rank(a) - rank(b) ||
+        (a.uiAtlasBatch || 0) - (b.uiAtlasBatch || 0) ||
+        (a.uiArtTextId || a.id).localeCompare(b.uiArtTextId || b.id)
+    );
+  const flows = sources.map((source) => [
+    ...canvasReferences(document, source.id).filter(
+      (node) => node.sectionId === groupId && node.uiAtlasPrelayout
+    ),
+    source,
+  ]);
+  const widths = [0, 0, 0];
+  flows.forEach((nodes, index) => {
+    widths[index % 3] = Math.max(
+      widths[index % 3],
+      nodes.reduce((sum, node) => sum + node.width + 28, 0)
+    );
+  });
+  for (let index = 0; index < flows.length; index += 3) {
+    let x = left;
+    let bottom = y;
+    for (let column = 0; column < 3 && index + column < flows.length; column++) {
+      bottom = Math.max(bottom, row(flows[index + column], x));
+      x += widths[column] + 52;
+    }
+    y = bottom + 80;
+  }
+  const remaining = visible.filter(
+    (node) => !placed.has(node.id) && node.type !== 'resource-bundle'
+  );
+  if (remaining.length) y = row(remaining) + 80;
+  row(visible.filter((node) => node.type === 'resource-bundle'));
+  // Collapsed resource cards sit on their source and reserve no space.
+  for (const node of members.filter((item) => resourceBundleOwner(document, item.id))) {
+    const source = canvasReferences(document, node.id).find((item) => placed.has(item.id));
+    if (source) {
+      node.x = source.x;
+      node.y = source.y;
+    }
+  }
+  group.width = Math.max(240, ...visible.map((node) => node.x + node.width + 28 - group.x));
+  group.height = Math.max(160, ...visible.map((node) => node.y + node.height + 28 - group.y));
+  return (
+    before !==
+    JSON.stringify(
+      document.nodes
+        .filter((node) => node.sectionId === groupId || node.id === groupId)
+        .map((node) => [node.x, node.y, node.width, node.height])
+    )
+  );
 }

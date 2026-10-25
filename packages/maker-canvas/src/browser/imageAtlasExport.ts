@@ -9,6 +9,7 @@ import { uiBindingContentRect, validateUiNativeRegions } from '../features/uiAss
 import { createBackgroundRemoval } from './backgroundRemoval.js';
 import {
   alignAtlasCells,
+  alignNativeAtlasRegions,
   assignAtlasCellsByCenter,
   atlasLayoutError,
 } from '../features/atlasAlignment.js';
@@ -25,6 +26,8 @@ export interface PreparedImageAtlas {
   grid: ImageAtlasGrid;
   mode: 'grid' | 'content';
   regions: ImageAtlasCrop[];
+  /** Native slot matching failed; the preview stays editable but cannot be exported. */
+  alignmentError?: string;
   background: { color?: [number, number, number]; mode: 'all' | 'connected' };
   canvas: HTMLCanvasElement;
 }
@@ -35,7 +38,9 @@ export async function prepareImageAtlas(
   backgroundColor?: [number, number, number],
   backgroundMode: 'all' | 'connected' = 'connected',
   cut: ImageAtlasCutSettings = {},
-  nativePlan?: UiAtlasPlan
+  nativePlan?: UiAtlasPlan,
+  /** User-edited native crops use the original pixels; automatic matching must not veto them. */
+  manualNative = false
 ): Promise<PreparedImageAtlas> {
   if (!source.size || source.size > 128 * 1024 * 1024) throw new Error('图片为空或超过 128 MiB。');
   if (cut.mode && !['grid', 'content'].includes(cut.mode)) throw new Error('切图模式无效。');
@@ -55,6 +60,7 @@ export async function prepareImageAtlas(
     context.drawImage(bitmap, 0, 0);
     let pixels: ImageData | undefined;
     if (
+      nativePlan?.nativeLayout ||
       backgroundColor ||
       cut.mode === 'content' ||
       (!grid.marginX && !grid.marginY && !grid.gapX && !grid.gapY)
@@ -165,13 +171,56 @@ export async function prepareImageAtlas(
           );
       }
     }
+    let alignmentError: string | undefined;
     if (nativePlan?.nativeLayout) {
       const layout = nativePlan.nativeLayout;
       if (layout.width !== bitmap.width || layout.height !== bitmap.height)
         throw new Error('原尺寸状态处理必须使用生成时的图集尺寸。');
       regions = validateUiNativeRegions(nativePlan, regions);
+      try {
+        const aligned = manualNative
+          ? undefined
+          : alignNativeAtlasRegions(pixels!.data, bitmap.width, bitmap.height, nativePlan, regions);
+        if (aligned) {
+          // Redraw each matched subject (with its own pixel mask) inside its planned slot.
+          const isolated = document.createElement('canvas');
+          const isolatedContext = isolated.getContext('2d');
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          aligned.placements.forEach((placement, index) => {
+            if (!placement) return;
+            const { source: from, target: to } = placement;
+            isolated.width = from.width;
+            isolated.height = from.height;
+            const content = isolatedContext.createImageData(from.width, from.height);
+            for (let y = 0; y < from.height; y++)
+              for (let x = 0; x < from.width; x++) {
+                const sourcePixel = (from.y + y) * bitmap.width + from.x + x;
+                if (aligned.pixelOwners[sourcePixel] !== index + 1) continue;
+                const targetPixel = (y * from.width + x) * 4;
+                for (let channel = 0; channel < 4; channel++)
+                  content.data[targetPixel + channel] = pixels!.data[sourcePixel * 4 + channel];
+              }
+            isolatedContext.putImageData(content, 0, 0);
+            context.drawImage(
+              isolated,
+              0,
+              0,
+              from.width,
+              from.height,
+              to.x,
+              to.y,
+              to.width,
+              to.height
+            );
+          });
+        }
+      } catch (error) {
+        if ((error as { code?: string }).code !== 'ATLAS_LAYOUT_INVALID') throw error;
+        // Keep the original image and editable boxes available in the existing preview.
+        alignmentError = (error as Error).message;
+      }
       nativePlan.slots.forEach((slot, index) => {
-        if (slot.state !== 'pressed') return;
+        if (alignmentError || slot.state !== 'pressed') return;
         const normalIndex = nativePlan.slots.findIndex(
           (candidate) =>
             candidate.state === 'normal' && candidate.elementIds[0] === slot.elementIds[0]
@@ -197,6 +246,7 @@ export async function prepareImageAtlas(
       grid: { ...grid },
       mode: cut.mode || 'grid',
       regions: validateAtlasCrops(bitmap.width, bitmap.height, regions),
+      ...(alignmentError ? { alignmentError } : {}),
       background: { color: backgroundColor && [...backgroundColor], mode: backgroundMode },
       canvas,
     };
@@ -206,6 +256,7 @@ export async function prepareImageAtlas(
 }
 
 export async function encodeImageAtlasRegions(prepared: PreparedImageAtlas) {
+  if (prepared.alignmentError) throw atlasLayoutError(prepared.alignmentError);
   const regions = validateAtlasCrops(prepared.width, prepared.height, prepared.regions);
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');

@@ -93,14 +93,20 @@ export async function handleCanvasProjectRoute(options: {
         const body = JSON.parse((await readBytes(request, 4096)).toString('utf8') || '{}') as {
           nodeId?: unknown;
           newVersion?: unknown;
+          designPng?: unknown;
         };
         if (typeof body.nodeId !== 'string') throw new ConsoleError('缺少资源包卡片标识。');
         if (body.newVersion !== undefined && typeof body.newVersion !== 'boolean')
           throw new ConsoleError('newVersion 必须是布尔值。');
+        if (body.designPng !== undefined && typeof body.designPng !== 'string')
+          throw new ConsoleError('designPng 必须是项目素材路径。');
         send(
           response,
           200,
-          await service.assemble(delivery[1], body.nodeId, { newVersion: body.newVersion === true })
+          await service.assemble(delivery[1], body.nodeId, {
+            newVersion: body.newVersion === true,
+            ...(body.designPng ? { designPng: body.designPng as string } : {}),
+          })
         );
       }
       return true;
@@ -524,6 +530,7 @@ export async function handleCanvasProjectRoute(options: {
                   throw new ConsoleError('图片来源节点列表无效。');
                 })(),
         targetNodeId: typeof body.targetNodeId === 'string' ? body.targetNodeId : undefined,
+        designPng: typeof body.designPng === 'string' ? body.designPng : undefined,
       });
       send(response, 200, attempt);
       return true;

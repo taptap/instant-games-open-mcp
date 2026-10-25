@@ -35,6 +35,7 @@ import type { CanvasGenerationAttempt } from '../contracts.js';
 import type { CanvasModelSettings } from '../contracts.js';
 import { videoInputSources, videoAttemptMatchesSources } from '../features/videoInputs.js';
 import { withCanvasTimeout } from '../browser/requestTimeout.js';
+import { designPngCopy } from './designPng.js';
 import { isUiCutoutSource, uiCutoutPrompt, type UiCutoutColor } from '../features/uiCutout.js';
 
 export interface CanvasWorkflowEdit {
@@ -1240,6 +1241,11 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         return;
       }
       if (options.getDocument()?.id !== documentState.id) return;
+      // Art-text prelayout crops the original design locally; Node reads PNG only.
+      const designPng =
+        node.uiAtlasPrelayout && sourceNodes.length === 1 && sourceNodes[0].assetPath
+          ? await designPngCopy(options.store, documentState.id, sourceNodes[0].assetPath)
+          : undefined;
       options.log?.(node.title + '：开始生成图片', 'info');
       requestStarted = Date.now();
       if (targetId) unconfirmedImages.set(requestKey, requestStarted);
@@ -1264,6 +1270,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
               aspectRatio: settings.aspectRatio,
               targetSize: outputSize.targetSize,
               referenceImagePaths: [...referencePaths(node)],
+              ...(designPng ? { designPng } : {}),
               ...(!sourceNodes.length
                 ? {}
                 : {

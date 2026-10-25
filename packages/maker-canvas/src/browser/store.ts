@@ -55,7 +55,9 @@ export interface CanvasDocumentStore {
   assembleUi?(
     canvasId: string,
     nodeId: string,
-    newVersion?: boolean
+    newVersion?: boolean,
+    /** PNG copy of a JPEG/WebP design, used only as the editor reference. */
+    designPng?: string
   ): Promise<CanvasUiDeliveryStatus>;
   /** Prepare the shared Maker Python environment needed by resource meta generation. */
   setupPython?(): Promise<{ ready: boolean; message?: string }>;
@@ -128,6 +130,8 @@ export interface CanvasDocumentStore {
       sourceImageIds?: string[];
       referenceImagePaths?: string[];
       targetNodeId?: string;
+      /** Same-size PNG copy of a non-PNG design, for art-text prelayout only. */
+      designPng?: string;
     },
     signal?: AbortSignal
   ): Promise<CanvasGenerationAttempt>;

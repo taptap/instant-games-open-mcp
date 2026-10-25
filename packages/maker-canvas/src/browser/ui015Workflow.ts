@@ -6,6 +6,7 @@ import type {
 } from '../contracts.js';
 import { selectedUiRecognition } from '../features/uiRecognition.js';
 import { canvasReferences } from '../core/dependencies.js';
+import { designPngCopy } from './designPng.js';
 
 export interface Ui015Choice {
   artText: string[];
@@ -60,10 +61,17 @@ export function createUi015Workflow(options: {
     assembleUi?(
       canvasId: string,
       nodeId: string,
-      newVersion?: boolean
+      newVersion?: boolean,
+      designPng?: string
     ): Promise<CanvasUiDeliveryStatus>;
     setupPython?(): Promise<{ ready: boolean; message?: string }>;
     uiEditorUrl?(file: string): string;
+    mediaUrl?(path: string): string;
+    importImage?(
+      canvasId: string,
+      bytes: ArrayBuffer,
+      contentType: string
+    ): Promise<{ relativePath: string }>;
   };
 }) {
   const templateId = '7e1cb6ad-732f-4dc3-a951-000000000015';
@@ -539,6 +547,13 @@ export function createUi015Workflow(options: {
         (value.issue ? '未解决：' + value.issue : ''),
       '检查点：A 识图/预排是否漏项、错误复用或文字与 UI 未分离；B 切图素材是否完整、透明、无粘连，按钮按下态与绑定是否正确；C 在 UI 编辑器对照参考图检查字体、层级、位置、尺寸、美术字、背景与可编辑性。',
       '先确认 UI 文件是否已被用户手工修改；问题请定位到具体卡片或 UI 节点。默认只报告检查结果，修复范围遵循用户另外给你的授权。',
+      '若发现漏画、粘连或错误复用（获得修复授权后）：对对应分离卡用 canvas update-nodes 修改 prompt，点明缺失元素 ID、位置和保留要求，再 canvas run 这一张卡（--allow-paid），preview-image-assets 看图后 confirm-image-assets，最后 canvas assemble-ui --new-version 生成新版本；只重做受影响的批次，一轮修复仍缺失就报告具体缺项。只是裁框偏移时调整裁框，不要重新生图。',
+      '分离卡：' +
+        (found
+          ? separations(found.members)
+              .map((node) => node.title + '（' + node.id + '）')
+              .join('；')
+          : '请 inspect 分组获取'),
     ].join('\n');
   }
 
@@ -650,8 +665,13 @@ export function createUi015Workflow(options: {
     options.render();
     try {
       if (!(await options.save())) throw new Error('画布尚未保存，请保存后再组装。');
+      // JPEG/WebP designs stay unchanged upstream; the editor reference gets a PNG copy.
+      const designPath = selectedUiRecognition(found.cut)?.bbox?.design.path;
+      const designPng = designPath
+        ? await designPngCopy(options.store, document_.id, designPath)
+        : undefined;
       options.log('015 · 组装 UI：导入素材、组装、生成资源 meta 并检查引用');
-      const status = await options.store.assembleUi(document_.id, bundle.id, newVersion);
+      const status = await options.store.assembleUi(document_.id, bundle.id, newVersion, designPng);
       deliveries.set(groupId, { key: deliveryKey(found.members), value: status });
       if (!status.ready || !status.delivery) throw new Error(status.reason || '资源包尚未完整。');
       const issue = status.delivery.issue;

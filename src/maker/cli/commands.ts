@@ -3262,7 +3262,7 @@ function printHelp(): void {
       '  taptap-maker canvas model-settings',
       '  taptap-maker canvas recognition-input|recognition-result --target-dir PATH --canvas-id ID --id NODE_ID [--input-file FILE]',
       '  taptap-maker canvas archive-ui --target-dir PATH --canvas-id ID',
-      '  taptap-maker canvas ui-delivery|assemble-ui --target-dir PATH --canvas-id ID --id BUNDLE_ID [--new-version]',
+      '  taptap-maker canvas ui-delivery|assemble-ui --target-dir PATH --canvas-id ID --id BUNDLE_ID [--new-version] [--design-png assets/...png]',
       '  taptap-maker canvas <action> --target-dir PATH --page-id ID --canvas-id ID --revision N --input-file FILE',
       '  taptap-maker canvas status|wait --target-dir PATH --operation-id ID',
       '  taptap-maker canvas import --target-dir PATH --page-id ID --canvas-id ID --revision N --file ABSOLUTE_FILE',

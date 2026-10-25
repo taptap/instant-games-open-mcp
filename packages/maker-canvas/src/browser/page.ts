@@ -73,8 +73,9 @@ import { templateCategories } from '../features/templatePresentation.js';
 import { templatePresentation } from '../features/templatePresentation.js';
 import { canvasAutomationSnapshot } from '../features/automation.js';
 import { validateCanvasCommandStructure as validateCanvasCommand } from '../features/automation.js';
-import { syncUiBboxWorkflow } from './uiBboxWorkflow.js';
+import { syncUiBboxWorkflow, layoutUiWorkflowGroup } from './uiBboxWorkflow.js';
 import { createUi015Workflow } from './ui015Workflow.js';
+import { designPngCopy } from './designPng.js';
 import { CANVAS_MODEL_STYLES } from './model3dUi.js';
 import { canvasModelInput } from '../features/model3d.js';
 import { canvasModelIsCurrent } from '../features/model3d.js';
@@ -180,6 +181,7 @@ import { encodeImageAtlasRegions } from './imageAtlasExport.js';
 import { findAtlasContentRegions } from '../features/atlasContent.js';
 import { validateAtlasCrops } from '../features/atlasContent.js';
 import { alignAtlasCells } from '../features/atlasAlignment.js';
+import { alignNativeAtlasRegions, findNativeAtlasComponents } from '../features/atlasAlignment.js';
 import { assignAtlasCellsByCenter } from '../features/atlasAlignment.js';
 import { atlasLayoutError } from '../features/atlasAlignment.js';
 import { IMAGE_ASSETS_STYLES } from './imageAssetsUi.js';
@@ -348,7 +350,9 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasAutomationSnapshot.toString(),
     validateCanvasCommand.toString(),
     syncUiBboxWorkflow.toString(),
+    layoutUiWorkflowGroup.toString(),
     createUi015Workflow.toString(),
+    designPngCopy.toString(),
     prepareCanvasReferences.toString(),
     applyCanvasReferences.toString(),
     decorateCanvasCard.toString(),
@@ -445,6 +449,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     findAtlasContentRegions.toString(),
     validateAtlasCrops.toString(),
     alignAtlasCells.toString(),
+    alignNativeAtlasRegions.toString(),
+    findNativeAtlasComponents.toString(),
     assignAtlasCellsByCenter.toString(),
     atlasLayoutError.toString(),
     selectedUiAtlasPlan.toString(),
@@ -1412,7 +1418,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '    for (const node of documentState.nodes) {',
-    "    const orderedNodes = documentState.nodes.filter(function (node) { return !resourceBundleOwner(documentState, node.id) || selected.has(node.id); }).sort(function (left, right) { return (left.type === 'section' ? -1 : 0) - (right.type === 'section' ? -1 : 0); });\n    for (const node of orderedNodes) {\n      if (node.type === 'video-source') fitVideoCard(node);\n      if (fitImageCard(node)) markDirty();"
+    "    const orderedNodes = documentState.nodes.filter(function (node) { return !resourceBundleOwner(documentState, node.id) || selected.has(node.id); }).sort(function (left, right) { return (left.type === 'section' ? -1 : 0) - (right.type === 'section' ? -1 : 0); });\n    for (const node of orderedNodes) {\n      if (node.type === 'video-source') fitVideoCard(node);\n      if (fitImageCard(node)) { markDirty(); if (node.sectionId && layoutUiWorkflowGroup(documentState, node.sectionId)) requestAnimationFrame(render); }"
   );
   page = replaceCanvasPageText(
     page,
@@ -1484,7 +1490,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      world.append(card);',
       '      if (node.type === "image" && node.assetPath) renderImageInfo(card, generationUi.imageTarget(node), node, function () {',
       '        if (!card.isConnected || !documentState || !documentState.nodes.includes(node)) return;',
-      '        if (fitImageCard(node)) { markDirty(); requestAnimationFrame(render); }',
+      '        if (fitImageCard(node)) { markDirty(); if (node.sectionId) layoutUiWorkflowGroup(documentState, node.sectionId); requestAnimationFrame(render); }',
       '      });',
       '    }',
       '    function renderSelectionToolbar() {',

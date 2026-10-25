@@ -369,37 +369,11 @@ export function createUiRecognitionUiWithHost(options: {
         const source = references[0];
         if (source.type !== 'image' || !source.assetPath || source.templatePending)
           throw new Error('请先准备原始 UI 设计稿。');
-        // UI assembly decodes the design as PNG; normalize JPEG/WebP once, keeping the original.
-        let assetPath = source.assetPath;
-        let imageInfo = source.imageInfo ? { ...source.imageInfo } : undefined;
-        if (!/\.png$/i.test(assetPath)) {
-          if (!options.store.importImage) throw new Error('当前宿主不能准备 PNG 识图输入。');
-          const blob = await options.readSource(assetPath, AbortSignal.timeout(60000));
-          const bitmap = await createImageBitmap(blob);
-          try {
-            const canvas = document.createElement('canvas');
-            canvas.width = bitmap.width;
-            canvas.height = bitmap.height;
-            canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
-            const png = await new Promise<Blob>((resolve, reject) =>
-              canvas.toBlob(
-                (value) => (value ? resolve(value) : reject(new Error('原稿转换 PNG 失败。'))),
-                'image/png'
-              )
-            );
-            if (options.current() !== current || !current.nodes.includes(node)) return false;
-            assetPath = (
-              await options.store.importImage(current.id, await png.arrayBuffer(), 'image/png')
-            ).relativePath;
-            imageInfo = { width: bitmap.width, height: bitmap.height };
-          } finally {
-            bitmap.close();
-          }
-          if (options.current() !== current || !current.nodes.includes(node)) return false;
-        }
+        // The original format is kept for generation and recognition; only UI assembly
+        // makes a PNG copy of the design (a larger PNG upload made edit_image fail).
         options.remember();
-        node.assetPath = assetPath;
-        node.imageInfo = imageInfo;
+        node.assetPath = source.assetPath;
+        node.imageInfo = source.imageInfo ? { ...source.imageInfo } : undefined;
         node.sourceSnapshot = snapshotCanvasSource(source);
         node.sourceSnapshots = [node.sourceSnapshot!];
         node.uiRecognition.results = [];

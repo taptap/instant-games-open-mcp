@@ -84,11 +84,15 @@ export function createBrowserCanvasDocumentStore(
         '/canvases/' + canvasId + '/ui-delivery?nodeId=' + encodeURIComponent(nodeId),
         { signal: AbortSignal.timeout(120000) }
       ),
-    assembleUi: (canvasId, nodeId, newVersion?: boolean) =>
+    assembleUi: (canvasId, nodeId, newVersion?: boolean, designPng?: string) =>
       request<CanvasUiDeliveryStatus>('/canvases/' + canvasId + '/ui-delivery', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ nodeId, ...(newVersion ? { newVersion: true } : {}) }),
+        body: JSON.stringify({
+          nodeId,
+          ...(newVersion ? { newVersion: true } : {}),
+          ...(designPng ? { designPng } : {}),
+        }),
         signal: AbortSignal.timeout(10 * 60 * 1000),
       }),
     setupPython: () =>

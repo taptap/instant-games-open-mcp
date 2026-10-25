@@ -240,7 +240,8 @@ export class UiDeliveryService {
   private importArchive(
     record: { revision: string; directory: string },
     manifest: ArchiveManifest,
-    base: string
+    base: string,
+    designPng?: string
   ): UiAssemblyInput {
     const archiveFile = (entry: string) => {
       const absolute = this.projectPath(record.directory + '/' + entry);
@@ -258,16 +259,27 @@ export class UiDeliveryService {
       const bytes = archiveFile(image.path);
       if (sha256(bytes) !== image.sha256)
         fail('资源归档中的参考图已变化：' + image.path, 409, 'ARCHIVE_MISMATCH');
-      if (!isPng(bytes))
-        fail(
-          '原稿或去文字稿不是 PNG（' +
-            image.path +
-            '）。请在画布重新执行「准备识图输入」生成 PNG 原稿后再组装。',
-          409,
-          'NON_PNG_SOURCE'
-        );
+      let png = bytes;
+      if (!isPng(bytes)) {
+        // JPEG/WebP designs stay unchanged upstream; the editor reference needs a PNG copy of
+        // the same pixels, supplied by the canvas (or --design-png) and checked here.
+        if (name !== 'design' || !designPng)
+          fail(
+            (name === 'design' ? '原稿' : '去文字稿') +
+              '不是 PNG（' +
+              image.path +
+              '）。画布「组装 UI」会自动转换；CLI 请用 --design-png 传入同尺寸 PNG 副本。',
+            409,
+            'NON_PNG_SOURCE'
+          );
+        png = fs.readFileSync(this.files.readMedia(designPng).file);
+        const decoded = isPng(png) && PNG.sync.read(png);
+        if (!decoded || decoded.width !== image.width || decoded.height !== image.height)
+          fail('原稿 PNG 副本与识图原稿尺寸不一致：' + designPng, 409, 'NON_PNG_SOURCE');
+        image.sha256 = sha256(png);
+      }
       const target = sources.get(image.path) || base + '/source/' + name + '.png';
-      if (!sources.has(image.path)) this.writeNew(target, bytes);
+      if (!sources.has(image.path)) this.writeNew(target, png);
       sources.set(image.path, target);
       image.path = target;
     }
@@ -378,7 +390,7 @@ export class UiDeliveryService {
   async assemble(
     canvasId: string,
     nodeId: string,
-    options: { newVersion?: boolean; signal?: AbortSignal } = {}
+    options: { newVersion?: boolean; designPng?: string; signal?: AbortSignal } = {}
   ): Promise<CanvasUiDeliveryStatus> {
     const document = await this.document(canvasId, nodeId);
     const release = this.lock(canvasId, nodeId);
@@ -403,7 +415,7 @@ export class UiDeliveryService {
           version = stem + '-' + n;
         const base = 'assets/ui/' + slug + '/' + version;
         this.ensureDirectory(base);
-        const input = this.importArchive(record, manifest, base);
+        const input = this.importArchive(record, manifest, base, options.designPng);
         const workflow = '.maker/ui-workflows/' + slug + '/' + version;
         this.writeNew(
           workflow + '/assembly.json',
