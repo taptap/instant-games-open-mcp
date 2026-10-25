@@ -7,6 +7,7 @@ import type {
 import { selectedUiRecognition } from '../features/uiRecognition.js';
 import { canvasReferences } from '../core/dependencies.js';
 import { designPngData } from './designPng.js';
+import { uiAtlasElementGroup } from '../features/uiAssetBindings.js';
 
 export interface Ui015Choice {
   artText: string[];
@@ -121,6 +122,19 @@ export function createUi015Workflow(options: {
       id: item.id,
       text: item.text,
     }));
+  }
+  /**
+   * First-time suggestion: restore the environment background unless the recognition already
+   * found one (that branch is kept automatically). The user still confirms in the panel.
+   */
+  function defaultChoice(cut: CanvasNode): Ui015Choice {
+    const bbox = selectedUiRecognition(cut)?.bbox;
+    return {
+      artText: [],
+      background: Boolean(
+        bbox && !bbox.elements.some((item) => uiAtlasElementGroup(item, bbox) === 'background')
+      ),
+    };
   }
   /** The choice is derived from active branches; nothing duplicates it on the group. */
   function currentChoice(document: CanvasDocument, list: CanvasNode[], cut: CanvasNode) {
@@ -318,15 +332,22 @@ export function createUi015Workflow(options: {
     if (!selectedUiRecognition(cut)) throw new Error('Bbox 结果尚未生成，请检查识图服务后重试。');
   }
 
-  /** Apply the choice through the existing batch planner; no-op when nothing changes. */
-  async function applyChoice(document: CanvasDocument, groupId: string, choice: Ui015Choice) {
+  /**
+   * Apply the choice through the existing batch planner. Returns whether batches were added,
+   * restored or retired; nothing is saved when the choice leaves the group unchanged.
+   */
+  async function applyChoice(
+    document: CanvasDocument,
+    groupId: string,
+    choice: Ui015Choice
+  ): Promise<boolean> {
     const next = structuredClone(document);
     const created = options.sync(next, groupId, choice.artText, choice.background);
     if (
       JSON.stringify(next.nodes) === JSON.stringify(document.nodes) &&
       JSON.stringify(next.edges) === JSON.stringify(document.edges)
     )
-      return created;
+      return false;
     options.remember();
     document.nodes = next.nodes;
     document.edges = next.edges;
@@ -339,7 +360,7 @@ export function createUi015Workflow(options: {
         (created.length ? '，新增 ' + created.length + ' 张卡片' : '')
     );
     if (!(await options.save())) throw new Error('批次已生成，但画布保存失败，请保存后继续。');
-    return created;
+    return true;
   }
 
   /**
@@ -379,16 +400,38 @@ export function createUi015Workflow(options: {
           stage: 'choice',
           message: '请选择需要图片化的美术字（可不选）及是否额外还原环境背景。',
           texts: texts(document, found.cut),
-          choice: { artText: [], background: false },
+          choice: defaultChoice(found.cut),
         };
-      const derived = currentChoice(document, members(document, groupId), found.cut);
+      const derived = synced
+        ? currentChoice(document, members(document, groupId), found.cut)
+        : defaultChoice(found.cut);
       const choice: Ui015Choice = {
         artText: input.artText ?? derived.artText,
         background: input.background ?? derived.background,
       };
       // Re-planning also picks up batches added by a new recognition result.
-      await applyChoice(document, groupId, choice);
+      const changed = await applyChoice(document, groupId, choice);
       view = inspect(groupId)!;
+      // Batches added or restored after earlier work must also stop at checkpoint A before
+      // their paid separation; the group-wide "already started" check would skip it.
+      if (
+        changed &&
+        (view.stage === 'prelayout-review' || view.stage === 'generation') &&
+        separations(members(document, groupId)).some((node) => options.needs(node.id))
+      ) {
+        const review = '检查点 A：查看新批次的预排图后继续分离生图';
+        const pendingPrelayout = members(document, groupId).some(
+          (node) => node.uiAtlasPrelayout && !node.uiEmpty && options.needs(node.id)
+        );
+        if (pendingPrelayout) {
+          options.log('015 · 新批次执行本地预排；完成后停在检查点 A');
+          if (!options.queue.start(groupId, true, 'prelayout'))
+            throw new Error(options.failure?.() || '预排队列未启动。');
+          return { status: 'started', stage: 'prelayout', message: '正在执行本地预排' };
+        }
+        options.queue.hold(groupId, 'prelayout-review', review);
+        return { status: 'waiting', stage: 'prelayout-review', message: review };
+      }
       if (view.stage === 'prelayout') {
         options.log('015 · 执行本地预排；完成后停在检查点 A');
         if (!options.queue.start(groupId, true, 'prelayout'))
@@ -454,7 +497,7 @@ export function createUi015Workflow(options: {
     const list = texts(document_, found.cut);
     const current = bundleOf(found.members)
       ? currentChoice(document_, found.members, found.cut)
-      : { artText: [], background: false };
+      : defaultChoice(found.cut);
     const dialog = dialogShell('选择美术字与背景');
     dialog.dataset.ui015Choice = 'true';
     dialog.append(
@@ -486,7 +529,10 @@ export function createUi015Workflow(options: {
     background.checked = current.background;
     backgroundLabel.append(
       background,
-      element('span', '额外还原环境背景（识图已包含背景元素时会自动保留）')
+      element(
+        'span',
+        '额外还原环境背景（识图未找到背景元素时默认勾选；已找到时自动保留）。不勾选则 UI 没有整屏背景图。'
+      )
     );
     const actions = element('div');
     actions.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';

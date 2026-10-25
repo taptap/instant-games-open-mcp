@@ -274,10 +274,17 @@ export function syncUiBboxWorkflow(
       } else {
         node.uiEmpty = true;
         delete node.templatePending;
-        node.sourceSnapshots = canvasReferences(current, node.id).map(
-          (source) => snapshotCanvasSource(source)!
-        );
-        delete node.sourceSnapshot;
+        const sources = canvasReferences(current, node.id);
+        if (node.type === 'image-assets') {
+          // Cut cards record their single source with sourceSnapshot; the saved document rejects
+          // sourceSnapshots on them, which made unticking a branch fail to save.
+          const source = sources.find((item) => item.type === 'image');
+          if (source) node.sourceSnapshot = snapshotCanvasSource(source);
+          delete node.sourceSnapshots;
+        } else {
+          node.sourceSnapshots = sources.map((source) => snapshotCanvasSource(source)!);
+          delete node.sourceSnapshot;
+        }
       }
     }
   }
