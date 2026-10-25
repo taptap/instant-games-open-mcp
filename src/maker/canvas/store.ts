@@ -100,8 +100,10 @@ export function createBrowserCanvasDocumentStore(
         method: 'POST',
         signal: AbortSignal.timeout(20 * 60 * 1000),
       }),
+    // `project=<key>` is the explicit project selector; `checkout` alone is ignored by the
+    // console, which then fell back to the last selected project and lost the file.
     uiEditorUrl: (file) =>
-      '/?' + new URLSearchParams({ checkout: projectKey, page: 'ui-editor', ui: file }).toString(),
+      '/?' + new URLSearchParams({ project: projectKey, page: 'ui-editor', ui: file }).toString(),
     videoHistory: (offset = 0, limit = 30) =>
       request<CanvasVideoHistory>('/canvases/video-history?offset=' + offset + '&limit=' + limit),
     modelSettings: async () => {

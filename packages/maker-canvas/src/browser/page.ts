@@ -75,7 +75,7 @@ import { canvasAutomationSnapshot } from '../features/automation.js';
 import { validateCanvasCommandStructure as validateCanvasCommand } from '../features/automation.js';
 import { syncUiBboxWorkflow, layoutUiWorkflowGroup } from './uiBboxWorkflow.js';
 import { createUi015Workflow } from './ui015Workflow.js';
-import { designPngCopy } from './designPng.js';
+import { designPngData } from './designPng.js';
 import { CANVAS_MODEL_STYLES } from './model3dUi.js';
 import { canvasModelInput } from '../features/model3d.js';
 import { canvasModelIsCurrent } from '../features/model3d.js';
@@ -352,7 +352,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     syncUiBboxWorkflow.toString(),
     layoutUiWorkflowGroup.toString(),
     createUi015Workflow.toString(),
-    designPngCopy.toString(),
+    designPngData.toString(),
     prepareCanvasReferences.toString(),
     applyCanvasReferences.toString(),
     decorateCanvasCard.toString(),

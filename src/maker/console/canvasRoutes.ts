@@ -30,6 +30,24 @@ const DELIVERY_CODES = new Set([
   'ARCHIVE_INCOMPLETE',
 ]);
 
+/** Base64 of a ≤20 MiB PNG; only art-text prelayout and assembly send it. */
+const DESIGN_PNG_BODY = 28 * 1024 * 1024;
+const PNG_MAGIC = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+
+/**
+ * PNG pixels of a JPEG/WebP design, converted by the canvas and sent inline so the project
+ * never keeps a second copy of the design. Size is checked again where it is used.
+ */
+function designPngBytes(value: unknown): Buffer | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(value))
+    throw new ConsoleError('designPng 必须是 base64 编码的 PNG。');
+  const bytes = Buffer.from(value, 'base64');
+  if (bytes.length > 20 * 1024 * 1024 || !bytes.subarray(0, 8).equals(PNG_MAGIC))
+    throw new ConsoleError('designPng 不是 20 MiB 以内的 PNG。');
+  return bytes;
+}
+
 async function readBytes(request: IncomingMessage, limit: number): Promise<Buffer> {
   let size = 0;
   const chunks: Buffer[] = [];
@@ -90,7 +108,9 @@ export async function handleCanvasProjectRoute(options: {
       if (method === 'GET') {
         send(response, 200, await service.status(delivery[1], searchParams.get('nodeId') || ''));
       } else {
-        const body = JSON.parse((await readBytes(request, 4096)).toString('utf8') || '{}') as {
+        const body = JSON.parse(
+          (await readBytes(request, 4096 + DESIGN_PNG_BODY)).toString('utf8') || '{}'
+        ) as {
           nodeId?: unknown;
           newVersion?: unknown;
           designPng?: unknown;
@@ -98,14 +118,13 @@ export async function handleCanvasProjectRoute(options: {
         if (typeof body.nodeId !== 'string') throw new ConsoleError('缺少资源包卡片标识。');
         if (body.newVersion !== undefined && typeof body.newVersion !== 'boolean')
           throw new ConsoleError('newVersion 必须是布尔值。');
-        if (body.designPng !== undefined && typeof body.designPng !== 'string')
-          throw new ConsoleError('designPng 必须是项目素材路径。');
+        const designPng = designPngBytes(body.designPng);
         send(
           response,
           200,
           await service.assemble(delivery[1], body.nodeId, {
             newVersion: body.newVersion === true,
-            ...(body.designPng ? { designPng: body.designPng as string } : {}),
+            ...(designPng ? { designPng } : {}),
           })
         );
       }
@@ -479,10 +498,11 @@ export async function handleCanvasProjectRoute(options: {
     if (generationImage && method === 'POST') {
       if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
       const body = JSON.parse(
-        (await readBytes(request, 64 * 1024)).toString('utf8') || '{}'
+        (await readBytes(request, 64 * 1024 + DESIGN_PNG_BODY)).toString('utf8') || '{}'
       ) as Record<string, unknown>;
       if (typeof body.prompt !== 'string' || !body.prompt.trim())
         throw new ConsoleError('缺少图片生成提示词。');
+      const designPng = designPngBytes(body.designPng);
       if (
         body.cutoutColor !== undefined &&
         !['#FF00FF', '#00FF00', 'transparent'].includes(String(body.cutoutColor))
@@ -530,7 +550,7 @@ export async function handleCanvasProjectRoute(options: {
                   throw new ConsoleError('图片来源节点列表无效。');
                 })(),
         targetNodeId: typeof body.targetNodeId === 'string' ? body.targetNodeId : undefined,
-        designPng: typeof body.designPng === 'string' ? body.designPng : undefined,
+        designPng,
       });
       send(response, 200, attempt);
       return true;

@@ -124,8 +124,8 @@ export class CanvasGenerationService {
     sourceImageIds?: string[];
     referenceImagePaths?: string[];
     targetNodeId?: string;
-    /** Same-size PNG copy of a non-PNG design; used only by the local art-text prelayout. */
-    designPng?: string;
+    /** In-memory PNG of a non-PNG design; used only by the local art-text prelayout. */
+    designPng?: Buffer;
   }): Promise<CanvasGenerationAttempt> {
     let attemptCreated = false;
     try {

@@ -6,7 +6,7 @@ import type {
 } from '../contracts.js';
 import { selectedUiRecognition } from '../features/uiRecognition.js';
 import { canvasReferences } from '../core/dependencies.js';
-import { designPngCopy } from './designPng.js';
+import { designPngData } from './designPng.js';
 
 export interface Ui015Choice {
   artText: string[];
@@ -67,11 +67,6 @@ export function createUi015Workflow(options: {
     setupPython?(): Promise<{ ready: boolean; message?: string }>;
     uiEditorUrl?(file: string): string;
     mediaUrl?(path: string): string;
-    importImage?(
-      canvasId: string,
-      bytes: ArrayBuffer,
-      contentType: string
-    ): Promise<{ relativePath: string }>;
   };
 }) {
   const templateId = '7e1cb6ad-732f-4dc3-a951-000000000015';
@@ -667,9 +662,7 @@ export function createUi015Workflow(options: {
       if (!(await options.save())) throw new Error('画布尚未保存，请保存后再组装。');
       // JPEG/WebP designs stay unchanged upstream; the editor reference gets a PNG copy.
       const designPath = selectedUiRecognition(found.cut)?.bbox?.design.path;
-      const designPng = designPath
-        ? await designPngCopy(options.store, document_.id, designPath)
-        : undefined;
+      const designPng = designPath ? await designPngData(options.store, designPath) : undefined;
       options.log('015 · 组装 UI：导入素材、组装、生成资源 meta 并检查引用');
       const status = await options.store.assembleUi(document_.id, bundle.id, newVersion, designPng);
       deliveries.set(groupId, { key: deliveryKey(found.members), value: status });

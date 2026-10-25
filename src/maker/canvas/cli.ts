@@ -61,13 +61,19 @@ export async function runCanvasCli(
     if (typeof options.canvas_id !== 'string' || typeof options.id !== 'string')
       throw new Error('缺少 --canvas-id 或 --id（UI 资源包卡片 ID）。');
     const { UiDeliveryService } = await import('./uiDelivery.js');
-    const service = new UiDeliveryService(new MakerCanvasFiles(options.target_dir).root);
+    const files = new MakerCanvasFiles(options.target_dir);
+    const service = new UiDeliveryService(files.root);
+    // A user-provided PNG inside the project; read here so the service only sees bytes.
+    const designPng =
+      typeof options.design_png === 'string'
+        ? fs.readFileSync(files.readMedia(options.design_png).file)
+        : undefined;
     print(
       action === 'ui-delivery'
         ? await service.status(options.canvas_id, options.id)
         : await service.assemble(options.canvas_id, options.id, {
             newVersion: options.new_version === true || options.new_version === 'true',
-            ...(typeof options.design_png === 'string' ? { designPng: options.design_png } : {}),
+            ...(designPng ? { designPng } : {}),
           })
     );
     return;

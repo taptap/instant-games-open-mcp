@@ -33,7 +33,7 @@ export async function prepareUiAtlasReference(
   width: number,
   height: number,
   color: '#00FF00' | '#FF00FF' | 'transparent' = 'transparent',
-  designPng?: string
+  designPng?: Buffer
 ): Promise<string> {
   const plan = validateUiAtlasPlan(input);
   if ([plan.grid.marginX, plan.grid.marginY, plan.grid.gapX, plan.grid.gapY].some(Boolean))
@@ -51,13 +51,12 @@ export async function prepareUiAtlasReference(
   let bytes = fs.readFileSync(
     files.readMedia(textOnly ? plan.bbox.design.path : plan.bbox.cutSource.path).file
   );
-  // A JPEG/WebP design stays the recognition identity; art text crops its same-size PNG copy.
-  if (textOnly && !isPng(bytes) && designPng)
-    bytes = fs.readFileSync(files.readMedia(designPng).file);
+  // A JPEG/WebP design stays the recognition identity; art text crops in-memory PNG pixels.
+  if (textOnly && !isPng(bytes) && designPng) bytes = designPng;
   if (!isPng(bytes))
     throw new Error(
       textOnly
-        ? '美术字预排需要原稿的同尺寸 PNG 副本，请在画布中执行预排；尚未提交生图。'
+        ? '美术字预排需要原稿的同尺寸 PNG，请在画布中执行预排；尚未提交生图。'
         : 'Bbox 预排实验模板需要 PNG 去文字图，请转换后重新识图；尚未提交生图。'
     );
   const source = PNG.sync.read(bytes);
@@ -65,7 +64,7 @@ export async function prepareUiAtlasReference(
     textOnly &&
     (source.width !== plan.bbox.design.width || source.height !== plan.bbox.design.height)
   )
-    throw new Error('原稿 PNG 副本与识图原稿尺寸不一致；尚未提交生图。');
+    throw new Error('原稿 PNG 与识图原稿尺寸不一致；尚未提交生图。');
   const background = color === '#00FF00' ? [0, 255, 0] : [255, 0, 255];
   const data = Buffer.alloc(width * height * 4);
   if (color !== 'transparent')

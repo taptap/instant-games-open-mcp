@@ -218,7 +218,7 @@ describe('Maker console standalone UI', () => {
   });
 
   it.each([true, false])(
-    'uses project availability (%s) while preserving a web selection',
+    'uses project availability (%s) and offers only API recognition',
     async (serverAvailable) => {
       const { api, fetch, context } = harness('', '?page=settings&project=alpha');
       api.setPage('settings');
@@ -245,26 +245,21 @@ describe('Maker console standalone UI', () => {
         ok: true,
         status: 200,
         json: async () => ({
-          vision: { source: 'chatgpt-web', serverAvailable },
+          vision: { source: 'server', serverAvailable },
           generation: { source: 'maker' },
           profiles: [],
         }),
       });
       await api.renderVisionSettings();
       const selects = created.filter((el) => el.tagName === 'select');
-      expect(selects[0].options.some((el: any) => el.value === 'chatgpt-web')).toBe(true);
+      // Local and web recognition are retired; vision offers Server API and custom API only.
+      expect(selects[0].options.map((el: any) => el.value)).toEqual(['server', 'custom']);
       expect(selects[2].options.some((el: any) => el.value === 'chatgpt-web')).toBe(false);
       expect(selects[0].options.find((el: any) => el.value === 'server').disabled).toBe(
         !serverAvailable
       );
       expect(fetch.mock.calls[0][0]).toBe('/api/settings/models?project=alpha');
-      expect(selects[0].value).toBe('chatgpt-web');
-      await selects[0].onchange();
-      expect(JSON.parse(fetch.mock.calls[1][1].body!)).toMatchObject({
-        action: 'select',
-        kind: 'vision',
-        source: 'chatgpt-web',
-      });
+      expect(selects[0].value).toBe('server');
       expect(created.some((el) => el.type === 'password')).toBe(false);
     }
   );

@@ -1,22 +1,15 @@
 /**
- * Same-size PNG copy of a JPEG/WebP design for the local pixel steps that read it in Node
- * (art-text prelayout and UI assembly). Upstream edit_image and recognition keep the
- * original file, since a larger PNG upload can fail there. Returns undefined for PNG input.
+ * PNG pixels of a JPEG/WebP design, as base64, for the local steps that read it in Node
+ * (art-text prelayout and UI assembly). Sent inline with that request only: the project keeps
+ * a single design file. Upstream edit_image and recognition keep the original file, since a
+ * larger PNG upload can fail there. Returns undefined for PNG input.
  */
-export async function designPngCopy(
-  store: {
-    mediaUrl?(path: string): string;
-    importImage?(
-      canvasId: string,
-      bytes: ArrayBuffer,
-      contentType: string
-    ): Promise<{ relativePath: string }>;
-  },
-  canvasId: string,
+export async function designPngData(
+  store: { mediaUrl?(path: string): string },
   assetPath: string
 ): Promise<string | undefined> {
   if (/\.png$/i.test(assetPath)) return undefined;
-  if (!store.mediaUrl || !store.importImage) throw new Error('当前宿主不能转换原稿为 PNG。');
+  if (!store.mediaUrl) throw new Error('当前宿主不能读取原稿。');
   const response = await fetch(store.mediaUrl(assetPath));
   if (!response.ok) throw new Error('原稿读取失败，未转换 PNG。');
   const bitmap = await createImageBitmap(await response.blob());
@@ -31,7 +24,12 @@ export async function designPngCopy(
         'image/png'
       )
     );
-    return (await store.importImage(canvasId, await png.arrayBuffer(), 'image/png')).relativePath;
+    const bytes = new Uint8Array(await png.arrayBuffer());
+    // Chunked: a single String.fromCharCode spread over megabytes overflows the call stack.
+    let binary = '';
+    for (let offset = 0; offset < bytes.length; offset += 0x8000)
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    return btoa(binary);
   } finally {
     bitmap.close();
   }
