@@ -510,8 +510,14 @@ export function createTemplateWorkflow(options: {
     const headBusy = Boolean(flow && options.isNodeBusy?.(flow.imageId));
     container.hidden = !flow || flow.stage === 'complete';
     if (!flow || flow.stage === 'complete') {
+      // The 015 group bar already guides that run; this floating hint would cover the bar.
+      const ui015 = documentState?.nodes.some(
+        (node) =>
+          node.type === 'section' && node.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015'
+      );
       const readyImage =
         !running &&
+        !ui015 &&
         documentState?.nodes.some(
           (node) =>
             node.type === 'image' &&

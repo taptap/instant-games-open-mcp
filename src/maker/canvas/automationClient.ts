@@ -5,6 +5,10 @@ export function connectCanvasAutomation(options: {
   current(): { id: string; revision: number } | null;
   execute(command: CanvasCommand): Promise<unknown>;
   error?(message: string): void;
+  /** Whether this page is executing canvas work; other pages on the canvas become read-only. */
+  busy?(): boolean;
+  /** Newest saved revision of this canvas and how many other pages are executing on it. */
+  peers?(info: { canvasId: string; revision: number; busyPeers: number }): void;
 }) {
   let pageId: string | undefined;
   const results = new Map<
@@ -29,6 +33,7 @@ export function connectCanvasAutomation(options: {
               pageId,
               canvasId: current.id,
               revision: current.revision,
+              busy: Boolean(options.busy?.()),
               received: [...seen],
               results: [...results.values()].slice(0, 1),
             }),
@@ -39,6 +44,7 @@ export function connectCanvasAutomation(options: {
           const body = await response.json();
           if (stopped) return;
           pageId = body.pageId;
+          if (body.canvas) options.peers?.({ canvasId: current.id, ...body.canvas });
           for (const id of body.acknowledged) results.delete(id);
           for (const command of body.commands as CanvasCommand[]) {
             if (seen.has(command.requestId)) continue;

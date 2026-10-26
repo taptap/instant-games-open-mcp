@@ -77,6 +77,8 @@ export function createUiRecognitionUiWithHost(options: {
   changed(): void;
   render(): void;
   blocked(): boolean;
+  /** A template run drives this card (including its retry waits): show it as in progress. */
+  autoRunning?(node: CanvasNode): boolean;
   error(message: string): void;
   loadMedia(path: string): Promise<void>;
   openCanvas(id: string): Promise<void>;
@@ -592,6 +594,13 @@ export function createUiRecognitionUiWithHost(options: {
       card.querySelector('.card-state-overlay')?.remove();
       const isSource = source.id === node.id;
       const pending = Boolean(source.uiRecognition.pendingId);
+      if (busy || preparing || options.autoRunning?.(node)) {
+        renderCanvasCardStatus(card, 'loading', {
+          title: '正在识图',
+          hint: '两轮 Bbox 识图进行中（通常 1～2 分钟），完成后自动继续预排、分离和切图。',
+        });
+        return;
+      }
       renderCanvasCardStatus(card, 'paused', {
         title: pending ? 'Bbox 结果待确认' : '等待 Bbox 数据',
         hint:

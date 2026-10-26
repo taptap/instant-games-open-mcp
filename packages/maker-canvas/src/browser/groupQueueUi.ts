@@ -4,12 +4,13 @@ import { canvasFlowDuration, formatCanvasWorkDuration } from './workTiming.js';
 
 export const GROUP_QUEUE_STYLES = [
   '.card.section:has(.group-queue) { overflow:visible; }',
-  '.group-queue { position:absolute; top:calc(100% + 8px); left:0; width:100%; min-height:42px; box-sizing:border-box; display:flex; align-items:center; gap:10px; padding:7px 10px; border:1px solid #655337; border-radius:9px; background:#24221eee; color:#d5c8ad; box-shadow:0 5px 14px #0003; font-size:12px; cursor:default; }',
+  '.group-queue { position:absolute; top:calc(100% + 8px); left:0; width:100%; min-height:42px; box-sizing:border-box; display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; padding:7px 10px; border:1px solid #655337; border-radius:9px; background:#24221eee; color:#d5c8ad; box-shadow:0 5px 14px #0003; font-size:12px; cursor:default; }',
   '.group-queue button { height:28px; flex-shrink:0; border:1px solid #66553a; border-radius:6px; background:#3a3021; color:#f4d398; padding:3px 9px; font-size:12px; cursor:pointer; }',
   '.group-queue button:hover { background:#514029; } .group-queue button:focus-visible { outline:2px solid #e6b15c; outline-offset:2px; }',
   '.group-queue .group-queue-current { min-width:100px; max-width:30%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }',
   '.group-queue .group-queue-status { color:#b3a995; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }',
-  '.group-queue-tasks { flex:1; min-width:30px; display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:2px; }',
+  // The task strip takes its own full-width row, so a narrow (zoomed-out) bar never stacks chips.
+  '.group-queue-tasks { order:10; flex:1 1 100%; min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:2px; }',
   '.group-queue .group-queue-task { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-color:#514939; color:#cbc4b6; background:#302c25; cursor:grab; }',
   '.group-queue-task[data-drop] { border-left:3px solid #ffce76; } .group-queue-count { font-variant-numeric:tabular-nums; color:#a99d86; white-space:nowrap; }',
   '.group-queue-spinner { flex:none; width:12px; height:12px; border:2px solid #715c35; border-top-color:#f0c273; border-radius:50%; animation:group-queue-spin 1s linear infinite; }',
@@ -37,9 +38,13 @@ export function createCanvasGroupQueueUi(options: {
           primary?: { label: string; run(): unknown; disabled?: boolean; title?: string };
           extra: Array<{ label: string; run(): unknown }>;
           hint?: string;
+          /** The template run is still going although the queue itself is not executing. */
+          active?: boolean;
         }
       | undefined;
   };
+  /** Page-level notice (e.g. another page owns this canvas); replaces every group's controls. */
+  notice?(): string | undefined;
 }) {
   const views = new Map<string, HTMLElement>();
   const confirming = new Set<string>();
@@ -80,14 +85,24 @@ export function createCanvasGroupQueueUi(options: {
   function paint(root: HTMLElement, groupId: string) {
     root.replaceChildren();
     const state = options.queue.view(groupId);
-    root.dataset.phase = state?.phase || 'idle';
     const group = options.node(groupId);
     const workflowView = options.workflow?.view(groupId);
+    root.dataset.phase = workflowView?.active ? 'running' : state?.phase || 'idle';
     const interactive015 = Boolean(workflowView);
     const cliOnly = Boolean(group?.templateCliOnly) && !interactive015;
     if (cliOnly || workflowView) confirming.delete(groupId);
     root.dataset.confirming = confirming.has(groupId) ? 'true' : 'false';
     root.dataset.workflow = workflowView ? 'true' : 'false';
+    const notice = options.notice?.();
+    if (notice) {
+      // A stale or read-only page must not show its snapshot as if it were the live run.
+      root.dataset.phase = 'blocked';
+      const label = document.createElement('span');
+      label.className = 'group-queue-status group-queue-detail';
+      label.textContent = notice;
+      root.append(label);
+      return;
+    }
     function button(label: string, action: () => void, className = '') {
       const element = document.createElement('button');
       element.type = 'button';
@@ -121,6 +136,12 @@ export function createCanvasGroupQueueUi(options: {
       current.title = '进行中：' + ids.map(title).join('、') + '（点击定位第一项）';
       root.append(current);
     } else if (workflowView && !active) {
+      if (workflowView.active) {
+        const spinner = document.createElement('span');
+        spinner.className = 'group-queue-spinner';
+        spinner.setAttribute('aria-hidden', 'true');
+        root.append(spinner);
+      }
       const stageLabel = document.createElement('span');
       stageLabel.className = 'group-queue-count';
       stageLabel.textContent = workflowView.stage;
@@ -264,7 +285,8 @@ export function createCanvasGroupQueueUi(options: {
     if (
       !state?.pending.length &&
       !Object.keys(state?.running || {}).length &&
-      !(workflowView && !state)
+      !(workflowView && !state) &&
+      !workflowView?.active
     ) {
       const hint = document.createElement('span');
       hint.className = 'group-queue-status';
@@ -310,7 +332,7 @@ export function createCanvasGroupQueueUi(options: {
         retry.textContent = '重新生图 ' + state.retries[state.active] + '/2';
         root.append(retry);
       }
-      if (state.phase === 'paused') {
+      if (state.phase === 'paused' && !workflowView?.active) {
         const hint = document.createElement('span');
         hint.className = 'group-queue-status';
         hint.textContent = '已暂停';

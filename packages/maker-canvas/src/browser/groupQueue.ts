@@ -23,6 +23,8 @@ export function createCanvasGroupQueue(options: {
   changed(): void;
   error(message: string): void;
   haltReason?(): string | undefined;
+  /** Page-level reason a run must not start here (e.g. another page owns this canvas). */
+  blocked?(): string | undefined;
   /** Fired once a group run has finished and its final phase is saved. */
   settled?(groupId: string, phase: 'paused' | 'complete'): void;
 }) {
@@ -109,6 +111,11 @@ export function createCanvasGroupQueue(options: {
     if (!documentState || (queues.get(groupId) && executing(queues.get(groupId)!))) return false;
     const group = documentState.nodes.find((node) => node.id === groupId);
     if (!group) return false;
+    const blocked = options.blocked?.();
+    if (blocked) {
+      options.error(blocked);
+      return false;
+    }
     const prior = queues.get(groupId) || savedQueueState(group);
     const previous = prior?.pending || [];
     const candidates = members(groupId).filter(
@@ -698,6 +705,18 @@ export function createCanvasGroupQueue(options: {
       const state = queues.get(groupId) || (group ? savedQueueState(group) : undefined);
       if (state && state.runStartedAt === undefined)
         state.elapsedMs = Math.max(state.elapsedMs, group?.workDurationMs || 0);
+      // A stopped or saved snapshot can lag behind the cards (reload, another tab, a save that
+      // landed before the queue's own checkpoint). Counts follow the cards, not the snapshot.
+      if (state && !executing(state)) {
+        const done = state.pending.filter(
+          (id) => !state.failures[id] && !options.needs(id) && !options.problem?.(id)
+        );
+        if (done.length) {
+          state.pending = state.pending.filter((id) => !done.includes(id));
+          state.finished.push(...done.filter((id) => !state.finished.includes(id)));
+          updateCounts(state);
+        }
+      }
       return state;
     },
     blockedBy(groupId: string, nodeId: string) {

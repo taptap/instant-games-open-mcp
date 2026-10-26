@@ -67,6 +67,8 @@ export function createUi015Workflow(options: {
   error(message: string): void;
   log(message: string, level?: 'info' | 'warning' | 'error'): void;
   failure?(): string | undefined;
+  /** Page-level reason this canvas must not run here (e.g. another page owns it). */
+  blocked?(): string | undefined;
   store: {
     uiDelivery?(canvasId: string, nodeId: string): Promise<CanvasUiDeliveryStatus>;
     assembleUi?(
@@ -385,6 +387,11 @@ export function createUi015Workflow(options: {
     input: Partial<Ui015Choice> & { interactive?: boolean } = {}
   ): Promise<Ui015Result> {
     if (running) return { status: 'busy', stage: 'running', message: '015 流程正在处理中' };
+    const blocked = options.blocked?.();
+    if (blocked) {
+      options.error(blocked);
+      return { status: 'failed', stage: inspect(groupId)?.stage || 'invalid', message: blocked };
+    }
     const document = options.current();
     if (!document || !group(document, groupId))
       return { status: 'failed', stage: 'invalid', message: '请选择 015 Bbox 模板分组。' };
@@ -876,6 +883,17 @@ export function createUi015Workflow(options: {
       running: '执行中',
     };
     const stage = labels[state.stage] || state.stage;
+    // One start drives the whole run; between queue runs (retry waits, assembly) it is still
+    // running, never "paused" with a clickable continue button.
+    if ((autoRuns.has(groupId) || running === groupId) && state.stage !== 'running') {
+      const doing: Record<string, string> = {
+        prepare: '正在准备识图输入、去文字并完成两轮识图；失败或结果未知会自动重试',
+        choice: '识图完成，正在按默认选择拆分批次',
+        generation: '自动处理中：失败或结果未知的步骤会自动重试，完成后组装 UI',
+        assemble: '正在组装 UI',
+      };
+      return { stage: stage + ' · 执行中', extra: [], hint: doing[state.stage], active: true };
+    }
     switch (state.stage) {
       case 'invalid':
         return { stage, extra, hint: state.message };
@@ -967,6 +985,10 @@ export function createUi015Workflow(options: {
     openChoice,
     get isBusy() {
       return Boolean(running);
+    },
+    /** Any group is in an automatic run, including the gaps between queue runs. */
+    get active() {
+      return Boolean(running) || autoRuns.size > 0;
     },
   };
 }
