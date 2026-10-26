@@ -25,6 +25,8 @@ export function createCanvasResourceExportWithHost(options: {
     deliver?: CanvasExportDelivery
   ): Promise<CanvasExportResult>;
   openHandoff(canvasId: string): void;
+  /** False hides the UI editor handoff entry; absent keeps the existing behavior. */
+  uiEditor?: boolean;
   openAtlas(node: CanvasNode, mediaUrl: (path: string) => string): void;
   getDocument(): CanvasDocument | undefined;
   mediaUrl(path: string): string;
@@ -48,7 +50,7 @@ export function createCanvasResourceExportWithHost(options: {
       const identity = canvasExportIdentity(options.getDocument(), saved);
       const document = options.getDocument();
       const current = document && structuredClone(document);
-      const handoff = isGameUiResource(current, saved);
+      const handoff = options.uiEditor !== false && isGameUiResource(current, saved);
       const result = await options.downloadResource(
         saved,
         format,
@@ -133,7 +135,7 @@ export function createCanvasResourceExportWithHost(options: {
           });
           group.append(adjust);
         }
-        if (isGameUiResource(options.getDocument(), saved)) {
+        if (options.uiEditor !== false && isGameUiResource(options.getDocument(), saved)) {
           const next = document.createElement('button');
           next.type = 'button';
           next.textContent = '下一步：组装游戏 UI';

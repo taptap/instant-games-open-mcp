@@ -82,6 +82,28 @@ videoGeneration、recognition、model、templateExchange、uiArchive 的 `{avail
 CLI 实时 inspect 同步能力状态，实际提交仍经相同控制器检查。未声明沿用原行为；
 uiArchive 表达宿主保存归档能力，不禁用通用 ZIP 导出，也不替代宿主归档实现。
 查询已提交任务及本地预排不等于发起新生成，不由生图能力禁用代替任务恢复规则。
+
+`host.features`（`CanvasPageFeatures`）只控制页面入口显示，不过滤自动化命令；
+开放 `execute` 的宿主须自行做动作白名单。未声明时保持现有页面：
+
+| 键             | 设为 false 时隐藏                                                                    |
+| -------------- | ------------------------------------------------------------------------------------ |
+| templates      | 添加模板、模板右键菜单（保存/替换模板、分组重命名）；015 等流程入口                  |
+| uiRecognition  | 导入 UI 设计稿、识别 UI / 查看标注                                                   |
+| video          | 导入视频、视频输入卡、视频历史、右键新建视频卡、视频生成、拖线建视频卡               |
+| sequence       | 拆序列帧                                                                             |
+| model3d        | 模型卡片上的预览与操作（创建入口本就只在模板/CLI）                                   |
+| uiEditor       | 导出后「组装游戏 UI」交接                                                            |
+| resourceExport | 分组/资源包的导出与汇总资源；图片 PNG/JPG 下载保留                                   |
+| sections       | 新建分区                                                                             |
+| imageEditing   | 快速编辑、扩展画面、去纯色背景、本地编辑                                             |
+| cutout         | 选中菜单「去纯色背景」（Web 为一键「抠图」+「调整抠图」）；未声明时跟随 imageEditing |
+| connectors     | 唯一默认关闭的项；设为 true 才显示图片左右连接点并允许选中连线删除                   |
+
+Web 只保留图片、便签、标注、图片槽、连线、导入、删除、复制、撤销/重做和图片下载时，
+传 `features: { templates: false, uiRecognition: false, video: false, sequence: false,
+model3d: false, uiEditor: false, resourceExport: false, sections: false, imageEditing: false,
+connectors: true }`。
 可选服务使用现有 Store/组件可选字段与不可用提示，
 不能暗中创建本地 Store，也不能绕过确认门来模拟能力。生成、识图、模型服务及其任务
 持久化恢复、认证、项目隔离、预览允许来源、目录和下载策略始终属于宿主。
@@ -147,6 +169,184 @@ bbox 校验、文本父级归属、原请求恢复和费用汇总从原本地实
 Web 使用现有项目 JWT 接口和素材库，记录仅包含 JSON，不持久化图片字节。查询不提交
 下一阶段；显式恢复沿用原幂等键与 24 小时窗口。请求前持久化、未知结果不盲重试。
 共享编排不是新的后台任务服务，不保证跨设备原子互斥，也不代替原服务积分结算。
+
+## 图片槽与连线
+
+图片槽沿用现有图片卡：`type: 'image'` 且没有 `assetPath`，可带 `generationDraft`，
+不新增节点类型。工具栏「图片生成卡」和 `add-node {type:'image'}` 都创建图片槽。
+状态取自原生成状态：空、生成中（卡片 loading 遮罩）、失败（遮罩显示「重试」，经
+`store.generationAction(..., 'retry')` 重提原任务）、已填充。选中图片槽时下方面板显示参考图
+缩略图与「+」导入参考、提示词、模型/比例/分辨率和「生成」；面板内没有上传按钮。模型列表只来自
+`store.imageModels(tool)`；「自动」不传 model，由宿主取平台默认。发送仍调用
+`store.generateImage(canvasId, {prompt, targetNodeId, sourceImageIds, sourceImagePaths,
+referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, operation})`，
+成功结果写回 `targetNodeId` 同一张卡。默认外观点槽内「导入图片」按钮走页面本地图片导入，`fill-slot` 沿用
+`prepareCanvasImportedNode` 的项目素材校验。回填保留节点 id、位置、宽度和连线；
+高度按原有图片卡规则随图片比例调整。
+
+连线复用 `image-variant` 边，不新增类型：`from` 必须是已有素材且无需处理的图片，
+不允许自连和循环，重复连线忽略，每张图最多 14 张参考。连到图片槽时，原 `generationDraft.sourceImageId`
+转为显式边并设 `referenceInput = {includeSelf:false}`，生成时按连线顺序提交全部上游图片，
+结果回填后这些连线保留；连到已有图片只表示关系，该图的编辑仍沿用原来源规则。
+`connectors: true` 时左侧连接点拖到另一张图片表示「它连入我」，右侧拖出表示「我连到它」；
+单击（无拖动，或键盘激活）右侧「+」在右侧新建默认尺寸的空图片槽并连 `卡片 → 槽`，
+左侧「+」在左侧新建并连 `槽 → 卡片`；位置避开已有卡片，新槽被选中并打开提示词面板，
+走正常撤销栈与自动保存，连线被拒绝时撤回该槽。
+选中图片参考线可按 Delete 或「删除连线」移除，与 `disconnect` 同样只允许
+`image-variant` / `first-frame`。
+
+可选宿主钩子（缺省即不显示对应入口，本地宿主不受影响）：
+`addToChat?(items: {nodeId, assetPath}[])` 与
+`pickProjectImages?(): Promise<{path, name}[]>`（`path` 为项目相对路径，如 `assets/image/x.png`）。
+
+`host.appearance?: 'default' | 'web'` 只换皮肤：`'web'` 给 `<html>` 加
+`canvas-appearance-web` 并启用 `webStyles.ts` 中的作用域 CSS（工具条、选中菜单、
+图片卡/图片槽、提示词面板），连线语义与命令不变。`'web'` 下的交互差异：
+
+- 「+」只在恰好选中一张卡片（或键盘聚焦）时出现，多选不显示。锚点是图片框（标题行以下的
+  可见框）左右边的垂直中点：20px 圆环（1.2px 描边 ink 70%、底 charcoal 90%、12px Plus）
+  停在边上，80px 热区中心在边外 25px，按屏幕像素绘制不随缩放变化；热区内跟随指针最多 30px、
+  放大 1.1（80ms），离开弹回（400ms spring）。普通导入图片只有右侧「+」，图片槽（空槽或
+  AI 生成结果）两侧都有。拖动时显示曲线预览，悬停到其他图片卡会吸附到对侧边并高亮目标，
+  松手仍走 `connect` 校验（`webChrome.ts`）。
+- 选中样式对齐 Mivo `.dom-node.selected`：图片框直角，2px（屏幕）宿主主题色 `--canvas-accent`
+  描边，外加同色 4px、不透明度 `.18` 的光晕与 `0 18px 44px rgba(35,35,35,.22)`；空槽光晕 `.1`
+  且无投影。多选只保持每张卡的 2px 主题色描边和 `.14` 光晕，不画整组外框，不显示角柄。四角柄为 10px 圆点（2px 主题色描边、`#fffaf0` 底、20px 热区），
+  四角都可缩放：nw/se 为 `nwse-resize`，ne/sw 为 `nesw-resize`，拖动从该角缩放并固定对角，
+  沿用图片比例规则，走撤销栈。
+- `image-variant` 连线画成两张图片框左右边中点之间的三次曲线、无箭头；悬停或选中时线与流光都
+  改用宿主主题色 `--canvas-accent`：3px 底线降到 30% 不透明度，上方 6 层 5px 宽彗星虚线
+  （Mivo 层表，260px 周期、1.08s）用 CSS `stroke-dashoffset` 动画流动（Chrome 74 可用；
+  按时钟相位续播，重绘不重启；`prefers-reduced-motion` 时静止）。选中或悬停 1 秒后中点出现 28px 圆形剪断按钮
+  （居中 14px lucide scissors；毛玻璃：62% 面板色 + `backdrop-filter: blur(10px)`，不支持
+  backdrop-filter 的 Chrome 74 退回实色面板；悬停/聚焦去掉描边，改为主题色图标与 14% 主题色底）
+  删除连线，Delete 同样有效；曲线不提供折线手柄。
+- 连线只表示引用关系：删除指向已有图片卡的连线时，丢弃该来源的 `sourceSnapshot(s)`，不设
+  `templatePending`、不使下游失效，图片保持原样；删除指向空槽的连线只移除下一次生成的参考
+  （同时清掉草稿 `sourceImageId(s)`，两种外观都如此）。默认外观仍按原规则把分组成员标为待处理。
+- 没有再生成路径的图片（本地编辑、抠图、普通导入：无 `generation`/草稿提示词，且不属于分组、
+  二合图标或识别流程）在两种外观下都不提供「处理并继续 / 重试并继续」，连续处理时跳过；来源连线
+  已断开不再算作“来源已变化”，旧画布中此类卡加载即正常显示；仍连着的来源变化只显示提示性的「待处理」。
+- 点击空图片槽只选中并打开下方面板，不弹文件选择；单选空槽时图片框上方居中出现「上传」
+  胶囊（距框 14px，屏幕高度不超过 30px 且不超过框高 20%），只有它会打开本地导入
+  （键盘聚焦槽内导入按钮回车仍可导入）。生成中的槽和已有图片不显示。
+- 选中已有图片的图片槽（AI 生成结果，带 `generation`）仍打开下方提示词面板；在该面板重新生成会
+  把结果原位写回同一张卡（`targetNodeId` 为该卡；保留 id、位置、宽度、标题与连线，高度按新图比例），
+  上一张图只保留在撤销栈和素材文件中。普通导入或上传填充的图片只显示选中菜单；经「快速编辑」
+  生成仍落到新的连线结果卡（与 Mivo 上传后转为普通图片一致）。默认外观不变：快速编辑/重新生成
+  一律新建「图片变体」结果卡。
+- 提示词面板对齐 Mivo `ImageSlotComposer`：宽 `max(640, 卡宽+80)`、卡下 12px 居中；宽度和位置
+  限制在画板内并扣除左侧工具条，卡下放不下时翻到卡片（及选中菜单）上方；
+  10px 圆角、8px 内边距、段间 6px、`0 18px 48px rgba(35,35,35,.12)` 投影与 12px 模糊；
+  顶部 44px 参考图行（10px 圆角，虚线「+」），无边框提示词（13px/1.5、最小 96px），底行为
+  透明药丸下拉（30px、8px 圆角、20px 右留白放箭头）、「素材规范」药丸与 32px 圆形发送键。
+  暗色取 Mivo 插件值（面板 `#393737`、描边 `#5a5a5a`/聚焦 `#6f6f6f`、发送 `#eeeeee` 底
+  `#252222` 图标），亮色按同一混色比例作用于宿主浅色 token（发送键反相）。Web 下不显示
+  分辨率说明、无参考图提示、服务商与服务模型说明。
+- 模型/分辨率/比例下拉按所选文字收窄（上限 220px），右侧留出自绘箭头位置。
+- 「素材规范」药丸开启时带 ✓；点击打开小弹层：开关（仍写本卡
+  `generationDraft.parameters.assetConstraints`）、说明「让结果单体完整、纯色背景，方便抠图和放进游戏」、
+  可编辑约束文本与「恢复默认」。文本按画布保存在 `document.settings.assetConstraintText`
+  （与内置文本相同或为空时删除该字段），只在开启时追加到发送给宿主的 prompt，卡片的
+  `generation.prompt` 仍只存用户文本。发送或点击弹层外部会关闭弹层。弹层是锚定药丸的浮层，
+  向上展开并夹在画板内，不改变面板布局（`canvasWebPlacePopover`）。
+- 所有 AI 结果卡选中都打开提示词面板：页面生图结果、「图片变体 · 已保存结果」，以及 Agent 经
+  `fill-slot` / `replace-image` / 带 prompt 的 `import` 放入的结果。
+- 选中菜单中「加入对话」（lucide `message-square-plus`）、「抠图」（lucide `square-scissors`）与
+  「下载」为 16px 图标按钮，名称在 `aria-label` 与悬停提示中；其余动作仍为文字。「抠图」右侧
+  紧贴 16px 宽 chevron 按钮「调整抠图」。
+- 图标按钮提示（`installCanvasWebTooltips`，选中菜单、左侧工具条、剪断按钮、卡片菜单、画布页签
+  重命名共用）：不用原生 `title`，悬停 150ms 或键盘聚焦后在按钮上方显示深色小胶囊（12px，
+  明暗主题各一套色值，上方放不下时翻到下方），刚关闭 300ms 内移到相邻按钮立即显示；按下指针、
+  Esc、滚动或失焦即隐藏。已有 `title` 在首次悬停/聚焦时迁入 `data-web-tip`，`aria-label` 保留。
+- 右键已有图片的卡片：菜单顶部增加「加入对话」「抠图」「调整抠图」「下载」「下载 JPG」，分别按
+  `addToChat` 钩子、`cutout` 功能键（两项抠图）显示，两项下载总是显示；空槽、处理中的卡与空白处
+  菜单不变。宿主关闭 `resourceExport` 时图片卡不再显示「导出资源 ▸」组（与「下载」重复）；
+  默认外观仍保留图片的该组。
+- 「下载」（选中菜单下载图标与右键「下载」一次点击直接 PNG，右键「下载 JPG」为 JPG）走现有导出链。
+  默认外观的 `<details>` PNG/JPG 浮层为 `position: fixed`，在 Web 毛玻璃选中菜单
+  （`backdrop-filter` 会成为 fixed 元素的定位容器，且菜单 `overflow` 裁剪）里错位不可见，
+  因此 Web 改为普通图标按钮；默认外观不变。导出链：
+  `resourceExport.download(node, format)` → `host.downloadCanvasResource` →
+  `host.deliverExport({ filename, mime: 'image/png', produce })`，`produce()` 返回编码后的 PNG Blob，
+  落点由宿主决定。
+- 选中菜单：「加入对话」在宿主提供 `addToChat` 时出现（单选与多选），只传已有 `assetPath`
+  且不在处理中的图片卡；「抠图」由 `cutout` 功能键控制，为一键操作：按去背景编辑器的方式
+  自动取背景色，用编辑器默认参数（`CANVAS_BACKGROUND_DEFAULTS`：容差 32、过渡 24、去溢色 .5、
+  边缘连通）在浏览器内去除，经 `store.importImage` 保存 PNG，在原图右侧新建「<原标题> · 抠图」卡，
+  以 `image-variant` 从来源连入并选中，可撤销。处理中原卡显示处理遮罩；未识别到纯色背景或
+  其它失败只提示「抠图失败：…」（未识别时提示改用「调整抠图」），不创建卡片。不打开编辑器，不调用生成或付费服务；默认外观的
+  「去纯色背景」仍打开完整本地编辑器（「本地图片编辑」+「去背景」两层）。Web「调整抠图」（同受
+  `cutout` 控制）只打开「去背景」参数框（`openBackgroundEditor` 的 `confirm` 单图模式：自动/手动取色、
+  从原图取色、容差、边缘过渡、去溢色、处理范围与实时预览），底部仅「取消」和主按钮「保存」；
+  「保存」按当前参数处理后与一键抠图共用提交逻辑，在右侧新建「<原标题> · 抠图」`image-variant`
+  连线卡并选中、图片立即显示。保存失败时对话框保留并提示，可重试；保存中不可取消。
+- 工具条顶部握把为内联 lucide `grip-horizontal`（2 行 × 3 点）。
+- 生成/处理中：卡内为面板色底、主题色淡层与扫光的细边框，22px 细环形 spinner；文案
+  「处理中」与「停止等待」放在卡下方胶囊中，停止按钮始终可点。
+- 空白处右键：「新建图片卡片」（右键点处空槽）、「上传图片」（本地文件，放到右键点处）与
+  「从素材库添加」（仅宿主提供 `pickProjectImages` 时出现；逐张走 `importProjectAsset`
+  的项目素材校验，从右键点向右排开不重叠，最多 20 张）。
+- 工具条：选择/拖拽按钮的激活态与光标跟随实际模式（拖拽为 grab/grabbing，含空格临时平移）；
+  保存只保留一个图标，`data-save-state` 为 saved / unsaved / saving / failed，并带对应提示，
+  不再单列 ✓ / … 状态。
+- 画布页签栏对齐 Maker Web `TabsList`：40px 高、画板底色（`--canvas-soft`），页签为 30px 圆角
+  胶囊；激活页签用卡片底色、前景文字与轻投影，其余为次要文字、悬停浅底。关闭 × 只在悬停或激活时
+  显示，重命名铅笔只在悬停激活页签时显示，键盘聚焦时始终可见并保留焦点环；右侧「+」「全部画布」
+  为 28px ghost 按钮。
+- 「适配画布」排除左侧工具条（及显示中的流程条）占位并留 32px 边距，按卡片实际渲染尺寸计算。
+
+颜色取 `--canvas-*`（Web 由 `--maker-*` 映射），随 `:root[data-theme]` 切换明暗。
+
+两种外观共有的修复：拖拽、缩放或平移时提示词面板不再随每次 `pointermove` 重建，只重新定位，
+下拉、已输入提示词和选择保持原节点（以 `canvasComposerKey` 判断卡片内容是否变化）；生图模型
+列表按工具（`generate_image` / `edit_image`）缓存，提交时仍读取最新值并刷新缓存，读取失败不缓存。
+未设置或 `'default'` 保持原外观。
+
+## 自动化命令补充
+
+- `inspect` 及所有返回快照的命令带 `selectedIds`。
+- `undo` / `redo`：`input` 为空对象，复用页面撤销栈及其模板流程、队列保护；栈空返回
+  `INVALID_ARGS`。
+- `fill-slot`：`{id, assetPath, prompt?}`，只接受空图片槽，返回快照且 `selectedIds` 为该槽。
+- `replace-image`：`{id, assetPath, prompt?}`，原位替换已有图片（保留 id、位置、宽度、标题与连线，
+  高度随图片比例），一次撤销即还原；空槽须用 `fill-slot`，非图片卡、生成中或有未确认任务均为
+  `INVALID_ARGS`。素材校验与 `fill-slot` 相同（`prepareCanvasImportedNode`），下游结果按来源版本变为过期。
+- `import`：`{assetPath, kind?, title?, prompt?, sourceId?}`；`kind` 默认 `image`，`title` 默认文件名
+  （去扩展名，≤80 字），文件名可含中文等任意 Unicode，路径仍拒绝 `..`、空段、反斜杠与不符扩展名。
+  `sourceId` 为已有素材图片时，新卡放在其右侧并添加 `sourceId → 新卡` 的 `image-variant` 连线。
+- 三者带 `prompt`（1～8000 字，仅图片）时按页面生成结果的同一形状写入
+  `generation = {prompt, referenceImagePaths: [], parameters: {}, operation, origin: 'agent',
+sourceImageId?, sourceImageIds?}`（有入边时 `operation: 'variant'` 并记录来源快照），因此
+  `canvasWebSlot` 为真，选中即打开预填该提示词的面板；不发起生成。无 `prompt` 时行为不变
+  （`replace-image` 会清除旧生成元数据）。宿主对素材路径的拒绝同样是 `INVALID_ARGS`。
+- 游戏素材约束只附加到发给宿主的请求：卡片 `generation.prompt` 只存用户文本（旧卡末尾的标准约束段
+  显示时去掉），选择记录在 `parameters.assetConstraints`。未记录时沿用原规则（生图默认开启，编辑
+  不附加，原文已含约束段视为开启）。Web 底行「游戏素材」开关可切换，悬停显示约束全文；默认外观
+  无开关、请求内容与之前一致。
+- `connect` 支持图片到图片（规则见上），校验失败为 `INVALID_ARGS`。
+
+写命令遇到的唯一阻塞是未保存修改或进行中的自动保存时，先等待保存（上限约 10 秒）再
+重新检查；保存失败或超时即拒绝，命令不执行。
+
+`execute` 抛出的错误带 `code`：卡片、连线不存在或 canvasId 不是当前画布为 `NOT_FOUND`；
+其余在任何副作用之前的拒绝均为 `INVALID_ARGS`（宿主报告「未执行」），包括命令结构、
+input 字段与取值、过期 revision、未传 `allowPaid`、AI 操作执行中、`blocked` 状态原因
+（面板/对话框打开、草稿、任务执行中等）、保存失败/超时及卡片任务待确认。副作用开始后的
+失败不带 code（宿主按未知处理）。revision 校验保持不变。
+
+## 平台、页面入口与服务可用性
+
+三者职责不同，组合使用，不互相替代：
+
+- `store.platform` / 模板 `platforms`：能力或模板适用于哪一端；本地为 `'local'`，Web 宿主
+  消费本包时应显式声明 `'web'`，否则带平台限制的模板会被过滤。
+- `host.features`：只决定页面显示哪些入口（按钮、菜单）；隐藏入口不是权限控制，
+  也不会禁用对应的 Agent 命令。
+- `store.capabilities`：某类服务是否已接通及不可用原因。
+
+本地宿主不声明 `appearance`、`features`，保持默认外观，图片连接点（`connectors`）关闭，
+分组与模板入口保留。
 
 ## 业务流程约束
 
@@ -231,11 +431,16 @@ Web 可在自己的生成脚本中导入 `dist/browser.mjs` 的 `getCanvasPageHt
 无需导入 `src/maker/canvas` 的私有 helper，草稿、人工导入和导出回执通过正式接口接入。
 保留源码 revision/内容指纹用于更新核对；复制产物时包含整个 dist 和 package.json。
 
-构建固定 ES2020、保留函数名且不压缩；不要让消费端先压缩/重命名此生成器再调用它。
+构建目标为 chrome74、保留函数名且不压缩；不要让消费端先压缩/重命名此生成器再调用它。
 宿主应按导出的 `CanvasPageHost` 类型检查返回对象，并验证最终生成页面。
-当前仍要求现代浏览器的 `structuredClone`、`createImageBitmap` 等 API；该产物不承诺
-Chrome 74 兼容。若 Web 必须支持旧 WebView，需要单独核定运行时能力及脚本转译，
-仅把 Vite target 设为 es2018 不会转译 HTML 内脚本，也不能补齐缺失的 API。
+页面内脚本由 HTML 字符串拼装，esbuild 打包看不到；构建先生成页面，再把内联脚本整体降到
+chrome74，dist 的 `getCanvasPageHtml` 直接返回降级后的页面（源码入口与本地控制台不变）。
+`hostScript` / `themeScript` 原样插入，宿主须自行保证其可在 Chrome 74 运行
+（如用 esbuild 以 chrome74 转译后再注入）。页面最先执行 `installCanvasPolyfills()`，
+按特性检测补 structuredClone、crypto.randomUUID、Object.hasOwn、Array/String.prototype.at、
+replaceAll、findLast/findLastIndex、Promise.allSettled、Element.replaceChildren、
+Blob.arrayBuffer/text、AbortSignal.timeout。`body.inert` 在旧内核上不生效，CSS 中的
+`inset`、flex `gap` 等仅影响样式，未做降级。`createImageBitmap` 仍依赖浏览器原生实现。
 
 从仓库根目录运行共享包的独立类型检查：
 
@@ -247,6 +452,9 @@ npm run maker:canvas:check
 types: []。前者以 ES2020 检查 contracts/domain 及其传递依赖，不允许 DOM/Node 类型；
 后者以 ES2020 + DOM + DOM.Iterable 检查完整共享包，允许标准浏览器能力但不引入 Node 类型。
 这些静态约束不代表整个画布已完成浏览器兼容验证。
+`node scripts/test-maker-canvas-web-basics.mjs`（先构建）以 ES2019 语法解析降级产物，并在
+移除上述原生 API 的 Chromium 中跑 Web 形态宿主的图片槽、连线和命令；它不等于真实
+Chrome 74 设备验收。
 
 共享源码已纳入根 lint 与 format:check，PR build job 调用上述独立类型检查；
 本地 Maker 的现有 esbuild 入口通过旧模块解析共享源码，release-scope 包含本目录。

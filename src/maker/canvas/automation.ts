@@ -141,11 +141,40 @@ export function canvasAutomationCapabilities() {
         id: 'model card ID',
         reviewId: 'current review token; requires explicit user approval of all returned previews',
       },
-      import: { file: 'CLI --file: absolute local path', title: 'optional title in input JSON' },
+      import: {
+        file: 'CLI --file: absolute local path; page hosts pass assetPath (project-relative, any Unicode file name)',
+        kind: 'optional image/video; default image',
+        title: 'optional 1..80 chars; default the file name without extension',
+        prompt:
+          'optional 1..8000 chars, image only: records it as the generation prompt so selecting the card reopens the composer prefilled. Nothing is generated.',
+        sourceId:
+          'optional saved image ID, image only: places the new card beside it and adds an image-variant edge source -> new card',
+      },
       'set-references': {
         id: 'target image/video ID',
         sourceIds: 'ordered image IDs; [] clears',
         includeSelf: 'optional boolean, image only; default false',
+      },
+      connect: {
+        from: 'saved image ID',
+        to: 'video input card ID (first frame), or image ID: appends from as an image reference; an empty image (slot) then submits every connected image in order',
+      },
+      undo: {
+        note: 'empty input; reverts the latest page edit, INVALID_ARGS when nothing to undo',
+      },
+      redo: { note: 'empty input; reapplies the latest undone edit' },
+      'fill-slot': {
+        id: 'empty image card (slot) ID',
+        assetPath:
+          'project image path; fills the slot in place, keeping id, position, width and edges. No generation.',
+        prompt: 'optional; same as import prompt',
+      },
+      'replace-image': {
+        id: 'image card ID that already has an image; empty slots use fill-slot',
+        assetPath:
+          'project image path; replaces the image in place, keeping id, position, width, title and edges; height follows the image ratio. Undoable; downstream results become stale like a manual image change. No generation.',
+        prompt:
+          'optional; same as import prompt. Without it, previous generation metadata is cleared',
       },
       'add-node': {
         type: 'image/video/note/mark/sequence/animation/model-views/model',

@@ -1,0 +1,3486 @@
+// Exercises the built dist (run maker:canvas:build first), since the Web host consumes that output.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const dist = path.join(repo, 'packages/maker-canvas/dist');
+const { getCanvasPageHtml } = await import(pathToFileURL(path.join(dist, 'browser.mjs')).href);
+const acorn = createRequire(path.join(repo, 'package.json'))('acorn');
+const results = [];
+async function check(name, run) {
+  if (process.env.CANVAS_CHECK && !name.includes(process.env.CANVAS_CHECK)) return;
+  await run();
+  results.push(name);
+  console.log('PASS ' + name);
+}
+
+// Runs inside the page: a Web-style host over an in-memory store, mirroring web-page-host.js.
+function testHostScript() {
+  function createCanvasHost() {
+    const config = window.__canvasTestConfig || {};
+    const docs = new Map();
+    const media = new Map();
+    const attempts = new Map();
+    const calls = (window.__canvasCalls = { generate: [], actions: [] });
+    let active;
+    const now = () => new Date().toISOString();
+    const copy = (value) => JSON.parse(JSON.stringify(value));
+    function pngBlob(color, width, height) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      context.fillStyle = color;
+      context.fillRect(0, 0, width, height);
+      return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    }
+    async function addMedia(color, width, height, path) {
+      const target = path || 'assets/image/canvas/' + crypto.randomUUID() + '.png';
+      media.set(target, URL.createObjectURL(await pngBlob(color, width, height)));
+      return target;
+    }
+    window.__canvasAddMedia = addMedia;
+    // Seeded canvases stand in for documents saved by an earlier session.
+    const seeded = Promise.all(
+      Object.entries(config.seedMedia || {}).map(([target, color]) =>
+        addMedia(color, 120, 120, target)
+      )
+    );
+    for (const doc of config.seedDocuments || []) docs.set(doc.id, copy(doc));
+    if (config.seedDocuments?.length) active = config.seedDocuments[0].id;
+    // Solid background with a centred subject, or 8 stripes that no background detector accepts.
+    window.__canvasAddPainted = async (kind, width, height) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      const stripes = ['#e33', '#3e3', '#33e', '#ee3', '#3ee', '#e3e', '#963', '#fff'];
+      if (kind === 'stripes')
+        stripes.forEach((color, index) => {
+          context.fillStyle = color;
+          context.fillRect((index * width) / 8, 0, width / 8 + 1, height);
+        });
+      else {
+        context.fillStyle = '#00ff00';
+        context.fillRect(0, 0, width, height);
+        context.fillStyle = '#c33';
+        context.fillRect(width / 4, height / 4, width / 2, height / 2);
+      }
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      const target = 'assets/image/canvas/' + crypto.randomUUID() + '.png';
+      media.set(target, URL.createObjectURL(blob));
+      return target;
+    };
+    // Seeds a finished attempt the page has not applied yet, as a reload would find it.
+    window.__canvasAddAttempt = async (input) => {
+      const attempt = {
+        id: crypto.randomUUID(),
+        kind: 'image',
+        toolName: 'generate_image',
+        status: 'succeeded',
+        parameters: {},
+        createdAt: now(),
+        updatedAt: now(),
+        resultAssetPath: await addMedia('#59c', 48, 48),
+        resultImageInfo: { width: 48, height: 48 },
+        ...input,
+      };
+      attempts.set(attempt.id, attempt);
+      return attempt.id;
+    };
+    async function succeed(attempt) {
+      attempt.status = 'succeeded';
+      const [width, height] = window.__canvasResultSize || [64, 32];
+      attempt.resultAssetPath = await addMedia('#3a7', width, height);
+      attempt.resultImageInfo = { width, height };
+      attempt.updatedAt = now();
+      delete attempt.error;
+      return attempt;
+    }
+    const store = {
+      platform: 'web',
+      capabilities: config.capabilities,
+      async list() {
+        return [...docs.values()].map((doc) => ({
+          id: doc.id,
+          title: doc.title,
+          revision: doc.revision,
+          updatedAt: now(),
+        }));
+      },
+      async load(id) {
+        await seeded;
+        if (!docs.has(id)) throw Object.assign(new Error('画布不存在'), { status: 404 });
+        return copy(docs.get(id));
+      },
+      async create(title) {
+        const doc = {
+          id: crypto.randomUUID(),
+          title: title || '创作画布',
+          revision: 1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [],
+          edges: [],
+        };
+        docs.set(doc.id, doc);
+        return copy(doc);
+      },
+      async save(doc) {
+        if (window.__canvasSaveDelay)
+          await new Promise((resolve) => setTimeout(resolve, window.__canvasSaveDelay));
+        if (window.__canvasSaveFail) throw new Error('模拟保存失败');
+        const next = copy(doc);
+        next.revision = (docs.get(doc.id)?.revision || 0) + 1;
+        docs.set(doc.id, next);
+        return copy(next);
+      },
+      async importImage(canvasId, bytes, type) {
+        const target = 'assets/image/canvas/' + crypto.randomUUID() + '.png';
+        media.set(target, URL.createObjectURL(new Blob([bytes], { type })));
+        return { relativePath: target };
+      },
+      async importVideo() {
+        throw new Error('测试宿主不支持视频。');
+      },
+      mediaUrl(target) {
+        return media.get(target) || 'data:,';
+      },
+      async getActiveCanvasId() {
+        return active;
+      },
+      async setActiveCanvasId(id) {
+        active = id;
+      },
+      async listGeneration(canvasId) {
+        return [...attempts.values()].filter((item) => item.canvasId === canvasId).map(copy);
+      },
+      async imageModels(tool) {
+        window.__canvasModelCalls = (window.__canvasModelCalls || 0) + 1;
+        return {
+          provider: { identity: 'test-host', source: 'maker' },
+          tool,
+          origin: 'mcp',
+          label: '测试宿主模型',
+          defaultModel: 'host-default',
+          models: [
+            { id: 'host-default', label: '宿主默认' },
+            { id: 'host-second', label: '宿主模型二', maxReferenceImages: 4 },
+          ],
+        };
+      },
+      async generateImage(canvasId, input) {
+        calls.generate.push(copy(input));
+        if (window.__canvasHold) await window.__canvasHold;
+        const attempt = {
+          id: crypto.randomUUID(),
+          canvasId,
+          kind: 'image',
+          toolName: input.sourceImageIds?.length ? 'edit_image' : 'generate_image',
+          status: 'failed',
+          prompt: input.prompt,
+          operation: input.operation,
+          targetNodeId: input.targetNodeId,
+          sourceImageId: input.sourceImageId,
+          sourceImageIds: input.sourceImageIds,
+          sourceImagePath: input.sourceImagePath,
+          sourceImagePaths: input.sourceImagePaths,
+          referenceImagePaths: input.referenceImagePaths,
+          parameters: {
+            model: input.model,
+            resolution: input.resolution,
+            aspectRatio: input.aspectRatio,
+            targetSize: input.targetSize,
+          },
+          error: '模拟生成失败',
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        if (!window.__canvasFailNext) await succeed(attempt);
+        window.__canvasFailNext = false;
+        attempts.set(attempt.id, attempt);
+        return copy(attempt);
+      },
+      async createVideo() {
+        throw new Error('测试宿主不支持视频。');
+      },
+      async generationAction(canvasId, attemptId, action) {
+        calls.actions.push({ attemptId, action });
+        const attempt = attempts.get(attemptId);
+        if (!attempt) throw new Error('任务不存在');
+        if (action === 'retry') await succeed(attempt);
+        return copy(attempt);
+      },
+    };
+    async function readSource(target, signal, failure) {
+      if (window.__canvasReadHold) await window.__canvasReadHold;
+      const response = await fetch(store.mediaUrl(target), { signal });
+      if (!response.ok) throw new Error(failure || '读取失败');
+      return response.blob();
+    }
+    async function deliver(request) {
+      const blob = await request.produce();
+      window.__canvasDelivered = {
+        filename: request.filename,
+        mime: request.mime,
+        type: blob.type,
+        size: blob.size,
+      };
+      // Maker Web host behaviour: the produced blob leaves through an <a download> click.
+      if (config.anchorDownload) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = request.filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+      return { status: 'downloaded' };
+    }
+    const validation = {
+      validateImageAssetsInfo: validateImageAssetsInfoStructure,
+      imageAssetsBindingPlan: imageAssetsBindingPlanStructure,
+      validateUiBbox: validateUiBboxStructure,
+    };
+    function downloadCanvasResource(
+      node,
+      format,
+      mediaUrl,
+      progress,
+      identity,
+      loop,
+      sink,
+      current,
+      delivery = deliver
+    ) {
+      return downloadCanvasResourceWithHost(
+        node,
+        format,
+        {
+          mediaUrl,
+          deliver: delivery,
+          nextCode: nextCanvasExportCode,
+          validateBundle: (doc, id) =>
+            validateResourceBundleStructure(doc, id, 200, undefined, validation),
+          createBundle: async (doc, id, notify) =>
+            createCanvasZip(
+              await resourceBundleEntriesFromReader(
+                doc,
+                id,
+                {
+                  validation,
+                  referenceEntryName: (item) => 'references/' + encodeURIComponent(item),
+                  readSource: (item, failure) => readSource(item, undefined, failure),
+                },
+                notify,
+                200
+              ),
+              200
+            ),
+          createImageAssets: async (info) =>
+            createCanvasZip(
+              await collectImageAssetEntriesFromReader(info, (item) => readSource(item))
+            ),
+          readSource: (item, failure) => readSource(item, undefined, failure),
+        },
+        progress,
+        identity,
+        loop,
+        sink,
+        current
+      );
+    }
+    function openImageAtlasDialog(node, mediaUrl, actions, delivery) {
+      return openImageAtlasDialogWithHost(node, { readSource, deliver: delivery }, actions);
+    }
+    return {
+      store,
+      features: config.features,
+      appearance: config.appearance,
+      addToChat: config.addToChat
+        ? (items) => {
+            (window.__canvasChat = window.__canvasChat || []).push(copy(items));
+          }
+        : undefined,
+      pickProjectImages: config.pickProjectImages
+        ? async () => window.__canvasPick || []
+        : undefined,
+      readSource,
+      // Counted separately so tests can prove a download went through the host delivery hook.
+      deliverExport(request) {
+        window.__canvasHostDeliveries = (window.__canvasHostDeliveries || 0) + 1;
+        return deliver(request);
+      },
+      validateUiAtlasPlan: validateUiAtlasPlanStructure,
+      downloadCanvasResource,
+      async prepareCanvasImportedNode(canvasId, input) {
+        if (typeof input.assetPath !== 'string' || !media.has(input.assetPath))
+          throw new Error('只允许引用当前项目内的素材。');
+        return prepareCanvasImportedNodeFromMedia(input, store.mediaUrl);
+      },
+      gameUiNextStep: () => undefined,
+      onReady(editor) {
+        window.__canvasEditor = editor;
+      },
+      publishUnsaved(value) {
+        window.__canvasUnsaved = value;
+      },
+      publishActivity() {},
+      connectAutomation() {},
+      deliverAutomationExport() {},
+      createCanvasTemplateUi: (options) => createCanvasTemplateUiWithHost(options),
+      createCanvasGenerationUi: (options) =>
+        createCanvasGenerationUiWithHost({
+          ...options,
+          detectUiCutoutColor: (paths) => detectUiCutoutColorFromReader(paths, readSource),
+        }),
+      createUiRecognitionUi: (options) =>
+        createUiRecognitionUiWithHost({
+          ...options,
+          readSource,
+          webRecognitionHint: '测试',
+          localRecognitionHint: '测试',
+          localRecognitionViewHint: '测试',
+        }),
+      createCanvasModelUi: (options) =>
+        createCanvasModelUiWithHost({
+          ...options,
+          thumbnailUrl() {
+            throw new Error('无模型');
+          },
+          previewOrigin: () => location.origin,
+        }),
+      createImageAssetsUi: (options) =>
+        createImageAssetsUiWithHost({
+          ...options,
+          applyImageAssets: applyImageAssetsToDocument,
+          imageAssetsBindingPlan: imageAssetsBindingPlanStructure,
+          openImageAtlasDialog: (node, mediaUrl, actions) =>
+            openImageAtlasDialog(node, mediaUrl, actions, options.deliver),
+          readSource,
+        }),
+      createCanvasAutomationUi: (options) =>
+        createCanvasAutomationUiWithHost({
+          ...options,
+          prepareNodeUpdates: (doc, input) =>
+            prepareCanvasNodeUpdatesWithValidation(doc, input, {
+              validateUiRecognition: validateUiRecognitionStructure,
+              validateUiAtlasPlan: validateUiAtlasPlanStructure,
+            }),
+        }),
+      createSequenceUiController: (options) =>
+        createSequenceUiControllerWithMedia({ ...options, readAtlas: readSource }),
+      createCanvasResourceExport: (options) =>
+        createCanvasResourceExportWithHost({
+          ...options,
+          downloadResource: downloadCanvasResource,
+          openHandoff() {},
+          openAtlas: (node, mediaUrl) =>
+            openImageAtlasDialog(node, mediaUrl, undefined, options.deliver),
+        }),
+    };
+  }
+}
+const hostSource = testHostScript.toString().replace(/^function testHostScript\(\) \{|\}$/g, '');
+const html = getCanvasPageHtml({ hostScript: hostSource });
+
+await check('Chrome 74：内联脚本与浏览器产物可按 ES2019 解析', async () => {
+  // Host code is injected verbatim and must be lowered by the host; check the shared page only.
+  const shared = getCanvasPageHtml({ hostScript: '/* __MAKER_CANVAS_HOST__ */' });
+  assert.ok(shared.includes('/* __MAKER_CANVAS_HOST__ */'));
+  const scripts = [...shared.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+  assert.ok(scripts.length);
+  for (const script of scripts) acorn.parse(script, { ecmaVersion: 2019, sourceType: 'script' });
+  const seen = new Set();
+  const queue = ['browser.mjs', 'domain.mjs', 'contracts.mjs'];
+  while (queue.length) {
+    const file = queue.pop();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    const code = fs.readFileSync(path.join(dist, file), 'utf8');
+    acorn.parse(code, { ecmaVersion: 2019, sourceType: 'module' });
+    for (const match of code.matchAll(/from\s+"\.\/([^"]+\.mjs)"/g)) queue.push(match[1]);
+  }
+  const page = scripts.join('\n');
+  for (const api of ['structuredClone', 'randomUUID', 'replaceChildren', 'AbortSignal.timeout'])
+    assert.ok(page.includes(api), api + ' 用法扫描失效');
+  assert.ok(page.includes('installCanvasPolyfills();'), '缺少运行时 polyfill');
+});
+
+const playwrightPath =
+  process.env.PLAYWRIGHT_MODULE ||
+  path.join(
+    execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(),
+    'playwright/index.mjs'
+  );
+const playwright = await import(
+  fs.existsSync(playwrightPath) ? pathToFileURL(playwrightPath).href : 'playwright'
+);
+const browser = await playwright.chromium.launch({
+  headless: true,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+    ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+    : {}),
+});
+// Remove post-Chrome 74 natives so the run exercises the shipped polyfills.
+const removeModernApis = () => {
+  delete window.structuredClone;
+  delete Object.hasOwn;
+  delete Array.prototype.at;
+  delete Array.prototype.findLast;
+  delete String.prototype.replaceAll;
+  delete Element.prototype.replaceChildren;
+  delete Blob.prototype.arrayBuffer;
+  delete AbortSignal.timeout;
+  delete Crypto.prototype.randomUUID;
+};
+async function openCanvas(config, legacy) {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('dialog', (dialog) => dialog.dismiss());
+  if (legacy) await page.addInitScript(removeModernApis);
+  await page.addInitScript((value) => {
+    window.__canvasTestConfig = value;
+  }, config);
+  await page.route('http://canvas.test/**', (route) =>
+    route.fulfill({ contentType: 'text/html; charset=utf-8', body: html })
+  );
+  await page.goto('http://canvas.test/');
+  await page.waitForFunction(() => window.__canvasEditor);
+  return { page, errors };
+}
+const webFeatures = {
+  templates: false,
+  uiRecognition: false,
+  video: false,
+  sequence: false,
+  model3d: false,
+  uiEditor: false,
+  resourceExport: false,
+  sections: false,
+  imageEditing: false,
+  connectors: true,
+};
+try {
+  await check('默认宿主：功能入口保持原样且不显示连接点', async () => {
+    const { page, errors } = await openCanvas({});
+    for (const id of [
+      'add-template',
+      'add-ui-recognition',
+      'add-video',
+      'add-video-source',
+      'create-section',
+    ])
+      assert.equal(await page.$eval('#' + id, (item) => item.style.display), '', id);
+    assert.equal(await page.locator('[data-canvas-action="add-video"]').count(), 1);
+    await page.evaluate(() =>
+      window.__canvasEditor.execute({
+        requestId: 'r-default',
+        pageId: 'p1',
+        canvasId: window.__canvasEditor.current().id,
+        revision: window.__canvasEditor.current().revision,
+        action: 'add-node',
+        input: { type: 'image' },
+      })
+    );
+    assert.equal(await page.locator('.canvas-port').count(), 0);
+    assert.equal(
+      await page.evaluate(() =>
+        document.documentElement.classList.contains('canvas-appearance-web')
+      ),
+      false
+    );
+    // New Web/hook entries stay out of the default page.
+    for (const action of ['upload-image', 'pick-project-images'])
+      assert.equal(await page.locator('[data-canvas-action="' + action + '"]').count(), 0, action);
+    const assetPath = await page.evaluate(() => window.__canvasAddMedia('#c33', 40, 40));
+    await page.evaluate(
+      (assetPath) =>
+        window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '来源图' }),
+      assetPath
+    );
+    await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+    const menu = page.locator('#selection-menu');
+    assert.equal(await menu.getByRole('button', { name: '去纯色背景' }).count(), 1);
+    assert.equal(await menu.getByRole('button', { name: '抠图', exact: true }).count(), 0);
+    assert.equal(await menu.getByRole('button', { name: '加入对话' }).count(), 0);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  const { page, errors } = await openCanvas({ features: webFeatures }, true);
+  const run = async (action, input = {}, overrides = {}) => {
+    // Most cases start from a settled document; the dirty-flush cases call send directly.
+    await page.waitForFunction(() => window.__canvasUnsaved === false);
+    return send(action, input, overrides);
+  };
+  const send = (action, input = {}, overrides = {}) =>
+    page.evaluate(
+      async ({ action, input, overrides }) => {
+        const editor = window.__canvasEditor;
+        const current = editor.current();
+        try {
+          return {
+            ok: true,
+            value: await editor.execute({
+              requestId: 'r-' + Math.random().toString(16).slice(2),
+              pageId: 'page-1',
+              canvasId: current.id,
+              revision: current.revision,
+              action,
+              input,
+              ...overrides,
+            }),
+          };
+        } catch (error) {
+          return { ok: false, code: error.code, message: error.message };
+        }
+      },
+      { action, input, overrides }
+    );
+  const success = async (action, input, overrides) => {
+    const result = await run(action, input, overrides);
+    assert.ok(result.ok, action + ': ' + result.message);
+    return result.value;
+  };
+  const doc = () => page.evaluate(() => window.__canvasEditor.current());
+  const nodeOf = async (id) => (await doc()).nodes.find((node) => node.id === id);
+
+  await check('Web 功能开关隐藏入口，只保留基础编辑', async () => {
+    for (const id of [
+      'add-template',
+      'add-ui-recognition',
+      'add-video',
+      'add-video-source',
+      'create-section',
+    ])
+      assert.equal(await page.$eval('#' + id, (item) => item.style.display), 'none', id);
+    for (const id of [
+      'add-generation',
+      'add-image',
+      'add-note',
+      'mark-ellipse',
+      'mark-arrow',
+      'undo',
+      'redo',
+    ])
+      assert.notEqual(await page.$eval('#' + id, (item) => item.style.display), 'none', id);
+    assert.equal(await page.locator('[data-canvas-action="add-video"]').count(), 0);
+  });
+
+  await check('undo 空栈返回 INVALID_ARGS；inspect 返回 selectedIds', async () => {
+    const empty = await run('undo');
+    assert.equal(empty.ok, false);
+    assert.equal(empty.code, 'INVALID_ARGS');
+    const snapshot = await success('inspect');
+    assert.deepEqual(snapshot.selectedIds, []);
+  });
+
+  let sourceId;
+  let sourcePath;
+  let slotId;
+  await check('add-node 创建空图片槽并返回 selectedIds', async () => {
+    sourcePath = await page.evaluate(() => window.__canvasAddMedia('#c33', 40, 40));
+    await page.evaluate(
+      (assetPath) =>
+        window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '来源图' }),
+      sourcePath
+    );
+    sourceId = (await doc()).nodes.find((node) => node.assetPath === sourcePath).id;
+    const added = await success('add-node', { type: 'image' });
+    slotId = added.selectedIds[0];
+    const slot = await nodeOf(slotId);
+    assert.equal(slot.type, 'image');
+    assert.equal(slot.assetPath, undefined);
+    const inspected = await success('inspect');
+    assert.deepEqual(inspected.selectedIds, [slotId]);
+  });
+
+  await check('错误码：参数 INVALID_ARGS、缺失 NOT_FOUND', async () => {
+    const cases = [
+      [await run('fly', {}), 'INVALID_ARGS'],
+      [await run('fill-slot', { id: slotId, assetPath: sourcePath, extra: 1 }), 'INVALID_ARGS'],
+      [await run('fill-slot', { id: slotId, assetPath: 3 }), 'INVALID_ARGS'],
+      [await run('fill-slot', { id: sourceId, assetPath: sourcePath }), 'INVALID_ARGS'],
+      [await run('fill-slot', { id: 'missing', assetPath: sourcePath }), 'NOT_FOUND'],
+      [await run('inspect', { id: 'missing' }), 'NOT_FOUND'],
+      [await run('connect', { from: sourceId, to: 'missing' }), 'NOT_FOUND'],
+      [await run('connect', { from: slotId, to: slotId }), 'INVALID_ARGS'],
+      [await run('add-node', { type: 'image' }, { revision: 0 }), 'INVALID_ARGS'],
+      [await run('add-node', { type: 'image' }, { canvasId: 'other-canvas' }), 'NOT_FOUND'],
+      [await run('update-nodes', { nodes: [{ id: 'missing', x: 1 }] }), 'NOT_FOUND'],
+      [await run('update-nodes', { nodes: [{ id: slotId, x: 'left' }] }), 'INVALID_ARGS'],
+    ];
+    for (const [result, code] of cases) {
+      assert.equal(result.ok, false, JSON.stringify(result));
+      assert.equal(result.code, code, result.message);
+    }
+  });
+
+  await check('connect：图片连入图片槽成为参考图，inspect 可见连线', async () => {
+    const connected = await success('connect', { from: sourceId, to: slotId });
+    const edge = connected.edges.find((item) => item.from === sourceId && item.to === slotId);
+    assert.equal(edge.kind, 'image-variant');
+    assert.deepEqual((await nodeOf(slotId)).referenceInput, { includeSelf: false });
+    const cycle = await run('connect', { from: slotId, to: sourceId });
+    assert.equal(cycle.code, 'INVALID_ARGS');
+  });
+
+  await check('选中图片槽：参考图缩略图、＋、提示词、宿主模型、比例/尺寸与发送', async () => {
+    await page.locator('.card[data-id="' + slotId + '"]').click({ position: { x: 20, y: 60 } });
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    await panel.waitFor();
+    assert.equal(await panel.locator('.generation-reference img').count(), 1);
+    assert.equal(await panel.locator('.generation-reference-add').count(), 1);
+    assert.equal(await panel.locator('textarea.generation-prompt').count(), 1);
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('#selection-toolbar select option')].some(
+        (option) => option.textContent === '宿主模型二'
+      )
+    );
+    const labels = await panel
+      .locator('select')
+      .evaluateAll((items) => items.map((item) => [...item.options].map((option) => option.value)));
+    assert.ok(labels.some((values) => values.includes('auto') && values.includes('host-second')));
+    assert.ok(labels.some((values) => values.includes('1K')));
+    assert.ok(labels.some((values) => values.includes('1:1')));
+    // Upload is not a composer action; the default host keeps the in-slot import button.
+    assert.equal(await panel.getByRole('button', { name: '上传' }).count(), 0);
+    // Feature-hidden image tools stay out of the selection menu.
+    assert.equal(await page.getByRole('button', { name: '视频生成' }).count(), 0);
+  });
+
+  await check('发送：经宿主 generateImage 生成并回填同一图片槽', async () => {
+    const before = await nodeOf(slotId);
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    await panel.locator('textarea.generation-prompt').fill('一只像素风史莱姆');
+    await panel.locator('select').first().selectOption('host-second');
+    await panel.getByRole('button', { name: '生成' }).click();
+    await page.waitForFunction((id) => {
+      const node = window.__canvasEditor.current().nodes.find((item) => item.id === id);
+      return node && node.assetPath;
+    }, slotId);
+    const call = await page.evaluate(() => window.__canvasCalls.generate.at(-1));
+    assert.equal(call.targetNodeId, slotId);
+    assert.deepEqual(call.sourceImageIds, [sourceId]);
+    assert.equal(call.model, 'host-second');
+    const after = await nodeOf(slotId);
+    assert.equal(after.id, before.id);
+    assert.equal(after.x, before.x);
+    assert.equal(after.y, before.y);
+    assert.equal(after.width, before.width);
+    assert.ok((await doc()).edges.some((edge) => edge.from === sourceId && edge.to === slotId));
+  });
+
+  await check('连接点拖拽：图片右侧连到新图片槽左侧', async () => {
+    const added = await success('add-node', { type: 'image' });
+    const targetId = added.selectedIds[0];
+    await success('update-nodes', { nodes: [{ id: targetId, x: 900, y: 120 }] });
+    const port = page.locator('.card[data-id="' + sourceId + '"] .canvas-port-output');
+    const target = page.locator('.card[data-id="' + targetId + '"]');
+    await port.waitFor();
+    const from = await port.boundingBox();
+    const to = await target.boundingBox();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForFunction(
+      ({ sourceId, targetId }) =>
+        window.__canvasEditor
+          .current()
+          .edges.some(
+            (edge) =>
+              edge.from === sourceId && edge.to === targetId && edge.kind === 'image-variant'
+          ),
+      { sourceId, targetId }
+    );
+    assert.equal(
+      await page.locator('.card[data-id="' + targetId + '"] .canvas-port-input').count(),
+      1
+    );
+  });
+
+  const overlaps = (a, b) =>
+    a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  let rightSlotId;
+  await check('点击右侧＋：右侧新建图片槽、连为参考图、选中并打开提示词面板，可撤销', async () => {
+    await page.waitForFunction(() => window.__canvasUnsaved === false);
+    const before = await doc();
+    const source = before.nodes.find((node) => node.id === sourceId);
+    await page.locator('.card[data-id="' + sourceId + '"] .canvas-port-output').click();
+    await page.waitForFunction(
+      (count) => window.__canvasEditor.current().nodes.length === count + 1,
+      before.nodes.length
+    );
+    const after = await doc();
+    const slot = after.nodes.find((node) => !before.nodes.some((item) => item.id === node.id));
+    rightSlotId = slot.id;
+    assert.equal(slot.type, 'image');
+    assert.equal(slot.assetPath, undefined);
+    assert.ok(slot.x >= source.x + source.width, 'slot 应在来源右侧');
+    for (const other of after.nodes)
+      if (other.id !== slot.id && other.type !== 'section')
+        assert.ok(!overlaps(slot, other), '新图片槽与 ' + other.id + ' 重叠');
+    assert.ok(
+      after.edges.some(
+        (edge) => edge.from === sourceId && edge.to === slot.id && edge.kind === 'image-variant'
+      )
+    );
+    assert.deepEqual(slot.referenceInput, { includeSelf: false });
+    await page.locator('#selection-toolbar .generation-panel').waitFor();
+    assert.deepEqual((await success('inspect')).selectedIds, [slot.id]);
+    // Waiting for the autosave also proves the click went through the normal changed path.
+    const undone = await success('undo');
+    assert.ok(!undone.nodes.some((node) => node.id === slot.id));
+    assert.ok(!undone.edges.some((edge) => edge.to === slot.id));
+    const redone = await success('redo');
+    assert.ok(redone.nodes.some((node) => node.id === slot.id));
+  });
+
+  await check('点击左侧＋：左侧新建图片槽并连入当前图片', async () => {
+    const before = await doc();
+    const target = before.nodes.find((node) => node.id === rightSlotId);
+    await page.locator('.card[data-id="' + rightSlotId + '"] .canvas-port-input').click();
+    await page.waitForFunction(
+      (count) => window.__canvasEditor.current().nodes.length === count + 1,
+      before.nodes.length
+    );
+    const after = await doc();
+    const slot = after.nodes.find((node) => !before.nodes.some((item) => item.id === node.id));
+    assert.ok(slot.x + slot.width <= target.x, 'slot 应在目标左侧');
+    for (const other of after.nodes)
+      if (other.id !== slot.id && other.type !== 'section')
+        assert.ok(!overlaps(slot, other), '新图片槽与 ' + other.id + ' 重叠');
+    assert.ok(after.edges.some((edge) => edge.from === slot.id && edge.to === rightSlotId));
+    assert.deepEqual((await success('inspect')).selectedIds, [slot.id]);
+    await success('delete-nodes', { ids: [slot.id, rightSlotId] });
+  });
+
+  await check('未保存修改：命令先等待自动保存再执行', async () => {
+    await page.waitForFunction(() => window.__canvasUnsaved === false);
+    await page.evaluate(() => (window.__canvasSaveDelay = 300));
+    const count = (await doc()).nodes.length;
+    await page.evaluate(() => document.getElementById('add-note').click());
+    assert.equal(await page.evaluate(() => window.__canvasUnsaved), true);
+    const result = await send('add-node', { type: 'image' });
+    await page.evaluate(() => (window.__canvasSaveDelay = 0));
+    assert.ok(result.ok, result.message);
+    assert.equal((await doc()).nodes.length, count + 2);
+  });
+
+  await check('保存失败：命令以 INVALID_ARGS 拒绝且未执行', async () => {
+    await page.waitForFunction(() => window.__canvasUnsaved === false);
+    await page.evaluate(() => (window.__canvasSaveFail = true));
+    await page.evaluate(() => document.getElementById('add-note').click());
+    const count = (await doc()).nodes.length;
+    const result = await send('add-node', { type: 'image' });
+    await page.evaluate(() => (window.__canvasSaveFail = false));
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'INVALID_ARGS', result.message);
+    assert.equal((await doc()).nodes.length, count);
+    await send('save');
+  });
+
+  await check('忙碌与阻塞拒绝均为 INVALID_ARGS', async () => {
+    await page.waitForFunction(() => window.__canvasUnsaved === false);
+    const busy = await page.evaluate(async () => {
+      window.__canvasSaveDelay = 300;
+      const editor = window.__canvasEditor;
+      const command = (requestId) => ({
+        requestId,
+        pageId: 'page-1',
+        canvasId: editor.current().id,
+        revision: editor.current().revision,
+        action: 'add-node',
+        input: { type: 'note' },
+      });
+      const first = editor.execute(command('busy-1'));
+      const second = await editor.execute(command('busy-2')).catch((error) => error);
+      await first;
+      window.__canvasSaveDelay = 0;
+      return { code: second.code, message: second.message };
+    });
+    assert.equal(busy.code, 'INVALID_ARGS', busy.message);
+    await page.waitForFunction(() => window.__canvasUnsaved === false);
+    await page.evaluate(() => {
+      const dialog = document.createElement('dialog');
+      dialog.id = 'blocking-dialog';
+      document.body.append(dialog);
+      dialog.show();
+    });
+    const blocked = await send('add-node', { type: 'note' });
+    await page.evaluate(() => document.getElementById('blocking-dialog').remove());
+    assert.equal(blocked.ok, false);
+    assert.equal(blocked.code, 'INVALID_ARGS', blocked.message);
+  });
+
+  await check('fill-slot 原位回填并保留连线；undo / redo 走页面撤销栈', async () => {
+    const added = await success('add-node', { type: 'image' });
+    const fillId = added.selectedIds[0];
+    await success('connect', { from: sourceId, to: fillId });
+    const before = await nodeOf(fillId);
+    const filled = await success('fill-slot', { id: fillId, assetPath: sourcePath });
+    assert.deepEqual(filled.selectedIds, [fillId]);
+    const after = filled.nodes.find((node) => node.id === fillId);
+    assert.equal(after.assetPath, sourcePath);
+    assert.equal(after.x, before.x);
+    assert.equal(after.y, before.y);
+    assert.equal(after.width, before.width);
+    assert.ok(filled.edges.some((edge) => edge.from === sourceId && edge.to === fillId));
+    const again = await run('fill-slot', { id: fillId, assetPath: sourcePath });
+    assert.equal(again.code, 'INVALID_ARGS');
+    const undone = await success('undo');
+    assert.equal(undone.nodes.find((node) => node.id === fillId).assetPath, undefined);
+    const redone = await success('redo');
+    assert.equal(redone.nodes.find((node) => node.id === fillId).assetPath, sourcePath);
+    const noRedo = await run('redo');
+    assert.equal(noRedo.code, 'INVALID_ARGS');
+  });
+
+  await check('replace-image 原位替换已有图片，保留 id/位置/宽度/连线；undo 还原', async () => {
+    const added = await success('add-node', { type: 'image' });
+    const targetId = added.selectedIds[0];
+    await success('update-nodes', { nodes: [{ id: targetId, x: 300, y: 700 }] });
+    await success('connect', { from: sourceId, to: targetId });
+    await success('fill-slot', { id: targetId, assetPath: sourcePath });
+    const wide = await page.evaluate(() => window.__canvasAddMedia('#36c', 80, 40));
+    const refused = [
+      await run('replace-image', { id: slotId + '-missing', assetPath: wide }),
+      await run('replace-image', {
+        id: (await success('add-node', { type: 'image' })).selectedIds[0],
+        assetPath: wide,
+      }),
+      await run('replace-image', { id: targetId, assetPath: wide, extra: true }),
+      await run('replace-image', { id: targetId, assetPath: 'assets/image/missing.png' }),
+    ];
+    assert.deepEqual(
+      refused.map((item) => item.code),
+      ['NOT_FOUND', 'INVALID_ARGS', 'INVALID_ARGS', 'INVALID_ARGS'],
+      JSON.stringify(refused)
+    );
+    const note = (await success('add-node', { type: 'note' })).selectedIds[0];
+    assert.equal((await run('replace-image', { id: note, assetPath: wide })).code, 'INVALID_ARGS');
+    const before = await nodeOf(targetId);
+    const replaced = await success('replace-image', { id: targetId, assetPath: wide });
+    const after = replaced.nodes.find((node) => node.id === targetId);
+    assert.deepEqual(replaced.selectedIds, [targetId]);
+    assert.equal(after.assetPath, wide);
+    assert.deepEqual(
+      [after.x, after.y, after.width, after.title],
+      [before.x, before.y, before.width, before.title]
+    );
+    assert.ok(after.height < before.height, '高度应随 2:1 图片比例变化');
+    assert.ok(replaced.edges.some((edge) => edge.from === sourceId && edge.to === targetId));
+    const undone = await success('undo');
+    assert.equal(undone.nodes.find((node) => node.id === targetId).assetPath, sourcePath);
+    assert.equal(undone.nodes.find((node) => node.id === targetId).height, before.height);
+  });
+
+  await check('import 省略 kind/title 时按图片与文件名导入；中文文件名可用', async () => {
+    const chinese = await page.evaluate(() =>
+      window.__canvasAddMedia('#963', 30, 30, 'assets/image/角色立绘·火焰.png')
+    );
+    const imported = await success('import', { assetPath: chinese });
+    const node = imported.nodes.find((item) => item.id === imported.selectedIds[0]);
+    assert.equal(node.type, 'image');
+    assert.equal(node.title, '角色立绘·火焰');
+    assert.equal(node.generation, undefined, '无 prompt 时不写生成元数据');
+    for (const assetPath of ['../secret.png', 'assets//a.png', 'assets/image/a.gif', '/abs/a.png'])
+      assert.equal((await run('import', { assetPath })).code, 'INVALID_ARGS', assetPath);
+    assert.equal((await run('import', { assetPath: chinese, kind: 'model' })).code, 'INVALID_ARGS');
+    assert.equal((await run('import', { assetPath: chinese, title: '' })).code, 'INVALID_ARGS');
+    assert.equal(
+      (await run('import', { assetPath: 'assets/image/未登记.png' })).code,
+      'INVALID_ARGS',
+      '宿主拒绝也是未执行'
+    );
+    const withSource = await success('import', {
+      assetPath: chinese,
+      prompt: '火焰剑士 · 挥剑',
+      sourceId,
+    });
+    const variant = withSource.nodes.find((item) => item.id === withSource.selectedIds[0]);
+    assert.ok(
+      withSource.edges.some(
+        (edge) => edge.from === sourceId && edge.to === variant.id && edge.kind === 'image-variant'
+      )
+    );
+    assert.equal(variant.generation.prompt, '火焰剑士 · 挥剑');
+    assert.equal(variant.generation.origin, 'agent');
+    assert.equal(variant.generation.operation, 'variant');
+    assert.deepEqual(variant.generation.sourceImageIds, [sourceId]);
+    assert.ok(variant.x >= (await nodeOf(sourceId)).x + (await nodeOf(sourceId)).width);
+  });
+
+  await check('失败显示「重试」，重试经宿主 generationAction 回填', async () => {
+    const added = await success('add-node', { type: 'image' });
+    const failedId = added.selectedIds[0];
+    await success('update-nodes', { nodes: [{ id: failedId, x: 300, y: 420 }] });
+    await page.evaluate(() => (window.__canvasFailNext = true));
+    await page.locator('.card[data-id="' + failedId + '"]').click({ position: { x: 20, y: 60 } });
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    await panel.locator('textarea.generation-prompt').fill('会失败的图');
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('#selection-toolbar select option')].some(
+        (option) => option.value === 'auto'
+      )
+    );
+    await panel.getByRole('button', { name: '生成' }).click();
+    const retry = page.locator('.card[data-id="' + failedId + '"] .card-state-retry');
+    await retry.waitFor();
+    assert.equal(await retry.textContent(), '重试');
+    await retry.click();
+    await page.waitForFunction((id) => {
+      const node = window.__canvasEditor.current().nodes.find((item) => item.id === id);
+      return node && node.assetPath;
+    }, failedId);
+    assert.equal((await page.evaluate(() => window.__canvasCalls.actions.at(-1))).action, 'retry');
+  });
+
+  await check('默认外观：点空槽内导入按钮沿用本地导入填充图片槽', async () => {
+    const added = await success('add-node', { type: 'image' });
+    const uploadId = added.selectedIds[0];
+    await success('update-nodes', { nodes: [{ id: uploadId, x: 620, y: 420 }] });
+    const chooser = page.waitForEvent('filechooser');
+    await page.locator('.card[data-id="' + uploadId + '"] .image-empty').click();
+    await (
+      await chooser
+    ).setFiles({
+      name: 'upload.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        'base64'
+      ),
+    });
+    await page.waitForFunction((id) => {
+      const node = window.__canvasEditor.current().nodes.find((item) => item.id === id);
+      return node && node.assetPath;
+    }, uploadId);
+    assert.equal((await nodeOf(uploadId)).title, 'upload');
+  });
+
+  await check('选中连线后可删除（Delete）', async () => {
+    const before = (await doc()).edges.length;
+    const edge = (await doc()).edges.find((item) => item.kind === 'image-variant');
+    const point = await page.evaluate(({ from, to }) => {
+      const path = document.querySelector(
+        '#wires path[data-from="' + from + '"][data-to="' + to + '"]'
+      );
+      const middle = path.getPointAtLength(path.getTotalLength() / 2);
+      const rect = document.getElementById('board').getBoundingClientRect();
+      return { x: rect.left + middle.x, y: rect.top + middle.y };
+    }, edge);
+    await page.mouse.click(point.x, point.y);
+    await page.locator('.wire-remove').waitFor();
+    await page.keyboard.press('Delete');
+    await page.waitForFunction(
+      (id) => !window.__canvasEditor.current().edges.some((item) => item.id === id),
+      edge.id
+    );
+    assert.equal((await doc()).edges.length, before - 1);
+  });
+
+  await check('旧浏览器 API 缺失时页面无运行错误（polyfill 生效）', async () => {
+    assert.equal(await page.evaluate(() => typeof window.structuredClone), 'function');
+    assert.deepEqual(errors, []);
+  });
+  await page.close();
+
+  await check(
+    'Web 外观：点空槽只开下方面板不弹文件选择，顶部「上传」才弹；＋点击与键盘',
+    async () => {
+      const { page, errors } = await openCanvas({ features: webFeatures, appearance: 'web' }, true);
+      assert.ok(
+        await page.evaluate(() =>
+          document.documentElement.classList.contains('canvas-appearance-web')
+        )
+      );
+      const editor = (action, input) =>
+        page.evaluate(
+          ({ action, input }) => {
+            const current = window.__canvasEditor.current();
+            return window.__canvasEditor.execute({
+              requestId: 'r-' + Math.random().toString(16).slice(2),
+              pageId: 'page-1',
+              canvasId: current.id,
+              revision: current.revision,
+              action,
+              input,
+            });
+          },
+          { action, input }
+        );
+      const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await page.waitForFunction(() => window.__canvasUnsaved === false);
+      await editor('update-nodes', { nodes: [{ id: slotId, x: 300, y: 160 }] });
+      let choosers = 0;
+      page.on('filechooser', () => (choosers += 1));
+      // Click the empty frame itself: in Web it selects only, the file picker stays closed.
+      await page.locator('.card[data-id="' + slotId + '"]').click({ position: { x: 140, y: 120 } });
+      await page.locator('#selection-toolbar .generation-panel').waitFor();
+      const card = await page.locator('.card[data-id="' + slotId + '"]').boundingBox();
+      const frame = await page
+        .locator('.card[data-id="' + slotId + '"] .canvas-card-content')
+        .boundingBox();
+      const panel = await page.locator('#selection-toolbar').boundingBox();
+      const upload = await page.locator('.card[data-id="' + slotId + '"] .web-slot-upload');
+      assert.equal(await upload.textContent(), '上传');
+      const pill = await upload.boundingBox();
+      assert.ok(panel.y >= card.y + card.height, '面板应在图片槽下方');
+      assert.ok(Math.abs(pill.y + pill.height + 14 - frame.y) < 1.5, '上传应在图片框上方 14px');
+      assert.ok(
+        Math.abs(pill.x + pill.width / 2 - (frame.x + frame.width / 2)) < 1.5,
+        '上传应水平居中'
+      );
+      assert.equal(await page.locator('#selection-toolbar .generation-action-upload').count(), 0);
+      await page.waitForTimeout(100);
+      assert.equal(choosers, 0, '点空槽不应弹出文件选择');
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('#selection-toolbar select option')].some(
+          (option) => option.textContent === '宿主模型二'
+        )
+      );
+      const room = await page
+        .locator('#selection-toolbar select.generation-mode')
+        .evaluateAll((items) =>
+          items.map((item) => {
+            const context = document.createElement('canvas').getContext('2d');
+            context.font = getComputedStyle(item).font;
+            const text = context.measureText(item.options[item.selectedIndex].text).width;
+            // Mivo's 20px right padding keeps the chevron clear of the label.
+            return item.clientWidth - 8 - 20 - text;
+          })
+        );
+      assert.ok(room.length >= 3 && room.every((value) => value >= 0), '下拉文字被截断：' + room);
+      const count = (await page.evaluate(() => window.__canvasEditor.current())).nodes.length;
+      await page.locator('.card[data-id="' + slotId + '"] .canvas-port-output').click();
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 1,
+        count
+      );
+      // Keyboard activation never starts a wire, so it must create the slot on click.
+      await page.locator('.card[data-id="' + slotId + '"] .canvas-port-input').focus();
+      await page.keyboard.press('Enter');
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 2,
+        count
+      );
+      // The top pill is the only upload entry and reuses the local import picker.
+      await page.locator('.card[data-id="' + slotId + '"]').click({ position: { x: 140, y: 120 } });
+      assert.equal(choosers, 0, '点空槽不应弹出文件选择');
+      const chooser = page.waitForEvent('filechooser');
+      await page.locator('.card[data-id="' + slotId + '"] .web-slot-upload').click();
+      await chooser;
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+
+  await check('Web 外观：＋仅选中时出现，拖拽有预览线与目标高亮，曲线可剪断', async () => {
+    const { page, errors } = await openCanvas({ features: webFeatures, appearance: 'web' }, true);
+    const editor = (action, input) =>
+      page.evaluate(
+        ({ action, input }) => {
+          const current = window.__canvasEditor.current();
+          return window.__canvasEditor.execute({
+            requestId: 'r-' + Math.random().toString(16).slice(2),
+            pageId: 'page-1',
+            canvasId: current.id,
+            revision: current.revision,
+            action,
+            input,
+          });
+        },
+        { action, input }
+      );
+    const assetPath = await page.evaluate(() => window.__canvasAddMedia('#c33', 40, 40));
+    await page.evaluate(
+      (assetPath) =>
+        window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '来源图' }),
+      assetPath
+    );
+    const sourceId = (await page.evaluate(() => window.__canvasEditor.current())).nodes[0].id;
+    const targetId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', {
+      nodes: [
+        { id: sourceId, x: 160, y: 160 },
+        { id: targetId, x: 700, y: 260 },
+      ],
+    });
+    await page.waitForFunction(() => window.__canvasUnsaved === false);
+    const port = page.locator('.card[data-id="' + sourceId + '"] .canvas-port-output');
+    const shown = () => port.evaluate((item) => getComputedStyle(item).opacity);
+    await page.mouse.click(1200, 700);
+    assert.equal(await shown(), '0', '未选中时不显示＋');
+    await page.locator('.card[data-id="' + sourceId + '"]').click({ position: { x: 140, y: 120 } });
+    assert.equal(await shown(), '1', '选中后显示＋');
+    const from = await port.boundingBox();
+    const to = await page.locator('.card[data-id="' + targetId + '"]').boundingBox();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + 60, to.y + to.height / 2, { steps: 8 });
+    assert.equal(await page.locator('.web-wire-preview path').count(), 2, '拖拽应显示预览线');
+    assert.equal(await page.locator('.card.web-wire-target').getAttribute('data-id'), targetId);
+    await page.mouse.up();
+    await page.waitForFunction(
+      ({ sourceId, targetId }) =>
+        window.__canvasEditor
+          .current()
+          .edges.some((edge) => edge.from === sourceId && edge.to === targetId),
+      { sourceId, targetId }
+    );
+    assert.equal(await page.locator('.web-wire-preview path').count(), 0, '松手后清除预览');
+    assert.equal(await page.locator('.web-wire-target').count(), 0);
+    const wire = page.locator(
+      '#wires path[data-from="' + sourceId + '"][data-to="' + targetId + '"]'
+    );
+    assert.match(await wire.getAttribute('d'), / C /, 'Web 连线应为曲线');
+    assert.equal(await wire.getAttribute('marker-end'), null, 'Web 连线不带箭头');
+    const middle = await wire.evaluate((path) => {
+      const point = path.getPointAtLength(path.getTotalLength() / 2);
+      const rect = document.getElementById('board').getBoundingClientRect();
+      return { x: rect.left + point.x, y: rect.top + point.y };
+    });
+    await page.mouse.click(1200, 700);
+    await page.mouse.click(middle.x, middle.y);
+    await page.locator('.wire-controls .wire-active').waitFor();
+    assert.equal(
+      await page.locator('.wire-controls .wire-handle').count(),
+      0,
+      '曲线不显示折线手柄'
+    );
+    await page.locator('.wire-scissors').click();
+    await page.waitForFunction(
+      (targetId) => !window.__canvasEditor.current().edges.some((edge) => edge.to === targetId),
+      targetId
+    );
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check(
+    'Web 外观：已生成图片槽选中仍显示提示词面板，普通导入图片不显示；多选不显示＋',
+    async () => {
+      const { page, errors } = await openCanvas({ features: webFeatures, appearance: 'web' }, true);
+      const editor = (action, input) =>
+        page.evaluate(
+          ({ action, input }) => {
+            const current = window.__canvasEditor.current();
+            return window.__canvasEditor.execute({
+              requestId: 'r-' + Math.random().toString(16).slice(2),
+              pageId: 'page-1',
+              canvasId: current.id,
+              revision: current.revision,
+              action,
+              input,
+            });
+          },
+          { action, input }
+        );
+      const assetPath = await page.evaluate(() => window.__canvasAddMedia('#c33', 40, 40));
+      await page.evaluate(
+        (assetPath) =>
+          window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '来源图' }),
+        assetPath
+      );
+      const sourceId = (await page.evaluate(() => window.__canvasEditor.current())).nodes[0].id;
+      const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await editor('update-nodes', {
+        nodes: [
+          { id: sourceId, x: 160, y: 160 },
+          { id: slotId, x: 700, y: 200 },
+        ],
+      });
+      await page.waitForFunction(() => window.__canvasUnsaved === false);
+      const card = (id) => page.locator('.card[data-id="' + id + '"]');
+      const toolbar = page.locator('#selection-toolbar');
+      await card(sourceId).click({ position: { x: 100, y: 120 } });
+      assert.equal(await toolbar.isHidden(), true, '普通导入图片不显示提示词面板');
+      assert.equal(await card(sourceId).locator('.web-node-handle').count(), 4);
+      assert.equal(
+        await card(sourceId)
+          .locator('.canvas-port-input')
+          .evaluate((item) => getComputedStyle(item).display),
+        'none',
+        '普通图片只有右侧＋'
+      );
+      await card(slotId).click({ position: { x: 100, y: 100 } });
+      const panel = page.locator('#selection-toolbar .generation-panel');
+      await panel.locator('textarea.generation-prompt').fill('像素史莱姆');
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('#selection-toolbar select option')].some(
+          (option) => option.textContent === '宿主模型二'
+        )
+      );
+      await panel.locator('.generation-action-primary').click();
+      await page.waitForFunction(
+        (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id).assetPath,
+        slotId
+      );
+      await page.mouse.click(1300, 820);
+      await card(slotId).click({ position: { x: 60, y: 60 } });
+      await panel.waitFor();
+      assert.ok(
+        (await panel.locator('textarea.generation-prompt').count()) >= 1 &&
+          (await panel.locator('.generation-action-primary').count()) === 1,
+        '已生成图片槽应显示提示词面板'
+      );
+      assert.equal(await card(slotId).locator('.web-slot-upload').count(), 0, '已有图不出上传');
+      const port = card(slotId).locator('.canvas-port-output');
+      const shown = () => port.evaluate((item) => getComputedStyle(item).opacity);
+      assert.equal(await shown(), '1');
+      await card(sourceId).click({ position: { x: 100, y: 120 }, modifiers: ['Shift'] });
+      assert.equal(
+        await page.evaluate(
+          () =>
+            window.__canvasEditor.current() && document.querySelectorAll('.card.selected').length
+        ),
+        2
+      );
+      assert.equal(await shown(), '0', '多选不显示＋');
+      assert.equal(await page.locator('.web-node-handle').count(), 0, '多选不显示角柄');
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+
+  await check('Web 外观：＋与连线端点位于图片框垂直中心（不含标题行）', async () => {
+    const { page, errors } = await openCanvas({ features: webFeatures, appearance: 'web' }, true);
+    const editor = (action, input) =>
+      page.evaluate(
+        ({ action, input }) => {
+          const current = window.__canvasEditor.current();
+          return window.__canvasEditor.execute({
+            requestId: 'r-' + Math.random().toString(16).slice(2),
+            pageId: 'page-1',
+            canvasId: current.id,
+            revision: current.revision,
+            action,
+            input,
+          });
+        },
+        { action, input }
+      );
+    const assetPath = await page.evaluate(() => window.__canvasAddMedia('#c33', 40, 40));
+    await page.evaluate(
+      (assetPath) =>
+        window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '来源图' }),
+      assetPath
+    );
+    const sourceId = (await page.evaluate(() => window.__canvasEditor.current())).nodes[0].id;
+    const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', {
+      nodes: [
+        { id: sourceId, x: 160, y: 160 },
+        { id: slotId, x: 700, y: 260 },
+      ],
+    });
+    await editor('connect', { from: sourceId, to: slotId });
+    const center = async (selector) => {
+      const box = await page.locator(selector).boundingBox();
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2, box };
+    };
+    for (const zoomOut of [0, 4]) {
+      for (let i = 0; i < zoomOut; i++)
+        await page.getByRole('button', { name: '缩小画布' }).click();
+      const scale = (await page.evaluate(() => window.__canvasEditor.current())).viewport.scale;
+      if (zoomOut) assert.ok(scale < 0.8, '应已缩小画布');
+      await page
+        .locator('.card[data-id="' + sourceId + '"]')
+        .click({ position: { x: 20, y: 120 } });
+      const frame = await center('.card[data-id="' + sourceId + '"] .canvas-card-content');
+      const card = await center('.card[data-id="' + sourceId + '"]');
+      assert.ok(Math.abs(frame.y - card.y) > 5, '图片框中心应与整卡中心不同');
+      const port = await center('.card[data-id="' + sourceId + '"] .canvas-port-output');
+      assert.ok(Math.abs(port.y - frame.y) < 1, '＋应在图片框垂直中心 @' + scale);
+      // Mivo hot zone: 80px on screen, centred 25px outside the frame edge.
+      assert.ok(Math.abs(port.box.width - 80) < 1, '热区应保持 80px 屏幕尺寸 @' + scale);
+      assert.ok(Math.abs(port.x - (frame.box.x + frame.box.width + 25)) < 1);
+      const ends = await page.evaluate(
+        ({ sourceId, slotId }) => {
+          const path = document.querySelector(
+            '#wires path[data-from="' + sourceId + '"][data-to="' + slotId + '"]'
+          );
+          const rect = document.getElementById('board').getBoundingClientRect();
+          const first = path.getPointAtLength(0);
+          const last = path.getPointAtLength(path.getTotalLength());
+          return [
+            { x: rect.left + first.x, y: rect.top + first.y },
+            { x: rect.left + last.x, y: rect.top + last.y },
+          ];
+        },
+        { sourceId, slotId }
+      );
+      const target = await center('.card[data-id="' + slotId + '"] .canvas-card-content');
+      assert.ok(Math.abs(ends[0].y - frame.y) < 1, '连线起点应在来源图片框中心 @' + scale);
+      assert.ok(Math.abs(ends[0].x - (frame.box.x + frame.box.width)) < 1);
+      assert.ok(Math.abs(ends[1].y - target.y) < 1, '连线终点应在目标图片框中心 @' + scale);
+      assert.ok(Math.abs(ends[1].x - target.box.x) < 1);
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check(
+    'Web 提示词面板：fill-slot 带 prompt 打开即预填；游戏素材约束只进请求；无说明文案',
+    async () => {
+      const { page, errors } = await openCanvas({ features: webFeatures, appearance: 'web' }, true);
+      const editor = (action, input) =>
+        page.evaluate(
+          ({ action, input }) => {
+            const current = window.__canvasEditor.current();
+            return window.__canvasEditor.execute({
+              requestId: 'r-' + Math.random().toString(16).slice(2),
+              pageId: 'page-1',
+              canvasId: current.id,
+              revision: current.revision,
+              action,
+              input,
+            });
+          },
+          { action, input }
+        );
+      const card = (id) => page.locator('.card[data-id="' + id + '"]');
+      const panel = page.locator('#selection-toolbar .generation-panel');
+      const toggle = panel.locator('.generation-asset-constraints');
+      const assetPath = await page.evaluate(() => window.__canvasAddMedia('#c33', 40, 40));
+      const emptyId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      const filledId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await editor('update-nodes', {
+        nodes: [
+          { id: emptyId, x: 140, y: 120 },
+          { id: filledId, x: 760, y: 120 },
+        ],
+      });
+      await editor('fill-slot', { id: filledId, assetPath, prompt: '像素风史莱姆，蓝色' });
+      await page.waitForFunction(() => window.__canvasUnsaved === false);
+      const shoot = async (name) => {
+        if (!process.env.CANVAS_SCREENSHOT_DIR) return;
+        fs.mkdirSync(process.env.CANVAS_SCREENSHOT_DIR, { recursive: true });
+        await page.waitForFunction(() =>
+          [...document.images].every((image) => image.complete && image.naturalWidth)
+        );
+        await page.screenshot({ path: path.join(process.env.CANVAS_SCREENSHOT_DIR, name) });
+      };
+      const open = async (id) => {
+        await page.mouse.click(1300, 860);
+        await card(id).click({ position: { x: 60, y: 80 } });
+        await panel.waitFor();
+        await page.waitForFunction(() =>
+          [...document.querySelectorAll('#selection-toolbar select option')].some(
+            (option) => option.textContent === '宿主模型二'
+          )
+        );
+      };
+      for (const theme of ['dark', 'light']) {
+        await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+        await open(emptyId);
+        const rail = await page.locator('.workspace-toolbar').boundingBox();
+        const composer = await page.locator('#selection-toolbar').boundingBox();
+        assert.ok(composer.x >= rail.x + rail.width, '提示词面板不应压住左侧工具条');
+        await shoot('v4-' + theme + '-empty.png');
+        await open(filledId);
+        await shoot('v4-' + theme + '-filled.png');
+      }
+      const text = await page.locator('#selection-toolbar').innerText();
+      for (const removed of [
+        '分辨率与比例是生成目标',
+        '未使用参考图',
+        '服务模型说明',
+        '测试宿主模型',
+      ])
+        assert.ok(!text.includes(removed), '不应显示：' + removed);
+      assert.equal(
+        await panel.locator('textarea.generation-prompt').inputValue(),
+        '像素风史莱姆，蓝色'
+      );
+      assert.ok(await card(filledId).evaluate((item) => item.classList.contains('web-slot')));
+
+      await open(emptyId);
+      assert.equal(await toggle.getAttribute('aria-pressed'), 'true', '空槽默认开启');
+      assert.match(await toggle.getAttribute('title'), /游戏素材约束：/);
+      await panel.locator('textarea.generation-prompt').fill('火焰剑士');
+      await panel.locator('.generation-action-primary').click();
+      await page.waitForFunction(
+        (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id).assetPath,
+        emptyId
+      );
+      const sent = await page.evaluate(() => window.__canvasCalls.generate.at(-1).prompt);
+      assert.ok(sent.startsWith('火焰剑士\n\n游戏素材约束：'), sent);
+      const result = (await page.evaluate(() => window.__canvasEditor.current())).nodes.find(
+        (node) => node.id === emptyId
+      );
+      assert.equal(result.generation.prompt, '火焰剑士', '卡片只存用户文本');
+      assert.equal(result.generation.parameters.assetConstraints, true);
+      await page.waitForFunction(() => window.__canvasUnsaved === false);
+      await open(emptyId);
+      assert.equal(await panel.locator('textarea.generation-prompt').inputValue(), '火焰剑士');
+
+      // Off: the request carries only the user's text and the choice is persisted.
+      const offId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await editor('update-nodes', { nodes: [{ id: offId, x: 140, y: 560 }] });
+      await page.waitForFunction(() => window.__canvasUnsaved === false);
+      await open(offId);
+      await toggle.click();
+      await panel.locator('.generation-asset-switch').click();
+      assert.equal(await toggle.getAttribute('aria-pressed'), 'false');
+      await panel.locator('textarea.generation-prompt').fill('冰霜法师');
+      await panel.locator('.generation-action-primary').click();
+      await page.waitForFunction(
+        (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id).assetPath,
+        offId
+      );
+      assert.equal(
+        await page.evaluate(() => window.__canvasCalls.generate.at(-1).prompt),
+        '冰霜法师'
+      );
+      const off = (await page.evaluate(() => window.__canvasEditor.current())).nodes.find(
+        (node) => node.id === offId
+      );
+      assert.equal(off.generation.parameters.assetConstraints, false);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  // Shared helpers for the Web interaction cases below.
+  const webPage = async (extra = {}) => {
+    const opened = await openCanvas({ features: webFeatures, appearance: 'web', ...extra }, true);
+    const { page } = opened;
+    const editor = (action, input) =>
+      page.evaluate(
+        ({ action, input }) => {
+          const current = window.__canvasEditor.current();
+          return window.__canvasEditor.execute({
+            requestId: 'r-' + Math.random().toString(16).slice(2),
+            pageId: 'page-1',
+            canvasId: current.id,
+            revision: current.revision,
+            action,
+            input,
+          });
+        },
+        { action, input }
+      );
+    const settle = () => page.waitForFunction(() => window.__canvasUnsaved === false);
+    const current = () => page.evaluate(() => window.__canvasEditor.current());
+    const nodeOf = async (id) => (await current()).nodes.find((node) => node.id === id);
+    const card = (id) => page.locator('.card[data-id="' + id + '"]');
+    const importImage = async (title, color = '#c33', width = 40, height = 40) => {
+      const assetPath = await page.evaluate(
+        ({ color, width, height }) => window.__canvasAddMedia(color, width, height),
+        { color, width, height }
+      );
+      await page.evaluate(
+        ({ assetPath, title }) =>
+          window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title }),
+        { assetPath, title }
+      );
+      const node = (await current()).nodes.find((item) => item.assetPath === assetPath);
+      return { id: node.id, assetPath };
+    };
+    const blank = () => page.mouse.click(1300, 840);
+    const shoot = async (name, clip) => {
+      if (!process.env.CANVAS_SCREENSHOT_DIR) return;
+      fs.mkdirSync(process.env.CANVAS_SCREENSHOT_DIR, { recursive: true });
+      await page.waitForFunction(() =>
+        [...document.images].every((image) => image.complete && image.naturalWidth)
+      );
+      await page.screenshot({ path: path.join(process.env.CANVAS_SCREENSHOT_DIR, name), clip });
+    };
+    return { ...opened, editor, settle, current, nodeOf, card, importImage, blank, shoot };
+  };
+  const boxesOverlap = (a, b) =>
+    a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+  await check('Web 外观：四角都可缩放，光标对应对角线，保持图片比例并可撤销', async () => {
+    const { page, errors, editor, settle, nodeOf, card, importImage, blank } = await webPage();
+    const image = await importImage('方图');
+    const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', {
+      nodes: [
+        { id: image.id, x: 300, y: 260 },
+        { id: slotId, x: 800, y: 260 },
+      ],
+    });
+    await settle();
+    await blank();
+    await card(image.id).click({ position: { x: 100, y: 120 } });
+    const handles = card(image.id).locator('.web-node-handle');
+    assert.equal(await handles.count(), 4);
+    const cursors = await handles.evaluateAll((items) =>
+      items.map((item) => [item.className.split('is-')[1], getComputedStyle(item).cursor])
+    );
+    assert.deepEqual(cursors, [
+      ['nw', 'nwse-resize'],
+      ['ne', 'nesw-resize'],
+      ['sw', 'nesw-resize'],
+      ['se', 'nwse-resize'],
+    ]);
+    const radius = await handles.first().evaluate((item) => getComputedStyle(item).borderRadius);
+    assert.equal(radius, '50%', '角柄应为圆形');
+    const drag = async (id, corner, dx, dy) => {
+      const box = await card(id)
+        .locator('.web-node-handle.is-' + corner)
+        .boundingBox();
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + dx / 2, y + dy / 2, { steps: 3 });
+      await page.mouse.move(x + dx, y + dy, { steps: 3 });
+      await page.mouse.up();
+    };
+    const before = await nodeOf(image.id);
+    await drag(image.id, 'nw', -60, -60);
+    const grown = await nodeOf(image.id);
+    assert.ok(grown.width > before.width + 40, '左上角拖出应放大');
+    assert.ok(Math.abs(grown.x + grown.width - (before.x + before.width)) < 0.5, '右边应固定');
+    assert.ok(Math.abs(grown.y + grown.height - (before.y + before.height)) < 0.5, '下边应固定');
+    assert.ok(Math.abs(grown.height - 42 - (grown.width - 2)) < 0.5, '应保持 1:1 图片比例');
+    await card(image.id).click({ position: { x: 100, y: 120 } });
+    const middle = await nodeOf(image.id);
+    await drag(image.id, 'ne', -40, 0);
+    const shrunk = await nodeOf(image.id);
+    assert.ok(shrunk.width < middle.width - 20, '右上角向内应缩小');
+    assert.ok(Math.abs(shrunk.x - middle.x) < 0.5, '左边应固定');
+    assert.ok(Math.abs(shrunk.y + shrunk.height - (middle.y + middle.height)) < 0.5);
+    await settle();
+    await editor('undo', {});
+    assert.equal((await nodeOf(image.id)).width, middle.width, 'undo 还原上一次缩放');
+    // Empty slots have no image ratio: the south-west corner moves only the left and bottom edges.
+    await blank();
+    await card(slotId).click({ position: { x: 100, y: 100 } });
+    const slot = await nodeOf(slotId);
+    await drag(slotId, 'sw', -50, 30);
+    const resized = await nodeOf(slotId);
+    assert.ok(Math.abs(resized.x - (slot.x - 50)) < 1);
+    assert.ok(Math.abs(resized.width - (slot.width + 50)) < 1);
+    assert.ok(Math.abs(resized.height - (slot.height + 30)) < 1);
+    assert.equal(resized.y, slot.y, '上边应固定');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check('Web 外观：加入对话经宿主 addToChat 传选中图片；无钩子不显示', async () => {
+    const { page, errors, editor, settle, card, importImage, blank } = await webPage({
+      addToChat: true,
+    });
+    const first = await importImage('甲');
+    const second = await importImage('乙', '#36c');
+    const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', {
+      nodes: [
+        { id: first.id, x: 260, y: 220 },
+        { id: second.id, x: 620, y: 220 },
+        { id: slotId, x: 980, y: 220 },
+      ],
+    });
+    await settle();
+    await blank();
+    await card(first.id).click({ position: { x: 100, y: 120 } });
+    const menu = page.locator('#selection-menu');
+    await menu.getByRole('button', { name: '加入对话' }).click();
+    assert.deepEqual(await page.evaluate(() => window.__canvasChat.at(-1)), [
+      { nodeId: first.id, assetPath: first.assetPath },
+    ]);
+    await card(second.id).click({ position: { x: 100, y: 120 }, modifiers: ['Shift'] });
+    await card(slotId).click({ position: { x: 100, y: 100 }, modifiers: ['Shift'] });
+    assert.equal(await menu.isHidden(), false, '多选应显示菜单');
+    assert.equal(await menu.getByRole('button').count(), 1);
+    await menu.getByRole('button', { name: '加入对话' }).click();
+    // The empty slot has no asset, so only the two images are handed to the chat.
+    assert.deepEqual(await page.evaluate(() => window.__canvasChat.at(-1)), [
+      { nodeId: first.id, assetPath: first.assetPath },
+      { nodeId: second.id, assetPath: second.assetPath },
+    ]);
+    const outline = await card(first.id)
+      .locator('.canvas-card-content')
+      .evaluate((item) => getComputedStyle(item).outlineWidth);
+    assert.equal(outline, '2px', '多选描边应为 2px');
+    assert.equal(await page.locator('.web-selection-bounds').count(), 0, '多选不再画整体框');
+    const ring = await card(first.id).evaluate(
+      (item) => Number(getComputedStyle(item, '::before').opacity) > 0
+    );
+    assert.ok(ring, '多选保留每张卡的描边光环');
+    assert.deepEqual(errors, []);
+    await page.close();
+    const plain = await webPage();
+    const image = await plain.importImage('无钩子');
+    await plain.settle();
+    await plain.blank();
+    await plain.card(image.id).click({ position: { x: 100, y: 120 } });
+    await plain.page.locator('#selection-menu').waitFor();
+    assert.equal(
+      await plain.page.locator('#selection-menu').getByRole('button', { name: '加入对话' }).count(),
+      0
+    );
+    assert.equal(
+      await plain.page
+        .locator('#selection-menu')
+        .getByRole('button', { name: '抠图', exact: true })
+        .count(),
+      0,
+      'Web 关闭 imageEditing 且未声明 cutout 时不显示抠图'
+    );
+    await plain.page.close();
+  });
+
+  await check('Web 外观：「抠图」一键去纯色背景，结果卡连到原图并立即显示', async () => {
+    const { page, errors, settle, current, nodeOf, card, blank, editor } = await webPage({
+      features: { ...webFeatures, cutout: true },
+    });
+    const painted = async (title, kind) => {
+      const assetPath = await page.evaluate(
+        (kind) => window.__canvasAddPainted(kind, 80, 60),
+        kind
+      );
+      await page.evaluate(
+        ({ assetPath, title }) =>
+          window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title }),
+        { assetPath, title }
+      );
+      return (await current()).nodes.find((item) => item.assetPath === assetPath).id;
+    };
+    const sourceId = await painted('抠图源', 'subject');
+    await editor('update-nodes', { nodes: [{ id: sourceId, x: 300, y: 240 }] });
+    await settle();
+    // Any dialog opening during the action fails the case: the cutout must not open the editor.
+    await page.evaluate(() => {
+      window.__canvasDialogs = 0;
+      new MutationObserver((records) => {
+        for (const record of records)
+          for (const added of record.addedNodes)
+            if (added.tagName === 'DIALOG') window.__canvasDialogs++;
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+    await blank();
+    await card(sourceId).click({ position: { x: 100, y: 120 } });
+    const menu = page.locator('#selection-menu');
+    assert.equal(await menu.getByRole('button', { name: '去纯色背景' }).count(), 0);
+    assert.equal(await menu.getByRole('button', { name: '快速编辑' }).count(), 0);
+    await page.evaluate(() => {
+      window.__canvasReadHold = new Promise((resolve) => (window.__canvasReadRelease = resolve));
+    });
+    await menu.getByRole('button', { name: '抠图', exact: true }).click();
+    await card(sourceId).locator('.card-state-loading').waitFor();
+    await page.evaluate(() => {
+      window.__canvasReadHold = undefined;
+      window.__canvasReadRelease();
+    });
+    const resultId = await page
+      .waitForFunction((id) => {
+        const doc = window.__canvasEditor.current();
+        const edge = doc.edges.find((item) => item.from === id && item.kind === 'image-variant');
+        return edge && edge.to;
+      }, sourceId)
+      .then((handle) => handle.jsonValue());
+    // Checked before any wait: the card must draw its image without a reload.
+    const src = await card(resultId).locator('img').getAttribute('src');
+    assert.ok(src && src !== 'data:,', '抠图结果卡应立即有图片 src');
+    const result = await nodeOf(resultId);
+    const source = await nodeOf(sourceId);
+    assert.equal(result.title, '抠图源 · 抠图');
+    assert.ok(result.x >= source.x + source.width, '结果卡放在原图右侧');
+    assert.equal(
+      await card(resultId).evaluate((item) => item.classList.contains('selected')),
+      true,
+      '选中结果卡'
+    );
+    assert.equal(await card(sourceId).locator('.card-state-loading').count(), 0);
+    const alpha = await page.evaluate(async (path) => {
+      const bitmap = await createImageBitmap(await (await fetch(path)).blob());
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const context = canvas.getContext('2d');
+      context.drawImage(bitmap, 0, 0);
+      return [context.getImageData(1, 1, 1, 1).data[3], context.getImageData(40, 30, 1, 1).data[3]];
+    }, src);
+    assert.deepEqual(alpha, [0, 255], '背景透明、主体保留');
+    assert.equal(await page.evaluate(() => window.__canvasDialogs), 0, '不打开任何编辑弹窗');
+    assert.equal(
+      await page.evaluate(() => window.__canvasCalls.generate.length),
+      0,
+      '抠图不调用生成'
+    );
+    await settle();
+    await editor('undo', {});
+    assert.equal(await nodeOf(resultId), undefined, 'undo 移除抠图结果');
+
+    // No reliable solid background: a short error, and nothing is created.
+    const stripesId = await painted('条纹', 'stripes');
+    await editor('update-nodes', { nodes: [{ id: stripesId, x: 300, y: 560 }] });
+    await settle();
+    const before = (await current()).nodes.length;
+    await blank();
+    await card(stripesId).click({ position: { x: 100, y: 100 } });
+    await menu.getByRole('button', { name: '抠图', exact: true }).click();
+    await page.waitForFunction(() => /抠图失败/.test(document.getElementById('error').textContent));
+    assert.equal(
+      await page.locator('#error').textContent(),
+      '抠图失败：未识别到纯色背景，可用「调整抠图」手动取色'
+    );
+    assert.equal((await current()).nodes.length, before, '失败不创建卡片');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check(
+    '导入类结果卡动作完成即有图片 src：本地编辑/上传/右键上传/fill-slot/replace-image',
+    async () => {
+      const png = {
+        mimeType: 'image/png',
+        buffer: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+          'base64'
+        ),
+      };
+      const srcOf = (page, id) =>
+        page
+          .locator('.card[data-id="' + id + '"] img')
+          .evaluateAll((items) => items.map((item) => item.getAttribute('src')));
+      const assertSrc = async (page, id, label) => {
+        const [src] = await srcOf(page, id);
+        assert.ok(src && src !== 'data:,', label + '：结果卡应立即有图片 src，实际 ' + src);
+      };
+      // Default appearance keeps the full local editor; its saved result must render without reload.
+      const local = await openCanvas({});
+      const sourcePath = await local.page.evaluate(() =>
+        window.__canvasAddPainted('subject', 80, 60)
+      );
+      await local.page.evaluate(
+        (assetPath) =>
+          window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '本地源' }),
+        sourcePath
+      );
+      const sourceId = (
+        await local.page.evaluate(() => window.__canvasEditor.current())
+      ).nodes.find((node) => node.assetPath === sourcePath).id;
+      await local.page.waitForFunction(() => window.__canvasUnsaved === false);
+      await local.page.locator('.card[data-id="' + sourceId + '"] img').click();
+      await local.page
+        .locator('#selection-menu')
+        .getByRole('button', { name: '去纯色背景' })
+        .click();
+      const background = local.page.locator('dialog[aria-label="自动去背景"]');
+      await background.waitFor();
+      const apply = background.getByRole('button', { name: '应用到当前帧' });
+      await local.page.waitForFunction(
+        () => !document.querySelector('dialog[aria-label="自动去背景"] footer button').disabled
+      );
+      await apply.click();
+      const editorDialog = local.page.locator('dialog[aria-label="本地图片编辑"]');
+      const save = editorDialog.getByRole('button', { name: '保存本地 PNG' });
+      await local.page.waitForFunction(() =>
+        [...document.querySelectorAll('dialog[aria-label="本地图片编辑"] button')].some(
+          (item) => item.textContent === '保存本地 PNG' && !item.disabled
+        )
+      );
+      await save.click();
+      await local.page.waitForFunction(() => !document.querySelector('dialog[open]'));
+      const edited = (await local.page.evaluate(() => window.__canvasEditor.current())).edges.find(
+        (edge) => edge.from === sourceId && edge.kind === 'image-variant'
+      );
+      assert.ok(edited, '本地编辑结果应连到原图');
+      await assertSrc(local.page, edited.to, '本地编辑');
+      assert.deepEqual(local.errors, []);
+      await local.page.close();
+
+      const { page, errors, editor, settle, current, blank } = await webPage();
+      const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await editor('update-nodes', { nodes: [{ id: slotId, x: 300, y: 200 }] });
+      await settle();
+      await blank();
+      await page.locator('.card[data-id="' + slotId + '"]').click({ position: { x: 80, y: 80 } });
+      let chooser = page.waitForEvent('filechooser');
+      await page.locator('.card[data-id="' + slotId + '"] .web-slot-upload').click();
+      await (await chooser).setFiles({ name: 'slot.png', ...png });
+      await page.waitForFunction(
+        (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id).assetPath,
+        slotId
+      );
+      await assertSrc(page, slotId, '槽内上传');
+      await settle();
+      await blank();
+      await page.mouse.click(300, 700, { button: 'right' });
+      chooser = page.waitForEvent('filechooser');
+      await page.locator('#canvas-context-menu').getByRole('button', { name: '上传图片' }).click();
+      await (await chooser).setFiles({ name: 'menu.png', ...png });
+      await page.waitForFunction(() =>
+        window.__canvasEditor
+          .current()
+          .nodes.some((node) => node.title === 'menu' && node.assetPath)
+      );
+      await assertSrc(
+        page,
+        (await current()).nodes.find((node) => node.title === 'menu').id,
+        '右键上传'
+      );
+      await settle();
+      const fillId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      const fillPath = await page.evaluate(() => window.__canvasAddMedia('#3a7', 40, 40));
+      await editor('fill-slot', { id: fillId, assetPath: fillPath });
+      await assertSrc(page, fillId, 'fill-slot');
+      const [filledSrc] = await srcOf(page, fillId);
+      await settle();
+      const replacePath = await page.evaluate(() => window.__canvasAddMedia('#36c', 80, 40));
+      await editor('replace-image', { id: fillId, assetPath: replacePath });
+      await assertSrc(page, fillId, 'replace-image');
+      assert.notEqual((await srcOf(page, fillId))[0], filledSrc, 'replace-image 应换成新图');
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+
+  await check('Web 提示词面板与素材规范弹层停留在画板内（右缘/底缘，避开工具条）', async () => {
+    const { page, errors, editor, settle, card, blank, shoot } = await webPage();
+    const boardBox = await page.locator('#board').boundingBox();
+    const dock = await page.locator('.workspace-toolbar').boundingBox();
+    const inside = (box, label) => {
+      assert.ok(box.x >= boardBox.x - 0.5, label + ' 左缘越界');
+      assert.ok(box.y >= boardBox.y - 0.5, label + ' 上缘越界');
+      assert.ok(box.x + box.width <= boardBox.x + boardBox.width + 0.5, label + ' 右缘越界');
+      assert.ok(box.y + box.height <= boardBox.y + boardBox.height + 0.5, label + ' 下缘越界');
+    };
+    const rightId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    const bottomId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', {
+      nodes: [
+        { id: rightId, x: boardBox.width - 250, y: 160 },
+        { id: bottomId, x: 520, y: boardBox.height - 230 },
+      ],
+    });
+    await settle();
+    const composer = page.locator('#selection-toolbar');
+    const pill = composer.locator('.generation-asset-constraints');
+    const popover = composer.locator('.generation-asset-popover');
+    for (const theme of ['dark', 'light']) {
+      await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+      await blank();
+      await card(rightId).click({ position: { x: 80, y: 80 } });
+      await pill.waitFor();
+      const closed = await composer.boundingBox();
+      inside(closed, '右缘面板');
+      assert.ok(closed.x >= dock.x + dock.width, '面板不压住工具条');
+      await pill.click();
+      await popover.waitFor();
+      await popover.locator('textarea').focus();
+      const opened = await composer.boundingBox();
+      assert.deepEqual(opened, closed, '打开弹层不改变面板位置与尺寸');
+      const pop = await popover.boundingBox();
+      inside(pop, '素材规范弹层');
+      assert.ok(pop.y + pop.height <= (await pill.boundingBox()).y, '弹层向上展开');
+      assert.equal(await page.evaluate(() => document.getElementById('board').scrollLeft), 0);
+      await shoot('v6-' + theme + '-composer-popover-right.png');
+      await blank();
+      await card(bottomId).click({ position: { x: 80, y: 80 } });
+      await pill.waitFor();
+      const flipped = await composer.boundingBox();
+      inside(flipped, '底缘面板');
+      const frame = await card(bottomId).locator('.canvas-card-content').boundingBox();
+      assert.ok(flipped.y + flipped.height <= frame.y, '下方放不下时翻到卡片上方');
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check(
+    'Web 连线：悬停/选中用宿主强调色 3px，剪断钮 28px 毛玻璃；点击与 Delete 均可删',
+    async () => {
+      const { page, errors, editor, settle, current, importImage, blank, shoot } = await webPage();
+      // A distinctive host accent proves the wire follows --canvas-accent, not a fixed blue.
+      await page.evaluate(() =>
+        document.documentElement.style.setProperty('--canvas-accent', 'rgb(10, 120, 200)')
+      );
+      const first = await importImage('甲', '#c96', 60, 60);
+      const second = await importImage('乙', '#69c', 60, 60);
+      const third = await importImage('丙', '#9c6', 60, 60);
+      await editor('update-nodes', {
+        nodes: [
+          { id: first.id, x: 240, y: 220 },
+          { id: second.id, x: 640, y: 160 },
+          { id: third.id, x: 640, y: 480 },
+        ],
+      });
+      await editor('connect', { from: first.id, to: second.id });
+      await editor('connect', { from: first.id, to: third.id });
+      await settle();
+      const middle = (to) =>
+        page
+          .locator('#wires path[data-from="' + first.id + '"][data-to="' + to + '"]')
+          .evaluate((path) => {
+            const point = path.getPointAtLength(path.getTotalLength() / 2);
+            const rect = document.getElementById('board').getBoundingClientRect();
+            return { x: rect.left + point.x, y: rect.top + point.y };
+          });
+      const cut = page.locator('.wire-controls .wire-scissors');
+      // 流光: every comet layer runs the dash keyframes and its offset actually advances.
+      const assertFlowing = async (label) => {
+        const sample = () =>
+          page.evaluate(() =>
+            [...document.querySelectorAll('.wire-controls .wire-glow')].map((item) => {
+              const style = getComputedStyle(item);
+              return [style.animationName, parseFloat(style.strokeDashoffset)];
+            })
+          );
+        const before = await sample();
+        assert.equal(before.length, 6, label + '：应有 6 层流光');
+        assert.ok(
+          before.every(([name]) => name === 'web-wire-flow'),
+          label + '：流光动画缺失'
+        );
+        await page.waitForTimeout(120);
+        const after = await sample();
+        assert.ok(
+          after.some((item, index) => item[1] !== before[index][1]),
+          label + '：流光未移动'
+        );
+      };
+      const strokes = () =>
+        page.evaluate(() =>
+          ['.wire-controls .wire-active', '.wire-controls .wire-glow'].map((selector) => {
+            const style = getComputedStyle(document.querySelector(selector));
+            return [style.stroke, style.strokeWidth];
+          })
+        );
+      for (const theme of ['dark', 'light']) {
+        await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+        await blank();
+        const hover = await middle(third.id);
+        await page.mouse.move(hover.x, hover.y);
+        await cut.waitFor();
+        assert.deepEqual(await strokes(), [
+          ['rgb(10, 120, 200)', '3px'],
+          ['rgb(10, 120, 200)', '5px'],
+        ]);
+        await assertFlowing('悬停');
+        const hovered = await cut.boundingBox();
+        await shoot('v9-' + theme + '-wire-hover.png', {
+          x: hovered.x - 150,
+          y: hovered.y - 90,
+          width: 300,
+          height: 180,
+        });
+        await blank();
+        const point = await middle(second.id);
+        await page.mouse.click(point.x, point.y);
+        await cut.waitFor();
+        assert.deepEqual(await strokes(), [
+          ['rgb(10, 120, 200)', '3px'],
+          ['rgb(10, 120, 200)', '5px'],
+        ]);
+        await assertFlowing('选中');
+        const box = await cut.boundingBox();
+        assert.equal(Math.round(box.width), 28);
+        assert.equal(Math.round(box.height), 28);
+        assert.equal(await cut.evaluate((item) => getComputedStyle(item).borderRadius), '50%');
+        assert.equal(await cut.locator('svg').getAttribute('width'), '14');
+        const icon = await cut.locator('svg').boundingBox();
+        assert.deepEqual([icon.width, icon.height], [14, 14], '剪刀图标实际渲染 14px');
+        assert.ok(Math.abs(icon.x + icon.width / 2 - (box.x + box.width / 2)) < 1, '图标水平居中');
+        assert.ok(
+          Math.abs(icon.y + icon.height / 2 - (box.y + box.height / 2)) < 1,
+          '图标垂直居中'
+        );
+        const glass = await cut.evaluate((item) => {
+          const style = getComputedStyle(item);
+          return [style.backdropFilter || style.webkitBackdropFilter, style.backgroundColor];
+        });
+        assert.equal(glass[0], 'blur(10px)');
+        assert.match(glass[1], /^rgba\(.*0\.62\)$/, '半透明面板色');
+        await cut.hover();
+        await page.waitForTimeout(200);
+        const hoverStyle = await cut.evaluate((item) => {
+          const style = getComputedStyle(item);
+          return [style.borderTopColor, style.color, getComputedStyle(item, '::before').opacity];
+        });
+        assert.deepEqual(hoverStyle, ['rgba(0, 0, 0, 0)', 'rgb(10, 120, 200)', '0.14']);
+        await shoot('v9-' + theme + '-wire-delete.png', {
+          x: box.x - 150,
+          y: box.y - 90,
+          width: 300,
+          height: 180,
+        });
+      }
+      await cut.click();
+      await page.waitForFunction(
+        (id) => !window.__canvasEditor.current().edges.some((edge) => edge.to === id),
+        second.id
+      );
+      const point = await middle(third.id);
+      await blank();
+      await page.mouse.click(point.x, point.y);
+      await cut.waitFor();
+      await page.keyboard.press('Delete');
+      await page.waitForFunction(
+        (id) => !window.__canvasEditor.current().edges.some((edge) => edge.to === id),
+        third.id
+      );
+      assert.equal((await current()).edges.length, 0);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  for (const appearance of ['web', 'default'])
+    await check(
+      '拖拽图片（' + appearance + '）：打开的生成面板只跟随移动，不重建下拉、不重复读模型',
+      async () => {
+        const { page, errors } = await openCanvas(
+          { features: webFeatures, appearance: appearance === 'web' ? 'web' : undefined },
+          true
+        );
+        const slotId = await page.evaluate(async () => {
+          const current = window.__canvasEditor.current();
+          const result = await window.__canvasEditor.execute({
+            requestId: 'r-drag',
+            pageId: 'page-1',
+            canvasId: current.id,
+            revision: current.revision,
+            action: 'add-node',
+            input: { type: 'image' },
+          });
+          const id = result.selectedIds[0];
+          const next = window.__canvasEditor.current();
+          await window.__canvasEditor.execute({
+            requestId: 'r-drag-place',
+            pageId: 'page-1',
+            canvasId: next.id,
+            revision: next.revision,
+            action: 'update-nodes',
+            input: { nodes: [{ id, x: 360, y: 160 }] },
+          });
+          return id;
+        });
+        const card = page.locator('.card[data-id="' + slotId + '"]');
+        await page.mouse.click(1300, 840);
+        // The header avoids the default empty-slot import button, which opens a file chooser.
+        await card.click({ position: { x: 12, y: 10 } });
+        const panel = page.locator('#selection-toolbar .generation-panel');
+        await panel.locator('textarea.generation-prompt').fill('拖拽中保留的提示词');
+        await page.waitForFunction(() =>
+          [...document.querySelectorAll('#selection-toolbar select option')].some(
+            (option) => option.textContent === '宿主模型二'
+          )
+        );
+        await page
+          .locator('#selection-toolbar select.generation-mode')
+          .first()
+          .selectOption('host-second');
+        await page.evaluate(() => {
+          window.__canvasModelCalls = 0;
+          window.__dragSelect = document.querySelector('#selection-toolbar select.generation-mode');
+        });
+        const before = await page.evaluate(
+          (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id),
+          slotId
+        );
+        const toolbarBefore = await page.locator('#selection-toolbar').boundingBox();
+        const box = await card.boundingBox();
+        await page.mouse.move(box.x + 12, box.y + 10);
+        await page.mouse.down();
+        for (let step = 1; step <= 12; step++) {
+          await page.mouse.move(box.x + 12 + step * 10, box.y + 10 + step * 4);
+          assert.equal(
+            await page.evaluate(
+              () =>
+                document.querySelector('#selection-toolbar select.generation-mode') ===
+                  window.__dragSelect && window.__dragSelect.isConnected
+            ),
+            true,
+            '拖拽第 ' + step + ' 步模型下拉被重建'
+          );
+        }
+        await page.mouse.up();
+        const after = await page.evaluate(
+          (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id),
+          slotId
+        );
+        assert.equal(after.x, before.x + 120);
+        assert.equal(after.y, before.y + 48);
+        assert.ok(
+          (await page.evaluate(() => window.__canvasModelCalls)) <= 1,
+          '拖拽期间重复读模型'
+        );
+        assert.equal(
+          await page.evaluate(
+            () =>
+              document.querySelector('#selection-toolbar select.generation-mode') ===
+              window.__dragSelect
+          ),
+          true,
+          '松手后下拉仍是同一节点'
+        );
+        assert.equal(
+          await panel.locator('textarea.generation-prompt').inputValue(),
+          '拖拽中保留的提示词'
+        );
+        assert.equal(
+          await page.locator('#selection-toolbar select.generation-mode').first().inputValue(),
+          'host-second'
+        );
+        const toolbarAfter = await page.locator('#selection-toolbar').boundingBox();
+        const cardAfter = await card.boundingBox();
+        // The default page may flip a tall panel beside the card; Web keeps its offset.
+        if (appearance === 'web')
+          assert.deepEqual(
+            [toolbarAfter.x - cardAfter.x, toolbarAfter.y - cardAfter.y],
+            [toolbarBefore.x - box.x, toolbarBefore.y - box.y],
+            '面板跟随卡片移动'
+          );
+        else assert.notDeepEqual(toolbarAfter, toolbarBefore, '面板重新定位');
+        assert.deepEqual(errors, []);
+        await page.close();
+      }
+    );
+  await check('Web 外观：AI 结果槽再生成原位回填（保留 id/位置/宽度/连线，可撤销）', async () => {
+    const { page, errors, editor, settle, current, nodeOf, card, importImage, blank } =
+      await webPage();
+    const source = await importImage('来源图', '#c33', 40, 40);
+    const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', {
+      nodes: [
+        { id: source.id, x: 160, y: 160 },
+        { id: slotId, x: 640, y: 200 },
+      ],
+    });
+    await editor('connect', { from: source.id, to: slotId });
+    await settle();
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    const send = async (prompt) => {
+      await panel.locator('textarea.generation-prompt').fill(prompt);
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('#selection-toolbar select option')].some(
+          (option) => option.textContent === '宿主模型二'
+        )
+      );
+      await panel.locator('.generation-action-primary').click();
+    };
+    // Square first result, so the 64x32 regeneration visibly changes only the height.
+    await page.evaluate(() => (window.__canvasResultSize = [48, 48]));
+    await blank();
+    await card(slotId).click({ position: { x: 100, y: 100 } });
+    await send('第一版');
+    await page.waitForFunction(
+      (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id).assetPath,
+      slotId
+    );
+    await settle();
+    await editor('update-nodes', { nodes: [{ id: slotId, x: 640, y: 200, width: 300 }] });
+    await settle();
+    const before = await current();
+    const first = before.nodes.find((node) => node.id === slotId);
+    await blank();
+    await card(slotId).click({ position: { x: 100, y: 100 } });
+    await page.evaluate(() => (window.__canvasResultSize = [64, 32]));
+    await send('第二版');
+    await page.waitForFunction(
+      ({ id, path }) =>
+        window.__canvasEditor.current().nodes.find((node) => node.id === id).assetPath !== path,
+      { id: slotId, path: first.assetPath }
+    );
+    await settle();
+    const after = await current();
+    const second = after.nodes.find((node) => node.id === slotId);
+    assert.equal(after.nodes.length, before.nodes.length, '不新建结果卡');
+    assert.deepEqual(
+      [second.x, second.y, second.width, second.title],
+      [first.x, first.y, first.width, first.title]
+    );
+    assert.notEqual(second.height, first.height, '高度跟随新比例');
+    assert.deepEqual(second.imageInfo, { width: 64, height: 32 });
+    assert.equal(second.generation.prompt, '第二版');
+    assert.deepEqual(after.edges, before.edges, '连线保持不变');
+    const calls = await page.evaluate(() => window.__canvasCalls.generate);
+    assert.equal(calls.at(-1).targetNodeId, slotId);
+    await editor('undo', {});
+    assert.equal((await nodeOf(slotId)).assetPath, first.assetPath, '撤销还原上一张');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 外观：AI 结果面板显示生成它的来源图，原位再生成只发送来源', async () => {
+    const kneel = 'assets/image/canvas/seed-kneel.png';
+    const lying = 'assets/image/canvas/seed-lying.png';
+    const text = 'assets/image/canvas/seed-text.png';
+    const base = { type: 'image', y: 200, width: 240, height: 240 };
+    const generated = (prompt, operation, extra = {}) => ({
+      prompt,
+      operation,
+      referenceImagePaths: [],
+      parameters: {},
+      ...extra,
+    });
+    const { page, errors, settle, current, card, blank } = await webPage({
+      seedMedia: { [kneel]: '#c33', [lying]: '#3a7', [text]: '#36c' },
+      seedDocuments: [
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          title: '来源画布',
+          revision: 3,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [
+            {
+              ...base,
+              id: 'seed-k',
+              title: '生图结果',
+              x: 120,
+              assetPath: kneel,
+              generation: generated('生成跪姿女孩', 'generate'),
+            },
+            {
+              ...base,
+              id: 'seed-l',
+              title: '图片变体 · 已保存结果',
+              x: 520,
+              assetPath: lying,
+              generation: generated('生成这个女孩的躺姿势', 'variant', {
+                sourceImageId: 'seed-k',
+              }),
+              sourceSnapshot: { nodeId: 'seed-k', version: 'image|' + kneel + '|manual-asset' },
+              sourceSnapshots: [{ nodeId: 'seed-k', version: 'image|' + kneel + '|manual-asset' }],
+            },
+            {
+              ...base,
+              id: 'seed-t',
+              title: '生图结果',
+              x: 920,
+              assetPath: text,
+              generation: generated('纯文生图', 'generate'),
+            },
+          ],
+          edges: [{ id: 'seed-edge', from: 'seed-k', to: 'seed-l', kind: 'image-variant' }],
+        },
+      ],
+    });
+    await card('seed-l').waitFor();
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    const open = async (id) => {
+      await blank();
+      await card(id).click({ position: { x: 60, y: 80 } });
+      await panel.waitFor();
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('#selection-toolbar select option')].some(
+          (option) => option.textContent === '宿主模型二'
+        )
+      );
+    };
+    const srcOf = (id) => card(id).locator('img').first().getAttribute('src');
+    await open('seed-l');
+    const thumbs = panel.locator('.generation-reference img');
+    assert.equal(await thumbs.count(), 1);
+    assert.equal(await thumbs.first().getAttribute('src'), await srcOf('seed-k'), '显示来源 K');
+    assert.notEqual(await thumbs.first().getAttribute('src'), await srcOf('seed-l'));
+    const before = await current();
+    await panel.locator('.generation-action-primary').click();
+    await page.waitForFunction(
+      (path) =>
+        window.__canvasEditor.current().nodes.find((node) => node.id === 'seed-l').assetPath !==
+        path,
+      lying
+    );
+    await settle();
+    const after = await current();
+    const call = (await page.evaluate(() => window.__canvasCalls.generate)).at(-1);
+    assert.equal(call.targetNodeId, 'seed-l');
+    assert.deepEqual(call.sourceImagePaths, [kneel], '只发送来源 K，不发送 L 自身');
+    assert.deepEqual(call.referenceImagePaths, []);
+    assert.equal(after.nodes.length, before.nodes.length, '原位回填，不新建卡片');
+    const result = after.nodes.find((node) => node.id === 'seed-l');
+    assert.equal(result.title, '图片变体 · 已保存结果');
+    assert.equal(result.generation.sourceImageId, 'seed-k');
+    assert.deepEqual(after.edges, before.edges, '连线保持不变');
+    await open('seed-t');
+    assert.equal(await panel.locator('.generation-reference img').count(), 0, '文生图无参考图');
+    await panel.locator('.generation-action-primary').click();
+    await page.waitForFunction(
+      (path) =>
+        window.__canvasEditor.current().nodes.find((node) => node.id === 'seed-t').assetPath !==
+        path,
+      text
+    );
+    const textCall = (await page.evaluate(() => window.__canvasCalls.generate)).at(-1);
+    assert.equal(textCall.targetNodeId, 'seed-t');
+    assert.equal(textCall.operation, 'generate');
+    assert.equal(textCall.sourceImageIds, undefined, '文生图不带来源图');
+    assert.deepEqual(textCall.referenceImagePaths, []);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 外观：普通导入图生成仍落到新连线卡片', async () => {
+    const { page, errors, editor, settle, current, nodeOf, card, importImage, blank } =
+      await webPage({ features: { ...webFeatures, imageEditing: true } });
+    const source = await importImage('导入图', '#c33', 40, 40);
+    await editor('update-nodes', { nodes: [{ id: source.id, x: 200, y: 200 }] });
+    await settle();
+    await blank();
+    await card(source.id).click({ position: { x: 100, y: 120 } });
+    await page.locator('#selection-menu').getByRole('button', { name: '快速编辑' }).click();
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    await panel.locator('textarea.generation-prompt').fill('导入图变体');
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('#selection-toolbar select option')].some(
+        (option) => option.textContent === '宿主模型二'
+      )
+    );
+    await panel.locator('.generation-action-primary').click();
+    await page.waitForFunction(() => window.__canvasEditor.current().nodes.length === 2);
+    await settle();
+    const doc = await current();
+    const result = doc.nodes.find((node) => node.id !== source.id);
+    assert.ok(result.assetPath);
+    assert.equal((await nodeOf(source.id)).assetPath, source.assetPath, '导入图本身不变');
+    assert.ok(doc.edges.some((edge) => edge.from === source.id && edge.to === result.id));
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check(
+    'Web 外观：图片工具条为图标按钮；图片右键含加入对话/抠图/下载，按钩子显示',
+    async () => {
+      const { page, errors, editor, settle, card, importImage, blank, shoot } = await webPage({
+        addToChat: true,
+        features: { ...webFeatures, cutout: true },
+      });
+      const image = await importImage('角色', '#c96', 160, 120);
+      const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await editor('update-nodes', {
+        nodes: [
+          { id: image.id, x: 260, y: 220 },
+          { id: slotId, x: 760, y: 220 },
+        ],
+      });
+      await settle();
+      const menu = page.locator('#selection-menu');
+      const contextMenu = page.locator('#canvas-context-menu');
+      const imageItems = () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('#canvas-context-menu [data-menu-scope=image]')]
+            .filter((item) => !item.hidden)
+            .map((item) => item.textContent)
+        );
+      for (const theme of ['dark', 'light']) {
+        await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+        await blank();
+        await card(image.id).click({ position: { x: 100, y: 120 } });
+        for (const name of ['加入对话', '抠图']) {
+          const button = menu.getByRole('button', { name, exact: true });
+          assert.equal(await button.getAttribute('title'), null, name + ' 不用原生 title');
+          assert.equal(await button.getAttribute('aria-label'), name);
+          assert.equal(await button.getAttribute('data-web-tip'), name);
+          assert.equal(await button.locator('svg').count(), 1, name + ' 为图标');
+          assert.equal((await button.innerText()).trim(), '', name + ' 不显示文字');
+        }
+        const download = menu.getByRole('button', { name: '下载图片', exact: true });
+        assert.equal(await download.getAttribute('data-web-tip'), '下载图片');
+        assert.equal(await download.locator('svg').count(), 1);
+        assert.equal(await menu.locator('details').count(), 0, '下载不再是折叠菜单');
+        const bar = await menu.boundingBox();
+        await shoot('v7-' + theme + '-selection-icons.png', {
+          x: bar.x - 24,
+          y: bar.y - 16,
+          width: bar.width + 48,
+          height: 260,
+        });
+        await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
+        await contextMenu.waitFor();
+        assert.deepEqual(await imageItems(), ['加入对话', '抠图', '调整抠图', '下载', '下载 JPG']);
+        const opened = await contextMenu.boundingBox();
+        await shoot('v7-' + theme + '-image-context-menu.png', {
+          x: Math.max(0, opened.x - 24),
+          y: Math.max(0, opened.y - 24),
+          width: opened.width + 48,
+          height: opened.height + 48,
+        });
+        await page.keyboard.press('Escape');
+        await blank();
+      }
+      await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
+      await contextMenu.getByRole('button', { name: '加入对话' }).click();
+      assert.deepEqual(await page.evaluate(() => window.__canvasChat.at(-1)), [
+        { nodeId: image.id, assetPath: image.assetPath },
+      ]);
+      await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
+      await contextMenu.getByRole('button', { name: '下载', exact: true }).click();
+      await page.waitForFunction(() => window.__canvasDelivered);
+      assert.match(await page.evaluate(() => window.__canvasDelivered.filename), /\.png$/);
+      await page.evaluate(() => (window.__canvasDelivered = undefined));
+      await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
+      await contextMenu.getByRole('button', { name: '下载 JPG' }).click();
+      await page.waitForFunction(() => window.__canvasDelivered);
+      assert.match(await page.evaluate(() => window.__canvasDelivered.filename), /\.jpg$/);
+      assert.equal(await page.evaluate(() => window.__canvasDelivered.type), 'image/jpeg');
+      await card(slotId).click({ button: 'right', position: { x: 100, y: 100 } });
+      assert.deepEqual(await imageItems(), [], '空槽不显示图片动作');
+      await page.mouse.click(1300, 840, { button: 'right' });
+      assert.deepEqual(await imageItems(), [], '空白处菜单不变');
+      assert.equal(
+        await contextMenu.locator('[data-canvas-action="add-generation"]').isVisible(),
+        true
+      );
+      await page.keyboard.press('Escape');
+      assert.deepEqual(errors, []);
+      await page.close();
+      const plain = await webPage();
+      const bare = await plain.importImage('无钩子');
+      await plain.settle();
+      await plain.blank();
+      await plain.card(bare.id).click({ button: 'right', position: { x: 100, y: 120 } });
+      await plain.page.locator('#canvas-context-menu').waitFor();
+      assert.deepEqual(
+        await plain.page.evaluate(() =>
+          [...document.querySelectorAll('#canvas-context-menu [data-menu-scope=image]')]
+            .filter((item) => !item.hidden)
+            .map((item) => item.textContent)
+        ),
+        ['下载', '下载 JPG'],
+        '无 addToChat / cutout 时只保留下载'
+      );
+      await plain.page.close();
+      const local = await openCanvas({
+        features: { ...webFeatures, cutout: true },
+        addToChat: true,
+      });
+      const localPath = await local.page.evaluate(() => window.__canvasAddMedia('#c33', 40, 40));
+      await local.page.evaluate(
+        (assetPath) =>
+          window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '默认' }),
+        localPath
+      );
+      const localId = (await local.page.evaluate(() => window.__canvasEditor.current())).nodes[0]
+        .id;
+      await local.page.waitForFunction(() => window.__canvasUnsaved === false);
+      await local.page
+        .locator('.card[data-id="' + localId + '"]')
+        .click({ button: 'right', position: { x: 60, y: 80 } });
+      assert.equal(
+        await local.page
+          .locator('#canvas-context-menu [data-menu-scope=image]:not([hidden])')
+          .count(),
+        0,
+        '默认外观右键菜单不变'
+      );
+      assert.equal(
+        await local.page.locator('#selection-menu .web-icon-action').count(),
+        0,
+        '默认外观工具条保持文字按钮'
+      );
+      await local.page.close();
+    }
+  );
+  await check(
+    'Web 提示：图标按钮悬停/键盘聚焦 150ms 内显示自绘提示（明暗），无原生 title',
+    async () => {
+      const { page, errors, editor, settle, card, importImage, blank, shoot } = await webPage({
+        addToChat: true,
+        features: { ...webFeatures, cutout: true },
+      });
+      const image = await importImage('提示', '#c96', 160, 120);
+      await editor('update-nodes', { nodes: [{ id: image.id, x: 300, y: 260 }] });
+      await settle();
+      const tip = page.locator('.web-tooltip');
+      const shown = async (text, label) => {
+        const started = Date.now();
+        await page.waitForFunction(
+          (text) => {
+            const item = document.querySelector('.web-tooltip');
+            return (
+              item && !item.hidden && item.dataset.open === 'true' && item.textContent === text
+            );
+          },
+          text,
+          { timeout: 1000 }
+        );
+        assert.ok(Date.now() - started < 450, label + '：提示应快速出现');
+      };
+      for (const theme of ['dark', 'light']) {
+        await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+        await blank();
+        await card(image.id).click({ position: { x: 100, y: 120 } });
+        const cutout = page
+          .locator('#selection-menu')
+          .getByRole('button', { name: '抠图', exact: true });
+        await cutout.hover();
+        await shown('抠图', '悬停抠图');
+        const [button, bubble] = [await cutout.boundingBox(), await tip.boundingBox()];
+        assert.ok(bubble.y + bubble.height <= button.y, '提示位于按钮上方');
+        assert.ok(
+          Math.abs(bubble.x + bubble.width / 2 - (button.x + button.width / 2)) < 2,
+          '水平居中'
+        );
+        assert.equal(await cutout.getAttribute('title'), null);
+        assert.equal(await cutout.getAttribute('aria-label'), '抠图');
+        const colors = await tip.evaluate((item) => {
+          const style = getComputedStyle(item);
+          return [style.backgroundColor, style.color, style.fontSize];
+        });
+        assert.equal(colors[2], '12px');
+        assert.equal(colors[1], theme === 'dark' ? 'rgb(255, 250, 240)' : 'rgb(255, 255, 255)');
+        await page.evaluate(
+          () => (document.querySelector('.web-tooltip').style.transition = 'none')
+        );
+        await shoot('v8-' + theme + '-tooltip.png', {
+          x: button.x - 120,
+          y: button.y - 60,
+          width: 280,
+          height: 110,
+        });
+        await page.mouse.move(1300, 860);
+        await page.waitForFunction(() => document.querySelector('.web-tooltip').hidden);
+        // Dock buttons share the helper: their native title is migrated on first hover.
+        const undo = page.locator('.workspace-actions > button').first();
+        const name = await undo.getAttribute('aria-label');
+        await undo.hover();
+        await shown(name, '工具条按钮');
+        assert.equal(await undo.getAttribute('title'), null);
+        await page.mouse.move(1300, 860);
+        await page.waitForFunction(() => document.querySelector('.web-tooltip').hidden);
+        // Keyboard focus shows it as well; a pointer press hides it.
+        const chat = page.locator('#selection-menu').getByRole('button', { name: '加入对话' });
+        await page.keyboard.press('Shift');
+        await chat.focus();
+        await shown('加入对话', '键盘聚焦');
+        await page.keyboard.press('Escape');
+        await page.waitForFunction(() => document.querySelector('.web-tooltip').hidden);
+      }
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check(
+    'Web 调整抠图：工具条箭头与右键只打开去背景参数框，「保存」后像一键抠图新建右侧卡片并选中',
+    async () => {
+      const { page, errors, editor, settle, current, nodeOf, card, blank, shoot } = await webPage({
+        features: { ...webFeatures, cutout: true },
+      });
+      const assetPath = await page.evaluate(() => window.__canvasAddPainted('subject', 80, 60));
+      await page.evaluate(
+        (assetPath) =>
+          window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '精修源' }),
+        assetPath
+      );
+      const sourceId = (await current()).nodes.find((item) => item.assetPath === assetPath).id;
+      await editor('update-nodes', { nodes: [{ id: sourceId, x: 300, y: 260 }] });
+      await settle();
+      const menu = page.locator('#selection-menu');
+      const adjust = menu.getByRole('button', { name: '调整抠图' });
+      const background = page.locator('dialog[aria-label="自动去背景"]');
+      for (const theme of ['dark', 'light']) {
+        await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+        await blank();
+        await card(sourceId).click({ position: { x: 100, y: 120 } });
+        await adjust.hover();
+        await page.waitForFunction(() => {
+          const item = document.querySelector('.web-tooltip');
+          return item.dataset.open === 'true' && item.textContent === '调整抠图';
+        });
+        // Clipped captures can re-run the fade, so freeze the settled bubble for the screenshot.
+        await page.evaluate(
+          () => (document.querySelector('.web-tooltip').style.transition = 'none')
+        );
+        const bar = await menu.boundingBox();
+        await shoot('v8-' + theme + '-cutout-adjust.png', {
+          x: bar.x - 60,
+          y: bar.y - 50,
+          width: bar.width + 120,
+          height: 110,
+        });
+      }
+      // Right-click entry opens the same editor; cancelling leaves the canvas unchanged.
+      await page.keyboard.press('Escape');
+      await card(sourceId).click({ button: 'right', position: { x: 100, y: 120 } });
+      await page.locator('#canvas-context-menu').getByRole('button', { name: '调整抠图' }).click();
+      await background.waitFor();
+      for (const label of ['颜色容差', '边缘过渡', '去溢色强度', '手动背景色 HEX', '背景处理范围'])
+        assert.equal(await background.getByLabel(label).count(), 1, label);
+      await background.getByRole('button', { name: '从原图取色' }).waitFor();
+      // Only the 去背景 dialog opens, with 取消 + one primary 保存 and no frame/local-PNG steps.
+      assert.equal(await page.locator('dialog[open]').count(), 1, '只打开去背景对话框');
+      assert.equal(await page.locator('dialog[aria-label="本地图片编辑"]').count(), 0);
+      assert.deepEqual(
+        await background
+          .locator('footer button')
+          .evaluateAll((items) => items.map((item) => [item.textContent, item.className])),
+        [
+          ['取消', ''],
+          ['保存', 'primary'],
+        ]
+      );
+      await background.getByRole('button', { name: '取消' }).click();
+      await page.waitForFunction(() => !document.querySelector('dialog[open]'));
+      assert.equal((await current()).nodes.length, 1, '取消不创建卡片');
+      await blank();
+      await card(sourceId).click({ position: { x: 100, y: 120 } });
+      await adjust.click();
+      await background.waitFor();
+      const saveButton = background.getByRole('button', { name: '保存' });
+      await page.waitForFunction(
+        () =>
+          !document.querySelector('dialog[aria-label="自动去背景"] footer button.primary').disabled
+      );
+      await background.getByLabel('颜色容差').fill('60');
+      await page.waitForFunction(
+        () =>
+          !document.querySelector('dialog[aria-label="自动去背景"] footer button.primary').disabled
+      );
+      for (const theme of ['dark', 'light']) {
+        await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+        await page.waitForTimeout(150);
+        await shoot('v9-' + theme + '-cutout-adjust-dialog.png');
+      }
+      await saveButton.click();
+      await page.waitForFunction(() => !document.querySelector('dialog[open]'));
+      assert.equal(await page.locator('#error').textContent(), '');
+      const edge = (await current()).edges.find(
+        (item) => item.from === sourceId && item.kind === 'image-variant'
+      );
+      assert.ok(edge, '结果卡连到原图');
+      const [result, source] = [await nodeOf(edge.to), await nodeOf(sourceId)];
+      assert.equal(result.title, '精修源 · 抠图');
+      assert.ok(result.x >= source.x + source.width, '结果卡放在原图右侧');
+      assert.equal(
+        await card(edge.to).evaluate((item) => item.classList.contains('selected')),
+        true,
+        '选中结果卡'
+      );
+      const src = await card(edge.to).locator('img').getAttribute('src');
+      assert.ok(src && src !== 'data:,', '结果卡立即有图片');
+      const alpha = await card(edge.to)
+        .locator('img')
+        .evaluate(async (image) => {
+          await image.decode();
+          const canvas = document.createElement('canvas');
+          canvas.width = image.naturalWidth;
+          canvas.height = image.naturalHeight;
+          const context = canvas.getContext('2d');
+          context.drawImage(image, 0, 0);
+          const at = (x, y) => context.getImageData(x, y, 1, 1).data[3];
+          return [at(1, 1), at(canvas.width / 2, canvas.height / 2)];
+        });
+      assert.deepEqual(alpha, [0, 255], '保存结果已去背景，主体保留');
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  // Returns the board-relative midpoint of a rendered wire in page coordinates.
+  const wireMiddle = (page, from, to) =>
+    page.locator('#wires path[data-from="' + from + '"][data-to="' + to + '"]').evaluate((path) => {
+      const point = path.getPointAtLength(path.getTotalLength() / 2);
+      const rect = document.getElementById('board').getBoundingClientRect();
+      return { x: rect.left + point.x, y: rect.top + point.y };
+    });
+  await check(
+    'Web 删除连线：结果卡保留图片且不进入待处理，悬停流光 5px、剪刀 14px 居中',
+    async () => {
+      const { page, errors, editor, settle, current, nodeOf, card, blank, shoot } = await webPage({
+        features: { ...webFeatures, cutout: true },
+      });
+      const assetPath = await page.evaluate(() => window.__canvasAddPainted('subject', 80, 60));
+      await page.evaluate(
+        (assetPath) =>
+          window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '连线源' }),
+        assetPath
+      );
+      const sourceId = (await current()).nodes[0].id;
+      await editor('update-nodes', { nodes: [{ id: sourceId, x: 200, y: 260 }] });
+      await settle();
+      await blank();
+      await card(sourceId).click({ position: { x: 100, y: 120 } });
+      await page
+        .locator('#selection-menu')
+        .getByRole('button', { name: '抠图', exact: true })
+        .click();
+      const resultId = await page
+        .waitForFunction((id) => {
+          const edge = window.__canvasEditor
+            .current()
+            .edges.find((item) => item.from === id && item.kind === 'image-variant');
+          return edge && edge.to;
+        }, sourceId)
+        .then((handle) => handle.jsonValue());
+      await editor('update-nodes', { nodes: [{ id: resultId, x: 620, y: 420 }] });
+      await settle();
+      const result = await nodeOf(resultId);
+      assert.ok(result.assetPath && result.sourceSnapshots?.length, '本地结果带来源快照');
+      assert.equal(result.generation, undefined);
+      await blank();
+      const middle = await wireMiddle(page, sourceId, resultId);
+      for (const theme of ['dark', 'light']) {
+        await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+        await page.mouse.move(middle.x + 40, middle.y + 40);
+        await page.mouse.move(middle.x, middle.y);
+        await page.locator('.wire-controls .wire-glow').first().waitFor({ state: 'attached' });
+        await page.locator('.wire-controls .wire-scissors').waitFor({ timeout: 3000 });
+        await page.waitForTimeout(150);
+        await shoot('v9-' + theme + '-wire-hover.png', {
+          x: middle.x - 260,
+          y: middle.y - 160,
+          width: 520,
+          height: 320,
+        });
+        await shoot('v9-' + theme + '-wire-delete-button.png', {
+          x: middle.x - 40,
+          y: middle.y - 40,
+          width: 80,
+          height: 80,
+        });
+      }
+      const glow = await page.$$eval('.wire-controls .wire-glow', (items) =>
+        items.map((item) => [getComputedStyle(item).strokeWidth, getComputedStyle(item).stroke])
+      );
+      assert.ok(glow.length > 0);
+      for (const [width] of glow) assert.equal(width, '5px', '流光宽 5px');
+      const accent = await page.evaluate(
+        () => getComputedStyle(document.querySelector('.wire-controls .wire-active')).stroke
+      );
+      for (const [, stroke] of glow) assert.equal(stroke, accent, '流光沿用强调色');
+      const cut = await page.locator('.wire-controls .wire-scissors').evaluate((button) => {
+        const box = button.getBoundingClientRect();
+        const icon = button.querySelector('svg').getBoundingClientRect();
+        return {
+          size: [box.width, box.height],
+          icon: [icon.width, icon.height],
+          offset: [
+            icon.left + icon.width / 2 - (box.left + box.width / 2),
+            icon.top + icon.height / 2 - (box.top + box.height / 2),
+          ],
+        };
+      });
+      assert.deepEqual(cut.size, [28, 28], '按钮 28px');
+      assert.deepEqual(cut.icon, [14, 14], '剪刀 14px');
+      for (const value of cut.offset) assert.ok(Math.abs(value) <= 0.5, '剪刀居中');
+      await page.locator('.wire-controls .wire-scissors').click();
+      await page.waitForFunction(
+        (id) => !window.__canvasEditor.current().edges.some((edge) => edge.to === id),
+        resultId
+      );
+      await settle();
+      const after = await nodeOf(resultId);
+      assert.equal(after.assetPath, result.assetPath, '图片保持不变');
+      assert.equal(after.templatePending, undefined);
+      assert.equal(await card(resultId).locator('.card-state-overlay').count(), 0, '无待处理遮罩');
+      assert.equal(
+        await card(resultId).evaluate((item) => item.classList.contains('template-pending')),
+        false
+      );
+      assert.equal(await page.getByRole('button', { name: '处理并继续' }).count(), 0);
+      await page.mouse.move(1300, 840);
+      for (const theme of ['dark', 'light']) {
+        await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+        await page.waitForTimeout(100);
+        const box = await card(resultId).boundingBox();
+        await shoot('v9-' + theme + '-result-after-wire-delete.png', {
+          x: box.x - 300,
+          y: box.y - 40,
+          width: box.width + 340,
+          height: box.height + 80,
+        });
+      }
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check('Web 删除连线：空图片槽保持为空，仅移除下一次生成的参考', async () => {
+    const { page, errors, settle, current, nodeOf, card, importImage, editor, blank } =
+      await webPage();
+    const source = await importImage('参考源', '#c33', 40, 40);
+    await editor('update-nodes', { nodes: [{ id: source.id, x: 200, y: 260 }] });
+    await settle();
+    await blank();
+    await card(source.id).click({ position: { x: 100, y: 120 } });
+    await card(source.id).locator('.canvas-port-output').click();
+    const slotId = await page
+      .waitForFunction((id) => {
+        const edge = window.__canvasEditor.current().edges.find((item) => item.from === id);
+        return edge && edge.to;
+      }, source.id)
+      .then((handle) => handle.jsonValue());
+    await settle();
+    await blank();
+    const middle = await wireMiddle(page, source.id, slotId);
+    await page.mouse.click(middle.x, middle.y);
+    await page.locator('.wire-controls .wire-scissors').click();
+    await page.waitForFunction(
+      (id) => !window.__canvasEditor.current().edges.some((edge) => edge.to === id),
+      slotId
+    );
+    await settle();
+    const slot = await nodeOf(slotId);
+    assert.equal(slot.assetPath, undefined, '槽保持为空');
+    assert.equal(slot.templatePending, undefined);
+    assert.equal(slot.generationDraft?.sourceImageId, undefined, '草稿不再引用来源');
+    assert.equal(await card(slotId).locator('.card-state-overlay').count(), 0);
+    // The next generation sends no reference image.
+    await card(slotId).click({ position: { x: 100, y: 120 } });
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    await panel.locator('textarea.generation-prompt').fill('无参考生成');
+    await panel.locator('.generation-action-primary').click();
+    await page.waitForFunction(() => window.__canvasCalls.generate.length === 1);
+    const call = await page.evaluate(() => window.__canvasCalls.generate[0]);
+    assert.equal(call.targetNodeId, slotId);
+    assert.ok(!(call.sourceImageIds || []).includes(source.id), '不再携带已删除的参考');
+    assert.notEqual(call.sourceImageId, source.id);
+    assert.equal((await current()).nodes.length, 2);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 加载：来源已断开的本地编辑结果正常显示，无待处理遮罩', async () => {
+    const src = 'assets/image/canvas/seed-source.png';
+    const edited = 'assets/image/canvas/seed-edited.png';
+    const base = { type: 'image', y: 200, width: 240, height: 240 };
+    const { page, errors, card } = await webPage({
+      seedMedia: { [src]: '#c33', [edited]: '#3a7' },
+      seedDocuments: [
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          title: '旧画布',
+          revision: 3,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [
+            { ...base, id: 'seed-src', title: '图片变体 · 已保存结果', x: 120, assetPath: src },
+            {
+              ...base,
+              id: 'seed-edit',
+              title: '图片变体 · 已保存结果 · 本地编辑',
+              x: 520,
+              assetPath: edited,
+              sourceSnapshot: { nodeId: 'seed-src', version: 'image|' + src + '|manual-asset' },
+              sourceSnapshots: [{ nodeId: 'seed-src', version: 'image|' + src + '|manual-asset' }],
+            },
+          ],
+          edges: [],
+        },
+      ],
+    });
+    await card('seed-edit').waitFor();
+    assert.equal(await card('seed-edit').locator('.card-state-overlay').count(), 0);
+    assert.equal(
+      await card('seed-edit').evaluate((item) => item.classList.contains('template-pending')),
+      false
+    );
+    assert.notEqual(await card('seed-edit').locator('img').getAttribute('src'), 'data:,');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check(
+    'Web 下载：关闭 resourceExport 时无「导出资源」，下载经 host.deliverExport 交 PNG',
+    async () => {
+      const { page, errors, editor, settle, card, importImage, blank } = await webPage({
+        features: { ...webFeatures, cutout: true },
+      });
+      const image = await importImage('下载图', '#c96', 160, 120);
+      await editor('update-nodes', { nodes: [{ id: image.id, x: 300, y: 260 }] });
+      await settle();
+      const contextMenu = page.locator('#canvas-context-menu');
+      await blank();
+      await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
+      await contextMenu.waitFor();
+      assert.equal(await contextMenu.locator('[data-resource-export]').count(), 0, '无导出资源组');
+      assert.equal(await contextMenu.getByText('导出资源').count(), 0);
+      const delivered = async (count) => {
+        await page.waitForFunction(
+          (count) => window.__canvasHostDeliveries === count && window.__canvasDelivered,
+          count
+        );
+        const result = await page.evaluate(() => window.__canvasDelivered);
+        assert.match(result.filename, /\.png$/);
+        assert.equal(result.mime, 'image/png');
+        assert.equal(result.type, 'image/png');
+        assert.ok(result.size > 0);
+      };
+      await contextMenu.getByRole('button', { name: '下载', exact: true }).click();
+      await delivered(1);
+      await page.evaluate(() => (window.__canvasDelivered = undefined));
+      await blank();
+      await card(image.id).click({ position: { x: 100, y: 120 } });
+      await page.locator('#selection-menu').getByRole('button', { name: '下载图片' }).click();
+      await delivered(2);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check('Web 下载：工具栏图标与右键「下载」各一次点击触发浏览器下载 PNG', async () => {
+    const { page, errors, settle, editor, card, importImage, blank } = await webPage({
+      features: { ...webFeatures, cutout: true },
+      anchorDownload: true,
+    });
+    const image = await importImage('下载图', '#c96', 160, 120);
+    await editor('update-nodes', { nodes: [{ id: image.id, x: 300, y: 260 }] });
+    await settle();
+    await blank();
+    await card(image.id).click({ position: { x: 100, y: 120 } });
+    const icon = page.locator('#selection-menu').getByRole('button', { name: '下载图片' });
+    await icon.waitFor();
+    let download = page.waitForEvent('download', { timeout: 5000 });
+    await icon.click();
+    assert.match((await download).suggestedFilename(), /\.png$/);
+    await blank();
+    await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
+    download = page.waitForEvent('download', { timeout: 5000 });
+    await page
+      .locator('#canvas-context-menu')
+      .getByRole('button', { name: '下载', exact: true })
+      .click();
+    assert.match((await download).suggestedFilename(), /\.png$/);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 外观：画布页签为圆角胶囊，关闭/重命名按悬停与激活显示（明暗）', async () => {
+    const { page, errors, shoot } = await webPage();
+    await page.locator('#workspace-new').click();
+    await page.waitForFunction(() => document.querySelectorAll('.workspace-tab').length === 2);
+    const tabs = page.locator('.workspace-tab');
+    const active = page.locator('.workspace-tab[data-active="true"]');
+    const inactive = page.locator('.workspace-tab[data-active="false"]');
+    const closeOf = (tab) => tab.locator('button:last-child:not([role="tab"]):not(#rename-canvas)');
+    const opacity = (locator) => locator.evaluate((item) => getComputedStyle(item).opacity);
+    for (const theme of ['dark', 'light']) {
+      await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+      await page.mouse.move(1300, 840);
+      // Tab colours transition for 120ms after the theme flips.
+      await page.waitForTimeout(200);
+      const row = await page.locator('.workspace-tabs-row').boundingBox();
+      assert.equal(Math.round(row.height), 40);
+      for (const index of [0, 1])
+        assert.equal(Math.round((await tabs.nth(index).boundingBox()).height), 30);
+      const look = await page.evaluate(() => {
+        const style = (selector) => getComputedStyle(document.querySelector(selector));
+        const row = style('.workspace-tabs-row');
+        const on = style('.workspace-tab[data-active="true"]');
+        const off = style('.workspace-tab[data-active="false"]');
+        const probe = document.createElement('i');
+        document.body.append(probe);
+        const tone = (name) => {
+          probe.style.color = 'var(' + name + ')';
+          return getComputedStyle(probe).color;
+        };
+        const tokens = [
+          tone('--web-soft'),
+          tone('--web-panel'),
+          tone('--web-text'),
+          tone('--web-muted'),
+        ];
+        probe.remove();
+        return {
+          row: row.backgroundColor,
+          on: [on.backgroundColor, on.color, on.borderRadius, on.boxShadow !== 'none'],
+          off: [off.backgroundColor, off.color],
+          tokens,
+        };
+      });
+      assert.equal(look.row, look.tokens[0], '页签栏用画板底色');
+      assert.deepEqual(look.on, [look.tokens[1], look.tokens[2], '8px', true]);
+      assert.deepEqual(look.off, ['rgba(0, 0, 0, 0)', look.tokens[3]]);
+      assert.equal(await opacity(closeOf(active)), '1', '激活页签显示关闭');
+      assert.equal(await opacity(closeOf(inactive)), '0', '未悬停页签隐藏关闭');
+      assert.equal(await opacity(active.locator('#rename-canvas')), '0', '未悬停不显示重命名');
+      for (const selector of ['#workspace-new', '.workspace-library > summary']) {
+        const style = await page
+          .locator(selector)
+          .evaluate((item) => [
+            getComputedStyle(item).backgroundColor,
+            getComputedStyle(item).borderTopWidth,
+            item.getBoundingClientRect().height,
+          ]);
+        assert.deepEqual(style, ['rgba(0, 0, 0, 0)', '0px', 28], selector + ' 为 ghost 按钮');
+      }
+      await page.waitForTimeout(150);
+      await shoot('v7-' + theme + '-tab-bar.png', { x: 0, y: 0, width: 1400, height: 56 });
+      await inactive.hover();
+      await page.waitForTimeout(150);
+      assert.equal(await opacity(closeOf(inactive)), '1', '悬停页签显示关闭');
+      await active.hover();
+      await page.waitForTimeout(150);
+      assert.equal(await opacity(active.locator('#rename-canvas')), '1', '悬停激活页签显示重命名');
+      await shoot('v7-' + theme + '-tab-bar-hover.png', { x: 0, y: 0, width: 1400, height: 56 });
+    }
+    await page.mouse.move(1300, 840);
+    await page.locator('.workspace-tab[data-active="true"] button[role="tab"]').focus();
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'rename-canvas');
+    await page.waitForTimeout(150);
+    assert.equal(await opacity(active.locator('#rename-canvas')), '1', '键盘聚焦显示重命名');
+    assert.notEqual(
+      await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle),
+      'none',
+      '保留焦点环'
+    );
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 截图 v6：多选无整体框、抠图结果、工具条顶部握把（明暗）', async () => {
+    const { page, errors, editor, settle, current, card, importImage, blank, shoot } =
+      await webPage({
+        features: { ...webFeatures, cutout: true },
+      });
+    const grip = page.locator('.workspace-toolbar-grip svg circle');
+    assert.equal(await grip.count(), 6, '握把为 2×3 点');
+    const first = await importImage('角色立绘', '#c96', 160, 120);
+    const second = await importImage('道具', '#69c', 120, 120);
+    const sourcePath = await page.evaluate(() => window.__canvasAddPainted('subject', 160, 120));
+    await page.evaluate(
+      (assetPath) =>
+        window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '抠图源' }),
+      sourcePath
+    );
+    const sourceId = (await current()).nodes.find((node) => node.assetPath === sourcePath).id;
+    await editor('update-nodes', {
+      nodes: [
+        { id: first.id, x: 220, y: 160 },
+        { id: second.id, x: 640, y: 160 },
+        { id: sourceId, x: 220, y: 480 },
+      ],
+    });
+    await settle();
+    await blank();
+    await card(sourceId).click({ position: { x: 100, y: 120 } });
+    await page
+      .locator('#selection-menu')
+      .getByRole('button', { name: '抠图', exact: true })
+      .click();
+    await page.waitForFunction(
+      (id) => window.__canvasEditor.current().edges.some((edge) => edge.from === id),
+      sourceId
+    );
+    await settle();
+    for (const theme of ['dark', 'light']) {
+      await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+      await blank();
+      await card(first.id).click({ position: { x: 100, y: 120 } });
+      await card(second.id).click({ position: { x: 100, y: 120 }, modifiers: ['Shift'] });
+      assert.equal(await page.locator('.web-selection-bounds').count(), 0);
+      await shoot('v6-' + theme + '-multi-select.png');
+      await blank();
+      await shoot('v6-' + theme + '-cutout-result.png');
+      const dock = await page.locator('.workspace-toolbar').boundingBox();
+      await shoot('v6-' + theme + '-dock-top.png', {
+        x: Math.max(0, dock.x - 12),
+        y: Math.max(0, dock.y - 12),
+        width: dock.width + 24,
+        height: 120,
+      });
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check('Web 外观：空白处右键菜单新建槽/上传/素材库，素材库按钩子显示', async () => {
+    const { page, errors, current, settle } = await webPage({ pickProjectImages: true });
+    await settle();
+    const menu = page.locator('#canvas-context-menu');
+    const worldAt = (x, y) =>
+      page.evaluate(
+        ({ x, y }) => {
+          const view = window.__canvasEditor.current().viewport;
+          const rect = document.getElementById('board').getBoundingClientRect();
+          return {
+            x: (x - rect.left - view.x) / view.scale,
+            y: (y - rect.top - view.y) / view.scale,
+          };
+        },
+        { x, y }
+      );
+    await page.mouse.click(700, 360, { button: 'right' });
+    await menu.waitFor();
+    const labels = await menu
+      .locator('button:not([hidden])')
+      .evaluateAll((items) => items.map((item) => item.textContent));
+    assert.deepEqual(labels, ['新建图片卡片', '上传图片', '从素材库添加']);
+    const point = await worldAt(700, 360);
+    await menu.getByRole('button', { name: '新建图片卡片' }).click();
+    const slot = (await current()).nodes.at(-1);
+    assert.equal(slot.assetPath, undefined);
+    assert.ok(Math.abs(slot.x - point.x) < 1 && Math.abs(slot.y - point.y) < 1, '槽应在右键处');
+    await settle();
+    const picked = await page.evaluate(() => window.__canvasAddMedia('#963', 30, 30));
+    await page.evaluate((path) => (window.__canvasPick = [{ path, name: '素材库图.png' }]), picked);
+    // The new slot opens its composer below it; deselect so the next right-click hits blank canvas.
+    await page.mouse.click(1300, 840);
+    await page.mouse.click(1000, 600, { button: 'right' });
+    const pickPoint = await worldAt(1000, 600);
+    await menu.getByRole('button', { name: '从素材库添加' }).click();
+    await page.waitForFunction(
+      (path) => window.__canvasEditor.current().nodes.some((node) => node.assetPath === path),
+      picked
+    );
+    const added = (await current()).nodes.find((node) => node.assetPath === picked);
+    assert.equal(added.title, '素材库图');
+    assert.ok(Math.abs(added.x - pickPoint.x) < 1 && Math.abs(added.y - pickPoint.y) < 1);
+    // Paths are validated by the host import; unknown paths add nothing.
+    await settle();
+    const count = (await current()).nodes.length;
+    await page.evaluate(
+      () => (window.__canvasPick = [{ path: 'assets/image/未登记.png', name: 'x' }])
+    );
+    await page.mouse.click(1000, 200, { button: 'right' });
+    await menu.getByRole('button', { name: '从素材库添加' }).click();
+    await page.waitForTimeout(150);
+    assert.equal((await current()).nodes.length, count);
+    await page.mouse.click(300, 700, { button: 'right' });
+    const uploadPoint = await worldAt(300, 700);
+    const chooser = page.waitForEvent('filechooser');
+    await menu.getByRole('button', { name: '上传图片' }).click();
+    await (
+      await chooser
+    ).setFiles({
+      name: 'right-click.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        'base64'
+      ),
+    });
+    await page.waitForFunction(() =>
+      window.__canvasEditor.current().nodes.some((node) => node.title === 'right-click')
+    );
+    const uploaded = (await current()).nodes.find((node) => node.title === 'right-click');
+    assert.ok(uploaded.assetPath);
+    assert.ok(Math.abs(uploaded.x - uploadPoint.x) < 1 && Math.abs(uploaded.y - uploadPoint.y) < 1);
+    assert.deepEqual(errors, []);
+    await page.close();
+    const plain = await webPage();
+    await plain.settle();
+    await plain.page.mouse.click(700, 360, { button: 'right' });
+    assert.equal(await plain.page.locator('[data-canvas-action="pick-project-images"]').count(), 0);
+    assert.equal(await plain.page.locator('[data-canvas-action="upload-image"]').count(), 1);
+    await plain.page.close();
+  });
+
+  await check('Web 外观：适配画布避开左侧工具条', async () => {
+    const { page, errors, editor, settle } = await webPage();
+    const ids = [];
+    for (let index = 0; index < 4; index++)
+      ids.push((await editor('add-node', { type: 'image' })).selectedIds[0]);
+    await editor('update-nodes', {
+      nodes: [
+        { id: ids[0], x: -400, y: -200 },
+        { id: ids[1], x: 1600, y: -200 },
+        { id: ids[2], x: -400, y: 900 },
+        { id: ids[3], x: 1600, y: 900 },
+      ],
+    });
+    await settle();
+    await page.locator('#fit-canvas').click();
+    const dock = await page.locator('.workspace-toolbar').boundingBox();
+    const board = await page.locator('#board').boundingBox();
+    for (const id of ids) {
+      const box = await page.locator('.card[data-id="' + id + '"]').boundingBox();
+      assert.ok(!boxesOverlap(box, dock), '卡片不应被工具条遮挡：' + id);
+      assert.ok(box.x >= dock.x + dock.width + 30, '应留出工具条外边距');
+      assert.ok(box.x + box.width <= board.x + board.width + 0.5);
+      assert.ok(box.y >= board.y - 0.5 && box.y + box.height <= board.y + board.height + 0.5);
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check('Web 外观：工具条选择/拖拽状态与光标跟随实际模式（含空格平移）', async () => {
+    const { page, errors, settle } = await webPage();
+    await settle();
+    const state = () =>
+      page.evaluate(() => ({
+        select: document.getElementById('tool-select').getAttribute('aria-pressed'),
+        pan: document.getElementById('tool-pan').getAttribute('aria-pressed'),
+        cursor: getComputedStyle(document.getElementById('world')).cursor,
+        panBg: getComputedStyle(document.getElementById('tool-pan')).backgroundColor,
+        selectBg: getComputedStyle(document.getElementById('tool-select')).backgroundColor,
+      }));
+    const resting = await state();
+    assert.equal(resting.select, 'true');
+    await page.locator('#tool-pan').click();
+    const hovered = await state();
+    assert.deepEqual([hovered.select, hovered.pan, hovered.cursor], ['false', 'true', 'grab']);
+    // Still hovering the pressed button: it must keep the active fill, not the hover wash.
+    assert.equal(hovered.panBg, resting.selectBg);
+    await page.mouse.move(700, 400);
+    await page.mouse.down();
+    assert.equal(
+      await page.evaluate(() => getComputedStyle(document.getElementById('world')).cursor),
+      'grabbing'
+    );
+    await page.mouse.up();
+    await page.locator('#tool-select').click();
+    const back = await state();
+    assert.deepEqual([back.select, back.pan, back.cursor], ['true', 'false', 'auto']);
+    // Focus stays on the select button; Space must pan instead of re-clicking it.
+    await page.keyboard.down('Space');
+    const held = await state();
+    assert.deepEqual([held.select, held.pan, held.cursor], ['false', 'true', 'grab']);
+    const before = await page.evaluate(() => window.__canvasEditor.current().viewport.x);
+    await page.mouse.move(700, 400);
+    await page.mouse.down();
+    await page.mouse.move(760, 400, { steps: 4 });
+    await page.mouse.up();
+    assert.ok(
+      (await page.evaluate(() => window.__canvasEditor.current().viewport.x)) > before + 40,
+      '空格拖动应平移'
+    );
+    await page.keyboard.up('Space');
+    const released = await state();
+    assert.deepEqual([released.select, released.pan, released.cursor], ['true', 'false', 'auto']);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check('Web 外观：保存状态显示在保存按钮图标上，不再单列 ✓', async () => {
+    const { page, errors, editor, settle } = await webPage();
+    await settle();
+    const save = page.locator('#save');
+    assert.equal(await save.getAttribute('data-save-state'), 'saved');
+    assert.equal(await save.getAttribute('title'), '已保存');
+    assert.equal(
+      await page.locator('.workspace-toolbar #status').evaluate((item) => item.offsetWidth <= 1),
+      true,
+      '状态文字仅供读屏'
+    );
+    await page.evaluate(() => (window.__canvasSaveDelay = 400));
+    // Editor commands await their own save, so use a UI edit that goes through the autosave debounce.
+    await page.mouse.move(700, 450);
+    await page.mouse.wheel(0, -120);
+    assert.equal(await save.getAttribute('data-save-state'), 'unsaved');
+    await page.waitForFunction(
+      () => document.getElementById('save').dataset.saveState === 'saving'
+    );
+    await settle();
+    assert.equal(await save.getAttribute('data-save-state'), 'saved');
+    await page.evaluate(() => {
+      window.__canvasSaveDelay = 0;
+      window.__canvasSaveFail = true;
+    });
+    await editor('add-node', { type: 'note' }).catch(() => {});
+    await page.waitForFunction(
+      () => document.getElementById('save').dataset.saveState === 'failed'
+    );
+    assert.match(await save.getAttribute('title'), /保存失败/);
+    await page.evaluate(() => (window.__canvasSaveFail = false));
+    await save.click();
+    await page.waitForFunction(() => document.getElementById('save').dataset.saveState === 'saved');
+    assert.deepEqual(
+      errors.filter((item) => !item.includes('模拟保存失败')),
+      []
+    );
+    await page.close();
+  });
+
+  await check('Web 外观：各类 AI 结果卡选中都打开提示词面板', async () => {
+    const { page, errors, editor, settle, current, card, importImage, blank } = await webPage();
+    const source = await importImage('来源图');
+    const canvasId = (await current()).id;
+    await page.evaluate(
+      (canvasId) =>
+        window.__canvasAddAttempt({ canvasId, prompt: '页面生图', operation: 'generate' }),
+      canvasId
+    );
+    await page.evaluate(
+      ({ canvasId, sourceId }) =>
+        window.__canvasAddAttempt({
+          canvasId,
+          prompt: '页面变体',
+          operation: 'variant',
+          toolName: 'edit_image',
+          sourceImageId: sourceId,
+          sourceImageIds: [sourceId],
+        }),
+      { canvasId, sourceId: source.id }
+    );
+    await settle();
+    await editor('open', { id: canvasId });
+    await page.waitForFunction(() => window.__canvasEditor.current().nodes.length >= 3);
+    const fillId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('fill-slot', { id: fillId, assetPath: source.assetPath, prompt: 'Agent 回填' });
+    const replaced = await importImage('待替换', '#3a3');
+    await editor('replace-image', {
+      id: replaced.id,
+      assetPath: source.assetPath,
+      prompt: 'Agent 替换',
+    });
+    const imported = (
+      await editor('import', {
+        assetPath: source.assetPath,
+        prompt: 'Agent 导入',
+        sourceId: source.id,
+      })
+    ).selectedIds[0];
+    const nodes = (await current()).nodes;
+    const kinds = [
+      ['生图结果', nodes.find((node) => node.title === '生图结果').id, '页面生图'],
+      [
+        '图片变体 · 已保存结果',
+        nodes.find((node) => node.title === '图片变体 · 已保存结果').id,
+        '页面变体',
+      ],
+      ['fill-slot', fillId, 'Agent 回填'],
+      ['replace-image', replaced.id, 'Agent 替换'],
+      ['import', imported, 'Agent 导入'],
+    ];
+    await editor('update-nodes', {
+      nodes: [{ id: source.id, x: 120, y: 80 }].concat(
+        kinds.map(([, id], index) => ({
+          id,
+          x: 120 + (index % 3) * 420,
+          y: 360 + Math.floor(index / 3) * 340,
+        }))
+      ),
+    });
+    await settle();
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    for (const [kind, id, prompt] of kinds) {
+      await blank();
+      await card(id).click({ position: { x: 60, y: 80 } });
+      await panel.waitFor();
+      assert.equal(
+        await panel.locator('textarea.generation-prompt').inputValue(),
+        prompt,
+        kind + ' 应打开预填的提示词面板'
+      );
+      assert.equal(await panel.locator('.generation-action-primary').count(), 1, kind);
+    }
+    await blank();
+    await card(source.id).click({ position: { x: 60, y: 80 } });
+    assert.equal(await page.locator('#selection-toolbar').isHidden(), true, '普通导入图不打开面板');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check('Web 素材规范：弹层开关、可编辑约束只进请求、恢复默认', async () => {
+    const { page, errors, editor, settle, current, nodeOf, card, blank } = await webPage();
+    const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', { nodes: [{ id: slotId, x: 300, y: 120 }] });
+    await settle();
+    await blank();
+    await card(slotId).click({ position: { x: 80, y: 80 } });
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    const pill = panel.locator('.generation-asset-constraints');
+    assert.equal(await pill.textContent(), '素材规范');
+    assert.equal(await pill.getAttribute('aria-pressed'), 'true');
+    await pill.click();
+    const popover = panel.locator('.generation-asset-popover');
+    await popover.waitFor();
+    assert.equal(
+      await popover.locator('.generation-asset-hint').textContent(),
+      '让结果单体完整、纯色背景，方便抠图和放进游戏'
+    );
+    assert.equal(await popover.getByRole('switch').getAttribute('aria-checked'), 'true');
+    const text = popover.getByRole('textbox', { name: '素材规范内容' });
+    assert.match(await text.inputValue(), /^游戏素材约束：/);
+    assert.equal(await popover.getByRole('button', { name: '恢复默认' }).isDisabled(), true);
+    await text.fill('只要一个主体，白色纯色背景');
+    assert.equal((await current()).settings.assetConstraintText, '只要一个主体，白色纯色背景');
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('#selection-toolbar select option')].some(
+        (option) => option.textContent === '宿主模型二'
+      )
+    );
+    await panel.locator('textarea.generation-prompt').fill('火焰剑士');
+    await panel.locator('.generation-action-primary').click();
+    await page.waitForFunction(
+      (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id).assetPath,
+      slotId
+    );
+    assert.equal(
+      await page.evaluate(() => window.__canvasCalls.generate.at(-1).prompt),
+      '火焰剑士\n\n只要一个主体，白色纯色背景'
+    );
+    const result = await nodeOf(slotId);
+    assert.equal(result.generation.prompt, '火焰剑士', '卡片只存用户文本');
+    assert.equal(result.generation.parameters.assetConstraints, true);
+    await settle();
+    await blank();
+    await card(slotId).click({ position: { x: 60, y: 80 } });
+    assert.equal(await panel.locator('textarea.generation-prompt').inputValue(), '火焰剑士');
+    await pill.click();
+    await popover.getByRole('button', { name: '恢复默认' }).click();
+    assert.equal((await current()).settings, undefined, '恢复默认后不保存文本');
+    assert.match(await text.inputValue(), /^游戏素材约束：/);
+    await popover.getByRole('switch').click();
+    assert.equal(await pill.getAttribute('aria-pressed'), 'false');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check(
+    'Web 截图：明暗两套（四角柄、多选、选中菜单、生成中、右键菜单、素材规范、工具条）',
+    async () => {
+      const view = await webPage({
+        addToChat: true,
+        pickProjectImages: true,
+        features: { ...webFeatures, cutout: true },
+      });
+      const { page, errors, editor, settle, card, importImage, blank, shoot } = view;
+      const first = await importImage('角色立绘', '#c96', 160, 120);
+      const second = await importImage('道具', '#69c', 120, 120);
+      const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      const busyId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await editor('update-nodes', {
+        nodes: [
+          { id: first.id, x: 220, y: 200 },
+          { id: second.id, x: 640, y: 200 },
+          { id: slotId, x: 980, y: 200 },
+          { id: busyId, x: 640, y: 520 },
+        ],
+      });
+      await settle();
+      let release;
+      // Block body: returning the promise would make evaluate wait for the release.
+      await page.evaluate(() => {
+        window.__canvasHold = new Promise((resolve) => (window.__canvasRelease = resolve));
+      });
+      await blank();
+      await card(busyId).click({ position: { x: 80, y: 80 } });
+      const panel = page.locator('#selection-toolbar .generation-panel');
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('#selection-toolbar select option')].some(
+          (option) => option.textContent === '宿主模型二'
+        )
+      );
+      await panel.locator('textarea.generation-prompt').fill('生成中的图');
+      await panel.locator('.generation-action-primary').click();
+      const tip = card(busyId).locator('.web-state-tip');
+      await tip.waitFor();
+      assert.match(await tip.innerText(), /处理中/);
+      const stop = tip.getByRole('button', { name: '停止等待' });
+      assert.equal(await stop.isEnabled(), true, '停止等待保持可用');
+      release = () => page.evaluate(() => window.__canvasRelease());
+      for (const theme of ['dark', 'light']) {
+        await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+        await blank();
+        await card(slotId).click({ position: { x: 80, y: 80 } });
+        await shoot('v5-' + theme + '-slot-handles.png');
+        await panel.locator('.generation-asset-constraints').click();
+        await panel.locator('.generation-asset-popover').waitFor();
+        await shoot('v5-' + theme + '-constraint-popover.png');
+        await blank();
+        await card(first.id).click({ position: { x: 100, y: 120 } });
+        await shoot('v5-' + theme + '-selection-toolbar.png');
+        await card(second.id).click({ position: { x: 100, y: 120 }, modifiers: ['Shift'] });
+        await shoot('v5-' + theme + '-multi-select.png');
+        await blank();
+        await shoot('v5-' + theme + '-generating.png');
+        const dock = await page.locator('.workspace-toolbar').boundingBox();
+        await shoot('v5-' + theme + '-dock.png', {
+          x: Math.max(0, dock.x - 12),
+          y: Math.max(0, dock.y - 12),
+          width: dock.width + 24,
+          height: dock.height + 24,
+        });
+        await page.mouse.click(420, 640, { button: 'right' });
+        await page.locator('#canvas-context-menu').waitFor();
+        await shoot('v5-' + theme + '-context-menu.png');
+        await page.keyboard.press('Escape');
+        await page.mouse.click(1300, 840);
+      }
+      await stop.click();
+      await page.waitForFunction(
+        (id) => !document.querySelector('.card[data-id="' + id + '"] .card-state-loading'),
+        busyId
+      );
+      await release();
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+} finally {
+  await browser.close();
+}
+console.log('全部通过：' + results.length + ' 项');

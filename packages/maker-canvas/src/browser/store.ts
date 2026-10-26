@@ -123,6 +123,10 @@ export interface CanvasDocumentStore {
       prompt: string;
       cutoutColor?: '#FF00FF' | '#00FF00' | 'transparent';
       name?: string;
+      /** Provider from imageModels(); model is omitted for "auto" (host default) and custom APIs. */
+      provider?: CanvasImageModels['provider'];
+      model?: string;
+      resolution?: string;
       targetSize?: string;
       aspectRatio?: string;
       operation?: 'generate' | 'variant' | 'outpaint';
