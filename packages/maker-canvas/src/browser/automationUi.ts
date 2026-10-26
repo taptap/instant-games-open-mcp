@@ -2,7 +2,7 @@ import type { CanvasHostCapabilities } from './capabilities.js';
 import type { CanvasPlatform } from '../contracts/platform.js';
 import type { CanvasCommand } from '../contracts.js';
 import type { prepareCanvasNodeUpdatesWithValidation } from '../features/automation.js';
-import type { CanvasDocument, CanvasNode } from '../contracts.js';
+import type { CanvasDocument, CanvasEdge, CanvasNode } from '../contracts.js';
 import {
   canvasAutomationSnapshot,
   validateCanvasCommandStructure,
@@ -65,6 +65,11 @@ export function createCanvasAutomationUiWithHost(options: {
   fillSlot?(id: string, assetPath: string): Promise<void>;
   /** Replaces an existing image in place; same validation and sizing as fillSlot. */
   replaceImage?(id: string, assetPath: string): Promise<void>;
+  /**
+   * Removes one reference edge exactly like the page wire UI (records undo, clears draft
+   * references); returns a rejection reason without changing anything.
+   */
+  disconnect?(edge: CanvasEdge): string | undefined;
   resetDraft(id: string): void;
   checkRecognition?(node: CanvasNode): Promise<void>;
   ensureRecognitionNote?(node: CanvasNode): void;
@@ -322,14 +327,23 @@ export function createCanvasAutomationUiWithHost(options: {
         const deadline = Date.now() + 10000;
         while (blocked && !options.blocked(true)) {
           const remaining = deadline - Date.now();
+          let timer: ReturnType<typeof setTimeout> | undefined;
           const saved =
             remaining > 0
               ? await Promise.race([
                   options.save(),
-                  new Promise<null>((resolve) => setTimeout(() => resolve(null), remaining)),
-                ])
+                  new Promise<null>((resolve) => {
+                    timer = setTimeout(() => resolve(null), remaining);
+                  }),
+                ]).finally(() => clearTimeout(timer))
               : null;
           if (saved === null) throw invalid('画布保存超时，命令未执行，请稍后重试。');
+          // Undo/redo must stay reachable to revert the edit that makes saving fail; every
+          // other block (tasks, panels, drafts, other pages) is re-checked below.
+          if (!saved && (command.action === 'undo' || command.action === 'redo')) {
+            blocked = options.blocked(true);
+            break;
+          }
           if (!saved) throw invalid('画布保存失败，命令未执行；请先处理保存错误后重试。');
           if (options.current() !== current)
             throw coded('NOT_FOUND', '当前画布已变化，请重新 inspect。');
@@ -847,11 +861,16 @@ export function createCanvasAutomationUiWithHost(options: {
           throw invalid('引用卡片尚未就绪。');
         if (!['first-frame', 'image-variant'].includes(edge.kind))
           throw invalid('首版仅支持移除图片参考连线，派生产物来源请保留。');
-        options.remember();
-        current.edges = current.edges.filter((item) => item !== edge);
-        const target = node(edge.to, current);
-        if (target.sectionId) target.templatePending = true;
-        invalidateCanvasDependents(current, edge.to);
+        if (options.disconnect) {
+          const reason = options.disconnect(edge);
+          if (reason) throw invalid(reason);
+        } else {
+          options.remember();
+          current.edges = current.edges.filter((item) => item !== edge);
+          const target = node(edge.to, current);
+          if (target.sectionId) target.templatePending = true;
+          invalidateCanvasDependents(current, edge.to);
+        }
         options.changed();
       }
       options.render();

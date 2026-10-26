@@ -389,7 +389,7 @@ function applyImageSlotPatches(source: string): string {
       "    if (from.id === to.id) { setError('不能把图片连到自身。'); return; }",
       "    if (!from.assetPath && !allowEmptySource) { setError('请先生成或上传这张图片，再把它连为参考图。'); return; }",
       "    if (canvasNeedsProcessing(documentState, from)) { setError('请先完成参考图片的生成或处理。'); return; }",
-      "    if (generationUi && (generationUi.isNodeBusy(to.id) || generationUi.hasUnsettledResult(to.id))) { setError('目标图片正在生成或有未确认的任务，请稍后再连线。'); return; }",
+      "    if ((generationUi && (generationUi.isNodeBusy(to.id) || generationUi.hasUnsettledResult(to.id))) || (groupQueue && groupQueue.protects(to.id))) { setError('目标图片正在生成或有未确认的任务，请稍后再连线。'); return; }",
       "    if (documentState.edges.some(function (edge) { return edge.from === from.id && edge.to === to.id; })) { setError(''); return; }",
       "    if (canvasDependents(documentState, to.id).some(function (node) { return node.id === from.id; })) { setError('连线会形成循环引用。'); return; }",
       "    const inputs = documentState.edges.filter(function (edge) { return edge.to === to.id && edge.kind === 'image-variant'; });",
@@ -431,7 +431,7 @@ function applyImageSlotPatches(source: string): string {
   );
   patch(
     'group: createSection, connect: connect,',
-    'group: createSection, connect: connect, undo: function () { const count = past.length; undoEdit(); return past.length < count; }, redo: function () { const count = future.length; redoEdit(); return future.length < count; }, fillSlot: fillImageSlot, replaceImage: function (id, assetPath) { return placeImageInCard(id, assetPath, true); },'
+    'group: createSection, connect: connect, undo: function () { const count = past.length; undoEdit(); return past.length < count; }, redo: function () { const count = future.length; redoEdit(); return future.length < count; }, fillSlot: fillImageSlot, replaceImage: function (id, assetPath) { return placeImageInCard(id, assetPath, true); }, disconnect: function (edge) { if (groupQueue && (groupQueue.protects(edge.from) || groupQueue.protects(edge.to))) return "引用卡片尚未就绪，请稍后再删除连线。"; remember(); unwireEdge(edge); },'
   );
   patch(
     '  const automation = createCanvasAutomationUi({',
@@ -478,12 +478,20 @@ function applyImageSlotPatches(source: string): string {
       "    if (['first-frame', 'image-variant'].indexOf(edge.kind) < 0) { setError('只能删除图片参考连线，派生产物来源请保留。'); return; }",
       "    if ((groupQueue && (groupQueue.protects(edge.from) || groupQueue.protects(edge.to))) || (generationUi && (generationUi.isNodeBusy(edge.to) || generationUi.hasUnsettledResult(edge.to)))) { setError('引用卡片尚未就绪，请稍后再删除连线。'); return; }",
       '    remember();',
+      '    unwireEdge(edge);',
+      "    setError('');",
+      '    markDirty();',
+      '    render();',
+      '  }',
+      // Shared by the wire UI and the Agent disconnect command so one host gives one result.
+      '  function unwireEdge(edge) {',
       '    documentState.edges = documentState.edges.filter(function (item) { return item !== edge; });',
       '    const target = documentState.nodes.find(function (node) { return node.id === edge.to; });',
       '    const unwired = target && !documentState.edges.some(function (item) { return item.from === edge.from && item.to === edge.to; });',
       // A draft source would otherwise re-add the deleted reference on the next generation.
       '    if (unwired && target.generationDraft) { if (target.generationDraft.sourceImageId === edge.from) delete target.generationDraft.sourceImageId; if (target.generationDraft.sourceImageIds) { target.generationDraft.sourceImageIds = target.generationDraft.sourceImageIds.filter(function (id) { return id !== edge.from; }); if (!target.generationDraft.sourceImageIds.length) delete target.generationDraft.sourceImageIds; } }',
-      "    if (unwired && !target.assetPath && target.type === 'image') target.referenceInput = target.referenceInput || { includeSelf: false };",
+      // Local template members (no draft) keep their original upstream input rule.
+      "    if (unwired && !target.assetPath && target.type === 'image' && (canvasWeb || target.generationDraft)) target.referenceInput = target.referenceInput || { includeSelf: false };",
       '    if (canvasWeb) {',
       // Web wires are relationships: forget the source snapshot so the kept image and its dependents stay current.
       '      if (unwired && target.sourceSnapshots) { target.sourceSnapshots = target.sourceSnapshots.filter(function (item) { return item.nodeId !== edge.from; }); if (!target.sourceSnapshots.length) delete target.sourceSnapshots; }',
@@ -492,9 +500,6 @@ function applyImageSlotPatches(source: string): string {
       '      if (target && target.sectionId) target.templatePending = true;',
       '      invalidateCanvasDependents(documentState, edge.to);',
       '    }',
-      "    setError('');",
-      '    markDirty();',
-      '    render();',
       '  }',
       '  wireUi = createCanvasWireUi({',
     ].join('\n')
