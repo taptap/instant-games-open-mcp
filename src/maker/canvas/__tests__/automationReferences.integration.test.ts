@@ -328,15 +328,19 @@ test('newly saved manual reference images remain available after explicit CLI in
   });
 });
 
-test('file parsing limits explicit reference input and preserves legacy provenance checks', async () => {
+test('file parsing limits explicit reference input and checks reference endpoints', async () => {
   const setup = await fixture();
   const { files, targetId, first } = setup;
   const document = setup.document;
   const target = document.nodes.find((node) => node.id === targetId)!;
   document.edges[0].from = first.id;
-  await expect(files.save(document.id, document, document.revision)).rejects.toThrow(
-    '图片派生关系'
-  );
+  // An edge into an existing image is a plain reference relation (page connect, Agent import):
+  // it no longer has to match the image's generation provenance.
+  const related = await files.save(document.id, document, document.revision);
+  expect(related.edges).toEqual([
+    expect.objectContaining({ from: first.id, to: targetId, kind: 'image-variant' }),
+  ]);
+  document.revision = related.revision;
   for (const referenceInput of [
     null,
     [],
@@ -355,11 +359,11 @@ test('file parsing limits explicit reference input and preserves legacy provenan
   const invalid = structuredClone(setup.document);
   invalid.nodes.find((node) => node.id === first.id)!.type = 'note';
   delete invalid.nodes.find((node) => node.id === first.id)!.assetPath;
-  await expect(files.save(invalid.id, invalid, invalid.revision)).rejects.toThrow('图片派生关系');
+  await expect(files.save(invalid.id, invalid, invalid.revision)).rejects.toThrow('图片参考关系');
   const missingAsset = structuredClone(setup.document);
   delete missingAsset.nodes.find((node) => node.id === first.id)!.assetPath;
   await expect(files.save(missingAsset.id, missingAsset, missingAsset.revision)).rejects.toThrow(
-    '图片派生关系'
+    '图片参考关系'
   );
   const unsupported = structuredClone(setup.document);
   unsupported.nodes.push({
