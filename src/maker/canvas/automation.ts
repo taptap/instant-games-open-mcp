@@ -170,13 +170,13 @@ export function canvasAutomationCapabilities() {
       'fill-slot': {
         id: 'empty image card (slot) ID',
         assetPath:
-          'project-relative image path that already exists in the project (for example assets/... or a path returned by an earlier import); the CLI does not upload for this command. Fills the slot in place, keeping id, position, width and edges. No generation.',
+          'assetPath of an image already on this canvas (local hosts accept canvas images only: assets/image/canvas-<id>.png or .maker/canvases/images/canvas-<id>.png, as returned by import); this command does not upload, so bring other files in with import --file first. Fills the slot in place, keeping id, position, width and edges. No generation.',
         prompt: 'optional; same as import prompt',
       },
       'replace-image': {
         id: 'image card ID that already has an image; empty slots use fill-slot',
         assetPath:
-          'project-relative image path that already exists in the project; replaces the image in place, keeping id, position, width, title and edges; height follows the image ratio. Undoable; downstream results become stale like a manual image change. No generation.',
+          'canvas image path, same rule as fill-slot; replaces the image in place, keeping id, position, width, title and edges; height follows the image ratio. Undoable; downstream results become stale like a manual image change. No generation.',
         prompt:
           'optional; same as import prompt. Without it, previous generation metadata is cleared',
       },

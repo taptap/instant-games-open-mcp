@@ -443,7 +443,9 @@ function applyImageSlotPatches(source: string): string {
       "    if (!slot) throw Object.assign(new Error('图片卡不存在。'), { code: 'NOT_FOUND' });",
       '    const previous = slot.assetPath;',
       "    if (slot.type !== 'image' || Boolean(previous) !== replace) throw Object.assign(new Error(replace ? '只能替换已有图片。' : '只能回填空图片槽。'), { code: 'INVALID_ARGS' });",
-      "    const title = (assetPath.split('/').pop().replace(/\\.[^.]+$/, '') || '图片').slice(0, 80);",
+      "    const named = (assetPath.split('/').pop().replace(/\\.[^.]+$/, '') || '图片').slice(0, 80);",
+      // Local canvas images are stored as canvas-<uuid>; that internal name is not a useful title.
+      "    const title = /^canvas-[a-f0-9-]{36}$/i.test(named) ? '图片' : named;",
       '    // Nothing has changed yet, so host rejections and decode failures mean "not executed".',
       "    const rejected = function (error) { if (error && !error.code) error.code = 'INVALID_ARGS'; throw error; };",
       '    const versions = store.mediaVersions ? await store.mediaVersions([assetPath]).catch(rejected) : undefined;',
