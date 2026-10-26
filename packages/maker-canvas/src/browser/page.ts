@@ -2265,6 +2265,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    runImage: function (id) { return uiRecognitionUi.runImage(id, function () { return generationUi.runTemplateImage(id); }, true, true); },',
       '    recognize: function (id, recover) { const node = documentState.nodes.find(function (item) { return item.id === id; }); return node ? uiRecognitionUi.runRecognition(node, true, recover) : Promise.resolve(false); },',
       '    recoverImage: function (id, force) { return generationUi.recoverForRetry(id, force); },',
+      '    recoverRecognition: function (id, force) { return uiRecognitionUi.recoverForRetry(id, force); },',
       '    chooseDesign: requestImageImport, sync: syncUiBboxWorkflow,',
       '    queue: { start: function (id, confirmed) { return groupQueue.start(id, confirmed); }, spendRetry: function (id, nodeId) { return groupQueue.spendRetry(id, nodeId); }, view: function (id) { return groupQueue.view(id); }, remaining: function (id) { return groupQueue.remaining(id); } },',
       '    openAssets: function (id) { return imageAssetsUi.run(id); },',

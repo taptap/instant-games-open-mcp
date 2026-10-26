@@ -651,9 +651,40 @@ export function createUiRecognitionUiWithHost(options: {
       }
     }
   }
+  /**
+   * Before an automatic retry: query the card's original recognition request. 'waiting' while
+   * the server still runs it; with force (waited long enough) the local wait is dropped so the
+   * next round submits a new request, which may be charged again. Anything else is 'released'
+   * and the next round resumes, collects or resubmits through runRecognition.
+   */
+  async function recoverForRetry(
+    nodeId: string,
+    force = false
+  ): Promise<'waiting' | 'released' | 'abandoned'> {
+    const current = options.current();
+    const node = current?.nodes.find((item) => item.id === nodeId);
+    const pendingId = node?.uiRecognition?.pendingId;
+    if (!current || !node || !pendingId || !options.store.recognitionStatus) return 'released';
+    let status: string;
+    try {
+      status = (await options.store.recognitionStatus(current.id, pendingId)).status;
+    } catch {
+      return 'released';
+    }
+    if (status !== 'running') return 'released';
+    if (!force) return 'waiting';
+    if (options.current() !== current || node.uiRecognition?.pendingId !== pendingId)
+      return 'released';
+    options.remember();
+    delete node.uiRecognition!.pendingId;
+    options.changed();
+    await options.save();
+    return 'abandoned';
+  }
   return {
     ensureNote,
     runRecognition,
+    recoverForRetry,
     async openPreview(node: CanvasNode) {
       const current = options.current();
       if (!current) return;

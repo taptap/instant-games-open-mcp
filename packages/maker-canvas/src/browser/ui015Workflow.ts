@@ -41,6 +41,8 @@ export function createUi015Workflow(options: {
   recognize(id: string, recover: boolean): Promise<boolean>;
   /** Query an unknown/failed image result; keep it if it arrived, else allow a resubmission. */
   recoverImage(id: string, force?: boolean): Promise<'recovered' | 'released' | 'waiting'>;
+  /** Query a card's pending recognition request (not image history); see recoverImage. */
+  recoverRecognition(id: string, force?: boolean): Promise<'released' | 'waiting' | 'abandoned'>;
   chooseDesign(id: string): void;
   sync(document: CanvasDocument, groupId: string, artText: string[], background: boolean): string[];
   queue: {
@@ -310,10 +312,22 @@ export function createUi015Workflow(options: {
         );
         // Every unfinished card, not only those with a block reason: a task the server still
         // reports as pending/running has no block reason but must be waited for.
+        // A pending recognition is checked on the recognition service, never in image history.
         let pending = false;
-        for (const id of [found.input.id, found.cut.id])
-          if (options.needs(id) || options.problem?.(id))
-            pending ||= (await options.recoverImage(id, waits >= MAX_WAITS)) === 'waiting';
+        const force = waits >= MAX_WAITS;
+        const cut = options.current()?.nodes.find((node) => node.id === found.cut.id);
+        if (cut?.uiRecognition?.pendingId) {
+          const result = await options.recoverRecognition(cut.id, force);
+          pending = result === 'waiting';
+          if (result === 'abandoned')
+            options.log(
+              '015 · 原识图请求等待超过 10 分钟仍未完成，重新提交识图（可能多计一次费用）',
+              'warning'
+            );
+        } else
+          for (const id of [found.input.id, found.cut.id])
+            if (options.needs(id) || options.problem?.(id))
+              pending ||= (await options.recoverImage(id, force)) === 'waiting';
         if (pending) {
           // The original task is still running on the server: wait without spending a retry.
           waits++;

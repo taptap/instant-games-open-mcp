@@ -9,8 +9,8 @@ export const GROUP_QUEUE_STYLES = [
   '.group-queue button:hover { background:#514029; } .group-queue button:focus-visible { outline:2px solid #e6b15c; outline-offset:2px; }',
   '.group-queue .group-queue-current { min-width:100px; max-width:30%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }',
   '.group-queue .group-queue-status { color:#b3a995; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }',
-  // The task strip takes its own full-width row, so a narrow (zoomed-out) bar never stacks chips.
-  '.group-queue-tasks { order:10; flex:1 1 100%; min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:2px; }',
+  // While running the bar is one line: the task strip scrolls sideways instead of wrapping.
+  '.group-queue-tasks { flex:1 1 auto; min-width:60px; display:flex; flex-wrap:nowrap; align-items:center; gap:6px; padding:2px; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; }',
   '.group-queue .group-queue-task { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-color:#514939; color:#cbc4b6; background:#302c25; cursor:grab; }',
   '.group-queue-task[data-drop] { border-left:3px solid #ffce76; } .group-queue-count { font-variant-numeric:tabular-nums; color:#a99d86; white-space:nowrap; }',
   '.group-queue-spinner { flex:none; width:12px; height:12px; border:2px solid #715c35; border-top-color:#f0c273; border-radius:50%; animation:group-queue-spin 1s linear infinite; }',
@@ -22,6 +22,8 @@ export const GROUP_QUEUE_STYLES = [
   ':root .card.section .group-queue .group-queue-chip[data-state=running] { border-color:#a07a2c; background:#3a2f17; color:#f0c273; }',
   ':root .card.section .group-queue .group-queue-task[data-state=failed] { border-color:#9a4040; background:#3a1f1f; color:#ff9b9b; }',
   ':root .card.section .group-queue .group-queue-done { color:#4fc28b; } :root .card.section .group-queue .group-queue-running { color:#e0a83c; } :root .card.section .group-queue .group-queue-failed { color:#e46b6b; }',
+  // After the workflow/paused wrap rules: a running bar stays on one line.
+  '.group-queue.group-queue[data-phase=running], .group-queue.group-queue[data-phase=queued], .group-queue.group-queue[data-phase=waiting] { flex-wrap:nowrap; }',
   '@media(prefers-reduced-motion:reduce) { .group-queue-spinner { animation:none; } }',
 ].join('\n');
 
@@ -157,7 +159,10 @@ export function createCanvasGroupQueueUi(options: {
         root.append(button(extra.label, () => void extra.run()));
       if (workflowView.hint) {
         const hint = document.createElement('span');
-        hint.className = 'group-queue-status group-queue-detail';
+        hint.className = workflowView.active
+          ? 'group-queue-status'
+          : 'group-queue-status group-queue-detail';
+        hint.title = workflowView.hint;
         hint.textContent = workflowView.hint;
         root.append(hint);
       }
@@ -210,6 +215,12 @@ export function createCanvasGroupQueueUi(options: {
     const tasks = document.createElement('div');
     tasks.className = 'group-queue-tasks';
     tasks.setAttribute('aria-label', '进行中与待执行任务，拖动待执行任务调整顺序');
+    // The bar swallows wheel events (no canvas zoom); a vertical wheel scrolls the strip sideways.
+    tasks.addEventListener('wheel', (event) => {
+      if (tasks.scrollWidth <= tasks.clientWidth) return;
+      tasks.scrollLeft += event.deltaX || event.deltaY;
+      event.preventDefault();
+    });
     for (const id of Object.keys(state?.running || {})) {
       const chip = button(title(id), () => options.focus(id), 'group-queue-chip');
       chip.dataset.state = 'running';
@@ -286,7 +297,8 @@ export function createCanvasGroupQueueUi(options: {
       !state?.pending.length &&
       !Object.keys(state?.running || {}).length &&
       !(workflowView && !state) &&
-      !workflowView?.active
+      !workflowView?.active &&
+      state?.phase !== 'complete'
     ) {
       const hint = document.createElement('span');
       hint.className = 'group-queue-status';
@@ -309,21 +321,31 @@ export function createCanvasGroupQueueUi(options: {
         element.textContent = text;
         return element;
       };
-      count.append(
-        part('已完成 ' + state.completed + '/' + state.total, 'group-queue-done'),
-        ' · ',
-        part('进行中 ' + inProgress, 'group-queue-running'),
-        ' · ',
-        part('失败 ' + failures, failures ? 'group-queue-failed' : '')
-      );
-      count.title = state.message;
-      root.append(count);
+      // Weak-signal progress: one compact count; zero running/failed parts are left out.
+      count.append(part('完成 ' + state.completed + '/' + state.total, 'group-queue-done'));
+      if (inProgress) count.append(' · ', part('进行中 ' + inProgress, 'group-queue-running'));
+      if (failures) count.append(' · ', part('失败 ' + failures, 'group-queue-failed'));
+      Object.assign(count.dataset, {
+        done: String(state.completed),
+        total: String(state.total),
+        running: String(inProgress),
+        failed: String(failures),
+      });
+      count.title =
+        '已完成 ' +
+        state.completed +
+        '/' +
+        state.total +
+        ' · 进行中 ' +
+        inProgress +
+        ' · 失败 ' +
+        failures;
+      if (state.total) root.append(count);
       const failed = failures;
-      if (failed) {
+      if (failed && !active) {
         const status = document.createElement('span');
         status.className = 'group-queue-status group-queue-failed';
-        status.textContent =
-          failed + ' 项失败' + (active ? '，其余分支继续' : '，点击失败任务定位');
+        status.textContent = failed + ' 项失败，点击失败任务定位';
         root.append(status);
       }
       if (state.active && state.retries?.[state.active]) {
