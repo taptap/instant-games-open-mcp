@@ -11,7 +11,7 @@
 //   bar        the group bar never shows 「已暂停」 or an enabled start/continue button mid-run
 //   counts     「已完成 x/y · 进行中 n」 equal the cards' real state (two samples in a row)
 //   overlay    no member card shows the grey 「等待继续」 (paused) overlay mid-run
-//   layout     the running bar is one line (task strip scrolls), nothing clipped, on screen after fit
+//   layout     the bar has at most two single-line rows, nothing clipped, on screen after fit
 //   colours    running yellow, failed red, done green
 //   peer page  a second page on the same canvas is read-only, says so, and does not pause the run
 //   freeze     the page never blocks its main thread for 5 s or more (CLI and clicks stall)
@@ -208,7 +208,12 @@ async function displayed(page, groupId, memberIds = []) {
           return banner && !banner.hidden ? banner.innerText : '';
         })(),
         clipped,
-        oneLine: bar ? bar.getBoundingClientRect().height <= 60 : true,
+        twoRows: bar
+          ? [...bar.querySelectorAll(':scope > .group-queue-row')].length <= 2 &&
+            [...bar.querySelectorAll(':scope > .group-queue-row')].every(
+              (row) => row.getBoundingClientRect().height <= 44
+            )
+          : true,
       };
     },
     [groupId, memberIds]
@@ -423,7 +428,7 @@ try {
         '运行中卡片显示暂停：' + paused.map((item) => item.title).join('、')
       );
     if (shown.clipped.length) await fail(page, 'layout', shown.clipped.slice(0, 5).join('; '));
-    if (shown.running > 0 && !shown.oneLine) await fail(page, 'layout', '执行中分组栏不是单行');
+    if (!shown.twoRows) await fail(page, 'layout', '分组栏超过两行或某行换行');
     for (const chip of shown.chips) {
       if (chip.state === 'running' && !isYellow(chip.background) && !isYellow(chip.border))
         await fail(page, 'colours', '进行中任务不是黄色 ' + JSON.stringify(chip));

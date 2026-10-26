@@ -140,16 +140,10 @@ export function createUi015Workflow(options: {
         (node.uiAtlasGroup || node.uiArtTextId)
     );
   }
-  function texts(document: CanvasDocument, cut: CanvasNode) {
-    return (selectedUiRecognition(cut)?.bbox?.texts || []).map((item) => ({
-      id: item.id,
-      text: item.text,
-    }));
-  }
   /**
    * Unattended default, applied without waiting: recognised titles become art text images and
    * the environment background is restored unless the recognition already found one (that
-   * branch is kept automatically). "调整美术字/背景" changes it afterwards.
+   * branch is kept automatically). The CLI changes it with run/sync-ui-batches artText/background.
    */
   function defaultChoice(cut: CanvasNode): Ui015Choice {
     const bbox = selectedUiRecognition(cut)?.bbox;
@@ -569,73 +563,6 @@ export function createUi015Workflow(options: {
     return dialog;
   }
 
-  /** Inline choice panel replacing window.prompt/confirm. */
-  function openChoice(groupId: string) {
-    const document_ = options.current();
-    const found = document_ && cards(document_, groupId);
-    if (!document_ || !found) return;
-    const list = texts(document_, found.cut);
-    const current = bundleOf(found.members)
-      ? currentChoice(document_, found.members, found.cut)
-      : defaultChoice(found.cut);
-    const dialog = dialogShell('选择美术字与背景');
-    dialog.dataset.ui015Choice = 'true';
-    dialog.append(
-      element(
-        'p',
-        '勾选需要按原稿字效单独提取为图片的文字；未勾选的文字保留为可编辑 Label。不勾选任何项也可以继续。'
-      )
-    );
-    const box = element('div');
-    box.style.cssText =
-      'display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;max-height:40vh;overflow:auto;margin:8px 0';
-    const checks: HTMLInputElement[] = [];
-    for (const item of list) {
-      const label = element('label');
-      label.style.cssText = 'display:flex;gap:6px;align-items:center';
-      const check = element('input');
-      check.type = 'checkbox';
-      check.value = item.id;
-      check.checked = current.artText.includes(item.id);
-      checks.push(check);
-      label.append(check, element('span', item.id + ' · ' + item.text));
-      box.append(label);
-    }
-    if (!list.length) box.append(element('span', '本次识图没有文字。'));
-    const backgroundLabel = element('label');
-    backgroundLabel.style.cssText = 'display:flex;gap:6px;align-items:center;margin:8px 0';
-    const background = element('input');
-    background.type = 'checkbox';
-    background.checked = current.background;
-    backgroundLabel.append(
-      background,
-      element(
-        'span',
-        '额外还原环境背景（识图未找到背景元素时默认勾选；已找到时自动保留）。不勾选则 UI 没有整屏背景图。'
-      )
-    );
-    const actions = element('div');
-    actions.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
-    const confirm = element('button', '确认并继续');
-    confirm.type = 'button';
-    confirm.onclick = () => {
-      const choice = {
-        artText: checks.filter((check) => check.checked).map((check) => check.value),
-        background: background.checked,
-      };
-      dialog.close();
-      void advance(groupId, { ...choice, interactive: true });
-    };
-    const cancel = element('button', '取消');
-    cancel.type = 'button';
-    cancel.onclick = () => dialog.close();
-    actions.append(cancel, confirm);
-    dialog.append(box, backgroundLabel, actions);
-    window.document.body.append(dialog);
-    dialog.showModal();
-    confirm.focus();
-  }
-
   /**
    * Hand-off for the final step: everything the unattended run accepted or could not finish,
    * and the Skill path an AI follows to bring this delivery to a reviewed, complete result.
@@ -885,9 +812,6 @@ export function createUi015Workflow(options: {
     });
     const go = () => advance(groupId, { interactive: true });
     const extra: Array<{ label: string; run(): unknown }> = [];
-    const found = cards(document_, groupId);
-    if (found && bundleOf(found.members) && !busy && state.stage !== 'running')
-      extra.push({ label: '调整美术字/背景', run: () => openChoice(groupId) });
     const labels: Record<string, string> = {
       invalid: '流程结构异常',
       design: '1 设计稿',
@@ -959,12 +883,12 @@ export function createUi015Workflow(options: {
             stage: '5 UI 已生成',
             primary: run('打开 UI 编辑器', () => openEditor(value.uiFile)),
             extra: actions,
+            // One short line: what still needs attention first; the file path is in the editor.
             hint:
-              state.message +
-              '：' +
-              value.uiFile +
+              (todo.length ? '待 AI 复核：' + todo.join('、') : state.message) +
               (value.issue ? '（' + value.issue + '）' : '') +
-              (todo.length ? '；待 AI 复核：' + todo.join('、') + '，点「AI 复核修复提示词」' : ''),
+              ' · ' +
+              value.uiFile,
           };
         }
         return {
@@ -996,7 +920,6 @@ export function createUi015Workflow(options: {
     outcome(groupId: string): Ui015Result | undefined {
       return outcomes.get(groupId);
     },
-    openChoice,
     get isBusy() {
       return Boolean(running);
     },

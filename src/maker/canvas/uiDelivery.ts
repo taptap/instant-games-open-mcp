@@ -332,7 +332,7 @@ export class UiDeliveryService {
         fail(
           '美术字「' +
             binding.textId +
-            '」不是当前识图的文字 ID（旧单标题支线）。请在分组上「调整美术字/背景」选择对应文字后重新切图。',
+            '」不是当前识图的文字 ID（旧单标题支线）。请用 CLI sync-ui-batches 的 artText 选择对应文字后重新切图。',
           409,
           'ART_TEXT_UNMAPPED'
         );

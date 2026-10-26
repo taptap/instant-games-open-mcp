@@ -61,7 +61,11 @@ test.each([false, true])('only CLI-only groups hide start and resume (%s)', (cli
     const card = new Element();
     ui.render(card as unknown as HTMLElement, group);
     const root = card.children[0];
-    const buttons = () => root.children.filter((item) => item.tag === 'button');
+    // Buttons sit in the bar's rows (one level down).
+    const buttons = () =>
+      root.children
+        .flatMap((item) => (item.tag === 'button' ? [item] : item.children))
+        .filter((item) => item.tag === 'button');
     expect(buttons().some((item) => item.textContent.includes('完成剩余'))).toBe(!cliOnly);
     if (!cliOnly) {
       buttons()[0].listeners.click();

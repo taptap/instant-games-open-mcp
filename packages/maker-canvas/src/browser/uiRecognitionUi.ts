@@ -653,7 +653,9 @@ export function createUiRecognitionUiWithHost(options: {
   }
   /**
    * Before an automatic retry: query the card's original recognition request. 'waiting' while
-   * the server still runs it; with force (waited long enough) the local wait is dropped so the
+   * it is still in progress remotely: status running, or unknown with the service's
+   * "识图任务仍在执行" (features/serverRecognition.ts). A paused request ("识图等待恢复") or a
+   * failed one is released, so the next round resumes it with the original request ID; with force (waited long enough) the local wait is dropped so the
    * next round submits a new request, which may be charged again. Anything else is 'released'
    * and the next round resumes, collects or resubmits through runRecognition.
    */
@@ -665,13 +667,16 @@ export function createUiRecognitionUiWithHost(options: {
     const node = current?.nodes.find((item) => item.id === nodeId);
     const pendingId = node?.uiRecognition?.pendingId;
     if (!current || !node || !pendingId || !options.store.recognitionStatus) return 'released';
-    let status: string;
+    let inProgress: boolean;
     try {
-      status = (await options.store.recognitionStatus(current.id, pendingId)).status;
+      const attempt = await options.store.recognitionStatus(current.id, pendingId);
+      inProgress =
+        attempt.status === 'running' ||
+        (attempt.status === 'unknown' && /仍在执行/.test(attempt.error || ''));
     } catch {
       return 'released';
     }
-    if (status !== 'running') return 'released';
+    if (!inProgress) return 'released';
     if (!force) return 'waiting';
     if (options.current() !== current || node.uiRecognition?.pendingId !== pendingId)
       return 'released';
