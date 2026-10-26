@@ -20,6 +20,7 @@ import {
 } from '../preview/validationHistory.js';
 import { ConsoleUpdates } from './updates.js';
 import { ConsoleDocuments } from './documents.js';
+import { inspectContext } from './contextCheck.js';
 import { chooseProjectDirectory } from './folderPicker.js';
 import { discoverConsoleProjects } from './projectDiscovery.js';
 import { handleCanvasProjectRoute } from './canvasRoutes.js';
@@ -480,6 +481,17 @@ export async function startConsoleServer(options: {
         json(200, ready);
       } else if (request.method === 'GET' && !suffix) {
         json(200, await read(() => options.registry.detail(key, readAbort.signal)));
+      } else if (request.method === 'GET' && suffix === 'context-check') {
+        if (url.search) throw new ConsoleError('项目检查仅支持当前项目，不接受检查范围参数。');
+        json(
+          200,
+          await read(() =>
+            inspectContext({
+              projectDir: options.registry.resolve(key).path,
+              signal: readAbort.signal,
+            })
+          )
+        );
       } else if (request.method === 'GET' && validation) {
         await read(async () => {
           const directory = options.registry.resolve(key).path;

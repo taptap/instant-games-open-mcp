@@ -2,6 +2,33 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { MAKER_CAPABILITY_ROUTING_INDEX } from '../maker/capabilityRouting';
+
+test('local Skill routes to bounded task references without preloading the full manual', () => {
+  const root = path.resolve('skills/taptap-maker-local');
+  const entry = fs.readFileSync(path.join(root, 'SKILL.md'), 'utf8');
+  expect(Buffer.byteLength(entry)).toBeLessThan(8 * 1024);
+  expect(entry).toContain('Read only the matching reference');
+  expect(entry).not.toContain('automatic refresh after each');
+  const links = [...entry.matchAll(/\]\((references\/[^)]+\.md)\)/gu)].map((match) => match[1]);
+  expect(new Set(links).size).toBe(10);
+  expect(new Set(links)).toEqual(
+    new Set(fs.readdirSync(path.join(root, 'references')).map((name) => 'references/' + name))
+  );
+  for (const link of links) {
+    const content = fs.readFileSync(path.join(root, link), 'utf8');
+    expect(Buffer.byteLength(content)).toBeLessThan(20 * 1024);
+    for (const match of content.matchAll(/\]\(([^)]+\.md)\)/gu)) {
+      expect(fs.existsSync(path.resolve(root, path.dirname(link), match[1]))).toBe(true);
+    }
+  }
+  const preview = fs.readFileSync(path.join(root, 'references/preview.md'), 'utf8');
+  expect(preview).toContain('During a user-requested local-preview iteration');
+  expect(preview).toContain('Skip this for documentation-only');
+  expect(preview).toContain('do not start or revive the session');
+  expect(MAKER_CAPABILITY_ROUTING_INDEX).toContain('Requested preview iteration only');
+  expect(MAKER_CAPABILITY_ROUTING_INDEX).toContain('Read matched references only');
+});
 
 test('shared intent table is contiguous and WorkBuddy describes the same local entry points', () => {
   const source = path.resolve(__dirname, '../..');
@@ -57,6 +84,14 @@ test('npm package includes both local workflow guides in an isolated package', (
       }
     );
     if (result.status !== 0) throw new Error(result.stdout + result.stderr);
+    const localSkill = path.join(root, 'packages/maker/skills/taptap-maker-local');
+    for (const name of fs.readdirSync(path.join(source, 'skills/taptap-maker-local/references'))) {
+      expect(fs.readFileSync(path.join(localSkill, 'references', name), 'utf8')).toBe(
+        fs
+          .readFileSync(path.join(source, 'skills/taptap-maker-local/references', name), 'utf8')
+          .replaceAll('@taptap/maker@<exact-version>', '@taptap/maker@0.0.1')
+      );
+    }
     const skill = path.join(root, 'packages/maker/skills/lua-ui-to-json');
     expect(fs.readFileSync(path.join(skill, 'scripts/ui-json-check.cjs'), 'utf8')).toBe(
       fs.readFileSync(

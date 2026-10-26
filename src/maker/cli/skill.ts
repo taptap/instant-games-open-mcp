@@ -52,7 +52,7 @@ export function formatMakerSkillStatus(
     '',
     ...skillDocuments.map((skill) => `- ${skill.name}: ${skill.path}`),
     '',
-    'Use these documents as reading references for Maker local workflows.',
+    'Read only the task-matched Skill and its referenced workflow; do not preload the catalog.',
     ...(clientPluginDistribution
       ? [
           '',
@@ -87,7 +87,7 @@ export function formatMakerSkillStatus(
     '- Do not create branches, task branches, PR/MR, or generic git commit/push flows.',
     '- Use maker_build_current_directory for submit, push, and build.',
     '- Local preview uses taptap-maker preview with explicit --target-dir; never commits or remotely builds.',
-    '- After each related edit batch, run preview status; if process_alive=true automatically refresh and collect logs/check. Never revive a stopped session.',
+    '- During a requested local-preview iteration only: check status after running-game edits; refresh live sessions and collect logs/check once. Never revive a stopped session.',
     '- Clarify ambiguous preview/run intent. Read the current image before visual judgment; missing evidence is UNDETERMINED.',
     '',
     'Maker proxy tool policy',

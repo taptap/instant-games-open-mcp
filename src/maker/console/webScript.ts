@@ -1,6 +1,7 @@
 import { consoleIcons } from './webIcons.js';
 import { consoleThemeScript } from '../webTheme.js';
 import { modelSettingsScript } from './modelSettingsUi.js';
+import { contextCheckScript } from './contextCheckUi.js';
 
 export const consoleScript = String.raw`
 ${consoleThemeScript}
@@ -1539,7 +1540,10 @@ function renderProjects() {
     if (p.key === selected) label.append(node('span','当前项目','tag'));
     if (!p.valid) label.append(node('p', text(p.error,'项目不可用'), 'bad'));
     const actions = node('div', undefined, 'actions');
-    actions.append(button('打开', () => chooseProject(p.key), {disabled:!p.valid}));
+    actions.append(button('打开', () => {
+      chooseProject(p.key);
+      if (selected === p.key) navigate('overview');
+    }, {disabled:!p.valid}));
     actions.append(button('移除登记（保留项目文件）', () => void removeProject(p.key), {
       icon:'trash',iconOnly:true,className:'icon-button danger',disabled:busy() || busy(p.key),
       focus:'remove-' + p.key
@@ -1591,6 +1595,7 @@ function overviewTasks() {
   title.append(node('h2','最近任务'),node('span','保留最近 10 次','muted'));
   return [title,...(tasks.length ? tasks.map(task => taskBlock(task)) : [node('p','暂无控制台任务','muted')])];
 }
+${contextCheckScript}
 function renderOverview() {
   const p = currentProject();
   const title = heading(p.name,p.path,true);
@@ -1656,7 +1661,8 @@ function renderOverview() {
   serviceActions.append(button('关闭Maker控制台',() => void shutdownConsole(),{
     className:'console-shutdown',disabled:offline || shutdownPending,focus:'console-shutdown'
   }));
-  replace($('view'),[title,metrics,columns,recent,serviceActions]);
+  replace($('view'),[title,metrics,columns,contextCheckSection(),recent,serviceActions]);
+  ensureInitialContextCheck();
 }
 async function shutdownConsole() {
   if (shutdownPending || offline || disposed) return;

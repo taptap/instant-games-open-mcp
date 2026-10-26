@@ -95,6 +95,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
       luaCheckSummary: typeof luaCheckSummary === 'function' ? luaCheckSummary : undefined,
       pluginDescriptors, pluginUrl, pluginMessageMatches,
       pruneFailedPluginSessions, pluginSessions, sendPluginTheme,
+      contextCheckSection, runContextCheck, ensureInitialContextCheck, contextDiagnosis, contextChecks, renderProjects,
       loadedState: () => loaded,
       acceptedCount: () => acceptedTasks.size,
       offline: () => offline,
@@ -118,6 +119,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
         if (hooks.navigate) navigate = hooks.navigate;
         if (hooks.runAction) runAction = hooks.runAction;
         if (hooks.loadProject) loadProject = hooks.loadProject;
+        if (hooks.leaveUiEditor) leaveUiEditor = hooks.leaveUiEditor;
       }
     };})();`
   );
@@ -133,6 +135,215 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
 }
 
 describe('Maker console standalone UI', () => {
+  it('checks only the current project with no additional scope selector', async () => {
+    const { api, fetch, context } = harness();
+    const created: any[] = [];
+    const createElement = context.document.createElement;
+    context.document.createElement = ((tag: string) => {
+      const element = createElement(tag);
+      created.push(element);
+      return element;
+    }) as any;
+    api.contextCheckSection();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(created.some((item) => item.tagName === 'select')).toBe(false);
+    const details = created.find((item) => item.tagName === 'details');
+    expect(details.append.mock.calls.flat()).toContain(
+      created.find((item) => item.className.includes('context-check-actions'))
+    );
+    api.contextChecks.set('alpha', {
+      result: {
+        complete: true,
+        checkedAt: new Date().toISOString(),
+        client: 'project',
+        sources: [],
+        findings: [],
+        warnings: [],
+        warningCounts: { invalid: 0, unverified: 0, skipped: 0 },
+      },
+    });
+    api.contextCheckSection();
+    expect(created.filter((item) => item.tagName === 'details').every((item) => !item.open)).toBe(
+      true
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('automatically checks each valid project once, without retrying failure or scanning globals', async () => {
+    const { api, fetch } = harness();
+    api.setup(
+      [
+        { key: 'alpha', valid: true },
+        { key: 'beta', valid: true },
+        { key: 'invalid', valid: false },
+      ],
+      { render: jest.fn() }
+    );
+    api.setPage('projects');
+    api.ensureInitialContextCheck();
+    expect(fetch).not.toHaveBeenCalled();
+    api.setPage('overview');
+    fetch.mockRejectedValueOnce(new Error('read failure'));
+    api.ensureInitialContextCheck();
+    api.ensureInitialContextCheck();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(api.contextChecks.get('alpha').loading).toBe(false);
+    api.ensureInitialContextCheck();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    api.ensureInitialContextCheck();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    api.changeSelection('invalid');
+    api.ensureInitialContextCheck();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    api.changeSelection('beta');
+    api.ensureInitialContextCheck();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    api.changeSelection('alpha');
+    api.ensureInitialContextCheck();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { counts: { invalid: 0, unverified: 0, skipped: 0 }, complete: true, title: '未发现明确异常' },
+    {
+      counts: { invalid: 3, unverified: 1, skipped: 2 },
+      complete: false,
+      title: '发现 3 项文件或配置异常，展开查看',
+    },
+    {
+      counts: { invalid: 0, unverified: 1, skipped: 2 },
+      complete: false,
+      title: '已检查部分未发现明确异常',
+    },
+  ])('reports only evidenced anomalies, with $title', ({ counts, complete, title }) => {
+    const { api, context } = harness();
+    const created: any[] = [];
+    const createElement = context.document.createElement;
+    context.document.createElement = ((tag: string) => {
+      const element = createElement(tag);
+      created.push(element);
+      return element;
+    }) as any;
+    const result = {
+      client: 'project',
+      checkedAt: '2026-10-26',
+      complete,
+      sources: [
+        {
+          id: 'large',
+          kind: 'skills',
+          scope: 'project',
+          name: 'large-skill',
+          path: 'skills/large/SKILL.md',
+          bytes: 100 * 1024,
+          loading: 'on-demand',
+          aliases: [],
+        },
+      ],
+      findings: [],
+      warnings: [],
+      warningCounts: counts,
+    };
+    api.contextChecks.set('alpha', { result });
+    api.contextCheckSection();
+    const rows = created
+      .find((item) => item.className === 'context-check-status')
+      .append.mock.calls.flat();
+    expect(rows).toHaveLength(counts.unverified || counts.skipped ? 4 : 3);
+    expect(rows[0].textContent).toBe(title);
+    expect(rows[0].className).toBe(counts.invalid ? 'context-error' : 'muted');
+    expect(rows.some((item: any) => item.textContent.includes('实际上下文占用'))).toBe(true);
+    expect(created.some((item) => /中风险|高风险|预警线/.test(item.textContent || ''))).toBe(false);
+    expect(created.find((item) => item.textContent === '100.0 KiB · 通常按需加载').className).toBe(
+      'muted'
+    );
+    expect(api.contextDiagnosis(result)).not.toMatch(/中风险|高风险|预警线/);
+  });
+
+  it('isolates context results by project while requests are in flight', async () => {
+    const { api, fetch } = harness();
+    const render = jest.fn();
+    api.setup([], { render });
+    api.setPage('overview');
+    let finish!: (result: unknown) => void;
+    fetch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const checking = api.runContextCheck();
+    await api.runContextCheck();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][0]).toBe('/api/projects/alpha/context-check');
+    api.changeSelection('beta');
+    render.mockClear();
+    const result = { client: 'project', sources: [], findings: [], warnings: [] };
+    finish({ ok: true, status: 200, json: async () => result });
+    await checking;
+    expect(render).not.toHaveBeenCalled();
+    expect(api.contextChecks.get('alpha').result).toEqual(result);
+    expect(api.contextChecks.has('beta')).toBe(false);
+  });
+
+  it('folds long context warning lists and includes omitted counts in the diagnosis', () => {
+    const { api, context } = harness();
+    const created: any[] = [];
+    const createElement = context.document.createElement;
+    context.document.createElement = ((tag: string) => {
+      const element = createElement(tag);
+      created.push(element);
+      return element;
+    }) as any;
+    const result = {
+      complete: false,
+      client: 'project',
+      checkedAt: '2026-10-26',
+      sources: [],
+      findings: [],
+      warnings: [{ kind: 'invalid', message: '跳过失效链接：skills/example' }],
+      warningCounts: { invalid: 6, unverified: 0, skipped: 0 },
+      omittedWarningCount: 5,
+    };
+    api.contextChecks.set('alpha', { result });
+    api.contextCheckSection();
+    const warnings = created.find((item) => item.className.includes('context-warnings'));
+    expect(warnings.tagName).toBe('details');
+    expect(warnings.open).not.toBe(true);
+    expect(
+      created.find(
+        (item) => item.tagName === 'summary' && item.textContent === '异常与未完成项 · 6 条'
+      )
+    ).toBeDefined();
+    expect(api.contextDiagnosis(result)).toContain('另有 5 条未完成项未展示。');
+  });
+
+  it('allows retry after a failed context check and describes measurement limits in copied output', async () => {
+    const { api, fetch } = harness();
+    api.setup([], { render: jest.fn() });
+    api.setPage('overview');
+    fetch.mockRejectedValueOnce(new Error('private diagnostic'));
+    await api.runContextCheck();
+    expect(api.contextChecks.get('alpha')).toMatchObject({ loading: false, result: null });
+    expect(api.contextChecks.get('alpha').error).toContain('重新检查');
+    expect(api.contextChecks.get('alpha').error).not.toContain('private');
+    const result = {
+      checkedAt: '2026-10-26',
+      client: 'project',
+      complete: false,
+      sources: [],
+      findings: [],
+      warnings: [{ kind: 'skipped', message: '读取上限' }],
+      warningCounts: { invalid: 0, unverified: 0, skipped: 1 },
+    };
+    fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => result });
+    await api.runContextCheck();
+    expect(api.contextChecks.get('alpha').result).toEqual(result);
+    expect(api.contextDiagnosis(result)).toContain('文件体积不等于已加载上下文');
+    expect(api.contextDiagnosis(result)).toContain('跳过项：读取上限');
+  });
+
   it('places settings behind the top-right gear instead of the main navigation', () => {
     const html = getConsoleHtml();
     expect(html).toContain('id="settings-button"');
@@ -1660,6 +1871,50 @@ describe('Maker console standalone UI', () => {
     announce: jest.fn(),
   });
   const response = (data: unknown) => ({ ok: true, status: 200, json: async () => data });
+
+  it.each(['alpha', 'beta'])('opens project %s from the list on its overview tab', (key) => {
+    const { api, context } = harness();
+    const created: any[] = [];
+    const createElement = context.document.createElement;
+    context.document.createElement = ((tag: string) => {
+      const element = createElement(tag);
+      created.push(element);
+      return element;
+    }) as any;
+    const loadProject = jest.fn();
+    api.setup([{ ...project, key }], { ...hooks(), loadProject });
+    api.setPage('projects');
+    api.renderProjects();
+    const open = created.find((item) => item.tagName === 'button' && item.title === '打开');
+    open.addEventListener.mock.calls.find(([event]: [string]) => event === 'click')[1]();
+    expect(api.current()).toBe(key);
+    expect(api.page()).toBe('overview');
+    expect(loadProject).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays on the project list when unsaved-editor protection rejects opening another project', () => {
+    const { api, context } = harness();
+    const created: any[] = [];
+    const createElement = context.document.createElement;
+    context.document.createElement = ((tag: string) => {
+      const element = createElement(tag);
+      created.push(element);
+      return element;
+    }) as any;
+    const loadProject = jest.fn();
+    api.setup([project, { ...project, key: 'beta' }], {
+      ...hooks(),
+      loadProject,
+      leaveUiEditor: () => false,
+    });
+    api.setPage('projects');
+    api.renderProjects();
+    const open = created.filter((item) => item.tagName === 'button' && item.title === '打开')[1];
+    open.addEventListener.mock.calls.find(([event]: [string]) => event === 'click')[1]();
+    expect(api.current()).toBe('alpha');
+    expect(api.page()).toBe('projects');
+    expect(loadProject).not.toHaveBeenCalled();
+  });
 
   it('refreshes the open page when the project changes and drops the previous response', async () => {
     const { api, fetch } = harness();

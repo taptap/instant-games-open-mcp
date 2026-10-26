@@ -99,7 +99,10 @@ function rewriteMakerSkillPackageReferences(skillRoot, version) {
 
   const content = readFileSync(skillPath, 'utf8').replaceAll(LEGACY_PACKAGE, MAKER_PACKAGE);
   writeFileSync(skillPath, content, 'utf8');
-  rewriteExactMakerVersion(join(skillRoot, 'taptap-maker-local', 'SKILL.md'), version);
+  rewriteExactMakerVersion(
+    join(skillRoot, 'taptap-maker-local', 'references', 'diagnostics.md'),
+    version
+  );
 }
 
 function createPackageJson(version) {
