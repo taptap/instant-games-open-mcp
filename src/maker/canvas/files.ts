@@ -1671,6 +1671,12 @@ export class MakerCanvasFiles {
           : { attemptId: text(input.attemptId, 36, '生成尝试标识') }),
         ...(sourceImageId ? { sourceImageId } : {}),
         ...(sourceImageIds?.length ? { sourceImageIds } : {}),
+        // Set when an Agent placed the result with a prompt (import/fill-slot/replace-image).
+        ...(input.origin === undefined
+          ? {}
+          : input.origin === 'agent'
+            ? { origin: 'agent' as const }
+            : fail('生成来源无效。', 400, 'INVALID_DOCUMENT')),
       };
     }
     let generationDraft: CanvasNode['generationDraft'];
@@ -1848,6 +1854,8 @@ export class MakerCanvasFiles {
       !['first_frame', 'first_last_frame', 'multi_modal_reference'].includes(String(input.mode))
     )
       fail('视频输入模式无效。', 400, 'INVALID_DOCUMENT');
+    if (input.assetConstraints !== undefined && typeof input.assetConstraints !== 'boolean')
+      fail('素材约束开关无效。', 400, 'INVALID_DOCUMENT');
     return {
       ...(input.mode === undefined
         ? {}
@@ -1863,6 +1871,10 @@ export class MakerCanvasFiles {
       ...(input.duration === undefined
         ? {}
         : { duration: numberIn(input.duration, 4, 8, '视频时长') }),
+      // Whether the game-asset constraint is appended to the request; the prompt no longer carries it.
+      ...(input.assetConstraints === undefined
+        ? {}
+        : { assetConstraints: input.assetConstraints as boolean }),
     };
   }
 
@@ -2027,20 +2039,25 @@ export class MakerCanvasFiles {
     ) {
       fail('图生视频引用必须连接已保存图片或有来源的图片草稿与已保存视频卡。', 400, 'INVALID_EDGE');
     }
+    // An edge into an existing image is a plain reference relation (page connect, linked slots,
+    // Agent import with sourceId, fill-slot/replace-image keeping incoming edges): no generation
+    // provenance is required. An edge into an empty slot must still match what the next
+    // generation submits. Cycles and the 14-reference cap are enforced where edges are created.
     if (
       edge.kind === 'image-variant' &&
       (from?.type !== 'image' ||
-        (!from.assetPath && !from.generationDraft?.prompt?.trim()) ||
+        (!from.assetPath && !from.generationDraft) ||
         to?.type !== 'image' ||
-        (!to.referenceInput &&
-          (to.assetPath
-            ? !to.generation?.sourceImageIds?.includes(from.id) &&
-              to.sourceSnapshot?.nodeId !== from.id &&
-              !to.sourceSnapshots?.some((snapshot) => snapshot.nodeId === from.id)
-            : to.generationDraft?.operation !== 'variant' ||
-              to.generationDraft.sourceImageId !== from.id)))
+        (!to.assetPath &&
+          !to.referenceInput &&
+          (to.generationDraft?.operation !== 'variant' ||
+            to.generationDraft.sourceImageId !== from.id)))
     ) {
-      fail('图片派生关系必须引用已有图片或待生成的图片草稿。', 400, 'INVALID_EDGE');
+      fail(
+        '图片参考关系必须从已有图片或图片槽连出；连到空图片槽时需带参考输入或对应草稿来源。',
+        400,
+        'INVALID_EDGE'
+      );
     }
     if (
       edge.kind === 'sequence-animation' &&
