@@ -141,7 +141,10 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   canStopWaiting(nodeId: string): boolean;
   stopWaiting(nodeId: string): void;
   hasUnsettledResult(nodeId: string): boolean;
-  recoverForRetry(nodeId: string, force?: boolean): Promise<'recovered' | 'released' | 'waiting'>;
+  recoverForRetry(
+    nodeId: string,
+    force?: boolean
+  ): Promise<'recovered' | 'released' | 'waiting' | 'blocked'>;
   nodeState(nodeId: string): { status: string; canQuery: boolean } | undefined;
   queueBlockReason(nodeId: string): string | undefined;
   failure(nodeId: string): string | undefined;
@@ -2792,13 +2795,36 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     async recoverForRetry(
       nodeId: string,
       force = false
-    ): Promise<'recovered' | 'released' | 'waiting'> {
+    ): Promise<'recovered' | 'released' | 'waiting' | 'blocked'> {
       const documentState = options.getDocument();
       if (!documentState) return 'released';
       const list = await options.store.listGeneration(documentState.id);
       if (options.getDocument() !== documentState) return 'released';
       for (const item of list) recordAttempt(item);
       const latest = latestNodeAttempt(nodeId);
+      // The remote image already exists; retry only the local download/import path.
+      if (
+        latest?.kind === 'image' &&
+        latest.status === 'failed' &&
+        latest.remoteStatus === 'succeeded' &&
+        latest.failureStage === 'download'
+      ) {
+        try {
+          await action(latest, 'retry', true);
+        } catch {
+          options.render();
+          return 'blocked';
+        }
+        const recovered = attempts.get(latest.id);
+        if (recovered?.status === 'succeeded') {
+          imageFailures.delete(nodeId);
+          retryableImages.delete(nodeId);
+          options.render();
+          return 'recovered';
+        }
+        options.render();
+        return 'blocked';
+      }
       if (latest?.status === 'succeeded' && recoverImage(latest, list) && (await options.flush())) {
         imageFailures.delete(nodeId);
         retryableImages.delete(nodeId);

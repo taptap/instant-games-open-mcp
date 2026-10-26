@@ -1875,7 +1875,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    haltReason: function () { return saveFailed ? "画布结果尚未保存，已停止后续生成；请先保存再继续。" : peerBlock() || undefined; },',
       '    blocked: function () { return peerBlock() || undefined; },',
       '    expand: function (id) { if (documentState && ensureUiAtlasBatchCards(documentState, id)) markDirty(); },',
-      '    settled: function (id) { if (ui015Workflow) ui015Workflow.settled(id); },',
+      '    settled: function (id, phase) { if (ui015Workflow) ui015Workflow.settled(id, phase); },',
       '    changed: function () { if (dirty()) markDirty(); if (groupQueueUi) groupQueueUi.refresh(); if (documentState) refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return ui015Workflow && ui015Workflow.isActive(id) ? "running" : groupQueue && groupQueue.view(id)?.phase; }); publishDirty(); },',
       '  });',
       '  groupQueueUi = createCanvasGroupQueueUi({ queue: groupQueue, node: function (id) { return documentState && documentState.nodes.find(function (node) { return node.id === id; }); }, scale: function () { return documentState && documentState.viewport.scale || 1; }, workflow: { view: function (id) { return ui015Workflow ? ui015Workflow.view(id) : undefined; } }, notice: function () { return peerReason; },',

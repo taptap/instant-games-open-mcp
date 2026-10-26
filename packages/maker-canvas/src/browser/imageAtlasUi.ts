@@ -180,7 +180,7 @@ export function openImageAtlasDialogWithHost(
     buttons.push(create);
   }
   let source: Blob | undefined;
-  let manualNative = false;
+  let manualNative = Boolean(actions?.cut?.manualNative);
   let prepared: PreparedImageAtlas | undefined;
   let regions: ImageAtlasCrop[] | undefined = actions?.cut?.regions;
   let selected = 0;

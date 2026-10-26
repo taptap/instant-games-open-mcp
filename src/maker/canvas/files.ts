@@ -963,6 +963,34 @@ export class MakerCanvasFiles {
     return { file: real, type };
   }
 
+  /** Read a user-provided PNG from the project without treating it as a canvas media reference. */
+  readProjectPng(relativePath: string, maxBytes = 20 * 1024 * 1024): Buffer {
+    if (
+      !relativePath ||
+      path.isAbsolute(relativePath) ||
+      relativePath.includes('\\') ||
+      relativePath.split('/').some((part) => !part || part === '.' || part === '..') ||
+      !relativePath.toLowerCase().endsWith('.png')
+    )
+      fail('PNG 文件路径无效。', 400, 'UNSAFE_PATH');
+    const file = this.safeProjectFile(relativePath);
+    const bytes = fs.readFileSync(file);
+    let dimensions: ReturnType<typeof readImageDimensions>;
+    try {
+      dimensions = readImageDimensions(file);
+    } catch {
+      dimensions = undefined;
+    }
+    if (
+      bytes.length < 8 ||
+      bytes.length > maxBytes ||
+      !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
+      !dimensions
+    )
+      fail('PNG 文件类型、大小或尺寸无效。', 400, 'INVALID_IMAGE');
+    return bytes;
+  }
+
   private safeProjectFile(relativePath: string): string {
     const target = path.join(this.root, relativePath);
     if (!fs.existsSync(target) || fs.lstatSync(target).isSymbolicLink()) {

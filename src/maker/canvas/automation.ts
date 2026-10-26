@@ -127,7 +127,7 @@ export function canvasAutomationCapabilities() {
       'preview-image-assets': {
         id: 'image-assets card ID; read-only preview, no final files',
         grid: 'optional object: columns/rows positive integers (at most 120 cells); marginX/marginY/gapX/gapY nonnegative integer pixels; omitted fields use saved/default grid',
-        cut: 'optional object: mode=grid/content; content detects transparent separators without AI. expectedCount=0..120 (0 unrestricted); regions optionally provides source-pixel rectangles {name:item_001...,x,y,width,height} for manual corrections. Rectangles must not overlap. Native Bbox atlases require mode=grid and the complete original slot order, names and sizes; only x/y may change. Confirmed crops are reused only for an unchanged source. Missing content reports slot/element IDs: repair the affected separation card, never substitute the unseparated prelayout. Always inspect the actual preview before confirmation.',
+        cut: 'optional object: mode=grid/content; content detects transparent separators without AI. expectedCount=0..120 (0 unrestricted); regions optionally provides source-pixel rectangles {name:item_001...,x,y,width,height} for manual corrections; manualNative=true preserves manually edited native UI crops and bypasses automatic slot alignment. Rectangles must not overlap. Native Bbox atlases require mode=grid and the complete original slot order, names and sizes; only x/y may change. Confirmed crops are reused only for an unchanged source. Missing content reports slot/element IDs: repair the affected separation card, never substitute the unseparated prelayout. Always inspect the actual preview before confirmation.',
       },
       'confirm-image-assets': {
         id: 'image-assets card ID',

@@ -109,6 +109,9 @@ export function createImageAssetsUiWithHost(options: {
         ),
         expectedCount: layout.regions.length,
         allowEmpty: true,
+        ...(target?.imageAssetsInfo?.manualNative && canReuseSettings(source, target)
+          ? { manualNative: true }
+          : {}),
       };
     const allowEmpty = Boolean(
       source.generation?.uiAtlasPlan || (source.uiAtlasGroup && source.uiBaselineGrid)
@@ -127,6 +130,9 @@ export function createImageAssetsUiWithHost(options: {
           mode: target.imageAssetsInfo.cutMode || 'content',
           regions: structuredClone(target.imageAssetsInfo.regions),
           expectedCount: target.imageAssetsInfo.regions.length,
+          ...(target.imageAssetsInfo.manualNative && canReuseSettings(source, target)
+            ? { manualNative: true }
+            : {}),
           ...(allowEmpty ? { allowEmpty } : {}),
         }
       : allowEmpty
@@ -199,9 +205,11 @@ export function createImageAssetsUiWithHost(options: {
       (!cutInput ||
         typeof cutInput !== 'object' ||
         Array.isArray(cutInput) ||
-        Object.keys(cutInput).some((key) => !['mode', 'regions', 'expectedCount'].includes(key)))
+        Object.keys(cutInput).some(
+          (key) => !['mode', 'regions', 'expectedCount', 'manualNative'].includes(key)
+        ))
     )
-      throw new Error('cut 只接受 mode、regions、expectedCount。');
+      throw new Error('cut 只接受 mode、regions、expectedCount、manualNative。');
     if (
       cutInput &&
       (cutInput as ImageAtlasCutSettings).regions !== undefined &&
@@ -479,6 +487,7 @@ export function createImageAssetsUiWithHost(options: {
           grid: split.grid,
           ...(split.regions ? { regions: split.regions } : {}),
           cutMode: split.cutMode,
+          ...(split.manualNative ? { manualNative: true } : {}),
           background: split.background,
           ...(source.generation?.uiAtlasPlan
             ? { uiBindingReview: prepared ? ('confirmed' as const) : ('unreviewed' as const) }

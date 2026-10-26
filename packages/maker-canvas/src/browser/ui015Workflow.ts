@@ -40,7 +40,10 @@ export function createUi015Workflow(options: {
   /** Query or resume the card's original recognition request. */
   recognize(id: string, recover: boolean): Promise<boolean>;
   /** Query an unknown/failed image result; keep it if it arrived, else allow a resubmission. */
-  recoverImage(id: string, force?: boolean): Promise<'recovered' | 'released' | 'waiting'>;
+  recoverImage(
+    id: string,
+    force?: boolean
+  ): Promise<'recovered' | 'released' | 'waiting' | 'blocked'>;
   /** Query a card's pending recognition request (not image history); see recoverImage. */
   recoverRecognition(id: string, force?: boolean): Promise<'released' | 'waiting' | 'abandoned'>;
   chooseDesign(id: string): void;
@@ -52,6 +55,8 @@ export function createUi015Workflow(options: {
     view(groupId: string):
       | {
           phase: string;
+          message?: string;
+          stopping?: boolean;
           pauseReason?: string;
           failures?: Record<string, string>;
           /** Retries spent on a card in this run (queue and coordinator; one counter). */
@@ -458,9 +463,18 @@ export function createUi015Workflow(options: {
     }
   }
 
-  /** Queue settlement hook: continue groups that advance() is driving to the end. */
-  function settled(groupId: string) {
-    if (autoRuns.has(groupId)) setTimeout(() => void finishRun(groupId), 0);
+  /** Queue settlement hook: continue only runs that reached a retryable completion. */
+  function settled(groupId: string, phase: 'paused' | 'complete' = 'complete') {
+    if (!autoRuns.has(groupId)) return;
+    const queue = options.queue.view(groupId);
+    // A manual stop, card deletion, or failed save is a deliberate pause. Task failures keep
+    // the coordinator alive so it can query/recover before deciding whether to retry.
+    if (phase === 'paused' && (queue?.stopping || queue?.message?.includes('保存失败'))) {
+      autoRuns.delete(groupId);
+      outcomes.delete(groupId);
+      return;
+    }
+    setTimeout(() => void finishRun(groupId), 0);
   }
   /**
    * After the queue: retry failed or unknown steps (an image result is queried first and only
@@ -518,6 +532,12 @@ export function createUi015Workflow(options: {
           run.waits++;
           options.log('015 · 「' + node.title + '」原任务仍在执行，30 秒后再查询', 'info');
           setTimeout(() => void finishRun(groupId), 30000);
+          return;
+        }
+        if (result === 'blocked') {
+          autoRuns.delete(groupId);
+          options.log('015 · 原图片已生成但本地导入仍失败，停止自动流程以避免重复付费', 'error');
+          finalResult(groupId, await assemble(groupId, false, true, run.cli));
           return;
         }
         const count = options.queue.spendRetry(groupId, id);

@@ -128,22 +128,76 @@ export class UiDeliveryService {
   /** Cross-process lock: the canvas page and a CLI call cannot assemble the same bundle twice. */
   private lock(canvasId: string, nodeId: string): () => void {
     const file = this.projectPath(INDEX_ROOT + '/' + canvasId + '_' + nodeId + '.lock');
+    const recovery = file + '.recovery';
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    for (let attempt = 0; attempt < 2; attempt++) {
+    const token = randomUUID();
+    const owner = (target: string): { pid: number; token?: string } | undefined => {
+      if (!fs.existsSync(target)) return undefined;
       try {
-        fs.writeFileSync(file, String(process.pid), { flag: 'wx' });
-        return () => fs.rmSync(file, { force: true });
+        const value = JSON.parse(fs.readFileSync(target, 'utf8')) as {
+          pid?: unknown;
+          token?: unknown;
+        };
+        return {
+          pid: typeof value.pid === 'number' ? value.pid : Number(value.pid),
+          ...(typeof value.token === 'string' ? { token: value.token } : {}),
+        };
+      } catch {
+        const pid = Number(fs.readFileSync(target, 'utf8'));
+        return Number.isInteger(pid) ? { pid } : undefined;
+      }
+    };
+    const alive = (pid: number) => {
+      if (!Number.isInteger(pid) || pid <= 0) return false;
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch (error) {
+        return (error as NodeJS.ErrnoException).code === 'EPERM';
+      }
+    };
+    const release = (target: string, expected: { pid: number; token: string }) => {
+      const current = fs.existsSync(target) ? owner(target) : undefined;
+      if (current?.pid === expected.pid && current.token === expected.token)
+        fs.rmSync(target, { force: true });
+    };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        fs.writeFileSync(file, JSON.stringify({ pid: process.pid, token }), { flag: 'wx' });
+        return () => release(file, { pid: process.pid, token });
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-        const owner = Number(fs.readFileSync(file, 'utf8'));
-        let alive = false;
+        const current = owner(file);
+        if (current && alive(current.pid))
+          fail('此资源包正在组装 UI，请等待当前操作完成。', 409, 'ASSEMBLY_BUSY');
+        const recoveryToken = randomUUID();
         try {
-          alive = Number.isInteger(owner) && owner > 0 && process.kill(owner, 0);
-        } catch {
-          alive = false;
+          fs.writeFileSync(recovery, JSON.stringify({ pid: process.pid, token: recoveryToken }), {
+            flag: 'wx',
+          });
+        } catch (guardError) {
+          if ((guardError as NodeJS.ErrnoException).code !== 'EEXIST') throw guardError;
+          const guardOwner = owner(recovery);
+          if (guardOwner && alive(guardOwner.pid))
+            fail('此资源包正在组装 UI，请稍后重试。', 409, 'ASSEMBLY_BUSY');
+          release(recovery, { pid: guardOwner?.pid || 0, token: guardOwner?.token || '' });
+          continue;
         }
-        if (alive) fail('此资源包正在组装 UI，请等待当前操作完成。', 409, 'ASSEMBLY_BUSY');
-        fs.rmSync(file, { force: true });
+        try {
+          // Re-read while holding the recovery mutex. A different owner may have won the race.
+          const locked = owner(file);
+          if (locked && alive(locked.pid))
+            fail('此资源包正在组装 UI，请等待当前操作完成。', 409, 'ASSEMBLY_BUSY');
+          if (
+            locked?.pid !== current?.pid ||
+            locked?.token !== current?.token ||
+            (locked?.token === undefined && current?.token !== undefined)
+          )
+            continue;
+          fs.rmSync(file, { force: true });
+        } finally {
+          release(recovery, { pid: process.pid, token: recoveryToken });
+        }
       }
     }
     fail('此资源包正在组装 UI，请稍后重试。', 409, 'ASSEMBLY_BUSY');

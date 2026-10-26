@@ -26,6 +26,7 @@ export interface PreparedImageAtlas {
   grid: ImageAtlasGrid;
   mode: 'grid' | 'content';
   regions: ImageAtlasCrop[];
+  manualNative?: boolean;
   /**
    * Native slot matching failed, so the planned slot crops are used as they are (the same
    * boxes as before alignment existed). Export continues; the batch is flagged for review.
@@ -45,6 +46,7 @@ export async function prepareImageAtlas(
   /** User-edited native crops use the original pixels; automatic matching must not veto them. */
   manualNative = false
 ): Promise<PreparedImageAtlas> {
+  manualNative = manualNative || cut.manualNative === true;
   if (!source.size || source.size > 128 * 1024 * 1024) throw new Error('图片为空或超过 128 MiB。');
   if (cut.mode && !['grid', 'content'].includes(cut.mode)) throw new Error('切图模式无效。');
   if (
@@ -250,6 +252,7 @@ export async function prepareImageAtlas(
       grid: { ...grid },
       mode: cut.mode || 'grid',
       regions: validateAtlasCrops(bitmap.width, bitmap.height, regions),
+      ...(manualNative ? { manualNative: true } : {}),
       ...(alignmentWarning ? { alignmentWarning } : {}),
       background: { color: backgroundColor && [...backgroundColor], mode: backgroundMode },
       canvas,
@@ -314,6 +317,7 @@ export async function encodeImageAtlasRegions(prepared: PreparedImageAtlas) {
     grid: { ...prepared.grid },
     regions,
     cutMode: prepared.mode,
+    ...(prepared.manualNative ? { manualNative: true } : {}),
     background: structuredClone(prepared.background),
     items,
     ...(prepared.alignmentWarning ? { alignmentWarning: prepared.alignmentWarning } : {}),
@@ -340,7 +344,9 @@ export async function createImageAtlasExport(
       grid,
       settings.backgroundColor,
       settings.backgroundMode,
-      settings
+      settings,
+      undefined,
+      settings.manualNative
     ));
   const entries = [
     {
