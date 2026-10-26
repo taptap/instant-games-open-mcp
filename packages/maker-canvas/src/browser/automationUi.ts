@@ -79,6 +79,8 @@ export function createCanvasAutomationUiWithHost(options: {
     inspect(groupId: string): { stage: string; message: string } | undefined;
     /** True while one start is still driving the group (queue, retries or assembly). */
     active?(groupId: string): boolean;
+    /** Final result of the run once it has finished. */
+    outcome?(groupId: string): { status: string; stage: string; message: string } | undefined;
   };
 }) {
   let editing = false;
@@ -328,9 +330,17 @@ export function createCanvasAutomationUiWithHost(options: {
             }
             if (!(await options.save()))
               throw new Error('结果已留在页面，但保存失败。请手动保存，不要重复生成。');
+            // Report how the run ended (ready or failed), not the "started" of the first call.
+            const final =
+              advanced.status === 'started' ? options.ui015.outcome?.(target.id) : advanced;
+            if (final?.status === 'failed') throw new Error(final.message);
             return {
               ...snapshot(),
-              workflow: { ...advanced, current: options.ui015.inspect(target.id) },
+              workflow: {
+                ...advanced,
+                ...(final || {}),
+                current: options.ui015.inspect(target.id),
+              },
             };
           }
           if (syncUiBboxWorkflow(structuredClone(current), target.id, false).length)

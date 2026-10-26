@@ -141,7 +141,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   canStopWaiting(nodeId: string): boolean;
   stopWaiting(nodeId: string): void;
   hasUnsettledResult(nodeId: string): boolean;
-  recoverForRetry(nodeId: string): Promise<'recovered' | 'released'>;
+  recoverForRetry(nodeId: string, force?: boolean): Promise<'recovered' | 'released' | 'waiting'>;
   nodeState(nodeId: string): { status: string; canQuery: boolean } | undefined;
   queueBlockReason(nodeId: string): string | undefined;
   failure(nodeId: string): string | undefined;
@@ -2784,10 +2784,15 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     },
     /**
      * Automatic recovery for an unattended run: query the card's original task first and keep
-     * a result that did arrive. Otherwise abandon its unconfirmed or failed attempts so the
-     * next run of the card submits again. Nothing is submitted here.
+     * a result that did arrive. A task the server still reports as pending/running is left
+     * alone ('waiting') unless force is set, so it cannot be charged twice. Otherwise abandon
+     * its unknown or failed attempts so the next run of the card submits again. Nothing is
+     * submitted here.
      */
-    async recoverForRetry(nodeId: string): Promise<'recovered' | 'released'> {
+    async recoverForRetry(
+      nodeId: string,
+      force = false
+    ): Promise<'recovered' | 'released' | 'waiting'> {
       const documentState = options.getDocument();
       if (!documentState) return 'released';
       const list = await options.store.listGeneration(documentState.id);
@@ -2800,6 +2805,12 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         options.render();
         return 'recovered';
       }
+      const live = (attempt: any) =>
+        attempt.canvasId === documentState.id &&
+        attempt.targetNodeId === nodeId &&
+        !abandonedAttempts.has(attempt.id) &&
+        ['pending', 'running'].includes(attempt.status);
+      if (!force && [...attempts.values()].some(live)) return 'waiting';
       for (const attempt of attempts.values())
         if (
           attempt.canvasId === documentState.id &&

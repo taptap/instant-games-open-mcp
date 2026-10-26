@@ -40,14 +40,20 @@ export function createUi015Workflow(options: {
   /** Query or resume the card's original recognition request. */
   recognize(id: string, recover: boolean): Promise<boolean>;
   /** Query an unknown/failed image result; keep it if it arrived, else allow a resubmission. */
-  recoverImage(id: string): Promise<'recovered' | 'released'>;
+  recoverImage(id: string, force?: boolean): Promise<'recovered' | 'released' | 'waiting'>;
   chooseDesign(id: string): void;
   sync(document: CanvasDocument, groupId: string, artText: string[], background: boolean): string[];
   queue: {
     start(groupId: string, confirmed: boolean): boolean;
-    view(
-      groupId: string
-    ): { phase: string; pauseReason?: string; failures?: Record<string, string> } | undefined;
+    view(groupId: string):
+      | {
+          phase: string;
+          pauseReason?: string;
+          failures?: Record<string, string>;
+          /** Regenerations the queue itself already spent on a card in this run. */
+          retries?: Record<string, number>;
+        }
+      | undefined;
     remaining(groupId: string): number;
   };
   openAssets(id: string): unknown;
@@ -79,7 +85,11 @@ export function createUi015Workflow(options: {
   let running = '';
   const deliveries = new Map<string, { key: string; value?: CanvasUiDeliveryStatus }>();
   /** Groups being driven to the end by one start; the queue settlement continues them. */
-  const autoRuns = new Map<string, { retries: Record<string, number> }>();
+  const autoRuns = new Map<string, { retries: Record<string, number>; waits: number }>();
+  /** Final outcome of the last automatic run per group, read by the CLI after waiting. */
+  const outcomes = new Map<string, Ui015Result>();
+  /** Server-side running tasks are re-checked every 30 s for at most this many checks. */
+  const MAX_WAITS = 20;
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   function isWorkflowGroup(group: CanvasNode | undefined): boolean {
@@ -280,6 +290,7 @@ export function createUi015Workflow(options: {
    * failed image is queried first and only resubmitted when no result arrived.
    */
   async function prepare(groupId: string) {
+    let waits = 0;
     for (let round = 0; ; round++) {
       const found = cards(options.current()!, groupId);
       if (!found) throw new Error('015 分组结构已变化，请检查连线。');
@@ -293,9 +304,16 @@ export function createUi015Workflow(options: {
           '015 · 识图准备未完成，第 ' + (round + 1) + ' 次自动重试：' + message.slice(0, 160),
           'warning'
         );
+        let pending = false;
         for (const id of [found.input.id, found.cut.id])
-          if (options.problem?.(id)) await options.recoverImage(id);
-        await wait(3000);
+          if (options.problem?.(id))
+            pending ||= (await options.recoverImage(id, waits >= MAX_WAITS)) === 'waiting';
+        if (pending) {
+          // The original task is still running on the server: wait without spending a retry.
+          waits++;
+          round--;
+          await wait(30000);
+        } else await wait(3000);
       }
     }
   }
@@ -394,8 +412,9 @@ export function createUi015Workflow(options: {
       // Re-planning also picks up batches added by a new recognition result.
       await applyChoice(document, groupId, choice);
       view = inspect(groupId)!;
+      outcomes.delete(groupId);
       if (view.stage === 'generation') {
-        autoRuns.set(groupId, autoRuns.get(groupId) || { retries: {} });
+        autoRuns.set(groupId, autoRuns.get(groupId) || { retries: {}, waits: 0 });
         options.log('015 · 自动执行预排、分离生图与切图（付费步骤记录在运行日志）');
         if (!options.queue.start(groupId, true)) {
           autoRuns.delete(groupId);
@@ -405,13 +424,7 @@ export function createUi015Workflow(options: {
       }
       if (view.stage === 'assemble') {
         running = '';
-        const status = await assemble(groupId, false, true);
-        return {
-          status: status?.delivery ? 'ready' : 'failed',
-          stage: 'assemble',
-          message: status?.delivery ? 'UI 已生成：' + status.delivery.uiFile : '组装未完成',
-          choice,
-        };
+        return finalResult(groupId, await assemble(groupId, false, true), choice);
       }
       return { status: 'ready', stage: view.stage, message: view.message, choice };
     } catch (error) {
@@ -434,6 +447,27 @@ export function createUi015Workflow(options: {
    * resubmitted when none arrived; at most RETRIES times per card), then assemble whatever
    * exists. Anything still missing is recorded in the delivery and the review prompt.
    */
+  function finalResult(
+    groupId: string,
+    status: CanvasUiDeliveryStatus | undefined,
+    choice?: Ui015Choice
+  ): Ui015Result {
+    const result: Ui015Result = status?.delivery
+      ? {
+          status: 'ready',
+          stage: 'assemble',
+          message: 'UI 已生成：' + status.delivery.uiFile,
+          ...(choice ? { choice } : {}),
+        }
+      : {
+          status: 'failed',
+          stage: 'assemble',
+          message: options.failure?.() || status?.reason || '组装未完成',
+          ...(choice ? { choice } : {}),
+        };
+    outcomes.set(groupId, result);
+    return result;
+  }
   async function finishRun(groupId: string) {
     const run = autoRuns.get(groupId);
     const document_ = options.current();
@@ -447,14 +481,26 @@ export function createUi015Workflow(options: {
     }
     const queue = options.queue.view(groupId);
     if (queue && executingPhases.includes(queue.phase)) return;
+    // One budget per card: regenerations the queue already made count against RETRIES too.
+    const spent = (id: string) => (run.retries[id] || 0) + (queue?.retries?.[id] || 0);
     const failed = Object.keys(queue?.failures || {}).filter(
-      (id) => (run.retries[id] || 0) < RETRIES && document_.nodes.some((node) => node.id === id)
+      (id) => spent(id) < RETRIES && document_.nodes.some((node) => node.id === id)
     );
     if (failed.length) {
       for (const id of failed) {
-        run.retries[id] = (run.retries[id] || 0) + 1;
         const node = document_.nodes.find((item) => item.id === id)!;
-        const result = node.type === 'image' ? await options.recoverImage(id) : 'released';
+        const result =
+          node.type === 'image'
+            ? await options.recoverImage(id, run.waits >= MAX_WAITS)
+            : 'released';
+        if (result === 'waiting') {
+          // The original task is still running on the server: wait, never submit twice.
+          run.waits++;
+          options.log('015 · 「' + node.title + '」原任务仍在执行，30 秒后再查询', 'info');
+          setTimeout(() => void finishRun(groupId), 30000);
+          return;
+        }
+        run.retries[id] = (run.retries[id] || 0) + 1;
         options.log(
           '015 · 「' +
             node.title +
@@ -473,7 +519,7 @@ export function createUi015Workflow(options: {
         '015 · 部分步骤重试后仍未完成，按已有素材组装 UI，缺失项写入复核提示词',
         'warning'
       );
-    await assemble(groupId, false, true);
+    finalResult(groupId, await assemble(groupId, false, true));
   }
 
   function element<K extends keyof HTMLElementTagNameMap>(
@@ -909,6 +955,10 @@ export function createUi015Workflow(options: {
     settled,
     isActive(groupId: string) {
       return autoRuns.has(groupId) || running === groupId;
+    },
+    /** Outcome of the last automatic run, once it has finished (ready or failed). */
+    outcome(groupId: string): Ui015Result | undefined {
+      return outcomes.get(groupId);
     },
     openChoice,
     get isBusy() {
