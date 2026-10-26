@@ -2268,7 +2268,6 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    recoverRecognition: function (id, force) { return uiRecognitionUi.recoverForRetry(id, force); },',
       '    chooseDesign: requestImageImport, sync: syncUiBboxWorkflow,',
       '    queue: { start: function (id, confirmed) { return groupQueue.start(id, confirmed); }, spendRetry: function (id, nodeId) { return groupQueue.spendRetry(id, nodeId); }, view: function (id) { return groupQueue.view(id); }, remaining: function (id) { return groupQueue.remaining(id); } },',
-      '    openAssets: function (id) { return imageAssetsUi.run(id); },',
       '    focus: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + (node.height || 200) / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; render(); },',
       '    log: function (message, level) { canvasLogs.add(message, level || "info"); }, failure: function () { return error.textContent; },',
       '    remember: remember, save: flush, changed: markDirty, render: render, error: setError, blocked: peerBlock',

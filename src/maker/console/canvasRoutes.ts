@@ -117,17 +117,21 @@ export async function handleCanvasProjectRoute(options: {
         ) as {
           nodeId?: unknown;
           newVersion?: unknown;
+          source?: unknown;
           designPng?: unknown;
         };
         if (typeof body.nodeId !== 'string') throw new ConsoleError('缺少资源包卡片标识。');
         if (body.newVersion !== undefined && typeof body.newVersion !== 'boolean')
           throw new ConsoleError('newVersion 必须是布尔值。');
+        if (body.source !== undefined && body.source !== 'cli' && body.source !== 'canvas')
+          throw new ConsoleError('source 只能是 cli 或 canvas。');
         const designPng = designPngBytes(body.designPng);
         send(
           response,
           200,
           await service.assemble(delivery[1], body.nodeId, {
             newVersion: body.newVersion === true,
+            source: body.source === 'cli' ? 'cli' : 'canvas',
             ...(designPng ? { designPng } : {}),
           })
         );

@@ -57,7 +57,9 @@ export interface CanvasDocumentStore {
     nodeId: string,
     newVersion?: boolean,
     /** Base64 PNG of a JPEG/WebP design, sent inline for the editor reference only. */
-    designPng?: string
+    designPng?: string,
+    /** 'cli' when a CLI run drives this assembly; recorded on the delivery. */
+    source?: 'canvas' | 'cli'
   ): Promise<CanvasUiDeliveryStatus>;
   /** Prepare the shared Maker Python environment needed by resource meta generation. */
   setupPython?(): Promise<{ ready: boolean; message?: string }>;

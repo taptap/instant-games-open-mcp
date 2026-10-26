@@ -15,7 +15,8 @@
 //   colours    running yellow, failed red, done green
 //   peer page  a second page on the same canvas is read-only, says so, and does not pause the run
 //   freeze     the page never blocks its main thread for 5 s or more (CLI and clicks stall)
-//   final      the run reaches 「5 UI 已生成」, counts still match, page has no script errors
+//   final      the run reaches 「5 UI 已生成」, counts match, exactly the two final buttons, each
+//              works when clicked with the select and the hand tool, no script errors
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -516,6 +517,43 @@ try {
         '完成后计数 ' + shown.done.join('/') + '，实际 ' + real.done + '/' + real.total
       );
     fs.writeFileSync(path.join(out, 'final.json'), JSON.stringify({ shown, real }, null, 2));
+    // Final buttons must work, not only be visible: click like a user with each tool.
+    const expected = ['打开 UI 编辑器', 'AI 复核修复提示词'];
+    const labels = shown.buttons.map((button) => button.label);
+    if (JSON.stringify(labels) !== JSON.stringify(expected))
+      await fail(
+        page,
+        'final',
+        '最后一步按钮为 ' + JSON.stringify(labels) + '，应为 ' + JSON.stringify(expected)
+      );
+    const finalBar = page.locator('.card[data-id="' + groupId + '"] .group-queue');
+    for (const tool of ['tool-select', 'tool-pan']) {
+      await page.locator('#' + tool).click();
+      for (const label of labels) {
+        const popup = page
+          .context()
+          .waitForEvent('page', { timeout: 3000 })
+          .catch(() => null);
+        const box = await finalBar.locator('button', { hasText: label }).first().boundingBox();
+        if (!box) {
+          await fail(page, 'final', '按钮不在可视区域：' + label);
+          continue;
+        }
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await page.waitForTimeout(120);
+        await page.mouse.up();
+        const opened = await popup;
+        const dialog = await page.evaluate(() => document.querySelectorAll('dialog[open]').length);
+        if (!opened && !dialog)
+          await fail(page, 'final', tool + ' 下点击「' + label + '」没有反应');
+        if (opened) await opened.close();
+        await page.evaluate(() =>
+          document.querySelectorAll('dialog[open]').forEach((item) => item.close())
+        );
+      }
+    }
+    await page.locator('#tool-select').click();
   }
   if (errors.length) await fail(page, 'page errors', errors.join('; ').slice(0, 400));
 } catch (error) {

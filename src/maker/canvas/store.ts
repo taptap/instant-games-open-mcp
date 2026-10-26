@@ -84,7 +84,7 @@ export function createBrowserCanvasDocumentStore(
         '/canvases/' + canvasId + '/ui-delivery?nodeId=' + encodeURIComponent(nodeId),
         { signal: AbortSignal.timeout(120000) }
       ),
-    assembleUi: (canvasId, nodeId, newVersion?: boolean, designPng?: string) =>
+    assembleUi: (canvasId, nodeId, newVersion?: boolean, designPng?: string, source?: string) =>
       request<CanvasUiDeliveryStatus>('/canvases/' + canvasId + '/ui-delivery', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -92,6 +92,7 @@ export function createBrowserCanvasDocumentStore(
           nodeId,
           ...(newVersion ? { newVersion: true } : {}),
           ...(designPng ? { designPng } : {}),
+          ...(source === 'cli' ? { source } : {}),
         }),
         signal: AbortSignal.timeout(10 * 60 * 1000),
       }),

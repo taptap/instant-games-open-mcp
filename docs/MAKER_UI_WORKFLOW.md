@@ -397,8 +397,10 @@ CLI `canvas run` 调用同一个协调器，一次跑完，不在中途停下等
 3. 预排、分离生图与切图作为一个队列执行，沿用现有并发；
 4. 队列结束后自动组装：控制台从已保存画布的同一版本 resources 归档导入 `assets/ui/<ui>/<版本>/`，
    组装 `ui/assembled.ui.json`，生成资源 meta（Python 未就绪时自动准备一次），执行引用检查；
-5. 最后一步显示「打开 UI 编辑器」和「AI 复核修复提示词」，提示词列出全部待处理项和修复步骤，
-   交给 AI 按 maker-ui-bbox-workflow Skill 复核修复。
+5. 最后一步只显示「打开 UI 编辑器」和「AI 复核修复提示词」，提示词列出全部待处理项和修复步骤，
+   交给 AI 按 maker-ui-bbox-workflow Skill 复核修复。交付记录 `source` 为 `cli`（CLI `run` 驱动或
+   `assemble-ui` 处理过的版本）时已由 AI 处理，不再显示「AI 复核修复提示词」，状态行写「剩余：」。
+   两个按钮在鼠标和拖拽工具下都可点击；拖拽工具只在画布空白处平移。
 
 不中断的规则（每步最多自动重试 2 次，均写入运行日志）：
 
@@ -426,7 +428,7 @@ CLI `canvas run` 调用同一个协调器，一次跑完，不在中途停下等
 原稿非 PNG 时，画布在组装时同样以内联 `designPng` 发送 PNG 像素
 （CLI 用 `--design-png` 指定项目内同尺寸 PNG），服务端校验尺寸后写入交付目录的
 `source/design.png`；缺少时返回 `NON_PNG_SOURCE`。
-逐批预览确认仍可在最后一步「逐批复核切图」中手动进行，或由 AI 用 preview/confirm-image-assets 完成；
+逐批预览确认由 AI 用 preview/confirm-image-assets 完成（画布上也可在资源卡上手动预览）；
 确认后 `assemble-ui --new-version` 生成新版本。
 
 分组布局沿用 Web 版：第一行为原稿、识图输入和去文字卡，其后每行三组「预排 + 分离」，

@@ -180,7 +180,8 @@ export function createCanvasMarks(options: {
   function onPanDown(event: PointerEvent) {
     if (mode !== 'pan' || event.button !== 0 || !options.beginPan) return;
     const target = event.target as Element | null;
-    if (target?.closest('dialog')) return;
+    // Controls keep working with the hand tool: panning starts only on the canvas surface.
+    if (target?.closest('dialog, button, input, textarea, select, a, label, .group-queue')) return;
     if (!options.document()) return;
     event.preventDefault();
     event.stopImmediatePropagation();

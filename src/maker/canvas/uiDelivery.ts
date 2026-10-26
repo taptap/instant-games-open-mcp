@@ -420,7 +420,13 @@ export class UiDeliveryService {
   async assemble(
     canvasId: string,
     nodeId: string,
-    options: { newVersion?: boolean; designPng?: Buffer; signal?: AbortSignal } = {}
+    options: {
+      newVersion?: boolean;
+      designPng?: Buffer;
+      signal?: AbortSignal;
+      /** Who drives this assembly; a CLI touch marks the version as AI-processed. */
+      source?: 'canvas' | 'cli';
+    } = {}
   ): Promise<CanvasUiDeliveryStatus> {
     const document = await this.document(canvasId, nodeId);
     const release = this.lock(canvasId, nodeId);
@@ -462,6 +468,7 @@ export class UiDeliveryService {
           createdAt: new Date().toISOString(),
           elements: summary.elements,
           steps: { assembled: true, meta: 'pending', check: 'pending' },
+          source: options.source || 'canvas',
           review: {
             unreviewed: manifest.bindings
               .filter((item) => item.review === 'unreviewed')
@@ -471,6 +478,9 @@ export class UiDeliveryService {
           },
         };
         index.deliveries.push(delivery);
+        this.writeIndex(index);
+      } else if (options.source === 'cli' && delivery.source !== 'cli') {
+        delivery.source = 'cli';
         this.writeIndex(index);
       }
       if (!complete) {

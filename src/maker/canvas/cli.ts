@@ -73,6 +73,7 @@ export async function runCanvasCli(
         ? await service.status(options.canvas_id, options.id)
         : await service.assemble(options.canvas_id, options.id, {
             newVersion: options.new_version === true || options.new_version === 'true',
+            source: 'cli',
             ...(designPng ? { designPng } : {}),
           })
     );

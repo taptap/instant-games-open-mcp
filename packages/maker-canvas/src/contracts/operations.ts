@@ -191,6 +191,11 @@ export interface CanvasUiDelivery {
    * Empty lists mean nothing is pending; the review prompt hands the rest to an AI.
    */
   review?: { unreviewed: string[]; missing: string[]; unbound: string[] };
+  /**
+   * Who drove this version: the canvas button ('canvas'), or the CLI ('cli': a CLI run or
+   * assemble-ui, i.e. an AI following the Skill). A CLI version needs no AI hand-off prompt.
+   */
+  source?: 'canvas' | 'cli';
 }
 
 export interface CanvasUiDeliveryStatus {

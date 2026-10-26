@@ -60,7 +60,6 @@ export function createUi015Workflow(options: {
       | undefined;
     remaining(groupId: string): number;
   };
-  openAssets(id: string): unknown;
   focus(id: string): void;
   remember(): void;
   save(): Promise<boolean>;
@@ -77,7 +76,8 @@ export function createUi015Workflow(options: {
       canvasId: string,
       nodeId: string,
       newVersion?: boolean,
-      designPng?: string
+      designPng?: string,
+      source?: 'canvas' | 'cli'
     ): Promise<CanvasUiDeliveryStatus>;
     setupPython?(): Promise<{ ready: boolean; message?: string }>;
     uiEditorUrl?(file: string): string;
@@ -91,7 +91,7 @@ export function createUi015Workflow(options: {
   let running = '';
   const deliveries = new Map<string, { key: string; value?: CanvasUiDeliveryStatus }>();
   /** Groups being driven to the end by one start; the queue settlement continues them. */
-  const autoRuns = new Map<string, { waits: number }>();
+  const autoRuns = new Map<string, { waits: number; cli?: boolean }>();
   /** Final outcome of the last automatic run per group, read by the CLI after waiting. */
   const outcomes = new Map<string, Ui015Result>();
   /** Server-side running tasks are re-checked every 30 s for at most this many checks. */
@@ -392,7 +392,8 @@ export function createUi015Workflow(options: {
    */
   async function advance(
     groupId: string,
-    input: Partial<Ui015Choice> & { interactive?: boolean } = {}
+    /** cli: the run comes from the CLI (an AI following the Skill), recorded on the delivery. */
+    input: Partial<Ui015Choice> & { interactive?: boolean; cli?: boolean } = {}
   ): Promise<Ui015Result> {
     if (running) return { status: 'busy', stage: 'running', message: '015 流程正在处理中' };
     const blocked = options.blocked?.();
@@ -433,7 +434,7 @@ export function createUi015Workflow(options: {
       view = inspect(groupId)!;
       outcomes.delete(groupId);
       if (view.stage === 'generation') {
-        autoRuns.set(groupId, autoRuns.get(groupId) || { waits: 0 });
+        autoRuns.set(groupId, { waits: 0, ...autoRuns.get(groupId), cli: input.cli === true });
         options.log('015 · 自动执行预排、分离生图与切图（付费步骤记录在运行日志）');
         if (!options.queue.start(groupId, true)) {
           autoRuns.delete(groupId);
@@ -443,7 +444,7 @@ export function createUi015Workflow(options: {
       }
       if (view.stage === 'assemble') {
         running = '';
-        return finalResult(groupId, await assemble(groupId, false, true), choice);
+        return finalResult(groupId, await assemble(groupId, false, true, input.cli), choice);
       }
       return { status: 'ready', stage: view.stage, message: view.message, choice };
     } catch (error) {
@@ -538,7 +539,7 @@ export function createUi015Workflow(options: {
         '015 · 部分步骤重试后仍未完成，按已有素材组装 UI，缺失项写入复核提示词',
         'warning'
       );
-    finalResult(groupId, await assemble(groupId, false, true));
+    finalResult(groupId, await assemble(groupId, false, true, run.cli));
   }
 
   function element<K extends keyof HTMLElementTagNameMap>(
@@ -723,7 +724,8 @@ export function createUi015Workflow(options: {
   async function assemble(
     groupId: string,
     newVersion = false,
-    auto = false
+    auto = false,
+    cli = false
   ): Promise<CanvasUiDeliveryStatus | undefined> {
     const document_ = options.current();
     const found = document_ && cards(document_, groupId);
@@ -742,7 +744,14 @@ export function createUi015Workflow(options: {
       const designPath = selectedUiRecognition(found.cut)?.bbox?.design.path;
       const designPng = designPath ? await designPngData(options.store, designPath) : undefined;
       options.log('015 · 组装 UI：导入素材、组装、生成资源 meta 并检查引用');
-      let status = await options.store.assembleUi(document_.id, bundle.id, newVersion, designPng);
+      const source = cli ? 'cli' : 'canvas';
+      let status = await options.store.assembleUi(
+        document_.id,
+        bundle.id,
+        newVersion,
+        designPng,
+        source
+      );
       if (
         auto &&
         status.delivery?.steps.meta === 'blocked' &&
@@ -752,7 +761,13 @@ export function createUi015Workflow(options: {
         options.log('015 · 资源 meta 需要 Python，正在自动准备环境（首次会下载运行时）');
         const python = await options.store.setupPython();
         if (python.ready)
-          status = await options.store.assembleUi(document_.id, bundle.id, false, designPng);
+          status = await options.store.assembleUi(
+            document_.id,
+            bundle.id,
+            false,
+            designPng,
+            source
+          );
         else options.log('015 · Python 环境未就绪：' + (python.message || ''), 'warning');
       }
       deliveries.set(groupId, { key: deliveryKey(found.members), value: status });
@@ -776,25 +791,6 @@ export function createUi015Workflow(options: {
       running = '';
       options.render();
     }
-  }
-
-  async function setupPython(groupId: string) {
-    if (!options.store.setupPython || running) return;
-    running = groupId;
-    options.render();
-    try {
-      options.log('015 · 正在准备 Python 环境（会下载运行时，请稍候）');
-      const result = await options.store.setupPython();
-      if (!result.ready) throw new Error(result.message || 'Python 环境仍未就绪。');
-      options.log('015 · Python 环境已就绪，继续补齐资源 meta');
-    } catch (error) {
-      options.error(error instanceof Error ? error.message : String(error));
-      return;
-    } finally {
-      running = '';
-      options.render();
-    }
-    await assemble(groupId);
   }
 
   /** Header projection for the group queue UI; undefined for other groups. */
@@ -849,28 +845,13 @@ export function createUi015Workflow(options: {
       case 'assemble': {
         const status = 'status' in state ? state.status : undefined;
         const value = status?.delivery;
-        const pending = 'pending' in state ? state.pending || [] : [];
-        // Optional manual review of each cut batch; never required to finish.
-        if (pending.length)
-          extra.push({
-            label: '逐批复核切图（' + pending.length + '）',
-            run: () => {
-              options.focus(pending[0].id);
-              options.openAssets(pending[0].id);
-            },
-          });
         if (value?.steps.assembled) {
-          const actions = [
-            { label: 'AI 复核修复提示词', run: () => openDelivery(groupId, status!) },
-            ...extra,
-            { label: '重新组装新版本', run: () => assemble(groupId, true) },
-          ];
-          if (value.steps.meta !== 'done' || value.steps.check !== 'passed')
-            actions.unshift(
-              status?.python && !status.python.ready
-                ? { label: '准备 Python 环境', run: () => setupPython(groupId) }
-                : { label: '补齐 meta 与检查', run: () => assemble(groupId) }
-            );
+          // Two actions only: open the editor, and hand the review to an AI. A delivery the
+          // CLI produced already came from an AI following the Skill, so it has no hand-off.
+          const actions =
+            value.source === 'cli'
+              ? []
+              : [{ label: 'AI 复核修复提示词', run: () => openDelivery(groupId, status!) }];
           const review = value.review;
           const todo = review
             ? [
@@ -885,7 +866,9 @@ export function createUi015Workflow(options: {
             extra: actions,
             // One short line: what still needs attention first; the file path is in the editor.
             hint:
-              (todo.length ? '待 AI 复核：' + todo.join('、') : state.message) +
+              (todo.length
+                ? (value.source === 'cli' ? '剩余：' : '待 AI 复核：') + todo.join('、')
+                : state.message) +
               (value.issue ? '（' + value.issue + '）' : '') +
               ' · ' +
               value.uiFile,

@@ -74,7 +74,7 @@ export function createCanvasAutomationUiWithHost(options: {
     isWorkflowGroup(groupId: string): boolean;
     advance(
       groupId: string,
-      input?: { artText?: string[]; background?: boolean }
+      input?: { artText?: string[]; background?: boolean; cli?: boolean }
     ): Promise<{ status: string; stage: string; message: string; [key: string]: unknown }>;
     inspect(groupId: string): { stage: string; message: string } | undefined;
     /** True while one start is still driving the group (queue, retries or assembly). */
@@ -312,6 +312,7 @@ export function createCanvasAutomationUiWithHost(options: {
           if (options.ui015) {
             // Same coordinator as the canvas button: one run drives the group to the UI.
             const advanced = await options.ui015.advance(target.id, {
+              cli: true,
               ...(input.artText !== undefined ? { artText: input.artText as string[] } : {}),
               ...(input.background !== undefined
                 ? { background: input.background as boolean }
