@@ -9,12 +9,18 @@ export const GROUP_QUEUE_STYLES = [
   '.group-queue button:hover { background:#514029; } .group-queue button:focus-visible { outline:2px solid #e6b15c; outline-offset:2px; }',
   '.group-queue .group-queue-current { min-width:100px; max-width:30%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }',
   '.group-queue .group-queue-status { color:#b3a995; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }',
-  '.group-queue-tasks { flex:1; min-width:30px; display:flex; align-items:center; gap:6px; overflow-x:auto; scrollbar-width:thin; scrollbar-color:#655337 transparent; padding:2px; }',
-  '.group-queue .group-queue-task { max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-color:#514939; color:#cbc4b6; background:#302c25; cursor:grab; }',
+  '.group-queue-tasks { flex:1; min-width:30px; display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:2px; }',
+  '.group-queue .group-queue-task { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-color:#514939; color:#cbc4b6; background:#302c25; cursor:grab; }',
   '.group-queue-task[data-drop] { border-left:3px solid #ffce76; } .group-queue-count { font-variant-numeric:tabular-nums; color:#a99d86; white-space:nowrap; }',
   '.group-queue-spinner { flex:none; width:12px; height:12px; border:2px solid #715c35; border-top-color:#f0c273; border-radius:50%; animation:group-queue-spin 1s linear infinite; }',
   '.group-queue[data-phase=paused] { flex-wrap:wrap; align-items:flex-start; border-color:#886143; } .group-queue[data-confirming=true] { flex-wrap:wrap; border-color:#e6b15c; background:#3a2e1c; } .group-queue .group-queue-status.group-queue-detail { flex:1 0 100%; white-space:normal; overflow:visible; text-overflow:unset; color:#f0c273; line-height:1.45; } @keyframes group-queue-spin { to { transform:rotate(360deg); } }',
   '.group-queue[data-workflow=true] { flex-wrap:wrap; } .group-queue .group-queue-primary { border-color:#e6b15c; background:#5a4423; color:#ffe0a6; font-weight:600; } .group-queue button:disabled { opacity:.55; cursor:default; }',
+  // Progress colours: running yellow, done green, failed red (chips and the count text).
+  // ":root .card.section" outranks the card and light-theme overrides of the same elements.
+  '.group-queue .group-queue-chip { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }',
+  ':root .card.section .group-queue .group-queue-chip[data-state=running] { border-color:#a07a2c; background:#3a2f17; color:#f0c273; }',
+  ':root .card.section .group-queue .group-queue-task[data-state=failed] { border-color:#9a4040; background:#3a1f1f; color:#ff9b9b; }',
+  ':root .card.section .group-queue .group-queue-done { color:#4fc28b; } :root .card.section .group-queue .group-queue-running { color:#e0a83c; } :root .card.section .group-queue .group-queue-failed { color:#e46b6b; }',
   '@media(prefers-reduced-motion:reduce) { .group-queue-spinner { animation:none; } }',
 ].join('\n');
 
@@ -72,7 +78,6 @@ export function createCanvasGroupQueueUi(options: {
     return '总耗时 ' + formatCanvasWorkDuration(duration);
   }
   function paint(root: HTMLElement, groupId: string) {
-    const scroll = root.querySelector('.group-queue-tasks')?.scrollLeft || 0;
     root.replaceChildren();
     const state = options.queue.view(groupId);
     root.dataset.phase = state?.phase || 'idle';
@@ -104,15 +109,17 @@ export function createCanvasGroupQueueUi(options: {
       spinner.className = 'group-queue-spinner';
       spinner.setAttribute('aria-hidden', 'true');
       root.append(spinner);
-      for (const id of Object.keys(state.running)) {
-        const current = button(
-          stage(id) + ' · ' + title(id),
-          () => options.focus(id),
-          'group-queue-current'
-        );
-        current.title = title(id) + '（点击定位卡片）';
-        root.append(current);
-      }
+      // One stable label: parallel runs are listed as yellow chips in the task strip.
+      const ids = Object.keys(state.running);
+      const first = ids[0] || state.active;
+      const current = button(
+        workflowView?.stage ||
+          stage(first) + ' · ' + title(first) + (ids.length > 1 ? ' 等 ' + ids.length + ' 项' : ''),
+        () => options.focus(first),
+        'group-queue-current'
+      );
+      current.title = '进行中：' + ids.map(title).join('、') + '（点击定位第一项）';
+      root.append(current);
     } else if (workflowView && !active) {
       const stageLabel = document.createElement('span');
       stageLabel.className = 'group-queue-count';
@@ -181,7 +188,13 @@ export function createCanvasGroupQueueUi(options: {
     }
     const tasks = document.createElement('div');
     tasks.className = 'group-queue-tasks';
-    tasks.setAttribute('aria-label', '待执行任务，拖动调整顺序');
+    tasks.setAttribute('aria-label', '进行中与待执行任务，拖动待执行任务调整顺序');
+    for (const id of Object.keys(state?.running || {})) {
+      const chip = button(title(id), () => options.focus(id), 'group-queue-chip');
+      chip.dataset.state = 'running';
+      chip.title = '进行中：' + title(id) + '（点击定位卡片）';
+      tasks.append(chip);
+    }
     for (const id of state?.pending || []) {
       const failure = state?.failures?.[id];
       const blocked = options.queue.blockedBy(groupId, id);
@@ -191,6 +204,7 @@ export function createCanvasGroupQueueUi(options: {
         'group-queue-task'
       );
       item.dataset.nodeId = id;
+      if (failure) item.dataset.state = 'failed';
       item.draggable = true;
       item.title =
         failure ||
@@ -247,7 +261,11 @@ export function createCanvasGroupQueueUi(options: {
       dragged = undefined;
       if (source?.groupId === groupId) options.queue.move(groupId, source.nodeId);
     });
-    if (!state?.pending.length && !(workflowView && !state)) {
+    if (
+      !state?.pending.length &&
+      !Object.keys(state?.running || {}).length &&
+      !(workflowView && !state)
+    ) {
       const hint = document.createElement('span');
       hint.className = 'group-queue-status';
       hint.textContent = state
@@ -258,27 +276,30 @@ export function createCanvasGroupQueueUi(options: {
       tasks.append(hint);
     }
     root.append(tasks);
-    tasks.scrollLeft = scroll;
     if (state) {
       const count = document.createElement('span');
       count.className = 'group-queue-count';
       const inProgress = Object.keys(state.running).length;
       const failures = Object.keys(state.failures || {}).length;
-      count.textContent =
-        '已完成 ' +
-        state.completed +
-        '/' +
-        state.total +
-        ' · 进行中 ' +
-        inProgress +
-        ' · 失败 ' +
-        failures;
+      const part = (text: string, className: string) => {
+        const element = document.createElement('span');
+        element.className = className;
+        element.textContent = text;
+        return element;
+      };
+      count.append(
+        part('已完成 ' + state.completed + '/' + state.total, 'group-queue-done'),
+        ' · ',
+        part('进行中 ' + inProgress, 'group-queue-running'),
+        ' · ',
+        part('失败 ' + failures, failures ? 'group-queue-failed' : '')
+      );
       count.title = state.message;
       root.append(count);
-      const failed = Object.keys(state.failures || {}).length;
+      const failed = failures;
       if (failed) {
         const status = document.createElement('span');
-        status.className = 'group-queue-status';
+        status.className = 'group-queue-status group-queue-failed';
         status.textContent =
           failed + ' 项失败' + (active ? '，其余分支继续' : '，点击失败任务定位');
         root.append(status);
