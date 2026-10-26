@@ -683,7 +683,24 @@ export function createUiRecognitionUiWithHost(options: {
     options.remember();
     delete node.uiRecognition!.pendingId;
     options.changed();
-    await options.save();
+    // Only a saved release may lead to a new submission; otherwise the old request stays the
+    // record on disk and a resubmission would run (and charge) twice.
+    let saved = false;
+    try {
+      saved = await options.save();
+    } catch {
+      saved = false;
+    }
+    if (!saved) {
+      if (node.uiRecognition && !node.uiRecognition.pendingId)
+        node.uiRecognition.pendingId = pendingId;
+      options.changed();
+      throw new Error(
+        '原识图请求等待超时，但画布保存失败，未重新提交识图；请先保存画布，再继续（会先查询原请求 ' +
+          pendingId +
+          '）。'
+      );
+    }
     return 'abandoned';
   }
   return {
