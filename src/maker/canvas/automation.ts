@@ -34,7 +34,7 @@ export function canvasAutomationCapabilities() {
       recognition:
         'recognize-ui with input {id: recognition card ID} and --allow-paid generates Bbox only, preserving existing images. For pending requests it queries the original request; query is also available without --allow-paid. To resume Server API work, pass recover:true with --allow-paid; this reuses the original request and skips completed passes without a browser dialog. If an older client cleared pendingId, also pass the original attemptId. Recovery never creates a new attempt when the original is missing. Local or web recognition remains an external Agent workflow.',
       status:
-        'status, wait and export --output-dir exit nonzero for failed or unknown operations. Unknown does not mean failed; inspect the original card and request before any retry.',
+        'status, wait and export --output-dir exit nonzero for failed or unknown operations. Unknown does not mean failed; inspect the original card and request before any retry. A failed operation with code INVALID_ARGS (arguments or page state) or NOT_FOUND (canvas, card or edge missing) was refused before any change: fix the cause and submit with a new request-id. A failed operation without code may have started work (for example a 015 run or a save after an edit): inspect before deciding; never resubmit paid steps blindly.',
     },
     nodeTypes: ['image', 'video', 'note', 'mark', 'sequence', 'animation', 'model-views', 'model'],
     editable: [
@@ -159,20 +159,24 @@ export function canvasAutomationCapabilities() {
         from: 'saved image ID',
         to: 'video input card ID (first frame), or image ID: appends from as an image reference; an empty image (slot) then submits every connected image in order',
       },
+      disconnect: {
+        edgeId:
+          'image reference (image-variant) or first-frame edge ID; same result as deleting the wire on the page: draft references to that source are cleared, template members are marked pending and downstream results become stale',
+      },
       undo: {
-        note: 'empty input; reverts the latest page edit, INVALID_ARGS when nothing to undo',
+        note: 'empty input; reverts the latest page edit, INVALID_ARGS when nothing to undo. Also allowed when the page cannot save its pending edit, so the edit that breaks saving can be reverted; tasks, dialogs, drafts and other pages still block it.',
       },
       redo: { note: 'empty input; reapplies the latest undone edit' },
       'fill-slot': {
         id: 'empty image card (slot) ID',
         assetPath:
-          'project image path; fills the slot in place, keeping id, position, width and edges. No generation.',
+          'project-relative image path that already exists in the project (for example assets/... or a path returned by an earlier import); the CLI does not upload for this command. Fills the slot in place, keeping id, position, width and edges. No generation.',
         prompt: 'optional; same as import prompt',
       },
       'replace-image': {
         id: 'image card ID that already has an image; empty slots use fill-slot',
         assetPath:
-          'project image path; replaces the image in place, keeping id, position, width, title and edges; height follows the image ratio. Undoable; downstream results become stale like a manual image change. No generation.',
+          'project-relative image path that already exists in the project; replaces the image in place, keeping id, position, width, title and edges; height follows the image ratio. Undoable; downstream results become stale like a manual image change. No generation.',
         prompt:
           'optional; same as import prompt. Without it, previous generation metadata is cleared',
       },

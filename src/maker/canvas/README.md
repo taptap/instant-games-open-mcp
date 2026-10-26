@@ -359,13 +359,18 @@ AI 可以通过当前安装的 Maker CLI 操作已打开的画布，无需浏览
 | update-nodes                     | {"nodes":[{"id":"卡片ID","prompt":"完整猫咪，站立"}]}      | 批量校验后修改，不自动生成                                      |
 | delete-nodes / duplicate / group | {"ids":["卡片ID"]}                                         | 删除 / 复制 / 分组；删除分组本身不删除成员                      |
 | connect                          | {"from":"图片ID","to":"视频输入卡ID"}                      | 已保存图片连到视频输入卡（首帧），或连到图片作为参考图          |
-| disconnect                       | {"edgeId":"连线ID"}                                        | 只移除图片参考线，不拆断序列帧/动画来源                         |
+| disconnect                       | {"edgeId":"连线ID"}                                        | 只移除图片参考线，同时清掉草稿对该来源的引用；不拆派生来源      |
 | run                              | {"id":"卡片或分组ID"}                                      | 单卡执行或运行分组剩余步骤；已完成模板卡先修改参数              |
 | stop                             | {"id":"视频卡或分组ID"}                                    | 停止本地视频等待或后续队列，不取消远端任务                      |
 | query                            | {"id":"视频卡ID"}                                          | 查询原视频任务，不发起新生成；历史面板仍由人工操作              |
-| undo / redo                      | {}                                                         | 沿用页面撤销栈；没有可撤销/重做的修改时返回 INVALID_ARGS        |
-| fill-slot                        | {"id":"空图片卡ID","assetPath":"assets/image/x.png"}       | 用项目图片原位回填空图片槽，保留 ID、位置、宽度和连线           |
+| undo / redo                      | {}                                                         | 沿用页面撤销栈；保存失败时也可撤销；无可撤销时返回 INVALID_ARGS |
+| fill-slot                        | {"id":"空图片卡ID","assetPath":"assets/image/x.png"}       | 用项目内已有图片原位回填空槽（不上传），保留 ID、位置和连线     |
 | replace-image                    | {"id":"图片卡ID","assetPath":"assets/image/x.png"}         | 原位替换已有图片，保留 ID、位置、宽度、标题和连线；可选 prompt  |
+
+页面在任何修改前拒绝的命令，status/wait 返回 status=failed 并带 code：INVALID_ARGS（参数或页面状态，
+如 revision 过期、面板打开、任务执行中）或 NOT_FOUND（画布、卡片或连线不存在）。修正后用新的 request-id
+重新提交。没有 code 的 failed 可能已经开始执行（例如 015 run、修改后保存失败），先 inspect 原卡片再决定，
+不要直接重提付费步骤。仅有未保存修改时，写命令会先等待保存（约 10 秒）再执行。
 
 update-nodes 支持 title、便签 text、单卡位置 x/y、prompt、parameters、sequenceSettings。
 标注不参与生成。左侧工具条的标注框和箭头点一下就放到画布上，可以再移动和缩放。
