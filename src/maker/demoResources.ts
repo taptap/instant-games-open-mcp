@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import syncFs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import manifest from './demoResources.json';
@@ -15,6 +16,47 @@ export interface DemoResource {
 }
 export const demoResources = manifest.resources as Record<string, DemoResource>;
 const pending = new Map<string, Promise<Buffer>>();
+const resourceIdsByFile = new Map(
+  Object.entries(demoResources).map(([id, entry]) => [entry.file, id])
+);
+
+export function demoResourceReference(id: string): string {
+  return 'maker-demo/' + demoResourceInfo(id).file;
+}
+
+export function demoResourceIdFromReference(reference: string): string | undefined {
+  if (!isDemoResourceReference(reference)) return;
+  return resourceIdsByFile.get(reference.slice('maker-demo/'.length));
+}
+
+export function isDemoResourceReference(reference: string): boolean {
+  return /^maker-demo\/[a-f0-9]{64}\.(?:png|jpg|webp|mp4|mov|webm)$/.test(reference);
+}
+
+/** Hash-addressed cached media remains usable after its manifest entry is retired. */
+export function resolveDemoResourceFile(reference: string): string | undefined {
+  if (!isDemoResourceReference(reference)) return;
+  const file = reference.slice('maker-demo/'.length);
+  const sha256 = file.slice(0, 64);
+  const id = demoResourceIdFromReference(reference);
+  const entry = id ? demoResourceInfo(id) : undefined;
+  const candidates = [path.join(getMakerHome(), 'cache', 'demo-resources', file)];
+  if (typeof __MAKER_DEMO_BUNDLED__ === 'undefined') {
+    const source =
+      typeof __dirname === 'string' ? __dirname : path.dirname(path.resolve(process.argv[1]));
+    candidates.unshift(path.resolve(source, '../../resources/maker-demo', file));
+  }
+  for (const filename of candidates) {
+    try {
+      const stat = syncFs.lstatSync(filename);
+      if (!stat.isFile() || (entry && stat.size !== entry.size)) continue;
+      if (createHash('sha256').update(syncFs.readFileSync(filename)).digest('hex') === sha256)
+        return filename;
+    } catch {
+      /* Missing or invalid cache entries are recovered by readDemoResource. */
+    }
+  }
+}
 
 export function demoResourceInfo(id: string): DemoResource {
   const entry = Object.prototype.hasOwnProperty.call(demoResources, id)

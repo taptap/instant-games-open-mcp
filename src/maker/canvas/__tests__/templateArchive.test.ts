@@ -147,7 +147,7 @@ test('export rejects missing media and stale revision; failed imports remove new
       : source.readMedia(relative)
   );
   await expect(target.importTemplate(zip)).rejects.toThrow('PNG');
-  expect(fs.readdirSync(path.join(root, 'target/assets/image'))).toEqual([]);
+  expect(fs.readdirSync(path.join(root, 'target/.maker/canvases/images'))).toEqual([]);
   expect((await target.listTemplatePage()).items).toEqual([]);
   fs.unlinkSync(source.readMedia(templateAssetPaths(template)[0]).file);
   await expect(source.exportTemplate(template.id, template.revision)).rejects.toThrow('素材不存在');

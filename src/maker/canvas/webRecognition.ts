@@ -20,8 +20,8 @@ export async function webRecognitionInput(
   const sources = uiRecognitionInputs(document, node);
   if (sources.cut.uiRecognition?.pendingId)
     throw new Error('原识图请求尚未确认，请先查询原请求，不会准备新的网页请求。');
-  const image = (assetPath: string) => {
-    const media = files.readMedia(assetPath);
+  const image = async (assetPath: string) => {
+    const media = await files.loadMedia(assetPath);
     if (fs.statSync(media.file).size > 20 * 1024 * 1024) throw new Error('识图图片超过 20 MiB。');
     const size = files.imageInfo(assetPath);
     if (!size) throw new Error('识图图片尺寸无效。');
@@ -32,8 +32,8 @@ export async function webRecognitionInput(
       height: size.height,
     };
   };
-  const design = image(sources.design.assetPath!);
-  const cutSource = image(sources.cut.assetPath!);
+  const design = await image(sources.design.assetPath!);
+  const cutSource = await image(sources.cut.assetPath!);
   const context = { canvasId, nodeId: sources.cut.id, design, cutSource };
   const cutPrompt = uiRecognitionPrompt(cutSource.width, cutSource.height);
   if (!finish && !input.cut)

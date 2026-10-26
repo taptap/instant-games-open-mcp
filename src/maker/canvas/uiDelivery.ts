@@ -167,7 +167,7 @@ export class UiDeliveryService {
     | { reason?: undefined; record: UiWorkflowArchive; manifest: ArchiveManifest }
   > {
     const readBlob = async (relative: string) =>
-      new Blob([fs.readFileSync(this.files.readMedia(relative).file)]);
+      new Blob([fs.readFileSync((await this.files.loadMedia(relative)).file)]);
     const prepared = (await prepareUiWorkflowArchives(document, readBlob)).find(
       (item) => item.record.nodeId === nodeId && item.record.stage === 'resources'
     );

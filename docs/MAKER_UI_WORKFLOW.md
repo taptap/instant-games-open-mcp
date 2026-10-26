@@ -210,8 +210,8 @@ CLI 使用 `recognize-ui --input '{"id":"去文字卡ID","recover":true}' --allo
       "version": 1,
       "coordinateSpace": "design-pixels",
       "bboxFormat": "xywh",
-      "design": {"path": "assets/image/canvas-<uuid>.png", "sha256": "<sha256>", "width": 1080, "height": 1920},
-      "cutSource": {"path": "assets/image/canvas-<uuid>.png", "sha256": "<sha256>", "width": 1080, "height": 1920},
+      "design": {"path": ".maker/canvases/images/canvas-<uuid>.png", "sha256": "<sha256>", "width": 1080, "height": 1920},
+      "cutSource": {"path": ".maker/canvases/images/canvas-<uuid>.png", "sha256": "<sha256>", "width": 1080, "height": 1920},
       "elements": [{"id": "E001", "name": "按钮底板", "type": "button", "bbox": [100, 200, 240, 80], "parent": null}],
       "texts": [{"id": "T001", "text": "确认", "bbox": [160, 220, 120, 40], "parentId": "E001", "role": "button", "align": "center", "color": "#F2D48A", "bold": true, "cutout": false}]
     }

@@ -610,7 +610,8 @@ CLI 负责确定性文件处理：
 - 跳过 ZIP 顶层 `scripts` 目录，避免和 Maker 项目 clone 后的 `scripts` 冲突。
 - 删除下载完成并解压后的 `ai-dev-kit.zip`。
 - dev-kit 准备成功后会刷新项目根 `.gitignore`，把 dev-kit 顶层内容、Agent skill 发现目录和
-  `.maker/` 本地运行状态标记为忽略项。`.gitignore` 文件本身是 Maker 项目必要文件，
+  `.maker/` 本地运行状态、`/.maker-preview/` 预览副本标记为忽略项。画布缓存、UI 工作流
+  中间文件和本地日志均由 `.maker/` 覆盖；不忽略正式交付的 `assets/ui/`。`.gitignore` 文件本身是 Maker 项目必要文件，
   应提交到 Maker Git，尤其是首次 init 生成时。
 
 如果 clone 失败，CLI 会保留 `.maker-mcp/config.json` 中的已选 app。后续重新执行

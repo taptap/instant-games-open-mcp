@@ -149,6 +149,9 @@ Lua 自绘逻辑不能直接作为普通 Panel 导入。随包 MakerNanoVG.lua �
 浏览器代码和 Yoga WASM在构建时嵌入 dist/maker.js，npm/客户端插件随同一 bundle 分发。
 官方画布模板媒体按需下载：已校验的本地缓存优先，其次 CDN，失败尝试 GitHub，
 通过大小和 SHA-256 校验后缓存；项目自己的图片不受影响。首次使用未缓存的示例需要联网。
+添加模板直接引用公共缓存，不复制示例到用户项目。画布制作中的图片保存在
+.maker/canvases/images/；用户导出时选择位置，015 最后自动交付游戏素材并拼装 UI。
+Maker MCP 内置生成接口的默认落盘保持原样。
 不依赖个人仓库、Python 或额外端口。原项目 MIT 及 Yoga 许可证保留在 web/ 内。
 资源维护、无损压缩及发布顺序见仓库的 [示例资源维护](https://github.com/taptap/instant-games-open-mcp/blob/main/docs/MAKER_DEMO_RESOURCES.md)。
 文件接口绑定登记项目 realpath，只读受限类型/大小的 assets 文件；拒绝符号链接、跨源写入和越界路径。

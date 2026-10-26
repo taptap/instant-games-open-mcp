@@ -232,6 +232,8 @@ export class CanvasRecognitionService {
           inputs.design.assetPath !== state.design.path
         )
           throw new ConsoleError('识图输入图片已变化，不能恢复原请求。');
+        await this.files.loadMedia(state.cut.image.path);
+        await this.files.loadMedia(state.design.path);
         serverRecognitionImage(this.files, state.cut.image);
         serverRecognitionImage(this.files, state.design);
       },
@@ -318,7 +320,7 @@ export class CanvasRecognitionService {
       throw new ConsoleError('原稿尺寸无效。');
     const key = model.apiKey || (model.apiKeyEnv ? process.env[model.apiKeyEnv] : undefined);
     if (model.apiKeyEnv && !key) throw new ConsoleError('识图模型的密钥环境变量未配置。');
-    const media = this.files.readMedia(node.assetPath);
+    const media = await this.files.loadMedia(node.assetPath);
     const bytes = fs.readFileSync(media.file);
     if (bytes.length > 20 * 1024 * 1024) throw new ConsoleError('识图原稿超过 20 MiB。');
     const cutSize = this.files.imageInfo(node.assetPath);
@@ -332,7 +334,7 @@ export class CanvasRecognitionService {
     } catch (error) {
       throw new ConsoleError((error as Error).message);
     }
-    const originalMedia = this.files.readMedia(originalPath);
+    const originalMedia = await this.files.loadMedia(originalPath);
     const originalBytes = fs.readFileSync(originalMedia.file);
     const originalSize = this.files.imageInfo(originalPath);
     if (!originalSize || originalBytes.length > 20 * 1024 * 1024)
@@ -362,6 +364,8 @@ export class CanvasRecognitionService {
       status: 'running',
       phase: 'cut',
     };
+    // Media downloads yield; recheck before the synchronous first write in either branch.
+    if (fs.existsSync(filename)) return this.run(canvasId, input);
     if (source === 'server') {
       attempt.server = {
         ...serverRecognitionContext(this.files.root),

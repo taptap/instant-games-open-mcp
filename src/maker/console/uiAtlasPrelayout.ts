@@ -13,9 +13,12 @@ interface Raster {
 }
 const PNG = pngjs.PNG as { sync: { read(bytes: Buffer): Raster; write(image: Raster): Buffer } };
 
-export function assertUiAtlasSources(files: MakerCanvasFiles, plan: UiAtlasPlan): void {
+export async function assertUiAtlasSources(
+  files: MakerCanvasFiles,
+  plan: UiAtlasPlan
+): Promise<void> {
   for (const source of [plan.bbox.design, plan.bbox.cutSource]) {
-    const bytes = fs.readFileSync(files.readMedia(source.path).file);
+    const bytes = fs.readFileSync((await files.loadMedia(source.path)).file);
     const info = files.imageInfo(source.path);
     if (
       createHash('sha256').update(bytes).digest('hex') !== source.sha256 ||
@@ -44,11 +47,11 @@ export async function prepareUiAtlasReference(
   )
     throw new Error('预排输出尺寸与原尺寸排版不一致，不会缩放坐标。');
   const regions = plan.nativeLayout?.regions || imageAtlasRegions(width, height, plan.grid);
-  assertUiAtlasSources(files, plan);
+  await assertUiAtlasSources(files, plan);
   const textOnly = plan.slots.every((slot) => slot.role === 'text');
   const isPng = (bytes: Buffer) =>
     bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-  let bytes = fs.readFileSync(
+  let bytes: Buffer = fs.readFileSync(
     files.readMedia(textOnly ? plan.bbox.design.path : plan.bbox.cutSource.path).file
   );
   // A JPEG/WebP design stays the recognition identity; art text crops in-memory PNG pixels.

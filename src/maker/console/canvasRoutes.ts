@@ -92,7 +92,7 @@ export async function handleCanvasProjectRoute(options: {
   const files = new MakerCanvasFiles(project.path);
   try {
     if (suffix === 'canvases/media-version' && method === 'GET') {
-      const media = files.readMedia(searchParams.get('path') || '');
+      const media = await files.loadMedia(searchParams.get('path') || '');
       const { version } = await readCanvasMedia(media.file);
       response.setHeader('Cache-Control', 'no-store');
       send(response, 200, { version });
@@ -100,7 +100,7 @@ export async function handleCanvasProjectRoute(options: {
     }
     if (suffix === 'canvases/image-info' && method === 'GET') {
       const assetPath = searchParams.get('path') || '';
-      files.readMedia(assetPath);
+      await files.loadMedia(assetPath);
       send(response, 200, files.imageInfo(assetPath) || null);
       return true;
     }
@@ -355,7 +355,7 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     if (method === 'GET' && suffix === 'canvas-media') {
-      const media = files.readMedia(searchParams.get('path') || '');
+      const media = await files.loadMedia(searchParams.get('path') || '');
       response.setHeader('Content-Type', media.type);
       response.setHeader('X-Content-Type-Options', 'nosniff');
       response.setHeader('Cache-Control', 'no-store');

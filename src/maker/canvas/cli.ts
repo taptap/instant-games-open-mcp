@@ -66,7 +66,7 @@ export async function runCanvasCli(
     // A user-provided PNG inside the project; read here so the service only sees bytes.
     const designPng =
       typeof options.design_png === 'string'
-        ? fs.readFileSync(files.readMedia(options.design_png).file)
+        ? fs.readFileSync((await files.loadMedia(options.design_png)).file)
         : undefined;
     print(
       action === 'ui-delivery'
