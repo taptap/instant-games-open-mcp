@@ -18,7 +18,11 @@ import { randomUUID } from 'node:crypto';
 
 export { HISTORY_LIMIT, layoutKey } from '../../../packages/maker-canvas/src/core/edit.js';
 export { cloneDocument } from '../../../packages/maker-canvas/src/browser/document.js';
-export const CANVAS_JSON_LIMIT = 2 * 1024 * 1024;
+/**
+ * One canvas document (and template). Sized to the 400-card cap: a 015 UI group with its
+ * generation records is about 0.5 MB, and the largest cards are about 40 KB each.
+ */
+export const CANVAS_JSON_LIMIT = 16 * 1024 * 1024;
 
 export { CanvasStoreError } from '../../../packages/maker-canvas/src/domain.js';
 

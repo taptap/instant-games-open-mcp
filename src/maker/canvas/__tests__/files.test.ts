@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { MakerCanvasFiles } from '../files.js';
-import { CanvasStoreError, createId, emptyDocument } from '../model.js';
+import { CANVAS_JSON_LIMIT, CanvasStoreError, createId, emptyDocument } from '../model.js';
 import type { SequenceSettings } from '../sequenceModel.js';
 import { snapshotCanvasSource } from '../dependencies.js';
 
@@ -55,14 +55,17 @@ describe('Maker canvas files', () => {
         edges: saved.edges,
       });
       expect(files.getTemplate(template.id).nodes).toEqual(saved.nodes);
-      const oversized = saved.nodes.map((node) => ({ ...node, text: '界'.repeat(3900) }));
-      await expect(
-        files.save(saved.id, { ...saved, nodes: oversized }, saved.revision)
-      ).rejects.toMatchObject({ code: 'STORAGE_LIMIT' });
-      await expect(files.saveTemplate({ ...template, nodes: oversized })).rejects.toMatchObject({
-        code: 'STORAGE_LIMIT',
-      });
-      expect((await files.load(saved.id)).revision).toBe(saved.revision);
+      // A 400-card canvas well above the old 2 MiB limit saves (a real 015 project hit it).
+      const large = saved.nodes.map((node) => ({ ...node, text: '界'.repeat(3900) }));
+      const resaved = await files.save(saved.id, { ...saved, nodes: large }, saved.revision);
+      expect(Buffer.byteLength(JSON.stringify(resaved))).toBeGreaterThan(3.5 * 1024 * 1024);
+      expect((await files.load(saved.id)).revision).toBe(resaved.revision);
+      // The byte limit still guards reads of an oversized file.
+      const file = path.join(root, '.maker/canvases', saved.id + '.json');
+      const bytes = fs.readFileSync(file);
+      fs.writeFileSync(file, Buffer.concat([bytes, Buffer.alloc(CANVAS_JSON_LIMIT, 32)]));
+      await expect(files.load(saved.id)).rejects.toMatchObject({ code: 'STORAGE_LIMIT' });
+      fs.writeFileSync(file, bytes);
       expect(files.getTemplate(template.id).revision).toBe(template.revision);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });

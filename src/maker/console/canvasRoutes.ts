@@ -48,12 +48,16 @@ function designPngBytes(value: unknown): Buffer | undefined {
   return bytes;
 }
 
-async function readBytes(request: IncomingMessage, limit: number): Promise<Buffer> {
+async function readBytes(
+  request: IncomingMessage,
+  limit: number,
+  tooLarge = 'Request body is too large.'
+): Promise<Buffer> {
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > limit) throw new ConsoleError('Request body is too large.', 413);
+    if (size > limit) throw new ConsoleError(tooLarge, 413);
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
@@ -639,7 +643,17 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     if (one && method === 'PUT') {
-      const input = JSON.parse((await readBytes(request, CANVAS_JSON_LIMIT)).toString('utf8'));
+      const input = JSON.parse(
+        (
+          await readBytes(
+            request,
+            CANVAS_JSON_LIMIT,
+            '画布文档超过 ' +
+              CANVAS_JSON_LIMIT / 1024 / 1024 +
+              ' MiB，无法保存。请把部分分组复制到新画布后删除，再保存。'
+          )
+        ).toString('utf8')
+      );
       if (!input || typeof input !== 'object' || typeof input.revision !== 'number') {
         throw new ConsoleError('缺少画布 revision。');
       }
