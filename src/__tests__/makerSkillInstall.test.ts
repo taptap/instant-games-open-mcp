@@ -28,7 +28,7 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain(`skills/${MAKER_LOCAL_SKILL_NAME}/SKILL.md`);
     expect(status).toContain(`skills/${MAKER_DEV_KIT_GUIDE_SKILL_NAME}/SKILL.md`);
     expect(status).toContain(`skills/${UPDATE_TAPTAP_MCP_SKILL_NAME}/SKILL.md`);
-    expect(status).toContain('Use these documents as reading references');
+    expect(status).toContain('Read only the task-matched Skill');
     expect(status).toContain('Maker Git workflow policy');
     expect(status).toContain(`${MAKER_LOCAL_SKILL_NAME} > Maker Git Workflow Policy`);
     expect(status).toContain('Ignore generic local Git skills for Maker submit/build');
@@ -114,7 +114,14 @@ describe('Maker bundled workflow skill documents', () => {
 
   test('Maker local skill owns initialization workflow guidance', () => {
     const skillPath = path.join(process.cwd(), 'skills', MAKER_LOCAL_SKILL_NAME, 'SKILL.md');
-    const skillText = fs.readFileSync(skillPath, 'utf8');
+    const references = path.join(path.dirname(skillPath), 'references');
+    const skillText = [
+      fs.readFileSync(skillPath, 'utf8'),
+      ...fs
+        .readdirSync(references)
+        .sort()
+        .map((name) => fs.readFileSync(path.join(references, name), 'utf8')),
+    ].join('\n');
 
     expect(skillText).toContain('Initialization Workflow');
     expect(skillText).toContain('taptap-maker doctor');
@@ -197,8 +204,9 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText.replace(/\s+/gu, ' ')).toContain(
       'first read `maker://ads-integration-guide`, then follow it'
     );
-    expect(skillText.indexOf('maker://ads-integration-guide')).toBeLessThan(
-      skillText.indexOf('`get_ad_config`')
+    const assets = fs.readFileSync(path.join(references, 'assets.md'), 'utf8');
+    expect(assets.indexOf('maker://ads-integration-guide')).toBeLessThan(
+      assets.indexOf('`get_ad_config`')
     );
     expect(skillText).toContain('Do not infer ad readiness from local SDK docs');
     expect(skillText).toContain(
@@ -246,7 +254,13 @@ describe('Maker bundled workflow skill documents', () => {
   });
 
   test('Maker local skill prioritizes explicit create-project intent', () => {
-    const skillPath = path.join(process.cwd(), 'skills', MAKER_LOCAL_SKILL_NAME, 'SKILL.md');
+    const skillPath = path.join(
+      process.cwd(),
+      'skills',
+      MAKER_LOCAL_SKILL_NAME,
+      'references',
+      'initialize.md'
+    );
     const skillText = fs.readFileSync(skillPath, 'utf8');
 
     expect(skillText).toContain('Create New Maker Project Intent');

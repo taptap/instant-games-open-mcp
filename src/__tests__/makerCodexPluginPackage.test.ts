@@ -305,6 +305,19 @@ describe('TapTap Maker Codex plugin package', () => {
     );
 
     expect(checkedInSkill).toBe(sourceSkill);
+    const references = path.join(projectRoot, 'skills/taptap-maker-local/references');
+    for (const name of fs.readdirSync(references)) {
+      const content = fs.readFileSync(path.join(references, name), 'utf8');
+      expect(
+        fs.readFileSync(path.join(pluginRoot, 'skills/taptap-maker-local/references', name), 'utf8')
+      ).toBe(content);
+      expect(
+        fs.readFileSync(
+          path.join(projectRoot, 'plugins/taptap-maker/skills/taptap-maker-local/references', name),
+          'utf8'
+        )
+      ).toBe(content);
+    }
   });
 
   test('documents automatic restore only for a failed installation transaction', () => {

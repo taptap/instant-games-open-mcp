@@ -514,9 +514,19 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
 
 Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地状态判断，而不是把所有情况都塞进 MCP tool description。
 
-- `taptap-maker-local`：Maker 初始化与本地 Git 工作流。
+- `taptap-maker-local`：简短入口按当前任务路由到同目录 `references/` 中的初始化、
+  项目定位、控制台、预览、Validate、Git、素材或排障流程，只读取命中的文档。
 - `taptap-maker-dev-kit-guide`：AI dev kit 内容说明，帮助本地 AI/Agent 理解 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 的用途。
 - `update-taptap-mcp`：Maker 新包 `@taptap/maker` 的 npx 缓存更新工作流。
+
+现有 MCP 能力索引和状态输出指向这些入口，不预加载全部流程。WorkBuddy 包按宿主的
+目录深度限制将参考文件平铺在 Skill 目录，生成时同步改写入口链接。各分发均保留完整流程。
+预览状态查询与自动刷新仅适用于用户已请求的本地预览迭代，以及影响该运行游戏的代码或
+资源改动；纯文档改动和其它开发任务不触发。停止、缺失或归属未确认的会话不自动启动。
+
+ai-dev-kit 的 Skills 由客户端根据各自描述发现，Maker 索引不控制它们的注册或加载。
+不因文件较大自动改写、隐藏或搬移项目 Skill；仅在对应任务中读取，避免重复预读。
+入口缩短减少的是该 Skill 被调用时的正文量，不等同于减少客户端常驻工具定义或会话历史。
 
 第一版范围：
 
