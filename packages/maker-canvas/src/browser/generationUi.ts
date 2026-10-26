@@ -1816,6 +1816,16 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     return true;
   }
 
+  async function recoverLocalImageDownload(attempt: any, list: any[]): Promise<boolean> {
+    const documentState = options.getDocument();
+    const next = await options.store.generationAction(attempt.canvasId, attempt.id, 'retry');
+    attempts.set(next.id, next);
+    if (options.getDocument() !== documentState) return false;
+    if (next.status !== 'succeeded') return false;
+    if (!recoverImage(next, [...list.filter((item) => item.id !== next.id), next])) return false;
+    return options.flush();
+  }
+
   async function action(
     attempt: any,
     actionName: 'query' | 'retry' | 'cancel',
@@ -1847,6 +1857,24 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       options.render();
     }
     try {
+      if (
+        actionName === 'retry' &&
+        attempt.kind === 'image' &&
+        attempt.remoteStatus === 'succeeded' &&
+        attempt.failureStage === 'download'
+      ) {
+        const current = options.getDocument();
+        const list = current ? await options.store.listGeneration(current.id) : [];
+        const recovered = await recoverLocalImageDownload(attempt, list);
+        if (!recovered) {
+          options.setError('图片已取回，但卡片或输入已变化，未覆盖当前内容。', 'info');
+        } else {
+          imageFailures.delete(attempt.targetNodeId);
+          retryableImages.delete(attempt.targetNodeId);
+        }
+        options.render();
+        return;
+      }
       if (actionName === 'query' && videoTaskTiming(attempt).queryExpired)
         throw new Error('已超过提交后 6 小时的查询期限；历史记录和本地结果仍保留。');
       const startedAt = new Date(Date.now()).toISOString();
@@ -2810,7 +2838,10 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         latest.failureStage === 'download'
       ) {
         try {
-          await action(latest, 'retry', true);
+          if (!(await recoverLocalImageDownload(latest, list))) {
+            options.render();
+            return 'blocked';
+          }
         } catch {
           options.render();
           return 'blocked';

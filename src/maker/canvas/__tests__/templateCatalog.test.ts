@@ -112,9 +112,16 @@ test('workflow preview reads only images belonging to the template without impor
   const customNode = custom.nodes.find((item) => item.type === 'image' && item.assetPath)!;
   const image = await files.readTemplatePreviewImage(custom.id, custom.revision, customNode.id);
   expect(image.type).toMatch(/^image\//);
-  fs.unlinkSync(path.join(root, customNode.assetPath!));
+  const imported = await files.importImage(image.bytes);
+  const localCustom = await files.saveTemplate({
+    ...custom,
+    nodes: custom.nodes.map((item) =>
+      item.id === customNode.id ? { ...item, assetPath: imported.relativePath } : item
+    ),
+  });
+  fs.unlinkSync(path.join(root, imported.relativePath));
   await expect(
-    files.readTemplatePreviewImage(custom.id, custom.revision, customNode.id)
+    files.readTemplatePreviewImage(localCustom.id, localCustom.revision, customNode.id)
   ).rejects.toThrow('不存在');
 });
 

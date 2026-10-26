@@ -366,17 +366,18 @@ function createFakeGit(
 const fs = require('fs');
 const path = require('path');
 const args = process.argv.slice(2);
-fs.appendFileSync(${JSON.stringify(logPath)}, args.join(' ') + '\\n');
 if (args[0] === '--version') {
   console.log('git version 2.50.0');
   process.exit(0);
 }
+while (args[0] === '-c') args.splice(0, 2);
 let cwd = process.cwd();
 let commandArgs = args;
 if (args[0] === '-C') {
   cwd = args[1];
   commandArgs = args.slice(2);
 }
+fs.appendFileSync(${JSON.stringify(logPath)}, commandArgs.join(' ') + '\\n');
 if (commandArgs[0] === 'rev-parse' && commandArgs[1] === '--git-dir') {
   if (fs.existsSync(path.join(cwd, '.git'))) {
     console.log('.git');

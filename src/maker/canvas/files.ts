@@ -974,7 +974,23 @@ export class MakerCanvasFiles {
     )
       fail('PNG 文件路径无效。', 400, 'UNSAFE_PATH');
     const file = this.safeProjectFile(relativePath);
-    const bytes = fs.readFileSync(file);
+    const fd = fs.openSync(file, 'r');
+    let bytes: Buffer;
+    try {
+      const size = fs.fstatSync(fd).size;
+      if (size > maxBytes) fail('PNG 文件类型、大小或尺寸无效。', 400, 'INVALID_IMAGE');
+      bytes = Buffer.alloc(size);
+      let offset = 0;
+      while (offset < size) {
+        const read = fs.readSync(fd, bytes, offset, size - offset, offset);
+        if (read <= 0) fail('PNG 文件类型、大小或尺寸无效。', 400, 'INVALID_IMAGE');
+        offset += read;
+      }
+      if (fs.fstatSync(fd).size > maxBytes)
+        fail('PNG 文件类型、大小或尺寸无效。', 400, 'INVALID_IMAGE');
+    } finally {
+      fs.closeSync(fd);
+    }
     let dimensions: ReturnType<typeof readImageDimensions>;
     try {
       dimensions = readImageDimensions(file);
