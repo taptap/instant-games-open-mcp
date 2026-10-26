@@ -670,6 +670,19 @@ export function createCanvasGroupQueue(options: {
     },
     start,
     hold,
+    /**
+     * Record a retry made outside the queue (the 015 coordinator) in the same per-card counter
+     * the queue checks before its own regenerations, so both share one budget. Returns the
+     * new count; the counter survives the next start of a paused run.
+     */
+    spendRetry(groupId: string, nodeId: string): number {
+      sync();
+      const state = queues.get(groupId);
+      if (!state) return Infinity;
+      state.retries[nodeId] = (state.retries[nodeId] || 0) + 1;
+      persistState(state);
+      return state.retries[nodeId];
+    },
     stop,
     remove,
     move,

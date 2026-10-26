@@ -45,12 +45,14 @@ export function createUi015Workflow(options: {
   sync(document: CanvasDocument, groupId: string, artText: string[], background: boolean): string[];
   queue: {
     start(groupId: string, confirmed: boolean): boolean;
+    /** Count one coordinator retry in the queue's own per-card retry counter. */
+    spendRetry(groupId: string, nodeId: string): number;
     view(groupId: string):
       | {
           phase: string;
           pauseReason?: string;
           failures?: Record<string, string>;
-          /** Regenerations the queue itself already spent on a card in this run. */
+          /** Retries spent on a card in this run (queue and coordinator; one counter). */
           retries?: Record<string, number>;
         }
       | undefined;
@@ -85,7 +87,7 @@ export function createUi015Workflow(options: {
   let running = '';
   const deliveries = new Map<string, { key: string; value?: CanvasUiDeliveryStatus }>();
   /** Groups being driven to the end by one start; the queue settlement continues them. */
-  const autoRuns = new Map<string, { retries: Record<string, number>; waits: number }>();
+  const autoRuns = new Map<string, { waits: number }>();
   /** Final outcome of the last automatic run per group, read by the CLI after waiting. */
   const outcomes = new Map<string, Ui015Result>();
   /** Server-side running tasks are re-checked every 30 s for at most this many checks. */
@@ -304,9 +306,11 @@ export function createUi015Workflow(options: {
           '015 · 识图准备未完成，第 ' + (round + 1) + ' 次自动重试：' + message.slice(0, 160),
           'warning'
         );
+        // Every unfinished card, not only those with a block reason: a task the server still
+        // reports as pending/running has no block reason but must be waited for.
         let pending = false;
         for (const id of [found.input.id, found.cut.id])
-          if (options.problem?.(id))
+          if (options.needs(id) || options.problem?.(id))
             pending ||= (await options.recoverImage(id, waits >= MAX_WAITS)) === 'waiting';
         if (pending) {
           // The original task is still running on the server: wait without spending a retry.
@@ -414,7 +418,7 @@ export function createUi015Workflow(options: {
       view = inspect(groupId)!;
       outcomes.delete(groupId);
       if (view.stage === 'generation') {
-        autoRuns.set(groupId, autoRuns.get(groupId) || { retries: {}, waits: 0 });
+        autoRuns.set(groupId, autoRuns.get(groupId) || { waits: 0 });
         options.log('015 · 自动执行预排、分离生图与切图（付费步骤记录在运行日志）');
         if (!options.queue.start(groupId, true)) {
           autoRuns.delete(groupId);
@@ -481,8 +485,8 @@ export function createUi015Workflow(options: {
     }
     const queue = options.queue.view(groupId);
     if (queue && executingPhases.includes(queue.phase)) return;
-    // One budget per card: regenerations the queue already made count against RETRIES too.
-    const spent = (id: string) => (run.retries[id] || 0) + (queue?.retries?.[id] || 0);
+    // One budget per card: the queue's counter holds both its own and these retries.
+    const spent = (id: string) => queue?.retries?.[id] || 0;
     const failed = Object.keys(queue?.failures || {}).filter(
       (id) => spent(id) < RETRIES && document_.nodes.some((node) => node.id === id)
     );
@@ -500,14 +504,14 @@ export function createUi015Workflow(options: {
           setTimeout(() => void finishRun(groupId), 30000);
           return;
         }
-        run.retries[id] = (run.retries[id] || 0) + 1;
+        const count = options.queue.spendRetry(groupId, id);
         options.log(
           '015 · 「' +
             node.title +
             '」' +
             (result === 'recovered'
               ? '已取回原任务结果'
-              : '未完成，第 ' + run.retries[id] + ' 次自动重试（生图可能多计一次费用）'),
+              : '未完成，第 ' + count + ' 次自动重试（生图可能多计一次费用）'),
           'warning'
         );
       }
