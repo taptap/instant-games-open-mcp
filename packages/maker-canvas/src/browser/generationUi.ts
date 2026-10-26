@@ -1816,14 +1816,14 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     return true;
   }
 
-  async function recoverLocalImageDownload(attempt: any, list: any[]): Promise<boolean> {
+  async function recoverLocalImageDownload(attempt: any, list: any[]): Promise<any | false> {
     const documentState = options.getDocument();
     const next = await options.store.generationAction(attempt.canvasId, attempt.id, 'retry');
     attempts.set(next.id, next);
     if (options.getDocument() !== documentState) return false;
     if (next.status !== 'succeeded') return false;
     if (!recoverImage(next, [...list.filter((item) => item.id !== next.id), next])) return false;
-    return options.flush();
+    return (await options.flush()) ? next : false;
   }
 
   async function action(
@@ -1871,6 +1871,10 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         } else {
           imageFailures.delete(attempt.targetNodeId);
           retryableImages.delete(attempt.targetNodeId);
+          const result = options
+            .getDocument()
+            ?.nodes.find((node: any) => node.generation?.attemptId === recovered.id);
+          if (result) await options.onGenerated?.(result.id, 'image');
         }
         options.render();
         return;
