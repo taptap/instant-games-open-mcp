@@ -215,9 +215,20 @@ generated dev-kit files. Explain this in non-technical terms:
 
 Do not delete or overwrite user files to make clone work unless the user explicitly asks.
 
+If clone or fetch fails with Maker Git output, inspect the returned error fields instead of asking
+the user to delete local files immediately. Treat `retryable: yes`, `classification:
+remote_transient`, or retry reasons such as `remote_http_5xx`, `network_or_timeout`, and
+`connection_interrupted` as temporary service/network failures. For first clone, explain that 503
+often means the Maker server is still preparing the repository and can take more than 20 seconds.
+The CLI already retried these automatically; if it still fails, tell the user they can retry
+`taptap-maker init` later or switch to a cleaner independent directory after repeated failures. Do
+not retry for auth, permission, repository-not-found, remote-rejected, local file conflict, or local
+permission errors until the reported cause is fixed.
+
 If `taptap-maker init` fails and returns `partial_state`, explain the state in plain language:
 
-- `project_bound: no` usually means clone did not finish; retrying clone is allowed.
+- `project_bound: no` usually means clone did not finish; retry only for the temporary failures
+  above.
 - `git_initialized: yes` with `project_bound: no` means the directory may contain a partial local
   Git setup; retry once, and if it fails again recommend a fresh independent directory.
 - `ai_dev_kit_present: yes` means local AI docs/examples may already be present even though Maker

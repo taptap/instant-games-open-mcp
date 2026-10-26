@@ -14,8 +14,9 @@ workflow then. Do not preload other Maker or ai-dev-kit Skills just because they
 ## Shared Boundaries
 
 - Use the user's current game workspace and its verified binding; never guess a project from a
-  dialogue directory. Pass the real absolute project path as target_dir or --target-dir. If the
-  workspace is missing or ambiguous, use [Project Context](references/project.md).
+  dialogue directory or pick one from a project list for the user. Pass the real absolute project
+  path as target_dir or --target-dir. If the workspace is missing or ambiguous, use
+  [Project Context](references/project.md).
 - Start/resume/status: read maker://status, or call maker_status_lite when resources are unavailable.
   Reuse current task evidence; do not repeat status for every edit. Status is read-only.
 - Reuse the active distribution's CLI and exposed tool schemas/next_action; do not reimplement
@@ -27,8 +28,9 @@ workflow then. Do not preload other Maker or ai-dev-kit Skills just because they
   Do not add environment parameters to Maker calls or user MCP config.
 - Preserve user files, project identity and secrets. Do not put PAT directly in argv or logs.
   Never blindly retry an unknown remote mutation or paid operation; inspect its existing result.
-- Explain results briefly: process launch is not gameplay success, and successful push is not
-  successful build. Missing evidence is unknown, not PASS.
+- Always explain the next irreversible step before taking it. Explain results briefly: process
+  launch is not gameplay success, and successful push is not successful build. Missing evidence
+  is unknown, not PASS.
 
 ## Main Intent Table
 

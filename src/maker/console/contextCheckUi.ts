@@ -19,7 +19,7 @@ function contextDiagnosis(result) {
   result.findings.forEach(finding => lines.push(finding.title + '：' + finding.detail + '\n' +
     finding.sourceIds.map(id => result.sources.find(source => source.id === id)?.path || id).join('、')));
   result.warnings.forEach(warning => lines.push(contextWarningLabels[warning.kind] + '：' + warning.message));
-  if (result.omittedWarningCount) lines.push('另有 ' + result.omittedWarningCount + ' 条未完成项未展示。');
+  if (result.omittedWarningCount) lines.push('另有 ' + result.omittedWarningCount + ' 条未展示。');
   return lines.join('\n');
 }
 async function copyContextText(value) {
@@ -109,7 +109,7 @@ function contextCheckSection() {
       warnings.dataset.key = 'context-' + selected + '-warnings';
       warnings.append(node('summary','异常与未完成项 · ' + (result.warnings.length + (result.omittedWarningCount || 0)) + ' 条'));
       result.warnings.forEach(warning => warnings.append(node('p',contextWarningLabels[warning.kind] + ' · ' + warning.message,warning.kind === 'invalid' ? 'path context-error' : 'path muted')));
-      if (result.omittedWarningCount) warnings.append(node('p','另有 ' + result.omittedWarningCount + ' 条未完成项未展示。请先处理已列出的来源，再重新检查。','muted'));
+      if (result.omittedWarningCount) warnings.append(node('p','另有 ' + result.omittedWarningCount + ' 条未展示。请先处理已列出的来源，再重新检查。','muted'));
       details.append(warnings);
     }
     Object.entries(contextKinds).forEach(([kind,label]) => {

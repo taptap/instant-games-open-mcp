@@ -8,7 +8,8 @@ Use the active Maker CLI/bundle for `console open`, not an unversioned npm packa
 Opening the console only starts/reuses a loopback service, registers the explicit project
 directory and opens its page. It does not authorize build, push, Runtime installation or preview.
 Do not call init, build or preview just to open it. A missing/invalid directory is a selection
-problem, not permission to clone a game.
+problem, not permission to clone a game. Without a known game directory, omit `--target-dir` so
+the console shows the project list for the user to choose; never guess or choose the first project.
 
 The Git page fast-forwards remote `main` only when the local branch has no unique commits and file
 paths do not overlap. Uncommitted edits on other files stay in place. If local commits exist, or

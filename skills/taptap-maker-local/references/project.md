@@ -20,6 +20,10 @@ updating `AGENTS.md`, tell the user the current session remains usable; updated 
 the next MCP start or user-requested reconnect. Do not require a new conversation. Package or plugin
 updates are a separate workflow and must follow the active distribution's update skill.
 
+If status or doctor reports a `.project/settings.json` health problem, read Build Settings in
+[Maker Git and Remote Build](git.md) before any repair. It limits which fields may be restored and
+which missing defaults need user confirmation.
+
 When this file is missing and the user asks to clone, initialize, or continue Maker local
 development, do not ask the user for an app_id directly. Follow the initialization workflow.
 

@@ -316,7 +316,13 @@ describe('Maker console standalone UI', () => {
         (item) => item.tagName === 'summary' && item.textContent === '异常与未完成项 · 6 条'
       )
     ).toBeDefined();
-    expect(api.contextDiagnosis(result)).toContain('另有 5 条未完成项未展示。');
+    expect(
+      created.some(
+        (item) => item.textContent === '另有 5 条未展示。请先处理已列出的来源，再重新检查。'
+      )
+    ).toBe(true);
+    expect(api.contextDiagnosis(result)).toContain('另有 5 条未展示。');
+    expect(api.contextDiagnosis(result)).not.toContain('未完成项未展示');
   });
 
   it('allows retry after a failed context check and describes measurement limits in copied output', async () => {

@@ -1,6 +1,7 @@
 # Maker Git and Remote Build
 
-Read only for sync, submit, push, remote build or conflict recovery.
+Read only for sync, submit, push, remote build, conflict recovery or
+`.project/settings.json` repair.
 
 ## Maker Git Workflow Policy
 
@@ -225,3 +226,14 @@ If sync returns `outcome: "blocked"` because the merge could not be aborted, sto
 conflict result.
 
 Do not hide unresolved conflicts. Only submit after the listed files are resolved and committed.
+
+## User Communication
+
+Maker users may not understand Git terminology. Prefer concrete wording:
+
+- "本地改动" instead of "working tree"
+- "提交到 Maker" instead of "commit and push"
+- "远端版本" instead of "origin/main"
+- "冲突文件" instead of "unmerged paths"
+
+Always explain the next irreversible step before taking it.

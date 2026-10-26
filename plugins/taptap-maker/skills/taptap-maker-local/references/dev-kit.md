@@ -43,13 +43,3 @@ If dev-kit network access is unavailable after clone succeeds, explain that the 
 already checked out, but local AI development docs/API/demo support may be incomplete. Ask whether
 the user wants to retry `taptap-maker init` for a full post-checkout dev-kit reinstall or continue
 without the dev kit.
-
-If clone or fetch fails with Maker Git output, inspect the returned error fields instead of asking
-the user to delete local files immediately. Treat `retryable: yes`, `classification:
-remote_transient`, or retry reasons such as `remote_http_5xx`, `network_or_timeout`, and
-`connection_interrupted` as temporary service/network failures. For first clone, explain that 503
-often means the Maker server is still preparing the repository and can take more than 20 seconds.
-The CLI already retried these automatically; if it still fails, tell the user they can retry
-`taptap-maker init` later or switch to a cleaner independent directory after repeated failures. Do
-not retry for auth, permission, repository-not-found, remote-rejected, local file conflict, or local
-permission errors until the reported cause is fixed.
