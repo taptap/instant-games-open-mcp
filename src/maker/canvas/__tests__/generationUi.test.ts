@@ -1002,7 +1002,13 @@ describe('image reference drafts and refresh', () => {
         canvasId: document.id,
         kind: 'image',
         targetNodeId: image.id,
-        prompt: 'original prompt',
+        prompt: image.generation.prompt,
+        sourceImageId: image.id,
+        sourceImagePath: image.assetPath,
+        sourceImageIds: [image.id],
+        sourceImagePaths: [image.assetPath],
+        sourceSnapshots: [snapshotCanvasSource(image)],
+        targetAssetPath: image.assetPath,
         status: 'failed',
         remoteStatus: 'succeeded',
         failureStage: 'download',
@@ -1024,6 +1030,7 @@ describe('image reference drafts and refresh', () => {
       await new Promise((resolve) => setImmediate(resolve));
       expect(options.store.generationAction).toHaveBeenCalledWith(document.id, attempt.id, 'retry');
       expect(options.store.generateImage).not.toHaveBeenCalled();
+      if (!mergeIcons) expect(options.onGenerated).toHaveBeenCalledWith(image.id, 'image');
     }
   );
 

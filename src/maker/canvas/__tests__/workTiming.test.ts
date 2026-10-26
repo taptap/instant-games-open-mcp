@@ -40,6 +40,7 @@ function saveRuntime(document: CanvasDocument, request: (...args: unknown[]) => 
     'let documentState = runtime.document; let savedKey = ""; const groupQueue = null;' +
       'const layout = runtime.layout; const dirty = () => layout(documentState) !== savedKey;' +
       'const request = runtime.request; const setStatus = () => {}; const setError = () => {};' +
+      'const peerBlock = () => "";' +
       script +
       'return { flush, saveOnce, failed: () => saveFailed };'
   )(runtime, saveAcknowledgement) as {

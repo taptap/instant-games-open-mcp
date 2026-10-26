@@ -2,8 +2,10 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
+import * as demoResources from '../../demoResources.js';
 import { MakerCanvasFiles } from '../files.js';
-import { CanvasStoreError, createId, emptyDocument } from '../model.js';
+import { CANVAS_JSON_LIMIT, CanvasStoreError, createId, emptyDocument } from '../model.js';
 import type { SequenceSettings } from '../sequenceModel.js';
 import { snapshotCanvasSource } from '../dependencies.js';
 
@@ -18,6 +20,122 @@ function gitignore(root: string): void {
 }
 
 describe('Maker canvas files', () => {
+  test('retired demo references use verified cache bytes; missing media permits editing but not export', async () => {
+    const root = project('maker-canvas-retired-demo-');
+    const oldHome = process.env.TAPTAP_MAKER_HOME;
+    process.env.TAPTAP_MAKER_HOME = path.join(root, 'home');
+    try {
+      const files = new MakerCanvasFiles(root);
+      const bytes = Buffer.from('retired demo cache ' + createId());
+      const hash = createHash('sha256').update(bytes).digest('hex');
+      const reference = 'maker-demo/' + hash + '.png';
+      expect(demoResources.demoResourceIdFromReference(reference)).toBeUndefined();
+      const cache = path.join(root, 'home/cache/demo-resources', hash + '.png');
+      fs.mkdirSync(path.dirname(cache), { recursive: true });
+      fs.writeFileSync(cache, bytes);
+      expect(fs.readFileSync(files.readMedia(reference).file)).toEqual(bytes);
+      let document = await files.create('retired', 'empty');
+      document.nodes.push({
+        id: createId(),
+        type: 'image',
+        title: 'retired image',
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        assetPath: reference,
+      });
+      document.nodes.push({
+        ...document.nodes[0],
+        id: createId(),
+        title: 'variant',
+        sourceSnapshot: snapshotCanvasSource(document.nodes[0]),
+      });
+      document.edges.push({
+        id: createId(),
+        from: document.nodes[0].id,
+        to: document.nodes[1].id,
+        kind: 'image-variant',
+      });
+      document = await files.save(document.id, document, document.revision);
+      const template = await files.saveTemplate({
+        id: createId(),
+        name: 'retired',
+        revision: 0,
+        nodes: document.nodes,
+        edges: document.edges,
+      });
+      fs.writeFileSync(cache, Buffer.alloc(bytes.length));
+      expect(() => files.readMedia(reference)).toThrow('缓存缺失或损坏');
+      fs.unlinkSync(cache);
+      document = await files.load(document.id);
+      document.title = 'editable with missing media';
+      expect((await files.save(document.id, document, document.revision)).title).toBe(
+        document.title
+      );
+      await expect(files.exportTemplate(template.id, template.revision)).rejects.toMatchObject({
+        code: 'DEMO_RESOURCE_UNAVAILABLE',
+      });
+      expect(() => files.readMedia('maker-demo/../outside.png')).toThrow(CanvasStoreError);
+      expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+    } finally {
+      if (oldHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
+      else process.env.TAPTAP_MAKER_HOME = oldHome;
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('an offline demo cache miss does not prevent opening and saving the canvas', async () => {
+    const root = project('maker-canvas-offline-demo-');
+    const id = Object.keys(demoResources.demoResources).find((key) =>
+      demoResources.demoResources[key].file.endsWith('.png')
+    )!;
+    const download = jest
+      .spyOn(demoResources, 'readDemoResource')
+      .mockRejectedValue(new Error('offline'));
+    const resolve = jest.spyOn(demoResources, 'resolveDemoResourceFile').mockReturnValue(undefined);
+    try {
+      const files = new MakerCanvasFiles(root);
+      let document = await files.create('offline', 'empty');
+      document.nodes.push({
+        id: createId(),
+        type: 'image',
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        assetPath: demoResources.demoResourceReference(id),
+        title: 'offline image',
+      });
+      document = await files.save(document.id, document, document.revision);
+      const loaded = await files.load(document.id);
+      expect(download).not.toHaveBeenCalled();
+      expect(loaded.nodes[0].assetPath).toBe(document.nodes[0].assetPath);
+      await expect(files.loadMedia(loaded.nodes[0].assetPath!)).rejects.toMatchObject({
+        code: 'DEMO_RESOURCE_UNAVAILABLE',
+      });
+      expect(download).toHaveBeenCalledWith(id);
+      await expect(
+        files.save(loaded.id, { ...loaded, title: 'edited offline' }, loaded.revision)
+      ).resolves.toMatchObject({ title: 'edited offline' });
+      const restoredFile = path.join(root, 'restored.png');
+      fs.writeFileSync(restoredFile, 'restored fixture');
+      download.mockImplementationOnce(async () => {
+        resolve.mockReturnValue(restoredFile);
+        return Buffer.from('restored fixture');
+      });
+      await expect(files.loadMedia(loaded.nodes[0].assetPath!)).resolves.toMatchObject({
+        file: restoredFile,
+        type: 'image/png',
+      });
+      expect(download).toHaveBeenCalledTimes(2);
+    } finally {
+      download.mockRestore();
+      resolve.mockRestore();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('round-trips canvas and template JSON above 1 MiB with a shared byte limit', async () => {
     const root = project('maker-canvas-size-');
     try {
@@ -27,6 +145,7 @@ describe('Maker canvas files', () => {
       canvas.nodes = Array.from({ length: 320 }, () => ({
         id: createId(),
         type: 'note' as const,
+        title: 'note',
         x: 0,
         y: 0,
         width: 300,
@@ -36,6 +155,7 @@ describe('Maker canvas files', () => {
       const source = {
         id: createId(),
         type: 'image' as const,
+        title: 'source',
         x: 0,
         y: 0,
         width: 100,
@@ -55,14 +175,17 @@ describe('Maker canvas files', () => {
         edges: saved.edges,
       });
       expect(files.getTemplate(template.id).nodes).toEqual(saved.nodes);
-      const oversized = saved.nodes.map((node) => ({ ...node, text: '界'.repeat(3900) }));
-      await expect(
-        files.save(saved.id, { ...saved, nodes: oversized }, saved.revision)
-      ).rejects.toMatchObject({ code: 'STORAGE_LIMIT' });
-      await expect(files.saveTemplate({ ...template, nodes: oversized })).rejects.toMatchObject({
-        code: 'STORAGE_LIMIT',
-      });
-      expect((await files.load(saved.id)).revision).toBe(saved.revision);
+      // A 400-card canvas well above the old 2 MiB limit saves (a real 015 project hit it).
+      const large = saved.nodes.map((node) => ({ ...node, text: '界'.repeat(3900) }));
+      const resaved = await files.save(saved.id, { ...saved, nodes: large }, saved.revision);
+      expect(Buffer.byteLength(JSON.stringify(resaved))).toBeGreaterThan(3.5 * 1024 * 1024);
+      expect((await files.load(saved.id)).revision).toBe(resaved.revision);
+      // The byte limit still guards reads of an oversized file.
+      const file = path.join(root, '.maker/canvases', saved.id + '.json');
+      const bytes = fs.readFileSync(file);
+      fs.writeFileSync(file, Buffer.concat([bytes, Buffer.alloc(CANVAS_JSON_LIMIT, 32)]));
+      await expect(files.load(saved.id)).rejects.toMatchObject({ code: 'STORAGE_LIMIT' });
+      fs.writeFileSync(file, bytes);
       expect(files.getTemplate(template.id).revision).toBe(template.revision);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
@@ -429,7 +552,7 @@ describe('Maker canvas files', () => {
     const saved = await restarted.save(created.id, created, 0);
     expect(saved.nodes).toEqual(created.nodes);
     expect(saved.revision).toBe(1);
-    expect(fs.readdirSync(path.join(root, 'assets', 'image'))).toHaveLength(3);
+    expect(fs.readdirSync(path.join(root, '.maker', 'canvases', 'images'))).toHaveLength(3);
   });
 
   test('removes newly seeded images if creating the document fails', async () => {
@@ -438,7 +561,8 @@ describe('Maker canvas files', () => {
     fs.mkdirSync(path.join(root, '.maker'));
     fs.writeFileSync(path.join(root, '.maker', 'canvases'), 'not a directory');
     await expect(new MakerCanvasFiles(root).create(undefined, 'starter')).rejects.toThrow();
-    expect(fs.readdirSync(path.join(root, 'assets', 'image'))).toEqual([]);
+    expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+    expect(fs.existsSync(path.join(root, '.maker', 'canvases', 'images'))).toBe(false);
   });
 
   test('does not reseed cleared or legacy empty documents on list, load or save', async () => {
@@ -624,18 +748,13 @@ describe('Maker canvas files', () => {
     ).rejects.toMatchObject({ code: 'INVALID_VIDEO' });
   });
 
-  test('allows imported assets when canvas metadata is not git-ignored', async () => {
+  test('rejects image imports before writing when canvas storage is not git-ignored', async () => {
     const root = project('maker-canvas-assets-visible-');
     execFileSync('git', ['init'], { cwd: root });
     const files = new MakerCanvasFiles(root);
     const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0, 0, 0, 0, 0]);
-    const imported = await files.importImage(png);
-    expect(files.readMedia(imported.relativePath).file).toBe(
-      path.join(root, imported.relativePath)
-    );
-    expect(
-      execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' })
-    ).toContain('?? assets/');
+    await expect(files.importImage(png)).rejects.toMatchObject({ code: 'GITIGNORE_REQUIRED' });
+    expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
     expect(fs.existsSync(path.join(root, '.maker'))).toBe(false);
   });
 
@@ -867,13 +986,13 @@ describe('Maker canvas files', () => {
     const files = new MakerCanvasFiles(root);
     const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0, 0, 0, 0, 0]);
     const imported = await files.importImage(png);
-    expect(imported.relativePath.startsWith('assets/image/canvas-')).toBe(true);
+    expect(imported.relativePath.startsWith('.maker/canvases/images/canvas-')).toBe(true);
     const media = files.readMedia(imported.relativePath);
     expect(media.file.startsWith(root)).toBe(true);
     expect(() => files.readMedia('../outside.png')).toThrow(CanvasStoreError);
-    const link = path.join(root, 'assets', 'image', 'linked');
-    fs.mkdirSync(path.dirname(link), { recursive: true });
-    fs.symlinkSync(os.tmpdir(), path.join(root, '.maker'));
+    const images = path.join(root, '.maker', 'canvases', 'images');
+    fs.renameSync(images, images + '-original');
+    fs.symlinkSync(os.tmpdir(), images);
     await expect(files.create('链接')).rejects.toMatchObject({ code: 'UNSAFE_PATH' });
   });
 });

@@ -137,6 +137,19 @@ p{margin:8px 0}
 .runtime-detail{margin-top:3px;overflow-wrap:anywhere}
 .runtime-metric button{margin-top:8px}
 .columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px}
+.context-check{margin-top:28px;padding:24px 0;border-block:1px solid var(--border);font-size:13px;overflow-wrap:anywhere}
+.context-check-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.context-check-head h2{margin:0}.context-check-head p{margin:8px 0 0}
+.context-check-actions{flex-wrap:wrap;min-width:0}
+.context-check-status{display:grid;gap:10px;margin-top:16px}.context-check-status p{margin:0;line-height:1.6}
+.context-error{color:var(--red)}
+.context-note{font-size:12px;line-height:1.7;margin:12px 0 0}
+.context-check>details{margin-top:16px}.context-check summary{cursor:pointer;padding:6px 0}
+.context-group{border-top:1px solid var(--border);margin-top:12px;padding-top:8px}
+.context-source{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:16px;padding:14px 0;border-bottom:1px solid var(--border)}
+.context-source .muted{font-size:12px;margin-top:4px}.context-source .actions{flex-wrap:wrap;justify-content:flex-end}
+.context-finding{margin:14px 0;padding-left:14px;border-left:2px solid var(--border)}.context-finding p{margin:6px 0}
+@media(max-width:520px){.context-check-actions{width:100%}.context-source{grid-template-columns:minmax(0,1fr)}.context-source .actions{justify-content:flex-start}}
 .build-columns{padding:22px 0;border-block:1px solid var(--border)}
 .build-columns>section+section{padding-left:36px;border-left:1px solid var(--border)}
 section{min-width:0}

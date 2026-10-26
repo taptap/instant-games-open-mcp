@@ -1,5 +1,6 @@
 import type { CanvasHostCapabilities } from './capabilities.js';
-import type { CanvasImageModels } from '../contracts.js';
+import type { CanvasPlatform } from '../contracts/platform.js';
+import type { CanvasImageModels, CanvasUiDeliveryStatus } from '../contracts.js';
 import type {
   CanvasCreateTemplate,
   CanvasDocument,
@@ -47,6 +48,22 @@ export interface CanvasTemplateStore {
 }
 
 export interface CanvasDocumentStore {
+  platform?: CanvasPlatform;
+  /** Local UI delivery for a 015 resource bundle. Hosts without project files omit these. */
+  uiDelivery?(canvasId: string, nodeId: string): Promise<CanvasUiDeliveryStatus>;
+  /** Explicit user action: import, assemble, generate meta and check one archive version. */
+  assembleUi?(
+    canvasId: string,
+    nodeId: string,
+    newVersion?: boolean,
+    /** Base64 PNG of a JPEG/WebP design, sent inline for the editor reference only. */
+    designPng?: string,
+    /** 'cli' when a CLI run drives this assembly; recorded on the delivery. */
+    source?: 'canvas' | 'cli'
+  ): Promise<CanvasUiDeliveryStatus>;
+  /** Prepare the shared Maker Python environment needed by resource meta generation. */
+  setupPython?(): Promise<{ ready: boolean; message?: string }>;
+  uiEditorUrl?(file: string): string;
   /** Refresh content identities and the media URLs used for the same bytes. */
   mediaVersions?(paths: string[]): Promise<Record<string, string>>;
   capabilities?: CanvasHostCapabilities;
@@ -115,6 +132,8 @@ export interface CanvasDocumentStore {
       sourceImageIds?: string[];
       referenceImagePaths?: string[];
       targetNodeId?: string;
+      /** Base64 PNG of a non-PNG design, sent inline for art-text prelayout only. */
+      designPng?: string;
     },
     signal?: AbortSignal
   ): Promise<CanvasGenerationAttempt>;

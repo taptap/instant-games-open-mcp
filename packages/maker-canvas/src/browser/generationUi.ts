@@ -35,6 +35,7 @@ import type { CanvasGenerationAttempt } from '../contracts.js';
 import type { CanvasModelSettings } from '../contracts.js';
 import { videoInputSources, videoAttemptMatchesSources } from '../features/videoInputs.js';
 import { withCanvasTimeout } from '../browser/requestTimeout.js';
+import { designPngData } from './designPng.js';
 import { isUiCutoutSource, uiCutoutPrompt, type UiCutoutColor } from '../features/uiCutout.js';
 
 export interface CanvasWorkflowEdit {
@@ -140,6 +141,10 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   canStopWaiting(nodeId: string): boolean;
   stopWaiting(nodeId: string): void;
   hasUnsettledResult(nodeId: string): boolean;
+  recoverForRetry(
+    nodeId: string,
+    force?: boolean
+  ): Promise<'recovered' | 'released' | 'waiting' | 'blocked'>;
   nodeState(nodeId: string): { status: string; canQuery: boolean } | undefined;
   queueBlockReason(nodeId: string): string | undefined;
   failure(nodeId: string): string | undefined;
@@ -170,6 +175,11 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   const attempts = new Map<string, any>();
   const retryableImages = new Set<string>();
   const unconfirmedImages = new Map<string, number>();
+  /**
+   * Unconfirmed image attempts the 015 run gave up on after querying them: a later submission
+   * for the same card may proceed (it can cost one extra generation). Session-only.
+   */
+  const abandonedAttempts = new Set<string>();
   function imageSizeBlockReason(attempt: any): string | undefined {
     if (!attempt?.resultImageInfo) return;
     const current = options.getDocument();
@@ -1240,6 +1250,11 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         return;
       }
       if (options.getDocument()?.id !== documentState.id) return;
+      // Art-text prelayout crops the original design locally; Node reads PNG only.
+      const designPng =
+        node.uiAtlasPrelayout && sourceNodes.length === 1 && sourceNodes[0].assetPath
+          ? await designPngData(options.store, sourceNodes[0].assetPath)
+          : undefined;
       options.log?.(node.title + '：开始生成图片', 'info');
       requestStarted = Date.now();
       if (targetId) unconfirmedImages.set(requestKey, requestStarted);
@@ -1264,6 +1279,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
               aspectRatio: settings.aspectRatio,
               targetSize: outputSize.targetSize,
               referenceImagePaths: [...referencePaths(node)],
+              ...(designPng ? { designPng } : {}),
               ...(!sourceNodes.length
                 ? {}
                 : {
@@ -1571,6 +1587,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       list.some(
         (attempt: any) =>
           attempt.targetNodeId === nodeId &&
+          !abandonedAttempts.has(attempt.id) &&
           ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status) &&
           !explicitPreExecutionRejection(attempt)
       )
@@ -1799,6 +1816,16 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     return true;
   }
 
+  async function recoverLocalImageDownload(attempt: any, list: any[]): Promise<any | false> {
+    const documentState = options.getDocument();
+    const next = await options.store.generationAction(attempt.canvasId, attempt.id, 'retry');
+    attempts.set(next.id, next);
+    if (options.getDocument() !== documentState) return false;
+    if (next.status !== 'succeeded') return false;
+    if (!recoverImage(next, [...list.filter((item) => item.id !== next.id), next])) return false;
+    return (await options.flush()) ? next : false;
+  }
+
   async function action(
     attempt: any,
     actionName: 'query' | 'retry' | 'cancel',
@@ -1830,6 +1857,28 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       options.render();
     }
     try {
+      if (
+        actionName === 'retry' &&
+        attempt.kind === 'image' &&
+        attempt.remoteStatus === 'succeeded' &&
+        attempt.failureStage === 'download'
+      ) {
+        const current = options.getDocument();
+        const list = current ? await options.store.listGeneration(current.id) : [];
+        const recovered = await recoverLocalImageDownload(attempt, list);
+        if (!recovered) {
+          options.setError('图片已取回，但卡片或输入已变化，未覆盖当前内容。', 'info');
+        } else {
+          imageFailures.delete(attempt.targetNodeId);
+          retryableImages.delete(attempt.targetNodeId);
+          const result = options
+            .getDocument()
+            ?.nodes.find((node: any) => node.generation?.attemptId === recovered.id);
+          if (result) await options.onGenerated?.(result.id, 'image');
+        }
+        options.render();
+        return;
+      }
       if (actionName === 'query' && videoTaskTiming(attempt).queryExpired)
         throw new Error('已超过提交后 6 小时的查询期限；历史记录和本地结果仍保留。');
       const startedAt = new Date(Date.now()).toISOString();
@@ -2460,7 +2509,12 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   function latestNodeAttempt(nodeId: string) {
     const canvasId = options.getDocument()?.id;
     return [...attempts.values()]
-      .filter((attempt) => attempt.canvasId === canvasId && attempt.targetNodeId === nodeId)
+      .filter(
+        (attempt) =>
+          attempt.canvasId === canvasId &&
+          attempt.targetNodeId === nodeId &&
+          !abandonedAttempts.has(attempt.id)
+      )
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
   }
 
@@ -2763,6 +2817,74 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       const attempt = latestNodeAttempt(nodeId);
       if (attempt?.kind === 'video' && attempt.taskId) await action(attempt, 'query', throwOnError);
     },
+    /**
+     * Automatic recovery for an unattended run: query the card's original task first and keep
+     * a result that did arrive. A task the server still reports as pending/running is left
+     * alone ('waiting') unless force is set, so it cannot be charged twice. Otherwise abandon
+     * its unknown or failed attempts so the next run of the card submits again. Nothing is
+     * submitted here.
+     */
+    async recoverForRetry(
+      nodeId: string,
+      force = false
+    ): Promise<'recovered' | 'released' | 'waiting' | 'blocked'> {
+      const documentState = options.getDocument();
+      if (!documentState) return 'released';
+      const list = await options.store.listGeneration(documentState.id);
+      if (options.getDocument() !== documentState) return 'released';
+      for (const item of list) recordAttempt(item);
+      const latest = latestNodeAttempt(nodeId);
+      // The remote image already exists; retry only the local download/import path.
+      if (
+        latest?.kind === 'image' &&
+        latest.status === 'failed' &&
+        latest.remoteStatus === 'succeeded' &&
+        latest.failureStage === 'download'
+      ) {
+        try {
+          if (!(await recoverLocalImageDownload(latest, list))) {
+            options.render();
+            return 'blocked';
+          }
+        } catch {
+          options.render();
+          return 'blocked';
+        }
+        const recovered = attempts.get(latest.id);
+        if (recovered?.status === 'succeeded') {
+          imageFailures.delete(nodeId);
+          retryableImages.delete(nodeId);
+          options.render();
+          return 'recovered';
+        }
+        options.render();
+        return 'blocked';
+      }
+      if (latest?.status === 'succeeded' && recoverImage(latest, list) && (await options.flush())) {
+        imageFailures.delete(nodeId);
+        retryableImages.delete(nodeId);
+        options.render();
+        return 'recovered';
+      }
+      const live = (attempt: any) =>
+        attempt.canvasId === documentState.id &&
+        attempt.targetNodeId === nodeId &&
+        !abandonedAttempts.has(attempt.id) &&
+        ['pending', 'running'].includes(attempt.status);
+      if (!force && [...attempts.values()].some(live)) return 'waiting';
+      for (const attempt of attempts.values())
+        if (
+          attempt.canvasId === documentState.id &&
+          attempt.targetNodeId === nodeId &&
+          ['pending', 'running', 'unknown', 'canceled', 'failed'].includes(attempt.status)
+        )
+          abandonedAttempts.add(attempt.id);
+      unconfirmedImages.delete(documentState.id + ':' + nodeId);
+      imageFailures.delete(nodeId);
+      retryableImages.delete(nodeId);
+      options.render();
+      return 'released';
+    },
     hasUnsettledResult(nodeId: string) {
       return (
         unconfirmedImages.has(options.getDocument()?.id + ':' + nodeId) ||
@@ -2770,6 +2892,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
           (attempt) =>
             attempt.canvasId === options.getDocument()?.id &&
             attempt.targetNodeId === nodeId &&
+            !abandonedAttempts.has(attempt.id) &&
             !explicitPreExecutionRejection(attempt) &&
             attempt.kind !== 'video' &&
             ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status)

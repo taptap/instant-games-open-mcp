@@ -59,6 +59,7 @@ function start() {
 function review() {
   const preview: Record<string, string> = {};
   const preview_assets: Record<string, unknown> = {};
+  fs.mkdirSync(path.join(root, 'assets', 'image'), { recursive: true });
   for (const view of ['front', 'left', 'back', 'right']) {
     const relative = 'assets/image/review-' + view + '.jpg';
     fs.writeFileSync(path.join(root, relative), image);
@@ -151,7 +152,7 @@ test('start uses reviewed image workflow, renders all four views and never conti
     payload: {
       generation_strategy: 'reviewed',
       quality_tier: 'balanced',
-      images: { front: document.nodes.find((node) => node.id === characterId)!.assetPath },
+      images: { front: expect.stringMatching(/^data:image\/jpeg;base64,/) },
     },
   });
   for (const preview of result.previews)

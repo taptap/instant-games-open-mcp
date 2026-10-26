@@ -10,6 +10,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -295,6 +296,13 @@ async function main() {
   }
   bundleMakerUiSkill(projectRoot, join(pluginRoot, 'skills/maker-ui-workflow'));
   // WorkBuddy allows only two directory levels below the plugin root.
+  const localSkill = join(pluginRoot, 'skills/taptap-maker-local');
+  for (const name of readdirSync(join(localSkill, 'references'))) {
+    renameSync(join(localSkill, 'references', name), join(localSkill, name));
+  }
+  rmSync(join(localSkill, 'references'), { recursive: true });
+  const localEntry = join(localSkill, 'SKILL.md');
+  writeFileSync(localEntry, readFileSync(localEntry, 'utf8').replaceAll('(references/', '('));
   const uiSkill = join(pluginRoot, 'skills/maker-ui-workflow');
   renameSync(join(uiSkill, 'scripts/assemble-ui.mjs'), join(uiSkill, 'assemble-ui.mjs'));
   renameSync(join(uiSkill, 'references/workflow.md'), join(uiSkill, 'workflow.md'));

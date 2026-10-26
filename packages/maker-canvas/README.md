@@ -121,6 +121,33 @@ Web 原 `addProjectAsset({path,name,type})` 可在自己的桥接中映射到
 完整入口与宿主接线已落到源码，静态约束与运行验收应分开看待；
 先前单条链路的验证不代表本次整体结构或 Web 已验收。
 
+## 平台与模板适用范围
+
+宿主在 Store 声明 `platform: 'local' | 'web'`。两端均使用共享
+`CanvasPlatform` 类型和 `canvasSupportsPlatform(scope, platform)`，不从 URL、
+操作系统或浏览器全局变量推测平台。可选字段是为保留原宿主契约；实际两端均显式赋值。
+
+- 功能沿用 `capabilities`，每个条目可附 `platforms`。统一调用
+  `canvasCapabilityReason(store, capability)`：先检查适用端，再检查 available/reason。
+  适用端与服务是否已接通、浏览器是否支持此 API 是不同问题，不新增另一套功能注册表。
+- 模板与模板摘要使用 `platforms: ['local'] | ['web'] | ['local', 'web']`。省略为双端，
+  空数组、重复或未知值报错。保存模板窗口提供选择；列表先筛选后分页，直接添加再次校验。
+- 分组使用 `templatePlatforms` 保留来源，选区再次保存默认继承适用范围。多个分组取交集，
+  无共同适用端时拒绝混存；用户可在保存窗口明确修改范围。模板归档交换保留标记。
+- 已有画布不会因来源模板变为另一端专用而被删除或拒绝打开。标记管理功能/模板入口，
+  不提供项目权限、媒体隔离或跨端文件同步。Web 模板的媒体仍受项目素材路径约束。
+
+## 共享服务端识图流程
+
+`domain` 导出 `runCanvasServerRecognition`、`requestCanvasRecognitionStep`、
+`uiRecognitionPrompt`、`uiTextRecognitionPrompt` 及相应状态类型。两阶段提示词、
+bbox 校验、文本父级归属、原请求恢复和费用汇总从原本地实现抽出，不复制第二套规则。
+
+宿主注入源图校验、请求、持久化与错误脱敏。本地保留 PAT、项目 realpath、原记录目录；
+Web 使用现有项目 JWT 接口和素材库，记录仅包含 JSON，不持久化图片字节。查询不提交
+下一阶段；显式恢复沿用原幂等键与 24 小时窗口。请求前持久化、未知结果不盲重试。
+共享编排不是新的后台任务服务，不保证跨设备原子互斥，也不代替原服务积分结算。
+
 ## 业务流程约束
 
 以下约束由共享交互与宿主服务共同保证；Web 外围需按同一语义接入。

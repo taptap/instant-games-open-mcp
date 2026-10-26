@@ -73,8 +73,10 @@ test('official Bbox preset preserves tested prompts, media and final export layo
     const canvas = await files.create();
     const prepared = await files.prepareTemplate(id, canvas.id);
     for (const file of templateAssetPaths(prepared)) {
-      expect(fs.statSync(path.join(root, file)).size).toBeGreaterThan(0);
+      expect(fs.statSync(files.readMedia(file).file).size).toBeGreaterThan(0);
+      expect(file).toMatch(/^maker-demo\//);
     }
+    expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
     expect(prepared.cliOnly).toBe(true);
     expect(prepared.nodes).toHaveLength(3);
     expect(prepared.nodes.flatMap((node) => node.imageAssetsInfo?.items || [])).toHaveLength(0);

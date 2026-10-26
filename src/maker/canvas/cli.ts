@@ -56,6 +56,27 @@ export async function runCanvasCli(
     );
     return;
   }
+  if (action === 'assemble-ui' || action === 'ui-delivery') {
+    // Same local service as the canvas「组装 UI」button; no generation, no recognition.
+    if (typeof options.canvas_id !== 'string' || typeof options.id !== 'string')
+      throw new Error('缺少 --canvas-id 或 --id（UI 资源包卡片 ID）。');
+    const { UiDeliveryService } = await import('./uiDelivery.js');
+    const files = new MakerCanvasFiles(options.target_dir);
+    const service = new UiDeliveryService(files.root);
+    // A user-provided PNG inside the project; read here so the service only sees bytes.
+    const designPng =
+      typeof options.design_png === 'string' ? files.readProjectPng(options.design_png) : undefined;
+    print(
+      action === 'ui-delivery'
+        ? await service.status(options.canvas_id, options.id)
+        : await service.assemble(options.canvas_id, options.id, {
+            newVersion: options.new_version === true || options.new_version === 'true',
+            source: 'cli',
+            ...(designPng ? { designPng } : {}),
+          })
+    );
+    return;
+  }
   if (action === 'ui-archives' || action === 'archive-ui') {
     const files = new MakerCanvasFiles(options.target_dir);
     const canvasId = typeof options.canvas_id === 'string' ? options.canvas_id : undefined;

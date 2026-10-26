@@ -1,7 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { validateCanvasCommand, type CanvasCommand, type CanvasOperation } from './automation.js';
 
-type Page = { id: string; project: string; canvasId: string; revision: number; updatedAt: number };
+type Page = {
+  id: string;
+  project: string;
+  canvasId: string;
+  revision: number;
+  /** The page is executing canvas work (queue, template run, generation). */
+  busy: boolean;
+  updatedAt: number;
+};
 type Entry = {
   project: string;
   action: string;
@@ -14,6 +22,8 @@ export class CanvasAutomationBridge {
   private pages = new Map<string, Page>();
   private operations = new Map<string, Entry>();
   private exports = new Map<string, { bytes: Buffer; expiresAt: number }>();
+  /** Newest revision any page reported per project canvas; kept after the page goes away. */
+  private revisions = new Map<string, number>();
   constructor(private now = Date.now) {}
 
   list(project: string) {
@@ -128,6 +138,7 @@ export class CanvasAutomationBridge {
       pageId?: string;
       canvasId?: string;
       revision?: number;
+      busy?: boolean;
       received?: string[];
       results?: Array<{
         id: string;
@@ -167,13 +178,17 @@ export class CanvasAutomationBridge {
         project,
         canvasId: body.canvasId,
         revision: body.revision!,
+        busy: false,
         updatedAt: this.now(),
       };
       this.pages.set(page.id, page);
     }
     page.canvasId = body.canvasId;
     page.revision = body.revision!;
+    page.busy = body.busy === true;
     page.updatedAt = this.now();
+    const canvasKey = project + '\n' + page.canvasId;
+    this.revisions.set(canvasKey, Math.max(this.revisions.get(canvasKey) || 0, page.revision));
     if (
       body.received !== undefined &&
       (!Array.isArray(body.received) ||
@@ -223,6 +238,16 @@ export class CanvasAutomationBridge {
       delete entry.operation.result;
       entry.operation.resultExpired = true;
     }
-    return { pageId: page.id, acknowledged, commands };
+    // Other tabs on the same canvas: a newer saved revision or a busy peer means this page's
+    // view is stale or read-only. The page shows that instead of a snapshot that looks live.
+    const busyPeers = this.list(project).filter(
+      (other) => other.id !== page!.id && other.canvasId === page!.canvasId && other.busy
+    ).length;
+    return {
+      pageId: page.id,
+      acknowledged,
+      commands,
+      canvas: { revision: this.revisions.get(canvasKey)!, busyPeers },
+    };
   }
 }

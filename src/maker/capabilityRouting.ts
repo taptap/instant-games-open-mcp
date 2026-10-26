@@ -7,7 +7,7 @@ function formatMakerCapabilityRoutingIndex(options: { includeFeedback: boolean }
     '- Start/resume/status: maker://status; fallback maker_status_lite.',
     '- Build/remote Web preview/submit/push: check status, use maker_build_current_directory.',
     '- Local preview: taptap-maker preview --target-dir; no commit/remote build.',
-    '  After edits: status; refresh+evidence if alive. Never revive stopped sessions. Clarify run intent.',
+    '  Requested preview iteration only: status, refresh live game edits. Never revive stopped sessions.',
     '- 打开make mcp控制台: active distribution CLI `console open --target-dir <project> --json`; no web search.',
     '  run-lua-validate: preview validate via taptap-maker-local.',
     '- Ads: read maker://ads-integration-guide before any ad-related work.',
@@ -25,12 +25,12 @@ function formatMakerCapabilityRoutingIndex(options: { includeFeedback: boolean }
     '- 游戏UI/设计稿还原/切图/拼装UI.json: read maker-ui-workflow (path in status).',
     '- Bbox预排/uiAtlasPrelayout: read maker-ui-bbox-workflow; keep reference chain.',
     '- Lua UI提取/转JSON/UI.json检查: read lua-ui-to-json (path in status); preserve gameplay and edits.',
-    '  Start at requested stage; existing UI edits do not restart generation.',
+    '  Existing UI edits do not restart generation.',
     '- Resource .meta/UUID: generate_resource_meta; call when needed, never invent UUIDs.',
     '- MCP/proxy infrastructure failure: diagnose, ask once for user consent, then use the',
     "  active client's exact Maker command/args with `mcp report`; never use an unversioned npm package. Do not report expected project or business errors.",
     '',
-    'Follow schema and next_action.',
+    'Read matched references only. Follow schema and next_action.',
   ]
     .filter(Boolean)
     .join('\n');

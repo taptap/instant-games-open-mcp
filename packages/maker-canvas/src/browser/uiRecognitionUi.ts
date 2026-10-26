@@ -66,9 +66,10 @@ export async function drawUiRecognition(
 
 export function createUiRecognitionUiWithHost(options: {
   readSource(path: string, signal: AbortSignal): Promise<Blob>;
-  webRecognitionHint: string;
-  localRecognitionHint: string;
-  localRecognitionViewHint: string;
+  /** Retired host hints; accepted for compatibility, never dispatched. */
+  webRecognitionHint?: string;
+  localRecognitionHint?: string;
+  localRecognitionViewHint?: string;
   current(): CanvasDocument | null;
   store: CanvasDocumentStore;
   save(): Promise<boolean>;
@@ -76,12 +77,15 @@ export function createUiRecognitionUiWithHost(options: {
   changed(): void;
   render(): void;
   blocked(): boolean;
+  /** A template run drives this card (including its retry waits): show it as in progress. */
+  autoRunning?(node: CanvasNode): boolean;
   error(message: string): void;
   loadMedia(path: string): Promise<void>;
   openCanvas(id: string): Promise<void>;
   focus?(id: string): void;
 }) {
-  const webRecognitionHint = options.webRecognitionHint;
+  // Retired host hint retained in the interface for compatibility.
+  // const webRecognitionHint = options.webRecognitionHint;
   let busy = false;
   let preparing = false;
   const errors = new Map<string, string>();
@@ -169,6 +173,7 @@ export function createUiRecognitionUiWithHost(options: {
         Promise.resolve(options.store.recognitionModels?.())
       );
       const configured = models?.[0];
+      /* Retired local/website dispatch.
       if (
         settings.optional &&
         (!configured || ['local', 'chatgpt-web'].includes(configured.source || ''))
@@ -177,6 +182,9 @@ export function createUiRecognitionUiWithHost(options: {
       if (configured?.source === 'chatgpt-web') throw new Error(webRecognitionHint);
       if (models && (!configured || configured.source === 'local'))
         throw new Error(options.localRecognitionHint);
+      */
+      if (!configured || !['server', 'custom'].includes(configured.source || 'custom'))
+        throw new Error('识图 API 尚未就绪，请在设置中选择 Server API 或配置自定义 API。');
       if (configured) model = configured;
     }
     if (source.templatePending && !settings.pendingId)
@@ -363,6 +371,8 @@ export function createUiRecognitionUiWithHost(options: {
         const source = references[0];
         if (source.type !== 'image' || !source.assetPath || source.templatePending)
           throw new Error('请先准备原始 UI 设计稿。');
+        // The original format is kept for generation and recognition; only UI assembly
+        // makes a PNG copy of the design (a larger PNG upload made edit_image fail).
         options.remember();
         node.assetPath = source.assetPath;
         node.imageInfo = source.imageInfo ? { ...source.imageInfo } : undefined;
@@ -503,6 +513,7 @@ export function createUiRecognitionUiWithHost(options: {
         throw new Error('卡片没有待恢复的识图请求；旧记录请同时指定 attemptId。');
       const models = await options.store.recognitionModels?.();
       const configured = models?.[0];
+      /* Retired local/website dispatch.
       if (
         node.uiRecognition?.optional &&
         (!configured || ['local', 'chatgpt-web'].includes(configured.source || ''))
@@ -516,6 +527,9 @@ export function createUiRecognitionUiWithHost(options: {
       ) {
         throw new Error(options.localRecognitionViewHint);
       }
+      */
+      if (!configured || !['server', 'custom'].includes(configured.source || 'custom'))
+        throw new Error('识图 API 尚未就绪，请在设置中选择 Server API 或配置自定义 API。');
       if (
         options.current() !== current ||
         !current.nodes.includes(node) ||
@@ -580,13 +594,20 @@ export function createUiRecognitionUiWithHost(options: {
       card.querySelector('.card-state-overlay')?.remove();
       const isSource = source.id === node.id;
       const pending = Boolean(source.uiRecognition.pendingId);
+      if (busy || preparing || options.autoRunning?.(node)) {
+        renderCanvasCardStatus(card, 'loading', {
+          title: '正在识图',
+          hint: '两轮 Bbox 识图进行中（通常 1～2 分钟），完成后自动继续预排、分离和切图。',
+        });
+        return;
+      }
       renderCanvasCardStatus(card, 'paused', {
         title: pending ? 'Bbox 结果待确认' : '等待 Bbox 数据',
         hint:
           '去文字图片已保留；Bbox 完成后才能预排、分离和切图。' +
           (pending
             ? '请查询原识图请求，不要重复提交。'
-            : '可使用识图 API，或由 AI 按模板 Skill 识图并回填；完成后继续原卡片。') +
+            : '请使用识图 API；接口未就绪时检查设置，恢复后继续原卡片。') +
           (errors.get(current.id + ':' + source.id)
             ? '\n' + errors.get(current.id + ':' + source.id)
             : ''),
@@ -630,9 +651,62 @@ export function createUiRecognitionUiWithHost(options: {
       }
     }
   }
+  /**
+   * Before an automatic retry: query the card's original recognition request. 'waiting' while
+   * it is still in progress remotely: status running, or unknown with the service's
+   * "识图任务仍在执行" (features/serverRecognition.ts). A paused request ("识图等待恢复") or a
+   * failed one is released, so the next round resumes it with the original request ID; with force (waited long enough) the local wait is dropped so the
+   * next round submits a new request, which may be charged again. Anything else is 'released'
+   * and the next round resumes, collects or resubmits through runRecognition.
+   */
+  async function recoverForRetry(
+    nodeId: string,
+    force = false
+  ): Promise<'waiting' | 'released' | 'abandoned'> {
+    const current = options.current();
+    const node = current?.nodes.find((item) => item.id === nodeId);
+    const pendingId = node?.uiRecognition?.pendingId;
+    if (!current || !node || !pendingId || !options.store.recognitionStatus) return 'released';
+    let inProgress: boolean;
+    try {
+      const attempt = await options.store.recognitionStatus(current.id, pendingId);
+      inProgress =
+        attempt.status === 'running' ||
+        (attempt.status === 'unknown' && /仍在执行/.test(attempt.error || ''));
+    } catch {
+      return 'released';
+    }
+    if (!inProgress) return 'released';
+    if (!force) return 'waiting';
+    if (options.current() !== current || node.uiRecognition?.pendingId !== pendingId)
+      return 'released';
+    options.remember();
+    delete node.uiRecognition!.pendingId;
+    options.changed();
+    // Only a saved release may lead to a new submission; otherwise the old request stays the
+    // record on disk and a resubmission would run (and charge) twice.
+    let saved = false;
+    try {
+      saved = await options.save();
+    } catch {
+      saved = false;
+    }
+    if (!saved) {
+      if (node.uiRecognition && !node.uiRecognition.pendingId)
+        node.uiRecognition.pendingId = pendingId;
+      options.changed();
+      throw new Error(
+        '原识图请求等待超时，但画布保存失败，未重新提交识图；请先保存画布，再继续（会先查询原请求 ' +
+          pendingId +
+          '）。'
+      );
+    }
+    return 'abandoned';
+  }
   return {
     ensureNote,
     runRecognition,
+    recoverForRetry,
     async openPreview(node: CanvasNode) {
       const current = options.current();
       if (!current) return;

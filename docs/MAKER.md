@@ -514,9 +514,19 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
 
 Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地状态判断，而不是把所有情况都塞进 MCP tool description。
 
-- `taptap-maker-local`：Maker 初始化与本地 Git 工作流。
+- `taptap-maker-local`：简短入口按当前任务路由到同目录 `references/` 中的初始化、
+  项目定位、控制台、预览、Validate、Git、素材或排障流程，只读取命中的文档。
 - `taptap-maker-dev-kit-guide`：AI dev kit 内容说明，帮助本地 AI/Agent 理解 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 的用途。
 - `update-taptap-mcp`：Maker 新包 `@taptap/maker` 的 npx 缓存更新工作流。
+
+现有 MCP 能力索引和状态输出指向这些入口，不预加载全部流程。WorkBuddy 包按宿主的
+目录深度限制将参考文件平铺在 Skill 目录，生成时同步改写入口链接。各分发均保留完整流程。
+预览状态查询与自动刷新仅适用于用户已请求的本地预览迭代，以及影响该运行游戏的代码或
+资源改动；纯文档改动和其它开发任务不触发。停止、缺失或归属未确认的会话不自动启动。
+
+ai-dev-kit 的 Skills 由客户端根据各自描述发现，Maker 索引不控制它们的注册或加载。
+不因文件较大自动改写、隐藏或搬移项目 Skill；仅在对应任务中读取，避免重复预读。
+入口缩短减少的是该 Skill 被调用时的正文量，不等同于减少客户端常驻工具定义或会话历史。
 
 第一版范围：
 
@@ -610,7 +620,8 @@ CLI 负责确定性文件处理：
 - 跳过 ZIP 顶层 `scripts` 目录，避免和 Maker 项目 clone 后的 `scripts` 冲突。
 - 删除下载完成并解压后的 `ai-dev-kit.zip`。
 - dev-kit 准备成功后会刷新项目根 `.gitignore`，把 dev-kit 顶层内容、Agent skill 发现目录和
-  `.maker/` 本地运行状态标记为忽略项。`.gitignore` 文件本身是 Maker 项目必要文件，
+  `.maker/` 本地运行状态、`/.maker-preview/` 预览副本标记为忽略项。画布缓存、UI 工作流
+  中间文件和本地日志均由 `.maker/` 覆盖；不忽略正式交付的 `assets/ui/`。`.gitignore` 文件本身是 Maker 项目必要文件，
   应提交到 Maker Git，尤其是首次 init 生成时。
 
 如果 clone 失败，CLI 会保留 `.maker-mcp/config.json` 中的已选 app。后续重新执行
@@ -656,7 +667,8 @@ Maker app 列表关键字段：
 - 首次拉取默认使用浅拉取。`taptap-maker init` 在记录已选 app 后，通常执行
   `git init` + `git fetch --depth=1 origin`，再 checkout 远端默认分支，避免大项目在慢网环境下载完整历史。
 - 首次 clone/fetch 前会明确提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
-- `taptap-maker init` 会根据 Git stderr 判断是否自动重试：HTTP 5xx、503、超时、连接重置、HTTP2/RPC 中断、early EOF 等远端临时错误会在 fetch 阶段重试；遇到明确的 HTTP/2 传输错误时，后续 fetch/push 会使用命令级 `http.version=HTTP/1.1` 降级，不修改用户的全局或仓库 Git 配置；认证失败、权限不足、仓库不存在、远端拒绝、非空目录冲突、本地权限错误不会重试。
+- Maker 每次启动 Git 都会带命令级 `-c http.version=HTTP/1.1`，不修改用户的全局或仓库 Git 配置。本地命令会忽略该参数，不支持 `http.version` 的旧版 Git 也会忽略它。
+- `taptap-maker init` 会根据 Git stderr 判断是否自动重试：HTTP 5xx、503、超时、连接重置、HTTP2/RPC 中断、early EOF 等远端临时错误会在 fetch 阶段重试；认证失败、权限不足、仓库不存在、远端拒绝、非空目录冲突、本地权限错误不会重试。
 - 首次 clone/fetch 默认最多自动重试 5 次，基础等待间隔为 5 秒；连续重试后仍失败时，错误会保留 `retryable`、`retry_reason` 和已重试次数，方便 Agent 判断是让用户稍后直接重试，还是先处理 PAT、权限或本地目录问题。
 - `maker_build_current_directory` 会在本地 commit、push 和远端 build 阶段输出状态，并解析 Git push stderr 中的百分比进度。
 - `maker_build_current_directory` 的 push 阶段也会对远端临时错误自动重试；push 最终失败时不会继续远端 build。

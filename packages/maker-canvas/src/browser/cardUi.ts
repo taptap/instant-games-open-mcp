@@ -174,7 +174,7 @@ export const CANVAS_CARD_UI_STYLES = `
 .card > .generation-credits { top:45px; }
 .card .resize-handle { width:12px; height:12px; right:3px; bottom:3px; opacity:0; border-radius:0 0 4px 0; background:linear-gradient(135deg,transparent 50%,#9ca9af 50% 60%,transparent 60% 75%,#9ca9af 75% 85%,transparent 85%); }
 .card:hover > .resize-handle, .card.selected > .resize-handle, .resize-handle:focus-visible { opacity:1; }
-.card.section.canvas-card { background:#202528; border:1px solid #475256; box-shadow:none; overflow:visible; }
+.card.section.canvas-card { background:rgba(32,37,40,.45); border:1px solid #475256; box-shadow:none; overflow:visible; }
 .card.section .canvas-card-header { border-color:#3d474a; background:#1d2225e8; border-radius:8px 8px 0 0; }
 .canvas-group-state { display:inline-flex; align-items:center; gap:5px; flex:none; font-size:11px; color:#aeb7bb; white-space:nowrap; }
 .canvas-group-state:before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }

@@ -14,13 +14,50 @@ import { CanvasGenerationService } from './canvasGeneration.js';
 import { CanvasModelService } from './canvasModels.js';
 import { CanvasRecognitionService } from './canvasRecognition.js';
 import type { MakerRemoteProxyManager } from '../server/remoteProxyManager.js';
+import {
+  formatMakerPythonEnvironmentStatus,
+  setupMakerPythonEnvironmentAsync,
+} from '../system/python.js';
 
-async function readBytes(request: IncomingMessage, limit: number): Promise<Buffer> {
+const DELIVERY_CODES = new Set([
+  'ASSEMBLY_BUSY',
+  'ASSETS_UNCONFIRMED',
+  'BUNDLE_INCOMPLETE',
+  'NON_PNG_SOURCE',
+  'ART_TEXT_UNMAPPED',
+  'ART_TEXT_ASSET_MISSING',
+  'ARCHIVE_MISMATCH',
+  'ARCHIVE_INCOMPLETE',
+]);
+
+/** Base64 of a ≤20 MiB PNG; only art-text prelayout and assembly send it. */
+const DESIGN_PNG_BODY = 28 * 1024 * 1024;
+const PNG_MAGIC = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+
+/**
+ * PNG pixels of a JPEG/WebP design, converted by the canvas and sent inline so the project
+ * never keeps a second copy of the design. Size is checked again where it is used.
+ */
+function designPngBytes(value: unknown): Buffer | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(value))
+    throw new ConsoleError('designPng 必须是 base64 编码的 PNG。');
+  const bytes = Buffer.from(value, 'base64');
+  if (bytes.length > 20 * 1024 * 1024 || !bytes.subarray(0, 8).equals(PNG_MAGIC))
+    throw new ConsoleError('designPng 不是 20 MiB 以内的 PNG。');
+  return bytes;
+}
+
+async function readBytes(
+  request: IncomingMessage,
+  limit: number,
+  tooLarge = 'Request body is too large.'
+): Promise<Buffer> {
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > limit) throw new ConsoleError('Request body is too large.', 413);
+    if (size > limit) throw new ConsoleError(tooLarge, 413);
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
@@ -55,7 +92,7 @@ export async function handleCanvasProjectRoute(options: {
   const files = new MakerCanvasFiles(project.path);
   try {
     if (suffix === 'canvases/media-version' && method === 'GET') {
-      const media = files.readMedia(searchParams.get('path') || '');
+      const media = await files.loadMedia(searchParams.get('path') || '');
       const { version } = await readCanvasMedia(media.file);
       response.setHeader('Cache-Control', 'no-store');
       send(response, 200, { version });
@@ -63,8 +100,53 @@ export async function handleCanvasProjectRoute(options: {
     }
     if (suffix === 'canvases/image-info' && method === 'GET') {
       const assetPath = searchParams.get('path') || '';
-      files.readMedia(assetPath);
+      await files.loadMedia(assetPath);
       send(response, 200, files.imageInfo(assetPath) || null);
+      return true;
+    }
+    const delivery = suffix.match(/^canvases\/([0-9a-f-]{36})\/ui-delivery$/i);
+    if (delivery && (method === 'GET' || method === 'POST')) {
+      // Loaded on demand: the assembly library is an ES module shared with the Skill CLI.
+      const { UiDeliveryService } = await import('../canvas/uiDelivery.js');
+      const service = new UiDeliveryService(project.path);
+      if (method === 'GET') {
+        send(response, 200, await service.status(delivery[1], searchParams.get('nodeId') || ''));
+      } else {
+        const body = JSON.parse(
+          (await readBytes(request, 4096 + DESIGN_PNG_BODY)).toString('utf8') || '{}'
+        ) as {
+          nodeId?: unknown;
+          newVersion?: unknown;
+          source?: unknown;
+          designPng?: unknown;
+        };
+        if (typeof body.nodeId !== 'string') throw new ConsoleError('缺少资源包卡片标识。');
+        if (body.newVersion !== undefined && typeof body.newVersion !== 'boolean')
+          throw new ConsoleError('newVersion 必须是布尔值。');
+        if (body.source !== undefined && body.source !== 'cli' && body.source !== 'canvas')
+          throw new ConsoleError('source 只能是 cli 或 canvas。');
+        const designPng = designPngBytes(body.designPng);
+        send(
+          response,
+          200,
+          await service.assemble(delivery[1], body.nodeId, {
+            newVersion: body.newVersion === true,
+            source: body.source === 'cli' ? 'cli' : 'canvas',
+            ...(designPng ? { designPng } : {}),
+          })
+        );
+      }
+      return true;
+    }
+    if (suffix === 'canvases/python/setup' && method === 'POST') {
+      // Explicit user action; downloads the shared Maker Python runtime when it is missing.
+      const result = await setupMakerPythonEnvironmentAsync();
+      send(response, 200, {
+        ready: result.environment.ready,
+        ...(result.environment.ready
+          ? {}
+          : { message: formatMakerPythonEnvironmentStatus(result.environment) }),
+      });
       return true;
     }
     if (suffix === 'canvases/recognition-models' && method === 'GET') {
@@ -273,7 +355,7 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     if (method === 'GET' && suffix === 'canvas-media') {
-      const media = files.readMedia(searchParams.get('path') || '');
+      const media = await files.loadMedia(searchParams.get('path') || '');
       response.setHeader('Content-Type', media.type);
       response.setHeader('X-Content-Type-Options', 'nosniff');
       response.setHeader('Cache-Control', 'no-store');
@@ -424,10 +506,11 @@ export async function handleCanvasProjectRoute(options: {
     if (generationImage && method === 'POST') {
       if (!options.remoteProxyManager) throw new ConsoleError('画布生成能力尚未就绪。', 503);
       const body = JSON.parse(
-        (await readBytes(request, 64 * 1024)).toString('utf8') || '{}'
+        (await readBytes(request, 64 * 1024 + DESIGN_PNG_BODY)).toString('utf8') || '{}'
       ) as Record<string, unknown>;
       if (typeof body.prompt !== 'string' || !body.prompt.trim())
         throw new ConsoleError('缺少图片生成提示词。');
+      const designPng = designPngBytes(body.designPng);
       if (
         body.cutoutColor !== undefined &&
         !['#FF00FF', '#00FF00', 'transparent'].includes(String(body.cutoutColor))
@@ -475,6 +558,7 @@ export async function handleCanvasProjectRoute(options: {
                   throw new ConsoleError('图片来源节点列表无效。');
                 })(),
         targetNodeId: typeof body.targetNodeId === 'string' ? body.targetNodeId : undefined,
+        designPng,
       });
       send(response, 200, attempt);
       return true;
@@ -563,7 +647,17 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     if (one && method === 'PUT') {
-      const input = JSON.parse((await readBytes(request, CANVAS_JSON_LIMIT)).toString('utf8'));
+      const input = JSON.parse(
+        (
+          await readBytes(
+            request,
+            CANVAS_JSON_LIMIT,
+            '画布文档超过 ' +
+              CANVAS_JSON_LIMIT / 1024 / 1024 +
+              ' MiB，无法保存。请把部分分组复制到新画布后删除，再保存。'
+          )
+        ).toString('utf8')
+      );
       if (!input || typeof input !== 'object' || typeof input.revision !== 'number') {
         throw new ConsoleError('缺少画布 revision。');
       }
@@ -608,6 +702,10 @@ export async function handleCanvasProjectRoute(options: {
     }
     if ((error as { code?: string }).code === 'CANVAS_PAGE_EXPIRED') {
       send(response, 409, { code: 'CANVAS_PAGE_EXPIRED', error: (error as Error).message });
+      return true;
+    }
+    if (error instanceof CanvasStoreError && DELIVERY_CODES.has(error.code)) {
+      send(response, error.status, { code: error.code, error: error.message });
       return true;
     }
     if (error instanceof CanvasStoreError) {

@@ -1,5 +1,6 @@
 import { canvasMediaSources, refreshCanvasMedia } from './mediaVersions.js';
 import { canvasCapabilityReason } from './capabilities.js';
+import { canvasSupportsPlatform, validateCanvasPlatforms } from '../contracts/platform.js';
 import { nextCanvasExportCode } from './exportNaming.js';
 import { downloadCanvasResourceWithHost } from './resourceDownload.js';
 import {
@@ -72,7 +73,9 @@ import { templateCategories } from '../features/templatePresentation.js';
 import { templatePresentation } from '../features/templatePresentation.js';
 import { canvasAutomationSnapshot } from '../features/automation.js';
 import { validateCanvasCommandStructure as validateCanvasCommand } from '../features/automation.js';
-import { syncUiBboxWorkflow } from './uiBboxWorkflow.js';
+import { syncUiBboxWorkflow, layoutUiWorkflowGroup } from './uiBboxWorkflow.js';
+import { createUi015Workflow } from './ui015Workflow.js';
+import { designPngData } from './designPng.js';
 import { CANVAS_MODEL_STYLES } from './model3dUi.js';
 import { canvasModelInput } from '../features/model3d.js';
 import { canvasModelIsCurrent } from '../features/model3d.js';
@@ -178,6 +181,7 @@ import { encodeImageAtlasRegions } from './imageAtlasExport.js';
 import { findAtlasContentRegions } from '../features/atlasContent.js';
 import { validateAtlasCrops } from '../features/atlasContent.js';
 import { alignAtlasCells } from '../features/atlasAlignment.js';
+import { alignNativeAtlasRegions, findNativeAtlasComponents } from '../features/atlasAlignment.js';
 import { assignAtlasCellsByCenter } from '../features/atlasAlignment.js';
 import { atlasLayoutError } from '../features/atlasAlignment.js';
 import { IMAGE_ASSETS_STYLES } from './imageAssetsUi.js';
@@ -290,6 +294,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasMediaSources.toString(),
     refreshCanvasMedia.toString(),
     nextCanvasExportCode.toString(),
+    validateCanvasPlatforms.toString(),
+    canvasSupportsPlatform.toString(),
     canvasCapabilityReason.toString(),
     integration.hostScript,
     'const IMAGE_FEATURES = ' + JSON.stringify(IMAGE_FEATURES) + ';',
@@ -344,6 +350,9 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasAutomationSnapshot.toString(),
     validateCanvasCommand.toString(),
     syncUiBboxWorkflow.toString(),
+    layoutUiWorkflowGroup.toString(),
+    createUi015Workflow.toString(),
+    designPngData.toString(),
     prepareCanvasReferences.toString(),
     applyCanvasReferences.toString(),
     decorateCanvasCard.toString(),
@@ -440,6 +449,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     findAtlasContentRegions.toString(),
     validateAtlasCrops.toString(),
     alignAtlasCells.toString(),
+    alignNativeAtlasRegions.toString(),
+    findNativeAtlasComponents.toString(),
     assignAtlasCellsByCenter.toString(),
     atlasLayoutError.toString(),
     selectedUiAtlasPlan.toString(),
@@ -955,9 +966,11 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  function deleteSelected() {',
       '    if (!documentState || !selected.size) return;',
-      '    if (groupQueue && groupQueue.isBusy) { setError("请先停止分组队列并等待当前步骤结束，再删除卡片。"); return; }',
+      '    const queued = Boolean(groupQueue && Array.from(selected).some(function (id) { return groupQueue.protects(id); }));',
+      '    if (queued && !confirm("所选卡片正在执行，删除后将停止相关后续并忽略迟到结果，已提交远端任务不会取消。继续删除？")) return;',
       '    if (protectTemplateSelection()) return;',
       "    if (!sequenceUi.deleteNodes(Array.from(selected))) { setError('拆帧任务运行中，请先取消后再删除。'); return; }",
+      '    if (groupQueue) groupQueue.remove(Array.from(selected));',
       '    remember();',
       '    documentState = removeNodes(documentState, Array.from(selected));',
       '    if (documentState.templateFlow && documentState.templateFlow.stage === "complete") delete documentState.templateFlow;',
@@ -1027,21 +1040,27 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  function fitAll() {',
       '    if (!documentState) return;',
-      '    if (!documentState.nodes.length) { documentState.viewport = { x: 0, y: 0, scale: 1 }; }',
-      '    else {',
-      '      const left = Math.min.apply(null, documentState.nodes.map(function (node) { return node.x; }));',
-      '      const top = Math.min.apply(null, documentState.nodes.map(function (node) { return node.y; }));',
-      '      const right = Math.max.apply(null, documentState.nodes.map(function (node) { return node.x + node.width; }));',
-      '      const bottom = Math.max.apply(null, documentState.nodes.map(function (node) { return node.y + node.height; }));',
-      '      const width = Math.max(1, right - left);',
-      '      const height = Math.max(1, bottom - top);',
-      '      const scale = Math.min(4, Math.max(0.15, Math.min((board.clientWidth - 64) / width, (board.clientHeight - 64) / height)));',
+      '    if (!documentState.nodes.length) { documentState.viewport = { x: 0, y: 0, scale: 1 }; markDirty(); render(); return; }',
+      '    const left = Math.min.apply(null, documentState.nodes.map(function (node) { return node.x; }));',
+      '    const top = Math.min.apply(null, documentState.nodes.map(function (node) { return node.y; }));',
+      '    const right = Math.max.apply(null, documentState.nodes.map(function (node) { return node.x + node.width; }));',
+      '    const bottom = Math.max.apply(null, documentState.nodes.map(function (node) { return node.y + node.height; }));',
+      '    const width = Math.max(1, right - left);',
+      '    const height = Math.max(1, bottom - top);',
+      '    // Group bars hang below their group at screen size and get taller when the zoom narrows',
+      '    // them: place, measure at the new zoom, and place again until the bar fits (a few rounds).',
+      '    function barHeight() { return Math.max.apply(null, [0].concat(Array.from(world.querySelectorAll(".group-queue")).map(function (item) { return item.offsetHeight + 12; }))); }',
+      '    function place(bar) {',
+      '      const scale = Math.min(4, Math.max(0.15, Math.min((board.clientWidth - 64) / width, (board.clientHeight - 64 - bar) / height)));',
       '      documentState.viewport.scale = scale;',
       '      documentState.viewport.x = (board.clientWidth - width * scale) / 2 - left * scale;',
-      '      documentState.viewport.y = (board.clientHeight - height * scale) / 2 - top * scale;',
+      '      documentState.viewport.y = (board.clientHeight - bar - height * scale) / 2 - top * scale;',
+      '      markDirty();',
+      '      render();',
       '    }',
-      '    markDirty();',
-      '    render();',
+      '    let reserved = barHeight();',
+      '    place(reserved);',
+      '    for (let round = 0; round < 4 && barHeight() > reserved + 1; round++) { reserved = barHeight(); place(reserved); }',
       '  }',
       '  function markDirty() {',
     ].join('\n')
@@ -1361,6 +1380,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  }',
       '  async function saveSnapshot() {',
       '    if (groupQueue) groupQueue.checkpoint();',
+      '    const peer = peerBlock();',
+      '    if (peer) { setStatus("未保存"); setError(peer); return false; }',
     ].join(String.fromCharCode(10))
   );
   page = replaceCanvasPageText(page, '      return !ack.pending;', '      return true;');
@@ -1376,6 +1397,10 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     '</style>',
     SEQUENCE_EDITOR_STYLES +
       '.sequence-editor[aria-label="本地图片编辑"] { width: min(560px, calc(100vw - 32px)); height: auto; padding: 20px; box-sizing: border-box; }' +
+      '#peer-block { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; gap: 12px; align-items: center; max-width: min(760px, calc(100% - 32px)); box-sizing: border-box; padding: 10px 14px; border-radius: 8px; background: #8a2c1c; color: #fff4ea; font-size: 13px; line-height: 1.5; box-shadow: 0 6px 18px rgba(0,0,0,.35); }' +
+      '#peer-block[hidden] { display: none; }' +
+      '#board[data-peer-blocked] #world { pointer-events: none; opacity: .6; }' +
+      '#peer-block button { flex: none; border: 1px solid #ffd2c2; border-radius: 6px; background: transparent; color: inherit; padding: 4px 10px; cursor: pointer; }' +
       '</style>'
   );
   page = replaceCanvasPageText(
@@ -1405,7 +1430,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '    for (const node of documentState.nodes) {',
-    "    const orderedNodes = documentState.nodes.filter(function (node) { return !resourceBundleOwner(documentState, node.id) || selected.has(node.id); }).sort(function (left, right) { return (left.type === 'section' ? -1 : 0) - (right.type === 'section' ? -1 : 0); });\n    for (const node of orderedNodes) {\n      if (node.type === 'video-source') fitVideoCard(node);\n      if (fitImageCard(node)) markDirty();"
+    "    const orderedNodes = documentState.nodes.filter(function (node) { return !resourceBundleOwner(documentState, node.id) || selected.has(node.id); }).sort(function (left, right) { return (left.type === 'section' ? -1 : 0) - (right.type === 'section' ? -1 : 0); });\n    for (const node of orderedNodes) {\n      if (node.type === 'video-source') fitVideoCard(node);\n      if (fitImageCard(node)) { markDirty(); if (node.sectionId && layoutUiWorkflowGroup(documentState, node.sectionId)) requestAnimationFrame(render); }"
   );
   page = replaceCanvasPageText(
     page,
@@ -1477,7 +1502,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      world.append(card);',
       '      if (node.type === "image" && node.assetPath) renderImageInfo(card, generationUi.imageTarget(node), node, function () {',
       '        if (!card.isConnected || !documentState || !documentState.nodes.includes(node)) return;',
-      '        if (fitImageCard(node)) { markDirty(); requestAnimationFrame(render); }',
+      '        if (fitImageCard(node)) { markDirty(); if (node.sectionId) layoutUiWorkflowGroup(documentState, node.sectionId); requestAnimationFrame(render); }',
       '      });',
       '    }',
       '    function renderSelectionToolbar() {',
@@ -1590,7 +1615,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  let pendingPlacement = null;',
       "  const contextMenu = document.getElementById('canvas-context-menu');",
-      '  imageAssetsUi = createImageAssetsUi({ deliver: deliverExport, current: function () { return documentState; }, store: store, remember: remember, changed: markDirty, save: flush, render: render, select: function (id) { selected.clear(); selected.add(id); }, blocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || generationUi.hasInputDraft() || sequenceUi.hasUnsavedFrames; }, resolve: function (id) { return templateWorkflow.resolveTarget(id, "image-assets"); }, error: setError });',
+      '  imageAssetsUi = createImageAssetsUi({ deliver: deliverExport, current: function () { return documentState; }, store: store, remember: remember, changed: markDirty, save: flush, render: render, select: function (id) { selected.clear(); selected.add(id); }, blocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || generationUi.hasInputDraft() || sequenceUi.hasUnsavedFrames; }, resolve: function (id) { return templateWorkflow.resolveTarget(id, "image-assets"); }, error: setError, log: function (message, level) { canvasLogs.add(message, level); } });',
       '  resourceExport = createCanvasResourceExport({ deliver: deliverResource, onBusyChange: publishDirty, getDocument: function () { return documentState; }, mediaUrl: function (path) { return store.mediaUrl(path); }, error: setError, progress: function (message) { setError(message, "info"); }, assets: imageAssetsUi, model: { ready: function (id) { const state = modelUi && modelUi.state(id); return state && state.status === "completed" && !state.stale; }, download: function (id) { return modelUi.download(id); } } });',
       '  function hideContextMenu() { contextMenu.hidden = true; }',
       '  function showContextMenu(event) {',
@@ -1720,7 +1745,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     'void boot().catch(function (caught) { setError(caught.message); });',
     [
       '  const templateModel = createCanvasTemplateModel();',
-      '  const templateUi = createCanvasTemplateUi({ deliver: deliverExport,',
+      '  const templateUi = createCanvasTemplateUi({ deliver: deliverExport, platform: store.platform,',
       '    store: store.templates, exchangeUnavailableReason: canvasCapabilityReason(store, "templateExchange"), model: templateModel, getDocument: function () { return documentState; }, selected: selected,',
       '    remember: remember, changed: markDirty, render: render, save: flush, error: setError,',
       '    busy: function (id) { return pendingAssetImports > 0 || Boolean(groupQueue && groupQueue.protects(id)) || sequenceUi.isBusy || generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || templateWorkflow.isNodeLoading(id); },',
@@ -1836,7 +1861,9 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    getDocument: function () { return documentState; },',
       '    needs: function (id) { return templateWorkflow.status(id) === "pending"; },',
       '    parallel: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); const group = node && documentState.nodes.find(function (item) { return item.id === node.sectionId; }); return Boolean(group && (["7e1cb6ad-732f-4dc3-a951-000000000013", "7e1cb6ad-732f-4dc3-a951-000000000015"].includes(group.templateId) || (group.templateCliOnly && group.templateSkills?.includes("maker-ui-bbox-workflow"))) && node.type === "image" && (!node.uiRecognition || node.uiRecognition.optional) && !node.uiAtlasPrelayout && canvasReferences(documentState, id).length); },',
-      '    imageConcurrency: function () { return Infinity; },',
+      // Each image request holds one of the browser's 6 connections to the console until the
+      // picture is done; 4 leaves room for saves, media and the CLI heartbeat (else ~30 s stall).
+      '    imageConcurrency: function () { return 4; },',
       '    save: flush,',
       '    problem: function (id) { if (sequenceUi.hasDraft(id)) return "此卡片有未保存的帧处理，请先保存或放弃后再继续队列。"; return generationUi.queueBlockReason(id); },',
       '    busy: function () { return templateWorkflow.isBusy || generationUi.isBusy || imageAssetsUi.isBusy || sequenceUi.isBusy || Boolean(sequenceEditor && sequenceEditor.isOpen) || Boolean(imageEditing && imageEditing.isBusy) || Boolean(videoHistory && videoHistory.isBusy) || pendingAssetImports > 0; },',
@@ -1845,11 +1872,13 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    prepareRetry: function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (!node) return; node.templatePending = true; invalidateCanvasDependents(documentState, id); markDirty(); canvasLogs.add(node.title + "：重新生图（每次分组运行最多2次），其余分支保留", "warning"); },',
       '    run: async function (id) { const ok = await templateWorkflow.runQueued(id); if (ok) return true; throw new Error(templateWorkflow.failure(id) || "步骤未完成，已暂停。请查看此卡片状态和运行日志。"); },',
       '    confirm: function (message) { return window.confirm(message); }, error: setError,',
-      '    haltReason: function () { return saveFailed ? "画布结果尚未保存，已停止后续生成；请先保存再继续。" : undefined; },',
+      '    haltReason: function () { return saveFailed ? "画布结果尚未保存，已停止后续生成；请先保存再继续。" : peerBlock() || undefined; },',
+      '    blocked: function () { return peerBlock() || undefined; },',
       '    expand: function (id) { if (documentState && ensureUiAtlasBatchCards(documentState, id)) markDirty(); },',
-      '    changed: function () { if (dirty()) markDirty(); if (groupQueueUi) groupQueueUi.refresh(); if (documentState) refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; }); publishDirty(); },',
+      '    settled: function (id, phase) { if (ui015Workflow) ui015Workflow.settled(id, phase); },',
+      '    changed: function () { if (dirty()) markDirty(); if (groupQueueUi) groupQueueUi.refresh(); if (documentState) refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return ui015Workflow && ui015Workflow.isActive(id) ? "running" : groupQueue && groupQueue.view(id)?.phase; }); publishDirty(); },',
       '  });',
-      '  groupQueueUi = createCanvasGroupQueueUi({ queue: groupQueue, node: function (id) { return documentState && documentState.nodes.find(function (node) { return node.id === id; }); }, scale: function () { return documentState && documentState.viewport.scale || 1; },',
+      '  groupQueueUi = createCanvasGroupQueueUi({ queue: groupQueue, node: function (id) { return documentState && documentState.nodes.find(function (node) { return node.id === id; }); }, scale: function () { return documentState && documentState.viewport.scale || 1; }, workflow: { view: function (id) { return ui015Workflow ? ui015Workflow.view(id) : undefined; } }, notice: function () { return peerReason; },',
       '    focus: function (id) { const node = documentState && documentState.nodes.find(function (node) { return node.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + (node.height || 200) / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; render(); },',
       '  });',
       '  setInterval(function () { groupQueueUi.tick(); }, 1000);',
@@ -1864,7 +1893,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '    function renderSelectionToolbar() {',
-    '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; });\n    function renderSelectionToolbar() {'
+    '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return ui015Workflow && ui015Workflow.isActive(id) ? "running" : groupQueue && groupQueue.view(id)?.phase; });\n    function renderSelectionToolbar() {'
   );
   page = replaceCanvasPageText(
     page,
@@ -1952,7 +1981,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      remember(); current.nodes.push(node); selected.clear(); selected.add(node.id); markDirty();',
       '  }',
       '  const automation = createCanvasAutomationUi({',
-      '    capabilities: store.capabilities,',
+      '    capabilities: store.capabilities, platform: store.platform,',
       '    checkRecognition: function (node) { return uiRecognitionUi.checkRecognition(node); },',
       '    ensureRecognitionNote: function (node) { uiRecognitionUi.ensureNote(node); },',
       '    recognizeUi: function (node, recover, attemptId) { return uiRecognitionUi.runRecognition(node, true, recover, attemptId); },',
@@ -1960,6 +1989,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    blocked: function (allowUnsaved) {',
       '      if (pendingExports || (resourceExport && resourceExport.isBusy)) return "资源正在导出，请等待完成。";',
       '      if (canvasOpening) return "画布正在加载，请稍后重新 inspect。";',
+      '      const peer = peerBlock(); if (peer) return peer;',
       '      if (modelUi.isBusy) return "模型请求等待中，可停止本地等待后查询原任务。";',
       '      if (!allowUnsaved && (dirty() || pendingSave)) return "画布有未保存修改，请等待保存完成后重试。";',
       '      if (generationUi.hasInputDraft()) return "存在尚未提交的人工生成参数草稿；请先手动完成生成，或刷新页面明确放弃草稿。关闭面板不会丢弃草稿。";',
@@ -2029,10 +2059,34 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    },',
       '    query: async function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (node && node.uiRecognition?.pendingId) await uiRecognitionUi.query(id); else if (node && ["model", "model-views"].includes(node.type)) await modelUi.execute(id, "query"); else await generationUi.queryNode(id, true); },',
       '    error: function () { return error.textContent; }, clearError: function () { error.textContent = ""; }, queue: groupQueue,',
+      '    ui015: { isWorkflowGroup: function (id) { return ui015Workflow.isWorkflowGroup(id); }, advance: function (id, input) { return ui015Workflow.advance(id, input || {}); }, inspect: function (id) { const view = ui015Workflow.inspect(id); return view && { stage: view.stage, message: view.message }; }, active: function (id) { return ui015Workflow.isActive(id); }, outcome: function (id) { return ui015Workflow.outcome(id); } },',
       '    busyChanged: function (busy) { canvasAutomationBusy = busy; publishDirty(); }',
       '  });',
       '  document.getElementById("refresh-media").addEventListener("click", function () { const reason = hostEditBlocked(); if (reason) { setError(reason); return; } pendingExports++; publishDirty(); void refreshSources().then(function () { const unknown = documentState.nodes.some(function (node) { return node.assetPath && !node.assetVersion; }); setError(unknown ? "素材已刷新；旧结果未记录内容版本，来源待核实，不会自动重新生成。" : "素材已刷新，来源变化的结果需要重新处理。", "info"); }).catch(function (caught) { setError(caught.message); }).finally(function () { pendingExports--; publishDirty(); }); });',
-      '  host.connectAutomation({ current: function () { return documentState; }, execute: automation.execute, error: setError });',
+      '  let canvasPeers = { canvasId: "", revision: 0, busyPeers: 0 };',
+      '  let peerReason = "";',
+      '  const peerBanner = document.createElement("div");',
+      '  peerBanner.id = "peer-block"; peerBanner.hidden = true; peerBanner.setAttribute("role", "alert");',
+      '  board.append(peerBanner);',
+      '  function localCanvasBusy() { return Boolean((groupQueue && groupQueue.isBusy) || (ui015Workflow && ui015Workflow.active) || (templateWorkflow && templateWorkflow.isBusy) || (generationUi && generationUi.isBusy) || (uiRecognitionUi && uiRecognitionUi.isBusy) || (imageAssetsUi && imageAssetsUi.isBusy)); }',
+      '  /** Another page on this canvas saved newer content or is executing: this page must not save or run. */',
+      '  function peerBlock() {',
+      '    if (!documentState || canvasPeers.canvasId !== documentState.id) return "";',
+      '    if (canvasPeers.revision > documentState.revision) return "此画布已在另一个页面保存了更新内容，本页显示的是旧版本，不会保存也不能执行。请刷新本页查看最新状态，或关闭本页。";',
+      '    if (canvasPeers.busyPeers && !localCanvasBusy()) return "此画布正在另一个页面执行任务。本页只读，进度以执行中的页面为准；该页面完成后请刷新本页。";',
+      '    return "";',
+      '  }',
+      '  function updatePeerBlock() {',
+      '    const reason = peerBlock();',
+      '    if (reason === peerReason) return;',
+      '    peerReason = reason;',
+      '    peerBanner.replaceChildren();',
+      '    peerBanner.hidden = !reason;',
+      '    board.toggleAttribute("data-peer-blocked", Boolean(reason));',
+      '    if (reason) { const text = document.createElement("span"); text.textContent = reason; const reload = document.createElement("button"); reload.type = "button"; reload.textContent = "刷新本页"; reload.addEventListener("click", function () { location.reload(); }); peerBanner.append(text, reload); canvasLogs.add(reason, "warning"); }',
+      '    if (groupQueueUi) groupQueueUi.refresh();',
+      '  }',
+      '  host.connectAutomation({ current: function () { return documentState; }, execute: automation.execute, error: setError, busy: localCanvasBusy, peers: function (info) { canvasPeers = info; updatePeerBlock(); } });',
       '  const editorHandle = {',
       '    current: function () { return documentState ? structuredClone(documentState) : null; },',
       '    draft: function () { return dirty() ? { document: structuredClone(documentState), savedLayout: savedKey } : null; },',
@@ -2194,7 +2248,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '  let sequenceUi = null;',
-    '  let uiRecognitionUi = null; let sequenceUi = null;'
+    '  let ui015Workflow = null; let uiRecognitionUi = null; let sequenceUi = null;'
   );
   page = replaceCanvasPageText(
     page,
@@ -2202,8 +2256,21 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  uiRecognitionUi = createUiRecognitionUi({ current: function () { return documentState; }, store: store, save: flush, remember: remember, changed: markDirty, render: render, error: setError, loadMedia: loadMedia,',
       '    blocked: function () { return Boolean(groupQueue && groupQueue.isBusy) || generationUi.isBusy || sequenceUi.isBusy || pendingAssetImports > 0; },',
+      '    autoRunning: function (node) { return Boolean(ui015Workflow && node.sectionId && ui015Workflow.isActive(node.sectionId)); },',
       '    focus: function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + node.height / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; markDirty(); render(); },',
       '    openCanvas: async function (id) { const saved = await store.load(id); const option = document.createElement("option"); option.value = id; option.textContent = saved.title; select.append(option); await openDocument(id); },',
+      '  });',
+      '  ui015Workflow = createUi015Workflow({ current: function () { return documentState; }, store: store,',
+      '    needs: function (id) { return templateWorkflow.status(id) === "pending"; }, problem: function (id) { return generationUi.queueBlockReason(id); },',
+      '    runImage: function (id) { return uiRecognitionUi.runImage(id, function () { return generationUi.runTemplateImage(id); }, true, true); },',
+      '    recognize: function (id, recover) { const node = documentState.nodes.find(function (item) { return item.id === id; }); return node ? uiRecognitionUi.runRecognition(node, true, recover) : Promise.resolve(false); },',
+      '    recoverImage: function (id, force) { return generationUi.recoverForRetry(id, force); },',
+      '    recoverRecognition: function (id, force) { return uiRecognitionUi.recoverForRetry(id, force); },',
+      '    chooseDesign: requestImageImport, sync: syncUiBboxWorkflow,',
+      '    queue: { start: function (id, confirmed) { return groupQueue.start(id, confirmed); }, spendRetry: function (id, nodeId) { return groupQueue.spendRetry(id, nodeId); }, view: function (id) { return groupQueue.view(id); }, remaining: function (id) { return groupQueue.remaining(id); } },',
+      '    focus: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + (node.height || 200) / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; render(); },',
+      '    log: function (message, level) { canvasLogs.add(message, level || "info"); }, failure: function () { return error.textContent; },',
+      '    remember: remember, save: flush, changed: markDirty, render: render, error: setError, blocked: peerBlock',
       '  });',
       '  groupQueue = createCanvasGroupQueue({',
     ].join(String.fromCharCode(10))

@@ -67,6 +67,7 @@ export interface ImageAtlasCrop {
 
 export interface ImageAssetsInfo {
   uiBindingReview?: 'unreviewed' | 'confirmed' | 'recorded';
+  manualNative?: boolean;
   width: number;
   height: number;
   grid: ImageAtlasGrid;

@@ -262,6 +262,7 @@ export class CanvasModelService {
     let attempt: CanvasModelAttempt | undefined;
     try {
       await this.files.assertWritableForGeneration();
+      if (input.action === 'start') await this.files.loadMedia(character.assetPath!);
       if (
         input.action !== 'query' &&
         (await this.files.load(canvasId)).revision !== document.revision
@@ -296,7 +297,7 @@ export class CanvasModelService {
               payload: {
                 generation_strategy: 'reviewed',
                 quality_tier: quality,
-                images: { front: character.assetPath },
+                images: { front: this.files.remoteImageReference(character.assetPath!) },
               },
             }
           : input.action === 'confirm'

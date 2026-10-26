@@ -1,4 +1,12 @@
-import { readDemoResource, demoResourceInfo } from '../demoResources.js';
+import {
+  readDemoResource,
+  demoResourceInfo,
+  demoResourceReference,
+  demoResourceIdFromReference,
+  isDemoResourceReference,
+  resolveDemoResourceFile,
+} from '../demoResources.js';
+import { isLocalCanvasImagePath } from './localMediaValidation.js';
 import {
   exportTemplateArchive,
   readTemplateArchive,
@@ -39,6 +47,10 @@ import {
 } from './templates.js';
 import { builtinCanvasTemplates, canvasPresets } from './presets.js';
 import { readTemplatePage } from './templateCatalog.js';
+import {
+  canvasSupportsPlatform,
+  validateCanvasPlatforms,
+} from '../../../packages/maker-canvas/src/contracts/platform.js';
 import { validateImageAssetsInfo } from './imageAssets.js';
 import { validateMergeIcons, mergeIconPrompt } from './mergeIcons.js';
 import { validateUiRecognition, UI_ELEMENT_CATEGORIES } from './uiRecognition.js';
@@ -50,13 +62,12 @@ import {
 } from './uiWorkflowArchive.js';
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const RELATIVE = /^(?:assets\/image\/canvas-[0-9a-f-]{36}\.(?:png|jpg|webp))$/i;
 const RESOURCE_RELATIVE = new RegExp(
   '^[.]maker/canvases/[0-9a-f-]{36}/resources/[0-9a-f-]{36}[.]png$',
   'i'
 );
 const VIDEO_RELATIVE =
-  /^\.maker\/canvases\/[0-9a-f-]{36}\/videos\/video-[0-9a-f-]{36}\.(?:mp4|mov|webm)$/i;
+  /^(?:\.maker\/canvases\/[0-9a-f-]{36}\/videos\/video-[0-9a-f-]{36}|maker-demo\/[a-f0-9]{64})\.(?:mp4|mov|webm)$/i;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
 function fail(message: string, status: number, code: string): never {
@@ -121,9 +132,9 @@ export class MakerCanvasFiles {
     const source = this.safeProjectFile(sourceRelativePath);
     const extension = path.extname(source).toLowerCase().slice(1) || 'png';
     const name = `canvas-${randomUUID()}.${extension === 'jpeg' ? 'jpg' : extension}`;
-    const folder = this.ensureDir(path.join(this.root, 'assets', 'image'));
+    const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'images'));
     this.atomicWrite(folder, name, fs.readFileSync(source));
-    return `assets/image/${name}`;
+    return `.maker/canvases/images/${name}`;
   }
 
   importGeneratedVideo(canvasId: string, sourceRelativePath: string): string {
@@ -148,7 +159,7 @@ export class MakerCanvasFiles {
     for (const name of names) {
       try {
         const id = name.slice(0, -5);
-        const document = this.read(id);
+        const document = this.read(id, false);
         const stat = fs.statSync(this.file(id));
         rows.push({
           id: document.id,
@@ -177,7 +188,7 @@ export class MakerCanvasFiles {
             !isBuiltinCanvasTemplate(name.slice(0, -5))
         )
         .map((name) => this.readTemplate(name.slice(0, -5))),
-    ];
+    ].filter((template) => canvasSupportsPlatform(template, 'local'));
   }
 
   async prepareTemplate(id: string, canvasId: string): Promise<CanvasWorkflowTemplate> {
@@ -189,6 +200,8 @@ export class MakerCanvasFiles {
     // Retired presets remain readable for existing references, but are absent from the catalog.
     const { assets: _assets, ...definition } = preset;
     const template: CanvasWorkflowTemplate = { ...structuredClone(definition), builtin: true };
+    if (!canvasSupportsPlatform(template, 'local'))
+      fail('此模板不适用于本地端。', 400, 'UNSUPPORTED_PLATFORM');
     if (template.id === '7e1cb6ad-732f-4dc3-a951-000000000015') {
       template.nodes = template.nodes.filter(
         (node) =>
@@ -200,48 +213,38 @@ export class MakerCanvasFiles {
     }
     const needed = new Set(templateAssetPaths(template));
     const paths = new Map<string, string>();
-    try {
-      for (const [source, asset] of Object.entries(preset.assets)) {
-        if (template.cliOnly && !needed.has(source)) continue;
-        const bytes = await readDemoResource(asset.resourceId);
-        const imported =
-          asset.type === 'video/mp4'
-            ? await this.importVideo(canvasId, bytes, asset.type)
-            : await this.importImage(bytes);
-        paths.set(source, imported.relativePath);
-      }
-      remapTemplateAssets(template, paths);
-      for (const node of template.nodes) {
-        if (node.sourceSnapshot)
-          node.sourceSnapshot = snapshotCanvasSource(
-            template.nodes.find((source) => source.id === node.sourceSnapshot!.nodeId)
-          );
-        if (node.sourceSnapshots)
-          node.sourceSnapshots = node.sourceSnapshots.flatMap((snapshot) => {
-            const oldSource = preset.nodes.find((source) => source.id === snapshot.nodeId);
-            const newSource = template.nodes.find((source) => source.id === snapshot.nodeId);
-            const next = snapshotCanvasSource(newSource);
-            return next
-              ? [
-                  {
-                    ...next,
-                    version:
-                      snapshot.version === snapshotCanvasSource(oldSource)?.version
-                        ? next.version
-                        : snapshot.version,
-                  },
-                ]
-              : [];
-          });
-      }
-      const parsed = this.parseTemplate(template);
-      this.assertAssets({ nodes: parsed.nodes } as CanvasDocument);
-      return { ...parsed, builtin: true };
-    } catch (error) {
-      for (const imported of paths.values())
-        fs.rmSync(this.safeProjectFile(imported), { force: true });
-      throw error;
+    for (const [source, asset] of Object.entries(preset.assets)) {
+      if (!needed.has(source)) continue;
+      await readDemoResource(asset.resourceId);
+      paths.set(source, demoResourceReference(asset.resourceId));
     }
+    remapTemplateAssets(template, paths);
+    for (const node of template.nodes) {
+      if (node.sourceSnapshot)
+        node.sourceSnapshot = snapshotCanvasSource(
+          template.nodes.find((source) => source.id === node.sourceSnapshot!.nodeId)
+        );
+      if (node.sourceSnapshots)
+        node.sourceSnapshots = node.sourceSnapshots.flatMap((snapshot) => {
+          const oldSource = preset.nodes.find((source) => source.id === snapshot.nodeId);
+          const newSource = template.nodes.find((source) => source.id === snapshot.nodeId);
+          const next = snapshotCanvasSource(newSource);
+          return next
+            ? [
+                {
+                  ...next,
+                  version:
+                    snapshot.version === snapshotCanvasSource(oldSource)?.version
+                      ? next.version
+                      : snapshot.version,
+                },
+              ]
+            : [];
+        });
+    }
+    const parsed = this.parseTemplate(template);
+    this.assertAssets({ nodes: parsed.nodes } as CanvasDocument);
+    return { ...parsed, builtin: true };
   }
 
   async listTemplatePage(page = 1, query = '') {
@@ -368,6 +371,7 @@ export class MakerCanvasFiles {
   }
 
   private parseTemplate(input: CanvasWorkflowTemplate): CanvasWorkflowTemplate {
+    validateCanvasPlatforms(input?.platforms);
     if (!input || !ID.test(input.id)) fail('模板标识无效。', 400, 'INVALID_ID');
     const name = text(input.name, 80, '模板名称').trim();
     if (!name) fail('请输入模板名称。', 400, 'INVALID_DOCUMENT');
@@ -387,6 +391,7 @@ export class MakerCanvasFiles {
       ...template,
       id: input.id,
       revision: parsed.revision,
+      ...(input.platforms ? { platforms: [...input.platforms] } : {}),
       ...(skills?.length ? { skills } : {}),
       ...(input.cliOnly ? { cliOnly: true } : {}),
     };
@@ -397,7 +402,7 @@ export class MakerCanvasFiles {
       fail('请先保存为自定义模板再导出。', 400, 'READ_ONLY_TEMPLATE');
     const template = this.getTemplate(id);
     if (template.revision !== revision) fail('模板已更新，请刷新列表后导出。', 409, 'CONFLICT');
-    return exportTemplateArchive(template, (relative) => this.readMedia(relative));
+    return exportTemplateArchive(template, (relative) => this.loadMedia(relative));
   }
 
   async importTemplate(bytes: Buffer): Promise<CanvasWorkflowTemplate> {
@@ -479,12 +484,15 @@ export class MakerCanvasFiles {
     const document =
       sequenceTemplate ?? (template === 'empty' ? emptyDocument(title) : starterDocument(title));
     const folder =
-      template === 'empty' ? undefined : this.ensureDir(path.join(this.root, 'assets', 'image'));
+      template === 'empty'
+        ? undefined
+        : this.ensureDir(path.join(this.root, '.maker', 'canvases', 'images'));
     const written: string[] = [];
     try {
       if (!sequenceTemplate && template !== 'empty') {
         document.nodes.forEach((node, index) => {
           const name = path.basename(node.assetPath!);
+          node.assetPath = '.maker/canvases/images/' + name;
           this.atomicWrite(folder!, name, Buffer.from(STARTER_IMAGE_BASE64[index], 'base64'));
           written.push(path.join(folder!, name));
         });
@@ -621,7 +629,11 @@ export class MakerCanvasFiles {
         }
         for (const snapshot of copy.sourceSnapshots || [])
           snapshot.nodeId = ids.get(snapshot.nodeId) || snapshot.nodeId;
-        if (copy.type === 'video-source' && copy.assetPath) {
+        if (
+          copy.type === 'video-source' &&
+          copy.assetPath &&
+          !isDemoResourceReference(copy.assetPath)
+        ) {
           const sourceFile = this.readMedia(copy.assetPath).file;
           const extension = path.extname(sourceFile).toLowerCase().slice(1);
           const name = 'video-' + randomUUID() + '.' + extension;
@@ -676,7 +688,10 @@ export class MakerCanvasFiles {
   }
 
   async load(id: string): Promise<CanvasDocument> {
-    return this.read(id);
+    const document = this.read(id, false);
+    for (const node of document.nodes)
+      if (node.type === 'image' && node.assetPath) node.imageInfo = this.imageInfo(node.assetPath);
+    return document;
   }
 
   imageInfo(assetPath: string): CanvasImageInfo | undefined {
@@ -697,7 +712,7 @@ export class MakerCanvasFiles {
     const id = fs.readFileSync(filename, 'utf8').trim();
     if (!ID.test(id)) return undefined;
     try {
-      this.read(id);
+      this.read(id, false);
       return id;
     } catch {
       return undefined;
@@ -707,7 +722,7 @@ export class MakerCanvasFiles {
   async setActiveCanvasId(id: string): Promise<void> {
     this.assertStorageShape();
     await this.assertIgnored();
-    this.read(id);
+    this.read(id, false);
     this.atomicWrite(this.canvasDir(true)!, 'active', Buffer.from(id));
   }
 
@@ -720,13 +735,14 @@ export class MakerCanvasFiles {
     }
     const next = this.parse(input, id);
     next.revision = current.revision + 1;
-    this.assertAssets(next);
+    this.assertAssets(next, true);
     const archives =
       uiArchiveFingerprint(current) === uiArchiveFingerprint(next)
         ? []
         : await prepareUiWorkflowArchives(
             next,
-            async (relative) => new Blob([fs.readFileSync(this.readMedia(relative).file)])
+            async (relative) => new Blob([fs.readFileSync(this.readMedia(relative).file)]),
+            { skipUnavailableDemoResources: true }
           );
     if (this.read(id).revision !== baseRevision)
       fail('画布已被其他保存更新。请保留当前编辑，刷新后再合并。', 409, 'CONFLICT');
@@ -788,7 +804,7 @@ export class MakerCanvasFiles {
     const document = this.read(canvasId);
     const archives = await prepareUiWorkflowArchives(
       document,
-      async (relative) => new Blob([fs.readFileSync(this.readMedia(relative).file)])
+      async (relative) => new Blob([fs.readFileSync((await this.loadMedia(relative)).file)])
     );
     this.writeUiArchives(archives);
     return this.listUiArchives(canvasId);
@@ -836,13 +852,13 @@ export class MakerCanvasFiles {
 
   async importImage(bytes: Buffer, resourceCanvasId?: string): Promise<{ relativePath: string }> {
     this.assertStorageShape();
+    await this.assertIgnored();
     if (bytes.length < 12 || bytes.length > 20 * 1024 * 1024) {
       fail('图片为空或超过 20 MiB。', 413, 'STORAGE_LIMIT');
     }
     const extension = extensionOf(bytes);
     if (!extension) fail('只接受 PNG、JPEG 或 WebP。', 400, 'INVALID_IMAGE');
     if (resourceCanvasId !== undefined) {
-      await this.assertIgnored();
       await this.load(resourceCanvasId);
       if (extension !== 'png') fail('资源包只接受 PNG。', 400, 'INVALID_IMAGE');
       const relativePath =
@@ -851,9 +867,9 @@ export class MakerCanvasFiles {
       this.atomicWrite(folder, path.basename(relativePath), bytes);
       return { relativePath };
     }
-    const folder = this.ensureDir(path.join(this.root, 'assets', 'image'));
+    const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'images'));
     const name = `canvas-${randomUUID()}.${extension}`;
-    const relativePath = `assets/image/${name}`;
+    const relativePath = `.maker/canvases/images/${name}`;
     this.atomicWrite(folder, name, bytes);
     return { relativePath };
   }
@@ -889,20 +905,48 @@ export class MakerCanvasFiles {
     return { relativePath };
   }
 
+  /** Restore only requested media; opening and autosaving documents never wait for downloads. */
+  async loadMedia(relativePath: string): Promise<{ file: string; type: string }> {
+    try {
+      return this.readMedia(relativePath);
+    } catch (error) {
+      if (!(error instanceof CanvasStoreError) || error.code !== 'DEMO_RESOURCE_UNAVAILABLE')
+        throw error;
+      const resourceId = demoResourceIdFromReference(relativePath);
+      if (!resourceId) throw error;
+      try {
+        await readDemoResource(resourceId);
+      } catch {
+        throw error;
+      }
+      return this.readMedia(relativePath);
+    }
+  }
+
   readMedia(relativePath: string): { file: string; type: string } {
+    const demo = isDemoResourceReference(relativePath);
     if (
-      !RELATIVE.test(relativePath) &&
+      !isLocalCanvasImagePath(relativePath) &&
       !VIDEO_RELATIVE.test(relativePath) &&
       !RESOURCE_RELATIVE.test(relativePath)
     ) {
       fail('素材路径无效。', 400, 'UNSAFE_PATH');
     }
-    const target = path.join(this.root, relativePath);
+    if (relativePath.startsWith('maker-demo/') && !demo)
+      fail('模板素材路径无效。', 400, 'UNSAFE_PATH');
+    const cached = demo ? resolveDemoResourceFile(relativePath) : undefined;
+    if (demo && !cached)
+      fail(
+        '模板素材缓存缺失或损坏。请联网后重试当前操作；已退役且无缓存的素材需重新导入。',
+        404,
+        'DEMO_RESOURCE_UNAVAILABLE'
+      );
+    const target = cached || path.join(this.root, relativePath);
     if (!fs.existsSync(target) || fs.lstatSync(target).isSymbolicLink()) {
       fail('素材不存在或不允许使用链接。', 404, 'UNSAFE_PATH');
     }
     const real = fs.realpathSync(target);
-    if (!inside(this.root, real) || !fs.statSync(real).isFile()) {
+    if ((!demo && !inside(this.root, real)) || !fs.statSync(real).isFile()) {
       fail('素材超出当前项目。', 400, 'UNSAFE_PATH');
     }
     const type = relativePath.endsWith('.png')
@@ -919,6 +963,50 @@ export class MakerCanvasFiles {
     return { file: real, type };
   }
 
+  /** Read a user-provided PNG from the project without treating it as a canvas media reference. */
+  readProjectPng(relativePath: string, maxBytes = 20 * 1024 * 1024): Buffer {
+    if (
+      !relativePath ||
+      path.isAbsolute(relativePath) ||
+      relativePath.includes('\\') ||
+      relativePath.split('/').some((part) => !part || part === '.' || part === '..') ||
+      !relativePath.toLowerCase().endsWith('.png')
+    )
+      fail('PNG 文件路径无效。', 400, 'UNSAFE_PATH');
+    const file = this.safeProjectFile(relativePath);
+    const fd = fs.openSync(file, 'r');
+    let bytes: Buffer;
+    try {
+      const size = fs.fstatSync(fd).size;
+      if (size > maxBytes) fail('PNG 文件类型、大小或尺寸无效。', 400, 'INVALID_IMAGE');
+      bytes = Buffer.alloc(size);
+      let offset = 0;
+      while (offset < size) {
+        const read = fs.readSync(fd, bytes, offset, size - offset, offset);
+        if (read <= 0) fail('PNG 文件类型、大小或尺寸无效。', 400, 'INVALID_IMAGE');
+        offset += read;
+      }
+      if (fs.fstatSync(fd).size > maxBytes)
+        fail('PNG 文件类型、大小或尺寸无效。', 400, 'INVALID_IMAGE');
+    } finally {
+      fs.closeSync(fd);
+    }
+    let dimensions: ReturnType<typeof readImageDimensions>;
+    try {
+      dimensions = readImageDimensions(file);
+    } catch {
+      dimensions = undefined;
+    }
+    if (
+      bytes.length < 8 ||
+      bytes.length > maxBytes ||
+      !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
+      !dimensions
+    )
+      fail('PNG 文件类型、大小或尺寸无效。', 400, 'INVALID_IMAGE');
+    return bytes;
+  }
+
   private safeProjectFile(relativePath: string): string {
     const target = path.join(this.root, relativePath);
     if (!fs.existsSync(target) || fs.lstatSync(target).isSymbolicLink()) {
@@ -931,11 +1019,24 @@ export class MakerCanvasFiles {
     return real;
   }
 
+  /** Resolve canvas-only references without copying them into game assets. */
+  remoteImageReference(reference: string, maxBytes = 10 * 1024 * 1024): string {
+    if (!reference.startsWith('maker-demo/') && !reference.startsWith('.maker/canvases/images/'))
+      return reference;
+    const media = this.readMedia(reference);
+    if (!media.type.startsWith('image/')) fail('参考素材必须是图片。', 400, 'INVALID_IMAGE');
+    const bytes = fs.readFileSync(media.file);
+    if (bytes.length > maxBytes)
+      fail('参考图片超过 ' + maxBytes / (1024 * 1024) + ' MiB。', 413, 'STORAGE_LIMIT');
+    return 'data:' + media.type + ';base64,' + bytes.toString('base64');
+  }
+
   private assertStorageShape(): void {
     for (const relative of [
       '.maker',
       path.join('.maker', 'canvases'),
       path.join('.maker', 'canvases', 'templates'),
+      path.join('.maker', 'canvases', 'images'),
       path.join('assets', 'image'),
     ]) {
       const full = path.join(this.root, relative);
@@ -1016,11 +1117,11 @@ export class MakerCanvasFiles {
     return real;
   }
 
-  private read(id: string): CanvasDocument {
+  private read(id: string, includeImageInfo = true): CanvasDocument {
     const file = this.file(id);
     const raw = fs.readFileSync(file, 'utf8');
     if (Buffer.byteLength(raw) > CANVAS_JSON_LIMIT) fail('画布文档过大。', 413, 'STORAGE_LIMIT');
-    return this.parse(JSON.parse(raw), id);
+    return this.parse(JSON.parse(raw), id, includeImageInfo);
   }
 
   private write(document: CanvasDocument): void {
@@ -1045,16 +1146,29 @@ export class MakerCanvasFiles {
     }
   }
 
-  private assertAssets(document: CanvasDocument): void {
+  private assertAssets(document: CanvasDocument, allowUnavailableDemoResources = false): void {
     for (const node of document.nodes) {
-      for (const reference of node.generation?.referenceImagePaths || []) this.readMedia(reference);
-      for (const item of node.imageAssetsInfo?.items || []) this.readMedia(item.assetPath);
-      if (!node.assetPath) continue;
-      this.readMedia(node.assetPath);
+      const references = [
+        ...(node.generation?.referenceImagePaths || []),
+        ...(node.imageAssetsInfo?.items.map((item) => item.assetPath) || []),
+        ...(node.assetPath ? [node.assetPath] : []),
+      ];
+      for (const reference of references) {
+        try {
+          this.readMedia(reference);
+        } catch (error) {
+          if (
+            !allowUnavailableDemoResources ||
+            !(error instanceof CanvasStoreError) ||
+            error.code !== 'DEMO_RESOURCE_UNAVAILABLE'
+          )
+            throw error;
+        }
+      }
     }
   }
 
-  private parse(value: unknown, id: string): CanvasDocument {
+  private parse(value: unknown, id: string, includeImageInfo = true): CanvasDocument {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       fail('画布文档无效。', 400, 'INVALID_DOCUMENT');
     }
@@ -1068,8 +1182,11 @@ export class MakerCanvasFiles {
       fail('画布节点过多。', 413, 'STORAGE_LIMIT');
     }
     const nodes = input.nodes.map((item) => this.parseNode(item));
-    for (const node of nodes)
-      if (node.type === 'image' && node.assetPath) node.imageInfo = this.imageInfo(node.assetPath);
+    // Listing and selecting canvases only need document validation, not image file reads.
+    if (includeImageInfo)
+      for (const node of nodes)
+        if (node.type === 'image' && node.assetPath)
+          node.imageInfo = this.imageInfo(node.assetPath);
     const nodeIds = new Set<string>();
     for (const node of nodes) {
       if (nodeIds.has(node.id)) fail('画布节点标识重复。', 400, 'INVALID_DOCUMENT');
@@ -1267,9 +1384,9 @@ export class MakerCanvasFiles {
     if (
       ['image', 'sequence', 'animation', 'model-views'].includes(String(node.type)) &&
       assetPath &&
-      !RELATIVE.test(assetPath)
+      !isLocalCanvasImagePath(assetPath)
     ) {
-      fail('图片素材必须位于当前项目的画布图片目录。', 400, 'UNSAFE_PATH');
+      fail('图片素材必须引用画布工作目录或官方模板缓存。', 400, 'UNSAFE_PATH');
     }
     if (
       node.type !== 'image' &&
@@ -1304,6 +1421,7 @@ export class MakerCanvasFiles {
     if (node.templateRevision !== undefined)
       numberIn(node.templateRevision, 1, 1_000_000, '模板版本');
     const skills = templateSkills(node.templateSkills);
+    validateCanvasPlatforms(node.templatePlatforms);
     if (
       node.templateCliOnly !== undefined &&
       (typeof node.templateCliOnly !== 'boolean' || node.type !== 'section')
@@ -1318,6 +1436,55 @@ export class MakerCanvasFiles {
       (typeof node.workTimingOpen !== 'boolean' || node.type !== 'section')
     )
       fail('流程计时状态无效。', 400, 'INVALID_DOCUMENT');
+    if (node.workflowState !== undefined) {
+      const state = node.workflowState as Record<string, unknown>;
+      const phases = ['queued', 'running', 'waiting', 'paused', 'complete'];
+      if (
+        node.type !== 'section' ||
+        !state ||
+        typeof state !== 'object' ||
+        Array.isArray(state) ||
+        !phases.includes(String(state.phase)) ||
+        typeof state.message !== 'string' ||
+        state.message.length > 400 ||
+        !Array.isArray(state.completed) ||
+        !Array.isArray(state.pending) ||
+        state.completed.some((id) => typeof id !== 'string' || !ID.test(id)) ||
+        state.pending.some((id) => typeof id !== 'string' || !ID.test(id)) ||
+        !state.failures ||
+        typeof state.failures !== 'object' ||
+        Array.isArray(state.failures) ||
+        Object.entries(state.failures).some(
+          ([id, message]) => !ID.test(id) || typeof message !== 'string' || message.length > 1000
+        ) ||
+        !state.retries ||
+        typeof state.retries !== 'object' ||
+        Array.isArray(state.retries) ||
+        Object.entries(state.retries).some(
+          ([id, count]) => !ID.test(id) || !Number.isInteger(count) || count < 0 || count > 2
+        ) ||
+        (state.pauseReason !== undefined &&
+          (state.pauseReason !== 'prelayout-review' || state.phase !== 'paused'))
+      )
+        fail('流程恢复状态无效。', 400, 'INVALID_DOCUMENT');
+      numberIn(state.updatedAt, 1, Number.MAX_SAFE_INTEGER, '流程更新时间');
+    }
+    const workflowState = node.workflowState as CanvasNode['workflowState'];
+    const workflowLayoutOrigin = node.workflowLayoutOrigin as CanvasNode['workflowLayoutOrigin'];
+    if (node.workflowLayoutOrigin !== undefined) {
+      const origin = node.workflowLayoutOrigin as Record<string, unknown>;
+      if (
+        node.type !== 'section' ||
+        !origin ||
+        typeof origin !== 'object' ||
+        Array.isArray(origin) ||
+        typeof origin.x !== 'number' ||
+        !Number.isFinite(origin.x) ||
+        typeof origin.y !== 'number' ||
+        !Number.isFinite(origin.y)
+      )
+        fail('流程排版起点无效。', 400, 'INVALID_DOCUMENT');
+    }
     // A category has at most 120 slots; size grouping may place each slot in its own batch.
     if (node.uiAtlasBatch !== undefined) numberIn(node.uiAtlasBatch, 0, 119, '图集分批');
     if (skills && node.type !== 'section')
@@ -1462,7 +1629,8 @@ export class MakerCanvasFiles {
         (!Array.isArray(referenceImagePaths) ||
           referenceImagePaths.length > referenceLimit ||
           referenceImagePaths.some(
-            (value) => typeof value !== 'string' || value.length > 240 || !RELATIVE.test(value)
+            (value) =>
+              typeof value !== 'string' || value.length > 240 || !isLocalCanvasImagePath(value)
           ))
       )
         fail('参考图片路径无效。', 400, 'UNSAFE_PATH');
@@ -1582,6 +1750,7 @@ export class MakerCanvasFiles {
       ...(node.templateId ? { templateId: node.templateId as string } : {}),
       ...(node.templateRevision ? { templateRevision: node.templateRevision as number } : {}),
       ...(skills?.length ? { templateSkills: skills } : {}),
+      ...(node.templatePlatforms ? { templatePlatforms: [...node.templatePlatforms] } : {}),
       ...(node.templateCliOnly ? { templateCliOnly: true } : {}),
       ...(node.templatePending ? { templatePending: true } : {}),
       ...(node.workStartedAt === undefined ? {} : { workStartedAt: node.workStartedAt as number }),
@@ -1589,6 +1758,23 @@ export class MakerCanvasFiles {
       ...(node.workDurationMs === undefined
         ? {}
         : { workDurationMs: node.workDurationMs as number }),
+      ...(workflowState
+        ? {
+            workflowState: {
+              phase: workflowState.phase,
+              message: workflowState.message,
+              completed: [...workflowState.completed],
+              pending: [...workflowState.pending],
+              failures: { ...workflowState.failures },
+              retries: { ...workflowState.retries },
+              updatedAt: workflowState.updatedAt,
+              ...(workflowState.pauseReason ? { pauseReason: workflowState.pauseReason } : {}),
+            },
+          }
+        : {}),
+      ...(workflowLayoutOrigin
+        ? { workflowLayoutOrigin: { x: workflowLayoutOrigin.x, y: workflowLayoutOrigin.y } }
+        : {}),
       ...(sourceSnapshot ? { sourceSnapshot } : {}),
       ...(sourceSnapshots ? { sourceSnapshots } : {}),
       ...(node.text === undefined ? {} : { text: text(node.text, 4000, '文字') }),

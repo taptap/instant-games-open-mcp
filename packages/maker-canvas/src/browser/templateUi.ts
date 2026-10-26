@@ -1,4 +1,5 @@
 import type { CanvasExportDelivery } from './exportDelivery.js';
+import { canvasSupportsPlatform, type CanvasPlatform } from '../contracts/platform.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import { builtinPresetDescriptions } from '../features/presetDescriptions.js';
 import { isBuiltinCanvasTemplate } from '../browser/templates.js';
@@ -13,6 +14,7 @@ import type {
 } from '../browser/templates.js';
 
 export function createCanvasTemplateUiWithHost(options: {
+  platform?: CanvasPlatform;
   deliver: CanvasExportDelivery;
   store?: CanvasTemplateStore;
   exchangeUnavailableReason?: string;
@@ -116,13 +118,14 @@ export function createCanvasTemplateUiWithHost(options: {
     if (!documentState || !options.store) return;
     const section = selectedGroup();
     const nodes = model.members(documentState, [...options.selected]);
+    let initialPlatforms: CanvasPlatform[] | undefined;
     try {
       guard(documentState, nodes);
-      model.snapshot(
+      initialPlatforms = model.snapshot(
         documentState,
         nodes.map((node) => node.id),
         '模板'
-      );
+      ).platforms;
     } catch (error) {
       options.error((error as Error).message);
       return;
@@ -140,8 +143,22 @@ export function createCanvasTemplateUiWithHost(options: {
     name.maxLength = 80;
     name.value = section?.title || '我的工作流';
     name.setAttribute('aria-label', '模板名称');
+    const platforms = document.createElement('select');
+    platforms.setAttribute('aria-label', '模板适用端');
+    for (const [value, label] of [
+      ['both', '本地和 Web'],
+      ['local', '仅本地'],
+      ['web', '仅 Web'],
+    ]) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      platforms.append(option);
+    }
+    platforms.value = initialPlatforms?.length === 1 ? initialPlatforms[0] : 'both';
     body.append(
       name,
+      platforms,
       button(replace ? '确认替换' : '保存模板', async () => {
         if (!name.value.trim()) throw new Error('请输入模板名称。');
         guard(documentState, nodes);
@@ -150,6 +167,8 @@ export function createCanvasTemplateUiWithHost(options: {
           nodes.map((node) => node.id),
           name.value
         );
+        draft.platforms =
+          platforms.value === 'both' ? ['local', 'web'] : [platforms.value as CanvasPlatform];
         if (replace) {
           if (!section?.templateId || !section.templateRevision)
             throw new Error('原模板不存在，请另存为新模板。');
@@ -167,6 +186,7 @@ export function createCanvasTemplateUiWithHost(options: {
         group.title = saved.name;
         group.templateId = saved.id;
         group.templateRevision = saved.revision;
+        group.templatePlatforms = saved.platforms ? [...saved.platforms] : undefined;
         if (saved.cliOnly) group.templateCliOnly = true;
         if (saved.skills?.length) group.templateSkills = [...saved.skills];
         else delete group.templateSkills;
@@ -183,6 +203,8 @@ export function createCanvasTemplateUiWithHost(options: {
     name.select();
   }
   async function add(template: CanvasWorkflowTemplate, editing: boolean): Promise<void> {
+    if (!canvasSupportsPlatform(template, options.platform))
+      throw new Error('此模板不适用于当前平台，请在对应端使用。');
     const documentState = options.getDocument();
     if (!documentState) return;
     if (
@@ -194,6 +216,8 @@ export function createCanvasTemplateUiWithHost(options: {
       if (!options.store?.prepareTemplate)
         throw new Error('当前环境不支持添加预设模板，请更新控制台。');
       template = await options.store.prepareTemplate(template.id, documentState.id);
+      if (!canvasSupportsPlatform(template, options.platform))
+        throw new Error('模板适用端已变化，请刷新模板列表。');
       if (options.getDocument() !== documentState) throw new Error('画布已切换，请重新添加。');
     }
     const copy = model.instantiate(template, options.placement());
@@ -359,10 +383,22 @@ export function createCanvasTemplateUiWithHost(options: {
       actions.className = 'template-card-actions';
       const count = document.createElement('small');
       count.textContent = summary.nodeCount + ' 张卡片';
-      if (summary.cliOnly) count.textContent = '仅 CLI 执行 · 按需创建卡片';
+      if (summary.cliOnly)
+        count.textContent =
+          summary.id === '7e1cb6ad-732f-4dc3-a951-000000000015'
+            ? summary.nodeCount + ' 张卡片 · 可在画布中继续'
+            : '仅 CLI 执行 · 按需创建卡片';
       const metadata = document.createElement('div');
       metadata.className = 'template-card-metadata';
       metadata.append(count);
+      const scope = document.createElement('small');
+      scope.textContent =
+        summary.platforms?.length === 1
+          ? summary.platforms[0] === 'web'
+            ? '仅 Web'
+            : '仅本地'
+          : '本地 / Web';
+      metadata.append(scope);
       for (const name of summary.skills || []) {
         const link = document.createElement('a');
         link.textContent = 'Skill · ' + name;
@@ -456,7 +492,9 @@ export function createCanvasTemplateUiWithHost(options: {
         body.scrollTop = 0;
         const showCustom = category === '全部' || category === '我的模板';
         const presets = result.presets.filter(
-          (item) => category === '全部' || templatePresentation(item.id).category === category
+          (item) =>
+            canvasSupportsPlatform(item, options.platform) &&
+            (category === '全部' || templatePresentation(item.id).category === category)
         );
         const count = presets.length + (showCustom ? result.total : 0);
         total.textContent = '共 ' + count + ' 个模板';

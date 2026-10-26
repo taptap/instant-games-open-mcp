@@ -404,6 +404,10 @@ test.each([0, 1, 2])(
       x: 2000,
       y: 0,
     });
+    expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+    expect(first.nodes.filter((node) => node.assetPath).map((node) => node.assetPath)).toEqual(
+      second.nodes.filter((node) => node.assetPath).map((node) => node.assetPath)
+    );
     expect(first.nodes.every((node) => !second.nodes.some((other) => other.id === node.id))).toBe(
       true
     );

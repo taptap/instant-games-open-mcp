@@ -1,6 +1,7 @@
 import type { CanvasNode, CanvasEdge } from './document.js';
+import type { CanvasPlatformScope } from './platform.js';
 
-export interface CanvasWorkflowTemplate {
+export interface CanvasWorkflowTemplate extends CanvasPlatformScope {
   id: string;
   name: string;
   revision: number;
@@ -16,7 +17,7 @@ export interface CanvasTemplateCoverAnimation {
   frames: Array<{ x: number; y: number; width: number; height: number }>;
 }
 
-export interface CanvasTemplateSummary {
+export interface CanvasTemplateSummary extends CanvasPlatformScope {
   id: string;
   name: string;
   revision: number;

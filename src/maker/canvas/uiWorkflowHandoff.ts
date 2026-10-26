@@ -25,10 +25,10 @@ export function openGameUiHandoff(canvasId: string): void {
   dialog.style.cssText = 'width:min(640px,calc(100vw - 32px));max-height:85vh;overflow:auto';
   dialog.setAttribute('aria-label', '下一步：组装游戏 UI');
   const title = document.createElement('h2');
-  title.textContent = '下一步：交给 AI 组装游戏 UI';
+  title.textContent = '下一步：组装游戏 UI';
   const message = document.createElement('p');
   message.textContent =
-    '模板到资源包结束。把原设计稿和含 bbox.json、bindings.json 的素材包交给接入 Maker MCP 的 AI，继续组装 UI.json。';
+    '「Bbox 预排参考图」(015) 分组可直接在分组栏点「组装 UI」，由控制台导入素材、组装 UI、生成资源 meta 并检查引用；完成后可复制复核提示词交给 AI。其它模板到资源包结束，把原设计稿和含 bbox.json、bindings.json 的素材包交给接入 Maker MCP 的 AI 继续组装。';
   const prompt = document.createElement('textarea');
   prompt.readOnly = true;
   prompt.rows = 9;
@@ -65,10 +65,20 @@ export function openGameUiHandoff(canvasId: string): void {
   close.type = 'button';
   close.textContent = '关闭';
   close.onclick = () => dialog.close();
+  const editor = document.createElement('button');
+  editor.type = 'button';
+  editor.textContent = '打开现有 UI 编辑器';
+  editor.title = '打开当前控制台的 UI 编辑器，在已有文件中选择本次组装结果';
+  editor.onclick = () => {
+    const query = new URLSearchParams(location.search);
+    query.set('page', 'ui-editor');
+    query.delete('canvas');
+    window.open('/?' + query.toString(), '_blank', 'noopener');
+  };
   dialog.addEventListener('keydown', (event) => event.stopPropagation());
   dialog.addEventListener('keyup', (event) => event.stopPropagation());
   dialog.addEventListener('close', () => dialog.remove(), { once: true });
-  dialog.append(title, message, prompt, cli, privacy, copy, close);
+  dialog.append(title, message, prompt, cli, privacy, editor, copy, close);
   document.body.append(dialog);
   dialog.showModal();
   copy.focus();

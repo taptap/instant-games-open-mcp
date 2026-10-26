@@ -50,6 +50,10 @@ export interface CanvasPageHost {
     current(): { id: string; revision: number } | null;
     execute(command: CanvasCommand): Promise<unknown>;
     error?(message: string): void;
+    /** Whether this page is executing canvas work; other pages on the canvas become read-only. */
+    busy?(): boolean;
+    /** Newest saved revision of this canvas and how many other pages are executing on it. */
+    peers?(info: { canvasId: string; revision: number; busyPeers: number }): void;
   }): void;
   deliverAutomationExport(
     command: Pick<CanvasCommand, 'requestId' | 'pageId'>,

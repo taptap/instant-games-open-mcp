@@ -1,4 +1,5 @@
 import type { CanvasHostCapabilities } from './capabilities.js';
+import type { CanvasPlatform } from '../contracts/platform.js';
 import type { CanvasCommand } from '../contracts.js';
 import type { prepareCanvasNodeUpdatesWithValidation } from '../features/automation.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
@@ -25,6 +26,7 @@ import { canvasMarkFromInput } from '../core/marks.js';
 
 export function createCanvasAutomationUiWithHost(options: {
   capabilities?: CanvasHostCapabilities;
+  platform?: CanvasPlatform;
   prepareNodeUpdates: (
     document: CanvasDocument,
     input: Record<string, unknown>
@@ -67,6 +69,19 @@ export function createCanvasAutomationUiWithHost(options: {
   clearError(): void;
   busyChanged(busy: boolean): void;
   queue: ReturnType<typeof createCanvasGroupQueue>;
+  /** 015 stage coordinator shared with the canvas buttons. */
+  ui015?: {
+    isWorkflowGroup(groupId: string): boolean;
+    advance(
+      groupId: string,
+      input?: { artText?: string[]; background?: boolean; cli?: boolean }
+    ): Promise<{ status: string; stage: string; message: string; [key: string]: unknown }>;
+    inspect(groupId: string): { stage: string; message: string } | undefined;
+    /** True while one start is still driving the group (queue, retries or assembly). */
+    active?(groupId: string): boolean;
+    /** Final result of the run once it has finished. */
+    outcome?(groupId: string): { status: string; stage: string; message: string } | undefined;
+  };
 }) {
   let editing = false;
   let running = false;
@@ -90,6 +105,7 @@ export function createCanvasAutomationUiWithHost(options: {
             ...saved,
             blocked: options.blocked() || null,
             capabilities: options.capabilities,
+            platform: options.platform,
             nodes: saved.nodes.map((node) => ({
               ...node,
               state: options.nodeStatus(node.id),
@@ -155,7 +171,7 @@ export function createCanvasAutomationUiWithHost(options: {
       group: ['ids'],
       connect: ['from', 'to'],
       disconnect: ['edgeId'],
-      run: ['id', 'recognition'],
+      run: ['id', 'recognition', 'artText', 'background'],
       'confirm-model': ['id', 'reviewId'],
       'preview-model': ['id'],
       'preview-image-assets': ['id', 'grid', 'cut'],
@@ -275,17 +291,63 @@ export function createCanvasAutomationUiWithHost(options: {
       try {
         if (command.action === 'run' && target.type === 'mark')
           throw new Error('标注不能执行生成。');
-        if (command.action === 'run') {
+        const bbox015 =
+          target.type === 'section' &&
+          (target.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
+            (target.templateCliOnly && target.templateSkills?.includes('maker-ui-bbox-workflow')));
+        if (command.action === 'run' && bbox015) {
+          if (input.recognition === false)
+            throw new Error('实验模板需要当前识图结果，不能关闭识图。');
           if (
-            target.type === 'section' &&
-            (target.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
-              (target.templateCliOnly && target.templateSkills?.includes('maker-ui-bbox-workflow')))
-          ) {
-            if (input.recognition === false)
-              throw new Error('实验模板需要当前识图结果，不能关闭识图。');
-            if (syncUiBboxWorkflow(structuredClone(current), target.id, false).length)
-              throw new Error('请先按 Skill 执行 sync-ui-batches，再运行分组。');
+            input.artText !== undefined &&
+            !(
+              Array.isArray(input.artText) &&
+              input.artText.length <= 120 &&
+              input.artText.every((id) => typeof id === 'string')
+            )
+          )
+            throw new Error('artText 必须是 Bbox 文字 ID 数组。');
+          if (input.background !== undefined && typeof input.background !== 'boolean')
+            throw new Error('background 必须是布尔值。');
+          if (options.ui015) {
+            // Same coordinator as the canvas button: one run drives the group to the UI.
+            const advanced = await options.ui015.advance(target.id, {
+              cli: true,
+              ...(input.artText !== undefined ? { artText: input.artText as string[] } : {}),
+              ...(input.background !== undefined
+                ? { background: input.background as boolean }
+                : {}),
+            });
+            if (advanced.status === 'failed') throw new Error(advanced.message);
+            if (advanced.status === 'started') {
+              for (;;) {
+                if (options.current()?.id !== current.id)
+                  throw new Error('画布已切换，原队列状态待确认。');
+                const state = options.queue.view(target.id);
+                const executing = state && ['queued', 'running', 'waiting'].includes(state.phase);
+                if (!executing && !options.ui015.active?.(target.id)) break;
+                await new Promise((resolve) => setTimeout(resolve, 250));
+              }
+            }
+            if (!(await options.save()))
+              throw new Error('结果已留在页面，但保存失败。请手动保存，不要重复生成。');
+            // Report how the run ended (ready or failed), not the "started" of the first call.
+            const final =
+              advanced.status === 'started' ? options.ui015.outcome?.(target.id) : advanced;
+            if (final?.status === 'failed') throw new Error(final.message);
+            return {
+              ...snapshot(),
+              workflow: {
+                ...advanced,
+                ...(final || {}),
+                current: options.ui015.inspect(target.id),
+              },
+            };
           }
+          if (syncUiBboxWorkflow(structuredClone(current), target.id, false).length)
+            throw new Error('请先按 Skill 执行 sync-ui-batches，再运行分组。');
+        }
+        if (command.action === 'run') {
           const prelayoutRecognition =
             target.uiAtlasPrelayout && uiRecognitionSource(current, target);
           if (
