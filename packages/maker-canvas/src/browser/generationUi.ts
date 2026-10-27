@@ -1442,19 +1442,25 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       }
       // Web in-place regeneration: save what is sent, so a reload can still match and apply the
       // result (recovery compares the card's saved prompt and parameters with the attempt).
+      // Like a stored result, keep only the user text and record the constraint switch.
       if (
         targetId === node.id &&
-        usesResultInputs(node) &&
-        !isUiCutoutSource(documentState, targetId)
+        regeneratesInPlace(node) &&
+        !isUiCutoutSource(documentState, targetId) &&
+        !documentState.nodes.some((item: any) => item.id === node.sectionId && item.templateId)
       ) {
+        const constrained = prompt.includes('游戏素材约束：') || userPrompt(prompt) !== prompt;
         node.generation = {
           ...node.generation,
-          prompt,
+          prompt: userPrompt(prompt),
           parameters: {
             ...node.generation?.parameters,
             model: available?.provider.source === 'maker' ? settings.model : undefined,
             resolution: settings.resolution,
             aspectRatio: settings.aspectRatio,
+            ...(constrained || selectedOperation === 'generate'
+              ? { assetConstraints: constrained }
+              : {}),
           },
         };
         options.markDirty();
