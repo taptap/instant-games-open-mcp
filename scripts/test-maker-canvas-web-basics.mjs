@@ -3318,6 +3318,57 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   });
+  await check('Web 标注框：四角显示圆点，拖角可斜向同时改宽高，左上角固定右下边', async () => {
+    const { page, errors, settle, current, card, blank } = await webPage();
+    await settle();
+    await blank();
+    await page.locator('#mark-ellipse').click();
+    await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+    const node = async () => (await current()).nodes.filter((item) => item.type === 'mark').at(-1);
+    const start = await node();
+    const frame = card(start.id);
+    assert.equal(await frame.locator('.mark-corner').count(), 4);
+    assert.equal(
+      await frame
+        .locator('.mark-corner[data-corner="se"]')
+        .evaluate((item) => getComputedStyle(item, '::before').content),
+      '""',
+      '选中时角上有圆点'
+    );
+    assert.equal(await frame.locator('.resize-handle').isVisible(), false, '旧右下手柄隐藏');
+    const scale = (await current()).viewport.scale;
+    const drag = async (corner, dx, dy) => {
+      const box = await frame.locator('.mark-corner[data-corner="' + corner + '"]').boundingBox();
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + dx, y + dy, { steps: 6 });
+      await page.mouse.up();
+    };
+    await drag('se', 60, 40);
+    const grown = await node();
+    assert.ok(Math.abs(grown.width - start.width - 60 / scale) < 3, '右下角加宽：' + grown.width);
+    assert.ok(
+      Math.abs(grown.height - start.height - 40 / scale) < 3,
+      '右下角加高：' + grown.height
+    );
+    assert.deepEqual([grown.x, grown.y], [start.x, start.y], '右下角不动左上');
+    await drag('nw', -30, -20);
+    const pulled = await node();
+    assert.ok(
+      Math.abs(pulled.x - (grown.x - 30 / scale)) < 3 &&
+        Math.abs(pulled.y - (grown.y - 20 / scale)) < 3,
+      '左上角移动'
+    );
+    assert.ok(
+      Math.abs(pulled.x + pulled.width - (grown.x + grown.width)) < 2 &&
+        Math.abs(pulled.y + pulled.height - (grown.y + grown.height)) < 2,
+      '左上角拖动固定右下边'
+    );
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
   await check('Web 标注：框选/箭头可经工具条图标、右键、Delete 删除，均可撤销', async () => {
     const { page, errors, editor, settle, current, card, blank } = await webPage();
     await settle();

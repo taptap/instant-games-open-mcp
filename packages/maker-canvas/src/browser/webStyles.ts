@@ -412,6 +412,10 @@ ${M} .card.web-media .web-node-handle.is-nw, ${M} .card.web-media .web-node-hand
 ${M} .card.web-media .web-node-handle.is-ne, ${M} .card.web-media .web-node-handle.is-sw { cursor: nesw-resize; }
 ${M} .card.web-media .web-node-handle:disabled { opacity: .45; cursor: default; }
 ${M} .card.web-media > .resize-handle { display: none; }
+/* Annotation frames: the same round corner dots once selected; corners resize both edges (diagonal drag). */
+${M} .card.canvas-mark > .resize-handle { display: none; }
+${M} .card.canvas-mark .mark-corner { width: calc(20px * var(--web-inv, 1)); height: calc(20px * var(--web-inv, 1)); margin: calc(-10px * var(--web-inv, 1)) 0 0 calc(-10px * var(--web-inv, 1)); }
+${M} .card.canvas-mark.selected .mark-corner::before { content: ''; position: absolute; left: 50%; top: 50%; box-sizing: border-box; width: calc(10px * var(--web-inv, 1)); height: calc(10px * var(--web-inv, 1)); border: calc(2px * var(--web-inv, 1)) solid var(--web-accent); border-radius: 50%; background: #fffaf0; box-shadow: 0 1px 3px rgba(0,0,0,.25); -webkit-transform: translate(-50%, -50%); transform: translate(-50%, -50%); }
 
 /* Group = quiet rounded frame with the caption inside its top edge; selection uses the card outline and ring. */
 ${M} .card.section.canvas-card { overflow: visible; border: 1px solid var(--web-line); border-radius: 16px; background: var(--web-group-bg); box-shadow: none; }

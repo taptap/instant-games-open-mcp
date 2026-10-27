@@ -82,6 +82,19 @@ export function renderCanvasMark(
       );
       card.append(bar);
     }
+    // Corners move two edges at once, so the frame can be stretched diagonally.
+    for (const corner of ['nw', 'ne', 'sw', 'se']) {
+      const dot = document.createElement('div');
+      dot.className = 'mark-corner';
+      dot.dataset.corner = corner;
+      dot.setAttribute(
+        'aria-label',
+        '拖动' +
+          ({ nw: '左上', ne: '右上', sw: '左下', se: '右下' } as Record<string, string>)[corner] +
+          '角'
+      );
+      card.append(dot);
+    }
     if (resizeHandle) card.append(resizeHandle);
   }
 }
@@ -199,12 +212,19 @@ export function createCanvasMarks(options: {
   let edit: {
     pointerId: number;
     id: string;
-    kind: 'point' | 'edge';
+    kind: 'point' | 'edge' | 'corner';
     which: string;
     remembered: boolean;
   } | null = null;
   function markEditTarget(event: PointerEvent) {
     const target = event.target as Element | null;
+    const corner = target?.closest?.('.mark-corner');
+    if (corner)
+      return {
+        card: corner.closest('.card[data-id]'),
+        kind: 'corner' as const,
+        which: corner.getAttribute('data-corner') || 'se',
+      };
     const point = target?.closest?.('.mark-point');
     if (point)
       return {
@@ -257,7 +277,10 @@ export function createCanvasMarks(options: {
     const point = options.worldPoint(event);
     if (edit.kind === 'point')
       canvasMarkMoveEndpoint(node, edit.which === 'to' ? 'to' : 'from', point.x, point.y);
-    else
+    else if (edit.kind === 'corner') {
+      canvasMarkResizeEdge(node, edit.which[1] === 'w' ? 'left' : 'right', point.x, point.y);
+      canvasMarkResizeEdge(node, edit.which[0] === 'n' ? 'top' : 'bottom', point.x, point.y);
+    } else
       canvasMarkResizeEdge(
         node,
         edit.which as 'left' | 'right' | 'top' | 'bottom',
@@ -326,6 +349,11 @@ export const CANVAS_MARK_STYLES = `
 .mark-edge[data-edge="left"], .mark-edge[data-edge="right"] { top:0; bottom:0; width:14px; cursor:ew-resize; }
 .mark-edge[data-edge="left"] { left:-7px; }
 .mark-edge[data-edge="right"] { right:-7px; }
+.mark-corner { position:absolute; z-index:7; width:16px; height:16px; margin:-8px 0 0 -8px; pointer-events:auto; background:transparent; }
+.mark-corner[data-corner="nw"] { left:0; top:0; cursor:nwse-resize; }
+.mark-corner[data-corner="ne"] { left:100%; top:0; cursor:nesw-resize; }
+.mark-corner[data-corner="sw"] { left:0; top:100%; cursor:nesw-resize; }
+.mark-corner[data-corner="se"] { left:100%; top:100%; cursor:nwse-resize; }
 .card.canvas-mark svg { display:block; width:100%; height:100%; overflow:visible; pointer-events:none; }
 .card.canvas-mark .mark-hit, .card.canvas-mark .resize-handle { pointer-events:auto; }
 .card.canvas-mark .mark-box { box-sizing:border-box; width:100%; height:100%; background:transparent; border-radius:4px; }
