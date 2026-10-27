@@ -2617,7 +2617,8 @@ try {
         await page.waitForFunction(() => document.querySelector('.web-tooltip').hidden);
         // Dock buttons share the helper: their native title is migrated on first hover.
         const undo = page.locator('.workspace-actions > button').first();
-        const name = await undo.getAttribute('aria-label');
+        // The tooltip shows the title (which carries the shortcut), not just the aria-label.
+        const name = await undo.evaluate((item) => item.title || item.dataset.webTip);
         await undo.hover();
         await shown(name, '工具条按钮');
         assert.equal(await undo.getAttribute('title'), null);
@@ -3172,7 +3173,11 @@ try {
   });
 
   await check('Web 外观：空白处右键菜单新建槽/上传/素材库，素材库按钩子显示', async () => {
-    const { page, errors, current, settle } = await webPage({ pickProjectImages: true });
+    const { page, errors, current, settle } = await webPage({
+      pickProjectImages: true,
+      features: { ...webFeatures, video: true },
+      videoStore: true,
+    });
     await settle();
     const menu = page.locator('#canvas-context-menu');
     const worldAt = (x, y) =>
@@ -3192,7 +3197,13 @@ try {
     const labels = await menu
       .locator('button:not([hidden])')
       .evaluateAll((items) => items.map((item) => item.textContent));
-    assert.deepEqual(labels, ['新建图片卡片', '上传图片', '从素材库添加']);
+    assert.deepEqual(labels, [
+      '新建图片卡片',
+      '上传图片',
+      '从素材库添加',
+      '新建视频卡片',
+      '导入视频',
+    ]);
     const point = await worldAt(700, 360);
     await menu.getByRole('button', { name: '新建图片卡片' }).click();
     const slot = (await current()).nodes.at(-1);
@@ -3212,6 +3223,23 @@ try {
     );
     const added = (await current()).nodes.find((node) => node.assetPath === picked);
     assert.equal(added.title, '素材库图');
+    // Project videos come through the same picker as video cards (kind or assets/video/ path).
+    await settle();
+    const pickedVideo = await page.evaluate(() => window.__canvasAddVideo());
+    await page.evaluate(
+      (path) => (window.__canvasPick = [{ path, name: '素材库视频.webm' }]),
+      pickedVideo
+    );
+    await page.mouse.click(1300, 840);
+    await page.mouse.click(400, 300, { button: 'right' });
+    await menu.getByRole('button', { name: '从素材库添加' }).click();
+    await page.waitForFunction(
+      (path) => window.__canvasEditor.current().nodes.some((node) => node.assetPath === path),
+      pickedVideo
+    );
+    const addedVideo = (await current()).nodes.find((node) => node.assetPath === pickedVideo);
+    assert.equal(addedVideo.type, 'video-source', '素材库视频成为视频卡');
+    assert.equal(addedVideo.title, '素材库视频');
     assert.ok(Math.abs(added.x - pickPoint.x) < 1 && Math.abs(added.y - pickPoint.y) < 1);
     // Paths are validated by the host import; unknown paths add nothing.
     await settle();
@@ -3546,7 +3574,7 @@ try {
     await settle();
     const save = page.locator('#save');
     assert.equal(await save.getAttribute('data-save-state'), 'saved');
-    assert.equal(await save.getAttribute('title'), '已保存');
+    assert.match(await save.getAttribute('title'), /^已保存（(⌘S|Ctrl\+S)）$/);
     assert.equal(
       await page.locator('.workspace-toolbar #status').evaluate((item) => item.offsetWidth <= 1),
       true,
@@ -4221,6 +4249,89 @@ try {
       await page.close();
     }
   );
+  await check('Web 视频卡：播放键与进度条同高同底边（缩放 1× / 放大 / 缩小）', async () => {
+    const { page, errors, editor, settle, card, blank } = await webPage({
+      features: videoFeatures,
+      videoStore: true,
+    });
+    await settle();
+    const video = await importVideo(page, '对齐');
+    await editor('update-nodes', { nodes: [{ id: video.id, x: 300, y: 200 }] });
+    await settle();
+    await blank();
+    await waitMetadata(card(video.id).locator('video'));
+    for (const wheel of [0, -300, 600]) {
+      if (wheel) {
+        await page.mouse.move(500, 400);
+        await page.mouse.wheel(0, wheel);
+        await page.waitForTimeout(100);
+      }
+      const media = await card(video.id).locator('video').boundingBox();
+      await page.mouse.move(media.x + media.width / 2, media.y + media.height / 3);
+      await page.waitForFunction(
+        (id) =>
+          Number(
+            getComputedStyle(document.querySelector('.card[data-id="' + id + '"] .web-video-bar'))
+              .opacity
+          ) > 0.9,
+        video.id
+      );
+      const chip = await card(video.id).locator('.web-video-play').boundingBox();
+      const bar = await card(video.id).locator('.web-video-bar').boundingBox();
+      assert.ok(
+        Math.abs(chip.height - bar.height) < 0.6,
+        '同高 ' + chip.height + ' / ' + bar.height
+      );
+      assert.ok(
+        Math.abs(chip.y + chip.height - (bar.y + bar.height)) < 0.6,
+        '同底边 wheel=' + wheel
+      );
+      assert.ok(bar.x - (chip.x + chip.width) > 0, '进度条在播放键右侧');
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 工具条快捷键：V/H/R/A 切换或放置，⌘/Ctrl+S 保存，tooltip 写明按键', async () => {
+    const { page, errors, settle, current } = await webPage();
+    await settle();
+    // The Web tooltip moves title into data-web-tip once it has shown.
+    const title = (id) =>
+      page.locator('#' + id).evaluate((item) => item.title || item.dataset.webTip || '');
+    assert.equal(await title('tool-select'), '鼠标（V）');
+    assert.match(await title('tool-pan'), /^拖拽画布（H · 按住空格临时拖拽）$/);
+    assert.equal(await title('mark-ellipse'), '标注框（R）');
+    assert.equal(await title('mark-arrow'), '箭头（A）');
+    assert.match(await title('save'), /^已保存（(⌘S|Ctrl\+S)）$/);
+    await page.mouse.click(1300, 840);
+    await page.keyboard.press('h');
+    assert.equal(await page.locator('#tool-pan').getAttribute('aria-pressed'), 'true');
+    await page.keyboard.press('v');
+    assert.equal(await page.locator('#tool-select').getAttribute('aria-pressed'), 'true');
+    const marks = async () => (await current()).nodes.filter((node) => node.type === 'mark');
+    await page.keyboard.press('r');
+    await page.keyboard.press('Escape');
+    await page.mouse.click(1300, 840);
+    await page.keyboard.press('a');
+    const placed = await marks();
+    assert.deepEqual(
+      placed.map((node) => node.mark.shape),
+      ['ellipse', 'arrow'],
+      'R 放标注框、A 放箭头'
+    );
+    await page.keyboard.press('ControlOrMeta+s');
+    await settle();
+    // Typing in a field never triggers tool keys.
+    await page.evaluate(() => {
+      const input = document.createElement('input');
+      input.id = 'shortcut-probe';
+      document.body.append(input);
+    });
+    await page.locator('#shortcut-probe').focus();
+    await page.keyboard.type('vhra');
+    assert.equal((await marks()).length, 2, '输入框里打字不触发');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
   await check(
     'Web 视频卡进度条：时间/时长，点击与拖动跳转不拖卡，键盘 ±1s，重渲染不重置，卡片仍可拖',
     async () => {
@@ -4426,6 +4537,117 @@ try {
     );
     assert.equal(await page.locator('.web-video-play').count(), 0);
     assert.equal(await page.locator('.web-video-bar').count(), 0);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 序列帧/动画卡：与图片卡同款（框外标题、圆角面板、选中四角手柄）', async () => {
+    const atlas = 'assets/image/canvas/style-atlas.png';
+    const frame = (index) => ({
+      index,
+      time: index / 8,
+      x: index * 60,
+      y: 0,
+      width: 60,
+      height: 120,
+    });
+    const frameSetInfo = {
+      fps: 8,
+      frameCount: 2,
+      width: 60,
+      height: 120,
+      columns: 2,
+      rows: 1,
+      frames: [frame(0), frame(1)],
+    };
+    const { page, errors } = await openCanvas({
+      features: videoFeatures,
+      appearance: 'web',
+      seedMedia: { [atlas]: '#c33' },
+      seedDocuments: [
+        {
+          id: '55555555-5555-4555-8555-555555555555',
+          title: '样式画布',
+          revision: 1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [
+            {
+              id: 'seq-s',
+              type: 'sequence',
+              x: 120,
+              y: 160,
+              width: 420,
+              height: 300,
+              title: '视频转序列帧',
+              assetPath: atlas,
+              sequenceSettings: {
+                start: 0,
+                end: 1,
+                fps: 8,
+                cutout: false,
+                backgroundColor: '#00ff00',
+                tolerance: 48,
+                duplicateThreshold: 0.985,
+                width: 60,
+                height: 120,
+                fit: 'contain',
+                pixel: false,
+              },
+              frameSetInfo,
+            },
+            {
+              id: 'anim-s',
+              type: 'animation',
+              x: 620,
+              y: 160,
+              width: 320,
+              height: 300,
+              title: '序列帧动画',
+              assetPath: atlas,
+              frameSetInfo,
+            },
+          ],
+          edges: [],
+        },
+      ],
+    });
+    await page.waitForSelector('.card[data-id="seq-s"] .canvas-card-content');
+    for (const id of ['seq-s', 'anim-s']) {
+      const card = page.locator('.card[data-id="' + id + '"]');
+      await card.locator('.canvas-card-title').click();
+      await page.waitForFunction(
+        (id) =>
+          document.querySelectorAll('.card[data-id="' + id + '"] .web-node-handle').length === 4,
+        id
+      );
+      const style = await card.evaluate((element) => {
+        const css = (item) => getComputedStyle(item);
+        const content = element.querySelector('.canvas-card-content');
+        const header = element.querySelector('.canvas-card-header');
+        return {
+          media: element.classList.contains('web-media'),
+          cardBorder: css(element).borderTopWidth,
+          cardBg: css(element).backgroundColor,
+          headerBorder: css(header).borderBottomWidth,
+          radius: css(content).borderTopLeftRadius,
+          meta: css(element.querySelector('.canvas-card-meta')).display,
+          grip: css(element.querySelector(':scope > .resize-handle') || element).display,
+        };
+      });
+      assert.equal(style.media, true, id + ' 用媒体卡外观');
+      assert.equal(style.cardBorder, '0px', id + ' 卡片外框去掉');
+      assert.equal(style.cardBg, 'rgba(0, 0, 0, 0)', id + ' 标题行透明');
+      assert.equal(style.headerBorder, '0px', id + ' 标题行无分隔线');
+      assert.equal(style.radius, '12px', id + ' 内容圆角面板');
+      assert.notEqual(style.meta, 'none', id + ' 保留帧数信息');
+      assert.equal(style.grip, 'none', id + ' 旧右下手柄隐藏');
+    }
+    if (process.env.CANVAS_SCREENSHOT_DIR) {
+      fs.mkdirSync(process.env.CANVAS_SCREENSHOT_DIR, { recursive: true });
+      await page.screenshot({
+        path: path.join(process.env.CANVAS_SCREENSHOT_DIR, 'v13-sequence-animation-cards.png'),
+        clip: { x: 80, y: 100, width: 920, height: 420 },
+      });
+    }
     assert.deepEqual(errors, []);
     await page.close();
   });

@@ -269,10 +269,10 @@ export function decorateCanvasWebCards(options: {
       card.append(handle);
     }
   }
-  // Video, video result and group frames share the image selection chrome; sections frame the whole card.
+  // Video, video result, sequence, animation and group frames share the image selection chrome; sections frame the whole card.
   world
     .querySelectorAll(
-      ':scope > .card.video[data-id], :scope > .card.video-source[data-id], :scope > .card.section[data-id]'
+      ':scope > .card.video[data-id], :scope > .card.video-source[data-id], :scope > .card.section[data-id], :scope > .card.sequence[data-id], :scope > .card.animation[data-id]'
     )
     .forEach((element) => {
       const card = element as HTMLElement;

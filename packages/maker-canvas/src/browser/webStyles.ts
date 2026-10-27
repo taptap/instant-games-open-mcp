@@ -427,14 +427,15 @@ ${M} .card.section .canvas-card-title { color: var(--web-text); font-size: 13px;
 ${M} .card.section .canvas-card-meta { display: inline; margin-left: 8px; color: var(--web-muted); font-size: 12px; }
 ${M} .card.section .canvas-group-state { height: 20px; padding: 0 8px; border: 1px solid var(--web-line); border-radius: 999px; background: transparent; color: var(--web-muted); font-size: 11px; line-height: 18px; }
 
-/* Sequence and animation cards: panel-toned frame with pill buttons, matching the composer surface. */
-${M} .card.sequence.canvas-card, ${M} .card.animation.canvas-card { border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); color: var(--web-text); box-shadow: 0 14px 32px rgba(35,35,35,.18); }
-${M} .card.sequence.canvas-card.selected, ${M} .card.animation.canvas-card.selected { outline: calc(2px * var(--web-inv, 1)) solid var(--web-accent); outline-offset: 0; }
-${M} .card.sequence .canvas-card-header, ${M} .card.animation .canvas-card-header { border-bottom: 1px solid var(--web-line); background: transparent; }
-${M} .card.sequence .canvas-card-title, ${M} .card.animation .canvas-card-title { color: var(--web-text); font-size: 13px; font-weight: 500; }
+/* Sequence and animation cards = image card: bare title row (title · frame count) over a panel-toned frame, same outline, ring and corner handles. */
+${M} .card.sequence.canvas-card, ${M} .card.animation.canvas-card { overflow: visible; border: 0; border-radius: 0; background: transparent; color: var(--web-text); box-shadow: none; }
+${M} .card.sequence.canvas-card.selected, ${M} .card.animation.canvas-card.selected { outline: none; }
+${M} .card.sequence.web-media:not(.section) .canvas-card-heading, ${M} .card.animation.web-media:not(.section) .canvas-card-heading { display: flex; flex-direction: row; align-items: baseline; gap: 6px; }
+${M} .card.sequence.web-media .canvas-card-meta, ${M} .card.animation.web-media .canvas-card-meta { display: inline; flex: none; font-size: 12px; line-height: 20px; }
+${M} .card.sequence .canvas-card-content, ${M} .card.animation .canvas-card-content { border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); box-shadow: 0 14px 32px rgba(35,35,35,.18); }
+${M} .card.sequence.selected .canvas-card-content, ${M} .card.animation.selected .canvas-card-content { outline: calc(2px * var(--web-inv, 1)) solid var(--web-accent); outline-offset: 0; }
+${M} .card.sequence.selected::before, ${M} .card.animation.selected::before { content: ''; position: absolute; left: 0; right: 0; top: 40px; bottom: 0; z-index: 0; border-radius: 12px; box-shadow: 0 0 0 calc(4px * var(--web-inv, 1)) var(--web-accent); opacity: .18; pointer-events: none; }
 ${M} .card.sequence .canvas-card-meta, ${M} .card.animation .canvas-card-meta, ${M} .sequence-source-label, ${M} .sequence-result-empty, ${M} .sequence-result-grid figure, ${M} .animation-caption { color: var(--web-muted); }
-${M} .card.sequence .canvas-card-menu, ${M} .card.animation .canvas-card-menu { border-radius: 6px; background: transparent; color: var(--web-muted); }
-${M} .card.sequence .canvas-card-menu:hover, ${M} .card.animation .canvas-card-menu:hover { background: var(--web-wash); color: var(--web-text); }
 ${M} .sequence-result-grid canvas, ${M} .card.animation .animation-preview { border-radius: 8px; background: repeating-conic-gradient(var(--web-soft) 0% 25%, var(--web-panel) 0% 50%) 0 / 16px 16px; }
 ${M} .sequence-edit-button, ${M} .sequence-animation-button, ${M} .animation-controls button { box-sizing: border-box; height: 28px; min-height: 28px; padding: 0 12px; border: 1px solid var(--web-pill-line); border-radius: 999px; background: var(--web-pill-bg); color: var(--web-pill-ink); box-shadow: 0 6px 18px rgba(35,35,35,.12); font: inherit; font-size: 12px; font-weight: 600; line-height: 26px; cursor: pointer; }
 ${M} .sequence-edit-button:hover, ${M} .sequence-animation-button:hover, ${M} .animation-controls button:hover:not(:disabled) { background: var(--web-pill-hover); }
@@ -508,10 +509,10 @@ ${P} :focus { outline: none !important; }
 ${K} :focus:not(.canvas-port):not(.card) { outline: 1.5px solid var(--web-focus-ring) !important; outline-offset: 1px !important; }
 ${K} .card .port.canvas-port:focus { opacity: 1; pointer-events: auto; }
 ${K} .card .port.canvas-port:focus::before { box-shadow: 0 0 0 1.5px var(--web-focus-ring); }
-/* Video result: no native controls (they swallowed the drag); a Mivo-like 28px round play chip sits bottom-left. */
-${M} .card.video-source .web-video-play { position: absolute; left: 10px; bottom: 10px; z-index: 4; display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 28px; height: 28px; min-height: 28px; margin: 0; padding: 0; border: 1px solid var(--web-glass-edge); border-radius: 50%; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: 0 2px 8px rgba(0,0,0,.24); cursor: pointer; opacity: .92; -webkit-transform: scale(var(--web-inv, 1)); transform: scale(var(--web-inv, 1)); -webkit-transform-origin: 0 100%; transform-origin: 0 100%; transition: opacity .12s; }
+/* Video result: no native controls (they swallowed the drag); a 28px round play chip sits bottom-left, sized like the bar beside it. */
+${M} .card.video-source .web-video-play { position: absolute; left: calc(10px * var(--web-inv, 1)); bottom: calc(10px * var(--web-inv, 1)); z-index: 4; display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: calc(28px * var(--web-inv, 1)); height: calc(28px * var(--web-inv, 1)); min-height: 0; margin: 0; padding: 0; border: 1px solid var(--web-glass-edge); border-radius: 50%; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: 0 2px 8px rgba(0,0,0,.24); cursor: pointer; opacity: .92; transition: opacity .12s; }
 ${M} .card.video-source .web-video-play:hover { opacity: 1; }
-${M} .card.video-source .web-video-play svg { display: block; flex: none; }
+${M} .card.video-source .web-video-play svg { display: block; flex: none; width: calc(14px * var(--web-inv, 1)); height: calc(14px * var(--web-inv, 1)); }
 ${M} .card.video-source .web-video-play[data-playing="false"] svg { margin-left: 2px; }
 ${L} .card.video-source .web-video-play { box-shadow: 0 2px 8px rgba(35,35,35,.16); }
 ${M} .card.video-source .video-source-preview { cursor: inherit; }

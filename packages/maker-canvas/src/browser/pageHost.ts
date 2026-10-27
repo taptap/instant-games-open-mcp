@@ -42,8 +42,11 @@ export interface CanvasPageHost {
   appearance?: 'default' | 'web';
   /** Optional: shows 「加入对话」 for selected image cards; absent hides the button. */
   addToChat?(items: { nodeId: string; assetPath: string }[]): Promise<void> | void;
-  /** Optional: shows 「从素材库添加」 in the blank-canvas menu; paths go through prepareCanvasImportedNode. */
-  pickProjectImages?(): Promise<{ path: string; name: string }[]>;
+  /**
+   * Optional: shows 「从素材库添加」 in the blank-canvas menu; paths go through prepareCanvasImportedNode.
+   * `kind` absent means image, except paths under assets/video/.
+   */
+  pickProjectImages?(): Promise<{ path: string; name: string; kind?: 'image' | 'video' }[]>;
   onReady?(editor: CanvasEditorHandle): void;
   /** Called only after the normal authorized load. Scope drafts by user, project and canvas. */
   recoverDraft?(loaded: CanvasDocument): Promise<CanvasEditorDraft | null | undefined>;
