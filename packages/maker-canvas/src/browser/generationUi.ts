@@ -1440,6 +1440,25 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       ) {
         cutoutColor = node.generation?.cutoutColor;
       }
+      // Web in-place regeneration: save what is sent, so a reload can still match and apply the
+      // result (recovery compares the card's saved prompt and parameters with the attempt).
+      if (
+        targetId === node.id &&
+        usesResultInputs(node) &&
+        !isUiCutoutSource(documentState, targetId)
+      ) {
+        node.generation = {
+          ...node.generation,
+          prompt,
+          parameters: {
+            ...node.generation?.parameters,
+            model: available?.provider.source === 'maker' ? settings.model : undefined,
+            resolution: settings.resolution,
+            aspectRatio: settings.aspectRatio,
+          },
+        };
+        options.markDirty();
+      }
       if (!(await options.flush())) {
         options.setError('画布尚未保存，保存成功后再生成。');
         return;
