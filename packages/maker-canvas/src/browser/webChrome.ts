@@ -78,6 +78,26 @@ export function installCanvasWebTooltips() {
   let timer = 0;
   let keyboard = false;
   let lastHide = 0;
+  const root = document.documentElement;
+  const measure = document.createElement('canvas').getContext('2d');
+  /** Mirrors the flag on :root so CSS shows focus rings for keyboard focus only (no :focus-visible on Chrome 74). */
+  function setKeyboard(next: boolean) {
+    if (keyboard === next) return;
+    keyboard = next;
+    root.classList.toggle('canvas-web-keyboard', next);
+    if (!next || !measure) return;
+    // The ring is the live host accent at 60%; canvas normalises any CSS color, as color-mix is unavailable.
+    measure.fillStyle = '#6957e8';
+    measure.fillStyle = getComputedStyle(root).getPropertyValue('--web-accent').trim() || '#6957e8';
+    const color = String(measure.fillStyle);
+    const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color);
+    root.style.setProperty(
+      '--web-focus-ring',
+      hex
+        ? 'rgba(' + [hex[1], hex[2], hex[3]].map((part) => parseInt(part, 16)).join(',') + ',.6)'
+        : color.replace(/,\s*[\d.]+\)$/, ',.6)')
+    );
+  }
   function label(element: HTMLElement) {
     if (element.title) {
       // Moving title into data keeps the text while stopping the native delayed tooltip.
@@ -150,7 +170,12 @@ export function installCanvasWebTooltips() {
   document.addEventListener(
     'keydown',
     (event) => {
-      keyboard = true;
+      const target = event.target as HTMLElement | null;
+      const typing =
+        Boolean(target?.closest?.('textarea, input, [contenteditable="true"]')) &&
+        event.key !== 'Tab';
+      // Typing in a clicked field or pressing a bare modifier is not keyboard navigation.
+      if (!typing && !['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) setKeyboard(true);
       if (event.key === 'Escape') hide();
     },
     true
@@ -158,7 +183,7 @@ export function installCanvasWebTooltips() {
   document.addEventListener(
     'pointerdown',
     () => {
-      keyboard = false;
+      setKeyboard(false);
       hide();
     },
     true
@@ -408,7 +433,7 @@ export function createCanvasWebChrome(options: {
     const id = card && card.getAttribute('data-id');
     const hitNode =
       id && id !== drag.id
-        ? doc.nodes.find((item) => item.id === id && item.type === 'image')
+        ? doc.nodes.find((item) => item.id === id && ['image', 'video'].includes(item.type))
         : undefined;
     const node = hitNode && canvasWebBox(hitNode);
     mark(node ? card : null);
@@ -468,4 +493,103 @@ export function createCanvasWebChrome(options: {
     toolbar.addEventListener('change', fitSelects);
   }
   return { preview, clear };
+}
+
+/** Play/pause glyph and label for the Web video card control, kept in step with the element. */
+export function canvasWebSyncVideoPlay(button: HTMLElement, player: HTMLVideoElement) {
+  const playing = !player.paused && !player.ended;
+  const label = playing ? '暂停视频' : '播放视频';
+  if (button.dataset.playing === String(playing)) return;
+  button.dataset.playing = String(playing);
+  button.setAttribute('aria-label', label);
+  button.dataset.webTip = label;
+  // lucide play / pause
+  button.innerHTML =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    (playing
+      ? '<rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/>'
+      : '<polygon points="6 3 20 12 6 21 6 3"/>') +
+    '</svg>';
+}
+
+/** Side + chooser: a small menu next to the ring; arrows move, Esc closes and refocuses the +. */
+export function openCanvasWebSlotChooser(options: {
+  anchor: HTMLElement;
+  items: Array<{ label: string; icon: 'image' | 'video'; run(): void }>;
+  restoreFocus(): void;
+}) {
+  document.querySelector('.web-slot-chooser')?.remove();
+  // lucide image / video, same strokes as the slot glyphs.
+  const icons = {
+    image:
+      '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+    video:
+      '<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
+  };
+  const menu = document.createElement('div');
+  menu.className = 'web-slot-chooser';
+  menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-label', '新建卡片');
+  const outside = (event: Event) => {
+    if (!menu.contains(event.target as Node)) close(false);
+  };
+  const dismiss = () => close(false);
+  function close(restore: boolean) {
+    if (!menu.isConnected) return;
+    menu.remove();
+    document.removeEventListener('pointerdown', outside, true);
+    window.removeEventListener('wheel', dismiss, true);
+    window.removeEventListener('blur', dismiss);
+    if (restore) options.restoreFocus();
+  }
+  const buttons = options.items.map((item) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'menuitem');
+    button.tabIndex = -1;
+    button.innerHTML =
+      '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      icons[item.icon] +
+      '</svg>';
+    const text = document.createElement('span');
+    text.textContent = item.label;
+    button.append(text);
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      close(false);
+      item.run();
+    });
+    menu.append(button);
+    return button;
+  });
+  menu.addEventListener('pointerdown', (event) => event.stopPropagation());
+  menu.addEventListener('keydown', (event) => {
+    // Canvas shortcuts (Delete, Space pan, undo) must not fire while the menu owns the keyboard.
+    event.stopPropagation();
+    const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const move = (next: number) => {
+      event.preventDefault();
+      buttons[(next + buttons.length) % buttons.length].focus();
+    };
+    if (event.key === 'ArrowDown') move(index + 1);
+    else if (event.key === 'ArrowUp') move(index - 1);
+    else if (event.key === 'Home') move(0);
+    else if (event.key === 'End') move(buttons.length - 1);
+    else if (event.key === 'Escape') {
+      event.preventDefault();
+      close(true);
+    } else if (event.key === 'Tab') close(false);
+  });
+  document.body.append(menu);
+  // The visible ring sits 25px inside the 80px hot zone, so the menu opens just right of the ring.
+  const box = options.anchor.getBoundingClientRect();
+  const left = box.left + box.width / 2 - 25 + 18;
+  const top = box.top + box.height / 2 - menu.offsetHeight / 2;
+  menu.style.left = Math.max(8, Math.min(left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+  menu.style.top = Math.max(8, Math.min(top, window.innerHeight - menu.offsetHeight - 8)) + 'px';
+  document.addEventListener('pointerdown', outside, true);
+  window.addEventListener('wheel', dismiss, true);
+  window.addEventListener('blur', dismiss);
+  buttons[0]?.focus();
+  return { close };
 }

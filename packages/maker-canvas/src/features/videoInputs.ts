@@ -34,10 +34,17 @@ export function videoAttemptMatchesSources(
   },
   sources: CanvasNode[]
 ): boolean {
-  const ids = attempt.sourceImageIds?.length ? attempt.sourceImageIds : [attempt.sourceImageId];
+  // Prompt-only videos carry no source fields; treat them as zero sources instead of one undefined.
+  const ids = attempt.sourceImageIds?.length
+    ? attempt.sourceImageIds
+    : attempt.sourceImageId
+      ? [attempt.sourceImageId]
+      : [];
   const paths = attempt.sourceImagePaths?.length
     ? attempt.sourceImagePaths
-    : [attempt.sourceImagePath];
+    : attempt.sourceImagePath
+      ? [attempt.sourceImagePath]
+      : [];
   return (
     ids.length === sources.length &&
     paths.length === sources.length &&

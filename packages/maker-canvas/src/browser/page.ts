@@ -48,7 +48,10 @@ import {
   installCanvasWebTooltips,
   createCanvasWebChrome,
   decorateCanvasWebCards,
+  canvasWebSyncVideoPlay,
+  openCanvasWebSlotChooser,
 } from './webChrome.js';
+import { canvasCachedImage, canvasWhenImageReady } from './mediaReuse.js';
 import { CANVAS_WIRE_STYLES } from './wireUi.js';
 import { drawUiRecognition } from './uiRecognitionUi.js';
 import { IMAGE_FEATURES } from '../features/imageFeatures.js';
@@ -914,6 +917,94 @@ function applyWebMediaPatches(source: string): string {
   );
   return page;
 }
+/** Shared: media elements survive re-renders (both appearances flashed because render rebuilt them). */
+function applyMediaReusePatches(source: string): string {
+  let page = source;
+  const patch = (search: string, replacement: string) => {
+    page = replaceCanvasPageText(page, search, replacement);
+  };
+  patch(
+    '    animationCards.beginRender(documentState.nodes); world.replaceChildren();',
+    [
+      // Players not mounted by the previous pass belong to removed or hidden cards.
+      '    videoPlayers.forEach(function (player, id) { if (!player.isConnected) videoPlayers.delete(id); });',
+      '    animationCards.beginRender(documentState.nodes); world.replaceChildren();',
+    ].join('\n')
+  );
+  patch(
+    '  function fitVideoCard(node) {',
+    [
+      '  function syncVideoPlay(button, player) { canvasWebSyncVideoPlay(button, player); }',
+      '  function fitVideoCard(node) {',
+    ].join('\n')
+  );
+  return page;
+}
+/** Web-only card UX: draggable video cards, curved wires for every edge kind, side + chooser. */
+function applyWebCardUxPatches(source: string): string {
+  let page = source;
+  const patch = (search: string, replacement: string) => {
+    page = replaceCanvasPageText(page, search, replacement);
+  };
+  // Web video cards have no native controls, so pressing the video selects and drags the card.
+  patch(
+    "event.target.closest('textarea, input, select, button, video, details')",
+    "event.target.closest(canvasWeb ? 'textarea, input, select, button, details' : 'textarea, input, select, button, video, details')"
+  );
+  patch(
+    "      if (canvasWeb && edge.kind === 'image-variant') path.setAttribute('d', canvasWebWire(from, to, view).d);",
+    "      if (canvasWeb) path.setAttribute('d', canvasWebWire(from, to, view).d);"
+  );
+  patch(
+    [
+      '  function createLinkedSlot(id, left) {',
+      '    const card = documentState && documentState.nodes.find(function (node) { return node.id === id; });',
+      "    if (!card || card.type !== 'image') return;",
+    ].join('\n'),
+    [
+      '  function createLinkedSlot(id, left, direct) {',
+      '    const card = documentState && documentState.nodes.find(function (node) { return node.id === id; });',
+      "    if (!card || card.type !== 'image') return;",
+      // Only a saved image can feed a video slot, so other + presses keep creating an image slot directly.
+      "    if (canvasWeb && !left && !direct && card.assetPath && canvasFeatureEnabled(host, 'video')) { openSlotChooser(card.id); return; }",
+    ].join('\n')
+  );
+  patch(
+    '  function connectImages(from, to, shouldRemember, allowEmptySource) {',
+    [
+      '  function outputPort(id) {',
+      "    return world.querySelector('.card[data-id=\"' + CSS.escape(id) + '\"] > .canvas-port-output');",
+      '  }',
+      '  function openSlotChooser(id) {',
+      '    const port = outputPort(id);',
+      '    if (!port) { createLinkedSlot(id, false, true); return; }',
+      '    openCanvasWebSlotChooser({',
+      '      anchor: port,',
+      "      items: [{ label: '图片卡片', icon: 'image', run: function () { createLinkedSlot(id, false, true); } }, { label: '视频卡片', icon: 'video', run: function () { createLinkedVideoSlot(id); } }],",
+      '      restoreFocus: function () { const next = outputPort(id); if (next) next.focus(); },',
+      '    });',
+      '  }',
+      // Empty video slot wired from the image as its first frame; nothing image-specific is carried over.
+      '  function createLinkedVideoSlot(id) {',
+      '    const card = documentState && documentState.nodes.find(function (node) { return node.id === id; });',
+      "    if (!card || card.type !== 'image' || !card.assetPath) return;",
+      "    if (documentState.nodes.length >= 400) { setError('画布卡片已达到容量限制。'); return; }",
+      '    const width = 220; const height = 150; const gap = 48;',
+      '    const point = { x: card.x + card.width + gap, y: card.y };',
+      "    for (let tries = 0; tries < 20 && documentState.nodes.some(function (node) { return node.type !== 'section' && point.x < node.x + node.width + 24 && node.x < point.x + width + 24 && point.y < node.y + node.height + 24 && node.y < point.y + height + 24; }); tries++) point.y += height + 32;",
+      "    add('video', point, true);",
+      '    const slot = documentState.nodes[documentState.nodes.length - 1];',
+      '    connect(card.id, slot.id, false);',
+      '    if (documentState.edges.some(function (edge) { return edge.from === card.id && edge.to === slot.id; })) return;',
+      '    const reason = error.textContent;',
+      '    documentState.nodes = documentState.nodes.filter(function (node) { return node !== slot; });',
+      '    past.pop(); selected.clear(); selected.add(card.id); markDirty(); render(); setError(reason);',
+      '  }',
+      '  function connectImages(from, to, shouldRemember, allowEmptySource) {',
+    ].join('\n')
+  );
+  return page;
+}
 export interface CanvasPageIntegration {
   /** Trusted host adapter code defining createCanvasHost(): CanvasPageHost. */
   hostScript: string;
@@ -992,6 +1083,10 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasComposerKey.toString(),
     canvasWebIconAction.toString(),
     installCanvasWebTooltips.toString(),
+    canvasWebSyncVideoPlay.toString(),
+    openCanvasWebSlotChooser.toString(),
+    canvasCachedImage.toString(),
+    canvasWhenImageReady.toString(),
     decorateCanvasWebCards.toString(),
     canvasWebFitArea.toString(),
     canvasWebPlacePopover.toString(),
@@ -1292,7 +1387,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '  const selected = new Set();',
-    '  const selected = new Set();\n  const videoDimensions = new Map();\n  let pendingAssetImports = 0;\n  let pendingImageImport = null;\n  let pendingVideoImport = null;\n  const pendingImportWaiters = [];\n  host.publishActivity(false);'
+    '  const selected = new Set();\n  const videoDimensions = new Map();\n  const videoPlayers = new Map();\n  let pendingAssetImports = 0;\n  let pendingImageImport = null;\n  let pendingVideoImport = null;\n  const pendingImportWaiters = [];\n  host.publishActivity(false);'
   );
   page = replaceCanvasPageText(
     page,
@@ -1370,24 +1465,49 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     "      if (node.type === 'image' && node.assetPath) {\n        const port = document.createElement('button');",
     [
       "      if (node.type === 'video-source' && node.assetPath) {",
-      "        const player = document.createElement('video');",
-      "        player.className = 'video-source-preview';",
-      '        player.controls = true;',
-      "        player.preload = 'metadata';",
-      '        player.playsInline = true;',
-      "        player.addEventListener('pointerdown', function (event) {",
-      '          if (handMode() || event.button !== 0 || selected.has(node.id) || generationUi && generationUi.isNodeBusy(node.id) || templateWorkflow && templateWorkflow.locked(node.id)) return;',
-      "          selected.clear(); selected.add(node.id); selectionAction = '';",
-      "          world.querySelectorAll('.card.selected').forEach(function (item) { item.classList.remove('selected'); });",
+      '        const playerUrl = media[node.assetPath] || store.mediaUrl(node.assetPath);',
+      // A new <video> per render reloaded the clip and reset playback, so cards flashed on every click or pan.
+      '        let player = videoPlayers.get(node.id);',
+      '        if (!player || player.dataset.src !== playerUrl) {',
+      "          player = document.createElement('video');",
+      '          const owned = player;',
+      "          player.className = 'video-source-preview';",
+      '          player.controls = !canvasWeb;',
+      "          player.preload = 'metadata';",
+      '          player.playsInline = true;',
+      "          player.addEventListener('pointerdown', function (event) {",
+      '            const node = owned.canvasBinding.node; const card = owned.canvasBinding.card; const renderSelectionToolbar = owned.canvasBinding.toolbar;',
+      '            if (canvasWeb || handMode() || event.button !== 0 || selected.has(node.id) || generationUi && generationUi.isNodeBusy(node.id) || templateWorkflow && templateWorkflow.locked(node.id)) return;',
+      "            selected.clear(); selected.add(node.id); selectionAction = '';",
+      "            world.querySelectorAll('.card.selected').forEach(function (item) { item.classList.remove('selected'); });",
       "          card.classList.add('selected'); renderSelectionToolbar();",
-      '        });',
-      '        player.src = media[node.assetPath] || store.mediaUrl(node.assetPath);',
-      "        player.addEventListener('loadedmetadata', function () {",
-      '          if (!card.isConnected || !documentState.nodes.includes(node)) return;',
-      '          videoDimensions.set(node.assetPath, { width: player.videoWidth, height: player.videoHeight });',
-      '          if (fitVideoCard(node)) render();',
-      '        });',
+      '          });',
+      '          player.dataset.src = playerUrl;',
+      '          player.src = playerUrl;',
+      "          player.addEventListener('loadedmetadata', function () {",
+      '            const node = owned.canvasBinding.node; const card = owned.canvasBinding.card;',
+      '            if (!card.isConnected || !documentState.nodes.includes(node)) return;',
+      '            videoDimensions.set(node.assetPath, { width: owned.videoWidth, height: owned.videoHeight });',
+      '            if (fitVideoCard(node)) render();',
+      '          });',
+      "          ['play', 'pause', 'ended'].forEach(function (name) { owned.addEventListener(name, function () { if (owned.canvasBinding.play) syncVideoPlay(owned.canvasBinding.play, owned); }); });",
+      '          videoPlayers.set(node.id, player);',
+      '        }',
+      '        player.canvasBinding = { node: node, card: card, toolbar: renderSelectionToolbar };',
       '        card.append(player);',
+      // Web cards drag like images, so playback starts only from this explicit control, never a card click.
+      '        if (canvasWeb) {',
+      "          const play = document.createElement('button');",
+      "          play.type = 'button';",
+      "          play.className = 'web-video-play';",
+      '          const target = player;',
+      "          play.addEventListener('pointerdown', function (event) { event.stopPropagation(); });",
+      "          play.addEventListener('dblclick', function (event) { event.stopPropagation(); });",
+      "          play.addEventListener('click', function (event) { event.stopPropagation(); if (target.paused || target.ended) void target.play().catch(function () {}); else target.pause(); });",
+      '          player.canvasBinding.play = play;',
+      '          syncVideoPlay(play, player);',
+      '          card.append(play);',
+      '        }',
       '      }',
       "      if (node.type === 'sequence') {",
       '        const sourceVideo = documentState.nodes.find(function (item) { return item.id === node.sourceVideoId; });',
@@ -3083,6 +3203,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   );
   page = applyWebInteractionPatches(page);
   page = applyWebMediaPatches(page);
+  page = applyMediaReusePatches(page);
+  page = applyWebCardUxPatches(page);
   // Keep template anchors from rewriting function bodies inside injected helpers.
   page = page.replace('/*__HELPERS__*/', () => helperSource);
   return page.replace(

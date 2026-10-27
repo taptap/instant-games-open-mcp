@@ -73,7 +73,7 @@ export function createCanvasWireUi(options: {
   render(): void;
   /** Deletes a reference edge; absent keeps edges removable only through cards and commands. */
   remove?(edge: CanvasEdge): void;
-  /** Web skin: image references draw as curves with hover glow and a scissors cut. */
+  /** Web skin: every edge draws as a curve with hover glow; removable kinds also get a scissors cut. */
   web?: boolean;
 }) {
   const overlay = document.createElement('div');
@@ -86,7 +86,8 @@ export function createCanvasWireUi(options: {
   let hoverTimer = 0;
   const removable = (item: CanvasEdge) =>
     Boolean(options.remove) && ['image-variant', 'first-frame'].includes(item.kind);
-  const curved = (item: CanvasEdge) => Boolean(options.web) && item.kind === 'image-variant';
+  // Web draws every edge kind as the same curve; removable() alone decides which ones can be cut.
+  const curved = (_item: CanvasEdge) => Boolean(options.web);
   function ends(doc: CanvasDocument, item: CanvasEdge) {
     if (resourceBundleOwner(doc, item.from)) return null;
     const from = doc.nodes.find((node) => node.id === item.from);

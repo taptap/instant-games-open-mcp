@@ -52,7 +52,7 @@ export interface CanvasGenerationAttempt {
     duration?: number;
     ratio?: string;
     userConfirmed?: boolean;
-    mode?: 'first_frame' | 'first_last_frame' | 'multi_modal_reference';
+    mode?: 'text_to_video' | 'first_frame' | 'first_last_frame' | 'multi_modal_reference';
   };
   resultAssetPath?: string;
   deliveredAssetPath?: string;

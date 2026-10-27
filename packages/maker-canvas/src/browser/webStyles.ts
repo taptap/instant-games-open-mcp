@@ -1,6 +1,9 @@
 // The :not(#id) term adds ID weight so this opt-in skin wins over host theme CSS appended later.
 const M = ':root.canvas-appearance-web:not(#canvas-web-scope)';
 const L = ':root.canvas-appearance-web[data-theme="light"]:not(#canvas-web-scope)';
+// Focus rings follow the tooltip helper's last-input flag on :root (Chrome 74 has no :focus-visible).
+const P = ':root.canvas-appearance-web:not(.canvas-web-keyboard):not(#canvas-web-scope)';
+const K = ':root.canvas-appearance-web.canvas-web-keyboard:not(#canvas-web-scope)';
 
 // Chrome 74: no flex gap, inset, aspect-ratio, :is()/:where() or color-mix(); spacing uses margins, :focus-visible stays in its own rule.
 const IMAGE_ICON =
@@ -26,6 +29,8 @@ ${M} {
   /* Selection follows the host theme accent (Web maps --maker-primary); Mivo violet is only the fallback. */
   --web-accent: var(--canvas-accent, #6957e8);
   --web-accent-ring: rgba(105,87,232,.18);
+  /* Replaced at runtime by the live accent at 60% (installCanvasWebTooltips). */
+  --web-focus-ring: rgba(105,87,232,.6);
   /* Mivo tokens.css menu mixes over the dark palette, precomputed for Chrome 74. */
   --web-menu-bg: #383636;
   --web-menu-line: #575757;
@@ -494,4 +499,22 @@ ${M} .video-history article button { height: 28px; min-height: 28px; margin: 10p
 ${M} .video-history article button:hover:not(:disabled) { background: var(--web-pill-hover); }
 ${M} .video-history footer { display: flex; justify-content: flex-end; margin-top: 14px; }
 ${M} .video-history footer > * + * { margin-left: 8px; }
+/* Pointer focus draws no ring; keyboard focus gets one subtle 1.5px accent ring, overriding per-control rings. */
+${P} :focus { outline: none !important; }
+${K} :focus:not(.canvas-port):not(.card) { outline: 1.5px solid var(--web-focus-ring) !important; outline-offset: 1px !important; }
+${K} .card .port.canvas-port:focus { opacity: 1; pointer-events: auto; }
+${K} .card .port.canvas-port:focus::before { box-shadow: 0 0 0 1.5px var(--web-focus-ring); }
+/* Video result: no native controls (they swallowed the drag); a Mivo-like 28px round play chip sits bottom-left. */
+${M} .card.video-source .web-video-play { position: absolute; left: 10px; bottom: 10px; z-index: 4; display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 28px; height: 28px; min-height: 28px; margin: 0; padding: 0; border: 1px solid var(--web-glass-edge); border-radius: 50%; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: 0 2px 8px rgba(0,0,0,.24); cursor: pointer; opacity: .92; -webkit-transform: scale(var(--web-inv, 1)); transform: scale(var(--web-inv, 1)); -webkit-transform-origin: 0 100%; transform-origin: 0 100%; transition: opacity .12s; }
+${M} .card.video-source .web-video-play:hover { opacity: 1; }
+${M} .card.video-source .web-video-play svg { display: block; flex: none; }
+${M} .card.video-source .web-video-play[data-playing="false"] svg { margin-left: 2px; }
+${L} .card.video-source .web-video-play { box-shadow: 0 2px 8px rgba(35,35,35,.16); }
+${M} .card.video-source .video-source-preview { cursor: inherit; }
+/* Side + chooser = the context menu rows at a compact 148px width. */
+${M} .web-slot-chooser { position: fixed; z-index: 60; box-sizing: border-box; width: 148px; padding: 6px; border: 1px solid var(--web-menu-line); border-radius: 8px; background: var(--web-menu-bg); color: var(--web-menu-ink); box-shadow: var(--web-shadow); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+${M} .web-slot-chooser button { display: flex; align-items: center; box-sizing: border-box; width: 100%; height: 34px; min-height: 34px; margin: 0; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--web-menu-ink); font: inherit; font-size: 13px; font-weight: 500; text-align: left; white-space: nowrap; cursor: pointer; }
+${M} .web-slot-chooser button + button { margin-top: 2px; }
+${M} .web-slot-chooser button svg { flex: none; margin-right: 8px; }
+${M} .web-slot-chooser button:hover, ${M} .web-slot-chooser button:focus { background: var(--web-menu-hover); color: var(--web-text); }
 `;

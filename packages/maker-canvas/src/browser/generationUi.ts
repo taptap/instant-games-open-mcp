@@ -409,14 +409,14 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   }
   function currentVideoMode(node: any): string {
     if (node.videoInputMode === 'first_last_frame') return 'first_last_frame';
-    return (
+    const count = referenceSources(node).length + referencePaths(node).length;
+    // Web hosts accept prompt-only videos; any connected or imported image switches back to image modes.
+    if (options.web && !count && !node.draftSourceId) return 'text_to_video';
+    const saved =
       videoSettings.get(referenceKey(node))?.mode ||
       node.generationDraft?.parameters?.mode ||
-      node.generation?.parameters?.mode ||
-      (referenceSources(node).length + referencePaths(node).length === 1
-        ? 'first_frame'
-        : 'select_mode')
-    );
+      node.generation?.parameters?.mode;
+    return (saved !== 'text_to_video' && saved) || (count === 1 ? 'first_frame' : 'select_mode');
   }
 
   function referenceLimit(node: any): number {
@@ -1083,10 +1083,10 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
           kind: 'image-variant',
         });
       }
-    } else if (attempt.sourceImageId) {
+    } else if (attempt.sourceImageId || attempt.parameters?.mode === 'text_to_video') {
       const source = documentState.nodes.find((node: any) => node.id === attempt.sourceImageId);
       const sourceImageIds = Array.from(
-        new Set<string>([attempt.sourceImageId, ...(attempt.sourceImageIds || [])])
+        new Set<string>([attempt.sourceImageId, ...(attempt.sourceImageIds || [])].filter(Boolean))
       );
       const sourceSnapshots = sourceImageIds.map((id, index) => {
         const recorded = attempt.sourceSnapshots?.find((snapshot: any) => snapshot.nodeId === id);
@@ -1580,7 +1580,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     const documentState = options.getDocument();
     const inputKey = documentState && referenceKey(node);
     if (!documentState || inFlight.has(node.id)) return false;
-    if (settings.model === '2.5' && settings.userConfirmed !== true) {
+    // The Web host runs its own cost confirmation before submitting, so only other hosts ask here.
+    if (settings.model === '2.5' && settings.userConfirmed !== true && !options.web) {
       if (!window.confirm('按当前参数开始生成视频？')) return false;
       settings.userConfirmed = true;
     }
@@ -1607,7 +1608,12 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       options.setError((error as Error).message);
       return false;
     }
-    if (!['first_frame', 'first_last_frame', 'multi_modal_reference'].includes(mode)) {
+    const textOnly = mode === 'text_to_video';
+    if (textOnly && (sources.length || importedReferences.length || !options.web)) {
+      options.setError('文生视频不能附带图片；请移除引用或改用首帧等输入方式。');
+      return false;
+    }
+    if (!textOnly && !['first_frame', 'first_last_frame', 'multi_modal_reference'].includes(mode)) {
       options.setError('这张视频有多张来源图，但没有保存输入方式；请先选择首尾帧或多图参考。');
       return false;
     }
@@ -1628,7 +1634,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       );
       return false;
     }
-    if (!sources.length || sources.some((item) => !item.assetPath)) {
+    if (!textOnly && (!sources.length || sources.some((item) => !item.assetPath))) {
       options.setError('请先把一张已保存的图片连接到视频卡。');
       inFlight.delete(node.id);
       options.render();
@@ -1637,7 +1643,9 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     const requesterId = node.id;
     const decision = settings.templateRun
       ? { kind: 'reuse' as const, nodeId: node.id }
-      : options.resolveTarget?.(source.id, 'video', node.draftSourceId ? undefined : node.id);
+      : source
+        ? options.resolveTarget?.(source.id, 'video', node.draftSourceId ? undefined : node.id)
+        : undefined;
     if (decision?.kind === 'blocked') {
       options.setError(decision.message);
       return false;
@@ -1706,17 +1714,21 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
           documentState.id,
           {
             prompt,
-            sourceImagePath: source.assetPath,
-            sourceImageId: source.id,
-            sourceImageIds: sources.map((item) => item.id),
-            sourceImagePaths: sources.map((item) => item.assetPath),
-            referenceImagePaths: importedReferences,
+            ...(textOnly
+              ? {}
+              : {
+                  sourceImagePath: source.assetPath,
+                  sourceImageId: source.id,
+                  sourceImageIds: sources.map((item) => item.id),
+                  sourceImagePaths: sources.map((item) => item.assetPath),
+                  referenceImagePaths: importedReferences,
+                }),
             mode,
             targetNodeId: node.id,
             duration: settings.duration || 4,
             model: settings.model || '2.0',
             resolution: settings.resolution || '720p',
-            ratio: settings.ratio || 'adaptive',
+            ratio: settings.ratio || (textOnly ? '16:9' : 'adaptive'),
             userConfirmed: settings.userConfirmed === true,
           },
           controller.signal
@@ -2443,11 +2455,14 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         videoSettings.get(referenceKey(node)) ||
         node.generationDraft?.parameters ||
         node.generation?.parameters;
+      const textOnly = currentVideoMode(node) === 'text_to_video';
       videoMode = selectControl(
         '输入方式',
-        node.videoInputMode === 'first_last_frame'
-          ? ['first_last_frame']
-          : ['select_mode', 'first_frame', 'first_last_frame', 'multi_modal_reference'],
+        textOnly
+          ? ['text_to_video']
+          : node.videoInputMode === 'first_last_frame'
+            ? ['first_last_frame']
+            : ['select_mode', 'first_frame', 'first_last_frame', 'multi_modal_reference'],
         currentVideoMode(node)
       );
       const modeLabels: Record<string, string> = {
@@ -2455,6 +2470,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         first_frame: '首帧',
         first_last_frame: '首尾帧',
         multi_modal_reference: '多图参考',
+        text_to_video: '文生视频',
       };
       if (node.videoInputMode === 'first_last_frame')
         videoMode.querySelector('select').disabled = true;
@@ -2475,10 +2491,12 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       durationSelect.addEventListener('change', () => {
         durationSelect.style.color = Number(durationSelect.value) > 5 ? '#ef6464' : '';
       });
+      // Adaptive ratio follows an input image, so prompt-only videos pick a fixed ratio (16:9 first).
+      const ratios = textOnly ? ['16:9', '9:16', '1:1'] : ['adaptive', '16:9', '9:16', '1:1'];
       videoRatio = selectControl(
         '比例',
-        ['adaptive', '16:9', '9:16', '1:1'],
-        saved?.ratio || 'adaptive'
+        ratios,
+        ratios.includes(saved?.ratio) ? saved.ratio : ratios[0]
       );
       if (options.web) {
         // Pills hide their field labels, so the chosen text alone has to say what it sets.
@@ -2502,7 +2520,9 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         renderReferences(panel, node, busy, workflow);
         panel.insertBefore(panel.querySelector('.generation-references'), fields);
       });
-      fields.append(videoMode, videoModel, videoResolution, videoDuration, videoRatio);
+      // With no image there is only one input mode, so its pill would carry no choice.
+      if (textOnly) fields.append(videoModel, videoResolution, videoDuration, videoRatio);
+      else fields.append(videoMode, videoModel, videoResolution, videoDuration, videoRatio);
       panel.append(fields);
     }
     const capabilityHint = document.createElement('small');
@@ -2512,7 +2532,9 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         ? '分辨率与比例是生成目标，模型可能返回不同尺寸，请以实际图片为准。'
         : node.videoInputMode === 'first_last_frame'
           ? '首帧、尾帧均为必填，只使用这两张图片；更换文件请使用对应图片卡的导入入口。'
-          : '已连接图片与导入参考图按显示顺序提交；首帧需1张，首尾帧需2张，多图参考按模型限制。';
+          : currentVideoMode(node) === 'text_to_video'
+            ? '未连接图片时只按提示词生成视频；连接或导入图片后改用首帧等输入方式。'
+            : '已连接图片与导入参考图按显示顺序提交；首帧需1张，首尾帧需2张，多图参考按模型限制。';
     if (!(options.web && node.type === 'image')) panel.append(capabilityHint);
     async function submitGeneration(): Promise<void> {
       if (workflow && !workflow.canSubmit) return;
@@ -2622,7 +2644,10 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       actions.append(
         button(workflow ? '应用并继续' : '生成视频', submitGeneration, {
           className: 'generation-action generation-action-primary',
-          title: '从已连接图片创建视频结果',
+          title:
+            currentVideoMode(node) === 'text_to_video'
+              ? '按提示词生成视频'
+              : '从已连接图片创建视频结果',
           disabled:
             Boolean(unavailable) ||
             busy ||
@@ -2838,9 +2863,12 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       return false;
     if (attempt.parameters?.mode && currentVideoMode(target) !== attempt.parameters.mode)
       return false;
+    // Prompt-only videos have no sources, so an absent snapshot must count as none rather than one.
     const snapshots = attempt.sourceSnapshots?.length
       ? attempt.sourceSnapshots
-      : [attempt.sourceSnapshot];
+      : attempt.sourceSnapshot
+        ? [attempt.sourceSnapshot]
+        : [];
     if (
       snapshots.length !== sources.length ||
       snapshots.some(
