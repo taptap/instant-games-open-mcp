@@ -1554,7 +1554,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  async function exportCanvasPng() {',
       '    if (!documentState) return;',
       '    const snapshot = structuredClone(documentState);',
-      '    const plan = canvasPngPlan(snapshot);',
+      // Bounds follow the wires as drawn: Web reference curves ignore saved elbow routes.
+      "    const plan = canvasPngPlan(snapshot, function (edge, from, to) { return canvasWeb && edge.kind === 'image-variant' ? canvasWebWire(from, to, { x: 0, y: 0, scale: 1 }).points : canvasWireGeometry(from, to, snapshot.nodes, snapshot.edges, edge.route).points; });",
       "    if (!plan) { setError('画布没有可导出的内容。'); return; }",
       '    return deliverResource({ filename: (snapshot.title || "canvas") + ".png", mime: "image/png", produce: async function () {',
       '    const left = plan.left; const top = plan.top; const scale = plan.scale;',
@@ -2417,6 +2418,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    const saved = await store.importImage(current.id, await blob.arrayBuffer(), "image/png");',
       '    await loadMedia(saved.relativePath);',
       '    const source = live();',
+      // Cards may have been added while the image was imported.
+      "    if (current.nodes.length >= 400 || current.edges.length >= 800) throw new Error('画布卡片已达到容量限制。');",
       '    remember();',
       '    const applied = applyLocalImageResult(current, source, saved.relativePath, undefined, function () { return crypto.randomUUID(); });',
       '    applied.title = (source.title + " · 抠图").slice(0, 80);',

@@ -1,11 +1,15 @@
-import type { CanvasDocument, CanvasNode } from '../contracts.js';
+import type { CanvasDocument, CanvasEdge, CanvasNode } from '../contracts.js';
 import { canvasWireGeometry } from '../core/wirePath.js';
 
 /**
  * Layout for the whole-canvas PNG: group frames behind wires, wires behind cards, marks on top.
  * Returns null when nothing but group frames is on the canvas.
  */
-export function canvasPngPlan(document: Pick<CanvasDocument, 'nodes' | 'edges'>) {
+export function canvasPngPlan(
+  document: Pick<CanvasDocument, 'nodes' | 'edges'>,
+  /** World points of each wire as drawn; defaults to the routed elbow path. */
+  wirePoints?: (edge: CanvasEdge, from: CanvasNode, to: CanvasNode) => { x: number; y: number }[]
+) {
   const content = document.nodes.filter((node) => node.type !== 'section');
   if (!content.length) return null;
   const sections = document.nodes.filter((node) => node.type === 'section');
@@ -21,8 +25,10 @@ export function canvasPngPlan(document: Pick<CanvasDocument, 'nodes' | 'edges'>)
   for (const edge of edges) {
     const from = document.nodes.find((node) => node.id === edge.from)!;
     const to = document.nodes.find((node) => node.id === edge.to)!;
-    for (const point of canvasWireGeometry(from, to, document.nodes, document.edges, edge.route)
-      .points)
+    const points = wirePoints
+      ? wirePoints(edge, from, to)
+      : canvasWireGeometry(from, to, document.nodes, document.edges, edge.route).points;
+    for (const point of points)
       boxes.push({ left: point.x, top: point.y, right: point.x, bottom: point.y });
   }
   const left = Math.min(...boxes.map((box) => box.left)) - 32;
