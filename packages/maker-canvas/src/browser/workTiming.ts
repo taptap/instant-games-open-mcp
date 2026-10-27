@@ -36,5 +36,9 @@ export function renderCanvasWorkTiming(
   time.className = 'canvas-work-time';
   time.dataset.workTime = node.id;
   time.textContent = '耗时 ' + formatCanvasWorkDuration(durationMs);
-  card.append(time);
+  // The header has free space beside the menu; the card bottom holds buttons, labels and frame
+  // counters that a corner badge would cover.
+  const header = card.querySelector(':scope > .canvas-card-header');
+  if (header) header.insertBefore(time, header.querySelector(':scope > .canvas-card-menu'));
+  else card.append(time);
 }

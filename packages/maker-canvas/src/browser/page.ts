@@ -123,6 +123,7 @@ import { canvasMarkResizeEdge } from '../core/marks.js';
 import { canvasMarkFromInput } from '../core/marks.js';
 import { renderCanvasMark } from './marks.js';
 import { drawCanvasMark } from './marks.js';
+import { canvasPngPlan, canvasPngStill } from './canvasPng.js';
 import { createCanvasMarks } from './marks.js';
 import { decorateCanvasCard } from './cardUi.js';
 import { refreshCanvasGroupHeaders } from './cardUi.js';
@@ -707,8 +708,8 @@ function applyWebInteractionPatches(source: string): string {
       "    const bottom = Math.max.apply(null, documentState.nodes.map(function (node) { return node.y + drawn(node, 'height'); }));",
     ].join('\n')
   );
-  // Fit: Web floats the dock (and flow bar) over the board, so fit into what stays visible.
-  // The default area equals the original 32px margins; group bars are still reserved below.
+  // Fit: both appearances float the tool dock (and the flow hint) over the board, so fit into
+  // what stays visible with 32px margins; group bars are still reserved below.
   patch(
     [
       '    function place(bar) {',
@@ -719,7 +720,7 @@ function applyWebInteractionPatches(source: string): string {
     ].join('\n'),
     [
       '    const boardRect = board.getBoundingClientRect();',
-      "    const area = canvasWeb ? canvasWebFitArea({ left: boardRect.left, top: boardRect.top, width: board.clientWidth, height: board.clientHeight }, Array.from(document.querySelectorAll('.workspace-toolbar, #template-flow:not([hidden])')).map(function (item) { return item.getBoundingClientRect(); }).filter(function (rect) { return rect.width > 0 && rect.height > 0; }), 32) : { x: 32, y: 32, width: board.clientWidth - 64, height: board.clientHeight - 64 };",
+      "    const area = canvasWebFitArea({ left: boardRect.left, top: boardRect.top, width: board.clientWidth, height: board.clientHeight }, Array.from(document.querySelectorAll('.workspace-toolbar, #template-flow:not([hidden])')).map(function (item) { return item.getBoundingClientRect(); }).filter(function (rect) { return rect.width > 0 && rect.height > 0; }), 32);",
       '    function place(bar) {',
       '      const scale = Math.min(4, Math.max(0.15, Math.min(area.width / width, (area.height - bar) / height)));',
       '      documentState.viewport.scale = scale;',
@@ -897,6 +898,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasMarkFromInput.toString(),
     renderCanvasMark.toString(),
     drawCanvasMark.toString(),
+    canvasPngPlan.toString(),
+    canvasPngStill.toString(),
     createCanvasMarks.toString(),
     createCanvasWorkspace.toString(),
     createCanvasLog.toString(),
@@ -1549,25 +1552,70 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  async function exportCanvasPng() {',
       '    if (!documentState) return;',
       '    const snapshot = structuredClone(documentState);',
-      "    const nodes = snapshot.nodes.filter(function (node) { return node.type !== 'section'; }).sort(function (left, right) { return (left.type === 'mark' ? 1 : 0) - (right.type === 'mark' ? 1 : 0); });",
-      "    if (!nodes.length) { setError('画布没有可导出的内容。'); return; }",
+      '    const plan = canvasPngPlan(snapshot);',
+      "    if (!plan) { setError('画布没有可导出的内容。'); return; }",
       '    return deliverResource({ filename: (snapshot.title || "canvas") + ".png", mime: "image/png", produce: async function () {',
-      '    const left = Math.min.apply(null, nodes.map(function (node) { return node.x; })) - 32;',
-      '    const top = Math.min.apply(null, nodes.map(function (node) { return node.y; })) - 32;',
-      '    const right = Math.max.apply(null, nodes.map(function (node) { return node.x + node.width; })) + 32;',
-      '    const bottom = Math.max.apply(null, nodes.map(function (node) { return node.y + node.height; })) + 32;',
-      '    const scale = Math.min(2, 2400 / Math.max(1, right - left), 1600 / Math.max(1, bottom - top));',
-      "    const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round((right - left) * scale)); canvas.height = Math.max(1, Math.round((bottom - top) * scale));",
+      '    const left = plan.left; const top = plan.top; const scale = plan.scale;',
+      "    const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(plan.width * scale)); canvas.height = Math.max(1, Math.round(plan.height * scale));",
       "    const context = canvas.getContext('2d'); context.fillStyle = '#101114'; context.fillRect(0, 0, canvas.width, canvas.height); context.font = '14px sans-serif';",
-      '    for (const node of nodes) {',
-      '      const x = (node.x - left) * scale; const y = (node.y - top) * scale; const width = node.width * scale; const height = node.height * scale;',
-      "      if (node.type === 'mark') { drawCanvasMark(context, node, x, y, width, height); continue; }",
-      "context.fillStyle = '#1a1d24'; context.strokeStyle = '#3d4250'; context.lineWidth = Math.max(1, scale); context.fillRect(x, y, width, height); context.strokeRect(x, y, width, height);",
-      "      context.fillStyle = '#f4f1ea'; context.fillText(node.title || '未命名', x + 8 * scale, y + 18 * scale);",
-      "      if (node.assetPath && media[node.assetPath] && (node.type === 'image' || node.type === 'sequence')) {",
-      '        await new Promise(function (resolve) { const image = new Image(); image.onload = function () { const ratio = Math.min((width - 16 * scale) / image.naturalWidth, (height - 32 * scale) / image.naturalHeight); const drawWidth = image.naturalWidth * ratio; const drawHeight = image.naturalHeight * ratio; context.drawImage(image, x + (width - drawWidth) / 2, y + 24 * scale + (height - 24 * scale - drawHeight) / 2, drawWidth, drawHeight); resolve(); }; image.onerror = resolve; image.src = media[node.assetPath]; });',
-      "      } else { context.fillStyle = '#b7b1a6'; context.fillText(node.type === 'video-source' ? '视频结果' : node.type === 'animation' ? '序列帧动画' : node.text || '', x + 8 * scale, y + 42 * scale); }",
+      '    function box(node) { return { x: (node.x - left) * scale, y: (node.y - top) * scale, width: node.width * scale, height: node.height * scale }; }',
+      '    function drawFit(source, sourceWidth, sourceHeight, area, crop) {',
+      '      const ratio = Math.min((area.width - 16 * scale) / sourceWidth, (area.height - 32 * scale) / sourceHeight); const drawWidth = sourceWidth * ratio; const drawHeight = sourceHeight * ratio;',
+      '      const dx = area.x + (area.width - drawWidth) / 2; const dy = area.y + 24 * scale + (area.height - 24 * scale - drawHeight) / 2;',
+      '      if (crop) context.drawImage(source, crop.x, crop.y, crop.width, crop.height, dx, dy, drawWidth, drawHeight); else context.drawImage(source, dx, dy, drawWidth, drawHeight);',
       '    }',
+      '    function loadImage(url) { return new Promise(function (resolve) { const image = new Image(); image.onload = function () { resolve(image); }; image.onerror = function () { resolve(null); }; image.src = url; }); }',
+      '    // One still per video, copied through a scratch canvas so a cross-origin video falls back to its label instead of failing the export.',
+      '    function videoStill(url) { return new Promise(function (resolve) {',
+      "      const video = document.createElement('video'); let settled = false;",
+      '      function finish(ok) {',
+      '        if (settled) return; settled = true; clearTimeout(timer); let still = null;',
+      "        if (ok && video.videoWidth && video.videoHeight) { const frame = document.createElement('canvas'); frame.width = video.videoWidth; frame.height = video.videoHeight; const frameContext = frame.getContext('2d'); frameContext.drawImage(video, 0, 0); try { frameContext.getImageData(0, 0, 1, 1); still = frame; } catch (caught) { still = null; } }",
+      "        video.removeAttribute('src'); video.load(); resolve(still);",
+      '      }',
+      '      const timer = setTimeout(function () { finish(false); }, 10000);',
+      "      video.muted = true; video.preload = 'auto';",
+      "      video.addEventListener('loadedmetadata', function () { if (isFinite(video.duration) && video.duration > 0) video.currentTime = Math.min(0.1, video.duration / 2); });",
+      "      video.addEventListener('seeked', function () { finish(true); });",
+      "      video.addEventListener('loadeddata', function () { if (!(isFinite(video.duration) && video.duration > 0)) finish(true); });",
+      "      video.addEventListener('error', function () { finish(false); });",
+      '      video.src = url;',
+      '    }); }',
+      '    for (const node of plan.sections) {',
+      '      const area = box(node);',
+      "      context.fillStyle = 'rgba(32,37,40,.45)'; context.strokeStyle = '#475256'; context.lineWidth = Math.max(1, scale); context.fillRect(area.x, area.y, area.width, area.height); context.strokeRect(area.x, area.y, area.width, area.height);",
+      "      context.fillStyle = '#1d2225'; context.fillRect(area.x, area.y, area.width, Math.min(area.height, 40 * scale));",
+      "      context.fillStyle = '#f1d18f'; context.fillText(node.title || '分组', area.x + 10 * scale, area.y + 24 * scale);",
+      '    }',
+      '    const view = { x: -left * scale, y: -top * scale, scale: scale };',
+      "    context.save(); context.strokeStyle = 'rgba(215,181,109,.8)'; context.lineWidth = 2 * scale; context.lineJoin = 'round'; context.lineCap = 'round';",
+      '    for (const edge of plan.edges) {',
+      '      const from = snapshot.nodes.find(function (node) { return node.id === edge.from; }); const to = snapshot.nodes.find(function (node) { return node.id === edge.to; });',
+      "      const curved = canvasWeb && edge.kind === 'image-variant';",
+      '      context.stroke(new Path2D(curved ? canvasWebWire(from, to, view).d : canvasWirePath(from, to, snapshot.nodes, view, snapshot.edges, edge.route)));',
+      '      if (curved) continue;',
+      '      const points = canvasWireGeometry(from, to, snapshot.nodes, snapshot.edges, edge.route).points; const end = points[points.length - 1]; const before = points[points.length - 2];',
+      '      if (!before) continue;',
+      '      const angle = Math.atan2(end.y - before.y, end.x - before.x); const tipX = view.x + end.x * scale; const tipY = view.y + end.y * scale; const size = 8 * scale;',
+      '      context.beginPath(); context.moveTo(tipX - Math.cos(angle - 0.5) * size, tipY - Math.sin(angle - 0.5) * size); context.lineTo(tipX, tipY); context.lineTo(tipX - Math.cos(angle + 0.5) * size, tipY - Math.sin(angle + 0.5) * size); context.stroke();',
+      '    }',
+      '    context.restore();',
+      '    for (const node of plan.cards) {',
+      '      const area = box(node);',
+      "      context.fillStyle = '#1a1d24'; context.strokeStyle = '#3d4250'; context.lineWidth = Math.max(1, scale); context.fillRect(area.x, area.y, area.width, area.height); context.strokeRect(area.x, area.y, area.width, area.height);",
+      "      context.fillStyle = '#f4f1ea'; context.fillText(node.title || '未命名', area.x + 8 * scale, area.y + 18 * scale);",
+      '      const url = node.assetPath && (media[node.assetPath] || mediaUrl(node.assetPath));',
+      '      let drawn = false;',
+      "      if (url && (node.type === 'image' || node.type === 'sequence' || node.type === 'animation')) {",
+      '        const image = await loadImage(url); const crop = canvasPngStill(node);',
+      '        if (image) { if (crop) drawFit(image, crop.width, crop.height, area, crop); else drawFit(image, image.naturalWidth, image.naturalHeight, area); drawn = true; }',
+      "      } else if (url && node.type === 'video-source') {",
+      '        const still = await videoStill(url);',
+      '        if (still) { drawFit(still, still.width, still.height, area); drawn = true; }',
+      '      }',
+      "      if (!drawn) { context.fillStyle = '#b7b1a6'; context.fillText(node.type === 'video-source' ? '视频结果' : node.type === 'animation' ? '序列帧动画' : node.text || '', area.x + 8 * scale, area.y + 42 * scale); }",
+      '    }',
+      '    for (const node of plan.marks) { const area = box(node); drawCanvasMark(context, node, area.x, area.y, area.width, area.height); }',
       '    return new Promise(function (resolve, reject) { canvas.toBlob(function (blob) { if (blob) resolve(blob); else reject(new Error("画布截图编码失败。")); }, "image/png"); });',
       '    } });',
       '  }',
@@ -2999,7 +3047,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '</style>',
-    '.canvas-work-time { position:absolute; right:8px; bottom:8px; padding:2px 6px; border-radius:4px; background:var(--canvas-panel, #24221e); color:var(--canvas-text, #d5c8ad); font-size:12px; font-variant-numeric:tabular-nums; pointer-events:none; }\n</style>'
+    '.canvas-work-time { position:absolute; right:8px; bottom:8px; padding:2px 6px; border-radius:4px; background:var(--canvas-panel, #24221e); color:var(--canvas-text, #d5c8ad); font-size:12px; font-variant-numeric:tabular-nums; pointer-events:none; }\n.canvas-card-header > .canvas-work-time { position:static; flex:none; padding:1px 6px; font-size:11px; line-height:16px; white-space:nowrap; }\n</style>'
   );
   page = replaceCanvasPageText(
     page,
