@@ -145,10 +145,19 @@ export interface CanvasDocumentStore {
     canvasId: string,
     input: {
       prompt: string;
-      sourceImagePath: string;
+      /** Absent for mode 'text_to_video', which sends no image fields at all. */
+      sourceImagePath?: string;
       sourceImageId?: string;
+      sourceImageIds?: string[];
+      sourceImagePaths?: string[];
+      referenceImagePaths?: string[];
+      mode?: 'text_to_video' | 'first_frame' | 'first_last_frame' | 'multi_modal_reference';
       targetNodeId?: string;
       duration?: number;
+      model?: string;
+      resolution?: string;
+      ratio?: string;
+      userConfirmed?: boolean;
     },
     signal?: AbortSignal
   ): Promise<CanvasGenerationAttempt>;

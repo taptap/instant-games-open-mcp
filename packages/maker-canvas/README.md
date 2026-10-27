@@ -191,7 +191,9 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
 `connectors: true` 时左侧连接点拖到另一张图片表示「它连入我」，右侧拖出表示「我连到它」；
 单击（无拖动，或键盘激活）右侧「+」在右侧新建默认尺寸的空图片槽并连 `卡片 → 槽`，
 左侧「+」在左侧新建并连 `槽 → 卡片`；位置避开已有卡片，新槽被选中并打开提示词面板，
-走正常撤销栈与自动保存，连线被拒绝时撤回该槽。
+走正常撤销栈与自动保存，连线被拒绝时撤回该槽。新槽的 `generationDraft.parameters` 继承来源卡的
+生成设置（模型、分辨率、比例、素材规范开关及其它已存参数；面板里尚未发送的修改优先，
+其次草稿，再次 `generation.parameters`），面板打开即显示同样的选项；提示词不继承。
 选中图片参考线可按 Delete 或「删除连线」移除，与 `disconnect` 同样只允许
 `image-variant` / `first-frame`。
 
@@ -214,13 +216,15 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
   且无投影。多选只保持每张卡的 2px 主题色描边和 `.14` 光晕，不画整组外框，不显示角柄。四角柄为 10px 圆点（2px 主题色描边、`#fffaf0` 底、20px 热区），
   四角都可缩放：nw/se 为 `nwse-resize`，ne/sw 为 `nesw-resize`，拖动从该角缩放并固定对角，
   沿用图片比例规则，走撤销栈。
-- `image-variant` 连线画成两张图片框左右边中点之间的三次曲线、无箭头；悬停或选中时线与流光都
+- 所有连线（`image-variant`、`first-frame`、`frame-first` / `frame-last`、`image-to-video`、
+  `sequence-source` 等）都画成两张卡片框左右边中点之间的三次曲线、无箭头；悬停或选中时线与流光都
   改用宿主主题色 `--canvas-accent`：3px 底线降到 30% 不透明度，上方 6 层 5px 宽彗星虚线
   （Mivo 层表，260px 周期、1.08s）用 CSS `stroke-dashoffset` 动画流动（Chrome 74 可用；
   按时钟相位续播，重绘不重启；`prefers-reduced-motion` 时静止）。选中或悬停 1 秒后中点出现 28px 圆形剪断按钮
   （居中 14px lucide scissors；毛玻璃：62% 面板色 + `backdrop-filter: blur(10px)`，不支持
   backdrop-filter 的 Chrome 74 退回实色面板；悬停/聚焦去掉描边，改为主题色图标与 14% 主题色底）
-  删除连线，Delete 同样有效；曲线不提供折线手柄。
+  删除连线，Delete 同样有效；曲线不提供折线手柄。剪断按钮与 Delete 仍只对 `image-variant` /
+  `first-frame` 生效，其余派生连线只有悬停/选中流光。拖线预览也会吸附到视频槽。
 - 连线只表示引用关系：删除指向已有图片卡的连线时，丢弃该来源的 `sourceSnapshot(s)`，不设
   `templatePending`、不使下游失效，图片保持原样；删除指向空槽的连线只移除下一次生成的参考
   （同时清掉草稿 `sourceImageId(s)`，两种外观都如此）。默认外观仍按原规则把分组成员标为待处理。
@@ -296,14 +300,75 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
   不再单列 ✓ / … 状态。
 - 画布页签栏对齐 Maker Web `TabsList`：40px 高、画板底色（`--canvas-soft`），页签为 30px 圆角
   胶囊；激活页签用卡片底色、前景文字与轻投影，其余为次要文字、悬停浅底。关闭 × 只在悬停或激活时
-  显示，重命名铅笔只在悬停激活页签时显示，键盘聚焦时始终可见并保留焦点环；右侧「+」「全部画布」
-  为 28px ghost 按钮。
+  显示，重命名铅笔只在悬停激活页签时显示，键盘聚焦时始终可见并保留焦点环；「+」（新建空白画布）
+  紧跟最后一个页签，图标为 16px 居中的遮罩加号，「全部画布」靠右；两者均为 28px ghost 按钮。
+- 图片右上角积分角标（「积分：…」）为 20px 高、左右 8px 内边距的整圆胶囊（999px），
+  明暗主题沿用浮层底色与文字色。
+- 选中标注（框选矩形/椭圆、箭头）时选中菜单在颜色后多一个删除图标按钮（lucide `trash-2`，
+  悬停提示「删除」）；右键菜单的「删除卡片」与 Delete 键在两种外观下本就可用，均走撤销栈。
+  默认外观的标注菜单仍只有颜色。
 - 「适配画布」排除左侧工具条（及显示中的流程条）占位并留 32px 边距（默认外观同样避开工具条），
   按卡片实际渲染尺寸计算。
 
+`features.video` / `sequence` / `sections` 打开时（Web 其余 templates、resourceExport 等可保持关闭），
+`'web'` 下的视频、拆帧与分组（`applyWebMediaPatches`，样式在 `webStyles.ts`）：
+
+- 视频槽（`video`）与视频结果（`video-source`）按图片卡绘制：标题行在框上、框带投影，选中为
+  同样的 2px 主题色描边、光晕与四角柄（视频结果保持视频比例，nw/ne/sw 角固定对角）；空视频槽为
+  图片槽同款圆角框加 lucide `video` 图形，已连接首帧不在卡内显示，只在面板参考图行显示。
+  积分角标、生成中遮罩（卡下「处理中 / 停止等待」胶囊）与图片相同；失败/待确认/等待继续遮罩在两类卡上
+  都改为毛玻璃面板、着色状态图标与药丸按钮。
+- 入口：图片选中菜单「视频生成」、视频结果的「生成视频」「拆序列帧」、多选「分组」、分组的
+  「取消分组」「删除分组」均为图标按钮（lucide `video` / `film` / `group` / `ungroup` / `trash-2`），
+  共用悬停提示。右键：图片卡加「视频生成」，视频结果加「拆序列帧」，多选加「分组」，分组卡改为
+  「取消分组」「删除分组」（隐藏不适用的复制/删除卡片）；空白处加「导入视频」（放到右键点处）。
+  工具条「+」中的「视频输入卡」「新建分区」在 Web 显示为「新建视频卡片」「分组」，「视频历史」
+  移入工具条「···」菜单（日志栏在 Web 收起）。默认外观的文案、入口与位置不变。
+- 选中空视频槽即打开视频面板（与图片槽一致，不显示选中菜单）；面板沿用图片面板的参考图行、
+  提示词与药丸下拉（输入方式 / 「模型 2.0」/ 分辨率 / 「4 秒」/「自适应比例」，只改显示文字，
+  提交值不变），参考图缩略图左下角标注「首帧」「尾帧」「参考图 n」，「导入视频」为发送键旁的圆形图标。
+- 视频卡没有侧边「+」：现有连线模型里视频只接受图片输入（`first-frame` / `frame-*` /
+  `image-to-video`），没有视频→视频的边，因此不提供“从视频卡新建连入的视频槽”。
+- 已有图片的右侧「+」点击（或键盘回车）打开小菜单「图片卡片」「视频卡片」（`openCanvasWebSlotChooser`，
+  方向键移动、Esc 关闭并把焦点还给「+」）：图片沿用原侧边新槽逻辑；视频在右侧新建空视频槽并以
+  `first-frame` 从该图连入，不继承任何图片参数。未开 `features.video` 或空图片槽的「+」仍直接新建图片槽。
+- 视频结果卡不带原生控件：按下拖动与图片卡一样移动卡片，点击卡片只选中、不播放；播放/暂停只走框内
+  左下角 28px 圆形按钮（`.web-video-play`，lucide play / pause，`aria-label` 随状态切换）。
+- 文生视频：未连接也未导入任何图片的视频槽可只按提示词生成，面板不显示输入方式胶囊，比例只提供
+  `16:9`（默认）/`9:16`/`1:1`（自适应依赖图片）；连接图片后自动回到首帧等模式。
+- 模型 2.5 不再弹页面自己的「按当前参数开始生成视频？」确认，费用确认由 Web 宿主负责，页面传
+  `userConfirmed: false`；默认外观仍保留该确认。
+- 焦点环只在键盘操作时出现：`installCanvasWebTooltips` 的最近输入标记写到 `:root.canvas-web-keyboard`
+  （Chrome 74 无 `:focus-visible`；在输入框里打字与单按修饰键不算键盘导航），指针聚焦一律无描边，
+  键盘聚焦统一为 1.5px、宿主主题色 60% 的细环（`--web-focus-ring`，运行时按当前主题色计算）。
+- 「取消分组」只删除分组框（成员保留原位、清除 `sectionId` 并被选中）；「删除分组」连同成员一起
+  走 `deleteSelected` 的既有保护；两者都可撤销。分组框为 16px 圆角细边框、标题与节点数在框内顶部。
+- 拆序列帧编辑器、视频历史与其它 `.sequence-editor` 对话框改用面板/菜单 token：平头部、8px 圆角
+  按钮、主按钮与发送键同色反相、输入框用面板输入底色；序列帧卡与动画卡为面板色圆角框与药丸按钮。
+- 关闭的功能不出入口：templates 关闭时无「编辑视频」等模板入口，resourceExport 关闭时视频结果与
+  分组的选中/右键菜单都不出现导出项；视频历史里的「下载视频」走宿主 `deliverExport`，不依赖 resourceExport。
+
+视频相关的宿主 store 契约（本页实际调用）：`createVideo(canvasId, { prompt, sourceImagePath,
+sourceImageId, sourceImageIds, sourceImagePaths, referenceImagePaths, mode, targetNodeId, duration,
+model, resolution, ratio, userConfirmed }, signal)`，`mode` 为 `'text_to_video' | 'first_frame' |
+'first_last_frame' | 'multi_modal_reference'`。`text_to_video` 仅 Web 外观发出，且不带任何图片字段：
+`{ prompt, mode: 'text_to_video', targetNodeId, duration, model, resolution, ratio, userConfirmed }`
+（`ratio` 不为 `adaptive`）；返回的尝试同样没有 `sourceImageId(s)` / `sourceSnapshot(s)`，按零来源回填。
+模型取值固定为 `'2.0' | '2.5'`（2.5 默认外观由页面确认，Web 由宿主确认），
+页面不调用 `videoModels`；返回的尝试读取 `id, canvasId, kind: 'video', status, taskId, targetNodeId,
+targetAssetPath, resultAssetPath, sourceImageId(s), sourceSnapshot(s), referenceImagePaths,
+parameters.mode, prompt, error, remoteStatus, executionState, credits, createdAt`，只有
+`sourceSnapshots` 与已保存文档中的来源一致时才回填卡片。`videoHistory(offset, 30)` 返回
+`{ items: CanvasGenerationAttempt[], total, busy? }`；`listGeneration` 需包含视频尝试，
+`generationAction(canvasId, id, 'query' | 'retry' | 'cancel')` 用于查询、重试与停止等待；
+`importVideo(canvasId, blob, contentType)` 返回 `{ relativePath }`。
+
 颜色取 `--canvas-*`（Web 由 `--maker-*` 映射），随 `:root[data-theme]` 切换明暗。
 
-两种外观共有的修复：拖拽、缩放或平移时提示词面板不再随每次 `pointermove` 重建，只重新定位，
+两种外观共有的修复：视频结果卡的 `<video>` 按卡片 id + 媒体 URL 跨渲染复用（此前每次 `render()`
+重建，点击、平移都会重新加载并把播放进度归零而闪烁）；序列帧卡帧格用 `canvasCachedImage` 缓存的已解码
+图集同步重绘；序列帧编辑器跨进度刷新保留预览画布、抽帧视频与按 Blob 缓存的缩略图位图，处理过程中不再闪。
+拖拽、缩放或平移时提示词面板不再随每次 `pointermove` 重建，只重新定位，
 下拉、已输入提示词和选择保持原节点（以 `canvasComposerKey` 判断卡片内容是否变化）；生图模型
 列表按工具（`generate_image` / `edit_image`）缓存，提交时仍读取最新值并刷新缓存，读取失败不缓存。
 未设置或 `'default'` 保持原外观。
