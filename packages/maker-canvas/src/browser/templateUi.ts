@@ -190,9 +190,20 @@ export function createCanvasTemplateUiWithHost(options: {
         if (saved.cliOnly) group.templateCliOnly = true;
         if (saved.skills?.length) group.templateSkills = [...saved.skills];
         else delete group.templateSkills;
+        const previousGroups = new Set(nodes.map((node) => node.sectionId));
         nodes.forEach((node) => {
           node.sectionId = group.id;
         });
+        // A selected group whose members all moved into the new group would remain as an empty
+        // frame under it, with its header hidden behind the new one: drop it like 取消分组.
+        if (!section)
+          documentState.nodes = documentState.nodes.filter(
+            (node) =>
+              node.type !== 'section' ||
+              node.id === group.id ||
+              !previousGroups.has(node.id) ||
+              documentState.nodes.some((item) => item.sectionId === node.id)
+          );
         options.selected.clear();
         options.selected.add(group.id);
         dialog.close();

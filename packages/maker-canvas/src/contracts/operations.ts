@@ -233,4 +233,12 @@ export interface CanvasOperation {
   result?: unknown;
   resultExpired?: boolean;
   error?: string;
+  /**
+   * Set only on failed operations the page rejected before any side effect: INVALID_ARGS
+   * (arguments or state) or NOT_FOUND (canvas, card or edge missing). An uncoded failure may
+   * have started work; inspect the original cards instead of resubmitting paid steps.
+   */
+  code?: CanvasOperationErrorCode;
 }
+
+export type CanvasOperationErrorCode = 'INVALID_ARGS' | 'NOT_FOUND';

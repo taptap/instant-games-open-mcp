@@ -1,4 +1,5 @@
 import type { createBackgroundRemoval, BackgroundOptions } from './backgroundRemoval.js';
+import { CANVAS_BACKGROUND_DEFAULTS } from './backgroundRemoval.js';
 import type { SequenceFrame } from './sequence.js';
 
 export async function openBackgroundEditor(options: {
@@ -6,7 +7,9 @@ export async function openBackgroundEditor(options: {
   currentFrames?: readonly SequenceFrame[];
   index: number;
   removal: ReturnType<typeof createBackgroundRemoval>;
-  apply: (frames: SequenceFrame[]) => void;
+  apply: (frames: SequenceFrame[]) => void | Promise<void>;
+  /** Single-image mode: one primary action; an async apply failure keeps the dialog open. */
+  confirm?: { label: string; hint: string };
 }) {
   const source = options.frames[options.index];
   if (!source) return;
@@ -30,13 +33,7 @@ export async function openBackgroundEditor(options: {
     '自动模式逐帧识别；识别失败可切换手动固定色，输入颜色或从原图取色。推荐边缘连通保护主体；全图同色可能误删主体。所有处理基于本轮原帧，不累积抠图。';
   const actions = document.createElement('footer');
   actions.className = 'sequence-editor-footer';
-  const settings: BackgroundOptions = {
-    automatic: true,
-    tolerance: 32,
-    softness: 24,
-    despill: 0.5,
-    mode: 'connected',
-  };
+  const settings: BackgroundOptions = { ...CANVAS_BACKGROUND_DEFAULTS };
   let revision = 0;
   let closed = false;
   let applying = false;
@@ -65,16 +62,23 @@ export async function openBackgroundEditor(options: {
     dialog.close();
     dialog.remove();
   }
-  button('取消', close, header);
+  const single = options.confirm;
+  if (single) hint.textContent = single.hint;
+  const cancel = button('取消', close, single ? actions : header);
   header.prepend(title);
-  const current = button('应用到当前帧', () => {
+  const current = button(single ? single.label : '应用到当前帧', () => {
     void apply(false);
   });
-  const all = button('批量应用到全部帧', () => {
-    void apply(true);
-  });
+  if (single) current.className = 'primary';
+  const all = single
+    ? current
+    : button('批量应用到全部帧', () => {
+        void apply(true);
+      });
   function update() {
     current.disabled = all.disabled = applying || !previewReady;
+    // The default editor keeps 取消 live; single mode must not close mid-save and orphan the result.
+    if (single) cancel.disabled = applying;
     panel
       .querySelectorAll<
         HTMLInputElement | HTMLSelectElement | HTMLButtonElement
@@ -332,12 +336,16 @@ export async function openBackgroundEditor(options: {
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
       if (closed || controller.signal.aborted || ticket !== revision) return;
-      options.apply(frames);
+      if (single) {
+        status.textContent = '正在保存…';
+        await options.apply(frames);
+      } else options.apply(frames);
       close();
     } catch (error) {
       if (!closed)
         status.textContent =
-          (error instanceof Error ? error.message : '处理失败') + '；原帧集未改变。';
+          (error instanceof Error ? error.message : '处理失败') +
+          (single ? '；原图未改变，可重试。' : '；原帧集未改变。');
     } finally {
       applying = false;
       if (!closed) update();
@@ -349,7 +357,7 @@ export async function openBackgroundEditor(options: {
   dialog.append(header, body, actions);
   dialog.addEventListener('cancel', (event) => {
     event.preventDefault();
-    close();
+    if (!(single && applying)) close();
   });
   dialog.addEventListener('keydown', (event) => event.stopPropagation());
   document.body.append(dialog);

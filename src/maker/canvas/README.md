@@ -353,16 +353,27 @@ AI 可以通过当前安装的 Maker CLI 操作已打开的画布，无需浏览
 | open                             | {"id":"目标画布ID"}                                        | 从当前画布安全切换                                              |
 | add-template                     | {"id":"模板ID"}                                            | 添加内置或用户模板的独立副本，不修改模板库                      |
 | add-node                         | {"type":"image"}                                           | 新建 image、video、note、mark；sequence/animation 另传 sourceId |
-| import                           | {"title":"角色参考"}                                       | 另传 --file 本地绝对路径，导入为新卡片，不覆盖已有卡片          |
+| import                           | {"title":"角色参考"}                                       | 另传 --file；可选 prompt 记录提示词，sourceId 连入参考图片      |
 | set-references                   | {"id":"目标ID","sourceIds":["图片ID"],"includeSelf":false} | 有序替换全部图片参考；[] 清空，includeSelf 仅图片卡可用         |
 | export                           | {"id":"结果ID","format":"atlas","loop":true}               | 导出已有结果；另传 --output-dir 已存在的绝对目录可直接保存      |
 | update-nodes                     | {"nodes":[{"id":"卡片ID","prompt":"完整猫咪，站立"}]}      | 批量校验后修改，不自动生成                                      |
 | delete-nodes / duplicate / group | {"ids":["卡片ID"]}                                         | 删除 / 复制 / 分组；删除分组本身不删除成员                      |
-| connect                          | {"from":"图片ID","to":"视频输入卡ID"}                      | 已保存图片连接到尚未生成的视频输入卡                            |
-| disconnect                       | {"edgeId":"连线ID"}                                        | 只移除图片参考线，不拆断序列帧/动画来源                         |
+| connect                          | {"from":"图片ID","to":"视频输入卡ID"}                      | 已保存图片连到视频输入卡（首帧），或连到图片作为参考图          |
+| disconnect                       | {"edgeId":"连线ID"}                                        | 只移除图片参考线，同时清掉草稿对该来源的引用；不拆派生来源      |
 | run                              | {"id":"卡片或分组ID"}                                      | 单卡执行或运行分组剩余步骤；已完成模板卡先修改参数              |
 | stop                             | {"id":"视频卡或分组ID"}                                    | 停止本地视频等待或后续队列，不取消远端任务                      |
 | query                            | {"id":"视频卡ID"}                                          | 查询原视频任务，不发起新生成；历史面板仍由人工操作              |
+| undo / redo                      | {}                                                         | 沿用页面撤销栈；保存失败时也可撤销；无可撤销时返回 INVALID_ARGS |
+| fill-slot                        | {"id":"空图片卡ID","assetPath":"已有卡片的 assetPath"}     | 用画布内已有图片原位回填空槽（不上传），保留 ID、位置和连线     |
+| replace-image                    | {"id":"图片卡ID","assetPath":"已有卡片的 assetPath"}       | 原位替换已有图片，保留 ID、位置、宽度、标题和连线；可选 prompt  |
+
+页面在任何修改前拒绝的命令，status/wait 返回 status=failed 并带 code：INVALID_ARGS（参数或页面状态，
+如 revision 过期、面板打开、任务执行中）或 NOT_FOUND（画布、卡片或连线不存在）。修正后用新的 request-id
+重新提交。没有 code 的 failed 可能已经开始执行（例如 015 run、修改后保存失败），先 inspect 原卡片再决定，
+不要直接重提付费步骤。仅有未保存修改时，写命令会先等待保存（约 10 秒）再执行；
+等待期间页面又有人工修改时返回 revision 过期（INVALID_ARGS），重新 inspect 后再提交。
+fill-slot / replace-image 的 assetPath 只接受画布图片（assets/image/canvas-<id>.png 或
+.maker/canvases/images/canvas-<id>.png，即 import 返回的路径）；项目里的其他文件先用 import --file 导入。
 
 update-nodes 支持 title、便签 text、单卡位置 x/y、prompt、parameters、sequenceSettings。
 标注不参与生成。左侧工具条的标注框和箭头点一下就放到画布上，可以再移动和缩放。

@@ -145,6 +145,7 @@ export class CanvasAutomationBridge {
         status: 'succeeded' | 'failed';
         result?: unknown;
         error?: string;
+        code?: unknown;
       }>;
     };
     if (
@@ -208,13 +209,21 @@ export class CanvasAutomationBridge {
         !['succeeded', 'failed'].includes(result.status)
       )
         throw new Error('操作结果与页面不匹配。');
-      if (['running', 'unknown'].includes(entry.operation.status))
+      if (['running', 'unknown'].includes(entry.operation.status)) {
         Object.assign(entry.operation, {
           status: result.status,
           result: result.result,
           error: result.error,
           updatedAt: this.now(),
         });
+        // Page input is untrusted: only a failed result may carry one of the known codes.
+        if (
+          result.status === 'failed' &&
+          (result.code === 'INVALID_ARGS' || result.code === 'NOT_FOUND')
+        )
+          entry.operation.code = result.code;
+        else delete entry.operation.code;
+      }
       acknowledged.push(result.id);
     }
     const commands: CanvasCommand[] = [];

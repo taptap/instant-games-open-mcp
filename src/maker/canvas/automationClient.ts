@@ -13,7 +13,13 @@ export function connectCanvasAutomation(options: {
   let pageId: string | undefined;
   const results = new Map<
     string,
-    { id: string; status: 'succeeded' | 'failed'; result?: unknown; error?: string }
+    {
+      id: string;
+      status: 'succeeded' | 'failed';
+      result?: unknown;
+      error?: string;
+      code?: 'INVALID_ARGS' | 'NOT_FOUND';
+    }
   >();
   const seen = new Set<string>();
   let stopped = false;
@@ -56,12 +62,16 @@ export function connectCanvasAutomation(options: {
                   status: 'succeeded',
                   result,
                 }),
-              (error) =>
+              (error) => {
+                // Only the executor's pre-side-effect rejections carry a code; keep the rest unknown.
+                const code = (error as { code?: unknown } | null)?.code;
                 results.set(command.requestId, {
                   id: command.requestId,
                   status: 'failed',
                   error: error instanceof Error ? error.message : String(error),
-                })
+                  ...(code === 'INVALID_ARGS' || code === 'NOT_FOUND' ? { code } : {}),
+                });
+              }
             );
           }
         } else {

@@ -1,6 +1,7 @@
 import { canvasMediaSources, refreshCanvasMedia } from './mediaVersions.js';
-import { canvasCapabilityReason } from './capabilities.js';
+import { canvasCapabilityReason, canvasFeatureEnabled } from './capabilities.js';
 import { canvasSupportsPlatform, validateCanvasPlatforms } from '../contracts/platform.js';
+import { installCanvasPolyfills } from './polyfills.js';
 import { nextCanvasExportCode } from './exportNaming.js';
 import { downloadCanvasResourceWithHost } from './resourceDownload.js';
 import {
@@ -35,9 +36,20 @@ import { canvasFlowDuration } from './workTiming.js';
 import { formatCanvasWorkDuration } from './workTiming.js';
 import { renderCanvasWorkTiming } from './workTiming.js';
 import { CANVAS_THEME_STYLES } from './themeStyles.js';
+import { CANVAS_WEB_STYLES } from './webStyles.js';
 import { canvasWireGeometry } from '../core/wirePath.js';
 import { canvasWirePath } from '../core/wirePath.js';
-import { createCanvasWireUi } from './wireUi.js';
+import { canvasWebBox, canvasWebCurve, canvasWebWire, createCanvasWireUi } from './wireUi.js';
+import {
+  canvasWebFitArea,
+  canvasWebPlacePopover,
+  canvasComposerKey,
+  canvasWebIconAction,
+  canvasWebSlot,
+  installCanvasWebTooltips,
+  createCanvasWebChrome,
+  decorateCanvasWebCards,
+} from './webChrome.js';
 import { CANVAS_WIRE_STYLES } from './wireUi.js';
 import { drawUiRecognition } from './uiRecognitionUi.js';
 import { IMAGE_FEATURES } from '../features/imageFeatures.js';
@@ -111,6 +123,7 @@ import { canvasMarkResizeEdge } from '../core/marks.js';
 import { canvasMarkFromInput } from '../core/marks.js';
 import { renderCanvasMark } from './marks.js';
 import { drawCanvasMark } from './marks.js';
+import { canvasPngPlan, canvasPngStill } from './canvasPng.js';
 import { createCanvasMarks } from './marks.js';
 import { decorateCanvasCard } from './cardUi.js';
 import { refreshCanvasGroupHeaders } from './cardUi.js';
@@ -154,7 +167,7 @@ import { DEFAULT_SEQUENCE_DURATION } from '../features/sequenceModel.js';
 import { applyFrameOperations } from './frameEditor.js';
 import { openFrameEditor } from './frameEditor.js';
 import { backgroundColorsDiffer } from './backgroundRemoval.js';
-import { createBackgroundRemoval } from './backgroundRemoval.js';
+import { CANVAS_BACKGROUND_DEFAULTS, createBackgroundRemoval } from './backgroundRemoval.js';
 import { stableBackgroundColor } from './backgroundRemoval.js';
 import { openBackgroundEditor } from './backgroundUi.js';
 import { createFrameCollection } from '../features/frameCollection.js';
@@ -211,7 +224,10 @@ import { createCanvasGroupQueue } from './groupQueue.js';
 import { createCanvasGroupQueueUi } from './groupQueueUi.js';
 import { GROUP_QUEUE_STYLES } from './groupQueueUi.js';
 import { createTemplateWorkflow } from './templateWorkflow.js';
-import { canvasNeedsProcessing } from '../features/templateWorkflow.js';
+import {
+  canvasImageHasRegeneratePath,
+  canvasNeedsProcessing,
+} from '../features/templateWorkflow.js';
 import { invalidateCanvasDependents } from '../features/templateWorkflow.js';
 import { videoInputSources } from '../features/videoInputs.js';
 import { videoAttemptMatchesSources } from '../features/videoInputs.js';
@@ -265,6 +281,504 @@ function replaceCanvasPageText(page: string, search: string, replacement: string
 const template =
   "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title data-maker-canvas=\"maker-canvas-page\">创作画布</title>\n<style>\n:root { color-scheme: light dark; font-family: sans-serif; }\nbody { margin: 0; height: 100vh; display: flex; flex-direction: column; background: #101114; color: #f4f1ea; }\nheader { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid #2a2d34; }\nheader button, header select { background: #1c1f26; color: inherit; border: 1px solid #3a3f4a; border-radius: 6px; padding: 6px 8px; }\n#status { margin-left: auto; font-size: 13px; }\n#error { min-height: 1.2em; padding: 0 12px; color: #e6b15c; font-size: 13px; }\n#board { position: relative; flex: 1; overflow: hidden; background-image: radial-gradient(#2c3038 1px, transparent 1px); background-size: 22px 22px; touch-action: none; }\n#wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }\n.wire { fill: none; stroke: #d7b56d; stroke-width: 2; }\n#world { position: absolute; inset: 0; transform-origin: 0 0; }\n.card { position: absolute; box-sizing: border-box; border: 1px solid #3d4250; border-radius: 10px; background: #1a1d24; padding: 8px; overflow: hidden; }\n.card.selected { outline: 2px solid #e6b15c; }\n.card img { width: 100%; height: calc(100% - 28px); object-fit: contain; }\n.card p { margin: 8px 0 0; color: #b7b1a6; font-size: 13px; }\n.port { position: absolute; right: -10px; top: 50%; width: 22px; height: 22px; border-radius: 50%; border: 0; background: #e6b15c; color: #1a1d24; }\n#marquee { position: absolute; border: 1px solid #e6b15c; background: rgba(230,177,92,.15); pointer-events: none; }\n</style>\n</head>\n<body>\n<header>\n  <strong>创作画布</strong>\n  <select id=\"canvases\" aria-label=\"画布\"></select>\n  <button id=\"new-canvas\" type=\"button\">新建</button>\n  <button id=\"add-image\" type=\"button\">导入图片</button>\n  <button id=\"add-video\" type=\"button\">视频输入卡</button>\n  <button id=\"add-note\" type=\"button\">便签</button>\n  <button id=\"tool-select\" type=\"button\" aria-pressed=\"true\">鼠标</button>\n  <button id=\"tool-pan\" type=\"button\">拖拽</button>\n  <button id=\"mark-ellipse\" type=\"button\">圈选</button>\n  <button id=\"mark-arrow\" type=\"button\">箭头</button>\n  <button id=\"undo\" type=\"button\">撤销</button>\n  <button id=\"redo\" type=\"button\">重做</button>\n  <button id=\"save\" type=\"button\">保存</button>\n  <span id=\"status\">未保存</span>\n</header>\n<p id=\"error\"></p>\n<div id=\"board\"><svg id=\"wires\"></svg><div id=\"world\"></div><div id=\"marquee\" hidden></div></div>\n<input id=\"file\" type=\"file\" accept=\"image/png,image/jpeg,image/webp\" hidden>\n<script>/*__HELPERS__*/\n\n(function () {\n  const host = createCanvasHost();\n  const store = host.store;\n  const board = document.getElementById('board');\n  const world = document.getElementById('world');\n  const wires = document.getElementById('wires');\n  const status = document.getElementById('status');\n  const error = document.getElementById('error');\n  const select = document.getElementById('canvases');\n  const file = document.getElementById('file');\n  let documentState = null;\n  let savedKey = '';\n  let past = [];\n  let future = [];\n  let timer = 0;\n  let drag = null;\n  let space = false;\n  function handMode() { return Boolean(canvasMarks && canvasMarks.panning()); }\n  let opening = null;\n  const media = {};\n  const selected = new Set();\n  host.publishUnsaved(false);\n\n  function layout(value) {\n    return canvasEditorLayout(value);\n  }\n  function dirty() {\n    return Boolean(documentState) && layout(documentState) !== savedKey;\n  }\n  function publishDirty() {\n    host.publishUnsaved(dirty());\n  }\n  function setStatus(text) { status.textContent = text; publishDirty(); }\n  function setError(text) { error.textContent = text || ''; }\n  function remember() {\n    past.push(JSON.parse(JSON.stringify(documentState)));\n    if (past.length > 60) past.shift();\n    future = [];\n  }\n  async function request(path, options) {\n    const response = await dispatchCanvasStoreRequest(store, path, options);\n    const body = await response.json();\n    if (!response.ok) throw Object.assign(new Error(body.error || '请求失败 ' + response.status), { status: response.status });\n    return body;\n  }\n  function render() {\n    if (!documentState) return;\n    const view = documentState.viewport;\n    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';\n    world.replaceChildren();\n    for (const node of documentState.nodes) {\n      const card = document.createElement('article');\n      card.className = 'card ' + node.type + (selected.has(node.id) ? ' selected' : '');\n      card.dataset.id = node.id;\n      card.style.left = node.x + 'px';\n      card.style.top = node.y + 'px';\n      card.style.width = node.width + 'px';\n      card.style.height = node.height + 'px';\n      const title = document.createElement('strong');\n      title.textContent = node.title || '未命名';\n      card.append(title);\n      if (node.type === 'image' && node.assetPath && media[node.assetPath]) {\n        const img = document.createElement('img');\n        img.alt = node.title;\n        img.src = media[node.assetPath];\n        card.append(img);\n      }\n      if (node.type === 'note') {\n        const text = document.createElement('p');\n        text.textContent = node.text || '便签';\n        card.append(text);\n      }\n      if (node.type === 'video') {\n        const hint = document.createElement('p');\n        hint.textContent = '视频输入卡。生视频将在下一阶段接入。';\n        card.append(hint);\n      }\n      if (node.type === 'image' && node.assetPath) {\n        const port = document.createElement('button');\n        port.type = 'button';\n        port.className = 'port';\n        port.textContent = '+';\n        port.title = '拖到视频输入卡，保存为首帧';\n        port.addEventListener('pointerdown', function (event) { startWire(event, node.id); });\n        card.append(port);\n      }\n      card.addEventListener('pointerdown', function (event) {\n        if (event.target.classList.contains('port')) return;\n        selectNode(node.id, event.shiftKey);\n        startDrag(event, node.id);\n      });\n      world.append(card);\n    }\n    wires.setAttribute('viewBox', '0 0 ' + board.clientWidth + ' ' + board.clientHeight);\n    wires.replaceChildren();\n    for (const edge of documentState.edges) {\n      const from = documentState.nodes.find(function (node) { return node.id === edge.from; });\n      const to = documentState.nodes.find(function (node) { return node.id === edge.to; });\n      if (!from || !to) continue;\n      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');\n      const x1 = view.x + (from.x + from.width) * view.scale;\n      const y1 = view.y + (from.y + from.height / 2) * view.scale;\n      const x2 = view.x + to.x * view.scale;\n      const y2 = view.y + (to.y + to.height / 2) * view.scale;\n      path.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + 40) + ' ' + y1 + ', ' + (x2 - 40) + ' ' + y2 + ', ' + x2 + ' ' + y2);\n      path.setAttribute('class', 'wire');\n      wires.append(path);\n    }\n    if (layout(documentState) === savedKey) setStatus('已保存');\n    else if (status.textContent !== '保存中…') setStatus('未保存');\n    else publishDirty();\n  }\n  function selectNode(id, shift) {\n    if (!shift) selected.clear();\n    if (selected.has(id) && shift) selected.delete(id);\n    else selected.add(id);\n    render();\n  }\n  function localPoint(event) {\n    const rect = board.getBoundingClientRect();\n    return { x: event.clientX - rect.left, y: event.clientY - rect.top };\n  }\n  function startDrag(event, id) {\n    if (space) return;\n    const node = documentState.nodes.find(function (item) { return item.id === id; });\n    drag = { kind: 'move', id: id, x: event.clientX, y: event.clientY, ox: node.x, oy: node.y, moved: false };\n    board.setPointerCapture(event.pointerId);\n  }\n  function startWire(event, id) {\n    event.stopPropagation();\n    drag = { kind: 'wire', id: id };\n    board.setPointerCapture(event.pointerId);\n  }\n  board.addEventListener('pointerdown', function (event) {\n    if (event.target !== board && event.target !== world) return;\n    if (space || event.button === 1) {\n      drag = { kind: 'pan', x: event.clientX, y: event.clientY, ox: documentState.viewport.x, oy: documentState.viewport.y };\n      return;\n    }\n    const point = localPoint(event);\n    drag = { kind: 'marquee', x: point.x, y: point.y };\n    selected.clear();\n    render();\n  });\n  board.addEventListener('pointermove', function (event) {\n    if (!drag || !documentState) return;\n    if (drag.kind === 'move') {\n      const dx = (event.clientX - drag.x) / documentState.viewport.scale;\n      const dy = (event.clientY - drag.y) / documentState.viewport.scale;\n      if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3) {\n        remember();\n        drag.moved = true;\n      }\n      const node = documentState.nodes.find(function (item) { return item.id === drag.id; });\n      node.x = drag.ox + dx;\n      node.y = drag.oy + dy;\n      markDirty();\n      render();\n    } else if (drag.kind === 'marquee') {\n      const box = document.getElementById('marquee');\n      const point = localPoint(event);\n      box.hidden = false;\n      box.style.left = Math.min(drag.x, point.x) + 'px';\n      box.style.top = Math.min(drag.y, point.y) + 'px';\n      box.style.width = Math.abs(point.x - drag.x) + 'px';\n      box.style.height = Math.abs(point.y - drag.y) + 'px';\n    } else if (drag.kind === 'pan') {\n      documentState.viewport.x = drag.ox + event.clientX - drag.x;\n      documentState.viewport.y = drag.oy + event.clientY - drag.y;\n      markDirty();\n      render();\n    }\n  });\n  board.addEventListener('pointerup', function (event) {\n    if (!drag) return;\n    if (drag.kind === 'marquee') {\n      const point = localPoint(event);\n      selected.clear();\n      for (const id of nodesInMarquee(documentState.nodes, documentState.viewport, { x1: drag.x, y1: drag.y, x2: point.x, y2: point.y })) {\n        selected.add(id);\n      }\n      document.getElementById('marquee').hidden = true;\n      render();\n    }\n    if (drag.kind === 'wire') {\n      const hit = document.elementFromPoint(event.clientX, event.clientY);\n      const card = hit && hit.closest ? hit.closest('[data-id]') : null;\n      if (card) connect(drag.id, card.dataset.id);\n    }\n    drag = null;\n  });\n  board.addEventListener('wheel', function (event) {\n    if (!documentState) return;\n    event.preventDefault();\n    const point = localPoint(event);\n    const before = documentState.viewport.scale;\n    const next = Math.min(4, Math.max(0.15, before * (event.deltaY > 0 ? 0.9 : 1.1)));\n    const worldX = (point.x - documentState.viewport.x) / before;\n    const worldY = (point.y - documentState.viewport.y) / before;\n    documentState.viewport.scale = next;\n    documentState.viewport.x = point.x - worldX * next;\n    documentState.viewport.y = point.y - worldY * next;\n    markDirty();\n    render();\n  }, { passive: false });\n  function markDirty() {\n    setStatus('未保存');\n    clearTimeout(timer);\n    timer = setTimeout(function () { void flush(); }, 800);\n  }\n  function connect(fromId, toId) {\n    const from = documentState.nodes.find(function (node) { return node.id === fromId; });\n    const to = documentState.nodes.find(function (node) { return node.id === toId; });\n    if (!from || !to || from.type !== 'image' || !from.assetPath || to.type !== 'video') {\n      setError('首帧线只能从已导入图片连到视频输入卡。');\n      return;\n    }\n    remember();\n    documentState.edges = documentState.edges.filter(function (edge) { return edge.to !== toId; });\n    documentState.edges.push({ id: crypto.randomUUID(), from: fromId, to: toId, kind: 'first-frame' });\n    setError('');\n    markDirty();\n    render();\n  }\n  function add(type, point) {\n    remember();\n    const node = {\n      id: crypto.randomUUID(),\n      type: type,\n      x: point.x,\n      y: point.y,\n      width: type === 'note' ? 180 : 220,\n      height: type === 'note' ? 120 : 150,\n      title: type === 'image' ? '图片' : type === 'video' ? '视频输入' : '便签',\n    };\n    if (type === 'note') node.text = '便签';\n    documentState.nodes.push(node);\n    selected.clear();\n    selected.add(node.id);\n    markDirty();\n    render();\n  }\n  async function saveOnce() {\n    if (!documentState) return true;\n    const submittedId = documentState.id;\n    const snapshot = JSON.parse(JSON.stringify(documentState));\n    const submittedLayout = layout(snapshot);\n    if (submittedLayout === savedKey) {\n      if (documentState && documentState.id === submittedId && layout(documentState) === submittedLayout) setStatus('已保存');\n      return true;\n    }\n    setStatus('保存中…');\n    try {\n      const saved = await request('/canvases/' + submittedId, {\n        method: 'PUT',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify(snapshot),\n      });\n      const ack = saveAcknowledgement({\n        currentId: documentState ? documentState.id : null,\n        currentLayout: documentState ? layout(documentState) : null,\n        submittedId: submittedId,\n        submittedLayout: submittedLayout,\n        savedRevision: saved.revision,\n      });\n      if (!ack.apply) return true;\n      documentState.revision = ack.revision;\n      savedKey = ack.savedKey;\n      setStatus(ack.pending ? '未保存' : '已保存');\n      setError('');\n      return !ack.pending;\n    } catch (caught) {\n      if (!documentState || documentState.id !== submittedId) return false;\n      setStatus('未保存');\n      setError(caught.message || '保存失败');\n      return false;\n    }\n  }\n  async function flush() {\n    let guard = 0;\n    while (dirty() && guard < 5) {\n      guard += 1;\n      const ok = await saveOnce();\n      if (!ok) return false;\n    }\n    return !dirty();\n  }\n  function mediaUrl(assetPath) {\n    return store.mediaUrl(assetPath);\n  }\n  async function loadMedia(assetPath) {\n    media[assetPath] = mediaUrl(assetPath);\n  }\n  async function openDocument(id) {\n    const token = {};\n    opening = token;\n    const loaded = await request('/canvases/' + id);\n    if (opening !== token) return;\n    documentState = loaded;\n    savedKey = restored.savedLayout;\n    past = [];\n    future = [];\n    selected.clear();\n    select.value = id;\n    for (const node of documentState.nodes) {\n      if (node.assetPath) await loadMedia(node.assetPath);\n      if (opening !== token) return;\n    }\n    setStatus(dirty() ? '未保存' : '已保存');\n    setError('');\n    render();\n  }\n  async function leaveCurrent() {\n    const id = documentState && documentState.id;\n    const ok = await flush();\n    if (documentState && documentState.id === id && dirty()) {\n      setError('当前画布还有未保存编辑，已留在此画布。');\n      if (id) select.value = id;\n      return false;\n    }\n    return ok;\n  }\n  async function boot() {\n    if (host.unavailableReason) {\n      setError(host.unavailableReason);\n      return;\n    }\n    let list = await request('/canvases');\n    if (!list.length) {\n      const created = await request('/canvases', {\n        method: 'POST',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify({ title: '创作画布' }),\n      });\n      list = [{ id: created.id, title: created.title }];\n    }\n    select.replaceChildren();\n    for (const item of list) {\n      const option = document.createElement('option');\n      option.value = item.id;\n      option.textContent = item.title;\n      select.append(option);\n    }\n    await openDocument(list[0].id);\n  }\n  select.addEventListener('change', function () {\n    const next = select.value;\n    const current = documentState && documentState.id;\n    if (next === current) return;\n    void leaveCurrent().then(function (ok) {\n      if (!ok) return;\n      void openDocument(next);\n    });\n  });\n  document.getElementById('new-canvas').addEventListener('click', function () {\n    void leaveCurrent().then(async function (ok) {\n      if (!ok || (documentState && dirty())) return;\n      const created = await request('/canvases', {\n        method: 'POST',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify({ title: '创作画布' }),\n      });\n      if (documentState && dirty()) return;\n      const option = document.createElement('option');\n      option.value = created.id;\n      option.textContent = created.title;\n      select.append(option);\n      await openDocument(created.id);\n    });\n  });\n  document.getElementById('add-note').addEventListener('click', function () { add('note', { x: 80, y: 80 }); });\n  document.getElementById('add-video').addEventListener('click', function () { add('video', { x: 360, y: 80 }); });\n  document.getElementById('add-image').addEventListener('click', function () { file.click(); });\n  function requestImageImport(nodeId) {\n    if (!documentState) return;\n    if (generationUi && generationUi.isBusy) { setError(\"请等待当前生成完成后再替换图片。\"); return; }\n    pendingImageImport = { canvasId: documentState.id, nodeId: nodeId };\n    file.click();\n  }\n  async function importImageFile(chosen, request) {\n    if (!chosen || !request || !documentState) return;\n    if (chosen.size > 20 * 1024 * 1024) { setError(\"图片不能超过 20 MiB。\"); return; }\n    if (chosen.type && [\"image/png\", \"image/jpeg\", \"image/webp\"].indexOf(chosen.type) < 0) { setError(\"只接受 PNG、JPEG 或 WebP。\"); return; }\n    pendingAssetImports += 1;\n    publishDirty();\n    try {\n      const saved = await store.importImage(request.canvasId, await chosen.arrayBuffer(), chosen.type || \"application/octet-stream\");\n      if (!documentState || documentState.id !== request.canvasId) {\n        setError(\"已离开原画布。图片已写入当前项目，但没有放进其他画布。\");\n        return;\n      }\n      const recognitionCard = Boolean(request.createUiRecognition);\n      let node = documentState.nodes.find(function (item) { return item.id === request.nodeId && item.type === \"image\"; });\n      if (!recognitionCard && (!node || (node.assetPath && !templateWorkflow.canEditImage(node.id)))) { setError(\"图片卡已被修改，导入结果未挂载。\"); return; }\n      remember();\n      if (recognitionCard) {\n        const bitmap = await createImageBitmap(chosen);\n        const scale = Math.min(1, 1080 / Math.max(bitmap.width, 1));\n        const point = nextPlacement(\"image\");\n        node = { id: crypto.randomUUID(), type: \"image\", x: point.x, y: point.y, width: Math.max(320, Math.round(bitmap.width * scale)), height: Math.max(240, Math.round(bitmap.height * scale) + 42), title: \"UI 设计稿\", assetPath: saved.relativePath, uiRecognition: { enabled: true, inputRole: \"design\", results: [] } };\n        bitmap.close();\n        documentState.nodes.push(node);\n      } else {\n        node.title = (chosen.name.replace(/\\.[^.]+$/, \"\") || \"图片\").slice(0, 80);\n        node.assetPath = saved.relativePath;\n        delete node.generationDraft;\n        delete node.generation;\n        delete node.sourceSnapshot;\n        delete node.sourceSnapshots;\n      }\n      await loadMedia(saved.relativePath);\n      selected.clear();\n      selected.add(node.id);\n      setError(\"\");\n      markDirty();\n      render();\n    } catch (caught) { setError(caught.message || \"图片导入失败\"); return; } finally { finishAssetImport(); }\n    selectionAction = \"\";\n    if (!request.createUiRecognition && request.nodeId) await templateWorkflow.headChanged(request.nodeId);\n  }\n  file.addEventListener(\"cancel\", function () {\n    pendingImageImport = null;\n    publishDirty();\n  });\n  file.addEventListener(\"change\", function () {\n    const chosen = file.files && file.files[0];\n    file.value = \"\";\n    const request = pendingImageImport;\n    pendingImageImport = null;\n    if (chosen) void importImageFile(chosen, request);\n  });\n  function requestVideoImport(nodeId) {\n    if (!documentState) return;\n    pendingVideoImport = { canvasId: documentState.id, nodeId: nodeId };\n    videoFile.click();\n  }\n  async function importVideoFile(chosen, request) {\n    if (!chosen || !documentState) return;\n    if (chosen.size > 100 * 1024 * 1024) { setError('视频不能超过 100 MiB。'); return; }\n    if (chosen.type && !['video/mp4', 'video/quicktime', 'video/webm'].includes(chosen.type)) { setError('只接受 MP4、MOV 或 WebM 视频。'); return; }\n    const canvasId = request && request.canvasId ? request.canvasId : documentState.id;\n    pendingAssetImports += 1;\n    publishDirty();\n    try {\n      const saved = await store.importVideo(canvasId, chosen, chosen.type || '');\n      if (!documentState || documentState.id !== canvasId) { setError('已离开原画布。视频已写入项目，但没有添加到其他画布。'); return; }\n      const target = request && request.nodeId ? documentState.nodes.find(function (item) { return item.id === request.nodeId && item.type === \"video\"; }) : null;\n      const point = request && request.point ? request.point : nextPlacement('video-source');\n      const node = target || { id: crypto.randomUUID(), type: 'video-source', x: point.x, y: point.y, width: 240, height: 210, title: (chosen.name.replace(/\\.[^.]+$/, '') || '视频').slice(0, 80), assetPath: saved.relativePath };\n      remember();\n      node.type = 'video-source';\n      node.width = 240;\n      node.height = 210;\n      node.title = (chosen.name.replace(/\\.[^.]+$/, '') || '视频').slice(0, 80);\n      node.assetPath = saved.relativePath;\n      delete node.generationDraft;\n      delete node.generation;\n      delete node.sourceSnapshot;\n      documentState.edges = documentState.edges.filter(function (edge) { return edge.to !== node.id; });\n      if (!target) documentState.nodes.push(node);\n      selected.clear();\n      selected.add(node.id);\n      setError('');\n      markDirty();\n      render();\n    } catch (caught) { setError(caught.message || '视频导入失败'); } finally { finishAssetImport(); }\n  }\n  videoFile.addEventListener(\"cancel\", function () {\n    pendingVideoImport = null;\n    publishDirty();\n  });\n  videoFile.addEventListener(\"change\", function () {\n    const chosen = videoFile.files && videoFile.files[0];\n    videoFile.value = \"\";\n    const request = pendingVideoImport;\n    pendingVideoImport = null;\n    if (chosen) void importVideoFile(chosen, request);\n  });\n  document.getElementById('undo').addEventListener('click', function () {\n    const previous = past.pop();\n    if (!previous || !documentState) return;\n    future.unshift(JSON.parse(JSON.stringify(documentState)));\n    previous.revision = documentState.revision;\n    documentState = previous;\n    markDirty();\n    render();\n  });\n  document.getElementById('redo').addEventListener('click', function () {\n    const next = future.shift();\n    if (!next || !documentState) return;\n    past.push(JSON.parse(JSON.stringify(documentState)));\n    next.revision = documentState.revision;\n    documentState = next;\n    markDirty();\n    render();\n  });\n  window.addEventListener('keydown', function (event) {\n    if (event.code === 'Space') space = true;\n    const meta = event.metaKey || event.ctrlKey;\n    if (meta && event.key === 'z') {\n      event.preventDefault();\n      document.getElementById(event.shiftKey ? 'redo' : 'undo').click();\n    }\n  });\n  window.addEventListener('keyup', function (event) { if (event.code === 'Space') space = false; });\n  document.getElementById('save').addEventListener('click', function () { void flush(); });\n  void boot().catch(function (caught) { setError(caught.message); });\n})();\n</script>\n</body>\n</html>\n";
 
+/** Image slots, image-to-image connectors, undo/redo/fill-slot commands and host feature gating. */
+function applyImageSlotPatches(source: string): string {
+  let page = source;
+  const patch = (search: string, replacement: string) => {
+    page = replaceCanvasPageText(page, search, replacement);
+  };
+  patch(
+    '.port { display: none !important; }',
+    [
+      '.port { display: none !important; }',
+      '.card .port.canvas-port { display: grid !important; place-items: center; position: absolute; top: 50%; width: 22px; height: 22px; margin-top: -11px; padding: 0; border: 0; border-radius: 50%; background: #e6b15c; color: #1a1d24; font: 600 16px/1 sans-serif; z-index: 6; cursor: crosshair; touch-action: none; }',
+      '.card .port.canvas-port-output { right: 2px; left: auto; }',
+      '.card .port.canvas-port-input { left: 2px; right: auto; }',
+    ].join('\n')
+  );
+  patch(
+    [
+      "      if (node.type === 'image' && node.assetPath) {",
+      "        const port = document.createElement('button');",
+      "        port.type = 'button';",
+      "        port.className = 'port';",
+    ].join('\n'),
+    [
+      "      if (node.type === 'image' && canvasFeatureEnabled(host, 'connectors')) {",
+      "        const inputPort = document.createElement('button');",
+      "        inputPort.type = 'button';",
+      "        inputPort.className = 'port canvas-port canvas-port-input';",
+      "        inputPort.textContent = '+';",
+      "        inputPort.title = '点击在左侧新建图片槽连入；拖到另一张图片：把它连为当前图片的参考图';",
+      "        inputPort.setAttribute('aria-label', '连接参考图');",
+      "        inputPort.addEventListener('pointerdown', function (event) { if (space || handMode() || event.button === 1) return; startWire(event, node.id, true); });",
+      // Pointer clicks resolve on pointerup; detail 0 is a keyboard activation that never starts a wire.
+      "        inputPort.addEventListener('click', function (event) { event.stopPropagation(); if (event.detail === 0) createLinkedSlot(node.id, true); });",
+      '        card.append(inputPort);',
+      '        if (!node.assetPath) {',
+      "          const outputPort = document.createElement('button');",
+      "          outputPort.type = 'button';",
+      "          outputPort.className = 'port canvas-port canvas-port-output';",
+      "          outputPort.textContent = '+';",
+      "          outputPort.title = '点击在右侧新建图片槽；拖到另一张图片：生成或上传后作为它的参考图';",
+      "          outputPort.setAttribute('aria-label', '连接到其他图片');",
+      "          outputPort.addEventListener('pointerdown', function (event) { if (space || handMode() || event.button === 1) return; startWire(event, node.id); });",
+      "          outputPort.addEventListener('click', function (event) { event.stopPropagation(); if (event.detail === 0) createLinkedSlot(node.id); });",
+      '          card.append(outputPort);',
+      '        }',
+      '      }',
+      "      if (node.type === 'image' && node.assetPath) {",
+      "        const port = document.createElement('button');",
+      "        port.type = 'button';",
+      "        port.className = canvasFeatureEnabled(host, 'connectors') ? 'port canvas-port canvas-port-output' : 'port';",
+    ].join('\n')
+  );
+  patch(
+    "port.title = '点击创建图片变体；拖到视频输入卡可设置首帧';",
+    "port.title = canvasFeatureEnabled(host, 'connectors') ? '点击在右侧新建图片槽；拖到另一张图片：把它连为参考图' : '点击创建图片变体；拖到视频输入卡可设置首帧';"
+  );
+  patch('  function startWire(event, id) {', '  function startWire(event, id, reverse) {');
+  patch(
+    "    drag = { kind: 'wire', id: id, x: event.clientX, y: event.clientY, moved: false };",
+    "    drag = { kind: 'wire', id: id, x: event.clientX, y: event.clientY, moved: false, reverse: Boolean(reverse) };"
+  );
+  patch(
+    '              event.stopPropagation();\n              createImageSlot(node);',
+    // Connector clicks are handled on pointerup; keep the variant click only for the default host.
+    "              event.stopPropagation();\n              if (!canvasFeatureEnabled(host, 'connectors')) createImageSlot(node);\n              else if (event.detail === 0) createLinkedSlot(node.id);"
+  );
+  patch(
+    '      if (card) connect(drag.id, card.dataset.id);\n      else if (drag.moved) {',
+    [
+      "      if (card) { if (card.dataset.id !== drag.id) { if (drag.reverse) connect(card.dataset.id, drag.id); else connect(drag.id, card.dataset.id); } else if (!drag.moved && canvasFeatureEnabled(host, 'connectors')) createLinkedSlot(drag.id, drag.reverse); }",
+      "      else if (drag.moved && !drag.reverse && canvasFeatureEnabled(host, 'video') && documentState.nodes.some(function (item) { return item.id === drag.id && item.assetPath; })) {",
+    ].join('\n')
+  );
+  patch(
+    [
+      "    if (!from || !to || from.type !== 'image' || !from.assetPath || to.type !== 'video') {",
+      "      setError('首帧线只能从已导入图片连到视频输入卡。');",
+    ].join('\n'),
+    [
+      "    if (from && to && from.type === 'image' && to.type === 'image') { connectImages(from, to, shouldRemember); return; }",
+      "    if (!from || !to || from.type !== 'image' || !from.assetPath || to.type !== 'video') {",
+      "      setError(canvasFeatureEnabled(host, 'video') ? '首帧线只能从已导入图片连到视频输入卡。' : '连线只能连接两张图片。');",
+    ].join('\n')
+  );
+  patch(
+    '  function createImageSlot(source) {',
+    [
+      '  function createLinkedSlot(id, left) {',
+      '    const card = documentState && documentState.nodes.find(function (node) { return node.id === id; });',
+      "    if (!card || card.type !== 'image') return;",
+      "    if (documentState.nodes.length >= 400) { setError('画布卡片已达到容量限制。'); return; }",
+      '    const width = 220; const height = 150; const gap = 48;',
+      '    const point = { x: left ? card.x - width - gap : card.x + card.width + gap, y: card.y };',
+      '    for (let tries = 0; tries < 20 && documentState.nodes.some(function (node) { return node.type !== "section" && point.x < node.x + node.width + 24 && node.x < point.x + width + 24 && point.y < node.y + node.height + 24 && node.y < point.y + height + 24; }); tries++) point.y += height + 32;',
+      "    add('image', point, true);",
+      '    const slot = documentState.nodes[documentState.nodes.length - 1];',
+      "    slot.title = '图片生成槽 · 待生成';",
+      "    slot.generationDraft = { operation: 'generate' };",
+      '    if (left) connectImages(slot, card, false, true); else connectImages(card, slot, false, true);',
+      '    if (documentState.edges.some(function (edge) { return edge.from === (left ? slot.id : card.id) && edge.to === (left ? card.id : slot.id); })) return;',
+      '    // Connection was refused: drop the slot and its undo entry so the click leaves no trace.',
+      '    const reason = error.textContent;',
+      '    documentState.nodes = documentState.nodes.filter(function (node) { return node !== slot; });',
+      '    past.pop(); selected.clear(); selected.add(card.id); markDirty(); render(); setError(reason);',
+      '  }',
+      '  function connectImages(from, to, shouldRemember, allowEmptySource) {',
+      "    if (from.id === to.id) { setError('不能把图片连到自身。'); return; }",
+      "    if (!from.assetPath && !allowEmptySource) { setError('请先生成或上传这张图片，再把它连为参考图。'); return; }",
+      "    if (canvasNeedsProcessing(documentState, from)) { setError('请先完成参考图片的生成或处理。'); return; }",
+      "    if ((generationUi && (generationUi.isNodeBusy(to.id) || generationUi.hasUnsettledResult(to.id))) || (groupQueue && groupQueue.protects(to.id))) { setError('目标图片正在生成或有未确认的任务，请稍后再连线。'); return; }",
+      "    if (documentState.edges.some(function (edge) { return edge.from === from.id && edge.to === to.id; })) { setError(''); return; }",
+      "    if (canvasDependents(documentState, to.id).some(function (node) { return node.id === from.id; })) { setError('连线会形成循环引用。'); return; }",
+      "    const inputs = documentState.edges.filter(function (edge) { return edge.to === to.id && edge.kind === 'image-variant'; });",
+      "    const implicit = !to.assetPath && to.generationDraft && to.generationDraft.sourceImageId !== from.id && !inputs.some(function (edge) { return edge.from === to.generationDraft.sourceImageId; }) && documentState.nodes.find(function (node) { return node.id === to.generationDraft.sourceImageId && node.type === 'image'; });",
+      "    if (inputs.length + 1 + (implicit ? 1 : 0) + (to.referenceInput && to.referenceInput.includeSelf ? 1 : 0) > 14) { setError('参考图片最多支持 14 张。'); return; }",
+      "    if (documentState.edges.length >= 799) { setError('画布连线已达到容量限制。'); return; }",
+      '    if (shouldRemember !== false) remember();',
+      '    if (!to.assetPath) {',
+      '      // Explicit edges replace the single draft source, so every connected image is submitted in order.',
+      "      if (implicit) documentState.edges.push({ id: crypto.randomUUID(), from: implicit.id, to: to.id, kind: 'image-variant' });",
+      '      if (to.generationDraft) delete to.generationDraft.sourceImageId;',
+      '      to.referenceInput = { includeSelf: false };',
+      '    }',
+      "    documentState.edges.push({ id: crypto.randomUUID(), from: from.id, to: to.id, kind: 'image-variant' });",
+      '    if (to.sectionId) to.templatePending = true;',
+      '    invalidateCanvasDependents(documentState, to.id);',
+      "    setError('');",
+      '    markDirty();',
+      '    render();',
+      '  }',
+      '  function createImageSlot(source) {',
+    ].join('\n')
+  );
+  patch(
+    "  document.getElementById('redo').addEventListener('click', function () {\n",
+    "  document.getElementById('redo').addEventListener('click', function () { redoEdit(); });\n  function redoEdit() {\n"
+  );
+  patch(
+    '    documentState = next;\n    markDirty();\n    render();\n  });\n',
+    '    documentState = next;\n    markDirty();\n    render();\n  }\n'
+  );
+  patch(
+    "  document.getElementById('undo').addEventListener('click', function () {\n",
+    "  document.getElementById('undo').addEventListener('click', function () { undoEdit(); });\n  function undoEdit() {\n"
+  );
+  patch(
+    '    documentState = previous;\n    markDirty();\n    render();\n  });\n',
+    '    documentState = previous;\n    markDirty();\n    render();\n  }\n'
+  );
+  patch(
+    'group: createSection, connect: connect,',
+    'group: createSection, connect: connect, undo: function () { const count = past.length; undoEdit(); return past.length < count; }, redo: function () { const count = future.length; redoEdit(); return future.length < count; }, fillSlot: fillImageSlot, replaceImage: function (id, assetPath) { return placeImageInCard(id, assetPath, true); }, disconnect: function (edge) { if (groupQueue && (groupQueue.protects(edge.from) || groupQueue.protects(edge.to))) return "引用卡片尚未就绪，请稍后再删除连线。"; remember(); unwireEdge(edge); },'
+  );
+  patch(
+    '  const automation = createCanvasAutomationUi({',
+    [
+      '  function fillImageSlot(id, assetPath) { return placeImageInCard(id, assetPath, false); }',
+      '  async function placeImageInCard(id, assetPath, replace) {',
+      '    const current = documentState;',
+      '    const slot = current && current.nodes.find(function (node) { return node.id === id; });',
+      "    if (!slot) throw Object.assign(new Error('图片卡不存在。'), { code: 'NOT_FOUND' });",
+      '    const previous = slot.assetPath;',
+      "    if (slot.type !== 'image' || Boolean(previous) !== replace) throw Object.assign(new Error(replace ? '只能替换已有图片。' : '只能回填空图片槽。'), { code: 'INVALID_ARGS' });",
+      "    const named = (assetPath.split('/').pop().replace(/\\.[^.]+$/, '') || '图片').slice(0, 80);",
+      // Local canvas images are stored as canvas-<uuid>; that internal name is not a useful title.
+      "    const title = /^canvas-[a-f0-9-]{36}$/i.test(named) ? '图片' : named;",
+      '    // Nothing has changed yet, so host rejections and decode failures mean "not executed".',
+      "    const rejected = function (error) { if (error && !error.code) error.code = 'INVALID_ARGS'; throw error; };",
+      '    const versions = store.mediaVersions ? await store.mediaVersions([assetPath]).catch(rejected) : undefined;',
+      "    const prepared = await prepareCanvasImportedNode(current.id, { assetPath: assetPath, kind: 'image', title: title }, store.mediaUrl).catch(rejected);",
+      "    if (prepared.type !== 'image' || !prepared.assetPath) throw Object.assign(new Error('宿主没有返回图片素材。'), { code: 'INVALID_ARGS' });",
+      '    await loadMedia(prepared.assetPath);',
+      "    if (documentState !== current || !current.nodes.includes(slot) || slot.assetPath !== previous) throw Object.assign(new Error('画布或图片卡已变化，未写入。'), { code: 'NOT_FOUND' });",
+      '    remember();',
+      '    // In place: id, position, width and connections stay; height follows the image ratio.',
+      '    if (!replace) slot.title = prepared.title || title;',
+      '    slot.assetPath = prepared.assetPath;',
+      '    if (prepared.imageInfo) slot.imageInfo = prepared.imageInfo; else delete slot.imageInfo;',
+      '    if (versions && versions[prepared.assetPath]) slot.assetVersion = { path: prepared.assetPath, version: versions[prepared.assetPath] }; else delete slot.assetVersion;',
+      '    delete slot.generationDraft;',
+      '    delete slot.generation;',
+      '    delete slot.sourceSnapshot;',
+      '    delete slot.sourceSnapshots;',
+      '    fitImageCard(slot);',
+      '  }',
+      '  const automation = createCanvasAutomationUi({',
+    ].join('\n')
+  );
+  patch(
+    'query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
+    "query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined, retry: node.type === 'image' && generationState && generationState.status === 'failed' && !nodeBusy && !templateWorkflow.isMember(node.id) ? function () { return generationUi.retryImage(node.id); } : undefined });"
+  );
+  patch(
+    '  wireUi = createCanvasWireUi({',
+    [
+      '  function removeEdge(edge) {',
+      '    if (!documentState || documentState.edges.indexOf(edge) < 0) return;',
+      "    if (['first-frame', 'image-variant'].indexOf(edge.kind) < 0) { setError('只能删除图片参考连线，派生产物来源请保留。'); return; }",
+      "    if ((groupQueue && (groupQueue.protects(edge.from) || groupQueue.protects(edge.to))) || (generationUi && (generationUi.isNodeBusy(edge.to) || generationUi.hasUnsettledResult(edge.to)))) { setError('引用卡片尚未就绪，请稍后再删除连线。'); return; }",
+      '    remember();',
+      '    unwireEdge(edge);',
+      "    setError('');",
+      '    markDirty();',
+      '    render();',
+      '  }',
+      // Shared by the wire UI and the Agent disconnect command so one host gives one result.
+      '  function unwireEdge(edge) {',
+      '    documentState.edges = documentState.edges.filter(function (item) { return item !== edge; });',
+      '    const target = documentState.nodes.find(function (node) { return node.id === edge.to; });',
+      '    const unwired = target && !documentState.edges.some(function (item) { return item.from === edge.from && item.to === edge.to; });',
+      // A draft source would otherwise re-add the deleted reference on the next generation.
+      '    if (unwired && target.generationDraft) { if (target.generationDraft.sourceImageId === edge.from) delete target.generationDraft.sourceImageId; if (target.generationDraft.sourceImageIds) { target.generationDraft.sourceImageIds = target.generationDraft.sourceImageIds.filter(function (id) { return id !== edge.from; }); if (!target.generationDraft.sourceImageIds.length) delete target.generationDraft.sourceImageIds; } }',
+      // Local template members (no draft) keep their original upstream input rule.
+      "    if (unwired && !target.assetPath && target.type === 'image' && (canvasWeb || target.generationDraft)) target.referenceInput = target.referenceInput || { includeSelf: false };",
+      '    if (canvasWeb) {',
+      // An AI result regenerates from its recorded inputs only until a wire is cut; then the remaining wires are its inputs.
+      "      if (unwired && target.type === 'image' && target.assetPath && target.generation && !target.referenceInput && !target.mergeIcons && !target.uiAtlasPrelayout && !documentState.nodes.some(function (item) { return item.id === target.sectionId && item.templateId; })) target.referenceInput = { includeSelf: false };",
+      // Web wires are relationships: forget the source snapshot so the kept image and its dependents stay current.
+      '      if (unwired && target.sourceSnapshots) { target.sourceSnapshots = target.sourceSnapshots.filter(function (item) { return item.nodeId !== edge.from; }); if (!target.sourceSnapshots.length) delete target.sourceSnapshots; }',
+      '      if (unwired && target.sourceSnapshot && target.sourceSnapshot.nodeId === edge.from) { if (target.sourceSnapshots) target.sourceSnapshot = target.sourceSnapshots[0]; else delete target.sourceSnapshot; }',
+      '    } else {',
+      '      if (target && target.sectionId) target.templatePending = true;',
+      '      invalidateCanvasDependents(documentState, edge.to);',
+      '    }',
+      '  }',
+      '  wireUi = createCanvasWireUi({',
+    ].join('\n')
+  );
+  patch(
+    '    select: function () { selected.clear(); }, remember: remember, changed: markDirty, render: render });',
+    "    select: function () { selected.clear(); }, remember: remember, changed: markDirty, render: render, remove: canvasFeatureEnabled(host, 'connectors') ? removeEdge : undefined });"
+  );
+  patch(
+    '    templateUi.context(contextMenu);',
+    "    if (canvasFeatureEnabled(host, 'templates')) templateUi.context(contextMenu);"
+  );
+  patch(
+    'resourceExport.context(contextMenu, card && selected.size === 1 ? documentState.nodes.find(function (node) { return node.id === card.dataset.id; }) : undefined);',
+    "resourceExport.context(contextMenu, card && selected.size === 1 ? documentState.nodes.find(function (node) { return node.id === card.dataset.id && ((node.type === 'image' && !canvasWeb) || canvasFeatureEnabled(host, 'resourceExport')); }) : undefined);"
+  );
+  patch(
+    '  resourceExport = createCanvasResourceExport({ deliver: deliverResource,',
+    "  resourceExport = createCanvasResourceExport({ uiEditor: canvasFeatureEnabled(host, 'uiEditor'), deliver: deliverResource,"
+  );
+  patch(
+    '      if (modelUi) modelUi.render(card, node);',
+    "      if (modelUi && canvasFeatureEnabled(host, 'model3d')) modelUi.render(card, node);"
+  );
+  patch(
+    '  void boot().catch',
+    [
+      "  [['templates', ['add-template']], ['uiRecognition', ['add-ui-recognition']], ['video', ['add-video-source', 'add-video', 'video-history']], ['sections', ['create-section']]].forEach(function (entry) {",
+      '    if (canvasFeatureEnabled(host, entry[0])) return;',
+      '    entry[1].forEach(function (id) { const element = document.getElementById(id); if (element) { element.hidden = true; element.style.display = "none"; } });',
+      '  });',
+      "  if (!canvasFeatureEnabled(host, 'video')) contextMenu.querySelectorAll('[data-canvas-action=\"add-video\"]').forEach(function (item) { item.remove(); });",
+      '  void boot().catch',
+    ].join('\n')
+  );
+  return page;
+}
+/** Web-only interaction: four-corner resize, chat/cutout actions, blank menu, fit area, dock state. */
+function applyWebInteractionPatches(source: string): string {
+  let page = source;
+  const patch = (search: string, replacement: string) => {
+    page = replaceCanvasPageText(page, search, replacement);
+  };
+  patch('  function startResize(event, id) {', '  function startResize(event, id, corner) {');
+  patch(
+    "drag = { kind: 'resize', id: id, x: event.clientX, y: event.clientY, width: node.width, height: node.height, moved: false };",
+    "drag = { kind: 'resize', id: id, x: event.clientX, y: event.clientY, width: node.width, height: node.height, left: node.x, top: node.y, corner: corner || 'se', moved: false };"
+  );
+  patch(
+    [
+      '        const widthDelta = dimensions && dimensions.height > 0 && Math.abs(dy) > Math.abs(dx) ? dy * dimensions.width / dimensions.height : dx;',
+      '        const markSize = node.type === "mark";',
+      '        node.width = Math.min(markSize ? 8000 : 2000, Math.max(markSize ? 8 : 120, drag.width + widthDelta));',
+      '        node.height = Math.min(markSize ? 8000 : 2000, Math.max(markSize ? 8 : 100, drag.height + dy));',
+    ].join('\n'),
+    [
+      "        const corner = drag.corner || 'se'; const sx = corner.indexOf('w') >= 0 ? -1 : 1; const sy = corner.indexOf('n') >= 0 ? -1 : 1;",
+      '        const ex = dx * sx; const ey = dy * sy;',
+      '        const widthDelta = dimensions && dimensions.height > 0 && Math.abs(ey) > Math.abs(ex) ? ey * dimensions.width / dimensions.height : ex;',
+      '        const markSize = node.type === "mark";',
+      '        node.width = Math.min(markSize ? 8000 : 2000, Math.max(markSize ? 8 : 120, drag.width + widthDelta));',
+      '        node.height = Math.min(markSize ? 8000 : 2000, Math.max(markSize ? 8 : 100, drag.height + ey));',
+      // West/north corners pin the opposite edge, so the ratio-fitted size must be known first.
+      '        if (sx < 0 || sy < 0) { fitImageCard(node); if (sx < 0) node.x = drag.left + drag.width - node.width; if (sy < 0) node.y = drag.top + drag.height - node.height; }',
+    ].join('\n')
+  );
+  patch(
+    'upload: requestImageImport, busy:',
+    'upload: requestImageImport, resize: function (event, id, corner) { startResize(event, id, corner); }, busy:'
+  );
+  // Selection menu: optional chat hand-off and the cutout feature key.
+  patch(
+    "if (canvasFeatureEnabled(host, 'imageEditing')) actionButton('去纯色背景', function () { void openLocalImage(node, 'cutout'); });",
+    // Web 抠图 is one click with the editor defaults; the default page keeps the full editor.
+    "if (host.addToChat) { const chat = actionButton('加入对话', function () { void addSelectionToChat([node]); }); if (canvasWeb) canvasWebIconAction(chat, 'chat'); }\n        if (canvasFeatureEnabled(host, 'cutout')) { const cutout = actionButton(canvasWeb ? '抠图' : '去纯色背景', function () { if (canvasWeb) void quickCutout(node); else void openLocalImage(node, 'cutout'); }); if (canvasWeb) { canvasWebIconAction(cutout, 'cutout'); const adjust = actionButton('调整抠图', function () { void adjustCutout(node); }); adjust.classList.add('web-cutout-adjust'); canvasWebIconAction(adjust, 'chevron'); } }"
+  );
+  patch(
+    'if (chosen.length !== 1 || !generationUi || ',
+    "if (chosen.length > 1 && host.addToChat && chosen.some(function (item) { return item.type === 'image' && item.assetPath; })) { selectionToolbar.hidden = true; selectionMenu.hidden = false; const actions = document.createElement('div'); actions.className = 'selection-actions'; const button = document.createElement('button'); button.type = 'button'; button.textContent = '加入对话'; if (canvasWeb) canvasWebIconAction(button, 'chat'); button.addEventListener('click', function (event) { event.stopPropagation(); void addSelectionToChat(chosen); }); actions.append(button); selectionMenu.append(actions); positionSelectionToolbar(); return; }\n      if (chosen.length !== 1 || !generationUi || "
+  );
+  patch(
+    [
+      "    const card = world.querySelector('.card.selected');",
+      '    if (!card) { selectionMenu.hidden = true; selectionToolbar.hidden = true; return; }',
+      '    const bounds = board.getBoundingClientRect();',
+      '    const anchor = card.getBoundingClientRect();',
+    ].join('\n'),
+    [
+      "    const cards = Array.from(world.querySelectorAll('.card.selected'));",
+      '    if (!cards.length) { selectionMenu.hidden = true; selectionToolbar.hidden = true; return; }',
+      '    const bounds = board.getBoundingClientRect();',
+      // A multi-selection menu centres over the whole group; one card yields its own rect.
+      '    const rects = cards.map(function (item) { return item.getBoundingClientRect(); });',
+      '    const anchorLeft = Math.min.apply(null, rects.map(function (rect) { return rect.left; })); const anchorTop = Math.min.apply(null, rects.map(function (rect) { return rect.top; }));',
+      '    const anchorRight = Math.max.apply(null, rects.map(function (rect) { return rect.right; })); const anchorBottom = Math.max.apply(null, rects.map(function (rect) { return rect.bottom; }));',
+      '    const anchor = { left: anchorLeft, top: anchorTop, right: anchorRight, bottom: anchorBottom, width: anchorRight - anchorLeft, height: anchorBottom - anchorTop };',
+    ].join('\n')
+  );
+  patch(
+    '  async function importProjectAsset(input) {',
+    [
+      '  async function addSelectionToChat(nodes) {',
+      "    const items = nodes.filter(function (item) { return item.type === 'image' && item.assetPath && !(generationUi && generationUi.isNodeBusy(item.id)); }).map(function (item) { return { nodeId: item.id, assetPath: item.assetPath }; });",
+      "    if (!items.length) { setError('请选择已有图片的卡片。'); return; }",
+      "    try { await host.addToChat(items); setError('已加入对话：' + items.length + ' 张图片', 'info'); } catch (caught) { setError((caught && caught.message) || '加入对话失败'); }",
+      '  }',
+      '  async function addPickedProjectImages(point) {',
+      '    if (!host.pickProjectImages || !documentState) return;',
+      '    const reason = hostEditBlocked(); if (reason) { setError(reason); return; }',
+      '    let picked;',
+      "    try { picked = await host.pickProjectImages(); } catch (caught) { setError((caught && caught.message) || '素材库读取失败'); return; }",
+      '    if (!Array.isArray(picked) || !picked.length) return;',
+      '    const current = documentState;',
+      '    let at = point || nextPlacement("image"); let added = 0;',
+      '    pendingAssetImports++; publishDirty();',
+      '    try {',
+      '      for (const item of picked.slice(0, 20)) {',
+      '        if (documentState !== current) break;',
+      "        const named = typeof item.name === 'string' ? item.name.trim().replace(/\\.[^.]+$/, '') : '';",
+      "        const title = (named || String(item.path || '').split('/').pop().replace(/\\.[^.]+$/, '') || '图片').slice(0, 80);",
+      "        await importProjectAsset({ assetPath: item.path, kind: 'image', title: title }, at);",
+      '        const node = current.nodes[current.nodes.length - 1];',
+      '        at = { x: node.x + node.width + 32, y: node.y }; added++;',
+      '      }',
+      "      setError('');",
+      "    } catch (caught) { setError((added ? '已添加 ' + added + ' 张；' : '') + ((caught && caught.message) || '素材导入失败')); }",
+      '    finally { finishAssetImport(); render(); }',
+      '  }',
+      '  async function importProjectAsset(input, at) {',
+    ].join('\n')
+  );
+  patch(
+    'const point = nextPlacement(node.type); node.x = point.x;',
+    'const point = at || nextPlacement(node.type); node.x = point.x;'
+  );
+  // Web image-card menu mirrors the selection icons; hidden for other cards and the blank canvas.
+  patch(
+    '<button type="button" data-canvas-action="duplicate" data-menu-scope="card">复制卡片</button>',
+    '<button type="button" data-canvas-action="add-to-chat" data-menu-scope="image" hidden>加入对话</button><button type="button" data-canvas-action="quick-cutout" data-menu-scope="image" hidden>抠图</button><button type="button" data-canvas-action="adjust-cutout" data-menu-scope="image" hidden>调整抠图</button><button type="button" data-canvas-action="download-image" data-menu-scope="image" hidden>下载</button><button type="button" data-canvas-action="download-image-jpg" data-menu-scope="image" hidden>下载 JPG</button><button type="button" data-canvas-action="duplicate" data-menu-scope="card">复制卡片</button>'
+  );
+  patch(
+    '    cardActions.forEach(function (item) { item.hidden = !card; });',
+    [
+      '    cardActions.forEach(function (item) { item.hidden = !card; });',
+      '    const menuNode = card && documentState && documentState.nodes.find(function (item) { return item.id === card.dataset.id; });',
+      "    contextImage = canvasWeb && menuNode && menuNode.type === 'image' && menuNode.assetPath && !(generationUi && generationUi.isNodeBusy(menuNode.id)) ? menuNode : null;",
+      "    contextMenu.querySelectorAll('[data-menu-scope=image]').forEach(function (item) { const kind = item.dataset.canvasAction; item.hidden = !contextImage || (kind === 'add-to-chat' && !host.addToChat) || ((kind === 'quick-cutout' || kind === 'adjust-cutout') && !canvasFeatureEnabled(host, 'cutout')); });",
+    ].join('\n')
+  );
+  patch(
+    '  function hideContextMenu() { contextMenu.hidden = true; }',
+    '  let contextImage = null;\n  function hideContextMenu() { contextMenu.hidden = true; }'
+  );
+  patch(
+    "    if (value === 'duplicate') { duplicateSelected(); return; }",
+    [
+      "    if (value === 'add-to-chat') { if (contextImage && host.addToChat) void addSelectionToChat([contextImage]); return; }",
+      "    if (value === 'quick-cutout') { if (contextImage) void quickCutout(contextImage); return; }",
+      "    if (value === 'adjust-cutout') { if (contextImage) void adjustCutout(contextImage); return; }",
+      "    if (value === 'download-image') { if (contextImage) void resourceExport.download(contextImage, 'png'); return; }",
+      "    if (value === 'download-image-jpg') { if (contextImage) void resourceExport.download(contextImage, 'jpg'); return; }",
+      "    if (value === 'duplicate') { duplicateSelected(); return; }",
+    ].join('\n')
+  );
+  // Blank-canvas menu: click-point slot, local upload and the optional project-asset picker.
+  patch(
+    'data-canvas-action="add-generation" data-menu-scope="blank">新建图片卡片</button>',
+    'data-canvas-action="add-generation" data-menu-scope="blank">新建图片卡片</button><button type="button" data-canvas-action="upload-image" data-menu-scope="blank">上传图片</button><button type="button" data-canvas-action="pick-project-images" data-menu-scope="blank">从素材库添加</button>'
+  );
+  patch(
+    "if (value === 'add-generation') { createBlankImageSlot(); return; }",
+    [
+      "if (value === 'add-generation') { if (canvasWeb && pendingPlacement) createImageSlotAt(pendingPlacement); else createBlankImageSlot(); pendingPlacement = null; return; }",
+      "    if (value === 'upload-image') { if (documentState) { pendingImageImport = { canvasId: documentState.id, create: true, point: pendingPlacement }; file.click(); } pendingPlacement = null; return; }",
+      "    if (value === 'pick-project-images') { const point = pendingPlacement; pendingPlacement = null; void addPickedProjectImages(point); return; }",
+    ].join('\n')
+  );
+  patch(
+    "  function createBlankImageSlot() {\n    add('image', nextPlacement('image'), true);",
+    "  function createBlankImageSlot() { createImageSlotAt(nextPlacement('image')); }\n  function createImageSlotAt(point) {\n    add('image', point, true);"
+  );
+  patch(
+    'request.create && documentState && documentState.id === request.canvasId) { createBlankImageSlot();',
+    'request.create && documentState && documentState.id === request.canvasId) { if (request.point) createImageSlotAt(request.point); else createBlankImageSlot();'
+  );
+  patch(
+    "  if (!canvasFeatureEnabled(host, 'video')) contextMenu.querySelectorAll",
+    [
+      '  if (!canvasWeb) contextMenu.querySelectorAll(\'[data-canvas-action="upload-image"]\').forEach(function (item) { item.remove(); });',
+      '  if (!host.pickProjectImages) contextMenu.querySelectorAll(\'[data-canvas-action="pick-project-images"]\').forEach(function (item) { item.remove(); });',
+      "  if (!canvasFeatureEnabled(host, 'video')) contextMenu.querySelectorAll",
+    ].join('\n')
+  );
+  // Web slots render at a CSS min size above node.width/height, so fit must use the drawn size.
+  patch(
+    [
+      '    const right = Math.max.apply(null, documentState.nodes.map(function (node) { return node.x + node.width; }));',
+      '    const bottom = Math.max.apply(null, documentState.nodes.map(function (node) { return node.y + node.height; }));',
+    ].join('\n'),
+    [
+      "    const drawn = function (node, key) { const card = world.querySelector('.card[data-id=\"' + node.id + '\"]'); return Math.max(node[key], canvasWeb && card ? (key === 'width' ? card.offsetWidth : card.offsetHeight) : 0); };",
+      "    const right = Math.max.apply(null, documentState.nodes.map(function (node) { return node.x + drawn(node, 'width'); }));",
+      "    const bottom = Math.max.apply(null, documentState.nodes.map(function (node) { return node.y + drawn(node, 'height'); }));",
+    ].join('\n')
+  );
+  // Fit: both appearances float the tool dock (and the flow hint) over the board, so fit into
+  // what stays visible with 32px margins; group bars are still reserved below.
+  patch(
+    [
+      '    function place(bar) {',
+      '      const scale = Math.min(4, Math.max(0.15, Math.min((board.clientWidth - 64) / width, (board.clientHeight - 64 - bar) / height)));',
+      '      documentState.viewport.scale = scale;',
+      '      documentState.viewport.x = (board.clientWidth - width * scale) / 2 - left * scale;',
+      '      documentState.viewport.y = (board.clientHeight - bar - height * scale) / 2 - top * scale;',
+    ].join('\n'),
+    [
+      '    const boardRect = board.getBoundingClientRect();',
+      "    const area = canvasWebFitArea({ left: boardRect.left, top: boardRect.top, width: board.clientWidth, height: board.clientHeight }, Array.from(document.querySelectorAll('.workspace-toolbar, #template-flow:not([hidden])')).map(function (item) { return item.getBoundingClientRect(); }).filter(function (rect) { return rect.width > 0 && rect.height > 0; }), 32);",
+      '    function place(bar) {',
+      '      const scale = Math.min(4, Math.max(0.15, Math.min(area.width / width, (area.height - bar) / height)));',
+      '      documentState.viewport.scale = scale;',
+      '      documentState.viewport.x = area.x + (area.width - width * scale) / 2 - left * scale;',
+      '      documentState.viewport.y = area.y + (area.height - bar - height * scale) / 2 - top * scale;',
+    ].join('\n')
+  );
+  // Dock save button carries the save state; the separate status glyph is hidden in Web.
+  patch(
+    'function setStatus(text) { status.textContent = text;',
+    [
+      'var canvasSaveFailed = false;',
+      '  function syncCanvasSaveState(text) {',
+      "    const button = canvasWeb && document.getElementById('save'); if (!button) return;",
+      "    const state = text === '保存中…' ? 'saving' : text === '已保存' ? 'saved' : canvasSaveFailed ? 'failed' : 'unsaved';",
+      "    const label = { saving: '正在保存…', saved: '已保存', failed: '保存失败，点击重试', unsaved: '有未保存修改，点击保存' }[state];",
+      "    button.dataset.saveState = state; button.title = label; button.setAttribute('aria-label', '保存画布：' + label);",
+      '  }',
+      '  function setStatus(text) { syncCanvasSaveState(text); status.textContent = text;',
+    ].join('\n')
+  );
+  patch(
+    'saveFailed = false; setStatus(',
+    'saveFailed = false; canvasSaveFailed = false; setStatus('
+  );
+  patch(
+    "      setStatus('未保存');\n      saveFailed = true;",
+    "      canvasSaveFailed = true; setStatus('未保存');\n      saveFailed = true;"
+  );
+  // Space-to-pan: a focused dock button must not swallow Space, and the dock shows the hand.
+  patch(
+    "if (event.target.closest && event.target.closest('textarea, input, select, button')) return;",
+    [
+      "if (canvasWeb && event.code === 'Space' && event.target.closest && event.target.closest('.workspace-actions button, .workspace-actions summary')) { event.preventDefault(); space = true; if (canvasMarks) canvasMarks.preview(true); return; }",
+      "    if (event.target.closest && event.target.closest('textarea, input, select, button')) return;",
+      "    if (canvasWeb && event.code === 'Space' && canvasMarks) canvasMarks.preview(true);",
+    ].join('\n')
+  );
+  patch(
+    "window.addEventListener('keyup', function (event) { if (event.code === 'Space') space = false; });",
+    [
+      "window.addEventListener('keyup', function (event) { if (event.code !== 'Space') return; space = false; if (canvasWeb && canvasMarks) { canvasMarks.preview(false); if (event.target.closest && event.target.closest('.workspace-actions button, .workspace-actions summary')) event.preventDefault(); } });",
+      "  if (canvasWeb) window.addEventListener('blur', function () { space = false; if (canvasMarks) canvasMarks.preview(false); });",
+    ].join('\n')
+  );
+  patch(
+    "    if (space || event.button === 1) {\n      if (event.target.closest && event.target.closest('textarea, input, button')) return;\n",
+    "    if (space || event.button === 1) {\n      if (event.target.closest && event.target.closest('textarea, input, button')) return;\n      if (canvasWeb) board.classList.add('grabbing');\n"
+  );
+  // The <details> menu is fixed-positioned, but the frosted menu's backdrop-filter re-anchors and clips it, so Web downloads PNG directly.
+  patch(
+    '        download.append(trigger, formats); actions.append(download);',
+    "        if (canvasWeb) canvasWebIconAction(actionButton('下载图片', function () { void resourceExport.download(node, 'png'); }), 'download'); else { download.append(trigger, formats); actions.append(download); }"
+  );
+  return page;
+}
 export interface CanvasPageIntegration {
   /** Trusted host adapter code defining createCanvasHost(): CanvasPageHost. */
   hostScript: string;
@@ -273,6 +787,8 @@ export interface CanvasPageIntegration {
 
 export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   const helpers = [
+    installCanvasPolyfills.toString(),
+    'installCanvasPolyfills();',
     'const CANVAS_SEQUENCE_SETTING_FIELDS = ' +
       JSON.stringify(CANVAS_SEQUENCE_SETTING_FIELDS) +
       ';',
@@ -297,6 +813,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     validateCanvasPlatforms.toString(),
     canvasSupportsPlatform.toString(),
     canvasCapabilityReason.toString(),
+    canvasFeatureEnabled.toString(),
     integration.hostScript,
     'const IMAGE_FEATURES = ' + JSON.stringify(IMAGE_FEATURES) + ';',
     imageFeatures.toString(),
@@ -334,6 +851,17 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasWireGeometry.toString(),
     canvasWirePath.toString(),
     createCanvasWireUi.toString(),
+    canvasWebCurve.toString(),
+    canvasWebBox.toString(),
+    canvasWebWire.toString(),
+    createCanvasWebChrome.toString(),
+    canvasWebSlot.toString(),
+    canvasComposerKey.toString(),
+    canvasWebIconAction.toString(),
+    installCanvasWebTooltips.toString(),
+    decorateCanvasWebCards.toString(),
+    canvasWebFitArea.toString(),
+    canvasWebPlacePopover.toString(),
     framePairSources.toString(),
     videoFramePair.toString(),
     validateFramePairVideo.toString(),
@@ -372,6 +900,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasMarkFromInput.toString(),
     renderCanvasMark.toString(),
     drawCanvasMark.toString(),
+    canvasPngPlan.toString(),
+    canvasPngStill.toString(),
     createCanvasMarks.toString(),
     createCanvasWorkspace.toString(),
     createCanvasLog.toString(),
@@ -390,6 +920,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     'const DEFAULT_SEQUENCE_DURATION = ' + DEFAULT_SEQUENCE_DURATION + ';',
     applyFrameOperations.toString(),
     openFrameEditor.toString(),
+    'const CANVAS_BACKGROUND_DEFAULTS = ' + JSON.stringify(CANVAS_BACKGROUND_DEFAULTS) + ';',
     createBackgroundRemoval.toString(),
     openBackgroundEditor.toString(),
     createFrameCollection.toString(),
@@ -509,6 +1040,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     snapshotCanvasSource.toString(),
     canvasReferences.toString(),
     canvasDependents.toString(),
+    canvasImageHasRegeneratePath.toString(),
     canvasNeedsProcessing.toString(),
     videoInputSources.toString(),
     videoAttemptMatchesSources.toString(),
@@ -591,12 +1123,22 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    selectionMenu.style.left = Math.max(menuMinLeft, Math.min(menuLeft, bounds.width - menuWidth - gap)) + "px";',
       '    selectionMenu.style.top = menuTop + "px";',
       '    if (selectionToolbar.hidden) return;',
-      '    selectionToolbar.style.width = Math.min(440, Math.max(0, bounds.width - gap * 2)) + "px";',
+      // Web: a left-docked rail narrows the usable board, so the composer never spills past the right edge.
+      '    const dockInset = canvasWeb && rail && rail.left - bounds.left < bounds.width / 2 ? Math.max(0, rail.right - bounds.left) : 0;',
+      '    selectionToolbar.style.width = Math.min(canvasWeb ? Math.max(640, anchor.width + 80) : 440, Math.max(0, bounds.width - dockInset - gap * 2)) + "px";',
       '    selectionToolbar.style.maxHeight = Math.max(0, bounds.height - gap * 2) + "px";',
       '    const width = selectionToolbar.offsetWidth;',
       '    const height = selectionToolbar.offsetHeight;',
-      '    let left = cardLeft;',
+      '    let left = canvasWeb ? cardLeft + (anchor.width - width) / 2 : cardLeft;',
       '    let top = anchor.bottom - bounds.top + gap;',
+      '    if (canvasWeb && top + height > bounds.height - gap) {',
+      '      top = cardTop - (selectionMenu.hidden ? 0 : menuHeight + gap) - gap - height;',
+      '      const minLeft = Math.max(gap, dockInset + gap);',
+      '      selectionToolbar.style.left = Math.max(minLeft, Math.min(left, bounds.width - width - gap)) + "px";',
+      '      selectionToolbar.style.top = Math.max(gap, Math.min(top, bounds.height - height - gap)) + "px";',
+      '      canvasWebPlacePopover(selectionToolbar, bounds, gap);',
+      '      return;',
+      '    }',
       '    if (top + height > bounds.height - gap) {',
       '      if (anchor.right - bounds.left + gap + width <= bounds.width - gap) {',
       '        left = anchor.right - bounds.left + gap; top = cardTop;',
@@ -604,8 +1146,11 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '        left = cardLeft - gap - width; top = cardTop;',
       '      } else { top = cardTop - menuHeight - gap * 2 - height; }',
       '    }',
-      '    selectionToolbar.style.left = Math.max(gap, Math.min(left, bounds.width - width - gap)) + "px";',
+      '    // The wide Web composer must clear the floating tool rail, as the selection menu does.',
+      '    const toolbarMinLeft = canvasWeb && rail && top < rail.bottom - bounds.top && top + height > rail.top - bounds.top ? Math.max(gap, rail.right - bounds.left + gap) : gap;',
+      '    selectionToolbar.style.left = Math.max(toolbarMinLeft, Math.min(left, bounds.width - width - gap)) + "px";',
       '    selectionToolbar.style.top = Math.max(gap, Math.min(top, bounds.height - height - gap)) + "px";',
+      '    if (canvasWeb) canvasWebPlacePopover(selectionToolbar, bounds, gap);',
       '  }',
       '  const selectionResize = new ResizeObserver(positionSelectionToolbar);',
       "  selectionResize.observe(document.getElementById('board'));",
@@ -1009,25 +1554,71 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  async function exportCanvasPng() {',
       '    if (!documentState) return;',
       '    const snapshot = structuredClone(documentState);',
-      "    const nodes = snapshot.nodes.filter(function (node) { return node.type !== 'section'; }).sort(function (left, right) { return (left.type === 'mark' ? 1 : 0) - (right.type === 'mark' ? 1 : 0); });",
-      "    if (!nodes.length) { setError('画布没有可导出的内容。'); return; }",
+      // Bounds follow the wires as drawn: Web reference curves ignore saved elbow routes.
+      "    const plan = canvasPngPlan(snapshot, function (edge, from, to) { return canvasWeb && edge.kind === 'image-variant' ? canvasWebWire(from, to, { x: 0, y: 0, scale: 1 }).points : canvasWireGeometry(from, to, snapshot.nodes, snapshot.edges, edge.route).points; });",
+      "    if (!plan) { setError('画布没有可导出的内容。'); return; }",
       '    return deliverResource({ filename: (snapshot.title || "canvas") + ".png", mime: "image/png", produce: async function () {',
-      '    const left = Math.min.apply(null, nodes.map(function (node) { return node.x; })) - 32;',
-      '    const top = Math.min.apply(null, nodes.map(function (node) { return node.y; })) - 32;',
-      '    const right = Math.max.apply(null, nodes.map(function (node) { return node.x + node.width; })) + 32;',
-      '    const bottom = Math.max.apply(null, nodes.map(function (node) { return node.y + node.height; })) + 32;',
-      '    const scale = Math.min(2, 2400 / Math.max(1, right - left), 1600 / Math.max(1, bottom - top));',
-      "    const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round((right - left) * scale)); canvas.height = Math.max(1, Math.round((bottom - top) * scale));",
+      '    const left = plan.left; const top = plan.top; const scale = plan.scale;',
+      "    const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(plan.width * scale)); canvas.height = Math.max(1, Math.round(plan.height * scale));",
       "    const context = canvas.getContext('2d'); context.fillStyle = '#101114'; context.fillRect(0, 0, canvas.width, canvas.height); context.font = '14px sans-serif';",
-      '    for (const node of nodes) {',
-      '      const x = (node.x - left) * scale; const y = (node.y - top) * scale; const width = node.width * scale; const height = node.height * scale;',
-      "      if (node.type === 'mark') { drawCanvasMark(context, node, x, y, width, height); continue; }",
-      "context.fillStyle = '#1a1d24'; context.strokeStyle = '#3d4250'; context.lineWidth = Math.max(1, scale); context.fillRect(x, y, width, height); context.strokeRect(x, y, width, height);",
-      "      context.fillStyle = '#f4f1ea'; context.fillText(node.title || '未命名', x + 8 * scale, y + 18 * scale);",
-      "      if (node.assetPath && media[node.assetPath] && (node.type === 'image' || node.type === 'sequence')) {",
-      '        await new Promise(function (resolve) { const image = new Image(); image.onload = function () { const ratio = Math.min((width - 16 * scale) / image.naturalWidth, (height - 32 * scale) / image.naturalHeight); const drawWidth = image.naturalWidth * ratio; const drawHeight = image.naturalHeight * ratio; context.drawImage(image, x + (width - drawWidth) / 2, y + 24 * scale + (height - 24 * scale - drawHeight) / 2, drawWidth, drawHeight); resolve(); }; image.onerror = resolve; image.src = media[node.assetPath]; });',
-      "      } else { context.fillStyle = '#b7b1a6'; context.fillText(node.type === 'video-source' ? '视频结果' : node.type === 'animation' ? '序列帧动画' : node.text || '', x + 8 * scale, y + 42 * scale); }",
+      '    function box(node) { return { x: (node.x - left) * scale, y: (node.y - top) * scale, width: node.width * scale, height: node.height * scale }; }',
+      '    function drawFit(source, sourceWidth, sourceHeight, area, crop) {',
+      '      const ratio = Math.min((area.width - 16 * scale) / sourceWidth, (area.height - 32 * scale) / sourceHeight); const drawWidth = sourceWidth * ratio; const drawHeight = sourceHeight * ratio;',
+      '      const dx = area.x + (area.width - drawWidth) / 2; const dy = area.y + 24 * scale + (area.height - 24 * scale - drawHeight) / 2;',
+      '      if (crop) context.drawImage(source, crop.x, crop.y, crop.width, crop.height, dx, dy, drawWidth, drawHeight); else context.drawImage(source, dx, dy, drawWidth, drawHeight);',
       '    }',
+      '    function loadImage(url) { return new Promise(function (resolve) { const image = new Image(); image.onload = function () { resolve(image); }; image.onerror = function () { resolve(null); }; image.src = url; }); }',
+      '    // One still per video, copied through a scratch canvas so a cross-origin video falls back to its label instead of failing the export.',
+      '    function videoStill(url) { return new Promise(function (resolve) {',
+      "      const video = document.createElement('video'); let settled = false;",
+      '      function finish(ok) {',
+      '        if (settled) return; settled = true; clearTimeout(timer); let still = null;',
+      "        if (ok && video.videoWidth && video.videoHeight) { const frame = document.createElement('canvas'); frame.width = video.videoWidth; frame.height = video.videoHeight; const frameContext = frame.getContext('2d'); frameContext.drawImage(video, 0, 0); try { frameContext.getImageData(0, 0, 1, 1); still = frame; } catch (caught) { still = null; } }",
+      "        video.removeAttribute('src'); video.load(); resolve(still);",
+      '      }',
+      '      const timer = setTimeout(function () { finish(false); }, 10000);',
+      "      video.muted = true; video.preload = 'auto';",
+      "      video.addEventListener('loadedmetadata', function () { if (isFinite(video.duration) && video.duration > 0) video.currentTime = Math.min(0.1, video.duration / 2); });",
+      "      video.addEventListener('seeked', function () { finish(true); });",
+      "      video.addEventListener('loadeddata', function () { if (!(isFinite(video.duration) && video.duration > 0)) finish(true); });",
+      "      video.addEventListener('error', function () { finish(false); });",
+      '      video.src = url;',
+      '    }); }',
+      '    for (const node of plan.sections) {',
+      '      const area = box(node);',
+      "      context.fillStyle = 'rgba(32,37,40,.45)'; context.strokeStyle = '#475256'; context.lineWidth = Math.max(1, scale); context.fillRect(area.x, area.y, area.width, area.height); context.strokeRect(area.x, area.y, area.width, area.height);",
+      "      context.fillStyle = '#1d2225'; context.fillRect(area.x, area.y, area.width, Math.min(area.height, 40 * scale));",
+      "      context.fillStyle = '#f1d18f'; context.fillText(node.title || '分组', area.x + 10 * scale, area.y + 24 * scale);",
+      '    }',
+      '    const view = { x: -left * scale, y: -top * scale, scale: scale };',
+      "    context.save(); context.strokeStyle = 'rgba(215,181,109,.8)'; context.lineWidth = 2 * scale; context.lineJoin = 'round'; context.lineCap = 'round';",
+      '    for (const edge of plan.edges) {',
+      '      const from = snapshot.nodes.find(function (node) { return node.id === edge.from; }); const to = snapshot.nodes.find(function (node) { return node.id === edge.to; });',
+      "      const curved = canvasWeb && edge.kind === 'image-variant';",
+      '      context.stroke(new Path2D(curved ? canvasWebWire(from, to, view).d : canvasWirePath(from, to, snapshot.nodes, view, snapshot.edges, edge.route)));',
+      '      if (curved) continue;',
+      '      const points = canvasWireGeometry(from, to, snapshot.nodes, snapshot.edges, edge.route).points; const end = points[points.length - 1]; const before = points[points.length - 2];',
+      '      if (!before) continue;',
+      '      const angle = Math.atan2(end.y - before.y, end.x - before.x); const tipX = view.x + end.x * scale; const tipY = view.y + end.y * scale; const size = 8 * scale;',
+      '      context.beginPath(); context.moveTo(tipX - Math.cos(angle - 0.5) * size, tipY - Math.sin(angle - 0.5) * size); context.lineTo(tipX, tipY); context.lineTo(tipX - Math.cos(angle + 0.5) * size, tipY - Math.sin(angle + 0.5) * size); context.stroke();',
+      '    }',
+      '    context.restore();',
+      '    for (const node of plan.cards) {',
+      '      const area = box(node);',
+      "      context.fillStyle = '#1a1d24'; context.strokeStyle = '#3d4250'; context.lineWidth = Math.max(1, scale); context.fillRect(area.x, area.y, area.width, area.height); context.strokeRect(area.x, area.y, area.width, area.height);",
+      "      context.fillStyle = '#f4f1ea'; context.fillText(node.title || '未命名', area.x + 8 * scale, area.y + 18 * scale);",
+      '      const url = node.assetPath && (media[node.assetPath] || mediaUrl(node.assetPath));',
+      '      let drawn = false;',
+      "      if (url && (node.type === 'image' || node.type === 'sequence' || node.type === 'animation')) {",
+      '        const image = await loadImage(url); const crop = canvasPngStill(node);',
+      '        if (image) { if (crop) drawFit(image, crop.width, crop.height, area, crop); else drawFit(image, image.naturalWidth, image.naturalHeight, area); drawn = true; }',
+      "      } else if (url && node.type === 'video-source') {",
+      '        const still = await videoStill(url);',
+      '        if (still) { drawFit(still, still.width, still.height, area); drawn = true; }',
+      '      }',
+      "      if (!drawn) { context.fillStyle = '#b7b1a6'; context.fillText(node.type === 'video-source' ? '视频结果' : node.type === 'animation' ? '序列帧动画' : node.text || '', area.x + 8 * scale, area.y + 42 * scale); }",
+      '    }',
+      '    for (const node of plan.marks) { const area = box(node); drawCanvasMark(context, node, area.x, area.y, area.width, area.height); }',
       '    return new Promise(function (resolve, reject) { canvas.toBlob(function (blob) { if (blob) resolve(blob); else reject(new Error("画布截图编码失败。")); }, "image/png"); });',
       '    } });',
       '  }',
@@ -1317,6 +1908,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    maxInputFrameCount: maxSequenceInputFrameCount,',
       '  });',
       '  generationUi = createCanvasGenerationUi({',
+      '    web: canvasWeb,',
       '    videoPrompts: createVideoPrompts(),',
       '    referencesBlocked: function () { return canvasAutomationBusy || generationUi.isBusy || groupQueue.isBusy; },',
       '    store: store,',
@@ -1509,11 +2101,11 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      selectionToolbar.replaceChildren();',
       '      selectionMenu.replaceChildren();',
       '      const chosen = documentState.nodes.filter(function (item) { return selected.has(item.id); });',
-      '      if (chosen.length === 1 && ["section", "resource-bundle"].includes(chosen[0].type) && resourceBundleMembers(documentState, chosen[0].id).length) { selectionToolbar.hidden = true; selectionMenu.hidden = false; const actions = document.createElement("div"); actions.className = "selection-actions"; const button = document.createElement("button"); button.type = "button"; button.textContent = chosen[0].type === "resource-bundle" ? "导出已完成素材" : "导出资源包"; button.onclick = function () { void resourceExport.download(chosen[0], "bundle"); }; actions.append(button); if (chosen[0].type === "section" && !resourceBundleMembers(documentState, chosen[0].id).some(function (member) { return resourceBundleOwner(documentState, member.id); })) { const merge = document.createElement("button"); merge.type = "button"; merge.textContent = "汇总资源"; merge.onclick = function () { remember(); const bundle = addResourceBundle(documentState, chosen[0].id); selected.clear(); selected.add(bundle.id); markDirty(); render(); }; actions.append(merge); } selectionMenu.append(actions); positionSelectionToolbar(); return; }',
+      '      if (chosen.length === 1 && ["section", "resource-bundle"].includes(chosen[0].type) && canvasFeatureEnabled(host, "resourceExport") && resourceBundleMembers(documentState, chosen[0].id).length) { selectionToolbar.hidden = true; selectionMenu.hidden = false; const actions = document.createElement("div"); actions.className = "selection-actions"; const button = document.createElement("button"); button.type = "button"; button.textContent = chosen[0].type === "resource-bundle" ? "导出已完成素材" : "导出资源包"; button.onclick = function () { void resourceExport.download(chosen[0], "bundle"); }; actions.append(button); if (chosen[0].type === "section" && !resourceBundleMembers(documentState, chosen[0].id).some(function (member) { return resourceBundleOwner(documentState, member.id); })) { const merge = document.createElement("button"); merge.type = "button"; merge.textContent = "汇总资源"; merge.onclick = function () { remember(); const bundle = addResourceBundle(documentState, chosen[0].id); selected.clear(); selected.add(bundle.id); markDirty(); render(); }; actions.append(merge); } selectionMenu.append(actions); positionSelectionToolbar(); return; }',
       '      if (chosen.length === 1 && chosen[0].type === "mark") { selectionToolbar.hidden = true; selectionMenu.hidden = false; const actions = document.createElement("div"); actions.className = "selection-actions"; const label = document.createElement("span"); label.className = "selection-label"; label.textContent = "颜色"; actions.append(label); for (const color of CANVAS_MARK_COLORS) { const button = document.createElement("button"); button.type = "button"; button.className = "mark-color"; button.title = color; button.setAttribute("aria-label", "标注颜色 " + color); button.setAttribute("aria-pressed", String(chosen[0].mark && chosen[0].mark.color === color)); button.style.background = color; button.addEventListener("click", function (event) { event.stopPropagation(); if (!chosen[0].mark || chosen[0].mark.color === color) return; remember(); chosen[0].mark.color = color; markDirty(); render(); }); actions.append(button); } selectionMenu.append(actions); positionSelectionToolbar(); return; }',
       "      if (chosen.length !== 1 || !generationUi || !['image', 'video', 'video-source'].includes(chosen[0].type)) { selectionMenu.hidden = true; selectionToolbar.hidden = true; return; }",
       '      const node = chosen[0];',
-      '      const nodeBusy = Boolean((modelUi && modelUi.protects(node.id)) || (generationUi && generationUi.isNodeBusy(node.id)) || (templateWorkflow && templateWorkflow.isNodeLoading(node.id)));',
+      '      const nodeBusy = Boolean((modelUi && modelUi.protects(node.id)) || (generationUi && generationUi.isNodeBusy(node.id)) || (templateWorkflow && templateWorkflow.isNodeLoading(node.id)) || (canvasCutoutBusy && canvasCutoutBusy.has(node.id)));',
       '      const remoteState = generationUi.nodeState(node.id);',
       '      const workflowMember = templateWorkflow.isMember(node.id);',
       '      const restricted = workflowMember && (templateWorkflow.status(node.id) === "pending" || remoteState && ["failed", "unknown", "canceled", "timedout"].includes(remoteState.status));',
@@ -1526,16 +2118,16 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       "      const actions = document.createElement('div'); actions.className = 'selection-actions';",
       "      function actionButton(text, action, active, unavailable) { const button = document.createElement('button'); button.type = 'button'; button.textContent = text; if (active) button.className = 'active'; if (unavailable) { button.disabled = true; button.title = unavailable; } button.addEventListener('click', function (event) { event.stopPropagation(); action(); }); actions.append(button); return button; }",
       "      if (node.type === 'image' && !emptyImage) {",
-      '        for (const feature of imageFeatures(node)) for (const action of feature.actions) {',
+      '        for (const feature of canvasFeatureEnabled(host, "uiRecognition") ? imageFeatures(node) : []) for (const action of feature.actions) {',
       '          if (action === "recognize-ui") { const button = actionButton(node.uiRecognition?.pendingId ? "查询识图" : node.uiRecognition?.optional ? "生成 / 重试 Bbox" : "识别 UI", function () { void uiRecognitionUi.runRecognition(node).catch(function (error) { setError(error.message); }); }, false, (!node.uiRecognition?.pendingId && canvasCapabilityReason(store, "recognition")) || (uiRecognitionUi.isBusy ? "识图进行中" : undefined)); if (!node.uiRecognition?.optional && !node.uiRecognition?.pendingId && !canvasCapabilityReason(store, "recognition")) { button.hidden = true; if (store.recognitionModels) void store.recognitionModels().then(function (models) { if (!button.isConnected) return; button.hidden = !models.some(function (model) { return model.source === "custom" || model.source === "server"; }); positionSelectionToolbar(); }).catch(function (error) { if (button.isConnected) setError(error.message); }); } }',
       '          if (action === "view-bbox" && uiRecognitionPreview(documentState, node)) actionButton("查看标注", function () { void uiRecognitionUi.openPreview(node).catch(function (error) { setError(error.message); }); });',
       '        }',
       "        if (templateWorkflow.canEditImage(node.id)) actionButton('替换图片', function () { requestImageImport(node.id); });",
-      "        actionButton('快速编辑', function () { selectionAction = selectionAction === 'image' ? '' : 'image'; render(); }, selectionAction === 'image');",
-      "        actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video');",
-      "        actionButton('去纯色背景', function () { void openLocalImage(node, 'cutout'); });",
-      "        if (imageAllowsOutpaint(node)) actionButton('扩展画面（AI）', function () { selectionAction = selectionAction === 'outpaint' ? '' : 'outpaint'; render(); }, selectionAction === 'outpaint');",
-      "        actionButton('本地编辑', function () { void openLocalImage(node, 'edit'); });",
+      "        if (canvasFeatureEnabled(host, 'imageEditing')) actionButton('快速编辑', function () { selectionAction = selectionAction === 'image' ? '' : 'image'; render(); }, selectionAction === 'image');",
+      "        if (canvasFeatureEnabled(host, 'video')) actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video');",
+      "        if (canvasFeatureEnabled(host, 'imageEditing')) actionButton('去纯色背景', function () { void openLocalImage(node, 'cutout'); });",
+      "        if (canvasFeatureEnabled(host, 'imageEditing') && imageAllowsOutpaint(node)) actionButton('扩展画面（AI）', function () { selectionAction = selectionAction === 'outpaint' ? '' : 'outpaint'; render(); }, selectionAction === 'outpaint');",
+      "        if (canvasFeatureEnabled(host, 'imageEditing')) actionButton('本地编辑', function () { void openLocalImage(node, 'edit'); });",
       "        const download = document.createElement('details'); download.className = 'image-download';",
       "        const trigger = document.createElement('summary'); trigger.setAttribute('aria-label', '下载图片'); trigger.title = '下载图片'; trigger.innerHTML = '<svg width=18 height=18 viewBox=\"0 0 24 24\" fill=none stroke=currentColor stroke-width=1.8 aria-hidden=true><path d=\"M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5\"/></svg>';",
       "        const formats = document.createElement('div'); formats.className = 'image-download-options';",
@@ -1547,7 +2139,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       "        download.addEventListener('toggle', function () { if (!download.open) return; const rect = trigger.getBoundingClientRect(); formats.style.left = Math.max(8, rect.right - 144) + 'px'; formats.style.top = rect.bottom + 6 + 'px'; });",
       '        download.append(trigger, formats); actions.append(download);',
       '      }',
-      "      else if (node.type !== 'image') { const editingTemplateVideo = node.type === 'video-source' && templateWorkflow && templateWorkflow.canEditVideo(node.id); actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (node.type === 'video-source' && node.assetPath) actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); }",
+      "      else if (node.type !== 'image') { const editingTemplateVideo = node.type === 'video-source' && templateWorkflow && templateWorkflow.canEditVideo(node.id); if (canvasFeatureEnabled(host, 'video')) actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); }",
       '      selectionMenu.append(actions);',
       "      if (panelOpen) { const panel = document.createElement('div'); panel.className = 'selection-panel'; const panelNode = node.type === 'image' && selectionAction === 'video' ? { id: 'video-draft:' + node.id, type: 'video', draftSourceId: node.id } : node; const workflowEdit = workflowMember && panelNode === node ? { canSubmit: !templateWorkflow.waitingForSource(node.id), submit: function (execute) { return templateWorkflow.runFrom(node.id, execute); } } : undefined; generationUi.render(panel, panelNode, documentState.nodes, selectionAction === 'outpaint' ? 'outpaint' : undefined, workflowEdit); selectionToolbar.append(panel); }",
       '      positionSelectionToolbar();',
@@ -1699,7 +2291,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      if (node.type === "resource-bundle") { card.querySelector(".canvas-card-content")?.remove(); renderResourceBundle(card, node, documentState, store.mediaUrl); }',
       '      const templateStatus = templateWorkflow && templateWorkflow.status(node.id);',
       '      const creditsLabel = generationUi && generationUi.creditsLabel(node); if (creditsLabel) { const credits = document.createElement("small"); credits.className = "generation-credits"; credits.textContent = creditsLabel; credits.title = "当前结果的 MCP 返回积分，不是累计消耗或余额；未返回表示暂无数据。"; card.append(credits); }',
-      '      const nodeBusy = Boolean((generationUi && generationUi.isNodeBusy(node.id)) || (templateWorkflow && templateWorkflow.isNodeLoading(node.id)));',
+      '      const nodeBusy = Boolean((generationUi && generationUi.isNodeBusy(node.id)) || (templateWorkflow && templateWorkflow.isNodeLoading(node.id)) || (canvasCutoutBusy && canvasCutoutBusy.has(node.id)));',
       '      const generationState = generationUi && generationUi.nodeState(node.id);',
       '      const sequenceState = node.type === "sequence" && sequenceUi.view(node.id).run;',
       '      const overlayState = node.type !== "section" && node.type !== "mark" ? canvasCardStatus({ busy: nodeBusy || sequenceUi.isNodeBusy(node.id), generation: generationState && generationState.status || (templateStatus === "pending" && templateWorkflow.failure(node.id) ? "failed" : undefined), sequence: sequenceState && sequenceState.status, template: templateStatus }) : undefined;',
@@ -1779,6 +2371,9 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      onSaved: async function (result, source) {',
       '        if (documentState !== current) throw new Error("画布已切换，未覆盖原卡片");',
       '        if (!(await flush())) throw new Error("请先解决画布保存错误，再重试");',
+      // Cards only draw an <img> once media[] knows the path; without this the result stays blank until reload.
+      '        await loadMedia(result.relativePath);',
+      '        if (documentState !== current) throw new Error("画布已切换，未覆盖原卡片");',
       '        const previous = { nodes: structuredClone(current.nodes), edges: structuredClone(current.edges) };',
       '        let applied;',
       '        try { applied = applyLocalImageResult(current, source, result.relativePath, targetId, function () { return crypto.randomUUID(); }); invalidateCanvasDependents(current, applied.id); if (!(await flush())) throw new Error("画布保存失败，原结果仍保留，可重试保存"); }',
@@ -1789,6 +2384,70 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      onBusyChange: publishDirty, backgroundRemoval: backgroundRemoval, openBackgroundEditor: openBackgroundEditor, openFrameEditor: openFrameEditor,',
       '    });',
       '    try { await imageEditing.open(node, action); } catch (caught) { setError(caught.message); }',
+      '  }',
+      // var: render() reads it for the busy overlay and may run before this line is reached.
+      '  var canvasCutoutBusy = new Set();',
+      '  async function quickCutout(node) {',
+      '    if ((imageEditing && imageEditing.isBusy) || pendingAssetImports || canvasCutoutBusy.size || !documentState) return;',
+      '    if (node.type !== "image" || !node.assetPath) { setError("请选择已有图片。"); return; }',
+      '    if (generationUi && (generationUi.isNodeBusy(node.id) || generationUi.hasUnsettledResult(node.id))) { setError("图片仍在生成中，请稍后再抠图。"); return; }',
+      '    if (node.mergeIcons && (node.templatePending || mergeIconNeedsGeneration(node))) { setError("阶段设置或参考已变更，请先生成新图集，不能处理旧图。"); return; }',
+      '    const decision = templateWorkflow.resolveTarget(node.id, "image", node.id);',
+      '    if (decision && decision.kind === "blocked") { setError(decision.message); return; }',
+      '    const current = documentState; const sourceId = node.id; const sourcePath = node.assetPath;',
+      '    const live = function () { const item = current.nodes.find(function (entry) { return entry.id === sourceId; }); if (documentState !== current || !item || item.assetPath !== sourcePath) throw new Error("来源图片已变化，未创建抠图结果。"); return item; };',
+      // Shares the import counter so every existing busy/blocked check also waits for the cutout.
+      '    pendingAssetImports++; canvasCutoutBusy.add(sourceId); publishDirty(); setError(""); render();',
+      '    try {',
+      '      if (await refreshCanvasMedia(current, store, [live()], true)) markDirty();',
+      '      const blob = await host.readSource(sourcePath, AbortSignal.timeout(60000), "图片读取失败");',
+      '      const detected = await backgroundRemoval.identify(blob);',
+      '      if (!detected) throw new Error("未识别到纯色背景，可用「调整抠图」手动取色");',
+      '      const cut = await backgroundRemoval.apply(blob, Object.assign({}, CANVAS_BACKGROUND_DEFAULTS, { automatic: false, color: detected.color }));',
+      '      await commitCanvasCutout(current, live, cut.blob);',
+      '    } catch (caught) {',
+      '      setError("抠图失败：" + ((caught && caught.message) || "处理出错"));',
+      '    } finally {',
+      '      canvasCutoutBusy.delete(sourceId); finishAssetImport(); render();',
+      '    }',
+      '  }',
+      '  async function commitCanvasCutout(current, live, blob) {',
+      '    live();',
+      // The result is a new card and wire; refuse before importing so saving cannot hit the store limit.
+      "    if (current.nodes.length >= 400 || current.edges.length >= 800) throw new Error('画布卡片已达到容量限制。');",
+      '    const saved = await store.importImage(current.id, await blob.arrayBuffer(), "image/png");',
+      '    await loadMedia(saved.relativePath);',
+      '    const source = live();',
+      // Cards may have been added while the image was imported.
+      "    if (current.nodes.length >= 400 || current.edges.length >= 800) throw new Error('画布卡片已达到容量限制。');",
+      '    remember();',
+      '    const applied = applyLocalImageResult(current, source, saved.relativePath, undefined, function () { return crypto.randomUUID(); });',
+      '    applied.title = (source.title + " · 抠图").slice(0, 80);',
+      '    invalidateCanvasDependents(current, applied.id);',
+      '    selected.clear(); selected.add(applied.id); selectionAction = ""; markDirty();',
+      '  }',
+      // Web 调整抠图: only the 去背景 dialog; 保存 commits like one-click 抠图 instead of the two-step local editor.
+      '  async function adjustCutout(node) {',
+      '    if ((imageEditing && imageEditing.isBusy) || pendingAssetImports || canvasCutoutBusy.size || !documentState) return;',
+      '    if (node.type !== "image" || !node.assetPath) { setError("请选择已有图片。"); return; }',
+      '    if (generationUi && (generationUi.isNodeBusy(node.id) || generationUi.hasUnsettledResult(node.id))) { setError("图片仍在生成中，请稍后再抠图。"); return; }',
+      '    if (node.mergeIcons && (node.templatePending || mergeIconNeedsGeneration(node))) { setError("阶段设置或参考已变更，请先生成新图集，不能处理旧图。"); return; }',
+      '    const decision = templateWorkflow.resolveTarget(node.id, "image", node.id);',
+      '    if (decision && decision.kind === "blocked") { setError(decision.message); return; }',
+      '    const current = documentState; const sourceId = node.id; const sourcePath = node.assetPath;',
+      '    const live = function () { const item = current.nodes.find(function (entry) { return entry.id === sourceId; }); if (documentState !== current || !item || item.assetPath !== sourcePath) throw new Error("来源图片已变化，未创建抠图结果。"); return item; };',
+      '    const hold = function () { pendingAssetImports++; canvasCutoutBusy.add(sourceId); publishDirty(); render(); };',
+      '    const release = function () { canvasCutoutBusy.delete(sourceId); finishAssetImport(); render(); };',
+      '    let blob;',
+      '    hold(); setError("");',
+      '    try { if (await refreshCanvasMedia(current, store, [live()], true)) markDirty(); blob = await host.readSource(sourcePath, AbortSignal.timeout(60000), "图片读取失败"); live(); }',
+      '    catch (caught) { setError("抠图失败：" + ((caught && caught.message) || "处理出错")); return; }',
+      '    finally { release(); }',
+      '    try {',
+      '      await openBackgroundEditor({ frames: [{ time: 0, blob: blob }], index: 0, removal: backgroundRemoval,',
+      '        confirm: { label: "保存", hint: "自动识别背景色；识别失败可切换手动固定色，输入颜色或从原图取色。推荐边缘连通保护主体；全图同色可能误删主体。保存后在右侧新建抠图卡片，原图保留。" },',
+      '        apply: async function (frames) { hold(); try { await commitCanvasCutout(current, live, frames[0].blob); } finally { release(); } } });',
+      '    } catch (caught) { setError("抠图失败：" + ((caught && caught.message) || "处理出错")); }',
       '  }',
       '  void boot().catch(function (caught) { setError(caught.message); });',
     ].join('\n')
@@ -1972,8 +2631,10 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  async function importProjectAsset(input) {',
       '      const current = documentState;',
       '      if (!current || current.nodes.length >= 400) throw new Error("画布未就绪或卡片已达到容量限制。");',
-      '      const versions = store.mediaVersions && typeof input.assetPath === "string" ? await store.mediaVersions([input.assetPath]) : undefined;',
-      '      const node = await prepareCanvasImportedNode(current.id, input, store.mediaUrl);',
+      '      // Nothing has changed yet, so host rejections and decode failures mean "not executed".',
+      '      const rejected = function (error) { if (error && !error.code) error.code = "INVALID_ARGS"; throw error; };',
+      '      const versions = store.mediaVersions && typeof input.assetPath === "string" ? await store.mediaVersions([input.assetPath]).catch(rejected) : undefined;',
+      '      const node = await prepareCanvasImportedNode(current.id, input, store.mediaUrl).catch(rejected);',
       '      if (versions && versions[node.assetPath]) node.assetVersion = { path: node.assetPath, version: versions[node.assetPath] };',
       '      if (documentState !== current) throw new Error("画布已切换，素材没有添加到其它画布。");',
       '      const point = nextPlacement(node.type); node.x = point.x; node.y = point.y;',
@@ -2297,6 +2958,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     '  async function leaveCurrent() {',
     '  async function leaveCurrent() { if (uiRecognitionUi && uiRecognitionUi.isBusy) { setError("识图仍在执行，请等待结果保存后再切换画布。"); return false; }'
   );
+  page = applyImageSlotPatches(page);
   page = replaceCanvasPageText(page, '<script>', '<script>' + (integration.themeScript || ''));
   page = replaceCanvasPageText(
     page,
@@ -2309,6 +2971,66 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     '    referencesBlocked: function () { return (uiRecognitionUi && uiRecognitionUi.isBusy) || canvasAutomationBusy ||'
   );
   page = replaceCanvasPageText(page, '</style>', CANVAS_THEME_STYLES + '</style>');
+  page = replaceCanvasPageText(page, '</style>', CANVAS_WEB_STYLES + '</style>');
+  page = replaceCanvasPageText(
+    page,
+    '  const host = createCanvasHost();',
+    "  const host = createCanvasHost();\n  const canvasWeb = host.appearance === 'web';\n  if (canvasWeb) document.documentElement.classList.add('canvas-appearance-web');"
+  );
+  // Web draws image references as side-to-side curves without arrowheads.
+  page = replaceCanvasPageText(
+    page,
+    "      path.setAttribute('marker-end', 'url(#canvas-wire-arrow)');",
+    "      if (canvasWeb && edge.kind === 'image-variant') path.setAttribute('d', canvasWebWire(from, to, view).d); else path.setAttribute('marker-end', 'url(#canvas-wire-arrow)');"
+  );
+  // Web opens the composer for AI slots (empty or generated); plain imported images only get the menu.
+  page = replaceCanvasPageText(
+    page,
+    '      const panelOpen = restricted ? adjusting : emptyImage || Boolean(selectionAction);',
+    '      const panelOpen = restricted ? adjusting : emptyImage || Boolean(selectionAction) || (canvasWeb && canvasWebSlot(node));'
+  );
+  // Bug fix (all appearances): drags re-render per pointermove, which rebuilt the open composer and reset its selects.
+  page = replaceCanvasPageText(
+    page,
+    '    function renderSelectionToolbar() {\n      selectionToolbar.replaceChildren();',
+    "    function renderSelectionToolbar() {\n      const previousComposer = composerHold || (drag && drag.moved && ['move', 'resize', 'pan'].includes(drag.kind)) ? selectionToolbar.querySelector(':scope > .selection-panel') : null;\n      selectionToolbar.replaceChildren();"
+  );
+  // Pressing the already-selected card starts a drag; its selection render must not rebuild the composer either.
+  page = replaceCanvasPageText(
+    page,
+    '        selectNode(node.id, event.shiftKey || event.metaKey || event.ctrlKey);\n        startDrag(event, node.id);',
+    '        composerHold = !(event.shiftKey || event.metaKey || event.ctrlKey) && selected.size === 1 && selected.has(node.id);\n        try { selectNode(node.id, event.shiftKey || event.metaKey || event.ctrlKey); } finally { composerHold = false; }\n        startDrag(event, node.id);'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  let drag = null;',
+    '  let drag = null;\n  let composerHold = false;'
+  );
+  page = replaceCanvasPageText(
+    page,
+    "      if (panelOpen) { const panel = document.createElement('div');",
+    "      const composerKey = panelOpen ? canvasComposerKey(documentState, node, [selectionAction, remoteState && remoteState.status, generationUi.isNodeBusy(node.id), restricted, adjusting]) : '';\n      if (panelOpen && previousComposer && previousComposer.dataset.composerKey === composerKey) { selectionToolbar.append(previousComposer); positionSelectionToolbar(); return; }\n      if (panelOpen) { const panel = document.createElement('div'); panel.dataset.composerKey = composerKey;"
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    renderSelectionToolbar();\n    wires.setAttribute',
+    '    if (canvasWeb) decorateCanvasWebCards({ world: world, doc: documentState, selected: selected, upload: requestImageImport, busy: function (id) { return Boolean(generationUi && (generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id))); } });\n    renderSelectionToolbar();\n    wires.setAttribute'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    select: function () { selected.clear(); }, remember: remember, changed: markDirty, render: render, remove:',
+    '    web: canvasWeb, select: function () { selected.clear(); }, remember: remember, changed: markDirty, render: render, remove:'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  canvasMarks = createCanvasMarks({',
+    '  var webChrome = canvasWeb ? createCanvasWebChrome({ board: board, current: function () { return documentState; } }) : null;\n  canvasMarks = createCanvasMarks({'
+  );
+  page = replaceCanvasPageText(
+    page,
+    "    } else if (drag.kind === 'wire') {\n      if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3) drag.moved = true;",
+    "    } else if (drag.kind === 'wire') {\n      if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3) drag.moved = true;\n      if (webChrome && drag.moved) webChrome.preview(drag, event);"
+  );
   page = replaceCanvasPageText(
     page,
     "      setStatus(ack.pending ? '未保存' : '已保存');",
@@ -2332,13 +3054,14 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '</style>',
-    '.canvas-work-time { position:absolute; right:8px; bottom:8px; padding:2px 6px; border-radius:4px; background:var(--canvas-panel, #24221e); color:var(--canvas-text, #d5c8ad); font-size:12px; font-variant-numeric:tabular-nums; pointer-events:none; }\n</style>'
+    '.canvas-work-time { position:absolute; right:8px; bottom:8px; padding:2px 6px; border-radius:4px; background:var(--canvas-panel, #24221e); color:var(--canvas-text, #d5c8ad); font-size:12px; font-variant-numeric:tabular-nums; pointer-events:none; }\n.canvas-card-header > .canvas-work-time { position:static; flex:none; padding:1px 6px; font-size:11px; line-height:16px; white-space:nowrap; }\n</style>'
   );
   page = replaceCanvasPageText(
     page,
     'void boot().catch',
     'void boot().then(function () { if (host.onReady && documentState) host.onReady(editorHandle); }).catch'
   );
+  page = applyWebInteractionPatches(page);
   // Keep template anchors from rewriting function bodies inside injected helpers.
   page = page.replace('/*__HELPERS__*/', () => helperSource);
   return page.replace(

@@ -61,12 +61,16 @@ export interface CanvasGenerationResult {
     ratio?: string;
     duration?: number;
     mode?: CanvasVideoMode;
+    /** Whether the standard game-asset constraint block is appended to image requests. */
+    assetConstraints?: boolean;
   };
   operation?: CanvasImageOperation;
   taskId?: string;
   attemptId?: string;
   sourceImageId?: string;
   sourceImageIds?: string[];
+  /** Set when an agent imported the image with its prompt; the page did not run the request. */
+  origin?: 'agent';
 }
 
 export interface CanvasGenerationDraft {
@@ -172,6 +176,12 @@ export interface CanvasDocument {
   edges: CanvasEdge[];
   templateFlow?: CanvasTemplateFlow;
   deletedGenerationIds?: string[];
+  /** Canvas-wide preferences; absent fields mean the built-in defaults. */
+  settings?: CanvasDocumentSettings;
+}
+export interface CanvasDocumentSettings {
+  /** Asset constraint appended to image requests; absent uses the built-in text. */
+  assetConstraintText?: string;
 }
 
 export interface CanvasTemplateFlow {

@@ -227,14 +227,25 @@ export async function runCanvasCli(
       !input ||
       typeof input !== 'object' ||
       Array.isArray(input) ||
-      Object.keys(input).some((key) => key !== 'title')
+      Object.keys(input).some((key) => !['title', 'prompt', 'sourceId'].includes(key))
     )
-      throw new Error('import input 只接受可选 title；素材由 --file 指定。');
+      throw new Error('import input 只接受可选 title、prompt、sourceId；素材由 --file 指定。');
     if (
       'title' in input &&
       (typeof input.title !== 'string' || !input.title.trim() || input.title.length > 80)
     )
       throw new Error('导入标题必须为1～80字符。');
+    // Check what the page would refuse before the file is uploaded into the project.
+    if (
+      'prompt' in input &&
+      (typeof input.prompt !== 'string' || !input.prompt.trim() || input.prompt.length > 8000)
+    )
+      throw new Error('prompt 必须为 1～8000 字符。');
+    if (
+      'sourceId' in input &&
+      (typeof input.sourceId !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.sourceId))
+    )
+      throw new Error('sourceId 必须是当前画布中已有图片的 ID。');
     if (options.request_id !== undefined) {
       let exists = false;
       try {
@@ -246,6 +257,8 @@ export async function runCanvasCli(
       if (exists) throw new Error('原 request-id 已有记录，请用 status 查询，不要再次导入。');
     }
     const asset = readCanvasImport(options.file);
+    if (asset.kind !== 'image' && ('prompt' in input || 'sourceId' in input))
+      throw new Error('prompt、sourceId 只能用于导入图片。');
     const response = await connection.transfer(
       '/' + encodeURIComponent(command.canvasId) + (asset.kind === 'image' ? '/images' : '/videos'),
       {

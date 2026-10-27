@@ -34,7 +34,7 @@ export function canvasAutomationCapabilities() {
       recognition:
         'recognize-ui with input {id: recognition card ID} and --allow-paid generates Bbox only, preserving existing images. For pending requests it queries the original request; query is also available without --allow-paid. To resume Server API work, pass recover:true with --allow-paid; this reuses the original request and skips completed passes without a browser dialog. If an older client cleared pendingId, also pass the original attemptId. Recovery never creates a new attempt when the original is missing. Local or web recognition remains an external Agent workflow.',
       status:
-        'status, wait and export --output-dir exit nonzero for failed or unknown operations. Unknown does not mean failed; inspect the original card and request before any retry.',
+        'status, wait and export --output-dir exit nonzero for failed or unknown operations. Unknown does not mean failed; inspect the original card and request before any retry. A failed operation with code INVALID_ARGS (arguments or page state) or NOT_FOUND (canvas, card or edge missing) was refused before any change: fix the cause and submit with a new request-id. A failed operation without code may have started work (for example a 015 run or a save after an edit): inspect before deciding; never resubmit paid steps blindly.',
     },
     nodeTypes: ['image', 'video', 'note', 'mark', 'sequence', 'animation', 'model-views', 'model'],
     editable: [
@@ -141,11 +141,44 @@ export function canvasAutomationCapabilities() {
         id: 'model card ID',
         reviewId: 'current review token; requires explicit user approval of all returned previews',
       },
-      import: { file: 'CLI --file: absolute local path', title: 'optional title in input JSON' },
+      import: {
+        file: 'CLI --file: absolute local path; page hosts pass assetPath (project-relative, any Unicode file name)',
+        kind: 'optional image/video; default image',
+        title: 'optional 1..80 chars; default the file name without extension',
+        prompt:
+          'optional 1..8000 chars, image only: records it as the generation prompt so selecting the card reopens the composer prefilled. Nothing is generated.',
+        sourceId:
+          'optional saved image ID, image only: places the new card beside it and adds an image-variant edge source -> new card',
+      },
       'set-references': {
         id: 'target image/video ID',
         sourceIds: 'ordered image IDs; [] clears',
         includeSelf: 'optional boolean, image only; default false',
+      },
+      connect: {
+        from: 'saved image ID',
+        to: 'video input card ID (first frame), or image ID: appends from as an image reference; an empty image (slot) then submits every connected image in order',
+      },
+      disconnect: {
+        edgeId:
+          'image reference (image-variant) or first-frame edge ID; same result as deleting the wire on the page: draft references to that source are cleared, template members are marked pending and downstream results become stale',
+      },
+      undo: {
+        note: 'empty input; reverts the latest page edit, INVALID_ARGS when nothing to undo. Also allowed when the page cannot save its pending edit, so the edit that breaks saving can be reverted; tasks, dialogs, drafts and other pages still block it.',
+      },
+      redo: { note: 'empty input; reapplies the latest undone edit' },
+      'fill-slot': {
+        id: 'empty image card (slot) ID',
+        assetPath:
+          'assetPath of an image already on this canvas (local hosts accept canvas images only: assets/image/canvas-<id>.png or .maker/canvases/images/canvas-<id>.png, as returned by import); this command does not upload, so bring other files in with import --file first. Fills the slot in place, keeping id, position, width and edges. No generation.',
+        prompt: 'optional; same as import prompt',
+      },
+      'replace-image': {
+        id: 'image card ID that already has an image; empty slots use fill-slot',
+        assetPath:
+          'canvas image path, same rule as fill-slot; replaces the image in place, keeping id, position, width, title and edges; height follows the image ratio. Undoable; downstream results become stale like a manual image change. No generation.',
+        prompt:
+          'optional; same as import prompt. Without it, previous generation metadata is cleared',
       },
       'add-node': {
         type: 'image/video/note/mark/sequence/animation/model-views/model',

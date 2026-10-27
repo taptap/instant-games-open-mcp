@@ -8,6 +8,14 @@ export interface BackgroundOptions {
   edgeDespill?: boolean;
 }
 
+/** Initial 去背景 editor settings; one-click cutout applies the same values. */
+export const CANVAS_BACKGROUND_DEFAULTS: BackgroundOptions = {
+  automatic: true,
+  tolerance: 32,
+  softness: 24,
+  despill: 0.5,
+  mode: 'connected',
+};
 export function backgroundColorsDiffer(
   left: [number, number, number],
   right: [number, number, number],

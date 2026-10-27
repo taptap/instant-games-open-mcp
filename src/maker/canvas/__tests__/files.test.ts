@@ -995,4 +995,129 @@ describe('Maker canvas files', () => {
     fs.symlinkSync(os.tmpdir(), images);
     await expect(files.create('链接')).rejects.toMatchObject({ code: 'UNSAFE_PATH' });
   });
+
+  test('keeps Agent origin and asset-constraint choices on results and drafts', async () => {
+    const root = project('maker-canvas-generation-fields-');
+    gitignore(root);
+    const files = new MakerCanvasFiles(root);
+    const created = await files.create(undefined, 'starter');
+    const result = {
+      ...created.nodes[0],
+      id: createId(),
+      x: 400,
+      generation: {
+        prompt: '完整角色，站立',
+        referenceImagePaths: [],
+        parameters: { assetConstraints: false },
+        operation: 'generate' as const,
+        origin: 'agent' as const,
+      },
+    };
+    const slot = {
+      id: createId(),
+      type: 'image' as const,
+      x: 800,
+      y: 0,
+      width: 260,
+      height: 220,
+      title: '图片生成槽 · 待生成',
+      generationDraft: {
+        operation: 'generate' as const,
+        prompt: '完整道具',
+        parameters: { assetConstraints: true },
+      },
+    };
+    const saved = await files.save(
+      created.id,
+      { ...created, nodes: [...created.nodes, result, slot] },
+      created.revision
+    );
+    const loaded = await files.load(saved.id);
+    const savedResult = loaded.nodes.find((node) => node.id === result.id)!;
+    expect(savedResult.generation?.origin).toBe('agent');
+    expect(savedResult.generation?.parameters?.assetConstraints).toBe(false);
+    expect(loaded.nodes.find((node) => node.id === slot.id)?.generationDraft?.parameters).toEqual({
+      assetConstraints: true,
+    });
+    for (const generation of [
+      { ...result.generation, origin: 'page' },
+      { ...result.generation, parameters: { assetConstraints: 'yes' } },
+    ])
+      await expect(
+        files.save(
+          loaded.id,
+          {
+            ...loaded,
+            nodes: loaded.nodes.map((node) =>
+              node.id === result.id ? ({ ...node, generation } as any) : node
+            ),
+          },
+          loaded.revision
+        )
+      ).rejects.toMatchObject({ code: 'INVALID_DOCUMENT' });
+  });
+
+  test('saves image reference relations created by connect, linked slots and Agent imports', async () => {
+    const root = project('maker-canvas-reference-relations-');
+    gitignore(root);
+    const files = new MakerCanvasFiles(root);
+    const created = await files.create(undefined, 'starter');
+    const source = created.nodes[0];
+    // An imported or replaced image: asset only, no generation provenance for the source.
+    const existing = { ...source, id: createId(), x: 400, title: '已有图片' };
+    // Left linked slot: a fresh slot without a prompt referencing an existing image.
+    const linkedSlot = {
+      id: createId(),
+      type: 'image' as const,
+      x: -400,
+      y: 0,
+      width: 220,
+      height: 150,
+      title: '图片生成槽 · 待生成',
+      generationDraft: { operation: 'generate' as const },
+    };
+    // Right linked slot: an empty slot fed by explicit edges.
+    const rightSlot = {
+      ...linkedSlot,
+      id: createId(),
+      x: 800,
+      referenceInput: { includeSelf: false },
+    };
+    const edge = (from: string, to: string) => ({
+      id: createId(),
+      from,
+      to,
+      kind: 'image-variant' as const,
+    });
+    const saved = await files.save(
+      created.id,
+      {
+        ...created,
+        nodes: [source, existing, linkedSlot, rightSlot],
+        edges: [
+          edge(source.id, existing.id),
+          edge(linkedSlot.id, existing.id),
+          edge(existing.id, rightSlot.id),
+        ],
+      },
+      created.revision
+    );
+    expect((await files.load(saved.id)).edges).toEqual(saved.edges);
+    expect(saved.edges).toHaveLength(3);
+
+    const reject = (nodes: any[], edges: any[]) =>
+      expect(
+        files.save(saved.id, { ...saved, nodes, edges }, saved.revision)
+      ).rejects.toMatchObject({ code: 'INVALID_EDGE' });
+    const note = { ...source, id: createId(), type: 'note' as const, text: '便签' };
+    delete (note as any).assetPath;
+    // A non-image endpoint, an empty slot without references, a self loop and a duplicate stay invalid.
+    await reject([source, note], [edge(source.id, note.id)]);
+    await reject(
+      [source, { ...linkedSlot, generationDraft: { operation: 'outpaint' as const } }],
+      [edge(source.id, linkedSlot.id)]
+    );
+    await reject([source], [edge(source.id, source.id)]);
+    await reject([source, existing], [edge(source.id, existing.id), edge(source.id, existing.id)]);
+  });
 });
