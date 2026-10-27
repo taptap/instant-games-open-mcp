@@ -512,6 +512,146 @@ export function canvasWebSyncVideoPlay(button: HTMLElement, player: HTMLVideoEle
     '</svg>';
 }
 
+/** Web video progress bar (time, seek slider, mute); built once per reused player so it survives re-renders. */
+export function canvasWebVideoBar(player: HTMLVideoElement): HTMLElement {
+  const owner = player as HTMLVideoElement & { canvasWebBar?: HTMLElement };
+  if (owner.canvasWebBar) return owner.canvasWebBar;
+  const bar = document.createElement('div');
+  bar.className = 'web-video-bar';
+  const time = document.createElement('span');
+  time.className = 'web-video-time';
+  const track = document.createElement('div');
+  track.className = 'web-video-track';
+  track.tabIndex = 0;
+  track.setAttribute('role', 'slider');
+  track.setAttribute('aria-label', '播放进度');
+  track.setAttribute('aria-valuemin', '0');
+  const fill = document.createElement('div');
+  fill.className = 'web-video-fill';
+  const thumb = document.createElement('div');
+  thumb.className = 'web-video-thumb';
+  track.append(fill, thumb);
+  const mute = document.createElement('button');
+  mute.type = 'button';
+  mute.className = 'web-video-mute';
+  bar.append(time, track, mute);
+  owner.canvasWebBar = bar;
+  const clock = (seconds: number) => {
+    const whole = Math.max(0, Math.floor(seconds || 0));
+    return Math.floor(whole / 60) + ':' + String(whole % 60).padStart(2, '0');
+  };
+  const duration = () => (Number.isFinite(player.duration) ? player.duration : 0);
+  let frame = 0;
+  const sync = () => {
+    const total = duration();
+    const now = Math.min(player.currentTime || 0, total || Infinity);
+    const text = clock(now) + ' / ' + clock(total);
+    const ratio = total ? Math.min(1, now / total) : 0;
+    time.textContent = text;
+    fill.style.width = ratio * 100 + '%';
+    thumb.style.left = ratio * 100 + '%';
+    track.setAttribute('aria-valuemax', String(Math.round(total * 10) / 10));
+    track.setAttribute('aria-valuenow', String(Math.round(now * 10) / 10));
+    track.setAttribute('aria-valuetext', text);
+    bar.dataset.playing = String(!player.paused && !player.ended);
+    const muted = player.muted || player.volume === 0;
+    const label = muted ? '取消静音' : '静音';
+    mute.setAttribute('aria-label', label);
+    mute.setAttribute('aria-pressed', String(muted));
+    mute.dataset.webTip = label;
+    // lucide volume-2 / volume-x
+    mute.innerHTML =
+      '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/>' +
+      (muted
+        ? '<line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/>'
+        : '<path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.7"/>') +
+      '</svg>';
+  };
+  // timeupdate fires ~4Hz, so a frame loop keeps the bar smooth while playing.
+  const loop = () => {
+    frame = 0;
+    sync();
+    if (!player.paused && !player.ended && player.isConnected) frame = requestAnimationFrame(loop);
+  };
+  const seek = (seconds: number) => {
+    const total = duration();
+    if (!total) return;
+    player.currentTime = Math.max(0, Math.min(total, seconds));
+    sync();
+  };
+  const seekAt = (clientX: number) => {
+    const rect = track.getBoundingClientRect();
+    if (rect.width > 0) seek(((clientX - rect.left) / rect.width) * duration());
+  };
+  // MediaRecorder WebMs report an Infinity duration until seeked past the end, which leaves nothing to seek.
+  let probing = false;
+  player.addEventListener('loadedmetadata', () => {
+    if (player.duration !== Infinity || !player.paused || player.currentTime) return;
+    probing = true;
+    player.currentTime = 1e7;
+  });
+  player.addEventListener('durationchange', () => {
+    if (!probing || !Number.isFinite(player.duration)) return;
+    probing = false;
+    player.currentTime = 0;
+  });
+  [
+    'loadedmetadata',
+    'durationchange',
+    'timeupdate',
+    'seeked',
+    'pause',
+    'ended',
+    'volumechange',
+  ].forEach((name) => player.addEventListener(name, sync));
+  player.addEventListener('play', () => {
+    if (!frame) frame = requestAnimationFrame(loop);
+    sync();
+  });
+  // The card drags on pointerdown, so nothing that starts on the bar may reach it.
+  ['pointerdown', 'mousedown', 'click', 'dblclick', 'contextmenu'].forEach((name) =>
+    bar.addEventListener(name, (event) => event.stopPropagation())
+  );
+  track.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    track.focus({ preventScroll: true });
+    track.setPointerCapture(event.pointerId);
+    bar.dataset.seeking = 'true';
+    seekAt(event.clientX);
+  });
+  track.addEventListener('pointermove', (event) => {
+    if (track.hasPointerCapture(event.pointerId)) seekAt(event.clientX);
+  });
+  const release = (event: PointerEvent) => {
+    if (track.hasPointerCapture(event.pointerId)) track.releasePointerCapture(event.pointerId);
+    delete bar.dataset.seeking;
+  };
+  track.addEventListener('pointerup', release);
+  track.addEventListener('pointercancel', release);
+  track.addEventListener('keydown', (event) => {
+    const steps: Record<string, number> = {
+      ArrowLeft: -1,
+      ArrowDown: -1,
+      ArrowRight: 1,
+      ArrowUp: 1,
+    };
+    if (event.key in steps) seek((player.currentTime || 0) + steps[event.key]);
+    else if (event.key === 'Home') seek(0);
+    else if (event.key === 'End') seek(duration());
+    else return;
+    // Canvas shortcuts (arrow nudge, delete) must not also act on the selected card.
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  mute.addEventListener('click', () => {
+    player.muted = !(player.muted || player.volume === 0);
+    if (!player.muted && player.volume === 0) player.volume = 1;
+    sync();
+  });
+  sync();
+  return bar;
+}
 /** Side + chooser: a small menu next to the ring; arrows move, Esc closes and refocuses the +. */
 export function openCanvasWebSlotChooser(options: {
   anchor: HTMLElement;

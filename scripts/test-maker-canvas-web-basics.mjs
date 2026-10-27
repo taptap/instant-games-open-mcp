@@ -4170,6 +4170,120 @@ try {
       await page.close();
     }
   );
+  await check(
+    'Web 视频卡进度条：时间/时长，点击与拖动跳转不拖卡，键盘 ±1s，重渲染不重置，卡片仍可拖',
+    async () => {
+      const { page, errors, editor, settle, current, card, blank, shoot } = await webPage({
+        features: videoFeatures,
+        videoStore: true,
+      });
+      await settle();
+      const video = await importVideo(page, '进度条');
+      await editor('update-nodes', { nodes: [{ id: video.id, x: 300, y: 200 }] });
+      await settle();
+      await blank();
+      const player = card(video.id).locator('video');
+      await waitMetadata(player);
+      await page.waitForFunction((id) => {
+        const item = document.querySelector('.card[data-id="' + id + '"] video');
+        return Number.isFinite(item.duration) && item.duration > 0 && item.currentTime === 0;
+      }, video.id);
+      await player.evaluate((item) => (window.__videoMark = item));
+      const bar = card(video.id).locator('.web-video-bar');
+      const track = bar.getByRole('slider', { name: '播放进度' });
+      assert.equal(
+        await bar.evaluate((item) => getComputedStyle(item).opacity),
+        '0',
+        '未悬停时隐藏'
+      );
+      await card(video.id).hover({ position: { x: 120, y: 100 } });
+      await page.waitForFunction(
+        (id) =>
+          getComputedStyle(document.querySelector('.card[data-id="' + id + '"] .web-video-bar'))
+            .opacity > '0.9',
+        video.id
+      );
+      const duration = await player.evaluate((item) => item.duration);
+      assert.match(await bar.locator('.web-video-time').textContent(), /^0:00 \/ 0:0\d$/);
+      assert.equal(await track.getAttribute('aria-valuenow'), '0');
+      assert.equal(
+        await track.getAttribute('aria-valuemax'),
+        String(Math.round(duration * 10) / 10)
+      );
+      await themes(page, (theme) => shoot('v12-' + theme + '-video-progress.png'));
+      const before = (await current()).nodes.find((node) => node.id === video.id);
+      const rect = await track.boundingBox();
+      await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      const clicked = await player.evaluate((item) => item.currentTime / item.duration);
+      assert.ok(Math.abs(clicked - 0.5) < 0.08, '点击中点跳到一半：' + clicked);
+      assert.equal(await player.evaluate((item) => item.paused), true, '跳转不触发播放');
+      // Drag along the bar: seeks, never moves the card.
+      await page.mouse.move(rect.x + rect.width * 0.2, rect.y + rect.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(rect.x + rect.width * 0.6, rect.y + rect.height / 2 + 30, { steps: 6 });
+      await page.mouse.move(rect.x + rect.width * 0.9, rect.y + rect.height / 2 + 30, { steps: 4 });
+      await page.mouse.up();
+      await settle();
+      const dragged = await player.evaluate((item) => item.currentTime / item.duration);
+      assert.ok(Math.abs(dragged - 0.9) < 0.08, '拖动跳到 90%：' + dragged);
+      const still = (await current()).nodes.find((node) => node.id === video.id);
+      assert.deepEqual([still.x, still.y], [before.x, before.y], '拖进度条不移动卡片');
+      // Keyboard: focused slider steps 1s, clamped to the clip; arrows don't nudge the card.
+      await track.focus();
+      await page.keyboard.press('Home');
+      assert.equal(await player.evaluate((item) => item.currentTime), 0);
+      await page.keyboard.press('ArrowRight');
+      const stepped = await player.evaluate((item) => item.currentTime);
+      assert.ok(Math.abs(stepped - Math.min(1, duration)) < 0.01, '→ 前进 1s');
+      await page.keyboard.press('ArrowLeft');
+      assert.equal(await player.evaluate((item) => item.currentTime), 0, '← 后退 1s');
+      await page.keyboard.press('End');
+      assert.equal(
+        await track.getAttribute('aria-valuenow'),
+        String(Math.round(duration * 10) / 10)
+      );
+      assert.match(await track.getAttribute('aria-valuetext'), /^0:0\d \/ 0:0\d$/);
+      const keyed = (await current()).nodes.find((node) => node.id === video.id);
+      assert.deepEqual([keyed.x, keyed.y], [before.x, before.y], '方向键不挪卡片');
+      // Mute toggle.
+      const mute = bar.locator('.web-video-mute');
+      const muted = await player.evaluate((item) => item.muted);
+      await mute.click();
+      assert.equal(await player.evaluate((item) => item.muted), !muted);
+      assert.equal(await mute.getAttribute('aria-pressed'), String(!muted));
+      // Re-renders keep the same bar and position.
+      await player.evaluate((item) => (item.currentTime = item.duration / 2));
+      const barMark = await bar.evaluate((item) => (window.__barMark = item) && true);
+      assert.ok(barMark);
+      await blank();
+      await page.mouse.move(700, 500);
+      await page.mouse.wheel(0, -120);
+      await editor('update-nodes', { nodes: [{ id: video.id, title: '进度条 2' }] });
+      const kept = await page.evaluate((id) => {
+        const element = document.querySelector('.card[data-id="' + id + '"] .web-video-bar');
+        return {
+          same: element === window.__barMark,
+          ratio: window.__videoMark.currentTime / window.__videoMark.duration,
+        };
+      }, video.id);
+      assert.equal(kept.same, true, '同一进度条');
+      assert.ok(Math.abs(kept.ratio - 0.5) < 0.02, '进度不重置');
+      await page.mouse.wheel(0, 120);
+      await settle();
+      // The card still drags from the picture area.
+      await blank();
+      const start = (await current()).nodes.find((node) => node.id === video.id);
+      const box = await player.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 3 + 40, { steps: 6 });
+      await page.mouse.up();
+      const moved = (await current()).nodes.find((node) => node.id === video.id);
+      assert.ok(moved.x - start.x > 40 && moved.y - start.y > 20, '拖画面仍移动卡片');
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
   await check('默认外观：视频卡重渲染也复用同一 <video>（共用修复），保留原生控件', async () => {
     const { page, errors } = await openCanvas({ videoStore: true });
     const video = await importVideo(page, '默认视频');
@@ -4189,6 +4303,7 @@ try {
       true
     );
     assert.equal(await page.locator('.web-video-play').count(), 0);
+    assert.equal(await page.locator('.web-video-bar').count(), 0);
     assert.deepEqual(errors, []);
     await page.close();
   });
@@ -4286,6 +4401,88 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   });
+  for (const appearance of ['web', 'default']) {
+    await check(
+      '动画卡（' + appearance + '）：重渲染复用同一 canvas，当前帧立即可见（不闪）',
+      async () => {
+        const atlas = 'assets/image/canvas/animation-atlas.png';
+        const frame = (index) => ({
+          index,
+          time: index / 8,
+          x: index * 60,
+          y: 0,
+          width: 60,
+          height: 120,
+        });
+        const { page, errors } = await openCanvas({
+          features: videoFeatures,
+          ...(appearance === 'web' ? { appearance } : {}),
+          seedMedia: { [atlas]: '#c33' },
+          seedDocuments: [
+            {
+              id: '44444444-4444-4444-8444-444444444444',
+              title: '动画画布',
+              revision: 1,
+              viewport: { x: 0, y: 0, scale: 1 },
+              nodes: [
+                {
+                  id: 'anim-1',
+                  type: 'animation',
+                  x: 240,
+                  y: 160,
+                  width: 360,
+                  height: 300,
+                  title: '动画',
+                  assetPath: atlas,
+                  frameSetInfo: {
+                    fps: 8,
+                    frameCount: 2,
+                    width: 60,
+                    height: 120,
+                    columns: 2,
+                    rows: 1,
+                    frames: [frame(0), frame(1)],
+                  },
+                },
+              ],
+              edges: [],
+            },
+          ],
+        });
+        await page.waitForFunction(() => {
+          const canvas = document.querySelector('.card[data-id="anim-1"] .animation-preview');
+          return canvas && canvas.getContext('2d').getImageData(160, 120, 1, 1).data[3] > 0;
+        });
+        const sync = await page.evaluate(() => {
+          const board = document.getElementById('board');
+          const before = document.querySelector('.card[data-id="anim-1"] .animation-preview');
+          const card = before.closest('.card');
+          board.dispatchEvent(
+            new WheelEvent('wheel', {
+              deltaY: -100,
+              clientX: 600,
+              clientY: 400,
+              bubbles: true,
+              cancelable: true,
+            })
+          );
+          const canvas = document.querySelector('.card[data-id="anim-1"] .animation-preview');
+          return {
+            rerendered: canvas.closest('.card') !== card,
+            same: canvas === before,
+            alpha: canvas.getContext('2d').getImageData(160, 120, 1, 1).data[3],
+            play: canvas.closest('.card').querySelector('.animation-controls button').disabled,
+          };
+        });
+        assert.equal(sync.rerendered, true, '卡片已重建');
+        assert.equal(sync.same, true, '复用同一 canvas');
+        assert.ok(sync.alpha > 0, '重渲染后同步可见');
+        assert.equal(sync.play, false, '播放按钮立即可用');
+        assert.deepEqual(errors, []);
+        await page.close();
+      }
+    );
+  }
   await check(
     'Web 侧边＋：选择「图片卡片 / 视频卡片」，键盘可用；视频槽以首帧连入，曲线连线',
     async () => {

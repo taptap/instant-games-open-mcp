@@ -49,6 +49,7 @@ import {
   createCanvasWebChrome,
   decorateCanvasWebCards,
   canvasWebSyncVideoPlay,
+  canvasWebVideoBar,
   openCanvasWebSlotChooser,
 } from './webChrome.js';
 import { canvasCachedImage, canvasWhenImageReady } from './mediaReuse.js';
@@ -1084,6 +1085,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasWebIconAction.toString(),
     installCanvasWebTooltips.toString(),
     canvasWebSyncVideoPlay.toString(),
+    canvasWebVideoBar.toString(),
     openCanvasWebSlotChooser.toString(),
     canvasCachedImage.toString(),
     canvasWhenImageReady.toString(),
@@ -1506,7 +1508,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       "          play.addEventListener('click', function (event) { event.stopPropagation(); if (target.paused || target.ended) void target.play().catch(function () {}); else target.pause(); });",
       '          player.canvasBinding.play = play;',
       '          syncVideoPlay(play, player);',
-      '          card.append(play);',
+      '          card.append(play, canvasWebVideoBar(player));',
       '        }',
       '      }',
       "      if (node.type === 'sequence') {",

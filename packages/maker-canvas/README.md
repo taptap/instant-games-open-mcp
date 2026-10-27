@@ -302,6 +302,11 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
   `first-frame` 从该图连入，不继承任何图片参数。未开 `features.video` 或空图片槽的「+」仍直接新建图片槽。
 - 视频结果卡不带原生控件：按下拖动与图片卡一样移动卡片，点击卡片只选中、不播放；播放/暂停只走框内
   左下角 28px 圆形按钮（`.web-video-play`，lucide play / pause，`aria-label` 随状态切换）。
+- 播放按钮右侧为紧凑进度条（`canvasWebVideoBar`，每个复用的 `<video>` 只建一次，重渲染不重置）：
+  显示「当前 / 时长」，点击或拖动轨道跳转，带静音切换；悬停、选中、聚焦或播放中才显示，隐藏时不拦截
+  指针，进度条上的指针事件不冒泡到卡片拖拽。轨道为 `role="slider"`，方向键 ±1s、Home/End 到首尾，
+  同步 `aria-valuenow` / `aria-valuetext`。MediaRecorder 产出的 WebM 时长为 `Infinity`，加载元数据后
+  先探测一次真实时长再回到 0。
 - 文生视频：未连接也未导入任何图片的视频槽可只按提示词生成，面板不显示输入方式胶囊，比例只提供
   `16:9`（默认）/`9:16`/`1:1`（自适应依赖图片）；连接图片后自动回到首帧等模式。
 - 模型 2.5 不再弹页面自己的「按当前参数开始生成视频？」确认，费用确认由 Web 宿主负责，页面传
@@ -335,7 +340,8 @@ parameters.mode, prompt, error, remoteStatus, executionState, credits, createdAt
 
 两种外观共有的修复：视频结果卡的 `<video>` 按卡片 id + 媒体 URL 跨渲染复用（此前每次 `render()`
 重建，点击、平移都会重新加载并把播放进度归零而闪烁）；序列帧卡帧格用 `canvasCachedImage` 缓存的已解码
-图集同步重绘；序列帧编辑器跨进度刷新保留预览画布、抽帧视频与按 Blob 缓存的缩略图位图，处理过程中不再闪。
+图集同步重绘；动画卡在 `createAnimationCards` 闭包内按卡片 id + 图集 URL/帧布局复用已绘制的 canvas
+与已解码图集（不依赖页面全局缓存，单独注入时同样可用），重渲染时当前帧立即可见、播放计时连续；序列帧编辑器跨进度刷新保留预览画布、抽帧视频与按 Blob 缓存的缩略图位图，处理过程中不再闪。
 拖拽、缩放或平移时提示词面板不再随每次 `pointermove` 重建，只重新定位，
 下拉、已输入提示词和选择保持原节点（以 `canvasComposerKey` 判断卡片内容是否变化）；生图模型
 列表按工具（`generate_image` / `edit_image`）缓存，提交时仍读取最新值并刷新缓存，读取失败不缓存。

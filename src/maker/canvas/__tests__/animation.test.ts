@@ -98,10 +98,91 @@ describe('animation output cards', () => {
     controller.beginRender([node]);
     controller.render(card, node);
     expect(() => frame(now - 0.5)).not.toThrow();
-    expect(elements.filter((element) => element.tag === 'canvas').at(-1)!.dataset.frameIndex).toBe(
-      '0'
+    expect(['0', '1']).toContain(
+      elements.filter((element) => element.tag === 'canvas').at(-1)!.dataset.frameIndex
     );
     expect(pending.size).toBe(1);
+  });
+  test('reuses the painted canvas and decoded atlas across renders until the asset changes', () => {
+    const elements: Array<{ tag: string; dataset: Record<string, string> }> = [];
+    const drawing = { clearRect: jest.fn(), drawImage: jest.fn() };
+    const loads: Array<() => void> = [];
+    let images = 0;
+    const factory = new Script('(' + createAnimationCards.toString() + ')').runInNewContext({
+      document: {
+        hidden: false,
+        createElement: (tag: string) => {
+          const element = {
+            tag,
+            textContent: '',
+            dataset: {} as Record<string, string>,
+            append: jest.fn(),
+            getContext: () => drawing,
+            addEventListener: jest.fn(),
+          };
+          elements.push(element);
+          return element;
+        },
+      },
+      Image: class {
+        onload?: () => void;
+        constructor() {
+          images += 1;
+        }
+        set src(_value: string) {
+          loads.push(() => this.onload?.());
+        }
+      },
+      performance: { now: () => 0 },
+      requestAnimationFrame: () => 1,
+      cancelAnimationFrame: () => undefined,
+    });
+    const controller: ReturnType<typeof createAnimationCards> = factory(
+      (assetPath: string) => '/' + assetPath
+    );
+    const node = {
+      id: createId(),
+      type: 'animation' as const,
+      x: 0,
+      y: 0,
+      width: 320,
+      height: 240,
+      assetPath: 'assets/image/atlas.png',
+      frameSetInfo: {
+        fps: 4,
+        frameCount: 1,
+        width: 64,
+        height: 64,
+        columns: 1,
+        rows: 1,
+        frames: [{ index: 0, time: 0, x: 0, y: 0, width: 64, height: 64 }],
+      },
+    };
+    const cardAppends: unknown[][] = [];
+    const render = () => {
+      const card = {
+        isConnected: true,
+        append: (...children: unknown[]) => cardAppends.push(children),
+      } as unknown as HTMLElement;
+      controller.beginRender([node]);
+      controller.render(card, node);
+    };
+    render();
+    render();
+    loads.splice(0).forEach((load) => load());
+    const canvases = () => elements.filter((element) => element.tag === 'canvas');
+    expect(canvases()).toHaveLength(1);
+    expect(canvases()[0].dataset.frameIndex).toBe('0');
+    render();
+    expect(images).toBe(1);
+    expect(canvases()).toHaveLength(1);
+    expect(cardAppends.at(-1)![0]).toBe(canvases()[0]);
+    expect(canvases()[0].dataset.frameIndex).toBe('0');
+    expect(drawing.drawImage).toHaveBeenCalledTimes(1);
+    node.assetPath = 'assets/image/atlas-2.png';
+    render();
+    expect(images).toBe(2);
+    expect(canvases()).toHaveLength(2);
   });
 
   test('copies a saved result without linking its mutable frame metadata', () => {
