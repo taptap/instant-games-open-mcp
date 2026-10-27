@@ -31,6 +31,7 @@ import {
   type CanvasEdge,
   type CanvasNode,
   type CanvasSummary,
+  type CanvasVideoMode,
 } from './model.js';
 import { MAX_SEQUENCE_FRAMES } from './sequenceModel.js';
 import { STARTER_IMAGE_BASE64 } from './starterImages.js';
@@ -1849,17 +1850,18 @@ export class MakerCanvasFiles {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       fail('生成参数无效。', 400, 'INVALID_DOCUMENT');
     const input = value as Record<string, unknown>;
+    // text_to_video is only produced by the Web appearance; accept it so those canvases still open.
     if (
       input.mode !== undefined &&
-      !['first_frame', 'first_last_frame', 'multi_modal_reference'].includes(String(input.mode))
+      !['text_to_video', 'first_frame', 'first_last_frame', 'multi_modal_reference'].includes(
+        String(input.mode)
+      )
     )
       fail('视频输入模式无效。', 400, 'INVALID_DOCUMENT');
     if (input.assetConstraints !== undefined && typeof input.assetConstraints !== 'boolean')
       fail('素材约束开关无效。', 400, 'INVALID_DOCUMENT');
     return {
-      ...(input.mode === undefined
-        ? {}
-        : { mode: input.mode as 'first_frame' | 'first_last_frame' | 'multi_modal_reference' }),
+      ...(input.mode === undefined ? {} : { mode: input.mode as CanvasVideoMode }),
       ...(input.model === undefined ? {} : { model: text(input.model, 80, '模型') }),
       ...(input.resolution === undefined
         ? {}

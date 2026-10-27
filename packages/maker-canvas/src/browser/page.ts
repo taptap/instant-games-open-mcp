@@ -1826,8 +1826,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  async function exportCanvasPng() {',
       '    if (!documentState) return;',
       '    const snapshot = structuredClone(documentState);',
-      // Bounds follow the wires as drawn: Web reference curves ignore saved elbow routes.
-      "    const plan = canvasPngPlan(snapshot, function (edge, from, to) { return canvasWeb && edge.kind === 'image-variant' ? canvasWebWire(from, to, { x: 0, y: 0, scale: 1 }).points : canvasWireGeometry(from, to, snapshot.nodes, snapshot.edges, edge.route).points; });",
+      // Bounds follow the wires as drawn: Web draws every edge as a curve and ignores saved elbow routes.
+      '    const plan = canvasPngPlan(snapshot, function (edge, from, to) { return canvasWeb ? canvasWebWire(from, to, { x: 0, y: 0, scale: 1 }).points : canvasWireGeometry(from, to, snapshot.nodes, snapshot.edges, edge.route).points; });',
       "    if (!plan) { setError('画布没有可导出的内容。'); return; }",
       '    return deliverResource({ filename: (snapshot.title || "canvas") + ".png", mime: "image/png", produce: async function () {',
       '    const left = plan.left; const top = plan.top; const scale = plan.scale;',
@@ -1866,7 +1866,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       "    context.save(); context.strokeStyle = 'rgba(215,181,109,.8)'; context.lineWidth = 2 * scale; context.lineJoin = 'round'; context.lineCap = 'round';",
       '    for (const edge of plan.edges) {',
       '      const from = snapshot.nodes.find(function (node) { return node.id === edge.from; }); const to = snapshot.nodes.find(function (node) { return node.id === edge.to; });',
-      "      const curved = canvasWeb && edge.kind === 'image-variant';",
+      '      const curved = canvasWeb;',
       '      context.stroke(new Path2D(curved ? canvasWebWire(from, to, view).d : canvasWirePath(from, to, snapshot.nodes, view, snapshot.edges, edge.route)));',
       '      if (curved) continue;',
       '      const points = canvasWireGeometry(from, to, snapshot.nodes, snapshot.edges, edge.route).points; const end = points[points.length - 1]; const before = points[points.length - 2];',
