@@ -9,7 +9,17 @@ export function canvasWebSlot(node: CanvasNode): boolean {
 /** Turns a text action into a Web icon button; the text stays as aria-label and tooltip. */
 export function canvasWebIconAction(
   button: HTMLElement,
-  icon: 'chat' | 'cutout' | 'chevron' | 'download' | 'trash'
+  icon:
+    | 'chat'
+    | 'cutout'
+    | 'chevron'
+    | 'download'
+    | 'trash'
+    | 'video'
+    | 'sequence'
+    | 'upload'
+    | 'group'
+    | 'ungroup'
 ): HTMLElement {
   // Inlined here because helpers are injected into the page via toString().
   const paths = {
@@ -25,6 +35,21 @@ export function canvasWebIconAction(
     // lucide trash-2
     trash:
       '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+    // lucide video
+    video:
+      '<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
+    // lucide film
+    sequence:
+      '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/>',
+    // lucide upload
+    upload:
+      '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+    // lucide group
+    group:
+      '<path d="M3 7V5c0-1.1.9-2 2-2h2"/><path d="M17 3h2c1.1 0 2 .9 2 2v2"/><path d="M21 17v2c0 1.1-.9 2-2 2h-2"/><path d="M7 21H5c-1.1 0-2-.9-2-2v-2"/><rect width="7" height="5" x="7" y="7" rx="1"/><rect width="7" height="5" x="10" y="12" rx="1"/>',
+    // lucide ungroup
+    ungroup:
+      '<rect width="8" height="6" x="5" y="4" rx="1"/><rect width="8" height="6" x="11" y="14" rx="1"/>',
   };
   const label = button.getAttribute('aria-label') || button.textContent || '';
   button.setAttribute('aria-label', label);
@@ -182,9 +207,12 @@ export function decorateCanvasWebCards(options: {
   // Mivo sizes handles, outline and pills in screen pixels, so world-space chrome divides by zoom.
   world.style.setProperty('--web-inv', String(1 / zoom));
   world.classList.toggle('web-multi-selection', selected.size > 1);
+  // Idempotent: the video player reselects without a full render and redecorates in place.
+  world.querySelectorAll('.web-node-handle, .web-slot-upload').forEach((item) => item.remove());
   world.querySelectorAll(':scope > .card[data-id] > .card-state-loading').forEach((element) => {
     // Mivo GeneratedMediaFx tip: status text and the stop action share one pill under the frame.
     const overlay = element as HTMLElement;
+    if (overlay.querySelector(':scope > .web-state-tip')) return;
     const tip = document.createElement('div');
     tip.className = 'web-state-tip';
     const title = overlay.querySelector(':scope > b');
@@ -196,24 +224,16 @@ export function decorateCanvasWebCards(options: {
     overlay.querySelectorAll(':scope > .card-state-query').forEach((item) => tip.append(item));
     overlay.append(tip);
   });
-  world.querySelectorAll(':scope > .card.image[data-id]').forEach((element) => {
-    const card = element as HTMLElement;
-    const node = doc.nodes.find((item) => item.id === card.dataset.id);
-    if (!node) return;
-    card.classList.toggle('web-slot', canvasWebSlot(node));
-    card.classList.toggle('web-empty', !node.assetPath);
-    if (selected.size !== 1 || !selected.has(node.id)) return;
-    const frame = card.querySelector(':scope > .canvas-card-content') as HTMLElement | null;
+  function handles(card: HTMLElement, node: CanvasNode, frame: HTMLElement | null, busy: boolean) {
     const box = frame
       ? { x: frame.offsetLeft, y: frame.offsetTop, w: frame.offsetWidth, h: frame.offsetHeight }
       : { x: 0, y: 0, w: card.offsetWidth, h: card.offsetHeight };
-    const busy = options.busy(node.id);
     for (const corner of ['nw', 'ne', 'sw', 'se']) {
       const handle = document.createElement('button');
       handle.type = 'button';
       handle.tabIndex = -1;
       handle.className = 'web-node-handle is-' + corner;
-      handle.setAttribute('aria-label', '调整图片大小');
+      handle.setAttribute('aria-label', node.type === 'image' ? '调整图片大小' : '调整卡片大小');
       handle.style.left = box.x + (corner[1] === 'e' ? box.w : 0) + 'px';
       handle.style.top = box.y + (corner[0] === 's' ? box.h : 0) + 'px';
       if (busy || !options.resize) handle.disabled = true;
@@ -223,6 +243,35 @@ export function decorateCanvasWebCards(options: {
       });
       card.append(handle);
     }
+  }
+  // Video, video result and group frames share the image selection chrome; sections frame the whole card.
+  world
+    .querySelectorAll(
+      ':scope > .card.video[data-id], :scope > .card.video-source[data-id], :scope > .card.section[data-id]'
+    )
+    .forEach((element) => {
+      const card = element as HTMLElement;
+      const node = doc.nodes.find((item) => item.id === card.dataset.id);
+      if (!node) return;
+      card.classList.add('web-media');
+      card.classList.toggle('web-empty', node.type === 'video' && !node.assetPath);
+      if (selected.size !== 1 || !selected.has(node.id)) return;
+      const frame =
+        node.type === 'section'
+          ? null
+          : (card.querySelector(':scope > .canvas-card-content') as HTMLElement | null);
+      handles(card, node, frame, options.busy(node.id));
+    });
+  world.querySelectorAll(':scope > .card.image[data-id]').forEach((element) => {
+    const card = element as HTMLElement;
+    const node = doc.nodes.find((item) => item.id === card.dataset.id);
+    if (!node) return;
+    card.classList.toggle('web-slot', canvasWebSlot(node));
+    card.classList.toggle('web-empty', !node.assetPath);
+    if (selected.size !== 1 || !selected.has(node.id)) return;
+    const frame = card.querySelector(':scope > .canvas-card-content') as HTMLElement | null;
+    const busy = options.busy(node.id);
+    handles(card, node, frame, busy);
     if (node.assetPath || !frame || busy) return;
     // Mivo imageReplaceButtonScale: cap at 30x136 screen px and 20%/62% of the frame.
     const width = frame.offsetWidth * zoom;
@@ -410,7 +459,8 @@ export function createCanvasWebChrome(options: {
       measure.font = getComputedStyle(select).font;
       // Native selects size to their widest option; Web pills size to the chosen label.
       const width = Math.ceil(measure.measureText(option ? option.text : '').width);
-      select.style.width = Math.min(220, width + 32) + 'px';
+      // 28px padding + 2px border, plus slack because canvas and form-control text metrics differ.
+      select.style.width = Math.min(220, width + 36) + 'px';
     });
   }
   if (toolbar) {

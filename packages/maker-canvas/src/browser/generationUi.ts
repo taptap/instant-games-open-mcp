@@ -40,6 +40,7 @@ import type { CanvasGenerationAttempt } from '../contracts.js';
 import type { CanvasModelSettings } from '../contracts.js';
 import { videoInputSources, videoAttemptMatchesSources } from '../features/videoInputs.js';
 import { withCanvasTimeout } from '../browser/requestTimeout.js';
+import { canvasWebIconAction } from './webChrome.js';
 import { isUiCutoutSource, uiCutoutPrompt, type UiCutoutColor } from '../features/uiCutout.js';
 
 export interface CanvasWorkflowEdit {
@@ -572,6 +573,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       preview.alt = labelText;
       const label = document.createElement('small');
       label.textContent = labelText;
+      // Web hides the caption under 44px thumbnails, so video frames keep their role as a badge.
+      if (options.web && node.type !== 'image') tile.dataset.role = labelText.split(' · ')[0];
       tile.append(preview, label);
       if (index !== undefined || source) {
         const removeLabel = source ? '移除' + labelText + '参考' : '移除参考图 ' + (index! + 1);
@@ -2191,7 +2194,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     }
     const stale = isCanvasNodeStale(node, canvasReferences(options.getDocument(), node.id));
     const panel = document.createElement('div');
-    panel.className = 'generation-panel';
+    panel.className =
+      node.type === 'image' ? 'generation-panel' : 'generation-panel generation-panel-video';
     const busy = inFlight.has(node.id) || importingReferences.has(referenceKey(node));
     const frames =
       node.videoInputMode === 'first_last_frame'
@@ -2476,6 +2480,15 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         ['adaptive', '16:9', '9:16', '1:1'],
         saved?.ratio || 'adaptive'
       );
+      if (options.web) {
+        // Pills hide their field labels, so the chosen text alone has to say what it sets.
+        for (const option of Array.from(durationSelect.options) as any[])
+          option.textContent = option.value + ' 秒';
+        for (const option of Array.from(videoRatio.querySelector('select').options) as any[])
+          if (option.value === 'adaptive') option.textContent = '自适应比例';
+        for (const option of Array.from(videoModel.querySelector('select').options) as any[])
+          option.textContent = '模型 ' + option.value;
+      }
       fields.addEventListener('change', () => {
         rememberInput(node);
         videoSettings.set(referenceKey(node), {
@@ -2598,13 +2611,13 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       const actions = document.createElement('div');
       actions.className = 'generation-actions';
       if (node.type === 'video' && !node.draftSourceId && !workflow) {
-        actions.append(
-          button('导入视频', () => options.requestVideoImport(node.id), {
-            className: 'generation-action',
-            title: '从本地项目导入视频到当前视频卡片',
-            disabled: busy,
-          })
-        );
+        const importVideo = button('导入视频', () => options.requestVideoImport(node.id), {
+          className: 'generation-action',
+          title: '从本地项目导入视频到当前视频卡片',
+          disabled: busy,
+        });
+        if (options.web) canvasWebIconAction(importVideo, 'upload');
+        actions.append(importVideo);
       }
       actions.append(
         button(workflow ? '应用并继续' : '生成视频', submitGeneration, {

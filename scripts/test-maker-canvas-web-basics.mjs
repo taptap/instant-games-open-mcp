@@ -91,8 +91,47 @@ function testHostScript() {
       attempts.set(attempt.id, attempt);
       return attempt.id;
     };
+    // A short real WebM so video cards and the sequence editor decode actual frames.
+    let videoBytes;
+    async function addVideo() {
+      if (!videoBytes) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 96;
+        canvas.height = 64;
+        const context = canvas.getContext('2d');
+        const recorder = new MediaRecorder(canvas.captureStream(15), { mimeType: 'video/webm' });
+        const chunks = [];
+        recorder.ondataavailable = (event) => chunks.push(event.data);
+        const done = new Promise((resolve) => (recorder.onstop = resolve));
+        recorder.start();
+        for (let frame = 0; frame < 12; frame += 1) {
+          context.fillStyle = '#00ff00';
+          context.fillRect(0, 0, 96, 64);
+          context.fillStyle = '#c33';
+          context.fillRect(10 + frame * 5, 16, 24, 32);
+          await new Promise((resolve) => setTimeout(resolve, 70));
+        }
+        recorder.stop();
+        await done;
+        videoBytes = new Blob(chunks, { type: 'video/webm' });
+      }
+      const target = 'assets/video/canvas/' + crypto.randomUUID() + '.webm';
+      media.set(target, URL.createObjectURL(videoBytes));
+      return target;
+    }
+    window.__canvasAddVideo = addVideo;
+    window.__canvasVideoBytes = async () => {
+      await addVideo();
+      return Array.from(new Uint8Array(await new Response(videoBytes).arrayBuffer()));
+    };
     async function succeed(attempt) {
       attempt.status = 'succeeded';
+      if (attempt.kind === 'video') {
+        attempt.resultAssetPath = await addVideo();
+        attempt.updatedAt = now();
+        delete attempt.error;
+        return attempt;
+      }
       const [width, height] = window.__canvasResultSize || [64, 32];
       attempt.resultAssetPath = await addMedia('#3a7', width, height);
       attempt.resultImageInfo = { width, height };
@@ -142,8 +181,11 @@ function testHostScript() {
         media.set(target, URL.createObjectURL(new Blob([bytes], { type })));
         return { relativePath: target };
       },
-      async importVideo() {
-        throw new Error('测试宿主不支持视频。');
+      async importVideo(canvasId, file, type) {
+        if (!config.videoStore) throw new Error('测试宿主不支持视频。');
+        const target = 'assets/video/canvas/' + crypto.randomUUID() + '.webm';
+        media.set(target, URL.createObjectURL(new Blob([file], { type })));
+        return { relativePath: target };
       },
       mediaUrl(target) {
         return media.get(target) || 'data:,';
@@ -203,8 +245,52 @@ function testHostScript() {
         attempts.set(attempt.id, attempt);
         return copy(attempt);
       },
-      async createVideo() {
-        throw new Error('测试宿主不支持视频。');
+      async createVideo(canvasId, input) {
+        if (!config.videoStore) throw new Error('测试宿主不支持视频。');
+        (calls.video = calls.video || []).push(copy(input));
+        if (window.__canvasVideoHold) await window.__canvasVideoHold;
+        // Maker Web contract: a remote task id plus the parameters it was submitted with.
+        const attempt = {
+          id: crypto.randomUUID(),
+          canvasId,
+          kind: 'video',
+          toolName: 'create_video_task',
+          status: window.__canvasVideoStatus || 'succeeded',
+          prompt: input.prompt,
+          taskId: 'task-' + crypto.randomUUID().slice(0, 8),
+          targetNodeId: input.targetNodeId,
+          sourceImagePath: input.sourceImagePath,
+          sourceImageId: input.sourceImageId,
+          sourceImageIds: input.sourceImageIds,
+          sourceImagePaths: input.sourceImagePaths,
+          referenceImagePaths: input.referenceImagePaths,
+          parameters: {
+            model: input.model,
+            resolution: input.resolution,
+            duration: input.duration,
+            ratio: input.ratio,
+            mode: input.mode,
+            userConfirmed: input.userConfirmed,
+          },
+          // Like the local host, snapshots come from the saved document the request ran against.
+          sourceSnapshots: (input.sourceImageIds || []).flatMap((id) => {
+            const snapshot = snapshotCanvasSource(
+              docs.get(canvasId).nodes.find((node) => node.id === id)
+            );
+            return snapshot ? [snapshot] : [];
+          }),
+          credits: 20,
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        if (attempt.status === 'succeeded') await succeed(attempt);
+        else if (attempt.status === 'failed') attempt.error = '模拟视频失败';
+        attempts.set(attempt.id, attempt);
+        return copy(attempt);
+      },
+      async videoHistory(offset = 0, limit = 30) {
+        const items = [...attempts.values()].filter((item) => item.kind === 'video');
+        return { items: items.slice(offset, offset + limit).map(copy), total: items.length };
       },
       async generationAction(canvasId, attemptId, action) {
         calls.actions.push({ attemptId, action });
@@ -214,6 +300,7 @@ function testHostScript() {
         return copy(attempt);
       },
     };
+    if (!config.videoStore) delete store.videoHistory;
     async function readSource(target, signal, failure) {
       if (window.__canvasReadHold) await window.__canvasReadHold;
       const response = await fetch(store.mediaUrl(target), { signal });
@@ -3659,6 +3746,315 @@ try {
       await page.close();
     }
   );
+  const videoFeatures = { ...webFeatures, video: true, sequence: true, sections: true };
+  const themes = async (page, run) => {
+    for (const theme of ['dark', 'light']) {
+      await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+      await run(theme);
+    }
+    await page.evaluate(() => delete document.documentElement.dataset.theme);
+  };
+  const menuLabels = (page) =>
+    page
+      .locator('#selection-menu button')
+      .evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')));
+  await check('Web 视频：图标入口、胶囊参数、生成遮罩、createVideo 参数与视频历史', async () => {
+    const { page, errors, editor, settle, current, card, importImage, blank, shoot } =
+      await webPage({ features: videoFeatures, videoStore: true });
+    const source = await importImage('角色', '#c96', 160, 120);
+    await editor('update-nodes', { nodes: [{ id: source.id, x: 200, y: 160 }] });
+    await settle();
+    await blank();
+    await card(source.id).click({ position: { x: 100, y: 120 } });
+    const entry = page.locator('#selection-menu').getByRole('button', { name: '视频生成' });
+    assert.equal(await entry.getAttribute('data-web-tip'), '视频生成');
+    assert.ok(await entry.evaluate((item) => item.classList.contains('web-icon-action')));
+    assert.equal(await entry.locator('svg').count(), 1);
+    await entry.click();
+    const panel = page.locator('#selection-toolbar .generation-panel-video');
+    await panel.waitFor();
+    assert.equal(await panel.locator('.generation-reference').getAttribute('data-role'), '首帧');
+    const selects = panel.locator('.generation-fields select.generation-mode');
+    assert.equal(await selects.count(), 5);
+    for (const look of await selects.evaluateAll((items) =>
+      items.map((item) => [getComputedStyle(item).appearance, getComputedStyle(item).height])
+    ))
+      assert.deepEqual(look, ['none', '32px'], '视频参数与生图同为 Web 胶囊');
+    const labels = await selects.evaluateAll((items) =>
+      items.map((item) => item.options[item.selectedIndex].textContent)
+    );
+    assert.deepEqual(labels, ['首帧', '模型 2.0', '720p', '4 秒', '自适应比例']);
+    // Pills size to their label, so no chosen value is clipped.
+    for (const clipped of await selects.evaluateAll((items) =>
+      items.map((item) => item.scrollWidth > item.clientWidth)
+    ))
+      assert.equal(clipped, false);
+    await selects.nth(2).selectOption('480p');
+    await selects.nth(3).selectOption('5');
+    await selects.nth(4).selectOption('16:9');
+    await panel.locator('textarea.generation-prompt').fill('角色挥剑');
+    await themes(page, (theme) => shoot('v10-' + theme + '-video-composer.png'));
+    await page.evaluate(() => {
+      window.__canvasVideoHold = new Promise((resolve) => (window.__canvasVideoRelease = resolve));
+    });
+    await panel.locator('.generation-action-primary').click();
+    await page.waitForFunction(() => window.__canvasCalls.video?.length === 1);
+    const slotId = (await current()).nodes.find((node) => node.type === 'video').id;
+    const overlay = card(slotId).locator('.card-state-loading');
+    await overlay.waitFor();
+    assert.ok(await card(slotId).evaluate((item) => item.classList.contains('web-media')));
+    assert.equal(await overlay.locator('.web-state-tip b').textContent(), '处理中');
+    assert.equal(
+      await card(slotId).evaluate((item) => getComputedStyle(item).overflow),
+      'visible',
+      '状态胶囊在卡片下方，不被裁切'
+    );
+    await blank();
+    await themes(page, (theme) => shoot('v10-' + theme + '-video-generating.png'));
+    await page.evaluate(() => window.__canvasVideoRelease());
+    await page.waitForFunction(
+      (id) =>
+        window.__canvasEditor.current().nodes.some((node) => node.id === id && node.assetPath),
+      slotId
+    );
+    await settle();
+    const [sent] = await page.evaluate(() => window.__canvasCalls.video);
+    assert.deepEqual(
+      {
+        prompt: sent.prompt,
+        mode: sent.mode,
+        model: sent.model,
+        resolution: sent.resolution,
+        duration: sent.duration,
+        ratio: sent.ratio,
+        sourceImageId: sent.sourceImageId,
+        sourceImageIds: sent.sourceImageIds,
+        sourceImagePath: sent.sourceImagePath,
+        targetNodeId: sent.targetNodeId,
+      },
+      {
+        prompt: '角色挥剑',
+        mode: 'first_frame',
+        model: '2.0',
+        resolution: '480p',
+        duration: 5,
+        ratio: '16:9',
+        sourceImageId: source.id,
+        sourceImageIds: [source.id],
+        sourceImagePath: source.assetPath,
+        targetNodeId: slotId,
+      }
+    );
+    const result = (await current()).nodes.find((node) => node.id === slotId);
+    assert.equal(result.type, 'video-source');
+    assert.equal(result.generation.parameters.resolution, '480p');
+    assert.equal(await card(slotId).locator('.generation-credits').textContent(), '积分：20');
+    // Video cards have no side +: there is no video→video edge, inputs are images only.
+    assert.equal(await card(slotId).locator('.canvas-port').count(), 0);
+    await blank();
+    await card(slotId).click({ position: { x: 100, y: 60 } });
+    assert.deepEqual(await menuLabels(page), ['生成视频', '拆序列帧']);
+    assert.equal(await card(slotId).locator('.web-node-handle').count(), 4);
+    // templates/resourceExport stay off: no template edit or export entries on the video result.
+    await card(slotId).click({ position: { x: 100, y: 60 }, button: 'right' });
+    const visible = await page
+      .locator('#canvas-context-menu button:not([hidden])')
+      .evaluateAll((items) => items.map((item) => item.textContent));
+    assert.deepEqual(visible, ['拆序列帧', '复制卡片', '删除卡片']);
+    assert.equal(await page.locator('#canvas-context-menu [data-resource-export]').count(), 0);
+    await page.keyboard.press('Escape');
+    await blank();
+    await page.locator('.workspace-more > summary').click();
+    await page.locator('.workspace-more .workspace-menu-panel #video-history').click();
+    const history = page.locator('dialog.video-history[open]');
+    await history.waitFor();
+    await history.getByText('已取回本地').waitFor();
+    assert.ok(await history.getByText(/taskId：task-/).count());
+    await themes(page, (theme) => shoot('v10-' + theme + '-video-history.png'));
+    await history.getByRole('button', { name: '关闭' }).click();
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check('Web 视频卡：空视频槽直接打开面板，导入视频为图标；右键/工具条入口', async () => {
+    const { page, errors, current, card, blank, settle } = await webPage({
+      features: videoFeatures,
+      videoStore: true,
+    });
+    await settle();
+    assert.equal(await page.locator('#add-video').textContent(), '新建视频卡片');
+    assert.equal(await page.locator('#create-section').textContent(), '分组');
+    await page.mouse.click(700, 360, { button: 'right' });
+    const menu = page.locator('#canvas-context-menu');
+    const labels = await menu
+      .locator('button:not([hidden])')
+      .evaluateAll((items) => items.map((item) => item.textContent));
+    assert.deepEqual(labels, ['新建图片卡片', '上传图片', '新建视频卡片', '导入视频']);
+    await menu.getByRole('button', { name: '新建视频卡片' }).click();
+    const slot = (await current()).nodes.find((node) => node.type === 'video');
+    await page.locator('#selection-toolbar .generation-panel-video').waitFor();
+    assert.equal(await page.locator('#selection-menu').isHidden(), true);
+    const upload = page.locator('#selection-toolbar .generation-action.web-icon-action');
+    assert.equal(await upload.getAttribute('aria-label'), '导入视频');
+    assert.equal(await upload.getAttribute('data-web-tip'), '导入视频');
+    assert.ok(await card(slot.id).evaluate((item) => item.classList.contains('web-empty')));
+    await settle();
+    await blank();
+    const chooser = page.waitForEvent('filechooser');
+    await page.mouse.click(400, 600, { button: 'right' });
+    await menu.getByRole('button', { name: '导入视频' }).click();
+    const bytes = await page.evaluate(() => window.__canvasVideoBytes());
+    await (
+      await chooser
+    ).setFiles({ name: 'clip.webm', mimeType: 'video/webm', buffer: Buffer.from(bytes) });
+    await page.waitForFunction(() =>
+      window.__canvasEditor.current().nodes.some((node) => node.type === 'video-source')
+    );
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check('Web 拆序列帧：视频结果卡打开序列帧编辑器（Web 样式）', async () => {
+    const { page, errors, current, card, blank, settle, shoot } = await webPage({
+      features: videoFeatures,
+      videoStore: true,
+    });
+    await settle();
+    const assetPath = await page.evaluate(() => window.__canvasAddVideo());
+    await page.evaluate(
+      (assetPath) =>
+        window.__canvasEditor.importProjectAsset({ assetPath, kind: 'video', title: '角色动作' }),
+      assetPath
+    );
+    await settle();
+    const video = (await current()).nodes.find((node) => node.type === 'video-source');
+    await blank();
+    await card(video.id).click({ position: { x: 100, y: 60 } });
+    await page.locator('#selection-menu').getByRole('button', { name: '拆序列帧' }).click();
+    const dialog = page.locator('dialog.sequence-editor[open]');
+    await dialog.waitFor();
+    assert.equal(await dialog.locator('.sequence-editor-steps').count(), 1);
+    assert.equal(
+      await dialog
+        .locator('button.primary')
+        .first()
+        .evaluate((item) => getComputedStyle(item).borderRadius),
+      '8px'
+    );
+    assert.ok((await current()).nodes.some((node) => node.type === 'sequence'));
+    // The WebM is a real MediaRecorder clip, so headless Chromium decodes and extracts actual frames.
+    await dialog.getByRole('button', { name: '开始抽帧' }).click();
+    await page
+      .waitForFunction(
+        () => document.querySelectorAll('dialog.sequence-editor .sequence-editor-tile').length > 1,
+        undefined,
+        { timeout: 20000 }
+      )
+      .catch(async (error) => {
+        console.log(await dialog.locator('.sequence-editor-footer').textContent());
+        throw error;
+      });
+    await page.waitForTimeout(800);
+    await themes(page, (theme) => shoot('v10-' + theme + '-sequence-editor.png'));
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check('Web 分组：多选图标创建，选中可取消分组/删除（工具条与右键），均可撤销', async () => {
+    const { page, errors, editor, settle, current, card, importImage, blank, shoot } =
+      await webPage({ features: videoFeatures, videoStore: true });
+    const first = await importImage('角色', '#c96', 160, 120);
+    const second = await importImage('道具', '#69c', 120, 120);
+    await editor('update-nodes', {
+      nodes: [
+        { id: first.id, x: 220, y: 200 },
+        { id: second.id, x: 560, y: 200 },
+      ],
+    });
+    await settle();
+    await blank();
+    await card(first.id).click({ position: { x: 100, y: 120 } });
+    await card(second.id).click({ position: { x: 60, y: 100 }, modifiers: ['Shift'] });
+    assert.deepEqual(await menuLabels(page), ['分组']);
+    const group = page.locator('#selection-menu').getByRole('button', { name: '分组' });
+    assert.equal(await group.getAttribute('data-web-tip'), '分组');
+    await group.click();
+    const section = (await current()).nodes.find((node) => node.type === 'section');
+    const members = (await current()).nodes.filter((node) => node.sectionId === section.id);
+    assert.deepEqual(members.map((node) => node.id).sort(), [first.id, second.id].sort());
+    assert.deepEqual(await menuLabels(page), ['取消分组', '删除分组']);
+    assert.equal(await card(section.id).locator('.web-node-handle').count(), 4);
+    assert.equal(
+      await card(section.id).evaluate((item) => getComputedStyle(item).borderTopLeftRadius),
+      '16px'
+    );
+    await settle();
+    await themes(page, (theme) => shoot('v10-' + theme + '-section.png'));
+    await page.locator('#selection-menu').getByRole('button', { name: '取消分组' }).click();
+    let doc = await current();
+    assert.equal(doc.nodes.filter((node) => node.type === 'section').length, 0);
+    assert.equal(doc.nodes.filter((node) => node.sectionId).length, 0);
+    assert.equal(doc.nodes.filter((node) => node.type === 'image').length, 2);
+    await settle();
+    await editor('undo', {});
+    doc = await current();
+    assert.equal(doc.nodes.filter((node) => node.sectionId === section.id).length, 2);
+    await settle();
+    await blank();
+    await card(section.id).click({ position: { x: 20, y: 20 }, button: 'right' });
+    const menu = page.locator('#canvas-context-menu');
+    const labels = await menu
+      .locator('button:not([hidden])')
+      .evaluateAll((items) => items.map((item) => item.textContent));
+    assert.deepEqual(labels, ['取消分组', '删除分组']);
+    await menu.getByRole('button', { name: '删除分组' }).click();
+    doc = await current();
+    assert.equal(doc.nodes.length, 0, '删除分组同时删除成员');
+    await settle();
+    await editor('undo', {});
+    assert.equal((await current()).nodes.length, 3);
+    await settle();
+    // Right-click on a multi-selection offers 分组 too.
+    await blank();
+    await card(first.id).click({ position: { x: 100, y: 120 } });
+    await card(second.id).click({ position: { x: 60, y: 100 }, modifiers: ['Shift'] });
+    await card(second.id).click({ position: { x: 60, y: 100 }, button: 'right' });
+    assert.equal(await menu.getByRole('button', { name: '分组' }).isVisible(), true);
+    await page.keyboard.press('Escape');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check('默认外观：视频/分组入口与文案不变，无 Web 菜单项', async () => {
+    const { page, errors } = await openCanvas({ videoStore: true });
+    assert.equal(await page.locator('#add-video').textContent(), '视频输入卡');
+    assert.equal(await page.locator('#create-section').textContent(), '新建分区');
+    assert.equal(await page.locator('[data-menu-scope="web"]').count(), 0);
+    assert.equal(await page.locator('[data-canvas-action="import-video"]').count(), 0);
+    const assetPath = await page.evaluate(() => window.__canvasAddMedia('#c33', 40, 40));
+    await page.evaluate(
+      (assetPath) =>
+        window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '来源图' }),
+      assetPath
+    );
+    await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+    const entry = page.locator('#selection-menu').getByRole('button', { name: '视频生成' });
+    assert.equal(await entry.textContent(), '视频生成');
+    assert.equal(await entry.evaluate((item) => item.classList.contains('web-icon-action')), false);
+    await entry.click();
+    const panel = page.locator('#selection-toolbar .generation-panel-video');
+    await panel.waitFor();
+    assert.equal(await panel.locator('[data-role]').count(), 0);
+    assert.equal(
+      await panel
+        .locator('select')
+        .nth(3)
+        .evaluate((item) => item.options[item.selectedIndex].textContent),
+      '4'
+    );
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
 } finally {
   await browser.close();
 }

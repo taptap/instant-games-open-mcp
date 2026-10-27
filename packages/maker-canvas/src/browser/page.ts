@@ -561,7 +561,7 @@ function applyWebInteractionPatches(source: string): string {
       '        node.width = Math.min(markSize ? 8000 : 2000, Math.max(markSize ? 8 : 120, drag.width + widthDelta));',
       '        node.height = Math.min(markSize ? 8000 : 2000, Math.max(markSize ? 8 : 100, drag.height + ey));',
       // West/north corners pin the opposite edge, so the ratio-fitted size must be known first.
-      '        if (sx < 0 || sy < 0) { fitImageCard(node); if (sx < 0) node.x = drag.left + drag.width - node.width; if (sy < 0) node.y = drag.top + drag.height - node.height; }',
+      "        if (sx < 0 || sy < 0) { fitImageCard(node); if (node.type === 'video-source') fitVideoCard(node); if (sx < 0) node.x = drag.left + drag.width - node.width; if (sy < 0) node.y = drag.top + drag.height - node.height; }",
     ].join('\n')
   );
   patch(
@@ -766,6 +766,151 @@ function applyWebInteractionPatches(source: string): string {
   patch(
     '        download.append(trigger, formats); actions.append(download);',
     "        if (canvasWeb) canvasWebIconAction(actionButton('下载图片', function () { void resourceExport.download(node, 'png'); }), 'download'); else { download.append(trigger, formats); actions.append(download); }"
+  );
+  return page;
+}
+/** Web-only video, sequence and group entries: icon actions, slot composer and group menus. */
+function applyWebMediaPatches(source: string): string {
+  let page = source;
+  const patch = (search: string, replacement: string) => {
+    page = replaceCanvasPageText(page, search, replacement);
+  };
+  // The player selects without re-rendering (keeps playback), so Web chrome is redrawn in place.
+  const decorate =
+    '    if (canvasWeb) decorateCanvasWebCards({ world: world, doc: documentState, selected: selected, upload: requestImageImport, resize: function (event, id, corner) { startResize(event, id, corner); }, busy: function (id) { return Boolean(generationUi && (generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id))); } });';
+  patch(decorate, '    decorateWebCards();');
+  patch(
+    '  function fitVideoCard(node) {',
+    '  function decorateWebCards() {\n' + decorate + '\n  }\n  function fitVideoCard(node) {'
+  );
+  patch(
+    "          card.classList.add('selected'); renderSelectionToolbar();",
+    "          card.classList.add('selected'); decorateWebCards(); renderSelectionToolbar();"
+  );
+  // The log bar is collapsed in Web, so 视频历史 lives in the dock's ··· menu instead.
+  patch(
+    '  void boot().then(',
+    "  if (canvasWeb && canvasFeatureEnabled(host, 'video')) { const moreMenu = document.querySelector('.workspace-more .workspace-menu-panel'); if (moreMenu) moreMenu.append(videoHistoryButton); }\n  void boot().then("
+  );
+  patch(
+    "if (canvasWeb) document.documentElement.classList.add('canvas-appearance-web');",
+    // Web names the entries after what they create, matching the right-click and selection labels.
+    "if (canvasWeb) { document.documentElement.classList.add('canvas-appearance-web'); document.getElementById('add-video').textContent = '新建视频卡片'; document.getElementById('create-section').textContent = '分组'; }"
+  );
+  patch(
+    "if (canvasFeatureEnabled(host, 'video')) actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video');",
+    "if (canvasFeatureEnabled(host, 'video')) { const video = actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video'); if (canvasWeb) canvasWebIconAction(video, 'video'); }"
+  );
+  patch(
+    "actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); }",
+    "const generate = actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (canvasWeb) canvasWebIconAction(generate, 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) { const split = actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); if (canvasWeb) canvasWebIconAction(split, 'sequence'); } }"
+  );
+  // An empty Web video slot behaves like an image slot: selecting it opens its composer directly.
+  patch(
+    '      selectionMenu.hidden = emptyImage || restricted;',
+    "      const webVideoSlot = canvasWeb && node.type === 'video';\n      selectionMenu.hidden = emptyImage || restricted || webVideoSlot;"
+  );
+  patch(
+    '|| (canvasWeb && canvasWebSlot(node));',
+    '|| (canvasWeb && canvasWebSlot(node)) || webVideoSlot;'
+  );
+  patch(
+    'if (chosen.length > 1 && host.addToChat && chosen.some(',
+    [
+      "if (canvasWeb && chosen.length > 1 && canvasFeatureEnabled(host, 'sections') && chosen.some(function (item) { return item.type !== 'section'; })) {",
+      "        selectionToolbar.hidden = true; selectionMenu.hidden = false; const actions = document.createElement('div'); actions.className = 'selection-actions';",
+      "        const webAction = function (label, icon, action) { const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.addEventListener('click', function (event) { event.stopPropagation(); action(); }); actions.append(canvasWebIconAction(button, icon)); };",
+      "        if (host.addToChat && chosen.some(function (item) { return item.type === 'image' && item.assetPath; })) webAction('加入对话', 'chat', function () { void addSelectionToChat(chosen); });",
+      "        webAction('分组', 'group', createSection);",
+      '        selectionMenu.append(actions); positionSelectionToolbar(); return;',
+      '      }',
+      '      if (chosen.length > 1 && host.addToChat && chosen.some(',
+    ].join('\n')
+  );
+  patch(
+    '      if (chosen.length === 1 && chosen[0].type === "mark") {',
+    [
+      "      if (canvasWeb && chosen.length === 1 && chosen[0].type === 'section' && canvasFeatureEnabled(host, 'sections')) {",
+      "        selectionToolbar.hidden = true; selectionMenu.hidden = false; const actions = document.createElement('div'); actions.className = 'selection-actions';",
+      "        [['取消分组', 'ungroup', function () { ungroupSection(chosen[0].id); }], ['删除分组', 'trash', function () { deleteSection(chosen[0].id); }]].forEach(function (entry) { const button = document.createElement('button'); button.type = 'button'; button.textContent = entry[0]; button.addEventListener('click', function (event) { event.stopPropagation(); entry[2](); }); actions.append(canvasWebIconAction(button, entry[1])); });",
+      '        selectionMenu.append(actions); positionSelectionToolbar(); return;',
+      '      }',
+      '      if (chosen.length === 1 && chosen[0].type === "mark") {',
+    ].join('\n')
+  );
+  patch(
+    '  function duplicateSelected() {',
+    [
+      // Ungroup keeps the members where they are; removeNodes already clears their sectionId.
+      '  function ungroupSection(id) {',
+      "    const section = documentState && documentState.nodes.find(function (node) { return node.id === id && node.type === 'section'; });",
+      '    if (!section) return;',
+      '    if (groupQueue && groupQueue.isBusy) { setError("请先停止分组队列，再调整分组。"); return; }',
+      '    if (protectTemplateSelection()) return;',
+      '    const members = documentState.nodes.filter(function (node) { return node.sectionId === id; }).map(function (node) { return node.id; });',
+      '    remember();',
+      '    documentState = removeNodes(documentState, [id]);',
+      '    selected.clear(); members.forEach(function (member) { selected.add(member); });',
+      '    markDirty(); render();',
+      '  }',
+      // Deleting a group removes its members too, through the normal delete guards and undo.
+      '  function deleteSection(id) {',
+      '    if (!documentState) return;',
+      '    selected.clear(); selected.add(id);',
+      '    documentState.nodes.forEach(function (node) { if (node.sectionId === id) selected.add(node.id); });',
+      '    deleteSelected();',
+      '  }',
+      '  function duplicateSelected() {',
+    ].join('\n')
+  );
+  patch(
+    '<button type="button" data-canvas-action="duplicate" data-menu-scope="card">复制卡片</button>',
+    '<button type="button" data-canvas-action="web-video" data-menu-scope="web" hidden>视频生成</button><button type="button" data-canvas-action="web-sequence" data-menu-scope="web" hidden>拆序列帧</button><button type="button" data-canvas-action="web-group" data-menu-scope="web" hidden>分组</button><button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button><button type="button" data-canvas-action="web-delete-group" data-menu-scope="web" hidden>删除分组</button><button type="button" data-canvas-action="duplicate" data-menu-scope="card">复制卡片</button>'
+  );
+  patch(
+    'data-canvas-action="add-video" data-menu-scope="blank">新建视频卡片</button>',
+    'data-canvas-action="add-video" data-menu-scope="blank">新建视频卡片</button><button type="button" data-canvas-action="import-video" data-menu-scope="blank">导入视频</button>'
+  );
+  patch(
+    "  if (!canvasFeatureEnabled(host, 'video')) contextMenu.querySelectorAll",
+    [
+      '  if (!canvasWeb) contextMenu.querySelectorAll(\'[data-menu-scope=web], [data-canvas-action="import-video"]\').forEach(function (item) { item.remove(); });',
+      '  if (!canvasFeatureEnabled(host, \'video\')) contextMenu.querySelectorAll(\'[data-canvas-action="web-video"], [data-canvas-action="import-video"]\').forEach(function (item) { item.remove(); });',
+      "  if (!canvasFeatureEnabled(host, 'sequence')) contextMenu.querySelectorAll('[data-canvas-action=\"web-sequence\"]').forEach(function (item) { item.remove(); });",
+      '  if (!canvasFeatureEnabled(host, \'sections\')) contextMenu.querySelectorAll(\'[data-canvas-action="web-group"], [data-canvas-action="web-ungroup"], [data-canvas-action="web-delete-group"]\').forEach(function (item) { item.remove(); });',
+      "  if (!canvasFeatureEnabled(host, 'video')) contextMenu.querySelectorAll",
+    ].join('\n')
+  );
+  patch(
+    '    if (card && !selected.has(card.dataset.id)) selectNode(card.dataset.id, false);',
+    [
+      '    if (card && !selected.has(card.dataset.id)) selectNode(card.dataset.id, false);',
+      '    contextNode = card && documentState ? documentState.nodes.find(function (item) { return item.id === card.dataset.id; }) : null;',
+      '    if (canvasWeb) {',
+      '      const one = contextNode && selected.size === 1 ? contextNode : null;',
+      '      const busy = Boolean(one && generationUi && generationUi.isNodeBusy(one.id));',
+      "      const shown = { 'web-video': Boolean(one && one.type === 'image' && one.assetPath && !busy), 'web-sequence': Boolean(one && one.type === 'video-source' && one.assetPath && !busy), 'web-group': Boolean(card && selected.size > 1), 'web-ungroup': Boolean(one && one.type === 'section'), 'web-delete-group': Boolean(one && one.type === 'section') };",
+      "      contextMenu.querySelectorAll('[data-menu-scope=web]').forEach(function (item) { item.hidden = !shown[item.dataset.canvasAction]; });",
+      // A group frame cannot be copied, and plain delete would only drop the frame; the group rows replace both.
+      "      if (one && one.type === 'section') cardActions.forEach(function (item) { item.hidden = true; });",
+      '    }',
+    ].join('\n')
+  );
+  patch(
+    '  function hideContextMenu() { contextMenu.hidden = true; }',
+    '  let contextNode = null;\n  function hideContextMenu() { contextMenu.hidden = true; }'
+  );
+  patch(
+    "    if (value === 'duplicate') { duplicateSelected(); return; }",
+    [
+      "    if (value === 'web-video') { if (contextNode) createVideoSlot(contextNode); return; }",
+      "    if (value === 'web-sequence') { if (contextNode) sequenceUi.createFromVideo(contextNode.id); return; }",
+      "    if (value === 'web-group') { createSection(); return; }",
+      "    if (value === 'web-ungroup') { if (contextNode) ungroupSection(contextNode.id); return; }",
+      "    if (value === 'web-delete-group') { if (contextNode) deleteSection(contextNode.id); return; }",
+      "    if (value === 'import-video') { if (documentState) { pendingVideoImport = { canvasId: documentState.id, point: pendingPlacement || nextPlacement('video-source') }; videoFile.click(); } pendingPlacement = null; return; }",
+      "    if (value === 'duplicate') { duplicateSelected(); return; }",
+    ].join('\n')
   );
   return page;
 }
@@ -2937,6 +3082,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     'void boot().then(function () { if (host.onReady && documentState) host.onReady(editorHandle); }).catch'
   );
   page = applyWebInteractionPatches(page);
+  page = applyWebMediaPatches(page);
   // Keep template anchors from rewriting function bodies inside injected helpers.
   page = page.replace('/*__HELPERS__*/', () => helperSource);
   return page.replace(

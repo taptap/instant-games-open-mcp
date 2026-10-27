@@ -276,6 +276,43 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
   默认外观的标注菜单仍只有颜色。
 - 「适配画布」排除左侧工具条（及显示中的流程条）占位并留 32px 边距，按卡片实际渲染尺寸计算。
 
+`features.video` / `sequence` / `sections` 打开时（Web 其余 templates、resourceExport 等可保持关闭），
+`'web'` 下的视频、拆帧与分组（`applyWebMediaPatches`，样式在 `webStyles.ts`）：
+
+- 视频槽（`video`）与视频结果（`video-source`）按图片卡绘制：标题行在框上、框带投影，选中为
+  同样的 2px 主题色描边、光晕与四角柄（视频结果保持视频比例，nw/ne/sw 角固定对角）；空视频槽为
+  图片槽同款圆角框加 lucide `video` 图形，已连接首帧不在卡内显示，只在面板参考图行显示。
+  积分角标、生成中遮罩（卡下「处理中 / 停止等待」胶囊）与图片相同；失败/待确认/等待继续遮罩在两类卡上
+  都改为毛玻璃面板、着色状态图标与药丸按钮。
+- 入口：图片选中菜单「视频生成」、视频结果的「生成视频」「拆序列帧」、多选「分组」、分组的
+  「取消分组」「删除分组」均为图标按钮（lucide `video` / `film` / `group` / `ungroup` / `trash-2`），
+  共用悬停提示。右键：图片卡加「视频生成」，视频结果加「拆序列帧」，多选加「分组」，分组卡改为
+  「取消分组」「删除分组」（隐藏不适用的复制/删除卡片）；空白处加「导入视频」（放到右键点处）。
+  工具条「+」中的「视频输入卡」「新建分区」在 Web 显示为「新建视频卡片」「分组」，「视频历史」
+  移入工具条「···」菜单（日志栏在 Web 收起）。默认外观的文案、入口与位置不变。
+- 选中空视频槽即打开视频面板（与图片槽一致，不显示选中菜单）；面板沿用图片面板的参考图行、
+  提示词与药丸下拉（输入方式 / 「模型 2.0」/ 分辨率 / 「4 秒」/「自适应比例」，只改显示文字，
+  提交值不变），参考图缩略图左下角标注「首帧」「尾帧」「参考图 n」，「导入视频」为发送键旁的圆形图标。
+- 视频卡没有侧边「+」：现有连线模型里视频只接受图片输入（`first-frame` / `frame-*` /
+  `image-to-video`），没有视频→视频的边，因此不提供“从视频卡新建连入的视频槽”。
+- 「取消分组」只删除分组框（成员保留原位、清除 `sectionId` 并被选中）；「删除分组」连同成员一起
+  走 `deleteSelected` 的既有保护；两者都可撤销。分组框为 16px 圆角细边框、标题与节点数在框内顶部。
+- 拆序列帧编辑器、视频历史与其它 `.sequence-editor` 对话框改用面板/菜单 token：平头部、8px 圆角
+  按钮、主按钮与发送键同色反相、输入框用面板输入底色；序列帧卡与动画卡为面板色圆角框与药丸按钮。
+- 关闭的功能不出入口：templates 关闭时无「编辑视频」等模板入口，resourceExport 关闭时视频结果与
+  分组的选中/右键菜单都不出现导出项；视频历史里的「下载视频」走宿主 `deliverExport`，不依赖 resourceExport。
+
+视频相关的宿主 store 契约（本页实际调用）：`createVideo(canvasId, { prompt, sourceImagePath,
+sourceImageId, sourceImageIds, sourceImagePaths, referenceImagePaths, mode, targetNodeId, duration,
+model, resolution, ratio, userConfirmed }, signal)`，模型取值固定为 `'2.0' | '2.5'`（2.5 需页面确认），
+页面不调用 `videoModels`；返回的尝试读取 `id, canvasId, kind: 'video', status, taskId, targetNodeId,
+targetAssetPath, resultAssetPath, sourceImageId(s), sourceSnapshot(s), referenceImagePaths,
+parameters.mode, prompt, error, remoteStatus, executionState, credits, createdAt`，只有
+`sourceSnapshots` 与已保存文档中的来源一致时才回填卡片。`videoHistory(offset, 30)` 返回
+`{ items: CanvasGenerationAttempt[], total, busy? }`；`listGeneration` 需包含视频尝试，
+`generationAction(canvasId, id, 'query' | 'retry' | 'cancel')` 用于查询、重试与停止等待；
+`importVideo(canvasId, blob, contentType)` 返回 `{ relativePath }`。
+
 颜色取 `--canvas-*`（Web 由 `--maker-*` 映射），随 `:root[data-theme]` 切换明暗。
 
 两种外观共有的修复：拖拽、缩放或平移时提示词面板不再随每次 `pointermove` 重建，只重新定位，
