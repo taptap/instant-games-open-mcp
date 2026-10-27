@@ -190,6 +190,9 @@ ${M} .card.image .web-node-handle:disabled { opacity: .45; cursor: default; }
 ${M} .card.image > .resize-handle { display: none; }
 ${M} .card.image .image-size-info { left: 8px; bottom: 8px; padding: 2px 7px; border-radius: 999px; background: rgba(0,0,0,.5); color: #fffaf0; font-size: 11px; opacity: 0; transition: opacity .12s; }
 ${M} .card.image:hover .image-size-info, ${M} .card.image.selected .image-size-info { opacity: 1; }
+/* Fixed height + line-height keeps the pill shape identical whatever font the host theme loads. */
+${M} .card.image > .generation-credits { height: 20px; padding: 0 8px; border: 1px solid var(--web-glass-edge); border-radius: 999px; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: 0 2px 8px rgba(0,0,0,.18); font-size: 11px; font-weight: 500; line-height: 18px; }
+${L} .card.image > .generation-credits { box-shadow: 0 2px 8px rgba(35,35,35,.12); }
 /* Mivo side plus: 80px hot zone 25px outside the frame edge, 20px ring resting on the edge; scale(inv) keeps it screen-sized. */
 ${M} .card .port.canvas-port { --web-rest: 0px; top: calc(50% + 20px); width: 80px; height: 80px; margin-top: -40px; border: 0; border-radius: 50%; background: transparent; color: rgba(212,212,212,.7); font-size: 0; opacity: 0; pointer-events: none; outline: none; -webkit-transform: scale(var(--web-inv, 1)); transform: scale(var(--web-inv, 1)); transition: opacity .12s; }
 ${M} .card .port.canvas-port-output { right: calc(-40px - 25px * var(--web-inv, 1)); --web-rest: -25px; }
@@ -333,7 +336,9 @@ ${M} #canvas-context-menu button:hover:not(:disabled), ${M} #canvas-context-menu
 /* Canvas tabs = Maker Web TabsList: slim board-toned bar, pill tabs, ghost + and 全部画布 on the right. */
 ${M} .workspace-tabs-row { height: 40px; padding: 0 8px; gap: 0; border: 0; border-bottom: 1px solid var(--web-line); background: var(--web-soft); color: var(--web-text); }
 ${M} .workspace-tabs-row > * + * { margin-left: 4px; }
-${M} .workspace-tabs { align-items: center; gap: 0; height: 100%; padding: 0 2px; }
+/* Tabs shrink to content so + trails the last tab; 全部画布 alone takes the free space on the right. */
+${M} .workspace-tabs { flex: 0 1 auto; align-items: center; gap: 0; height: 100%; padding: 0 2px; }
+${M} .workspace-tabs-row > .workspace-library { margin-left: auto; }
 ${M} .workspace-tabs > * + * { margin-left: 2px; }
 ${M} .workspace-tab { position: relative; align-items: center; box-sizing: border-box; height: 30px; max-width: 240px; padding: 0 4px 0 0; border: 0; border-radius: 8px; background: transparent; color: var(--web-muted); box-shadow: none; transition: background-color .12s, color .12s; }
 ${M} .workspace-tab:hover { background: var(--web-wash); color: var(--web-text); }
@@ -350,7 +355,9 @@ ${M} .workspace-tab:hover button:last-child:not([role="tab"]):not(#rename-canvas
 ${M} .workspace-tab #rename-canvas:focus, ${M} .workspace-tab button:last-child:not([role="tab"]):not(#rename-canvas):focus { opacity: 1; pointer-events: auto; }
 ${M} .workspace-tab #rename-canvas:hover:not(:disabled), ${M} .workspace-tab button:last-child:not([role="tab"]):not(#rename-canvas):hover:not(:disabled) { background: var(--web-wash); color: var(--web-text); }
 ${M} .workspace-tabs-row > button, ${M} .workspace-library > summary { box-sizing: border-box; height: 28px; min-height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--web-muted); font-size: 13px; font-weight: 500; line-height: 28px; }
-${M} .workspace-tabs-row > #workspace-new { width: 28px; padding: 0; font-size: 18px; font-weight: 400; }
+/* The text "+" sits off-center with font metrics, so a masked glyph replaces it. */
+${M} .workspace-tabs-row > #workspace-new { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 28px; padding: 0; font-size: 0; line-height: 0; }
+${M} .workspace-tabs-row > #workspace-new::before { content: ''; display: block; width: 16px; height: 16px; background: currentColor; -webkit-mask: ${ADD_ICON} center / contain no-repeat; mask: ${ADD_ICON} center / contain no-repeat; }
 ${M} .workspace-tabs-row > button:hover:not(:disabled), ${M} .workspace-library > summary:hover, ${M} .workspace-library[open] > summary { background: var(--web-wash); color: var(--web-text); }
 ${M} .workspace-tab button:focus-visible, ${M} .workspace-tabs-row > button:focus-visible, ${M} .workspace-library > summary:focus-visible { outline: 2px solid var(--web-accent); outline-offset: -2px; }
 ${M} .workspace-tabs-row > button:disabled { opacity: .45; }

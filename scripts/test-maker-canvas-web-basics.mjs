@@ -2985,6 +2985,24 @@ try {
           ]);
         assert.deepEqual(style, ['rgba(0, 0, 0, 0)', '0px', 28], selector + ' 为 ghost 按钮');
       }
+      const placement = await page.evaluate(() => {
+        const box = (item) => item.getBoundingClientRect();
+        const tabs = document.querySelectorAll('.workspace-tab');
+        const plus = document.getElementById('workspace-new');
+        const glyph = getComputedStyle(plus, '::before');
+        return {
+          gap: box(plus).left - box(tabs[tabs.length - 1]).right,
+          libraryRight:
+            box(document.querySelector('.workspace-tabs-row')).right -
+            box(document.querySelector('.workspace-library')).right,
+          glyph: [glyph.width, glyph.height, getComputedStyle(plus).justifyContent],
+          text: getComputedStyle(plus).fontSize,
+        };
+      });
+      assert.ok(placement.gap >= 0 && placement.gap <= 10, '＋紧跟最后一个页签：' + placement.gap);
+      assert.ok(placement.libraryRight <= 10, '全部画布靠右：' + placement.libraryRight);
+      assert.deepEqual(placement.glyph, ['16px', '16px', 'center'], '＋图标居中');
+      assert.equal(placement.text, '0px', '文字＋不参与排版');
       await page.waitForTimeout(150);
       await shoot('v7-' + theme + '-tab-bar.png', { x: 0, y: 0, width: 1400, height: 56 });
       await inactive.hover();
@@ -3147,6 +3165,167 @@ try {
     await plain.page.close();
   });
 
+  await check('Web 侧边＋：新槽继承模型/分辨率/比例/素材规范，不继承提示词', async () => {
+    const { page, errors, editor, settle, current, card, blank } = await webPage();
+    const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', { nodes: [{ id: slotId, x: 300, y: 120 }] });
+    await settle();
+    await blank();
+    await card(slotId).click({ position: { x: 80, y: 80 } });
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('#selection-toolbar select option')].some(
+        (option) => option.textContent === '宿主模型二'
+      )
+    );
+    // Unsent pill edits: the composer keeps them in memory, not on the card yet.
+    await panel.locator('textarea.generation-prompt').fill('不应继承的提示词');
+    await panel.locator('select').nth(0).selectOption('host-second');
+    await panel.locator('select').nth(1).selectOption('2K');
+    await panel.locator('select').nth(2).selectOption('16:9');
+    await panel.locator('.generation-asset-constraints').click();
+    await panel.getByRole('switch').click();
+    assert.equal(
+      await panel.locator('.generation-asset-constraints').getAttribute('aria-pressed'),
+      'false'
+    );
+    const expected = {
+      model: 'host-second',
+      resolution: '2K',
+      aspectRatio: '16:9',
+      assetConstraints: false,
+    };
+    const branch = async (fromId) => {
+      const before = (await current()).nodes.length;
+      await card(fromId).locator('.canvas-port-output').click();
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 1,
+        before
+      );
+      const created = (await current()).nodes.at(-1);
+      assert.deepEqual(created.generationDraft.parameters, expected);
+      assert.equal(created.generationDraft.prompt, undefined, '提示词不继承');
+      await panel.locator('select').nth(2).waitFor();
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('#selection-toolbar select option')].some(
+          (option) => option.textContent === '宿主模型二'
+        )
+      );
+      const pills = await panel
+        .locator('select')
+        .evaluateAll((items) => items.map((item) => item.value));
+      assert.deepEqual(pills, ['host-second', '2K', '16:9'], '新槽面板显示同样的选项');
+      assert.equal(
+        await panel.locator('.generation-asset-constraints').getAttribute('aria-pressed'),
+        'false'
+      );
+      assert.equal(await panel.locator('textarea.generation-prompt').inputValue(), '');
+      return created.id;
+    };
+    const second = await branch(slotId);
+    // The second hop reads what the first slot stored, not composer memory.
+    await settle();
+    const third = await branch(second);
+    assert.ok((await current()).edges.some((edge) => edge.from === second && edge.to === third));
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 标注：框选/箭头可经工具条图标、右键、Delete 删除，均可撤销', async () => {
+    const { page, errors, editor, settle, current, card, blank } = await webPage();
+    await settle();
+    const menu = page.locator('#selection-menu');
+    const marks = async () => (await current()).nodes.filter((node) => node.type === 'mark');
+    const place = async (id) => {
+      await blank();
+      await page.locator('#' + id).click();
+      await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+      return (await marks()).at(-1).id;
+    };
+    const undo = async (id) => {
+      await settle();
+      await editor('undo', {});
+      assert.ok(
+        (await marks()).some((node) => node.id === id),
+        '撤销后标注恢复'
+      );
+    };
+    for (const shape of ['mark-ellipse', 'mark-arrow']) {
+      const id = await place(shape);
+      const remove = menu.getByRole('button', { name: '删除', exact: true });
+      assert.equal(await remove.count(), 1, shape + ' 工具条有删除');
+      await remove.hover();
+      await page.locator('.web-tooltip[data-open="true"]').waitFor();
+      assert.equal(await page.locator('.web-tooltip').textContent(), '删除');
+      await remove.click();
+      assert.ok(!(await marks()).some((node) => node.id === id), shape + ' 工具条删除');
+      await undo(id);
+
+      await blank();
+      const box = await card(id).boundingBox();
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
+      const context = page.locator('#canvas-context-menu');
+      await context.waitFor();
+      const labels = await context
+        .locator('button:not([hidden])')
+        .evaluateAll((items) => items.map((item) => item.textContent));
+      assert.ok(labels.includes('删除卡片'), shape + ' 右键有删除：' + labels.join('/'));
+      await context.getByRole('button', { name: '删除卡片' }).click();
+      assert.ok(!(await marks()).some((node) => node.id === id), shape + ' 右键删除');
+      await undo(id);
+
+      await blank();
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      assert.equal(await menu.getByRole('button', { name: '删除', exact: true }).count(), 1);
+      await page.keyboard.press('Delete');
+      assert.ok(!(await marks()).some((node) => node.id === id), shape + ' Delete 删除');
+      await undo(id);
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+    // Default appearance keeps its colour-only mark menu.
+    const plain = await openCanvas({});
+    await plain.page.locator('#mark-ellipse').click();
+    await plain.page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+    assert.equal(
+      await plain.page.locator('#selection-menu').getByRole('button', { name: '删除' }).count(),
+      0
+    );
+    assert.deepEqual(plain.errors, []);
+    await plain.page.close();
+  });
+  await check('Web 外观：图片积分角标为胶囊（明暗）', async () => {
+    const { page, errors, editor, settle, card, blank } = await webPage();
+    const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', { nodes: [{ id: slotId, x: 300, y: 120 }] });
+    await settle();
+    await blank();
+    await card(slotId).click({ position: { x: 80, y: 80 } });
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    await panel.locator('textarea.generation-prompt').fill('积分角标');
+    await panel.locator('.generation-action-primary').click();
+    const badge = card(slotId).locator('.generation-credits');
+    await badge.waitFor();
+    for (const theme of ['dark', 'light']) {
+      await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+      const look = await badge.evaluate((item) => {
+        const style = getComputedStyle(item);
+        return [
+          style.borderTopLeftRadius,
+          style.paddingLeft,
+          style.paddingRight,
+          item.getBoundingClientRect().height,
+        ];
+      });
+      assert.deepEqual(look, ['999px', '8px', '8px', 20], theme);
+      const colors = await badge.evaluate((item) => {
+        const style = getComputedStyle(item);
+        return [style.backgroundColor, style.color];
+      });
+      assert.notEqual(colors[0], colors[1], theme + ' 文字与底色可区分');
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
   await check('Web 外观：适配画布避开左侧工具条', async () => {
     const { page, errors, editor, settle } = await webPage();
     const ids = [];

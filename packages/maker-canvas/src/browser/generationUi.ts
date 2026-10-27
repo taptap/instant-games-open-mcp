@@ -30,7 +30,12 @@ import {
 import { createVideoPrompts } from '../features/videoPrompts.js';
 import { videoTaskTiming } from '../features/videoTaskTiming.js';
 import type { TemplateOutputDecision } from '../features/templateWorkflow.js';
-import type { CanvasDocument, CanvasEdge, CanvasNode } from '../contracts.js';
+import type {
+  CanvasDocument,
+  CanvasEdge,
+  CanvasGenerationDraft,
+  CanvasNode,
+} from '../contracts.js';
 import type { CanvasGenerationAttempt } from '../contracts.js';
 import type { CanvasModelSettings } from '../contracts.js';
 import { videoInputSources, videoAttemptMatchesSources } from '../features/videoInputs.js';
@@ -129,6 +134,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   ): void;
   restore(): Promise<void>;
   creditsLabel(node: any): string | undefined;
+  imageParameters(node: any): CanvasGenerationDraft['parameters'] | undefined;
   runTemplateVideo(
     nodeId: string,
     duration: number,
@@ -2923,6 +2929,20 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       return typeof credits === 'number' && Number.isFinite(credits) && credits >= 0
         ? '积分：' + credits.toLocaleString('zh-CN')
         : '积分：未返回';
+    },
+    imageParameters(node: any) {
+      if (node?.type !== 'image') return;
+      // Unsaved pill edits live only in imageSettings, so they must win over what the card stored.
+      const merged: Record<string, unknown> = {
+        ...node.generation?.parameters,
+        ...node.generationDraft?.parameters,
+        ...imageSettings.get(referenceKey(node)),
+      };
+      const operation = node.generationDraft?.operation || node.generation?.operation || 'generate';
+      merged.assetConstraints = assetConstraintsEnabled(node, operation);
+      return Object.fromEntries(
+        Object.entries(merged).filter(([, value]) => value !== undefined)
+      ) as CanvasGenerationDraft['parameters'];
     },
     runTemplateVideo,
     runTemplateImage,

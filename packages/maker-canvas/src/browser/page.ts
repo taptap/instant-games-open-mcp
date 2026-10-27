@@ -332,6 +332,11 @@ function applyImageSlotPatches(source: string): string {
     "port.title = '点击创建图片变体；拖到视频输入卡可设置首帧';",
     "port.title = canvasFeatureEnabled(host, 'connectors') ? '点击在右侧新建图片槽；拖到另一张图片：把它连为参考图' : '点击创建图片变体；拖到视频输入卡可设置首帧';"
   );
+  // Marks have no card menu button, so on Web delete must be visible beside the colours.
+  patch(
+    'chosen[0].mark.color = color; markDirty(); render(); }); actions.append(button); }',
+    'chosen[0].mark.color = color; markDirty(); render(); }); actions.append(button); } if (canvasWeb) { const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "删除"; remove.addEventListener("click", function (event) { event.stopPropagation(); deleteSelected(); }); actions.append(canvasWebIconAction(remove, "trash")); }'
+  );
   patch('  function startWire(event, id) {', '  function startWire(event, id, reverse) {');
   patch(
     "    drag = { kind: 'wire', id: id, x: event.clientX, y: event.clientY, moved: false };",
@@ -373,7 +378,9 @@ function applyImageSlotPatches(source: string): string {
       "    add('image', point, true);",
       '    const slot = documentState.nodes[documentState.nodes.length - 1];',
       "    slot.title = '图片生成槽 · 待生成';",
-      "    slot.generationDraft = { operation: 'generate' };",
+      '    // Mivo branches keep the source settings so the next step starts from the same pills; the prompt is new work.',
+      '    const inherited = generationUi && generationUi.imageParameters(card);',
+      "    slot.generationDraft = inherited && Object.keys(inherited).length ? { operation: 'generate', parameters: inherited } : { operation: 'generate' };",
       '    if (left) connectImages(slot, card, false, true); else connectImages(card, slot, false, true);',
       '    if (documentState.edges.some(function (edge) { return edge.from === (left ? slot.id : card.id) && edge.to === (left ? card.id : slot.id); })) return;',
       '    // Connection was refused: drop the slot and its undo entry so the click leaves no trace.',
