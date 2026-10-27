@@ -370,7 +370,8 @@ AI 可以通过当前安装的 Maker CLI 操作已打开的画布，无需浏览
 页面在任何修改前拒绝的命令，status/wait 返回 status=failed 并带 code：INVALID_ARGS（参数或页面状态，
 如 revision 过期、面板打开、任务执行中）或 NOT_FOUND（画布、卡片或连线不存在）。修正后用新的 request-id
 重新提交。没有 code 的 failed 可能已经开始执行（例如 015 run、修改后保存失败），先 inspect 原卡片再决定，
-不要直接重提付费步骤。仅有未保存修改时，写命令会先等待保存（约 10 秒）再执行。
+不要直接重提付费步骤。仅有未保存修改时，写命令会先等待保存（约 10 秒）再执行；
+等待期间页面又有人工修改时返回 revision 过期（INVALID_ARGS），重新 inspect 后再提交。
 fill-slot / replace-image 的 assetPath 只接受画布图片（assets/image/canvas-<id>.png 或
 .maker/canvases/images/canvas-<id>.png，即 import 返回的路径）；项目里的其他文件先用 import --file 导入。
 

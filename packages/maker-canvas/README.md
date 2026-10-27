@@ -224,6 +224,9 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
 - 连线只表示引用关系：删除指向已有图片卡的连线时，丢弃该来源的 `sourceSnapshot(s)`，不设
   `templatePending`、不使下游失效，图片保持原样；删除指向空槽的连线只移除下一次生成的参考
   （同时清掉草稿 `sourceImageId(s)`，两种外观都如此）。默认外观仍按原规则把分组成员标为待处理。
+  Web 中剪断 AI 结果卡（有 `generation`、不属于模板分组）的连线后写入
+  `referenceInput: {includeSelf: false}`，再生成只用剩余连线，不再回退到 `generation.sourceImageId(s)`；
+  撤销恢复连线与原行为。
 - 没有再生成路径的图片（本地编辑、抠图、普通导入：无 `generation`/草稿提示词，且不属于分组、
   二合图标或识别流程）在两种外观下都不提供「处理并继续 / 重试并继续」，连续处理时跳过；来源连线
   已断开不再算作“来源已变化”，旧画布中此类卡加载即正常显示；仍连着的来源变化只显示提示性的「待处理」。
@@ -275,7 +278,8 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
   自动取背景色，用编辑器默认参数（`CANVAS_BACKGROUND_DEFAULTS`：容差 32、过渡 24、去溢色 .5、
   边缘连通）在浏览器内去除，经 `store.importImage` 保存 PNG，在原图右侧新建「<原标题> · 抠图」卡，
   以 `image-variant` 从来源连入并选中，可撤销。处理中原卡显示处理遮罩；未识别到纯色背景或
-  其它失败只提示「抠图失败：…」（未识别时提示改用「调整抠图」），不创建卡片。不打开编辑器，不调用生成或付费服务；默认外观的
+  其它失败只提示「抠图失败：…」（未识别时提示改用「调整抠图」），不创建卡片；画布已达 400 张卡或
+  800 条连线时在导入前拒绝。不打开编辑器，不调用生成或付费服务；默认外观的
   「去纯色背景」仍打开完整本地编辑器（「本地图片编辑」+「去背景」两层）。Web「调整抠图」（同受
   `cutout` 控制）只打开「去背景」参数框（`openBackgroundEditor` 的 `confirm` 单图模式：自动/手动取色、
   从原图取色、容差、边缘过渡、去溢色、处理范围与实时预览），底部仅「取消」和主按钮「保存」；
@@ -294,7 +298,8 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
   胶囊；激活页签用卡片底色、前景文字与轻投影，其余为次要文字、悬停浅底。关闭 × 只在悬停或激活时
   显示，重命名铅笔只在悬停激活页签时显示，键盘聚焦时始终可见并保留焦点环；右侧「+」「全部画布」
   为 28px ghost 按钮。
-- 「适配画布」排除左侧工具条（及显示中的流程条）占位并留 32px 边距，按卡片实际渲染尺寸计算。
+- 「适配画布」排除左侧工具条（及显示中的流程条）占位并留 32px 边距（默认外观同样避开工具条），
+  按卡片实际渲染尺寸计算。
 
 颜色取 `--canvas-*`（Web 由 `--maker-*` 映射），随 `:root[data-theme]` 切换明暗。
 
@@ -327,7 +332,8 @@ sourceImageId?, sourceImageIds?}`（有入边时 `operation: 'variant'` 并记�
 - `connect` 支持图片到图片（规则见上），校验失败为 `INVALID_ARGS`。
 
 写命令遇到的唯一阻塞是未保存修改或进行中的自动保存时，先等待保存（上限约 10 秒）再
-重新检查；保存失败或超时即拒绝，命令不执行。例外是 `undo` / `redo`：保存失败时仍可执行，
+重新检查；保存失败或超时即拒绝，命令不执行；等待期间又有人工修改时以 revision 过期拒绝，
+需重新 inspect，不把旧命令叠加到调用方未看过的内容上。例外是 `undo` / `redo`：保存失败时仍可执行，
 用来撤回导致保存失败的修改；任务、面板、草稿和其他页面的阻挡照常生效。
 
 `execute` 抛出的错误带 `code`：卡片、连线不存在或 canvasId 不是当前画布为 `NOT_FOUND`；
