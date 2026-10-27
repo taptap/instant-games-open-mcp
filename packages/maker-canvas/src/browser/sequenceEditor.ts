@@ -2,6 +2,7 @@ import type { CanvasNode } from '../contracts.js';
 import type { SequenceRunView, SequenceSettings, SequenceCardSource } from './sequence.js';
 import type { createSequenceUiControllerWithMedia } from './sequenceUi.js';
 import type { openFrameEditor } from './frameEditor.js';
+import { canvasCachedImage, canvasWhenImageReady } from './mediaReuse.js';
 
 export function renderSequenceResult(
   card: HTMLElement,
@@ -27,7 +28,8 @@ export function renderSequenceResult(
     if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
   });
   if (node.frameSetInfo && atlasUrl) {
-    const atlas = new Image();
+    // Panning re-renders the card; a cached decoded atlas redraws in the same frame instead of flashing.
+    const atlas = canvasCachedImage(atlasUrl);
     const info = node.frameSetInfo;
     const canvases = info.frames.map((frame, index) => {
       const tile = document.createElement('figure');
@@ -40,7 +42,7 @@ export function renderSequenceResult(
       grid.append(tile);
       return { canvas, frame };
     });
-    atlas.onload = () => {
+    const paint = () => {
       for (const { canvas, frame } of canvases) {
         const scale = Math.min(canvas.width / frame.width, canvas.height / frame.height);
         canvas
@@ -58,10 +60,9 @@ export function renderSequenceResult(
           );
       }
     };
-    atlas.onerror = () => {
+    canvasWhenImageReady(atlas, paint, () => {
       grid.textContent = '帧集图片读取失败，请点击编辑检查。';
-    };
-    atlas.src = atlasUrl;
+    });
   } else {
     grid.classList.add('sequence-result-empty');
     grid.textContent =
@@ -121,6 +122,11 @@ export function createSequenceEditor(options: {
   let onionOpacity = 0.25;
   let localError = '';
   let loadingEdit = false;
+  // Progress ticks re-render the dialog; keeping these across renders stops the preview and thumbnails flashing.
+  let previewCanvas: HTMLCanvasElement | undefined;
+  let stagePlayer: HTMLVideoElement | undefined;
+  const bitmapCache = new Map<Blob, ImageBitmap>();
+  let liveBlobs = new Set<Blob>();
   const dialog = document.createElement('dialog');
   dialog.className = 'sequence-editor';
   dialog.setAttribute('aria-label', '序列帧编辑');
@@ -288,7 +294,8 @@ export function createSequenceEditor(options: {
     previewArea.className = 'sequence-editor-preview';
     const stageArea = document.createElement('div');
     stageArea.className = 'sequence-editor-stage checkerboard';
-    const canvas = document.createElement('canvas');
+    const canvas = previewCanvas || (previewCanvas = document.createElement('canvas'));
+    canvas.hidden = false;
     canvas.className = 'sequence-editor-canvas';
     canvas.setAttribute('aria-label', '当前帧预览');
     stageArea.append(canvas);
@@ -316,19 +323,23 @@ export function createSequenceEditor(options: {
     let comparing = false;
     let drawSequence = 0;
     const frameLabel = document.createElement('span');
-    const atlas = saved && node.assetPath ? new Image() : undefined;
-    if (atlas) atlas.src = options.mediaUrl(node.assetPath!);
-    const atlasReady = atlas?.decode().then(
-      () => true,
-      () => false
-    );
-    const bitmaps = new Map<number, ImageBitmap>();
-    const previousDispose = disposePreview;
-    previousDispose();
-    disposePreview = () => {
-      for (const bitmap of bitmaps.values()) bitmap.close();
-      bitmaps.clear();
-    };
+    const atlas =
+      saved && node.assetPath ? canvasCachedImage(options.mediaUrl(node.assetPath)) : undefined;
+    const atlasReady =
+      atlas &&
+      new Promise<boolean>((resolve) =>
+        canvasWhenImageReady(
+          atlas,
+          () => resolve(true),
+          () => resolve(false)
+        )
+      );
+    liveBlobs = new Set(frames.filter((blob): blob is Blob => Boolean(blob)));
+    for (const [blob, bitmap] of bitmapCache)
+      if (!liveBlobs.has(blob)) {
+        bitmap.close();
+        bitmapCache.delete(blob);
+      }
     async function bitmapAt(index: number): Promise<CanvasImageSource | undefined> {
       if (atlas) {
         if (!(await atlasReady)) throw new Error('图集读取失败');
@@ -336,20 +347,15 @@ export function createSequenceEditor(options: {
       }
       const blob = frames[index];
       if (!blob) return undefined;
-      let bitmap = bitmaps.get(index);
-      if (!bitmap) {
-        bitmap = await createImageBitmap(blob);
-        if (version !== renderVersion) {
-          bitmap.close();
-          return undefined;
-        }
-        const cached = bitmaps.get(index);
-        if (cached) {
-          bitmap.close();
-          return cached;
-        }
-        bitmaps.set(index, bitmap);
+      const cached = bitmapCache.get(blob);
+      if (cached) return cached;
+      const bitmap = await createImageBitmap(blob);
+      const raced = bitmapCache.get(blob);
+      if (raced || !liveBlobs.has(blob)) {
+        bitmap.close();
+        return raced;
       }
+      bitmapCache.set(blob, bitmap);
       return bitmap;
     }
     async function draw(index: number, target: HTMLCanvasElement, thumbnail = false) {
@@ -712,12 +718,16 @@ export function createSequenceEditor(options: {
       selectFrame(selectedFrame);
     } else {
       canvas.hidden = true;
-      const player = document.createElement('video');
-      player.className = 'sequence-editor-video';
-      player.controls = true;
-      player.preload = 'metadata';
-      if (source?.assetPath) player.src = options.mediaUrl(source.assetPath);
-      stageArea.append(player);
+      const url = source?.assetPath ? options.mediaUrl(source.assetPath) : '';
+      if (!stagePlayer || stagePlayer.dataset.src !== url) {
+        stagePlayer = document.createElement('video');
+        stagePlayer.className = 'sequence-editor-video';
+        stagePlayer.controls = true;
+        stagePlayer.preload = 'metadata';
+        stagePlayer.dataset.src = url;
+        if (url) stagePlayer.src = url;
+      }
+      stageArea.append(stagePlayer);
       frameLabel.textContent = busy ? '正在抽取视频帧…' : '先预览视频，再选择抽帧范围';
     }
 
@@ -957,7 +967,14 @@ export function createSequenceEditor(options: {
     dialog.replaceChildren(root);
     if (confirm) dialog.append(confirm);
   }
-  let disposePreview = () => {};
+  function disposePreview() {
+    for (const bitmap of bitmapCache.values()) bitmap.close();
+    bitmapCache.clear();
+    liveBlobs = new Set();
+    stagePlayer?.pause();
+    stagePlayer = undefined;
+    previewCanvas = undefined;
+  }
   return {
     open(nodeId: string) {
       if (activeId) return;

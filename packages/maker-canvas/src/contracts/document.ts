@@ -47,7 +47,11 @@ export type CanvasCreateTemplate = 'starter' | 'empty' | 'sequence';
 
 export type CanvasImageOperation = 'generate' | 'variant' | 'outpaint';
 
-export type CanvasVideoMode = 'first_frame' | 'first_last_frame' | 'multi_modal_reference';
+export type CanvasVideoMode =
+  | 'text_to_video'
+  | 'first_frame'
+  | 'first_last_frame'
+  | 'multi_modal_reference';
 
 export interface CanvasGenerationResult {
   prompt: string;

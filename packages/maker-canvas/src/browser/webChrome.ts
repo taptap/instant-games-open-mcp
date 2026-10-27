@@ -9,7 +9,17 @@ export function canvasWebSlot(node: CanvasNode): boolean {
 /** Turns a text action into a Web icon button; the text stays as aria-label and tooltip. */
 export function canvasWebIconAction(
   button: HTMLElement,
-  icon: 'chat' | 'cutout' | 'chevron' | 'download'
+  icon:
+    | 'chat'
+    | 'cutout'
+    | 'chevron'
+    | 'download'
+    | 'trash'
+    | 'video'
+    | 'sequence'
+    | 'upload'
+    | 'group'
+    | 'ungroup'
 ): HTMLElement {
   // Inlined here because helpers are injected into the page via toString().
   const paths = {
@@ -22,6 +32,24 @@ export function canvasWebIconAction(
     chevron: '<path d="m6 9 6 6 6-6"/>',
     // Same glyph as the default page's download summary.
     download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
+    // lucide trash-2
+    trash:
+      '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+    // lucide video
+    video:
+      '<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
+    // lucide film
+    sequence:
+      '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/>',
+    // lucide upload
+    upload:
+      '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+    // lucide group
+    group:
+      '<path d="M3 7V5c0-1.1.9-2 2-2h2"/><path d="M17 3h2c1.1 0 2 .9 2 2v2"/><path d="M21 17v2c0 1.1-.9 2-2 2h-2"/><path d="M7 21H5c-1.1 0-2-.9-2-2v-2"/><rect width="7" height="5" x="7" y="7" rx="1"/><rect width="7" height="5" x="10" y="12" rx="1"/>',
+    // lucide ungroup
+    ungroup:
+      '<rect width="8" height="6" x="5" y="4" rx="1"/><rect width="8" height="6" x="11" y="14" rx="1"/>',
   };
   const label = button.getAttribute('aria-label') || button.textContent || '';
   button.setAttribute('aria-label', label);
@@ -50,6 +78,26 @@ export function installCanvasWebTooltips() {
   let timer = 0;
   let keyboard = false;
   let lastHide = 0;
+  const root = document.documentElement;
+  const measure = document.createElement('canvas').getContext('2d');
+  /** Mirrors the flag on :root so CSS shows focus rings for keyboard focus only (no :focus-visible on Chrome 74). */
+  function setKeyboard(next: boolean) {
+    if (keyboard === next) return;
+    keyboard = next;
+    root.classList.toggle('canvas-web-keyboard', next);
+    if (!next || !measure) return;
+    // The ring is the live host accent at 60%; canvas normalises any CSS color, as color-mix is unavailable.
+    measure.fillStyle = '#6957e8';
+    measure.fillStyle = getComputedStyle(root).getPropertyValue('--web-accent').trim() || '#6957e8';
+    const color = String(measure.fillStyle);
+    const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color);
+    root.style.setProperty(
+      '--web-focus-ring',
+      hex
+        ? 'rgba(' + [hex[1], hex[2], hex[3]].map((part) => parseInt(part, 16)).join(',') + ',.6)'
+        : color.replace(/,\s*[\d.]+\)$/, ',.6)')
+    );
+  }
   function label(element: HTMLElement) {
     if (element.title) {
       // Moving title into data keeps the text while stopping the native delayed tooltip.
@@ -122,7 +170,12 @@ export function installCanvasWebTooltips() {
   document.addEventListener(
     'keydown',
     (event) => {
-      keyboard = true;
+      const target = event.target as HTMLElement | null;
+      const typing =
+        Boolean(target?.closest?.('textarea, input, [contenteditable="true"]')) &&
+        event.key !== 'Tab';
+      // Typing in a clicked field or pressing a bare modifier is not keyboard navigation.
+      if (!typing && !['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) setKeyboard(true);
       if (event.key === 'Escape') hide();
     },
     true
@@ -130,7 +183,7 @@ export function installCanvasWebTooltips() {
   document.addEventListener(
     'pointerdown',
     () => {
-      keyboard = false;
+      setKeyboard(false);
       hide();
     },
     true
@@ -179,9 +232,12 @@ export function decorateCanvasWebCards(options: {
   // Mivo sizes handles, outline and pills in screen pixels, so world-space chrome divides by zoom.
   world.style.setProperty('--web-inv', String(1 / zoom));
   world.classList.toggle('web-multi-selection', selected.size > 1);
+  // Idempotent: the video player reselects without a full render and redecorates in place.
+  world.querySelectorAll('.web-node-handle, .web-slot-upload').forEach((item) => item.remove());
   world.querySelectorAll(':scope > .card[data-id] > .card-state-loading').forEach((element) => {
     // Mivo GeneratedMediaFx tip: status text and the stop action share one pill under the frame.
     const overlay = element as HTMLElement;
+    if (overlay.querySelector(':scope > .web-state-tip')) return;
     const tip = document.createElement('div');
     tip.className = 'web-state-tip';
     const title = overlay.querySelector(':scope > b');
@@ -193,24 +249,16 @@ export function decorateCanvasWebCards(options: {
     overlay.querySelectorAll(':scope > .card-state-query').forEach((item) => tip.append(item));
     overlay.append(tip);
   });
-  world.querySelectorAll(':scope > .card.image[data-id]').forEach((element) => {
-    const card = element as HTMLElement;
-    const node = doc.nodes.find((item) => item.id === card.dataset.id);
-    if (!node) return;
-    card.classList.toggle('web-slot', canvasWebSlot(node));
-    card.classList.toggle('web-empty', !node.assetPath);
-    if (selected.size !== 1 || !selected.has(node.id)) return;
-    const frame = card.querySelector(':scope > .canvas-card-content') as HTMLElement | null;
+  function handles(card: HTMLElement, node: CanvasNode, frame: HTMLElement | null, busy: boolean) {
     const box = frame
       ? { x: frame.offsetLeft, y: frame.offsetTop, w: frame.offsetWidth, h: frame.offsetHeight }
       : { x: 0, y: 0, w: card.offsetWidth, h: card.offsetHeight };
-    const busy = options.busy(node.id);
     for (const corner of ['nw', 'ne', 'sw', 'se']) {
       const handle = document.createElement('button');
       handle.type = 'button';
       handle.tabIndex = -1;
       handle.className = 'web-node-handle is-' + corner;
-      handle.setAttribute('aria-label', '调整图片大小');
+      handle.setAttribute('aria-label', node.type === 'image' ? '调整图片大小' : '调整卡片大小');
       handle.style.left = box.x + (corner[1] === 'e' ? box.w : 0) + 'px';
       handle.style.top = box.y + (corner[0] === 's' ? box.h : 0) + 'px';
       if (busy || !options.resize) handle.disabled = true;
@@ -220,6 +268,35 @@ export function decorateCanvasWebCards(options: {
       });
       card.append(handle);
     }
+  }
+  // Video, video result and group frames share the image selection chrome; sections frame the whole card.
+  world
+    .querySelectorAll(
+      ':scope > .card.video[data-id], :scope > .card.video-source[data-id], :scope > .card.section[data-id]'
+    )
+    .forEach((element) => {
+      const card = element as HTMLElement;
+      const node = doc.nodes.find((item) => item.id === card.dataset.id);
+      if (!node) return;
+      card.classList.add('web-media');
+      card.classList.toggle('web-empty', node.type === 'video' && !node.assetPath);
+      if (selected.size !== 1 || !selected.has(node.id)) return;
+      const frame =
+        node.type === 'section'
+          ? null
+          : (card.querySelector(':scope > .canvas-card-content') as HTMLElement | null);
+      handles(card, node, frame, options.busy(node.id));
+    });
+  world.querySelectorAll(':scope > .card.image[data-id]').forEach((element) => {
+    const card = element as HTMLElement;
+    const node = doc.nodes.find((item) => item.id === card.dataset.id);
+    if (!node) return;
+    card.classList.toggle('web-slot', canvasWebSlot(node));
+    card.classList.toggle('web-empty', !node.assetPath);
+    if (selected.size !== 1 || !selected.has(node.id)) return;
+    const frame = card.querySelector(':scope > .canvas-card-content') as HTMLElement | null;
+    const busy = options.busy(node.id);
+    handles(card, node, frame, busy);
     if (node.assetPath || !frame || busy) return;
     // Mivo imageReplaceButtonScale: cap at 30x136 screen px and 20%/62% of the frame.
     const width = frame.offsetWidth * zoom;
@@ -356,7 +433,7 @@ export function createCanvasWebChrome(options: {
     const id = card && card.getAttribute('data-id');
     const hitNode =
       id && id !== drag.id
-        ? doc.nodes.find((item) => item.id === id && item.type === 'image')
+        ? doc.nodes.find((item) => item.id === id && ['image', 'video'].includes(item.type))
         : undefined;
     const node = hitNode && canvasWebBox(hitNode);
     mark(node ? card : null);
@@ -407,7 +484,8 @@ export function createCanvasWebChrome(options: {
       measure.font = getComputedStyle(select).font;
       // Native selects size to their widest option; Web pills size to the chosen label.
       const width = Math.ceil(measure.measureText(option ? option.text : '').width);
-      select.style.width = Math.min(220, width + 32) + 'px';
+      // 28px padding + 2px border, plus slack because canvas and form-control text metrics differ.
+      select.style.width = Math.min(220, width + 36) + 'px';
     });
   }
   if (toolbar) {
@@ -415,4 +493,103 @@ export function createCanvasWebChrome(options: {
     toolbar.addEventListener('change', fitSelects);
   }
   return { preview, clear };
+}
+
+/** Play/pause glyph and label for the Web video card control, kept in step with the element. */
+export function canvasWebSyncVideoPlay(button: HTMLElement, player: HTMLVideoElement) {
+  const playing = !player.paused && !player.ended;
+  const label = playing ? '暂停视频' : '播放视频';
+  if (button.dataset.playing === String(playing)) return;
+  button.dataset.playing = String(playing);
+  button.setAttribute('aria-label', label);
+  button.dataset.webTip = label;
+  // lucide play / pause
+  button.innerHTML =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    (playing
+      ? '<rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/>'
+      : '<polygon points="6 3 20 12 6 21 6 3"/>') +
+    '</svg>';
+}
+
+/** Side + chooser: a small menu next to the ring; arrows move, Esc closes and refocuses the +. */
+export function openCanvasWebSlotChooser(options: {
+  anchor: HTMLElement;
+  items: Array<{ label: string; icon: 'image' | 'video'; run(): void }>;
+  restoreFocus(): void;
+}) {
+  document.querySelector('.web-slot-chooser')?.remove();
+  // lucide image / video, same strokes as the slot glyphs.
+  const icons = {
+    image:
+      '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+    video:
+      '<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
+  };
+  const menu = document.createElement('div');
+  menu.className = 'web-slot-chooser';
+  menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-label', '新建卡片');
+  const outside = (event: Event) => {
+    if (!menu.contains(event.target as Node)) close(false);
+  };
+  const dismiss = () => close(false);
+  function close(restore: boolean) {
+    if (!menu.isConnected) return;
+    menu.remove();
+    document.removeEventListener('pointerdown', outside, true);
+    window.removeEventListener('wheel', dismiss, true);
+    window.removeEventListener('blur', dismiss);
+    if (restore) options.restoreFocus();
+  }
+  const buttons = options.items.map((item) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'menuitem');
+    button.tabIndex = -1;
+    button.innerHTML =
+      '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      icons[item.icon] +
+      '</svg>';
+    const text = document.createElement('span');
+    text.textContent = item.label;
+    button.append(text);
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      close(false);
+      item.run();
+    });
+    menu.append(button);
+    return button;
+  });
+  menu.addEventListener('pointerdown', (event) => event.stopPropagation());
+  menu.addEventListener('keydown', (event) => {
+    // Canvas shortcuts (Delete, Space pan, undo) must not fire while the menu owns the keyboard.
+    event.stopPropagation();
+    const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const move = (next: number) => {
+      event.preventDefault();
+      buttons[(next + buttons.length) % buttons.length].focus();
+    };
+    if (event.key === 'ArrowDown') move(index + 1);
+    else if (event.key === 'ArrowUp') move(index - 1);
+    else if (event.key === 'Home') move(0);
+    else if (event.key === 'End') move(buttons.length - 1);
+    else if (event.key === 'Escape') {
+      event.preventDefault();
+      close(true);
+    } else if (event.key === 'Tab') close(false);
+  });
+  document.body.append(menu);
+  // The visible ring sits 25px inside the 80px hot zone, so the menu opens just right of the ring.
+  const box = options.anchor.getBoundingClientRect();
+  const left = box.left + box.width / 2 - 25 + 18;
+  const top = box.top + box.height / 2 - menu.offsetHeight / 2;
+  menu.style.left = Math.max(8, Math.min(left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+  menu.style.top = Math.max(8, Math.min(top, window.innerHeight - menu.offsetHeight - 8)) + 'px';
+  document.addEventListener('pointerdown', outside, true);
+  window.addEventListener('wheel', dismiss, true);
+  window.addEventListener('blur', dismiss);
+  buttons[0]?.focus();
+  return { close };
 }

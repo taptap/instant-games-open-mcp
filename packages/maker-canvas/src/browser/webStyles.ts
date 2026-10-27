@@ -1,6 +1,9 @@
 // The :not(#id) term adds ID weight so this opt-in skin wins over host theme CSS appended later.
 const M = ':root.canvas-appearance-web:not(#canvas-web-scope)';
 const L = ':root.canvas-appearance-web[data-theme="light"]:not(#canvas-web-scope)';
+// Focus rings follow the tooltip helper's last-input flag on :root (Chrome 74 has no :focus-visible).
+const P = ':root.canvas-appearance-web:not(.canvas-web-keyboard):not(#canvas-web-scope)';
+const K = ':root.canvas-appearance-web.canvas-web-keyboard:not(#canvas-web-scope)';
 
 // Chrome 74: no flex gap, inset, aspect-ratio, :is()/:where() or color-mix(); spacing uses margins, :focus-visible stays in its own rule.
 const IMAGE_ICON =
@@ -15,6 +18,9 @@ const CHECK_ICON =
 // lucide Plus at 12px / stroke 1.5, as drawn inside Mivo's side handle.
 const PLUS_ICON =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M5 12h14M12 5v14'/%3E%3C/svg%3E\")";
+// lucide Video, drawn like IMAGE_ICON for the empty video slot.
+const VIDEO_ICON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.35' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5'/%3E%3Crect x='2' y='6' width='14' height='12' rx='2'/%3E%3C/svg%3E\")";
 const SPRING = 'cubic-bezier(.34,1.56,.64,1)';
 
 /** Opt-in Mivo-like skin for host appearance 'web'; layout and DOM stay the page defaults. */
@@ -23,6 +29,8 @@ ${M} {
   /* Selection follows the host theme accent (Web maps --maker-primary); Mivo violet is only the fallback. */
   --web-accent: var(--canvas-accent, #6957e8);
   --web-accent-ring: rgba(105,87,232,.18);
+  /* Replaced at runtime by the live accent at 60% (installCanvasWebTooltips). */
+  --web-focus-ring: rgba(105,87,232,.6);
   /* Mivo tokens.css menu mixes over the dark palette, precomputed for Chrome 74. */
   --web-menu-bg: #383636;
   --web-menu-line: #575757;
@@ -70,6 +78,8 @@ ${M} {
   --web-send-bg: #eeeeee;
   --web-send-ink: #252222;
   --web-send-hover: #d2d1d1;
+  --web-group-bg: rgba(255,255,255,.025);
+  --web-scrim: rgba(42,40,40,.94);
 }
 ${L} {
   --web-wash: rgba(35,35,35,.07);
@@ -112,6 +122,8 @@ ${L} {
   --web-menu-ink: var(--web-text);
   --web-menu-hover: rgba(35,35,35,.07);
   --web-sweep: rgba(35,35,35,.05);
+  --web-group-bg: rgba(35,35,35,.025);
+  --web-scrim: rgba(255,255,255,.94);
 }
 
 ${M} .workspace-toolbar { width: 48px; padding: 7px 5px; gap: 0; border: 1px solid var(--web-line); border-radius: 24px; background: var(--web-panel); box-shadow: var(--web-shadow); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
@@ -190,6 +202,9 @@ ${M} .card.image .web-node-handle:disabled { opacity: .45; cursor: default; }
 ${M} .card.image > .resize-handle { display: none; }
 ${M} .card.image .image-size-info { left: 8px; bottom: 8px; padding: 2px 7px; border-radius: 999px; background: rgba(0,0,0,.5); color: #fffaf0; font-size: 11px; opacity: 0; transition: opacity .12s; }
 ${M} .card.image:hover .image-size-info, ${M} .card.image.selected .image-size-info { opacity: 1; }
+/* Fixed height + line-height keeps the pill shape identical whatever font the host theme loads. */
+${M} .card.image > .generation-credits { height: 20px; padding: 0 8px; border: 1px solid var(--web-glass-edge); border-radius: 999px; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: 0 2px 8px rgba(0,0,0,.18); font-size: 11px; font-weight: 500; line-height: 18px; }
+${L} .card.image > .generation-credits { box-shadow: 0 2px 8px rgba(35,35,35,.12); }
 /* Mivo side plus: 80px hot zone 25px outside the frame edge, 20px ring resting on the edge; scale(inv) keeps it screen-sized. */
 ${M} .card .port.canvas-port { --web-rest: 0px; top: calc(50% + 20px); width: 80px; height: 80px; margin-top: -40px; border: 0; border-radius: 50%; background: transparent; color: rgba(212,212,212,.7); font-size: 0; opacity: 0; pointer-events: none; outline: none; -webkit-transform: scale(var(--web-inv, 1)); transform: scale(var(--web-inv, 1)); transition: opacity .12s; }
 ${M} .card .port.canvas-port-output { right: calc(-40px - 25px * var(--web-inv, 1)); --web-rest: -25px; }
@@ -333,7 +348,9 @@ ${M} #canvas-context-menu button:hover:not(:disabled), ${M} #canvas-context-menu
 /* Canvas tabs = Maker Web TabsList: slim board-toned bar, pill tabs, ghost + and 全部画布 on the right. */
 ${M} .workspace-tabs-row { height: 40px; padding: 0 8px; gap: 0; border: 0; border-bottom: 1px solid var(--web-line); background: var(--web-soft); color: var(--web-text); }
 ${M} .workspace-tabs-row > * + * { margin-left: 4px; }
-${M} .workspace-tabs { align-items: center; gap: 0; height: 100%; padding: 0 2px; }
+/* Tabs shrink to content so + trails the last tab; 全部画布 alone takes the free space on the right. */
+${M} .workspace-tabs { flex: 0 1 auto; align-items: center; gap: 0; height: 100%; padding: 0 2px; }
+${M} .workspace-tabs-row > .workspace-library { margin-left: auto; }
 ${M} .workspace-tabs > * + * { margin-left: 2px; }
 ${M} .workspace-tab { position: relative; align-items: center; box-sizing: border-box; height: 30px; max-width: 240px; padding: 0 4px 0 0; border: 0; border-radius: 8px; background: transparent; color: var(--web-muted); box-shadow: none; transition: background-color .12s, color .12s; }
 ${M} .workspace-tab:hover { background: var(--web-wash); color: var(--web-text); }
@@ -350,7 +367,9 @@ ${M} .workspace-tab:hover button:last-child:not([role="tab"]):not(#rename-canvas
 ${M} .workspace-tab #rename-canvas:focus, ${M} .workspace-tab button:last-child:not([role="tab"]):not(#rename-canvas):focus { opacity: 1; pointer-events: auto; }
 ${M} .workspace-tab #rename-canvas:hover:not(:disabled), ${M} .workspace-tab button:last-child:not([role="tab"]):not(#rename-canvas):hover:not(:disabled) { background: var(--web-wash); color: var(--web-text); }
 ${M} .workspace-tabs-row > button, ${M} .workspace-library > summary { box-sizing: border-box; height: 28px; min-height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--web-muted); font-size: 13px; font-weight: 500; line-height: 28px; }
-${M} .workspace-tabs-row > #workspace-new { width: 28px; padding: 0; font-size: 18px; font-weight: 400; }
+/* The text "+" sits off-center with font metrics, so a masked glyph replaces it. */
+${M} .workspace-tabs-row > #workspace-new { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 28px; padding: 0; font-size: 0; line-height: 0; }
+${M} .workspace-tabs-row > #workspace-new::before { content: ''; display: block; width: 16px; height: 16px; background: currentColor; -webkit-mask: ${ADD_ICON} center / contain no-repeat; mask: ${ADD_ICON} center / contain no-repeat; }
 ${M} .workspace-tabs-row > button:hover:not(:disabled), ${M} .workspace-library > summary:hover, ${M} .workspace-library[open] > summary { background: var(--web-wash); color: var(--web-text); }
 ${M} .workspace-tab button:focus-visible, ${M} .workspace-tabs-row > button:focus-visible, ${M} .workspace-library > summary:focus-visible { outline: 2px solid var(--web-accent); outline-offset: -2px; }
 ${M} .workspace-tabs-row > button:disabled { opacity: .45; }
@@ -363,4 +382,139 @@ ${M} .web-tooltip[data-side="below"]::after { top: 0; -webkit-transform: rotate(
 ${L} .web-tooltip { border-color: rgba(37,46,41,.9); background: rgba(37,46,41,.96); color: #ffffff; box-shadow: 0 8px 20px rgba(35,35,35,.16); }
 ${L} .web-tooltip::after { border-color: rgba(37,46,41,.9); }
 @media (prefers-reduced-motion: reduce) { ${M} .web-tooltip { transition: none; } }
+
+/* Video slot and video result = image card: bare title row over a shadowed frame, same selection outline, ring and corner handles. */
+${M} .card.video.canvas-card, ${M} .card.video-source.canvas-card { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+${M} .card.video.canvas-card.selected, ${M} .card.video-source.canvas-card.selected { outline: none; }
+${M} .card.web-media:not(.section) .canvas-card-header { padding: 0 2px 6px; align-items: flex-end; border: 0; background: transparent; }
+${M} .card.web-media:not(.section) .canvas-card-heading { display: block; }
+${M} .card.web-media .canvas-card-title { color: var(--web-muted); font-size: 13px; font-weight: 400; line-height: 20px; }
+${M} .card.web-media .canvas-card-meta { display: none; }
+${M} .card.web-media .canvas-card-menu { width: 22px; height: 22px; margin-bottom: -1px; border-radius: 6px; background: transparent; color: var(--web-muted); opacity: 0; }
+${M} .card.web-media:hover .canvas-card-menu, ${M} .card.web-media.selected .canvas-card-menu, ${M} .card.web-media .canvas-card-menu:focus-visible { opacity: 1; }
+${M} .card.web-media .canvas-card-menu:hover { background: var(--web-wash); color: var(--web-text); }
+${M} .card.video-source .canvas-card-content { border-radius: 0; background: #000; box-shadow: 0 14px 32px rgba(35,35,35,.18); }
+${M} .card.video-source.selected .canvas-card-content, ${M} .card.video.selected .canvas-card-content { outline: calc(2px * var(--web-inv, 1)) solid var(--web-accent); outline-offset: 0; }
+${M} .card.video-source.selected::before, ${M} .card.video.selected::before { content: ''; position: absolute; left: 0; right: 0; top: 40px; bottom: 0; z-index: 0; box-shadow: 0 0 0 calc(4px * var(--web-inv, 1)) var(--web-accent); opacity: .18; pointer-events: none; }
+${M} .card.video.selected::before { border-radius: 12px; opacity: .1; }
+/* Empty video slot = image slot with a film glyph; connected frames show as thumbnails in the composer instead. */
+${M} .card.video .canvas-card-content { box-sizing: border-box; padding: 0; border: 1px solid var(--web-slot-line); border-radius: 12px; background: var(--web-slot-bg); color: var(--web-slot-glyph); align-items: center; justify-content: center; }
+${M} .card.video .canvas-card-content > * { display: none; }
+${M} .card.video .canvas-card-content::before { content: ''; display: block; width: 22%; height: 22%; max-width: 48px; max-height: 48px; min-width: 28px; min-height: 28px; background: currentColor; -webkit-mask: ${VIDEO_ICON} center / contain no-repeat; mask: ${VIDEO_ICON} center / contain no-repeat; }
+${M} .card.video.selected .canvas-card-content { outline-offset: 0; }
+${M} .card.video > .card-state-overlay, ${M} .card.video-source > .card-state-overlay { top: 40px; }
+${M} .card.video-source > .generation-credits { height: 20px; padding: 0 8px; border: 1px solid var(--web-glass-edge); border-radius: 999px; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: 0 2px 8px rgba(0,0,0,.18); font-size: 11px; font-weight: 500; line-height: 18px; }
+${L} .card.video-source > .generation-credits { box-shadow: 0 2px 8px rgba(35,35,35,.12); }
+/* Same zoom-invariant corner handles as images; video results keep their ratio, groups resize freely. */
+${M} .card.web-media .web-node-handle { position: absolute; z-index: 9; box-sizing: border-box; width: calc(10px * var(--web-inv, 1)); height: calc(10px * var(--web-inv, 1)); min-height: 0; margin: 0; padding: 0; border: calc(2px * var(--web-inv, 1)) solid var(--web-accent); border-radius: 50%; background: #fffaf0; box-shadow: 0 1px 3px rgba(0,0,0,.25); opacity: 1; pointer-events: auto; -webkit-transform: translate(-50%, -50%); transform: translate(-50%, -50%); }
+${M} .card.web-media .web-node-handle::after { content: ''; position: absolute; left: 50%; top: 50%; width: calc(20px * var(--web-inv, 1)); height: calc(20px * var(--web-inv, 1)); border-radius: 50%; -webkit-transform: translate(-50%, -50%); transform: translate(-50%, -50%); }
+${M} .card.web-media .web-node-handle.is-nw, ${M} .card.web-media .web-node-handle.is-se { cursor: nwse-resize; }
+${M} .card.web-media .web-node-handle.is-ne, ${M} .card.web-media .web-node-handle.is-sw { cursor: nesw-resize; }
+${M} .card.web-media .web-node-handle:disabled { opacity: .45; cursor: default; }
+${M} .card.web-media > .resize-handle { display: none; }
+
+/* Group = quiet rounded frame with the caption inside its top edge; selection uses the card outline and ring. */
+${M} .card.section.canvas-card { overflow: visible; border: 1px solid var(--web-line); border-radius: 16px; background: var(--web-group-bg); box-shadow: none; }
+${M} .card.section.canvas-card.selected { outline: calc(2px * var(--web-inv, 1)) solid var(--web-accent); outline-offset: 0; }
+${M} .card.section.selected::before { content: ''; position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 16px; box-shadow: 0 0 0 calc(4px * var(--web-inv, 1)) var(--web-accent); opacity: .18; pointer-events: none; }
+${M} .card.section .canvas-card-header { height: 40px; padding: 0 10px 0 14px; border: 0; background: transparent; }
+${M} .card.section .canvas-card-heading { display: flex; flex-direction: row; align-items: baseline; min-width: 0; }
+${M} .card.section .canvas-card-title { color: var(--web-text); font-size: 13px; font-weight: 500; }
+${M} .card.section .canvas-card-meta { display: inline; margin-left: 8px; color: var(--web-muted); font-size: 12px; }
+${M} .card.section .canvas-group-state { height: 20px; padding: 0 8px; border: 1px solid var(--web-line); border-radius: 999px; background: transparent; color: var(--web-muted); font-size: 11px; line-height: 18px; }
+
+/* Sequence and animation cards: panel-toned frame with pill buttons, matching the composer surface. */
+${M} .card.sequence.canvas-card, ${M} .card.animation.canvas-card { border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); color: var(--web-text); box-shadow: 0 14px 32px rgba(35,35,35,.18); }
+${M} .card.sequence.canvas-card.selected, ${M} .card.animation.canvas-card.selected { outline: calc(2px * var(--web-inv, 1)) solid var(--web-accent); outline-offset: 0; }
+${M} .card.sequence .canvas-card-header, ${M} .card.animation .canvas-card-header { border-bottom: 1px solid var(--web-line); background: transparent; }
+${M} .card.sequence .canvas-card-title, ${M} .card.animation .canvas-card-title { color: var(--web-text); font-size: 13px; font-weight: 500; }
+${M} .card.sequence .canvas-card-meta, ${M} .card.animation .canvas-card-meta, ${M} .sequence-source-label, ${M} .sequence-result-empty, ${M} .sequence-result-grid figure, ${M} .animation-caption { color: var(--web-muted); }
+${M} .card.sequence .canvas-card-menu, ${M} .card.animation .canvas-card-menu { border-radius: 6px; background: transparent; color: var(--web-muted); }
+${M} .card.sequence .canvas-card-menu:hover, ${M} .card.animation .canvas-card-menu:hover { background: var(--web-wash); color: var(--web-text); }
+${M} .sequence-result-grid canvas, ${M} .card.animation .animation-preview { border-radius: 8px; background: repeating-conic-gradient(var(--web-soft) 0% 25%, var(--web-panel) 0% 50%) 0 / 16px 16px; }
+${M} .sequence-edit-button, ${M} .sequence-animation-button, ${M} .animation-controls button { box-sizing: border-box; height: 28px; min-height: 28px; padding: 0 12px; border: 1px solid var(--web-pill-line); border-radius: 999px; background: var(--web-pill-bg); color: var(--web-pill-ink); box-shadow: 0 6px 18px rgba(35,35,35,.12); font: inherit; font-size: 12px; font-weight: 600; line-height: 26px; cursor: pointer; }
+${M} .sequence-edit-button:hover, ${M} .sequence-animation-button:hover, ${M} .animation-controls button:hover:not(:disabled) { background: var(--web-pill-hover); }
+
+/* Failed / unknown / paused: frosted panel over the frame, status glyph tinted, actions as pills. */
+${M} .card-state-overlay:not(.card-state-loading) { padding: 16px; border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); color: var(--web-muted); -webkit-backdrop-filter: none; backdrop-filter: none; }
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  ${M} .card-state-overlay:not(.card-state-loading) { background: var(--web-glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+}
+${M} .card-state-overlay:not(.card-state-loading) .card-state-caption { display: none; }
+${M} .card-state-overlay:not(.card-state-loading) .card-state-icon { width: 28px; height: 28px; border-width: 1.5px; font: 600 14px/1 sans-serif; }
+${M} .card-state-overlay:not(.card-state-loading) b { color: var(--web-text); font-size: 13px; font-weight: 600; letter-spacing: 0; }
+${M} .card-state-overlay:not(.card-state-loading) .card-state-hint { color: var(--web-muted); }
+${M} .card-state-failed .card-state-icon { color: #e5675b; }
+${M} .card-state-unknown .card-state-icon { color: #d29a3a; }
+${M} .card-state-overlay:not(.card-state-loading) .card-state-query { box-sizing: border-box; height: 28px; min-height: 28px; padding: 0 12px; border: 1px solid var(--web-pill-line); border-radius: 999px; background: var(--web-pill-bg); color: var(--web-pill-ink); font: inherit; font-size: 12px; font-weight: 600; line-height: 26px; }
+${M} .card-state-overlay:not(.card-state-loading) .card-state-query:hover:not(:disabled) { background: var(--web-pill-hover); }
+
+/* Video composer extras: frame role badges on thumbnails and 导入视频 as a round icon beside send. */
+${M} #selection-toolbar .generation-reference[data-role]::after { content: attr(data-role); position: absolute; left: 3px; bottom: 3px; max-width: 38px; padding: 0 4px; overflow: hidden; border-radius: 4px; background: rgba(0,0,0,.62); color: #fffaf0; font-size: 10px; line-height: 14px; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
+${M} #selection-toolbar .generation-references .generation-field { align-items: center; }
+${M} #selection-toolbar .generation-references .generation-field > .generation-reference { margin-right: 4px; }
+${M} #selection-toolbar .generation-action.web-icon-action { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 32px; min-width: 32px; height: 32px; min-height: 32px; padding: 0; border-radius: 999px; color: var(--web-composer-ink); }
+${M} #selection-toolbar .generation-action.web-icon-action:hover:not(:disabled) { background: var(--web-composer-hover); }
+${M} #selection-toolbar .generation-action.web-icon-action svg { display: block; width: 16px; height: 16px; }
+
+/* Dialogs (拆序列帧, 视频历史, frame editors) on the menu/panel tokens: flat header, pill buttons, inverted primary. */
+${M} .sequence-editor { --seq-bg: var(--web-panel); --seq-line: var(--web-line); --seq-muted: var(--web-muted); --seq-accent: var(--web-accent); border: 1px solid var(--web-line); border-radius: 16px; background: var(--web-panel); color: var(--web-text); box-shadow: 0 28px 80px rgba(0,0,0,.45); font-family: inherit; }
+${L} .sequence-editor { box-shadow: 0 28px 80px rgba(35,35,35,.18); }
+${M} .sequence-editor::backdrop { background: rgba(0,0,0,.45); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+${L} .sequence-editor::backdrop { background: rgba(35,35,35,.24); }
+${M} .sequence-editor button { box-sizing: border-box; height: 32px; min-height: 32px; padding: 0 14px; border: 1px solid var(--web-line); border-radius: 8px; background: transparent; color: var(--web-text); font-size: 13px; font-weight: 500; line-height: 30px; }
+${M} .sequence-editor button:hover:not(:disabled) { background: var(--web-wash); }
+${M} .sequence-editor button.primary { border-color: var(--web-send-bg); background: var(--web-send-bg); color: var(--web-send-ink); font-weight: 600; }
+${M} .sequence-editor button.primary:hover:not(:disabled) { border-color: var(--web-send-hover); background: var(--web-send-hover); }
+${M} .sequence-editor .sequence-editor-tile button { height: auto; min-height: 0; padding: 4px; border-radius: 10px; background: var(--web-soft); line-height: normal; }
+${M} .sequence-editor .sequence-editor-tile.active button { border-color: var(--web-accent); box-shadow: 0 0 0 1px var(--web-accent); }
+${M} .sequence-editor .sequence-editor-tile canvas { border-radius: 6px; background: repeating-conic-gradient(var(--web-soft) 0% 25%, var(--web-panel) 0% 50%) 0 / 12px 12px; }
+${M} .sequence-editor .sequence-editor-tile label { color: var(--web-muted); }
+${M} .sequence-editor .sequence-editor-tile.chosen { outline: calc(2px) solid var(--web-accent); background: transparent; }
+${M} .sequence-editor-header { border-bottom: 1px solid var(--web-line); background: transparent; }
+${M} .sequence-editor-header small { color: var(--web-muted); letter-spacing: 1px; }
+${M} .sequence-editor-header h2 { color: var(--web-text); font-size: 18px; font-weight: 600; letter-spacing: 0; }
+${M} .sequence-editor-steps { background: transparent; color: var(--web-muted); }
+${M} .sequence-editor-steps .active { color: var(--web-text); font-weight: 600; }
+${M} .sequence-editor-steps .complete { color: var(--web-accent); }
+${M} .sequence-editor-stage { border: 1px solid var(--web-line); border-radius: 12px; }
+${M} .sequence-editor .checkerboard { background: repeating-conic-gradient(var(--web-soft) 0% 25%, var(--web-panel) 0% 50%) 0 / 24px 24px; }
+${M} .sequence-editor-panel { background: var(--web-soft); border-radius: 12px; }
+${M} .sequence-editor-panel h3 { color: var(--web-text); font-size: 14px; }
+${M} .sequence-editor-field { color: var(--web-muted); }
+${M} .sequence-editor-field input, ${M} .sequence-editor-field select, ${M} .sequence-preview-controls select, ${M} .background-body select, ${M} .atlas-compare-row input[type=number] { box-sizing: border-box; border: 1px solid var(--web-composer-line); border-radius: 8px; background: var(--web-composer-bg); color: var(--web-composer-ink); }
+${M} .sequence-editor-field input:focus, ${M} .sequence-editor-field select:focus { border-color: var(--web-accent); outline: none; }
+${M} .sequence-editor-field input[type=color] { padding: 4px; }
+${M} .sequence-editor-footer { border-top: 1px solid var(--web-line); background: transparent; }
+${M} .sequence-confirm { background: var(--web-scrim); }
+/* 视频历史 rows set inline borders, so !important is the only way to retint them without touching the default page. */
+${M} .sequence-editor.video-history { box-sizing: border-box; width: 760px; max-width: 94vw; height: -webkit-fit-content; height: fit-content; max-height: 86vh; padding: 20px 24px; }
+${M} .video-history h2 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
+${M} .video-history > p { margin: 0 0 10px; color: var(--web-muted); font-size: 12px; line-height: 1.6; }
+${M} .video-history > p[role="status"] { color: var(--web-text); font-size: 13px; }
+${M} .video-history article { padding: 12px 14px !important; border: 1px solid var(--web-line) !important; border-radius: 12px !important; background: var(--web-soft); }
+${M} .video-history article strong { font-size: 13px; font-weight: 600; }
+${M} .video-history article p { margin: 4px 0 0; color: var(--web-muted); font-size: 12px; }
+${M} .video-history article button { height: 28px; min-height: 28px; margin: 10px 6px 0 0; padding: 0 12px; border-color: var(--web-pill-line); border-radius: 999px; background: var(--web-pill-bg); color: var(--web-pill-ink); font-size: 12px; font-weight: 600; line-height: 26px; }
+${M} .video-history article button:hover:not(:disabled) { background: var(--web-pill-hover); }
+${M} .video-history footer { display: flex; justify-content: flex-end; margin-top: 14px; }
+${M} .video-history footer > * + * { margin-left: 8px; }
+/* Pointer focus draws no ring; keyboard focus gets one subtle 1.5px accent ring, overriding per-control rings. */
+${P} :focus { outline: none !important; }
+${K} :focus:not(.canvas-port):not(.card) { outline: 1.5px solid var(--web-focus-ring) !important; outline-offset: 1px !important; }
+${K} .card .port.canvas-port:focus { opacity: 1; pointer-events: auto; }
+${K} .card .port.canvas-port:focus::before { box-shadow: 0 0 0 1.5px var(--web-focus-ring); }
+/* Video result: no native controls (they swallowed the drag); a Mivo-like 28px round play chip sits bottom-left. */
+${M} .card.video-source .web-video-play { position: absolute; left: 10px; bottom: 10px; z-index: 4; display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 28px; height: 28px; min-height: 28px; margin: 0; padding: 0; border: 1px solid var(--web-glass-edge); border-radius: 50%; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: 0 2px 8px rgba(0,0,0,.24); cursor: pointer; opacity: .92; -webkit-transform: scale(var(--web-inv, 1)); transform: scale(var(--web-inv, 1)); -webkit-transform-origin: 0 100%; transform-origin: 0 100%; transition: opacity .12s; }
+${M} .card.video-source .web-video-play:hover { opacity: 1; }
+${M} .card.video-source .web-video-play svg { display: block; flex: none; }
+${M} .card.video-source .web-video-play[data-playing="false"] svg { margin-left: 2px; }
+${L} .card.video-source .web-video-play { box-shadow: 0 2px 8px rgba(35,35,35,.16); }
+${M} .card.video-source .video-source-preview { cursor: inherit; }
+/* Side + chooser = the context menu rows at a compact 148px width. */
+${M} .web-slot-chooser { position: fixed; z-index: 60; box-sizing: border-box; width: 148px; padding: 6px; border: 1px solid var(--web-menu-line); border-radius: 8px; background: var(--web-menu-bg); color: var(--web-menu-ink); box-shadow: var(--web-shadow); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+${M} .web-slot-chooser button { display: flex; align-items: center; box-sizing: border-box; width: 100%; height: 34px; min-height: 34px; margin: 0; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--web-menu-ink); font: inherit; font-size: 13px; font-weight: 500; text-align: left; white-space: nowrap; cursor: pointer; }
+${M} .web-slot-chooser button + button { margin-top: 2px; }
+${M} .web-slot-chooser button svg { flex: none; margin-right: 8px; }
+${M} .web-slot-chooser button:hover, ${M} .web-slot-chooser button:focus { background: var(--web-menu-hover); color: var(--web-text); }
 `;

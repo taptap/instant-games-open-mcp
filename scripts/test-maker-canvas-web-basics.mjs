@@ -91,8 +91,47 @@ function testHostScript() {
       attempts.set(attempt.id, attempt);
       return attempt.id;
     };
+    // A short real WebM so video cards and the sequence editor decode actual frames.
+    let videoBytes;
+    async function addVideo() {
+      if (!videoBytes) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 96;
+        canvas.height = 64;
+        const context = canvas.getContext('2d');
+        const recorder = new MediaRecorder(canvas.captureStream(15), { mimeType: 'video/webm' });
+        const chunks = [];
+        recorder.ondataavailable = (event) => chunks.push(event.data);
+        const done = new Promise((resolve) => (recorder.onstop = resolve));
+        recorder.start();
+        for (let frame = 0; frame < 12; frame += 1) {
+          context.fillStyle = '#00ff00';
+          context.fillRect(0, 0, 96, 64);
+          context.fillStyle = '#c33';
+          context.fillRect(10 + frame * 5, 16, 24, 32);
+          await new Promise((resolve) => setTimeout(resolve, 70));
+        }
+        recorder.stop();
+        await done;
+        videoBytes = new Blob(chunks, { type: 'video/webm' });
+      }
+      const target = 'assets/video/canvas/' + crypto.randomUUID() + '.webm';
+      media.set(target, URL.createObjectURL(videoBytes));
+      return target;
+    }
+    window.__canvasAddVideo = addVideo;
+    window.__canvasVideoBytes = async () => {
+      await addVideo();
+      return Array.from(new Uint8Array(await new Response(videoBytes).arrayBuffer()));
+    };
     async function succeed(attempt) {
       attempt.status = 'succeeded';
+      if (attempt.kind === 'video') {
+        attempt.resultAssetPath = await addVideo();
+        attempt.updatedAt = now();
+        delete attempt.error;
+        return attempt;
+      }
       const [width, height] = window.__canvasResultSize || [64, 32];
       attempt.resultAssetPath = await addMedia('#3a7', width, height);
       attempt.resultImageInfo = { width, height };
@@ -142,8 +181,11 @@ function testHostScript() {
         media.set(target, URL.createObjectURL(new Blob([bytes], { type })));
         return { relativePath: target };
       },
-      async importVideo() {
-        throw new Error('测试宿主不支持视频。');
+      async importVideo(canvasId, file, type) {
+        if (!config.videoStore) throw new Error('测试宿主不支持视频。');
+        const target = 'assets/video/canvas/' + crypto.randomUUID() + '.webm';
+        media.set(target, URL.createObjectURL(new Blob([file], { type })));
+        return { relativePath: target };
       },
       mediaUrl(target) {
         return media.get(target) || 'data:,';
@@ -203,8 +245,52 @@ function testHostScript() {
         attempts.set(attempt.id, attempt);
         return copy(attempt);
       },
-      async createVideo() {
-        throw new Error('测试宿主不支持视频。');
+      async createVideo(canvasId, input) {
+        if (!config.videoStore) throw new Error('测试宿主不支持视频。');
+        (calls.video = calls.video || []).push(copy(input));
+        if (window.__canvasVideoHold) await window.__canvasVideoHold;
+        // Maker Web contract: a remote task id plus the parameters it was submitted with.
+        const attempt = {
+          id: crypto.randomUUID(),
+          canvasId,
+          kind: 'video',
+          toolName: 'create_video_task',
+          status: window.__canvasVideoStatus || 'succeeded',
+          prompt: input.prompt,
+          taskId: 'task-' + crypto.randomUUID().slice(0, 8),
+          targetNodeId: input.targetNodeId,
+          sourceImagePath: input.sourceImagePath,
+          sourceImageId: input.sourceImageId,
+          sourceImageIds: input.sourceImageIds,
+          sourceImagePaths: input.sourceImagePaths,
+          referenceImagePaths: input.referenceImagePaths,
+          parameters: {
+            model: input.model,
+            resolution: input.resolution,
+            duration: input.duration,
+            ratio: input.ratio,
+            mode: input.mode,
+            userConfirmed: input.userConfirmed,
+          },
+          // Like the local host, snapshots come from the saved document the request ran against.
+          sourceSnapshots: (input.sourceImageIds || []).flatMap((id) => {
+            const snapshot = snapshotCanvasSource(
+              docs.get(canvasId).nodes.find((node) => node.id === id)
+            );
+            return snapshot ? [snapshot] : [];
+          }),
+          credits: 20,
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        if (attempt.status === 'succeeded') await succeed(attempt);
+        else if (attempt.status === 'failed') attempt.error = '模拟视频失败';
+        attempts.set(attempt.id, attempt);
+        return copy(attempt);
+      },
+      async videoHistory(offset = 0, limit = 30) {
+        const items = [...attempts.values()].filter((item) => item.kind === 'video');
+        return { items: items.slice(offset, offset + limit).map(copy), total: items.length };
       },
       async generationAction(canvasId, attemptId, action) {
         calls.actions.push({ attemptId, action });
@@ -214,6 +300,7 @@ function testHostScript() {
         return copy(attempt);
       },
     };
+    if (!config.videoStore) delete store.videoHistory;
     async function readSource(target, signal, failure) {
       if (window.__canvasReadHold) await window.__canvasReadHold;
       const response = await fetch(store.mediaUrl(target), { signal });
@@ -2540,7 +2627,8 @@ try {
         await page.waitForFunction(() => document.querySelector('.web-tooltip').hidden);
         // Keyboard focus shows it as well; a pointer press hides it.
         const chat = page.locator('#selection-menu').getByRole('button', { name: '加入对话' });
-        await page.keyboard.press('Shift');
+        // A bare modifier is not navigation; Tab switches the page into keyboard mode.
+        await page.keyboard.press('Tab');
         await chat.focus();
         await shown('加入对话', '键盘聚焦');
         await page.keyboard.press('Escape');
@@ -2987,6 +3075,24 @@ try {
           ]);
         assert.deepEqual(style, ['rgba(0, 0, 0, 0)', '0px', 28], selector + ' 为 ghost 按钮');
       }
+      const placement = await page.evaluate(() => {
+        const box = (item) => item.getBoundingClientRect();
+        const tabs = document.querySelectorAll('.workspace-tab');
+        const plus = document.getElementById('workspace-new');
+        const glyph = getComputedStyle(plus, '::before');
+        return {
+          gap: box(plus).left - box(tabs[tabs.length - 1]).right,
+          libraryRight:
+            box(document.querySelector('.workspace-tabs-row')).right -
+            box(document.querySelector('.workspace-library')).right,
+          glyph: [glyph.width, glyph.height, getComputedStyle(plus).justifyContent],
+          text: getComputedStyle(plus).fontSize,
+        };
+      });
+      assert.ok(placement.gap >= 0 && placement.gap <= 10, '＋紧跟最后一个页签：' + placement.gap);
+      assert.ok(placement.libraryRight <= 10, '全部画布靠右：' + placement.libraryRight);
+      assert.deepEqual(placement.glyph, ['16px', '16px', 'center'], '＋图标居中');
+      assert.equal(placement.text, '0px', '文字＋不参与排版');
       await page.waitForTimeout(150);
       await shoot('v7-' + theme + '-tab-bar.png', { x: 0, y: 0, width: 1400, height: 56 });
       await inactive.hover();
@@ -3149,6 +3255,167 @@ try {
     await plain.page.close();
   });
 
+  await check('Web 侧边＋：新槽继承模型/分辨率/比例/素材规范，不继承提示词', async () => {
+    const { page, errors, editor, settle, current, card, blank } = await webPage();
+    const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', { nodes: [{ id: slotId, x: 300, y: 120 }] });
+    await settle();
+    await blank();
+    await card(slotId).click({ position: { x: 80, y: 80 } });
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('#selection-toolbar select option')].some(
+        (option) => option.textContent === '宿主模型二'
+      )
+    );
+    // Unsent pill edits: the composer keeps them in memory, not on the card yet.
+    await panel.locator('textarea.generation-prompt').fill('不应继承的提示词');
+    await panel.locator('select').nth(0).selectOption('host-second');
+    await panel.locator('select').nth(1).selectOption('2K');
+    await panel.locator('select').nth(2).selectOption('16:9');
+    await panel.locator('.generation-asset-constraints').click();
+    await panel.getByRole('switch').click();
+    assert.equal(
+      await panel.locator('.generation-asset-constraints').getAttribute('aria-pressed'),
+      'false'
+    );
+    const expected = {
+      model: 'host-second',
+      resolution: '2K',
+      aspectRatio: '16:9',
+      assetConstraints: false,
+    };
+    const branch = async (fromId) => {
+      const before = (await current()).nodes.length;
+      await card(fromId).locator('.canvas-port-output').click();
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 1,
+        before
+      );
+      const created = (await current()).nodes.at(-1);
+      assert.deepEqual(created.generationDraft.parameters, expected);
+      assert.equal(created.generationDraft.prompt, undefined, '提示词不继承');
+      await panel.locator('select').nth(2).waitFor();
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('#selection-toolbar select option')].some(
+          (option) => option.textContent === '宿主模型二'
+        )
+      );
+      const pills = await panel
+        .locator('select')
+        .evaluateAll((items) => items.map((item) => item.value));
+      assert.deepEqual(pills, ['host-second', '2K', '16:9'], '新槽面板显示同样的选项');
+      assert.equal(
+        await panel.locator('.generation-asset-constraints').getAttribute('aria-pressed'),
+        'false'
+      );
+      assert.equal(await panel.locator('textarea.generation-prompt').inputValue(), '');
+      return created.id;
+    };
+    const second = await branch(slotId);
+    // The second hop reads what the first slot stored, not composer memory.
+    await settle();
+    const third = await branch(second);
+    assert.ok((await current()).edges.some((edge) => edge.from === second && edge.to === third));
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 标注：框选/箭头可经工具条图标、右键、Delete 删除，均可撤销', async () => {
+    const { page, errors, editor, settle, current, card, blank } = await webPage();
+    await settle();
+    const menu = page.locator('#selection-menu');
+    const marks = async () => (await current()).nodes.filter((node) => node.type === 'mark');
+    const place = async (id) => {
+      await blank();
+      await page.locator('#' + id).click();
+      await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+      return (await marks()).at(-1).id;
+    };
+    const undo = async (id) => {
+      await settle();
+      await editor('undo', {});
+      assert.ok(
+        (await marks()).some((node) => node.id === id),
+        '撤销后标注恢复'
+      );
+    };
+    for (const shape of ['mark-ellipse', 'mark-arrow']) {
+      const id = await place(shape);
+      const remove = menu.getByRole('button', { name: '删除', exact: true });
+      assert.equal(await remove.count(), 1, shape + ' 工具条有删除');
+      await remove.hover();
+      await page.locator('.web-tooltip[data-open="true"]').waitFor();
+      assert.equal(await page.locator('.web-tooltip').textContent(), '删除');
+      await remove.click();
+      assert.ok(!(await marks()).some((node) => node.id === id), shape + ' 工具条删除');
+      await undo(id);
+
+      await blank();
+      const box = await card(id).boundingBox();
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
+      const context = page.locator('#canvas-context-menu');
+      await context.waitFor();
+      const labels = await context
+        .locator('button:not([hidden])')
+        .evaluateAll((items) => items.map((item) => item.textContent));
+      assert.ok(labels.includes('删除卡片'), shape + ' 右键有删除：' + labels.join('/'));
+      await context.getByRole('button', { name: '删除卡片' }).click();
+      assert.ok(!(await marks()).some((node) => node.id === id), shape + ' 右键删除');
+      await undo(id);
+
+      await blank();
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      assert.equal(await menu.getByRole('button', { name: '删除', exact: true }).count(), 1);
+      await page.keyboard.press('Delete');
+      assert.ok(!(await marks()).some((node) => node.id === id), shape + ' Delete 删除');
+      await undo(id);
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+    // Default appearance keeps its colour-only mark menu.
+    const plain = await openCanvas({});
+    await plain.page.locator('#mark-ellipse').click();
+    await plain.page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+    assert.equal(
+      await plain.page.locator('#selection-menu').getByRole('button', { name: '删除' }).count(),
+      0
+    );
+    assert.deepEqual(plain.errors, []);
+    await plain.page.close();
+  });
+  await check('Web 外观：图片积分角标为胶囊（明暗）', async () => {
+    const { page, errors, editor, settle, card, blank } = await webPage();
+    const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', { nodes: [{ id: slotId, x: 300, y: 120 }] });
+    await settle();
+    await blank();
+    await card(slotId).click({ position: { x: 80, y: 80 } });
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    await panel.locator('textarea.generation-prompt').fill('积分角标');
+    await panel.locator('.generation-action-primary').click();
+    const badge = card(slotId).locator('.generation-credits');
+    await badge.waitFor();
+    for (const theme of ['dark', 'light']) {
+      await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+      const look = await badge.evaluate((item) => {
+        const style = getComputedStyle(item);
+        return [
+          style.borderTopLeftRadius,
+          style.paddingLeft,
+          style.paddingRight,
+          item.getBoundingClientRect().height,
+        ];
+      });
+      assert.deepEqual(look, ['999px', '8px', '8px', 20], theme);
+      const colors = await badge.evaluate((item) => {
+        const style = getComputedStyle(item);
+        return [style.backgroundColor, style.color];
+      });
+      assert.notEqual(colors[0], colors[1], theme + ' 文字与底色可区分');
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
   await check('Web 外观：适配画布避开左侧工具条', async () => {
     const { page, errors, editor, settle } = await webPage();
     const ids = [];
@@ -3482,6 +3749,782 @@ try {
       await page.close();
     }
   );
+  const videoFeatures = { ...webFeatures, video: true, sequence: true, sections: true };
+  const themes = async (page, run) => {
+    for (const theme of ['dark', 'light']) {
+      await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+      await run(theme);
+    }
+    await page.evaluate(() => delete document.documentElement.dataset.theme);
+  };
+  const menuLabels = (page) =>
+    page
+      .locator('#selection-menu button')
+      .evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')));
+  await check('Web 视频：图标入口、胶囊参数、生成遮罩、createVideo 参数与视频历史', async () => {
+    const { page, errors, editor, settle, current, card, importImage, blank, shoot } =
+      await webPage({ features: videoFeatures, videoStore: true });
+    const source = await importImage('角色', '#c96', 160, 120);
+    await editor('update-nodes', { nodes: [{ id: source.id, x: 200, y: 160 }] });
+    await settle();
+    await blank();
+    await card(source.id).click({ position: { x: 100, y: 120 } });
+    const entry = page.locator('#selection-menu').getByRole('button', { name: '视频生成' });
+    assert.equal(await entry.getAttribute('data-web-tip'), '视频生成');
+    assert.ok(await entry.evaluate((item) => item.classList.contains('web-icon-action')));
+    assert.equal(await entry.locator('svg').count(), 1);
+    await entry.click();
+    const panel = page.locator('#selection-toolbar .generation-panel-video');
+    await panel.waitFor();
+    assert.equal(await panel.locator('.generation-reference').getAttribute('data-role'), '首帧');
+    const selects = panel.locator('.generation-fields select.generation-mode');
+    assert.equal(await selects.count(), 5);
+    for (const look of await selects.evaluateAll((items) =>
+      items.map((item) => [getComputedStyle(item).appearance, getComputedStyle(item).height])
+    ))
+      assert.deepEqual(look, ['none', '32px'], '视频参数与生图同为 Web 胶囊');
+    const labels = await selects.evaluateAll((items) =>
+      items.map((item) => item.options[item.selectedIndex].textContent)
+    );
+    assert.deepEqual(labels, ['首帧', '模型 2.0', '720p', '4 秒', '自适应比例']);
+    // Pills size to their label, so no chosen value is clipped.
+    for (const clipped of await selects.evaluateAll((items) =>
+      items.map((item) => item.scrollWidth > item.clientWidth)
+    ))
+      assert.equal(clipped, false);
+    await selects.nth(2).selectOption('480p');
+    await selects.nth(3).selectOption('5');
+    await selects.nth(4).selectOption('16:9');
+    await panel.locator('textarea.generation-prompt').fill('角色挥剑');
+    await themes(page, (theme) => shoot('v10-' + theme + '-video-composer.png'));
+    await page.evaluate(() => {
+      window.__canvasVideoHold = new Promise((resolve) => (window.__canvasVideoRelease = resolve));
+    });
+    await panel.locator('.generation-action-primary').click();
+    await page.waitForFunction(() => window.__canvasCalls.video?.length === 1);
+    const slotId = (await current()).nodes.find((node) => node.type === 'video').id;
+    const overlay = card(slotId).locator('.card-state-loading');
+    await overlay.waitFor();
+    assert.ok(await card(slotId).evaluate((item) => item.classList.contains('web-media')));
+    assert.equal(await overlay.locator('.web-state-tip b').textContent(), '处理中');
+    assert.equal(
+      await card(slotId).evaluate((item) => getComputedStyle(item).overflow),
+      'visible',
+      '状态胶囊在卡片下方，不被裁切'
+    );
+    await blank();
+    await themes(page, (theme) => shoot('v10-' + theme + '-video-generating.png'));
+    await page.evaluate(() => window.__canvasVideoRelease());
+    await page.waitForFunction(
+      (id) =>
+        window.__canvasEditor.current().nodes.some((node) => node.id === id && node.assetPath),
+      slotId
+    );
+    await settle();
+    const [sent] = await page.evaluate(() => window.__canvasCalls.video);
+    assert.deepEqual(
+      {
+        prompt: sent.prompt,
+        mode: sent.mode,
+        model: sent.model,
+        resolution: sent.resolution,
+        duration: sent.duration,
+        ratio: sent.ratio,
+        sourceImageId: sent.sourceImageId,
+        sourceImageIds: sent.sourceImageIds,
+        sourceImagePath: sent.sourceImagePath,
+        targetNodeId: sent.targetNodeId,
+      },
+      {
+        prompt: '角色挥剑',
+        mode: 'first_frame',
+        model: '2.0',
+        resolution: '480p',
+        duration: 5,
+        ratio: '16:9',
+        sourceImageId: source.id,
+        sourceImageIds: [source.id],
+        sourceImagePath: source.assetPath,
+        targetNodeId: slotId,
+      }
+    );
+    const result = (await current()).nodes.find((node) => node.id === slotId);
+    assert.equal(result.type, 'video-source');
+    assert.equal(result.generation.parameters.resolution, '480p');
+    // The generated video's image-to-video wire is a curve too, with flow on hover but no cut.
+    assert.ok(
+      (await current()).edges.some(
+        (edge) => edge.from === source.id && edge.to === slotId && edge.kind === 'image-to-video'
+      )
+    );
+    const resultWire = page.locator(
+      '#wires path[data-from="' + source.id + '"][data-to="' + slotId + '"]'
+    );
+    assert.match(await resultWire.getAttribute('d'), / C /);
+    assert.equal(await resultWire.getAttribute('marker-end'), null);
+    await blank();
+    const resultMiddle = await resultWire.evaluate((path) => {
+      const point = path.getPointAtLength(path.getTotalLength() / 2);
+      const rect = document.getElementById('board').getBoundingClientRect();
+      return { x: rect.left + point.x, y: rect.top + point.y };
+    });
+    await page.mouse.move(resultMiddle.x, resultMiddle.y);
+    await page.locator('.wire-controls .wire-active').waitFor();
+    await page.waitForTimeout(1200);
+    assert.equal(
+      await page.locator('.wire-controls .wire-scissors').count(),
+      0,
+      '派生连线不可剪断'
+    );
+    await page.mouse.move(1300, 860);
+    assert.equal(await card(slotId).locator('.generation-credits').textContent(), '积分：20');
+    // Video cards have no side +: there is no video→video edge, inputs are images only.
+    assert.equal(await card(slotId).locator('.canvas-port').count(), 0);
+    await blank();
+    await card(slotId).click({ position: { x: 100, y: 60 } });
+    assert.deepEqual(await menuLabels(page), ['生成视频', '拆序列帧']);
+    assert.equal(await card(slotId).locator('.web-node-handle').count(), 4);
+    // templates/resourceExport stay off: no template edit or export entries on the video result.
+    await card(slotId).click({ position: { x: 100, y: 60 }, button: 'right' });
+    const visible = await page
+      .locator('#canvas-context-menu button:not([hidden])')
+      .evaluateAll((items) => items.map((item) => item.textContent));
+    assert.deepEqual(visible, ['拆序列帧', '复制卡片', '删除卡片']);
+    assert.equal(await page.locator('#canvas-context-menu [data-resource-export]').count(), 0);
+    await page.keyboard.press('Escape');
+    await blank();
+    await page.locator('.workspace-more > summary').click();
+    await page.locator('.workspace-more .workspace-menu-panel #video-history').click();
+    const history = page.locator('dialog.video-history[open]');
+    await history.waitFor();
+    await history.getByText('已取回本地').waitFor();
+    assert.ok(await history.getByText(/taskId：task-/).count());
+    await themes(page, (theme) => shoot('v10-' + theme + '-video-history.png'));
+    await history.getByRole('button', { name: '关闭' }).click();
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check('Web 视频卡：空视频槽直接打开面板，导入视频为图标；右键/工具条入口', async () => {
+    const { page, errors, current, card, blank, settle } = await webPage({
+      features: videoFeatures,
+      videoStore: true,
+    });
+    await settle();
+    assert.equal(await page.locator('#add-video').textContent(), '新建视频卡片');
+    assert.equal(await page.locator('#create-section').textContent(), '分组');
+    await page.mouse.click(700, 360, { button: 'right' });
+    const menu = page.locator('#canvas-context-menu');
+    const labels = await menu
+      .locator('button:not([hidden])')
+      .evaluateAll((items) => items.map((item) => item.textContent));
+    assert.deepEqual(labels, ['新建图片卡片', '上传图片', '新建视频卡片', '导入视频']);
+    await menu.getByRole('button', { name: '新建视频卡片' }).click();
+    const slot = (await current()).nodes.find((node) => node.type === 'video');
+    await page.locator('#selection-toolbar .generation-panel-video').waitFor();
+    assert.equal(await page.locator('#selection-menu').isHidden(), true);
+    const upload = page.locator('#selection-toolbar .generation-action.web-icon-action');
+    assert.equal(await upload.getAttribute('aria-label'), '导入视频');
+    assert.equal(await upload.getAttribute('data-web-tip'), '导入视频');
+    assert.ok(await card(slot.id).evaluate((item) => item.classList.contains('web-empty')));
+    await settle();
+    await blank();
+    const chooser = page.waitForEvent('filechooser');
+    await page.mouse.click(400, 600, { button: 'right' });
+    await menu.getByRole('button', { name: '导入视频' }).click();
+    const bytes = await page.evaluate(() => window.__canvasVideoBytes());
+    await (
+      await chooser
+    ).setFiles({ name: 'clip.webm', mimeType: 'video/webm', buffer: Buffer.from(bytes) });
+    await page.waitForFunction(() =>
+      window.__canvasEditor.current().nodes.some((node) => node.type === 'video-source')
+    );
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check('Web 拆序列帧：视频结果卡打开序列帧编辑器（Web 样式）', async () => {
+    const { page, errors, current, card, blank, settle, shoot } = await webPage({
+      features: videoFeatures,
+      videoStore: true,
+    });
+    await settle();
+    const assetPath = await page.evaluate(() => window.__canvasAddVideo());
+    await page.evaluate(
+      (assetPath) =>
+        window.__canvasEditor.importProjectAsset({ assetPath, kind: 'video', title: '角色动作' }),
+      assetPath
+    );
+    await settle();
+    const video = (await current()).nodes.find((node) => node.type === 'video-source');
+    await blank();
+    await card(video.id).click({ position: { x: 100, y: 60 } });
+    await page.locator('#selection-menu').getByRole('button', { name: '拆序列帧' }).click();
+    const dialog = page.locator('dialog.sequence-editor[open]');
+    await dialog.waitFor();
+    assert.equal(await dialog.locator('.sequence-editor-steps').count(), 1);
+    assert.equal(
+      await dialog
+        .locator('button.primary')
+        .first()
+        .evaluate((item) => getComputedStyle(item).borderRadius),
+      '8px'
+    );
+    assert.ok((await current()).nodes.some((node) => node.type === 'sequence'));
+    // The WebM is a real MediaRecorder clip, so headless Chromium decodes and extracts actual frames.
+    await dialog.getByRole('button', { name: '开始抽帧' }).click();
+    await page
+      .waitForFunction(
+        () => document.querySelectorAll('dialog.sequence-editor .sequence-editor-tile').length > 1,
+        undefined,
+        { timeout: 20000 }
+      )
+      .catch(async (error) => {
+        console.log(await dialog.locator('.sequence-editor-footer').textContent());
+        throw error;
+      });
+    await page.waitForTimeout(800);
+    // Editor re-renders (progress ticks, tab switches) keep the preview canvas and redraw thumbnails before paint.
+    const kept = await page.evaluate(async () => {
+      const dialog = document.querySelector('dialog.sequence-editor');
+      const preview = dialog.querySelector('.sequence-editor-canvas');
+      const tab = [...dialog.querySelectorAll('.sequence-editor-tabs button')].find(
+        (item) => item.textContent === '整理与输出'
+      );
+      tab.click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const thumb = dialog.querySelector('.sequence-editor-tile canvas');
+      const data = thumb.getContext('2d').getImageData(0, 0, thumb.width, thumb.height).data;
+      let drawn = false;
+      for (let index = 3; index < data.length && !drawn; index += 4) drawn = data[index] > 0;
+      const back = [...dialog.querySelectorAll('.sequence-editor-tabs button')].find(
+        (item) => item.textContent === '帧编辑'
+      );
+      back.click();
+      return { same: dialog.querySelector('.sequence-editor-canvas') === preview, drawn };
+    });
+    assert.deepEqual(kept, { same: true, drawn: true });
+    await themes(page, (theme) => shoot('v10-' + theme + '-sequence-editor.png'));
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  await check('Web 分组：多选图标创建，选中可取消分组/删除（工具条与右键），均可撤销', async () => {
+    const { page, errors, editor, settle, current, card, importImage, blank, shoot } =
+      await webPage({ features: videoFeatures, videoStore: true });
+    const first = await importImage('角色', '#c96', 160, 120);
+    const second = await importImage('道具', '#69c', 120, 120);
+    await editor('update-nodes', {
+      nodes: [
+        { id: first.id, x: 220, y: 200 },
+        { id: second.id, x: 560, y: 200 },
+      ],
+    });
+    await settle();
+    await blank();
+    await card(first.id).click({ position: { x: 100, y: 120 } });
+    await card(second.id).click({ position: { x: 60, y: 100 }, modifiers: ['Shift'] });
+    assert.deepEqual(await menuLabels(page), ['分组']);
+    const group = page.locator('#selection-menu').getByRole('button', { name: '分组' });
+    assert.equal(await group.getAttribute('data-web-tip'), '分组');
+    await group.click();
+    const section = (await current()).nodes.find((node) => node.type === 'section');
+    const members = (await current()).nodes.filter((node) => node.sectionId === section.id);
+    assert.deepEqual(members.map((node) => node.id).sort(), [first.id, second.id].sort());
+    assert.deepEqual(await menuLabels(page), ['取消分组', '删除分组']);
+    assert.equal(await card(section.id).locator('.web-node-handle').count(), 4);
+    assert.equal(
+      await card(section.id).evaluate((item) => getComputedStyle(item).borderTopLeftRadius),
+      '16px'
+    );
+    await settle();
+    await themes(page, (theme) => shoot('v10-' + theme + '-section.png'));
+    await page.locator('#selection-menu').getByRole('button', { name: '取消分组' }).click();
+    let doc = await current();
+    assert.equal(doc.nodes.filter((node) => node.type === 'section').length, 0);
+    assert.equal(doc.nodes.filter((node) => node.sectionId).length, 0);
+    assert.equal(doc.nodes.filter((node) => node.type === 'image').length, 2);
+    await settle();
+    await editor('undo', {});
+    doc = await current();
+    assert.equal(doc.nodes.filter((node) => node.sectionId === section.id).length, 2);
+    await settle();
+    await blank();
+    await card(section.id).click({ position: { x: 20, y: 20 }, button: 'right' });
+    const menu = page.locator('#canvas-context-menu');
+    const labels = await menu
+      .locator('button:not([hidden])')
+      .evaluateAll((items) => items.map((item) => item.textContent));
+    assert.deepEqual(labels, ['取消分组', '删除分组']);
+    await menu.getByRole('button', { name: '删除分组' }).click();
+    doc = await current();
+    assert.equal(doc.nodes.length, 0, '删除分组同时删除成员');
+    await settle();
+    await editor('undo', {});
+    assert.equal((await current()).nodes.length, 3);
+    await settle();
+    // Right-click on a multi-selection offers 分组 too.
+    await blank();
+    await card(first.id).click({ position: { x: 100, y: 120 } });
+    await card(second.id).click({ position: { x: 60, y: 100 }, modifiers: ['Shift'] });
+    await card(second.id).click({ position: { x: 60, y: 100 }, button: 'right' });
+    assert.equal(await menu.getByRole('button', { name: '分组' }).isVisible(), true);
+    await page.keyboard.press('Escape');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  const waitMetadata = (locator) =>
+    locator.evaluate(
+      (video) =>
+        new Promise((resolve) =>
+          video.readyState >= 1
+            ? resolve()
+            : video.addEventListener('loadedmetadata', resolve, { once: true })
+        )
+    );
+  const importVideo = async (page, title) => {
+    const assetPath = await page.evaluate(() => window.__canvasAddVideo());
+    await page.evaluate(
+      ({ assetPath, title }) =>
+        window.__canvasEditor.importProjectAsset({ assetPath, kind: 'video', title }),
+      { assetPath, title }
+    );
+    return page.evaluate(
+      (assetPath) =>
+        window.__canvasEditor.current().nodes.find((node) => node.assetPath === assetPath),
+      assetPath
+    );
+  };
+  await check(
+    'Web 视频卡：重渲染/点击/缩放复用同一 <video>，拖动移动卡片不播放，播放只走按钮',
+    async () => {
+      const { page, errors, editor, settle, current, card, blank, shoot } = await webPage({
+        features: videoFeatures,
+        videoStore: true,
+      });
+      await settle();
+      const video = await importVideo(page, '角色动作');
+      await editor('update-nodes', { nodes: [{ id: video.id, x: 300, y: 200 }] });
+      await settle();
+      await blank();
+      const player = card(video.id).locator('video');
+      await waitMetadata(player);
+      assert.equal(await player.evaluate((item) => item.controls), false, '无原生控件抢拖拽');
+      await player.evaluate((item) => {
+        item.muted = true;
+        item.loop = true;
+        window.__videoMark = item;
+      });
+      const box = await player.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 40, { steps: 6 });
+      await page.mouse.up();
+      const moved = (await current()).nodes.find((node) => node.id === video.id);
+      assert.ok(Math.abs(moved.x - 420) < 2 && Math.abs(moved.y - 240) < 2, '拖动移动视频卡');
+      assert.equal(await player.evaluate((item) => item.paused), true, '拖动不触发播放');
+      assert.ok(await card(video.id).evaluate((item) => item.classList.contains('selected')));
+      await settle();
+      await blank();
+      await card(video.id).click({ position: { x: 120, y: 120 } });
+      assert.equal(await player.evaluate((item) => item.paused), true, '点击卡片不播放');
+      const play = card(video.id).locator('.web-video-play');
+      assert.equal(await play.getAttribute('aria-label'), '播放视频');
+      await themes(page, (theme) => shoot('v11-' + theme + '-video-play-control.png'));
+      await play.click();
+      // paused flips synchronously, the play event (which relabels the chip) follows as a task.
+      await page.waitForFunction(
+        (id) =>
+          !window.__videoMark.paused &&
+          document
+            .querySelector('.card[data-id="' + id + '"] .web-video-play')
+            .getAttribute('aria-label') === '暂停视频',
+        video.id
+      );
+      await page.waitForTimeout(250);
+      const started = await page.evaluate(() => ({
+        time: window.__videoMark.currentTime,
+        src: window.__videoMark.currentSrc,
+      }));
+      // Each of these re-renders the whole world.
+      await blank();
+      await card(video.id).click({ position: { x: 120, y: 120 } });
+      await page.mouse.move(700, 500);
+      await page.mouse.wheel(0, -120);
+      await editor('update-nodes', { nodes: [{ id: video.id, title: '角色动作 2' }] });
+      const after = await page.evaluate((id) => {
+        const element = document.querySelector('.card[data-id="' + id + '"] video');
+        return {
+          same: element === window.__videoMark,
+          paused: element.paused,
+          time: element.currentTime,
+          src: element.currentSrc,
+        };
+      }, video.id);
+      assert.equal(after.same, true, '同一个 <video> 元素');
+      assert.equal(after.src, started.src, 'src 不变');
+      assert.equal(after.paused, false, '播放不被打断');
+      assert.ok(after.time >= started.time, 'currentTime 不重置');
+      await card(video.id).locator('.web-video-play').click();
+      await page.waitForFunction(() => window.__videoMark.paused);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check('默认外观：视频卡重渲染也复用同一 <video>（共用修复），保留原生控件', async () => {
+    const { page, errors } = await openCanvas({ videoStore: true });
+    const video = await importVideo(page, '默认视频');
+    const player = page.locator('.card[data-id="' + video.id + '"] video');
+    await waitMetadata(player);
+    assert.equal(await player.evaluate((item) => item.controls), true);
+    await player.evaluate((item) => (window.__videoMark = item));
+    await page.locator('.card[data-id="' + video.id + '"] .canvas-card-title').click();
+    await page.mouse.click(1300, 860);
+    await page.mouse.move(700, 500);
+    await page.mouse.wheel(0, -120);
+    assert.equal(
+      await page.evaluate(
+        (id) => document.querySelector('.card[data-id="' + id + '"] video') === window.__videoMark,
+        video.id
+      ),
+      true
+    );
+    assert.equal(await page.locator('.web-video-play').count(), 0);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('序列帧卡：重渲染时帧格在同一帧内重绘（缓存已解码图集，不闪白）', async () => {
+    const atlas = 'assets/image/canvas/sequence-atlas.png';
+    const frame = (index) => ({
+      index,
+      time: index / 8,
+      x: index * 60,
+      y: 0,
+      width: 60,
+      height: 120,
+    });
+    const { page, errors } = await openCanvas({
+      features: videoFeatures,
+      appearance: 'web',
+      seedMedia: { [atlas]: '#c33' },
+      seedDocuments: [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          title: '序列帧画布',
+          revision: 1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [
+            {
+              id: 'seq-1',
+              type: 'sequence',
+              x: 240,
+              y: 160,
+              width: 480,
+              height: 300,
+              title: '序列帧',
+              assetPath: atlas,
+              sequenceSettings: {
+                start: 0,
+                end: 1,
+                fps: 8,
+                cutout: false,
+                backgroundColor: '#00ff00',
+                tolerance: 48,
+                duplicateThreshold: 0.985,
+                width: 60,
+                height: 120,
+                fit: 'contain',
+                pixel: false,
+              },
+              frameSetInfo: {
+                fps: 8,
+                frameCount: 2,
+                width: 60,
+                height: 120,
+                columns: 2,
+                rows: 1,
+                frames: [frame(0), frame(1)],
+              },
+            },
+          ],
+          edges: [],
+        },
+      ],
+    });
+    const painted = () =>
+      page.evaluate(() => {
+        const canvas = document.querySelector(
+          '.card[data-id="seq-1"] .sequence-result-grid canvas'
+        );
+        return Boolean(canvas && canvas.getContext('2d').getImageData(80, 60, 1, 1).data[3]);
+      });
+    await page.waitForFunction(() => {
+      const canvas = document.querySelector('.card[data-id="seq-1"] .sequence-result-grid canvas');
+      return canvas && canvas.getContext('2d').getImageData(80, 60, 1, 1).data[3] > 0;
+    });
+    assert.equal(await painted(), true);
+    // The wheel handler re-renders synchronously; the new tiles must already be painted.
+    const sync = await page.evaluate(() => {
+      const board = document.getElementById('board');
+      const before = document.querySelector('.card[data-id="seq-1"] .sequence-result-grid canvas');
+      board.dispatchEvent(
+        new WheelEvent('wheel', {
+          deltaY: -100,
+          clientX: 600,
+          clientY: 400,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+      const canvas = document.querySelector('.card[data-id="seq-1"] .sequence-result-grid canvas');
+      return {
+        rerendered: canvas !== before,
+        alpha: canvas.getContext('2d').getImageData(80, 60, 1, 1).data[3],
+      };
+    });
+    assert.equal(sync.rerendered, true);
+    assert.ok(sync.alpha > 0, '重渲染后同步已绘制');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check(
+    'Web 侧边＋：选择「图片卡片 / 视频卡片」，键盘可用；视频槽以首帧连入，曲线连线',
+    async () => {
+      const { page, errors, editor, settle, current, card, importImage, blank, shoot } =
+        await webPage({ features: videoFeatures, videoStore: true });
+      const source = await importImage('角色', '#c96', 160, 120);
+      await editor('update-nodes', { nodes: [{ id: source.id, x: 220, y: 200 }] });
+      await settle();
+      await blank();
+      await card(source.id).click({ position: { x: 100, y: 120 } });
+      const port = card(source.id).locator('.canvas-port-output');
+      const chooser = page.locator('.web-slot-chooser');
+      await port.click();
+      await chooser.waitFor();
+      assert.deepEqual(
+        await chooser
+          .getByRole('menuitem')
+          .evaluateAll((items) => items.map((item) => item.textContent)),
+        ['图片卡片', '视频卡片']
+      );
+      assert.equal((await current()).nodes.length, 1, '打开选择不创建卡片');
+      await themes(page, (theme) => shoot('v11-' + theme + '-plus-chooser.png'));
+      // Esc closes and gives focus back to the +.
+      await page.keyboard.press('Escape');
+      await chooser.waitFor({ state: 'detached' });
+      assert.equal(await port.evaluate((item) => document.activeElement === item), true);
+      await page.keyboard.press('Enter');
+      await chooser.waitFor();
+      assert.equal(
+        await page.evaluate(() => document.activeElement.textContent),
+        '图片卡片',
+        '打开后聚焦首项'
+      );
+      await page.keyboard.press('ArrowDown');
+      assert.equal(await page.evaluate(() => document.activeElement.textContent), '视频卡片');
+      await page.keyboard.press('Enter');
+      await chooser.waitFor({ state: 'detached' });
+      let doc = await current();
+      const slot = doc.nodes.find((node) => node.type === 'video');
+      assert.ok(slot && !slot.assetPath && !slot.generationDraft, '空视频槽，不继承图片参数');
+      assert.ok(slot.x > doc.nodes.find((node) => node.id === source.id).x, '在图片右侧');
+      const edge = doc.edges.find((item) => item.to === slot.id);
+      assert.deepEqual([edge.from, edge.kind], [source.id, 'first-frame']);
+      await page.locator('#selection-toolbar .generation-panel-video').waitFor();
+      assert.equal(
+        await page.locator('#selection-toolbar .generation-reference').getAttribute('data-role'),
+        '首帧'
+      );
+      const wire = page.locator(
+        '#wires path[data-from="' + source.id + '"][data-to="' + slot.id + '"]'
+      );
+      assert.match(await wire.getAttribute('d'), / C /, '视频连线为曲线');
+      assert.equal(await wire.getAttribute('marker-end'), null, '无箭头');
+      await settle();
+      // Hovering a first-frame wire shows the same flow and, after 1s, the cut button.
+      await blank();
+      const middle = await wire.evaluate((path) => {
+        const point = path.getPointAtLength(path.getTotalLength() / 2);
+        const rect = document.getElementById('board').getBoundingClientRect();
+        return { x: rect.left + point.x, y: rect.top + point.y };
+      });
+      await page.mouse.move(middle.x, middle.y);
+      await page.locator('.wire-controls .wire-active').waitFor();
+      await page.locator('.wire-controls .wire-scissors').waitFor({ timeout: 2500 });
+      await themes(page, (theme) => shoot('v11-' + theme + '-image-video-wire.png'));
+      await page.mouse.move(1300, 860);
+      // Image choice still creates the linked image slot.
+      await card(source.id).click({ position: { x: 100, y: 120 } });
+      await port.click();
+      await chooser.getByRole('menuitem', { name: '图片卡片' }).click();
+      doc = await current();
+      const imageSlot = doc.nodes.find((node) => node.type === 'image' && !node.assetPath);
+      assert.ok(
+        doc.edges.some(
+          (item) =>
+            item.from === source.id && item.to === imageSlot.id && item.kind === 'image-variant'
+        )
+      );
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check('Web 侧边＋：未开视频功能时直接新建图片槽，不弹选择', async () => {
+    const { page, errors, editor, settle, current, card, importImage, blank } = await webPage();
+    const source = await importImage('角色', '#c96', 160, 120);
+    await editor('update-nodes', { nodes: [{ id: source.id, x: 220, y: 200 }] });
+    await settle();
+    await blank();
+    await card(source.id).click({ position: { x: 100, y: 120 } });
+    await card(source.id).locator('.canvas-port-output').click();
+    await page.waitForFunction(() => window.__canvasEditor.current().nodes.length === 2);
+    assert.equal(await page.locator('.web-slot-chooser').count(), 0);
+    assert.equal((await current()).nodes[1].type, 'image');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 焦点环：鼠标点击无描边，键盘 Tab 才显示 1.5px 主题色淡环', async () => {
+    const { page, errors, editor, settle, card, blank } = await webPage();
+    const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', { nodes: [{ id: slotId, x: 300, y: 120 }] });
+    await settle();
+    await blank();
+    await card(slotId).click({ position: { x: 80, y: 80 } });
+    const model = page.locator('#selection-toolbar select.generation-mode').first();
+    await model.waitFor();
+    const ring = (locator) =>
+      locator.evaluate((item) => {
+        const style = getComputedStyle(item);
+        return [
+          document.activeElement === item,
+          style.outlineStyle,
+          style.outlineWidth,
+          style.outlineColor,
+        ];
+      });
+    await model.dispatchEvent('pointerdown');
+    await model.focus();
+    const clicked = await ring(model);
+    assert.equal(clicked[0], true);
+    assert.equal(clicked[1], 'none', '鼠标聚焦无描边');
+    await page.keyboard.press('Tab');
+    const focused = page.locator(':focus');
+    const keyed = await ring(focused);
+    assert.equal(keyed[1], 'solid');
+    // Declared 1.5px; Chrome snaps outline widths to device pixels, so DPR 1 reports 1px.
+    assert.ok(['1px', '1.5px'].includes(keyed[2]), keyed[2]);
+    assert.match(keyed[3], /rgba\(\d+, \d+, \d+, 0\.6\)/, '主题色 60%');
+    await page.keyboard.press('Shift+Tab');
+    assert.equal((await ring(model))[1], 'solid', '键盘回到下拉也显示');
+    await model.dispatchEvent('pointerdown');
+    assert.equal((await ring(model))[1], 'none', '指针按下后恢复无描边');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check(
+    'Web 文生视频：无图片视频槽只按提示词生成，mode=text_to_video、无图片字段、2.5 不弹确认',
+    async () => {
+      const { page, errors, settle, current, card, blank, shoot } = await webPage({
+        features: videoFeatures,
+        videoStore: true,
+      });
+      const dialogs = [];
+      page.on('dialog', (dialog) => dialogs.push(dialog.message()));
+      await settle();
+      await page.mouse.click(700, 360, { button: 'right' });
+      await page
+        .locator('#canvas-context-menu')
+        .getByRole('button', { name: '新建视频卡片' })
+        .click();
+      const slot = (await current()).nodes.find((node) => node.type === 'video');
+      const panel = page.locator('#selection-toolbar .generation-panel-video');
+      await panel.waitFor();
+      const selects = panel.locator('.generation-fields select.generation-mode');
+      assert.deepEqual(
+        await selects.evaluateAll((items) =>
+          items.map((item) => item.options[item.selectedIndex].textContent)
+        ),
+        ['模型 2.0', '720p', '4 秒', '16:9'],
+        '无输入方式胶囊，比例默认 16:9'
+      );
+      assert.deepEqual(
+        await selects.nth(3).evaluate((item) => [...item.options].map((option) => option.value)),
+        ['16:9', '9:16', '1:1'],
+        '无图片时不提供自适应比例'
+      );
+      await selects.nth(0).selectOption('2.5');
+      await panel.locator('textarea.generation-prompt').fill('雨夜城市航拍');
+      const send = panel.locator('.generation-action-primary');
+      assert.equal(await send.isDisabled(), false);
+      await themes(page, (theme) => shoot('v11-' + theme + '-text-to-video-composer.png'));
+      await send.click();
+      await page.waitForFunction(() => window.__canvasCalls.video?.length === 1);
+      const [sent] = await page.evaluate(() => window.__canvasCalls.video);
+      assert.deepEqual(sent, {
+        prompt: '雨夜城市航拍',
+        mode: 'text_to_video',
+        targetNodeId: slot.id,
+        duration: 4,
+        model: '2.5',
+        resolution: '720p',
+        ratio: '16:9',
+        userConfirmed: false,
+      });
+      assert.deepEqual(dialogs, [], 'Web 不弹 2.5 确认，由宿主处理');
+      await page.waitForFunction(
+        (id) =>
+          window.__canvasEditor.current().nodes.some((node) => node.id === id && node.assetPath),
+        slot.id
+      );
+      const result = (await current()).nodes.find((node) => node.id === slot.id);
+      assert.equal(result.type, 'video-source');
+      assert.equal(result.generation.parameters.mode, 'text_to_video');
+      assert.deepEqual(result.generation.sourceImageIds, []);
+      await blank();
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check('默认外观：视频/分组入口与文案不变，无 Web 菜单项', async () => {
+    const { page, errors } = await openCanvas({ videoStore: true });
+    assert.equal(await page.locator('#add-video').textContent(), '视频输入卡');
+    assert.equal(await page.locator('#create-section').textContent(), '新建分区');
+    assert.equal(await page.locator('[data-menu-scope="web"]').count(), 0);
+    assert.equal(await page.locator('[data-canvas-action="import-video"]').count(), 0);
+    const assetPath = await page.evaluate(() => window.__canvasAddMedia('#c33', 40, 40));
+    await page.evaluate(
+      (assetPath) =>
+        window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '来源图' }),
+      assetPath
+    );
+    await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+    const entry = page.locator('#selection-menu').getByRole('button', { name: '视频生成' });
+    assert.equal(await entry.textContent(), '视频生成');
+    assert.equal(await entry.evaluate((item) => item.classList.contains('web-icon-action')), false);
+    await entry.click();
+    const panel = page.locator('#selection-toolbar .generation-panel-video');
+    await panel.waitFor();
+    assert.equal(await panel.locator('[data-role]').count(), 0);
+    assert.equal(
+      await panel
+        .locator('select')
+        .nth(3)
+        .evaluate((item) => item.options[item.selectedIndex].textContent),
+      '4'
+    );
+    // The default page keeps its own 2.5 cost confirmation (dismissed here, so nothing is sent).
+    const dialogs = [];
+    page.on('dialog', (dialog) => dialogs.push(dialog.message()));
+    await panel.locator('select').nth(1).selectOption('2.5');
+    await panel.locator('textarea').first().fill('角色挥剑');
+    await panel.locator('.generation-action-primary').click();
+    for (let tries = 0; tries < 20 && !dialogs.length; tries++) await page.waitForTimeout(50);
+    assert.deepEqual(dialogs, ['按当前参数开始生成视频？']);
+    assert.equal(await page.evaluate(() => window.__canvasCalls.video?.length || 0), 0);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
 } finally {
   await browser.close();
 }
