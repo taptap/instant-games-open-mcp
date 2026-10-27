@@ -511,9 +511,11 @@ ${M} .card.video-source .web-video-play svg { display: block; flex: none; }
 ${M} .card.video-source .web-video-play[data-playing="false"] svg { margin-left: 2px; }
 ${L} .card.video-source .web-video-play { box-shadow: 0 2px 8px rgba(35,35,35,.16); }
 ${M} .card.video-source .video-source-preview { cursor: inherit; }
-/* Progress bar beside the play chip: hidden (and click-through, so the card still drags) until hover, selection, focus or playback. */
+/* Progress bar beside the play chip: hidden (and click-through, so the card still drags) until hover, selection or focus. */
 ${M} .card.video-source .web-video-bar { position: absolute; left: calc(46px * var(--web-inv, 1)); right: calc(10px * var(--web-inv, 1)); bottom: calc(10px * var(--web-inv, 1)); z-index: 4; display: flex; align-items: center; box-sizing: border-box; height: calc(28px * var(--web-inv, 1)); padding: 0 calc(4px * var(--web-inv, 1)) 0 calc(10px * var(--web-inv, 1)); border: 1px solid var(--web-glass-edge); border-radius: 999px; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: 0 2px 8px rgba(0,0,0,.24); font-size: calc(11px * var(--web-inv, 1)); font-variant-numeric: tabular-nums; line-height: 1; opacity: 0; pointer-events: none; transition: opacity .12s; }
-${M} .card.video-source:hover .web-video-bar, ${M} .card.video-source.selected .web-video-bar, ${M} .card.video-source .web-video-bar[data-playing="true"], ${M} .card.video-source .web-video-bar[data-seeking], ${M} .card.video-source .web-video-bar:focus-within { opacity: .96; pointer-events: auto; }
+${M} .card.video-source:hover .web-video-bar, ${M} .card.video-source.selected .web-video-bar, ${M} .card.video-source .web-video-bar[data-seeking], ${M} .card.video-source .web-video-bar:focus-within { opacity: .96; pointer-events: auto; }
+/* While playing, both controls fade after 2s idle so they don't cover the picture; moving over the video brings them back. */
+${M} .card.video-source .video-source-preview[data-idle] ~ .web-video-bar:not(:hover):not([data-seeking]), ${M} .card.video-source .video-source-preview[data-idle] ~ .web-video-play:not(:hover) { opacity: 0; pointer-events: none; }
 ${L} .card.video-source .web-video-bar { box-shadow: 0 2px 8px rgba(35,35,35,.16); }
 ${M} .web-video-time { flex: none; margin-right: calc(10px * var(--web-inv, 1)); white-space: nowrap; }
 ${M} .web-video-track { position: relative; flex: 1; min-width: 24px; height: calc(18px * var(--web-inv, 1)); cursor: pointer; touch-action: none; }

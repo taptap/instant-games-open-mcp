@@ -514,7 +514,11 @@ export function canvasWebSyncVideoPlay(button: HTMLElement, player: HTMLVideoEle
 
 /** Web video progress bar (time, seek slider, mute); built once per reused player so it survives re-renders. */
 export function canvasWebVideoBar(player: HTMLVideoElement): HTMLElement {
-  const owner = player as HTMLVideoElement & { canvasWebBar?: HTMLElement };
+  const owner = player as HTMLVideoElement & {
+    canvasWebBar?: HTMLElement;
+    canvasWebKey?: (event: KeyboardEvent) => boolean;
+    canvasWebWake?: () => void;
+  };
   if (owner.canvasWebBar) return owner.canvasWebBar;
   const bar = document.createElement('div');
   bar.className = 'web-video-bar';
@@ -542,6 +546,17 @@ export function canvasWebVideoBar(player: HTMLVideoElement): HTMLElement {
   };
   const duration = () => (Number.isFinite(player.duration) ? player.duration : 0);
   let frame = 0;
+  // While playing, the controls fade after 2s without pointer or key activity so they don't cover the picture.
+  // The flag sits on the <video> so CSS can hide both the play chip and the bar that follow it.
+  let idle = 0;
+  const wake = () => {
+    clearTimeout(idle);
+    delete player.dataset.idle;
+    if (player.paused || player.ended) return;
+    idle = window.setTimeout(() => {
+      if (!player.paused && !player.ended && !bar.dataset.seeking) player.dataset.idle = 'true';
+    }, 2000);
+  };
   const sync = () => {
     const total = duration();
     const now = Math.min(player.currentTime || 0, total || Infinity);
@@ -626,10 +641,12 @@ export function canvasWebVideoBar(player: HTMLVideoElement): HTMLElement {
   const release = (event: PointerEvent) => {
     if (track.hasPointerCapture(event.pointerId)) track.releasePointerCapture(event.pointerId);
     delete bar.dataset.seeking;
+    wake();
   };
   track.addEventListener('pointerup', release);
   track.addEventListener('pointercancel', release);
-  track.addEventListener('keydown', (event) => {
+  // Shared by the slider, the play chip and the page's selected-card shortcut.
+  const keySeek = (event: KeyboardEvent) => {
     const steps: Record<string, number> = {
       ArrowLeft: -1,
       ArrowDown: -1,
@@ -639,11 +656,22 @@ export function canvasWebVideoBar(player: HTMLVideoElement): HTMLElement {
     if (event.key in steps) seek((player.currentTime || 0) + steps[event.key]);
     else if (event.key === 'Home') seek(0);
     else if (event.key === 'End') seek(duration());
-    else return;
-    // Canvas shortcuts (arrow nudge, delete) must not also act on the selected card.
+    else return false;
+    wake();
+    return true;
+  };
+  owner.canvasWebKey = keySeek;
+  owner.canvasWebWake = wake;
+  track.addEventListener('keydown', (event) => {
+    if (!keySeek(event)) return;
+    // Canvas shortcuts (delete, selected-card seek) must not also act on the same key.
     event.preventDefault();
     event.stopPropagation();
   });
+  player.addEventListener('pointermove', wake);
+  bar.addEventListener('pointermove', wake);
+  bar.addEventListener('focusin', wake);
+  ['play', 'pause', 'ended'].forEach((name) => player.addEventListener(name, wake));
   mute.addEventListener('click', () => {
     player.muted = !(player.muted || player.volume === 0);
     if (!player.muted && player.volume === 0) player.volume = 1;

@@ -929,13 +929,25 @@ function applyMediaReusePatches(source: string): string {
     [
       // Players not mounted by the previous pass belong to removed or hidden cards.
       '    videoPlayers.forEach(function (player, id) { if (!player.isConnected) videoPlayers.delete(id); });',
+      // Detaching a focused reused control drops its focus; the Web video block puts it back.
+      '    focusBeforeRender = world.contains(document.activeElement) ? document.activeElement : null;',
       '    animationCards.beginRender(documentState.nodes); world.replaceChildren();',
     ].join('\n')
   );
   patch(
     '  function fitVideoCard(node) {',
     [
+      // var: render() can run before this line is reached, and a let would throw there.
+      '  var focusBeforeRender = null;',
       '  function syncVideoPlay(button, player) { canvasWebSyncVideoPlay(button, player); }',
+      // Web: with one video card selected and nothing else focused, ←/→ seek it by 1s.
+      "  window.addEventListener('keydown', function (event) {",
+      "    if (!canvasWeb || event.defaultPrevented || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') || event.metaKey || event.ctrlKey || event.altKey || selected.size !== 1) return;",
+      '    const target = event.target;',
+      '    if (target && target.closest && target.closest(\'input, textarea, select, button, [contenteditable="true"], [role="slider"], [role="menu"], dialog\')) return;',
+      '    const player = videoPlayers.get(Array.from(selected)[0]);',
+      '    if (player && player.isConnected && player.canvasWebKey && player.canvasWebKey(event)) event.preventDefault();',
+      '  });',
       '  function fitVideoCard(node) {',
     ].join('\n')
   );
@@ -1499,16 +1511,26 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '        card.append(player);',
       // Web cards drag like images, so playback starts only from this explicit control, never a card click.
       '        if (canvasWeb) {',
-      "          const play = document.createElement('button');",
-      "          play.type = 'button';",
-      "          play.className = 'web-video-play';",
-      '          const target = player;',
-      "          play.addEventListener('pointerdown', function (event) { event.stopPropagation(); });",
-      "          play.addEventListener('dblclick', function (event) { event.stopPropagation(); });",
-      "          play.addEventListener('click', function (event) { event.stopPropagation(); if (target.paused || target.ended) void target.play().catch(function () {}); else target.pause(); });",
+      // Reused with the player (like the bar) so a re-render keeps keyboard focus on it.
+      '          let play = player.canvasWebPlay;',
+      '          if (!play) {',
+      "            play = document.createElement('button');",
+      "            play.type = 'button';",
+      "            play.className = 'web-video-play';",
+      '            const target = player;',
+      "            play.addEventListener('pointerdown', function (event) { event.stopPropagation(); });",
+      "            play.addEventListener('dblclick', function (event) { event.stopPropagation(); });",
+      "            play.addEventListener('click', function (event) { event.stopPropagation(); if (target.paused || target.ended) void target.play().catch(function () {}); else target.pause(); });",
+      "            play.addEventListener('keydown', function (event) { if (target.canvasWebKey && target.canvasWebKey(event)) { event.preventDefault(); event.stopPropagation(); } });",
+      '            player.canvasWebPlay = play;',
+      '          }',
       '          player.canvasBinding.play = play;',
       '          syncVideoPlay(play, player);',
-      '          card.append(play, canvasWebVideoBar(player));',
+      '          const bar = canvasWebVideoBar(player);',
+      '          card.append(play, bar);',
+      // The card joins the world later in this pass, and focus() on a detached node is a no-op.
+      '          const refocus = focusBeforeRender && (play === focusBeforeRender || bar.contains(focusBeforeRender)) ? focusBeforeRender : null;',
+      '          if (refocus) requestAnimationFrame(function () { if (refocus.isConnected && (!document.activeElement || document.activeElement === document.body)) refocus.focus({ preventScroll: true }); });',
       '        }',
       '      }',
       "      if (node.type === 'sequence') {",

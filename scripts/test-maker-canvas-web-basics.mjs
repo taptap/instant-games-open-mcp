@@ -4217,6 +4217,25 @@ try {
       const clicked = await player.evaluate((item) => item.currentTime / item.duration);
       assert.ok(Math.abs(clicked - 0.5) < 0.08, '点击中点跳到一半：' + clicked);
       assert.equal(await player.evaluate((item) => item.paused), true, '跳转不触发播放');
+      // Real mouse flow: after clicking the track, arrows keep seeking.
+      await page.keyboard.press('ArrowRight');
+      const afterClick = await player.evaluate((item) => item.currentTime);
+      assert.ok(
+        Math.abs(afterClick - Math.min(duration, clicked * duration + 1)) < 0.05,
+        '点击进度条后 → 前进 1s：' + afterClick
+      );
+      // A re-render (autosave ack, task update, Agent edit) must not drop the slider's focus.
+      await editor('update-nodes', { nodes: [{ id: video.id, title: '进度条 焦点' }] });
+      // Focus comes back on the next frame (the card is laid out by then).
+      await page.waitForFunction(() =>
+        document.activeElement.classList.contains('web-video-track')
+      );
+      await page.keyboard.press('ArrowLeft');
+      const afterRender = await player.evaluate((item) => item.currentTime);
+      assert.ok(
+        Math.abs(afterRender - Math.max(0, afterClick - 1)) < 0.05,
+        '重渲染后 ← 仍后退：' + afterRender
+      );
       // Drag along the bar: seeks, never moves the card.
       await page.mouse.move(rect.x + rect.width * 0.2, rect.y + rect.height / 2);
       await page.mouse.down();
@@ -4251,6 +4270,58 @@ try {
       await mute.click();
       assert.equal(await player.evaluate((item) => item.muted), !muted);
       assert.equal(await mute.getAttribute('aria-pressed'), String(!muted));
+      // Arrows also seek from the play chip and from a selected card with nothing focused.
+      const chip = card(video.id).locator('.web-video-play');
+      await player.evaluate((item) => (item.currentTime = 0));
+      await chip.focus();
+      await page.keyboard.press('ArrowRight');
+      assert.ok(
+        Math.abs((await player.evaluate((item) => item.currentTime)) - Math.min(1, duration)) <
+          0.05,
+        '播放键上 → 前进 1s'
+      );
+      await editor('update-nodes', { nodes: [{ id: video.id, title: '进度条 播放键' }] });
+      await page.waitForFunction(
+        () => document.activeElement.classList.contains('web-video-play'),
+        null,
+        { timeout: 2000 }
+      );
+      await blank();
+      await card(video.id).click({ position: { x: 120, y: 60 } });
+      await player.evaluate((item) => (item.currentTime = 0));
+      await page.keyboard.press('ArrowRight');
+      assert.ok(
+        Math.abs((await player.evaluate((item) => item.currentTime)) - Math.min(1, duration)) <
+          0.05,
+        '选中视频卡 → 前进 1s'
+      );
+      await page.keyboard.press('ArrowLeft');
+      assert.equal(await player.evaluate((item) => item.currentTime), 0, '选中视频卡 ← 后退 1s');
+      // Playing: controls fade after 2s idle even while selected or hovered, and come back on pointer move.
+      const opacity = (selector) =>
+        card(video.id)
+          .locator(selector)
+          .evaluate((item) => Number(getComputedStyle(item).opacity));
+      await player.evaluate((item) => {
+        item.loop = true;
+        item.muted = true;
+      });
+      const pic = await player.boundingBox();
+      await page.mouse.move(pic.x + pic.width / 2, pic.y + pic.height / 3);
+      await chip.click();
+      await page.waitForFunction(() => !window.__videoMark.paused);
+      await page.mouse.move(pic.x + pic.width / 2 + 5, pic.y + pic.height / 3);
+      assert.ok((await opacity('.web-video-bar')) > 0.9, '播放刚开始进度条可见');
+      await page.waitForTimeout(2400);
+      assert.equal(await opacity('.web-video-bar'), 0, '播放中静止 2s 后进度条隐藏');
+      assert.equal(await opacity('.web-video-play'), 0, '播放中静止 2s 后播放键隐藏');
+      await page.mouse.move(pic.x + pic.width / 2 + 20, pic.y + pic.height / 3);
+      await page.waitForTimeout(200);
+      assert.ok((await opacity('.web-video-bar')) > 0.9, '移动鼠标后进度条回来');
+      await chip.click();
+      await page.waitForFunction(() => window.__videoMark.paused);
+      await page.waitForTimeout(2400);
+      assert.ok((await opacity('.web-video-bar')) > 0.9, '暂停时不自动隐藏');
       // Re-renders keep the same bar and position.
       await player.evaluate((item) => (item.currentTime = item.duration / 2));
       const barMark = await bar.evaluate((item) => (window.__barMark = item) && true);
