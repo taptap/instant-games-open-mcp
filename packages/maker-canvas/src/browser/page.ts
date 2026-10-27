@@ -496,6 +496,8 @@ function applyImageSlotPatches(source: string): string {
       // Local template members (no draft) keep their original upstream input rule.
       "    if (unwired && !target.assetPath && target.type === 'image' && (canvasWeb || target.generationDraft)) target.referenceInput = target.referenceInput || { includeSelf: false };",
       '    if (canvasWeb) {',
+      // An AI result regenerates from its recorded inputs only until a wire is cut; then the remaining wires are its inputs.
+      "      if (unwired && target.type === 'image' && target.assetPath && target.generation && !target.referenceInput && !target.mergeIcons && !target.uiAtlasPrelayout && !documentState.nodes.some(function (item) { return item.id === target.sectionId && item.templateId; })) target.referenceInput = { includeSelf: false };",
       // Web wires are relationships: forget the source snapshot so the kept image and its dependents stay current.
       '      if (unwired && target.sourceSnapshots) { target.sourceSnapshots = target.sourceSnapshots.filter(function (item) { return item.nodeId !== edge.from; }); if (!target.sourceSnapshots.length) delete target.sourceSnapshots; }',
       '      if (unwired && target.sourceSnapshot && target.sourceSnapshot.nodeId === edge.from) { if (target.sourceSnapshots) target.sourceSnapshot = target.sourceSnapshots[0]; else delete target.sourceSnapshot; }',
@@ -2410,6 +2412,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  }',
       '  async function commitCanvasCutout(current, live, blob) {',
       '    live();',
+      // The result is a new card and wire; refuse before importing so saving cannot hit the store limit.
+      "    if (current.nodes.length >= 400 || current.edges.length >= 800) throw new Error('画布卡片已达到容量限制。');",
       '    const saved = await store.importImage(current.id, await blob.arrayBuffer(), "image/png");',
       '    await loadMedia(saved.relativePath);',
       '    const source = live();',

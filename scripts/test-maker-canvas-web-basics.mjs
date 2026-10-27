@@ -390,7 +390,9 @@ await check('Chrome 74：内联脚本与浏览器产物可按 ES2019 解析', as
   // Host code is injected verbatim and must be lowered by the host; check the shared page only.
   const shared = getCanvasPageHtml({ hostScript: '/* __MAKER_CANVAS_HOST__ */' });
   assert.ok(shared.includes('/* __MAKER_CANVAS_HOST__ */'));
-  const scripts = [...shared.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+  const scripts = [...shared.matchAll(/<script>([\s\S]*?)<\/script[^>]*>/gi)].map(
+    (match) => match[1]
+  );
   assert.ok(scripts.length);
   for (const script of scripts) acorn.parse(script, { ecmaVersion: 2019, sourceType: 'script' });
   const seen = new Set();

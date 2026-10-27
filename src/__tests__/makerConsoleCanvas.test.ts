@@ -12,6 +12,8 @@ import { createLocalCanvasHost } from '../maker/canvas/localBrowserHost';
 import { createBrowserCanvasDocumentStore } from '../maker/canvas/store';
 import { sequenceActionsForCard } from '../maker/canvas/sequence';
 import { imageFeatures, imageAllowsOutpaint } from '../maker/canvas/imageFeatures';
+import { canvasFeatureEnabled } from '../../packages/maker-canvas/src/browser/capabilities';
+import { canvasComposerKey } from '../../packages/maker-canvas/src/browser/webChrome';
 import { canvasParameterSchema } from '../maker/canvas/automationInfo';
 import { canvasAutomationCapabilities } from '../maker/canvas/automation';
 
@@ -220,6 +222,7 @@ describe('Maker console canvas', () => {
       const selectionMenu = { replaceChildren: jest.fn(), append: jest.fn(), hidden: true };
       const document = {
         createElement: () => ({
+          dataset: {},
           append: jest.fn(),
           addEventListener: jest.fn(),
           setAttribute: jest.fn(),
@@ -227,7 +230,15 @@ describe('Maker console canvas', () => {
       };
       new Script('(function () {' + handler![1] + '})();').runInNewContext({
         document,
-        documentState: { nodes: [node] },
+        // Page-scope state the handler reads: default (local) host, no drag or cutout.
+        host: {},
+        canvasWeb: false,
+        canvasFeatureEnabled,
+        canvasComposerKey,
+        composerHold: false,
+        drag: null,
+        canvasCutoutBusy: new Set(),
+        documentState: { nodes: [node], edges: [] },
         selected: new Set([node.id]),
         selectionAction,
         selectionToolbar,
@@ -268,15 +279,15 @@ describe('Maker console canvas', () => {
       expect(handler).not.toBeNull();
       const style = { left: '', top: '' };
       const menuStyle = { left: '', top: '' };
+      const card = {
+        getBoundingClientRect: () => ({ ...anchor, width: anchor.right - anchor.left }),
+      };
       new Script('(function () {' + handler![1] + '})();').runInNewContext({
+        canvasWeb: false,
         selectionToolbar: { hidden: false, style, offsetWidth: 440, offsetHeight: 230 },
         document: { querySelector: () => null },
         selectionMenu: { hidden: false, style: menuStyle, offsetWidth: 320, offsetHeight: 40 },
-        world: {
-          querySelector: () => ({
-            getBoundingClientRect: () => ({ ...anchor, width: anchor.right - anchor.left }),
-          }),
-        },
+        world: { querySelector: () => card, querySelectorAll: () => [card] },
         board: { getBoundingClientRect: () => ({ left: 0, top: 0, width: 1000, height: 700 }) },
       });
       expect(style.left).toBe(left);

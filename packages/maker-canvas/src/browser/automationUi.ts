@@ -24,6 +24,7 @@ import { canvasModelGroup } from '../features/model3d.js';
 import { syncUiBboxWorkflow } from './uiBboxWorkflow.js';
 import { canvasMarkFromInput } from '../core/marks.js';
 import { snapshotCanvasSource } from '../core/dependencies.js';
+import { canvasEditorLayout } from './editorLifecycle.js';
 
 export function createCanvasAutomationUiWithHost(options: {
   capabilities?: CanvasHostCapabilities;
@@ -322,6 +323,7 @@ export function createCanvasAutomationUiWithHost(options: {
       // Only unsaved edits block: autosave them first so commands are not refused for a pending debounce.
       if (command.action !== 'query' && command.revision !== current.revision)
         throw invalid('revision 已过期，请重新 inspect，不会覆盖人工修改。');
+      const arrived = canvasEditorLayout(current);
       running = true;
       try {
         const deadline = Date.now() + 10000;
@@ -354,6 +356,9 @@ export function createCanvasAutomationUiWithHost(options: {
       } finally {
         running = false;
       }
+      // Edits made while saving were never inspected by the caller: refuse instead of rebasing.
+      if (canvasEditorLayout(current) !== arrived)
+        throw invalid('revision 已过期，请重新 inspect，不会覆盖人工修改。');
       // The revision moved only because of this flush, which the caller's inspect already saw.
       expectedRevision = current.revision;
     }

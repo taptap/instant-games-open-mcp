@@ -42,9 +42,9 @@ const { getCanvasPageHtml } = await import(
     Date.now()
 );
 const page = getCanvasPageHtml({ hostScript: HOST_SLOT, themeScript: THEME_SLOT });
-const pieces = page.split(/(<script>[\s\S]*?<\/script>)/);
+const pieces = page.split(/(<script>[\s\S]*?<\/script[^>]*>)/i);
 for (let index = 1; index < pieces.length; index += 2) {
-  const source = pieces[index].slice('<script>'.length, -'</script>'.length);
+  const source = pieces[index].replace(/^<script>/i, '').replace(/<\/script[^>]*>$/i, '');
   const { code } = await transform(source, {
     loader: 'js',
     target: MAKER_CANVAS_BROWSER_TARGET,
