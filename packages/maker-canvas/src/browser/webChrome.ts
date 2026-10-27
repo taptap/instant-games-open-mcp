@@ -15,6 +15,7 @@ export function canvasWebIconAction(
     | 'chevron'
     | 'download'
     | 'trash'
+    | 'image'
     | 'video'
     | 'sequence'
     | 'upload'
@@ -30,11 +31,15 @@ export function canvasWebIconAction(
       '<rect width="20" height="20" x="2" y="2" rx="2"/><circle cx="8" cy="8" r="2"/><path d="M9.414 9.414 12 12"/><path d="M14.8 14.8 18 18"/><circle cx="8" cy="16" r="2"/><path d="m18 6-8.586 8.586"/>',
     // lucide chevron-down
     chevron: '<path d="m6 9 6 6 6-6"/>',
-    // Same glyph as the default page's download summary.
-    download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
+    // lucide download
+    download:
+      '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
     // lucide trash-2
     trash:
       '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+    // lucide image
+    image:
+      '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
     // lucide video
     video:
       '<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
@@ -58,7 +63,7 @@ export function canvasWebIconAction(
   button.dataset.webTip = label;
   if (icon !== 'chevron') button.classList.add('web-icon-action');
   button.innerHTML =
-    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     paths[icon] +
     '</svg>';
   return button;
@@ -387,7 +392,62 @@ export function createCanvasWebChrome(options: {
 }) {
   const board = options.board;
   installCanvasWebTooltips();
-  const grip = document.querySelector('.workspace-toolbar-grip');
+  // Web dock and tab icons: plain lucide at stroke 2, matching the Maker shell (lucide-react).
+  const lucide = (paths: string, size: number) =>
+    '<svg viewBox="0 0 24 24" width="' +
+    size +
+    '" height="' +
+    size +
+    '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    paths +
+    '</svg>';
+  const dockIcons: Array<[string, string]> = [
+    // lucide mouse-pointer-2
+    [
+      '#tool-select',
+      '<path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/>',
+    ],
+    // lucide hand
+    [
+      '#tool-pan',
+      '<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
+    ],
+    // lucide square
+    ['#mark-ellipse', '<rect width="18" height="18" x="3" y="3" rx="2"/>'],
+    // lucide arrow-right
+    ['#mark-arrow', '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'],
+    // lucide plus
+    ['.workspace-add > summary', '<path d="M5 12h14"/><path d="M12 5v14"/>'],
+    // lucide layout-grid
+    [
+      '#add-template',
+      '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+    ],
+    // lucide save
+    [
+      '#save',
+      '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+    ],
+    // lucide ellipsis
+    [
+      '.workspace-more > summary',
+      '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+    ],
+  ];
+  for (const [selector, paths] of dockIcons) {
+    const element = document.querySelector(selector);
+    if (element) element.innerHTML = lucide(paths, 20);
+  }
+  // lucide pencil
+  const rename = document.getElementById('rename-canvas');
+  if (rename)
+    rename.innerHTML = lucide(
+      '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+      16
+    );
+  const grip = document.querySelector('.workspace-toolbar-grip') as HTMLElement | null;
+  // Arrow keys still move it; the tooltip only names the drag.
+  if (grip) grip.title = '拖动工具条';
   // lucide grip-horizontal: the Braille glyph renders unevenly across system fonts.
   if (grip)
     grip.innerHTML =
@@ -716,7 +776,7 @@ export function openCanvasWebSlotChooser(options: {
     button.setAttribute('role', 'menuitem');
     button.tabIndex = -1;
     button.innerHTML =
-      '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
       icons[item.icon] +
       '</svg>';
     const text = document.createElement('span');

@@ -546,6 +546,11 @@ function applyWebInteractionPatches(source: string): string {
     page = replaceCanvasPageText(page, search, replacement);
   };
   patch('  function startResize(event, id) {', '  function startResize(event, id, corner) {');
+  // Web: lucide download (stroke 2) on the image download menu; the default page keeps its glyph.
+  patch(
+    'trigger.innerHTML = \'<svg width=18 height=18 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=1.8 aria-hidden=true><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>\';',
+    'trigger.innerHTML = canvasWeb ? \'<svg width=16 height=16 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round aria-hidden=true><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>\' : \'<svg width=18 height=18 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=1.8 aria-hidden=true><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>\';'
+  );
   patch(
     "drag = { kind: 'resize', id: id, x: event.clientX, y: event.clientY, width: node.width, height: node.height, moved: false };",
     "drag = { kind: 'resize', id: id, x: event.clientX, y: event.clientY, width: node.width, height: node.height, left: node.x, top: node.y, corner: corner || 'se', moved: false };"
@@ -693,6 +698,15 @@ function applyWebInteractionPatches(source: string): string {
   patch(
     "  if (!canvasFeatureEnabled(host, 'video')) contextMenu.querySelectorAll",
     [
+      // Web blank menu: 新建 entries first, then a separator and the upload / library entries.
+      '  if (canvasWeb) {',
+      "    const blankItem = function (action) { return contextMenu.querySelector('[data-canvas-action=\"' + action + '\"][data-menu-scope=blank]'); };",
+      "    const uploadVideo = blankItem('import-video'); if (uploadVideo) uploadVideo.textContent = '上传视频';",
+      "    const first = blankItem('add-generation');",
+      "    if (first) { const separator = document.createElement('div'); separator.className = 'canvas-menu-separator'; separator.setAttribute('role', 'separator'); separator.dataset.menuScope = 'blank';",
+      "      const order = [blankItem('add-generation'), blankItem('add-video'), separator, blankItem('upload-image'), blankItem('import-video'), blankItem('pick-project-images')].filter(Boolean);",
+      "      const anchor = document.createComment('blank-menu'); first.before(anchor); order.forEach(function (item) { anchor.before(item); }); anchor.remove(); }",
+      '  }',
       '  if (!canvasWeb) contextMenu.querySelectorAll(\'[data-canvas-action="upload-image"]\').forEach(function (item) { item.remove(); });',
       '  if (!host.pickProjectImages) contextMenu.querySelectorAll(\'[data-canvas-action="pick-project-images"]\').forEach(function (item) { item.remove(); });',
       "  if (!canvasFeatureEnabled(host, 'video')) contextMenu.querySelectorAll",
@@ -807,20 +821,23 @@ function applyWebMediaPatches(source: string): string {
   );
   patch(
     "if (canvasFeatureEnabled(host, 'video')) actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video');",
-    "if (canvasFeatureEnabled(host, 'video')) { const video = actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video'); if (canvasWeb) canvasWebIconAction(video, 'video'); }"
+    // Web pairs 图片生成 with 视频生成; it creates the same connected slot as the side + 「图片卡片」.
+    "if (canvasWeb) { const imageGenerate = actionButton('图片生成', function () { createLinkedSlot(node.id, false, true); }, false, canvasCapabilityReason(store, 'imageGeneration')); canvasWebIconAction(imageGenerate, 'image'); }\n        if (canvasFeatureEnabled(host, 'video')) { const video = actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video'); if (canvasWeb) canvasWebIconAction(video, 'video'); }"
   );
   patch(
     "actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); }",
-    "const generate = actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (canvasWeb) canvasWebIconAction(generate, 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) { const split = actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); if (canvasWeb) canvasWebIconAction(split, 'sequence'); } }"
+    // Web video results open their composer on selection (like image results), so no separate 生成视频 button.
+    "const generate = canvasWeb && node.type === 'video-source' ? null : actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (generate && canvasWeb) canvasWebIconAction(generate, 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) { const split = actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); if (canvasWeb) canvasWebIconAction(split, 'sequence'); } }"
   );
   // An empty Web video slot behaves like an image slot: selecting it opens its composer directly.
   patch(
     '      selectionMenu.hidden = emptyImage || restricted;',
     "      const webVideoSlot = canvasWeb && node.type === 'video';\n      selectionMenu.hidden = emptyImage || restricted || webVideoSlot;"
   );
+  // A generated Web video result works like an AI image result: selecting it shows its prompt composer.
   patch(
     '|| (canvasWeb && canvasWebSlot(node));',
-    '|| (canvasWeb && canvasWebSlot(node)) || webVideoSlot;'
+    "|| (canvasWeb && canvasWebSlot(node)) || webVideoSlot || (canvasWeb && node.type === 'video-source' && Boolean(node.assetPath && node.generation));"
   );
   patch(
     'if (chosen.length > 1 && host.addToChat && chosen.some(',

@@ -21,6 +21,13 @@ const PLUS_ICON =
 // lucide Video, drawn like IMAGE_ICON for the empty video slot.
 const VIDEO_ICON =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.35' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5'/%3E%3Crect x='2' y='6' width='14' height='12' rx='2'/%3E%3C/svg%3E\")";
+// lucide Ellipsis / X / Minus for buttons whose DOM text the shared page owns (card ⋯, tab ×, zoom −/+).
+const ELLIPSIS_ICON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='1'/%3E%3Ccircle cx='19' cy='12' r='1'/%3E%3Ccircle cx='5' cy='12' r='1'/%3E%3C/svg%3E\")";
+const X_ICON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6 6 18'/%3E%3Cpath d='m6 6 12 12'/%3E%3C/svg%3E\")";
+const MINUS_ICON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M5 12h14'/%3E%3C/svg%3E\")";
 const SPRING = 'cubic-bezier(.34,1.56,.64,1)';
 
 /** Opt-in Mivo-like skin for host appearance 'web'; layout and DOM stay the page defaults. */
@@ -536,4 +543,16 @@ ${M} .web-slot-chooser button { display: flex; align-items: center; box-sizing: 
 ${M} .web-slot-chooser button + button { margin-top: 2px; }
 ${M} .web-slot-chooser button svg { flex: none; margin-right: 8px; }
 ${M} .web-slot-chooser button:hover, ${M} .web-slot-chooser button:focus { background: var(--web-menu-hover); color: var(--web-text); }
+
+/* Text glyph buttons drawn as lucide icons (same set and stroke as the Maker shell). */
+${M} .card .canvas-card-menu { display: inline-flex; align-items: center; justify-content: center; font-size: 0; line-height: 0; }
+${M} .card .canvas-card-menu::before { content: ''; display: block; width: 16px; height: 16px; background: currentColor; -webkit-mask: ${ELLIPSIS_ICON} center / contain no-repeat; mask: ${ELLIPSIS_ICON} center / contain no-repeat; }
+${M} .workspace-tab button:last-child:not([role="tab"]):not(#rename-canvas) { font-size: 0; line-height: 0; }
+${M} .workspace-tab button:last-child:not([role="tab"]):not(#rename-canvas)::before { content: ''; display: block; width: 13px; height: 13px; background: currentColor; -webkit-mask: ${X_ICON} center / contain no-repeat; mask: ${X_ICON} center / contain no-repeat; }
+${M} .workspace-view-controls button[aria-label="缩小画布"], ${M} .workspace-view-controls button[aria-label="放大画布"] { display: inline-flex; align-items: center; justify-content: center; font-size: 0; line-height: 0; }
+${M} .workspace-view-controls button[aria-label="缩小画布"]::before, ${M} .workspace-view-controls button[aria-label="放大画布"]::before { content: ''; display: block; width: 16px; height: 16px; background: currentColor; }
+${M} .workspace-view-controls button[aria-label="缩小画布"]::before { -webkit-mask: ${MINUS_ICON} center / contain no-repeat; mask: ${MINUS_ICON} center / contain no-repeat; }
+${M} .workspace-view-controls button[aria-label="放大画布"]::before { -webkit-mask: ${ADD_ICON} center / contain no-repeat; mask: ${ADD_ICON} center / contain no-repeat; }
+${M} #canvas-context-menu .canvas-menu-separator { height: 1px; margin: 4px 10px; background: var(--web-line); }
+${M} #canvas-context-menu .canvas-menu-separator[hidden] { display: none; }
 `;

@@ -3199,11 +3199,23 @@ try {
       .evaluateAll((items) => items.map((item) => item.textContent));
     assert.deepEqual(labels, [
       '新建图片卡片',
-      '上传图片',
-      '从素材库添加',
       '新建视频卡片',
-      '导入视频',
+      '上传图片',
+      '上传视频',
+      '从素材库添加',
     ]);
+    // One separator between 新建 and the upload / library entries.
+    assert.deepEqual(
+      await menu.evaluate((root) =>
+        Array.from(root.children)
+          .filter((item) => !item.hidden)
+          .map((item) =>
+            item.classList.contains('canvas-menu-separator') ? '|' : item.textContent
+          )
+          .slice(0, 6)
+      ),
+      ['新建图片卡片', '新建视频卡片', '|', '上传图片', '上传视频', '从素材库添加']
+    );
     const point = await worldAt(700, 360);
     await menu.getByRole('button', { name: '新建图片卡片' }).click();
     const slot = (await current()).nodes.at(-1);
@@ -3846,6 +3858,25 @@ try {
     await settle();
     await blank();
     await card(source.id).click({ position: { x: 100, y: 120 } });
+    // 图片生成 sits before 视频生成 and creates a connected image slot (same as the side +).
+    const imageActions = await page
+      .locator('#selection-menu .selection-actions > button')
+      .evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')));
+    assert.deepEqual(imageActions.slice(0, 2), ['图片生成', '视频生成']);
+    const before = (await current()).nodes.length;
+    await page.locator('#selection-menu').getByRole('button', { name: '图片生成' }).click();
+    const imageSlot = (await current()).nodes.at(-1);
+    assert.equal((await current()).nodes.length, before + 1);
+    assert.equal(imageSlot.type, 'image');
+    assert.equal(imageSlot.assetPath, undefined);
+    assert.ok(
+      (await current()).edges.some((edge) => edge.from === source.id && edge.to === imageSlot.id),
+      '图片生成槽连到源图'
+    );
+    await editor('delete-nodes', { ids: [imageSlot.id] });
+    await settle();
+    await blank();
+    await card(source.id).click({ position: { x: 100, y: 120 } });
     const entry = page.locator('#selection-menu').getByRole('button', { name: '视频生成' });
     assert.equal(await entry.getAttribute('data-web-tip'), '视频生成');
     assert.ok(await entry.evaluate((item) => item.classList.contains('web-icon-action')));
@@ -3959,7 +3990,14 @@ try {
     assert.equal(await card(slotId).locator('.canvas-port').count(), 0);
     await blank();
     await card(slotId).click({ position: { x: 100, y: 60 } });
-    assert.deepEqual(await menuLabels(page), ['生成视频', '拆序列帧']);
+    // Like an AI image result, selecting the video result opens its composer; no 生成视频 button.
+    assert.deepEqual(await menuLabels(page), ['拆序列帧']);
+    await page.locator('#selection-toolbar .generation-panel-video').waitFor();
+    assert.equal(
+      await page.locator('#selection-toolbar textarea.generation-prompt').inputValue(),
+      '角色挥剑',
+      '面板带出原提示词'
+    );
     assert.equal(await card(slotId).locator('.web-node-handle').count(), 4);
     // templates/resourceExport stay off: no template edit or export entries on the video result.
     await card(slotId).click({ position: { x: 100, y: 60 }, button: 'right' });
@@ -3995,7 +4033,7 @@ try {
     const labels = await menu
       .locator('button:not([hidden])')
       .evaluateAll((items) => items.map((item) => item.textContent));
-    assert.deepEqual(labels, ['新建图片卡片', '上传图片', '新建视频卡片', '导入视频']);
+    assert.deepEqual(labels, ['新建图片卡片', '新建视频卡片', '上传图片', '上传视频']);
     await menu.getByRole('button', { name: '新建视频卡片' }).click();
     const slot = (await current()).nodes.find((node) => node.type === 'video');
     await page.locator('#selection-toolbar .generation-panel-video').waitFor();
@@ -4008,7 +4046,7 @@ try {
     await blank();
     const chooser = page.waitForEvent('filechooser');
     await page.mouse.click(400, 600, { button: 'right' });
-    await menu.getByRole('button', { name: '导入视频' }).click();
+    await menu.getByRole('button', { name: '上传视频' }).click();
     const bytes = await page.evaluate(() => window.__canvasVideoBytes());
     await (
       await chooser
