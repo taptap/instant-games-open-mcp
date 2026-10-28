@@ -1034,6 +1034,60 @@ describe('image reference drafts and refresh', () => {
     }
   );
 
+  test.each(['download', 'save'] as const)(
+    'local image retry reports the real reason when recovery does not finish: %s',
+    async (failure) => {
+      const { document, options, ui, image } = imageFixture();
+      const attempt: any = {
+        id: 'delivered-image',
+        canvasId: document.id,
+        kind: 'image',
+        targetNodeId: image.id,
+        prompt: image.generation.prompt,
+        sourceImageId: image.id,
+        sourceImagePath: image.assetPath,
+        sourceImageIds: [image.id],
+        sourceImagePaths: [image.assetPath],
+        sourceSnapshots: [snapshotCanvasSource(image)],
+        targetAssetPath: image.assetPath,
+        status: 'failed',
+        remoteStatus: 'succeeded',
+        failureStage: 'download',
+        remoteAssetUrl: 'https://cdn.example/generated.png',
+        updatedAt: new Date().toISOString(),
+      };
+      options.store.listGeneration.mockResolvedValue([attempt]);
+      options.store.generationAction.mockResolvedValue(
+        failure === 'download'
+          ? {
+              ...attempt,
+              error:
+                'fetch failed 图片请求已返回，不会重新生成；已保留原图片地址，可重试本地下载。',
+            }
+          : { ...attempt, status: 'succeeded', resultAssetPath: 'assets/image/recovered.png' }
+      );
+      await ui.restore();
+      ui.render({ append: jest.fn() }, image, document.nodes);
+      if (failure === 'save') options.flush.mockResolvedValue(false);
+      elements
+        .find((element) => element.textContent === '重试本地导入')
+        .events.click({ stopPropagation() {} });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(options.store.generationAction).toHaveBeenCalledWith(document.id, attempt.id, 'retry');
+      expect(options.store.generateImage).not.toHaveBeenCalled();
+      expect(options.onGenerated).not.toHaveBeenCalled();
+      const messages = options.setError.mock.calls.map(([message]: [string]) => message);
+      expect(messages).not.toContain('图片已取回，但卡片或输入已变化，未覆盖当前内容。');
+      if (failure === 'download')
+        expect(options.setError).toHaveBeenCalledWith(
+          '本地导入仍未完成：fetch failed 图片请求已返回，不会重新生成；已保留原图片地址，可重试本地下载。',
+          'warning'
+        );
+      // A failed save keeps the page's own save error instead of overwriting it.
+      else expect(options.setError).not.toHaveBeenCalled();
+    }
+  );
+
   test('unsubmitted manual inputs remain detectable after closing a panel, unlike unchanged caches', async () => {
     const { document, ui, image } = imageFixture(true);
     ui.render({ append: jest.fn() }, image, document.nodes);

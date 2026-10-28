@@ -2057,14 +2057,26 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     return true;
   }
 
-  async function recoverLocalImageDownload(attempt: any, list: any[]): Promise<any | false> {
+  /**
+   * Retry only the local download/import of an image the server already generated.
+   * `download`: the import failed again; `changed`: the canvas or card inputs moved on and the
+   * result was not applied; `save`: the result is on the card but the canvas save failed.
+   */
+  async function recoverLocalImageDownload(
+    attempt: any,
+    list: any[]
+  ): Promise<
+    | { ok: true; attempt: any }
+    | { ok: false; reason: 'download' | 'changed' | 'save'; error?: string }
+  > {
     const documentState = options.getDocument();
     const next = await options.store.generationAction(attempt.canvasId, attempt.id, 'retry');
     attempts.set(next.id, next);
-    if (options.getDocument() !== documentState) return false;
-    if (next.status !== 'succeeded') return false;
-    if (!recoverImage(next, [...list.filter((item) => item.id !== next.id), next])) return false;
-    return (await options.flush()) ? next : false;
+    if (next.status !== 'succeeded') return { ok: false, reason: 'download', error: next.error };
+    if (options.getDocument() !== documentState) return { ok: false, reason: 'changed' };
+    if (!recoverImage(next, [...list.filter((item) => item.id !== next.id), next]))
+      return { ok: false, reason: 'changed' };
+    return (await options.flush()) ? { ok: true, attempt: next } : { ok: false, reason: 'save' };
   }
 
   async function action(
@@ -2107,16 +2119,25 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         const current = options.getDocument();
         const list = current ? await options.store.listGeneration(current.id) : [];
         const recovered = await recoverLocalImageDownload(attempt, list);
-        if (!recovered) {
-          options.setError('图片已取回，但卡片或输入已变化，未覆盖当前内容。', 'info');
-        } else {
+        if (recovered.ok) {
           imageFailures.delete(attempt.targetNodeId);
           retryableImages.delete(attempt.targetNodeId);
           const result = options
             .getDocument()
-            ?.nodes.find((node: any) => node.generation?.attemptId === recovered.id);
+            ?.nodes.find((node: any) => node.generation?.attemptId === recovered.attempt.id);
           if (result) await options.onGenerated?.(result.id, 'image');
+        } else if (recovered.reason === 'download') {
+          // The server error already says the image will not be regenerated and how to retry.
+          options.setError(
+            recovered.error
+              ? '本地导入仍未完成：' + recovered.error
+              : '本地导入仍未完成；原图片已生成，不会重新生成，可稍后再点“重试本地导入”。',
+            'warning'
+          );
+        } else if (recovered.reason === 'changed') {
+          options.setError('图片已取回，但卡片或输入已变化，未覆盖当前内容。', 'info');
         }
+        // `save`: the page already reports why saving failed; keep that message visible.
         options.render();
         return;
       }
@@ -3182,7 +3203,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         latest.failureStage === 'download'
       ) {
         try {
-          if (!(await recoverLocalImageDownload(latest, list))) {
+          if (!(await recoverLocalImageDownload(latest, list)).ok) {
             options.render();
             return 'blocked';
           }

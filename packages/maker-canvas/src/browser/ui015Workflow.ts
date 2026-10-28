@@ -536,7 +536,10 @@ export function createUi015Workflow(options: {
         }
         if (result === 'blocked') {
           autoRuns.delete(groupId);
-          options.log('015 · 原图片已生成但本地导入仍失败，停止自动流程以避免重复付费', 'error');
+          options.log(
+            '015 · 原图片已生成但未能放入卡片（本地导入失败、卡片已变化或保存失败），停止自动流程以避免重复付费',
+            'error'
+          );
           finalResult(groupId, await assemble(groupId, false, true, run.cli));
           return;
         }
