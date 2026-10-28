@@ -4298,10 +4298,14 @@ try {
     await settle();
     await blank();
     await waitMetadata(card(video.id).locator('video'));
-    for (const wheel of [0, -300, 600]) {
+    // Ctrl+wheel zooms in Web (a plain wheel pans); several steps reach 放大 / 缩小.
+    for (const wheel of [0, -10, 10]) {
       if (wheel) {
-        await page.mouse.move(500, 400);
-        await page.mouse.wheel(0, wheel);
+        const media = await card(video.id).locator('video').boundingBox();
+        await page.mouse.move(media.x + media.width / 2, media.y + media.height / 2);
+        await page.keyboard.down('Control');
+        for (let step = 0; step < 20; step++) await page.mouse.wheel(0, wheel);
+        await page.keyboard.up('Control');
         await page.waitForTimeout(100);
       }
       const media = await card(video.id).locator('video').boundingBox();
@@ -4329,6 +4333,77 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   });
+  await check(
+    'Web 触控板：双指滑动平移画布，捏合 / Ctrl+滚轮按指针缩放；默认外观滚轮仍缩放',
+    async () => {
+      const { page, errors, settle, current } = await webPage();
+      await settle();
+      const view = async () => (await current()).viewport;
+      const start = await view();
+      await page.mouse.move(700, 450);
+      // Two-finger scroll arrives as a plain wheel with both axes.
+      await page.mouse.wheel(40, 25);
+      await page.mouse.wheel(-10, 15);
+      let now = await view();
+      assert.equal(now.scale, start.scale, '双指滑动不缩放');
+      assert.ok(
+        Math.abs(now.x - (start.x - 30)) < 0.5 && Math.abs(now.y - (start.y - 40)) < 0.5,
+        '按位移平移：' + JSON.stringify(now)
+      );
+      // Shift+wheel (mouse) scrolls sideways.
+      const beforeShift = now;
+      await page.keyboard.down('Shift');
+      await page.mouse.wheel(0, 50);
+      await page.keyboard.up('Shift');
+      now = await view();
+      assert.equal(now.scale, beforeShift.scale);
+      assert.ok(
+        Math.abs(beforeShift.x - now.x - 50) < 0.5 && Math.abs(now.y - beforeShift.y) < 0.5,
+        'Shift+滚轮横向平移'
+      );
+      // Pinch is reported as Ctrl+wheel: small deltas zoom a little, around the pointer.
+      const pivot = { x: 700, y: 450 };
+      const board = await page.locator('#board').boundingBox();
+      const worldBefore = {
+        x: (pivot.x - board.x - now.x) / now.scale,
+        y: (pivot.y - board.y - now.y) / now.scale,
+      };
+      await page.keyboard.down('Control');
+      for (let step = 0; step < 10; step++) await page.mouse.wheel(0, -10);
+      await page.keyboard.up('Control');
+      const zoomed = await view();
+      assert.ok(
+        zoomed.scale > now.scale * 1.1 && zoomed.scale < now.scale * 1.35,
+        '捏合平滑放大：' + zoomed.scale
+      );
+      const worldAfter = {
+        x: (pivot.x - board.x - zoomed.x) / zoomed.scale,
+        y: (pivot.y - board.y - zoomed.y) / zoomed.scale,
+      };
+      assert.ok(
+        Math.abs(worldAfter.x - worldBefore.x) < 0.5 &&
+          Math.abs(worldAfter.y - worldBefore.y) < 0.5,
+        '以指针为中心缩放'
+      );
+      await settle();
+      assert.deepEqual(errors, []);
+      await page.close();
+      // Default appearance keeps wheel = zoom.
+      const plain = await openCanvas({});
+      await plain.page.waitForFunction(() => window.__canvasEditor.current());
+      const plainStart = await plain.page.evaluate(
+        () => window.__canvasEditor.current().viewport.scale
+      );
+      await plain.page.mouse.move(700, 450);
+      await plain.page.mouse.wheel(0, -120);
+      await plain.page.waitForFunction(
+        (scale) => window.__canvasEditor.current().viewport.scale > scale,
+        plainStart
+      );
+      assert.deepEqual(plain.errors, []);
+      await plain.page.close();
+    }
+  );
   await check('Web 工具条快捷键：V/H/R/A 切换或放置，⌘/Ctrl+S 保存，tooltip 写明按键', async () => {
     const { page, errors, settle, current } = await webPage();
     await settle();

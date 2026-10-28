@@ -546,6 +546,26 @@ function applyWebInteractionPatches(source: string): string {
     page = replaceCanvasPageText(page, search, replacement);
   };
   patch('  function startResize(event, id) {', '  function startResize(event, id, corner) {');
+  // Web wheel follows Mivo (useViewport handleWheel): two-finger trackpad scroll and the mouse wheel pan,
+  // Shift scrolls sideways; pinch (reported as Ctrl+wheel) and Ctrl/⌘+wheel zoom by exp(-deltaY * 0.002).
+  patch(
+    '    const next = Math.min(4, Math.max(0.15, before * (event.deltaY > 0 ? 0.9 : 1.1)));',
+    [
+      '    const wheelUnit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 800 : 1;',
+      "    if (canvasWeb && typeof hideContextMenu === 'function') hideContextMenu();",
+      '    if (canvasWeb && !event.ctrlKey && !event.metaKey) {',
+      // Shift+wheel on a mouse scrolls sideways; macOS already reports it as deltaX.
+      '      const sideways = event.shiftKey && !event.deltaX;',
+      '      documentState.viewport.x -= (sideways ? event.deltaY : event.deltaX) * wheelUnit;',
+      '      documentState.viewport.y -= (sideways ? 0 : event.deltaY) * wheelUnit;',
+      '      markDirty();',
+      '      render();',
+      '      return;',
+      '    }',
+      '    const wheelStep = canvasWeb ? Math.exp(-event.deltaY * wheelUnit * 0.002) : event.deltaY > 0 ? 0.9 : 1.1;',
+      '    const next = Math.min(4, Math.max(0.15, before * wheelStep));',
+    ].join('\n')
+  );
   // Web: lucide download (stroke 2) on the image download menu; the default page keeps its glyph.
   patch(
     'trigger.innerHTML = \'<svg width=18 height=18 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=1.8 aria-hidden=true><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>\';',
