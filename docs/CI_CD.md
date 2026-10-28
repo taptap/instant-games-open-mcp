@@ -67,12 +67,21 @@ Markdown 解析不是 HTML 消毒，控制台仍只把解析后的 tokens 以安
 
 ```
 main          # 稳定版本（1.2.3）- 受保护
+├── dev/<版本号> # Maker 按版本开发，如 dev/0.0.40，通过 PR 合入 main
 ├── develop   # Maker 客户端插件公开测试分支，可通过 PR 合入 main
 ├── beta      # Beta 测试版（1.3.0-beta.1）
 ├── alpha     # Alpha 早期版（1.3.0-alpha.1）
 ├── next      # 下一个主版本（2.0.0-next.1）
 └── 1.x       # 旧版本维护（1.2.4）
 ```
+
+### Maker 版本开发分支
+
+每轮版本开发先 fetch，再从最新 `origin/main` 创建 `dev/<版本号>`，例如 `dev/0.0.40`。
+同一版本的改动继续在对应分支开发；该版本通过 PR 合并、发版后，下一版本重新从最新
+`origin/main` 开分支，不复用已合并 PR 的旧分支，也不从旧版本开发分支继续派生。
+切换前先提交或 stash 当前修改，并保留未跟踪文件。`dev/` 只是命名分组，不创建独立
+`dev` 分支，也不替代 `develop`。分支名不自动修改包版本，不改变现有发布来源与审批流程。
 
 ### 分支保护规则
 
@@ -182,7 +191,7 @@ npx -y @taptap/maker@beta init
 
 ### 3.4 重要注意事项
 
-- ✅ **始终在 feature/fix 分支工作**，不要直接 commit 到 main
+- ✅ **Maker 版本开发在 `dev/<版本号>`，其他任务在 feature/fix 等分支工作**，不要直接 commit 到 main
 - ✅ **不要在正常 PR commit 中使用 `[skip ci]`、`[ci skip]`、`[skip actions]` 等跳过指令**
 - ✅ **Commit 类型决定版本号**：
   - `feat:` → minor 版本 (1.2.0 → 1.3.0)
