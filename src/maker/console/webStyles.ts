@@ -1,4 +1,5 @@
 import { consoleThemeStyles } from '../webTheme.js';
+import { architecturePreviewStyles } from './architecturePreview.js';
 
 export const consoleStyles = String.raw`
 ${consoleThemeStyles}
@@ -338,4 +339,5 @@ body.canvas-mode #close-canvas{max-width:85px;white-space:normal;font-size:10px}
 .plugin-status{padding:10px 16px}.plugin-frame{height:calc(100dvh - 235px);min-height:480px}
 }
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}}
+${architecturePreviewStyles}
 `;

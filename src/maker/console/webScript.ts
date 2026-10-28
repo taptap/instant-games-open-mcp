@@ -2,6 +2,7 @@ import { consoleIcons } from './webIcons.js';
 import { consoleThemeScript } from '../webTheme.js';
 import { modelSettingsScript } from './modelSettingsUi.js';
 import { contextCheckScript } from './contextCheckUi.js';
+import { architecturePreviewScript } from './architecturePreview.js';
 
 export const consoleScript = String.raw`
 ${consoleThemeScript}
@@ -1093,6 +1094,7 @@ function startActivityLease() {
   activityTimer = setInterval(() => void sendActivity(true),60000);
 }
 function dispose() {
+  architecturePreview.suspend();
   offline = true;
   disposed = true;
   clearTimeout(pollTimer);
@@ -1199,7 +1201,7 @@ function chooseProject(key, updateUrl = true) {
   }
   const project = state.projects.find(p => p.key === key);
   selected = key;
-  if (!project?.valid && page !== 'projects' && page !== 'documents') page = 'projects';
+  if (!project?.valid && !['projects','documents','other'].includes(page)) page = 'projects';
   if (updateUrl) setProjectQuery();
   if (updateUrl) void api('/api/console-preferences', {
     method:'PUT',body:{selectedProjectKey:key || null}
@@ -1228,7 +1230,7 @@ function updateChrome() {
   $('context').title = currentProject()?.name || '本地项目';
   $('footer-path').textContent = currentProject()?.path || '';
   document.querySelectorAll('nav [data-page]').forEach(b => {
-    b.disabled = !loaded || (!['documents','settings'].includes(b.dataset.page) && !currentProject()?.valid);
+    b.disabled = !loaded || (!['documents','settings','other'].includes(b.dataset.page) && !currentProject()?.valid);
     if (b.dataset.page === page) b.setAttribute('aria-current','page');
     else b.removeAttribute('aria-current');
   });
@@ -2794,7 +2796,7 @@ function renderCanvas() {
 }
 ${modelSettingsScript}
 function navigate(next) {
-  if (!currentProject()?.valid && !['projects','documents','settings'].includes(next)) return;
+  if (!currentProject()?.valid && !['projects','documents','settings','other'].includes(next)) return;
   viewEpoch++; commitRequest++; gitLoading = false; page = next;
   render();
   if (next === 'overview' && !detail) void loadProject();
@@ -2802,6 +2804,7 @@ function navigate(next) {
   if (next === 'build') void refreshPreview();
 }
 function render() {
+  architecturePreview.suspend();
   document.body.classList.toggle('canvas-mode', page === 'canvas' || page === 'ui-editor');
   $('close-canvas').hidden = true;
   syncValidationPolling();
@@ -2818,6 +2821,7 @@ function render() {
   if (plugin) { renderPlugin(plugin); return; }
   if (page === 'documents') { void renderDocuments(); return; }
   if (page === 'settings') { void renderVisionSettings(); return; }
+  if (page === 'other') { architecturePreview.render(); return; }
   if (page === 'projects' || !currentProject()?.valid) renderProjects();
   else if (page === 'build') renderBuild();
   else if (page === 'git') renderGit();
@@ -2880,6 +2884,7 @@ async function pollState() {
   }
   if (first && initialQuery.get('page') === 'documents') page = 'documents';
   if (first && initialQuery.get('page') === 'settings') page = 'settings';
+  if (first && initialQuery.get('page') === 'other') page = 'other';
   const settled = [];
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
@@ -2898,11 +2903,11 @@ async function pollState() {
   $('connection').title = '最近连接：' + new Date().toLocaleTimeString('zh-CN');
   $('connection').className = 'good';
   lastStateError = '';
-  if (selected && !currentProject()?.valid && !['projects','documents','settings'].includes(page)) page = 'projects';
+  if (selected && !currentProject()?.valid && !['projects','documents','settings','other'].includes(page)) page = 'projects';
   let projectChanged = false;
   if (first && projectNotice === '') projectNotice = currentProjectNotice();
   else projectChanged = publishProjectChange();
-  if (projectChanged || (first && ['ui-editor', 'documents', 'settings'].includes(page))) render();
+  if (projectChanged || (first && ['ui-editor', 'documents', 'settings', 'other'].includes(page))) render();
   else {
     updateChrome();
     if (page === 'projects' && (first || priorProjects !== JSON.stringify(state.projects))) renderProjects();
@@ -2962,6 +2967,7 @@ onProjectChange(() => {
   documentRequest++;
   documentDirectoryRequest++;
 });
+${architecturePreviewScript}
 document.addEventListener('DOMContentLoaded',async () => {
   window.addEventListener('beforeunload', protectUiEditorUnload);
   $('git-pull-conflict-copy')?.addEventListener('click',() => void copyGitPrompt($('git-pull-conflict-prompt').value));

@@ -50,6 +50,7 @@ export function getConsoleHtml(): string {
   <button data-page="canvas">自由画布</button>
   <button data-page="ui-editor">UI 编辑器</button>
   <span id="plugin-tabs" class="plugin-tabs"></span>
+  <button data-page="other">其他</button>
 </nav>
 <button id="close-canvas" type="button" hidden>关闭当前项目画布</button>
 <div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>

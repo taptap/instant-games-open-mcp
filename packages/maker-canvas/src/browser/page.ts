@@ -132,6 +132,11 @@ import { decorateCanvasCard } from './cardUi.js';
 import { refreshCanvasGroupHeaders } from './cardUi.js';
 import { canvasGroupState } from './cardUi.js';
 import { CANVAS_CARD_UI_STYLES } from './cardUi.js';
+import {
+  decorateCanvasFlowCard,
+  syncCanvasFlowEffects,
+  CANVAS_FLOW_STYLES,
+} from './flowEffects.js';
 import { dispatchCanvasStoreRequest } from './store.js';
 import { withCanvasTimeout } from './requestTimeout.js';
 import { isUiCutoutSource } from '../features/uiCutout.js';
@@ -1131,6 +1136,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     prepareCanvasReferences.toString(),
     applyCanvasReferences.toString(),
     decorateCanvasCard.toString(),
+    decorateCanvasFlowCard.toString(),
+    syncCanvasFlowEffects.toString(),
     refreshCanvasGroupHeaders.toString(),
     canvasGroupState.toString(),
     'const CANVAS_MARK_COLORS = ' + JSON.stringify(CANVAS_MARK_COLORS) + ';',
@@ -3337,6 +3344,22 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = applyWebMediaPatches(page);
   page = applyMediaReusePatches(page);
   page = applyWebCardUxPatches(page);
+  page = replaceCanvasPageText(page, '</style>', CANVAS_FLOW_STYLES + '</style>');
+  page = replaceCanvasPageText(
+    page,
+    '      world.append(card);',
+    '      if (!canvasWeb) decorateCanvasFlowCard(card, node, overlayState, documentState);\n      world.append(card);'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    if (wireUi) wireUi.sync();',
+    '    if (wireUi) wireUi.sync();\n    if (!canvasWeb) syncCanvasFlowEffects(board);'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  void boot()',
+    '  document.documentElement.dataset.flowHidden = String(document.hidden);\n  document.addEventListener("visibilitychange", function () { document.documentElement.dataset.flowHidden = String(document.hidden); });\n  void boot()'
+  );
   // Keep template anchors from rewriting function bodies inside injected helpers.
   page = page.replace('/*__HELPERS__*/', () => helperSource);
   return page.replace(
