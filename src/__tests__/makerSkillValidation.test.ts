@@ -13,6 +13,7 @@ import { PreviewOwner } from '../maker/preview/owner.js';
 import { screenshotRetryTimeout } from '../maker/preview/validation.js';
 import { previewDirectory, writePrivateJson } from '../maker/preview/protocol.js';
 import { preparePreviewProject } from '../maker/preview/prepare.js';
+import * as previewNetwork from '../maker/preview/network.js';
 
 jest.mock('../maker/preview/prepare.js', () => ({
   ...jest.requireActual('../maker/preview/prepare.js'),
@@ -50,9 +51,11 @@ beforeEach(() => {
       fs.readFileSync(path.join(__dirname, 'fixtures/maker-validation-runtime.cjs'), 'utf8'),
     { mode: 0o700 }
   );
+  jest.spyOn(previewNetwork, 'preparePreviewServer').mockResolvedValue(undefined);
 });
 
 afterEach(() => {
+  jest.restoreAllMocks();
   if (previousHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
   else process.env.TAPTAP_MAKER_HOME = previousHome;
   fs.rmSync(root, { recursive: true, force: true });
@@ -713,7 +716,72 @@ test('does not turn a multiplayer project into an offline validation', async () 
   );
   const result = await validate();
   expect(result).toMatchObject({ ok: false, result: 'UNSUPPORTED' });
+  expect(result.error).toMatch(/--network/);
 });
+
+nativeTest.each([false, true])(
+  'validates a multiplayer project once through the explicit network path (black screenshot: %s)',
+  async (black) => {
+    fs.writeFileSync(
+      path.join(project, '.project/settings.json'),
+      '{"@runtime":{"multiplayer":{"enabled":true}}}'
+    );
+    fs.writeFileSync(
+      path.join(project, '.project/project.json'),
+      '{"project_id":"p_fixture","entry":"main.lua"}'
+    );
+    fs.mkdirSync(path.join(project, 'dist/1.0.0'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'dist/latest.json'), '{"version":"1.0.0","client":"abcd"}');
+    fs.writeFileSync(
+      path.join(project, 'dist/1.0.0/manifest-abcd.json'),
+      '{"target":"client","files":[]}'
+    );
+    jest.mocked(preparePreviewProject).mockResolvedValueOnce({
+      source_directory: project,
+      entry: 'main.lua',
+    });
+    jest.mocked(previewNetwork.preparePreviewServer).mockResolvedValueOnce({
+      userId: 123,
+      connectInfo: { pod_ip: '61.254', server_port: 0, ws_port: 1234 },
+    });
+    fixture({ passReport: true, black });
+
+    const result = await validate({ network: true, mode: 'both' });
+
+    expect(result).toMatchObject({
+      ok: !black,
+      result: black ? 'FAIL' : 'COMPLETED',
+      validation_scope: 'network',
+      network_validation: {
+        transport: 'websocket',
+        test_server: true,
+        server_code: 'remote_build',
+      },
+    });
+    expect(result.attempt_run_ids).toHaveLength(1);
+    expect(launches()).toHaveLength(1);
+    expect(previewNetwork.preparePreviewServer).toHaveBeenCalledTimes(1);
+    if (black) {
+      expect(result.screenshot_assessment).toMatchObject({ status: 'NOT_READY' });
+      expect(result.next_step).toMatch(/Network validation does not retry automatically/);
+    }
+    const invocation = JSON.parse(fs.readFileSync(String(result.invocation_path), 'utf8'));
+    expect(invocation.args).toEqual(
+      expect.arrayContaining([
+        '-production',
+        '-server=entrance-new-pd.spark.xd.com',
+        '-tag=debug',
+        expect.stringMatching(/^-directConnectParams=/),
+      ])
+    );
+    expect(previewNetwork.preparePreviewServer).toHaveBeenCalledWith(
+      project,
+      project,
+      expect.any(AbortSignal),
+      true
+    );
+  }
+);
 
 nativeTest('publishes live evidence before Runtime exits and finalizes the same run', async () => {
   fs.writeFileSync(path.join(project, '.project/validation-fixture.json'), '{"wait":true}');

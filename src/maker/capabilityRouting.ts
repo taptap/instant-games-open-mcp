@@ -9,7 +9,7 @@ function formatMakerCapabilityRoutingIndex(options: { includeFeedback: boolean }
     '- Local preview: taptap-maker preview --target-dir; no commit/remote build.',
     '  Requested preview iteration only: status, refresh live game edits. Never revive stopped sessions.',
     '- 打开make mcp控制台: active distribution CLI `console open --target-dir <project> --json`; no web search.',
-    '  run-lua-validate: preview validate via taptap-maker-local.',
+    '  run-lua-validate: preview validate via taptap-maker-local; network/server projects use --network.',
     '- Ads: read maker://ads-integration-guide before any ad-related work.',
     options.includeFeedback
       ? "- Tap flows: test QR -> generate_test_qrcode; current Maker game's online player feedback"

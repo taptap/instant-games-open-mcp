@@ -130,6 +130,7 @@ function printHelp(): void {
       '                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]',
       '                       [--cursor N --session-id ID --reload-id N] [--limit 1..500]',
       '  preview validate: [--mode validate|screenshot|both] [--entry SCRIPT.lua]',
+      '                    [--network]  # required for network/server projects; allocates a test server',
       '                    [--screenshot-frame N] [--validate-frames N] [--validate-timeout 1..580]',
       '                    [--validate-test SCRIPT.lua] [--validate-spike-threshold MS] [--nosound]',
       '                    [--output-dir /absolute/acceptance-directory]',

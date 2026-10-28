@@ -75,9 +75,10 @@ Runtime，也不运行旧 dist。
 
 ## run-lua-validate 本地接入
 
-验证方法、报告判读、视觉检查及修复复测使用 UrhoX ai-dev-kit 的 `run-lua-validate` Skill。
-Maker 只负责本地执行适配：复用预览的 Runtime 安装、项目分类、准备与资源加载，收集本轮证据。
-仅支持单机；不修改引擎、不提交或远端构建、不改写游戏代码和发布配置。
+验证方法、报告判读、视觉检查及修复复测沿用 UrhoX ai-dev-kit 的 `run-lua-validate` Skill。
+Maker 负责本地执行适配：复用预览的 Runtime 安装、项目分类、准备与资源加载，收集本轮证据。
+单机项目沿用 Skill 的本地 Validate；联网/server 项目使用 Maker 的显式 `--network` 路径，
+申请测试服并让本地客户端通过 WebSocket 直连。不修改引擎、不提交或远端构建、不改写游戏代码和发布配置。
 
 插件用户使用 `taptap-maker-local` 指定的当前插件 CLI；不要切换另一份全局 CLI。
 先执行 `preview status`，有活动预览须经用户同意停止，验证不会自动接管窗口。
@@ -104,9 +105,16 @@ Skill 分发由 UrhoX ai-dev-kit 维护。Maker 在安装 Skill 及执行验证�
 
 ```sh
 taptap-maker preview validate --target-dir "/absolute/game" --json
+taptap-maker preview validate --target-dir "/absolute/network-game" --network --json
 taptap-maker preview validate --target-dir "/absolute/game" --mode both --screenshot-frame 600 --json
 taptap-maker preview validate --target-dir "/absolute/game" --validate-test check.lua --json
 ```
+
+联网项目必须显式传 `--network`。不传时不会启动 Runtime，返回 `UNSUPPORTED` 并提示使用该路径；
+传入后会沿用联网预览的 PAT 鉴权、测试服分配和 `directConnectParams`，测试服服务端运行已提交的
+远端构建版本，本地 server 修改不会自动生效。该流程会产生真实测试服存档等业务副作用，且验证结果
+只代表本地客户端在测试服上的运行结果，不能单独证明服务端源码已通过。鉴权、测试版本、连接信息
+或 Runtime 网络能力缺失时直接失败，不降级为单机。
 
 | 本地参数                                      | 对应原有 Skill / Runtime 能力                                                        |
 | --------------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -150,7 +158,8 @@ scene_stalled/update_defined 需结合入口判断，纯 UI 或事件驱动程�
 或截图时已观察到 Bootstrap 开始但尚未完成，标为 `screenshot_assessment.status=NOT_READY`，
 本轮 PNG 保留但不作为有效视觉证据；不修改原始游戏报告。
 仅本轮进程及证据收集正常、且没有实际运行错误时，等待 3 秒后用更晚的截图帧重新启动验证，
-最多自动重试 2 次。后续截图帧参考已观察到的加载完成帧，并增大原截图帧；
+仅单机模式最多自动重试 2 次；联网模式保留证据并停止，避免重新分配测试服和重复业务操作，
+检查证据后须明确请求才能再次运行。后续截图帧参考已观察到的加载完成帧，并增大原截图帧；
 both 模式同时延长验证帧数，不改变入口或断言。未显式指定超时时，重试按帧数比例增加预算，
 最多 580 秒；显式 `--validate-timeout` 保持不变。按上一轮 Runtime 实际耗时估算后续所需时间，
 若已达到预算则不启动重试，保留证据并提示调整超时；估算不保证下一轮的加载速度。

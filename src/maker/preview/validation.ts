@@ -11,6 +11,7 @@ import { classifyPreviewProject } from './configuration.js';
 import { preparePreviewProject, requireManifestPreviewPlatform } from './prepare.js';
 import { requirePlainPreviewSource } from './workspace.js';
 import { startPreviewAssetServer, type PreviewAssetServer } from './assets.js';
+import { preparePreviewServer, previewNetworkArgs } from './network.js';
 import { PreviewLogs } from './evidence.js';
 import { PreviewLuaLog } from './luaLog.js';
 import { selectWindowsBackgroundEnvironment } from '../system/backgroundProcess.js';
@@ -171,9 +172,11 @@ export async function runSkillValidation(
                 ? ' This screenshot is not effective visual evidence. ' +
                   (retry
                     ? `Waiting 3 seconds before a new Runtime launch at screenshot frame ${nextFrame}.`
-                    : budgetExceeded
-                      ? 'Automatic retry skipped: the estimated later-frame runtime exceeds the timeout budget. Inspect retained evidence and explicitly choose a suitable --validate-timeout before retrying.'
-                      : 'Automatic retries are exhausted or unsafe. Inspect all attempt logs and the raw game report; choose a later frame or a controlled entry after resolving the cause.')
+                    : options.network === true
+                      ? 'Network validation does not retry automatically: each run allocates a test server and may repeat remote game actions. Inspect retained evidence before explicitly requesting another run.'
+                      : budgetExceeded
+                        ? 'Automatic retry skipped: the estimated later-frame runtime exceeds the timeout budget. Inspect retained evidence and explicitly choose a suitable --validate-timeout before retrying.'
+                        : 'Automatic retries are exhausted or unsafe. Inspect all attempt logs and the raw game report; choose a later frame or a controlled entry after resolving the cause.')
                 : ''),
           }
         : {}),
@@ -268,12 +271,17 @@ async function executeSkillValidation(
         'An active or unverified preview blocks validation. Stop it explicitly first.'
       );
     const classification = classifyPreviewProject(project);
-    if (classification.network_required)
+    const networkValidation = options.network === true;
+    if (classification.network_required && !networkValidation)
       return {
         ok: false,
         result: 'UNSUPPORTED',
-        error: 'run-lua-validate supports single-player projects only.',
+        error:
+          'This is a network/server project. Run preview validate with --network to allocate a test server and validate the online client.',
+        validation_scope: 'network',
       };
+    if (!classification.network_required && networkValidation)
+      throw new Error('--network is only valid for network/server projects.');
 
     const mode = options.mode ?? 'validate';
     if (!['validate', 'screenshot', 'both'].includes(String(mode)))
@@ -381,6 +389,7 @@ async function executeSkillValidation(
         runtimeEntry = String(preparation.entry);
       } else await requirePlainPreviewSource(project, signal);
       if (signal.aborted) throw new Error('CANCELLED');
+      const server = await preparePreviewServer(source, project, signal, networkValidation);
       let args: string[];
       if (classification.preparation_required) {
         assets = await startPreviewAssetServer(source, signal);
@@ -393,6 +402,7 @@ async function executeSkillValidation(
         args = [runtimeEntry, '-tapcode_dir=' + source];
       }
       args.push('-skip_login', '-p=Res', '-log=info', '-w', '-width=' + width, '-height=' + height);
+      if (server) args.push(...previewNetworkArgs(server));
       if (options.nosound === true) args.push('-nosound');
       if (validate) {
         args.push(
@@ -549,6 +559,7 @@ async function executeSkillValidation(
           : 'COMPLETED';
     const visuallyNotReady = screenshotAssessment?.status === 'NOT_READY';
     const retryEligible =
+      !networkValidation &&
       collectionResult === 'COMPLETED' &&
       visuallyNotReady &&
       // A complete report is authoritative; do not reclassify its raw startup/game logs.
@@ -573,6 +584,16 @@ async function executeSkillValidation(
       ok: result === 'COMPLETED',
       result,
       mode,
+      validation_scope: networkValidation ? 'network' : 'single_player',
+      ...(networkValidation
+        ? {
+            network_validation: {
+              transport: 'websocket',
+              test_server: true,
+              server_code: 'remote_build',
+            },
+          }
+        : {}),
       game_review_required: true,
       visual_check_required: capture,
       screenshot_assessment: screenshotAssessment,
