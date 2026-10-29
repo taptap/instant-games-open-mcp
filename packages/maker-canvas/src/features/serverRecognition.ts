@@ -1,6 +1,11 @@
 import type { CanvasRecognitionAttempt, UiBboxElement, UiBboxImage } from '../contracts.js';
 import { bboxRecognitionElements } from './uiRecognition.js';
-import { scaleCutElements, validateCutElements, validateBboxTexts } from './uiBbox.js';
+import {
+  scaleCutElements,
+  validateCutElements,
+  validateBboxTexts,
+  parseUiScreenName,
+} from './uiBbox.js';
 
 export const CANVAS_VISION_MODEL = 'gpt-6.1-sol';
 
@@ -74,6 +79,7 @@ export function uiTextRecognitionPrompt(
       '，文字还在。下面是已确定的切图元素，坐标已换算到原稿像素空间：',
     JSON.stringify(elements),
     '这次只识别要拼回界面的文字和数字。不要输出图标、底板、人物、星星、箭头、叉号、加号，不新造切图元素。',
+    '另在 screen 中给整个界面命名：name 为简短中文功能名称，key 为对应的小写英文 snake_case 文件标识（最多64字符，不带扩展名）。例如装备详情/equipment_detail、战斗结算/battle_result、奖励领取弹窗/reward_claim_dialog。根据整体功能命名，不机械照抄“恭喜获得”等标题，不包含美术风格、日期、版本或模板编号；无法判断功能时省略 screen。',
     '每个可见文字块单独一项，不合并属性名与数值，不漏页签、按钮、槽位名、数量和货币数字。text 只写图上实际画出的字，不翻译、不补全。',
     'bbox 是原稿像素 [x,y,w,h]，左上角原点，禁止归一化和对角点。parentId 填文字中心所在的已知底板 id，优先最小底板，对不上为 null。id 从 T001 递增。',
     'role 只用 title、tab、button、slot_name、stat_name、stat_value、currency、count、caption、other。标题、页签、按钮字、槽位名 align=center；属性名与说明 left；数值、货币、数量 right；经验和进度数字用墨迹框，align=left。',
@@ -81,6 +87,7 @@ export function uiTextRecognitionPrompt(
     '只输出 JSON，不要 Markdown，不要解释：' +
       JSON.stringify({
         pass: 'text',
+        screen: { name: '装备详情', key: 'equipment_detail' },
         image: { width, height },
         texts: [
           {
@@ -161,10 +168,12 @@ export async function runCanvasServerRecognition(
     await host.persist();
     const text = await request(state.text, 'text');
     if (!text) return attempt;
+    const screen = parseUiScreenName(text.screen);
     const bbox = {
       version: 1 as const,
       coordinateSpace: 'design-pixels' as const,
       bboxFormat: 'xywh' as const,
+      ...(screen ? { screen } : {}),
       design,
       cutSource,
       elements,

@@ -43,9 +43,13 @@ assemble-ui.mjs 自动生成图像节点与 Label、换算父子位置，并额�
 
     node <本 Skill 目录>/scripts/assemble-ui.mjs <项目根目录> <layout.json> <新输出目录> [corrections.json]
 
-输出 assembled.ui.json、assembled.reference.png 和 assembly-map.json。后者记录最终位置、
+输出 <界面标识>.ui.json、<界面标识>.reference.png 和 assembly-map.json。后者记录最终位置、
 原始位置、素材引用次数与备用清单。资源仍引用原项目 assets，不重复复制全部切图。
 把 UI 导入项目后显式调用 generate_resource_meta，再用 Maker 控制台「UI 编辑器」检查和对照。
+
+输入可提供 `screen: {name: "装备详情", key: "equipment_detail"}`，优先于 `bbox.screen`。
+name 为中文功能名称；key 为不带扩展名的小写英文 snake_case，最多 64 字符。
+缺失时使用“未命名界面”和原稿身份摘要，读取返回的 uiFileName/referenceFileName 获取实际文件名。
 
 布局 JSON 的 version=1，coordinateSpace=design-pixels，rectBasis=asset-canvas。
 design 包含 path（assets/ 相对路径）、sha256、width、height；assets 列表的每项具有这些

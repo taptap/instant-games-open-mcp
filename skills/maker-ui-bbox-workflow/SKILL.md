@@ -51,6 +51,8 @@ AI 负责最后的看图复核与定向修复，直到达到第 4 节的完成�
    `recognize-ui` 重新识图（会让依赖的批次失效，需要重新 run 分组）。
 3. **重新组装**：`canvas assemble-ui --target-dir <项目> --canvas-id <ID> --id <UI 资源包卡ID> --new-version`。
    新版本的 `review` 三个列表应全部为空，meta `done`，引用检查 0 错误。
+   文件名取识图返回的中文功能名/英文标识；用户指定名称或旧结果缺名时，加
+   `--ui-title 装备详情 --ui-name equipment_detail`。读取交付的 `uiFile`，不假定固定文件名。
 4. **编辑器验收**：`taptap-maker ui open --target-dir <项目> --file <ui 文件> --no-open --json`，
    对照同名参考图检查位置、尺寸、层级、字号、颜色、美术字、背景与按钮状态；偏差用 `ui inspect / patch`
    （先 dry-run，再带 revision）修正。先确认文件是否已被用户手工修改，不覆盖重建用户编辑过的 UI。

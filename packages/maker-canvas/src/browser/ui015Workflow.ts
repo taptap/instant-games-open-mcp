@@ -657,6 +657,7 @@ export function createUi015Workflow(options: {
     const dialog = dialogShell('UI 已生成');
     dialog.dataset.ui015Delivery = 'true';
     const rows: Array<[string, string]> = [
+      ['界面名称', value.screen?.name || '未命名界面'],
       ['UI 文件', value.uiFile],
       ['参考图', value.referenceFile],
       ['素材目录', value.directory],
@@ -797,7 +798,10 @@ export function createUi015Workflow(options: {
       if (!status.ready || !status.delivery) throw new Error(status.reason || '资源包尚未完整。');
       const issue = status.delivery.issue;
       options.log(
-        '015 · UI 已生成：' + status.delivery.uiFile + (issue ? '；未完成：' + issue : ''),
+        '015 · UI 已生成：' +
+          (status.delivery.screen ? status.delivery.screen.name + ' · ' : '') +
+          status.delivery.uiFile +
+          (issue ? '；未完成：' + issue : ''),
         issue ? 'warning' : 'info'
       );
       // An unattended run ends on the header buttons; a modal would block CLI automation

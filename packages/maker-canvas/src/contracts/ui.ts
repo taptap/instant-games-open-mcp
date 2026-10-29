@@ -41,10 +41,17 @@ export interface UiBboxText {
   cutout: false;
 }
 
+export interface UiScreenName {
+  name: string;
+  /** Semantic lowercase snake_case filename stem, without the .ui.json extension. */
+  key: string;
+}
+
 export interface UiBboxDocument {
   version: 1;
   coordinateSpace: 'design-pixels';
   bboxFormat: 'xywh';
+  screen?: UiScreenName;
   design: UiBboxImage;
   cutSource: UiBboxImage;
   elements: UiBboxElement[];

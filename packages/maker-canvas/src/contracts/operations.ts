@@ -168,6 +168,8 @@ export type CanvasWorkflowPauseReason = 'prelayout-review';
 /** One local UI delivery assembled from a confirmed resource archive version. */
 export interface CanvasUiDelivery {
   id: string;
+  screen?: { name: string; key: string };
+  designSha256?: string;
   archiveRevision: string;
   uiId: string;
   /** Project-relative folder holding images/, reserve/, source/ and ui/ of this version. */

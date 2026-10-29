@@ -199,6 +199,21 @@ CLI 使用 `recognize-ui --input '{"id":"去文字卡ID","recover":true}' --allo
 远端错误码、重试标志、用量和积分随任务保留，两轮积分均已返回时在结果便签显示合计，
 重复查询替换原值，不累加；未返回积分不代表免费。接口可达不代表模型推理或扣费一定成功，提交后的错误仍按原任务处理。
 
+### UI 命名
+
+原稿文字识图同时返回可选的 `screen: {name, key}`，例如“装备详情”对应 `equipment_detail`。
+按整个界面的功能命名，不照抄“恭喜获得”等文案，不带风格、日期或版本。
+`key` 使用小写英文 snake_case，最长 64 字符，不带扩展名，不使用 Windows 保留文件名。
+组装生成 `<key>.ui.json` 和 `<key>.reference.png`；中文名写入 UI 根节点的 `name` 与交付记录。
+现有版本目录继续隔离交付。同一原稿后续组装沿用已确定名称，换稿重新采用识图名称。
+
+CLI 可用 `canvas assemble-ui ... --ui-title 装备详情 --ui-name equipment_detail` 显式指定，
+优先于自动命名；已有交付另加 `--new-version`，不原地改名。手工组装在输入顶层设置
+`screen`，优先于 `bbox.screen`。名称缺失或模型建议无效不会重跑付费识图：新交付暂用
+`ui_<原稿身份摘要前8位>`，中文名显示“未命名界面”，可在后续组装时补名。
+调用方读取交付返回的 `uiFile` / `referenceFile`；手工脚本返回 `uiFileName` / `referenceFileName`，
+不再假定固定文件名。旧交付继续使用记录中的原路径。
+
 ### 固定导出契约
 
 识图结果以 uiRecognition.result.bbox 为权威 Bbox，现有 elements 是用于切图的派生视图。
@@ -267,7 +282,7 @@ Skill 工具 skills/maker-ui-workflow/scripts/assemble-ui.mjs 不调用付费模
 
     node scripts/assemble-maker-ui.mjs <项目根目录> <layout.json> <新输出目录> [corrections.json]
 
-输出 assembled.ui.json、assembled.reference.png 和 assembly-map.json。后者记录最终位置、
+输出 <界面标识>.ui.json、<界面标识>.reference.png 和 assembly-map.json。后者记录最终位置、
 原始位置、素材引用次数与备用清单。资源仍引用原项目 assets，不重复复制全部切图。
 把 UI 导入项目后显式调用 generate_resource_meta，再用 UrhoxUIEditor 检查和对照。
 
@@ -393,7 +408,7 @@ CLI `canvas run` 调用同一个协调器，一次跑完，不在中途停下等
    画布上不提供改选；需要时由 AI 用 CLI `run` 或 `sync-ui-batches` 传 `artText/background` 改选，改选同样自动跑完；
 3. 预排、分离生图与切图作为一个队列执行，沿用现有并发；
 4. 队列结束后自动组装：控制台从已保存画布的同一版本 resources 归档导入 `assets/ui/<ui>/<版本>/`，
-   组装 `ui/assembled.ui.json`，生成资源 meta（Python 未就绪时自动准备一次），执行引用检查；
+   组装 `ui/<界面标识>.ui.json`，生成资源 meta（Python 未就绪时自动准备一次），执行引用检查；
 5. 最后一步只显示「打开 UI 编辑器」和「AI 复核修复提示词」，提示词列出全部待处理项和修复步骤，
    交给 AI 按 maker-ui-bbox-workflow Skill 复核修复。交付记录 `source` 为 `cli`（CLI `run` 驱动或
    `assemble-ui` 处理过的版本）时已由 AI 处理，不再显示「AI 复核修复提示词」，状态行写「剩余：」。

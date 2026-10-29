@@ -63,6 +63,9 @@ export async function runCanvasCli(
     const { UiDeliveryService } = await import('./uiDelivery.js');
     const files = new MakerCanvasFiles(options.target_dir);
     const service = new UiDeliveryService(files.root);
+    const hasName = options.ui_name !== undefined || options.ui_title !== undefined;
+    if (hasName && (typeof options.ui_name !== 'string' || typeof options.ui_title !== 'string'))
+      throw new Error('请同时提供 --ui-title 中文界面名和 --ui-name 英文文件标识。');
     // A user-provided PNG inside the project; read here so the service only sees bytes.
     const designPng =
       typeof options.design_png === 'string' ? files.readProjectPng(options.design_png) : undefined;
@@ -72,6 +75,9 @@ export async function runCanvasCli(
         : await service.assemble(options.canvas_id, options.id, {
             newVersion: options.new_version === true || options.new_version === 'true',
             source: 'cli',
+            ...(hasName
+              ? { screen: { name: options.ui_title as string, key: options.ui_name as string } }
+              : {}),
             ...(designPng ? { designPng } : {}),
           })
     );

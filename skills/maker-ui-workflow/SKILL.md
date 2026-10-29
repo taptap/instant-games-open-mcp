@@ -117,7 +117,7 @@ references/workflow.md 的「图集合批」。已有结果保留，不为了合
    明确绑定资源 ID 与元素 ID、默认/按下态，记录图片尺寸与哈希；显式调用 generate_resource_meta。
 5. 使用本 Skill 的 scripts/assemble-ui.mjs 组装到新的目录，例如 assets/ui/<界面>/assembled-v1/。
    输出目录必须不存在，保护手工编辑；多轮用新目录。脚本验证绑定、哈希、尺寸与层级，不做视觉自动匹配。
-6. 在控制台「UI 编辑器」打开 assembled.ui.json，同名 assembled.reference.png 会自动作为设计稿。
+6. 在控制台「UI 编辑器」打开 <界面标识>.ui.json，同名 <界面标识>.reference.png 会自动作为设计稿。
    左右检查完整性、层级、资源选择，再重叠检查位置/尺寸；必要时按同一元素 ID 记录纠偏重新组装。
    用户已经手工编辑的文件继续在编辑器调整，不能无条件重新生成覆盖。
 
@@ -141,7 +141,7 @@ recognized 记录只有 Bbox；resources 记录才包含分类 PNG、设计稿�
 
     node scripts/assemble-ui.mjs <项目绝对路径> <layout.json> <新输出目录> [corrections.json]
 
-输出 assembled.ui.json、assembled.reference.png、assembly-map.json。将新资源纳入 meta 生成后，
+输出 <界面标识>.ui.json、<界面标识>.reference.png、assembly-map.json。将新资源纳入 meta 生成后，
 用当前分发的 CLI 执行 console open --target-dir <项目> --no-open --json，取得真实地址；
 保留其项目参数，追加 &page=ui-editor&ui=<URL编码的 assets/ 相对 UI 路径>，即可直达文档。
 控制台已打开时也可进入「UI 编辑器」并刷新文件列表。不要启动独立 UrhoxUIEditor 或 Python 服务。

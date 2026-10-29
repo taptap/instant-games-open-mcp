@@ -448,6 +448,7 @@ export function layoutFromBbox(input) {
     coordinateSpace: 'design-pixels',
     rectBasis: 'asset-canvas',
     provenance: 'recognition',
+    ...(input.screen || bbox.screen ? { screen: input.screen || bbox.screen } : {}),
     design: { ...bbox.design },
     assets: input.assets,
     elements: [
@@ -486,6 +487,23 @@ export function run(project, layoutFile, outputDirectory, correctionFile) {
  * The input object is not reused by callers; asset entries may be rewritten for crops.
  */
 export function assembleUiInput(project, input, outputDirectory, correction = null) {
+  const screen = input.screen ||
+    input.bbox?.screen || {
+      name: '未命名界面',
+      key: 'ui_' + digest(input.bbox?.design.sha256 || input.design.sha256).slice(0, 8),
+    };
+  assert(
+    typeof screen.name === 'string' &&
+      screen.name.trim() &&
+      screen.name.trim().length <= 80 &&
+      typeof screen.key === 'string' &&
+      screen.key.length <= 64 &&
+      /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/.test(screen.key) &&
+      !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/.test(screen.key),
+    'Invalid UI screen name: use a display name and a lowercase snake_case key'
+  );
+  const uiFileName = screen.key + '.ui.json';
+  const referenceFileName = screen.key + '.reference.png';
   const cropped = [];
   if (input.bbox) {
     for (const asset of input.assets || []) {
@@ -542,6 +560,8 @@ export function assembleUiInput(project, input, outputDirectory, correction = nu
   const layout = input.bbox ? layoutFromBbox(input) : input;
   if (input.bbox) verifyImage(project, input.bbox.cutSource);
   const result = assemble(layout, correction);
+  result.ui.name = screen.name.trim();
+  result.report.screen = { name: screen.name.trim(), key: screen.key };
   for (const item of [layout.design, ...layout.assets])
     if (!cropped.some((crop) => crop.relative === item.path)) verifyImage(project, item);
   // A new output directory prevents overwriting UI files edited by the user.
@@ -550,7 +570,7 @@ export function assembleUiInput(project, input, outputDirectory, correction = nu
   for (const crop of cropped)
     fs.writeFileSync(path.join(project, crop.relative), crop.bytes, { flag: 'wx' });
   for (const [name, value] of [
-    ['assembled.ui.json', result.ui],
+    [uiFileName, result.ui],
     ['assembly-map.json', result.report],
     ...(input.bbox ? [['layout.json', layout]] : []),
   ]) {
@@ -560,11 +580,14 @@ export function assembleUiInput(project, input, outputDirectory, correction = nu
   }
   fs.copyFileSync(
     path.join(fs.realpathSync(project), layout.design.path),
-    path.join(outputDirectory, 'assembled.reference.png'),
+    path.join(outputDirectory, referenceFileName),
     fs.constants.COPYFILE_EXCL
   );
   return {
     outputDirectory,
+    screen: result.report.screen,
+    uiFileName,
+    referenceFileName,
     elements: layout.elements.length,
     reserveAssets: result.report.reserveAssets.length,
     visualReview: correction ? 'recorded-agent-review' : 'pending',

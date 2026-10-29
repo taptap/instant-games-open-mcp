@@ -77,6 +77,7 @@ export {
   validateBboxImageStructure as validateBboxImage,
   validateCutElements,
   validateBboxTexts,
+  parseUiScreenName,
   scaleCutElements,
   validateUiBboxStructure,
   // Compatibility name: structure validation only; hosts validate media access.
