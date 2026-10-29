@@ -170,6 +170,11 @@ export interface CanvasMirror {
    * tree layout; once the user moves it, sync leaves it where it is.
    */
   placed?: { x: number; y: number };
+  /**
+   * Sync has linked this card to the card it came from. Sync never rewires or re-adds that link,
+   * so lines the user removed or redrew stay as they are.
+   */
+  linked?: boolean;
   /** Stable per-output key, e.g. ready, viewpoint:<path>, video:<animId>. */
   key: string;
 }

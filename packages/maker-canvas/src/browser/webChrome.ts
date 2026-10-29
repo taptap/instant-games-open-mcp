@@ -266,16 +266,17 @@ export function decorateCanvasWebCards(options: {
     const box = frame
       ? { x: frame.offsetLeft, y: frame.offsetTop, w: frame.offsetWidth, h: frame.offsetHeight }
       : { x: 0, y: 0, w: card.offsetWidth, h: card.offsetHeight };
-    // Groups have 16px rounded corners: sit each dot on the arc (r · (1 - cos 45°)), not the box corner.
-    const inset = node.type === 'section' ? 16 * (1 - Math.SQRT1_2) : 0;
+    // Groups are large rounded frames: no visible dot, only an invisible corner hit area that
+    // shows the resize cursor (dots on a rounded rectangle looked off either way).
+    const group = node.type === 'section';
     for (const corner of ['nw', 'ne', 'sw', 'se']) {
       const handle = document.createElement('button');
       handle.type = 'button';
       handle.tabIndex = -1;
-      handle.className = 'web-node-handle is-' + corner;
+      handle.className = 'web-node-handle is-' + corner + (group ? ' is-group' : '');
       handle.setAttribute('aria-label', node.type === 'image' ? '调整图片大小' : '调整卡片大小');
-      handle.style.left = box.x + (corner[1] === 'e' ? box.w - inset : inset) + 'px';
-      handle.style.top = box.y + (corner[0] === 's' ? box.h - inset : inset) + 'px';
+      handle.style.left = box.x + (corner[1] === 'e' ? box.w : 0) + 'px';
+      handle.style.top = box.y + (corner[0] === 's' ? box.h : 0) + 'px';
       if (busy || !options.resize) handle.disabled = true;
       handle.addEventListener('pointerdown', (event) => {
         if (handle.disabled || event.button !== 0) return;

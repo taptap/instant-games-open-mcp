@@ -537,25 +537,54 @@ export function dismissSpriteMirrors(
   return changed;
 }
 
-/** Grows a sprite section right/down to keep its members inside; never moves or shrinks it. */
+/**
+ * Grows a sprite section in every direction to keep its members inside (28px sides, 68px under the
+ * header, as createSpriteSection); never shrinks it. Growing left/up moves its top-left corner.
+ */
 export function growSpriteSection(document: CanvasDocument, sectionId: string): boolean {
   const section = document.nodes.find((node) => node.id === sectionId && node.type === 'section');
   if (!section) return false;
   const members = document.nodes.filter((node) => node.sectionId === sectionId);
   if (!members.length) return false;
-  const right = Math.max.apply(
-    null,
-    members.map((node) => node.x + node.width + 28)
+  const edge = (values: number[], pick: (...items: number[]) => number) => pick.apply(null, values);
+  const left = Math.min(
+    section.x,
+    edge(
+      members.map((node) => node.x - 28),
+      Math.min
+    )
   );
-  const bottom = Math.max.apply(
-    null,
-    members.map((node) => node.y + node.height + 28)
+  const top = Math.min(
+    section.y,
+    edge(
+      members.map((node) => node.y - 68),
+      Math.min
+    )
   );
-  const width = Math.min(20000, Math.max(section.width, right - section.x));
-  const height = Math.min(20000, Math.max(section.height, bottom - section.y));
-  if (width - section.width < 0.5 && height - section.height < 0.5) return false;
-  section.width = Math.round(width);
-  section.height = Math.round(height);
+  const right = Math.max(
+    section.x + section.width,
+    edge(
+      members.map((node) => node.x + node.width + 28),
+      Math.max
+    )
+  );
+  const bottom = Math.max(
+    section.y + section.height,
+    edge(
+      members.map((node) => node.y + node.height + 28),
+      Math.max
+    )
+  );
+  const x = Math.round(left);
+  const y = Math.round(top);
+  const width = Math.round(Math.min(20000, right - left));
+  const height = Math.round(Math.min(20000, bottom - top));
+  if (x === section.x && y === section.y && width === section.width && height === section.height)
+    return false;
+  section.x = x;
+  section.y = y;
+  section.width = width;
+  section.height = height;
   return true;
 }
 
@@ -581,19 +610,8 @@ export function applySpriteMirror(
         node.mirror.name === sprite.name &&
         node.sectionId === section.id
     );
-  const wanted = plan.cards.map((card) => card.key);
-  if (plan.authoritative) {
-    const stale = document.nodes
-      .filter((node) => mine(node) && wanted.indexOf(node.mirror!.key) < 0)
-      .map((node) => node.id);
-    if (stale.length) {
-      document.nodes = document.nodes.filter((node) => stale.indexOf(node.id) < 0);
-      document.edges = document.edges.filter(
-        (edge) => stale.indexOf(edge.from) < 0 && stale.indexOf(edge.to) < 0
-      );
-      changed = true;
-    }
-  }
+  // Only adds: cards sprite-gen no longer lists (e.g. replaced candidates) stay with their lines;
+  // the user deletes them by hand if not wanted.
   const existing: Record<string, CanvasNode> = {};
   document.nodes.filter(mine).forEach((node) => (existing[node.mirror!.key] = node));
   const source = document.nodes.find((node) => node.id === sprite.sourceId);
@@ -674,26 +692,47 @@ export function applySpriteMirror(
     }
     ids[card.key] = node.id;
   }
+  Object.keys(existing).forEach((key) => (ids[key] = existing[key].id));
   // Left-to-right tree: each card sits one column right of the card it came from; siblings stack
-  // downward under the first child, so candidates fan out from their parent instead of a new row.
-  const children: Record<string, CanvasSpriteMirrorCard[]> = {};
-  const roots: CanvasSpriteMirrorCard[] = [];
-  for (const card of plan.cards) {
-    if (card.parent && (card.parent === 'source' ? Boolean(origin) : Boolean(ids[card.parent])))
-      (children[card.parent] = children[card.parent] || []).push(card);
-    else roots.push(card);
+  // downward in creation order, so new candidates fan out below the ones already there.
+  // A card that already has a line from the source or another mirror card keeps it: layout and
+  // edges follow that line instead of the plan, so a late intermediate output never rewires it.
+  const keyOf: Record<string, string> = {};
+  Object.keys(ids).forEach((key) => (keyOf[ids[key]] = key));
+  const incoming = (node: CanvasNode) =>
+    document.edges.find((edge) => edge.to === node.id && Boolean(keyOf[edge.from]));
+  const planned: Record<string, CanvasSpriteMirrorCard> = {};
+  plan.cards.forEach((card) => (planned[card.key] = card));
+  // Document order = creation order (new cards are pushed last).
+  const keys = document.nodes.filter(mine).map((node) => node.mirror!.key);
+  const children: Record<string, string[]> = {};
+  const roots: string[] = [];
+  for (const key of keys) {
+    const line = fresh[key] ? undefined : incoming(existing[key]);
+    const parent = line ? keyOf[line.from] : planned[key] && planned[key].parent;
+    if (parent && parent !== key && (parent === 'source' ? Boolean(origin) : Boolean(ids[parent])))
+      (children[parent] = children[parent] || []).push(key);
+    else roots.push(key);
   }
   const depth: Record<string, number> = {};
   const widths: number[] = [];
   const measure = (key: string, level: number) => {
+    if (depth[key] !== undefined) return;
     depth[key] = level;
     const node = key === 'source' ? source : existing[key];
     if (node) widths[level] = Math.max(widths[level] || 0, node.width);
-    (children[key] || []).forEach((child) => measure(child.key, level + 1));
+    (children[key] || []).forEach((child) => measure(child, level + 1));
   };
   const start = origin ? 0 : 1;
   if (origin) measure('source', 0);
-  roots.forEach((card) => measure(card.key, start));
+  roots.forEach((key) => measure(key, start));
+  // Cards only reachable through a loop of user-drawn lines are laid out as extra roots.
+  keys.forEach((key) => {
+    if (depth[key] === undefined) {
+      roots.push(key);
+      measure(key, start);
+    }
+  });
   const columnX = (level: number) => {
     let x = origin ? origin.x : section.x + 28;
     for (let index = start; index < level; index++) x += (widths[index] || 0) + gapX;
@@ -706,8 +745,11 @@ export function applySpriteMirror(
       fresh[node.mirror!.key] || !placed || (placed.x === node.x && placed.y === node.y)
     );
   };
+  const done: Record<string, boolean> = {};
   const place = (key: string, y: number): number => {
     const node = key === 'source' ? source! : existing[key];
+    if (done[key]) return node.y + node.height;
+    done[key] = true;
     if (key !== 'source' && follows(node)) {
       const x = Math.round(columnX(depth[key]));
       const top = Math.round(y);
@@ -724,43 +766,28 @@ export function applySpriteMirror(
     let cursor = node.y;
     let bottom = node.y + node.height;
     for (const child of children[key] || []) {
-      bottom = Math.max(bottom, place(child.key, cursor));
+      bottom = Math.max(bottom, place(child, cursor));
       cursor = bottom + gapY;
     }
     return bottom;
   };
   let cursor = origin ? origin.y : section.y + 68;
   if (origin) cursor = place('source', origin.y) + gapY;
-  for (const card of roots) cursor = place(card.key, cursor) + gapY;
-  const mirrorIds = document.nodes.filter(mine).map((node) => node.id);
-  const desired = plan.cards
-    .filter((card) => card.parent && card.edgeKind)
-    .map((card) => ({ from: ids[card.parent!], to: ids[card.key], kind: card.edgeKind! }))
-    .filter((edge) => edge.from && edge.to);
-  if (plan.authoritative) {
-    const managed = (edge: { from: string; to: string }) =>
-      mirrorIds.indexOf(edge.to) >= 0 &&
-      (mirrorIds.indexOf(edge.from) >= 0 || Boolean(source && edge.from === source.id));
-    const kept = document.edges.filter(
-      (edge) =>
-        !managed(edge) ||
-        desired.some(
-          (item) => item.from === edge.from && item.to === edge.to && item.kind === edge.kind
-        )
-    );
-    if (kept.length !== document.edges.length) {
-      document.edges = kept;
+  for (const key of roots) cursor = place(key, cursor) + gapY;
+  // Lines are only ever added: one per card, the first time its parent is on the canvas. Existing
+  // lines (including ones the user drew) are never removed or rewired; a removed one is not re-added.
+  for (const card of plan.cards) {
+    const node = existing[card.key];
+    if (node.mirror!.linked) continue;
+    if (incoming(node)) {
+      node.mirror!.linked = true;
       changed = true;
-    }
-  }
-  for (const edge of desired) {
-    if (
-      document.edges.some(
-        (item) => item.from === edge.from && item.to === edge.to && item.kind === edge.kind
-      )
-    )
       continue;
-    document.edges.push({ id: createId(), from: edge.from, to: edge.to, kind: edge.kind });
+    }
+    const from = card.parent && card.edgeKind ? ids[card.parent] : undefined;
+    if (!from) continue;
+    document.edges.push({ id: createId(), from, to: node.id, kind: card.edgeKind! });
+    node.mirror!.linked = true;
     changed = true;
   }
   for (const card of plan.cards) {

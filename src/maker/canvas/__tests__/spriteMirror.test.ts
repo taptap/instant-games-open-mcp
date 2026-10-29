@@ -6,6 +6,7 @@ import {
   canvasSpriteStage,
   createSpriteSection,
   dismissSpriteMirrors,
+  growSpriteSection,
   isCanvasSpriteName,
   reconcileSpriteMirror,
   sequenceExportManifest,
@@ -260,7 +261,7 @@ test('unknown schema_version mirrors only final sheets from sprite.json', () => 
   expect(plan.cards[0].parent).toBeUndefined();
 });
 
-test('apply lays out new cards, links edges, updates in place and drops stale ones', () => {
+test('apply lays out new cards, links edges, updates in place and keeps unlisted ones', () => {
   const doc = documentWithSource();
   const section = createSpriteSection(doc, 'src', 'hero', 'character', 'sec', 1)!;
   expect(section).toMatchObject({
@@ -287,12 +288,66 @@ test('apply lays out new cards, links edges, updates in place and drops stale on
   const section2 = doc.nodes.find((node) => node.id === 'sec')!;
   expect(section2.y + section2.height).toBeGreaterThanOrEqual(viewpoint.y + viewpoint.height);
   expect(applySpriteMirror(doc, 'sec', first, createId)).toBe(false);
-  // The viewpoint was chosen and candidates cleared: the candidate card and its edge go away.
+  // The viewpoint was chosen and candidates cleared: sync only adds, so the card and its edge stay.
+  const edges = JSON.stringify(doc.edges);
   const second = reconcileSpriteMirror({ name: 'hero', progress: progress('plan') });
-  expect(applySpriteMirror(doc, 'sec', second, createId)).toBe(true);
-  expect(doc.nodes.some((node) => node.id === viewpoint.id)).toBe(false);
-  expect(doc.edges.some((edge) => edge.to === viewpoint.id)).toBe(false);
+  expect(applySpriteMirror(doc, 'sec', second, createId)).toBe(false);
+  expect(doc.nodes.some((node) => node.id === viewpoint.id)).toBe(true);
+  expect(JSON.stringify(doc.edges)).toBe(edges);
   expect(doc.nodes.find((node) => node.mirror?.key === 'ready')!.id).toBe(ready.id);
+});
+
+test('edges are only added: a late intermediate never rewires, a removed edge stays removed', () => {
+  const doc = documentWithSource();
+  createSpriteSection(doc, 'src', 'hero', 'character', 'sec', 1);
+  let id = 0;
+  const createId = () => 'n' + id++;
+  const state = progress('viewpoint_select', {
+    flags: { viewpoint_candidates: ['assets/image/vp_1.png'] },
+  });
+  // cutout.png not readable yet: ready links to cutout_ref.
+  applySpriteMirror(
+    doc,
+    'sec',
+    reconcileSpriteMirror({
+      name: 'hero',
+      progress: state,
+      missing: [base + '_gen_images/cutout.png'],
+    }),
+    createId
+  );
+  const byKey = (key: string) => doc.nodes.find((node) => node.mirror?.key === key)!;
+  const before = JSON.stringify(doc.edges);
+  expect(doc.edges).toContainEqual(
+    expect.objectContaining({ from: byKey('cutout_ref').id, to: byKey('ready').id })
+  );
+  // cutout lands: it gets its own edge, ready's edge is left as it was.
+  applySpriteMirror(doc, 'sec', reconcileSpriteMirror({ name: 'hero', progress: state }), createId);
+  const added = doc.edges.filter((edge) => before.indexOf(edge.id) < 0);
+  expect(added).toEqual([
+    expect.objectContaining({ from: byKey('cutout_ref').id, to: byKey('cutout').id }),
+  ]);
+  expect(doc.edges.filter((edge) => edge.to === byKey('ready').id)).toHaveLength(1);
+  // The user deletes the viewpoint's edge: later syncs do not put it back.
+  const viewpoint = byKey('viewpoint:assets/image/vp_1.png');
+  doc.edges = doc.edges.filter((edge) => edge.to !== viewpoint.id);
+  applySpriteMirror(doc, 'sec', reconcileSpriteMirror({ name: 'hero', progress: state }), createId);
+  expect(doc.edges.some((edge) => edge.to === viewpoint.id)).toBe(false);
+});
+
+test('a sprite section grows left and up as well as right and down', () => {
+  const doc = documentWithSource();
+  const section = createSpriteSection(doc, 'src', 'hero', 'character', 'sec', 1)!;
+  const source = doc.nodes.find((node) => node.id === 'src')!;
+  const [right, bottom] = [section.x + section.width, section.y + section.height];
+  source.x -= 100;
+  source.y -= 50;
+  expect(growSpriteSection(doc, 'sec')).toBe(true);
+  expect(section.x).toBe(source.x - 28);
+  expect(section.y).toBe(source.y - 68);
+  expect(section.x + section.width).toBe(right);
+  expect(section.y + section.height).toBe(bottom);
+  expect(growSpriteSection(doc, 'sec')).toBe(false);
 });
 
 test('tree layout fans siblings out downward and keeps cards the user moved', () => {

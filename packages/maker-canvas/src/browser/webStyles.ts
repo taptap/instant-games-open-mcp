@@ -421,6 +421,10 @@ ${M} .card.web-media .web-node-handle::after { content: ''; position: absolute; 
 ${M} .card.web-media .web-node-handle.is-nw, ${M} .card.web-media .web-node-handle.is-se { cursor: nwse-resize; }
 ${M} .card.web-media .web-node-handle.is-ne, ${M} .card.web-media .web-node-handle.is-sw { cursor: nesw-resize; }
 ${M} .card.web-media .web-node-handle:disabled { opacity: .45; cursor: default; }
+/* Group corners: invisible 20px hit area on the box corner; the resize cursor is the affordance. */
+${M} .card.web-media .web-node-handle.is-group { width: calc(20px * var(--web-inv, 1)); height: calc(20px * var(--web-inv, 1)); border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+${M} .card.web-media .web-node-handle.is-group::after { display: none; }
+${M} .card.web-media .web-node-handle.is-group:disabled { opacity: 0; }
 ${M} .card.web-media > .resize-handle { display: none; }
 /* Annotation frames: the same round corner dots once selected; corners resize both edges (diagonal drag). */
 ${M} .card.canvas-mark > .resize-handle { display: none; }

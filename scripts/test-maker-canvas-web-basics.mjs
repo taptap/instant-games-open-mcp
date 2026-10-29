@@ -4211,14 +4211,22 @@ try {
     assert.deepEqual(members.map((node) => node.id).sort(), [first.id, second.id].sort());
     assert.deepEqual(await menuLabels(page), ['取消分组', '删除分组']);
     assert.equal(await card(section.id).locator('.web-node-handle').count(), 4);
-    // Dots sit on the 16px rounded corner arc, not the square box corner.
+    // Group corners have no visible dot, only an invisible resize hit area on the box corner.
     const corner = await card(section.id)
       .locator('.web-node-handle.is-nw')
-      .evaluate((item) => [parseFloat(item.style.left), parseFloat(item.style.top)]);
-    assert.ok(
-      Math.abs(corner[0] - 4.69) < 0.05 && Math.abs(corner[1] - 4.69) < 0.05,
-      String(corner)
-    );
+      .evaluate((item) => {
+        const style = getComputedStyle(item);
+        return {
+          at: [parseFloat(item.style.left), parseFloat(item.style.top)],
+          paint: [style.backgroundColor, style.borderTopWidth],
+          cursor: style.cursor,
+        };
+      });
+    assert.deepEqual(corner, {
+      at: [0, 0],
+      paint: ['rgba(0, 0, 0, 0)', '0px'],
+      cursor: 'nwse-resize',
+    });
     assert.equal(
       await card(section.id).evaluate((item) => getComputedStyle(item).borderTopLeftRadius),
       '16px'
