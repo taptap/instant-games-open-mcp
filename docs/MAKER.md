@@ -511,6 +511,13 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
 - 构建前本地改动检查会忽略 `.maker-mcp/` 的本地配置变化；`.gitignore` 是 Maker 项目必要文件，
   首次 init 后如果出现或变化，应随游戏代码一起提交。即使 AI 传了 `files` 白名单，Maker MCP 也会把
   已变化的根 `.gitignore` 纳入提交。
+- 提交规范检查由用户的 AI 在提交前只读执行一次，覆盖待提交文件和所有未推送提交。建议关注
+  200 个及以上新增/修改素材、500 个及以上变更文件、单文件达到 20 MiB，或新增/修改内容
+  合计达到 200 MiB，以及无关文件、重复素材、缓存和非必要产物；这些都是审查建议，不是限制。
+  发现问题只简短说明一次数量、估算体积和具体可疑内容，由 AI 决定优化或按原样提交；无需
+  额外确认、跳过参数或检查通过结果，不增加提交阻断，也不在重试时反复提醒相同内容。
+  仅构建已提交的云端版本时不做此检查。完整指引见
+  [Git Skill](../skills/taptap-maker-local/references/git.md#one-time-submission-review-advisory-only)。
 - 已绑定项目的状态输出会包含 `Maker remote sync`。该段会 fetch Maker 远端并比较 `HEAD...origin/main`：本地干净且远端领先时提示先 fast-forward pull；本地有未提交改动时提示不要直接 pull，让本地 Agent 先引导提交、stash 或取消同步。
 - 频繁轮询或只需要快速本地状态时，直接调用默认 `maker_status_lite`；它本身不访问远端。
   只有调用 `maker_status_lite({ detail: true })` 进行诊断时，`skip_remote_sync=true` 才用于跳过

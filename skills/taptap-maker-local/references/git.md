@@ -46,6 +46,37 @@ The root `.gitignore` is a required Maker project file. If it changes after bind
 updates, include it with the game changes and mention it in the submit summary. Do not omit it from
 selected files.
 
+## One-Time Submission Review (Advisory Only)
+
+Before a user-requested submit/push, review the intended files and all unpushed commits once,
+using read-only Git/file inspection. Skip this review for remote-only builds without submission.
+Check that code, configuration and assets serve the game or its development workflow. Look for
+accidental caches, logs, temporary reports, backups, downloaded archives plus extracted copies,
+duplicate generated assets, unused variants and unnecessary build/dependency directories. Source
+art and generated files may be intentional; do not exclude them just by extension or directory name.
+
+Suggested review triggers (not hard limits):
+
+- 200 or more added/modified assets, or 500 or more changed files in total.
+- Any added/modified file at least 20 MiB, or combined added/modified file sizes at least 200 MiB.
+
+Estimate content size, not exact Git transfer size; deletions are not new payload. Include
+pending commits, not just the current working tree: splitting commits does not reduce the total
+push, and deleting a large file in a later commit does not remove its earlier blob from history.
+For large changes, check the largest files/directories and whether image dimensions, audio/video
+length, or bulk imports fit their use. Initial imports, tile sets and animation frames can be valid.
+
+If there are concerns, give one short notice with counts, approximate size, concrete questionable
+content and a suggested improvement. Mark unavailable measurements as unknown, not zero. The agent
+may optimize or ignore this advisory and submit as-is within the user's request; no extra user
+confirmation, override flag or passed-check result is required. Do not turn the notice into an
+approval loop, repeat it on retries, or recheck unchanged content after choosing to proceed.
+
+Keep asset references and required .meta files together. Excluding a file from submission does not
+mean deleting it locally. Do not silently delete originals, apply lossy compression or rewrite
+resource IDs/history. Do not introduce Git LFS without confirming Maker support. This advisory
+adds no submission gate and does not bypass existing authorization or Git error recovery rules.
+
 ## Build Settings
 
 For multiplayer builds, use `maker_build_current_directory` structured parameters instead of
