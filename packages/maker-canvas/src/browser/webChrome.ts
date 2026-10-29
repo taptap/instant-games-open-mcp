@@ -11,6 +11,7 @@ export function canvasWebIconAction(
   button: HTMLElement,
   icon:
     | 'chat'
+    | 'openChat'
     | 'cutout'
     | 'chevron'
     | 'download'
@@ -27,6 +28,9 @@ export function canvasWebIconAction(
   const paths = {
     // lucide message-square-plus
     chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>',
+    // lucide message-square-text
+    openChat:
+      '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M13 8H7"/><path d="M17 12H7"/>',
     // lucide square-scissors
     cutout:
       '<rect width="20" height="20" x="2" y="2" rx="2"/><circle cx="8" cy="8" r="2"/><path d="M9.414 9.414 12 12"/><path d="M14.8 14.8 18 18"/><circle cx="8" cy="16" r="2"/><path d="m18 6-8.586 8.586"/>',

@@ -1249,6 +1249,9 @@ function applySpriteGenPatches(source: string): string {
       "      const badge = world.querySelector('.card[data-id=\"' + CSS.escape(section.id) + '\"] .canvas-group-state');",
       '      if (!badge) return;',
       "      const stage = spriteStatus.get(section.id) || (spriteSyncEnabled() ? { label: '同步中', state: 'loading' } : { label: '精灵分组', state: 'empty' });",
+      // 「打开生成对话」 sits right after the stage pill once the host reported the chat.
+      "      const header = badge.parentElement; let open = header && header.querySelector('.canvas-sprite-chat');",
+      "      if (host.openSpriteChat && section.spriteGen.chatId) { if (!open) { open = document.createElement('button'); open.type = 'button'; open.className = 'canvas-sprite-chat'; open.textContent = '打开生成对话'; open.addEventListener('pointerdown', function (event) { event.stopPropagation(); }); open.addEventListener('click', function (event) { event.stopPropagation(); const current = documentState && documentState.nodes.find(function (item) { return item.id === section.id && item.spriteGen; }); if (current && current.spriteGen.chatId) void Promise.resolve(host.openSpriteChat(current.spriteGen.chatId)).catch(function (caught) { setError((caught && caught.message) || '未能打开生成对话。'); }); }); if (canvasWeb) canvasWebIconAction(open, 'openChat'); badge.after(open); } } else if (open) open.remove();",
       "      badge.dataset.state = stage.state; badge.textContent = stage.label; badge.title = '精灵 ' + section.spriteGen.name + '：' + stage.label + (stage.gate ? '，请在对话中确认' : ''); badge.classList.add('canvas-sprite-stage'); const groupCard = badge.closest('.card'); if (groupCard) groupCard.classList.add('canvas-sprite-group');",
       '    });',
       '  }',
@@ -1275,8 +1278,14 @@ function applySpriteGenPatches(source: string): string {
       "    if (!(await flush())) return '画布保存失败，未开始生成精灵；请保存后重试。';",
       '    const source = documentState.nodes.find(function (item) { return item.id === section.spriteGen.sourceId && item.assetPath; }) || documentState.nodes.find(function (item) { return item.id === nodeId && item.assetPath; });',
       "    if (!source) return '精灵分组的来源图片已删除，请重新选择图片。';",
-      '    try { await host.startSpriteGen({ canvasId: canvasId, nodeId: source.id, spriteName: name, spriteType: section.spriteGen.type, sourcePath: source.assetPath }); }',
-      "    catch (caught) { setError((caught && caught.message) || '未能打开精灵对话。'); }",
+      // The host resolves once the new chat exists (the user may still be picking an agent), so
+      // the dialog closes right away and the chat id lands on the group later.
+      '    void Promise.resolve(host.startSpriteGen({ canvasId: canvasId, nodeId: source.id, spriteName: name, spriteType: section.spriteGen.type, sourcePath: source.assetPath })).then(function (started) {',
+      // The chat id is a host handle (no undo entry); keep the latest run's chat on the group.
+      "      const chatId = started && typeof started.chatId === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(started.chatId) ? started.chatId : '';",
+      '      const live = documentState && documentState.id === canvasId && documentState.nodes.find(function (item) { return item.id === section.id && item.spriteGen; });',
+      '      if (chatId && live && live.spriteGen.chatId !== chatId) { live.spriteGen.chatId = chatId; markDirty(); render(); }',
+      "    }, function (caught) { setError((caught && caught.message) || '未能打开精灵对话。'); });",
       '    void syncSpriteSection(section.id, true).then(scheduleSpritePoll);',
       '    return undefined;',
       '  }',

@@ -153,6 +153,8 @@ export interface CanvasSpriteGen {
   /** sprite-gen sprite name; files live in .build/sprite-gen/<name>/ and assets/sprites/<name>/. */
   name: string;
   type: 'character' | 'generic';
+  /** Host chat that runs sprite-gen for this group (set when the host reports it). */
+  chatId?: string;
   /** Source image card the run started from. */
   sourceId: string;
   /** Epoch milliseconds when 生成精灵 was started from the canvas. */

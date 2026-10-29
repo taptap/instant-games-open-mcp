@@ -413,6 +413,12 @@ function testHostScript() {
             const starts = (window.__canvasSpriteStarts = window.__canvasSpriteStarts || []);
             starts.push({ ...copy(input), unsaved: window.__canvasUnsaved });
             if (window.__canvasSpriteFail) throw new Error('模拟打开对话失败');
+            return { chatId: 'chat-' + starts.length };
+          }
+        : undefined,
+      openSpriteChat: config.startSpriteGen
+        ? (chatId) => {
+            (window.__canvasSpriteChats = window.__canvasSpriteChats || []).push(chatId);
           }
         : undefined,
       readSource,
@@ -5377,9 +5383,27 @@ try {
       const section = doc.nodes.find((node) => node.type === 'section');
       assert.equal(section.title, '精灵：hero');
       assert.deepEqual(
-        { ...section.spriteGen, startedAt: typeof section.spriteGen.startedAt },
-        { name: 'hero', type: 'generic', sourceId: source.id, startedAt: 'number', dismissed: [] }
+        { ...section.spriteGen, startedAt: typeof section.spriteGen.startedAt, chatId: undefined },
+        {
+          name: 'hero',
+          type: 'generic',
+          sourceId: source.id,
+          startedAt: 'number',
+          dismissed: [],
+          chatId: undefined,
+        }
       );
+      // The host reports the new chat; the group keeps it for 「打开生成对话」.
+      await page.waitForFunction(
+        () =>
+          window.__canvasEditor.current().nodes.find((node) => node.type === 'section').spriteGen
+            .chatId === 'chat-1'
+      );
+      const open = page
+        .locator('.card[data-id="' + section.id + '"]')
+        .getByRole('button', { name: '打开生成对话' });
+      await open.click();
+      assert.deepEqual(await page.evaluate(() => window.__canvasSpriteChats), ['chat-1']);
       assert.equal(doc.nodes.find((node) => node.id === source.id).sectionId, section.id);
       const [call] = await page.evaluate(() => window.__canvasSpriteStarts);
       assert.deepEqual(call, {
@@ -5492,6 +5516,17 @@ try {
       assert.equal(header.whole, true, '分组名完整显示');
       assert.equal(header.meta, 'none', '精灵分组不显示卡片数');
       assert.match(header.tip, /请在对话中确认/);
+      // Waiting for the user = orange dot; working = green.
+      const dot = () =>
+        page.evaluate(
+          (id) =>
+            getComputedStyle(
+              document.querySelector('.card[data-id="' + id + '"] .canvas-group-state'),
+              '::before'
+            ).backgroundColor,
+          section.id
+        );
+      assert.equal(await dot(), 'rgb(247, 107, 21)', '待确认为橘色');
       await card(byKey.ready.id).locator('img').waitFor();
       // Tree layout: candidates fan out in the column right of the ready image.
       const [vp1, vp2] = ['vp_1', 'vp_2'].map((n) => byKey['viewpoint:assets/image/' + n + '.png']);

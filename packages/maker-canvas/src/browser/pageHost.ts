@@ -68,8 +68,11 @@ export interface CanvasPageHost {
    * Optional (with features.spriteGen): called after 「生成精灵」 has created and saved the group
    * 「精灵：<名>」. The host opens a new chat and prefills the sprite-gen prompt; the page never
    * drives sprite-gen itself. Rejections are shown as the page error; the group stays.
+   * Resolves with the new chat's id once it exists (stored on the group for 「打开生成对话」).
    */
-  startSpriteGen?(input: CanvasSpriteGenStart): Promise<void>;
+  startSpriteGen?(input: CanvasSpriteGenStart): Promise<{ chatId?: string } | void>;
+  /** Optional: 「打开生成对话」 in a sprite group header switches to that chat. */
+  openSpriteChat?(chatId: string): Promise<void> | void;
   onReady?(editor: CanvasEditorHandle): void;
   /** Called only after the normal authorized load. Scope drafts by user, project and canvas. */
   recoverDraft?(loaded: CanvasDocument): Promise<CanvasEditorDraft | null | undefined>;

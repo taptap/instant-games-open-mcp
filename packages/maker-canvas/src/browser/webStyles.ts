@@ -540,6 +540,14 @@ ${M} .card.section.canvas-sprite-group .canvas-card-heading { flex: 0 1 auto; ma
 ${M} .card.section.canvas-sprite-group .canvas-card-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 ${M} .card.section.canvas-sprite-group .canvas-group-state { flex: 0 1 auto; min-width: 0; margin-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 ${M} .card.section.canvas-sprite-group .canvas-group-state:before { flex: none; }
+/* Stage dot: green while sprite-gen works, orange when the conversation waits for the user. */
+${M} .card.section .canvas-sprite-stage[data-state="loading"]:before { background: #30a46c; }
+${M} .card.section .canvas-sprite-stage[data-state="waiting"]:before { background: #f76b15; }
+${M} .card.section .canvas-sprite-stage[data-state="ready"]:before { background: var(--web-accent); }
+${M} .card.section .canvas-sprite-stage[data-state="failed"]:before { background: #e5484d; }
+${M} .card.section.canvas-sprite-group .canvas-sprite-chat { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; min-width: 24px; height: 24px; min-height: 24px; margin: 0 0 0 4px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--web-muted); cursor: pointer; }
+${M} .card.section.canvas-sprite-group .canvas-sprite-chat:hover { background: var(--web-wash); color: var(--web-text); }
+${M} .card.section.canvas-sprite-group .canvas-sprite-chat svg { width: 14px; height: 14px; }
 ${L} .sprite-gen-dialog > .sprite-gen-error { color: #ce2c31; }
 ${L} .sprite-gen-field input[aria-invalid="true"] { border-color: #ce2c31; }
 ${M} .video-history footer { display: flex; justify-content: flex-end; margin-top: 14px; }
