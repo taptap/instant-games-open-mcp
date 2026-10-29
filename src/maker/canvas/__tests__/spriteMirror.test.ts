@@ -333,6 +333,25 @@ test('edges are only added: a late intermediate never rewires, a removed edge st
   doc.edges = doc.edges.filter((edge) => edge.to !== viewpoint.id);
   applySpriteMirror(doc, 'sec', reconcileSpriteMirror({ name: 'hero', progress: state }), createId);
   expect(doc.edges.some((edge) => edge.to === viewpoint.id)).toBe(false);
+  // 重新整理 rebuilds lines from the plan: the removed line is back and ready links to cutout now.
+  viewpoint.x += 900;
+  applySpriteMirror(
+    doc,
+    'sec',
+    reconcileSpriteMirror({ name: 'hero', progress: state }),
+    createId,
+    { tidy: true }
+  );
+  expect(doc.edges).toContainEqual(
+    expect.objectContaining({ from: byKey('ready').id, to: viewpoint.id })
+  );
+  expect(doc.edges.filter((edge) => edge.to === byKey('ready').id)).toEqual([
+    expect.objectContaining({ from: byKey('cutout').id }),
+  ]);
+  expect(viewpoint.x).toBeGreaterThan(byKey('ready').x + byKey('ready').width);
+  expect(viewpoint.x).toBeLessThan(byKey('ready').x + byKey('ready').width + 200);
+  const section = doc.nodes.find((node) => node.id === 'sec')!;
+  expect(section.x + section.width).toBeLessThan(viewpoint.x + viewpoint.width + 100);
 });
 
 test('a sprite section grows left and up as well as right and down', () => {

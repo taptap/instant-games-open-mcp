@@ -5629,6 +5629,42 @@ try {
       await touchProgress('t2');
       await card(lost.id).locator('img').waitFor();
       assert.equal(await card(lost.id).locator('.card-state-missing').count(), 0);
+      // 重新整理: a card the user dragged away goes back into the tree; undo restores the drag.
+      const laidOut = (await mirrors()).ready;
+      await settle();
+      const box = await card(laidOut.id).boundingBox();
+      await page.mouse.move(box.x + 40, box.y + 80);
+      await page.mouse.down();
+      await page.mouse.move(box.x + 140, box.y + 260, { steps: 6 });
+      await page.mouse.up();
+      await page.waitForFunction(
+        ({ id, y }) => window.__canvasEditor.current().nodes.find((n) => n.id === id).y > y + 100,
+        { id: laidOut.id, y: laidOut.y }
+      );
+      const moved = (await mirrors()).ready;
+      await settle();
+      const sectionNow = await spriteSection(current, 'hero');
+      await card(section.id).click({ position: { x: 16, y: sectionNow.height - 16 } });
+      await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+      assert.deepEqual(await menuLabels(page), ['重新整理', '取消分组', '删除分组']);
+      await page.locator('#selection-menu').getByRole('button', { name: '重新整理' }).click();
+      await page.waitForFunction(
+        ({ id, x, y }) => {
+          const node = window.__canvasEditor.current().nodes.find((n) => n.id === id);
+          return node.x === x && node.y === y;
+        },
+        { id: laidOut.id, x: laidOut.x, y: laidOut.y }
+      );
+      const tidied = await current();
+      assert.ok(
+        tidied.edges.some((edge) => edge.from === laidOut.id && edge.to === lost.id),
+        '主参考图 → 视角候选 连线仍在'
+      );
+      await settle();
+      await editor('undo', {});
+      const undone = (await current()).nodes.find((node) => node.id === laidOut.id);
+      assert.deepEqual([undone.x, undone.y], [moved.x, moved.y]);
+      await editor('redo', {});
       // Mirrors are only read: the sync asked for these files and wrote nothing back.
       const reads = await page.evaluate(() => window.__canvasCalls.json);
       assert.ok(reads.includes(progressPath) && reads.includes('assets/sprites/hero/sprite.json'));

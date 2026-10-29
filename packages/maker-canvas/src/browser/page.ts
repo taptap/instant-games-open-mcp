@@ -1232,7 +1232,14 @@ function applySpriteGenPatches(source: string): string {
     '  function decorateWebCards() {',
     [
       // var: render() and loadCanvasDocument can reach these before a let/const line would run.
-      '  var spriteStatus = new Map(); var spriteFiles = new Map(); var spriteSeen = new Map(); var spriteRuns = new Map(); var spriteTimer = 0;',
+      '  var spriteStatus = new Map(); var spriteFiles = new Map(); var spriteSeen = new Map(); var spriteRuns = new Map(); var spriteTimer = 0; var spriteTidy = new Set();',
+      // 重新整理: one undo step, then a forced sync that rebuilds lines and layout (applySpriteMirror tidy).
+      '  function tidySpriteSection(id) {',
+      "    const section = documentState && documentState.nodes.find(function (node) { return node.id === id && node.type === 'section' && node.spriteGen; });",
+      '    if (!section || !spriteSyncEnabled()) return;',
+      '    remember(); spriteTidy.add(id);',
+      "    return syncSpriteSection(id, true).catch(function (caught) { spriteTidy.delete(id); setError((caught && caught.message) || '重新整理失败，请稍后重试。'); });",
+      '  }',
       "  function spriteSyncEnabled() { return canvasWeb && canvasFeatureEnabled(host, 'spriteGen') && typeof store.readProjectJson === 'function'; }",
       "  function spriteSections() { return documentState ? documentState.nodes.filter(function (node) { return node.type === 'section' && node.spriteGen && isCanvasSpriteName(node.spriteGen.name); }) : []; }",
       '  async function readSpriteJson(path) {',
@@ -1272,7 +1279,8 @@ function applySpriteGenPatches(source: string): string {
       // Cards already on the canvas stay when their file goes missing and show 素材丢失.
       "    const existing = current.nodes.filter(function (node) { return node.mirror && node.mirror.source === 'sprite-gen' && node.mirror.name === name && node.sectionId === sectionId; }).map(function (node) { return node.mirror.key; });",
       '    const plan = reconcileSpriteMirror(Object.assign({}, input, { missing: missing, existing: existing, dismissed: live.spriteGen.dismissed }));',
-      '    const edited = applySpriteMirror(current, sectionId, plan, function () { return crypto.randomUUID(); });',
+      '    const tidy = spriteTidy.delete(sectionId);',
+      '    const edited = applySpriteMirror(current, sectionId, plan, function () { return crypto.randomUUID(); }, { tidy: tidy });',
       '    current.nodes.forEach(function (node) { if (node.mirror && node.sectionId === sectionId && node.assetPath) media[node.assetPath] = store.mediaUrl(node.assetPath); });',
       "    spriteStatus.set(sectionId, plan.stage); spriteFiles.set(sectionId, signature); spriteSeen.set(sectionId, signature + '\\n' + spriteDocKey(current, sectionId));",
       '    if (edited) markDirty();',
@@ -1414,6 +1422,23 @@ function applySpriteGenPatches(source: string): string {
   patch(
     '    documentState = next;\n    markDirty();\n    render();',
     '    documentState = next;\n    markDirty();\n    render();\n    void syncAllSprites(false);'
+  );
+  // 重新整理 on sprite groups: selection menu and right-click / header ··· menu.
+  patch(
+    "[['取消分组', 'ungroup', function () { ungroupSection(chosen[0].id); }], ['删除分组', 'trash', function () { deleteSection(chosen[0].id); }]].forEach(",
+    "(chosen[0].spriteGen && spriteSyncEnabled() ? [['重新整理', 'tidy', function () { void tidySpriteSection(chosen[0].id); }]] : []).concat([['取消分组', 'ungroup', function () { ungroupSection(chosen[0].id); }], ['删除分组', 'trash', function () { deleteSection(chosen[0].id); }]]).forEach("
+  );
+  patch(
+    '<button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button>',
+    '<button type="button" data-canvas-action="web-tidy-sprite" data-menu-scope="web" hidden>重新整理</button><button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button>'
+  );
+  patch(
+    "'web-ungroup': Boolean(one && one.type === 'section'),",
+    "'web-tidy-sprite': Boolean(one && one.type === 'section' && one.spriteGen && spriteSyncEnabled()), 'web-ungroup': Boolean(one && one.type === 'section'),"
+  );
+  patch(
+    "    if (value === 'web-ungroup') {",
+    "    if (value === 'web-tidy-sprite') { if (contextNode) void tidySpriteSection(contextNode.id); return; }\n    if (value === 'web-ungroup') {"
   );
   return page;
 }

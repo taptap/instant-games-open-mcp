@@ -589,15 +589,21 @@ export function growSpriteSection(document: CanvasDocument, sectionId: string): 
 }
 
 /**
- * Applies a plan to the section in place: adds new mirror cards in stage rows, updates changed
- * assets, links parents, and (authoritative plans only) drops cards/edges no longer produced.
- * Returns whether the document changed. Not an undo step: callers skip remember().
+ * Applies a plan to the section in place: adds new mirror cards in a left-to-right tree, updates
+ * changed assets and links each new card once; never removes cards or lines (see options.tidy).
+ * Returns whether the document changed. A plain sync is not an undo step: callers skip remember().
  */
 export function applySpriteMirror(
   document: CanvasDocument,
   sectionId: string,
   plan: CanvasSpriteMirrorPlan,
-  createId: () => string
+  createId: () => string,
+  /**
+   * 重新整理 (a user action): drop the lines into cards the plan lists and every card's layout
+   * memory, so lines and the tree layout are rebuilt from the current progress and the group is
+   * fitted to its cards. Deleted cards stay deleted; unlisted cards keep their lines.
+   */
+  options: { tidy?: boolean } = {}
 ): boolean {
   const section = document.nodes.find((node) => node.id === sectionId && node.type === 'section');
   const sprite = section && section.spriteGen;
@@ -610,6 +616,26 @@ export function applySpriteMirror(
         node.mirror.name === sprite.name &&
         node.sectionId === section.id
     );
+  if (options.tidy) {
+    const listed = plan.cards.map((card) => card.key);
+    const cards = document.nodes.filter(mine);
+    const from = cards.map((node) => node.id).concat(sprite.sourceId);
+    const reset = cards
+      .filter((node) => listed.indexOf(node.mirror!.key) >= 0)
+      .map((node) => node.id);
+    const edges = document.edges.filter(
+      (edge) => !(reset.indexOf(edge.to) >= 0 && from.indexOf(edge.from) >= 0)
+    );
+    if (edges.length !== document.edges.length) {
+      document.edges = edges;
+      changed = true;
+    }
+    cards.forEach((node) => {
+      if (node.mirror!.placed || node.mirror!.linked) changed = true;
+      delete node.mirror!.placed;
+      if (reset.indexOf(node.id) >= 0) delete node.mirror!.linked;
+    });
+  }
   // Only adds: cards sprite-gen no longer lists (e.g. replaced candidates) stay with their lines;
   // the user deletes them by hand if not wanted.
   const existing: Record<string, CanvasNode> = {};
@@ -800,6 +826,44 @@ export function applySpriteMirror(
     } else if (!video && node.sourceVideoId) {
       delete node.sourceVideoId;
       changed = true;
+    }
+  }
+  if (options.tidy) {
+    // Fit the group to its cards again (growing alone never shrinks it).
+    const members = document.nodes.filter((node) => node.sectionId === section.id);
+    if (members.length) {
+      const x = Math.round(
+        Math.min.apply(
+          null,
+          members.map((node) => node.x)
+        ) - 28
+      );
+      const y = Math.round(
+        Math.min.apply(
+          null,
+          members.map((node) => node.y)
+        ) - 68
+      );
+      const right =
+        Math.max.apply(
+          null,
+          members.map((node) => node.x + node.width)
+        ) + 28;
+      const bottom =
+        Math.max.apply(
+          null,
+          members.map((node) => node.y + node.height)
+        ) + 28;
+      const width = Math.round(Math.min(20000, Math.max(320, right - x)));
+      const height = Math.round(Math.min(20000, Math.max(200, bottom - y)));
+      if (
+        section.x !== x ||
+        section.y !== y ||
+        section.width !== width ||
+        section.height !== height
+      )
+        changed = true;
+      Object.assign(section, { x, y, width, height });
     }
   }
   if (growSpriteSection(document, section.id)) changed = true;
