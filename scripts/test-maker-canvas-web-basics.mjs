@@ -301,6 +301,20 @@ function testHostScript() {
       },
     };
     if (!config.videoStore) delete store.videoHistory;
+    window.__canvasSetMedia = (target, blob) => media.set(target, URL.createObjectURL(blob));
+    // Maker Web sprite mirror contract: read-only project JSON (404 when absent) and media probes.
+    if (config.projectJson) {
+      store.readProjectJson = async (target) => {
+        (calls.json = calls.json || []).push(target);
+        const files = window.__canvasProjectJson || config.projectJson;
+        if (!Object.prototype.hasOwnProperty.call(files, target))
+          throw Object.assign(new Error('文件不存在：' + target), { status: 404 });
+        return copy(files[target]);
+      };
+      store.prepareMedia = async (target) => {
+        if (!media.has(target)) throw Object.assign(new Error('素材不存在'), { status: 404 });
+      };
+    }
     async function readSource(target, signal, failure) {
       if (window.__canvasReadHold) await window.__canvasReadHold;
       const response = await fetch(store.mediaUrl(target), { signal });
@@ -393,6 +407,13 @@ function testHostScript() {
         : undefined,
       pickProjectImages: config.pickProjectImages
         ? async () => window.__canvasPick || []
+        : undefined,
+      startSpriteGen: config.startSpriteGen
+        ? async (input) => {
+            const starts = (window.__canvasSpriteStarts = window.__canvasSpriteStarts || []);
+            starts.push({ ...copy(input), unsaved: window.__canvasUnsaved });
+            if (window.__canvasSpriteFail) throw new Error('模拟打开对话失败');
+          }
         : undefined,
       readSource,
       // Counted separately so tests can prove a download went through the host delivery hook.
@@ -5166,6 +5187,479 @@ try {
       await page.close();
     }
   );
+  const slotPng = {
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64'
+    ),
+  };
+  await check(
+    'Web 空卡片：图片槽「上传」选 WebM 原位变成视频卡（同 id、去掉连线），可撤销',
+    async () => {
+      const { page, errors, editor, settle, current, card, importImage, blank } = await webPage({
+        features: videoFeatures,
+        videoStore: true,
+      });
+      const source = await importImage('参考');
+      const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await editor('update-nodes', { nodes: [{ id: slotId, x: 420, y: 220 }] });
+      await editor('connect', { from: source.id, to: slotId });
+      await settle();
+      await blank();
+      await card(slotId).click({ position: { x: 60, y: 80 } });
+      const chooser = page.waitForEvent('filechooser');
+      await card(slotId).locator('.web-slot-upload').click();
+      const picked = await chooser;
+      const accept = await picked.element().evaluate((input) => input.accept);
+      for (const type of [
+        'image/png',
+        'image/jpeg',
+        'image/webp',
+        'video/mp4',
+        'video/webm',
+        'video/quicktime',
+      ])
+        assert.ok(accept.includes(type), 'accept 包含 ' + type);
+      const bytes = await page.evaluate(() => window.__canvasVideoBytes());
+      await picked.setFiles({
+        name: '错建.webm',
+        mimeType: 'video/webm',
+        buffer: Buffer.from(bytes),
+      });
+      await page.waitForFunction(
+        (id) =>
+          window.__canvasEditor.current().nodes.find((node) => node.id === id).type ===
+          'video-source',
+        slotId
+      );
+      const doc = await current();
+      const node = doc.nodes.find((item) => item.id === slotId);
+      assert.equal(node.x, 420);
+      assert.equal(node.y, 220);
+      assert.equal(node.title, '错建');
+      assert.match(node.assetPath, /^assets\/video\//);
+      for (const key of ['generationDraft', 'referenceInput', 'generation'])
+        assert.equal(node[key], undefined, key);
+      assert.equal(
+        doc.edges.filter((edge) => edge.to === slotId || edge.from === slotId).length,
+        0
+      );
+      await card(slotId).locator('video').waitFor({ state: 'attached' });
+      await settle();
+      await editor('undo', {});
+      const restored = (await current()).nodes.find((item) => item.id === slotId);
+      assert.equal(restored.type, 'image');
+      assert.equal(restored.assetPath, undefined);
+      assert.ok(
+        (await current()).edges.some((edge) => edge.from === source.id && edge.to === slotId)
+      );
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check('Web 空卡片：视频槽「导入视频」选 PNG 原位变成图片卡（同 id），可撤销', async () => {
+    const { page, errors, editor, settle, current, card, blank } = await webPage({
+      features: videoFeatures,
+      videoStore: true,
+    });
+    const slotId = (await editor('add-node', { type: 'video' })).selectedIds[0];
+    await editor('update-nodes', { nodes: [{ id: slotId, x: 380, y: 240 }] });
+    await settle();
+    await blank();
+    await card(slotId).click({ position: { x: 60, y: 80 } });
+    const upload = page.locator('#selection-toolbar .generation-action.web-icon-action');
+    await upload.waitFor();
+    const chooser = page.waitForEvent('filechooser');
+    await upload.click();
+    const picked = await chooser;
+    assert.ok((await picked.element().evaluate((input) => input.accept)).includes('image/png'));
+    await picked.setFiles({ name: '错建图.png', ...slotPng });
+    await page.waitForFunction((id) => {
+      const node = window.__canvasEditor.current().nodes.find((item) => item.id === id);
+      return node.type === 'image' && node.assetPath;
+    }, slotId);
+    const node = (await current()).nodes.find((item) => item.id === slotId);
+    assert.equal(node.x, 380);
+    assert.equal(node.y, 240);
+    assert.equal(node.title, '错建图');
+    assert.equal(node.generationDraft, undefined);
+    assert.equal(node.videoInputMode, undefined);
+    await card(slotId).locator('img').waitFor();
+    await settle();
+    await editor('undo', {});
+    const restored = (await current()).nodes.find((item) => item.id === slotId);
+    assert.equal(restored.type, 'video');
+    assert.equal(restored.assetPath, undefined);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  const spriteFeatures = { ...videoFeatures, spriteGen: true };
+  const spriteProgress = (state, context = {}) => ({
+    schema_version: 3,
+    sprite_type: 'character',
+    state,
+    cursor: null,
+    context: { sprite_name: 'hero', options: {}, flags: {}, anims: [], ...context },
+  });
+  const spritePage = async () => {
+    const opened = await webPage({
+      features: spriteFeatures,
+      videoStore: true,
+      projectJson: {},
+      startSpriteGen: true,
+    });
+    const source = await opened.importImage('勇者', '#c33', 80, 80);
+    await opened.editor('update-nodes', { nodes: [{ id: source.id, x: 200, y: 200 }] });
+    await opened.settle();
+    await opened.card(source.id).click({ position: { x: 40, y: 60 } });
+    await opened.page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+    return { ...opened, source };
+  };
+  const startSprite = async (page, name, type) => {
+    await page.locator('#selection-menu').getByRole('button', { name: '生成精灵' }).click();
+    const dialog = page.locator('dialog.sprite-gen-dialog');
+    await dialog.waitFor();
+    await dialog.locator('input[name="sprite-name"]').fill(name);
+    if (type === 'generic') await dialog.getByLabel('通用序列帧 (generic)').check();
+    const count = await page.evaluate(() => (window.__canvasSpriteStarts || []).length);
+    await dialog.getByRole('button', { name: '开始' }).click();
+    await page.waitForFunction(
+      (count) => (window.__canvasSpriteStarts || []).length > count,
+      count
+    );
+    await dialog.waitFor({ state: 'detached' });
+  };
+  const spriteSection = async (current, name) =>
+    (await current()).nodes.find(
+      (node) => node.type === 'section' && node.spriteGen?.name === name
+    );
+  const spriteBadge = (page, id) =>
+    page.locator('.card[data-id="' + id + '"] .canvas-group-state').textContent();
+  await check(
+    'Web 生成精灵：图标入口、对话框校验、建「精灵：名」分组并调用 startSpriteGen（明暗）',
+    async () => {
+      const { page, errors, current, source, shoot } = await spritePage();
+      const labels = await menuLabels(page);
+      assert.ok(labels.indexOf('生成精灵') === labels.indexOf('视频生成') + 1, labels.join(','));
+      const entry = page.locator('#selection-menu').getByRole('button', { name: '生成精灵' });
+      assert.ok(await entry.evaluate((item) => item.classList.contains('web-icon-action')));
+      assert.equal(await entry.locator('svg').getAttribute('stroke-width'), '2');
+      await entry.click();
+      const dialog = page.locator('dialog.sprite-gen-dialog');
+      await dialog.waitFor();
+      const name = dialog.locator('input[name="sprite-name"]');
+      assert.equal(await name.inputValue(), '勇者');
+      await name.fill('a/b');
+      assert.match(await dialog.locator('.sprite-gen-error').textContent(), /只能包含/);
+      await dialog.getByRole('button', { name: '开始' }).click();
+      assert.equal(await dialog.isVisible(), true);
+      await name.fill('');
+      await dialog.getByRole('button', { name: '开始' }).click();
+      assert.equal(await dialog.locator('.sprite-gen-error').textContent(), '请填写精灵名。');
+      await name.fill('hero');
+      await themes(page, (theme) => shoot('v20-sprite-dialog-' + theme + '.png'));
+      assert.equal(await page.evaluate(() => (window.__canvasSpriteStarts || []).length), 0);
+      await dialog.getByLabel('通用序列帧 (generic)').check();
+      await dialog.getByRole('button', { name: '开始' }).click();
+      await page.waitForFunction(() => (window.__canvasSpriteStarts || []).length === 1);
+      await dialog.waitFor({ state: 'detached' });
+      const doc = await current();
+      const section = doc.nodes.find((node) => node.type === 'section');
+      assert.equal(section.title, '精灵：hero');
+      assert.deepEqual(
+        { ...section.spriteGen, startedAt: typeof section.spriteGen.startedAt },
+        { name: 'hero', type: 'generic', sourceId: source.id, startedAt: 'number', dismissed: [] }
+      );
+      assert.equal(doc.nodes.find((node) => node.id === source.id).sectionId, section.id);
+      const [call] = await page.evaluate(() => window.__canvasSpriteStarts);
+      assert.deepEqual(call, {
+        canvasId: doc.id,
+        nodeId: source.id,
+        spriteName: 'hero',
+        spriteType: 'generic',
+        sourcePath: source.assetPath,
+        unsaved: false,
+      });
+      await page.waitForFunction(
+        (id) =>
+          document.querySelector('.card[data-id="' + id + '"] .canvas-group-state')?.textContent ===
+          '等待对话开始',
+        section.id
+      );
+      // Same name reuses the group and asks the host again.
+      await page
+        .locator('.card[data-id="' + source.id + '"]')
+        .click({ position: { x: 40, y: 60 } });
+      await startSprite(page, 'hero');
+      assert.equal((await current()).nodes.filter((node) => node.type === 'section').length, 1);
+      assert.equal(await page.evaluate(() => window.__canvasSpriteStarts.length), 2);
+      // Hook failures surface as the page error; the group stays.
+      await page.evaluate(() => (window.__canvasSpriteFail = true));
+      await page
+        .locator('.card[data-id="' + source.id + '"]')
+        .click({ position: { x: 40, y: 60 } });
+      await startSprite(page, 'hero');
+      await page.waitForFunction(() =>
+        document.getElementById('error').textContent.includes('模拟打开对话失败')
+      );
+      assert.ok(await spriteSection(current, 'hero'));
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check(
+    'Web 精灵同步：中途进度生成镜像卡、连线与阶段；只读菜单；删除后不再加回（明暗）',
+    async () => {
+      const { page, errors, editor, settle, current, card, source, shoot } = await spritePage();
+      await startSprite(page, 'hero');
+      const section = await spriteSection(current, 'hero');
+      const base = '.build/sprite-gen/hero/_gen_images/';
+      await page.evaluate(
+        async ({ base }) => {
+          await window.__canvasAddMedia('#e8e4dc', 96, 96, base + 'cutout_ref.png');
+          await window.__canvasAddMedia('#3a7', 96, 96, base + 'ready.png');
+          await window.__canvasAddMedia('#36c', 96, 128, 'assets/image/vp_1.png');
+          await window.__canvasAddMedia('#c63', 96, 128, 'assets/image/vp_2.png');
+        },
+        { base }
+      );
+      const progressPath = '.build/sprite-gen/hero/_progress.json';
+      await page.evaluate(
+        ({ progressPath, progress }) => (window.__canvasProjectJson = { [progressPath]: progress }),
+        {
+          progressPath,
+          progress: spriteProgress('viewpoint_select', {
+            flags: {
+              viewpoint_candidates: [
+                '/workspace/assets/image/vp_1.png',
+                'assets/image/vp_2.png',
+                '../evil.png',
+                'assets/image/missing.png',
+              ],
+            },
+          }),
+        }
+      );
+      await page.evaluate(() => window.__canvasEditor.syncSprites());
+      const mirrors = async () =>
+        Object.fromEntries(
+          (await current()).nodes
+            .filter((node) => node.mirror)
+            .map((node) => [node.mirror.key, node])
+        );
+      let byKey = await mirrors();
+      assert.deepEqual(Object.keys(byKey).sort(), [
+        'cutout_ref',
+        'ready',
+        'viewpoint:assets/image/vp_1.png',
+        'viewpoint:assets/image/vp_2.png',
+      ]);
+      for (const node of Object.values(byKey)) {
+        assert.equal(node.sectionId, section.id);
+        assert.deepEqual(node.mirror.source, 'sprite-gen');
+      }
+      const edges = (await current()).edges.map((edge) => [edge.from, edge.to, edge.kind]);
+      for (const [from, to] of [
+        [source.id, byKey.cutout_ref.id],
+        [byKey.cutout_ref.id, byKey.ready.id],
+        [byKey.ready.id, byKey['viewpoint:assets/image/vp_1.png'].id],
+        [byKey.ready.id, byKey['viewpoint:assets/image/vp_2.png'].id],
+      ])
+        assert.ok(
+          edges.some((edge) => edge[0] === from && edge[1] === to && edge[2] === 'image-variant')
+        );
+      assert.equal(await spriteBadge(page, section.id), '选择视角 · 请在对话中确认');
+      await card(byKey.ready.id).locator('img').waitFor();
+      assert.ok(byKey['viewpoint:assets/image/vp_1.png'].y > byKey.ready.y, '候选在下一行');
+      const grown = (await current()).nodes.find((node) => node.id === section.id);
+      const vp = byKey['viewpoint:assets/image/vp_2.png'];
+      assert.ok(
+        grown.x + grown.width >= vp.x + vp.width && grown.y + grown.height >= vp.y + vp.height
+      );
+      // Sync is not a user action: undo goes back to before the group, redo re-syncs the mirrors.
+      await settle();
+      await editor('undo', {});
+      assert.equal(await spriteSection(current, 'hero'), undefined);
+      await editor('redo', {});
+      await page.waitForFunction(
+        () => window.__canvasEditor.current().nodes.filter((node) => node.mirror).length === 4
+      );
+      byKey = await mirrors();
+      // Read-only: only 下载 remains (no addToChat hook here), no side ports, no 生成精灵.
+      await settle();
+      await card(byKey.ready.id).click({ position: { x: 40, y: 80 } });
+      await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+      assert.deepEqual(await menuLabels(page), ['下载图片']);
+      assert.equal(await card(byKey.ready.id).locator('.canvas-port').count(), 0);
+      assert.equal(await page.locator('#selection-toolbar .selection-panel').count(), 0);
+      await page.mouse.move(10, 10);
+      await themes(page, (theme) => shoot('v20-sprite-group-' + theme + '.png'));
+      const removed = byKey['viewpoint:assets/image/vp_2.png'];
+      await card(removed.id).click({ position: { x: 40, y: 80 } });
+      await page.keyboard.press('Delete');
+      await page.waitForFunction(
+        (id) => !window.__canvasEditor.current().nodes.some((node) => node.id === id),
+        removed.id
+      );
+      assert.deepEqual((await spriteSection(current, 'hero')).spriteGen.dismissed, [
+        'viewpoint:assets/image/vp_2.png',
+      ]);
+      await page.evaluate(() => window.__canvasEditor.syncSprites());
+      byKey = await mirrors();
+      assert.equal(byKey['viewpoint:assets/image/vp_2.png'], undefined);
+      assert.equal(Object.keys(byKey).length, 3);
+      // Mirrors are only read: the sync asked for these files and wrote nothing back.
+      const reads = await page.evaluate(() => window.__canvasCalls.json);
+      assert.ok(reads.includes(progressPath) && reads.includes('assets/sprites/hero/sprite.json'));
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check(
+    'Web 精灵同步：完成态裁边精灵表生成可播放的动画卡与序列帧卡，阶段为已完成（明暗）',
+    async () => {
+      const { page, errors, current, card, shoot } = await spritePage();
+      await startSprite(page, 'hero');
+      const section = await spriteSection(current, 'hero');
+      await page.evaluate(async () => {
+        await window.__canvasAddMedia(
+          '#3a7',
+          96,
+          96,
+          '.build/sprite-gen/hero/_gen_images/ready.png'
+        );
+        const atlas = document.createElement('canvas');
+        atlas.width = 64;
+        atlas.height = 32;
+        const context = atlas.getContext('2d');
+        context.fillStyle = '#ff0000';
+        context.fillRect(0, 0, 24, 32);
+        context.fillStyle = '#0000ff';
+        context.fillRect(24, 0, 24, 32);
+        const blob = await new Promise((resolve) => atlas.toBlob(resolve, 'image/png'));
+        window.__canvasSetMedia('assets/sprites/hero/walk/spritesheet.png', blob);
+        const video = new Uint8Array(await window.__canvasVideoBytes());
+        window.__canvasSetMedia(
+          '.build/sprite-gen/hero/_gen_videos/walk/anim.mp4',
+          new Blob([video], { type: 'video/webm' })
+        );
+      });
+      const frame = (x, offsetX, duration) => ({
+        frame: { x, y: 0, w: 24, h: 32 },
+        rotated: false,
+        trimmed: true,
+        spriteSourceSize: { x: offsetX, y: 4, w: 24, h: 32 },
+        sourceSize: { w: 40, h: 40 },
+        duration,
+      });
+      await page.evaluate((files) => (window.__canvasProjectJson = files), {
+        '.build/sprite-gen/hero/_progress.json': spriteProgress('done', {
+          anims: [
+            {
+              id: 'walk',
+              play_type: 'loop',
+              action: '走',
+              status: 'done',
+              video_ref: 'https://cdn.example/x.mp4',
+            },
+          ],
+        }),
+        'assets/sprites/hero/sprite.json': {
+          meta: { relatedMultiPacks: ['walk/spritesheet.json'] },
+        },
+        'assets/sprites/hero/walk/spritesheet.json': {
+          frames: { walk_0001: frame(0, 8, 120), walk_0002: frame(24, 6, 120) },
+          animations: [{ name: 'walk', frames: ['walk_0001', 'walk_0002'], repeat: -1, fps: 8 }],
+          meta: { image: 'spritesheet.png', size: { w: 64, h: 32 } },
+        },
+      });
+      await page.evaluate(() => window.__canvasEditor.syncSprites());
+      const doc = await current();
+      const byKey = Object.fromEntries(
+        doc.nodes.filter((node) => node.mirror).map((node) => [node.mirror.key, node])
+      );
+      assert.deepEqual(Object.keys(byKey).sort(), [
+        'animation:walk',
+        'ready',
+        'sequence:walk',
+        'video:walk',
+      ]);
+      const kinds = [
+        [byKey.ready.id, byKey['video:walk'].id, 'image-to-video'],
+        [byKey['video:walk'].id, byKey['sequence:walk'].id, 'sequence-source'],
+        [byKey['sequence:walk'].id, byKey['animation:walk'].id, 'sequence-animation'],
+      ];
+      for (const [from, to, kind] of kinds)
+        assert.ok(
+          doc.edges.some((edge) => edge.from === from && edge.to === to && edge.kind === kind),
+          kind
+        );
+      assert.equal(byKey['sequence:walk'].sourceVideoId, byKey['video:walk'].id);
+      assert.equal(byKey['animation:walk'].frameSetInfo.frames[1].offsetX, 6);
+      assert.equal(await spriteBadge(page, section.id), '已完成');
+      const sequence = card(byKey['sequence:walk'].id);
+      await sequence.locator('.sequence-result-grid canvas').nth(1).waitFor();
+      assert.equal(await sequence.locator('.sequence-result-grid canvas').count(), 2);
+      assert.equal(
+        await sequence.locator('.sequence-edit-button, .sequence-animation-button').count(),
+        0
+      );
+      const animation = card(byKey['animation:walk'].id);
+      const pixel = () =>
+        animation.locator('canvas.animation-preview').evaluate((canvas) => ({
+          index: canvas.dataset.frameIndex,
+          rgba: Array.from(canvas.getContext('2d').getImageData(160, 120, 1, 1).data),
+        }));
+      await page.waitForFunction(
+        (id) =>
+          document.querySelector('.card[data-id="' + id + '"] canvas.animation-preview')?.dataset
+            .frameIndex === '0',
+        byKey['animation:walk'].id
+      );
+      const first = await pixel();
+      assert.deepEqual(first.rgba.slice(0, 3), [255, 0, 0], '首帧按偏移绘制且非空白');
+      await animation.getByRole('button', { name: '播放动画' }).click();
+      await page.waitForFunction(
+        (id) =>
+          document.querySelector('.card[data-id="' + id + '"] canvas.animation-preview')?.dataset
+            .frameIndex === '1',
+        byKey['animation:walk'].id
+      );
+      const second = await pixel();
+      assert.deepEqual(second.rgba.slice(0, 3), [0, 0, 255], '播放到第 2 帧');
+      // Offsets matter: frame 1 sits 8px into the 40px box (scaled ×6), so x=60 stays empty.
+      const edge = await animation
+        .locator('canvas.animation-preview')
+        .evaluate((canvas) => canvas.getContext('2d').getImageData(60, 120, 1, 1).data[3]);
+      assert.equal(edge, 0);
+      await animation.getByRole('button', { name: '暂停' }).click();
+      await themes(page, (theme) => shoot('v20-sprite-done-' + theme + '.png'));
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check('生成精灵入口：默认外观与缺少 startSpriteGen 时都不显示', async () => {
+    for (const config of [
+      { features: { spriteGen: true }, startSpriteGen: true, projectJson: {} },
+      { features: spriteFeatures, appearance: 'web', projectJson: {} },
+    ]) {
+      const { page, errors } = await openCanvas(config);
+      const assetPath = await page.evaluate(() => window.__canvasAddMedia('#c33', 40, 40));
+      await page.evaluate(
+        (assetPath) =>
+          window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '来源图' }),
+        assetPath
+      );
+      await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+      assert.equal(
+        await page.locator('#selection-menu').getByRole('button', { name: '生成精灵' }).count(),
+        0
+      );
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  });
   await check('默认外观：视频/分组入口与文案不变，无 Web 菜单项', async () => {
     const { page, errors } = await openCanvas({ videoStore: true });
     assert.equal(await page.locator('#add-video').textContent(), '视频输入卡');

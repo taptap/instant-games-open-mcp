@@ -228,3 +228,20 @@ export { validateResourceBundleStructure } from './features/resourceBundle.js';
 
 export { HISTORY_LIMIT, layoutKey, connectFirstFrameWithId } from './core/edit.js';
 export { canvasImageTool } from './features/imageModels.js';
+export {
+  isCanvasSpriteName,
+  canvasSpriteMediaPath,
+  canvasSpriteStage,
+  canvasSpriteFrameSet,
+  canvasSpriteSheetIds,
+  reconcileSpriteMirror,
+  createSpriteSection,
+  dismissSpriteMirrors,
+  growSpriteSection,
+  applySpriteMirror,
+} from './features/spriteMirror.js';
+export type {
+  CanvasSpriteStage,
+  CanvasSpriteMirrorCard,
+  CanvasSpriteMirrorPlan,
+} from './features/spriteMirror.js';

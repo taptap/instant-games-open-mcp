@@ -144,6 +144,27 @@ export interface CanvasNode {
   uiAtlasPlan?: UiAtlasPlan;
   /** Screenshot-style overlay. Not a generation card. */
   mark?: CanvasMark;
+  /** On a section: the sprite-gen run it mirrors. Progress stays in sprite-gen's own files. */
+  spriteGen?: CanvasSpriteGen;
+  /** Read-only card mirrored from an external producer; sync owns its asset and edges. */
+  mirror?: CanvasMirror;
+}
+export interface CanvasSpriteGen {
+  /** sprite-gen sprite name; files live in .build/sprite-gen/<name>/ and assets/sprites/<name>/. */
+  name: string;
+  type: 'character' | 'generic';
+  /** Source image card the run started from. */
+  sourceId: string;
+  /** Epoch milliseconds when 生成精灵 was started from the canvas. */
+  startedAt: number;
+  /** Mirror keys the user deleted; sync never re-adds them. */
+  dismissed: string[];
+}
+export interface CanvasMirror {
+  source: 'sprite-gen';
+  name: string;
+  /** Stable per-output key, e.g. ready, viewpoint:<path>, video:<animId>. */
+  key: string;
 }
 
 export interface CanvasEdge {

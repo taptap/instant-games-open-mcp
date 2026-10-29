@@ -269,6 +269,19 @@ import {
 import { createCanvasAutomationUiWithHost } from './automationUi.js';
 import { validateResourceBundleStructure } from '../features/resourceBundle.js';
 import { encodeCanvasImage, deliverCanvasImage } from './imageExport.js';
+import {
+  isCanvasSpriteName,
+  canvasSpriteMediaPath,
+  canvasSpriteStage,
+  canvasSpriteFrameSet,
+  canvasSpriteSheetIds,
+  reconcileSpriteMirror,
+  createSpriteSection,
+  dismissSpriteMirrors,
+  growSpriteSection,
+  applySpriteMirror,
+} from '../features/spriteMirror.js';
+import { openCanvasSpriteGenDialog } from './spriteGenUi.js';
 export const CANVAS_PAGE_MARKER = 'maker-canvas-page';
 
 function replaceCanvasPageText(page: string, search: string, replacement: string): string {
@@ -1059,6 +1072,282 @@ function applyWebCardUxPatches(source: string): string {
   );
   return page;
 }
+/**
+ * Shared (both appearances): an empty image slot's import and an empty video slot's 「导入视频」
+ * accept images or videos; the chosen file's type decides what the card becomes, in place.
+ */
+function applySlotMediaPatches(source: string): string {
+  let page = source;
+  const patch = (search: string, replacement: string) => {
+    page = replaceCanvasPageText(page, search, replacement);
+  };
+  patch(
+    '<input id="video-file" type="file" accept="video/mp4,video/webm,video/quicktime" hidden>',
+    '<input id="video-file" type="file" accept="video/mp4,video/webm,video/quicktime" hidden>\n<input id="slot-file" type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime" hidden>'
+  );
+  patch(
+    "  const videoFile = document.getElementById('video-file');",
+    "  const videoFile = document.getElementById('video-file');\n  const slotFile = document.getElementById('slot-file');"
+  );
+  // Only an empty slot changes type; 替换图片 and other image imports stay image-only.
+  patch(
+    '    pendingImageImport = { canvasId: documentState.id, nodeId: nodeId };',
+    [
+      '    const slot = documentState.nodes.find(function (item) { return item.id === nodeId; });',
+      "    if (slot && slot.type === 'image' && !slot.assetPath && canvasFeatureEnabled(host, 'video')) { pendingImageImport = { canvasId: documentState.id, nodeId: nodeId, slot: true }; slotFile.click(); return; }",
+      '    pendingImageImport = { canvasId: documentState.id, nodeId: nodeId };',
+    ].join('\n')
+  );
+  patch(
+    '    pendingVideoImport = { canvasId: documentState.id, nodeId: nodeId };',
+    [
+      // The slot chooser reuses pendingImageImport so every existing "import pending" guard covers it.
+      '    const slot = documentState.nodes.find(function (item) { return item.id === nodeId; });',
+      "    if (slot && slot.type === 'video' && !slot.assetPath) { pendingImageImport = { canvasId: documentState.id, nodeId: nodeId, slot: true }; slotFile.click(); return; }",
+      '    pendingVideoImport = { canvasId: documentState.id, nodeId: nodeId };',
+    ].join('\n')
+  );
+  patch(
+    '  function requestVideoImport(nodeId) {',
+    [
+      // Drops what only the old type used and the edges the new type cannot have; caller remembers.
+      '  function convertSlotNode(node, type) {',
+      '    if (generationUi) generationUi.resetDraft(node.id);',
+      "    selectionAction = '';",
+      '    const id = node.id;',
+      '    node.type = type;',
+      "    ['generationDraft', 'generation', 'sourceSnapshot', 'sourceSnapshots', 'videoInputMode', 'videoInfo', 'referenceInput', 'imageInfo', 'assetVersion'].forEach(function (key) { delete node[key]; });",
+      "    const imageOutputs = ['image-variant', 'first-frame', 'frame-first', 'frame-last', 'image-to-video', 'character-views', 'image-assets'];",
+      '    documentState.edges = documentState.edges.filter(function (edge) {',
+      "      if (edge.to === id) return type === 'image' && edge.kind === 'image-variant';",
+      "      if (edge.from === id) return type === 'image' ? imageOutputs.indexOf(edge.kind) >= 0 : edge.kind === 'sequence-source';",
+      '      return true;',
+      '    });',
+      '  }',
+      "  slotFile.addEventListener('cancel', function () { pendingImageImport = null; publishDirty(); });",
+      "  slotFile.addEventListener('change', function () {",
+      '    const chosen = slotFile.files && slotFile.files[0];',
+      "    slotFile.value = '';",
+      '    const request = pendingImageImport;',
+      '    pendingImageImport = null;',
+      '    publishDirty();',
+      '    if (!chosen || !request || !documentState || documentState.id !== request.canvasId) return;',
+      '    const slot = documentState.nodes.find(function (item) { return item.id === request.nodeId; });',
+      '    const video = /^video\\//.test(chosen.type) || (!chosen.type && /\\.(mp4|mov|webm)$/i.test(chosen.name));',
+      "    const route = { canvasId: request.canvasId, nodeId: request.nodeId, convert: Boolean(slot && slot.type !== (video ? 'video' : 'image')) };",
+      '    if (video) void importVideoFile(chosen, route); else void importImageFile(chosen, route);',
+      '  });',
+      '  function requestVideoImport(nodeId) {',
+    ].join('\n')
+  );
+  patch(
+    '      let node = documentState.nodes.find(function (item) { return item.id === request.nodeId && item.type === "image"; });',
+    '      let node = documentState.nodes.find(function (item) { return item.id === request.nodeId && (item.type === "image" || (request.convert && item.type === "video" && !item.assetPath)); });'
+  );
+  patch(
+    '        node.title = (chosen.name.replace(/\\.[^.]+$/, "") || "图片").slice(0, 80);',
+    '        if (node.type === "video") convertSlotNode(node, "image");\n        node.title = (chosen.name.replace(/\\.[^.]+$/, "") || "图片").slice(0, 80);'
+  );
+  patch(
+    '      const target = request && request.nodeId ? documentState.nodes.find(function (item) { return item.id === request.nodeId && item.type === "video"; }) : null;',
+    [
+      '      const target = request && request.nodeId ? documentState.nodes.find(function (item) { return item.id === request.nodeId && (item.type === "video" || (request.convert && item.type === "image" && !item.assetPath)); }) : null;',
+      "      if (request && request.convert && !target) { setError('卡片已被修改，导入结果未挂载。'); return; }",
+    ].join('\n')
+  );
+  patch(
+    "      node.type = 'video-source';",
+    "      if (target && target.type === 'image') convertSlotNode(target, 'video-source');\n      node.type = 'video-source';"
+  );
+  return page;
+}
+/**
+ * Web 图生精灵: 「生成精灵」 creates the group and hands off to the host chat; a page-owned sync
+ * mirrors sprite-gen's files into read-only cards (features/spriteMirror.ts). Sync edits are not
+ * undo steps and never write sprite-gen's trees.
+ */
+function applySpriteGenPatches(source: string): string {
+  let page = source;
+  const patch = (search: string, replacement: string) => {
+    page = replaceCanvasPageText(page, search, replacement);
+  };
+  patch(
+    '  function decorateWebCards() {',
+    [
+      // var: render() and loadCanvasDocument can reach these before a let/const line would run.
+      '  var spriteStatus = new Map(); var spriteFiles = new Map(); var spriteSeen = new Map(); var spriteRuns = new Map(); var spriteTimer = 0;',
+      "  function spriteSyncEnabled() { return canvasWeb && canvasFeatureEnabled(host, 'spriteGen') && typeof store.readProjectJson === 'function'; }",
+      "  function spriteSections() { return documentState ? documentState.nodes.filter(function (node) { return node.type === 'section' && node.spriteGen && isCanvasSpriteName(node.spriteGen.name); }) : []; }",
+      '  async function readSpriteJson(path) {',
+      '    try { return { value: await store.readProjectJson(path) }; }',
+      '    catch (caught) { return caught && caught.status === 404 ? { missing: true } : { error: caught }; }',
+      '  }',
+      '  function spriteDocKey(doc, sectionId) {',
+      '    const section = doc.nodes.find(function (node) { return node.id === sectionId; });',
+      '    return JSON.stringify([section && section.spriteGen && section.spriteGen.dismissed, doc.nodes.filter(function (node) { return node.mirror && node.sectionId === sectionId; }).map(function (node) { return [node.mirror.key, node.assetPath]; })]);',
+      '  }',
+      '  async function syncSpriteOnce(sectionId, force) {',
+      '    const doc = documentState;',
+      "    const section = doc && doc.nodes.find(function (node) { return node.id === sectionId && node.type === 'section' && node.spriteGen; });",
+      '    if (!section || !isCanvasSpriteName(section.spriteGen.name)) return;',
+      "    const name = section.spriteGen.name; const output = 'assets/sprites/' + name + '/';",
+      "    const progress = await readSpriteJson('.build/sprite-gen/' + name + '/_progress.json');",
+      "    const sprite = await readSpriteJson(output + 'sprite.json');",
+      '    const sheets = {};',
+      "    for (const id of canvasSpriteSheetIds(progress.value, sprite.value)) { const sheet = await readSpriteJson(output + id + '/spritesheet.json'); if (sheet.value !== undefined) sheets[id] = sheet.value; }",
+      "    const signature = JSON.stringify([progress.missing ? 404 : progress.error ? 'error' : progress.value, sprite.value === undefined ? null : sprite.value, sheets]);",
+      '    const filesChanged = signature !== spriteFiles.get(sectionId);',
+      "    if (!force && signature + '\\n' + spriteDocKey(doc, sectionId) === spriteSeen.get(sectionId)) return;",
+      '    const input = { name: name, progress: progress.value, progressError: Boolean(progress.error), sprite: sprite.value, sheets: sheets, dismissed: section.spriteGen.dismissed };',
+      '    const missing = [];',
+      // Cards only appear once the host can serve their file; known files re-read after a change.
+      '    for (const card of reconcileSpriteMirror(input).cards) {',
+      '      if (!store.prepareMedia || (media[card.assetPath] && !filesChanged)) continue;',
+      '      try { await store.prepareMedia(card.assetPath, Boolean(media[card.assetPath])); if (!store.mediaUrl(card.assetPath)) missing.push(card.assetPath); }',
+      '      catch (caught) { missing.push(card.assetPath); }',
+      '    }',
+      '    const current = documentState;',
+      // A drag or canvas switch wins; spriteSeen stays stale so the next sync applies it.
+      '    if (!current || current.id !== doc.id || drag || canvasOpening) return;',
+      "    const live = current.nodes.find(function (node) { return node.id === sectionId && node.type === 'section' && node.spriteGen && node.spriteGen.name === name; });",
+      '    if (!live) return;',
+      '    const plan = reconcileSpriteMirror(Object.assign({}, input, { missing: missing, dismissed: live.spriteGen.dismissed }));',
+      '    const edited = applySpriteMirror(current, sectionId, plan, function () { return crypto.randomUUID(); });',
+      '    current.nodes.forEach(function (node) { if (node.mirror && node.sectionId === sectionId && node.assetPath) media[node.assetPath] = store.mediaUrl(node.assetPath); });',
+      "    spriteStatus.set(sectionId, plan.stage); spriteFiles.set(sectionId, signature); spriteSeen.set(sectionId, signature + '\\n' + spriteDocKey(current, sectionId));",
+      '    if (edited) markDirty();',
+      '    render();',
+      '  }',
+      // Single flight per group; a request during a run queues one more pass.
+      '  function syncSpriteSection(sectionId, force) {',
+      '    const running = spriteRuns.get(sectionId);',
+      '    if (running) { running.again = true; running.force = running.force || force; return running.promise; }',
+      '    const run = { again: false, force: force, promise: null };',
+      '    spriteRuns.set(sectionId, run);',
+      '    run.promise = (async function () {',
+      '      try { do { const pass = run.force; run.again = false; run.force = false; await syncSpriteOnce(sectionId, pass); } while (run.again); }',
+      "      catch (caught) { setError((caught && caught.message) || '同步精灵进度失败。'); }",
+      '      finally { spriteRuns.delete(sectionId); }',
+      '    })();',
+      '    return run.promise;',
+      '  }',
+      '  function syncAllSprites(force) {',
+      '    clearTimeout(spriteTimer); spriteTimer = 0;',
+      '    if (!spriteSyncEnabled()) return Promise.resolve();',
+      '    return Promise.all(spriteSections().map(function (section) { return syncSpriteSection(section.id, force); })).then(function () { scheduleSpritePoll(); });',
+      '  }',
+      // Polls only while visible and some sprite group is not done.
+      '  function scheduleSpritePoll() {',
+      '    clearTimeout(spriteTimer); spriteTimer = 0;',
+      "    if (!spriteSyncEnabled() || document.visibilityState !== 'visible') return;",
+      '    if (!spriteSections().some(function (section) { const stage = spriteStatus.get(section.id); return !stage || !stage.done; })) return;',
+      '    spriteTimer = setTimeout(function () { spriteTimer = 0; void syncAllSprites(false); }, 10000);',
+      '  }',
+      "  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') void syncAllSprites(false); else { clearTimeout(spriteTimer); spriteTimer = 0; } });",
+      '  function refreshSpriteHeaders() {',
+      '    spriteSections().forEach(function (section) {',
+      "      const badge = world.querySelector('.card[data-id=\"' + CSS.escape(section.id) + '\"] .canvas-group-state');",
+      '      if (!badge) return;',
+      "      const stage = spriteStatus.get(section.id) || (spriteSyncEnabled() ? { label: '同步中', state: 'loading' } : { label: '精灵分组', state: 'empty' });",
+      "      badge.dataset.state = stage.state; badge.textContent = stage.label; badge.title = '精灵 ' + section.spriteGen.name + '：' + stage.label; badge.classList.add('canvas-sprite-stage');",
+      '    });',
+      '  }',
+      '  function openSpriteGen(node) {',
+      '    if (!host.startSpriteGen || !documentState) return;',
+      "    const suggested = (node.title || '').replace(/[^\\p{L}\\p{N}_-]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 40);",
+      '    openCanvasSpriteGenDialog({ defaultName: suggested, start: function (input) { return startSpriteGen(node.id, input.name, input.type); } });',
+      '  }',
+      // Same sprite name on this canvas reuses its group (and its source/type) and asks again.
+      '  async function startSpriteGen(nodeId, name, type) {',
+      "    if (!isCanvasSpriteName(name)) return '精灵名只能包含中英文、数字、_ 或 -，最多 40 个字符。';",
+      "    if (!documentState) return '画布尚未加载。';",
+      "    let section = documentState.nodes.find(function (item) { return item.type === 'section' && item.spriteGen && item.spriteGen.name === name; });",
+      '    if (!section) {',
+      "      const picked = documentState.nodes.find(function (item) { return item.id === nodeId && item.type === 'image' && item.assetPath; });",
+      "      if (!picked) return '图片卡已被修改，请重新选择图片。';",
+      "      if (documentState.nodes.length >= 400) return '画布卡片已达到容量限制。';",
+      '      remember();',
+      '      section = createSpriteSection(documentState, picked.id, name, type, crypto.randomUUID(), Date.now());',
+      "      if (!section) { past.pop(); return '无法创建精灵分组。'; }",
+      "      selected.clear(); selected.add(section.id); selectionAction = ''; markDirty(); render();",
+      '    }',
+      '    const canvasId = documentState.id;',
+      "    if (!(await flush())) return '画布保存失败，未开始生成精灵；请保存后重试。';",
+      '    const source = documentState.nodes.find(function (item) { return item.id === section.spriteGen.sourceId && item.assetPath; }) || documentState.nodes.find(function (item) { return item.id === nodeId && item.assetPath; });',
+      "    if (!source) return '精灵分组的来源图片已删除，请重新选择图片。';",
+      '    try { await host.startSpriteGen({ canvasId: canvasId, nodeId: source.id, spriteName: name, spriteType: section.spriteGen.type, sourcePath: source.assetPath }); }',
+      "    catch (caught) { setError((caught && caught.message) || '未能打开精灵对话。'); }",
+      '    void syncSpriteSection(section.id, true).then(scheduleSpritePoll);',
+      '    return undefined;',
+      '  }',
+      '  function decorateWebCards() {',
+    ].join('\n')
+  );
+  patch(
+    '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; });',
+    '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; });\n    refreshSpriteHeaders();'
+  );
+  // Sprite groups follow their mirror cards as images load and change height.
+  patch(
+    '    const orderedNodes = documentState.nodes.filter(',
+    "    documentState.nodes.forEach(function (item) { if (item.type === 'section' && item.spriteGen && growSpriteSection(documentState, item.id)) markDirty(); });\n    const orderedNodes = documentState.nodes.filter("
+  );
+  patch(
+    '    documentState = removeNodes(documentState, Array.from(selected));',
+    '    dismissSpriteMirrors(documentState, Array.from(selected));\n    documentState = removeNodes(documentState, Array.from(selected));'
+  );
+  patch(
+    "        if (canvasFeatureEnabled(host, 'video')) { const video = actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video'); if (canvasWeb) canvasWebIconAction(video, 'video'); }",
+    [
+      "        if (canvasFeatureEnabled(host, 'video')) { const video = actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video'); if (canvasWeb) canvasWebIconAction(video, 'video'); }",
+      "        if (canvasWeb && canvasFeatureEnabled(host, 'spriteGen') && host.startSpriteGen && !node.mirror) { const sprite = actionButton('生成精灵', function () { openSpriteGen(node); }); canvasWebIconAction(sprite, 'sprite'); }",
+    ].join('\n')
+  );
+  // Mirror cards are read-only: only 加入对话 and 下载 remain on the selection menu.
+  patch(
+    '      const composerKey = panelOpen',
+    "      if (node.mirror) Array.from(actions.children).forEach(function (child) { if (['加入对话', '下载图片'].indexOf(child.getAttribute('aria-label') || child.textContent) < 0) child.remove(); });\n      const composerKey = panelOpen"
+  );
+  patch(
+    "      if (node.type === 'image' && canvasFeatureEnabled(host, 'connectors')) {",
+    "      if (node.type === 'image' && !node.mirror && canvasFeatureEnabled(host, 'connectors')) {"
+  );
+  patch(
+    "      if (node.type === 'image' && node.assetPath) {\n        const port",
+    "      if (node.type === 'image' && node.assetPath && !node.mirror) {\n        const port"
+  );
+  patch(
+    '        sequenceUi.renderCard(card, node, sourceVideo);',
+    "        sequenceUi.renderCard(card, node, sourceVideo);\n        if (node.mirror) card.querySelectorAll('.sequence-edit-button, .sequence-animation-button').forEach(function (item) { item.remove(); });"
+  );
+  patch(
+    "      if (one && one.type === 'section') cardActions.forEach(function (item) { item.hidden = true; });",
+    '      if (one && one.type === \'section\') cardActions.forEach(function (item) { item.hidden = true; });\n      if (one && one.mirror) contextMenu.querySelectorAll(\'[data-canvas-action="web-video"], [data-canvas-action="web-sequence"], [data-canvas-action="quick-cutout"], [data-canvas-action="adjust-cutout"]\').forEach(function (item) { item.hidden = true; });'
+  );
+  // A copy is a plain card; leaving mirror on it would let sync claim it.
+  patch(
+    'copy.id = crypto.randomUUID(); copy.x += 36; copy.y += 36; delete copy.sectionId;',
+    'copy.id = crypto.randomUUID(); copy.x += 36; copy.y += 36; delete copy.mirror; delete copy.sectionId;'
+  );
+  patch(
+    '    execute: automation.execute,\n',
+    '    syncSprites: function () { return syncAllSprites(true); },\n    execute: automation.execute,\n'
+  );
+  patch(
+    '    void persistActiveCanvas(id).catch(function (caught) { if (opening === token) setError(caught.message); });\n    render();',
+    '    void persistActiveCanvas(id).catch(function (caught) { if (opening === token) setError(caught.message); });\n    render();\n    spriteStatus.clear(); spriteFiles.clear(); spriteSeen.clear(); void syncAllSprites(true);'
+  );
+  // Undo/redo can restore a document from before a sync; re-check so mirrors come back.
+  patch(
+    '    documentState = previous;\n    markDirty();\n    render();',
+    '    documentState = previous;\n    markDirty();\n    render();\n    void syncAllSprites(false);'
+  );
+  patch(
+    '    documentState = next;\n    markDirty();\n    render();',
+    '    documentState = next;\n    markDirty();\n    render();\n    void syncAllSprites(false);'
+  );
+  return page;
+}
 export interface CanvasPageIntegration {
   /** Trusted host adapter code defining createCanvasHost(): CanvasPageHost. */
   hostScript: string;
@@ -1227,6 +1516,17 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     appendAnimation.toString(),
     refreshAnimationFromSource.toString(),
     createAnimationCards.toString(),
+    isCanvasSpriteName.toString(),
+    canvasSpriteMediaPath.toString(),
+    canvasSpriteStage.toString(),
+    canvasSpriteFrameSet.toString(),
+    canvasSpriteSheetIds.toString(),
+    reconcileSpriteMirror.toString(),
+    createSpriteSection.toString(),
+    dismissSpriteMirrors.toString(),
+    growSpriteSection.toString(),
+    applySpriteMirror.toString(),
+    openCanvasSpriteGenDialog.toString(),
     renderGenerationResult.toString(),
     videoCardSize.toString(),
     formatBuiltinPrompt.toString(),
@@ -3270,6 +3570,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = applyWebMediaPatches(page);
   page = applyMediaReusePatches(page);
   page = applyWebCardUxPatches(page);
+  page = applySlotMediaPatches(page);
+  page = applySpriteGenPatches(page);
   // Keep template anchors from rewriting function bodies inside injected helpers.
   page = page.replace('/*__HELPERS__*/', () => helperSource);
   return page.replace(

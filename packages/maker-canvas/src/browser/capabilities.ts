@@ -30,8 +30,13 @@ export type CanvasPageFeature =
   | 'sections'
   | 'imageEditing'
   | 'cutout'
-  | 'connectors';
-/** Omitted keeps the current page; false hides an entry, connectors alone is opt-in (true). */
+  | 'connectors'
+  | 'spriteGen';
+/**
+ * Omitted keeps the current page; false hides an entry. connectors and spriteGen are opt-in (true).
+ * spriteGen (Web appearance only) shows 「生成精灵」 when the host also provides startSpriteGen, and
+ * mirrors sprite-gen progress into sprite groups through store.readProjectJson.
+ */
 export type CanvasPageFeatures = Partial<Record<CanvasPageFeature, boolean>>;
 export function canvasFeatureEnabled(
   host: { features?: CanvasPageFeatures },
@@ -41,5 +46,5 @@ export function canvasFeatureEnabled(
   // Cutout used to ride on imageEditing; hosts that never set it keep that coupling.
   if (feature === 'cutout' && value === undefined)
     return canvasFeatureEnabled(host, 'imageEditing');
-  return feature === 'connectors' ? value === true : value !== false;
+  return feature === 'connectors' || feature === 'spriteGen' ? value === true : value !== false;
 }

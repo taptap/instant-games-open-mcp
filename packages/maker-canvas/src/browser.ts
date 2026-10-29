@@ -151,7 +151,12 @@ export { encodeCanvasImage } from './browser/imageExport.js';
 
 export { getCanvasPageHtml, CANVAS_PAGE_MARKER } from './browser/page.js';
 export type { CanvasPageIntegration } from './browser/page.js';
-export type { CanvasPageHost, CanvasEditorHandle, CanvasEditorDraft } from './browser/pageHost.js';
+export type {
+  CanvasPageHost,
+  CanvasEditorHandle,
+  CanvasEditorDraft,
+  CanvasSpriteGenStart,
+} from './browser/pageHost.js';
 export { restoreCanvasEditorDraft } from './browser/editorLifecycle.js';
 
 export { cloneDocument } from './browser/document.js';

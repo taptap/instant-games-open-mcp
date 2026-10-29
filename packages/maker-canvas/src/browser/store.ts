@@ -47,6 +47,19 @@ export interface CanvasTemplateStore {
 }
 
 export interface CanvasDocumentStore {
+  /**
+   * Optional: fetches media bytes so mediaUrl(path) can serve them (`refresh` re-reads changed
+   * bytes). Rejects when the file is missing or not readable. The sprite mirror calls it for
+   * `.build/sprite-gen/...`, `assets/sprites/...` and Agent candidate paths before showing a card.
+   */
+  prepareMedia?(path: string, refresh?: boolean): Promise<void>;
+  /**
+   * Optional, read-only: parsed JSON of a workspace-relative project file. Rejects with an Error
+   * whose `status` is 404 when the file does not exist. Used by features.spriteGen for
+   * `.build/sprite-gen/<name>/_progress.json`, `assets/sprites/<name>/sprite.json` and
+   * `assets/sprites/<name>/<animId>/spritesheet.json`; the page never writes those trees.
+   */
+  readProjectJson?(path: string): Promise<unknown>;
   /** Refresh content identities and the media URLs used for the same bytes. */
   mediaVersions?(paths: string[]): Promise<Record<string, string>>;
   capabilities?: CanvasHostCapabilities;

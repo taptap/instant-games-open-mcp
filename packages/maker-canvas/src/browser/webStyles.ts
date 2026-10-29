@@ -512,6 +512,19 @@ ${M} .video-history article strong { font-size: 13px; font-weight: 600; }
 ${M} .video-history article p { margin: 4px 0 0; color: var(--web-muted); font-size: 12px; }
 ${M} .video-history article button { height: 28px; min-height: 28px; margin: 10px 6px 0 0; padding: 0 12px; border-color: var(--web-pill-line); border-radius: 999px; background: var(--web-pill-bg); color: var(--web-pill-ink); font-size: 12px; font-weight: 600; line-height: 26px; }
 ${M} .video-history article button:hover:not(:disabled) { background: var(--web-pill-hover); }
+/* 生成精灵: the 视频历史 shell at form width; fields use the composer input tokens. */
+${M} .sequence-editor.video-history.sprite-gen-dialog { width: 420px; overflow: visible; }
+${M} .sprite-gen-field { display: block; margin: 14px 0 0; padding: 0; border: 0; min-width: 0; }
+${M} .sprite-gen-field > span, ${M} .sprite-gen-field > legend { display: block; margin: 0 0 8px; padding: 0; color: var(--web-text); font-size: 13px; font-weight: 500; }
+${M} .sprite-gen-field input[type="text"] { box-sizing: border-box; display: block; width: 100%; height: 36px; margin: 0; padding: 0 12px; border: 1px solid var(--web-composer-line); border-radius: 10px; background: var(--web-composer-bg); color: var(--web-composer-ink); font: inherit; font-size: 13px; outline: none; }
+${M} .sprite-gen-field input[type="text"]:focus { border-color: var(--web-accent); }
+${M} .sprite-gen-field input[aria-invalid="true"] { border-color: #e5484d; }
+${M} .sprite-gen-dialog > small { display: block; margin: 6px 0 0; color: var(--web-muted); font-size: 12px; }
+${M} .sprite-gen-option { display: flex; align-items: center; height: 32px; color: var(--web-text); font-size: 13px; cursor: pointer; }
+${M} .sprite-gen-option input { margin: 0 8px 0 0; accent-color: var(--web-accent); }
+${M} .sprite-gen-dialog > .sprite-gen-error { min-height: 18px; margin: 8px 0 0; color: #e5484d; font-size: 12px; }
+${L} .sprite-gen-dialog > .sprite-gen-error { color: #ce2c31; }
+${L} .sprite-gen-field input[aria-invalid="true"] { border-color: #ce2c31; }
 ${M} .video-history footer { display: flex; justify-content: flex-end; margin-top: 14px; }
 ${M} .video-history footer > * + * { margin-left: 8px; }
 /* Pointer focus draws no ring; keyboard focus gets one subtle 1.5px accent ring, overriding per-control rings. */

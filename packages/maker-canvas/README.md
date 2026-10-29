@@ -99,6 +99,7 @@ uiArchive 表达宿主保存归档能力，不禁用通用 ZIP 导出，也不�
 | imageEditing   | 快速编辑、扩展画面、去纯色背景、本地编辑                                             |
 | cutout         | 选中菜单「去纯色背景」（Web 为一键「抠图」+「调整抠图」）；未声明时跟随 imageEditing |
 | connectors     | 唯一默认关闭的项；设为 true 才显示图片左右连接点并允许选中连线删除                   |
+| spriteGen      | 默认关闭；设为 true（仅 Web 外观）且宿主提供 `startSpriteGen` 才显示「生成精灵」     |
 
 Web 只保留图片、便签、标注、图片槽、连线、导入、删除、复制、撤销/重做和图片下载时，
 传 `features: { templates: false, uiRecognition: false, video: false, sequence: false,
@@ -207,6 +208,9 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
 - 点击空图片槽只选中并打开下方面板，不弹文件选择；单选空槽时图片框上方居中出现「上传」
   胶囊（距框 14px，屏幕高度不超过 30px 且不超过框高 20%），只有它会打开本地导入
   （键盘聚焦槽内导入按钮回车仍可导入）。生成中的槽和已有图片不显示。
+- 空图片槽的导入与空视频槽的「导入视频」（两种外观）都可选 PNG/JPEG/WebP 图片或 MP4/MOV/WebM 视频
+  （图片 ≤20 MiB、视频 ≤100 MiB；未开 `features.video` 时图片槽仍只收图片）。按所选文件类型原位改变卡片：
+  保留 id 与位置，去掉旧类型专用字段和新类型不能有的连线，一次撤销即还原。
 - 选中已有图片的图片槽（AI 生成结果，带 `generation`）仍打开下方提示词面板；在该面板重新生成会
   把结果原位写回同一张卡（`targetNodeId` 为该卡；保留 id、位置、宽度、标题与连线，高度按新图比例），
   上一张图只保留在撤销栈和素材文件中。普通导入或上传填充的图片只显示选中菜单；经「快速编辑」
@@ -347,6 +351,28 @@ parameters.mode, prompt, error, remoteStatus, executionState, credits, createdAt
 列表按工具（`generate_image` / `edit_image`）缓存，提交时仍读取最新值并刷新缓存，读取失败不缓存。
 未设置或 `'default'` 保持原外观。
 
+## 图生精灵（features.spriteGen）
+流程由对话里的 Agent 跑 sprite-gen；画布只读 sprite-gen 自己的文件，把产物镜像成分组内的只读卡片。
+- 宿主契约：`host.startSpriteGen?({ canvasId, nodeId, spriteName, spriteType: 'character' | 'generic',
+  sourcePath })` 由页面在建组并保存后调用（新开对话并预填提示词）；`store.readProjectJson?(path)` 返回
+  解析后的 JSON，不存在时以 `status: 404` 的 Error 拒绝；镜像媒体经 `store.prepareMedia?(path, refresh?)`
+  + `store.mediaUrl(path)`，读不到的文件不出卡。`editor.syncSprites()` 供宿主在 Agent 工具调用后触发同步。
+- 「生成精灵」（图片选中菜单，lucide `sparkles`，在「视频生成」之后）：精灵名 `/^[\p{L}\p{N}_-]{1,40}$/u`
+  与素材类型；建分组「精灵：<名>」包含原图，`section.spriteGen = { name, type, sourceId, startedAt,
+  dismissed }`。同名分组复用（沿用其来源与类型）并再次调用钩子；钩子失败显示为页面错误，分组保留。
+- 同步（`features/spriteMirror.ts` 纯函数 reconcile/apply）：读 `.build/sprite-gen/<名>/_progress.json`
+  （schema v3）、`assets/sprites/<名>/sprite.json` 与各动作 `spritesheet.json`；镜像键 `cutout_ref`、`cutout`、
+  `ready`、`viewpoint:<path>`、`pose:<姿态>:<path>`、`pose-selected:<姿态>`、`video:<id>`、`sequence:<id>`、
+  `animation:<id>`，按阶段分行排在分组内并自动撑大分组。候选路径去掉 `/workspace/` 前缀，只接受
+  `assets/`、`.build/sprite-gen/` 与工作目录相对的 `_gen_*`。只有可读的 v3 进度会删除不再产出的镜像卡；
+  404 显示「等待对话开始」，未知版本只镜像最终精灵表并显示「中间过程暂不支持此版本」。
+- 镜像卡 `mirror = { source: 'sprite-gen', name, key }` 只读：无生成面板、侧边「+」与编辑入口，可移动、
+  删除（键写入 `dismissed`，不再加回）、下载与加入对话。同步不进撤销栈、自动保存；撤销/重做后重新同步。
+- 时机：打开画布、`syncSprites()`、页面可见且有未完成精灵时每 10 秒一次；每个分组单飞。页面从不写
+  `.build/` 或 `assets/sprites/`。
+- 精灵表帧带裁边：`FrameSetFrame` 新增可选 `sourceWidth/sourceHeight/offsetX/offsetY/duration`，
+  `FrameSetInfo.pages`；动画卡与序列帧格按偏移画在原尺寸框内，有逐帧时长时按时长播放。多页精灵表只列出、
+  预览第 1 页并标注「共 N 页，仅预览第 1 页」。带偏移或多页的帧集拒绝从画布重新导出。
 ## 自动化命令补充
 
 - `inspect` 及所有返回快照的命令带 `selectedIds`。

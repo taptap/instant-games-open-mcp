@@ -20,7 +20,14 @@ export function createAnimationCards(
   const playing = new Set<string>();
   const mounted = new Map<
     string,
-    { draw: (index: number) => void; fps: number; count: number; started: number }
+    {
+      draw: (index: number) => void;
+      fps: number;
+      count: number;
+      started: number;
+      /** Cumulative end times (ms) when frames carry their own duration. */
+      ends?: number[];
+    }
   >();
   // Kept inside the factory (not a page global) so the helper still works when injected via toString().
   const reused = new Map<string, Reused>();
@@ -31,8 +38,14 @@ export function createAnimationCards(
     if (!document.hidden) {
       for (const id of playing) {
         const item = mounted.get(id);
-        if (item)
-          item.draw(Math.floor((Math.max(0, now - item.started) * item.fps) / 1000) % item.count);
+        if (!item) continue;
+        const elapsed = Math.max(0, now - item.started);
+        if (item.ends) {
+          const at = elapsed % item.ends[item.ends.length - 1];
+          let index = 0;
+          while (index < item.ends.length - 1 && at >= item.ends[index]) index += 1;
+          item.draw(index);
+        } else item.draw(Math.floor((elapsed * item.fps) / 1000) % item.count);
       }
     }
     if ([...playing].some((id) => mounted.has(id))) request = requestAnimationFrame(tick);
@@ -59,7 +72,19 @@ export function createAnimationCards(
         url,
         info.fps,
         info.frames
-          .map((frame) => [frame.x, frame.y, frame.width, frame.height].join(','))
+          .map((frame) =>
+            [
+              frame.x,
+              frame.y,
+              frame.width,
+              frame.height,
+              frame.sourceWidth,
+              frame.sourceHeight,
+              frame.offsetX,
+              frame.offsetY,
+              frame.duration,
+            ].join(',')
+          )
           .join(';'),
       ].join('|');
       let entry = reused.get(node.id);
@@ -113,14 +138,25 @@ export function createAnimationCards(
       const caption = (index: number) => {
         if (item.label)
           item.label.textContent =
-            index + 1 + ' / ' + info.frames.length + ' · ' + info.fps + ' FPS';
+            index +
+            1 +
+            ' / ' +
+            info.frames.length +
+            ' · ' +
+            info.fps +
+            ' FPS' +
+            (info.pages && info.pages > 1 ? ' · 共 ' + info.pages + ' 页，仅预览第 1 页' : '');
       };
       const draw = (index: number) => {
         if (item.current === index) return;
         item.current = index;
         const frame = info.frames[index];
         const context = canvas.getContext('2d')!;
-        const scale = Math.min(canvas.width / frame.width, canvas.height / frame.height);
+        // Trimmed frames sit at their offset inside the untrimmed source box, so the sprite keeps
+        // its place across frames instead of each crop being centred on its own.
+        const boxWidth = frame.sourceWidth || frame.width;
+        const boxHeight = frame.sourceHeight || frame.height;
+        const scale = Math.min(canvas.width / boxWidth, canvas.height / boxHeight);
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.drawImage(
           item.atlas,
@@ -128,8 +164,8 @@ export function createAnimationCards(
           frame.y,
           frame.width,
           frame.height,
-          (canvas.width - frame.width * scale) / 2,
-          (canvas.height - frame.height * scale) / 2,
+          (canvas.width - boxWidth * scale) / 2 + (frame.offsetX || 0) * scale,
+          (canvas.height - boxHeight * scale) / 2 + (frame.offsetY || 0) * scale,
           frame.width * scale,
           frame.height * scale
         );
@@ -140,11 +176,16 @@ export function createAnimationCards(
         if (item.play) item.play.disabled = info.frames.length < 2;
         if (item.current < 0) draw(0);
         else caption(item.current);
+        let total = 0;
+        const ends = info.frames.some((frame) => frame.duration)
+          ? info.frames.map((frame) => (total += frame.duration || 1000 / info.fps))
+          : undefined;
         const timing = {
           draw,
           fps: info.fps,
           count: info.frames.length,
           started: item.started,
+          ends,
         };
         mounted.set(node.id, timing);
         if (playing.has(node.id)) start();

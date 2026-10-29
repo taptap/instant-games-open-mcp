@@ -2635,7 +2635,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       if (node.type === 'video' && !node.draftSourceId && !workflow) {
         const importVideo = button('导入视频', () => options.requestVideoImport(node.id), {
           className: 'generation-action',
-          title: '从本地项目导入视频到当前视频卡片',
+          title: '导入视频；选图片时这张卡改为图片卡',
           disabled: busy,
         });
         if (options.web) canvasWebIconAction(importVideo, 'upload');

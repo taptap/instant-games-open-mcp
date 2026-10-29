@@ -31,6 +31,23 @@ export interface CanvasEditorHandle {
     kind: 'image' | 'video';
     title: string;
   }): Promise<void>;
+  /**
+   * Re-reads sprite-gen progress for every sprite group on the open canvas and mirrors new
+   * outputs (e.g. after an Agent tool call). Resolves when done; a no-op unless features.spriteGen
+   * is on and store.readProjectJson exists. Mirror edits autosave and are not undo steps.
+   */
+  syncSprites(): Promise<void>;
+}
+/** Payload of CanvasPageHost.startSpriteGen. */
+export interface CanvasSpriteGenStart {
+  canvasId: string;
+  /** Source image card inside the sprite group. */
+  nodeId: string;
+  /** Matches /^[\p{L}\p{N}_-]{1,40}$/u; sprite-gen files go to .build/sprite-gen/<name>/. */
+  spriteName: string;
+  spriteType: 'character' | 'generic';
+  /** Workspace-relative asset path of the source image. */
+  sourcePath: string;
 }
 
 /** Host bindings for the existing page. Factories supply host callbacks to the shared controllers. */
@@ -47,6 +64,12 @@ export interface CanvasPageHost {
    * `kind` absent means image, except paths under assets/video/.
    */
   pickProjectImages?(): Promise<{ path: string; name: string; kind?: 'image' | 'video' }[]>;
+  /**
+   * Optional (with features.spriteGen): called after 「生成精灵」 has created and saved the group
+   * 「精灵：<名>」. The host opens a new chat and prefills the sprite-gen prompt; the page never
+   * drives sprite-gen itself. Rejections are shown as the page error; the group stays.
+   */
+  startSpriteGen?(input: CanvasSpriteGenStart): Promise<void>;
   onReady?(editor: CanvasEditorHandle): void;
   /** Called only after the normal authorized load. Scope drafts by user, project and canvas. */
   recoverDraft?(loaded: CanvasDocument): Promise<CanvasEditorDraft | null | undefined>;

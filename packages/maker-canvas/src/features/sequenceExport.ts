@@ -35,6 +35,22 @@ export function sequenceExportManifest(
     info.fps > 30
   )
     throw new Error('图集尺寸、帧数或帧率无效，请重新保存序列帧后导出。');
+  // Sprite-gen sheets (trimmed frames, extra pages) are already game-ready files; re-exporting
+  // them here would drop the offsets, so refuse instead of writing a wrong sheet.
+  if (
+    (info.pages !== undefined && info.pages > 1) ||
+    info.frames.some(
+      (frame) =>
+        frame &&
+        (frame.sourceWidth !== undefined ||
+          frame.sourceHeight !== undefined ||
+          frame.offsetX !== undefined ||
+          frame.offsetY !== undefined)
+    )
+  )
+    throw new Error(
+      '这组帧来自带裁边偏移或多页的精灵表，画布暂不支持重新导出；请直接使用项目中的精灵表文件。'
+    );
   const first = info.frames[0];
   for (const frame of info.frames) {
     if (
