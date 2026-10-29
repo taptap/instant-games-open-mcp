@@ -96,7 +96,7 @@ export function canvasSpriteStage(
       : undefined;
   if (!entry) return { label: '进行中', state: 'loading', gate: false, done: false };
   return entry[1]
-    ? { label: entry[0] + ' · 请在对话中确认', state: 'waiting', gate: true, done: false }
+    ? { label: entry[0] + ' · 待确认', state: 'waiting', gate: true, done: false }
     : { label: entry[0], state: 'loading', gate: false, done: false };
 }
 

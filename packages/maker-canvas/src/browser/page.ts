@@ -1249,7 +1249,7 @@ function applySpriteGenPatches(source: string): string {
       "      const badge = world.querySelector('.card[data-id=\"' + CSS.escape(section.id) + '\"] .canvas-group-state');",
       '      if (!badge) return;',
       "      const stage = spriteStatus.get(section.id) || (spriteSyncEnabled() ? { label: '同步中', state: 'loading' } : { label: '精灵分组', state: 'empty' });",
-      "      badge.dataset.state = stage.state; badge.textContent = stage.label; badge.title = '精灵 ' + section.spriteGen.name + '：' + stage.label; badge.classList.add('canvas-sprite-stage');",
+      "      badge.dataset.state = stage.state; badge.textContent = stage.label; badge.title = '精灵 ' + section.spriteGen.name + '：' + stage.label + (stage.gate ? '，请在对话中确认' : ''); badge.classList.add('canvas-sprite-stage'); const groupCard = badge.closest('.card'); if (groupCard) groupCard.classList.add('canvas-sprite-group');",
       '    });',
       '  }',
       '  function openSpriteGen(node) {',

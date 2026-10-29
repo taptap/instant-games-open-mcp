@@ -112,7 +112,7 @@ test('stage labels follow progress.state and gates ask for the conversation', ()
   expect(canvasSpriteStage('missing').label).toBe('等待对话开始');
   expect(canvasSpriteStage('unsupported').label).toBe('中间过程暂不支持此版本');
   expect(canvasSpriteStage('ok', 'viewpoint_select')).toMatchObject({
-    label: '选择视角 · 请在对话中确认',
+    label: '选择视角 · 待确认',
     gate: true,
     done: false,
   });
@@ -160,7 +160,7 @@ test('mid-flow progress yields prep, viewpoint and pose cards linked in order', 
     missing: [base + '_gen_images/cutout.png'],
   });
   expect(plan).toMatchObject({ status: 'ok', authoritative: true });
-  expect(plan.stage.label).toBe('选择姿态 · 请在对话中确认');
+  expect(plan.stage.label).toBe('选择姿态 · 待确认');
   const byKey = Object.fromEntries(plan.cards.map((card) => [card.key, card]));
   expect(Object.keys(byKey)).toEqual([
     'cutout_ref',

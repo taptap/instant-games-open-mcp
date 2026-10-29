@@ -4197,6 +4197,14 @@ try {
     assert.deepEqual(members.map((node) => node.id).sort(), [first.id, second.id].sort());
     assert.deepEqual(await menuLabels(page), ['取消分组', '删除分组']);
     assert.equal(await card(section.id).locator('.web-node-handle').count(), 4);
+    // Dots sit on the 16px rounded corner arc, not the square box corner.
+    const corner = await card(section.id)
+      .locator('.web-node-handle.is-nw')
+      .evaluate((item) => [parseFloat(item.style.left), parseFloat(item.style.top)]);
+    assert.ok(
+      Math.abs(corner[0] - 4.69) < 0.05 && Math.abs(corner[1] - 4.69) < 0.05,
+      String(corner)
+    );
     assert.equal(
       await card(section.id).evaluate((item) => getComputedStyle(item).borderTopLeftRadius),
       '16px'
@@ -5321,7 +5329,8 @@ try {
     const dialog = page.locator('dialog.sprite-gen-dialog');
     await dialog.waitFor();
     await dialog.locator('input[name="sprite-name"]').fill(name);
-    if (type === 'generic') await dialog.getByLabel('通用序列帧 (generic)').check();
+    if (type === 'generic')
+      await dialog.locator('.sprite-gen-option', { hasText: '通用序列帧' }).click();
     const count = await page.evaluate(() => (window.__canvasSpriteStarts || []).length);
     await dialog.getByRole('button', { name: '开始' }).click();
     await page.waitForFunction(
@@ -5360,7 +5369,7 @@ try {
       await name.fill('hero');
       await themes(page, (theme) => shoot('v20-sprite-dialog-' + theme + '.png'));
       assert.equal(await page.evaluate(() => (window.__canvasSpriteStarts || []).length), 0);
-      await dialog.getByLabel('通用序列帧 (generic)').check();
+      await dialog.locator('.sprite-gen-option', { hasText: '通用序列帧' }).click();
       await dialog.getByRole('button', { name: '开始' }).click();
       await page.waitForFunction(() => (window.__canvasSpriteStarts || []).length === 1);
       await dialog.waitFor({ state: 'detached' });
@@ -5469,7 +5478,20 @@ try {
         assert.ok(
           edges.some((edge) => edge[0] === from && edge[1] === to && edge[2] === 'image-variant')
         );
-      assert.equal(await spriteBadge(page, section.id), '选择视角 · 请在对话中确认');
+      assert.equal(await spriteBadge(page, section.id), '选择视角 · 待确认');
+      // Header keeps the sprite name whole and drops the member count.
+      const header = await page.evaluate((id) => {
+        const card = document.querySelector('.card[data-id="' + id + '"]');
+        const title = card.querySelector('.canvas-card-title');
+        return {
+          whole: title.scrollWidth <= title.clientWidth + 1,
+          meta: getComputedStyle(card.querySelector('.canvas-card-meta')).display,
+          tip: card.querySelector('.canvas-group-state').title,
+        };
+      }, section.id);
+      assert.equal(header.whole, true, '分组名完整显示');
+      assert.equal(header.meta, 'none', '精灵分组不显示卡片数');
+      assert.match(header.tip, /请在对话中确认/);
       await card(byKey.ready.id).locator('img').waitFor();
       assert.ok(byKey['viewpoint:assets/image/vp_1.png'].y > byKey.ready.y, '候选在下一行');
       const grown = (await current()).nodes.find((node) => node.id === section.id);

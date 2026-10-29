@@ -37,11 +37,14 @@ export function openCanvasSpriteGenDialog(options: {
   const legend = document.createElement('legend');
   legend.textContent = '素材类型';
   typeGroup.append(legend);
-  const types: Array<['character' | 'generic', string]> = [
-    ['character', '角色/对象动画 (character)'],
-    ['generic', '通用序列帧 (generic)'],
+  const types: Array<['character' | 'generic', string, string]> = [
+    ['character', '角色/对象动画', '有固定姿态的角色、怪物、道具'],
+    ['generic', '通用序列帧', '特效、场景等无固定姿态的素材'],
   ];
-  const radios = types.map(([value, text], index) => {
+  const choices = document.createElement('div');
+  choices.className = 'sprite-gen-choices';
+  typeGroup.append(choices);
+  const radios = types.map(([value, text, detail], index) => {
     const option = document.createElement('label');
     option.className = 'sprite-gen-option';
     const radio = document.createElement('input');
@@ -49,10 +52,16 @@ export function openCanvasSpriteGenDialog(options: {
     radio.name = 'sprite-type';
     radio.value = value;
     radio.checked = index === 0;
+    // The radio stays focusable for the keyboard; the card next to it shows the choice.
     const caption = document.createElement('span');
-    caption.textContent = text;
+    caption.className = 'sprite-gen-choice';
+    const title = document.createElement('strong');
+    title.textContent = text;
+    const note = document.createElement('small');
+    note.textContent = detail;
+    caption.append(title, note);
     option.append(radio, caption);
-    typeGroup.append(option);
+    choices.append(option);
     return radio;
   });
   const message = document.createElement('p');

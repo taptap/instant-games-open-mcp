@@ -520,9 +520,26 @@ ${M} .sprite-gen-field input[type="text"] { box-sizing: border-box; display: blo
 ${M} .sprite-gen-field input[type="text"]:focus { border-color: var(--web-accent); }
 ${M} .sprite-gen-field input[aria-invalid="true"] { border-color: #e5484d; }
 ${M} .sprite-gen-dialog > small { display: block; margin: 6px 0 0; color: var(--web-muted); font-size: 12px; }
-${M} .sprite-gen-option { display: flex; align-items: center; height: 32px; color: var(--web-text); font-size: 13px; cursor: pointer; }
-${M} .sprite-gen-option input { margin: 0 8px 0 0; accent-color: var(--web-accent); }
-${M} .sprite-gen-dialog > .sprite-gen-error { min-height: 18px; margin: 8px 0 0; color: #e5484d; font-size: 12px; }
+/* Type choice: two side-by-side cards; the visually hidden radio drives the checked card. */
+${M} .sprite-gen-choices { display: flex; }
+${M} .sprite-gen-choices > * + * { margin-left: 8px; }
+${M} .sprite-gen-option { position: relative; display: block; flex: 1; min-width: 0; cursor: pointer; }
+${M} .sprite-gen-option input { position: absolute; left: 0; top: 0; width: 1px; height: 1px; margin: 0; opacity: 0; }
+${M} .sprite-gen-choice { display: block; box-sizing: border-box; height: 100%; padding: 10px 12px; border: 1px solid var(--web-composer-line); border-radius: 10px; background: var(--web-composer-bg); transition: border-color .12s, box-shadow .12s; }
+${M} .sprite-gen-choice strong { display: block; color: var(--web-text); font-size: 13px; font-weight: 600; line-height: 18px; }
+${M} .sprite-gen-choice small { display: block; margin-top: 2px; color: var(--web-muted); font-size: 12px; line-height: 17px; }
+${M} .sprite-gen-option:hover .sprite-gen-choice { border-color: var(--web-muted); }
+${M} .sprite-gen-option input:checked + .sprite-gen-choice { border-color: var(--web-accent); box-shadow: 0 0 0 1px var(--web-accent); }
+${K} .sprite-gen-option input:focus + .sprite-gen-choice { box-shadow: 0 0 0 1px var(--web-accent), 0 0 0 4px var(--web-focus-ring); }
+${M} .sprite-gen-dialog > .sprite-gen-error { margin: 10px 0 0; color: #e5484d; font-size: 12px; line-height: 1.5; }
+${M} .sprite-gen-dialog > .sprite-gen-error:empty { display: none; }
+${M} .sequence-editor.video-history.sprite-gen-dialog footer { margin-top: 20px; }
+/* Sprite group header: keep the name whole, drop the member count, let the stage pill truncate. */
+${M} .card.section.canvas-sprite-group .canvas-card-meta { display: none; }
+${M} .card.section.canvas-sprite-group .canvas-card-heading { flex: 0 1 auto; max-width: 55%; }
+${M} .card.section.canvas-sprite-group .canvas-card-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+${M} .card.section.canvas-sprite-group .canvas-group-state { flex: 0 1 auto; min-width: 0; margin-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+${M} .card.section.canvas-sprite-group .canvas-group-state:before { flex: none; }
 ${L} .sprite-gen-dialog > .sprite-gen-error { color: #ce2c31; }
 ${L} .sprite-gen-field input[aria-invalid="true"] { border-color: #ce2c31; }
 ${M} .video-history footer { display: flex; justify-content: flex-end; margin-top: 14px; }
