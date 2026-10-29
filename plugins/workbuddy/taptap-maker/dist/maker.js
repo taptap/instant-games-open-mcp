@@ -29764,7 +29764,7 @@ function formatMakerCapabilityRoutingIndex(options3) {
     "- Local preview: taptap-maker preview --target-dir; no commit/remote build.",
     "  After edits: status; refresh+evidence if alive. Never revive stopped sessions. Clarify run intent.",
     "- 打开make mcp控制台: active distribution CLI `console open --target-dir <project> --json`; no web search.",
-    "  run-lua-validate: preview validate via taptap-maker-local.",
+    "  run-lua-validate: preview validate via taptap-maker-local; network/server projects use --network.",
     "- Ads: read maker://ads-integration-guide before any ad-related work.",
     options3.includeFeedback ? "- Tap flows: test QR -> generate_test_qrcode; current Maker game's online player feedback" : "",
     options3.includeFeedback ? "  (bugs, real-device game logs, screenshots), or" : "- Tap flows: test QR -> generate_test_qrcode.",
@@ -58305,12 +58305,16 @@ async function executeSkillValidation(project, options3, signal, run) {
         "An active or unverified preview blocks validation. Stop it explicitly first."
       );
     const classification = classifyPreviewProject(project);
-    if (classification.network_required)
+    const networkValidation = options3.network === true;
+    if (classification.network_required && !networkValidation)
       return {
         ok: false,
         result: "UNSUPPORTED",
-        error: "run-lua-validate supports single-player projects only."
+        error: "This is a network/server project. Run preview validate with --network to allocate a test server and validate the online client.",
+        validation_scope: "network"
       };
+    if (!classification.network_required && networkValidation)
+      throw new Error("--network is only valid for network/server projects.");
     const mode = options3.mode ?? "validate";
     if (!["validate", "screenshot", "both"].includes(String(mode)))
       throw new Error("--mode must be validate, screenshot or both.");
@@ -58403,6 +58407,7 @@ async function executeSkillValidation(project, options3, signal, run) {
         runtimeEntry = String(preparation.entry);
       }
       if (signal.aborted) throw new Error("CANCELLED");
+      const server = await preparePreviewServer(source, project, signal, networkValidation);
       let args;
       if (classification.preparation_required) {
         assets = await startPreviewAssetServer(source, signal);
@@ -58412,6 +58417,7 @@ async function executeSkillValidation(project, options3, signal, run) {
         args = [runtimeEntry, "-tapcode_dir=" + source];
       }
       args.push("-skip_login", "-p=Res", "-log=info", "-w", "-width=" + width, "-height=" + height);
+      if (server) args.push(...previewNetworkArgs(server));
       if (options3.nosound === true) args.push("-nosound");
       if (validate2) {
         args.push(
@@ -58550,6 +58556,14 @@ async function executeSkillValidation(project, options3, signal, run) {
       ok: result === "COMPLETED",
       result,
       mode,
+      validation_scope: networkValidation ? "network" : "single_player",
+      ...(networkValidation ? {
+        network_validation: {
+          transport: "websocket",
+          test_server: true,
+          server_code: "remote_build"
+        }
+      } : {}),
       game_review_required: true,
       visual_check_required: capture,
       report,
@@ -78913,6 +78927,7 @@ var BOOLEAN_OPTIONS = /* @__PURE__ */ new Set([
   "consent",
   "confirm",
   "confirmed_build",
+  "network",
   "context_stdin",
   "h",
   "help"
@@ -81360,6 +81375,7 @@ function printHelp() {
       "                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]",
       "                       [--cursor N --session-id ID --reload-id N] [--limit 1..500] [--tail]",
       "  preview validate: [--mode validate|screenshot|both] [--entry SCRIPT.lua]",
+      "                    [--network]  # required for network/server projects; allocates a test server",
       "                    [--screenshot-frame N] [--validate-frames N] [--validate-timeout 1..580]",
       "                    [--validate-test SCRIPT.lua] [--validate-spike-threshold MS] [--nosound]",
       "                    [--output-dir /absolute/acceptance-directory]",
@@ -84328,6 +84344,7 @@ function printHelp2() {
       "                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]",
       "                       [--cursor N --session-id ID --reload-id N] [--limit 1..500]",
       "  preview validate: [--mode validate|screenshot|both] [--entry SCRIPT.lua]",
+      "                    [--network]  # required for network/server projects; allocates a test server",
       "                    [--screenshot-frame N] [--validate-frames N] [--validate-timeout 1..580]",
       "                    [--validate-test SCRIPT.lua] [--validate-spike-threshold MS] [--nosound]",
       "                    [--output-dir /absolute/acceptance-directory]",
