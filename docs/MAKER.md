@@ -499,7 +499,13 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
 - 如果提交前发现本地仅落后于远端，`maker_build_current_directory` 会自动执行
   `git merge --ff-only origin/main`；无法 fast-forward 时会在创建 commit 前停止并保留本地文件。
   分叉、非 main 分支、认证失败或 push 被拒绝仍会在 build 前返回失败阶段。Agent 应解释失败原因，
-  并根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed`
+  并结合原始 stderr/stdout 与 `classification` 判断原因。原因不明时，使用同一项目目录的
+  `taptap-maker git cloud-status --target-dir <项目目录>` 查看云端状态，
+  `taptap-maker git cloud-diff --target-dir <项目目录>` 查看差异（不含未跟踪文件内容）。
+  用户已要求提交/推送且确认需要提交云端改动时，可用
+  `taptap-maker git cloud-commit --target-dir <项目目录> --message MSG --all`（仅项目 owner），
+  再 `git sync` 合并并重试原操作；提交结果未知先查状态，不盲目重试。云端干净或错误另有原因时
+  按实际原因处理，不反复 sync 或提交。`branch_not_allowed`
   切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止
   路径，`auth` 才刷新 PAT。
 - 构建前本地改动检查会忽略 `.maker-mcp/` 的本地配置变化；`.gitignore` 是 Maker 项目必要文件，
@@ -1039,7 +1045,7 @@ push
 - 不因为当前分支是 `main` 就新建功能分支。
 - 不要求用户提供 TAP/Jira/飞书任务号。
 - commit message 可以由 MCP 根据变更文件自动生成，也可以由用户通过 `message` 显式提供。
-- push 被远端拒绝或出现冲突时，不自动建分支；只有 `remote_rejected` 表示远端已有新提交时，才询问用户是否先 pull/rebase 当前 Maker 远端变更。
+- push 被远端拒绝或出现冲突时，不自动建分支；结合原始错误及云端状态诊断，远端提交需要合并时使用 `taptap-maker git sync`，不要把所有 `remote_rejected` 都当成需要同步。
 - 如果失败是 `branch_not_allowed`，说明 Maker 远端只接受 main 分支。不要 pull/rebase、不要新建分支、不要手动 git push；保留本地 commit，切回 main（必要时从 origin/main 创建），把本地 commit cherry-pick 到 main 后重试 `maker_build_current_directory`。
 - 如果失败是 `forbidden_path`，说明本地 commit 包含 Maker 远端 pre-receive hook 禁止提交的路径或目录。不要刷新 PAT；读取 `stderr` 里的 forbidden pattern，保留工作区文件，把这些路径从未推送 commit 中移除，确认 `git status` 不再包含这些路径后重试。
 - 如果 commit 已完成但 push 失败，工具必须返回 commit hash、git ahead 状态、失败阶段、exit code、stderr/stdout、错误分类、`push_recovery` 和下一步建议。

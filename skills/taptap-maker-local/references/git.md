@@ -33,12 +33,14 @@ Maker Git CLI (all commands print JSON; `--target-dir` defaults to the current d
 - `taptap-maker git sync` - fetch, then fast-forward or merge `origin/main`; aborts on conflicts.
 - `taptap-maker git push [--message MSG]` - the same sync/commit/push/cloud-repair flow as the
   build tool, without the remote build.
-- `taptap-maker git cloud-status` / `cloud-diff [--path PATH] [--staged]` - read the Maker cloud
-  workspace state and diff. Untracked cloud files are not in the diff.
+- `taptap-maker git cloud-status` - read the Maker cloud workspace state and changed files.
+- `taptap-maker git cloud-diff [--path PATH] [--staged]` - read cloud changes; untracked file
+  contents are not in the diff.
 - `taptap-maker git cloud-commit --message MSG (--all | PATH...)` - commit cloud workspace changes
-  (project owner only). Run it only when the user explicitly asks; the web agent may still be
-  editing those files. The automatic cloud commit inside push needs no extra confirmation. Never retry it after a timeout or `outcomeUnknown`; run `cloud-status`
-  first, because the commit may already have succeeded.
+  (project owner only). Within a user-requested submit/push, inspect the cloud changes and use it
+  when needed to recover the push; no separate request naming this command is required. Outside
+  that scope, obtain user authorization. The web agent may still be editing those files. Never
+  blindly retry after a timeout or `outcomeUnknown`; check `cloud-status` first.
 
 The root `.gitignore` is a required Maker project file. If it changes after binding or dev-kit
 updates, include it with the game changes and mention it in the submit summary. Do not omit it from
@@ -181,7 +183,12 @@ MCP builds the committed remote version only and does not auto-open Maker pages.
 
 For push failures, use the returned `classification`, `retryable`, `retry_reason`, and
 `retry_attempts` fields. Temporary 5xx/network/timeout failures may be retried with the Maker build
-tool; `remote_rejected` means run `taptap-maker git sync` and retry; `cloud_workspace_blocked` means
+tool. Diagnose remote Git errors from the original stderr/stdout, not the classification alone.
+If the cause is unclear, inspect `cloud-status` and, as needed, `cloud-diff` using the same project
+`--target-dir`. If cloud changes need committing to recover the push, use `cloud-commit` once,
+then `git sync` and retry the original Maker submit/build operation. If cloud state is clean or
+the error identifies another cause, address that cause instead of repeatedly syncing or committing.
+`cloud_workspace_blocked` means
 the automatic cloud commit did not finish (follow `next_action`); `merge_conflict` means resolve
 `conflict_files`, commit, and retry; `auth` means refreshing PAT;
 `branch_not_allowed` means Maker remote only accepts `main`; `forbidden_path` means the remote
@@ -193,8 +200,8 @@ When a Maker tool output contains `push_recovery`, follow it exactly:
 - Tell the user the local commit is preserved but not yet on Maker remote.
 - Do not ask for permission to run a generic `git push`.
 - Retry with `maker_build_current_directory` for submit and build requests.
-- If the failure is `remote_rejected`, run `taptap-maker git sync`, then retry; do not create a new
-  branch or PR.
+- For `remote_rejected`, diagnose as above; sync when remote commits need merging. Do not create
+  a new branch or PR.
 - If the failure is `merge_conflict`, the merge was already aborted. Explain both sides of each
   `conflict_files` entry, ask before editing, commit the resolution, then retry.
 - If the failure is `branch_not_allowed`, do not sync or merge. Tell the user Maker only accepts
