@@ -28,6 +28,9 @@ const X_ICON =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6 6 18'/%3E%3Cpath d='m6 6 12 12'/%3E%3C/svg%3E\")";
 const MINUS_ICON =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M5 12h14'/%3E%3C/svg%3E\")";
+// lucide ChevronDown for the cutout panel selects.
+const CHEVRON_ICON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")";
 const SPRING = 'cubic-bezier(.34,1.56,.64,1)';
 
 /** Opt-in Mivo-like skin for host appearance 'web'; layout and DOM stay the page defaults. */
@@ -555,4 +558,32 @@ ${M} .workspace-view-controls button[aria-label="缩小画布"]::before { -webki
 ${M} .workspace-view-controls button[aria-label="放大画布"]::before { -webkit-mask: ${ADD_ICON} center / contain no-repeat; mask: ${ADD_ICON} center / contain no-repeat; }
 ${M} #canvas-context-menu .canvas-menu-separator { height: 1px; margin: 4px 10px; background: var(--web-line); }
 ${M} #canvas-context-menu .canvas-menu-separator[hidden] { display: none; }
+
+/* Mark colour swatches: round chips with a hairline ring so the white swatch stays visible on the light menu. */
+${M} #selection-menu .selection-label { margin: 0 6px 0 4px; color: var(--web-muted); font-size: 12px; font-weight: 500; }
+${M} #selection-menu .mark-color { box-sizing: border-box; width: 22px; min-width: 22px; height: 22px; min-height: 22px; margin: 0 3px; padding: 0; border: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.22); outline: none; }
+${M} #selection-menu .mark-color[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(0,0,0,.22), 0 0 0 2px var(--web-float-bg), 0 0 0 4px var(--web-accent); }
+${M} #selection-menu .mark-color:hover:not([aria-pressed="true"]) { box-shadow: inset 0 0 0 1px rgba(0,0,0,.22), 0 0 0 2px var(--web-float-bg), 0 0 0 3px var(--web-line); }
+
+/* 去背景 / 调整抠图 side panel: two-column form, pill selects, a light track slider with the accent thumb. */
+${M} .background-body > aside { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: min-content; align-content: start; grid-column-gap: 10px; grid-row-gap: 12px; }
+${M} .background-body > aside > * { grid-column: 1 / -1; margin: 0; }
+${M} .background-body > aside > p { color: var(--web-muted); font-size: 12px; line-height: 1.7; }
+${M} .background-body > aside > p[role="status"]:empty { display: none; }
+${M} .background-body > aside > select:first-of-type { grid-column: 1; }
+${M} .background-body > aside > input[type="text"] { grid-column: 2; }
+${M} .background-body > aside > select, ${M} .background-body > aside > input[type="text"] { box-sizing: border-box; width: 100%; max-width: none; height: 36px; margin: 0; padding: 0 12px; border: 1px solid var(--web-composer-line); border-radius: 10px; background-color: var(--web-composer-bg); color: var(--web-composer-ink); font: inherit; font-size: 13px; outline: none; }
+${M} .background-body > aside > select { -webkit-appearance: none; appearance: none; padding-right: 32px; background-image: ${CHEVRON_ICON}; background-repeat: no-repeat; background-position: right 10px center; background-size: 14px 14px; cursor: pointer; }
+${M} .background-body > aside > select:focus, ${M} .background-body > aside > input[type="text"]:focus { border-color: var(--web-accent); }
+${M} .background-body > aside > input[type="text"]::placeholder { color: var(--web-muted); }
+${M} .background-body > aside > button { width: 100%; height: 36px; min-height: 36px; border-radius: 10px; }
+${M} .background-body > aside > .sequence-editor-field { display: block; margin: 4px 0 0; color: var(--web-muted); font-size: 12px; }
+${M} .background-body > aside > .sequence-editor-field > span { display: block; margin-bottom: 8px; }
+${M} .background-body input[type="range"] { -webkit-appearance: none; appearance: none; display: block; box-sizing: border-box; width: 100%; height: 16px; margin: 0; padding: 0; border: 0; background: transparent; cursor: pointer; }
+${M} .background-body input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: var(--web-line); }
+${M} .background-body input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border: 2px solid var(--web-panel); border-radius: 50%; background: var(--web-accent); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+${M} .background-body input[type="range"]::-moz-range-track { height: 4px; border-radius: 999px; background: var(--web-line); }
+${M} .background-body input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 2px solid var(--web-panel); border-radius: 50%; background: var(--web-accent); }
+${M} .background-body input[type="range"]:focus { outline: none; }
+${K} .background-body input[type="range"]:focus::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--web-focus-ring); }
 `;

@@ -3368,6 +3368,34 @@ try {
     const start = await node();
     const frame = card(start.id);
     assert.equal(await frame.locator('.mark-corner').count(), 4);
+    // Every swatch, the white one included, is a round chip with a visible ring on the menu.
+    const swatches = await page
+      .locator('#selection-menu .mark-color')
+      .evaluateAll((items) =>
+        items.map((item) => [
+          getComputedStyle(item).borderRadius,
+          getComputedStyle(item).boxShadow,
+          item.getBoundingClientRect().width,
+        ])
+      );
+    assert.equal(swatches.length, 5);
+    for (const [radius, shadow, width] of swatches) {
+      assert.equal(radius, '50%');
+      assert.notEqual(shadow, 'none', '色块有描边');
+      assert.ok(Math.abs(width - 22) < 0.5);
+    }
+    if (process.env.CANVAS_SCREENSHOT_DIR) {
+      const menuBox = await page.locator('#selection-menu').boundingBox();
+      await page.screenshot({
+        path: path.join(process.env.CANVAS_SCREENSHOT_DIR, 'v14-mark-colors.png'),
+        clip: {
+          x: menuBox.x - 10,
+          y: menuBox.y - 10,
+          width: menuBox.width + 20,
+          height: menuBox.height + 20,
+        },
+      });
+    }
     assert.equal(
       await frame
         .locator('.mark-corner[data-corner="se"]')
