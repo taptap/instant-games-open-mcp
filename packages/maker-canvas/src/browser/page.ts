@@ -1162,6 +1162,63 @@ function applySlotMediaPatches(source: string): string {
   return page;
 }
 /**
+ * 素材丢失: a card whose file can't be read (moved, deleted) keeps its place and shows a status
+ * overlay instead of a blank or broken image. Missing = the host returned no URL for the path, or
+ * the card's <img>/<video> failed to load it; a later successful load clears the mark.
+ */
+function applyMissingMediaPatches(source: string): string {
+  let page = source;
+  const patch = (search: string, replacement: string) => {
+    page = replaceCanvasPageText(page, search, replacement);
+  };
+  patch(
+    '  const media = {};\n',
+    [
+      '  const media = {};',
+      // var: sprite sync and render can run before a later let/const line would.
+      '  var missingMedia = new Set();',
+      "  const MEDIA_CARD_TYPES = ['image', 'video-source', 'sequence', 'animation'];",
+      '  function mediaMissing(node) {',
+      '    const path = node && node.assetPath;',
+      '    if (!path || MEDIA_CARD_TYPES.indexOf(node.type) < 0) return false;',
+      '    return missingMedia.has(path) || (Object.prototype.hasOwnProperty.call(media, path) && !media[path]);',
+      '  }',
+      '  function showMediaMissing(card) {',
+      "    if (card.querySelector('.card-state-overlay')) return;",
+      "    card.classList.add('media-missing');",
+      "    renderCanvasCardStatus(card, 'missing');",
+      '  }',
+      '  function mediaCard(event) {',
+      '    const element = event.target;',
+      "    if (!element || (element.tagName !== 'IMG' && element.tagName !== 'VIDEO') || !element.closest) return null;",
+      "    const card = element.closest('.card[data-id]');",
+      '    const node = card && documentState && documentState.nodes.find(function (item) { return item.id === card.dataset.id; });',
+      '    if (!node || !node.assetPath || MEDIA_CARD_TYPES.indexOf(node.type) < 0) return null;',
+      // Only the card's own file counts; e.g. a first-frame preview of another card is ignored.
+      "    const src = element.getAttribute('src');",
+      '    if (!src || (src !== media[node.assetPath] && src !== store.mediaUrl(node.assetPath))) return null;',
+      '    return { card: card, node: node };',
+      '  }',
+      "  world.addEventListener('error', function (event) { const hit = mediaCard(event); if (!hit || missingMedia.has(hit.node.assetPath)) return; missingMedia.add(hit.node.assetPath); showMediaMissing(hit.card); }, true);",
+      "  ['load', 'loadedmetadata'].forEach(function (name) { world.addEventListener(name, function (event) { const hit = mediaCard(event); if (hit && missingMedia.delete(hit.node.assetPath)) render(); }, true); });",
+      '',
+    ].join('\n')
+  );
+  patch(
+    'media[assetPath] = mediaUrl(assetPath);',
+    'missingMedia.delete(assetPath); media[assetPath] = mediaUrl(assetPath);'
+  );
+  patch(
+    '      world.append(card);',
+    '      if (mediaMissing(node)) showMediaMissing(card);\n      world.append(card);'
+  );
+  patch(
+    '</style>',
+    '.card.media-missing img, .card.media-missing video { visibility:hidden; }\n</style>'
+  );
+  return page;
+}
+/**
  * Web 图生精灵: 「生成精灵」 creates the group and hands off to the host chat; a page-owned sync
  * mirrors sprite-gen's files into read-only cards (features/spriteMirror.ts). Sync edits are not
  * undo steps and never write sprite-gen's trees.
@@ -1203,15 +1260,18 @@ function applySpriteGenPatches(source: string): string {
       // Cards only appear once the host can serve their file; known files re-read after a change.
       '    for (const card of reconcileSpriteMirror(input).cards) {',
       '      if (!store.prepareMedia || (media[card.assetPath] && !filesChanged)) continue;',
-      '      try { await store.prepareMedia(card.assetPath, Boolean(media[card.assetPath])); if (!store.mediaUrl(card.assetPath)) missing.push(card.assetPath); }',
+      '      try { await store.prepareMedia(card.assetPath, Boolean(media[card.assetPath])); if (!store.mediaUrl(card.assetPath)) missing.push(card.assetPath); else missingMedia.delete(card.assetPath); }',
       '      catch (caught) { missing.push(card.assetPath); }',
       '    }',
+      '    missing.forEach(function (path) { missingMedia.add(path); });',
       '    const current = documentState;',
       // A drag or canvas switch wins; spriteSeen stays stale so the next sync applies it.
       '    if (!current || current.id !== doc.id || drag || canvasOpening) return;',
       "    const live = current.nodes.find(function (node) { return node.id === sectionId && node.type === 'section' && node.spriteGen && node.spriteGen.name === name; });",
       '    if (!live) return;',
-      '    const plan = reconcileSpriteMirror(Object.assign({}, input, { missing: missing, dismissed: live.spriteGen.dismissed }));',
+      // Cards already on the canvas stay when their file goes missing and show 素材丢失.
+      "    const existing = current.nodes.filter(function (node) { return node.mirror && node.mirror.source === 'sprite-gen' && node.mirror.name === name && node.sectionId === sectionId; }).map(function (node) { return node.mirror.key; });",
+      '    const plan = reconcileSpriteMirror(Object.assign({}, input, { missing: missing, existing: existing, dismissed: live.spriteGen.dismissed }));',
       '    const edited = applySpriteMirror(current, sectionId, plan, function () { return crypto.randomUUID(); });',
       '    current.nodes.forEach(function (node) { if (node.mirror && node.sectionId === sectionId && node.assetPath) media[node.assetPath] = store.mediaUrl(node.assetPath); });',
       "    spriteStatus.set(sectionId, plan.stage); spriteFiles.set(sectionId, signature); spriteSeen.set(sectionId, signature + '\\n' + spriteDocKey(current, sectionId));",
@@ -3581,6 +3641,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = applyWebCardUxPatches(page);
   page = applySlotMediaPatches(page);
   page = applySpriteGenPatches(page);
+  page = applyMissingMediaPatches(page);
   // Keep template anchors from rewriting function bodies inside injected helpers.
   page = page.replace('/*__HELPERS__*/', () => helperSource);
   return page.replace(

@@ -302,6 +302,14 @@ function testHostScript() {
     };
     if (!config.videoStore) delete store.videoHistory;
     window.__canvasSetMedia = (target, blob) => media.set(target, URL.createObjectURL(blob));
+    // Simulates a file moved or deleted outside the canvas; resolves its bytes for restoring.
+    window.__canvasDropMedia = async (target) => {
+      const url = media.get(target);
+      const blob = url ? await (await fetch(url)).blob() : null;
+      if (url) URL.revokeObjectURL(url);
+      media.delete(target);
+      return blob;
+    };
     // Maker Web sprite mirror contract: read-only project JSON (404 when absent) and media probes.
     if (config.projectJson) {
       store.readProjectJson = async (target) => {
@@ -5570,6 +5578,49 @@ try {
       byKey = await mirrors();
       assert.equal(byKey['viewpoint:assets/image/vp_2.png'], undefined);
       assert.equal(Object.keys(byKey).length, 3);
+      // A file moved away keeps its card as 素材丢失; moving it back restores the image.
+      const lost = byKey['viewpoint:assets/image/vp_1.png'];
+      const touchProgress = (stamp) =>
+        page.evaluate(
+          ({ progressPath, stamp }) => {
+            window.__canvasProjectJson[progressPath].updated_at = stamp;
+            return window.__canvasEditor.syncSprites();
+          },
+          { progressPath, stamp }
+        );
+      const kept = await page.evaluate(async (sourcePath) => {
+        const blob = await window.__canvasDropMedia('assets/image/vp_1.png');
+        window.__canvasKeptBlob = blob;
+        // A plain (non-mirror) card whose file is gone: its <img> fails on the next render.
+        await window.__canvasDropMedia(sourcePath);
+        return Boolean(blob);
+      }, source.assetPath);
+      assert.ok(kept);
+      await touchProgress('t1');
+      await card(lost.id).locator('.card-state-missing').waitFor();
+      await card(source.id).locator('.card-state-missing').waitFor();
+      assert.ok(
+        (await current()).nodes.some((node) => node.id === lost.id),
+        '丢失的卡片保留'
+      );
+      assert.match(await card(lost.id).locator('.card-state-missing').textContent(), /素材丢失/);
+      await page.mouse.move(10, 10);
+      // shoot() waits for every image to decode, which a missing file never does.
+      if (process.env.CANVAS_SCREENSHOT_DIR)
+        await themes(page, (theme) =>
+          page.screenshot({
+            path: path.join(
+              process.env.CANVAS_SCREENSHOT_DIR,
+              'v20-sprite-missing-' + theme + '.png'
+            ),
+          })
+        );
+      await page.evaluate(() =>
+        window.__canvasSetMedia('assets/image/vp_1.png', window.__canvasKeptBlob)
+      );
+      await touchProgress('t2');
+      await card(lost.id).locator('img').waitFor();
+      assert.equal(await card(lost.id).locator('.card-state-missing').count(), 0);
       // Mirrors are only read: the sync asked for these files and wrote nothing back.
       const reads = await page.evaluate(() => window.__canvasCalls.json);
       assert.ok(reads.includes(progressPath) && reads.includes('assets/sprites/hero/sprite.json'));

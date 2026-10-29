@@ -259,6 +259,8 @@ export interface CanvasSpriteMirrorCard {
   parent?: string;
   edgeKind?: CanvasEdgeKind;
   frameSetInfo?: FrameSetInfo;
+  /** The card is already on the canvas but its file can no longer be read; shown as 素材丢失. */
+  missing?: boolean;
 }
 export interface CanvasSpriteMirrorPlan {
   status: 'missing' | 'ok' | 'unsupported' | 'error';
@@ -270,7 +272,8 @@ export interface CanvasSpriteMirrorPlan {
 
 /**
  * Pure reconcile: sprite-gen files in, desired mirror cards out. `missing` lists asset paths the
- * host could not read; those cards are skipped and their children link to the nearest ancestor.
+ * host could not read: a new card is skipped (children link to the nearest ancestor) until its
+ * file lands, while a card listed in `existing` stays and is flagged `missing`.
  */
 export function reconcileSpriteMirror(input: {
   name: string;
@@ -283,6 +286,8 @@ export function reconcileSpriteMirror(input: {
   sheets?: Record<string, unknown>;
   dismissed?: string[];
   missing?: string[];
+  /** Mirror keys already on the canvas. */
+  existing?: string[];
 }): CanvasSpriteMirrorPlan {
   const record = (value: unknown): value is Record<string, any> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -440,8 +445,10 @@ export function reconcileSpriteMirror(input: {
   }
   const dismissed = input.dismissed || [];
   const missing = input.missing || [];
+  const existing = input.existing || [];
+  const lost = (card: Raw) => missing.indexOf(card.assetPath) >= 0;
   const kept = raw.filter(
-    (card) => dismissed.indexOf(card.key) < 0 && missing.indexOf(card.assetPath) < 0
+    (card) => dismissed.indexOf(card.key) < 0 && (!lost(card) || existing.indexOf(card.key) >= 0)
   );
   const types: Record<string, CanvasSpriteMirrorCard['type']> = { source: 'image' };
   kept.forEach((card) => (types[card.key] = card.type));
@@ -470,6 +477,7 @@ export function reconcileSpriteMirror(input: {
       result.edgeKind = edgeKind;
     }
     if (card.frameSetInfo) result.frameSetInfo = card.frameSetInfo;
+    if (lost(card)) result.missing = true;
     return result;
   });
   return { status, stage, authoritative: status === 'ok', cards };
