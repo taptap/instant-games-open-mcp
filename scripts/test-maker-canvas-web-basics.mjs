@@ -5493,7 +5493,11 @@ try {
       assert.equal(header.meta, 'none', '精灵分组不显示卡片数');
       assert.match(header.tip, /请在对话中确认/);
       await card(byKey.ready.id).locator('img').waitFor();
-      assert.ok(byKey['viewpoint:assets/image/vp_1.png'].y > byKey.ready.y, '候选在下一行');
+      // Tree layout: candidates fan out in the column right of the ready image.
+      const [vp1, vp2] = ['vp_1', 'vp_2'].map((n) => byKey['viewpoint:assets/image/' + n + '.png']);
+      assert.ok(vp1.x > byKey.ready.x + byKey.ready.width, '候选在主参考图右侧');
+      assert.equal(vp1.x, vp2.x, '候选同列');
+      assert.ok(vp2.y >= vp1.y + vp1.height, '候选向下排开');
       const grown = (await current()).nodes.find((node) => node.id === section.id);
       const vp = byKey['viewpoint:assets/image/vp_2.png'];
       assert.ok(
@@ -5620,6 +5624,8 @@ try {
       assert.equal(byKey['sequence:walk'].sourceVideoId, byKey['video:walk'].id);
       assert.equal(byKey['animation:walk'].frameSetInfo.frames[1].offsetX, 6);
       assert.equal(await spriteBadge(page, section.id), '已完成');
+      // The tree grows to the right (source → video → sequence → animation); fit it on screen.
+      await page.locator('#fit-canvas').click();
       const sequence = card(byKey['sequence:walk'].id);
       await sequence.locator('.sequence-result-grid canvas').nth(1).waitFor();
       assert.equal(await sequence.locator('.sequence-result-grid canvas').count(), 2);

@@ -596,87 +596,134 @@ export function applySpriteMirror(
     sequence: [360, 280],
     animation: [260, 300],
   };
-  const gap = 48;
-  const left = origin ? origin.x : section.x + 28;
-  let top = origin ? origin.y : section.y + 68;
+  const gapX = 56;
+  const gapY = 40;
   const ids: Record<string, string> = {};
   if (source) ids.source = source.id;
-  const rows = plan.cards
-    .map((card) => card.row)
-    .filter((row, index, list) => list.indexOf(row) === index)
-    .sort((a, b) => a - b);
-  for (const row of rows) {
-    let x = row === 0 && origin ? origin.x + origin.width + gap : left;
-    let bottom = row === 0 && origin ? origin.y + origin.height : top;
-    for (const card of plan.cards.filter((item) => item.row === row)) {
-      let node = Object.prototype.hasOwnProperty.call(existing, card.key)
-        ? existing[card.key]
-        : undefined;
-      if (node) {
-        if (node.assetPath !== card.assetPath) {
-          node.assetPath = card.assetPath;
-          delete node.assetVersion;
-          delete node.imageInfo;
-          delete node.videoInfo;
-          changed = true;
-        }
-        if (
-          card.frameSetInfo &&
-          JSON.stringify(node.frameSetInfo) !== JSON.stringify(card.frameSetInfo)
-        ) {
-          node.frameSetInfo = JSON.parse(JSON.stringify(card.frameSetInfo));
-          changed = true;
-        }
-        bottom = Math.max(bottom, node.y + node.height);
-      } else {
-        const size = sizes[card.type];
-        node = {
-          id: createId(),
-          type: card.type,
-          x: Math.round(x),
-          y: Math.round(top),
-          width: size[0],
-          height: size[1],
-          title: card.title,
-          sectionId: section.id,
-          assetPath: card.assetPath,
-          mirror: { source: 'sprite-gen', name: sprite.name, key: card.key },
-        };
-        if (card.frameSetInfo) node.frameSetInfo = JSON.parse(JSON.stringify(card.frameSetInfo));
-        if (card.type === 'sequence' && card.frameSetInfo) {
-          const info = card.frameSetInfo;
-          const last = info.frames[info.frames.length - 1];
-          // Display-only settings so the shared sequence card renders; mirrors never re-run them.
-          node.sequenceSettings = {
-            start: 0,
-            end: Math.round((last.time + (last.duration || 1000 / info.fps) / 1000) * 1000) / 1000,
-            fps: info.fps,
-            cutout: false,
-            backgroundColor: '#000000',
-            tolerance: 0,
-            duplicateThreshold: 0,
-            width: Math.max.apply(
-              null,
-              info.frames.map((frame) => frame.sourceWidth || frame.width)
-            ),
-            height: Math.max.apply(
-              null,
-              info.frames.map((frame) => frame.sourceHeight || frame.height)
-            ),
-            fit: 'contain',
-            pixel: false,
-          };
-        }
-        document.nodes.push(node);
-        existing[card.key] = node;
+  const fresh: Record<string, boolean> = {};
+  for (const card of plan.cards) {
+    let node = Object.prototype.hasOwnProperty.call(existing, card.key)
+      ? existing[card.key]
+      : undefined;
+    if (node) {
+      if (node.assetPath !== card.assetPath) {
+        node.assetPath = card.assetPath;
+        delete node.assetVersion;
+        delete node.imageInfo;
+        delete node.videoInfo;
         changed = true;
-        bottom = Math.max(bottom, top + node.height);
       }
-      ids[card.key] = node.id;
-      x += node.width + gap;
+      if (
+        card.frameSetInfo &&
+        JSON.stringify(node.frameSetInfo) !== JSON.stringify(card.frameSetInfo)
+      ) {
+        node.frameSetInfo = JSON.parse(JSON.stringify(card.frameSetInfo));
+        changed = true;
+      }
+    } else {
+      const size = sizes[card.type];
+      node = {
+        id: createId(),
+        type: card.type,
+        x: 0,
+        y: 0,
+        width: size[0],
+        height: size[1],
+        title: card.title,
+        sectionId: section.id,
+        assetPath: card.assetPath,
+        mirror: { source: 'sprite-gen', name: sprite.name, key: card.key },
+      };
+      if (card.frameSetInfo) node.frameSetInfo = JSON.parse(JSON.stringify(card.frameSetInfo));
+      if (card.type === 'sequence' && card.frameSetInfo) {
+        const info = card.frameSetInfo;
+        const last = info.frames[info.frames.length - 1];
+        // Display-only settings so the shared sequence card renders; mirrors never re-run them.
+        node.sequenceSettings = {
+          start: 0,
+          end: Math.round((last.time + (last.duration || 1000 / info.fps) / 1000) * 1000) / 1000,
+          fps: info.fps,
+          cutout: false,
+          backgroundColor: '#000000',
+          tolerance: 0,
+          duplicateThreshold: 0,
+          width: Math.max.apply(
+            null,
+            info.frames.map((frame) => frame.sourceWidth || frame.width)
+          ),
+          height: Math.max.apply(
+            null,
+            info.frames.map((frame) => frame.sourceHeight || frame.height)
+          ),
+          fit: 'contain',
+          pixel: false,
+        };
+      }
+      document.nodes.push(node);
+      existing[card.key] = node;
+      changed = true;
+      fresh[card.key] = true;
     }
-    top = bottom + gap;
+    ids[card.key] = node.id;
   }
+  // Left-to-right tree: each card sits one column right of the card it came from; siblings stack
+  // downward under the first child, so candidates fan out from their parent instead of a new row.
+  const children: Record<string, CanvasSpriteMirrorCard[]> = {};
+  const roots: CanvasSpriteMirrorCard[] = [];
+  for (const card of plan.cards) {
+    if (card.parent && (card.parent === 'source' ? Boolean(origin) : Boolean(ids[card.parent])))
+      (children[card.parent] = children[card.parent] || []).push(card);
+    else roots.push(card);
+  }
+  const depth: Record<string, number> = {};
+  const widths: number[] = [];
+  const measure = (key: string, level: number) => {
+    depth[key] = level;
+    const node = key === 'source' ? source : existing[key];
+    if (node) widths[level] = Math.max(widths[level] || 0, node.width);
+    (children[key] || []).forEach((child) => measure(child.key, level + 1));
+  };
+  const start = origin ? 0 : 1;
+  if (origin) measure('source', 0);
+  roots.forEach((card) => measure(card.key, start));
+  const columnX = (level: number) => {
+    let x = origin ? origin.x : section.x + 28;
+    for (let index = start; index < level; index++) x += (widths[index] || 0) + gapX;
+    return x;
+  };
+  // Cards from before the tree layout have no `placed`: lay them out once as well.
+  const follows = (node: CanvasNode) => {
+    const placed = node.mirror!.placed;
+    return Boolean(
+      fresh[node.mirror!.key] || !placed || (placed.x === node.x && placed.y === node.y)
+    );
+  };
+  const place = (key: string, y: number): number => {
+    const node = key === 'source' ? source! : existing[key];
+    if (key !== 'source' && follows(node)) {
+      const x = Math.round(columnX(depth[key]));
+      const top = Math.round(y);
+      if (node.x !== x || node.y !== top) {
+        node.x = x;
+        node.y = top;
+        changed = true;
+      }
+      if (!node.mirror!.placed || node.mirror!.placed.x !== x || node.mirror!.placed.y !== top) {
+        node.mirror!.placed = { x, y: top };
+        changed = true;
+      }
+    }
+    let cursor = node.y;
+    let bottom = node.y + node.height;
+    for (const child of children[key] || []) {
+      bottom = Math.max(bottom, place(child.key, cursor));
+      cursor = bottom + gapY;
+    }
+    return bottom;
+  };
+  let cursor = origin ? origin.y : section.y + 68;
+  if (origin) cursor = place('source', origin.y) + gapY;
+  for (const card of roots) cursor = place(card.key, cursor) + gapY;
   const mirrorIds = document.nodes.filter(mine).map((node) => node.id);
   const desired = plan.cards
     .filter((card) => card.parent && card.edgeKind)

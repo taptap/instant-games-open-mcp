@@ -163,6 +163,11 @@ export interface CanvasSpriteGen {
 export interface CanvasMirror {
   source: 'sprite-gen';
   name: string;
+  /**
+   * Position the last sync laid the card out at. While the card still sits there it follows the
+   * tree layout; once the user moves it, sync leaves it where it is.
+   */
+  placed?: { x: number; y: number };
   /** Stable per-output key, e.g. ready, viewpoint:<path>, video:<animId>. */
   key: string;
 }

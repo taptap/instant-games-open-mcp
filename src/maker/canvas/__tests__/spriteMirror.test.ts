@@ -280,7 +280,9 @@ test('apply lays out new cards, links edges, updates in place and drops stale on
   const ready = doc.nodes.find((node) => node.mirror?.key === 'ready')!;
   const viewpoint = doc.nodes.find((node) => node.mirror?.key.startsWith('viewpoint:'))!;
   expect(ready.x).toBeGreaterThan(300);
-  expect(viewpoint.y).toBeGreaterThan(ready.y);
+  // Tree layout: the candidate is one column right of the card it came from, top-aligned.
+  expect(viewpoint.x).toBeGreaterThan(ready.x + ready.width);
+  expect(viewpoint.y).toBe(ready.y);
   expect(doc.edges).toContainEqual(expect.objectContaining({ to: viewpoint.id, from: ready.id }));
   const section2 = doc.nodes.find((node) => node.id === 'sec')!;
   expect(section2.y + section2.height).toBeGreaterThanOrEqual(viewpoint.y + viewpoint.height);
@@ -293,6 +295,35 @@ test('apply lays out new cards, links edges, updates in place and drops stale on
   expect(doc.nodes.find((node) => node.mirror?.key === 'ready')!.id).toBe(ready.id);
 });
 
+test('tree layout fans siblings out downward and keeps cards the user moved', () => {
+  const doc = documentWithSource();
+  createSpriteSection(doc, 'src', 'hero', 'character', 'sec', 1);
+  let id = 0;
+  const createId = () => 'n' + id++;
+  const plan = reconcileSpriteMirror({
+    name: 'hero',
+    progress: progress('viewpoint_select', {
+      flags: { viewpoint_candidates: ['assets/image/vp_1.png', 'assets/image/vp_2.png'] },
+    }),
+  });
+  applySpriteMirror(doc, 'sec', plan, createId);
+  const key = (prefix: string) => doc.nodes.filter((node) => node.mirror?.key.startsWith(prefix));
+  const [chain, ready] = [key('cutout_ref')[0], key('ready')[0]];
+  const source = doc.nodes.find((node) => node.id === 'src')!;
+  // source → cutout_ref → … → ready stay on one line, left to right.
+  expect(chain.y).toBe(source.y);
+  expect(chain.x).toBeGreaterThan(source.x + source.width);
+  const [first, second] = key('viewpoint:');
+  expect(first.x).toBe(second.x);
+  expect(first.x).toBeGreaterThan(ready.x + ready.width);
+  expect(second.y).toBeGreaterThanOrEqual(first.y + first.height);
+  // A moved card is left alone; a card still at its laid-out spot keeps following the layout.
+  first.x += 500;
+  const movedX = first.x;
+  applySpriteMirror(doc, 'sec', plan, createId);
+  expect(first.x).toBe(movedX);
+  expect(second.x).toBe(first.mirror!.placed!.x);
+});
 test('trimmed sheet frames keep their offsets, durations and page count', () => {
   const parsed = canvasSpriteFrameSet(trimmedSheet(1))!;
   expect(parsed.image).toBe('spritesheet.png');
