@@ -1,6 +1,6 @@
 ---
 name: maker-ui-bbox-workflow
-description: 执行或复核修复 Maker「游戏UI制作 · Bbox预排参考图（实验）」及其个人副本：一次 run 由画布程序自动跑完识图、预排、分离、切图、组装、meta 与检查，AI 再逐批看图、定向修复并在 UI 编辑器验收，直到交付完整。仅要求切图时交付 PNG 资源包；普通「游戏UI制作」使用 maker-ui-workflow。
+description: 执行或复核修复 Maker「游戏UI制作 · Bbox预排参考图」及其个人副本：一次 run 由画布程序自动跑完识图、预排、分离、切图、组装、meta 与检查，AI 再逐批看图、定向修复并在 UI 编辑器验收，直到交付完整。仅要求切图时交付 PNG 资源包；普通「游戏UI制作」使用 maker-ui-workflow。
 ---
 
 # Bbox 预排 UI 工作流

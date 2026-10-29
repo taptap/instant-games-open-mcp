@@ -87,7 +87,7 @@ try {
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
   page.setDefaultTimeout(7000);
   page.on('pageerror', (error) => browserErrors.push(error.message));
-  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000013');
+  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000015');
   const prepared = await files.prepareTemplate(template.id, canvas.id);
   const custom = await files.saveTemplate({
     ...prepared,
@@ -115,13 +115,13 @@ try {
   }
   await page.locator('.template-search').fill(template.name);
   const skillLink = page.locator(
-    '[data-template-id="7e1cb6ad-732f-4dc3-a951-000000000013"] .template-card-metadata a'
+    '[data-template-id="7e1cb6ad-732f-4dc3-a951-000000000015"] .template-card-metadata a'
   );
-  assert.equal(await skillLink.innerText(), 'Skill · maker-ui-workflow');
+  assert.equal(await skillLink.innerText(), 'Skill · maker-ui-bbox-workflow');
   assert.equal(await skillLink.getAttribute('target'), '_blank');
   const skillUrl = new URL(await skillLink.getAttribute('href'), server.origin);
   assert.equal(skillUrl.searchParams.get('project'), entry.key);
-  assert.equal(skillUrl.searchParams.get('skill'), 'maker-ui-workflow');
+  assert.equal(skillUrl.searchParams.get('skill'), 'maker-ui-bbox-workflow');
   assert.equal(skillUrl.searchParams.get('page'), 'documents');
 
   await open(template.id);
@@ -302,7 +302,7 @@ try {
       response.request().method() === 'PUT'
   );
   await page
-    .locator('[data-template-id="7e1cb6ad-732f-4dc3-a951-000000000013"] .template-add')
+    .locator('[data-template-id="7e1cb6ad-732f-4dc3-a951-000000000015"] .template-add')
     .click();
   await page.waitForFunction(() => !document.querySelector('.template-library[open]'));
   assert.equal((await saved).status(), 200);
@@ -313,12 +313,9 @@ try {
   const cut = restored.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free');
   assert.equal(cut.uiRecognition.results.length, 0);
   assert.equal(cut.templatePending, true);
-  for (const atlas of restored.nodes.filter((node) => node.uiAtlasGroup)) {
-    assert(atlas.uiBaselineGrid, 'new UI template must retain the no-recognition grid');
-    assert(!/E[0-9]{3}|1920x1080|2048x1152/.test(atlas.generation.prompt));
-    assert.equal(atlas.uiAtlasPlan, undefined, 'new instance must not reuse example slots');
-  }
-  assert(restored.edges.some((edge) => edge.from === recognition.id && edge.to === cut.id));
+  assert.equal(restored.nodes.length, 4);
+  assert.equal(restored.nodes.filter((node) => node.uiAtlasGroup).length, 0);
+  assert.equal(restored.nodes.find((node) => node.type === 'section').templateCliOnly, true);
   assert.equal(paidRequests, 0);
   assert.deepEqual(browserErrors, []);
   console.log(

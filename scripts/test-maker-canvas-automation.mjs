@@ -290,7 +290,7 @@ try {
   await success('delete-nodes', { ids: [inputVideo, temporaryGroup] });
   const templates = await cli('templates');
   assert.ok(templates.presets.length);
-  assert.deepEqual(templates.presets.find(t => t.name === '游戏UI制作').skills, ['maker-ui-workflow']);
+  assert.deepEqual(templates.presets.find(t => t.name === '游戏UI制作 · Bbox预排参考图').skills, ['maker-ui-bbox-workflow']);
   await success('add-template', { id: templates.presets[0].id });
   assert.ok(current.nodes.some((node) => node.type === 'section'));
   const sequence = current.nodes.find((node) => node.type === 'sequence');
