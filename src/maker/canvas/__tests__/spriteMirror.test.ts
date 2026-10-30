@@ -159,31 +159,50 @@ test('mid-flow progress yields prep, viewpoint and pose cards linked in order', 
       },
     }),
     missing: [base + '_gen_images/cutout.png'],
+    readyFrom: 'assets/image/vp_2.png',
   });
   expect(plan).toMatchObject({ status: 'ok', authoritative: true });
   expect(plan.stage.label).toBe('选择姿态 · 待确认');
   const byKey = Object.fromEntries(plan.cards.map((card) => [card.key, card]));
   expect(Object.keys(byKey)).toEqual([
     'cutout_ref',
-    'ready',
     'viewpoint:assets/image/vp_1.png',
     'viewpoint:assets/image/vp_2.png',
+    'ready',
     'pose:aerial:assets/image/aerial_1.png',
     'pose:aerial:assets/image/aerial_2.png',
     'pose-selected:aerial',
   ]);
   expect(byKey.cutout_ref).toMatchObject({ parent: 'source', edgeKind: 'image-variant', row: 0 });
-  // cutout.png is missing, so ready links to the nearest available ancestor.
+  // cutout.png is missing, so the candidates link to the nearest available ancestor.
+  expect(byKey['viewpoint:assets/image/vp_1.png']).toMatchObject({ parent: 'cutout_ref', row: 1 });
+  // ready.png is the chosen candidate (vp_2): 候选 → 主参考图.
   expect(byKey.ready).toMatchObject({
-    parent: 'cutout_ref',
+    parent: 'viewpoint:assets/image/vp_2.png',
     assetPath: base + '_gen_images/ready.png',
   });
-  expect(byKey['viewpoint:assets/image/vp_1.png']).toMatchObject({ parent: 'ready', row: 1 });
   expect(byKey['pose-selected:aerial']).toMatchObject({
     assetPath: base + '_gen_images/aerial.png',
     parent: 'ready',
     row: 2,
   });
+});
+
+test('while a viewpoint is being chosen, ready.png (still the prep input) gets no card', () => {
+  const plan = reconcileSpriteMirror({
+    name: 'hero',
+    progress: progress('viewpoint_select', {
+      flags: { viewpoint_candidates: ['assets/image/vp_1.png'] },
+    }),
+  });
+  expect(plan.cards.map((card) => [card.key, card.parent])).toEqual([
+    ['cutout_ref', 'source'],
+    ['cutout', 'cutout_ref'],
+    ['viewpoint:assets/image/vp_1.png', 'cutout'],
+  ]);
+  // Without viewpoint candidates the flow has no choice step: ready follows the cutout.
+  const direct = reconcileSpriteMirror({ name: 'hero', progress: progress('plan') });
+  expect(direct.cards.find((card) => card.key === 'ready')).toMatchObject({ parent: 'cutout' });
 });
 
 test('per-animation video and sheet become video → sequence → animation', () => {
@@ -278,23 +297,25 @@ test('apply lays out new cards, links edges, updates in place and keeps unlisted
     }),
   });
   expect(applySpriteMirror(doc, 'sec', first, createId)).toBe(true);
-  const ready = doc.nodes.find((node) => node.mirror?.key === 'ready')!;
+  const cutout = doc.nodes.find((node) => node.mirror?.key === 'cutout')!;
   const viewpoint = doc.nodes.find((node) => node.mirror?.key.startsWith('viewpoint:'))!;
-  expect(ready.x).toBeGreaterThan(300);
-  // Tree layout: the candidate is one column right of the card it came from, top-aligned.
-  expect(viewpoint.x).toBeGreaterThan(ready.x + ready.width);
-  expect(viewpoint.y).toBe(ready.y);
-  expect(doc.edges).toContainEqual(expect.objectContaining({ to: viewpoint.id, from: ready.id }));
+  expect(cutout.x).toBeGreaterThan(300);
+  // Tree layout: the candidate is one column right of the card it came from, same centre line.
+  expect(viewpoint.x).toBeGreaterThan(cutout.x + cutout.width);
+  expect(viewpoint.y + viewpoint.height / 2).toBe(cutout.y + cutout.height / 2);
+  expect(doc.edges).toContainEqual(expect.objectContaining({ to: viewpoint.id, from: cutout.id }));
   const section2 = doc.nodes.find((node) => node.id === 'sec')!;
   expect(section2.y + section2.height).toBeGreaterThanOrEqual(viewpoint.y + viewpoint.height);
   expect(applySpriteMirror(doc, 'sec', first, createId)).toBe(false);
-  // The viewpoint was chosen and candidates cleared: sync only adds, so the card and its edge stay.
-  const edges = JSON.stringify(doc.edges);
+  // The viewpoint was chosen and candidates cleared: sync only adds, so the card and its edge stay
+  // and 主参考图 now appears.
+  const edges = doc.edges.map((edge) => edge.id);
   const second = reconcileSpriteMirror({ name: 'hero', progress: progress('plan') });
-  expect(applySpriteMirror(doc, 'sec', second, createId)).toBe(false);
+  expect(applySpriteMirror(doc, 'sec', second, createId)).toBe(true);
   expect(doc.nodes.some((node) => node.id === viewpoint.id)).toBe(true);
-  expect(JSON.stringify(doc.edges)).toBe(edges);
-  expect(doc.nodes.find((node) => node.mirror?.key === 'ready')!.id).toBe(ready.id);
+  expect(edges.every((edge) => doc.edges.some((item) => item.id === edge))).toBe(true);
+  expect(doc.nodes.find((node) => node.mirror?.key === 'cutout')!.id).toBe(cutout.id);
+  expect(doc.nodes.some((node) => node.mirror?.key === 'ready')).toBe(true);
 });
 
 test('edges are only added: a late intermediate never rewires, a removed edge stays removed', () => {
@@ -305,7 +326,7 @@ test('edges are only added: a late intermediate never rewires, a removed edge st
   const state = progress('viewpoint_select', {
     flags: { viewpoint_candidates: ['assets/image/vp_1.png'] },
   });
-  // cutout.png not readable yet: ready links to cutout_ref.
+  // cutout.png not readable yet: the candidate links to cutout_ref.
   applySpriteMirror(
     doc,
     'sec',
@@ -317,23 +338,23 @@ test('edges are only added: a late intermediate never rewires, a removed edge st
     createId
   );
   const byKey = (key: string) => doc.nodes.find((node) => node.mirror?.key === key)!;
+  const viewpoint = byKey('viewpoint:assets/image/vp_1.png');
   const before = JSON.stringify(doc.edges);
   expect(doc.edges).toContainEqual(
-    expect.objectContaining({ from: byKey('cutout_ref').id, to: byKey('ready').id })
+    expect.objectContaining({ from: byKey('cutout_ref').id, to: viewpoint.id })
   );
-  // cutout lands: it gets its own edge, ready's edge is left as it was.
+  // cutout lands: it gets its own edge, the candidate's edge is left as it was.
   applySpriteMirror(doc, 'sec', reconcileSpriteMirror({ name: 'hero', progress: state }), createId);
   const added = doc.edges.filter((edge) => before.indexOf(edge.id) < 0);
   expect(added).toEqual([
     expect.objectContaining({ from: byKey('cutout_ref').id, to: byKey('cutout').id }),
   ]);
-  expect(doc.edges.filter((edge) => edge.to === byKey('ready').id)).toHaveLength(1);
-  // The user deletes the viewpoint's edge: later syncs do not put it back.
-  const viewpoint = byKey('viewpoint:assets/image/vp_1.png');
+  expect(doc.edges.filter((edge) => edge.to === viewpoint.id)).toHaveLength(1);
+  // The user deletes the candidate's edge: later syncs do not put it back.
   doc.edges = doc.edges.filter((edge) => edge.to !== viewpoint.id);
   applySpriteMirror(doc, 'sec', reconcileSpriteMirror({ name: 'hero', progress: state }), createId);
   expect(doc.edges.some((edge) => edge.to === viewpoint.id)).toBe(false);
-  // 重新整理 rebuilds lines from the plan: the removed line is back and ready links to cutout now.
+  // 重新整理 rebuilds lines from the plan: the candidate links to cutout now.
   viewpoint.x += 900;
   applySpriteMirror(
     doc,
@@ -342,14 +363,12 @@ test('edges are only added: a late intermediate never rewires, a removed edge st
     createId,
     { tidy: true }
   );
-  expect(doc.edges).toContainEqual(
-    expect.objectContaining({ from: byKey('ready').id, to: viewpoint.id })
-  );
-  expect(doc.edges.filter((edge) => edge.to === byKey('ready').id)).toEqual([
+  expect(doc.edges.filter((edge) => edge.to === viewpoint.id)).toEqual([
     expect.objectContaining({ from: byKey('cutout').id }),
   ]);
-  expect(viewpoint.x).toBeGreaterThan(byKey('ready').x + byKey('ready').width);
-  expect(viewpoint.x).toBeLessThan(byKey('ready').x + byKey('ready').width + 200);
+  const cutout = byKey('cutout');
+  expect(viewpoint.x).toBeGreaterThan(cutout.x + cutout.width);
+  expect(viewpoint.x).toBeLessThan(cutout.x + cutout.width + 200);
   const section = doc.nodes.find((node) => node.id === 'sec')!;
   expect(section.x + section.width).toBeLessThan(viewpoint.x + viewpoint.width + 100);
 });
@@ -382,9 +401,9 @@ test('tree layout fans siblings out downward and keeps cards the user moved', ()
   });
   applySpriteMirror(doc, 'sec', plan, createId);
   const key = (prefix: string) => doc.nodes.filter((node) => node.mirror?.key.startsWith(prefix));
-  const [chain, ready] = [key('cutout_ref')[0], key('ready')[0]];
+  const [chain, ready] = [key('cutout_ref')[0], key('cutout')[0]];
   const source = doc.nodes.find((node) => node.id === 'src')!;
-  // source → cutout_ref → … → ready share one horizontal centre line, left to right.
+  // source → cutout_ref → cutout share one horizontal centre line, left to right.
   const middle = (node: { y: number; height: number }) => node.y + node.height / 2;
   expect(middle(chain)).toBe(middle(source));
   expect(middle(ready)).toBe(middle(source));

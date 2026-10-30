@@ -5467,9 +5467,10 @@ try {
       await page.evaluate(
         async ({ base }) => {
           await window.__canvasAddMedia('#e8e4dc', 96, 96, base + 'cutout_ref.png');
-          await window.__canvasAddMedia('#3a7', 96, 96, base + 'ready.png');
           await window.__canvasAddMedia('#36c', 96, 128, 'assets/image/vp_1.png');
           await window.__canvasAddMedia('#c63', 96, 128, 'assets/image/vp_2.png');
+          // sprite-gen copies the chosen viewpoint (vp_2) onto ready.png.
+          await window.__canvasAddMedia('#c63', 96, 128, base + 'ready.png');
         },
         { base }
       );
@@ -5478,7 +5479,7 @@ try {
         ({ progressPath, progress }) => (window.__canvasProjectJson = { [progressPath]: progress }),
         {
           progressPath,
-          progress: spriteProgress('viewpoint_select', {
+          progress: spriteProgress('plan', {
             flags: {
               viewpoint_candidates: [
                 '/workspace/assets/image/vp_1.png',
@@ -5510,15 +5511,16 @@ try {
       }
       const edges = (await current()).edges.map((edge) => [edge.from, edge.to, edge.kind]);
       for (const [from, to] of [
+        // 抠图 → 视角候选 → 主参考图 (the chosen candidate, vp_2, matches ready.png).
         [source.id, byKey.cutout_ref.id],
-        [byKey.cutout_ref.id, byKey.ready.id],
-        [byKey.ready.id, byKey['viewpoint:assets/image/vp_1.png'].id],
-        [byKey.ready.id, byKey['viewpoint:assets/image/vp_2.png'].id],
+        [byKey.cutout_ref.id, byKey['viewpoint:assets/image/vp_1.png'].id],
+        [byKey.cutout_ref.id, byKey['viewpoint:assets/image/vp_2.png'].id],
+        [byKey['viewpoint:assets/image/vp_2.png'].id, byKey.ready.id],
       ])
         assert.ok(
           edges.some((edge) => edge[0] === from && edge[1] === to && edge[2] === 'image-variant')
         );
-      assert.equal(await spriteBadge(page, section.id), '选择视角 · 待确认');
+      assert.equal(await spriteBadge(page, section.id), '确认动画清单 · 待确认');
       // Header keeps the sprite name whole and drops the member count.
       const header = await page.evaluate((id) => {
         const card = document.querySelector('.card[data-id="' + id + '"]');
@@ -5550,11 +5552,11 @@ try {
           const nodes = window.__canvasEditor.current().nodes;
           const at = (id) => nodes.find((node) => node.id === id);
           const mid = (node) => node.y + node.height / 2;
-          const [a, b, c, d] = [at(chain), at(ready), at(first), at(last)];
+          const [a, c, d, r] = [at(chain), at(first), at(last), at(ready)];
           return (
             c.height !== 240 &&
-            Math.abs(mid(a) - mid(b)) < 1 &&
-            Math.abs((c.y + d.y + d.height) / 2 - mid(b)) < 1
+            Math.abs((c.y + d.y + d.height) / 2 - mid(a)) < 1 &&
+            Math.abs(mid(r) - mid(d)) < 1
           );
         },
         {
@@ -5565,9 +5567,10 @@ try {
         }
       );
       byKey = await mirrors();
-      // Tree layout: candidates fan out in the column right of the ready image.
+      // Tree layout: candidates fan out right of the cutout; 主参考图 follows the chosen one.
       const [vp1, vp2] = ['vp_1', 'vp_2'].map((n) => byKey['viewpoint:assets/image/' + n + '.png']);
-      assert.ok(vp1.x > byKey.ready.x + byKey.ready.width, '候选在主参考图右侧');
+      assert.ok(vp1.x > byKey.cutout_ref.x + byKey.cutout_ref.width, '候选在抠图右侧');
+      assert.ok(byKey.ready.x > vp2.x + vp2.width, '主参考图在所选候选右侧');
       assert.equal(vp1.x, vp2.x, '候选同列');
       assert.ok(vp2.y >= vp1.y + vp1.height, '候选向下排开');
       const grown = (await current()).nodes.find((node) => node.id === section.id);
@@ -5664,8 +5667,8 @@ try {
       );
       const moved = (await mirrors()).ready;
       await settle();
-      const sectionNow = await spriteSection(current, 'hero');
-      await card(section.id).click({ position: { x: 16, y: sectionNow.height - 16 } });
+      // The group's top-left blank strip stays on screen however far the tree grows.
+      await card(section.id).click({ position: { x: 12, y: 52 } });
       await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
       assert.deepEqual(await menuLabels(page), ['重新整理', '取消分组', '删除分组']);
       await page.locator('#selection-menu').getByRole('button', { name: '重新整理' }).click();
@@ -5678,8 +5681,8 @@ try {
       );
       const tidied = await current();
       assert.ok(
-        tidied.edges.some((edge) => edge.from === laidOut.id && edge.to === lost.id),
-        '主参考图 → 视角候选 连线仍在'
+        tidied.edges.some((edge) => edge.from === byKey.cutout_ref.id && edge.to === lost.id),
+        '抠图 → 视角候选 连线仍在'
       );
       await settle();
       await editor('undo', {});

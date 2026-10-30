@@ -288,6 +288,8 @@ export function reconcileSpriteMirror(input: {
   missing?: string[];
   /** Mirror keys already on the canvas. */
   existing?: string[];
+  /** Viewpoint candidate path whose bytes equal ready.png (the chosen viewpoint), if known. */
+  readyFrom?: string;
 }): CanvasSpriteMirrorPlan {
   const record = (value: unknown): value is Record<string, any> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -360,31 +362,45 @@ export function reconcileSpriteMirror(input: {
         row: 0,
         parents: ['cutout_ref', 'source'],
       });
-      push({
-        key: 'ready',
-        type: 'image',
-        assetPath: base + '_gen_images/ready.png',
-        title: '主参考图',
-        row: 0,
-        parents: ['cutout', 'cutout_ref', 'source'],
-      });
     }
-    const viewpoints = Array.isArray(flags.viewpoint_candidates)
-      ? flags.viewpoint_candidates
-      : typeof flags.viewpoint_candidates === 'string'
-        ? [flags.viewpoint_candidates]
-        : [];
-    viewpoints.slice(0, 12).forEach((candidate: unknown, index: number) => {
-      const assetPath = canvasSpriteMediaPath(candidate, name, 'image');
+    // Viewpoint flow: candidates are generated from the cutout, then the chosen one is copied onto
+    // ready.png. So 抠图 → 视角候选 → 主参考图: ready.png only gets a card once a viewpoint is chosen
+    // (before that it holds the preprocessed input), linked from the candidate it matches.
+    const viewpoints = (
+      Array.isArray(flags.viewpoint_candidates)
+        ? flags.viewpoint_candidates
+        : typeof flags.viewpoint_candidates === 'string'
+          ? [flags.viewpoint_candidates]
+          : []
+    )
+      .slice(0, 12)
+      .map((candidate: unknown) => canvasSpriteMediaPath(candidate, name, 'image'))
+      .filter(Boolean) as string[];
+    viewpoints.forEach((assetPath, index) => {
       push({
         key: 'viewpoint:' + assetPath,
         type: 'image',
         assetPath,
         title: '视角候选 ' + (index + 1),
         row: 1,
-        parents: ['ready', 'cutout', 'cutout_ref', 'source'],
+        parents: ['cutout', 'cutout_ref', 'source'],
       });
     });
+    const choosing = progress.state === 'viewpoint_gen' || progress.state === 'viewpoint_select';
+    if (progress.state !== 'collect_input' && !(viewpoints.length && choosing)) {
+      const chosen =
+        input.readyFrom && viewpoints.indexOf(input.readyFrom) >= 0
+          ? ['viewpoint:' + input.readyFrom]
+          : [];
+      push({
+        key: 'ready',
+        type: 'image',
+        assetPath: base + '_gen_images/ready.png',
+        title: '主参考图',
+        row: 0,
+        parents: chosen.concat(['cutout', 'cutout_ref', 'source']),
+      });
+    }
     const poses: string[] = [];
     const candidates = record(flags.pose_candidates) ? flags.pose_candidates : {};
     for (const pose of Object.keys(candidates))
