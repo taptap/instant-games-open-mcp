@@ -1312,6 +1312,84 @@ function applyCardMenuPatches(source: string): string {
     '</style>',
     '#selection-menu .web-action-divider { display: inline-block; flex: none; width: 1px; height: 18px; margin: 0 4px; background: var(--canvas-line, rgba(0,0,0,.12)); vertical-align: middle; }\n</style>'
   );
+  // 复制为普通卡片: a mirrored image/video is copied into the canvas folder so the copy is an
+  // ordinary card (every action works on it) placed just outside its sprite group.
+  patch(
+    '  function duplicateSelected() {',
+    [
+      '  async function copyMirrorsAsPlain(nodes) {',
+      '    const canvasId = documentState && documentState.id; if (!canvasId) return;',
+      "    pendingAssetImports++; publishDirty(); setError('');",
+      '    const copies = [];',
+      '    try {',
+      '      for (const node of nodes) {',
+      "        const blob = await host.readSource(node.assetPath, AbortSignal.timeout(60000), '素材读取失败，可能已被移动或删除。');",
+      "        const image = node.type === 'image';",
+      "        const type = blob.type || (image ? (/\\.jpe?g$/i.test(node.assetPath) ? 'image/jpeg' : /\\.webp$/i.test(node.assetPath) ? 'image/webp' : 'image/png') : (/\\.webm$/i.test(node.assetPath) ? 'video/webm' : /\\.mov$/i.test(node.assetPath) ? 'video/quicktime' : 'video/mp4'));",
+      '        const saved = image ? await store.importImage(canvasId, await blob.arrayBuffer(), type) : await store.importVideo(canvasId, blob, type);',
+      '        copies.push({ node: node, path: saved.relativePath });',
+      '      }',
+      "      if (!documentState || documentState.id !== canvasId) { setError('已离开原画布。素材已复制到项目，但没有放进其他画布。'); return; }",
+      '      remember(); selected.clear();',
+      '      for (const item of copies) {',
+      '        const section = item.node.sectionId && documentState.nodes.find(function (other) { return other.id === item.node.sectionId; });',
+      "        const copy = { id: crypto.randomUUID(), type: item.node.type, x: section ? section.x + section.width + 48 : item.node.x + 36, y: item.node.y, width: item.node.width, height: item.node.height, title: (item.node.title || '').replace(/ · 主参考图$/, ''), assetPath: item.path };",
+      '        documentState.nodes.push(copy); selected.add(copy.id);',
+      '        await loadMedia(item.path);',
+      '      }',
+      '      markDirty(); render();',
+      "    } catch (caught) { setError((caught && caught.message) || '复制失败，请稍后重试。'); } finally { finishAssetImport(); }",
+      '  }',
+      '  function duplicateSelected() {',
+      '    const mirrored = documentState ? documentState.nodes.filter(function (node) { return selected.has(node.id) && node.mirror; }) : [];',
+      '    if (mirrored.length) {',
+      "      const copyable = mirrored.filter(function (node) { return (node.type === 'image' || node.type === 'video-source') && node.assetPath; });",
+      "      if (copyable.length !== mirrored.length) { setError('精灵的序列帧和动画卡片暂不支持复制，可以先下载再导入。'); return; }",
+      '      void copyMirrorsAsPlain(copyable); return;',
+      '    }',
+    ].join('\n')
+  );
+  // Menus offer the copy on mirrored images/videos under its own name (sequences/animations: none).
+  patch(
+    "      if (node.mirror) Array.from(actions.children).forEach(function (child) { if (['加入对话', '下载 PNG', '下载 JPG'].indexOf(actionLabel(child)) < 0) child.remove(); });",
+    "      if (node.mirror) Array.from(actions.children).forEach(function (child) { if (['加入对话', '下载 PNG', '下载 JPG'].indexOf(actionLabel(child)) < 0) child.remove(); });\n      if (canvasWeb && node.mirror && (node.type === 'image' || node.type === 'video-source') && node.assetPath) { const copy = actionButton('复制为普通卡片', function () { selected.clear(); selected.add(node.id); duplicateSelected(); }); canvasWebIconAction(copy, 'copy'); }"
+  );
+  patch(
+    "    if (contextNode && contextNode.mirror) contextMenu.querySelectorAll('[data-canvas-action=quick-cutout], [data-canvas-action=adjust-cutout]').forEach(function (item) { item.hidden = true; });",
+    [
+      "    if (contextNode && contextNode.mirror) contextMenu.querySelectorAll('[data-canvas-action=quick-cutout], [data-canvas-action=adjust-cutout]').forEach(function (item) { item.hidden = true; });",
+      "    const duplicate = contextMenu.querySelector('[data-canvas-action=duplicate]');",
+      "    if (duplicate) { const mirror = contextNode && contextNode.mirror; duplicate.textContent = mirror ? '复制为普通卡片' : '复制卡片'; if (mirror && !(contextNode.type === 'image' || contextNode.type === 'video-source')) duplicate.hidden = true; }",
+    ].join('\n')
+  );
+  // 分组 with exactly one existing group selected: the other cards join that group (it grows to fit).
+  patch(
+    '  function createSection() {',
+    [
+      '  function joinSelectedSection() {',
+      '    const chosen = documentState ? documentState.nodes.filter(function (node) { return selected.has(node.id); }) : [];',
+      "    const sections = chosen.filter(function (node) { return node.type === 'section'; });",
+      '    if (!sections.length) return false;',
+      "    if (sections.length > 1) { setError('一次只能把卡片加入一个分组，请只选中一个分组。'); return true; }",
+      '    const section = sections[0];',
+      "    const members = chosen.filter(function (node) { return node.type !== 'section' && node.sectionId !== section.id; });",
+      "    if (!members.length) { setError('请再选中要加入这个分组的卡片。'); return true; }",
+      "    if (groupQueue && (groupQueue.isBusy || members.some(function (node) { return groupQueue.protects(node.id); }))) { setError('请先停止相关队列，再调整分组。'); return true; }",
+      '    remember();',
+      '    members.forEach(function (node) { node.sectionId = section.id; });',
+      '    const all = documentState.nodes.filter(function (node) { return node.sectionId === section.id; });',
+      '    const left = Math.min(section.x, Math.min.apply(null, all.map(function (node) { return node.x - 28; })));',
+      '    const top = Math.min(section.y, Math.min.apply(null, all.map(function (node) { return node.y - 56; })));',
+      '    const right = Math.max(section.x + section.width, Math.max.apply(null, all.map(function (node) { return node.x + node.width + 28; })));',
+      '    const bottom = Math.max(section.y + section.height, Math.max.apply(null, all.map(function (node) { return node.y + node.height + 28; })));',
+      '    section.x = left; section.y = top; section.width = right - left; section.height = bottom - top;',
+      '    selected.clear(); selected.add(section.id); markDirty(); render();',
+      '    return true;',
+      '  }',
+      '  function createSection() {',
+      '    if (joinSelectedSection()) return;',
+    ].join('\n')
+  );
   return page;
 }
 /**

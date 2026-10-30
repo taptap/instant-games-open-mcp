@@ -4245,6 +4245,31 @@ try {
     const members = (await current()).nodes.filter((node) => node.sectionId === section.id);
     assert.deepEqual(members.map((node) => node.id).sort(), [first.id, second.id].sort());
     assert.deepEqual(await menuLabels(page), ['取消分组', '删除分组']);
+    // 分组 with an existing group and another card selected: the card joins that group.
+    const third = await importImage('第三张', '#58b', 120, 90);
+    await editor('update-nodes', {
+      nodes: [{ id: third.id, x: section.x + section.width + 60, y: section.y + 40 }],
+    });
+    await settle();
+    await blank();
+    await card(section.id).click({ position: { x: 20, y: 20 } });
+    await card(third.id).click({ position: { x: 40, y: 50 }, modifiers: ['Shift'] });
+    await page.locator('#selection-menu').getByRole('button', { name: '分组' }).click();
+    const joined = await current();
+    assert.equal(joined.nodes.filter((node) => node.type === 'section').length, 1, '没有新建分组');
+    assert.equal(joined.nodes.find((node) => node.id === third.id).sectionId, section.id);
+    const grownGroup = joined.nodes.find((node) => node.id === section.id);
+    const placed = joined.nodes.find((node) => node.id === third.id);
+    assert.ok(grownGroup.x + grownGroup.width >= placed.x + placed.width, '分组扩大到包含新卡');
+    // Undo the join, the move and the import so the rest of this check sees two cards again.
+    for (let step = 0; step < 3; step++) await editor('undo', {});
+    assert.equal(
+      (await current()).nodes.some((node) => node.id === third.id),
+      false
+    );
+    await settle();
+    await blank();
+    await card(section.id).click({ position: { x: 20, y: 20 } });
     assert.equal(await card(section.id).locator('.web-node-handle').count(), 4);
     // Group corners have no visible dot, only an invisible resize hit area on the box corner.
     const corner = await card(section.id)
@@ -5620,9 +5645,27 @@ try {
       await settle();
       await card(byKey.cutout_ref.id).click({ position: { x: 40, y: 80 } });
       await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
-      assert.deepEqual(await menuLabels(page), ['下载 PNG', '下载 JPG']);
+      assert.deepEqual(await menuLabels(page), ['下载 PNG', '下载 JPG', '复制为普通卡片']);
       assert.equal(await card(byKey.cutout_ref.id).locator('.canvas-port').count(), 0);
       assert.equal(await page.locator('#selection-toolbar .selection-panel').count(), 0);
+      // 复制为普通卡片: the file is copied into the canvas folder; the copy sits outside the group.
+      const beforeCopy = (await current()).nodes.length;
+      await page.locator('#selection-menu').getByRole('button', { name: '复制为普通卡片' }).click();
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 1,
+        beforeCopy
+      );
+      const copied = (await current()).nodes.at(-1);
+      const groupNow = await spriteSection(current, 'hero');
+      assert.equal(copied.mirror, undefined);
+      assert.equal(copied.sectionId, undefined);
+      assert.match(copied.assetPath, /^assets\/image\//);
+      assert.ok(copied.x >= groupNow.x + groupNow.width, '复制卡在分组外');
+      await editor('undo', {});
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count,
+        beforeCopy
+      );
       await page.mouse.move(10, 10);
       await themes(page, (theme) => shoot('v20-sprite-group-' + theme + '.png'));
       const removed = byKey['viewpoint:assets/image/vp_2.png'];
@@ -5814,19 +5857,21 @@ try {
           kind
         );
       assert.equal(byKey['sequence:walk'].sourceVideoId, byKey['video:walk'].id);
-      // A mirrored video has no read-only action: no empty selection pill above it.
+      // A mirrored video keeps only 复制为普通卡片 (no empty selection pill above it).
       await settle();
       await card(byKey['video:walk'].id).click({ position: { x: 40, y: 40 } });
+      await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+      assert.deepEqual(await menuLabels(page), ['复制为普通卡片']);
+      // A mirrored animation has no allowed action at all: no empty pill.
+      await page.mouse.click(10, 10);
+      await card(byKey['animation:walk'].id).click({ position: { x: 8, y: 8 } });
       await page.waitForFunction(
-        (id) =>
-          window.__canvasEditor.current() &&
-          document.querySelector('.card.selected[data-id="' + id + '"]'),
-        byKey['video:walk'].id
+        (id) => document.querySelector('.card.selected[data-id="' + id + '"]'),
+        byKey['animation:walk'].id
       );
       assert.equal(
         await page.evaluate(() => document.getElementById('selection-menu').hidden),
-        true,
-        '镜像视频不显示空菜单'
+        true
       );
       await page.mouse.click(10, 10);
       assert.equal(byKey['animation:walk'].frameSetInfo.frames[1].offsetX, 6);
