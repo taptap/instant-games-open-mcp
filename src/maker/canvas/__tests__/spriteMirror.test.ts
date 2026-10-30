@@ -384,13 +384,17 @@ test('tree layout fans siblings out downward and keeps cards the user moved', ()
   const key = (prefix: string) => doc.nodes.filter((node) => node.mirror?.key.startsWith(prefix));
   const [chain, ready] = [key('cutout_ref')[0], key('ready')[0]];
   const source = doc.nodes.find((node) => node.id === 'src')!;
-  // source → cutout_ref → … → ready stay on one line, left to right.
-  expect(chain.y).toBe(source.y);
+  // source → cutout_ref → … → ready share one horizontal centre line, left to right.
+  const middle = (node: { y: number; height: number }) => node.y + node.height / 2;
+  expect(middle(chain)).toBe(middle(source));
+  expect(middle(ready)).toBe(middle(source));
   expect(chain.x).toBeGreaterThan(source.x + source.width);
   const [first, second] = key('viewpoint:');
   expect(first.x).toBe(second.x);
   expect(first.x).toBeGreaterThan(ready.x + ready.width);
   expect(second.y).toBeGreaterThanOrEqual(first.y + first.height);
+  // The candidates fan out evenly above and below their parent's centre line.
+  expect((first.y + second.y + second.height) / 2).toBe(middle(ready));
   // A moved card is left alone; a card still at its laid-out spot keeps following the layout.
   first.x += 500;
   const movedX = first.x;

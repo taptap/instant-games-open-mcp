@@ -1232,7 +1232,7 @@ function applySpriteGenPatches(source: string): string {
     '  function decorateWebCards() {',
     [
       // var: render() and loadCanvasDocument can reach these before a let/const line would run.
-      '  var spriteStatus = new Map(); var spriteFiles = new Map(); var spriteSeen = new Map(); var spriteRuns = new Map(); var spriteTimer = 0; var spriteTidy = new Set();',
+      '  var spriteStatus = new Map(); var spriteFiles = new Map(); var spriteSeen = new Map(); var spriteRuns = new Map(); var spriteTimer = 0; var spriteTidy = new Set(); var spritePass = new Map();',
       // 重新整理: one undo step, then a forced sync that rebuilds lines and layout (applySpriteMirror tidy).
       '  function tidySpriteSection(id) {',
       "    const section = documentState && documentState.nodes.find(function (node) { return node.id === id && node.type === 'section' && node.spriteGen; });",
@@ -1250,7 +1250,7 @@ function applySpriteGenPatches(source: string): string {
       '    const section = doc.nodes.find(function (node) { return node.id === sectionId; });',
       '    return JSON.stringify([section && section.spriteGen && section.spriteGen.dismissed, doc.nodes.filter(function (node) { return node.mirror && node.sectionId === sectionId; }).map(function (node) { return [node.mirror.key, node.assetPath]; })]);',
       '  }',
-      '  async function syncSpriteOnce(sectionId, force) {',
+      '  async function syncSpriteOnce(sectionId, force, isCurrent) {',
       '    const doc = documentState;',
       "    const section = doc && doc.nodes.find(function (node) { return node.id === sectionId && node.type === 'section' && node.spriteGen; });",
       '    if (!section || !isCanvasSpriteName(section.spriteGen.name)) return;',
@@ -1273,7 +1273,7 @@ function applySpriteGenPatches(source: string): string {
       '    missing.forEach(function (path) { missingMedia.add(path); });',
       '    const current = documentState;',
       // A drag or canvas switch wins; spriteSeen stays stale so the next sync applies it.
-      '    if (!current || current.id !== doc.id || drag || canvasOpening) return;',
+      '    if (!current || current.id !== doc.id || drag || canvasOpening || (isCurrent && !isCurrent())) return;',
       "    const live = current.nodes.find(function (node) { return node.id === sectionId && node.type === 'section' && node.spriteGen && node.spriteGen.name === name; });",
       '    if (!live) return;',
       // Cards already on the canvas stay when their file goes missing and show 素材丢失.
@@ -1292,8 +1292,13 @@ function applySpriteGenPatches(source: string): string {
       '    if (running) { running.again = true; running.force = running.force || force; return running.promise; }',
       '    const run = { again: false, force: force, promise: null };',
       '    spriteRuns.set(sectionId, run);',
+      // A read that never settles (e.g. after sleep or a network drop) must not freeze this group:
+      // after 45 s the pass is abandoned (its late result is ignored) and the next poll retries.
       '    run.promise = (async function () {',
-      '      try { do { const pass = run.force; run.again = false; run.force = false; await syncSpriteOnce(sectionId, pass); } while (run.again); }',
+      '      try { do { const pass = run.force; run.again = false; run.force = false; const token = {}; spritePass.set(sectionId, token); let timer = 0;',
+      "        const timedOut = await Promise.race([syncSpriteOnce(sectionId, pass, function () { return spritePass.get(sectionId) === token; }).then(function () { return false; }), new Promise(function (resolve) { timer = setTimeout(function () { resolve(true); }, 45000); })]);",
+      '        clearTimeout(timer); if (timedOut) { spritePass.delete(sectionId); spriteSeen.delete(sectionId); }',
+      '      } while (run.again); }',
       "      catch (caught) { setError((caught && caught.message) || '同步精灵进度失败。'); }",
       '      finally { spriteRuns.delete(sectionId); }',
       '    })();',
@@ -1312,6 +1317,8 @@ function applySpriteGenPatches(source: string): string {
       '    spriteTimer = setTimeout(function () { spriteTimer = 0; void syncAllSprites(false); }, 10000);',
       '  }',
       "  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') void syncAllSprites(false); else { clearTimeout(spriteTimer); spriteTimer = 0; } });",
+      // Waking from sleep or regaining the network: catch up now rather than on the next poll.
+      "  window.addEventListener('online', function () { void syncAllSprites(false); });",
       '  function refreshSpriteHeaders() {',
       '    spriteSections().forEach(function (section) {',
       "      const badge = world.querySelector('.card[data-id=\"' + CSS.escape(section.id) + '\"] .canvas-group-state');",

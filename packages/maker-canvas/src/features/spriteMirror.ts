@@ -771,14 +771,30 @@ export function applySpriteMirror(
       fresh[node.mirror!.key] || !placed || (placed.x === node.x && placed.y === node.y)
     );
   };
+  // Each card is centred on the block of its children, so a chain shares one horizontal centre
+  // line and candidates fan out evenly above and below their parent.
+  const spans: Record<string, number> = {};
+  const blocks: Record<string, number> = {};
+  const spanOf = (key: string): number => {
+    if (spans[key] !== undefined) return spans[key];
+    spans[key] = 0; // cycle guard
+    const node = key === 'source' ? source! : existing[key];
+    const kids = children[key] || [];
+    const block = kids.reduce((sum, child, index) => sum + spanOf(child) + (index ? gapY : 0), 0);
+    blocks[key] = block;
+    return (spans[key] = Math.max(node.height, block));
+  };
   const done: Record<string, boolean> = {};
   const place = (key: string, y: number): number => {
     const node = key === 'source' ? source! : existing[key];
     if (done[key]) return node.y + node.height;
     done[key] = true;
-    if (key !== 'source' && follows(node)) {
+    const span = spanOf(key);
+    const block = blocks[key] || 0;
+    const moves = key !== 'source' && follows(node);
+    if (moves) {
       const x = Math.round(columnX(depth[key]));
-      const top = Math.round(y);
+      const top = Math.round(y + (span - node.height) / 2);
       if (node.x !== x || node.y !== top) {
         node.x = x;
         node.y = top;
@@ -789,11 +805,14 @@ export function applySpriteMirror(
         changed = true;
       }
     }
-    let cursor = node.y;
+    // Children block centred on this card's centre (a card that stays put, e.g. the source or a
+    // card the user moved, keeps its own centre line).
+    let cursor = node.y + node.height / 2 - block / 2;
     let bottom = node.y + node.height;
     for (const child of children[key] || []) {
-      bottom = Math.max(bottom, place(child, cursor));
-      cursor = bottom + gapY;
+      const end = place(child, cursor);
+      bottom = Math.max(bottom, end);
+      cursor = Math.max(cursor + spanOf(child), end) + gapY;
     }
     return bottom;
   };
