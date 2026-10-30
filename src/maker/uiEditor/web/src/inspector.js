@@ -544,7 +544,12 @@
     var title = document.createElement("button");
     title.type = "button";
     title.className = "insp-fold";
-    title.textContent = (isOpen(group) ? "▾ " : "▸ ") + group.title;
+    var caret = document.createElement("span");
+    caret.className = "insp-caret";
+    caret.setAttribute("aria-hidden", "true");
+    caret.textContent = isOpen(group) ? "▾ " : "▸ ";
+    title.appendChild(caret);
+    title.appendChild(document.createTextNode(group.title));
     var body = document.createElement("div");
     body.className = "insp-body";
     body.hidden = !isOpen(group);
@@ -554,7 +559,7 @@
     title.addEventListener("click", function () {
       openState[group.id] = !isOpen(group);
       body.hidden = !openState[group.id];
-      title.textContent = (openState[group.id] ? "▾ " : "▸ ") + group.title;
+      caret.textContent = openState[group.id] ? "▾ " : "▸ ";
       block.classList.toggle("open", openState[group.id]);
     });
     block.appendChild(title);

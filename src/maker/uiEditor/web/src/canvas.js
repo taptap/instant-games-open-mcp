@@ -4,6 +4,17 @@
   "use strict";
 
   var BLUE = "#0D99FF";
+  // Hosts may restyle the overlay and device frame through CSS variables on :root:
+  // --editor-accent (selection colour), --editor-bezel and --editor-bezel-outline (px).
+  var frame = { accent: BLUE, bezel: null, outline: 4 };
+  function readFrameStyle() {
+    var style = getComputedStyle(document.documentElement);
+    var bezel = parseFloat(style.getPropertyValue("--editor-bezel"));
+    var outline = parseFloat(style.getPropertyValue("--editor-bezel-outline"));
+    frame.accent = style.getPropertyValue("--editor-accent").trim() || BLUE;
+    frame.bezel = bezel >= 0 ? bezel : null;
+    frame.outline = outline >= 0 ? outline : 4;
+  }
   var PINK = "#F24822";
 
   function screenLine(app, px) {
@@ -153,7 +164,7 @@
     ctx.textBaseline = "middle";
     var w = ctx.measureText(text).width + 8 / zoom;
     var h = 16 / zoom;
-    ctx.fillStyle = BLUE;
+    ctx.fillStyle = frame.accent;
     ctx.fillRect(x - w / 2, y - h / 2, w, h);
     ctx.fillStyle = "#fff";
     ctx.fillText(text, x, y + 0.5 / zoom);
@@ -190,19 +201,19 @@
     var matrix = root.UrhoxGeom.worldMatrix(tree, node);
     ctx.transform.apply(ctx, matrix);
     if (kind === "selected") {
-      ctx.strokeStyle = BLUE;
+      ctx.strokeStyle = frame.accent;
       ctx.lineWidth = screenLine(app, 1.5);
       ctx.strokeRect(box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1));
       var hs = handleSize(app);
       handlesFor(box).forEach(function (h) {
         ctx.fillStyle = "#ffffff";
-        ctx.strokeStyle = BLUE;
+        ctx.strokeStyle = frame.accent;
         ctx.lineWidth = screenLine(app, 1.25);
         ctx.fillRect(h.x - hs / 2, h.y - hs / 2, hs, hs);
         ctx.strokeRect(h.x - hs / 2, h.y - hs / 2, hs, hs);
       });
     } else if (kind === "hover") {
-      ctx.strokeStyle = BLUE;
+      ctx.strokeStyle = frame.accent;
       ctx.lineWidth = screenLine(app, 1);
       ctx.strokeRect(box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1));
     }
@@ -232,6 +243,7 @@
     var screen = app.screen;
     var device = app.device;
     if (!canvas || !ctx || !tree) return;
+    readFrameStyle();
     var o = app.origin();
     var fit = app.contentTransform();
     var prefab = app.editMode === "prefab";
@@ -246,7 +258,7 @@
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (!prefab) {
-      var bezel = device.bezel || 24;
+      var bezel = frame.bezel != null ? frame.bezel : device.bezel || 24;
       ctx.save();
       ctx.fillStyle = "rgba(8, 10, 14, 0.55)";
       ctx.beginPath();
@@ -254,8 +266,11 @@
       ctx.rect(o.x, o.y, screen.width, screen.height);
       ctx.fill("evenodd");
       ctx.strokeStyle = "rgba(255,255,255,0.35)";
-      ctx.lineWidth = 4;
-      ctx.strokeRect(o.x - bezel + 2, o.y - bezel + 2, screen.width + bezel * 2 - 4, screen.height + bezel * 2 - 4);
+      var ring = Math.min(frame.outline, bezel);
+      if (ring > 0) {
+        ctx.lineWidth = ring;
+        ctx.strokeRect(o.x - bezel + ring / 2, o.y - bezel + ring / 2, screen.width + bezel * 2 - ring, screen.height + bezel * 2 - ring);
+      }
       ctx.strokeStyle = "rgba(255,255,255,0.7)";
       ctx.lineWidth = 1.5;
       ctx.strokeRect(o.x + 0.5, o.y + 0.5, screen.width - 1, screen.height - 1);
@@ -292,12 +307,12 @@
         var handles = transform.handles(app);
         if (bounds && handles.length) {
           ctx.save();
-          ctx.strokeStyle = BLUE;
+          ctx.strokeStyle = frame.accent;
           ctx.lineWidth = screenLine(app, 1);
           ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
           handles.forEach(function (h) {
             var hs = handleSize(app);
-            ctx.fillStyle = h.id === "rotate" ? BLUE : "#fff";
+            ctx.fillStyle = h.id === "rotate" ? frame.accent : "#fff";
             if (h.id === "rotate") {
               ctx.beginPath(); ctx.moveTo(h.x, bounds.y); ctx.lineTo(h.x, h.y); ctx.stroke();
               ctx.beginPath(); ctx.arc(h.x, h.y, hs/2, 0, Math.PI*2); ctx.fill();
@@ -318,10 +333,12 @@
     if (app.marquee) {
       var mq = window.UrhoxGeom.rect(app.marquee.x, app.marquee.y, app.marquee.w, app.marquee.h);
       ctx.save();
-      ctx.fillStyle = "rgba(13, 153, 255, 0.12)";
-      ctx.strokeStyle = BLUE;
+      ctx.fillStyle = frame.accent;
+      ctx.strokeStyle = frame.accent;
       ctx.lineWidth = screenLine(app, 1);
+      ctx.globalAlpha = 0.12;
       ctx.fillRect(mq.x, mq.y, mq.w, mq.h);
+      ctx.globalAlpha = 1;
       ctx.strokeRect(mq.x + 0.5, mq.y + 0.5, Math.max(0, mq.w - 1), Math.max(0, mq.h - 1));
       ctx.restore();
     }
