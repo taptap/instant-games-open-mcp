@@ -228,6 +228,19 @@
     });
   }
 
+  // One value per line for top-level arrays (e.g. one NanoVG command per line), each kept inline.
+  function inlineJson(value) {
+    if (Array.isArray(value)) return "[" + value.map(inlineJson).join(", ") + "]";
+    if (value && typeof value === "object") {
+      return "{" + Object.keys(value).map(function (key) { return JSON.stringify(key) + ": " + inlineJson(value[key]); }).join(", ") + "}";
+    }
+    return JSON.stringify(value);
+  }
+  function formatJson(value) {
+    if (!Array.isArray(value)) return JSON.stringify(value, null, 2);
+    if (!value.some(function (item) { return item && typeof item === "object"; })) return inlineJson(value);
+    return value.length ? "[\n" + value.map(function (item) { return "  " + inlineJson(item); }).join(",\n") + "\n]" : "[]";
+  }
   function makeControl(node, field, onChange) {
     var value = node[field.key];
     var control;
@@ -236,7 +249,7 @@
       wrap.className = "nanovg-field";
       var input = document.createElement("textarea");
       input.rows = field.key === "commands" ? 12 : 2;
-      input.value = JSON.stringify(value, null, 2);
+      input.value = formatJson(value);
       input.setAttribute("aria-label", field.label);
       var apply = document.createElement("button");
       apply.type = "button"; apply.textContent = "应用";

@@ -33,7 +33,7 @@
     row.classList.toggle("search-match", !!opts.searching && opts.searchMatches.has(node));
     var modified = !!opts.modifiedNodes && opts.modifiedNodes.has(key);
     row.classList.toggle("modified-node", modified);
-    row.style.paddingLeft = (6 + depth * 14) + "px";
+    row.style.setProperty("--tree-depth", String(depth));
 
     var vis = document.createElement("input");
     vis.type = "checkbox";
