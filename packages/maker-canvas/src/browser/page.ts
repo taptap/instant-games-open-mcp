@@ -1371,10 +1371,36 @@ function applySpriteGenPatches(source: string): string {
     '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; });',
     '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; });\n    refreshSpriteHeaders();'
   );
-  // Sprite groups follow their mirror cards as images load and change height.
+  // Sprite groups follow their mirror cards as images load and change size: a card is laid out at
+  // its default size and resized to the image ratio once loaded, which would move its centre off
+  // the line. A size change re-applies the last plan (layout only; no file reads).
   patch(
     '    const orderedNodes = documentState.nodes.filter(',
-    "    documentState.nodes.forEach(function (item) { if (item.type === 'section' && item.spriteGen && growSpriteSection(documentState, item.id)) markDirty(); });\n    const orderedNodes = documentState.nodes.filter("
+    "    documentState.nodes.forEach(function (item) { if (item.type === 'section' && item.spriteGen && (relayoutSpriteSection(item) || growSpriteSection(documentState, item.id))) markDirty(); });\n    const orderedNodes = documentState.nodes.filter("
+  );
+  patch(
+    '  function spriteDocKey(doc, sectionId) {',
+    [
+      '  var spritePlans = new Map(); var spriteSizes = new Map();',
+      '  function spriteSizeKey(doc, sectionId) { return doc.nodes.filter(function (node) { return node.mirror && node.sectionId === sectionId; }).map(function (node) { return node.id + ":" + node.width + "x" + node.height; }).join(","); }',
+      '  function relayoutSpriteSection(section) {',
+      '    const plan = spritePlans.get(section.id);',
+      '    if (!plan || drag) return false;',
+      '    const key = spriteSizeKey(documentState, section.id);',
+      '    if (key === spriteSizes.get(section.id)) return false;',
+      // Leave out cards deleted since the plan was made so they are not added back.
+      '    const dismissed = section.spriteGen.dismissed;',
+      '    const live = Object.assign({}, plan, { cards: plan.cards.filter(function (card) { return dismissed.indexOf(card.key) < 0; }) });',
+      '    const edited = applySpriteMirror(documentState, section.id, live, function () { return crypto.randomUUID(); });',
+      '    spriteSizes.set(section.id, spriteSizeKey(documentState, section.id));',
+      '    return edited;',
+      '  }',
+      '  function spriteDocKey(doc, sectionId) {',
+    ].join('\n')
+  );
+  patch(
+    '    spriteStatus.set(sectionId, plan.stage); spriteFiles.set(sectionId, signature);',
+    '    spritePlans.set(sectionId, plan); spriteSizes.set(sectionId, spriteSizeKey(current, sectionId));\n    spriteStatus.set(sectionId, plan.stage); spriteFiles.set(sectionId, signature);'
   );
   patch(
     '    documentState = removeNodes(documentState, Array.from(selected));',

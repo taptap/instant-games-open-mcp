@@ -5544,6 +5544,27 @@ try {
         );
       assert.equal(await dot(), 'rgb(247, 107, 21)', '待确认为橘色');
       await card(byKey.ready.id).locator('img').waitFor();
+      // Cards resize to their image ratio after loading; the layout follows so centre lines hold.
+      await page.waitForFunction(
+        ({ chain, ready, first, last }) => {
+          const nodes = window.__canvasEditor.current().nodes;
+          const at = (id) => nodes.find((node) => node.id === id);
+          const mid = (node) => node.y + node.height / 2;
+          const [a, b, c, d] = [at(chain), at(ready), at(first), at(last)];
+          return (
+            c.height !== 240 &&
+            Math.abs(mid(a) - mid(b)) < 1 &&
+            Math.abs((c.y + d.y + d.height) / 2 - mid(b)) < 1
+          );
+        },
+        {
+          chain: byKey.cutout_ref.id,
+          ready: byKey.ready.id,
+          first: byKey['viewpoint:assets/image/vp_1.png'].id,
+          last: byKey['viewpoint:assets/image/vp_2.png'].id,
+        }
+      );
+      byKey = await mirrors();
       // Tree layout: candidates fan out in the column right of the ready image.
       const [vp1, vp2] = ['vp_1', 'vp_2'].map((n) => byKey['viewpoint:assets/image/' + n + '.png']);
       assert.ok(vp1.x > byKey.ready.x + byKey.ready.width, '候选在主参考图右侧');
