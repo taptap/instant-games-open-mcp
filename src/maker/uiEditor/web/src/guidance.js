@@ -9,10 +9,15 @@
     "新增文件显式生成 meta，在控制台 UI 编辑器中对照原 UI 或设计稿检查。" +
     "不要覆盖我手工修改过的 UI，不修改游戏加载入口或玩法。";
   el("skillPrompt").value = prompt;
-  async function copy(textarea, status) {
+  // Success shows on the button itself; only the manual-copy fallback needs the status line.
+  async function copy(textarea, status, button) {
+    status.textContent = "";
     try {
       await navigator.clipboard.writeText(textarea.value);
-      status.textContent = "已复制";
+      if (!button.dataset.label) button.dataset.label = button.textContent;
+      button.textContent = "已复制";
+      clearTimeout(button.copyTimer);
+      button.copyTimer = setTimeout(function () { button.textContent = button.dataset.label; }, 1500);
     } catch (_) {
       var details = textarea.closest("details");
       if (details) details.open = true;
@@ -31,7 +36,7 @@
   }
   el("skillHelpBtn").addEventListener("click", function () { openGuide(); });
   el("copySkillPrompt").addEventListener("click", function () {
-    return copy(el("skillPrompt"), el("skillCopyStatus"));
+    return copy(el("skillPrompt"), el("skillCopyStatus"), el("copySkillPrompt"));
   });
   el("checkUiBtn").addEventListener("click", function () {
     var api = window.UrhoxPreview;
@@ -74,7 +79,7 @@
     el("uiCheckDialog").showModal();
   });
   el("copyCheckReport").addEventListener("click", function () {
-    return copy(el("uiCheckOutput"), el("checkCopyStatus"));
+    return copy(el("uiCheckOutput"), el("checkCopyStatus"), el("copyCheckReport"));
   });
   el("closeCheckReport").addEventListener("click", function () { el("uiCheckDialog").close(); });
   window.UrhoxGuidance = { open: openGuide };
