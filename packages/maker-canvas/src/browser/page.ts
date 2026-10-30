@@ -1296,7 +1296,7 @@ function applySpriteGenPatches(source: string): string {
       // after 45 s the pass is abandoned (its late result is ignored) and the next poll retries.
       '    run.promise = (async function () {',
       '      try { do { const pass = run.force; run.again = false; run.force = false; const token = {}; spritePass.set(sectionId, token); let timer = 0;',
-      "        const timedOut = await Promise.race([syncSpriteOnce(sectionId, pass, function () { return spritePass.get(sectionId) === token; }).then(function () { return false; }), new Promise(function (resolve) { timer = setTimeout(function () { resolve(true); }, 45000); })]);",
+      '        const timedOut = await Promise.race([syncSpriteOnce(sectionId, pass, function () { return spritePass.get(sectionId) === token; }).then(function () { return false; }), new Promise(function (resolve) { timer = setTimeout(function () { resolve(true); }, 45000); })]);',
       '        clearTimeout(timer); if (timedOut) { spritePass.delete(sectionId); spriteSeen.delete(sectionId); }',
       '      } while (run.again); }',
       "      catch (caught) { setError((caught && caught.message) || '同步精灵进度失败。'); }",
