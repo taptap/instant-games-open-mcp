@@ -2323,6 +2323,62 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   });
+  await check('Web 生成面板：来源已变化时发送按钮在参数行右侧，不是顶部整条', async () => {
+    const kneel = 'assets/image/canvas/r-k.png';
+    const lying = 'assets/image/canvas/r-l.png';
+    const base = { type: 'image', y: 200, width: 240, height: 240 };
+    const { page, settle, card } = await webPage({
+      seedMedia: { [kneel]: '#c33', [lying]: '#3a7' },
+      seedDocuments: [
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          title: 'r',
+          revision: 1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [
+            { ...base, id: 'r-k', title: '来源', x: 120, assetPath: kneel },
+            {
+              ...base,
+              id: 'r-l',
+              title: '生图结果',
+              x: 520,
+              assetPath: lying,
+              generation: {
+                prompt: '小猫吃饭',
+                operation: 'variant',
+                sourceImageId: 'r-k',
+                referenceImagePaths: [],
+                parameters: {},
+              },
+              sourceSnapshot: { nodeId: 'r-k', version: 'image|old|manual-asset' },
+              sourceSnapshots: [{ nodeId: 'r-k', version: 'image|old|manual-asset' }],
+            },
+          ],
+          edges: [{ id: 'r-e', from: 'r-k', to: 'r-l', kind: 'image-variant' }],
+        },
+      ],
+    });
+    await card('r-l').waitFor();
+    await settle();
+    await page.mouse.click(1300, 860);
+    await card('r-l').click({ position: { x: 60, y: 30 }, force: true });
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    await panel.waitFor();
+    const box = await panel.evaluate((root) => {
+      const rect = (selector) => root.querySelector(selector).getBoundingClientRect();
+      const send = rect('.generation-action-primary');
+      const fields = rect('.generation-fields');
+      return {
+        send: [send.width, send.top, send.right],
+        fields: [fields.top, fields.bottom],
+        panel: root.getBoundingClientRect().right,
+      };
+    });
+    assert.equal(box.send[0], 32, '发送按钮是 32px 圆钮');
+    assert.ok(box.send[1] >= box.fields[0] - 4 && box.send[1] <= box.fields[1], '与参数同一行');
+    assert.ok(box.panel - box.send[2] < 16, '靠右');
+    await page.close();
+  });
   await check('Web 复制：派生结果卡复制后不进入待处理（⌘/Ctrl+D、⌘/Ctrl+C/V）', async () => {
     const kneel = 'assets/image/canvas/copy-kneel.png';
     const lying = 'assets/image/canvas/copy-lying.png';

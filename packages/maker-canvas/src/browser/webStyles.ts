@@ -321,6 +321,9 @@ ${M} #selection-toolbar .generation-asset-reset:hover:not(:disabled) { text-deco
 ${M} #selection-toolbar .generation-asset-reset:disabled { color: var(--web-muted); opacity: .6; cursor: default; }
 ${M} #selection-toolbar .generation-actions { order: 4; flex: 0 0 auto; display: flex; align-items: center; margin-left: auto; padding: 0 4px 2px 8px; gap: 0; }
 ${M} #selection-toolbar .generation-actions > * + * { margin-left: 8px; }
+/* Some states (e.g. 来源已变化 → 刷新结果) append the action straight into the panel instead of
+   .generation-actions: keep it at the end of the fields row, not a full-width bar on top. */
+${M} #selection-toolbar .generation-panel > .generation-action { order: 4; flex: 0 0 auto; align-self: center; margin: 6px 4px 2px auto; }
 ${M} #selection-toolbar .generation-status, ${M} #selection-toolbar .generation-error, ${M} #selection-toolbar .generation-panel > small { order: 5; padding: 0 4px; font-size: 11px; }
 ${M} #selection-toolbar .generation-status, ${M} #selection-toolbar .generation-panel > small { color: var(--web-composer-muted); }
 ${M} #selection-toolbar .generation-action { height: 30px; min-height: 30px; padding: 0 10px; border: 1px solid var(--web-composer-line); border-radius: 15px; background: transparent; color: var(--web-composer-ink); font-size: 12px; }
