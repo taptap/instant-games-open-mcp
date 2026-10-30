@@ -191,7 +191,19 @@
       var mx = event.clientX - rect.left;
       var my = event.clientY - rect.top;
       var before = zoom;
-      var factor = event.deltaY < 0 ? 1.08 : 1 / 1.08;
+      var config = window.UrhoxConfig || {};
+      var unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 800 : 1;
+      if (config.WHEEL === "pan" && !event.ctrlKey && !event.metaKey) {
+        // Shift+wheel on a mouse scrolls sideways; trackpads already report deltaX.
+        var sideways = event.shiftKey && !event.deltaX;
+        panX -= (sideways ? event.deltaY : event.deltaX) * unit;
+        panY -= (sideways ? 0 : event.deltaY) * unit;
+        applyView();
+        return;
+      }
+      var factor = config.WHEEL === "pan"
+        ? Math.exp(-event.deltaY * unit * 0.002)
+        : event.deltaY < 0 ? 1.08 : 1 / 1.08;
       zoom = Math.max(0.08, Math.min(8, zoom * factor));
       panX = mx - (mx - panX) * (zoom / before);
       panY = my - (my - panY) * (zoom / before);

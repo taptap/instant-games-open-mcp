@@ -18,6 +18,9 @@
   config.FILE_ROOT = host.fileRoot;
   config.DEFAULT_ASSET_ROOT = config.FILE_ROOT + "assets/";
   config.INITIAL_UI = typeof host.initialUi === "string" ? host.initialUi : "";
+  // "pan": two-finger scroll / mouse wheel pans and pinch or Ctrl/⌘+wheel zooms, like the Web canvas.
+  // Default (local console): the wheel zooms.
+  config.WHEEL = host.wheel === "pan" ? "pan" : "zoom";
   // Optional host wording for the AI guide: { prompt, description, steps }.
   config.GUIDANCE = host.guidance && typeof host.guidance === "object" ? host.guidance : {};
   config.displayPath = function (value) {
