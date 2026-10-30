@@ -2323,6 +2323,72 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   });
+  await check('Web 复制：派生结果卡复制后不进入待处理（⌘/Ctrl+D、⌘/Ctrl+C/V）', async () => {
+    const kneel = 'assets/image/canvas/copy-kneel.png';
+    const lying = 'assets/image/canvas/copy-lying.png';
+    const base = { type: 'image', y: 200, width: 240, height: 240 };
+    const { page, errors, settle, current, card, blank } = await webPage({
+      seedMedia: { [kneel]: '#c33', [lying]: '#3a7' },
+      seedDocuments: [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          title: '复制画布',
+          revision: 1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [
+            { ...base, id: 'copy-k', title: '来源', x: 120, assetPath: kneel },
+            {
+              ...base,
+              id: 'copy-l',
+              title: '图片变体 · 已保存结果',
+              x: 520,
+              assetPath: lying,
+              generation: {
+                prompt: '躺姿',
+                operation: 'variant',
+                sourceImageId: 'copy-k',
+                referenceImagePaths: [],
+                parameters: {},
+              },
+              sourceSnapshot: { nodeId: 'copy-k', version: 'image|' + kneel + '|manual-asset' },
+              sourceSnapshots: [{ nodeId: 'copy-k', version: 'image|' + kneel + '|manual-asset' }],
+            },
+          ],
+          edges: [{ id: 'copy-edge', from: 'copy-k', to: 'copy-l', kind: 'image-variant' }],
+        },
+      ],
+    });
+    await card('copy-l').waitFor();
+    await settle();
+    for (const keys of [['ControlOrMeta+d'], ['ControlOrMeta+c', 'ControlOrMeta+v']]) {
+      await blank();
+      await page.mouse.click(1300, 860);
+      await card('copy-l').click({ position: { x: 60, y: 80 } });
+      const count = (await current()).nodes.length;
+      for (const key of keys) await page.keyboard.press(key);
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 1,
+        count
+      );
+      const copy = (await current()).nodes.at(-1);
+      assert.equal(copy.sourceSnapshot, undefined);
+      assert.equal(copy.sourceSnapshots, undefined);
+      await settle();
+      assert.equal(
+        await card(copy.id).locator('.card-state-overlay').count(),
+        0,
+        '复制卡无待处理遮罩'
+      );
+      assert.equal(
+        await card(copy.id).evaluate((item) => item.classList.contains('template-pending')),
+        false
+      );
+      await page.keyboard.press('ControlOrMeta+z');
+      await settle();
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
   await check('Web 外观：AI 结果面板显示生成它的来源图，原位再生成只发送来源', async () => {
     const kneel = 'assets/image/canvas/seed-kneel.png';
     const lying = 'assets/image/canvas/seed-lying.png';

@@ -1432,6 +1432,17 @@ function applyCardMenuPatches(source: string): string {
     'templateModel.updateMembership(documentState, drag.positions.map(function (item) { return item.id; }));',
     'templateModel.updateMembership(documentState, drag.positions.map(function (item) { return item.id; }).filter(function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); return !(node && node.mirror); }));'
   );
+  // A copy has no incoming lines, so the original's source snapshots would mark it 待处理 for good
+  // (missing source = stale). It becomes a standalone result; a finished first/last-frame video
+  // likewise drops the frame-pair mode it can no longer satisfy.
+  patch(
+    "      if (copy.generation) copy.generation = { prompt: copy.generation.prompt, operation: 'generate' };",
+    [
+      "      if (copy.generation) copy.generation = { prompt: copy.generation.prompt, operation: 'generate' };",
+      '      delete copy.sourceSnapshot; delete copy.sourceSnapshots;',
+      "      if (copy.assetPath && copy.videoInputMode === 'first_last_frame') delete copy.videoInputMode;",
+    ].join('\n')
+  );
   return page;
 }
 /**
