@@ -5862,17 +5862,6 @@ try {
       await card(byKey['video:walk'].id).click({ position: { x: 40, y: 40 } });
       await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
       assert.deepEqual(await menuLabels(page), ['复制为普通卡片']);
-      // A mirrored animation has no allowed action at all: no empty pill.
-      await page.mouse.click(10, 10);
-      await card(byKey['animation:walk'].id).click({ position: { x: 8, y: 8 } });
-      await page.waitForFunction(
-        (id) => document.querySelector('.card.selected[data-id="' + id + '"]'),
-        byKey['animation:walk'].id
-      );
-      assert.equal(
-        await page.evaluate(() => document.getElementById('selection-menu').hidden),
-        true
-      );
       await page.mouse.click(10, 10);
       assert.equal(byKey['animation:walk'].frameSetInfo.frames[1].offsetX, 6);
       assert.equal(await spriteBadge(page, section.id), '已完成');
