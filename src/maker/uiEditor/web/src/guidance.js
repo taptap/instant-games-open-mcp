@@ -43,7 +43,7 @@
     el("missingUiTitle").textContent = projectName ? "这个项目没有 .ui.json" : "UI 提取与设计稿还原";
     el("missingUiDescription").textContent = projectName
       ? "在「" + projectName + "」中未找到 .ui.json。可让 AI 提取已有 Lua UI，或从设计稿、素材组装，完成后刷新文件。顶部问号可查看在线示例。"
-      : "把下面的指令交给 AI，使用 Maker 内置工作流。已有 UI 可以直接对照编辑。";
+      : guidance.description || "把下面的指令交给 AI，使用 Maker 内置工作流。已有 UI 可以直接对照编辑。";
     el("skillCopyStatus").textContent = "";
     if (!el("missingUiDialog").open) el("missingUiDialog").showModal();
   }

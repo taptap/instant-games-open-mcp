@@ -18,7 +18,7 @@
   config.FILE_ROOT = host.fileRoot;
   config.DEFAULT_ASSET_ROOT = config.FILE_ROOT + "assets/";
   config.INITIAL_UI = typeof host.initialUi === "string" ? host.initialUi : "";
-  // Optional host wording for the AI guide: { prompt: string, steps: string[] }.
+  // Optional host wording for the AI guide: { prompt, description, steps }.
   config.GUIDANCE = host.guidance && typeof host.guidance === "object" ? host.guidance : {};
   config.displayPath = function (value) {
     return value && value.startsWith(config.FILE_ROOT)
