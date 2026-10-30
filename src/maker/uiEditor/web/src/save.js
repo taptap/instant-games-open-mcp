@@ -7,13 +7,9 @@
         return { ok: false, error: "只能保存当前项目中已打开的 UI 文档。" };
       }
       try {
-        var response = await fetch(config.API_ROOT + "save", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ path: decodeURIComponent(path.slice(config.FILE_ROOT.length)), content: text, expectedText: expectedText }),
-        });
-        var result = await response.json();
-        if (!response.ok || !result.ok) return { ok: false, error: result.error || "保存失败，请保留修改后重试。" };
-        return { ok: true, mode: "maker" };
+        var result = await config.save(decodeURIComponent(path.slice(config.FILE_ROOT.length)), text, expectedText);
+        if (!result || !result.ok) return { ok: false, error: (result && result.error) || "保存失败，请保留修改后重试。" };
+        return { ok: true, mode: result.mode || "maker" };
       } catch (error) { return { ok: false, error: error.message || String(error) }; }
     },
   };

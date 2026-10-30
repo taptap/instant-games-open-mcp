@@ -154,8 +154,13 @@ Lua 自绘逻辑不能直接作为普通 Panel 导入。随包 MakerNanoVG.lua �
 保存串行互斥并原子替换，前后检查原文；这不是对任意外部编辑器的跨进程事务锁。
 编辑器独立 CSP 仅开放本机脚本和 WASM，不扩大控制台或画布脚本权限。
 
+其他宿主（Web）用 scripts/build-maker-ui-editor-page.mjs 生成单页 HTML，以 srcdoc 嵌入：
+脚本与 Yoga 内联并降级到 Chrome 74，宿主脚本先定义 window.UrhoxHost
+（fileRoot、initialUi、manifest、readText、save，可选 assetUrl），编辑器只经它读写文件；
+未定义时使用控制台路由。控制台仍按原目录提供，行为不变。
+
 验证：npx jest --runInBand src/**tests**/makerUiEditor.test.ts；
-node scripts/test-maker-ui-editor.mjs（Playwright 可用时）。
+node scripts/test-maker-ui-editor.mjs 与 npm run test:maker:ui-editor-page（Playwright 可用时）。
 
 所有页签的控制台标题和导航默认采用紧凑布局，切页不改变顶部尺寸；画布名称在顶部页签展示，当前页签的
 铅笔按钮用于改名。添加节点、模板、保存和更多操作位于画布左侧悬浮图标条，不占画布宽度，

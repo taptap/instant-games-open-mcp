@@ -519,9 +519,7 @@
 
   async function loadUiFile(file, targetProject) {
     targetProject = targetProject || project;
-    var res = await fetch(file.path);
-    if (!res.ok) throw new Error("读取失败（HTTP " + res.status + "）");
-    var text = await res.text();
+    var text = await window.UrhoxConfig.readText(file.path);
     var json = JSON.parse(text);
     if (window.UrhoxPreview) {
       if (window.UrhoxPreview.setProjectConfig) {
@@ -606,9 +604,8 @@
     var status = document.getElementById("sessionStatus");
     if (status) status.textContent = "";
     try {
-      var res = await fetch(window.UrhoxConfig.MANIFEST);
-      if (!res.ok) throw new Error("读取项目清单失败（HTTP " + res.status + "）");
-      var data = await res.json();
+      var data = await window.UrhoxConfig.loadManifest();
+      if (!data || typeof data !== "object") throw new Error("项目文件清单格式无效");
       if (!Array.isArray(data.ui) || !Array.isArray(data.assets)) throw new Error("项目文件清单格式无效");
       if (data.name) project.name = data.name;
       project.config = data.config && window.UrhoxProjectConfig
@@ -626,8 +623,8 @@
         if (!project.files.some(function (file) { return file.path === currentFilePath(); }) && status)
           status.textContent = "当前文件已不在项目列表中，编辑内容仍保留；请检查磁盘文件。";
       } else if (project.files.length) {
-        var requested = initial ? new URLSearchParams(location.search).get("ui") : "";
-        if (requested && requested.startsWith("assets/")) requested = window.UrhoxConfig.FILE_ROOT + requested.split("/").map(encodeURIComponent).join("/");
+        var requested = initial ? window.UrhoxConfig.INITIAL_UI : "";
+        if (requested && requested.startsWith("assets/")) requested = window.UrhoxConfig.fileUrl(requested);
         var first = project.files.find(function (file) { return file.path === requested; });
         if (requested && !first) throw new Error("找不到指定的 UI 文档：" + window.UrhoxConfig.displayPath(requested));
         setOpening(true);

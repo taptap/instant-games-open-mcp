@@ -118,9 +118,9 @@
       }
     }
     if (findHandle(path) || hasHandles()) return "";
-    var relative = context.assetRoot && context.assetRoot.indexOf('/api/projects/') === 0
-      ? path.split('/').map(encodeURIComponent).join('/') : path;
-    return (context.assetRoot || "") + relative + "?v=original2";
+    var config = window.UrhoxConfig;
+    if (config && config.ownsAssetRoot(context.assetRoot)) return config.assetUrl(context.assetRoot, path);
+    return (context.assetRoot || "") + path + "?v=original2";
   }
 
   function resolveHandle(path) {

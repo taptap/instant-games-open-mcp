@@ -34,6 +34,7 @@
     "test": "jest",
     "test:maker:canvas-ui": "node scripts/test-maker-canvas-ui.mjs",
     "test:maker:sequence-ui": "node scripts/test-maker-sequence-ui.mjs",
+    "test:maker:ui-editor-page": "node scripts/test-maker-ui-editor-page.mjs",
     "lint": "eslint \"src/**/*.ts\" \"packages/maker-canvas/src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\"",

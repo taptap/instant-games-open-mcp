@@ -536,10 +536,12 @@
       }
     }
     var root = (options && options.assetRoot) || DEFAULT_ASSET_ROOT;
-    if (root.indexOf('/api/projects/') === 0) {
+    if (CFG.ownsAssetRoot && CFG.ownsAssetRoot(root)) {
       var relative = rel.replace(/^assets\//, '');
-      var response = await fetch(root + relative.split('/').map(encodeURIComponent).join('/'));
-      return response.ok ? response.json() : null;
+      var text;
+      try { text = await CFG.readText(root + relative.split('/').map(encodeURIComponent).join('/')); }
+      catch (err) { return null; }
+      return JSON.parse(text);
     }
     var urls = keys.slice();
     if (root && rel.indexOf("ui/") === 0) urls.push(root + rel);
