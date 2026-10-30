@@ -1248,7 +1248,7 @@ function applySpriteGenPatches(source: string): string {
       '  }',
       '  async function matchSpriteReady(readyPath, candidates) {',
       // ready.png has no card of its own once merged, so read it here (fresh: it changes on selection).
-      "    if (!candidates.length) return undefined;",
+      '    if (!candidates.length) return undefined;',
       '    if (store.prepareMedia) { try { await store.prepareMedia(readyPath, true); } catch (caught) { return undefined; } }',
       '    const readyUrl = store.mediaUrl(readyPath); if (!readyUrl) return undefined;',
       '    try {',
