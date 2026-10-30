@@ -1,6 +1,6 @@
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import { configureMergeIcons } from './mergeIcons.js';
-import { canvasOriginalImage, imageRatioInfo } from './imageSizing.js';
+import { canvasOriginalImage, imageRatioInfo, resolveImageSize } from './imageSizing.js';
 import { canvasGenerationParameterChoices } from './automationInfo.js';
 import { imageCardSize } from './imageInfo.js';
 import { uiRecognitionStatus, validateUiRecognitionStructure } from './uiRecognition.js';
@@ -238,6 +238,9 @@ export function prepareCanvasNodeUpdatesWithValidation(
             if (image && name === 'model') {
               if (typeof setting !== 'string' || !setting.trim() || setting.length > 200)
                 throw new Error('图片模型 ID 无效。');
+            } else if (image && name === 'aspectRatio') {
+              if (typeof setting !== 'string') throw new Error('图片生成比例无效。');
+              if (setting !== 'source') resolveImageSize(setting, '2K');
             } else if (!choices[name]?.includes(setting))
               throw new Error('不支持的生成参数：' + name);
           }

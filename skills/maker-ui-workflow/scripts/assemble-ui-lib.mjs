@@ -461,7 +461,7 @@ export function layoutFromBbox(input) {
               type: 'Panel',
               render: 'image',
               rect: [...root.rect],
-              props: {},
+              props: { backgroundFit: 'cover' },
               assetId: input.backgroundAssetId,
             },
           ]

@@ -408,7 +408,8 @@ generation 的任务标识、结果路径、来源快照不允许写入。空图
 
 图片 parameters：Maker 的 model 使用当前 MCP 工具声明的模型 ID，auto 使用服务默认模型；
 自定义 API 使用已选配置的模型，本地模式由当前 AI 客户端执行。resolution=1K/2K，
-aspectRatio=1:1/16:9/9:16/4:3/3:4。
+aspectRatio=source 跟随原稿精确比例，也可传正整数 w:h（例如 9:20）；常用比例仅为预设，
+提交时按实际模型接口能力校验。
 视频 parameters：model=2.0/2.5，resolution=720p/480p，duration=4～8，ratio=adaptive/16:9/9:16/1:1，
 mode=first_frame/first_last_frame/multi_modal_reference。Seedance 2.5 的首帧/首尾帧模式必须使用
 ratio=adaptive。参考图数量和来源仍按原界面校验。

@@ -25,15 +25,35 @@ test.each([
   expect(info).toEqual({ width, height });
 });
 
-test('uncommon and unsupported portrait ratios stop source mode before submission, while fixed mode remains available', () => {
+test('source sizing preserves uncommon and near-preset ratios while fixed presets remain available', () => {
   expect(imageRatioInfo({ width: 1700, height: 1000 }).warning).toContain('非常见');
-  expect(() => resolveImageSize('source', '1K', { width: 1700, height: 1000 })).toThrow('尚未提交');
-  expect(() => resolveImageSize('source', '1K', { width: 900, height: 2100 })).toThrow('不支持');
+  expect(resolveImageSize('source', '1K', { width: 1700, height: 1000 })).toMatchObject({
+    aspectRatio: '17:10',
+    targetSize: '1024x602',
+  });
+  expect(resolveImageSize('source', '1K', { width: 900, height: 2100 }).targetSize).toBe(
+    '439x1024'
+  );
+  expect(resolveImageSize('source', '2K', { width: 1080, height: 2400 })).toMatchObject({
+    aspectRatio: '9:20',
+    targetSize: '922x2048',
+  });
+  expect(resolveImageSize('source', '2K', { width: 1919, height: 1080 }).targetSize).toBe(
+    '2048x1153'
+  );
   expect(resolveImageSize('16:9', '2K')).toMatchObject({ targetSize: '2048x1152' });
   expect(resolveImageSize('source', '2K', { width: 1080, height: 1920 }).targetSize).toBe(
     '1152x2048'
   );
   expect(resolveImageSize('21:9', '2K').targetSize).toBe('2048x878');
+});
+
+test('sizing rejects invalid input and outputs smaller than one pixel', () => {
+  expect(() => resolveImageSize('source')).toThrow('跟随原稿需要');
+  expect(() => resolveImageSize('source', '2K', { width: 0, height: 2400 })).toThrow('尺寸无效');
+  expect(() => resolveImageSize('0:20')).toThrow('比例无效');
+  expect(() => resolveImageSize('9:20', 'invalid')).toThrow('分辨率无效');
+  expect(() => resolveImageSize('1:100000')).toThrow('不足 1 像素');
 });
 
 test('original stays anchored across generated intermediate images, and multiple roots are ambiguous', () => {

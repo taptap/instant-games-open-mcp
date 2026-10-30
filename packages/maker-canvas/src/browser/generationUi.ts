@@ -242,6 +242,10 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   const abandonedAttempts = new Set<string>();
   function imageSizeBlockReason(attempt: any): string | undefined {
     if (!attempt?.resultImageInfo) return;
+    const plan = attempt.uiAtlasPlan;
+    // An extra full-screen background has no pixel-bound slots; assembly fits it with cover.
+    if (!plan?.nativeLayout && plan?.slots.length === 1 && plan.slots[0].role === 'background')
+      return;
     const current = options.getDocument();
     if (
       attempt.cutoutColor &&

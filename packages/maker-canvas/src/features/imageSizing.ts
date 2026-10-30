@@ -1,6 +1,7 @@
 import type { CanvasImageInfo } from '../contracts.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 
+// Presets for the picker, not a provider capability whitelist.
 export const IMAGE_OUTPUT_RATIOS = [
   '1:1',
   '16:9',
@@ -44,19 +45,18 @@ export function resolveImageSize(
   let ratio = aspectRatio;
   if (ratio === 'source') {
     if (!original) throw new Error('跟随原稿需要一张尺寸明确的原图；多原稿时请手动选择输出比例。');
-    const info = imageRatioInfo(original);
-    if (!info.common || !IMAGE_OUTPUT_RATIOS.includes(info.common))
-      throw new Error(
-        (info.warning || '原图比例为 ' + info.ratio + '。') +
-          ' 当前生图接口不支持跟随此比例，请在生成参数中选择可用比例；尚未提交生图。'
-      );
-    ratio = info.common;
+    ratio = imageRatioInfo(original).ratio;
   }
-  if (!IMAGE_OUTPUT_RATIOS.includes(ratio)) throw new Error('不支持的图片生成比例：' + ratio);
+  if (!/^[1-9]\d*:[1-9]\d*$/.test(ratio)) throw new Error('图片生成比例无效：' + ratio);
   const [w, h] = ratio.split(':').map(Number);
+  if (![w, h].every((value) => Number.isSafeInteger(value) && value > 0))
+    throw new Error('图片生成比例无效：' + ratio);
+  if (resolution !== '1K' && resolution !== '2K') throw new Error('图片分辨率无效：' + resolution);
   const side = resolution === '2K' ? 2048 : 1024;
   const width = Math.round((side * w) / Math.max(w, h));
   const height = Math.round((side * h) / Math.max(w, h));
+  if (width < 1 || height < 1)
+    throw new Error('当前分辨率无法保留此比例：输出短边不足 1 像素，请调整分辨率或比例。');
   return { aspectRatio: ratio, width, height, targetSize: width + 'x' + height };
 }
 

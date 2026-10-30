@@ -109,6 +109,8 @@ export interface CanvasImageModels {
   label: string;
   description?: string;
   defaultModel?: string;
+  /** Constraints of the MCP aspect_ratio argument, when the tool declares it. */
+  aspectRatio?: { required: boolean; values?: string[] };
   models: Array<{ id: string; label: string; maxReferenceImages?: number }>;
 }
 
