@@ -10,8 +10,8 @@ description: 将 UrhoX Lua UI 提取为 .ui.json，检查已有导出文件，�
 
 ## 使用随包资料
 
-本 Skill 随 Maker MCP 和客户端插件分发，不需要下载独立编辑器仓库。
-通过 `taptap-maker status --target-dir <游戏根目录>` 获取当前安装的 Skill 路径，按任务读取：
+本 Skill 随 Maker MCP、客户端插件和 Maker Web 项目的预置 Skill 分发，不需要下载独立编辑器仓库。
+本地 Maker 通过 `taptap-maker status --target-dir <游戏根目录>` 获取当前安装的 Skill 路径；Maker Web 项目直接使用预置 Skill 目录。按任务读取：
 
 - [转换规范与用例](references/conversion.md)：转换或接入游戏前读取。
 - [检查与排错](references/diagnostics.md)：已有 JSON 检查、预览异常时读取。
@@ -23,11 +23,11 @@ description: 将 UrhoX Lua UI 提取为 .ui.json，检查已有导出文件，�
 
 ## Maker 项目与编辑器
 
-- 使用用户指定或控制台当前选中的游戏根目录，全程绑定同一项目；不能把 MCP 安装目录当游戏目录。
-- 输出放在该项目 `assets/ui/` 下；新增资源和 UI 文件后显式调用 Maker MCP `generate_resource_meta`，保留已有有效 meta。
-- 在 Maker 控制台「UI 编辑器」点击「刷新文件」打开结果。可用控制台 URL 的 `page=ui-editor&ui=assets/相对路径` 定位文档，保留当前项目参数并编码路径。
+- 使用用户指定或当前打开的游戏根目录（本地为控制台选中的项目，Web 为当前项目工作区），全程绑定同一项目；不能把 MCP 安装目录当游戏目录。
+- 输出放在该项目 `assets/ui/` 下，保留已有有效 meta。新增资源和 UI 文件后，本地 Maker 显式调用 Maker MCP `generate_resource_meta`；当前环境没有该工具时，不手写 UUID，在交付中列出缺 meta 的文件。
+- 打开结果：本地在 Maker 控制台「UI 编辑器」点击「刷新文件」，可用控制台 URL 的 `page=ui-editor&ui=assets/相对路径` 定位文档，保留当前项目参数并编码路径；Maker Web 在项目页「UI 编辑器」点击「刷新文件」。
 - 编辑器直接保存当前项目，默认不修改游戏加载入口。顶部问号链接到外部示例，仅供参考。
-- 设计稿拆图、PNG 素材组装使用 `maker-ui-workflow`；本 Skill 负责已有 Lua UI 的提取与检查。
+- 设计稿拆图、PNG 素材组装使用本地 Maker 的 `maker-ui-workflow`；本 Skill 负责已有 Lua UI 的提取与检查。
 
 ## 根据任务选择入口
 
