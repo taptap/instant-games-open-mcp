@@ -1,0 +1,4 @@
+interface:
+  display_name: 'TapTap Maker 联网本地预览'
+  short_description: '排查并运行 Maker 联网游戏本地预览与连接问题'
+  default_prompt: 'Use $taptap-maker-network-preview to run or diagnose a TapTap Maker online game local preview.'
