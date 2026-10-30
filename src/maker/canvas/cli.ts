@@ -23,6 +23,20 @@ export async function runCanvasCli(
     print(canvasAutomationCapabilities());
     return;
   }
+  let sessionConnection: Awaited<ReturnType<typeof canvasConsoleConnection>> | undefined;
+  if (options.session_id !== undefined) {
+    if (
+      typeof options.session_id !== 'string' ||
+      !/^[a-zA-Z0-9._:-]{1,128}$/.test(options.session_id)
+    )
+      throw new Error('--session-id 必须为 1～128 位字母、数字或 . _ : -。');
+    if (typeof options.target_dir !== 'string')
+      throw new Error('会话登记必须显式传入 --target-dir 项目绝对路径。');
+    sessionConnection = await canvasConsoleConnection(options.target_dir);
+    // Record the invocation once, not each wait poll; reading the register never updates it.
+    if (action !== 'sessions')
+      await sessionConnection.request('/automation/sessions', { sessionId: options.session_id });
+  }
   if (action === 'model-settings') {
     const root =
       typeof options.target_dir === 'string'
@@ -99,6 +113,7 @@ export async function runCanvasCli(
     'list',
     'templates',
     'pages',
+    'sessions',
     'status',
     'wait',
     'download',
@@ -107,7 +122,11 @@ export async function runCanvasCli(
   ];
   if (!action || !known.includes(action))
     throw new Error('未知画布命令，请运行 canvas capabilities。');
-  const connection = await canvasConsoleConnection(options.target_dir);
+  const connection = sessionConnection || (await canvasConsoleConnection(options.target_dir));
+  if (action === 'sessions') {
+    print({ sessions: await connection.request('/automation/sessions') });
+    return;
+  }
   const outputDirectory =
     ['export', 'download'].includes(action) && options.output_dir !== undefined
       ? canvasExportDirectory(options.output_dir)

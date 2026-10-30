@@ -165,20 +165,18 @@ const architecturePreview = (() => {
       line.lastChild.textContent = i === index ? message.slice(0,Math.floor(local * 22)) : message;
     });
   }
-  function render() {
+  function render(container) {
     suspend();
     if (contextKey !== selected) { time = 0; visited = false; contextKey = selected; }
     root = node('section',undefined,'architecture-preview');
     root.setAttribute('aria-label','项目架构图效果预览');
-    const tabs = node('div',undefined,'arch-tabs');
-    tabs.append(node('span','项目架构图','arch-tab-current'));
     const head = node('div',undefined,'arch-heading');
     const title = node('div'); title.append(node('h1','项目架构图'),
       node('p','卡片外光 · 边框环绕 · 连线流动','muted'));
     const source = node('a','灵感来源 cinetty ↗','arch-source');
     source.href = 'https://github.com/JosssphZhou/cinetty'; source.target = '_blank'; source.rel = 'noopener noreferrer';
     head.append(title,source);
-    root.append(tabs,head);
+    root.append(head);
     const stage = node('div',undefined,'arch-stage');
     const stageHead = node('div',undefined,'arch-stage-head');
     const stageName = node('div'); stageName.append(node('span','DEMO / 001','arch-eyebrow'),node('h2','一次游戏操作，如何流转'));
@@ -223,7 +221,7 @@ const architecturePreview = (() => {
     log.append(logBody); stage.append(stageHead,workspace,transport,log);
     root.append(stage,node('p','本页仅播放本地示例，不代表当前项目架构或实时运行状态。','arch-footnote'));
     refs = {board,play:playButton,replay,scrub,speed:speedSelect,clock:timeLabel,status,stepTitle,caption,stepCount,steps,logLines};
-    replace($('view'),[root]);
+    replace(container,[root]);
     compact = diagram.clientWidth < 700; drawGraph();
     observer = new ResizeObserver(entries => {
       const next = entries[0].contentRect.width < 700;

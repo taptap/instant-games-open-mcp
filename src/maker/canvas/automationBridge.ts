@@ -24,7 +24,24 @@ export class CanvasAutomationBridge {
   private exports = new Map<string, { bytes: Buffer; expiresAt: number }>();
   /** Newest revision any page reported per project canvas; kept after the page goes away. */
   private revisions = new Map<string, number>();
+  private sessions = new Map<string, Map<string, string>>();
   constructor(private now = Date.now) {}
+
+  listSessions(project: string) {
+    return [...(this.sessions.get(project) || [])]
+      .map(([sessionId, lastOperationAt]) => ({ sessionId, lastOperationAt }))
+      .sort((a, b) => b.lastOperationAt.localeCompare(a.lastOperationAt));
+  }
+
+  recordSession(project: string, sessionId: unknown) {
+    if (typeof sessionId !== 'string' || !/^[a-zA-Z0-9._:-]{1,128}$/.test(sessionId))
+      throw new Error('sessionId 必须为 1～128 位字母、数字或 . _ : -。');
+    const lastOperationAt = new Date(this.now()).toISOString();
+    const sessions = this.sessions.get(project) || new Map<string, string>();
+    sessions.set(sessionId, lastOperationAt);
+    this.sessions.set(project, sessions);
+    return { sessionId, lastOperationAt };
+  }
 
   list(project: string) {
     return [...this.pages.values()]

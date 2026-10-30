@@ -17,6 +17,12 @@ export {
 } from '../../../packages/maker-canvas/src/features/automation.js';
 export function canvasAutomationCapabilities() {
   return {
+    multiProject: {
+      pages: 'canvas pages --target-dir PATH',
+      sessions: 'canvas sessions --target-dir PATH',
+      policy:
+        'Different projects share one compatible console service and use their own canvases. Pass --session-id ID with project-scoped canvas CLI calls, reusing the same conversation ID across canvases. If unavailable, generate one ID for the conversation. The service stores only sessionId and lastOperationAt per project, using server UTC time at invocation; this does not require a browser. sessions is read-only, even with --session-id. capabilities is project-independent and does not register. Calls without --session-id keep existing behavior and are not recorded. Entries last until the service restarts; no occupancy, timeout or access decisions are made. Agents read the records and decide whether to proceed. Existing command execution requirements still apply. Do not stop the shared service when your task ends.',
+    },
     modelSettings: {
       command: 'canvas model-settings --target-dir PATH',
       policy:

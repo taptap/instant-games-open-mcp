@@ -172,6 +172,14 @@ export async function handleCanvasProjectRoute(options: {
     if (suffix.startsWith('canvases/automation/')) {
       if (!options.automation) throw new ConsoleError('画布 CLI 桥接未启动。', 503);
       const action = suffix.slice('canvases/automation/'.length);
+      if (action === 'sessions') {
+        if (method === 'GET') send(response, 200, options.automation.listSessions(key));
+        else if (method === 'POST') {
+          const body = JSON.parse((await readBytes(request, 1024)).toString('utf8'));
+          send(response, 200, options.automation.recordSession(key, body?.sessionId));
+        } else throw new ConsoleError('Unknown canvas session method.', 405);
+        return true;
+      }
       const exported = action.match(/^exports\/([a-zA-Z0-9-]{1,80})$/);
       if (exported) {
         if (method === 'POST') {

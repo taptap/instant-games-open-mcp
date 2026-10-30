@@ -14,6 +14,8 @@ let projectid = initialQuery.get('projectid') || '';
 let selected = initialQuery.get('project') || '';
 const hasExplicitProject = initialQuery.has('projectid') || initialQuery.has('project');
 let page = selected ? 'overview' : 'projects';
+let otherTab = 'motion';
+let motionFrame;
 let selectionEpoch = 0;
 let viewEpoch = 0;
 let projectNotice = '';
@@ -1095,6 +1097,7 @@ function startActivityLease() {
 }
 function dispose() {
   architecturePreview.suspend();
+  setMotionVisible(false);
   offline = true;
   disposed = true;
   clearTimeout(pollTimer);
@@ -2795,6 +2798,31 @@ function renderCanvas() {
   canvasFrames.forEach((item, itemKey) => { item.hidden = itemKey !== key; });
 }
 ${modelSettingsScript}
+function setMotionVisible(visible) {
+  motionFrame?.contentWindow?.postMessage({type:'maker:motion-visibility',visible},location.origin);
+}
+function renderOther() {
+  const motion = otherTab === 'motion';
+  $('other-motion').hidden = !motion;
+  $('other-architecture').hidden = motion;
+  document.querySelectorAll('[data-other-tab]').forEach(tab => {
+    tab.setAttribute('aria-selected',String(tab.dataset.otherTab === otherTab));
+    tab.tabIndex = tab.dataset.otherTab === otherTab ? 0 : -1;
+  });
+  if (motion) {
+    if (!motionFrame) {
+      motionFrame = node('iframe',undefined,'motion-library-frame');
+      motionFrame.title = 'UI 动效库';
+      motionFrame.src = '/ui-motion';
+      motionFrame.addEventListener('load',() => setMotionVisible(page === 'other' && otherTab === 'motion'));
+      $('other-motion').append(motionFrame);
+    }
+    setMotionVisible(true);
+  } else {
+    setMotionVisible(false);
+    architecturePreview.render($('other-architecture'));
+  }
+}
 function navigate(next) {
   if (!currentProject()?.valid && !['projects','documents','settings','other'].includes(next)) return;
   viewEpoch++; commitRequest++; gitLoading = false; page = next;
@@ -2805,13 +2833,15 @@ function navigate(next) {
 }
 function render() {
   architecturePreview.suspend();
+  setMotionVisible(false);
   document.body.classList.toggle('canvas-mode', page === 'canvas' || page === 'ui-editor');
   $('close-canvas').hidden = true;
   syncValidationPolling();
   updateChrome();
   $('view').setAttribute('aria-busy','false');
   const plugin = currentProject()?.valid && pluginDescriptors().find(item => page === 'plugin:' + item.id);
-  $('view').hidden = Boolean(plugin) || page === 'canvas' || page === 'ui-editor';
+  $('view').hidden = Boolean(plugin) || ['canvas','ui-editor','other'].includes(page);
+  $('other-view').hidden = page !== 'other';
   $('plugin-views').hidden = !plugin;
   $('canvas-views').hidden = page !== 'canvas';
   $('ui-editor-view').hidden = page !== 'ui-editor';
@@ -2821,7 +2851,7 @@ function render() {
   if (plugin) { renderPlugin(plugin); return; }
   if (page === 'documents') { void renderDocuments(); return; }
   if (page === 'settings') { void renderVisionSettings(); return; }
-  if (page === 'other') { architecturePreview.render(); return; }
+  if (page === 'other') { renderOther(); return; }
   if (page === 'projects' || !currentProject()?.valid) renderProjects();
   else if (page === 'build') renderBuild();
   else if (page === 'git') renderGit();
@@ -3039,6 +3069,21 @@ document.addEventListener('DOMContentLoaded',async () => {
   $('maker-version-picker').addEventListener('change',selectMakerVersion);
   $('dismiss').addEventListener('click',() => { $('feedback').hidden = true; });
   document.querySelectorAll('nav [data-page]').forEach(b => b.addEventListener('click',() => navigate(b.dataset.page)));
+  document.querySelectorAll('[data-other-tab]').forEach(tab => {
+    tab.addEventListener('click',() => {
+      architecturePreview.suspend();
+      otherTab = tab.dataset.otherTab;
+      renderOther();
+    });
+    tab.addEventListener('keydown',event => {
+      if (!['ArrowUp','ArrowDown','Home','End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 'motion' : event.key === 'End' ? 'architecture'
+        : otherTab === 'motion' ? 'architecture' : 'motion';
+      const target = document.querySelector('[data-other-tab="' + next + '"]');
+      target.click(); target.focus();
+    });
+  });
   window.addEventListener('popstate',() => {
     chooseProject(projectKeyFromQuery(new URLSearchParams(location.search)),false);
   });

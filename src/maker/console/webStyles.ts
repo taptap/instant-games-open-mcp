@@ -338,6 +338,14 @@ body.canvas-mode #close-canvas{max-width:85px;white-space:normal;font-size:10px}
 .document-tabs button{min-height:36px}
 .plugin-status{padding:10px 16px}.plugin-frame{height:calc(100dvh - 235px);min-height:480px}
 }
+.other-workspace{display:grid;grid-template-columns:144px minmax(0,1fr);flex:1;min-width:0}
+.other-tabs{display:flex;flex-direction:column;gap:4px;align-self:stretch;padding:16px 0;border-right:1px solid var(--border);background:var(--top)}
+.other-tabs button{border:0;border-radius:0;justify-content:flex-start;padding:12px 16px;background:transparent}
+.other-tabs button[aria-selected="true"]{background:var(--selection);color:var(--accent);box-shadow:inset 3px 0 var(--accent)}
+#other-motion,#other-architecture{min-width:0}
+#other-architecture{padding:24px}
+.motion-library-frame{display:block;width:100%;height:calc(100dvh - 120px);min-height:580px;border:0}
+@media(max-width:650px){.other-workspace{grid-template-columns:86px minmax(0,1fr)}.other-tabs button{padding:10px 8px;font-size:12px}#other-architecture{padding:12px}.motion-library-frame{height:calc(100dvh - 160px)}}
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}}
 ${architecturePreviewStyles}
 `;
