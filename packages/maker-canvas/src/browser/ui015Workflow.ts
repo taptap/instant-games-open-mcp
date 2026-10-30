@@ -425,18 +425,21 @@ export function createUi015Workflow(options: {
         await prepare(groupId);
         view = inspect(groupId)!;
       }
-      const found = cards(document, groupId)!;
-      const synced = Boolean(bundleOf(members(document, groupId)));
+      const live = options.current();
+      if (!live) throw new Error('画布已关闭，无法继续。');
+      const found = cards(live, groupId)!;
+      const synced = Boolean(bundleOf(members(live, groupId)));
       const derived = synced
-        ? currentChoice(document, members(document, groupId), found.cut)
+        ? currentChoice(live, members(live, groupId), found.cut)
         : defaultChoice(found.cut);
       const choice: Ui015Choice = {
         artText: input.artText ?? derived.artText,
         background: input.background ?? derived.background,
       };
-      // Re-planning also picks up batches added by a new recognition result.
-      await applyChoice(document, groupId, choice);
+      await applyChoice(live, groupId, choice);
       view = inspect(groupId)!;
+      if (view.stage === 'choice')
+        throw new Error('识图已完成，但没有拆出后续批次。请点继续重试。');
       outcomes.delete(groupId);
       if (view.stage === 'generation') {
         autoRuns.set(groupId, { waits: 0, ...autoRuns.get(groupId), cli: input.cli === true });
@@ -456,7 +459,13 @@ export function createUi015Workflow(options: {
       const message = error instanceof Error ? error.message : String(error);
       options.error(message);
       options.log('015 · ' + message, 'error');
-      return { status: 'failed', stage: inspect(groupId)?.stage || 'invalid', message };
+      const result = {
+        status: 'failed' as const,
+        stage: inspect(groupId)?.stage || 'invalid',
+        message,
+      };
+      outcomes.set(groupId, result);
+      return result;
     } finally {
       running = '';
       options.render();
@@ -839,6 +848,7 @@ export function createUi015Workflow(options: {
       invalid: '流程结构异常',
       design: '1 设计稿',
       prepare: '2 去文字与识图',
+      choice: '2 去文字与识图',
       generation: '3 预排、分离与切图',
       assemble: '4 组装 UI',
       running: '执行中',
@@ -867,6 +877,18 @@ export function createUi015Workflow(options: {
           extra,
           hint: state.message,
         };
+      case 'choice': {
+        const failed = outcomes.get(groupId);
+        return {
+          stage,
+          primary: run('继续自动生成', go, '识图已完成，按默认选择拆分批次并继续预排、分离和切图'),
+          extra,
+          hint:
+            failed && failed.status === 'failed'
+              ? failed.message
+              : '识图已完成。点继续后按默认选择拆分批次，不再停在这一步。',
+        };
+      }
       case 'generation':
         return { stage, primary: run('继续自动生成', go), extra, hint: state.message };
       case 'assemble': {
