@@ -5,15 +5,64 @@
 
   var BLUE = "#0D99FF";
   // Hosts may restyle the overlay and device frame through CSS variables on :root:
-  // --editor-accent (selection colour), --editor-bezel and --editor-bezel-outline (px).
-  var frame = { accent: BLUE, bezel: null, outline: 4 };
+  // --editor-accent (selection colour), --editor-halo (contrast outline under accent strokes),
+  // --editor-handle (square | round), --editor-bezel and --editor-bezel-outline (px).
+  var frame = { accent: BLUE, halo: "", round: false, bezel: null, outline: 4 };
+  var probes = {};
+  // Colours go through a probe element so any CSS colour syntax resolves to rgb() for canvas.
+  function resolveColor(name, fallback) {
+    var probe = probes[name];
+    if (!probe) {
+      probe = probes[name] = document.createElement("span");
+      probe.hidden = true;
+      probe.style.color = "var(" + name + ", " + fallback + ")";
+      (document.body || document.documentElement).appendChild(probe);
+    }
+    var color = getComputedStyle(probe).color;
+    // Older canvases reject newer syntaxes (color(), color-mix); fall back instead of keeping
+    // whatever colour was set last.
+    var test = probes.ctx || (probes.ctx = document.createElement("canvas").getContext("2d"));
+    test.fillStyle = "#010203";
+    test.fillStyle = color;
+    return test.fillStyle === "#010203" && color !== "rgb(1, 2, 3)" ? fallback : color;
+  }
   function readFrameStyle() {
     var style = getComputedStyle(document.documentElement);
     var bezel = parseFloat(style.getPropertyValue("--editor-bezel"));
     var outline = parseFloat(style.getPropertyValue("--editor-bezel-outline"));
-    frame.accent = style.getPropertyValue("--editor-accent").trim() || BLUE;
+    frame.accent = resolveColor("--editor-accent", BLUE);
+    frame.halo = style.getPropertyValue("--editor-halo").trim() ? resolveColor("--editor-halo", "transparent") : "";
+    frame.round = style.getPropertyValue("--editor-handle").trim() === "round";
     frame.bezel = bezel >= 0 ? bezel : null;
     frame.outline = outline >= 0 ? outline : 4;
+  }
+  function strokeAccentRect(ctx, app, x, y, w, h, px) {
+    if (frame.halo) {
+      ctx.strokeStyle = frame.halo;
+      ctx.lineWidth = screenLine(app, px + 2);
+      ctx.strokeRect(x, y, w, h);
+    }
+    ctx.strokeStyle = frame.accent;
+    ctx.lineWidth = screenLine(app, px);
+    ctx.strokeRect(x, y, w, h);
+  }
+  function handlePath(ctx, x, y, hs) {
+    ctx.beginPath();
+    if (frame.round) ctx.arc(x, y, hs / 2, 0, Math.PI * 2);
+    else ctx.rect(x - hs / 2, y - hs / 2, hs, hs);
+  }
+  function drawHandle(ctx, app, x, y, hs) {
+    handlePath(ctx, x, y, hs);
+    if (frame.halo) {
+      ctx.strokeStyle = frame.halo;
+      ctx.lineWidth = screenLine(app, 3.25);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.strokeStyle = frame.accent;
+    ctx.lineWidth = screenLine(app, 1.25);
+    ctx.stroke();
   }
   var PINK = "#F24822";
 
@@ -201,21 +250,11 @@
     var matrix = root.UrhoxGeom.worldMatrix(tree, node);
     ctx.transform.apply(ctx, matrix);
     if (kind === "selected") {
-      ctx.strokeStyle = frame.accent;
-      ctx.lineWidth = screenLine(app, 1.5);
-      ctx.strokeRect(box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1));
+      strokeAccentRect(ctx, app, box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1), 1.5);
       var hs = handleSize(app);
-      handlesFor(box).forEach(function (h) {
-        ctx.fillStyle = "#ffffff";
-        ctx.strokeStyle = frame.accent;
-        ctx.lineWidth = screenLine(app, 1.25);
-        ctx.fillRect(h.x - hs / 2, h.y - hs / 2, hs, hs);
-        ctx.strokeRect(h.x - hs / 2, h.y - hs / 2, hs, hs);
-      });
+      handlesFor(box).forEach(function (h) { drawHandle(ctx, app, h.x, h.y, hs); });
     } else if (kind === "hover") {
-      ctx.strokeStyle = frame.accent;
-      ctx.lineWidth = screenLine(app, 1);
-      ctx.strokeRect(box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1));
+      strokeAccentRect(ctx, app, box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1), 1);
     }
     ctx.restore();
   }
@@ -307,18 +346,23 @@
         var handles = transform.handles(app);
         if (bounds && handles.length) {
           ctx.save();
-          ctx.strokeStyle = frame.accent;
-          ctx.lineWidth = screenLine(app, 1);
-          ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
+          strokeAccentRect(ctx, app, bounds.x, bounds.y, bounds.w, bounds.h, 1);
           handles.forEach(function (h) {
             var hs = handleSize(app);
-            ctx.fillStyle = h.id === "rotate" ? frame.accent : "#fff";
             if (h.id === "rotate") {
+              if (frame.halo) {
+                ctx.strokeStyle = frame.halo;
+                ctx.lineWidth = screenLine(app, 3);
+                ctx.beginPath(); ctx.moveTo(h.x, bounds.y); ctx.lineTo(h.x, h.y); ctx.stroke();
+                ctx.beginPath(); ctx.arc(h.x, h.y, hs/2, 0, Math.PI*2); ctx.stroke();
+              }
+              ctx.strokeStyle = frame.accent;
+              ctx.fillStyle = frame.accent;
+              ctx.lineWidth = screenLine(app, 1);
               ctx.beginPath(); ctx.moveTo(h.x, bounds.y); ctx.lineTo(h.x, h.y); ctx.stroke();
               ctx.beginPath(); ctx.arc(h.x, h.y, hs/2, 0, Math.PI*2); ctx.fill();
             } else {
-              ctx.fillRect(h.x-hs/2, h.y-hs/2, hs, hs);
-              ctx.strokeRect(h.x-hs/2, h.y-hs/2, hs, hs);
+              drawHandle(ctx, app, h.x, h.y, hs);
             }
           });
           ctx.restore();
