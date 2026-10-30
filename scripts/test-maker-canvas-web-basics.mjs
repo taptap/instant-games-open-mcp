@@ -2494,8 +2494,8 @@ try {
           assert.equal(await button.locator('svg').count(), 1, name + ' 为图标');
           assert.equal((await button.innerText()).trim(), '', name + ' 不显示文字');
         }
-        const download = menu.getByRole('button', { name: '下载图片', exact: true });
-        assert.equal(await download.getAttribute('data-web-tip'), '下载图片');
+        const download = menu.getByRole('button', { name: '下载 PNG', exact: true });
+        assert.equal(await download.getAttribute('data-web-tip'), '下载 PNG');
         assert.equal(await download.locator('svg').count(), 1);
         assert.equal(await menu.locator('details').count(), 0, '下载不再是折叠菜单');
         const bar = await menu.boundingBox();
@@ -2507,7 +2507,42 @@ try {
         });
         await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
         await contextMenu.waitFor();
-        assert.deepEqual(await imageItems(), ['加入对话', '抠图', '调整抠图', '下载', '下载 JPG']);
+        // Same names and order as the selection icons: 编辑 / 对话 / 导出.
+        assert.deepEqual(await imageItems(), [
+          '抠图',
+          '调整抠图',
+          '加入对话',
+          '下载 PNG',
+          '下载 JPG',
+        ]);
+        const iconOrder = await page.evaluate(() =>
+          [...document.querySelectorAll('#selection-menu .selection-actions > button')].map(
+            (item) => item.getAttribute('aria-label')
+          )
+        );
+        assert.deepEqual(
+          iconOrder.filter((label) =>
+            ['抠图', '调整抠图', '加入对话', '下载 PNG', '下载 JPG'].includes(label)
+          ),
+          ['抠图', '调整抠图', '加入对话', '下载 PNG', '下载 JPG']
+        );
+        // One separator between each visible group, none around empty ones.
+        const groups = await page.evaluate(() => {
+          const out = [[]];
+          for (const item of document.querySelector('#canvas-context-menu').children) {
+            if (item.hidden) continue;
+            if (item.matches('.canvas-menu-separator')) out.push([]);
+            else if (item.matches('button')) out[out.length - 1].push(item.textContent);
+          }
+          return out;
+        });
+        assert.deepEqual(groups, [
+          ['图片生成'],
+          ['抠图', '调整抠图'],
+          ['加入对话'],
+          ['下载 PNG', '下载 JPG'],
+          ['复制卡片', '删除卡片'],
+        ]);
         const opened = await contextMenu.boundingBox();
         await shoot('v7-' + theme + '-image-context-menu.png', {
           x: Math.max(0, opened.x - 24),
@@ -2524,7 +2559,7 @@ try {
         { nodeId: image.id, assetPath: image.assetPath },
       ]);
       await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
-      await contextMenu.getByRole('button', { name: '下载', exact: true }).click();
+      await contextMenu.getByRole('button', { name: '下载 PNG', exact: true }).click();
       await page.waitForFunction(() => window.__canvasDelivered);
       assert.match(await page.evaluate(() => window.__canvasDelivered.filename), /\.png$/);
       await page.evaluate(() => (window.__canvasDelivered = undefined));
@@ -2556,7 +2591,7 @@ try {
             .filter((item) => !item.hidden)
             .map((item) => item.textContent)
         ),
-        ['下载', '下载 JPG'],
+        ['下载 PNG', '下载 JPG'],
         '无 addToChat / cutout 时只保留下载'
       );
       await plain.page.close();
@@ -3013,12 +3048,12 @@ try {
         assert.equal(result.type, 'image/png');
         assert.ok(result.size > 0);
       };
-      await contextMenu.getByRole('button', { name: '下载', exact: true }).click();
+      await contextMenu.getByRole('button', { name: '下载 PNG', exact: true }).click();
       await delivered(1);
       await page.evaluate(() => (window.__canvasDelivered = undefined));
       await blank();
       await card(image.id).click({ position: { x: 100, y: 120 } });
-      await page.locator('#selection-menu').getByRole('button', { name: '下载图片' }).click();
+      await page.locator('#selection-menu').getByRole('button', { name: '下载 PNG' }).click();
       await delivered(2);
       assert.deepEqual(errors, []);
       await page.close();
@@ -3034,7 +3069,7 @@ try {
     await settle();
     await blank();
     await card(image.id).click({ position: { x: 100, y: 120 } });
-    const icon = page.locator('#selection-menu').getByRole('button', { name: '下载图片' });
+    const icon = page.locator('#selection-menu').getByRole('button', { name: '下载 PNG' });
     await icon.waitFor();
     let download = page.waitForEvent('download', { timeout: 5000 });
     await icon.click();
@@ -3044,7 +3079,7 @@ try {
     download = page.waitForEvent('download', { timeout: 5000 });
     await page
       .locator('#canvas-context-menu')
-      .getByRole('button', { name: '下载', exact: true })
+      .getByRole('button', { name: '下载 PNG', exact: true })
       .click();
     assert.match((await download).suggestedFilename(), /\.png$/);
     assert.deepEqual(errors, []);
@@ -5585,7 +5620,7 @@ try {
       await settle();
       await card(byKey.cutout_ref.id).click({ position: { x: 40, y: 80 } });
       await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
-      assert.deepEqual(await menuLabels(page), ['下载图片']);
+      assert.deepEqual(await menuLabels(page), ['下载 PNG', '下载 JPG']);
       assert.equal(await card(byKey.cutout_ref.id).locator('.canvas-port').count(), 0);
       assert.equal(await page.locator('#selection-toolbar .selection-panel').count(), 0);
       await page.mouse.move(10, 10);
@@ -5702,7 +5737,7 @@ try {
   await check(
     'Web 精灵同步：完成态裁边精灵表生成可播放的动画卡与序列帧卡，阶段为已完成（明暗）',
     async () => {
-      const { page, errors, current, card, shoot } = await spritePage();
+      const { page, errors, current, card, settle, shoot } = await spritePage();
       await startSprite(page, 'hero');
       const section = await spriteSection(current, 'hero');
       await page.evaluate(async () => {
@@ -5779,6 +5814,21 @@ try {
           kind
         );
       assert.equal(byKey['sequence:walk'].sourceVideoId, byKey['video:walk'].id);
+      // A mirrored video has no read-only action: no empty selection pill above it.
+      await settle();
+      await card(byKey['video:walk'].id).click({ position: { x: 40, y: 40 } });
+      await page.waitForFunction(
+        (id) =>
+          window.__canvasEditor.current() &&
+          document.querySelector('.card.selected[data-id="' + id + '"]'),
+        byKey['video:walk'].id
+      );
+      assert.equal(
+        await page.evaluate(() => document.getElementById('selection-menu').hidden),
+        true,
+        '镜像视频不显示空菜单'
+      );
+      await page.mouse.click(10, 10);
       assert.equal(byKey['animation:walk'].frameSetInfo.frames[1].offsetX, 6);
       assert.equal(await spriteBadge(page, section.id), '已完成');
       // The tree grows to the right (source → video → sequence → animation); fit it on screen.

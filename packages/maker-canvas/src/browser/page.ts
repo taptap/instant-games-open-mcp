@@ -1219,6 +1219,102 @@ function applyMissingMediaPatches(source: string): string {
   return page;
 }
 /**
+ * Web card menus: the selection icons and the right-click menu list the same actions, in the same
+ * order and with the same names, grouped 生成 / 编辑 / 对话 / 导出; the right-click menu adds the
+ * group and card actions. Variants sit behind a chevron (抠图 ▸ 调整抠图, 下载 PNG ▸ 下载 JPG).
+ */
+const CANVAS_CARD_ACTION_GROUPS = [
+  ['图片生成', '视频生成', '生成精灵', '拆序列帧'],
+  ['抠图', '调整抠图'],
+  ['加入对话'],
+  ['下载 PNG', '下载 JPG'],
+];
+const CANVAS_CARD_MENU_ORDER = [
+  ['web-image-generate', 'web-video', 'web-sprite-gen', 'web-sequence'],
+  ['quick-cutout', 'adjust-cutout'],
+  ['add-to-chat'],
+  ['download-image', 'download-image-jpg'],
+  ['web-tidy-sprite', 'web-group', 'web-ungroup', 'web-delete-group'],
+  ['duplicate', 'delete'],
+];
+function applyCardMenuPatches(source: string): string {
+  let page = source;
+  const patch = (search: string, replacement: string) => {
+    page = replaceCanvasPageText(page, search, replacement);
+  };
+  patch(
+    "        if (canvasWeb) canvasWebIconAction(actionButton('下载图片', function () { void resourceExport.download(node, 'png'); }), 'download'); else {",
+    "        if (canvasWeb) { canvasWebIconAction(actionButton('下载 PNG', function () { void resourceExport.download(node, 'png'); }), 'download'); const jpg = actionButton('下载 JPG', function () { void resourceExport.download(node, 'jpg'); }); jpg.classList.add('web-cutout-adjust'); canvasWebIconAction(jpg, 'chevron'); } else {"
+  );
+  // Read-only mirrors keep 加入对话 / 下载; icons follow one order with dividers between groups; a
+  // menu left with no action (e.g. a mirrored video) is hidden instead of showing an empty pill.
+  patch(
+    "      if (node.mirror) Array.from(actions.children).forEach(function (child) { if (['加入对话', '下载图片'].indexOf(child.getAttribute('aria-label') || child.textContent) < 0) child.remove(); });",
+    [
+      "      const actionLabel = function (child) { return child.getAttribute('aria-label') || child.textContent || ''; };",
+      "      if (node.mirror) Array.from(actions.children).forEach(function (child) { if (['加入对话', '下载 PNG', '下载 JPG'].indexOf(actionLabel(child)) < 0) child.remove(); });",
+      '      if (canvasWeb) {',
+      '        const groupOf = function (child) { const label = actionLabel(child); for (let index = 0; index < CANVAS_CARD_ACTION_GROUPS.length; index++) { const at = CANVAS_CARD_ACTION_GROUPS[index].indexOf(label); if (at >= 0) return [index, at]; } return [CANVAS_CARD_ACTION_GROUPS.length, 0]; };',
+      '        const ordered = Array.from(actions.children).map(function (child, index) { return { child: child, key: groupOf(child), index: index }; }).sort(function (a, b) { return a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.index - b.index; });',
+      '        let group = -1;',
+      "        ordered.forEach(function (item) { if (group >= 0 && item.key[0] !== group) { const divider = document.createElement('span'); divider.className = 'web-action-divider'; divider.setAttribute('aria-hidden', 'true'); actions.append(divider); } group = item.key[0]; actions.append(item.child); });",
+      '      }',
+      '      if (!actions.children.length) { actions.remove(); selectionMenu.hidden = true; }',
+    ].join('\n')
+  );
+  patch(
+    '<button type="button" data-canvas-action="download-image" data-menu-scope="image" hidden>下载</button>',
+    '<button type="button" data-canvas-action="download-image" data-menu-scope="image" hidden>下载 PNG</button>'
+  );
+  patch(
+    '<button type="button" data-canvas-action="web-video" data-menu-scope="web" hidden>视频生成</button>',
+    '<button type="button" data-canvas-action="web-image-generate" data-menu-scope="web" hidden>图片生成</button><button type="button" data-canvas-action="web-video" data-menu-scope="web" hidden>视频生成</button><button type="button" data-canvas-action="web-sprite-gen" data-menu-scope="web" hidden>生成精灵</button>'
+  );
+  patch(
+    "      const shown = { 'web-video': Boolean(one && one.type === 'image' && one.assetPath && !busy), 'web-sequence': Boolean(one && one.type === 'video-source' && one.assetPath && !busy),",
+    "      const editable = Boolean(one && one.assetPath && !busy && !one.mirror);\n      const shown = { 'web-image-generate': Boolean(editable && one.type === 'image' && !canvasCapabilityReason(store, 'imageGeneration')), 'web-sprite-gen': Boolean(editable && one.type === 'image' && canvasFeatureEnabled(host, 'spriteGen') && host.startSpriteGen), 'web-video': Boolean(editable && one.type === 'image'), 'web-sequence': Boolean(editable && one.type === 'video-source'),"
+  );
+  patch(
+    "    if (value === 'web-video') {",
+    "    if (value === 'web-image-generate') { if (contextNode) createLinkedSlot(contextNode.id, false, true); return; }\n    if (value === 'web-sprite-gen') { if (contextNode) openSpriteGen(contextNode); return; }\n    if (value === 'web-video') {"
+  );
+  // One-time order of the card entries, with group separators (shown only between visible entries).
+  patch(
+    '  if (!host.pickProjectImages) contextMenu.querySelectorAll(\'[data-canvas-action="pick-project-images"]\').forEach(function (item) { item.remove(); });',
+    [
+      '  if (!host.pickProjectImages) contextMenu.querySelectorAll(\'[data-canvas-action="pick-project-images"]\').forEach(function (item) { item.remove(); });',
+      '  if (canvasWeb) {',
+      "    const cardItem = function (action) { return contextMenu.querySelector('[data-canvas-action=\"' + action + '\"]:not([data-menu-scope=blank])'); };",
+      "    const tail = document.createComment('card-menu'); contextMenu.append(tail);",
+      "    CANVAS_CARD_MENU_ORDER.forEach(function (group, index) { if (index) { const separator = document.createElement('div'); separator.className = 'canvas-menu-separator'; separator.setAttribute('role', 'separator'); separator.dataset.menuScope = 'card-group'; tail.before(separator); } group.forEach(function (action) { const item = cardItem(action); if (item) tail.before(item); }); });",
+      '    tail.remove();',
+      '  }',
+      '  function tidyCardMenu() {',
+      '    if (!canvasWeb) return;',
+      // Read-only mirrors: no 抠图 on the right-click menu either.
+      "    if (contextNode && contextNode.mirror) contextMenu.querySelectorAll('[data-canvas-action=quick-cutout], [data-canvas-action=adjust-cutout]').forEach(function (item) { item.hidden = true; });",
+      "    const separators = contextMenu.querySelectorAll('.canvas-menu-separator[data-menu-scope=card-group]');",
+      '    separators.forEach(function (separator) {',
+      // A visible entry anywhere on each side (empty groups in between are skipped).
+      "      const visible = function (step) { let item = separator[step]; while (item) { if (!item.hidden && item.matches('button')) return true; item = item[step]; } return false; };",
+      "      separator.hidden = !(visible('previousElementSibling') && visible('nextElementSibling'));",
+      '    });',
+      // Two separators in a row (an empty group between them): keep the first.
+      '    let last = null; separators.forEach(function (separator) { if (separator.hidden) return; let item = separator.previousElementSibling; while (item && item.hidden) item = item.previousElementSibling; if (item && item === last) separator.hidden = true; else last = separator; });',
+      '  }',
+    ].join('\n')
+  );
+  patch(
+    "      contextMenu.querySelectorAll('[data-menu-scope=web]').forEach(function (item) { item.hidden = !shown[item.dataset.canvasAction]; });",
+    "      contextMenu.querySelectorAll('[data-menu-scope=web]').forEach(function (item) { item.hidden = !shown[item.dataset.canvasAction]; });\n      queueMicrotask(tidyCardMenu);"
+  );
+  patch(
+    '</style>',
+    '#selection-menu .web-action-divider { display: inline-block; flex: none; width: 1px; height: 18px; margin: 0 4px; background: var(--canvas-line, rgba(0,0,0,.12)); vertical-align: middle; }\n</style>'
+  );
+  return page;
+}
+/**
  * Web 图生精灵: 「生成精灵」 creates the group and hands off to the host chat; a page-owned sync
  * mirrors sprite-gen's files into read-only cards (features/spriteMirror.ts). Sync edits are not
  * undo steps and never write sprite-gen's trees.
@@ -1624,6 +1720,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasLogLevel.toString(),
     canvasCardStatus.toString(),
     renderCanvasCardStatus.toString(),
+    'const CANVAS_CARD_ACTION_GROUPS = ' + JSON.stringify(CANVAS_CARD_ACTION_GROUPS) + ';',
+    'const CANVAS_CARD_MENU_ORDER = ' + JSON.stringify(CANVAS_CARD_MENU_ORDER) + ';',
     createCanvasTemplateModel.toString(),
     'const builtinPresetDescriptions = ' + JSON.stringify(builtinPresetDescriptions) + ';',
     'const templateCategories = ' + JSON.stringify(templateCategories) + ';',
@@ -3722,6 +3820,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = applySlotMediaPatches(page);
   page = applySpriteGenPatches(page);
   page = applyMissingMediaPatches(page);
+  page = applyCardMenuPatches(page);
   // Keep template anchors from rewriting function bodies inside injected helpers.
   page = page.replace('/*__HELPERS__*/', () => helperSource);
   return page.replace(
