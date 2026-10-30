@@ -4261,6 +4261,14 @@ try {
     const grownGroup = joined.nodes.find((node) => node.id === section.id);
     const placed = joined.nodes.find((node) => node.id === third.id);
     assert.ok(grownGroup.x + grownGroup.width >= placed.x + placed.width, '分组扩大到包含新卡');
+    // ⌘/Ctrl+C / ⌘/Ctrl+V duplicates a plain card.
+    const beforePaste = (await current()).nodes.length;
+    await blank();
+    await card(third.id).click({ position: { x: 40, y: 50 } });
+    await page.keyboard.press('ControlOrMeta+c');
+    await page.keyboard.press('ControlOrMeta+v');
+    assert.equal((await current()).nodes.length, beforePaste + 1);
+    await editor('undo', {});
     // Undo the join, the move and the import so the rest of this check sees two cards again.
     for (let step = 0; step < 3; step++) await editor('undo', {});
     assert.equal(
@@ -5666,6 +5674,35 @@ try {
         (count) => window.__canvasEditor.current().nodes.length === count,
         beforeCopy
       );
+      // ⌘/Ctrl+C then ⌘/Ctrl+V on a sprite card also copies it as a plain card.
+      await card(byKey.cutout_ref.id).click({ position: { x: 40, y: 80 } });
+      await page.keyboard.press('ControlOrMeta+c');
+      await page.keyboard.press('ControlOrMeta+v');
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 1,
+        beforeCopy
+      );
+      const pasted = (await current()).nodes.at(-1);
+      assert.equal(pasted.mirror, undefined);
+      assert.match(pasted.assetPath, /^assets\/image\//);
+      // The copy is panned into view.
+      const shown = await card(pasted.id).boundingBox();
+      assert.ok(shown && shown.x >= 0 && shown.x + shown.width <= 1400, '复制卡在视野内');
+      await editor('undo', {});
+      // Dragging a sprite card out of its group keeps it in the group.
+      const inside = byKey.cutout_ref;
+      await settle();
+      const from = await card(inside.id).boundingBox();
+      await page.mouse.move(from.x + 40, from.y + 80);
+      await page.mouse.down();
+      await page.mouse.move(from.x + 40, from.y - 400, { steps: 8 });
+      await page.mouse.up();
+      assert.equal(
+        (await current()).nodes.find((node) => node.id === inside.id).sectionId,
+        section.id,
+        '精灵卡拖出分组框仍属于分组'
+      );
+      await editor('undo', {});
       await page.mouse.move(10, 10);
       await themes(page, (theme) => shoot('v20-sprite-group-' + theme + '.png'));
       const removed = byKey['viewpoint:assets/image/vp_2.png'];

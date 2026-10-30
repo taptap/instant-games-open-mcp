@@ -1390,6 +1390,48 @@ function applyCardMenuPatches(source: string): string {
       '    if (joinSelectedSection()) return;',
     ].join('\n')
   );
+  // ⌘/Ctrl+C remembers the selected cards, ⌘/Ctrl+V and ⌘/Ctrl+D duplicate them (sprite cards go
+  // through 复制为普通卡片). In-canvas only: nothing is written to the system clipboard.
+  patch(
+    "if (meta && event.key.toLowerCase() === 'z')",
+    [
+      "if (canvasWeb && meta && !event.altKey && !event.shiftKey && ['c', 'v', 'd'].indexOf(event.key.toLowerCase()) >= 0) {",
+      '      const shortcut = event.key.toLowerCase();',
+      "      const cards = documentState ? documentState.nodes.filter(function (node) { return selected.has(node.id) && node.type !== 'section'; }).map(function (node) { return node.id; }) : [];",
+      "      if (shortcut === 'c') { if (cards.length && !(window.getSelection && String(window.getSelection()))) { canvasClipboard = { canvasId: documentState.id, ids: cards }; event.preventDefault(); } return; }",
+      "      const source = shortcut === 'v' ? (canvasClipboard && documentState && canvasClipboard.canvasId === documentState.id ? canvasClipboard.ids.filter(function (id) { return documentState.nodes.some(function (node) { return node.id === id; }); }) : []) : cards;",
+      '      if (!source.length) return;',
+      '      event.preventDefault(); selected.clear(); source.forEach(function (id) { selected.add(id); }); duplicateSelected(); return;',
+      '    }',
+      "    if (meta && event.key.toLowerCase() === 'z')",
+    ].join('\n')
+  );
+  patch(
+    '  async function copyMirrorsAsPlain(nodes) {',
+    '  var canvasClipboard = null;\n  async function copyMirrorsAsPlain(nodes) {'
+  );
+  // The copy lands outside the (possibly wide) sprite group: pan so it is in view.
+  patch(
+    '        await loadMedia(item.path);\n      }\n      markDirty(); render();',
+    [
+      '        await loadMedia(item.path);',
+      '      }',
+      '      const last = documentState.nodes.find(function (node) { return selected.has(node.id); });',
+      '      if (last) {',
+      '        const view = documentState.viewport; const width = board.clientWidth; const height = board.clientHeight;',
+      '        const left = view.x + last.x * view.scale; const top = view.y + last.y * view.scale;',
+      '        const right = left + last.width * view.scale; const bottom = top + last.height * view.scale;',
+      '        if (left < 0 || top < 0 || right > width || bottom > height) { view.x = Math.round(width / 2 - (last.x + last.width / 2) * view.scale); view.y = Math.round(height / 2 - (last.y + last.height / 2) * view.scale); }',
+      '      }',
+      '      markDirty(); render();',
+    ].join('\n')
+  );
+  // Dropping a card inside a group's frame makes it a member, and dragging it out leaves the
+  // group; sprite cards always stay in their sprite group (sync would otherwise re-add them).
+  patch(
+    'templateModel.updateMembership(documentState, drag.positions.map(function (item) { return item.id; }));',
+    'templateModel.updateMembership(documentState, drag.positions.map(function (item) { return item.id; }).filter(function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); return !(node && node.mirror); }));'
+  );
   return page;
 }
 /**
