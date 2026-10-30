@@ -156,7 +156,7 @@ Lua 自绘逻辑不能直接作为普通 Panel 导入。随包 MakerNanoVG.lua �
 
 其他宿主（Web）用 scripts/build-maker-ui-editor-page.mjs 生成单页 HTML，以 srcdoc 嵌入：
 脚本与 Yoga 内联并降级到 Chrome 74，宿主脚本先定义 window.UrhoxHost
-（fileRoot、initialUi、manifest、readText、save，可选 assetUrl），编辑器只经它读写文件；
+（fileRoot、initialUi、manifest、readText、save，可选 assetUrl 和替换 AI 指引文案的 guidance），编辑器只经它读写文件；
 未定义时使用控制台路由。控制台仍按原目录提供，行为不变。
 
 验证：npx jest --runInBand src/**tests**/makerUiEditor.test.ts；

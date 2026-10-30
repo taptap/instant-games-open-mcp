@@ -8,6 +8,19 @@
     "设计稿拆分时记录元素 ID、位置和层级，切图与布局明确绑定，再按布局组装。" +
     "新增文件显式生成 meta，在控制台 UI 编辑器中对照原 UI 或设计稿检查。" +
     "不要覆盖我手工修改过的 UI，不修改游戏加载入口或玩法。";
+  var guidance = (window.UrhoxConfig && window.UrhoxConfig.GUIDANCE) || {};
+  if (typeof guidance.prompt === "string" && guidance.prompt) prompt = guidance.prompt;
+  if (Array.isArray(guidance.steps) && guidance.steps.length) {
+    var list = document.querySelector("#missingUiDialog .guide-list");
+    if (list) {
+      list.textContent = "";
+      guidance.steps.forEach(function (step) {
+        var item = document.createElement("li");
+        item.textContent = String(step);
+        list.appendChild(item);
+      });
+    }
+  }
   el("skillPrompt").value = prompt;
   // Success shows on the button itself; only the manual-copy fallback needs the status line.
   async function copy(textarea, status, button) {
