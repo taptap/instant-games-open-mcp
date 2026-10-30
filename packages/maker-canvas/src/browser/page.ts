@@ -1232,7 +1232,7 @@ function applySpriteGenPatches(source: string): string {
     '  function decorateWebCards() {',
     [
       // var: render() and loadCanvasDocument can reach these before a let/const line would run.
-      '  var spriteStatus = new Map(); var spriteFiles = new Map(); var spriteSeen = new Map(); var spriteRuns = new Map(); var spriteTimer = 0; var spriteTidy = new Set(); var spritePass = new Map();',
+      '  var spriteStatus = new Map(); var spriteFiles = new Map(); var spriteSeen = new Map(); var spriteRuns = new Map(); var spriteTimer = 0; var canvasPanelHidden = false; var spriteTidy = new Set(); var spritePass = new Map();',
       // 重新整理: one undo step, then a forced sync that rebuilds lines and layout (applySpriteMirror tidy).
       '  function tidySpriteSection(id) {',
       "    const section = documentState && documentState.nodes.find(function (node) { return node.id === id && node.type === 'section' && node.spriteGen; });",
@@ -1312,11 +1312,11 @@ function applySpriteGenPatches(source: string): string {
       // Polls only while visible and some sprite group is not done.
       '  function scheduleSpritePoll() {',
       '    clearTimeout(spriteTimer); spriteTimer = 0;',
-      "    if (!spriteSyncEnabled() || document.visibilityState !== 'visible') return;",
+      "    if (!spriteSyncEnabled() || canvasPanelHidden || document.visibilityState !== 'visible') return;",
       '    if (!spriteSections().some(function (section) { const stage = spriteStatus.get(section.id); return !stage || !stage.done; })) return;',
       '    spriteTimer = setTimeout(function () { spriteTimer = 0; void syncAllSprites(false); }, 10000);',
       '  }',
-      "  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') void syncAllSprites(false); else { clearTimeout(spriteTimer); spriteTimer = 0; } });",
+      "  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { if (!canvasPanelHidden) void syncAllSprites(false); } else { clearTimeout(spriteTimer); spriteTimer = 0; } });",
       // Waking from sleep or regaining the network: catch up now rather than on the next poll.
       "  window.addEventListener('online', function () { void syncAllSprites(false); });",
       '  function refreshSpriteHeaders() {',
@@ -1441,7 +1441,10 @@ function applySpriteGenPatches(source: string): string {
   );
   patch(
     '    execute: automation.execute,\n',
-    '    syncSprites: function () { return syncAllSprites(true); },\n    execute: automation.execute,\n'
+    '    syncSprites: function () { return syncAllSprites(true); },\n' +
+      // Host panel closed/opened (the iframe is only hidden with CSS, so document.hidden stays false):
+      // pause polling, animation frames and playing videos; catch up on reopen.
+      '    setPanelVisible: function (visible) { const hidden = !visible; if (hidden === canvasPanelHidden) return; canvasPanelHidden = hidden; animationCards.setPaused(hidden); if (hidden) { clearTimeout(spriteTimer); spriteTimer = 0; world.querySelectorAll("video").forEach(function (video) { video.pause(); }); } else void syncAllSprites(false); },\n    execute: automation.execute,\n'
   );
   patch(
     '    void persistActiveCanvas(id).catch(function (caught) { if (opening === token) setError(caught.message); });\n    render();',

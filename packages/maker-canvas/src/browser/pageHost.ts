@@ -37,6 +37,11 @@ export interface CanvasEditorHandle {
    * is on and store.readProjectJson exists. Mirror edits autosave and are not undo steps.
    */
   syncSprites(): Promise<void>;
+  /**
+   * The host shows or hides the canvas panel without unloading it. While hidden the page stops
+   * sprite polling, animation frames and video playback; showing it again syncs sprites at once.
+   */
+  setPanelVisible(visible: boolean): void;
 }
 /** Payload of CanvasPageHost.startSpriteGen. */
 export interface CanvasSpriteGenStart {

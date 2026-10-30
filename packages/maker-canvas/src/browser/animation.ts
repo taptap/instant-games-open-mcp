@@ -33,8 +33,12 @@ export function createAnimationCards(
   const reused = new Map<string, Reused>();
   let request = 0;
   let generation = 0;
+  // Host panel closed: stop the frame loop entirely (document.hidden stays false in an iframe the
+  // host only hides with CSS).
+  let paused = false;
   function tick(now: number) {
     request = 0;
+    if (paused) return;
     if (!document.hidden) {
       for (const id of playing) {
         const item = mounted.get(id);
@@ -51,9 +55,16 @@ export function createAnimationCards(
     if ([...playing].some((id) => mounted.has(id))) request = requestAnimationFrame(tick);
   }
   function start() {
-    if (!request) request = requestAnimationFrame(tick);
+    if (!paused && !request) request = requestAnimationFrame(tick);
   }
   return {
+    setPaused(value: boolean) {
+      paused = value;
+      if (paused) {
+        cancelAnimationFrame(request);
+        request = 0;
+      } else if ([...playing].some((id) => mounted.has(id))) start();
+    },
     beginRender(nodes: CanvasNode[]) {
       generation += 1;
       cancelAnimationFrame(request);

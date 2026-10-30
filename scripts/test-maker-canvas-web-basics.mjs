@@ -5686,6 +5686,15 @@ try {
       const undone = (await current()).nodes.find((node) => node.id === laidOut.id);
       assert.deepEqual([undone.x, undone.y], [moved.x, moved.y]);
       await editor('redo', {});
+      // Host hides the panel: no poll is pending; showing it again catches up right away.
+      const before = await page.evaluate(() => {
+        window.__canvasEditor.setPanelVisible(false);
+        return window.__canvasCalls.json.length;
+      });
+      await page.waitForTimeout(300);
+      assert.equal(await page.evaluate(() => window.__canvasCalls.json.length), before);
+      await page.evaluate(() => window.__canvasEditor.setPanelVisible(true));
+      await page.waitForFunction((count) => window.__canvasCalls.json.length > count, before);
       // Mirrors are only read: the sync asked for these files and wrote nothing back.
       const reads = await page.evaluate(() => window.__canvasCalls.json);
       assert.ok(reads.includes(progressPath) && reads.includes('assets/sprites/hero/sprite.json'));
