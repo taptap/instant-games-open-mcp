@@ -268,6 +268,8 @@ export interface CanvasSpriteMirrorPlan {
   /** Only a readable v3 progress may remove mirror cards and edges that are no longer produced. */
   authoritative: boolean;
   cards: CanvasSpriteMirrorCard[];
+  /** Key of the viewpoint candidate that ready.png duplicates; it stands in for 主参考图. */
+  mergedReady?: string;
 }
 
 /**
@@ -308,6 +310,7 @@ export function reconcileSpriteMirror(input: {
   const progress = status === 'ok' ? (input.progress as Record<string, any>) : undefined;
   const stage = canvasSpriteStage(status, progress && progress.state);
   type Raw = Omit<CanvasSpriteMirrorCard, 'parent' | 'edgeKind'> & { parents: string[] };
+  let mergedReady: string | undefined;
   const raw: Raw[] = [];
   const push = (card: Omit<Raw, 'assetPath'> & { assetPath: string | undefined }) => {
     if (card.assetPath && !raw.some((item) => item.key === card.key)) raw.push(card as Raw);
@@ -376,31 +379,35 @@ export function reconcileSpriteMirror(input: {
       .slice(0, 12)
       .map((candidate: unknown) => canvasSpriteMediaPath(candidate, name, 'image'))
       .filter(Boolean) as string[];
+    // ready.png identical to a candidate: that candidate stands in for 主参考图 (no duplicate card).
+    // A deleted stand-in leaves 主参考图 to its own card again.
+    const chosenPath =
+      input.readyFrom &&
+      viewpoints.indexOf(input.readyFrom) >= 0 &&
+      (input.dismissed || []).indexOf('viewpoint:' + input.readyFrom) < 0
+        ? input.readyFrom
+        : undefined;
+    if (chosenPath) mergedReady = 'viewpoint:' + chosenPath;
     viewpoints.forEach((assetPath, index) => {
       push({
         key: 'viewpoint:' + assetPath,
         type: 'image',
         assetPath,
-        title: '视角候选 ' + (index + 1),
+        title: '视角候选 ' + (index + 1) + (assetPath === chosenPath ? ' · 主参考图' : ''),
         row: 1,
         parents: ['cutout', 'cutout_ref', 'source'],
       });
     });
     const choosing = progress.state === 'viewpoint_gen' || progress.state === 'viewpoint_select';
-    if (progress.state !== 'collect_input' && !(viewpoints.length && choosing)) {
-      const chosen =
-        input.readyFrom && viewpoints.indexOf(input.readyFrom) >= 0
-          ? ['viewpoint:' + input.readyFrom]
-          : [];
+    if (progress.state !== 'collect_input' && !(viewpoints.length && choosing) && !chosenPath)
       push({
         key: 'ready',
         type: 'image',
         assetPath: base + '_gen_images/ready.png',
         title: '主参考图',
         row: 0,
-        parents: chosen.concat(['cutout', 'cutout_ref', 'source']),
+        parents: ['cutout', 'cutout_ref', 'source'],
       });
-    }
     const poses: string[] = [];
     const candidates = record(flags.pose_candidates) ? flags.pose_candidates : {};
     for (const pose of Object.keys(candidates))
@@ -459,6 +466,11 @@ export function reconcileSpriteMirror(input: {
       addSheet(id, 3 + index, [])
     );
   }
+  // Cards that grow from 主参考图 (poses, videos) grow from the chosen candidate when it stands in.
+  if (mergedReady)
+    raw.forEach((card) => {
+      card.parents = card.parents.map((key) => (key === 'ready' ? mergedReady! : key));
+    });
   const dismissed = input.dismissed || [];
   const missing = input.missing || [];
   const existing = input.existing || [];
@@ -496,7 +508,9 @@ export function reconcileSpriteMirror(input: {
     if (lost(card)) result.missing = true;
     return result;
   });
-  return { status, stage, authoritative: status === 'ok', cards };
+  const plan: CanvasSpriteMirrorPlan = { status, stage, authoritative: status === 'ok', cards };
+  if (mergedReady) plan.mergedReady = mergedReady;
+  return plan;
 }
 
 /** New sprite group around the source image; the source card itself moves into it. */
@@ -632,6 +646,18 @@ export function applySpriteMirror(
         node.mirror.name === sprite.name &&
         node.sectionId === section.id
     );
+  if (options.tidy && plan.mergedReady) {
+    // The only removal 重新整理 does: a 主参考图 card duplicating the chosen candidate.
+    const duplicate = document.nodes.filter((node) => mine(node) && node.mirror!.key === 'ready');
+    if (duplicate.length) {
+      const gone = duplicate.map((node) => node.id);
+      document.nodes = document.nodes.filter((node) => gone.indexOf(node.id) < 0);
+      document.edges = document.edges.filter(
+        (edge) => gone.indexOf(edge.from) < 0 && gone.indexOf(edge.to) < 0
+      );
+      changed = true;
+    }
+  }
   if (options.tidy) {
     const listed = plan.cards.map((card) => card.key);
     const cards = document.nodes.filter(mine);
@@ -674,6 +700,10 @@ export function applySpriteMirror(
       ? existing[card.key]
       : undefined;
     if (node) {
+      if (node.title !== card.title) {
+        node.title = card.title;
+        changed = true;
+      }
       if (node.assetPath !== card.assetPath) {
         node.assetPath = card.assetPath;
         delete node.assetVersion;
@@ -787,30 +817,48 @@ export function applySpriteMirror(
       fresh[node.mirror!.key] || !placed || (placed.x === node.x && placed.y === node.y)
     );
   };
-  // Each card is centred on the block of its children, so a chain shares one horizontal centre
-  // line and candidates fan out evenly above and below their parent.
-  const spans: Record<string, number> = {};
-  const blocks: Record<string, number> = {};
-  const spanOf = (key: string): number => {
-    if (spans[key] !== undefined) return spans[key];
-    spans[key] = 0; // cycle guard
+  // Each card's centre sits midway between its first and last child's centres, so a chain shares
+  // one horizontal centre line and siblings are symmetric about their parent's line. Subtrees are
+  // stacked so they never overlap. Shapes are measured bottom-up relative to each card's centre.
+  type Shape = { up: number; down: number; offsets: number[] };
+  const shapes: Record<string, Shape> = {};
+  const shapeOf = (key: string): Shape => {
+    if (shapes[key]) return shapes[key];
     const node = key === 'source' ? source! : existing[key];
+    const half = node.height / 2;
+    shapes[key] = { up: half, down: half, offsets: [] }; // cycle guard
     const kids = children[key] || [];
-    const block = kids.reduce((sum, child, index) => sum + spanOf(child) + (index ? gapY : 0), 0);
-    blocks[key] = block;
-    return (spans[key] = Math.max(node.height, block));
+    if (!kids.length) return shapes[key];
+    const offsets: number[] = [];
+    kids.forEach((child, index) => {
+      const shape = shapeOf(child);
+      if (!index) offsets.push(0);
+      else {
+        const previous = shapeOf(kids[index - 1]);
+        offsets.push(offsets[index - 1] + previous.down + gapY + shape.up);
+      }
+    });
+    const shift = (offsets[0] + offsets[offsets.length - 1]) / 2;
+    for (let index = 0; index < offsets.length; index++) offsets[index] -= shift;
+    const up = Math.max(half, ...kids.map((child, index) => shapeOf(child).up - offsets[index]));
+    const down = Math.max(
+      half,
+      ...kids.map((child, index) => offsets[index] + shapeOf(child).down)
+    );
+    return (shapes[key] = { up, down, offsets });
   };
   const done: Record<string, boolean> = {};
-  const place = (key: string, y: number): number => {
+  // Lays out the subtree whose root centre is `centre` (a card that stays put keeps its own
+  // centre); returns the subtree's bottom edge.
+  const place = (key: string, centre: number): number => {
     const node = key === 'source' ? source! : existing[key];
     if (done[key]) return node.y + node.height;
     done[key] = true;
-    const span = spanOf(key);
-    const block = blocks[key] || 0;
+    const shape = shapeOf(key);
     const moves = key !== 'source' && follows(node);
     if (moves) {
       const x = Math.round(columnX(depth[key]));
-      const top = Math.round(y + (span - node.height) / 2);
+      const top = Math.round(centre - node.height / 2);
       if (node.x !== x || node.y !== top) {
         node.x = x;
         node.y = top;
@@ -821,20 +869,16 @@ export function applySpriteMirror(
         changed = true;
       }
     }
-    // Children block centred on this card's centre (a card that stays put, e.g. the source or a
-    // card the user moved, keeps its own centre line).
-    let cursor = node.y + node.height / 2 - block / 2;
+    const middle = node.y + node.height / 2;
     let bottom = node.y + node.height;
-    for (const child of children[key] || []) {
-      const end = place(child, cursor);
-      bottom = Math.max(bottom, end);
-      cursor = Math.max(cursor + spanOf(child), end) + gapY;
-    }
-    return bottom;
+    (children[key] || []).forEach((child, index) => {
+      bottom = Math.max(bottom, place(child, middle + shape.offsets[index]));
+    });
+    return Math.max(bottom, middle + shape.down);
   };
   let cursor = origin ? origin.y : section.y + 68;
-  if (origin) cursor = place('source', origin.y) + gapY;
-  for (const key of roots) cursor = place(key, cursor) + gapY;
+  if (origin) cursor = place('source', origin.y + origin.height / 2) + gapY;
+  for (const key of roots) cursor = place(key, cursor + shapeOf(key).up) + gapY;
   // Lines are only ever added: one per card, the first time its parent is on the canvas. Existing
   // lines (including ones the user drew) are never removed or rewired; a removed one is not re-added.
   for (const card of plan.cards) {

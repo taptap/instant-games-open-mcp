@@ -168,7 +168,6 @@ test('mid-flow progress yields prep, viewpoint and pose cards linked in order', 
     'cutout_ref',
     'viewpoint:assets/image/vp_1.png',
     'viewpoint:assets/image/vp_2.png',
-    'ready',
     'pose:aerial:assets/image/aerial_1.png',
     'pose:aerial:assets/image/aerial_2.png',
     'pose-selected:aerial',
@@ -176,14 +175,12 @@ test('mid-flow progress yields prep, viewpoint and pose cards linked in order', 
   expect(byKey.cutout_ref).toMatchObject({ parent: 'source', edgeKind: 'image-variant', row: 0 });
   // cutout.png is missing, so the candidates link to the nearest available ancestor.
   expect(byKey['viewpoint:assets/image/vp_1.png']).toMatchObject({ parent: 'cutout_ref', row: 1 });
-  // ready.png is the chosen candidate (vp_2): 候选 → 主参考图.
-  expect(byKey.ready).toMatchObject({
-    parent: 'viewpoint:assets/image/vp_2.png',
-    assetPath: base + '_gen_images/ready.png',
-  });
+  // ready.png duplicates the chosen candidate (vp_2): no separate 主参考图, vp_2 stands in for it.
+  expect(plan.mergedReady).toBe('viewpoint:assets/image/vp_2.png');
+  expect(byKey['viewpoint:assets/image/vp_2.png'].title).toBe('视角候选 2 · 主参考图');
   expect(byKey['pose-selected:aerial']).toMatchObject({
     assetPath: base + '_gen_images/aerial.png',
-    parent: 'ready',
+    parent: 'viewpoint:assets/image/vp_2.png',
     row: 2,
   });
 });
@@ -203,6 +200,30 @@ test('while a viewpoint is being chosen, ready.png (still the prep input) gets n
   // Without viewpoint candidates the flow has no choice step: ready follows the cutout.
   const direct = reconcileSpriteMirror({ name: 'hero', progress: progress('plan') });
   expect(direct.cards.find((card) => card.key === 'ready')).toMatchObject({ parent: 'cutout' });
+});
+
+test('重新整理 drops a 主参考图 card that duplicates the chosen candidate; sync alone keeps it', () => {
+  const doc = documentWithSource();
+  createSpriteSection(doc, 'src', 'hero', 'character', 'sec', 1);
+  let id = 0;
+  const createId = () => 'n' + id++;
+  const state = progress('plan', { flags: { viewpoint_candidates: ['assets/image/vp_1.png'] } });
+  // Before the match is known (or from an older version) 主参考图 got its own card.
+  applySpriteMirror(doc, 'sec', reconcileSpriteMirror({ name: 'hero', progress: state }), createId);
+  const ready = doc.nodes.find((node) => node.mirror?.key === 'ready')!;
+  const merged = reconcileSpriteMirror({
+    name: 'hero',
+    progress: state,
+    readyFrom: 'assets/image/vp_1.png',
+  });
+  applySpriteMirror(doc, 'sec', merged, createId);
+  expect(doc.nodes.some((node) => node.id === ready.id)).toBe(true);
+  applySpriteMirror(doc, 'sec', merged, createId, { tidy: true });
+  expect(doc.nodes.some((node) => node.id === ready.id)).toBe(false);
+  expect(doc.edges.some((edge) => edge.from === ready.id || edge.to === ready.id)).toBe(false);
+  expect(
+    doc.nodes.find((node) => node.mirror?.key === 'viewpoint:assets/image/vp_1.png')!.title
+  ).toBe('视角候选 1 · 主参考图');
 });
 
 test('per-animation video and sheet become video → sequence → animation', () => {
@@ -371,6 +392,37 @@ test('edges are only added: a late intermediate never rewires, a removed edge st
   expect(viewpoint.x).toBeLessThan(cutout.x + cutout.width + 200);
   const section = doc.nodes.find((node) => node.id === 'sec')!;
   expect(section.x + section.width).toBeLessThan(viewpoint.x + viewpoint.width + 100);
+});
+
+test('a parent sits midway between its first and last child even when one subtree is deep', () => {
+  const doc = documentWithSource();
+  createSpriteSection(doc, 'src', 'hero', 'character', 'sec', 1);
+  let id = 0;
+  const plan = reconcileSpriteMirror({
+    name: 'hero',
+    progress: progress('sheet_review', {
+      flags: { viewpoint_candidates: ['assets/image/vp_1.png', 'assets/image/vp_2.png'] },
+      anims: [
+        { id: 'walk', video_ref: 'x' },
+        { id: 'jump', video_ref: 'y' },
+      ],
+    }),
+    readyFrom: 'assets/image/vp_2.png',
+  });
+  applySpriteMirror(doc, 'sec', plan, () => 'n' + id++);
+  const at = (key: string) => doc.nodes.find((node) => node.mirror?.key === key)!;
+  const middle = (node: { y: number; height: number }) => node.y + node.height / 2;
+  const [cutout, first, second] = [
+    at('cutout'),
+    at('viewpoint:assets/image/vp_1.png'),
+    at('viewpoint:assets/image/vp_2.png'),
+  ];
+  // 候选 2 carries the videos, yet 抠图's line runs exactly between the two candidates.
+  expect(Math.abs(middle(cutout) - (middle(first) + middle(second)) / 2)).toBeLessThanOrEqual(1);
+  const [walk, jump] = [at('video:walk'), at('video:jump')];
+  expect(Math.abs(middle(second) - (middle(walk) + middle(jump)) / 2)).toBeLessThanOrEqual(1);
+  // Subtrees never overlap: 候选 1 ends above the topmost video.
+  expect(first.y + first.height).toBeLessThanOrEqual(Math.min(walk.y, second.y));
 });
 
 test('a sprite section grows left and up as well as right and down', () => {

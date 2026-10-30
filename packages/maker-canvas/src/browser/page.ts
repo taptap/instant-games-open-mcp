@@ -1247,7 +1247,10 @@ function applySpriteGenPatches(source: string): string {
       '    catch (caught) { return caught && caught.status === 404 ? { missing: true } : { error: caught }; }',
       '  }',
       '  async function matchSpriteReady(readyPath, candidates) {',
-      '    const readyUrl = candidates.length && store.mediaUrl(readyPath); if (!readyUrl) return undefined;',
+      // ready.png has no card of its own once merged, so read it here (fresh: it changes on selection).
+      "    if (!candidates.length) return undefined;",
+      '    if (store.prepareMedia) { try { await store.prepareMedia(readyPath, true); } catch (caught) { return undefined; } }',
+      '    const readyUrl = store.mediaUrl(readyPath); if (!readyUrl) return undefined;',
       '    try {',
       '      const ready = await (await fetch(readyUrl)).blob(); let bytes = null;',
       '      for (const path of candidates) {',

@@ -5501,7 +5501,6 @@ try {
       let byKey = await mirrors();
       assert.deepEqual(Object.keys(byKey).sort(), [
         'cutout_ref',
-        'ready',
         'viewpoint:assets/image/vp_1.png',
         'viewpoint:assets/image/vp_2.png',
       ]);
@@ -5511,11 +5510,10 @@ try {
       }
       const edges = (await current()).edges.map((edge) => [edge.from, edge.to, edge.kind]);
       for (const [from, to] of [
-        // 抠图 → 视角候选 → 主参考图 (the chosen candidate, vp_2, matches ready.png).
+        // 抠图 → 视角候选; ready.png duplicates vp_2, so vp_2 stands in for 主参考图.
         [source.id, byKey.cutout_ref.id],
         [byKey.cutout_ref.id, byKey['viewpoint:assets/image/vp_1.png'].id],
         [byKey.cutout_ref.id, byKey['viewpoint:assets/image/vp_2.png'].id],
-        [byKey['viewpoint:assets/image/vp_2.png'].id, byKey.ready.id],
       ])
         assert.ok(
           edges.some((edge) => edge[0] === from && edge[1] === to && edge[2] === 'image-variant')
@@ -5545,23 +5543,20 @@ try {
           section.id
         );
       assert.equal(await dot(), 'rgb(247, 107, 21)', '待确认为橘色');
-      await card(byKey.ready.id).locator('img').waitFor();
+      assert.equal(byKey['viewpoint:assets/image/vp_2.png'].title, '视角候选 2 · 主参考图');
+      await card(byKey['viewpoint:assets/image/vp_2.png'].id).locator('img').waitFor();
       // Cards resize to their image ratio after loading; the layout follows so centre lines hold.
       await page.waitForFunction(
         ({ chain, ready, first, last }) => {
           const nodes = window.__canvasEditor.current().nodes;
           const at = (id) => nodes.find((node) => node.id === id);
           const mid = (node) => node.y + node.height / 2;
-          const [a, c, d, r] = [at(chain), at(first), at(last), at(ready)];
-          return (
-            c.height !== 240 &&
-            Math.abs((c.y + d.y + d.height) / 2 - mid(a)) < 1 &&
-            Math.abs(mid(r) - mid(d)) < 1
-          );
+          const [a, c, d, r] = [at(chain), at(first), at(last), ready];
+          return c.height !== 240 && Math.abs((c.y + d.y + d.height) / 2 - mid(a)) < 1 && !r;
         },
         {
           chain: byKey.cutout_ref.id,
-          ready: byKey.ready.id,
+          ready: null,
           first: byKey['viewpoint:assets/image/vp_1.png'].id,
           last: byKey['viewpoint:assets/image/vp_2.png'].id,
         }
@@ -5570,7 +5565,6 @@ try {
       // Tree layout: candidates fan out right of the cutout; 主参考图 follows the chosen one.
       const [vp1, vp2] = ['vp_1', 'vp_2'].map((n) => byKey['viewpoint:assets/image/' + n + '.png']);
       assert.ok(vp1.x > byKey.cutout_ref.x + byKey.cutout_ref.width, '候选在抠图右侧');
-      assert.ok(byKey.ready.x > vp2.x + vp2.width, '主参考图在所选候选右侧');
       assert.equal(vp1.x, vp2.x, '候选同列');
       assert.ok(vp2.y >= vp1.y + vp1.height, '候选向下排开');
       const grown = (await current()).nodes.find((node) => node.id === section.id);
@@ -5584,15 +5578,15 @@ try {
       assert.equal(await spriteSection(current, 'hero'), undefined);
       await editor('redo', {});
       await page.waitForFunction(
-        () => window.__canvasEditor.current().nodes.filter((node) => node.mirror).length === 4
+        () => window.__canvasEditor.current().nodes.filter((node) => node.mirror).length === 3
       );
       byKey = await mirrors();
       // Read-only: only 下载 remains (no addToChat hook here), no side ports, no 生成精灵.
       await settle();
-      await card(byKey.ready.id).click({ position: { x: 40, y: 80 } });
+      await card(byKey.cutout_ref.id).click({ position: { x: 40, y: 80 } });
       await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
       assert.deepEqual(await menuLabels(page), ['下载图片']);
-      assert.equal(await card(byKey.ready.id).locator('.canvas-port').count(), 0);
+      assert.equal(await card(byKey.cutout_ref.id).locator('.canvas-port').count(), 0);
       assert.equal(await page.locator('#selection-toolbar .selection-panel').count(), 0);
       await page.mouse.move(10, 10);
       await themes(page, (theme) => shoot('v20-sprite-group-' + theme + '.png'));
