@@ -44,6 +44,9 @@
           <span class="sep"></span>
           <span id="zoomLabel" class="muted">100%</span>
           <button id="fitBtn" type="button" class="ghost">适应</button>
+          <button id="shortcutsBtn" type="button" class="ghost" title="快捷键" aria-label="快捷键" aria-haspopup="dialog" aria-expanded="false" aria-controls="editorShortcuts">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h1m4 0h1m4 0h1M6 12h1m4 0h1m4 0h1M7 15h10"/></svg>
+          </button>
         </div>
       </div>
     </header>
@@ -72,7 +75,7 @@
       <section class="canvas-pane">
         <div class="canvas-toolbar">
           <div class="tool-group" title="选择">
-            <button type="button" class="icon-btn" id="pickToolBtn" title="选择工具：点击空白后可在画面上点选节点">选择</button>
+            <button type="button" class="icon-btn" id="pickToolBtn" title="选择工具；按住空格并拖动可临时平移视图">选择</button>
           </div>
           <div class="add-menu" id="canvasAddMenu">
             <button type="button" class="add-toggle" id="canvasAddBtn" title="在当前选中控件内添加">＋ 添加</button>

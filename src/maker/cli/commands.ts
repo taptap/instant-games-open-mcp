@@ -181,6 +181,10 @@ const BOOLEAN_OPTIONS = new Set([
   'confirmed_build',
   'network',
   'context_stdin',
+  'tail',
+  'update',
+  'legacy_wmi',
+  'nosound',
   'h',
   'help',
 ]);
@@ -301,6 +305,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
     printHelp();
     return;
   }
+  if (
+    parsed.options.dry_run !== undefined &&
+    !(command === 'ui' && (subcommand === 'create' || subcommand === 'patch'))
+  )
+    throw new Error('--dry-run 仅支持 ui create 和 ui patch；当前命令未执行。');
 
   if (command === 'init') {
     await runInit(parsed, ctx);
@@ -318,7 +327,7 @@ export async function runMakerCli(argv: string[]): Promise<void> {
   }
 
   if (command === 'canvas') {
-    await runCanvasCli(subcommand, parsed.options);
+    await runCanvasCli(subcommand, parsed.options, parsed.positionals);
     return;
   }
 
@@ -511,10 +520,20 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (arg === '--') {
+      positionals.push(...argv.slice(index + 1));
+      break;
+    }
     if (arg.startsWith('--')) {
       const equalIndex = arg.indexOf('=');
       if (equalIndex > 0) {
-        options[toOptionKey(arg.slice(2, equalIndex))] = arg.slice(equalIndex + 1);
+        const key = toOptionKey(arg.slice(2, equalIndex));
+        const value = arg.slice(equalIndex + 1);
+        if (BOOLEAN_OPTIONS.has(key)) {
+          if (value !== 'true' && value !== 'false')
+            throw new Error('--' + key.replace(/_/g, '-') + ' 只接受 true 或 false。');
+          options[key] = value === 'true';
+        } else options[key] = value;
         continue;
       }
 
@@ -524,11 +543,11 @@ function parseArgs(argv: string[]): ParsedArgs {
         continue;
       }
       const next = argv[index + 1];
-      if (next && !next.startsWith('-')) {
+      if (next && (!next.startsWith('-') || /^-\d/.test(next))) {
         options[key] = next;
         index += 1;
       } else {
-        options[key] = true;
+        throw new Error('--' + key.replace(/_/g, '-') + ' 缺少参数值。');
       }
       continue;
     }
@@ -3174,10 +3193,14 @@ function parseDurationMs(value: string): number {
 }
 
 function makerEnvOption(parsed: ParsedArgs): MakerEnvironment {
+  if (parsed.options.target_dir !== undefined && !stringOption(parsed, 'target_dir')?.trim())
+    throw new Error('--target-dir 不能为空；不会回退到当前目录。');
   const env = stringOption(parsed, 'env');
   if (env === 'rnd' || env === 'production') {
     return env;
   }
+  if (parsed.options.env !== undefined)
+    throw new Error('--env 只接受 production 或 rnd；不会回退到其他环境。');
   const targetDir = stringOption(parsed, 'target_dir');
   return getMakerEnvironment(undefined, targetDir ? path.resolve(targetDir) : process.cwd());
 }
@@ -3269,6 +3292,7 @@ function printHelp(): void {
       '  taptap-maker canvas <action> --target-dir PATH --page-id ID --canvas-id ID --revision N --input-file FILE',
       '  taptap-maker canvas status|wait --target-dir PATH --operation-id ID',
       '  taptap-maker canvas import --target-dir PATH --page-id ID --canvas-id ID --revision N --file ABSOLUTE_FILE',
+      '  taptap-maker canvas replace-image|fill-slot --target-dir PATH --page-id ID --canvas-id ID --revision N --input-file FILE --file ABSOLUTE_IMAGE',
       '  taptap-maker canvas export --target-dir PATH --page-id ID --canvas-id ID --revision N --input-file FILE --output-dir DIRECTORY',
       '  taptap-maker canvas download --target-dir PATH --operation-id ID --output-dir DIRECTORY',
       '  taptap-maker build --target-dir PROJECT_ABSOLUTE_PATH [--json]',

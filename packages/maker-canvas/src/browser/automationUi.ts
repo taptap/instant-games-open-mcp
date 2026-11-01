@@ -5,6 +5,7 @@ import type { prepareCanvasNodeUpdatesWithValidation } from '../features/automat
 import type { CanvasDocument, CanvasEdge, CanvasNode } from '../contracts.js';
 import {
   canvasAutomationSnapshot,
+  canvasNodeGeometryValue,
   validateCanvasCommandStructure,
 } from '../features/automation.js';
 import { invalidateCanvasDependents } from '../features/templateWorkflow.js';
@@ -756,24 +757,39 @@ export function createCanvasAutomationUiWithHost(options: {
           current.nodes.push(node);
           options.select([node.id]);
           options.changed();
-        } else if (input.type === 'model' || input.type === 'model-views') {
-          const source = node(input.sourceId, current);
-          if (options.nodeBlocked(source.id)) throw invalid('来源卡片正在执行，请稍后创建。');
-          options.addDerived(input.type, source.id);
-        } else if (input.type === 'sequence' || input.type === 'animation') {
-          const source = node(input.sourceId, current);
-          if (
-            options.nodeBlocked(source.id) ||
-            source.templatePending ||
-            !source.assetPath ||
-            source.type !== (input.type === 'sequence' ? 'video-source' : 'sequence')
-          )
-            throw invalid('派生卡片需要已就绪且类型匹配的来源。');
-          options.addDerived(input.type, source.id);
-          if (options.error()) throw new Error(options.error());
         } else {
-          if (input.sourceId !== undefined) throw invalid('此卡片不接受 sourceId。');
-          options.add(String(input.type));
+          const layout: Partial<Pick<CanvasNode, 'x' | 'y' | 'width' | 'height'>> = {};
+          for (const key of Object.keys(input)) {
+            if (key === 'x' || key === 'y' || key === 'width' || key === 'height')
+              layout[key] = validated(() =>
+                canvasNodeGeometryValue(input.type as CanvasNode['type'], key, input[key])
+              );
+            else if (key !== 'type' && key !== 'sourceId')
+              throw invalid(key + ' 仅适用于标注卡片。');
+          }
+          if (input.type === 'model' || input.type === 'model-views') {
+            const source = node(input.sourceId, current);
+            if (options.nodeBlocked(source.id)) throw invalid('来源卡片正在执行，请稍后创建。');
+            options.addDerived(input.type, source.id);
+          } else if (input.type === 'sequence' || input.type === 'animation') {
+            const source = node(input.sourceId, current);
+            if (
+              options.nodeBlocked(source.id) ||
+              source.templatePending ||
+              !source.assetPath ||
+              source.type !== (input.type === 'sequence' ? 'video-source' : 'sequence')
+            )
+              throw invalid('派生卡片需要已就绪且类型匹配的来源。');
+            options.addDerived(input.type, source.id);
+            if (options.error()) throw new Error(options.error());
+          } else {
+            if (input.sourceId !== undefined) throw invalid('此卡片不接受 sourceId。');
+            options.add(String(input.type));
+          }
+          if (options.error()) throw new Error(options.error());
+          const created = node(options.selected()[0], current);
+          Object.assign(created, layout);
+          options.changed();
         }
       } else if (command.action === 'update-nodes') {
         const updates = validated(() => options.prepareNodeUpdates(current, input));

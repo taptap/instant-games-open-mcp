@@ -274,6 +274,7 @@ import {
   CANVAS_COMMAND_ACTIONS,
   CANVAS_SEQUENCE_SETTING_FIELDS,
   prepareCanvasNodeUpdatesWithValidation,
+  canvasNodeGeometryValue,
 } from '../features/automation.js';
 import { createCanvasAutomationUiWithHost } from './automationUi.js';
 import { validateResourceBundleStructure } from '../features/resourceBundle.js';
@@ -767,22 +768,6 @@ function applyWebInteractionPatches(source: string): string {
     "      setStatus('未保存');\n      saveFailed = true;",
     "      canvasSaveFailed = true; setStatus('未保存');\n      saveFailed = true;"
   );
-  // Space-to-pan: a focused dock button must not swallow Space, and the dock shows the hand.
-  patch(
-    "if (event.target.closest && event.target.closest('textarea, input, select, button')) return;",
-    [
-      "if (canvasWeb && event.code === 'Space' && event.target.closest && event.target.closest('.workspace-actions button, .workspace-actions summary')) { event.preventDefault(); space = true; if (canvasMarks) canvasMarks.preview(true); return; }",
-      "    if (event.target.closest && event.target.closest('textarea, input, select, button')) return;",
-      "    if (canvasWeb && event.code === 'Space' && canvasMarks) canvasMarks.preview(true);",
-    ].join('\n')
-  );
-  patch(
-    "window.addEventListener('keyup', function (event) { if (event.code === 'Space') space = false; });",
-    [
-      "window.addEventListener('keyup', function (event) { if (event.code !== 'Space') return; space = false; if (canvasWeb && canvasMarks) { canvasMarks.preview(false); if (event.target.closest && event.target.closest('.workspace-actions button, .workspace-actions summary')) event.preventDefault(); } });",
-      "  if (canvasWeb) window.addEventListener('blur', function () { space = false; if (canvasMarks) canvasMarks.preview(false); });",
-    ].join('\n')
-  );
   patch(
     "    if (space || event.button === 1) {\n      if (event.target.closest && event.target.closest('textarea, input, button')) return;\n",
     "    if (space || event.button === 1) {\n      if (event.target.closest && event.target.closest('textarea, input, button')) return;\n      if (canvasWeb) board.classList.add('grabbing');\n"
@@ -1042,6 +1027,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       ';',
     'const CANVAS_COMMAND_ACTIONS = ' + JSON.stringify(CANVAS_COMMAND_ACTIONS) + ';',
     prepareCanvasNodeUpdatesWithValidation.toString(),
+    canvasNodeGeometryValue.toString(),
     createCanvasAutomationUiWithHost.toString(),
     validateResourceBundleStructure.toString(),
     encodeCanvasImage.toString(),
@@ -2002,7 +1988,47 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     "  window.addEventListener('keydown', function (event) {\n    if (event.code === 'Space') space = true;",
-    "  window.addEventListener('keydown', function (event) {\n    if (event.target.closest && event.target.closest('textarea, input, select, button')) return;\n    if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); deleteSelected(); return; }\n    if (event.code === 'Space') space = true;"
+    [
+      '  function setCanvasSpace(value) {',
+      '    space = value;',
+      '    if (canvasMarks) canvasMarks.preview(value);',
+      '  }',
+      "  window.addEventListener('keydown', function (event) {",
+      '    if (event.defaultPrevented || event.isComposing) return;',
+      '    const key = event.key.toLowerCase();',
+      "    const save = (event.metaKey || event.ctrlKey) && key === 's';",
+      '    if (save) event.preventDefault();',
+      "    if (!documentState || document.querySelector('dialog[open]')) return;",
+      '    if (save) { void flush(); return; }',
+      "    if (event.target.isContentEditable || event.target.closest && event.target.closest('textarea, input, select, [role=textbox]')) return;",
+      "    if (event.code === 'Space' && !event.metaKey && !event.ctrlKey && !event.altKey) {",
+      "      if (event.target.closest && event.target.closest('button, summary') && !event.target.closest('.workspace-actions')) return;",
+      '      event.preventDefault(); setCanvasSpace(true); return;',
+      '    }',
+      "    if (event.target.closest && event.target.closest('button, summary, a') && !event.target.closest('.workspace-actions')) return;",
+      "    if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); deleteSelected(); return; }",
+      '    if ((event.metaKey || event.ctrlKey) && !event.altKey) {',
+      "      if (key === 'y') { event.preventDefault(); document.getElementById('redo').click(); return; }",
+      "      if (key === 'd') { event.preventDefault(); if (!event.repeat) duplicateSelected(); return; }",
+      "      if (key === 'g' && !event.shiftKey) { event.preventDefault(); if (!event.repeat) createSection(); return; }",
+      "      if (key === 'a') { event.preventDefault(); selected.clear(); documentState.nodes.forEach(function (node) { selected.add(node.id); }); render(); return; }",
+      '    }',
+      "    if (event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && event.code === 'Digit1') { event.preventDefault(); fitAll(); return; }",
+    ].join('\n')
+  );
+  page = replaceCanvasPageText(
+    page,
+    "  window.addEventListener('keyup', function (event) { if (event.code === 'Space') space = false; });",
+    [
+      "  window.addEventListener('keyup', function (event) { if (event.code !== 'Space') return; if (space) event.preventDefault(); setCanvasSpace(false); }, true);",
+      '  function resetCanvasPan() {',
+      '    setCanvasSpace(false);',
+      "    if (drag && drag.kind === 'pan') drag = null;",
+      "    board.classList.remove('grabbing');",
+      '  }',
+      "  window.addEventListener('blur', resetCanvasPan);",
+      "  document.addEventListener('visibilitychange', function () { if (document.hidden) resetCanvasPan(); });",
+    ].join('\n')
   );
   page = replaceCanvasPageText(
     page,

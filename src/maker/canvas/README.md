@@ -329,6 +329,16 @@ AI 可以通过当前安装的 Maker CLI 操作已打开的画布，无需浏览
 
 ### 使用顺序
 
+需要组合素材流程时，先用当前版本的模板搜索做功能路由：
+
+    taptap-maker canvas templates --target-dir "<项目绝对路径>" --q "<功能关键词>"
+
+搜索匹配模板名称和用途说明，例如 UI、动画、角色、道具、作物、3D；每次查询一个关键词，
+无结果时换较短或相近的词，不能据此断言没有能力。返回 presets（内置）和 items（个人），
+内置模板附带 description 一句话用途，skills 指向按需读取的执行说明，不返回完整节点图。
+个人模板用 --page 翻页。选中后使用返回的 id 执行 add-template；添加不等于生成，付费执行仍遵循原确认规则。
+模板用途复用模板库已有描述，不在路由或常驻介绍中维护全量目录。
+
 1. 查询 capabilities、list、templates、pages。pages 返回页面 ID、当前画布 ID、revision 和打开页面的 URL。
 2. 用 inspect 读取实时卡片、连线、队列和阻塞原因。多个页面时明确选 page-id，不猜测用户所在页面。
 3. 提交编辑时带上该快照的 revision；参数建议写入 UTF-8 JSON 文件，避免 Windows 命令行转义问题。
@@ -366,25 +376,29 @@ AI 可以通过当前安装的 Maker CLI 操作已打开的画布，无需浏览
 
 ### 支持的操作
 
-| 命令                             | input JSON                                                 | 说明                                                            |
-| -------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
-| create / rename                  | {"title":"新画布"}                                         | 新建并切换 / 重命名当前画布                                     |
-| open                             | {"id":"目标画布ID"}                                        | 从当前画布安全切换                                              |
-| add-template                     | {"id":"模板ID"}                                            | 添加内置或用户模板的独立副本，不修改模板库                      |
-| add-node                         | {"type":"image"}                                           | 新建 image、video、note、mark；sequence/animation 另传 sourceId |
-| import                           | {"title":"角色参考"}                                       | 另传 --file；可选 prompt 记录提示词，sourceId 连入参考图片      |
-| set-references                   | {"id":"目标ID","sourceIds":["图片ID"],"includeSelf":false} | 有序替换全部图片参考；[] 清空，includeSelf 仅图片卡可用         |
-| export                           | {"id":"结果ID","format":"atlas","loop":true}               | 导出已有结果；另传 --output-dir 已存在的绝对目录可直接保存      |
-| update-nodes                     | {"nodes":[{"id":"卡片ID","prompt":"完整猫咪，站立"}]}      | 批量校验后修改，不自动生成                                      |
-| delete-nodes / duplicate / group | {"ids":["卡片ID"]}                                         | 删除 / 复制 / 分组；删除分组本身不删除成员                      |
-| connect                          | {"from":"图片ID","to":"视频输入卡ID"}                      | 已保存图片连到视频输入卡（首帧），或连到图片作为参考图          |
-| disconnect                       | {"edgeId":"连线ID"}                                        | 只移除图片参考线，同时清掉草稿对该来源的引用；不拆派生来源      |
-| run                              | {"id":"卡片或分组ID"}                                      | 单卡执行或运行分组剩余步骤；已完成模板卡先修改参数              |
-| stop                             | {"id":"视频卡或分组ID"}                                    | 停止本地视频等待或后续队列，不取消远端任务                      |
-| query                            | {"id":"视频卡ID"}                                          | 查询原视频任务，不发起新生成；历史面板仍由人工操作              |
-| undo / redo                      | {}                                                         | 沿用页面撤销栈；保存失败时也可撤销；无可撤销时返回 INVALID_ARGS |
-| fill-slot                        | {"id":"空图片卡ID","assetPath":"已有卡片的 assetPath"}     | 用画布内已有图片原位回填空槽（不上传），保留 ID、位置和连线     |
-| replace-image                    | {"id":"图片卡ID","assetPath":"已有卡片的 assetPath"}       | 原位替换已有图片，保留 ID、位置、宽度、标题和连线；可选 prompt  |
+CLI 会在执行前拒绝不支持的参数和多余的位置参数。画布命令不支持 --dry-run，
+传入时直接报错，不会执行修改。普通 JSON 与带 UTF-8 BOM 的 JSON 文件均可用于输入。
+inspect 的实时和 --saved 模式均支持 --id 或 input.id 筛选卡片/分组，两者同时传入时必须一致。
+
+| 命令                             | input JSON                                                 | 说明                                                              |
+| -------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------- |
+| create / rename                  | {"title":"新画布"}                                         | 新建并切换 / 重命名当前画布                                       |
+| open                             | {"id":"目标画布ID"}                                        | 从当前画布安全切换                                                |
+| add-template                     | {"id":"模板ID"}                                            | 添加内置或用户模板的独立副本，不修改模板库                        |
+| add-node                         | {"type":"image"}                                           | 新建 image、video、note、mark；sequence/animation 另传 sourceId   |
+| import                           | {"title":"角色参考"}                                       | 另传 --file；可选 prompt 记录提示词，sourceId 连入参考图片        |
+| set-references                   | {"id":"目标ID","sourceIds":["图片ID"],"includeSelf":false} | 有序替换全部图片参考；[] 清空，includeSelf 仅图片卡可用           |
+| export                           | {"id":"结果ID","format":"atlas","loop":true}               | 导出已有结果；另传 --output-dir 已存在的绝对目录可直接保存        |
+| update-nodes                     | {"nodes":[{"id":"卡片ID","prompt":"完整猫咪，站立"}]}      | 批量校验后修改，不自动生成                                        |
+| delete-nodes / duplicate / group | {"ids":["卡片ID"]}                                         | 删除 / 复制 / 分组；删除分组本身不删除成员                        |
+| connect                          | {"from":"图片ID","to":"视频输入卡ID"}                      | 已保存图片连到视频输入卡（首帧），或连到图片作为参考图            |
+| disconnect                       | {"edgeId":"连线ID"}                                        | 只移除图片参考线，同时清掉草稿对该来源的引用；不拆派生来源        |
+| run                              | {"id":"卡片或分组ID"}                                      | 单卡执行或运行分组剩余步骤；已完成模板卡先修改参数                |
+| stop                             | {"id":"视频卡或分组ID"}                                    | 停止本地视频等待或后续队列，不取消远端任务                        |
+| query                            | {"id":"视频卡ID"}                                          | 查询原视频任务，不发起新生成；历史面板仍由人工操作                |
+| undo / redo                      | {}                                                         | 沿用页面撤销栈；保存失败时也可撤销；无可撤销时返回 INVALID_ARGS   |
+| fill-slot                        | {"id":"空图片卡ID","assetPath":"已有卡片的 assetPath"}     | 原位回填空槽；也可省略 assetPath 并传 --file，保留 ID、位置和连线 |
+| replace-image                    | {"id":"图片卡ID","assetPath":"已有卡片的 assetPath"}       | 原位替换已有图片，保留 ID、位置、宽度、标题和连线；可选 prompt    |
 
 页面在任何修改前拒绝的命令，status/wait 返回 status=failed 并带 code：INVALID_ARGS（参数或页面状态，
 如 revision 过期、面板打开、任务执行中）或 NOT_FOUND（画布、卡片或连线不存在）。修正后用新的 request-id
@@ -392,19 +406,46 @@ AI 可以通过当前安装的 Maker CLI 操作已打开的画布，无需浏览
 不要直接重提付费步骤。仅有未保存修改时，写命令会先等待保存（约 10 秒）再执行；
 等待期间页面又有人工修改时返回 revision 过期（INVALID_ARGS），重新 inspect 后再提交。
 fill-slot / replace-image 的 assetPath 只接受画布图片（assets/image/canvas-<id>.png 或
-.maker/canvases/images/canvas-<id>.png，即 import 返回的路径）；项目里的其他文件先用 import --file 导入。
+.maker/canvases/images/canvas-<id>.png，即 import 返回的路径，也支持 JPEG/WebP 对应扩展名）。
+替换本地图片直接使用 --file 绝对路径，不必先 import，不会新增卡片或打开文件选择器：
 
-update-nodes 支持 title、便签 text、单卡位置 x/y、prompt、parameters、sequenceSettings。
+```bash
+taptap-maker canvas replace-image --target-dir "<项目绝对路径>" \
+  --page-id PAGE_ID --canvas-id CANVAS_ID --revision N \
+  --input '{"id":"图片卡ID"}' --file "<本地图片绝对路径>"
+```
+
+空图片卡将命令改为 fill-slot；两者均可在 input 中附带 prompt。--file 与 input.assetPath
+二选一，支持 PNG/JPEG/WebP，最大 20 MiB。文件沿用导入校验并写入画布缓存，
+再通过页面原位替换；人工点击替换图片才弹出选择器。上传后如页面拒绝操作，原卡片不变，
+缓存可能已留下图片；修正页面状态后再操作。保存失败或状态未知时先查询原操作和卡片。
+
+update-nodes 支持 title、便签 text、卡片或分组位置 x/y、width/height、prompt、parameters、sequenceSettings。
+add-node 同样支持 x/y/width/height；省略时沿用页面默认排版。新建普通卡片和派生卡片时，
+显式布局与创建作为一次操作保存、撤销；无效布局在创建前拒绝，不会留下半成品卡片。
+一次最多提交 100 条显式节点修改；超过时分批提交，每批完成保存后重新 inspect 获取 revision。
+移动一个普通或模板分组只需提交该分组的 ID 和 x/y，计为一条，不需要逐个提交成员。
+移动分组会按相同位移移动其全部成员，保留连线、素材和生成结果；同一批次显式指定成员的 x 或 y 时，
+该轴以成员给出的绝对坐标为准，另一轴仍随组移动，与参数排列顺序无关。调整分组 width/height
+只改变外框，不缩放成员。批次先完整校验再执行，整组移动可以一步撤销，多个分组可在同一批次移动。
 标注不参与生成。左侧工具条的标注框和箭头点一下就放到画布上，可以再移动和缩放。
 标注框是中间透明的矩形，四条边可以分别拖动改变大小，也保留右下角缩放手柄。箭头选中时两端各显示一个点，拖动端点改变方向和长度，拖动箭身可以移动。
 鼠标是默认模式，选择、移动卡片、框选和空格平移保持不变。拖拽模式只平移和缩放，
 适合触控板：按住左键拖动画布，双指滑动也会平移；捏合、Ctrl/⌘+滚轮和底部加减号仍可缩放。
 再点鼠标或按 Escape 回到鼠标模式。鼠标和拖拽不写入画布，也没有单独的 CLI 命令。
+按住空格会临时高亮拖拽工具，松开恢复原模式；窗口失焦会清除临时状态。
+完整键位见[画布与 UI 编辑器快捷键](../../../docs/MAKER_CONSOLE.md#画布与-ui-编辑器快捷键)。
 CLI 用 add-node，type=mark，shape=ellipse 或 arrow，可传 x/y/width/height、color（#RRGGBB）、
 stroke（1～8）。箭头可传成对的 from/to 局部坐标 {x,y}；point=nw/ne/sw/se 保留兼容。update-nodes 的 mark 字段修改样式和方向。
 删除、复制沿用原命令。工具条默认左侧居中，顶部手柄可拖动位置，刷新后恢复默认。
 generation 的任务标识、结果路径、来源快照不允许写入。空图片和视频卡使用生成草稿保存输入；
 已有素材保留，模板修改只标记待处理，不覆盖下游结果。
+
+长任务开始后保留项目路径、canvasId、卡片/分组 ID 和 operationId，用 status/wait 查询原操作。
+queued 是等待页面接收，不是可关页的持久后台队列；执行期间保持页面打开。
+关页或刷新后，重新打开原画布，刷新 pages/inspect，按原任务 ID、卡片状态或历史查询，
+不要直接重发 run。关页不等于取消已提交的远端任务，unknown 也不等于失败。
+operation 记录只在本次控制台进程中保留；服务重启后以已保存画布和原任务记录核对，不能保证恢复未保存状态。
 
 图片 parameters：Maker 的 model 使用当前 MCP 工具声明的模型 ID，auto 使用服务默认模型；
 自定义 API 使用已选配置的模型，本地模式由当前 AI 客户端执行。resolution=1K/2K，

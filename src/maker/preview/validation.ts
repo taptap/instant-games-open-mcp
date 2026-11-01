@@ -319,8 +319,8 @@ async function executeSkillValidation(
       options.validate_spike_threshold === undefined
         ? undefined
         : numberOption(options, 'validate_spike_threshold', 100);
-    if (options.nosound !== undefined && options.nosound !== true)
-      throw new Error('--nosound is a flag, without a value.');
+    if (options.nosound !== undefined && typeof options.nosound !== 'boolean')
+      throw new Error('--nosound must be a boolean flag.');
     const external = typeof options.runtime === 'string';
     const configured = external ? String(options.runtime) : previewInstallation(project).executable;
     if (!configured)

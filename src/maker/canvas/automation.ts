@@ -35,7 +35,17 @@ export function canvasAutomationCapabilities() {
         'Recognition and completed resource bundles are archived locally on save. Commands work without a browser or model. ui-archives is read-only; archive-ui snapshots saved data, never unsaved drafts. Use bboxPath and bindingsPath from the same revision; never guess the latest file.',
     },
     actions: [...CANVAS_COMMAND_ACTIONS],
+    limits: { updateNodesPerCommand: 100 },
+    templateDiscovery: {
+      search: 'canvas templates --target-dir PATH --q "keyword" [--page N]',
+      results:
+        'presets contains matching builtin templates; items contains matching user templates. total counts user templates only; total=0 does not mean no builtin matches. Check both arrays.',
+      instruction:
+        'Search existing template names and descriptions for the requested workflow (for example UI, 动画, 角色, 道具, 作物 or 3D) before declaring it unsupported or constructing it from scratch. Results contain compact summaries, builtin descriptions and associated skills, not full node graphs. Read only matched Skills; use the returned id with add-template. No result for one keyword is not proof of missing capability: try a shorter or alternate keyword. Search does not run or pay for generation.',
+    },
     recovery: {
+      longTasks:
+        'Keep project path, canvasId, node/group ID and operationId. queued means awaiting page dispatch, not a durable background queue. Use status/wait on the original operation; keep the page open during execution. After closing or reloading, reopen the same canvas, refresh pages/inspect and query the original pending task where supported; do not submit run again blindly. Closing a page does not cancel an already submitted remote task. Operation records are in memory and do not survive console restart; then use saved canvas state and original task/history IDs. unknown is not failed.',
       save: 'save with empty input retries saving the current page without rerunning tasks. Requires the current revision; does not bypass active tasks, dialogs, or uncommitted editor drafts.',
       recognition:
         'recognize-ui with input {id: recognition card ID} and --allow-paid generates Bbox only, preserving existing images. For pending requests it queries the original request; query is also available without --allow-paid. To resume Server API work, pass recover:true with --allow-paid; this reuses the original request and skips completed passes without a browser dialog. If an older client cleared pendingId, also pass the original attemptId. Recovery never creates a new attempt when the original is missing. Local or web recognition remains an external Agent workflow.',
@@ -128,7 +138,7 @@ export function canvasAutomationCapabilities() {
       },
       'update-nodes': {
         nodes:
-          'Array of patches with id and editable fields. width/height resize only the card, not the image or viewport (width 48..2000, height 36..1600; sections up to 100000; marks 8..8000). For image cards with known pixels, set width OR height and the other axis follows the image ratio including the header; if both are supplied they must match. Layout-only changes do not invalidate generated results. mark patches accept shape ellipse/arrow, color #RRGGBB, stroke 1..8, and paired from/to {x,y} endpoints in local coordinates for arrows.',
+          'Array of 1..100 explicit patches with id and editable fields. A group move counts as one patch regardless of member count. Split larger explicit edits into batches and inspect the new revision after each saved batch. x/y are absolute canvas coordinates; moving a section (including a template group) translates all its members by the same delta. An explicitly supplied member x or y overrides the group translation on that axis, regardless of patch order. width/height resize only the card or group frame, not its members, image or viewport (width 48..2000, height 36..1600; sections up to 100000; marks 8..8000). For image cards with known pixels, set width OR height and the other axis follows the image ratio including the header; if both are supplied they must match. Layout-only changes do not invalidate generated results. mark patches accept shape ellipse/arrow, color #RRGGBB, stroke 1..8, and paired from/to {x,y} endpoints in local coordinates for arrows.',
       },
       'preview-image-assets': {
         id: 'image-assets card ID; read-only preview, no final files',
@@ -142,7 +152,9 @@ export function canvasAutomationCapabilities() {
       'preview-model': {
         id: 'completed model card ID; opens read-only rotation preview, no generation request',
       },
-      inspect: { id: 'optional node or group ID; includes direct upstream' },
+      inspect: {
+        id: 'optional node or group ID; includes direct upstream. CLI accepts --id or input.id for both live and --saved inspection; conflicting IDs are rejected.',
+      },
       'confirm-model': {
         id: 'model card ID',
         reviewId: 'current review token; requires explicit user approval of all returned previews',
@@ -175,12 +187,14 @@ export function canvasAutomationCapabilities() {
       redo: { note: 'empty input; reapplies the latest undone edit' },
       'fill-slot': {
         id: 'empty image card (slot) ID',
+        file: 'CLI --file: absolute local PNG/JPEG/WebP path, up to 20 MiB; uploads to canvas cache and fills in place without a file picker or extra card. Use either --file or input.assetPath, never both; file is a CLI flag, not an input field.',
         assetPath:
-          'assetPath of an image already on this canvas (local hosts accept canvas images only: assets/image/canvas-<id>.png or .maker/canvases/images/canvas-<id>.png, as returned by import); this command does not upload, so bring other files in with import --file first. Fills the slot in place, keeping id, position, width and edges. No generation.',
+          'Existing canvas image path, used instead of --file (local hosts accept assets/image/canvas-<id>.* or .maker/canvases/images/canvas-<id>.*). Fills the slot in place, keeping id, position, width and edges. No generation.',
         prompt: 'optional; same as import prompt',
       },
       'replace-image': {
         id: 'image card ID that already has an image; empty slots use fill-slot',
+        file: 'CLI --file: absolute local PNG/JPEG/WebP path, up to 20 MiB; same upload rules as fill-slot. Replaces directly without a file picker or extra card; mutually exclusive with input.assetPath.',
         assetPath:
           'canvas image path, same rule as fill-slot; replaces the image in place, keeping id, position, width, title and edges; height follows the image ratio. Undoable; downstream results become stale like a manual image change. No generation.',
         prompt:
@@ -189,10 +203,10 @@ export function canvasAutomationCapabilities() {
       'add-node': {
         type: 'image/video/note/mark/sequence/animation/model-views/model',
         shape: 'ellipse or arrow when type is mark',
-        x: 'optional mark origin; omitted marks use a visible default in the current view',
-        y: 'optional mark origin',
-        width: 'optional mark width, 8..8000',
-        height: 'optional mark height, 8..8000',
+        x: 'optional absolute canvas x, -100000..100000; defaults to normal page placement',
+        y: 'optional absolute canvas y, -100000..100000',
+        width: 'optional width, 48..2000; marks 8..8000',
+        height: 'optional height, 36..1600; marks 8..8000',
         color: 'optional #RRGGBB; default #ff4d4f',
         stroke: 'optional integer 1..8; default 3',
         point: 'legacy arrow head corner nw/ne/sw/se; not accepted by ellipse',

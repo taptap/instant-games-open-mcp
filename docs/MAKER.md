@@ -7,6 +7,10 @@
 
 ## 目标
 
+CLI 布尔开关支持 --flag、--flag=true、--flag=false；需要值的参数缺值会立即报错。
+--env 仅接受 production 或 rnd，错误值不会回退到默认环境。--dry-run 仅适用于
+ui create / ui patch，其他命令传入会拒绝执行，不能用它试运行构建、推送或画布修改。
+
 CLI 功能指南：[本地控制台](MAKER_CONSOLE.md)、
 [Runtime 安装与本地预览](MAKER_LOCAL_PREVIEW.md)。两者复用现有 CLI，不新增 MCP tool；
 本地预览与提交、远端构建流程分离。
@@ -398,6 +402,8 @@ MCP 运行期能力：
 - Maker MCP 在 `initialize` 响应的 `instructions` 中提供精简能力路由，帮助 Agent 发现
   状态、构建、测试二维码、广告配置、线上玩家反馈和游戏资源生成入口。该提示不会在 MCP
   初始化时写文件，也不会替代具体 tool schema。
+- 模板能力通过路由中的 canvas templates --q 按功能搜索，返回简短用途与关联 Skill，
+  不将完整模板目录或节点图放入初始化上下文；新增模板沿用模板库已有名称和描述即可被发现。
 - 新项目初始化、`taptap-maker agents update` 和已绑定项目中的 `taptap-maker upgrade`
   会把同一份路由写入目标 Maker 项目 `AGENTS.md` 的受管策略块，并保留用户自己的内容。
   受管 body hash 变化会让旧项目状态显示为 `outdated`，不需要升级 policy version。

@@ -20,6 +20,7 @@ export interface CanvasTemplateCoverAnimation {
 export interface CanvasTemplateSummary extends CanvasPlatformScope {
   id: string;
   name: string;
+  description?: string;
   revision: number;
   builtin?: boolean;
   cliOnly?: boolean;
