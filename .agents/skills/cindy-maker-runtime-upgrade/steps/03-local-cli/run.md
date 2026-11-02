@@ -1,0 +1,79 @@
+# 03：本机 CLI、真实 Runtime 与真实游戏验证
+
+先确认 02 验收通过。本步必须真的执行进程；测试全绿、bundle 字符串、
+提取函数测试均不能替代。沿用本次明确授权，优先不扣费、不写生产环境的测试。
+本地副本的 Git 提交/合并/推送可在隔离 fixture 中执行，不等于获准提交两份源码仓库。
+
+## 1. 固定本轮入口和状态边界
+
+- 测的是插件最终 vendor+node adapters，不是 PATH 的 taptap-maker、npx latest
+  或 Maker 仓的旧 dist。入口、版本、哈希和环境统一记录一次，变更时另记。
+- CLI 模式可用 node <插件仓>/taptap-maker/node/maker-child.cjs <命令>，
+  MCP 模式是 node <插件仓>/taptap-maker/node/maker-mcp.cjs。先读当前入口确认参数；
+  不自行发明包装器参数。直接运行 vendor CLI 只作定位对照，不能替代 adapter 验证。
+- 本地控制台/预览遵守独立入口和 TAPTAP_MAKER_HOME 隔离；当前运行服务不因换 bundle
+  自动更新。记录入口/PID/origin/instanceId，停止和重启只针对本次创建的实例。
+  需要时按 Maker 仓现有隔离开发 Skill 处理；不要整目录复制用户 home 或凭证。
+- 单纯 help/启动冒烟用隔离 home；真实账号只读状态可在已授权账号环境执行并记录
+  边界，不为消除 warning 擅自登录、生成二维码、构建或切 PAT。
+
+## 2. 基础 CLI 和 MCP（每次替换都做）
+
+| 场景                | 实际执行与判定                                                                                                                                                                                     |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CLI 入口            | help 正常，status --json 返回目标版本及 managed/cindy_plugin；检查退出码和进程退出，不只看 stdout                                                                                                  |
+| 账号/诊断只读       | 依据当前 help 核对可用命令，执行 status/doctor 等；缺身份/依赖如实记录，不冒充构建成功；日志脱敏                                                                                                   |
+| MCP 生命周期        | 原插件 maker-mcp.cjs 完成 initialize、notifications/initialized、可信游戏目录 tools/list、广告 resources/read、maker_status_lite，再正常关闭；复用现有真实 Runtime 测试 harness，勿另实现 MCP 协议 |
+| roots/Windows stdio | 运行真实 bundle 经 roots 路由及钉死 stdin/stdout、预缓存 initialize 的回归；检查结束无遗留子进程。真实 Windows 证据另记，Mac 模拟不能冒称 Windows 已测                                             |
+| Console 实例        | 经插件 console adapter 启动，health/HTML/Server-only 配置/写配置拒绝符合预期，正常停止后端口关闭，再启动得到新实例；不能复用同版 standalone/旧入口冒充本轮                                         |
+
+现有自动测试若确实已执行上述 N 路径、入口和哈希相同，可引用其原始运行证据，
+无需机械重复同一命令；不能把只有模拟的用例算 N。
+
+## 3. 真实游戏副本和原生 Git
+
+选本地已有、已授权的 Maker 测试游戏，建立仓库外独立副本，保留必要内容与绑定，
+不在原项目制造故障。核对副本的真实路径、git-dir/common-dir 和索引均不指回原项目，
+不沿用指向原项目的 .git 文件、链接或共享工作树。记录原项目状态前后摘要。
+Git 的 fetch/push URL（含 pushurl）均限定本地 bare，隔离 hooks 与 URL 重写配置；
+绑定文件只本机使用，不能提交到 Skill。**本地 remote 不隔离 Maker 云端 API**：
+Git 故障测试须在 harness 中替换云端提交/构建等写接口，非预期写请求立即失败。
+
+涉及 Git/提交/同步改动时，运行最终 bundle 的真实函数+真实系统 Git，不重写一份理想逻辑：
+
+1. main 只落后时快进。
+2. 历史分叉时先保留本地提交，合并并向本地 bare 推送成功。
+3. 合并冲突自动取消，保留本地提交/内容，不推送。
+4. 快进会覆盖未提交文件时停止。
+5. Cindy 保存点共存：用户 HEAD/index 不变，refs/cindy/savepoints 保留，推送不携带保存点。
+6. 非 main 停止。
+7. 已有 index.lock 停止且不移除他人锁。
+
+优先复用仓库可用的 harness；没有现成 Git 集成 harness 时，在证据目录写本轮定向
+测试，只提取最终 bundle 的真实函数，使用真实 Git，并替换鉴权和云端写边界。
+不重写业务算法或协议，不依赖旧电脑临时脚本。Cindy 源码保存点集成是 Node 证据，不是已安装 Electron
+全部并发时序。未改 Git 且依赖链也未变化，可引用本轮适用证据并说明理由。
+云端提交未知态用 V9 故障注入测，不能在生产云端制造断网或重复提交。
+
+## 4. 本地预览、日志、截图和验证报告
+
+先读取目标包 help/随包 docs/MAKER_LOCAL_PREVIEW.md 与插件 local-validation.md 的相关节，
+确认当前支持的 Runtime/参数；按第二步交来的受影响场景逐项执行。
+
+- 对已授权的单机游戏副本启动真实本地预览，确认有内容的画面、至少一个实际交互、
+  运行日志、刷新后的变化与正常退出。需要下载/安装 UrhoX 引擎时核对来源及授权，
+  不把 Maker MCP 的 JS bundle 和 UrhoX 原生引擎 Runtime 混为同一个升级对象。
+- 本轮涉及 validation 时，在单机副本执行成功路径：选择与游戏相符的模式、明确截图帧和预算，
+  查看 JSON、Lua 报告、runtime.log、PNG 像素及所有 attempt，不只看 COMPLETED。
+- 需要稳定故障样例时仅在测试副本添加可控 Lua 错误，核对 FAIL 和部分证据。
+  活动预览/参数无效/证据未忽略等拒绝路径用隔离场景验证，不改原项目来绕门禁。
+- 联机按**目标包**能力判断：老版本 validate 的 UNSUPPORTED 只是拒绝路径；
+  preview start/run 可能支持测试服。新包若有 validate --network，核对测试服分配副作用、
+  插件参数映射和用户授权再测，不因旧记录直接拒绝，也不擅自把联机改成单机。
+- 区分普通原生画面、系统截图和引擎 -screenshot 导出。某条失败时缩小定位到启动、
+  渲染、导出、归档或宿主展示；无证据不归因“macOS 不支持”或“整个插件不能测试”。
+- 没有引擎、图形会话或合适项目时写明本项未完成，继续独立的 Console/画布/编辑器
+  验证；不能因一个 UNSUPPORTED 就结束全部测试。
+
+测试后只关闭自己启动的进程/页面，保留脱敏报告与截图路径，确认原服务和原项目未受伤。
+读取 [03 验收](acceptance.md)。
