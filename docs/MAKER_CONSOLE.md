@@ -372,6 +372,12 @@ CLI 通过 pages 显式选择页面，命令绑定 pageId、canvasId 和 revisio
 分组栏改为同一提示，不保存、不启动队列或 015 运行，CLI 命令返回同一原因（inspect 的 blocked）。
 短编辑期间阻止页面输入，长任务继续使用现有任务保护和停止入口。
 领取过的命令不重新派发；结果单独确认，断线标记 unknown，刷新不恢复付费任务。
+命令历史不占用新命令配额：工作集中超过 1000 条时，将无结果正文、无有效导出缓存的
+终态记录移入本次控制台会话的轻量回执；同一 requestId 仍返回原状态，跨项目或参数不符仍拒绝。
+回执保留到控制台退出，数量随会话请求增长，不保存命令输入或大结果；不改变重启后的恢复边界。
+每个项目保留最近 20 条普通终态结果正文，过期标记 resultExpired；有效导出及 queued、running、
+unknown 记录不参与回收。页面收到结果确认后释放对应心跳 ID，避免长期使用后心跳超限。
+同一页面保持单个普通操作，并为 inspect、stop 各保留一个独立在途位置；其他页面不受其历史数量影响。
 wait 是有界状态查询，不是新调度器或反调 AI。用法与首版限制见画布目录 README。
 游戏资产卡通过 preview-image-assets 返回网格 PNG data URI 和 waiting_for_confirmation；
 核对每格后用 confirm-image-assets 携带当前 reviewId/revision，复用页面裁切和保存。
