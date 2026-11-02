@@ -218,12 +218,15 @@
         if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
       }
       function onImageDrop(event) {
-        var raw = event.dataTransfer && event.dataTransfer.getData("text/plain");
-        if (!raw || raw.indexOf("urhox-image:") !== 0) return;
+        var project = window.UrhoxProject;
+        var ref = project && project.dropImageRef ? project.dropImageRef(event.dataTransfer) : "";
+        if (!ref) return;
         event.preventDefault();
         event.stopPropagation();
         var p = canvasPoint(app, event);
-        window.UrhoxCommands.createImageFromAsset(app, raw.slice("urhox-image:".length), Math.round(p.x), Math.round(p.y));
+        window.UrhoxCommands.createImageFromAsset(app, ref, Math.round(p.x), Math.round(p.y));
+        // Images dropped from a host browser may be newer than the file listing.
+        if (window.UrhoxHost && project.findAsset && !project.findAsset(ref) && project.refreshFiles) project.refreshFiles();
       }
       previewEl.addEventListener("dragover", onImageDragOver);
       previewEl.addEventListener("drop", onImageDrop);

@@ -523,9 +523,8 @@
     dropHint.textContent = "可从底部 Assets 拖一张图到这里";
     block.appendChild(dropHint);
     function takeRef(event) {
-      var raw = event.dataTransfer && event.dataTransfer.getData("text/plain");
-      if (raw && raw.indexOf("urhox-image:") === 0) return raw.slice("urhox-image:".length);
-      return "";
+      return window.UrhoxProject && window.UrhoxProject.dropImageRef
+        ? window.UrhoxProject.dropImageRef(event.dataTransfer) : "";
     }
     block.addEventListener("dragover", function (event) {
       if (takeRef(event) || (event.dataTransfer && event.dataTransfer.types && event.dataTransfer.types.length)) {
@@ -538,9 +537,8 @@
       event.preventDefault();
       block.classList.remove("drop-over");
       var ref = takeRef(event);
-      if (ref && window.UrhoxProject && window.UrhoxProject.assignImageByRef) {
-        window.UrhoxProject.beginReplaceImage(node, field.key, onChange);
-        window.UrhoxProject.assignImageByRef(ref);
+      if (ref && window.UrhoxProject && window.UrhoxProject.assignImageTo) {
+        window.UrhoxProject.assignImageTo(node, field.key, onChange, ref);
       }
     });
     return block;

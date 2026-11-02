@@ -313,6 +313,8 @@
     if (!replaceTarget) return false;
     replaceTarget = null;
     updateReplaceUi();
+    var host = hostPicker();
+    if (host && typeof host.cancelPick === "function") host.cancelPick();
     return true;
   }
 
@@ -698,11 +700,28 @@
     });
   }
 
+  // Hosts with their own asset browser (UrhoxHost.pickImage) pick the image there; the editor
+  // keeps the target and applies the returned ref. Without one, the bottom project list is used.
+  function hostPicker() {
+    var host = window.UrhoxHost;
+    return host && typeof host.pickImage === "function" ? host : null;
+  }
   function beginReplaceImage(node, key, onChange) {
     if (!node) return;
     replaceTarget = { node: node, key: key, onChange: onChange,
       tree: window.UrhoxPreview.tree, project: project };
     if (!validateImageTarget()) return;
+    var host = hostPicker();
+    if (host) {
+      var target = replaceTarget;
+      updateReplaceUi();
+      Promise.resolve(host.pickImage({ label: node.id || node.type })).then(function (ref) {
+        if (replaceTarget !== target) return;
+        if (ref) assignImageByRef(String(ref));
+        else cancelReplaceImage();
+      }, function () { if (replaceTarget === target) cancelReplaceImage(); });
+      return;
+    }
     setBottomTab("project");
     viewMode = "icon";
     if (viewIconBtn) viewIconBtn.classList.add("active");
@@ -716,17 +735,50 @@
     var bar = document.querySelector(".project-bar");
     if (bar && bar.scrollIntoView) bar.scrollIntoView({ block: "nearest" });
   }
-
   function assignImageByRef(ref) {
     if (!ref) return false;
-    var found = assets.find(function (a) {
-      return a.kind === "image" && (a.ref === ref || a.path === ref || a.path.endsWith("/" + ref));
-    });
-    if (!found) {
-      alert("只能使用项目内的图片。");
-      return false;
+    function lookup() {
+      return assets.find(function (a) {
+        return a.kind === "image" && (a.ref === ref || a.path === ref || a.path.endsWith("/" + ref));
+      });
     }
-    return applyReplace(found);
+    var found = lookup();
+    if (found) return applyReplace(found);
+    if (window.UrhoxHost && replaceTarget) {
+      // The host's asset browser can upload images after the last file listing; refresh once.
+      var target = replaceTarget;
+      loadProjectFiles(false).then(function () {
+        if (replaceTarget !== target) return;
+        var fresh = lookup();
+        if (fresh) applyReplace(fresh);
+        else { cancelReplaceImage(); alert("只能使用项目内的图片。"); }
+      });
+      return true;
+    }
+    alert("只能使用项目内的图片。");
+    return false;
+  }
+  // Direct assignment (drop, context menu): same checks and undo step as picking, no picker.
+  function assignImageTo(node, key, onChange, ref) {
+    if (!node || !ref) return false;
+    replaceTarget = { node: node, key: key, onChange: onChange,
+      tree: window.UrhoxPreview.tree, project: project };
+    if (!validateImageTarget()) return false;
+    if (assignImageByRef(ref)) return true;
+    cancelReplaceImage();
+    return false;
+  }
+  // Image ref carried by a drag: the editor's own "urhox-image:" text, or whatever the host's
+  // asset browser puts on the drag (UrhoxHost.imageRefFromDrop).
+  function dropImageRef(dataTransfer) {
+    if (!dataTransfer) return "";
+    var raw = dataTransfer.getData("text/plain");
+    if (raw && raw.indexOf("urhox-image:") === 0) return raw.slice("urhox-image:".length);
+    var host = window.UrhoxHost;
+    if (host && typeof host.imageRefFromDrop === "function") {
+      try { return String(host.imageRefFromDrop(dataTransfer) || ""); } catch (error) { return ""; }
+    }
+    return "";
   }
 
   document.querySelectorAll(".tab-btn").forEach(function (btn) {
@@ -759,6 +811,9 @@
     cancelReplaceImage: cancelReplaceImage,
     validateImageTarget: validateImageTarget,
     assignImageByRef: assignImageByRef,
+    assignImageTo: assignImageTo,
+    dropImageRef: dropImageRef,
+    refreshFiles: function () { return loadProjectFiles(false); },
     findAsset: findAsset,
     bindAssetThumb: bindAssetThumb,
     openUiPath: openUiPath,

@@ -788,8 +788,7 @@
     },
     replaceSelectedImage: function (ref) {
       if (!Cmd.contextState(app).image || !window.UrhoxProject) return;
-      window.UrhoxProject.beginReplaceImage(app.selected, "backgroundImage", onInspectorChange);
-      window.UrhoxProject.assignImageByRef(ref);
+      window.UrhoxProject.assignImageTo(app.selected, "backgroundImage", onInspectorChange, ref);
     },
     selectDiagnosticNode: function (pointer) {
       var node = app.sourceTree, parts = pointer.split("/").slice(1);
