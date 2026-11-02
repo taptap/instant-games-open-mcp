@@ -18,7 +18,8 @@ import {
   ReviewStatus,
 } from './api.js';
 import { resolvePathSafe } from '../../core/utils/pathResolver.js';
-import { clearAppCache } from '../../core/utils/cache.js';
+import { clearAppCache, type AppCacheInfo } from '../../core/utils/cache.js';
+import { formatH5OrientationDiagnostics, safeH5Error } from '../../core/utils/h5Diagnostics.js';
 import { clearToken, saveToken } from '../../core/auth/tokenStorage.js';
 import { EnvConfig } from '../../core/utils/env.js';
 import {
@@ -57,6 +58,19 @@ const MESSAGES = {
 
 function formatRawJson(data: unknown): string {
   return JSON.stringify(data, null, 2);
+}
+
+type ScreenOrientation = 1 | 2;
+
+function normalizeScreenOrientation(value: unknown): ScreenOrientation | undefined {
+  return value === 1 || value === 2 ? value : undefined;
+}
+
+function getScreenOrientationFromCache(cache: AppCacheInfo): ScreenOrientation | undefined {
+  const draft = cache.upload_level?.form_data?.info?.screen_orientation;
+  return normalizeScreenOrientation(
+    draft !== undefined ? draft : cache.level?.data?.screen_orientation
+  );
 }
 
 const APP_LIST_DEFAULT_TEXT_LIMIT = 40;
@@ -929,11 +943,36 @@ export async function updateAppInfo(
     return MESSAGES.EDIT_GAME_INFO_CONFIRMATION;
   }
 
+  let phase = 'validate';
+  let refreshedCache: AppCacheInfo | undefined;
+  let refreshFailure: unknown;
+  const diagnostics = (code: string, error?: unknown) =>
+    formatH5OrientationDiagnostics({
+      code,
+      appId: args.appId,
+      developerId: args.developerId,
+      expectedOrientation: args.screenOrientation,
+      cache: refreshedCache,
+      phase,
+      endpoint: phase === 'verify' ? '/level/v1/latest' : '/level/v1/submit',
+      source: refreshedCache ? 'server' : 'unavailable',
+      error,
+    });
+  if (
+    args.screenOrientation !== undefined &&
+    normalizeScreenOrientation(args.screenOrientation) === undefined
+  ) {
+    return (
+      'screenOrientation 只能是 1（竖屏）或 2（横屏），未提交。' +
+      diagnostics('H5_INVALID_ORIENTATION')
+    );
+  }
   try {
+    phase = 'submit';
     const result = await editAppInfoApi(
       args.appId,
       args.developerId,
-      undefined, // package_id
+      undefined, // Metadata update: do not guess or resubmit an existing package.
       args.appName,
       args.genre,
       args.description,
@@ -948,12 +987,32 @@ export async function updateAppInfo(
     );
 
     // Refresh App Cache immediately after successful update
+    phase = 'verify';
     try {
-      await selectAppApi(args.developerId, args.appId, ctx.projectPath, ctx);
+      refreshedCache = await selectAppApi(args.developerId, args.appId, ctx.projectPath, ctx);
     } catch (refreshError) {
-      console.warn('Failed to refresh app cache after update:', refreshError);
+      refreshFailure = refreshError;
     }
 
+    if (args.screenOrientation !== undefined) {
+      const actualOrientation = refreshedCache
+        ? getScreenOrientationFromCache(refreshedCache)
+        : undefined;
+      if (actualOrientation !== args.screenOrientation) {
+        return (
+          `⚠️ 应用提交已发送并可能进入审核，但尚未确认横竖屏已生效：期望 ${args.screenOrientation}` +
+          `，服务端返回 ${actualOrientation ?? '未设置'}。请勿重复提交，先查询应用详情和审核状态。` +
+          diagnostics('H5_ORIENTATION_UNCONFIRMED', refreshFailure)
+        );
+      }
+    }
+
+    if (args.screenOrientation !== undefined) {
+      return (
+        '应用信息已提交，服务端已返回所选方向；这不代表审核通过或线上包已更新。' +
+        diagnostics('H5_ORIENTATION_READBACK_CONFIRMED')
+      );
+    }
     return `# 应用信息更新成功
 
 ## 📱 更新后信息
@@ -966,10 +1025,12 @@ export async function updateAppInfo(
 您可以使用 \`get_current_app_info\` 查看最新的应用详情。
 `;
   } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to update app info: ${error.message}`);
-    }
-    throw new Error(`Failed to update app info: ${String(error)}`);
+    return (
+      '应用信息提交未获成功确认：' +
+      safeH5Error(error) +
+      '。请求可能已被服务端处理，请先查询应用详情和审核状态，不要自动重复提交。' +
+      diagnostics('H5_SUBMIT_UNCONFIRMED', error)
+    );
   }
 }
 

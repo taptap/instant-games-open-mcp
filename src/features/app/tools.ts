@@ -228,7 +228,7 @@ export const appTools: ToolRegistration[] = [
     definition: {
       name: 'update_app_info',
       description:
-        "Update the app's information on TapTap platform including name, genre, description, icon, banner, screenshots, and more.",
+        "Update the app's information on TapTap platform including name, genre, description, icon, banner, screenshots, and more. This calls /level/v1/submit and may trigger review. Explain this side effect and obtain user consent before submitting. For H5 screenOrientation updates, server readback is checked; readback does not mean review approval or publication. Do not repeat submission if the result is unconfirmed. Preserve the diagnostic block for troubleshooting.",
       inputSchema: {
         type: 'object',
         properties: {
@@ -262,6 +262,7 @@ export const appTools: ToolRegistration[] = [
           },
           screenOrientation: {
             type: 'number',
+            enum: [1, 2],
             description: 'The screen orientation of the app, 1: portrait, 2: landscape',
           },
           icon: {

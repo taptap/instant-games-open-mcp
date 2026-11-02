@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { ResolvedContext } from '../../core/types/index.js';
+import type { ResolvedContext } from '../../core/types/context.js';
 import {
   getAdConfig,
   AdsStatus,
@@ -14,6 +14,7 @@ import {
 } from './api.js';
 import { fetchAppDetail } from '../app/api.js';
 import { mutateAppCache, readAppCache, type AppCacheInfo } from '../../core/utils/cache.js';
+import { formatH5OrientationDiagnostics, safeH5Error } from '../../core/utils/h5Diagnostics.js';
 
 const AUTOMATIC_AD_SPACE_ID_GUIDANCE =
   '不要向开发者索要广告位 ID，也不要使用手工填写的 ID 作为兜底。';
@@ -47,7 +48,7 @@ function normalizeAdSpaceId(value: unknown): string | undefined {
 }
 
 function findValidAdSpace(adSpaces: AdSpace[], type: 1 | 2): AdSpace | undefined {
-  const space = adSpaces.find((item) => item.type === type && normalizeAdSpaceId(item.id));
+  const space = adSpaces.find((item) => item?.type === type && normalizeAdSpaceId(item.id));
   const id = normalizeAdSpaceId(space?.id);
   return space && id ? { ...space, id } : undefined;
 }
@@ -177,13 +178,31 @@ async function refreshAppInfoForAds(
  * @param ctx - ResolvedContext
  * @returns 格式化的状态信息字符串
  */
-export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
+export async function checkAdsStatus(ctx: ResolvedContext, forceRefresh = true): Promise<string> {
   let requestState: AdsStatusRequestState | null = null;
+  let phase = 'ad_config';
+  let source: 'cache' | 'server' | 'unavailable' = 'unavailable';
+  let diagnosticCache: AppCacheInfo | undefined;
+  let config: AdConfigResponse | undefined;
+  const diagnostics = (code: string, error?: unknown) =>
+    formatH5OrientationDiagnostics({
+      code,
+      appId: requestState?.app.appId,
+      developerId: requestState?.app.developerId,
+      requestId: requestState?.requestId,
+      phase,
+      endpoint: phase === 'ad_config' ? '/ad/v1/config' : '/level/v1/latest',
+      source,
+      cache: diagnosticCache,
+      adStatus: config?.status,
+      adSpaces: config?.ad_spaces,
+      error,
+    });
 
   try {
     requestState = beginAdsStatusRequest(ctx);
     const requestedApp = requestState?.app ?? getSelectedAppIdentity(ctx);
-    const config = await getAdConfig(ctx, requestedApp ?? undefined);
+    config = await getAdConfig(ctx, requestedApp ?? undefined);
 
     if (requestState && !isLatestAdsStatusRequest(requestState)) {
       return SUPERSEDED_STATUS_RESULT;
@@ -197,7 +216,14 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
       return SUPERSEDED_STATUS_RESULT;
     }
 
-    const statusText = STATUS_DESCRIPTIONS[config.status] || '未知状态';
+    diagnosticCache = currentCache ?? undefined;
+    source = currentCache ? 'cache' : 'unavailable';
+    if (!config || typeof config.status !== 'number') {
+      return (
+        '广告接口响应格式异常，无法接入。请反馈诊断信息。' + diagnostics('H5_AD_CONFIG_INVALID')
+      );
+    }
+    const statusText = STATUS_DESCRIPTIONS[config.status as AdsStatus] || '未知状态';
 
     let result = `## 🎮 广告功能状态\n\n`;
     result += `**当前状态：** ${statusText}\n\n`;
@@ -213,12 +239,13 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
         break;
 
       case AdsStatus.Activated: {
-        const adSpaces = config.ad_spaces ?? [];
+        const adSpaces = Array.isArray(config.ad_spaces) ? config.ad_spaces : [];
         const landscapeSpace = findValidAdSpace(adSpaces, 1);
         const portraitSpace = findValidAdSpace(adSpaces, 2);
 
         // 校验：至少需要有一个广告位
         if (!landscapeSpace && !portraitSpace) {
+          result += diagnostics('H5_AD_SPACES_MISSING') + '\n\n';
           result += `⚠️ **广告功能已生效，但广告位 ID 获取异常**\n\n`;
           result += `服务器未返回有效的广告位信息，这可能是服务端临时异常，请稍后重试。\n\n`;
           result += `${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n\n`;
@@ -231,13 +258,23 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
           ? getScreenOrientationFromCache(currentCache)
           : undefined;
 
-        if (screenOrientation === undefined && currentCache && requestState) {
+        if ((forceRefresh || screenOrientation === undefined) && currentCache && requestState) {
+          phase = 'app_detail';
           try {
             await refreshAppInfoForAds(requestState, ctx);
           } catch (refreshError) {
-            return `⚠️ **无法确认游戏横竖屏设置**\n\n刷新应用信息失败：${
-              refreshError instanceof Error ? refreshError.message : String(refreshError)
-            }\n\n请重新调用 \`check_ads_status\`，不要重复设置或猜测横竖屏。`;
+            if (
+              !isLatestAdsStatusRequest(requestState) ||
+              !isCurrentSelectedApp(ctx, requestedApp)
+            ) {
+              return SUPERSEDED_STATUS_RESULT;
+            }
+            return (
+              '无法确认游戏横竖屏设置。刷新应用信息失败：' +
+              safeH5Error(refreshError) +
+              '。请重新调用 check_ads_status，不要重复设置或猜测横竖屏。' +
+              diagnostics('H5_APP_DETAIL_FAILED', refreshError)
+            );
           }
 
           if (!isLatestAdsStatusRequest(requestState) || !isCurrentSelectedApp(ctx, requestedApp)) {
@@ -246,16 +283,20 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
 
           currentCache = getCurrentPersistedAdsStatusRequest(requestState);
           if (!currentCache) return SUPERSEDED_STATUS_RESULT;
+          diagnosticCache = currentCache;
+          source = 'server';
           screenOrientation = getScreenOrientationFromCache(currentCache);
         }
 
-        result += `✅ **广告变现已开通，服务端配置可用于生成接入代码**\n\n`;
+        result += `✅ **广告变现已开通，仍需确认方向和对应广告位**\n\n`;
         result += `> 此状态不代表 \`window.tap\` 已注入、当前 ZIP 已正确上传或广告已在真机成功播放。\n\n`;
 
+        phase = 'match_orientation';
         // 展示游戏横竖屏设置及对应广告位
         if (screenOrientation === undefined) {
+          result += diagnostics('H5_ORIENTATION_MISSING') + '\n\n';
           result += `⚠️ **未检测到游戏横竖屏设置**\n\n`;
-          result += `服务端当前没有有效的横竖屏设置，无法自动匹配对应广告位 ID。\n\n`;
+          result += `服务端应用详情中的方向字段无效或缺失，无法自动匹配对应广告位 ID；这不表示 H5 测试包本身没有设置方向。\n\n`;
           result += `请先询问用户选择游戏方向：\n`;
           result += `- \`screenOrientation: 1\` → 竖屏\n`;
           result += `- \`screenOrientation: 2\` → 横屏\n\n`;
@@ -264,7 +305,8 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
           result += `- \`appId: ${requestedApp.appId}\`\n`;
           result += `- \`screenOrientation: 用户选择的 1 或 2\`\n\n`;
           result += `${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n\n`;
-          result += `设置成功后重新调用 \`check_ads_status\`，自动匹配广告位并继续接入。\n`;
+          result += `注意：update_app_info 调用 /level/v1/submit 提交应用资料，可能触发审核；MCP 会回读服务端确认，未确认时请勿重复提交。\n`;
+          result += `确认生效后重新调用 \`check_ads_status\`，自动匹配广告位并继续接入。\n`;
         } else {
           const orientationLabel = screenOrientation === 2 ? '横屏' : '竖屏';
           const matchedSpace = screenOrientation === 2 ? landscapeSpace : portraitSpace;
@@ -276,10 +318,12 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
             if (!cached) {
               return `⚠️ 检查广告状态期间当前应用已切换或已有更新查询，本次查询结果已丢弃。\n\n请为当前选中的应用重新调用 \`check_ads_status\`。`;
             }
+            result += diagnostics('H5_AD_READY') + '\n\n';
             result += `**匹配广告位 ID：** \`${matchedSpace.id}\`\n\n`;
             result += `接下来请调用 \`get_ad_integration_guide\` 工具获取完整的接入文档。\n`;
             result += `文档中会自动使用匹配的广告位 ID（\`${matchedSpace.id}\`）。\n`;
           } else {
+            result += diagnostics('H5_AD_SPACE_MISMATCH');
             result += `⚠️ 服务器未返回与游戏方向（${orientationLabel}）对应的广告位。\n\n`;
             result += `${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n\n`;
             result += `请稍后重新调用 \`check_ads_status\`；如果问题持续存在，请联系 TapTap 运营确认。\n`;
@@ -299,6 +343,7 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
         break;
 
       default:
+        result += diagnostics('H5_AD_STATUS_UNKNOWN');
         if (config.url) {
           result += `详细信息：${config.url}\n`;
         }
@@ -314,10 +359,14 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
     ) {
       return SUPERSEDED_STATUS_RESULT;
     }
-    if (error instanceof Error) {
-      return `❌ 查询广告状态失败：${error.message}\n\n${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n请解决上述错误后重新调用 \`check_ads_status\`。`;
-    }
-    return `❌ 查询广告状态失败：${String(error)}\n\n${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n请解决上述错误后重新调用 \`check_ads_status\`。`;
+    return (
+      '查询广告状态失败：' +
+      safeH5Error(error) +
+      '\n\n' +
+      AUTOMATIC_AD_SPACE_ID_GUIDANCE +
+      '\n请解决上述错误后重新调用 check_ads_status。' +
+      diagnostics('H5_AD_CONFIG_FAILED', error)
+    );
   } finally {
     finishAdsStatusRequest(requestState);
   }

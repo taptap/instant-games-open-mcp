@@ -256,6 +256,7 @@ export async function editAppInfo(
 ): Promise<EditAppResponse> {
   const client = new HttpClient(ctx);
   return await client.post<EditAppResponse>('/level/v1/submit', {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: {
       app_id,
       developer_id,
@@ -343,6 +344,7 @@ export interface AppDetailAPIResponse {
       title: string;
       description?: string;
       category?: string;
+      package_id?: number;
       screen_orientation?: number;
       icon?: string;
       banner?: string;
@@ -364,6 +366,7 @@ export interface AppDetailAPIResponse {
         title: string;
         description?: string;
         category?: string;
+        package_id?: number;
         screen_orientation?: number;
         icon?: string;
         banner?: string;
@@ -563,9 +566,9 @@ export async function selectApp(
 ): Promise<AppCacheInfo> {
   try {
     const cacheKey = resolveAppCacheKey(projectPath, ctx);
-    const appDetail = await fetchAppDetail(appId, ctx);
+    const appDetail = await fetchAppDetail(appId, ctx, true);
 
-    if (!appDetail) {
+    if (!appDetail || appDetail.appId !== appId) {
       throw new Error(`App with ID ${appId} not found`);
     }
 

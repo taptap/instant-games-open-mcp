@@ -52,6 +52,7 @@ export interface CachedLevelInfo {
       title: string;
       description?: string;
       category?: string;
+      package_id?: number;
       screen_orientation?: number;
       icon?: string;
       banner?: string;
@@ -65,6 +66,7 @@ export interface CachedLevelInfo {
     title: string;
     description?: string;
     category?: string;
+    package_id?: number;
     screen_orientation?: number;
     icon?: string;
     banner?: string;

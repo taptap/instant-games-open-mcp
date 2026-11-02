@@ -18,16 +18,27 @@ export type AuthErrorCode =
   | 'CONFIG_ERROR'; // 配置错误
 
 /**
- * 统一的认证错误类
+ * Allowlisted response evidence; redact upstream strings before displaying them.
  */
+export interface AuthResponseDetails {
+  httpStatus: number;
+  upstreamCode?: string | number;
+  upstreamMessage?: string;
+  serverRequestId?: string;
+}
+
+/** 统一的认证错误类 */
 export class AuthError extends Error {
   constructor(
     message: string,
     public readonly code: AuthErrorCode,
-    public readonly userGuidance?: string
+    public readonly userGuidance?: string,
+    public readonly responseDetails?: AuthResponseDetails
   ) {
     super(message);
     this.name = 'AuthError';
+    // Only explicit diagnostic formatters should expose the upstream details.
+    Object.defineProperty(this, 'responseDetails', { enumerable: false });
   }
 }
 
@@ -196,8 +207,38 @@ export function extractAuthErrorFromResponse(
     responseText ||
     '';
 
+  // Preserve response evidence without changing the existing auth classification.
+  // Callers must redact these allowlisted upstream fields before displaying them.
+  const fromResponse = (code: AuthErrorCode): AuthError => {
+    const error = createAuthError(code);
+    const upstreamMessage =
+      errorMsg ||
+      responseData?.data?.message ||
+      responseData?.error_description ||
+      responseData?.msg;
+    const serverRequestId =
+      response.headers?.get('x-request-id') || response.headers?.get('x-trace-id');
+    return new AuthError(error.message, error.code, error.userGuidance, {
+      httpStatus: response.status,
+      upstreamCode:
+        typeof errorCode === 'string'
+          ? errorCode.slice(0, 100)
+          : typeof errorCode === 'number'
+            ? errorCode
+            : undefined,
+      upstreamMessage:
+        typeof upstreamMessage === 'string' && !/<[a-z][^>]*>/i.test(upstreamMessage)
+          ? upstreamMessage.slice(0, 1200)
+          : undefined,
+      serverRequestId:
+        serverRequestId && /^[A-Za-z0-9._:-]{1,128}$/.test(serverRequestId)
+          ? serverRequestId
+          : undefined,
+    });
+  };
+
   if (typeof errorMsg === 'string' && errorMsg.includes('not match client_id')) {
-    return createAuthError('CLIENT_ID_MISMATCH');
+    return fromResponse('CLIENT_ID_MISMATCH');
   }
 
   if (errorCode === 'access_denied') {
@@ -208,25 +249,25 @@ export function extractAuthErrorFromResponse(
       normalizedMessage.includes('rbac') ||
       normalizedMessage.includes('access denied')
     ) {
-      return createAuthError('UNAUTHORIZED');
+      return fromResponse('UNAUTHORIZED');
     }
 
-    return createAuthError('TOKEN_REVOKED');
+    return fromResponse('TOKEN_REVOKED');
   }
 
   // 检查 text/plain 格式的 RBAC 错误
   if ((response.status === 403 || response.status === 401) && responseText) {
     if (responseText.includes('access denied') || responseText.includes('RBAC')) {
-      return createAuthError('UNAUTHORIZED');
+      return fromResponse('UNAUTHORIZED');
     }
   }
 
   if (response.status === 401) {
-    return createAuthError('TOKEN_EXPIRED');
+    return fromResponse('TOKEN_EXPIRED');
   }
 
   if (response.status === 403) {
-    return createAuthError('UNAUTHORIZED');
+    return fromResponse('UNAUTHORIZED');
   }
 
   return null;

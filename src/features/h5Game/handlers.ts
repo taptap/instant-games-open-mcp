@@ -17,7 +17,8 @@ import {
   type UploadParams,
 } from './api.js';
 import { editAppInfo, fetchAppDetail, refreshAppCache, type AppDetail } from '../app/api.js';
-import { readAppCache } from '../../core/utils/cache.js';
+import { readAppCache, type AppCacheInfo } from '../../core/utils/cache.js';
+import { formatH5OrientationDiagnostics, safeH5Error } from '../../core/utils/h5Diagnostics.js';
 import { logger } from '../../core/utils/logger.js';
 import {
   resolvePathSafe,
@@ -428,28 +429,65 @@ export async function handleUploadGame(
   const gamePath = pathResult.resolvedPath!;
   const developerId = appInfo.developerId!;
   const appId = appInfo.appId!;
+  let phase = 'app_detail';
+  let packageId: number | undefined;
+  let diagnosticCache: AppCacheInfo | undefined;
+  let source: 'server' | 'unavailable' = 'unavailable';
+  const diagnostics = (code: string, error?: unknown) =>
+    formatH5OrientationDiagnostics({
+      code,
+      appId,
+      developerId,
+      packageId,
+      expectedOrientation: screenOrientation ?? args.screenOrientation,
+      phase,
+      endpoint:
+        phase === 'submit'
+          ? '/level/v1/submit'
+          : phase === 'upload_params'
+            ? '/level/v1/upload'
+            : phase === 'upload_file'
+              ? 'object storage'
+              : '/level/v1/latest',
+      cache: diagnosticCache,
+      source,
+      error,
+    });
   let screenOrientation: ScreenOrientation | undefined;
   if (args.screenOrientation === undefined) {
     try {
-      screenOrientation = getScreenOrientationFromAppDetail(await fetchAppDetail(appId, ctx, true));
+      const detail = await fetchAppDetail(appId, ctx, true);
+      if (
+        detail &&
+        (detail.appId !== appId || (detail.developerId !== 0 && detail.developerId !== developerId))
+      ) {
+        throw new Error('服务端返回的应用身份与请求不一致，已停止上传');
+      }
+      diagnosticCache = { level: detail?.level, upload_level: detail?.uploadLevel };
+      source = 'server';
+      screenOrientation = getScreenOrientationFromAppDetail(detail);
     } catch (orientationError) {
-      const detail =
-        orientationError instanceof Error ? orientationError.message : String(orientationError);
+      const detail = safeH5Error(orientationError);
       await logger.warning(`[H5Game] 查询应用 ${appId} 横竖屏设置失败：${detail}`);
       if (isAuthError(orientationError)) {
-        return getScreenOrientationQueryFailedMessage(
-          detail,
-          orientationError.userGuidance || orientationError.message
+        return (
+          getScreenOrientationQueryFailedMessage(
+            detail,
+            safeH5Error(orientationError.userGuidance || orientationError.message)
+          ) + diagnostics('H5_APP_DETAIL_FAILED', orientationError)
         );
       }
-      return getScreenOrientationQueryFailedMessage(detail);
+      return (
+        getScreenOrientationQueryFailedMessage(detail) +
+        diagnostics('H5_APP_DETAIL_FAILED', orientationError)
+      );
     }
   } else {
     screenOrientation = normalizeScreenOrientation(args.screenOrientation);
   }
 
   if (screenOrientation === undefined) {
-    return SCREEN_ORIENTATION_REQUIRED;
+    return SCREEN_ORIENTATION_REQUIRED + diagnostics('H5_ORIENTATION_MISSING');
   }
 
   // 生成临时 ZIP 文件路径（独立于 workspace）
@@ -457,20 +495,26 @@ export async function handleUploadGame(
 
   try {
     // 1. 压缩目录
+    phase = 'compress';
     const archiveSize = await compressDirectory(gamePath, outputPath);
     await logger.info(MESSAGES.COMPRESSION_SUCCESS(archiveSize));
 
     // 2. 获取上传参数
     let uploadParams: UploadParams;
     try {
+      phase = 'upload_params';
       uploadParams = await getH5PackageUploadParams(appId, ctx);
-      await logger.info(MESSAGES.GET_UPLOAD_PARAMS_SUCCESS(uploadParams, outputPath));
+      await logger.info('H5 上传参数已获取，package_id=' + uploadParams.h5_package_id);
     } catch (error) {
-      return MESSAGES.COMPRESSED_GET_PARAMS_FAILED(archiveSize, String(error));
+      return (
+        MESSAGES.COMPRESSED_GET_PARAMS_FAILED(archiveSize, safeH5Error(error)) +
+        diagnostics('H5_UPLOAD_PARAMS_FAILED', error)
+      );
     }
 
     // 3. 上传文件
-    let packageId: number;
+    phase = 'upload_file';
+    packageId = uploadParams.h5_package_id;
     try {
       packageId = await uploadFile(uploadParams, outputPath);
     } catch (error) {
@@ -484,6 +528,7 @@ export async function handleUploadGame(
     // 4. 发布到 TapTap
     await logger.info(MESSAGES.PUBLISH_PARAMS(appId, developerId, packageId));
 
+    phase = 'submit';
     const results = await editAppInfo(
       appId, // app_id
       developerId, // developer_id
@@ -502,26 +547,62 @@ export async function handleUploadGame(
     );
 
     // 5. 刷新应用缓存并确认本次提交的横竖屏方向
+    phase = 'verify';
+    source = 'unavailable';
+    diagnosticCache = undefined;
     let refreshedAppInfo: Awaited<ReturnType<typeof refreshAppCache>>;
     try {
       refreshedAppInfo = await refreshAppCache(ctx?.projectPath, ctx);
     } catch (refreshError) {
-      return getScreenOrientationVerificationWarning(
-        screenOrientation,
-        undefined,
-        refreshError instanceof Error ? refreshError.message : String(refreshError)
+      return (
+        getScreenOrientationVerificationWarning(
+          screenOrientation,
+          undefined,
+          safeH5Error(refreshError)
+        ) + diagnostics('H5_ORIENTATION_UNCONFIRMED', refreshError)
       );
     }
 
+    diagnosticCache = refreshedAppInfo;
+    source = 'server';
+    if (refreshedAppInfo.app_id !== appId || refreshedAppInfo.developer_id !== developerId) {
+      return (
+        '游戏包已提交，但回读应用身份不一致。请勿重新上传，先查询目标应用详情。' +
+        diagnostics('H5_APP_IDENTITY_MISMATCH')
+      );
+    }
     const refreshedOrientation = getScreenOrientationFromCache(refreshedAppInfo);
+    const returnedPackageId =
+      refreshedAppInfo.upload_level?.form_data?.info?.screen_orientation !== undefined
+        ? refreshedAppInfo.upload_level.form_data.info.package_id
+        : refreshedAppInfo.level?.data?.package_id;
+    if (returnedPackageId !== packageId) {
+      return (
+        '游戏包已提交，但服务端尚未返回本次 H5 包，不能确认方向属于新包。请勿重新上传，先查询应用详情。' +
+        diagnostics('H5_PACKAGE_UNCONFIRMED')
+      );
+    }
     if (refreshedOrientation !== screenOrientation) {
-      return getScreenOrientationVerificationWarning(screenOrientation, refreshedOrientation);
+      return (
+        getScreenOrientationVerificationWarning(screenOrientation, refreshedOrientation) +
+        diagnostics('H5_ORIENTATION_UNCONFIRMED')
+      );
     }
 
-    let msg = MESSAGES.GAME_PUBLISH_SUCCESS(results.app_title, appId);
+    let msg = '游戏包已提交，服务端已返回所选方向；这不代表审核通过或正式上线。';
     msg += '\n' + MESSAGES.GAME_TYPE_INFO(results.display_app_title) + '\n';
 
-    return msg;
+    return msg + diagnostics('H5_UPLOAD_READBACK_CONFIRMED');
+  } catch (error) {
+    const recovery =
+      phase === 'submit'
+        ? '提交结果未确认，请先查询应用详情和审核状态，不要自动重新上传或提交。'
+        : '上传流程中断；尚未完成应用提交，请根据失败阶段处理。';
+    return (
+      recovery +
+      safeH5Error(error) +
+      diagnostics(phase === 'submit' ? 'H5_SUBMIT_UNCONFIRMED' : 'H5_UPLOAD_FAILED', error)
+    );
   } finally {
     // 清理临时文件（无论成功或失败）
     if (fs.existsSync(outputPath)) {

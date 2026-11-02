@@ -338,7 +338,7 @@ function getAdsIntegrationWorkflow(): string {
 
 **重要：** 状态为"已生效"时，工具会自动完成以下两步校验：
 1. ad_spaces 数组非空（否则提示服务端异常）
-2. 游戏已设置横竖屏方向（否则提示用户先调用 \`update_app_info\` 设置 screenOrientation）
+2. 游戏已设置横竖屏方向（否则提示用户先调用 \`update_app_info\` 设置 screenOrientation；该操作调用 /level/v1/submit，须先告知并确认审核副作用）
 
 两步均通过后，自动匹配正确的广告位 ID 并缓存，然后引导调用 \`get_ad_integration_guide\`。
 

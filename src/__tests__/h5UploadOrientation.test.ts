@@ -33,6 +33,7 @@ function appCache(screenOrientation: number): AppCacheInfo {
       data: {
         title: 'H5 orientation test',
         screen_orientation: screenOrientation,
+        package_id: 41226,
       },
     },
     upload_level: {
@@ -41,6 +42,7 @@ function appCache(screenOrientation: number): AppCacheInfo {
         info: {
           title: 'H5 orientation test',
           screen_orientation: screenOrientation,
+          package_id: 41226,
         },
       },
     },
@@ -167,7 +169,7 @@ describe('H5 first upload screen orientation', () => {
       undefined,
       context
     );
-    expect(result).toContain('发布成功');
+    expect(result).toContain('H5_UPLOAD_READBACK_CONFIRMED');
   });
 
   test('uses the latest server orientation instead of a stale valid cached value', async () => {
@@ -201,7 +203,7 @@ describe('H5 first upload screen orientation', () => {
       undefined,
       context
     );
-    expect(result).toContain('发布成功');
+    expect(result).toContain('H5_UPLOAD_READBACK_CONFIRMED');
   });
 
   test('warns not to re-upload when the submitted package orientation cannot be confirmed', async () => {
@@ -232,5 +234,25 @@ describe('H5 first upload screen orientation', () => {
     expect(result).toContain('不要重新上传');
     expect(result).toContain('temporary query failure');
     expect(result).not.toContain('发布成功');
+  });
+  test('same direction on an old package must not confirm the uploaded package', async () => {
+    const { context } = createProject(1);
+    const stale = appCache(1);
+    stale.upload_level!.form_data!.info.package_id = 100;
+    jest.mocked(refreshAppCache).mockResolvedValue(stale);
+    const output = await handleUploadGame({ gamePath: '.', screenOrientation: 1 }, context);
+    expect(output).toContain('H5_PACKAGE_UNCONFIRMED');
+    expect(output).toContain('41226');
+    expect(output).toContain('请勿重新上传');
+  });
+
+  test('submit timeout preserves package identity without re-uploading', async () => {
+    const { context } = createProject(1);
+    jest.mocked(editAppInfo).mockRejectedValue(new Error('Request timeout after 30000ms'));
+    const output = await handleUploadGame({ gamePath: '.', screenOrientation: 1 }, context);
+    expect(output).toContain('H5_SUBMIT_UNCONFIRMED');
+    expect(output).toContain('41226');
+    expect(output).toContain('不要自动重新上传');
+    expect(editAppInfo).toHaveBeenCalledTimes(1);
   });
 });

@@ -328,8 +328,28 @@ console.log(result);
   `screenOrientation: 2`（横屏）；再次调用时会把方向和包体一起提交，并回读服务端数据确认方向一致。
 - `get_debug_feedbacks`: 拉取用户调试反馈（可默认标记已处理），并下载截图/日志到本地 `logs/feed_back/`，同时生成 AI 可直接使用的调试上下文。
 
-广告接入检查发现本地缓存没有横竖屏方向时，会先刷新服务端应用信息。刷新后仍未设置，AI 应询问用户
-选择 `1`（竖屏）或 `2`（横屏），调用 `update_app_info` 设置方向，再重新调用 `check_ads_status`。
+广告接入检查在广告已生效且返回有效广告位时，每次刷新服务端应用详情再匹配方向，避免切换横竖屏后沿用旧缓存。
+回读方向字段无效不等于 H5 测试包没有设置方向；诊断块会展示线上/审核版本各自的方向、字段类型、状态、版本记录 ID 和包 ID。
+若确需调用 `update_app_info`，先告知用户该操作调用 `/level/v1/submit`、可能触发审核并取得确认。
+提交后会回读方向；方向不一致、查询失败或提交超时都不报告生效，也不自动重复提交。
+
+排障时请反馈完整工具返回文本，诊断块版本为 `diagnostic_revision: h5-ads-2`。无需开启全量 HTTP 日志或发送 token。
+`source` 区分缓存、服务端回读和无数据，`phase` 与 `endpoint` 标识阶段。`upload_level.id` 与 `package_id` 不能互换。
+诊断块只输出白名单字段，不输出上传签名 URL、认证头或完整 API 响应。
+认证失败时，`auth_error` 保留 HTTP 状态、上游错误码及脱敏原因。`request_id` 是 MCP 本地编号；
+`auth_error.server_request_id` 才是服务端响应头提供的请求编号（可能为空）。
+若在 `ad_config` 阶段失败，尚未执行横竖屏检查；方向区块为 null 不代表服务端游戏资料为空。
+
+| 诊断码                                                  | 含义与下一步                                                      |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| `H5_AD_CONFIG_FAILED`                                   | 广告配置查询失败；认证错误查看 `auth_error`，恢复访问后再检查方向 |
+| `H5_APP_DETAIL_FAILED`                                  | 查询方向失败，保留 HTTP/业务错误；恢复查询后再检查广告            |
+| `H5_ORIENTATION_MISSING`                                | 回读方向缺失或无效；对比线上/审核字段，交后端核查                 |
+| `H5_AD_SPACES_MISSING` / `H5_AD_SPACE_MISMATCH`         | 广告位列表无效或缺对应方向；检查广告配置                          |
+| `H5_AD_CONFIG_INVALID` / `H5_AD_STATUS_UNKNOWN`         | 广告接口结构或状态不符合契约                                      |
+| `H5_ORIENTATION_UNCONFIRMED` / `H5_PACKAGE_UNCONFIRMED` | 已提交但回读不一致；先查详情和审核状态，不要重复提交/上传         |
+| `H5_SUBMIT_UNCONFIRMED`                                 | 提交未获成功确认，可能已被处理；先查询，禁止自动重放              |
+| `H5_UPLOAD_PARAMS_FAILED` / `H5_UPLOAD_FAILED`          | 通过 `phase` 区分上传参数、压缩和对象存储上传失败                 |
 
 ---
 

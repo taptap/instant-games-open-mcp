@@ -129,11 +129,16 @@
 
 - **Endpoint**: `/level/v1/submit`
 - **Method**: `POST`
-- **Body**:
-  ```json
+- **Content-Type**: `application/x-www-form-urlencoded`
+- `package_id` 是包 ID（上传接口返回的 `h5_package_id`），不能把版本记录 ID 当成包 ID。
+- 此接口提交应用资料，可能触发审核；请求成功不等于审核通过或正式上线。
+- **Body**（字段示意；实际以表单编码发送，`screenshots` 用逗号分隔）:
+  ```text
   {
     "app_id": 1001,
     "developer_id": 12345,
+    "package_id": 41226,
+    "screen_orientation": 1,
     "title": "Updated Title",
     "description": "...",
     "icon": "https://...",

@@ -91,9 +91,10 @@ ${AUTOMATIC_AD_SPACE_ID_RULES}
 
 **Status 0:** Tell user they can say "重新检查广告状态" to refresh after completing activation.
 **Status 2 (已封禁):** DO NOT proceed with any integration steps. Immediately inform user.
-**Missing screen orientation:** Ask the user to choose 1 (portrait) or 2 (landscape), call
-update_app_info with the current developerId/appId and their chosen screenOrientation, then call
-check_ads_status again. DO NOT guess the orientation.`,
+**Missing screen orientation:** Ask the user to choose 1 (portrait) or 2 (landscape), then call
+update_app_info with the current developerId/appId and their chosen screenOrientation. Explain that this calls /level/v1/submit and may trigger review; get explicit consent for that side effect before calling it. The tool verifies the server response; do not submit again when
+verification is missing. Call check_ads_status again only after the direction is confirmed.
+DO NOT guess the orientation. Each check refreshes app orientation from the server. Include the diagnostic block in bug reports; it identifies the failing stage and returned fields.`,
       inputSchema: {
         type: 'object',
         properties: {},

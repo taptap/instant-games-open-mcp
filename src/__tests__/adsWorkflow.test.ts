@@ -265,7 +265,7 @@ describe('H5 ads workflow contract', () => {
     );
     jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({ status: 1, ad_spaces: [] });
 
-    const output = await checkAdsStatus(createContext(projectPath));
+    const output = await checkAdsStatus(createContext(projectPath), false);
 
     expect(output).toMatch(CHINESE_AUTOMATIC_ID_CONTRACT);
     expect(output).toContain('稍后重新调用 `check_ads_status`');
@@ -302,7 +302,7 @@ describe('H5 ads workflow contract', () => {
     );
     jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue(response);
 
-    await checkAdsStatus(createContext(projectPath));
+    await checkAdsStatus(createContext(projectPath), false);
 
     expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
     expect(await adsTools.getAdIntegrationGuide(createContext(projectPath))).not.toContain(
@@ -336,7 +336,7 @@ describe('H5 ads workflow contract', () => {
     );
     jest.spyOn(HttpClient.prototype, 'get').mockRejectedValue(new Error('network unavailable'));
 
-    await checkAdsStatus(createContext(projectPath));
+    await checkAdsStatus(createContext(projectPath), false);
 
     expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
   });
@@ -367,7 +367,7 @@ describe('H5 ads workflow contract', () => {
     });
     jest.spyOn(HttpClient.prototype, 'get').mockReturnValue(request);
 
-    const pendingStatus = checkAdsStatus(createContext(projectPath));
+    const pendingStatus = checkAdsStatus(createContext(projectPath), false);
     saveAppCache(
       {
         developer_id: 100,
@@ -435,7 +435,7 @@ describe('H5 ads workflow contract', () => {
         });
       });
 
-    const output = await checkAdsStatus(context);
+    const output = await checkAdsStatus(context, false);
 
     expect(getRequest).toHaveBeenCalledWith('/ad/v1/config', {
       params: { developer_id: '100', app_id: '200' },
@@ -471,7 +471,7 @@ describe('H5 ads workflow contract', () => {
       ad_spaces: [{ id: 'newer-app-200-id', type: 1 }],
     });
 
-    const olderStatus = processA.checkAdsStatus(createContext(projectPath));
+    const olderStatus = processA.checkAdsStatus(createContext(projectPath), false);
     saveAppCache(
       {
         developer_id: 100,
@@ -486,7 +486,7 @@ describe('H5 ads workflow contract', () => {
       projectPath
     );
     saveAppCache(appA, projectPath);
-    await processB.checkAdsStatus(createContext(projectPath));
+    await processB.checkAdsStatus(createContext(projectPath), false);
     resolveOlder?.({ status: 1, ad_spaces: [{ id: 'older-app-200-id', type: 1 }] });
     await olderStatus;
 
@@ -522,8 +522,8 @@ describe('H5 ads workflow contract', () => {
       ad_spaces: [{ id: 'newer-app-200-id', type: 1 }],
     });
 
-    const olderStatus = processA.checkAdsStatus(createContext(projectPath));
-    await processB.checkAdsStatus(createContext(projectPath));
+    const olderStatus = processA.checkAdsStatus(createContext(projectPath), false);
+    await processB.checkAdsStatus(createContext(projectPath), false);
     resolveOlder?.({ status: 0, url: 'https://example.com/activate' });
 
     const olderOutput = await olderStatus;
@@ -559,8 +559,8 @@ describe('H5 ads workflow contract', () => {
       .mockReturnValueOnce(olderRequest)
       .mockRejectedValueOnce(new Error('newer request failed'));
 
-    const olderStatus = checkAdsStatus(createContext(projectPath));
-    await checkAdsStatus(createContext(projectPath));
+    const olderStatus = checkAdsStatus(createContext(projectPath), false);
+    await checkAdsStatus(createContext(projectPath), false);
     resolveOlder?.({ status: 1, ad_spaces: [{ id: 'older-id', type: 1 }] });
 
     const olderOutput = await olderStatus;
@@ -595,8 +595,8 @@ describe('H5 ads workflow contract', () => {
       .mockReturnValueOnce(olderRequest)
       .mockResolvedValueOnce({ status: 1, ad_spaces: [{ id: 'newer-id', type: 1 }] });
 
-    const olderStatus = checkAdsStatus(createContext(projectPath));
-    await checkAdsStatus(createContext(projectPath));
+    const olderStatus = checkAdsStatus(createContext(projectPath), false);
+    await checkAdsStatus(createContext(projectPath), false);
     resolveOlder?.({ status: 1, ad_spaces: [{ id: 'older-id', type: 1 }] });
 
     const olderOutput = await olderStatus;
@@ -647,7 +647,7 @@ describe('H5 ads workflow contract', () => {
         },
       });
 
-    const output = await checkAdsStatus(createContext(projectPath));
+    const output = await checkAdsStatus(createContext(projectPath), false);
 
     expect(output).toContain('未检测到游戏横竖屏设置');
     expect(output).not.toContain('游戏屏幕方向：** 竖屏');
@@ -702,7 +702,7 @@ describe('H5 ads workflow contract', () => {
         },
       });
 
-    const output = await checkAdsStatus(createContext(projectPath));
+    const output = await checkAdsStatus(createContext(projectPath), false);
 
     expect(get).toHaveBeenCalledTimes(2);
     expect(output).toContain('游戏屏幕方向：** 横屏');
@@ -739,7 +739,7 @@ describe('H5 ads workflow contract', () => {
       })
       .mockReturnValueOnce(pendingAppDetail);
 
-    const pendingStatus = checkAdsStatus(createContext(projectPath));
+    const pendingStatus = checkAdsStatus(createContext(projectPath), false);
     await new Promise((resolve) => setImmediate(resolve));
     expect(get).toHaveBeenCalledTimes(2);
 
@@ -828,7 +828,7 @@ describe('H5 ads workflow contract', () => {
         },
       });
 
-    const output = await checkAdsStatus(createContext(projectPath));
+    const output = await checkAdsStatus(createContext(projectPath), false);
 
     expect(output).toContain('未检测到游戏横竖屏设置');
     expect(output).not.toContain('landscape-id');
@@ -857,7 +857,7 @@ describe('H5 ads workflow contract', () => {
       ad_spaces: [{ id: 'portrait-only-id', type: 2 }],
     });
 
-    const output = await checkAdsStatus(createContext(projectPath));
+    const output = await checkAdsStatus(createContext(projectPath), false);
 
     expect(output).toContain('未返回与游戏方向（横屏）对应的广告位');
     expect(output).not.toContain('portrait-only-id');
@@ -889,7 +889,7 @@ describe('H5 ads workflow contract', () => {
       ad_spaces: [{ id: '   ', type: 1 }],
     });
 
-    const output = await checkAdsStatus(createContext(projectPath));
+    const output = await checkAdsStatus(createContext(projectPath), false);
 
     expect(output).not.toContain('匹配广告位 ID');
     expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
@@ -924,7 +924,7 @@ describe('H5 ads workflow contract', () => {
       ],
     });
 
-    const output = await checkAdsStatus(createContext(projectPath));
+    const output = await checkAdsStatus(createContext(projectPath), false);
     const guide = await adsTools.getAdIntegrationGuide(createContext(projectPath));
 
     expect(output).toContain('fresh-id');
@@ -956,7 +956,7 @@ describe('H5 ads workflow contract', () => {
     });
 
     const context = createProjectIdContext(projectId);
-    await checkAdsStatus(context);
+    await checkAdsStatus(context, false);
 
     expect(getSpaceIdFromCache(context)).toBe('project-id-space');
   });
@@ -983,7 +983,7 @@ describe('H5 ads workflow contract', () => {
       });
 
     await selectApp(100, 200, undefined, context);
-    await checkAdsStatus(context);
+    await checkAdsStatus(context, false);
 
     expect(context.resolveApp()).toEqual(expect.objectContaining({ developerId: 100, appId: 200 }));
     expect(getSpaceIdFromCache(context)).toBe('selected-project-id-space');
@@ -1061,4 +1061,108 @@ describe('H5 ads workflow contract', () => {
     expect(guideDescription).not.toContain('NO Promise style');
     expect(guideDescription).toMatch(/show\/load Promise recovery/iu);
   });
+});
+
+describe('H5 ads fresh orientation diagnostics', () => {
+  let projectPath: string;
+  beforeEach(() => {
+    projectPath = createProjectPath('fresh');
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game',
+          status: 1,
+          data: { title: 'game', screen_orientation: 1 },
+        },
+      },
+      projectPath
+    );
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+    clearAppCache(projectPath);
+  });
+  const config = {
+    status: 1,
+    ad_spaces: [
+      { type: 1, id: 'landscape-new' },
+      { type: 2, id: 'portrait-old' },
+    ],
+  };
+  const detail = (orientation: number) => ({
+    level: {
+      app_id: 200,
+      app_title: 'game',
+      developer_id: 100,
+      developer_name: 'dev',
+      status: 1,
+      data: { title: 'game', screen_orientation: orientation, package_id: 41226 },
+    },
+  });
+
+  test('default check refreshes a valid cached orientation and switches the selected ad space', async () => {
+    const get = jest
+      .spyOn(HttpClient.prototype, 'get')
+      .mockResolvedValueOnce(config)
+      .mockResolvedValueOnce(detail(2));
+    const output = await checkAdsStatus(createContext(projectPath));
+    expect(get).toHaveBeenCalledWith(
+      '/level/v1/latest',
+      expect.objectContaining({ params: { app_id: '200' } })
+    );
+    expect(output).toContain('H5_AD_READY');
+    expect(output).toContain('"source": "server"');
+    expect(output).toContain('landscape-new');
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBe('landscape-new');
+  });
+
+  test('failed fresh query blocks old cached ad IDs and reports the actual failure stage', async () => {
+    jest
+      .spyOn(HttpClient.prototype, 'get')
+      .mockResolvedValueOnce(config)
+      .mockRejectedValueOnce(new Error('HTTP 401 TOKEN_EXPIRED'));
+    const output = await checkAdsStatus(createContext(projectPath));
+    expect(output).toContain('H5_APP_DETAIL_FAILED');
+    expect(output).toContain('HTTP 401 TOKEN_EXPIRED');
+    expect(output).toContain('"source": "cache"');
+    expect(output).not.toContain('H5_AD_READY');
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+  });
+
+  test('fresh response preserves invalid draft fields for diagnosis instead of hiding them', async () => {
+    jest
+      .spyOn(HttpClient.prototype, 'get')
+      .mockResolvedValueOnce(config)
+      .mockResolvedValueOnce({
+        ...detail(1),
+        upload_level: {
+          id: 370856,
+          app_id: 200,
+          status: 0,
+          form_data: {
+            info: { title: 'draft', package_id: 41226, screen_orientation: 0 },
+          },
+        },
+      });
+    const output = await checkAdsStatus(createContext(projectPath));
+    expect(output).toContain('H5_ORIENTATION_MISSING');
+    expect(output).toContain('370856');
+    expect(output).toContain('41226');
+    expect(output).toContain('"screen_orientation": 0');
+    expect(output).toContain('"screen_orientation": 1');
+    expect(output).not.toContain('portrait-old');
+  });
+
+  test.each([undefined, {}, [null]])(
+    'malformed ad spaces produce a business diagnostic, not a TypeError (%p)',
+    async (spaces) => {
+      jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({ status: 1, ad_spaces: spaces });
+      const output = await checkAdsStatus(createContext(projectPath));
+      expect(output).toContain('H5_AD_SPACES_MISSING');
+      expect(output).not.toContain('is not a function');
+    }
+  );
 });
