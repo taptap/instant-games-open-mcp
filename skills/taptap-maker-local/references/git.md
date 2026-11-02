@@ -57,8 +57,12 @@ art and generated files may be intentional; do not exclude them just by extensio
 
 Suggested review triggers (not hard limits):
 
-- 200 or more added/modified assets, or 500 or more changed files in total.
-- Any added/modified file at least 20 MiB, or combined added/modified file sizes at least 200 MiB.
+- 80 or more added/modified files under the project-root assets/ directory, including .meta.
+  Briefly suggest submitting and pushing in batches of at most 80 asset files, keeping assets
+  and required .meta together. Count each path once; file-count advice does not apply to code
+  outside assets/. The agent may proceed as-is without confirmation.
+- Any added/modified assets/ file at least 20 MiB, or combined added/modified assets/ file sizes
+  at least 200 MiB.
 
 Estimate content size, not exact Git transfer size; deletions are not new payload. Include
 pending commits, not just the current working tree: splitting commits does not reduce the total
