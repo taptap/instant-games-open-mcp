@@ -2824,6 +2824,8 @@ function renderOther() {
   }
 }
 function navigate(next) {
+  // Keep the unfinished tools dormant until their navigation entry is restored.
+  if (next === 'other') return;
   if (!currentProject()?.valid && !['projects','documents','settings','other'].includes(next)) return;
   viewEpoch++; commitRequest++; gitLoading = false; page = next;
   render();
@@ -2914,7 +2916,6 @@ async function pollState() {
   }
   if (first && initialQuery.get('page') === 'documents') page = 'documents';
   if (first && initialQuery.get('page') === 'settings') page = 'settings';
-  if (first && initialQuery.get('page') === 'other') page = 'other';
   const settled = [];
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
