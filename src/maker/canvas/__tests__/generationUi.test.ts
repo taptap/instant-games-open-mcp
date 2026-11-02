@@ -432,7 +432,7 @@ function imageRecoveryFixture(legacy = false) {
 test.each([
   [1920, 1080, '1024x576'],
   [1080, 1920, '576x1024'],
-  [1700, 1000, null],
+  [1700, 1000, '1024x602'],
 ])('template image sizing handles %ix%i before submitting', async (width, height, targetSize) => {
   const { document, options, target, ui } = imageRecoveryFixture();
   document.nodes[0].imageInfo = { width, height };
@@ -445,16 +445,11 @@ test.each([
     error: 'fixture failure',
   });
   await ui.runTemplateImage(target.id);
-  if (targetSize)
-    expect(options.store.generateImage).toHaveBeenCalledWith(
-      document.id,
-      expect.objectContaining({ aspectRatio: 'source', targetSize }),
-      expect.anything()
-    );
-  else {
-    expect(options.store.generateImage).not.toHaveBeenCalled();
-    expect(options.setError).toHaveBeenCalledWith(expect.stringContaining('尚未提交'));
-  }
+  expect(options.store.generateImage).toHaveBeenCalledWith(
+    document.id,
+    expect.objectContaining({ aspectRatio: 'source', targetSize }),
+    expect.anything()
+  );
 });
 
 test.each(['restore', 'query', 'run', 'legacy'])(
@@ -871,6 +866,11 @@ describe('image reference drafts and refresh', () => {
           children: [],
           isConnected: true,
           append(...children: any[]) {
+            if (tag === 'select') {
+              const selected = children.find((child) => child.selected);
+              if (selected) this.value = selected.value;
+              else if (!this.children.length && children.length) this.value = children[0].value;
+            }
             this.children.push(...children);
           },
           replaceChildren(...children: any[]) {

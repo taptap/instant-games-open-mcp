@@ -76,8 +76,13 @@ test.each([true, false])('choices match update validation and schema (image=%s)'
   ]);
   expect(schema.additionalProperties).toBe(false);
   for (const [name, values] of Object.entries(choices)) {
-    expect(schema.properties[name].enum).toEqual(values);
-    for (const value of values) {
+    const supported = image && name === 'aspectRatio' ? [...values, '17:10'] : values;
+    if (image && name === 'aspectRatio') {
+      expect(schema.properties[name].enum).toBeUndefined();
+      for (const value of supported)
+        expect(value).toMatch(new RegExp(schema.properties[name].pattern));
+    } else expect(schema.properties[name].enum).toEqual(values);
+    for (const value of supported) {
       const updates = prepareCanvasNodeUpdates(document, {
         nodes: [{ id: 'target', parameters: { [name]: value } }],
       });

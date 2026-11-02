@@ -8,8 +8,7 @@
 ## 目标
 
 CLI 布尔开关支持 --flag、--flag=true、--flag=false；需要值的参数缺值会立即报错。
---env 仅接受 production 或 rnd，错误值不会回退到默认环境。--dry-run 仅适用于
-ui create / ui patch，其他命令传入会拒绝执行，不能用它试运行构建、推送或画布修改。
+--dry-run 仅适用于 ui create / ui patch，其他命令传入会拒绝执行，不能用它试运行构建、推送或画布修改。
 
 CLI 功能指南：[本地控制台](MAKER_CONSOLE.md)、
 [Runtime 安装与本地预览](MAKER_LOCAL_PREVIEW.md)。两者复用现有 CLI，不新增 MCP tool；

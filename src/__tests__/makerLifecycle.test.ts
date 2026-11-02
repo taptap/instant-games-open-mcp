@@ -54,7 +54,7 @@ describe('Maker process lifecycle guards', () => {
     try {
       const result = spawnSync(
         process.execPath,
-        ['--import', 'tsx', '--input-type=module', '-e', source],
+        ['--disable-warning=DEP0205', '--import', 'tsx', '--input-type=module', '-e', source],
         {
           encoding: 'utf8',
           timeout: 15000,

@@ -746,7 +746,7 @@ nativeTest.each([false, true])(
     });
     fixture({ passReport: true, black });
 
-    const result = await validate({ network: true, mode: 'both' });
+    const result = await validate({ network: true, mode: 'both', screenshot_frame: '120' });
 
     expect(result).toMatchObject({
       ok: !black,

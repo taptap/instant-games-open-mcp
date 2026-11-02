@@ -16,6 +16,8 @@ Example: `preview validate --target-dir <PROJECT> --mode both --screenshot-frame
 where N is selected for the current test, not a fixed readiness guarantee. For a multiplayer or
 server project, add `--network`; this explicitly allocates a remote test server and validates the
 online client. Without it Maker refuses the run before launching Runtime.
+Network screenshot runs never retry automatically because each run allocates a test server and
+may repeat remote game actions. Inspect retained evidence and get an explicit retry request.
 Use the returned report/log/artifact paths with the original Skill's review rules.
 `COMPLETED` means evidence collected, not game PASS. Preserve failures and inspect partial
 evidence. No Computer Use capture, engine modification or remote-build fallback is required.

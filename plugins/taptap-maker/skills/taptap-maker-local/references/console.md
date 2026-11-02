@@ -1,6 +1,8 @@
 # Local Console
 
 Read only when opening, stopping or troubleshooting the console.
+For canvas authoring and supported operations, use the [Canvas Capability Guide](canvas.md);
+for video modes and ordered image references, read [Canvas Video](canvas-video.md).
 
 ## Local Web Console
 
@@ -10,6 +12,17 @@ directory and opens its page. It does not authorize build, push, Runtime install
 Do not call init, build or preview just to open it. A missing/invalid directory is a selection
 problem, not permission to clone a game. Without a known game directory, omit `--target-dir` so
 the console shows the project list for the user to choose; never guess or choose the first project.
+
+Different projects share one compatible console service and use their own canvases. For canvas
+work, query `canvas pages --target-dir <PROJECT>` and use that project's URL/page ID; do not
+navigate another project's browser tab. Pass `--session-id <CONVERSATION_ID>` on project-scoped
+canvas CLI calls. Reuse the same ID across canvases; generate one once if no conversation ID is
+available. The service records only sessionId and its lastOperationAt per project, at invocation.
+Read `canvas sessions --target-dir <PROJECT>` to decide whether to proceed. This query never
+updates timestamps, even with session-id. No occupancy, timeout or ownership decisions are made.
+Records need no browser and last until the service restarts. Calls without session-id and the
+project-independent capabilities command do not register. Existing canvas execution requirements
+are unchanged. Finishing your task does not authorize stopping the shared console.
 
 The Git page fast-forwards remote `main` only when the local branch has no unique commits and file
 paths do not overlap. Uncommitted edits on other files stay in place. If local commits exist, or
