@@ -14,7 +14,9 @@ push、发评论、Resolve、请求 reviewer 或 merge；也不重复索要已�
    不把新提交推到已合并 PR 的旧分支。身份与远端权限看当前登录/API，不从 Git author 猜。
 3. 复核前面记录的版本仍大于最新 main；仅有版本疑问时再查市场/安装来源，不能凭
    本机装过某版本跳号。PR 标题/正文、manifest 和最终包按实际语义同步。
-4. 提交前执行当前仓库要求的检查，核对包版本、依赖许可证、双语文档、四语言语义。
+4. 提交前再次检查当前分支是本轮升级分支而非 main，且未对应已合并 PR；push 显式指定
+   已核实的 remote 和本轮 head 分支，禁止直接推送 main。执行当前仓库要求的检查，
+   核对包版本、依赖许可证、双语文档、四语言语义。
    用 Conventional Commits、说明用途与验证的 bullet body、匹配作者的 DCO sign-off。
    DCO 以 GitHub **该 PR 实际 commit 列表**或 DCO check 为依据，不能拿本地/沙箱 log 定罪。
 5. 有未完成项且用户允许先提 PR 时建 Draft，正文列明失败与缺口。正常进入正式审核前
