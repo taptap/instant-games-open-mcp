@@ -671,6 +671,12 @@
 
   function revealAsset(ref) {
     var found = findAsset(ref);
+    // Hosts with their own asset browser show the image there (UrhoxHost.revealImage).
+    var host = window.UrhoxHost;
+    if (host && typeof host.revealImage === "function") {
+      host.revealImage(found ? found.ref || ref : ref);
+      return;
+    }
     setBottomTab("project");
     entryQueries.project = "";
     if (!found) return;
