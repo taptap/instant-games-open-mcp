@@ -478,7 +478,7 @@
     var pathEl = document.createElement("div");
     pathEl.className = "asset-path";
     pathEl.textContent = path || "未选择图片，点「选择图片」";
-    pathEl.title = "在项目列表中定位该素材";
+    pathEl.title = "定位该素材";
     pathEl.addEventListener("click", function () {
       if (path && window.UrhoxProject) window.UrhoxProject.revealAsset(path);
     });
