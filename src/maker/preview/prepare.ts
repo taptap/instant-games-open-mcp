@@ -269,8 +269,14 @@ async function prepareProjectCopy(
     fs.writeFileSync(log, String(sanitizeDiagnosticValue(output.stdout + output.stderr)), {
       mode: 0o600,
     });
-    if (/加载远端来源.*失败|无法获取 version.json|无法下载 manifest/.test(output.stdout))
-      throw new Error('Public source index download failed.');
+    const sourceFailure = output.stdout
+      .split(/\r?\n/)
+      .find((line) => /加载远端来源.*失败|无法获取 version.json|无法下载 manifest/.test(line));
+    if (sourceFailure)
+      throw new Error(
+        'Public source index download failed. ' +
+          String(sanitizeDiagnosticValue(sourceFailure)).slice(0, 1024)
+      );
     const diagnosticWarnings = previewBuilderWarnings(source, output.stdout, output.stderr);
     const result = validatePreparedPreview(source);
     return {

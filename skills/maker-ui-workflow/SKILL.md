@@ -7,7 +7,7 @@ description: 'TapTap Maker 游戏 UI 设计稿拆解、按钮/图标/背景切�
 
 Maker 是流程入口；自由画布展示分析与切图，脚本按显式布局组装，控制台 UI 编辑器负责对照和调整。
 本 Skill 不新增 MCP tool，不执行游戏构建、提交或更换游戏加载入口。
-「游戏UI制作 · Bbox预排参考图（实验）」及包含 uiAtlasPrelayout 的副本使用独立
+「游戏UI制作 · Bbox预排参考图」及包含 uiAtlasPrelayout 的副本使用独立
 `maker-ui-bbox-workflow` Skill，不按本 Skill 的普通模板拆图步骤执行。
 
 ## 从用户需要的阶段开始
@@ -80,7 +80,7 @@ Server API 的 pending/unknown 先 query；提示等待恢复时，recognize-ui 
 不要重新看图猜坐标或让用户换当前对话模型。已有 Bbox 时直接复用；换原稿或重新去文字后再识别。
 旧版单次清单没有文字 Bbox，需要双次识图后才能按本流程完整组装。
 
-当前「游戏UI制作」模板按控件、图标、装备、面板、人物和背景分类自动分批，单张最多 5×5，
+历史分类「游戏UI制作」模板按控件、图标、装备、面板、人物和背景分类自动分批，单张最多 5×5，
 分类内按 Bbox 尺寸和长宽比合批，横长、竖长与普通素材分开；长条每批最多五格，
 续批保留元素 ID 和状态绑定，不按旧序号解释新图。duplicateOf 实例共用槽位，但保留各自的坐标和绑定。
 执行该模板时沿用自动规划，不额外改成混合分类或固定更大的网格。自定义流程的合批建议见
@@ -117,7 +117,7 @@ references/workflow.md 的「图集合批」。已有结果保留，不为了合
    明确绑定资源 ID 与元素 ID、默认/按下态，记录图片尺寸与哈希；显式调用 generate_resource_meta。
 5. 使用本 Skill 的 scripts/assemble-ui.mjs 组装到新的目录，例如 assets/ui/<界面>/assembled-v1/。
    输出目录必须不存在，保护手工编辑；多轮用新目录。脚本验证绑定、哈希、尺寸与层级，不做视觉自动匹配。
-6. 在控制台「UI 编辑器」打开 assembled.ui.json，同名 assembled.reference.png 会自动作为设计稿。
+6. 在控制台「UI 编辑器」打开 <界面标识>.ui.json，同名 <界面标识>.reference.png 会自动作为设计稿。
    左右检查完整性、层级、资源选择，再重叠检查位置/尺寸；必要时按同一元素 ID 记录纠偏重新组装。
    用户已经手工编辑的文件继续在编辑器调整，不能无条件重新生成覆盖。
 
@@ -141,7 +141,7 @@ recognized 记录只有 Bbox；resources 记录才包含分类 PNG、设计稿�
 
     node scripts/assemble-ui.mjs <项目绝对路径> <layout.json> <新输出目录> [corrections.json]
 
-输出 assembled.ui.json、assembled.reference.png、assembly-map.json。将新资源纳入 meta 生成后，
+输出 <界面标识>.ui.json、<界面标识>.reference.png、assembly-map.json。将新资源纳入 meta 生成后，
 用当前分发的 CLI 执行 console open --target-dir <项目> --no-open --json，取得真实地址；
 保留其项目参数，追加 &page=ui-editor&ui=<URL编码的 assets/ 相对 UI 路径>，即可直达文档。
 控制台已打开时也可进入「UI 编辑器」并刷新文件列表。不要启动独立 UrhoxUIEditor 或 Python 服务。

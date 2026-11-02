@@ -18,6 +18,9 @@ function summarize(template: CanvasWorkflowTemplate, updatedAt: number): CanvasT
   return {
     id: template.id,
     name: template.name,
+    ...(template.builtin && builtinPresetDescriptions[template.id]
+      ? { description: builtinPresetDescriptions[template.id] }
+      : {}),
     revision: template.revision,
     builtin: template.builtin,
     ...(template.platforms ? { platforms: template.platforms } : {}),
@@ -74,11 +77,7 @@ export async function readTemplatePage(
     }
   }
   const matches = (summary: CanvasTemplateSummary) =>
-    (
-      summary.name +
-      ' ' +
-      (summary.builtin ? builtinPresetDescriptions[summary.id] || '' : '自定义工作流')
-    )
+    (summary.name + ' ' + (summary.description || (summary.builtin ? '' : '自定义工作流')))
       .toLocaleLowerCase()
       .includes(query.trim().toLocaleLowerCase());
   const filtered = summaries

@@ -38,6 +38,12 @@ export function canvasParameterSchema() {
       ...generation(true),
       properties: {
         ...generation(true).properties,
+        aspectRatio: {
+          type: 'string',
+          pattern: '^(source|[1-9][0-9]*:[1-9][0-9]*)$',
+          description:
+            'Follow the original image with source, or use a positive integer width:height ratio. Preset choices are examples; provider capabilities are checked on submission.',
+        },
         model: {
           type: 'string',
           minLength: 1,

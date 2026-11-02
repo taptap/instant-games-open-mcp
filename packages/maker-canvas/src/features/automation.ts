@@ -1,6 +1,6 @@
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import { configureMergeIcons } from './mergeIcons.js';
-import { canvasOriginalImage, imageRatioInfo } from './imageSizing.js';
+import { canvasOriginalImage, imageRatioInfo, resolveImageSize } from './imageSizing.js';
 import { canvasGenerationParameterChoices } from './automationInfo.js';
 import { imageCardSize } from './imageInfo.js';
 import { uiRecognitionStatus, validateUiRecognitionStructure } from './uiRecognition.js';
@@ -117,6 +117,24 @@ export function canvasAutomationSnapshot(document: CanvasDocument) {
     skills: [...new Set(document.nodes.flatMap((node) => node.templateSkills || []))],
   };
 }
+export function canvasNodeGeometryValue(
+  type: CanvasNode['type'],
+  key: string,
+  value: unknown
+): number {
+  if (key === 'x' || key === 'y') {
+    if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 100000)
+      throw new Error('卡片位置无效。');
+  } else {
+    const mark = type === 'mark';
+    const min = mark ? 8 : key === 'width' ? 48 : 36;
+    const max = type === 'section' ? 100000 : mark ? 8000 : key === 'width' ? 2000 : 1600;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max)
+      throw new Error('卡片' + key + '必须为 ' + min + '～' + max + '。');
+  }
+  return value;
+}
+
 export function prepareCanvasNodeUpdatesWithValidation(
   document: CanvasDocument,
   input: Record<string, unknown>,
@@ -131,9 +149,11 @@ export function prepareCanvasNodeUpdatesWithValidation(
     !input.nodes.length ||
     input.nodes.length > 100
   )
-    throw new Error('nodes 必须包含 1～100 个卡片修改。');
+    throw new Error(
+      'nodes 必须包含 1～100 条修改。整组移动只需提交分组 ID；超过 100 条请分批，每批保存后重新 inspect 获取 revision。'
+    );
   const seen = new Set<string>();
-  return input.nodes.map((value) => {
+  const updates = input.nodes.map((value) => {
     const patch = value as Record<string, unknown>;
     if (!patch || typeof patch !== 'object' || Array.isArray(patch))
       throw new Error('卡片修改无效。');
@@ -154,18 +174,8 @@ export function prepareCanvasNodeUpdatesWithValidation(
         )
           throw new Error('标题或便签内容无效。');
         next[key] = value;
-      } else if (key === 'x' || key === 'y') {
-        if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 100000)
-          throw new Error('卡片位置无效。');
-        if (node.type === 'section') throw new Error('首版不支持移动整个分组。');
-        next[key] = value;
-      } else if (key === 'width' || key === 'height') {
-        const mark = node.type === 'mark';
-        const min = mark ? 8 : key === 'width' ? 48 : 36;
-        const max = node.type === 'section' ? 100000 : mark ? 8000 : key === 'width' ? 2000 : 1600;
-        if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max)
-          throw new Error('卡片' + key + '必须为 ' + min + '～' + max + '。');
-        next[key] = value;
+      } else if (key === 'x' || key === 'y' || key === 'width' || key === 'height') {
+        next[key] = canvasNodeGeometryValue(node.type, key, value);
       } else if (key === 'uiAtlasPrelayout') {
         if (node.type !== 'image' || typeof value !== 'boolean')
           throw new Error('Bbox 预排开关只能配置在图片卡上。');
@@ -238,6 +248,9 @@ export function prepareCanvasNodeUpdatesWithValidation(
             if (image && name === 'model') {
               if (typeof setting !== 'string' || !setting.trim() || setting.length > 200)
                 throw new Error('图片模型 ID 无效。');
+            } else if (image && name === 'aspectRatio') {
+              if (typeof setting !== 'string') throw new Error('图片生成比例无效。');
+              if (setting !== 'source') resolveImageSize(setting, '2K');
             } else if (!choices[name]?.includes(setting))
               throw new Error('不支持的生成参数：' + name);
           }
@@ -340,4 +353,33 @@ export function prepareCanvasNodeUpdatesWithValidation(
     else if (contentChanged && next.sectionId) next.templatePending = true;
     return { node: next, contentChanged };
   });
+  const patches = new Map(
+    (input.nodes as Array<Record<string, unknown>>).map((patch) => [patch.id, patch])
+  );
+  const planned = new Map(updates.map((update) => [update.node.id, update]));
+  // Resolve moves from the original snapshot; explicit member coordinates win per axis.
+  for (const group of updates.filter(({ node }) => node.type === 'section')) {
+    const original = document.nodes.find((node) => node.id === group.node.id)!;
+    const dx = group.node.x - original.x;
+    const dy = group.node.y - original.y;
+    if (!dx && !dy) continue;
+    for (const member of document.nodes.filter((node) => node.sectionId === group.node.id)) {
+      let update = planned.get(member.id);
+      if (!update) {
+        update = { node: JSON.parse(JSON.stringify(member)) as CanvasNode, contentChanged: false };
+        planned.set(member.id, update);
+        updates.push(update);
+      }
+      const patch = patches.get(member.id);
+      if (patch?.x === undefined) update.node.x = member.x + dx;
+      if (patch?.y === undefined) update.node.y = member.y + dy;
+      if (
+        [update.node.x, update.node.y].some(
+          (value) => !Number.isFinite(value) || Math.abs(value) > 100000
+        )
+      )
+        throw new Error('分组移动后的成员位置超出画布坐标范围。');
+    }
+  }
+  return updates;
 }

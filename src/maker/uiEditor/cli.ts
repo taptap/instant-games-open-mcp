@@ -114,7 +114,7 @@ export async function runUiCli(
         '使用 ui list|inspect|create|patch|check|open|capabilities|nanovg-adapter。'
       );
     for (const key of Object.keys(options)) {
-      if (!['json', 'maker_env', ...allowed[action]].includes(key))
+      if (!['json', 'env', ...allowed[action]].includes(key))
         throw new ConsoleError('不支持的参数：--' + key.replace(/_/g, '-'));
     }
     for (const flag of ['json', 'dry_run', 'no_open']) {

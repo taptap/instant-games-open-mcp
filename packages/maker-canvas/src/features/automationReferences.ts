@@ -69,7 +69,15 @@ export function prepareCanvasReferences(
           : parameters?.model === '2.5'
             ? 30
             : 9;
-  if (count > limit) throw new Error('参考图片最多支持 ' + limit + ' 张。');
+  if (count > limit)
+    throw new Error(
+      '参考图片最多支持 ' +
+        limit +
+        ' 张。' +
+        (target.type !== 'image' && mode === 'first_frame'
+          ? '当前视频输入方式为首帧（first_frame）；如需首尾帧，请先通过 update-nodes 将 parameters.mode 设为 first_last_frame，再用 set-references 按首帧、尾帧顺序设置两张图片。模型 2.5 还需 parameters.ratio=adaptive。'
+          : '')
+    );
 
   const descendants = new Set(canvasDependents(document, target.id).map((node) => node.id));
   const sources = input.sourceIds.map((id) => {

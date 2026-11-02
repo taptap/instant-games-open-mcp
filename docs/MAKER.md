@@ -7,6 +7,9 @@
 
 ## 目标
 
+CLI 布尔开关支持 --flag、--flag=true、--flag=false；需要值的参数缺值会立即报错。
+--dry-run 仅适用于 ui create / ui patch，其他命令传入会拒绝执行，不能用它试运行构建、推送或画布修改。
+
 CLI 功能指南：[本地控制台](MAKER_CONSOLE.md)、
 [Runtime 安装与本地预览](MAKER_LOCAL_PREVIEW.md)。两者复用现有 CLI，不新增 MCP tool；
 本地预览与提交、远端构建流程分离。
@@ -34,6 +37,46 @@ CLI 功能指南：[本地控制台](MAKER_CONSOLE.md)、
 - Windows 是优先支持环境：生成 MCP 配置时只固化绝对 `node.exe` 与 `npm-cli.js`；找不到
   该组合时安装失败，不持久化 `.cmd` shell 命令或依赖客户端 PATH；Git 引导优先指向 Git for Windows。
 - 仓库同时提供 `taptap-maker-local`、`taptap-maker-dev-kit-guide` 和 `update-taptap-mcp` skills，用于把本地 Git 工作流、AI dev kit 内容说明和 MCP 更新缓存流程交给本地 AI/Agent 按业务规则执行。
+
+## 本地 PNG 无损压缩
+
+AI 或用户可以直接调用独立 CLI，无需登录、项目绑定、控制台或额外安装图片工具：
+
+```bash
+taptap-maker image compress --input "/path/source.png" --output "/path/source.optimized.png" --json
+```
+
+Windows 同样使用上述参数，将路径换成实际路径并加引号。插件用户沿用当前插件的 CLI
+入口，不要另装另一份 Maker。`image compress --help` 可查看调用方式。
+
+- 输入为本地静态、非交错 PNG；支持灰度、RGB、RGBA、调色板以及合法的 1/2/4/8/16 位深度组合。
+  APNG、交错 PNG、带数字签名的 PNG 和其他图片格式暂不支持，明确报错并保留原图。
+- 只优化 PNG 编码，不缩尺寸、不减少颜色、不转 JPEG；保留所有非图像数据块，包括颜色配置、
+  文字和透明度信息。保存前校验解码像素；16 位图片按原精度校验。
+- `--output` 必填，父目录必须已存在，目标文件必须不存在。原图、已有文件及符号链接均不会
+  被覆盖；验证完成后才原子发布副本。目标文件系统必须支持硬链接，否则返回错误，不降级覆盖。
+- 压不小时仍在指定路径生成与原图完全相同的副本，返回 `status: "unchanged"`；
+  缩小时返回 `status: "compressed"`。两者均为成功，退出码为 0。
+- JSON 返回 `input_path`、`output_path`、`original_bytes`、`output_bytes`、`saved_bytes`、
+  `width`、`height` 和 `lossless_verified`。处理失败返回 `ok: false`、`error`，退出码为 1；
+  通用 CLI 参数解析失败沿用顶层 stderr 报错。AI 应同时检查退出码和 `ok`。
+- 单文件上限 64 MiB、像素总数上限 16,777,216，限制解码内存占用。无损压缩不能保证达到
+  指定体积；2 MiB 不是该工具的限制，也不代表远端服务的准确上限。
+- 工具完全本地运行，不调用 `edit_image`、上传或重试生成，也不会自动修改画布资源。
+
+复用入口为 `src/maker/image/compress.ts`：`compressPng` 接收图片字节并返回优化结果，
+不读写文件；`compressPngFile` 负责独立副本与路径保护。其他 Maker 功能可直接复用，
+不需要绕经 CLI 或 MCP。本功能不新增 MCP tool。
+
+## 媒体调用错误提示
+
+生图、编辑、批量生图和视频等远端调用共用 mediaInputRecoveryHint。
+仅在远端抛出异常或返回错误结果，且包含 Maximum call stack size exceeded 时，
+保留原始错误并补充简短提示：反馈服务端排查，重试前先核对原任务、产物和用量；
+需要再次提交时，可尝试服务端可访问的 HTTP(S) 素材地址。
+
+此提示不在发送前扫描或统计媒体大小，不新增大小限制或日常提醒，也不改变已有的
+本地素材引用转换规则。不将栈溢出直接归因于图片大小，不自动压缩、上传或重试。
 
 ## 客户端插件版本与发布
 
@@ -361,6 +404,9 @@ Python 运行时策略：
   默认 60 秒在 Maker 构建或素材 proxy 调用完成前截断请求。DSH 会热重载该用户补丁，无需重启 IDE。
   默认 `--launcher self` 把当前包的 `dist/maker.js`、skills 和排障文档物化到
   `TAPTAP_MAKER_HOME/mcp-runtime/<version>/`，并写入绝对 Node + 稳定 bundle 路径。
+  macOS Homebrew Node 若有指向同一可执行文件的 `opt/<formula>/bin/node`，使用该稳定绝对
+  路径，避免升级后旧 Cellar 版本目录被移除；不切换 formula 或使用 PATH 中的其它 Node。
+  旧配置仍需重新运行 `taptap-maker mcp install` 更新，写入前沿用 MCP 启动校验。
   `--launcher npx` 作为兼容模式，发布包固定当前精确版本并把专用可写 npm cache 同步写入
   验证进程和客户端配置，避免验证成功后客户端仍回落到不可写的默认缓存。
   其它 AI 编辑器可使用 README 中的通用 `mcpServers` JSON 片段，让本地 AI 先识别该编辑器的
@@ -398,6 +444,8 @@ MCP 运行期能力：
 - Maker MCP 在 `initialize` 响应的 `instructions` 中提供精简能力路由，帮助 Agent 发现
   状态、构建、测试二维码、广告配置、线上玩家反馈和游戏资源生成入口。该提示不会在 MCP
   初始化时写文件，也不会替代具体 tool schema。
+- 模板能力通过路由中的 canvas templates --q 按功能搜索，返回简短用途与关联 Skill，
+  不将完整模板目录或节点图放入初始化上下文；新增模板沿用模板库已有名称和描述即可被发现。
 - 新项目初始化、`taptap-maker agents update` 和已绑定项目中的 `taptap-maker upgrade`
   会把同一份路由写入目标 Maker 项目 `AGENTS.md` 的受管策略块，并保留用户自己的内容。
   受管 body hash 变化会让旧项目状态显示为 `outdated`，不需要升级 policy version。
@@ -499,12 +547,27 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
 - 如果提交前发现本地仅落后于远端，`maker_build_current_directory` 会自动执行
   `git merge --ff-only origin/main`；无法 fast-forward 时会在创建 commit 前停止并保留本地文件。
   分叉、非 main 分支、认证失败或 push 被拒绝仍会在 build 前返回失败阶段。Agent 应解释失败原因，
-  并根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed`
+  并结合原始 stderr/stdout 与 `classification` 判断原因。原因不明时，使用同一项目目录的
+  `taptap-maker git cloud-status --target-dir <项目目录>` 查看云端状态，
+  `taptap-maker git cloud-diff --target-dir <项目目录>` 查看差异（不含未跟踪文件内容）。
+  用户已要求提交/推送且确认需要提交云端改动时，可用
+  `taptap-maker git cloud-commit --target-dir <项目目录> --message MSG --all`（仅项目 owner），
+  再 `git sync` 合并并重试原操作；提交结果未知先查状态，不盲目重试。云端干净或错误另有原因时
+  按实际原因处理，不反复 sync 或提交。`branch_not_allowed`
   切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止
   路径，`auth` 才刷新 PAT。
 - 构建前本地改动检查会忽略 `.maker-mcp/` 的本地配置变化；`.gitignore` 是 Maker 项目必要文件，
   首次 init 后如果出现或变化，应随游戏代码一起提交。即使 AI 传了 `files` 白名单，Maker MCP 也会把
   已变化的根 `.gitignore` 纳入提交。
+- 提交规范检查由用户的 AI 在提交前只读执行一次，覆盖待提交文件和所有未推送提交。项目根
+  assets/ 下新增/修改文件达到 80 个时，简短建议分批提交并推送，每批不超过 80 个素材文件；
+  素材与对应 .meta 放在同一批，.meta 计入数量，同一路径只统计一次。目录外代码不适用数量提醒。
+  原有体积提醒也仅针对 assets/：单个新增/修改文件达到 20 MiB，或合计达到 200 MiB。
+  同时关注无关文件、重复素材、缓存和非必要产物；这些都是弱提示，不是限制。
+  发现问题只简短说明一次数量、估算体积和具体可疑内容，由 AI 决定优化或按原样提交；无需
+  额外确认、跳过参数或检查通过结果，不增加提交阻断，也不在重试时反复提醒相同内容。
+  仅构建已提交的云端版本时不做此检查。完整指引见
+  [Git Skill](../skills/taptap-maker-local/references/git.md#one-time-submission-review-advisory-only)。
 - 已绑定项目的状态输出会包含 `Maker remote sync`。该段会 fetch Maker 远端并比较 `HEAD...origin/main`：本地干净且远端领先时提示先 fast-forward pull；本地有未提交改动时提示不要直接 pull，让本地 Agent 先引导提交、stash 或取消同步。
 - 频繁轮询或只需要快速本地状态时，直接调用默认 `maker_status_lite`；它本身不访问远端。
   只有调用 `maker_status_lite({ detail: true })` 进行诊断时，`skip_remote_sync=true` 才用于跳过
@@ -902,7 +965,9 @@ ElevenLabs，对话使用 Eleven v3 的 `stability` 与表演标签，角色试�
 广告流程总览：确认目标项目 → 获取配置 → 核对远端与本地配置 → 阅读项目 SDK → 实现 → 真机验证。
 完整步骤统一见 `maker://ads-integration-guide`。`get_ad_config` 返回的同步路径可能属于远端工作区，
 本地代理不写入本机 `@runtime.ad`；请求成功、同步时间或广告开通不代表本机配置已更新或广告可播放。
-本地配置缺失、不一致或无法核验时，暂停广告实现/测试并说明同步缺口，不猜配置、不自动拉取或覆盖文件。
+比较配置时仅排除同步时间戳 `synced_at`，仍核对广告状态、广告位及其它配置字段；仅时间戳不同
+不要求回写本地配置。配置缺失、其它字段不一致或无法核验时，暂停广告实现/测试并说明同步缺口，
+不猜配置、不自动拉取或覆盖文件。
 调用 `generate_test_qrcode` 时，Agent 应先不传方向参数直接调用。本地 MCP 会读取
 `.project/project.json`：如果 `taptap_publish.screen_orientation` 已是 `landscape` 或 `portrait`，
 直接沿用该值，不再询问用户，也不允许后续输入覆盖。只有该字段从未设置时，才要求 Agent 在单独的
@@ -1039,7 +1104,7 @@ push
 - 不因为当前分支是 `main` 就新建功能分支。
 - 不要求用户提供 TAP/Jira/飞书任务号。
 - commit message 可以由 MCP 根据变更文件自动生成，也可以由用户通过 `message` 显式提供。
-- push 被远端拒绝或出现冲突时，不自动建分支；只有 `remote_rejected` 表示远端已有新提交时，才询问用户是否先 pull/rebase 当前 Maker 远端变更。
+- push 被远端拒绝或出现冲突时，不自动建分支；结合原始错误及云端状态诊断，远端提交需要合并时使用 `taptap-maker git sync`，不要把所有 `remote_rejected` 都当成需要同步。
 - 如果失败是 `branch_not_allowed`，说明 Maker 远端只接受 main 分支。不要 pull/rebase、不要新建分支、不要手动 git push；保留本地 commit，切回 main（必要时从 origin/main 创建），把本地 commit cherry-pick 到 main 后重试 `maker_build_current_directory`。
 - 如果失败是 `forbidden_path`，说明本地 commit 包含 Maker 远端 pre-receive hook 禁止提交的路径或目录。不要刷新 PAT；读取 `stderr` 里的 forbidden pattern，保留工作区文件，把这些路径从未推送 commit 中移除，确认 `git status` 不再包含这些路径后重试。
 - 如果 commit 已完成但 push 失败，工具必须返回 commit hash、git ahead 状态、失败阶段、exit code、stderr/stdout、错误分类、`push_recovery` 和下一步建议。

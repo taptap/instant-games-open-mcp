@@ -11,7 +11,9 @@ test('local Skill routes to bounded task references without preloading the full 
   expect(entry).toContain('Read only the matching reference');
   expect(entry).not.toContain('automatic refresh after each');
   const links = [...entry.matchAll(/\]\((references\/[^)]+\.md)\)/gu)].map((match) => match[1]);
-  expect(new Set(links).size).toBe(10);
+  expect(links).toEqual(
+    expect.arrayContaining(['references/canvas.md', 'references/canvas-video.md'])
+  );
   expect(new Set(links)).toEqual(
     new Set(fs.readdirSync(path.join(root, 'references')).map((name) => 'references/' + name))
   );

@@ -33,16 +33,53 @@ Maker Git CLI (all commands print JSON; `--target-dir` defaults to the current d
 - `taptap-maker git sync` - fetch, then fast-forward or merge `origin/main`; aborts on conflicts.
 - `taptap-maker git push [--message MSG]` - the same sync/commit/push/cloud-repair flow as the
   build tool, without the remote build.
-- `taptap-maker git cloud-status` / `cloud-diff [--path PATH] [--staged]` - read the Maker cloud
-  workspace state and diff. Untracked cloud files are not in the diff.
+- `taptap-maker git cloud-status` - read the Maker cloud workspace state and changed files.
+- `taptap-maker git cloud-diff [--path PATH] [--staged]` - read cloud changes; untracked file
+  contents are not in the diff.
 - `taptap-maker git cloud-commit --message MSG (--all | PATH...)` - commit cloud workspace changes
-  (project owner only). Run it only when the user explicitly asks; the web agent may still be
-  editing those files. The automatic cloud commit inside push needs no extra confirmation. Never retry it after a timeout or `outcomeUnknown`; run `cloud-status`
-  first, because the commit may already have succeeded.
+  (project owner only). Within a user-requested submit/push, inspect the cloud changes and use it
+  when needed to recover the push; no separate request naming this command is required. Outside
+  that scope, obtain user authorization. The web agent may still be editing those files. Never
+  blindly retry after a timeout or `outcomeUnknown`; check `cloud-status` first.
 
 The root `.gitignore` is a required Maker project file. If it changes after binding or dev-kit
 updates, include it with the game changes and mention it in the submit summary. Do not omit it from
 selected files.
+
+## One-Time Submission Review (Advisory Only)
+
+Before a user-requested submit/push, review the intended files and all unpushed commits once,
+using read-only Git/file inspection. Skip this review for remote-only builds without submission.
+Check that code, configuration and assets serve the game or its development workflow. Look for
+accidental caches, logs, temporary reports, backups, downloaded archives plus extracted copies,
+duplicate generated assets, unused variants and unnecessary build/dependency directories. Source
+art and generated files may be intentional; do not exclude them just by extension or directory name.
+
+Suggested review triggers (not hard limits):
+
+- 80 or more added/modified files under the project-root assets/ directory, including .meta.
+  Briefly suggest submitting and pushing in batches of at most 80 asset files, keeping assets
+  and required .meta together. Count each path once; file-count advice does not apply to code
+  outside assets/. The agent may proceed as-is without confirmation.
+- Any added/modified assets/ file at least 20 MiB, or combined added/modified assets/ file sizes
+  at least 200 MiB.
+
+Estimate content size, not exact Git transfer size; deletions are not new payload. Include
+pending commits, not just the current working tree: splitting commits does not reduce the total
+push, and deleting a large file in a later commit does not remove its earlier blob from history.
+For large changes, check the largest files/directories and whether image dimensions, audio/video
+length, or bulk imports fit their use. Initial imports, tile sets and animation frames can be valid.
+
+If there are concerns, give one short notice with counts, approximate size, concrete questionable
+content and a suggested improvement. Mark unavailable measurements as unknown, not zero. The agent
+may optimize or ignore this advisory and submit as-is within the user's request; no extra user
+confirmation, override flag or passed-check result is required. Do not turn the notice into an
+approval loop, repeat it on retries, or recheck unchanged content after choosing to proceed.
+
+Keep asset references and required .meta files together. Excluding a file from submission does not
+mean deleting it locally. Do not silently delete originals, apply lossy compression or rewrite
+resource IDs/history. Do not introduce Git LFS without confirming Maker support. This advisory
+adds no submission gate and does not bypass existing authorization or Git error recovery rules.
 
 ## Build Settings
 
@@ -181,7 +218,12 @@ MCP builds the committed remote version only and does not auto-open Maker pages.
 
 For push failures, use the returned `classification`, `retryable`, `retry_reason`, and
 `retry_attempts` fields. Temporary 5xx/network/timeout failures may be retried with the Maker build
-tool; `remote_rejected` means run `taptap-maker git sync` and retry; `cloud_workspace_blocked` means
+tool. Diagnose remote Git errors from the original stderr/stdout, not the classification alone.
+If the cause is unclear, inspect `cloud-status` and, as needed, `cloud-diff` using the same project
+`--target-dir`. If cloud changes need committing to recover the push, use `cloud-commit` once,
+then `git sync` and retry the original Maker submit/build operation. If cloud state is clean or
+the error identifies another cause, address that cause instead of repeatedly syncing or committing.
+`cloud_workspace_blocked` means
 the automatic cloud commit did not finish (follow `next_action`); `merge_conflict` means resolve
 `conflict_files`, commit, and retry; `auth` means refreshing PAT;
 `branch_not_allowed` means Maker remote only accepts `main`; `forbidden_path` means the remote
@@ -193,8 +235,8 @@ When a Maker tool output contains `push_recovery`, follow it exactly:
 - Tell the user the local commit is preserved but not yet on Maker remote.
 - Do not ask for permission to run a generic `git push`.
 - Retry with `maker_build_current_directory` for submit and build requests.
-- If the failure is `remote_rejected`, run `taptap-maker git sync`, then retry; do not create a new
-  branch or PR.
+- For `remote_rejected`, diagnose as above; sync when remote commits need merging. Do not create
+  a new branch or PR.
 - If the failure is `merge_conflict`, the merge was already aborted. Explain both sides of each
   `conflict_files` entry, ask before editing, commit the resolution, then retry.
 - If the failure is `branch_not_allowed`, do not sync or merge. Tell the user Maker only accepts

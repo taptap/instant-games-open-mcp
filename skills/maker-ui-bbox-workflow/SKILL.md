@@ -1,6 +1,6 @@
 ---
 name: maker-ui-bbox-workflow
-description: 执行或复核修复 Maker「游戏UI制作 · Bbox预排参考图（实验）」及其个人副本：一次 run 由画布程序自动跑完识图、预排、分离、切图、组装、meta 与检查，AI 再逐批看图、定向修复并在 UI 编辑器验收，直到交付完整。仅要求切图时交付 PNG 资源包；普通「游戏UI制作」使用 maker-ui-workflow。
+description: 执行或复核修复 Maker「游戏UI制作 · Bbox预排参考图」及其个人副本：一次 run 由画布程序自动跑完识图、预排、分离、切图、组装、meta 与检查，AI 再逐批看图、定向修复并在 UI 编辑器验收，直到交付完整。仅要求切图时交付 PNG 资源包；普通「游戏UI制作」使用 maker-ui-workflow。
 ---
 
 # Bbox 预排 UI 工作流
@@ -19,7 +19,9 @@ AI 负责最后的看图复核与定向修复，直到达到第 4 节的完成�
 
 1. 目标是完整执行、从中断继续、仅切图，还是**复核修复已有交付**（用户贴来复核修复提示词时直接到第 3 节）。
 2. 用 `canvas pages / inspect` 取得 page-id、canvas-id、分组 ID 与 revision。
-3. 用 `canvas ui-delivery --target-dir <项目> --canvas-id <ID> --id <UI 资源包卡ID>` 查看是否已有交付。
+3. 首次执行前提醒用户："015 模板里的 UI 设计稿是预制示例，请先把原设计稿卡替换成你要制作的界面图，或把图片发给我；如果只是体验流程，也可以明确告诉我使用示例图。"
+   尚未提供或确认原稿时，等待用户选择，不直接拆分预制示例。用户已提供目标设计稿、明确使用示例，或继续已确认原稿的任务时，不重复询问。
+4. 用 `canvas ui-delivery --target-dir <项目> --canvas-id <ID> --id <UI 资源包卡ID>` 查看是否已有交付。
 
 ## 2. 一次自动跑完
 
@@ -51,6 +53,8 @@ AI 负责最后的看图复核与定向修复，直到达到第 4 节的完成�
    `recognize-ui` 重新识图（会让依赖的批次失效，需要重新 run 分组）。
 3. **重新组装**：`canvas assemble-ui --target-dir <项目> --canvas-id <ID> --id <UI 资源包卡ID> --new-version`。
    新版本的 `review` 三个列表应全部为空，meta `done`，引用检查 0 错误。
+   文件名取识图返回的中文功能名/英文标识；用户指定名称或旧结果缺名时，加
+   `--ui-title 装备详情 --ui-name equipment_detail`。读取交付的 `uiFile`，不假定固定文件名。
 4. **编辑器验收**：`taptap-maker ui open --target-dir <项目> --file <ui 文件> --no-open --json`，
    对照同名参考图检查位置、尺寸、层级、字号、颜色、美术字、背景与按钮状态；偏差用 `ui inspect / patch`
    （先 dry-run，再带 revision）修正。先确认文件是否已被用户手工修改，不覆盖重建用户编辑过的 UI。

@@ -174,8 +174,12 @@ export function uiBatchAtlasPlan(bbox: UiBboxDocument, group: UiAtlasGroup): UiA
 export function uiNativeAtlasPlans(bbox: UiBboxDocument, group: UiAtlasGroup): UiAtlasPlan[] {
   const slots = uiAtlasElementSlots(bbox, group);
   if (slots.length > 120) throw new Error('此分类超过 120 个素材，请先拆分清单。');
-  if (!slots.length && group === 'background')
-    slots.push({ elementIds: [], state: 'normal', role: 'background' });
+  if (!slots.length && group === 'background') {
+    if (bbox.design.width <= 2048 && bbox.design.height <= 2048)
+      slots.push({ elementIds: [], state: 'normal', role: 'background' });
+    // Full-screen backgrounds can follow the source ratio at 2K without dropping the branch.
+    else return uiBatchAtlasPlans(bbox, group);
+  }
   return uiNativeSlotPlans(bbox, slots);
 }
 
@@ -333,9 +337,9 @@ export function uiBatchAtlasPrompt(group: UiAtlasGroup, prelayout = false): stri
     group === 'background'
       ? [
           '游戏素材约束：输出一张完整环境背景，用来替换界面背后的场景。',
-          '补全被界面挡住的环境，保留场景的光影和材质。',
-          '画面四周留出透明边，保留场景本身，场景主体不贴边。',
-          '输出带真实 Alpha 通道的透明背景 PNG，场景外留白为 Alpha=0，不填充纯色底或绘制棋盘格。',
+          '保留：可见场景的构图、透视、配色、光影与材质。',
+          '补全：背景被界面大面积遮挡时，根据周围可见场景自动延展、补绘被遮挡区域，形成连续完整的环境；不要只保留可见碎片。',
+          '输出：保持原稿比例，背景连续铺满整张画面直到四边，不留透明洞、透明边或空白，不把场景缩小居中。',
           '不要画界面、按钮、图标、人物或文字。',
         ]
       : [
@@ -545,6 +549,11 @@ export function selectedUiAtlasPlan(
 
 export function uiAtlasOrderPrompt(plan: UiAtlasPlan, outputAspect = 1, prelayout = false): string {
   const bbox = plan.bbox;
+  if (!plan.nativeLayout && plan.slots.length === 1 && plan.slots[0].role === 'background')
+    return [
+      'UI 槽位绑定：',
+      '本张只输出完整环境背景，覆盖整张输出图。参考图中的透明留白也须按场景自然延展补齐，不沿用素材网格的居中、缩小和留白要求。',
+    ].join('\n');
   if (plan.nativeLayout)
     return [
       'UI 槽位绑定：',
@@ -583,7 +592,7 @@ export function uiAtlasOrderPrompt(plan: UiAtlasPlan, outputAspect = 1, prelayou
           ']；' +
           (slot.role === 'background' ||
           (element && uiAtlasElementGroup(element, bbox) === 'background')
-            ? '仅保留环境场景与外围装饰；移除全部 UI 面板、边框、按钮、槽框、图标、人物和文字，补全被遮挡场景。'
+            ? '仅保留环境场景与外围装饰；移除全部 UI 面板、边框、按钮、槽框、图标、人物和文字。大面积遮挡处按周围场景的透视、配色、光影与材质自动延展补绘，连续铺满指定背景矩形，不留透明洞或透明边。'
             : element && /填充|分隔线|横线|fill|separator|divider/i.test(element.name)
               ? '此项是前景填充或线条，不是空底板。完整保留参考图中的颜色、渐变、细线和长度；深灰色细线也必须输出，不得清空、增粗或改色。只移除它背后的面板，不要移除此项本身。'
               : element && /覆盖层|选中.*描边|角标/i.test(element.name)

@@ -51,7 +51,11 @@ export function connectCanvasAutomation(options: {
           if (stopped) return;
           pageId = body.pageId;
           if (body.canvas) options.peers?.({ canvasId: current.id, ...body.canvas });
-          for (const id of body.acknowledged) results.delete(id);
+          for (const id of body.acknowledged) {
+            results.delete(id);
+            // Completed receipts remain on the server; heartbeats only track pending work.
+            seen.delete(id);
+          }
           for (const command of body.commands as CanvasCommand[]) {
             if (seen.has(command.requestId)) continue;
             seen.add(command.requestId);

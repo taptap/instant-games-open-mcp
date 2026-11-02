@@ -591,10 +591,14 @@ describe('Maker console CLI adapters', () => {
         `await claimConsoleServerLock(${JSON.stringify(directory)});`,
       ].join('\n')
     );
-    const child = spawnSync(process.execPath, ['--import', 'tsx', fixture], {
-      encoding: 'utf8',
-      timeout: 15000,
-    });
+    const child = spawnSync(
+      process.execPath,
+      ['--disable-warning=DEP0205', '--import', 'tsx', fixture],
+      {
+        encoding: 'utf8',
+        timeout: 15000,
+      }
+    );
     expect(child.error).toBeUndefined();
     expect(child.stderr).toBe('');
     expect(child.signal).toBe('SIGKILL');

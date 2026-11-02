@@ -21,6 +21,7 @@ import { validateResourceBundle } from './resourceBundle.js';
 import { checkMakerPythonEnvironmentAsync } from '../system/python.js';
 import { generateResourceMeta } from '../resourceMeta.js';
 import { checkUiDocument } from '../uiEditor/documents.js';
+import { parseUiScreenName } from '../../../packages/maker-canvas/src/domain.js';
 
 const PNG = pngjs.PNG as { sync: { read(bytes: Buffer): { width: number; height: number } } };
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -476,12 +477,16 @@ export class UiDeliveryService {
     nodeId: string,
     options: {
       newVersion?: boolean;
+      screen?: { name: string; key: string };
       designPng?: Buffer;
       signal?: AbortSignal;
       /** Who drives this assembly; a CLI touch marks the version as AI-processed. */
       source?: 'canvas' | 'cli';
     } = {}
   ): Promise<CanvasUiDeliveryStatus> {
+    const screen = parseUiScreenName(options.screen);
+    if (options.screen && !screen)
+      fail('界面名称无效：需要中文名称及小写英文 snake_case 文件标识。', 400, 'INVALID_UI_NAME');
     const document = await this.document(canvasId, nodeId);
     const release = this.lock(canvasId, nodeId);
     try {
@@ -496,6 +501,16 @@ export class UiDeliveryService {
             .find((item) => item.archiveRevision === record.revision && item.steps.assembled);
       const complete =
         delivery && delivery.steps.meta === 'done' && delivery.steps.check === 'passed';
+      if (
+        delivery &&
+        screen &&
+        (delivery.screen?.name !== screen.name || delivery.screen?.key !== screen.key)
+      )
+        fail(
+          '已有交付不自动改名，请加 --new-version 以新名称生成新版本。',
+          409,
+          'UI_NAME_CONFLICT'
+        );
       if (!delivery) {
         const slug = 'ui015-' + nodeId.slice(0, 8);
         const stem = 'v-' + record.revision.replace(/^assets-/, '').slice(0, 12);
@@ -504,7 +519,19 @@ export class UiDeliveryService {
           version = stem + '-' + n;
         const base = 'assets/ui/' + slug + '/' + version;
         this.ensureDirectory(base);
+        const designSha256 = (
+          JSON.parse(fs.readFileSync(this.projectPath(record.bboxPath), 'utf8')) as UiAssemblyBbox
+        ).design.sha256;
         const input = this.importArchive(record, manifest, base, options.designPng);
+        const previous = index.deliveries[index.deliveries.length - 1];
+        // Keep this screen's name across cut repairs, but not after replacing the design.
+        if (screen) input.screen = screen;
+        else if (
+          previous?.designSha256 === designSha256 &&
+          previous.screen &&
+          previous.screen.name !== '未命名界面'
+        )
+          input.screen = previous.screen;
         const workflow = '.maker/ui-workflows/' + slug + '/' + version;
         this.writeNew(
           workflow + '/assembly.json',
@@ -516,9 +543,11 @@ export class UiDeliveryService {
           id: randomUUID(),
           archiveRevision: record.revision,
           uiId: manifest.ui.id,
+          screen: summary.screen,
+          designSha256,
           directory: base,
-          uiFile: output + '/assembled.ui.json',
-          referenceFile: output + '/assembled.reference.png',
+          uiFile: output + '/' + summary.uiFileName,
+          referenceFile: output + '/' + summary.referenceFileName,
           createdAt: new Date().toISOString(),
           elements: summary.elements,
           steps: { assembled: true, meta: 'pending', check: 'pending' },

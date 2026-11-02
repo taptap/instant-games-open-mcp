@@ -11,7 +11,7 @@ export function templatePresentation(id: string) {
   const number = Number(id.slice(-3));
   const category = [5, 6, 9].includes(number)
     ? '道具与种植'
-    : [7, 10, 13, 15].includes(number)
+    : [7, 10, 15].includes(number)
       ? 'UI 设计'
       : number === 4
         ? '3D 模型'
@@ -39,10 +39,6 @@ export function templatePresentation(id: string) {
     11: [
       { index: 0, label: '角色参考' },
       { index: 1, label: '概念展示' },
-    ],
-    13: [
-      { index: 0, label: '角色装备 · 设计稿' },
-      { index: 2, label: '控件图集' },
     ],
     15: [{ index: 2, label: 'UI 识别图' }],
   };

@@ -4099,7 +4099,9 @@ export function formatToolException(toolName: string, error: unknown): string {
       '',
       formatRemoteProxyToolResult(displayResult),
       '',
-      'next_action: 远端 proxy tool 已返回失败结果；请把完整、已脱敏的 remote_result 反馈给开发者，方便排查 server 返回内容。',
+      'next_action: ' +
+        (error.recoveryHint ||
+          '远端 proxy tool 已返回失败结果；请把完整、已脱敏的 remote_result 反馈给开发者，方便排查 server 返回内容。'),
     ].join('\n');
   }
 
@@ -4120,7 +4122,9 @@ export function formatToolException(toolName: string, error: unknown): string {
       'debug:',
       sanitizedStack ? indent(sanitizedStack) : indent(sanitizedMessage),
       '',
-      'next_action: 请根据上面的简化 message 判断失败原因；参数或能力不支持时不要重复调用，并保留 error_details/debug 反馈给开发者。',
+      'next_action: ' +
+        ((error instanceof RemoteProxyToolCallError && error.recoveryHint) ||
+          '请根据上面的简化 message 判断失败原因；参数或能力不支持时不要重复调用，并保留 error_details/debug 反馈给开发者。'),
     ].join('\n');
   }
 

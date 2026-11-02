@@ -18,12 +18,14 @@ export interface UiAssemblyBbox {
   version: 1;
   coordinateSpace: 'design-pixels';
   bboxFormat: 'xywh';
+  screen?: { name: string; key: string };
   design: UiAssemblyImage;
   cutSource: UiAssemblyImage;
   elements: Array<{ id: string; [key: string]: unknown }>;
   texts: Array<{ id: string; [key: string]: unknown }>;
 }
 export interface UiAssemblyInput {
+  screen?: { name: string; key: string };
   bbox: UiAssemblyBbox;
   assets: UiAssemblyAsset[];
   bindings: Array<{
@@ -39,6 +41,9 @@ export interface UiAssemblyInput {
 }
 export interface UiAssemblySummary {
   outputDirectory: string;
+  screen: { name: string; key: string };
+  uiFileName: string;
+  referenceFileName: string;
   elements: number;
   reserveAssets: number;
   visualReview: 'pending' | 'recorded-agent-review';

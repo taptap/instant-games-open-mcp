@@ -284,8 +284,8 @@ export async function pushMakerProject(
           ...failure,
           nextAction:
             cloudRepair.status === 'cloud_clean'
-              ? '远端拒绝推送并提示云端工作区有未提交改动，但云端 Git 接口显示工作区是干净的。请稍后重试 maker_build_current_directory；仍然失败时，把 failure 信息反馈给用户。'
-              : `远端拒绝推送：云端工作区有未提交改动，自动提交云端改动失败（${cloudRepair.message}）。`,
+              ? '远端拒绝推送，但云端 Git 接口显示工作区是干净的。请根据 failure.stderr/stdout 排查实际原因，不要重复 cloud-commit。'
+              : `${failure.nextAction} 自动恢复返回：${cloudRepair.message}`,
         },
         cloudRepair
       );

@@ -11,6 +11,7 @@ import { classifyPreviewProject } from './configuration.js';
 import { preparePreviewProject, requireManifestPreviewPlatform } from './prepare.js';
 import { requirePlainPreviewSource } from './workspace.js';
 import { startPreviewAssetServer, type PreviewAssetServer } from './assets.js';
+import { preparePreviewServer, previewNetworkArgs } from './network.js';
 import { PreviewLogs } from './evidence.js';
 import { PreviewLuaLog } from './luaLog.js';
 import { selectWindowsBackgroundEnvironment } from '../system/backgroundProcess.js';
@@ -166,15 +167,19 @@ export async function runSkillValidation(
         ? {
             attempt_run_ids: [...attemptRunIds],
             next_step:
-              'AI must inspect every PNG for arbitrary in-game loading and gameplay; automatic checks only detect near-total black/transparent pixels and known bootstrap ordering.' +
-              (assessment?.status === 'NOT_READY'
-                ? ' This screenshot is not effective visual evidence. ' +
-                  (retry
-                    ? `Waiting 3 seconds before a new Runtime launch at screenshot frame ${nextFrame}.`
-                    : budgetExceeded
-                      ? 'Automatic retry skipped: the estimated later-frame runtime exceeds the timeout budget. Inspect retained evidence and explicitly choose a suitable --validate-timeout before retrying.'
-                      : 'Automatic retries are exhausted or unsafe. Inspect all attempt logs and the raw game report; choose a later frame or a controlled entry after resolving the cause.')
-                : ''),
+              output.runtime_started === false
+                ? 'Runtime did not start. Resolve the original error before rerunning; no game or screenshot evidence was collected.'
+                : 'AI must inspect every PNG for arbitrary in-game loading and gameplay; automatic checks only detect near-total black/transparent pixels and known bootstrap ordering.' +
+                  (assessment?.status === 'NOT_READY'
+                    ? ' This screenshot is not effective visual evidence. ' +
+                      (retry
+                        ? `Waiting 3 seconds before a new Runtime launch at screenshot frame ${nextFrame}.`
+                        : options.network === true
+                          ? 'Network validation does not retry automatically: each run allocates a test server and may repeat remote game actions. Inspect retained evidence before explicitly requesting another run.'
+                          : budgetExceeded
+                            ? 'Automatic retry skipped: the estimated later-frame runtime exceeds the timeout budget. Inspect retained evidence and explicitly choose a suitable --validate-timeout before retrying.'
+                            : 'Automatic retries are exhausted or unsafe. Inspect all attempt logs and the raw game report; choose a later frame or a controlled entry after resolving the cause.')
+                    : ''),
           }
         : {}),
     };
@@ -268,12 +273,17 @@ async function executeSkillValidation(
         'An active or unverified preview blocks validation. Stop it explicitly first.'
       );
     const classification = classifyPreviewProject(project);
-    if (classification.network_required)
+    const networkValidation = options.network === true;
+    if (classification.network_required && !networkValidation)
       return {
         ok: false,
         result: 'UNSUPPORTED',
-        error: 'run-lua-validate supports single-player projects only.',
+        error:
+          'This is a network/server project. Run preview validate with --network to allocate a test server and validate the online client.',
+        validation_scope: 'network',
       };
+    if (!classification.network_required && networkValidation)
+      throw new Error('--network is only valid for network/server projects.');
 
     const mode = options.mode ?? 'validate';
     if (!['validate', 'screenshot', 'both'].includes(String(mode)))
@@ -311,8 +321,8 @@ async function executeSkillValidation(
       options.validate_spike_threshold === undefined
         ? undefined
         : numberOption(options, 'validate_spike_threshold', 100);
-    if (options.nosound !== undefined && options.nosound !== true)
-      throw new Error('--nosound is a flag, without a value.');
+    if (options.nosound !== undefined && typeof options.nosound !== 'boolean')
+      throw new Error('--nosound must be a boolean flag.');
     const external = typeof options.runtime === 'string';
     const configured = external ? String(options.runtime) : previewInstallation(project).executable;
     if (!configured)
@@ -381,6 +391,7 @@ async function executeSkillValidation(
         runtimeEntry = String(preparation.entry);
       } else await requirePlainPreviewSource(project, signal);
       if (signal.aborted) throw new Error('CANCELLED');
+      const server = await preparePreviewServer(source, project, signal, networkValidation);
       let args: string[];
       if (classification.preparation_required) {
         assets = await startPreviewAssetServer(source, signal);
@@ -393,6 +404,7 @@ async function executeSkillValidation(
         args = [runtimeEntry, '-tapcode_dir=' + source];
       }
       args.push('-skip_login', '-p=Res', '-log=info', '-w', '-width=' + width, '-height=' + height);
+      if (server) args.push(...previewNetworkArgs(server));
       if (options.nosound === true) args.push('-nosound');
       if (validate) {
         args.push(
@@ -487,8 +499,15 @@ async function executeSkillValidation(
       }
     }
 
-    // Evidence is independent: a missing report must not hide a screenshot (or vice versa).
-    if (validate) {
+    const runtimeStarted = run.runtime_pid !== undefined;
+    if (!runtimeStarted)
+      failures.unshift(
+        run.phase === 'preparing'
+          ? 'Local prepare failed; no Runtime was started.'
+          : 'Runtime could not be started; inspect the original error.'
+      );
+    // Only a launched Runtime can produce evidence; retain independent collection after launch.
+    if (runtimeStarted && validate) {
       try {
         report = JSON.parse(readArtifact(reportPath, 4 * 1024 * 1024).toString('utf8'));
         if (!report || !['PASS', 'FAIL', 'TIMEOUT'].includes(String(report.result)))
@@ -513,7 +532,7 @@ async function executeSkillValidation(
         failures.push('Could not collect validate report: ' + String(error));
       }
     }
-    if (capture) {
+    if (runtimeStarted && capture) {
       try {
         const png = readArtifact(pngPath, 128 * 1024 * 1024);
         if (!isCompleteValidationPng(png))
@@ -538,7 +557,7 @@ async function executeSkillValidation(
     }
     const prepareLog = path.join(directory, 'prepare.log');
     if (fs.existsSync(prepareLog)) artifacts.push({ kind: 'prepare-log', path: prepareLog });
-    if (exitCode !== 0 && !(exitCode === 1 && report?.result === 'FAIL'))
+    if (runtimeStarted && exitCode !== 0 && !(exitCode === 1 && report?.result === 'FAIL'))
       failures.push('Runtime did not complete normally; inspect its logs and original report.');
     const collectionResult = signal.aborted
       ? 'CANCELLED'
@@ -549,6 +568,7 @@ async function executeSkillValidation(
           : 'COMPLETED';
     const visuallyNotReady = screenshotAssessment?.status === 'NOT_READY';
     const retryEligible =
+      !networkValidation &&
       collectionResult === 'COMPLETED' &&
       visuallyNotReady &&
       // A complete report is authoritative; do not reclassify its raw startup/game logs.
@@ -573,8 +593,22 @@ async function executeSkillValidation(
       ok: result === 'COMPLETED',
       result,
       mode,
-      game_review_required: true,
-      visual_check_required: capture,
+      runtime_started: runtimeStarted,
+      ...(!runtimeStarted
+        ? { failure_stage: run.phase === 'preparing' ? 'preparation' : 'runtime_start' }
+        : {}),
+      validation_scope: networkValidation ? 'network' : 'single_player',
+      ...(networkValidation
+        ? {
+            network_validation: {
+              transport: 'websocket',
+              test_server: true,
+              server_code: 'remote_build',
+            },
+          }
+        : {}),
+      game_review_required: runtimeStarted,
+      visual_check_required: runtimeStarted && capture,
       screenshot_assessment: screenshotAssessment,
       _screenshot_retry_eligible: retryEligible,
       _runtime_duration_ms: runtimeDurationMs,

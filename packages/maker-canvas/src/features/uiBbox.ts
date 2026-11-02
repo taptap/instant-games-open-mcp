@@ -1,4 +1,10 @@
-import type { UiBboxImage, UiBboxElement, UiBboxText, UiBboxDocument } from '../contracts.js';
+import type {
+  UiBboxImage,
+  UiBboxElement,
+  UiBboxText,
+  UiBboxDocument,
+  UiScreenName,
+} from '../contracts.js';
 import { UI_CUT_TYPES } from '../contracts.js';
 
 export function validateBboxRect(
@@ -155,6 +161,23 @@ export function scaleCutElements(
   }));
 }
 
+/** Naming is supplementary: an absent/invalid model suggestion must not retry paid recognition. */
+export function parseUiScreenName(value: unknown): UiScreenName | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const { name, key } = value as Partial<UiScreenName>;
+  if (
+    typeof name !== 'string' ||
+    !name.trim() ||
+    name.trim().length > 80 ||
+    typeof key !== 'string' ||
+    key.length > 64 ||
+    !/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/.test(key) ||
+    /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/.test(key)
+  )
+    return undefined;
+  return { name: name.trim(), key };
+}
+
 export function validateUiBboxStructure(value: UiBboxDocument): UiBboxDocument {
   if (
     !value ||
@@ -166,10 +189,12 @@ export function validateUiBboxStructure(value: UiBboxDocument): UiBboxDocument {
   const design = validateBboxImageStructure(value.design);
   const cutSource = validateBboxImageStructure(value.cutSource);
   const elements = validateCutElements(value.elements, design.width, design.height);
+  const screen = parseUiScreenName(value.screen);
   return {
     version: 1,
     coordinateSpace: 'design-pixels',
     bboxFormat: 'xywh',
+    ...(screen ? { screen } : {}),
     design,
     cutSource,
     elements,

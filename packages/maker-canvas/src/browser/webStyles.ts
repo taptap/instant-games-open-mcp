@@ -229,6 +229,10 @@ ${M} .card.image .web-slot-upload { position: absolute; z-index: 7; display: inl
 ${M} .card.image .web-slot-upload svg { flex: none; margin-right: 6px; }
 ${M} .card.image .web-slot-upload:hover, ${M} .card.image .web-slot-upload:focus-visible { background: var(--web-pill-hover); }
 ${M} .wire { stroke: var(--web-wire); stroke-width: 2; opacity: .88; }
+${M} #board .wire[data-flow-state=running] { stroke: var(--flow-running, #e9bb4f); opacity: .55; }
+${M} #board .wire[data-flow-state=success] { stroke: var(--flow-success, var(--web-accent)); opacity: .9; }
+${M} #board .wire[data-flow-state=waiting] { stroke-dasharray: 6 7; opacity: .4; }
+${M} #world .card[data-flow-state=running] { box-shadow: 0 0 22px #e9bb4f55; }
 ${M} #wires .wire-focused, ${M} #wires .wire-muted { stroke: var(--web-wire); stroke-width: 2; opacity: .88; }
 ${M} .wire-controls .wire-focused { stroke: var(--web-accent); opacity: 1; }
 /* Hover/selection: faint 3px accent line under a wider 5px comet that reads as flowing light. */

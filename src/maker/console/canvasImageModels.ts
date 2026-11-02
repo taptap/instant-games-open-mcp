@@ -63,7 +63,9 @@ export async function canvasImageModels(
     );
   }
   const definition = tools.find((item) => item.name === tool);
-  const schema = record(record(definition?.inputSchema.properties).model);
+  const properties = record(definition?.inputSchema.properties);
+  const schema = record(properties.model);
+  const ratio = record(properties.aspect_ratio);
   const ids = Array.isArray(schema.enum)
     ? schema.enum.filter((id): id is string => typeof id === 'string' && id.length > 0)
     : [];
@@ -74,6 +76,16 @@ export async function canvasImageModels(
     tool,
     origin: 'mcp',
     label: 'Maker MCP · ' + tool,
+    ...(properties.aspect_ratio
+      ? {
+          aspectRatio: {
+            required: definition?.inputSchema.required?.includes('aspect_ratio') === true,
+            ...(Array.isArray(ratio.enum)
+              ? { values: ratio.enum.filter((value): value is string => typeof value === 'string') }
+              : {}),
+          },
+        }
+      : {}),
     ...(typeof schema.description === 'string' ? { description: schema.description } : {}),
     ...(typeof schema.default === 'string' && ids.includes(schema.default)
       ? { defaultModel: schema.default }

@@ -96,7 +96,7 @@ test('template Skills survive local save, instantiation, reload and CLI inspecti
 });
 
 test('workflow preview reads only images belonging to the template without importing assets', async () => {
-  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000013');
+  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000015');
   const node = template.nodes.find((item) => item.type === 'image' && item.assetPath)!;
   const result = await files.readTemplatePreviewImage(template.id, template.revision, node.id);
   expect(result.type).toMatch(/^image\//);
@@ -224,7 +224,7 @@ test('500 templates use paged summaries, cached parsing, global search and no co
   const first = await readTemplatePage(folder, read, 1, '');
   expect(first.total).toBe(500);
   expect(first.items).toHaveLength(24);
-  expect(first.presets).toHaveLength(13);
+  expect(first.presets).toHaveLength(builtinCanvasTemplates().length);
   expect(first.items.every((item) => !('nodes' in item) && !('edges' in item))).toBe(true);
   expect(read).toHaveBeenCalledTimes(500);
   const second = await readTemplatePage(folder, read, 2, '');
@@ -257,7 +257,7 @@ test('bad files and symbolic links do not break the library or expose outside te
   const result = await files.listTemplatePage();
   expect(result.skipped).toBe(2);
   expect(result.items).toEqual([]);
-  expect(result.presets).toHaveLength(13);
+  expect(result.presets).toHaveLength(builtinCanvasTemplates().length);
 });
 
 test('cover source chooses a starting image, falling back to a stable image or no cover', async () => {

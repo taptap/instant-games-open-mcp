@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { getCanvasModelPreviewHtml } from '../canvas/modelPreviewPage.js';
+import { getUiMotionHtml } from './uiMotion/page.js';
 import fs from 'node:fs';
 import type { Socket } from 'node:net';
 import { createHash } from 'node:crypto';
@@ -240,8 +241,16 @@ export async function startConsoleServer(options: {
         response.end(options.html);
         return;
       }
-      if (request.method === 'GET' && ['/canvas', '/canvas-model-preview'].includes(url.pathname)) {
-        const html = url.pathname === '/canvas' ? getCanvasPageHtml() : getCanvasModelPreviewHtml();
+      if (
+        request.method === 'GET' &&
+        ['/canvas', '/canvas-model-preview', '/ui-motion'].includes(url.pathname)
+      ) {
+        const html =
+          url.pathname === '/ui-motion'
+            ? getUiMotionHtml()
+            : url.pathname === '/canvas'
+              ? getCanvasPageHtml()
+              : getCanvasModelPreviewHtml();
         const source = html.match(/<script>([\s\S]*?)<\/script>/i)?.[1] ?? '';
         const hash = createHash('sha256').update(source).digest('base64');
         response.setHeader(
