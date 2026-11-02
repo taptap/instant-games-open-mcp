@@ -287,7 +287,7 @@
       return true;
     }
     if (!imageHasMeta(file)) {
-      alert("这张图没有 .meta（" + file.name + ".meta）。\n游戏资源通常需要 meta。请先在项目里生成 meta，再引用。\n仍会写入路径，但运行时可能加载失败。");
+      notify("这张图没有 .meta（" + file.name + ".meta），已写入路径，但运行时可能加载失败。请先在项目里生成 meta 再引用。", "warning");
     }
     var cb = target.onChange;
     if (cb) cb({ phase: "start" });
@@ -413,7 +413,7 @@
   function saveCurrent() {
     if (saving) return saving;
     if (!writeReady) {
-      alert("当前项目文件尚未就绪，请刷新文件后再保存。");
+      notify("当前项目文件尚未就绪，请刷新文件后再保存。");
       return Promise.resolve(false);
     }
     var preview = window.UrhoxPreview;
@@ -446,7 +446,7 @@
         showExternalChange(conflicted, true);
         return false;
       }
-      alert("保存失败：" + (err.message || String(err)));
+      notify("保存失败：" + (err.message || String(err)));
       return false;
     }).finally(function () {
       saving = null;
@@ -487,7 +487,7 @@
         var ok = await saveCurrent();
         if (!ok) return false;
         if (isDirty()) {
-          alert("保存期间产生了新修改，已保留当前文档。请再次保存后切换。");
+          notify("保存期间产生了新修改，已保留当前文档。请再次保存后切换。", "warning");
           return false;
         }
       }
@@ -505,7 +505,7 @@
       setDirty(oldPath, false);
       return true;
     } catch (err) {
-      alert("无法打开「" + file.name + "」：" + (err.message || String(err)));
+      notify("无法打开「" + file.name + "」：" + (err.message || String(err)));
       return false;
     } finally {
       setOpening(false);
@@ -523,7 +523,7 @@
         path === "assets/" + normalized;
     });
     if (!file) {
-      alert("找不到组件源文件：" + ref);
+      notify("找不到组件源文件：" + ref);
       return false;
     }
     openUiFile(file);
@@ -562,14 +562,8 @@
     hideExternalChange();
     updateDirtyUi();
   }
-  // Hosts may show their own confirm dialog (UrhoxHost.confirm resolves true / false).
-  function askConfirm(options) {
-    var host = window.UrhoxHost;
-    if (host && typeof host.confirm === "function") {
-      return Promise.resolve(host.confirm(options)).then(Boolean, function () { return false; });
-    }
-    return Promise.resolve(confirm(options.title + "\n" + options.message));
-  }
+  function askConfirm(options) { return window.UrhoxDialogs.confirm(options); }
+  function notify(message, level) { window.UrhoxDialogs.notify(message, level); }
   // External edits to the open document (e.g. an Agent rewrote it on disk). A clean document
   // reloads in place; unsaved edits are never overwritten, a bar offers the reload instead.
   var externalBar = null;
@@ -634,7 +628,7 @@
       if (view) requestAnimationFrame(function () { window.UrhoxView.setView(view); });
       return true;
     } catch (err) {
-      alert("无法重新加载「" + file.name + "」：" + (err.message || String(err)));
+      notify("无法重新加载「" + file.name + "」：" + (err.message || String(err)));
       return false;
     } finally {
       setOpening(false);
@@ -644,7 +638,7 @@
     if (opening || saving) return false;
     var text;
     try { text = await window.UrhoxConfig.readText(file.path); } catch (err) {
-      alert("无法读取磁盘上的「" + file.name + "」：" + (err.message || String(err)));
+      notify("无法读取磁盘上的「" + file.name + "」：" + (err.message || String(err)));
       return false;
     }
     if (file.path !== currentFilePath()) return false;
@@ -851,7 +845,7 @@
     if (viewIconBtn) viewIconBtn.classList.add("active");
     if (viewListBtn) viewListBtn.classList.remove("active");
     if (!assets.length) {
-      alert("当前项目里还没有图片。请把 png/jpg 放到当前项目的 assets 目录后点击「刷新文件」。只能使用项目内的图片。");
+      notify("当前项目里还没有图片。请把 png/jpg 放到当前项目的 assets 目录后点击「刷新文件」。只能使用项目内的图片。", "warning");
       cancelReplaceImage();
       return;
     }
@@ -875,11 +869,11 @@
         if (replaceTarget !== target) return;
         var fresh = lookup();
         if (fresh) applyReplace(fresh);
-        else { cancelReplaceImage(); alert("只能使用项目内的图片。"); }
+        else { cancelReplaceImage(); notify("只能使用项目内的图片。", "warning"); }
       });
       return true;
     }
-    alert("只能使用项目内的图片。");
+    notify("只能使用项目内的图片。", "warning");
     return false;
   }
   // Direct assignment (drop, context menu): same checks and undo step as picking, no picker.

@@ -286,12 +286,14 @@
     },
 
     rename: function (app) {
-      if (!app.selected) return;
-      var next = window.prompt("节点名称", app.selected.id || "");
-      if (next == null) return;
-      app.pushHistory();
-      app.selected.id = next;
-      afterChange(app);
+      var node = app.selected;
+      if (!node) return;
+      root.UrhoxDialogs.prompt({ title: "节点名称", value: node.id || "", confirmLabel: "重命名" }).then(function (next) {
+        if (next == null || app.selected !== node) return;
+        app.pushHistory();
+        node.id = next;
+        afterChange(app);
+      });
     },
 
     align: function (app, mode) {

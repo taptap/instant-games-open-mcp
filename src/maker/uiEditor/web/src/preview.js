@@ -421,9 +421,10 @@
       nodes.length + " 个节点（" + nodes.map(function (n) { return n.id || n.type || "节点"; }).join("、") + "）";
     if (text) text.textContent = "确定删除" + label + "及其子节点吗？此操作可用撤销恢复。";
     if (!dialog) {
-      if (window.confirm("确定删除" + label + "及其子节点吗？") && app.sourceTree === pending.tree) {
-        window.UrhoxCommands.remove(app, pending.nodes);
-      }
+      window.UrhoxDialogs.confirm({ title: "确定删除" + label + "及其子节点吗？", message: "此操作可用撤销恢复。", confirmLabel: "删除", danger: true })
+        .then(function (ok) {
+          if (ok && app.sourceTree === pending.tree) window.UrhoxCommands.remove(app, pending.nodes);
+        });
       return;
     }
     dialog.showModal();
