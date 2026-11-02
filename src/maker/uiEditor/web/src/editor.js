@@ -433,6 +433,7 @@
         throw failure;
       }
       loadedText[path] = text;
+      if (preview.currentPath === path) hideExternalChange();
       if (project === targetProject && preview.currentPath === path) {
         if (preview.markClean) preview.markClean(json, savedNodes);
         else setDirty(path, JSON.stringify(preview.getJSON()) !== JSON.stringify(json));
@@ -584,8 +585,20 @@
         if (isDirty() && !confirm("重新加载会放弃你未保存的修改，载入磁盘上的最新版本。继续吗？")) return;
         void reloadFromDisk(target);
       });
+      // Keep my version: save over the file as it is on disk now, dropping the other edits.
+      var overwrite = document.createElement("button");
+      overwrite.type = "button";
+      overwrite.className = "ghost danger";
+      overwrite.textContent = "覆盖保存";
+      overwrite.addEventListener("click", function () {
+        var target = externalBar.file;
+        if (!target || target.path !== currentFilePath()) { hideExternalChange(); return; }
+        if (!confirm("覆盖保存会用你的版本替换磁盘上的文档，Agent 的修改会丢失。继续吗？")) return;
+        void overwriteDisk(target);
+      });
       externalBar.appendChild(label);
       externalBar.appendChild(reload);
+      externalBar.appendChild(overwrite);
       (document.querySelector("header.chrome") || document.body).appendChild(externalBar);
     }
     externalBar.file = file;
@@ -609,6 +622,19 @@
     } finally {
       setOpening(false);
     }
+  }
+  async function overwriteDisk(file) {
+    if (opening || saving) return false;
+    var text;
+    try { text = await window.UrhoxConfig.readText(file.path); } catch (err) {
+      alert("无法读取磁盘上的「" + file.name + "」：" + (err.message || String(err)));
+      return false;
+    }
+    if (file.path !== currentFilePath()) return false;
+    // The disk version becomes the save baseline, so the save replaces exactly what is there now;
+    // if it changes again before the write lands, the save conflicts and the bar returns.
+    loadedText[file.path] = text;
+    return saveCurrent();
   }
   async function syncFromDisk() {
     if (opening || saving || refreshing) return false;
