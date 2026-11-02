@@ -405,6 +405,9 @@ Python 运行时策略：
   默认 60 秒在 Maker 构建或素材 proxy 调用完成前截断请求。DSH 会热重载该用户补丁，无需重启 IDE。
   默认 `--launcher self` 把当前包的 `dist/maker.js`、skills 和排障文档物化到
   `TAPTAP_MAKER_HOME/mcp-runtime/<version>/`，并写入绝对 Node + 稳定 bundle 路径。
+  macOS Homebrew Node 若有指向同一可执行文件的 `opt/<formula>/bin/node`，使用该稳定绝对
+  路径，避免升级后旧 Cellar 版本目录被移除；不切换 formula 或使用 PATH 中的其它 Node。
+  旧配置仍需重新运行 `taptap-maker mcp install` 更新，写入前沿用 MCP 启动校验。
   `--launcher npx` 作为兼容模式，发布包固定当前精确版本并把专用可写 npm cache 同步写入
   验证进程和客户端配置，避免验证成功后客户端仍回落到不可写的默认缓存。
   其它 AI 编辑器可使用 README 中的通用 `mcpServers` JSON 片段，让本地 AI 先识别该编辑器的
@@ -963,7 +966,9 @@ ElevenLabs，对话使用 Eleven v3 的 `stability` 与表演标签，角色试�
 广告流程总览：确认目标项目 → 获取配置 → 核对远端与本地配置 → 阅读项目 SDK → 实现 → 真机验证。
 完整步骤统一见 `maker://ads-integration-guide`。`get_ad_config` 返回的同步路径可能属于远端工作区，
 本地代理不写入本机 `@runtime.ad`；请求成功、同步时间或广告开通不代表本机配置已更新或广告可播放。
-本地配置缺失、不一致或无法核验时，暂停广告实现/测试并说明同步缺口，不猜配置、不自动拉取或覆盖文件。
+比较配置时仅排除同步时间戳 `synced_at`，仍核对广告状态、广告位及其它配置字段；仅时间戳不同
+不要求回写本地配置。配置缺失、其它字段不一致或无法核验时，暂停广告实现/测试并说明同步缺口，
+不猜配置、不自动拉取或覆盖文件。
 调用 `generate_test_qrcode` 时，Agent 应先不传方向参数直接调用。本地 MCP 会读取
 `.project/project.json`：如果 `taptap_publish.screen_orientation` 已是 `landscape` 或 `portrait`，
 直接沿用该值，不再询问用户，也不允许后续输入覆盖。只有该字段从未设置时，才要求 Agent 在单独的

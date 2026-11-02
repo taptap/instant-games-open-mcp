@@ -167,17 +167,19 @@ export async function runSkillValidation(
         ? {
             attempt_run_ids: [...attemptRunIds],
             next_step:
-              'AI must inspect every PNG for arbitrary in-game loading and gameplay; automatic checks only detect near-total black/transparent pixels and known bootstrap ordering.' +
-              (assessment?.status === 'NOT_READY'
-                ? ' This screenshot is not effective visual evidence. ' +
-                  (retry
-                    ? `Waiting 3 seconds before a new Runtime launch at screenshot frame ${nextFrame}.`
-                    : options.network === true
-                      ? 'Network validation does not retry automatically: each run allocates a test server and may repeat remote game actions. Inspect retained evidence before explicitly requesting another run.'
-                      : budgetExceeded
-                        ? 'Automatic retry skipped: the estimated later-frame runtime exceeds the timeout budget. Inspect retained evidence and explicitly choose a suitable --validate-timeout before retrying.'
-                        : 'Automatic retries are exhausted or unsafe. Inspect all attempt logs and the raw game report; choose a later frame or a controlled entry after resolving the cause.')
-                : ''),
+              output.runtime_started === false
+                ? 'Runtime did not start. Resolve the original error before rerunning; no game or screenshot evidence was collected.'
+                : 'AI must inspect every PNG for arbitrary in-game loading and gameplay; automatic checks only detect near-total black/transparent pixels and known bootstrap ordering.' +
+                  (assessment?.status === 'NOT_READY'
+                    ? ' This screenshot is not effective visual evidence. ' +
+                      (retry
+                        ? `Waiting 3 seconds before a new Runtime launch at screenshot frame ${nextFrame}.`
+                        : options.network === true
+                          ? 'Network validation does not retry automatically: each run allocates a test server and may repeat remote game actions. Inspect retained evidence before explicitly requesting another run.'
+                          : budgetExceeded
+                            ? 'Automatic retry skipped: the estimated later-frame runtime exceeds the timeout budget. Inspect retained evidence and explicitly choose a suitable --validate-timeout before retrying.'
+                            : 'Automatic retries are exhausted or unsafe. Inspect all attempt logs and the raw game report; choose a later frame or a controlled entry after resolving the cause.')
+                    : ''),
           }
         : {}),
     };
@@ -497,8 +499,15 @@ async function executeSkillValidation(
       }
     }
 
-    // Evidence is independent: a missing report must not hide a screenshot (or vice versa).
-    if (validate) {
+    const runtimeStarted = run.runtime_pid !== undefined;
+    if (!runtimeStarted)
+      failures.unshift(
+        run.phase === 'preparing'
+          ? 'Local prepare failed; no Runtime was started.'
+          : 'Runtime could not be started; inspect the original error.'
+      );
+    // Only a launched Runtime can produce evidence; retain independent collection after launch.
+    if (runtimeStarted && validate) {
       try {
         report = JSON.parse(readArtifact(reportPath, 4 * 1024 * 1024).toString('utf8'));
         if (!report || !['PASS', 'FAIL', 'TIMEOUT'].includes(String(report.result)))
@@ -523,7 +532,7 @@ async function executeSkillValidation(
         failures.push('Could not collect validate report: ' + String(error));
       }
     }
-    if (capture) {
+    if (runtimeStarted && capture) {
       try {
         const png = readArtifact(pngPath, 128 * 1024 * 1024);
         if (!isCompleteValidationPng(png))
@@ -548,7 +557,7 @@ async function executeSkillValidation(
     }
     const prepareLog = path.join(directory, 'prepare.log');
     if (fs.existsSync(prepareLog)) artifacts.push({ kind: 'prepare-log', path: prepareLog });
-    if (exitCode !== 0 && !(exitCode === 1 && report?.result === 'FAIL'))
+    if (runtimeStarted && exitCode !== 0 && !(exitCode === 1 && report?.result === 'FAIL'))
       failures.push('Runtime did not complete normally; inspect its logs and original report.');
     const collectionResult = signal.aborted
       ? 'CANCELLED'
@@ -584,6 +593,10 @@ async function executeSkillValidation(
       ok: result === 'COMPLETED',
       result,
       mode,
+      runtime_started: runtimeStarted,
+      ...(!runtimeStarted
+        ? { failure_stage: run.phase === 'preparing' ? 'preparation' : 'runtime_start' }
+        : {}),
       validation_scope: networkValidation ? 'network' : 'single_player',
       ...(networkValidation
         ? {
@@ -594,8 +607,8 @@ async function executeSkillValidation(
             },
           }
         : {}),
-      game_review_required: true,
-      visual_check_required: capture,
+      game_review_required: runtimeStarted,
+      visual_check_required: runtimeStarted && capture,
       screenshot_assessment: screenshotAssessment,
       _screenshot_retry_eligible: retryEligible,
       _runtime_duration_ms: runtimeDurationMs,
