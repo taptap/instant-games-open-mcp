@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { extractZip } from '../cli/devKit.js';
 import { sanitizeRemoteDiagnosticValue } from './diagnosticRedaction.js';
+import { mediaInputRecoveryHint, type MediaInputInspection } from './mediaInputInspection.js';
 
 type RemoteProxyToolResult = Awaited<ReturnType<Client['callTool']>>;
 type RemoteProxyToolResultWithStructuredContent = RemoteProxyToolResult & {
@@ -73,18 +74,23 @@ const AUDIO_MIME_BY_EXTENSION: Record<string, string> = {
 export class RemoteProxyToolResultError extends Error {
   readonly toolName: string;
   readonly result: RemoteProxyToolResult;
+  readonly recoveryHint?: string;
 
-  constructor(toolName: string, result: RemoteProxyToolResult) {
+  constructor(toolName: string, result: RemoteProxyToolResult, inspection?: MediaInputInspection) {
+    const remoteMessage = formatRemoteProxyToolResult(result);
+    const recoveryHint = mediaInputRecoveryHint(remoteMessage, inspection);
     super(
       [
         `Remote proxy tool ${toolName} returned an error result.`,
         '',
-        formatRemoteProxyToolResult(result),
+        remoteMessage,
+        ...(recoveryHint ? [recoveryHint] : []),
       ].join('\n')
     );
     this.name = 'RemoteProxyToolResultError';
     this.toolName = toolName;
     this.result = result;
+    this.recoveryHint = recoveryHint;
   }
 }
 
@@ -93,17 +99,29 @@ export class RemoteProxyToolCallError extends Error {
   readonly executionState: RemoteProxyExecutionState;
   readonly automaticRetry = false;
   readonly originalError: unknown;
+  readonly recoveryHint?: string;
 
-  constructor(toolName: string, executionState: RemoteProxyExecutionState, error: unknown) {
+  constructor(
+    toolName: string,
+    executionState: RemoteProxyExecutionState,
+    error: unknown,
+    inspection?: MediaInputInspection
+  ) {
     const originalMessage = error instanceof Error ? error.message : String(error);
+    const recoveryHint =
+      executionState === 'unknown'
+        ? mediaInputRecoveryHint(originalMessage, inspection)
+        : undefined;
     super(
       `Remote proxy tool ${toolName} failed with execution_state=${executionState}; ` +
-        `automatic retry is disabled. ${originalMessage}`
+        `automatic retry is disabled. ${originalMessage}` +
+        (recoveryHint ? '\n' + recoveryHint : '')
     );
     this.name = 'RemoteProxyToolCallError';
     this.toolName = toolName;
     this.executionState = executionState;
     this.originalError = error;
+    this.recoveryHint = recoveryHint;
   }
 }
 
@@ -158,11 +176,13 @@ export async function materializeRemoteProxyToolAssets(options: {
   result: RemoteProxyToolResult;
   now?: Date;
   fetchImpl?: RemoteProxyFetch;
+  inputInspection?: MediaInputInspection;
 }): Promise<RemoteProxyToolResult> {
   if (isRemoteProxyToolErrorResult(options.result)) {
     throw new RemoteProxyToolResultError(
       options.toolName,
-      addRemoteProxyErrorExecutionState(options.result)
+      addRemoteProxyErrorExecutionState(options.result),
+      options.inputInspection
     );
   }
 
