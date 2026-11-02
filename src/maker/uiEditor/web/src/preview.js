@@ -631,7 +631,8 @@
     resizeCanvas();
     refresh();
     if (window.UrhoxComparison) window.UrhoxComparison.openDocument(app, options);
-    if (window.UrhoxView) window.UrhoxView.fit();
+    // A reload of the same document after an external edit keeps the user's pan and zoom.
+    if (window.UrhoxView && !(options && options.keepView)) window.UrhoxView.fit();
   }
 
   function syncDeviceControls() {

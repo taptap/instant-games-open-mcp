@@ -8,7 +8,8 @@
       }
       try {
         var result = await config.save(decodeURIComponent(path.slice(config.FILE_ROOT.length)), text, expectedText);
-        if (!result || !result.ok) return { ok: false, error: (result && result.error) || "保存失败，请保留修改后重试。" };
+        // conflict: the file changed on disk since it was opened (hosts report it, e.g. HTTP 409).
+        if (!result || !result.ok) return { ok: false, conflict: !!(result && result.conflict), error: (result && result.error) || "保存失败，请保留修改后重试。" };
         return { ok: true, mode: result.mode || "maker" };
       } catch (error) { return { ok: false, error: error.message || String(error) }; }
     },

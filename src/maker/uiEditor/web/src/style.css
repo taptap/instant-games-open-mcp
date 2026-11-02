@@ -640,3 +640,7 @@ body.picking-image #bottomListTitle { color: var(--accent); }
 .nanovg-field { width: 100%; min-width: 0; }
 .nanovg-field textarea { width: 100%; box-sizing: border-box; resize: vertical; font: 11px monospace; }
 .nanovg-field p { color: #c53030; white-space: pre-wrap; overflow-wrap: anywhere; }
+.external-change { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: #3a3220; color: #f1d58a; font-size: 12px; }
+.external-change[hidden] { display: none; }
+.external-change-text { flex: 1; min-width: 0; }
+:root[data-theme="light"] .external-change { background: #fff4d6; color: #6b4e00; }

@@ -427,7 +427,11 @@
     var text = exportJSON(json);
     saving = (async function () {
       var result = await window.UrhoxSave.write(path, text, loadedText[path]);
-      if (!result.ok) throw new Error(result.error || "无法保存当前项目的 UI 文档");
+      if (!result.ok) {
+        var failure = new Error(result.error || "无法保存当前项目的 UI 文档");
+        failure.conflict = !!result.conflict;
+        throw failure;
+      }
       loadedText[path] = text;
       if (project === targetProject && preview.currentPath === path) {
         if (preview.markClean) preview.markClean(json, savedNodes);
@@ -435,6 +439,12 @@
       }
       return true;
     })().catch(function (err) {
+      // A conflict means someone else changed the file; the bar explains it and offers a reload.
+      var conflicted = err && err.conflict && project.files.find(function (entry) { return entry.path === path; });
+      if (conflicted) {
+        showExternalChange(conflicted, true);
+        return false;
+      }
       alert("保存失败：" + (err.message || String(err)));
       return false;
     }).finally(function () {
@@ -519,9 +529,9 @@
     return true;
   }
 
-  async function loadUiFile(file, targetProject) {
+  async function loadUiFile(file, targetProject, extra) {
     targetProject = targetProject || project;
-    var text = await window.UrhoxConfig.readText(file.path);
+    var text = extra && typeof extra.text === "string" ? extra.text : await window.UrhoxConfig.readText(file.path);
     var json = JSON.parse(text);
     if (window.UrhoxPreview) {
       if (window.UrhoxPreview.setProjectConfig) {
@@ -532,6 +542,7 @@
         assetRoot: file.assetRoot || window.UrhoxConfig.DEFAULT_ASSET_ROOT,
         projectConfig: targetProject.config || null,
         comparisonKey: targetProject.name + ':' + file.path,
+        keepView: !!(extra && extra.keepView),
         referenceImage: (function () {
           var companion = file.path.replace(/\.ui\.json$/i, '.reference.png');
           if (assets.some(function (item) { return item.path === companion; })) {
@@ -548,7 +559,69 @@
     }
     loadedText[file.path] = text;
     setDirty(file.path, false);
+    hideExternalChange();
     updateDirtyUi();
+  }
+  // External edits to the open document (e.g. an Agent rewrote it on disk). A clean document
+  // reloads in place; unsaved edits are never overwritten, a bar offers the reload instead.
+  var externalBar = null;
+  function hideExternalChange() {
+    if (externalBar) externalBar.hidden = true;
+  }
+  function showExternalChange(file, saveFailed) {
+    if (!externalBar) {
+      externalBar = document.createElement("div");
+      externalBar.className = "external-change";
+      externalBar.setAttribute("role", "status");
+      var label = document.createElement("span");
+      label.className = "external-change-text";
+      var reload = document.createElement("button");
+      reload.type = "button";
+      reload.className = "ghost";
+      reload.textContent = "重新加载";
+      reload.addEventListener("click", function () {
+        var target = externalBar.file;
+        if (!target || target.path !== currentFilePath()) { hideExternalChange(); return; }
+        if (isDirty() && !confirm("重新加载会放弃你未保存的修改，载入磁盘上的最新版本。继续吗？")) return;
+        void reloadFromDisk(target);
+      });
+      externalBar.appendChild(label);
+      externalBar.appendChild(reload);
+      (document.querySelector("header.chrome") || document.body).appendChild(externalBar);
+    }
+    externalBar.file = file;
+    externalBar.querySelector(".external-change-text").textContent = saveFailed
+      ? "Agent 修改了这个文档，你的修改没有保存。"
+      : "Agent 修改了这个文档。";
+    externalBar.hidden = false;
+  }
+  async function reloadFromDisk(file, text) {
+    if (opening || saving) return false;
+    setOpening(true, "正在重新加载文档…");
+    try {
+      await loadUiFile(file, null, { text: text, keepView: true });
+      return true;
+    } catch (err) {
+      alert("无法重新加载「" + file.name + "」：" + (err.message || String(err)));
+      return false;
+    } finally {
+      setOpening(false);
+    }
+  }
+  async function syncFromDisk() {
+    if (opening || saving || refreshing) return false;
+    await loadProjectFiles(false);
+    var path = currentFilePath();
+    var file = project.files.find(function (entry) { return entry.path === path; });
+    if (!file || !window.UrhoxPreview || !window.UrhoxPreview.tree) return false;
+    var text;
+    try { text = await window.UrhoxConfig.readText(path); } catch (_) { return false; }
+    if (path !== currentFilePath() || text === loadedText[path]) return false;
+    if (isDirty()) {
+      showExternalChange(file, false);
+      return true;
+    }
+    return reloadFromDisk(file, text);
   }
 
   openProjectBtn.addEventListener("click", function () { loadProjectFiles(false); });
@@ -820,6 +893,7 @@
     assignImageTo: assignImageTo,
     dropImageRef: dropImageRef,
     refreshFiles: function () { return loadProjectFiles(false); },
+    syncFromDisk: syncFromDisk,
     findAsset: findAsset,
     bindAssetThumb: bindAssetThumb,
     openUiPath: openUiPath,
