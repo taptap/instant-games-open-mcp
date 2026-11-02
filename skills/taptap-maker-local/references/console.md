@@ -1,6 +1,8 @@
 # Local Console
 
 Read only when opening, stopping or troubleshooting the console.
+For canvas authoring and supported operations, use the [Canvas Capability Guide](canvas.md);
+for video modes and ordered image references, read [Canvas Video](canvas-video.md).
 
 ## Local Web Console
 

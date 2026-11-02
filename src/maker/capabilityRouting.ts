@@ -22,6 +22,8 @@ function formatMakerCapabilityRoutingIndex(options: { includeFeedback: boolean }
       : '',
     options.includeFeedback ? '  exposed by the current Maker tool list.' : '',
     '- Assets: image, video, music, sound-effect, voice, 3D tools when exposed.',
+    '- Canvas capabilities/custom workflows/video: active CLI canvas capabilities; follow the canvas.md link in taptap-maker-local.',
+    '  For first/last-frame video follow its canvas-video.md link; inspect current mode before setting references.',
     '- Canvas templates (UI/切图/动画/角色/道具/3D): active CLI canvas templates --target-dir PATH --q "keyword".',
     '  Search names/descriptions before declaring a workflow unsupported; read only matching descriptions and Skills.',
     '- 游戏UI/设计稿还原/切图/拼装UI.json: read maker-ui-workflow (path in status).',

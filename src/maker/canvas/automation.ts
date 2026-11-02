@@ -17,6 +17,12 @@ export {
 } from '../../../packages/maker-canvas/src/features/automation.js';
 export function canvasAutomationCapabilities() {
   return {
+    guides: {
+      overview: 'skills/taptap-maker-local/references/canvas.md',
+      video: 'skills/taptap-maker-local/references/canvas-video.md',
+      instruction:
+        'Paths are relative to the active Maker distribution. Prefer the guide links in the installed taptap-maker-local SKILL.md (locate it via status); plugin layouts such as WorkBuddy place these guides beside SKILL.md instead of under references. Read only the matching feature section. actions lists page automation actions, not every CLI query. unsupported describes CLI limits, not all UI capabilities. A blocked card is not proof that a feature is unsupported.',
+    },
     multiProject: {
       pages: 'canvas pages --target-dir PATH',
       sessions: 'canvas sessions --target-dir PATH',
@@ -53,6 +59,14 @@ export function canvasAutomationCapabilities() {
         'status, wait and export --output-dir exit nonzero for failed or unknown operations. Unknown does not mean failed; inspect the original card and request before any retry. A failed operation with code INVALID_ARGS (arguments or page state) or NOT_FOUND (canvas, card or edge missing) was refused before any change: fix the cause and submit with a new request-id. A failed operation without code may have started work (for example a 015 run or a save after an edit): inspect before deciding; never resubmit paid steps blindly.',
     },
     nodeTypes: ['image', 'video', 'note', 'mark', 'sequence', 'animation', 'model-views', 'model'],
+    videoWorkflow: {
+      modes:
+        'first_frame: 1 image; first_last_frame: 2 ordered images; multi_modal_reference: model-dependent limit.',
+      setup:
+        'Inspect first. For first/last-frame video, update-nodes parameters.mode=first_last_frame before set-references sourceIds=[firstImageId,lastImageId]; model 2.5 also requires ratio=adaptive. Wait for the edit to succeed and inspect the new revision before setting references. Both images must be saved and ready. These edits do not generate or pay.',
+      boundary:
+        'A saved first_frame mode still limits references to one image after changing the model. Ordinary video cards support first/last frames through parameters.mode and ordered references; fixed first/last-frame templates preserve their frame roles. Do not infer support from edge kind alone. Follow guides.video for execution and recovery; query checks the original task, not a generic unlock.',
+    },
     editable: [
       'title',
       'text',
@@ -170,7 +184,8 @@ export function canvasAutomationCapabilities() {
       },
       'set-references': {
         id: 'target image/video ID',
-        sourceIds: 'ordered image IDs; [] clears',
+        sourceIds:
+          'ordered saved image IDs; [] clears. For video, the current input mode limits the count. Set parameters.mode with update-nodes first; in first_last_frame mode use [firstImageId,lastImageId]. See videoWorkflow.',
         includeSelf: 'optional boolean, image only; default false',
       },
       connect: {
