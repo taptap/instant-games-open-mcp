@@ -10,9 +10,13 @@
   var zoomLabel = document.getElementById("zoomLabel");
   var fitBtn = document.getElementById("fitBtn");
 
+  // Hosts may set a default bottom panel height and their own storage key (UrhoxHost.layout),
+  // e.g. when they put taller content in the bottom panel.
+  var hostLayout = (window.UrhoxHost && window.UrhoxHost.layout) || {};
+  var DEFAULT_BOTTOM = Number.isFinite(hostLayout.bottom) && hostLayout.bottom > 0 ? hostLayout.bottom : 200;
   var leftW = 280;
   var rightW = 320;
-  var bottomH = 200;
+  var bottomH = DEFAULT_BOTTOM;
   var projLeftW = 240;
   var leftVisible = true;
   var rightVisible = true;
@@ -25,7 +29,7 @@
   var MIN_BOTTOM = 120;
   var MIN_PREVIEW = 220;
   var GRID = 18;
-  var STORAGE = "urhox.panel-layout.v1";
+  var STORAGE = typeof hostLayout.storageKey === "string" && hostLayout.storageKey ? hostLayout.storageKey : "urhox.panel-layout.v1";
   try {
     var saved = JSON.parse(localStorage.getItem(STORAGE) || "null");
     if (saved && [saved.left,saved.right,saved.bottom,saved.project].every(function (n) { return Number.isFinite(n) && n>0; })) {
@@ -242,7 +246,7 @@
   if (fitBtn) fitBtn.addEventListener("click", fitPreview);
   var resetBtn=document.getElementById("resetLayoutBtn");
   if (resetBtn) resetBtn.addEventListener("click",function () {
-    leftW=280; rightW=320; bottomH=200; projLeftW=240; leftVisible=true; rightVisible=true; bottomVisible=true; persist(); applySizes(); fitPreview();
+    leftW=280; rightW=320; bottomH=DEFAULT_BOTTOM; projLeftW=240; leftVisible=true; rightVisible=true; bottomVisible=true; persist(); applySizes(); fitPreview();
   });
   window.addEventListener("resize", function () { applySizes(); });
 
