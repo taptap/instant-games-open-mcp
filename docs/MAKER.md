@@ -39,6 +39,36 @@ CLI 功能指南：[本地控制台](MAKER_CONSOLE.md)、
   该组合时安装失败，不持久化 `.cmd` shell 命令或依赖客户端 PATH；Git 引导优先指向 Git for Windows。
 - 仓库同时提供 `taptap-maker-local`、`taptap-maker-dev-kit-guide` 和 `update-taptap-mcp` skills，用于把本地 Git 工作流、AI dev kit 内容说明和 MCP 更新缓存流程交给本地 AI/Agent 按业务规则执行。
 
+## 本地 PNG 无损压缩
+
+AI 或用户可以直接调用独立 CLI，无需登录、项目绑定、控制台或额外安装图片工具：
+
+```bash
+taptap-maker image compress --input "/path/source.png" --output "/path/source.optimized.png" --json
+```
+
+Windows 同样使用上述参数，将路径换成实际路径并加引号。插件用户沿用当前插件的 CLI
+入口，不要另装另一份 Maker。`image compress --help` 可查看调用方式。
+
+- 输入为本地静态、非交错 PNG；支持灰度、RGB、RGBA、调色板以及合法的 1/2/4/8/16 位深度组合。
+  APNG、交错 PNG、带数字签名的 PNG 和其他图片格式暂不支持，明确报错并保留原图。
+- 只优化 PNG 编码，不缩尺寸、不减少颜色、不转 JPEG；保留所有非图像数据块，包括颜色配置、
+  文字和透明度信息。保存前校验解码像素；16 位图片按原精度校验。
+- `--output` 必填，父目录必须已存在，目标文件必须不存在。原图、已有文件及符号链接均不会
+  被覆盖；验证完成后才原子发布副本。目标文件系统必须支持硬链接，否则返回错误，不降级覆盖。
+- 压不小时仍在指定路径生成与原图完全相同的副本，返回 `status: "unchanged"`；
+  缩小时返回 `status: "compressed"`。两者均为成功，退出码为 0。
+- JSON 返回 `input_path`、`output_path`、`original_bytes`、`output_bytes`、`saved_bytes`、
+  `width`、`height` 和 `lossless_verified`。处理失败返回 `ok: false`、`error`，退出码为 1；
+  通用 CLI 参数解析失败沿用顶层 stderr 报错。AI 应同时检查退出码和 `ok`。
+- 单文件上限 64 MiB、像素总数上限 16,777,216，限制解码内存占用。无损压缩不能保证达到
+  指定体积；2 MiB 不是该工具的限制，也不代表远端服务的准确上限。
+- 工具完全本地运行，不调用 `edit_image`、上传或重试生成，也不会自动修改画布资源。
+
+复用入口为 `src/maker/image/compress.ts`：`compressPng` 接收图片字节并返回优化结果，
+不读写文件；`compressPngFile` 负责独立副本与路径保护。其他 Maker 功能可直接复用，
+不需要绕经 CLI 或 MCP。本功能不新增 MCP tool。
+
 ## 客户端插件版本与发布
 
 三个客户端的更新入口不同，但都复用同一套 Maker CLI/MCP 业务代码：

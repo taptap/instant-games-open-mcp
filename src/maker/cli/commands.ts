@@ -42,6 +42,7 @@ import { runCanvasCli } from '../canvas/cli.js';
 import { runUiCli } from '../uiEditor/cli.js';
 import { runBuildCli } from './build.js';
 import { runQrcodeCli } from './qrcode.js';
+import { IMAGE_CLI_USAGE, runImageCli } from './image.js';
 import { createMakerProject, listMakerProjects } from './projects.js';
 import { cloneMakerProject, type MakerProjectProgress } from '../git/index.js';
 import { GIT_CLI_USAGE, runGitCli } from './git.js';
@@ -146,6 +147,7 @@ const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : '
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
 const TWO_PART_COMMANDS = new Set([
+  'image',
   'ui',
   'canvas',
   'console',
@@ -313,6 +315,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'init') {
     await runInit(parsed, ctx);
+    return;
+  }
+
+  if (command === 'image') {
+    await runImageCli(subcommand, parsed.options, parsed.positionals);
     return;
   }
 
@@ -3281,6 +3288,7 @@ function printHelp(): void {
       '  taptap-maker ui create --target-dir PATH --file assets/ui/new.ui.json --input-file FILE [--dry-run]',
       '  taptap-maker ui patch --target-dir PATH --file assets/ui/screen.ui.json --revision SHA256 --input-file FILE [--dry-run]',
       '  taptap-maker canvas capabilities',
+      `  ${IMAGE_CLI_USAGE}`,
       '  taptap-maker canvas list|pages|templates --target-dir PROJECT_ABSOLUTE_PATH',
       '  taptap-maker canvas sessions --target-dir PATH',
       '  taptap-maker canvas <action> --target-dir PATH --session-id CONVERSATION_ID [options]',
