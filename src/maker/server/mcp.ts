@@ -124,11 +124,6 @@ import {
 } from './proxyAssets.js';
 import { sanitizeDiagnosticValue, sanitizeRemoteDiagnosticValue } from './diagnosticRedaction.js';
 import {
-  inspectMediaInput,
-  mediaInputSizeNotice,
-  type MediaInputInspection,
-} from './mediaInputInspection.js';
-import {
   MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION,
   MAKER_STATUS_LITE_PUBLIC_DESCRIPTION,
 } from './toolDescriptions.js';
@@ -485,7 +480,6 @@ export async function callRemoteProxyTool(options: {
     });
   let proxy: RemoteProxyContext;
   let finalArgs: Record<string, unknown>;
-  let inputInspection: MediaInputInspection;
   let requestOptions: ReturnType<typeof createRemoteProxyCallToolOptions>;
   try {
     proxy = createProxy();
@@ -494,7 +488,6 @@ export async function callRemoteProxyTool(options: {
       targetDir: proxy.projectRoot,
       args: options.args,
     });
-    inputInspection = inspectMediaInput(finalArgs);
     requestOptions = options.extra
       ? createRemoteProxyCallToolOptions(options.progressToken, options.extra)
       : {
@@ -502,8 +495,6 @@ export async function callRemoteProxyTool(options: {
           resetTimeoutOnProgress: true,
           onprogress: options.onProgress || (() => {}),
         };
-    const sizeNotice = mediaInputSizeNotice(inputInspection);
-    if (sizeNotice) requestOptions.onprogress?.({ progress: 0, message: sizeNotice });
   } catch (error) {
     throw new RemoteProxyToolCallError(options.name, 'not_executed', error);
   }
@@ -524,8 +515,7 @@ export async function callRemoteProxyTool(options: {
           throw new RemoteProxyToolCallError(
             options.name,
             remoteProxyFailureState(dispatched, error),
-            error,
-            inputInspection
+            error
           );
         }
       }
@@ -562,8 +552,7 @@ export async function callRemoteProxyTool(options: {
           throw new RemoteProxyToolCallError(
             options.name,
             remoteProxyFailureState(dispatched, error),
-            error,
-            inputInspection
+            error
           );
         } finally {
           await client?.close().catch(() => {});
@@ -577,7 +566,6 @@ export async function callRemoteProxyTool(options: {
       toolName: options.name,
       targetDir: proxy.projectRoot,
       result,
-      inputInspection,
     });
   };
 

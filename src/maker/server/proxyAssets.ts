@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { extractZip } from '../cli/devKit.js';
 import { sanitizeRemoteDiagnosticValue } from './diagnosticRedaction.js';
-import { mediaInputRecoveryHint, type MediaInputInspection } from './mediaInputInspection.js';
+import { mediaInputRecoveryHint } from './mediaInputRecovery.js';
 
 type RemoteProxyToolResult = Awaited<ReturnType<Client['callTool']>>;
 type RemoteProxyToolResultWithStructuredContent = RemoteProxyToolResult & {
@@ -76,9 +76,9 @@ export class RemoteProxyToolResultError extends Error {
   readonly result: RemoteProxyToolResult;
   readonly recoveryHint?: string;
 
-  constructor(toolName: string, result: RemoteProxyToolResult, inspection?: MediaInputInspection) {
+  constructor(toolName: string, result: RemoteProxyToolResult) {
     const remoteMessage = formatRemoteProxyToolResult(result);
-    const recoveryHint = mediaInputRecoveryHint(remoteMessage, inspection);
+    const recoveryHint = mediaInputRecoveryHint(remoteMessage);
     super(
       [
         `Remote proxy tool ${toolName} returned an error result.`,
@@ -101,17 +101,10 @@ export class RemoteProxyToolCallError extends Error {
   readonly originalError: unknown;
   readonly recoveryHint?: string;
 
-  constructor(
-    toolName: string,
-    executionState: RemoteProxyExecutionState,
-    error: unknown,
-    inspection?: MediaInputInspection
-  ) {
+  constructor(toolName: string, executionState: RemoteProxyExecutionState, error: unknown) {
     const originalMessage = error instanceof Error ? error.message : String(error);
     const recoveryHint =
-      executionState === 'unknown'
-        ? mediaInputRecoveryHint(originalMessage, inspection)
-        : undefined;
+      executionState === 'unknown' ? mediaInputRecoveryHint(originalMessage) : undefined;
     super(
       `Remote proxy tool ${toolName} failed with execution_state=${executionState}; ` +
         `automatic retry is disabled. ${originalMessage}` +
@@ -176,13 +169,11 @@ export async function materializeRemoteProxyToolAssets(options: {
   result: RemoteProxyToolResult;
   now?: Date;
   fetchImpl?: RemoteProxyFetch;
-  inputInspection?: MediaInputInspection;
 }): Promise<RemoteProxyToolResult> {
   if (isRemoteProxyToolErrorResult(options.result)) {
     throw new RemoteProxyToolResultError(
       options.toolName,
-      addRemoteProxyErrorExecutionState(options.result),
-      options.inputInspection
+      addRemoteProxyErrorExecutionState(options.result)
     );
   }
 
