@@ -542,7 +542,6 @@
         assetRoot: file.assetRoot || window.UrhoxConfig.DEFAULT_ASSET_ROOT,
         projectConfig: targetProject.config || null,
         comparisonKey: targetProject.name + ':' + file.path,
-        keepView: !!(extra && extra.keepView),
         referenceImage: (function () {
           var companion = file.path.replace(/\.ui\.json$/i, '.reference.png');
           if (assets.some(function (item) { return item.path === companion; })) {
@@ -598,8 +597,11 @@
   async function reloadFromDisk(file, text) {
     if (opening || saving) return false;
     setOpening(true, "正在重新加载文档…");
+    // Same document: keep the user's pan and zoom across the reload (loading refits the view).
+    var view = window.UrhoxView && window.UrhoxView.getView ? window.UrhoxView.getView() : null;
     try {
-      await loadUiFile(file, null, { text: text, keepView: true });
+      await loadUiFile(file, null, { text: text });
+      if (view) requestAnimationFrame(function () { window.UrhoxView.setView(view); });
       return true;
     } catch (err) {
       alert("无法重新加载「" + file.name + "」：" + (err.message || String(err)));

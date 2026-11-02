@@ -258,6 +258,15 @@
     fit: fitPreview,
     panBy: function (dx, dy) { panX += dx; panY += dy; applyView(); },
     getZoom: function () { return zoom; },
+    /** Pan and zoom, e.g. to restore them after reloading the same document. */
+    getView: function () { return { zoom: zoom, panX: panX, panY: panY }; },
+    setView: function (view) {
+      if (!view || !Number.isFinite(view.zoom)) return;
+      zoom = Math.max(0.08, Math.min(8, view.zoom));
+      panX = Number(view.panX) || 0;
+      panY = Number(view.panY) || 0;
+      applyView();
+    },
     setZoom: function (value) {
       if (!preview || !canvas) return;
       zoom = Math.max(0.08, Math.min(8, value));
