@@ -1792,6 +1792,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  function createSection() {',
       "    const members = documentState && documentState.nodes.filter(function (node) { return selected.has(node.id) && node.type !== 'section'; });",
       "    if (!members || !members.length) { setError('请先选择要放入分区的卡片。'); return; }",
+      '    if (ui015Workflow && members.some(function (node) { return node.sectionId && ui015Workflow.isActive(node.sectionId); })) { setError("Bbox 流程正在执行，请等待本轮流程结束后再调整分组。"); return; }',
       '    if (groupQueue && members.some(function (node) { return groupQueue.protects(node.id); })) { setError("请先停止相关队列，再调整分组。"); return; }',
       '    const padding = 28;',
       '    const left = Math.min.apply(null, members.map(function (node) { return node.x; })) - padding;',
