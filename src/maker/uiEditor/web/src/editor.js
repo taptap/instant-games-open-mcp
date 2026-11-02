@@ -562,6 +562,14 @@
     hideExternalChange();
     updateDirtyUi();
   }
+  // Hosts may show their own confirm dialog (UrhoxHost.confirm resolves true / false).
+  function askConfirm(options) {
+    var host = window.UrhoxHost;
+    if (host && typeof host.confirm === "function") {
+      return Promise.resolve(host.confirm(options)).then(Boolean, function () { return false; });
+    }
+    return Promise.resolve(confirm(options.title + "\n" + options.message));
+  }
   // External edits to the open document (e.g. an Agent rewrote it on disk). A clean document
   // reloads in place; unsaved edits are never overwritten, a bar offers the reload instead.
   var externalBar = null;
@@ -582,8 +590,13 @@
       reload.addEventListener("click", function () {
         var target = externalBar.file;
         if (!target || target.path !== currentFilePath()) { hideExternalChange(); return; }
-        if (isDirty() && !confirm("重新加载会放弃你未保存的修改，载入磁盘上的最新版本。继续吗？")) return;
-        void reloadFromDisk(target);
+        if (!isDirty()) { void reloadFromDisk(target); return; }
+        void askConfirm({
+          title: "重新加载文档？",
+          message: "会放弃你未保存的修改，载入文档的最新版本。",
+          confirmLabel: "重新加载",
+          danger: true,
+        }).then(function (ok) { if (ok) void reloadFromDisk(target); });
       });
       // Keep my version: save over the file as it is on disk now, dropping the other edits.
       var overwrite = document.createElement("button");
@@ -593,8 +606,12 @@
       overwrite.addEventListener("click", function () {
         var target = externalBar.file;
         if (!target || target.path !== currentFilePath()) { hideExternalChange(); return; }
-        if (!confirm("覆盖保存会用你的版本替换磁盘上的文档，Agent 的修改会丢失。继续吗？")) return;
-        void overwriteDisk(target);
+        void askConfirm({
+          title: "覆盖保存？",
+          message: "会用你的版本替换文档的最新版本，新版本中的修改会丢失。",
+          confirmLabel: "覆盖保存",
+          danger: true,
+        }).then(function (ok) { if (ok) void overwriteDisk(target); });
       });
       externalBar.appendChild(label);
       externalBar.appendChild(reload);
@@ -603,8 +620,8 @@
     }
     externalBar.file = file;
     externalBar.querySelector(".external-change-text").textContent = saveFailed
-      ? "Agent 修改了这个文档，你的修改没有保存。"
-      : "Agent 修改了这个文档。";
+      ? "文档有新版本，你的修改没有保存。"
+      : "文档有新版本。";
     externalBar.hidden = false;
   }
   async function reloadFromDisk(file, text) {
