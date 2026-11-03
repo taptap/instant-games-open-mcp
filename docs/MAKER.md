@@ -487,6 +487,20 @@ Maker MCP 使用已有 `tapmaker_mcp_call` action 上报本地开发活跃，并
 外层应用（例如 Cindy 内运行的 Codex）。服务端 `/tracking` 需保留这两个可选字段，
 才能按客户端分析调用及模型信息缺失情况。
 
+每次发送前另行读取当前会话模型，最多等待 1 秒，不缓存模型结果。可选字段为
+`args.client_model_id`、`args.client_model_name`、`args.resolved_model` 和
+`args.model_provider`；缺失字段省略，只有来源明确给出 `auto` 时才保留该值。
+WorkBuddy 从父进程开始最多向上查找 6 层，通过 `.workbuddy/sessions/<pid>.json`
+定位会话，读取对应 JSONL 最后 1 MiB 中最新完整记录的 `providerData`。
+Cindy/Codex 在 macOS/Linux 上通过 `lsof` 查找祖先 Codex 进程实际打开的唯一
+`thread-writer-locks/<会话ID>.lock`，使用 `sqlite3` 只读查询同目录所属
+`state_5.sqlite` 的 `threads.model` 和 `model_provider`，不会按全局配置或最近会话猜测。
+Windows 使用 `Win32_Process.ParentProcessId` 查找 WorkBuddy 会话；本次不支持
+Windows Codex 的会话锁读取。命令不可用、权限不足、记录损坏、锁不唯一或解析超时，
+均省略模型信息并继续发送原事件，不自动安装依赖或调用额外 AI。
+模型字段表示上报时的会话状态；长任务执行期间切换模型时，可能与发起任务时不同。
+服务端 `/tracking` 需同时保留上述四个模型字段才能进入统计。
+
 Tool 调用、`maker://status` Resource 读取和 MCP 启动都计入本地活跃；Tool 使用真实工具名，
 Resource 使用 `maker://status`，启动事件使用 `@taptap/maker@<version>`。上报是异步的，
 tracking 请求失败不会改变 MCP Tool 或 Resource 的结果。错误信息上报前会脱敏 PAT、Bearer、

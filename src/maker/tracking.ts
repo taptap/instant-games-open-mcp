@@ -3,6 +3,7 @@
  */
 
 import { getMakerApiBaseUrl } from './config.js';
+import { resolveMakerClientModel, type MakerClientModel } from './clientModel.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 
@@ -37,7 +38,7 @@ export interface MakerMcpActivityEvent {
 export interface MakerMcpTrackingPayload {
   action: typeof MAKER_MCP_TRACKING_ACTION;
   user_agent?: string;
-  args: {
+  args: MakerClientModel & {
     user_id: string;
     project_id: string;
     tool_name: string;
@@ -139,6 +140,8 @@ export async function reportMakerMcpActivity(event: MakerMcpActivityEvent): Prom
   if (!payload) {
     return;
   }
+
+  Object.assign(payload.args, await resolveMakerClientModel());
 
   const fetchImpl = event.fetchImpl || fetch;
   const controller = new AbortController();
