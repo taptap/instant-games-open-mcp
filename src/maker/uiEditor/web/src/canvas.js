@@ -259,7 +259,9 @@
     if (kind === "selected") {
       strokeAccentRect(ctx, app, box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1), 1.5);
       var hs = handleSize(app);
-      handlesFor(box).forEach(function (h) { drawHandle(ctx, app, h.x, h.y, hs); });
+      handlesFor(box).forEach(function (h) {
+        if (h.id.length === 2) drawHandle(ctx, app, h.x, h.y, hs);
+      });
     } else if (kind === "hover") {
       strokeAccentRect(ctx, app, box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1), 1);
     }
@@ -431,7 +433,7 @@
               ctx.lineWidth = screenLine(app, 1);
               ctx.beginPath(); ctx.moveTo(h.x, bounds.y); ctx.lineTo(h.x, h.y); ctx.stroke();
               ctx.beginPath(); ctx.arc(h.x, h.y, hs/2, 0, Math.PI*2); ctx.fill();
-            } else {
+            } else if (h.id.length === 2) {
               drawHandle(ctx, app, h.x, h.y, hs);
             }
           });
