@@ -1,19 +1,28 @@
 import { execFile } from 'node:child_process';
-import { open } from 'node:fs/promises';
+import { open, opendir, realpath } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 
 const execFileAsync = promisify(execFile);
 const MODEL_LOOKUP_TIMEOUT_MS = 1000;
 const MAX_SESSION_BYTES = 64 * 1024;
 const MAX_TRANSCRIPT_BYTES = 1024 * 1024;
+const MAX_SCAN_ENTRIES = 512;
 
 export interface MakerClientModel {
   client_model_id?: string;
   client_model_name?: string;
   resolved_model?: string;
   model_provider?: string;
+  model_lookup_scope?: 'current_session' | 'latest_session';
+}
+
+export interface MakerClientModelContext {
+  clientName?: string;
+  /** Validated project directory; used only for local lookup, never sent in telemetry. */
+  projectDir?: string;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -161,7 +170,190 @@ async function readCodexModel(pid: number, signal: AbortSignal): Promise<MakerCl
   };
 }
 
-async function readCurrentSessionModel(signal: AbortSignal): Promise<MakerClientModel> {
+async function directoryNames(directory: string, signal: AbortSignal): Promise<string[]> {
+  const names: string[] = [];
+  let count = 0;
+  const handle = await opendir(directory);
+  for await (const entry of handle) {
+    signal.throwIfAborted();
+    if (++count > MAX_SCAN_ENTRIES) throw new Error('Session scan limit exceeded');
+    if (entry.isDirectory()) names.push(entry.name);
+  }
+  return names;
+}
+
+async function sameProject(candidate: unknown, projectDir: string): Promise<boolean> {
+  if (typeof candidate !== 'string' || !path.isAbsolute(candidate)) return false;
+  try {
+    const resolved = await realpath(candidate);
+    return process.platform === 'win32'
+      ? resolved.toLowerCase() === projectDir.toLowerCase()
+      : resolved === projectDir;
+  } catch {
+    return false;
+  }
+}
+
+async function readKiroModel(projectDir: string, signal: AbortSignal): Promise<MakerClientModel> {
+  const root = path.join(os.homedir(), '.kiro', 'sessions');
+  let latest: Record<string, unknown> | undefined;
+  let latestTime = -Infinity;
+  let tied = false;
+  let count = 0;
+  for (const workspace of await directoryNames(root, signal)) {
+    for (const session of await directoryNames(path.join(root, workspace), signal)) {
+      signal.throwIfAborted();
+      if (++count > MAX_SCAN_ENTRIES) return {};
+      if (!session.startsWith('sess_')) continue;
+      let record: Record<string, unknown> | undefined;
+      try {
+        record = asRecord(
+          JSON.parse(
+            await readSessionText(
+              path.join(root, workspace, session, 'session.json'),
+              false,
+              signal
+            )
+          )
+        );
+      } catch {
+        signal.throwIfAborted();
+        continue;
+      }
+      if (!Array.isArray(record?.workspacePaths)) continue;
+      let matchesProject = false;
+      for (const candidate of record.workspacePaths) {
+        signal.throwIfAborted();
+        if (await sameProject(candidate, projectDir)) {
+          matchesProject = true;
+          break;
+        }
+      }
+      const modified =
+        typeof record.lastModifiedAt === 'string' ? Date.parse(record.lastModifiedAt) : NaN;
+      if (!matchesProject || !Number.isFinite(modified)) continue;
+      if (modified > latestTime) {
+        latest = record;
+        latestTime = modified;
+        tied = false;
+      } else if (modified === latestTime) {
+        tied = true;
+      }
+    }
+  }
+  const id = modelString(latest?.modelId);
+  if (tied || !id) return {};
+  return {
+    client_model_id: id,
+    client_model_name: modelString(asRecord(latest?.contextSnapshotModelDisplay)?.display),
+    model_lookup_scope: 'latest_session',
+  };
+}
+
+async function readTraeValueRows(
+  database: string,
+  condition: string,
+  signal: AbortSignal
+): Promise<unknown[]> {
+  const result = await run(
+    'sqlite3',
+    [
+      '-readonly',
+      '-json',
+      '-init',
+      process.platform === 'win32' ? 'NUL' : '/dev/null',
+      '-cmd',
+      '.timeout 100',
+      database,
+      'SELECT value FROM ItemTable WHERE ' + condition + ';',
+    ],
+    signal
+  );
+  const rows: unknown = JSON.parse(result || '[]');
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function readTraeModel(projectDir: string, signal: AbortSignal): Promise<MakerClientModel> {
+  const appData =
+    process.platform === 'darwin'
+      ? path.join(os.homedir(), 'Library', 'Application Support')
+      : process.platform === 'win32'
+        ? process.env.APPDATA
+        : undefined;
+  if (!appData || !path.isAbsolute(appData)) return {};
+  const root = path.join(appData, 'Trae CN', 'User');
+  const workspaces = path.join(root, 'workspaceStorage');
+  const matches: string[] = [];
+  for (const workspace of await directoryNames(workspaces, signal)) {
+    signal.throwIfAborted();
+    try {
+      const record = asRecord(
+        JSON.parse(
+          await readSessionText(path.join(workspaces, workspace, 'workspace.json'), false, signal)
+        )
+      );
+      if (typeof record?.folder !== 'string' || !record.folder.startsWith('file:')) continue;
+      if (await sameProject(fileURLToPath(record.folder), projectDir)) matches.push(workspace);
+    } catch {
+      signal.throwIfAborted();
+    }
+  }
+  if (matches.length !== 1) return {};
+  const sessions = await readTraeValueRows(
+    path.join(workspaces, matches[0], 'state.vscdb'),
+    "key = 'ai-chat-v2.lastActiveSessionId'",
+    signal
+  );
+  const sessionId = sessions.length === 1 ? modelString(asRecord(sessions[0])?.value) : undefined;
+  if (!sessionId) return {};
+  const rows = await readTraeValueRows(
+    path.join(root, 'globalStorage', 'state.vscdb'),
+    "substr(key, -length(':AI.agent.model.session_selected_model')) = " +
+      "':AI.agent.model.session_selected_model'",
+    signal
+  );
+  const models = new Set<string>();
+  for (const row of rows) {
+    signal.throwIfAborted();
+    const value = asRecord(row)?.value;
+    if (typeof value !== 'string') return {};
+    const selections = asRecord(asRecord(JSON.parse(value))?.[sessionId]);
+    if (!selections) continue;
+    for (const selection of Object.values(selections)) {
+      const id = modelString(asRecord(selection)?.modelId);
+      if (!id) return {};
+      models.add(id);
+    }
+  }
+  // The active Agent label is unknown; never prefer one of several different models.
+  return models.size === 1
+    ? { client_model_id: [...models][0], model_lookup_scope: 'latest_session' }
+    : {};
+}
+
+function fallbackClient(name: string): 'kiro' | 'trae-cn' | undefined {
+  if (/^(?:kiro)(?:[ ._-].*)?$/i.test(name)) return 'kiro';
+  if (/^trae[ _-]cn(?:[ ._-].*)?$/i.test(name)) return 'trae-cn';
+  return undefined;
+}
+
+async function readLatestSessionModel(
+  client: 'kiro' | 'trae-cn',
+  context: MakerClientModelContext,
+  signal: AbortSignal
+): Promise<MakerClientModel> {
+  if (!context.projectDir) return {};
+  const projectDir = await realpath(context.projectDir);
+  signal.throwIfAborted();
+  return client === 'kiro' ? readKiroModel(projectDir, signal) : readTraeModel(projectDir, signal);
+}
+
+async function readCurrentSessionModel(
+  signal: AbortSignal,
+  context: MakerClientModelContext
+): Promise<MakerClientModel> {
+  const client = fallbackClient(context.clientName?.trim() || '');
+  if (client) return readLatestSessionModel(client, context, signal);
   const output =
     process.platform === 'win32'
       ? await run(
@@ -193,14 +385,19 @@ async function readCurrentSessionModel(signal: AbortSignal): Promise<MakerClient
     if (/(?:^|[/\\])codex(?:\.exe)?$/i.test(ancestor.command)) {
       return readCodexModel(pid, signal);
     }
+    const app = ancestor.command.split(/[/\\]/).find((part) => /\.app$/i.test(part));
+    const editor = fallbackClient(path.basename(ancestor.command)) ?? fallbackClient(app ?? '');
+    if (editor) return readLatestSessionModel(editor, context, signal);
     if (ancestor.parent === pid) break;
     pid = ancestor.parent;
   }
   return {};
 }
 
-/** Read the owning session at report time; absence and failures never block tracking. */
-export async function resolveMakerClientModel(): Promise<MakerClientModel> {
+/** Read at report time; explicitly mark latest-session fallbacks and isolate all failures. */
+export async function resolveMakerClientModel(
+  context: MakerClientModelContext = {}
+): Promise<MakerClientModel> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<MakerClientModel>((resolve) => {
@@ -210,7 +407,12 @@ export async function resolveMakerClientModel(): Promise<MakerClientModel> {
     }, MODEL_LOOKUP_TIMEOUT_MS);
   });
   try {
-    return await Promise.race([readCurrentSessionModel(controller.signal), timeout]);
+    const model = await Promise.race([
+      readCurrentSessionModel(controller.signal, context),
+      timeout,
+    ]);
+    if (!Object.values(model).some(Boolean)) return {};
+    return { ...model, model_lookup_scope: model.model_lookup_scope ?? 'current_session' };
   } catch {
     return {};
   } finally {

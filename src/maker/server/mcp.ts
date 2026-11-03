@@ -1054,7 +1054,7 @@ async function resolveMakerMcpTrackingContext(options: {
     if (!userId || !projectId) {
       return null;
     }
-    return { userId, projectId, clientInfo: options.clientInfo };
+    return { userId, projectId, clientInfo: options.clientInfo, projectDir: identify.projectRoot };
   } catch {
     return null;
   }

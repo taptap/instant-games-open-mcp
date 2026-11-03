@@ -20,6 +20,7 @@ export interface MakerMcpTrackingContext {
   userId: string;
   projectId: string;
   clientInfo?: { name: string; version: string };
+  projectDir?: string;
 }
 
 export interface MakerMcpActivityEvent {
@@ -141,7 +142,13 @@ export async function reportMakerMcpActivity(event: MakerMcpActivityEvent): Prom
     return;
   }
 
-  Object.assign(payload.args, await resolveMakerClientModel());
+  Object.assign(
+    payload.args,
+    await resolveMakerClientModel({
+      clientName: event.context.clientInfo?.name,
+      projectDir: event.context.projectDir,
+    })
+  );
 
   const fetchImpl = event.fetchImpl || fetch;
   const controller = new AbortController();

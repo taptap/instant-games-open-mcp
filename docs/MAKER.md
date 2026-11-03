@@ -487,9 +487,11 @@ Maker MCP 使用已有 `tapmaker_mcp_call` action 上报本地开发活跃，并
 外层应用（例如 Cindy 内运行的 Codex）。服务端 `/tracking` 需保留这两个可选字段，
 才能按客户端分析调用及模型信息缺失情况。
 
-每次发送前另行读取当前会话模型，最多等待 1 秒，不缓存模型结果。可选字段为
+每次发送前另行读取会话模型，最多等待 1 秒，不缓存模型结果。可选字段为
 `args.client_model_id`、`args.client_model_name`、`args.resolved_model` 和
 `args.model_provider`；缺失字段省略，只有来源明确给出 `auto` 时才保留该值。
+取得模型信息时附带 `args.model_lookup_scope`：`current_session` 表示通过会话记录或唯一锁
+直接关联，`latest_session` 表示当前项目最新/最后活跃对话的降级值，统计时应区分这两类。
 WorkBuddy 从父进程开始最多向上查找 6 层，通过 `.workbuddy/sessions/<pid>.json`
 定位会话，读取对应 JSONL 最后 1 MiB 中最新完整记录的 `providerData`。
 Cindy/Codex 在 macOS/Linux 上通过 `lsof` 查找祖先 Codex 进程实际打开的唯一
@@ -497,15 +499,35 @@ Cindy/Codex 在 macOS/Linux 上通过 `lsof` 查找祖先 Codex 进程实际打�
 `state_5.sqlite` 的 `threads.model` 和 `model_provider`，不会按全局配置或最近会话猜测。
 此方式仅适用于能取得唯一会话锁的运行方式，不代表所有名为 Codex 的客户端都支持。
 Windows 使用 `Win32_Process.ParentProcessId` 查找 WorkBuddy 会话；本次不支持
-Windows Codex 的会话锁读取。命令不可用、权限不足、记录损坏、锁不唯一或解析超时，
+Windows Codex 的会话锁读取。
+
+Kiro 和 Trae CN 根据握手名称或祖先进程识别，使用当前已解析项目的 realpath 匹配工作区，
+仅在默认数据目录读取以下降级来源，不跨项目选择，也不把最后活跃对话当作调用所属对话：
+
+- Kiro：读取 `~/.kiro/sessions/<工作区>/sess_*/session.json`，从 `workspacePaths`
+  匹配项目的记录中选 `lastModifiedAt` 最新的一条，读取 `modelId` 和
+  `contextSnapshotModelDisplay.display`。时间并列或最新记录没有模型时省略，不取旧模型补齐。
+- Trae CN：macOS 使用 `~/Library/Application Support/Trae CN/User`，Windows 使用
+  `%APPDATA%/Trae CN/User`。从 `workspaceStorage/*/workspace.json` 匹配唯一项目，
+  只读查询其 `state.vscdb` 的 `ai-chat-v2.lastActiveSessionId`，再读
+  `globalStorage/state.vscdb` 中键后缀为 `:AI.agent.model.session_selected_model` 的记录。
+  保留该会话原始 `modelId`（包括 `solo_agent_1__` 等前缀）；不同 Agent 标签记录不同模型时
+  省略，不优先猜测 `solo_agent`，也不补造服务商或实际执行模型。需要系统可用的 `sqlite3`。
+
+上述降级限制目录扫描数量和元数据大小，沿用同一 1 秒总预算；不读取聊天正文或匹配工具参数。
+仅适用于匹配上述文件结构的版本和默认配置目录；Windows 的路径分支有模拟验证，真实编辑器
+仍需联调。多根工作区、定制数据目录和其他编辑器无已验证来源时允许返回空。
+命令不可用、权限不足、记录损坏、锁不唯一或解析超时，
 均省略模型信息并继续发送原事件，不自动安装依赖或调用额外 AI。
 模型字段表示上报时的会话状态；长任务执行期间切换模型时，可能与发起任务时不同。
-服务端 `/tracking` 需同时保留上述四个模型字段才能进入统计。
+服务端 `/tracking` 需同时保留上述四个模型字段和 `model_lookup_scope` 才能按来源进入统计。
 
 切换 Agent 编辑器后，让该会话的 AI 在本仓库执行 `npm run test:maker:model`：
 先运行独立单元测试，再显示真实模型读取结果和耗时，不发送打点。
 可加 `-- --expect-model <模型ID>` 核对当前选择；不匹配或读不到时返回非零退出码。
 未指定预期值时，`DETECTED` 表示读到模型，`UNAVAILABLE` 表示正常降级，不能当作获取成功。
+输出 `model.model_lookup_scope = latest_session` 时，即使预期 ID 匹配，也只证明降级值一致，
+不能据此认定已准确关联调用所属对话。
 应通过 AI 的终端工具执行，普通系统终端可能没有会话关联；本自检不验证 MCP 握手或服务端入库。
 
 Tool 调用、`maker://status` Resource 读取和 MCP 启动都计入本地活跃；Tool 使用真实工具名，
