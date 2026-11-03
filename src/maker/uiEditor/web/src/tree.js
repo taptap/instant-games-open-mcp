@@ -84,13 +84,15 @@
       window.UrhoxUiTools.highlight(extraEl, "  " + label.extra, opts.query || "");
       row.appendChild(extraEl);
     }
-    if (selected) {
+    {
       if (opts.onAdd) {
         var add = document.createElement("button");
         add.type = "button";
         add.className = "tree-add";
         add.textContent = "+";
         add.title = "添加子节点";
+        add.setAttribute("aria-label", add.title);
+        add.dataset.action = "add";
         add.addEventListener("click", function (event) {
           event.preventDefault();
           event.stopPropagation();
@@ -104,6 +106,8 @@
         del.className = "tree-add";
         del.textContent = "×";
         del.title = "删除节点";
+        del.setAttribute("aria-label", del.title);
+        del.dataset.action = "delete";
         del.addEventListener("click", function (event) {
           event.preventDefault();
           event.stopPropagation();

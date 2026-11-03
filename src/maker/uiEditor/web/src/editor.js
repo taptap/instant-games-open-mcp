@@ -363,6 +363,7 @@
     var count = document.getElementById("entrySearchCount");
     if (count) count.textContent = query.trim() ? files.length + " 项" : "";
     renderFileList(files);
+    window.dispatchEvent(new Event("urhox:documentschange"));
   }
 
   function isDirty(path) {
@@ -913,6 +914,13 @@
   window.UrhoxProject = {
     render: renderAll,
     get: function () { return project; },
+    // Detached snapshots: hosts cannot mutate editor state through the document picker.
+    listDocuments: function () {
+      return project.files.map(function (file) {
+        return { path: file.path, displayPath: window.UrhoxConfig.displayPath(file.path),
+          name: file.name, dirty: isDirty(file.path), active: currentFilePath() === file.path };
+      });
+    },
     setDirty: setDirty,
     isDirty: isDirty,
     saveCurrent: saveCurrent,

@@ -248,26 +248,43 @@
       var wrap = document.createElement("div");
       wrap.className = "nanovg-field";
       var input = document.createElement("textarea");
-      input.rows = field.key === "commands" ? 12 : 2;
+      input.rows = field.key === "commands" ? 12 : 1;
       input.value = formatJson(value);
       input.setAttribute("aria-label", field.label);
-      var apply = document.createElement("button");
-      apply.type = "button"; apply.textContent = "应用";
       var error = document.createElement("p"); error.setAttribute("role", "status");
-      apply.addEventListener("click", function () {
+      function commit() {
         try {
           var parsed = JSON.parse(input.value), candidate = Object.assign({}, node);
           candidate[field.key] = parsed;
           var problems = [];
           root.UrhoxUICheck.checkNanoVG(candidate, function (at, message) { problems.push(at + ": " + message); }, function () {});
           if (problems.length) throw new Error(problems.join("\n"));
+          error.textContent = "";
+          if (JSON.stringify(parsed) === JSON.stringify(node[field.key])) return;
           emitChange(onChange, { phase: "start" });
           node[field.key] = parsed;
-          emitChange(onChange, { phase: "end" });
-          error.textContent = "";
+          if (summary) summary.textContent = parsed.length + " 条指令 · 编辑";
+          input.value = formatJson(parsed);
+          // Keep pointer targets alive when blur comes from clicking another row or field.
+          emitChange(onChange, { phase: "end", live: true });
         } catch (e) { error.textContent = "未应用：" + e.message; }
+      }
+      input.addEventListener("blur", commit);
+      input.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+          event.preventDefault(); event.stopPropagation();
+          input.value = formatJson(node[field.key]);
+          error.textContent = "";
+        }
       });
-      wrap.appendChild(input); wrap.appendChild(apply); wrap.appendChild(error);
+      if (field.key === "commands") {
+        var details = document.createElement("details");
+        var summary = document.createElement("summary");
+        summary.textContent = (Array.isArray(value) ? value.length : 0) + " 条指令 · 编辑";
+        details.appendChild(summary); details.appendChild(input);
+        wrap.appendChild(details);
+      } else wrap.appendChild(input);
+      wrap.appendChild(error);
       return wrap;
     } else if (field.kind === "readonly") {
       control = document.createElement("input");
@@ -409,6 +426,7 @@
     if (field.kind === "asset") return renderAssetField(node, field, onChange);
     var wrap = document.createElement("label");
     wrap.className = "insp-cell";
+    wrap.dataset.field = field.key;
     var name = document.createElement("span");
     name.className = "insp-key";
     name.textContent = field.label;
@@ -520,7 +538,7 @@
     block.appendChild(actions);
     var dropHint = document.createElement("div");
     dropHint.className = "slice-hint";
-    dropHint.textContent = "可从底部 Assets 拖一张图到这里";
+    dropHint.textContent = "可从资产列表拖一张图到这里";
     block.appendChild(dropHint);
     function takeRef(event) {
       return window.UrhoxProject && window.UrhoxProject.dropImageRef
@@ -552,6 +570,7 @@
   function renderGroup(group, node, onChange) {
     var block = document.createElement("div");
     block.className = "insp-group" + (isOpen(group) ? " open" : "");
+    block.dataset.group = group.id;
     var title = document.createElement("button");
     title.type = "button";
     title.className = "insp-fold";

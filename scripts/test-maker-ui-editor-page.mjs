@@ -65,6 +65,14 @@ const documentText = JSON.stringify({
       width: 100,
       height: 100,
     },
+    {
+      type: 'NanoVG',
+      id: 'vector',
+      width: 80,
+      height: 80,
+      viewBox: [0, 0, 80, 80],
+      commands: [['beginPath'], ['rect', 0, 0, 20, 20], ['fillColor', '#ff0000'], ['fill']],
+    },
   ],
 });
 const requested = [];
@@ -173,11 +181,85 @@ try {
     scale: 1.5,
   });
   assert.deepEqual(errors, []);
+  const snapshot = await page.evaluate(() => {
+    const before = window.UrhoxProject.listDocuments();
+    before[0].name = 'mutated';
+    return window.UrhoxProject.listDocuments()[0];
+  });
+  assert.equal(snapshot.name, 'main.ui.json');
+  assert.equal(snapshot.displayPath, 'assets/ui/main.ui.json');
+  await page.evaluate(() =>
+    window.UrhoxPreview.selectNode(window.UrhoxPreview.tree.children[2], true)
+  );
+  const commands = page.locator('[data-field="commands"] textarea');
+  await page.getByText('4 条指令 · 编辑', { exact: true }).click();
+  const changedCommands = JSON.stringify([
+    ['beginPath'],
+    ['rect', 0, 0, 30, 30],
+    ['fillColor', '#ff0000'],
+    ['fill'],
+    ['beginPath'],
+  ]);
+  await commands.fill(changedCommands);
+  // Blur must not rebuild and swallow the click intended for another tree row.
+  await page.locator('.tree-row').nth(1).click();
+  assert.equal(await page.evaluate(() => window.UrhoxPreview.selected.id), 'hero');
+  assert.equal(await page.evaluate(() => window.UrhoxPreview.tree.children[2].commands.length), 5);
+  await page.evaluate(() => window.UrhoxPreview.undo());
+  assert.equal(await page.evaluate(() => window.UrhoxPreview.tree.children[2].commands.length), 4);
+  await page.evaluate(() => window.UrhoxPreview.redo());
+  assert.equal(await page.evaluate(() => window.UrhoxPreview.tree.children[2].commands.length), 5);
+  await page.evaluate(() =>
+    window.UrhoxPreview.selectNode(window.UrhoxPreview.tree.children[2], true)
+  );
+  await page.getByText('5 条指令 · 编辑', { exact: true }).click();
+  await commands.fill('[bad json');
+  await commands.press('Tab');
+  assert.equal(await page.evaluate(() => window.UrhoxPreview.selected.commands.length), 5);
+  assert.match(
+    await page.locator('[data-field="commands"] [role="status"]').textContent(),
+    /未应用/
+  );
+  await commands.press('Escape');
+  await commands.fill('[["unknownCommand"]]');
+  await commands.press('Tab');
+  assert.equal(await page.evaluate(() => window.UrhoxPreview.selected.commands.length), 5);
+  assert.match(
+    await page.locator('[data-field="commands"] [role="status"]').textContent(),
+    /未应用/
+  );
+  await commands.press('Escape');
+  const safeFit = await page.evaluate(() => {
+    const preview = document.getElementById('preview');
+    window.UrhoxHost.previewViewport = () => ({
+      left: 100,
+      top: 20,
+      width: preview.clientWidth - 100,
+      height: preview.clientHeight - 60,
+    });
+    window.UrhoxView.fit();
+    const canvas = document.getElementById('stage');
+    const box = canvas.getBoundingClientRect(),
+      area = preview.getBoundingClientRect();
+    const z = window.UrhoxView.getZoom();
+    const left = box.left + Number(canvas.dataset.originX || 0) * z;
+    const top = box.top + Number(canvas.dataset.originY || 0) * z;
+    const right = box.right - Number(canvas.dataset.originX || 0) * z;
+    const bottom = box.bottom - Number(canvas.dataset.originY || 0) * z;
+    return (
+      left >= area.left + 100 &&
+      top >= area.top + 20 &&
+      right <= area.right &&
+      bottom <= area.bottom - 40
+    );
+  });
+  assert.equal(safeFit, true);
+  assert.deepEqual(errors, []);
   for (let tries = 0; tries < 50 && requested.length < 3; tries++) await page.waitForTimeout(100);
   assert.ok(requested.includes('assets/image/a b.png'), 'host asset URL resolves encoded paths');
   assert.ok(requested.includes('assets/ui/main.reference.png'), 'reference image loads');
   console.log(
-    'PASS: single-page boot, host manifest/read/save, encoded asset URLs, reference image'
+    'PASS: single-page host, document snapshots, inspector transforms, NanoVG blur/validation/undo, safe fit, asset URLs'
   );
 } finally {
   await browser.close();

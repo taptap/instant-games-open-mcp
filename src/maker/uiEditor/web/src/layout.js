@@ -95,19 +95,31 @@
     if (zoomLabel) zoomLabel.textContent = Math.round(zoom * 100) + "%";
   }
 
+  // A host may reserve canvas space occupied by floating controls.
+  function fitViewport(width, height) {
+    var full = { left: 0, top: 0, width: preview.clientWidth, height: preview.clientHeight };
+    var host = window.UrhoxHost;
+    var area = host && typeof host.previewViewport === "function" ? host.previewViewport({ width: width, height: height }) : null;
+    if (!area || ![area.left, area.top, area.width, area.height].every(Number.isFinite) || area.width <= 0 || area.height <= 0) return full;
+    var left = Math.max(0, Math.min(full.width - 1, area.left));
+    var top = Math.max(0, Math.min(full.height - 1, area.top));
+    return { left: left, top: top, width: Math.min(area.width, full.width - left), height: Math.min(area.height, full.height - top) };
+  }
+
   function fitPreview() {
     if (!preview || !canvas) return;
     var originX = Number(canvas.dataset.originX || 0);
     var originY = Number(canvas.dataset.originY || 0);
     var designW = canvas.width - originX * 2;
     var designH = canvas.height - originY * 2;
-    var margin = 72;
-    var sx = (preview.clientWidth - margin) / Math.max(1, designW);
-    var sy = (preview.clientHeight - margin) / Math.max(1, designH);
+    var area = fitViewport(designW, designH);
+    var margin = Math.min(72, area.width / 3, area.height / 3);
+    var sx = (area.width - margin) / Math.max(1, designW);
+    var sy = (area.height - margin) / Math.max(1, designH);
     var cap = designW < 480 || designH < 480 ? 4 : 1.5;
     zoom = Math.max(0.08, Math.min(sx, sy, cap));
-    panX = (preview.clientWidth - designW * zoom) / 2 - originX * zoom;
-    panY = (preview.clientHeight - designH * zoom) / 2 - originY * zoom;
+    panX = area.left + (area.width - designW * zoom) / 2 - originX * zoom;
+    panY = area.top + (area.height - designH * zoom) / 2 - originY * zoom;
     applyView();
   }
 
@@ -288,11 +300,12 @@
       var sy = originY + fit.y + box.y * fit.scale;
       var sw = box.w * fit.scale;
       var sh = box.h * fit.scale;
-      var pad = 64;
-      var z = Math.min((preview.clientWidth - pad) / sw, (preview.clientHeight - pad) / sh, 8);
+      var area = fitViewport(sw, sh);
+      var pad = Math.min(64, area.width / 3, area.height / 3);
+      var z = Math.min((area.width - pad) / sw, (area.height - pad) / sh, 8);
       zoom = Math.max(0.08, z);
-      panX = (preview.clientWidth - sw * zoom) / 2 - sx * zoom;
-      panY = (preview.clientHeight - sh * zoom) / 2 - sy * zoom;
+      panX = area.left + (area.width - sw * zoom) / 2 - sx * zoom;
+      panY = area.top + (area.height - sh * zoom) / 2 - sy * zoom;
       applyView();
     },
     zoomBy: function (factor) {

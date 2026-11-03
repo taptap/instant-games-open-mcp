@@ -160,6 +160,12 @@ Lua 自绘逻辑不能直接作为普通 Panel 导入。随包 MakerNanoVG.lua �
 未定义时使用控制台路由。控制台仍按原目录提供，行为不变。
 宿主可设置 layout.inspectorTransforms: true，将现有选区旋转 / 缩放输入移入 Rect Transform；
 保留单选绝对值、多选增量和禁用条件，未设置时继续使用画布工具行。
+宿主文档下拉使用 UrhoxProject.listDocuments() 的独立快照（path / displayPath / name / dirty / active），
+通过 urhox:documentschange 事件更新，切换继续走 openUiPath() 及未保存确认。
+宿主可提供 previewViewport({width,height})，返回预览区域内的可用矩形（left / top / width / height），
+适应整页和适应选区会使用该矩形避开浮动工具条。
+NanoVG 绘制指令默认折叠为条数摘要，坐标范围和指令失焦时先校验再提交；无效输入保留错误提示，
+有效修改形成一次撤销记录，Esc 放弃当前输入。
 
 验证：npx jest --runInBand src/**tests**/makerUiEditor.test.ts；
 node scripts/test-maker-ui-editor.mjs 与 npm run test:maker:ui-editor-page（Playwright 可用时）。
