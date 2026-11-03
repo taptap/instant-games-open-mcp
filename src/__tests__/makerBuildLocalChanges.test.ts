@@ -4614,7 +4614,6 @@ describe('maker build local-change guard', () => {
       'target_dir',
       'skip_remote_sync',
       'detail',
-      '_maker_client_model',
     ]);
     for (const tool of [statusTool, buildTool]) {
       expect(tool?.inputSchema.properties).not.toHaveProperty('jwt');

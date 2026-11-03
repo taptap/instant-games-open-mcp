@@ -9,11 +9,13 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
+  createMakerClientModelResolver,
   extractMakerClientModelRequest,
   MAKER_CLIENT_MODEL_META_KEY,
   resolveMakerClientModel,
 } from '../maker/clientModel';
 import { reportMakerMcpActivity } from '../maker/tracking';
+import { findWindowsCodexThread } from '../maker/clientModel/windowsCodexThread';
 
 jest.mock('node:child_process', () => {
   const { promisify } = jest.requireActual('node:util');
@@ -23,6 +25,7 @@ jest.mock('node:child_process', () => {
 const run = promisify(execFile) as unknown as jest.Mock;
 const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')!;
 const threadId = '01234567-89ab-cdef-0123-456789abcdef';
+const savedEnvironment = { ...process.env };
 let home: string;
 
 function workBuddySession() {
@@ -40,6 +43,9 @@ function workBuddySession() {
 
 beforeEach(() => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-model-test-'));
+  delete process.env.CODEX_THREAD_ID;
+  delete process.env.CODEX_HOME;
+  process.env.APPDATA = path.join(home, 'AppData', 'Roaming');
   jest.spyOn(os, 'homedir').mockReturnValue(home);
   Object.defineProperty(process, 'platform', { ...platformDescriptor, value: 'darwin' });
   run.mockReset().mockImplementation(async (command: string) => {
@@ -52,6 +58,10 @@ afterEach(() => {
   jest.useRealTimers();
   jest.restoreAllMocks();
   Object.defineProperty(process, 'platform', platformDescriptor);
+  for (const key of ['CODEX_THREAD_ID', 'CODEX_HOME', 'APPDATA']) {
+    if (savedEnvironment[key] === undefined) delete process.env[key];
+    else process.env[key] = savedEnvironment[key];
+  }
   fs.rmSync(home, { recursive: true, force: true });
 });
 
@@ -230,6 +240,7 @@ test('preserves explicit auto and rereads the latest WorkBuddy selection on each
     }) + '\n'
   );
   expect(await resolveMakerClientModel()).toEqual({
+    client_ide_name: 'WorkBuddy',
     client_model_id: 'model-b',
     client_model_name: 'Model B',
     resolved_model: 'resolved-b',
@@ -255,6 +266,7 @@ test('does not fill missing fields from an older record or another session in th
     JSON.stringify({ providerData: { requestModelId: 'other-session' } })
   );
   expect(JSON.parse(JSON.stringify(await resolveMakerClientModel()))).toEqual({
+    client_ide_name: 'WorkBuddy',
     resolved_model: 'current-resolved',
     model_lookup_scope: 'current_session',
     model_lookup_source: 'local_session',
@@ -265,6 +277,52 @@ test('returns no model for a malformed session record', async () => {
   workBuddySession();
   fs.writeFileSync(path.join(home, '.workbuddy', 'sessions', process.ppid + '.json'), '{broken');
   expect(await resolveMakerClientModel()).toEqual({});
+});
+
+test('keeps IDE and process discovery per connection without caching a model or a failed lookup', async () => {
+  const transcript = workBuddySession();
+  const collect = createMakerClientModelResolver();
+  fs.writeFileSync(transcript, JSON.stringify({ providerData: { requestModelId: 'first' } }));
+  expect(await collect()).toMatchObject({ client_ide_name: 'WorkBuddy', client_model_id: 'first' });
+  fs.writeFileSync(transcript, '{incomplete');
+  expect(await collect()).toEqual({ client_ide_name: 'WorkBuddy' });
+  fs.writeFileSync(transcript, JSON.stringify({ providerData: { requestModelId: 'second' } }));
+  expect(await collect()).toMatchObject({
+    client_ide_name: 'WorkBuddy',
+    client_model_id: 'second',
+  });
+  expect(run.mock.calls.filter(([command]) => command === 'ps')).toHaveLength(1);
+  await createMakerClientModelResolver()();
+  expect(run.mock.calls.filter(([command]) => command === 'ps')).toHaveLength(2);
+});
+
+test('reads the actual Windows WorkBuddy drive-letter directory format', async () => {
+  Object.defineProperty(process, 'platform', { ...platformDescriptor, value: 'win32' });
+  const root = path.join(home, '.workbuddy');
+  fs.mkdirSync(path.join(root, 'sessions'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'projects', 'f-Maker-maker-mcp-dev'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'sessions', process.ppid + '.json'),
+    JSON.stringify({ sessionId: 'windows-session', cwd: 'F:\\Maker\\maker-mcp-dev' })
+  );
+  fs.writeFileSync(
+    path.join(root, 'projects', 'f-Maker-maker-mcp-dev', 'windows-session.jsonl'),
+    JSON.stringify({ providerData: { requestModelId: 'windows-model' } })
+  );
+  expect(
+    await resolveMakerClientModel({
+      clientProcesses: [{ pid: process.ppid, command: 'WorkBuddy.exe' }],
+    })
+  ).toMatchObject({ client_model_id: 'windows-model', client_ide_name: 'WorkBuddy' });
+});
+
+test('does not attribute a WorkBuddy session from another project', async () => {
+  const transcript = workBuddySession();
+  fs.writeFileSync(
+    transcript,
+    JSON.stringify({ providerData: { requestModelId: 'other-project' } })
+  );
+  expect(await resolveMakerClientModel({ projectDir: home })).toEqual({});
 });
 
 test('does not use a WorkBuddy session outside the ancestor chain', async () => {
@@ -324,7 +382,7 @@ test('bounds a stalled lookup and aborts its command', async () => {
   jest.useFakeTimers();
   run.mockImplementation(() => new Promise(() => {}));
   const pending = resolveMakerClientModel();
-  await jest.advanceTimersByTimeAsync(1001);
+  await jest.advanceTimersByTimeAsync(2501);
   expect(await pending).toEqual({});
   expect(run.mock.calls[0][2].signal.aborted).toBe(true);
 });
@@ -394,6 +452,14 @@ test('Kiro selects the latest session in the real project and refreshes after a 
   writeKiroSession('b', 'auto', '2026-11-03T11:01:00Z');
   expect((await resolveMakerClientModel(context)).client_model_id).toBe('auto');
   expect(run).not.toHaveBeenCalled();
+});
+
+test('connection reporting retains IDE but rejects a latest-session model', async () => {
+  writeKiroSession('a', 'unattributed-model', '2026-11-03T10:00:00Z');
+  run.mockResolvedValue({ stdout: process.ppid + ' 1 /host/kiro' });
+  expect(await createMakerClientModelResolver()({ clientName: 'kiro', projectDir: home })).toEqual({
+    client_ide_name: 'kiro',
+  });
 });
 
 test('Kiro does not backfill an absent latest model or choose between tied sessions', async () => {
@@ -586,3 +652,181 @@ test('tracking passes local project context and sends the fallback scope without
   });
   expect(payload).not.toContain(home);
 });
+
+function cindyFixture() {
+  Object.defineProperty(process, 'platform', { ...platformDescriptor, value: 'win32' });
+  const root = path.join(process.env.APPDATA!, 'Cindy');
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(path.join(root, 'cindy-account.db'), '');
+  const records: Array<Record<string, unknown>> = [
+    { model: 'grok-4.7', sdk_session_id: threadId, working_dir: home, activity: 20 },
+    { model: 'model-b', sdk_session_id: 'other-thread', working_dir: home, activity: 10 },
+  ];
+  const lock = { output: threadId };
+  run.mockImplementation(async (command: string, args: string[]) => {
+    if (command === 'powershell.exe' && args[args.length - 1].includes('MakerFileOwners'))
+      return { stdout: lock.output };
+    if (command === 'powershell.exe')
+      return { stdout: `${process.ppid} 123 codex.exe\n123 1 Cindy.exe` };
+    if (command === 'sqlite3') {
+      expect(args).toEqual(expect.arrayContaining(['-readonly', '-init', 'NUL']));
+      expect(args[args.length - 1]).not.toMatch(/SELECT \*|title|summary|messages/);
+      return { stdout: JSON.stringify(records) };
+    }
+    throw new Error('Unexpected command');
+  });
+  return { root, records, lock, context: { projectDir: home } };
+}
+
+test('empty tool arguments automatically report the Windows Cindy model and IDE', async () => {
+  const { context } = cindyFixture();
+  const request = extractMakerClientModelRequest({});
+  const fetchImpl = jest.fn(
+    async (_url: unknown, _init?: RequestInit) => new Response(null, { status: 204 })
+  );
+  await reportMakerMcpActivity({
+    context: {
+      ...context,
+      userId: 'user',
+      projectId: 'project',
+      clientInfo: { name: 'codex', version: '1' },
+      requestModel: request.model,
+    },
+    toolName: 'maker_status_lite',
+    fetchImpl,
+  });
+  const payload = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body));
+  expect(payload.args).toMatchObject({
+    client_name: 'codex',
+    client_ide_name: 'Cindy',
+    client_model_id: 'grok-4.7',
+    model_lookup_source: 'local_session',
+    model_lookup_scope: 'current_session',
+  });
+  expect(JSON.stringify(payload)).not.toContain(home);
+});
+
+test('Cindy refreshes models and matches the inherited thread before the latest conversation', async () => {
+  const { context, records, root } = cindyFixture();
+  process.env.CODEX_HOME = path.join(root, 'codex-home');
+  process.env.CODEX_THREAD_ID = threadId;
+  records[0].activity = 5;
+  records.reverse();
+  expect(await resolveMakerClientModel(context)).toMatchObject({
+    client_model_id: 'grok-4.7',
+    model_lookup_scope: 'current_session',
+    client_ide_name: 'Cindy',
+  });
+  records[1].model = 'new-selection';
+  expect((await resolveMakerClientModel(context)).client_model_id).toBe('new-selection');
+  process.env.CODEX_THREAD_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  expect(await resolveMakerClientModel(context)).toEqual({});
+  expect(run.mock.calls.every(([command]) => command === 'sqlite3')).toBe(true);
+});
+
+test('Cindy associates a unique active ancestor and never chooses between conflicting matches', async () => {
+  const { context, records, lock } = cindyFixture();
+  lock.output = '';
+  records[1].active_turn_pid = process.ppid;
+  expect(await resolveMakerClientModel(context)).toMatchObject({
+    client_model_id: 'model-b',
+    model_lookup_scope: 'current_session',
+  });
+  records[0].active_turn_pid = process.ppid;
+  expect(await resolveMakerClientModel(context)).toEqual({});
+});
+
+test('Cindy never substitutes recent activity when exact association or model is unavailable', async () => {
+  const { context, records, lock } = cindyFixture();
+  lock.output = '';
+  expect(await resolveMakerClientModel(context)).toEqual({});
+  lock.output = threadId;
+  records[0].activity = 30;
+  records[0].model = null;
+  expect(await resolveMakerClientModel(context)).toEqual({});
+  records[0].working_dir = path.join(home, 'foreign');
+  records[1].working_dir = path.join(home, 'foreign');
+  expect(await resolveMakerClientModel(context)).toEqual({});
+});
+
+test('Cindy does not choose an account or fall through to a different engine database', async () => {
+  const { context, root } = cindyFixture();
+  fs.writeFileSync(path.join(root, 'cindy-other-account.db'), '');
+  expect(await resolveMakerClientModel(context)).toEqual({});
+  expect(run.mock.calls.some(([command]) => command === 'sqlite3')).toBe(false);
+});
+
+test('an unavailable per-call snapshot is reported without a second model lookup', async () => {
+  cindyFixture();
+  const fetchImpl = jest.fn(
+    async (_url: unknown, _init?: RequestInit) => new Response(null, { status: 204 })
+  );
+  await reportMakerMcpActivity({
+    context: { userId: 'user', projectId: 'project', projectDir: home, resolvedModel: {} },
+    toolName: 'maker_status_lite',
+    fetchImpl,
+  });
+  expect(run).not.toHaveBeenCalled();
+  expect(JSON.parse(String(fetchImpl.mock.calls[0][1]?.body)).args.client_model_id).toBeUndefined();
+});
+
+test('Windows Codex resolves the unique lock when the MCP has no inherited thread id', async () => {
+  Object.defineProperty(process, 'platform', { ...platformDescriptor, value: 'win32' });
+  process.env.CODEX_HOME = path.join(home, '.codex');
+  process.env.CODEX_THREAD_ID = threadId;
+  const records = [{ model: 'codex-model', model_provider: 'provider', cwd: home, updated_at: 20 }];
+  let locked = threadId;
+  run.mockImplementation(async (command: string, args: string[]) => {
+    if (command === 'powershell.exe' && args[args.length - 1].includes('MakerFileOwners'))
+      return { stdout: locked };
+    if (command === 'powershell.exe') return { stdout: `${process.ppid} 1 codex.exe` };
+    expect(command).toBe('sqlite3');
+    expect(args).toContain('-readonly');
+    expect(args[args.length - 1]).toContain(`id = '${threadId}'`);
+    return { stdout: JSON.stringify(records) };
+  });
+  expect(await resolveMakerClientModel({ projectDir: home })).toMatchObject({
+    client_model_id: 'codex-model',
+    client_ide_name: 'Codex',
+    model_lookup_scope: 'current_session',
+  });
+  delete process.env.CODEX_THREAD_ID;
+  expect((await resolveMakerClientModel({ projectDir: home })).model_lookup_scope).toBe(
+    'current_session'
+  );
+  records.push({ ...records[0], model: 'other' });
+  expect(await resolveMakerClientModel({ projectDir: home })).toEqual({});
+  records.pop();
+  locked = '';
+  expect(await resolveMakerClientModel({ projectDir: home })).toEqual({});
+  locked = threadId;
+  records[0].cwd = path.join(home, 'other');
+  expect(await resolveMakerClientModel({ projectDir: home })).toEqual({});
+});
+
+test('lock association stays on the caller when another conversation becomes latest', async () => {
+  const { context, records } = cindyFixture();
+  records.reverse();
+  records[0].activity = 999;
+  expect(await resolveMakerClientModel(context)).toMatchObject({
+    client_model_id: 'grok-4.7',
+    model_lookup_scope: 'current_session',
+  });
+  records[1].model = 'switched-model';
+  expect((await resolveMakerClientModel(context)).client_model_id).toBe('switched-model');
+});
+
+test.each(['', 'not-a-thread', threadId + '\naaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'])(
+  'Windows rejects missing, invalid or ambiguous writer locks: %s',
+  async (stdout) => {
+    run.mockResolvedValue({ stdout });
+    expect(
+      await findWindowsCodexThread(
+        process.ppid,
+        home,
+        new AbortController().signal,
+        async (...args) => (await run(...args)).stdout
+      )
+    ).toBeUndefined();
+  }
+);

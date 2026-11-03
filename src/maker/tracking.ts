@@ -22,6 +22,10 @@ export interface MakerMcpTrackingContext {
   clientInfo?: { name: string; version: string };
   projectDir?: string;
   requestModel?: MakerClientModel;
+  /** Per-call snapshot shared with status diagnostics, including an unavailable empty result. */
+  resolvedModel?: MakerClientModel;
+  /** Started at tool entry; reporting awaits the same lookup rather than rereading later. */
+  modelSnapshot?: Promise<MakerClientModel>;
 }
 
 export interface MakerMcpActivityEvent {
@@ -145,11 +149,13 @@ export async function reportMakerMcpActivity(event: MakerMcpActivityEvent): Prom
 
   Object.assign(
     payload.args,
-    await resolveMakerClientModel({
-      clientName: event.context.clientInfo?.name,
-      projectDir: event.context.projectDir,
-      requestModel: event.context.requestModel,
-    })
+    event.context.resolvedModel ??
+      (await event.context.modelSnapshot) ??
+      (await resolveMakerClientModel({
+        clientName: event.context.clientInfo?.name,
+        projectDir: event.context.projectDir,
+        requestModel: event.context.requestModel,
+      }))
   );
 
   const fetchImpl = event.fetchImpl || fetch;

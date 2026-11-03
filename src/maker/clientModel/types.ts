@@ -1,4 +1,6 @@
 export interface MakerClientModel {
+  /** Outer IDE when identified locally; client_name remains the MCP handshake identity. */
+  client_ide_name?: string;
   client_model_id?: string;
   client_model_name?: string;
   resolved_model?: string;
@@ -13,4 +15,6 @@ export interface MakerClientModelContext {
   projectDir?: string;
   /** Validated snapshot extracted from this request, never shared between calls. */
   requestModel?: MakerClientModel;
+  /** Stable process ancestry owned by one MCP connection, never model selections. */
+  clientProcesses?: Array<{ pid: number; command: string }>;
 }

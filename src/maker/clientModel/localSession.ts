@@ -5,9 +5,14 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import type { MakerClientModel, MakerClientModelContext } from './types.js';
+import {
+  cindyDataDirectory,
+  readCindySessionModel,
+  readWindowsCodexModel,
+} from './desktopSession.js';
 
 const execFileAsync = promisify(execFile);
-const MODEL_LOOKUP_TIMEOUT_MS = 1000;
+const MODEL_LOOKUP_TIMEOUT_MS = process.platform === 'win32' ? 2500 : 1000;
 const MAX_SESSION_BYTES = 64 * 1024;
 const MAX_TRANSCRIPT_BYTES = 1024 * 1024;
 const MAX_SCAN_ENTRIES = 512;
@@ -63,7 +68,8 @@ async function readSessionText(
 
 async function readWorkBuddyModel(
   pid: number,
-  signal: AbortSignal
+  signal: AbortSignal,
+  projectDir?: string
 ): Promise<MakerClientModel | undefined> {
   const home = path.join(os.homedir(), '.workbuddy');
   let sessionText: string;
@@ -88,7 +94,11 @@ async function readWorkBuddyModel(
   ) {
     return {};
   }
-  const slug = cwd.replace(/^[/\\]+/, '').replace(/[/\\]/g, '-');
+  if (projectDir && !(await sameProject(cwd, await realpath(projectDir)))) return {};
+  const slug = cwd
+    .replace(/^([a-z]):(?=[/\\])/i, (_, drive: string) => drive.toLowerCase())
+    .replace(/^[/\\]+/, '')
+    .replace(/[/\\]/g, '-');
   if (!slug || slug === '.' || slug === '..') return {};
   const transcript = await readSessionText(
     path.join(home, 'projects', slug, sessionId + '.jsonl'),
@@ -107,6 +117,7 @@ async function readWorkBuddyModel(
     const provider = asRecord(record.providerData);
     // Use one latest record, never fill missing fields from older model selections.
     return {
+      client_ide_name: 'WorkBuddy',
       client_model_id: modelString(provider?.requestModelId),
       client_model_name: modelString(provider?.requestModelName),
       resolved_model: modelString(provider?.model),
@@ -115,8 +126,14 @@ async function readWorkBuddyModel(
   return {};
 }
 
-async function readCodexModel(pid: number, signal: AbortSignal): Promise<MakerClientModel> {
-  if (process.platform === 'win32') return {};
+async function readCodexModel(
+  pid: number,
+  signal: AbortSignal,
+  context: MakerClientModelContext
+): Promise<MakerClientModel> {
+  if (process.platform === 'win32') {
+    return context.projectDir ? readWindowsCodexModel(context.projectDir, signal, run, pid) : {};
+  }
   const output = await run('lsof', ['-n', '-P', '-a', '-p', String(pid), '-Fn'], signal);
   const locks = new Set(
     output
@@ -341,6 +358,53 @@ async function readCurrentSessionModel(
 ): Promise<MakerClientModel> {
   const client = fallbackClient(context.clientName?.trim() || '');
   if (client) return readLatestSessionModel(client, context, signal);
+  if (
+    /^cindy(?:[ ._-].*)?$/i.test(context.clientName || '') &&
+    context.projectDir &&
+    process.env.CODEX_THREAD_ID
+  ) {
+    return readCindySessionModel(context.projectDir, [], signal, run);
+  }
+  // Terminal children inherit the exact thread; avoid an expensive Windows process query.
+  const cindyRoot = cindyDataDirectory();
+  if (
+    context.projectDir &&
+    process.env.CODEX_THREAD_ID &&
+    cindyRoot &&
+    process.env.CODEX_HOME &&
+    path.resolve(process.env.CODEX_HOME) === path.join(cindyRoot, 'codex-home')
+  ) {
+    return readCindySessionModel(context.projectDir, [], signal, run);
+  }
+  const clientProcesses = context.clientProcesses ?? (await readClientProcesses(signal));
+  const ancestors = clientProcesses.map(({ pid }) => pid);
+  if (
+    context.projectDir &&
+    (/^cindy(?:[ ._-].*)?$/i.test(context.clientName || '') ||
+      clientProcesses.some(({ command }) =>
+        /(?:^|[/\\])cindy(?:\.exe|\.app(?:[/\\].*)?)?$/i.test(command)
+      ))
+  ) {
+    const codexPid = clientProcesses.find(({ command }) =>
+      /(?:^|[/\\])codex(?:\.exe)?$/i.test(command)
+    )?.pid;
+    return readCindySessionModel(context.projectDir, ancestors, signal, run, codexPid);
+  }
+  for (const { pid, command } of clientProcesses) {
+    signal.throwIfAborted();
+    const workBuddy = await readWorkBuddyModel(pid, signal, context.projectDir);
+    if (workBuddy !== undefined) return workBuddy;
+    if (/(?:^|[/\\])codex(?:\.exe)?$/i.test(command)) {
+      return readCodexModel(pid, signal, context);
+    }
+    const app = command.split(/[/\\]/).find((part) => /\.app$/i.test(part));
+    const editor = fallbackClient(path.basename(command)) ?? fallbackClient(app ?? '');
+    if (editor) return readLatestSessionModel(editor, context, signal);
+  }
+  return {};
+}
+
+async function readClientProcesses(signal: AbortSignal) {
   const output =
     process.platform === 'win32'
       ? await run(
@@ -363,22 +427,41 @@ async function readCurrentSessionModel(
     }
   }
   let pid = process.ppid;
+  const ancestors: Array<{ pid: number; command: string }> = [];
   for (let depth = 0; depth < 6 && pid > 1; depth++) {
     signal.throwIfAborted();
     const ancestor = processes.get(pid);
     if (!ancestor) break;
-    const workBuddy = await readWorkBuddyModel(pid, signal);
-    if (workBuddy !== undefined) return workBuddy;
-    if (/(?:^|[/\\])codex(?:\.exe)?$/i.test(ancestor.command)) {
-      return readCodexModel(pid, signal);
-    }
-    const app = ancestor.command.split(/[/\\]/).find((part) => /\.app$/i.test(part));
-    const editor = fallbackClient(path.basename(ancestor.command)) ?? fallbackClient(app ?? '');
-    if (editor) return readLatestSessionModel(editor, context, signal);
+    ancestors.push({ pid, command: ancestor.command });
     if (ancestor.parent === pid) break;
     pid = ancestor.parent;
   }
-  return {};
+  return ancestors;
+}
+
+/** Resolve stable IDE identity once; callers retain this only for their own connection. */
+export async function identifyLocalClient(clientName?: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), MODEL_LOOKUP_TIMEOUT_MS);
+  let clientProcesses: Array<{ pid: number; command: string }> = [];
+  try {
+    clientProcesses = await readClientProcesses(controller.signal);
+  } catch {
+    // A failed process lookup must not discard the client's handshake identity.
+  } finally {
+    clearTimeout(timeout);
+  }
+  const known = [
+    ['Cindy', /(?:^|[/\\])cindy(?:\.exe|\.app(?:[/\\].*)?)?$/i],
+    ['Cursor', /(?:^|[/\\])cursor(?:\.exe|\.app(?:[/\\].*)?)?$/i],
+    ['WorkBuddy', /(?:^|[/\\])workbuddy(?:\.exe|\.app(?:[/\\].*)?)?$/i],
+    ['Claude Code', /(?:^|[/\\])claude(?:\.exe)?$/i],
+    ['Codex', /(?:^|[/\\])codex(?:\.exe)?$/i],
+  ] as const;
+  const ide = known.find(([, pattern]) =>
+    clientProcesses.some(({ command }) => pattern.test(command))
+  )?.[0];
+  return { clientProcesses, clientIdeName: ide ?? modelString(clientName) };
 }
 
 /** Read at report time; explicitly mark latest-session fallbacks and isolate all failures. */

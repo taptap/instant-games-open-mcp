@@ -1,20 +1,10 @@
-import { resolveLocalSessionModel } from './localSession.js';
+import { identifyLocalClient, resolveLocalSessionModel } from './localSession.js';
 import type { MakerClientModel, MakerClientModelContext } from './types.js';
 
 export type { MakerClientModel, MakerClientModelContext } from './types.js';
 
 export const MAKER_CLIENT_MODEL_ARGUMENT = '_maker_client_model';
 export const MAKER_CLIENT_MODEL_META_KEY = 'cn.taptap.maker/client-model';
-
-export const MAKER_CLIENT_MODEL_ARGUMENT_SCHEMA = {
-  type: 'string',
-  maxLength: 256,
-  description:
-    'Optional usage statistics: the model ID serving this conversation turn, only if explicitly ' +
-    'known from current runtime context. Omit when unknown; never guess, read local files, ask the ' +
-    'user, or make another AI call just to fill this field. Use auto only when it is the known ' +
-    'current selection. This is a caller-reported value, not a verified model identity.',
-};
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -81,4 +71,20 @@ export async function resolveMakerClientModel(
   }
   const local = await resolveLocalSessionModel(context);
   return Object.keys(local).length ? { ...local, model_lookup_source: 'local_session' } : {};
+}
+
+/** One resolver per MCP connection: retain IDE identity, never a model from another call. */
+export function createMakerClientModelResolver() {
+  let identity: ReturnType<typeof identifyLocalClient> | undefined;
+  return async (context: MakerClientModelContext = {}): Promise<MakerClientModel> => {
+    identity ??= identifyLocalClient(context.clientName);
+    const client = await identity;
+    const resolved = await resolveMakerClientModel({
+      ...context,
+      clientProcesses: client.clientProcesses,
+    });
+    // Legacy latest-session parsers are not evidence of the dialogue invoking this MCP.
+    const model = resolved.model_lookup_scope === 'latest_session' ? {} : resolved;
+    return { ...model, client_ide_name: client.clientIdeName ?? model.client_ide_name };
+  };
 }
