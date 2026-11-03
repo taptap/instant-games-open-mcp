@@ -139,6 +139,20 @@ try {
     text: '{"type":"Panel"}',
     expectedText: 'base',
   });
+  const importedIds = await page.evaluate(() => {
+    const api = window.UrhoxPreview;
+    for (let i = 0; i < 3; i++) api.placeImage('image/a b.png');
+    const images = api.tree.children.slice(-3);
+    return { ids: images.map(node => node.id), refs: images.map(node => node.backgroundImage),
+      errors: window.UrhoxUICheck.checkDocument({ tree: api.getJSON() }).errors };
+  });
+  assert.deepEqual(importedIds.ids, ['image', 'image_2', 'image_3']);
+  assert.deepEqual(importedIds.refs, Array(3).fill('image/a b.png'));
+  assert.equal(importedIds.errors, 0);
+  await page.evaluate(() => {
+    const api = window.UrhoxPreview;
+    api.undo(); api.undo(); api.undo();
+  });
   await page.evaluate(() => window.UrhoxPreview.selectNode(window.UrhoxPreview.tree.children[0]));
   const nodeName = page.locator('[data-field="id"] input');
   await nodeName.fill('second');

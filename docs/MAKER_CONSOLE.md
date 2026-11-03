@@ -171,6 +171,7 @@ Lua 自绘逻辑不能直接作为普通 Panel 导入。随包 MakerNanoVG.lua �
 NanoVG 绘制指令默认折叠为条数摘要，坐标范围和指令失焦时先校验再提交；无效输入保留错误提示，
 有效修改形成一次撤销记录，Esc 放弃当前输入。
 文档修改及项目文件刷新后，静态检查延迟 250ms 更新检查按钮的错误标记和可访问名称；点击按钮打开完整报告。
+新增节点统一避开当前文档已有 ID，批量导入图片时依次生成 image、image_2 等名称；不修改已有节点 ID。
 
 验证：npx jest --runInBand src/**tests**/makerUiEditor.test.ts；
 node scripts/test-maker-ui-editor.mjs 与 npm run test:maker:ui-editor-page（Playwright 可用时）。
