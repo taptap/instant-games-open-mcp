@@ -167,6 +167,7 @@ Lua 自绘逻辑不能直接作为普通 Panel 导入。随包 MakerNanoVG.lua �
 宿主可提供 previewViewport({width,height})，返回预览区域内的可用矩形（left / top / width / height），
 适应整页和适应选区会使用该矩形避开浮动工具条。
 画布支持 `--editor-screen-bg`、`--editor-frame-line`、`--editor-frame-shadow`：页面及组件先画底色和固定屏幕像素大小的两层阴影，再画节点与细线；`--editor-bezel: 0` 关闭外圈设备框。未设置这些颜色变量时保留控制台原有透明底和白色轮廓。
+选框可通过 --editor-selection-width 设置屏幕像素线宽，默认 1px。框选矩形在预览区覆盖层绘制，不受页面画布四周 400px 留白边界裁剪。
 NanoVG 绘制指令默认折叠为条数摘要，坐标范围和指令失焦时先校验再提交；无效输入保留错误提示，
 有效修改形成一次撤销记录，Esc 放弃当前输入。
 

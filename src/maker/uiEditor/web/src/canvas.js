@@ -31,6 +31,8 @@
     var style = getComputedStyle(document.documentElement);
     var bezel = parseFloat(style.getPropertyValue("--editor-bezel"));
     var outline = parseFloat(style.getPropertyValue("--editor-bezel-outline"));
+    var selectionWidth = parseFloat(style.getPropertyValue("--editor-selection-width"));
+    frame.selectionWidth = selectionWidth > 0 ? selectionWidth : 1;
     frame.accent = resolveColor("--editor-accent", BLUE);
     frame.halo = style.getPropertyValue("--editor-halo").trim() ? resolveColor("--editor-halo", "transparent") : "";
     frame.round = style.getPropertyValue("--editor-handle").trim() === "round";
@@ -41,6 +43,7 @@
     frame.shadow = style.getPropertyValue("--editor-frame-shadow").trim() ? resolveColor("--editor-frame-shadow", "transparent") : "";
   }
   function strokeAccentRect(ctx, app, x, y, w, h, px) {
+    px = Math.max(px, frame.selectionWidth);
     if (frame.halo) {
       ctx.strokeStyle = frame.halo;
       ctx.lineWidth = screenLine(app, px + 2);
@@ -65,7 +68,7 @@
     ctx.fillStyle = "#ffffff";
     ctx.fill();
     ctx.strokeStyle = frame.accent;
-    ctx.lineWidth = screenLine(app, 1.25);
+    ctx.lineWidth = screenLine(app, Math.max(1.25, frame.selectionWidth));
     ctx.stroke();
   }
   var PINK = "#F24822";
@@ -279,6 +282,41 @@
     ctx.restore();
   }
 
+  // Draw in viewport coordinates so the stage bitmap cannot clip a selection drag.
+  function drawMarquee(app, origin, fit) {
+    if (!app.marquee) {
+      if (app.marqueeLayer) app.marqueeLayer.style.display = "none";
+      return;
+    }
+    var preview = document.getElementById("preview");
+    if (!preview) return;
+    if (!app.marqueeLayer) {
+      var layer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      layer.setAttribute("aria-hidden", "true");
+      layer.setAttribute("class", "marquee-overlay");
+      layer.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:2";
+      var rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      rect.setAttribute("fill-opacity", "0.12");
+      layer.appendChild(rect);
+      preview.appendChild(layer);
+      app.marqueeLayer = layer;
+    }
+    var box = app.canvas.getBoundingClientRect();
+    var viewport = preview.getBoundingClientRect();
+    var scaleX = box.width / app.canvas.width;
+    var scaleY = box.height / app.canvas.height;
+    var mq = root.UrhoxGeom.rect(app.marquee.x, app.marquee.y, app.marquee.w, app.marquee.h);
+    var outline = app.marqueeLayer.firstChild;
+    outline.setAttribute("x", box.left - viewport.left + (origin.x + fit.x + mq.x * fit.scale) * scaleX);
+    outline.setAttribute("y", box.top - viewport.top + (origin.y + fit.y + mq.y * fit.scale) * scaleY);
+    outline.setAttribute("width", mq.w * fit.scale * scaleX);
+    outline.setAttribute("height", mq.h * fit.scale * scaleY);
+    outline.setAttribute("fill", frame.accent);
+    outline.setAttribute("stroke", frame.accent);
+    outline.setAttribute("stroke-width", frame.selectionWidth);
+    app.marqueeLayer.style.display = "block";
+  }
+
   function draw(app) {
     var canvas = app.canvas;
     var ctx = app.ctx;
@@ -289,6 +327,7 @@
     readFrameStyle();
     var o = app.origin();
     var fit = app.contentTransform();
+    drawMarquee(app, o, fit);
     var prefab = app.editMode === "prefab";
     var src = window.UrhoxDoc.designSize(tree);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -404,18 +443,6 @@
         var box = selected._layout;
         drawLabel(ctx, app, Math.round(box.w) + " × " + Math.round(box.h), box.x + box.w / 2, box.y + box.h + 12);
       }
-    }
-    if (app.marquee) {
-      var mq = window.UrhoxGeom.rect(app.marquee.x, app.marquee.y, app.marquee.w, app.marquee.h);
-      ctx.save();
-      ctx.fillStyle = frame.accent;
-      ctx.strokeStyle = frame.accent;
-      ctx.lineWidth = screenLine(app, 1);
-      ctx.globalAlpha = 0.12;
-      ctx.fillRect(mq.x, mq.y, mq.w, mq.h);
-      ctx.globalAlpha = 1;
-      ctx.strokeRect(mq.x + 0.5, mq.y + 0.5, Math.max(0, mq.w - 1), Math.max(0, mq.h - 1));
-      ctx.restore();
     }
     if (app.spacingTarget && selected && selected._layout && app.spacingTarget._layout) {
       var a = root.UrhoxGeom.visualBounds(app.sourceTree || app.tree,selected);

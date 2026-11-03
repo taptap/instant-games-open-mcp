@@ -280,6 +280,33 @@ try {
     );
   });
   assert.equal(safeFit, true);
+  const marquee = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 100;
+    canvas.style.cssText = 'position:absolute;left:0;top:0;width:100px;height:100px';
+    document.getElementById('preview').appendChild(canvas);
+    const app = { canvas, ctx: canvas.getContext('2d'),
+      tree: { type: 'Panel', width: 100, height: 100, _layout: { x: 0, y: 0, w: 100, h: 100 } },
+      screen: { width: 100, height: 100 }, device: { bezel: 0 },
+      origin: () => ({ x: 0, y: 0 }), contentTransform: () => ({ x: 0, y: 0, scale: 1 }),
+      selectedNodes: [], marquee: { x: 20, y: 20, w: 200, h: 200 } };
+    document.documentElement.style.setProperty('--editor-selection-width', '2');
+    window.UrhoxCanvas.draw(app);
+    const rect = app.marqueeLayer.firstChild;
+    const result = { width: rect.getBoundingClientRect().width,
+      stageWidth: canvas.getBoundingClientRect().width, stroke: rect.getAttribute('stroke-width') };
+    app.marquee = null;
+    window.UrhoxCanvas.draw(app);
+    result.hidden = app.marqueeLayer.style.display === 'none';
+    app.marqueeLayer.remove();
+    canvas.remove();
+    document.documentElement.style.removeProperty('--editor-selection-width');
+    return result;
+  });
+  assert.equal(marquee.width, 200);
+  assert.equal(marquee.stageWidth, 100);
+  assert.equal(marquee.stroke, '2');
+  assert.equal(marquee.hidden, true);
   const frames = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 1400;
