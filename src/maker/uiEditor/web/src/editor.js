@@ -31,6 +31,7 @@
   var refreshing = false;
   var writeReady = false;
   var saving = null;
+  var lastSaveError = null;
   var opening = false;
   var saveDialog = document.getElementById("saveDialog");
   var saveDialogPath = document.getElementById("saveDialogPath");
@@ -376,6 +377,7 @@
     if (saveBtn) {
       saveBtn.disabled = !writeReady || !dirty || !!saving || opening;
       saveBtn.textContent = saving ? "保存中…" : "保存";
+      saveBtn.setAttribute("aria-busy", String(!!saving));
     }
     var hasDocument = !!window.UrhoxPreview?.tree;
     if (documentNameEl) {
@@ -383,7 +385,12 @@
       documentNameEl.textContent = display;
       documentNameEl.title = project.name + " · " + display;
     }
-    if (saveStatus) saveStatus.textContent = saving ? "正在保存…" : !hasDocument ? "" : dirty ? "未保存" : "已保存";
+    if (saveStatus) {
+      var failed = dirty && lastSaveError && lastSaveError.path === currentFilePath();
+      saveStatus.dataset.state = saving ? "saving" : !hasDocument ? "empty" : failed ? "error" : dirty ? "dirty" : "clean";
+      saveStatus.textContent = saving ? "正在保存…" : !hasDocument ? "" : failed ? "保存失败" : dirty ? "未保存" : "已保存";
+      saveStatus.title = failed ? lastSaveError.message : "";
+    }
     renderAll();
   }
 
@@ -422,6 +429,7 @@
     if (!isDirty()) return Promise.resolve(true);
     var targetProject = project;
     var path = preview.currentPath;
+    lastSaveError = null;
     // Keep the saved snapshot separate from edits made while the request is in flight.
     var json = preview.getJSON();
     var savedNodes = window.UrhoxHistory.nodeStates(preview.tree);
@@ -441,6 +449,7 @@
       }
       return true;
     })().catch(function (err) {
+      lastSaveError = { path: path, message: err.message || String(err) };
       // A conflict means someone else changed the file; the bar explains it and offers a reload.
       var conflicted = err && err.conflict && project.files.find(function (entry) { return entry.path === path; });
       if (conflicted) {

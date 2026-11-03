@@ -172,6 +172,7 @@ NanoVG 绘制指令默认折叠为条数摘要，坐标范围和指令失焦时�
 有效修改形成一次撤销记录，Esc 放弃当前输入。
 文档修改及项目文件刷新后，静态检查延迟 250ms 更新检查按钮的错误标记和可访问名称；点击按钮打开完整报告。
 新增节点统一避开当前文档已有 ID，批量导入图片时依次生成 image、image_2 等名称；不修改已有节点 ID。
+保存状态元素通过 data-state 提供 empty / dirty / saving / clean / error，保存按钮通过 aria-busy 表示请求中；失败保留未保存内容并允许重试。
 
 验证：npx jest --runInBand src/**tests**/makerUiEditor.test.ts；
 node scripts/test-maker-ui-editor.mjs 与 npm run test:maker:ui-editor-page（Playwright 可用时）。

@@ -166,6 +166,29 @@ try {
   await nodeName.press('Tab');
   await page.waitForSelector('#checkUiBtn:not(.has-ui-errors)');
   assert.equal(await page.locator('#checkUiBtn').getAttribute('aria-label'), '检查 UI');
+  await page.evaluate(() => {
+    window.__originalSave = window.UrhoxConfig.save;
+    window.__originalNotify = window.UrhoxDialogs.notify;
+    window.UrhoxDialogs.notify = () => {};
+    window.UrhoxConfig.save = () => new Promise(resolve => { window.__finishSave = resolve; });
+    window.UrhoxPreview.nudge(1, 0);
+  });
+  await page.click('#saveBtn');
+  await page.waitForSelector('#saveStatus[data-state="saving"]');
+  assert.equal(await page.locator('#saveBtn').getAttribute('aria-busy'), 'true');
+  await page.evaluate(() => window.__finishSave({ ok: false, error: 'temporary save error' }));
+  await page.waitForSelector('#saveStatus[data-state="error"]');
+  assert.equal(await page.locator('#saveStatus').textContent(), '保存失败');
+  assert.equal(await page.locator('#saveBtn').isEnabled(), true);
+  await page.click('#saveBtn');
+  await page.waitForSelector('#saveStatus[data-state="saving"]');
+  await page.evaluate(() => window.__finishSave({ ok: true }));
+  await page.waitForSelector('#saveStatus[data-state="clean"]');
+  assert.equal(await page.locator('#saveBtn').getAttribute('aria-busy'), 'false');
+  await page.evaluate(() => {
+    window.UrhoxConfig.save = window.__originalSave;
+    window.UrhoxDialogs.notify = window.__originalNotify;
+  });
   const transforms = await page.evaluate(() => {
     const api = window.UrhoxPreview;
     const input = document.getElementById('selectionRotation');
