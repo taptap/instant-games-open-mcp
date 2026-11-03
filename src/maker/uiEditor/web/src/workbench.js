@@ -87,6 +87,8 @@
     var device = root.UrhoxPreview.getDevice();
     el("deviceError").textContent = device.prefab ? "组件使用自身尺寸；请打开页面文档调整设备预览。" : "";
     el("deviceWidth").value = device.width; el("deviceHeight").value = device.height;
+    el("deviceDpr").value = device.dpr; el("deviceScale").value = device.scale || "";
+    el("nativeMenuBottom").value = device.nativeMenuBottom;
     el("safeAreaEnabled").checked = !!device.safeArea;
     ["Top", "Right", "Bottom", "Left"].forEach(function (side) {
       el("safe" + side).value = device.safeArea ? device.safeArea[side.toLowerCase()] : 0;
@@ -106,7 +108,9 @@
         area.left + area.right >= width || area.top + area.bottom >= height)) {
       el("deviceError").textContent = "安全区边距必须小于预览尺寸"; return;
     }
-    if (root.UrhoxPreview.configureDevice(width, height, el("safeAreaEnabled").checked ? area : null)) close("deviceDialog");
+    if (root.UrhoxPreview.configureDevice(width, height, el("safeAreaEnabled").checked ? area : null,
+      Number(el("deviceDpr").value), el("deviceScale").value === "" ? null : Number(el("deviceScale").value),
+      Number(el("nativeMenuBottom").value))) close("deviceDialog");
     else el("deviceError").textContent = "请打开页面文档，尺寸范围为 240–4096";
   });
   root.UrhoxWorkbench = {

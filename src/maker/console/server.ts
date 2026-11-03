@@ -27,6 +27,7 @@ import { discoverConsoleProjects } from './projectDiscovery.js';
 import { handleCanvasProjectRoute } from './canvasRoutes.js';
 import { resolvedModelSettingsForDisplay } from './canvasRecognition.js';
 import { handleUiEditorRoute, serveUiEditor } from './uiEditorRoutes.js';
+import { UiRenderBridge } from '../uiEditor/renderBridge.js';
 import { consoleThemeScript, consoleThemeStyles } from '../webTheme.js';
 import { CanvasAutomationBridge } from '../canvas/automationBridge.js';
 import { getCanvasPageHtml } from '../canvas/page.js';
@@ -90,6 +91,7 @@ export async function startConsoleServer(options: {
   const updates = new ConsoleUpdates(options.version, options.distribution);
   const documents = new ConsoleDocuments(options.packageRoot || '');
   const canvasAutomation = new CanvasAutomationBridge();
+  const uiRender = new UiRenderBridge();
   const remoteProxyManager = options.remoteProxyManager || createMakerRemoteProxyManager();
   let selectedProjectKey = readSelectedProjectKey(options.preferencesFile);
   let luaLspCache: { at: number; value: Record<string, unknown> } | undefined;
@@ -459,11 +461,12 @@ export async function startConsoleServer(options: {
       if (!project) throw new ConsoleError('Not found.', 404);
       const [, key, suffix] = project;
       if (suffix?.startsWith('ui-editor/')) {
-        const release = request.method === 'POST' ? tasks.occupy(key) : undefined;
+        const release =
+          request.method === 'POST' && suffix === 'ui-editor/save' ? tasks.occupy(key) : undefined;
         try {
           // Image loads are static reads, not expensive project queries; still await them on close.
           await read(
-            () => handleUiEditorRoute(request, response, options.registry, key, suffix),
+            () => handleUiEditorRoute(request, response, options.registry, key, suffix, uiRender),
             !suffix.startsWith('ui-editor/files/')
           );
           touch();

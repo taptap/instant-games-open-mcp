@@ -523,6 +523,7 @@ export class UiDeliveryService {
           JSON.parse(fs.readFileSync(this.projectPath(record.bboxPath), 'utf8')) as UiAssemblyBbox
         ).design.sha256;
         const input = this.importArchive(record, manifest, base, options.designPng);
+        input.adaptation = { mode: 'screen', logicalShortSide: 720, safeArea: true };
         const previous = index.deliveries[index.deliveries.length - 1];
         // Keep this screen's name across cut repairs, but not after replacing the design.
         if (screen) input.screen = screen;
