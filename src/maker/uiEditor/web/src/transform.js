@@ -1,6 +1,34 @@
 (function (root) {
   "use strict";
   var G = root.UrhoxGeom, D = root.UrhoxDoc;
+  function dynamicTransform(tree, node) {
+    return [node].concat(D.ancestors(tree, node)).some(function (p) {
+      return ["rotate","scale","translateX","translateY","transformOrigin","left","top","right","bottom"].some(function (key) {
+        return typeof p[key] === "string" && p[key].charAt(0) === "$";
+      });
+    });
+  }
+  // A single hidden node can edit stored properties without visual bounds or layout.
+  function hiddenTarget(app) {
+    var tree = app.sourceTree || app.tree, selected = app.selectedNodes || [];
+    var node = selected.length === 1 && selected[0];
+    if (!node || !node._hidden || node === tree || node.locked || node.$repeat || D.isGenerated(node) ||
+      D.ancestors(tree, node).some(function (p) { return p.locked; }) || dynamicTransform(tree, node)) return null;
+    var scale = G.transformValue(node, "scale");
+    return scale == null || (Number.isFinite(scale) && scale > 0) ? node : null;
+  }
+  function disabledReason(app) {
+    var tree = app.sourceTree || app.tree, selected = app.selectedNodes || [];
+    if (selected.indexOf(tree) >= 0) return "根节点不能旋转或缩放";
+    if (selected.some(function (n) { return n.locked || D.ancestors(tree, n).some(function (p) { return p.locked; }); }))
+      return "节点或父级已锁定，请先解锁";
+    if (selected.some(function (n) { return n.$repeat || D.isGenerated(n); })) return "动态生成节点不能直接变换";
+    if (selected.some(function (n) { return D.ancestors(tree, n).some(function (p) { return selected.indexOf(p) >= 0; }); }))
+      return "不能同时变换父节点和子节点，请调整选区";
+    if (selected.some(function (n) { return dynamicTransform(tree, n); })) return "节点或父级使用动态变换表达式，不能直接变换";
+    if (selected.some(function (n) { return n._hidden; })) return "隐藏节点请单独选择后编辑旋转或缩放";
+    return "无法计算变换，请检查节点及父级的缩放值";
+  }
   function targets(app) {
     var tree = app.sourceTree || app.tree, selection = app.selectedNodes || [];
     return selection.filter(function (n) {
@@ -15,11 +43,7 @@
   function capture(app) {
     var tree = app.sourceTree || app.tree;
     return targets(app).filter(function (n) {
-      return ![n].concat(D.ancestors(tree,n)).some(function (p) {
-        return ["rotate","scale","translateX","translateY","transformOrigin","left","top","right","bottom"].some(function (key) {
-          return typeof p[key] === "string" && p[key].charAt(0) === "$";
-        });
-      });
+      return !dynamicTransform(tree, n);
     }).map(function (n) {
       var parent = D.parentOf(tree, n);
       var pm = parent ? G.worldMatrix(tree, parent) : [1,0,0,1,0,0];
@@ -65,6 +89,20 @@
     return list;
   }
   function command(app, factor, degrees) {
+    if (!Number.isFinite(factor) || factor <= 0 || !Number.isFinite(degrees)) return;
+    var hidden = hiddenTarget(app);
+    if (hidden) {
+      app.beginHistory();
+      if (degrees !== 0) hidden.rotate = Math.round(((Number(G.transformValue(hidden, "rotate")) || 0) + degrees)*100)/100;
+      if (factor !== 1) {
+        var scale = G.transformValue(hidden, "scale");
+        hidden.scale = Math.max(0.001, Math.round((scale == null ? 1 : scale)*factor*100000)/100000);
+      }
+      app.rebuildPreview();
+      app.commitHistory();
+      app.refresh();
+      return;
+    }
     var items = capture(app);
     if (!items.length || !Number.isFinite(factor) || factor <= 0 || !Number.isFinite(degrees)) return;
     app.beginHistory();
@@ -74,5 +112,5 @@
     app.refresh();
   }
   root.UrhoxTransform = { targets: targets, bounds: bounds, capture: capture, apply: apply,
-    center: center, handles: handles, command: command };
+    center: center, handles: handles, command: command, hiddenTarget: hiddenTarget, disabledReason: disabledReason };
 })(window);

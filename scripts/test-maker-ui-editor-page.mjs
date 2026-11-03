@@ -181,6 +181,32 @@ try {
     scale: 1.5,
   });
   assert.deepEqual(errors, []);
+  await page.evaluate(() => window.UrhoxPreview.selectNode(window.UrhoxPreview.tree.children[0], true));
+  const positionBefore = await page.evaluate(() => {
+    const n = window.UrhoxPreview.selected;
+    return { left: n.left, top: n.top, width: n.width, height: n.height };
+  });
+  await page.locator('[data-field="visible"] input').uncheck();
+  assert.equal(await page.locator('#selectionRotation').isEnabled(), true);
+  assert.equal(await page.locator('#selectionScale').isEnabled(), true);
+  assert.equal(await page.locator('#transformStatus').textContent(), '');
+  await page.evaluate(() => {
+    for (const [id, value] of [['selectionRotation', '45'], ['selectionScale', '125']]) {
+      const input = document.getElementById(id);
+      input.value = value;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+  assert.deepEqual(await page.evaluate(() => {
+    const n = window.UrhoxPreview.selected;
+    return { left: n.left, top: n.top, width: n.width, height: n.height, rotate: n.rotate, scale: n.scale, visible: n.visible };
+  }), { ...positionBefore, rotate: 45, scale: 1.25, visible: false });
+  await page.evaluate(() => window.UrhoxPreview.undo());
+  assert.equal(await page.locator('#selectionScale').inputValue(), '150');
+  await page.evaluate(() => window.UrhoxPreview.redo());
+  assert.equal(await page.locator('#selectionScale').inputValue(), '125');
+  await page.locator('[data-field="visible"] input').check();
+  assert.equal(await page.locator('#selectionRotation').isEnabled(), true);
   const snapshot = await page.evaluate(() => {
     const before = window.UrhoxProject.listDocuments();
     before[0].name = 'mutated';

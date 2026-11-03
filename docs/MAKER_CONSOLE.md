@@ -160,6 +160,7 @@ Lua 自绘逻辑不能直接作为普通 Panel 导入。随包 MakerNanoVG.lua �
 未定义时使用控制台路由。控制台仍按原目录提供，行为不变。
 宿主可设置 layout.inspectorTransforms: true，将现有选区旋转 / 缩放输入移入 Rect Transform；
 保留单选绝对值、多选增量和禁用条件，未设置时继续使用画布工具行。
+单个隐藏节点也可直接修改旋转 / 缩放属性并撤销，不依赖可见布局；隐藏多选仍不提供画布变换，禁用时显示具体原因。
 宿主文档下拉使用 UrhoxProject.listDocuments() 的独立快照（path / displayPath / name / dirty / active），
 通过 urhox:documentschange 事件更新，切换继续走 openUiPath() 及未保存确认。
 宿主可提供 previewViewport({width,height})，返回预览区域内的可用矩形（left / top / width / height），

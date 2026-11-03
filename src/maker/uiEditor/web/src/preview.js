@@ -328,6 +328,7 @@
     var eligible = window.UrhoxTransform && window.UrhoxTransform.capture(app).length;
     var allEligible = eligible > 0 && eligible === window.UrhoxTransform.targets(app).length &&
       window.UrhoxTransform.targets(app).length === count;
+    allEligible = allEligible || !!window.UrhoxTransform.hiddenTarget(app);
     if (rotation) {
       rotation.disabled = !allEligible;
       rotation.value = count === 1 ? (Number(window.UrhoxGeom.transformValue(app.selected,"rotate")) || 0) : 0;
@@ -340,7 +341,7 @@
       scale.title = count > 1 ? "相对当前选区等比缩放" : "相对原始尺寸的缩放比例";
     }
     var status = document.getElementById("transformStatus");
-    if (status) status.textContent = count && !allEligible ? "含根节点、锁定项、嵌套选区或动态变换" :
+    if (status) status.textContent = count && !allEligible ? window.UrhoxTransform.disabledReason(app) :
       count > 1 ? count + " 个节点 · 旋转为增量，缩放为相对比例" : "";
   }
 
