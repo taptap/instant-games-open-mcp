@@ -139,6 +139,19 @@ try {
     text: '{"type":"Panel"}',
     expectedText: 'base',
   });
+  await page.evaluate(() => window.UrhoxPreview.selectNode(window.UrhoxPreview.tree.children[0]));
+  const nodeName = page.locator('[data-field="id"] input');
+  await nodeName.fill('second');
+  await nodeName.press('Tab');
+  await page.waitForSelector('#checkUiBtn.has-ui-errors');
+  assert.match(await page.locator('#checkUiBtn').getAttribute('aria-label'), /个错误/);
+  await page.click('#checkUiBtn');
+  assert.match(await page.locator('#uiCheckSummary').textContent(), /[1-9] 个错误/);
+  await page.click('#closeCheckReport');
+  await nodeName.fill('hero');
+  await nodeName.press('Tab');
+  await page.waitForSelector('#checkUiBtn:not(.has-ui-errors)');
+  assert.equal(await page.locator('#checkUiBtn').getAttribute('aria-label'), '检查 UI');
   const transforms = await page.evaluate(() => {
     const api = window.UrhoxPreview;
     const input = document.getElementById('selectionRotation');

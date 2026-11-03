@@ -466,6 +466,7 @@
     if (app.path && window.UrhoxProject) {
       window.UrhoxProject.setDirty(app.path, now !== app.cleanState);
     }
+    window.dispatchEvent(new Event("urhox:documentchange"));
   }
 
   function markClean(savedTree, savedNodes) {

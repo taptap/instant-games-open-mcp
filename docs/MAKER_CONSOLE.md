@@ -170,6 +170,7 @@ Lua 自绘逻辑不能直接作为普通 Panel 导入。随包 MakerNanoVG.lua �
 选框可通过 --editor-selection-width 设置屏幕像素线宽，默认 1px。框选矩形在预览区覆盖层绘制，不受页面画布四周 400px 留白边界裁剪。
 NanoVG 绘制指令默认折叠为条数摘要，坐标范围和指令失焦时先校验再提交；无效输入保留错误提示，
 有效修改形成一次撤销记录，Esc 放弃当前输入。
+文档修改及项目文件刷新后，静态检查延迟 250ms 更新检查按钮的错误标记和可访问名称；点击按钮打开完整报告。
 
 验证：npx jest --runInBand src/**tests**/makerUiEditor.test.ts；
 node scripts/test-maker-ui-editor.mjs 与 npm run test:maker:ui-editor-page（Playwright 可用时）。

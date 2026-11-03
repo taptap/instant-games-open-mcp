@@ -51,10 +51,9 @@
   el("copySkillPrompt").addEventListener("click", function () {
     return copy(el("skillPrompt"), el("skillCopyStatus"), el("copySkillPrompt"));
   });
-  el("checkUiBtn").addEventListener("click", function () {
+  function checkDocument() {
     var api = window.UrhoxPreview;
     if (!api || !api.tree || (window.UrhoxProject && window.UrhoxProject.isOpening && window.UrhoxProject.isOpening())) return;
-    var tree = api.tree;
     var project = window.UrhoxProject;
     var resourcesReady = project && (!project.isResourceIndexReady || project.isResourceIndexReady());
     var report = window.UrhoxUICheck.checkDocument({
@@ -66,6 +65,29 @@
       report.diagnostics.push({ code: "UI_RESOURCE_INDEX_PENDING", severity: "warning",
         file: api.currentPath, pointer: "", message: "资源索引尚未就绪，本次未检查资源是否存在。请等待项目加载完成后重试；加载失败时先处理顶栏错误。" });
     }
+    return report;
+  }
+  function updateCheckStatus(report) {
+    var button = el("checkUiBtn");
+    var errors = report ? report.errors : 0;
+    button.classList.toggle("has-ui-errors", errors > 0);
+    button.setAttribute("aria-label", errors ? "检查 UI，" + errors + " 个错误" : "检查 UI");
+    button.title = errors ? errors + " 个 UI 错误，点击查看详情" : "检查当前 UI 文档";
+  }
+  var checkTimer = 0;
+  function scheduleCheck() {
+    clearTimeout(checkTimer);
+    checkTimer = setTimeout(function () { updateCheckStatus(checkDocument()); }, 250);
+  }
+  window.addEventListener("urhox:documentchange", scheduleCheck);
+  window.addEventListener("urhox:documentschange", scheduleCheck);
+  scheduleCheck();
+  el("checkUiBtn").addEventListener("click", function () {
+    var report = checkDocument();
+    updateCheckStatus(report);
+    if (!report) return;
+    var api = window.UrhoxPreview;
+    var tree = api.tree;
     el("uiCheckSummary").textContent = report.errors + " 个错误，" + report.warnings + " 个提示 · 当前文档";
     el("uiCheckOutput").value = JSON.stringify(report, null, 2);
     el("checkCopyStatus").textContent = "";
