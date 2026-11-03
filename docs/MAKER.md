@@ -501,6 +501,12 @@ Windows Codex 的会话锁读取。命令不可用、权限不足、记录损坏
 模型字段表示上报时的会话状态；长任务执行期间切换模型时，可能与发起任务时不同。
 服务端 `/tracking` 需同时保留上述四个模型字段才能进入统计。
 
+切换 Agent 编辑器后，让该会话的 AI 在本仓库执行 `npm run test:maker:model`：
+先运行独立单元测试，再显示真实模型读取结果和耗时，不发送打点。
+可加 `-- --expect-model <模型ID>` 核对当前选择；不匹配或读不到时返回非零退出码。
+未指定预期值时，`DETECTED` 表示读到模型，`UNAVAILABLE` 表示正常降级，不能当作获取成功。
+应通过 AI 的终端工具执行，普通系统终端可能没有会话关联；本自检不验证 MCP 握手或服务端入库。
+
 Tool 调用、`maker://status` Resource 读取和 MCP 启动都计入本地活跃；Tool 使用真实工具名，
 Resource 使用 `maker://status`，启动事件使用 `@taptap/maker@<version>`。上报是异步的，
 tracking 请求失败不会改变 MCP Tool 或 Resource 的结果。错误信息上报前会脱敏 PAT、Bearer、

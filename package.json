@@ -32,6 +32,7 @@
     "maker:resources:prepare": "node scripts/maker-demo-resources.mjs optimize && node scripts/maker-demo-resources.mjs check",
     "docker:npm": "cd docker/npm && docker-compose -p taptap-mcp up -d",
     "test": "jest",
+    "test:maker:model": "jest src/__tests__/makerClientModel.test.ts --runInBand && tsx scripts/test-maker-client-model.ts",
     "test:maker:canvas-ui": "node scripts/test-maker-canvas-ui.mjs",
     "test:maker:sequence-ui": "node scripts/test-maker-sequence-ui.mjs",
     "lint": "eslint \"src/**/*.ts\" \"packages/maker-canvas/src/**/*.ts\"",
