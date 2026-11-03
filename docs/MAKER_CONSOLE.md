@@ -706,3 +706,5 @@ Git 401/403 应检查凭证和项目权限，BLACKLISTED 需管理员解除账�
 Windows 正常预览由控制台或 Agent Node 直接持有 Runtime，旧 CIM 仅为显式兼容入口。
 最新实测和未覆盖边界见 [启动方式探针](MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md) 的最新记录。
 历史 breakaway 与强制手动 Host 方案不是当前默认流程。
+
+Web UI 编辑器单页构建同时内联共享画布的 `webTooltip.ts`，宿主通过 `window.UrhoxWebTooltip` 复用工具提示交互和样式；本地控制台入口保持原样。

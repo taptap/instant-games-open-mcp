@@ -39,6 +39,17 @@ export async function buildUiEditorPageHtml({ hostScript, themeStyles, themeScri
   if (typeof hostScript !== 'string' || typeof themeStyles !== 'string')
     throw new Error('hostScript and themeStyles are required.');
   const target = MAKER_UI_EDITOR_BROWSER_TARGET;
+  const tooltip = await build({
+    entryPoints: [
+      fileURLToPath(new URL('../packages/maker-canvas/src/browser/webTooltip.ts', import.meta.url)),
+    ],
+    bundle: true,
+    format: 'iife',
+    globalName: 'UrhoxWebTooltip',
+    target,
+    write: false,
+    legalComments: 'none',
+  });
   const yoga = await build({
     stdin: {
       contents:
@@ -85,7 +96,7 @@ export async function buildUiEditorPageHtml({ hostScript, themeStyles, themeScri
     html,
     /<script type="module" src="src\/bootstrap\.js[^"]*"><\/script>/.exec(html)?.[0] ??
       '<script type="module" src="src/bootstrap.js',
-    [themeScript, hostScript, yoga.outputFiles[0].text, main]
+    [themeScript, tooltip.outputFiles[0].text, hostScript, yoga.outputFiles[0].text, main]
       .map((code) => inline('script', code))
       .join('\n')
   );

@@ -179,6 +179,8 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
 `canvas-appearance-web` 并启用 `webStyles.ts` 中的作用域 CSS（工具条、选中菜单、
 图片卡/图片槽、提示词面板），连线语义与命令不变。`'web'` 下的交互差异：
 
+工具提示的交互与样式集中在 `browser/webTooltip.ts`，Web UI 编辑器的单页构建也复用它。默认悬停 150ms 显示、相邻操作跳过延迟，支持键盘聚焦；宿主可指定目标选择器、文案属性、键盘样式类及定位边界。
+
 - 「+」只在恰好选中一张卡片（或键盘聚焦）时出现，多选不显示。锚点是图片框（标题行以下的
   可见框）左右边的垂直中点：20px 圆环（1.2px 描边 ink 70%、底 charcoal 90%、12px Plus）
   停在边上，80px 热区中心在边外 25px，按屏幕像素绘制不随缩放变化；热区内跟随指针最多 30px、
