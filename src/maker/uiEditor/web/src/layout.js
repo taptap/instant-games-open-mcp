@@ -26,6 +26,8 @@
   var panY = 24;
   var spaceDown = false;
   var MIN_SIDE = 180;
+  var MAX_RIGHT = Number.isFinite(hostLayout.maxRightWidth) && hostLayout.maxRightWidth >= MIN_SIDE
+    ? hostLayout.maxRightWidth : Infinity;
   var MIN_BOTTOM = 120;
   var MIN_PREVIEW = 220;
   var GRID = 18;
@@ -45,6 +47,7 @@
   }
 
   function applySizes() {
+    rightW = Math.min(rightW, MAX_RIGHT);
     var sideMax=Math.max(120,(window.innerWidth-MIN_PREVIEW-12)/2);
     root.style.setProperty("--left-w", leftVisible ? Math.min(leftW,sideMax) + "px" : "0px");
     root.style.setProperty("--right-w", rightVisible ? Math.min(rightW,sideMax) + "px" : "0px");
@@ -146,7 +149,7 @@
         if (kind === "left") {
           leftW = Math.max(MIN_SIDE, Math.min(window.innerWidth - rightW - MIN_PREVIEW, startLeft + (ev.clientX - startX)));
         } else if (kind === "right") {
-          rightW = Math.max(MIN_SIDE, Math.min(window.innerWidth - leftW - MIN_PREVIEW, startRight - (ev.clientX - startX)));
+          rightW = Math.max(MIN_SIDE, Math.min(MAX_RIGHT, window.innerWidth - leftW - MIN_PREVIEW, startRight - (ev.clientX - startX)));
         } else if (kind === "bottom") {
           bottomH = Math.max(MIN_BOTTOM, Math.min(window.innerHeight - 160, startBottom - (ev.clientY - startY)));
         } else if (kind === "project") {
