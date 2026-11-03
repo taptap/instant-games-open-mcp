@@ -158,6 +158,8 @@ Lua 自绘逻辑不能直接作为普通 Panel 导入。随包 MakerNanoVG.lua �
 脚本与 Yoga 内联并降级到 Chrome 74，宿主脚本先定义 window.UrhoxHost
 （fileRoot、initialUi、manifest、readText、save，可选 assetUrl、替换 AI 指引文案的 guidance（prompt、description、steps），以及 wheel: "pan"（双指滑动与滚轮平移、捏合或 Ctrl/⌘+滚轮缩放，同 Web 画布；默认滚轮缩放）），编辑器只经它读写文件；
 未定义时使用控制台路由。控制台仍按原目录提供，行为不变。
+宿主可设置 layout.inspectorTransforms: true，将现有选区旋转 / 缩放输入移入 Rect Transform；
+保留单选绝对值、多选增量和禁用条件，未设置时继续使用画布工具行。
 
 验证：npx jest --runInBand src/**tests**/makerUiEditor.test.ts；
 node scripts/test-maker-ui-editor.mjs 与 npm run test:maker:ui-editor-page（Playwright 可用时）。

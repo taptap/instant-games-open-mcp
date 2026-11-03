@@ -46,7 +46,25 @@ const documentText = JSON.stringify({
   width: 400,
   height: 800,
   children: [
-    { type: 'Panel', id: 'hero', backgroundImage: 'image/a b.png', width: 100, height: 100 },
+    {
+      type: 'Panel',
+      id: 'hero',
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      backgroundImage: 'image/a b.png',
+      width: 100,
+      height: 100,
+    },
+    {
+      type: 'Panel',
+      id: 'second',
+      position: 'absolute',
+      left: 120,
+      top: 0,
+      width: 100,
+      height: 100,
+    },
   ],
 });
 const requested = [];
@@ -113,6 +131,48 @@ try {
     text: '{"type":"Panel"}',
     expectedText: 'base',
   });
+  const transforms = await page.evaluate(() => {
+    const api = window.UrhoxPreview;
+    const input = document.getElementById('selectionRotation');
+    const defaultToolbar = !!input.closest('.transform-toolbar');
+    window.UrhoxHost.layout = { inspectorTransforms: true };
+    api.selectNode(api.tree.children[0], true);
+    const inRect = input.closest('.insp-group').textContent.includes('Rect Transform');
+    const enabled = !input.disabled;
+    input.value = '20';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    const rotation = Number(input.value);
+    api.selectNode(null);
+    const parked = !!input.closest('.transform-toolbar') && input.disabled;
+    api.selectNode(api.tree.children[0], true);
+    api.selectNode(api.tree.children[1], true, true);
+    const multi =
+      !input.disabled && input.closest('.insp-group').textContent.includes('Rect Transform');
+    const scale = document.getElementById('selectionScale');
+    scale.value = '150';
+    scale.dispatchEvent(new Event('change', { bubbles: true }));
+    return {
+      defaultToolbar,
+      inRect,
+      enabled,
+      rotation,
+      parked,
+      multi,
+      sameInput: input === document.getElementById('selectionRotation'),
+      scale: api.tree.children[0].scale,
+    };
+  });
+  assert.deepEqual(transforms, {
+    defaultToolbar: true,
+    inRect: true,
+    enabled: true,
+    rotation: 20,
+    parked: true,
+    multi: true,
+    sameInput: true,
+    scale: 1.5,
+  });
+  assert.deepEqual(errors, []);
   for (let tries = 0; tries < 50 && requested.length < 3; tries++) await page.waitForTimeout(100);
   assert.ok(requested.includes('assets/image/a b.png'), 'host asset URL resolves encoded paths');
   assert.ok(requested.includes('assets/ui/main.reference.png'), 'reference image loads');

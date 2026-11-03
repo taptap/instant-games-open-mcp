@@ -681,7 +681,28 @@
     container.appendChild(note);
   }
 
+  var selectionTransforms = null;
+  function inspectorTransforms() {
+    var layout = root.UrhoxHost && root.UrhoxHost.layout;
+    if (!layout || !layout.inspectorTransforms) return null;
+    if (!selectionTransforms) {
+      selectionTransforms = document.createElement("div");
+      selectionTransforms.className = "inspector-transforms";
+      ["selectionRotation", "selectionScale", "transformStatus"].forEach(function (id) {
+        var field = document.getElementById(id);
+        if (field) selectionTransforms.appendChild(id === "transformStatus" ? field : field.parentNode);
+      });
+    }
+    return selectionTransforms;
+  }
+
   function render(container, node, onChange, meta) {
+    // Preserve the original controls and listeners across inspector rebuilds. Park them where
+    // preview.updateMeta can still update selection state even when no node is selected.
+    var transforms = inspectorTransforms();
+    if (transforms) {
+      document.querySelector(".transform-toolbar").appendChild(transforms);
+    }
     container.innerHTML = "";
     if (!node) {
       container.innerHTML = "<p class=\"muted\">选中一个节点后显示属性</p>";
@@ -690,6 +711,11 @@
     meta = meta || {};
     if (meta.selection && meta.selection.length > 1) {
       renderSelection(container, meta.selection, onChange, meta);
+      if (transforms) {
+        var group = renderGroup({ id: "rect", title: "Rect Transform", rows: [] }, node, onChange);
+        group.querySelector(".insp-body").appendChild(transforms);
+        container.appendChild(group);
+      }
       return;
     }
     renderComponentNote(container, meta);
@@ -707,7 +733,9 @@
     }
     GROUPS.forEach(function (group) {
       if (group.showIf && !group.showIf(node)) return;
-      container.appendChild(renderGroup(group, node, onChange));
+      var block = renderGroup(group, node, onChange);
+      if (transforms && group.id === "rect") block.querySelector(".insp-body").appendChild(transforms);
+      container.appendChild(block);
     });
   }
 
