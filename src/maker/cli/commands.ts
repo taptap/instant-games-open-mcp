@@ -39,6 +39,7 @@ import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeL
 import { runPreviewCli } from './preview.js';
 import { runConsoleCli } from '../console/cli.js';
 import { runCanvasCli } from '../canvas/cli.js';
+import { runProjectCheckCli } from '../projectCheck/cli.js';
 import { runUiCli } from '../uiEditor/cli.js';
 import { runBuildCli } from './build.js';
 import { runQrcodeCli } from './qrcode.js';
@@ -147,6 +148,7 @@ const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : '
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
 const TWO_PART_COMMANDS = new Set([
+  'project-check',
   'image',
   'ui',
   'canvas',
@@ -315,6 +317,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'init') {
     await runInit(parsed, ctx);
+    return;
+  }
+
+  if (command === 'project-check') {
+    await runProjectCheckCli(subcommand, parsed.options, parsed.positionals);
     return;
   }
 
@@ -3281,6 +3288,9 @@ function printHelp(): void {
       '  taptap-maker console serve  # launch from outside the AI IDE on Windows',
       '  taptap-maker console open [--target-dir PROJECT_ABSOLUTE_PATH] [--no-open] [--json]',
       '  taptap-maker console status|stop [--json]',
+      '  taptap-maker project-check capabilities [--json]',
+      '  taptap-maker project-check collect|show --target-dir PATH [--json]',
+      '  taptap-maker project-check publish --target-dir PATH --input-file ANALYSIS.json [--json]',
       '  taptap-maker ui capabilities',
       '  taptap-maker ui nanovg-adapter [--json]',
       '  taptap-maker ui list --target-dir PROJECT_ABSOLUTE_PATH [--json]',

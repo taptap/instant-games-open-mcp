@@ -3,6 +3,7 @@ import { consoleThemeScript } from '../webTheme.js';
 import { modelSettingsScript } from './modelSettingsUi.js';
 import { contextCheckScript } from './contextCheckUi.js';
 import { architecturePreviewScript } from './architecturePreview.js';
+import { assetCheckScript } from './assetCheckUi.js';
 
 export const consoleScript = String.raw`
 ${consoleThemeScript}
@@ -2799,6 +2800,7 @@ function renderCanvas() {
 }
 ${modelSettingsScript}
 function setMotionVisible(visible) {
+  document.querySelector('.project-architecture-frame')?.contentWindow?.postMessage({type:'maker:architecture-visibility',visible:false},location.origin);
   motionFrame?.contentWindow?.postMessage({type:'maker:motion-visibility',visible},location.origin);
 }
 function renderOther() {
@@ -2820,12 +2822,11 @@ function renderOther() {
     setMotionVisible(true);
   } else {
     setMotionVisible(false);
-    architecturePreview.render($('other-architecture'));
+    renderProjectCheck();
+    void loadProjectCheck();
   }
 }
 function navigate(next) {
-  // Keep the unfinished tools dormant until their navigation entry is restored.
-  if (next === 'other') return;
   if (!currentProject()?.valid && !['projects','documents','settings','other'].includes(next)) return;
   viewEpoch++; commitRequest++; gitLoading = false; page = next;
   render();
@@ -2916,6 +2917,7 @@ async function pollState() {
   }
   if (first && initialQuery.get('page') === 'documents') page = 'documents';
   if (first && initialQuery.get('page') === 'settings') page = 'settings';
+  if (first && initialQuery.get('page') === 'other') page = 'other';
   const settled = [];
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
@@ -2999,6 +3001,7 @@ onProjectChange(() => {
   documentDirectoryRequest++;
 });
 ${architecturePreviewScript}
+${assetCheckScript}
 document.addEventListener('DOMContentLoaded',async () => {
   window.addEventListener('beforeunload', protectUiEditorUnload);
   $('git-pull-conflict-copy')?.addEventListener('click',() => void copyGitPrompt($('git-pull-conflict-prompt').value));

@@ -22,6 +22,8 @@ import {
 import { ConsoleUpdates } from './updates.js';
 import { ConsoleDocuments } from './documents.js';
 import { inspectContext } from './contextCheck.js';
+import { readProjectCheck, architectureView } from '../projectCheck/store.js';
+import { getArchitectureHtml } from './architecture/page.js';
 import { chooseProjectDirectory } from './folderPicker.js';
 import { discoverConsoleProjects } from './projectDiscovery.js';
 import { handleCanvasProjectRoute } from './canvasRoutes.js';
@@ -243,14 +245,18 @@ export async function startConsoleServer(options: {
       }
       if (
         request.method === 'GET' &&
-        ['/canvas', '/canvas-model-preview', '/ui-motion'].includes(url.pathname)
+        ['/canvas', '/canvas-model-preview', '/ui-motion', '/project-architecture'].includes(
+          url.pathname
+        )
       ) {
         const html =
-          url.pathname === '/ui-motion'
-            ? getUiMotionHtml()
-            : url.pathname === '/canvas'
-              ? getCanvasPageHtml()
-              : getCanvasModelPreviewHtml();
+          url.pathname === '/project-architecture'
+            ? getArchitectureHtml()
+            : url.pathname === '/ui-motion'
+              ? getUiMotionHtml()
+              : url.pathname === '/canvas'
+                ? getCanvasPageHtml()
+                : getCanvasModelPreviewHtml();
         const source = html.match(/<script>([\s\S]*?)<\/script>/i)?.[1] ?? '';
         const hash = createHash('sha256').update(source).digest('base64');
         response.setHeader(
@@ -490,6 +496,16 @@ export async function startConsoleServer(options: {
         json(200, ready);
       } else if (request.method === 'GET' && !suffix) {
         json(200, await read(() => options.registry.detail(key, readAbort.signal)));
+      } else if (
+        request.method === 'GET' &&
+        ['architecture', 'project-check'].includes(suffix ?? '')
+      ) {
+        if (url.search) throw new ConsoleError('项目检查仅支持当前项目，不接受自定义路径参数。');
+        const saved = await read(() => readProjectCheck(options.registry.resolve(key).path));
+        json(
+          200,
+          suffix === 'architecture' ? (saved ? architectureView(saved) : null) : { result: saved }
+        );
       } else if (request.method === 'GET' && suffix === 'context-check') {
         if (url.search) throw new ConsoleError('项目检查仅支持当前项目，不接受检查范围参数。');
         json(

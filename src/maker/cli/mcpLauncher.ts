@@ -55,6 +55,7 @@ const SELF_RUNTIME_DIRECTORIES = [
   'skills/maker-ui-workflow',
   'skills/maker-ui-bbox-workflow',
   'skills/lua-ui-to-json',
+  'skills/maker-project-check',
   'skills/taptap-maker-local',
   'skills/taptap-maker-dev-kit-guide',
   'skills/update-taptap-mcp',

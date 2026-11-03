@@ -21,6 +21,7 @@ const BUNDLED_SKILLS = [
   { name: 'maker-ui-workflow' },
   { name: 'maker-ui-bbox-workflow' },
   { name: 'lua-ui-to-json' },
+  { name: 'maker-project-check' },
   {
     name: MAKER_LOCAL_SKILL_NAME,
   },
