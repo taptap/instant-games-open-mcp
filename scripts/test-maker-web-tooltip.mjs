@@ -49,6 +49,10 @@ try {
                   targets: '[title],[data-web-title]',
                   labelAttribute: 'data-web-title',
                   keyboardClass: 'web-keyboard',
+                  render(element, text) {
+                    window.hostTooltip = element && !element.closest('.canvas-pane') ? text : null;
+                    return !!window.hostTooltip;
+                  },
                   boundary: { targets: '.canvas-toolbar', container: '.canvas-pane' },
                 }
               : {}
@@ -91,6 +95,78 @@ try {
       assert.equal(await tip.textContent(), '对齐节点');
       await page.keyboard.press('Escape');
       assert.equal(await tip.isHidden(), true);
+      await page.evaluate(() => {
+        const toolbar = document.querySelector('.canvas-toolbar');
+        toolbar.classList.add('maker-toolbar', 'maker-toolbar-actions');
+        const grip = document.createElement('button');
+        grip.className = 'maker-toolbar-grip';
+        grip.id = 'grip';
+        toolbar.prepend(grip);
+        const style = document.createElement('style');
+        style.textContent =
+          ':root { --web-line:#888; --web-panel:#fff; --web-text:#222; --web-muted:#666; --web-wash:#eee; }' +
+          window.UrhoxWebTooltip.webToolbarStyles(':root');
+        document.head.appendChild(style);
+        window.toolbarDrag = window.UrhoxWebTooltip.installWebToolbarDrag(
+          toolbar,
+          document.querySelector('.canvas-pane'),
+          grip,
+          { inset: 8 }
+        );
+      });
+      const first = page.locator('#first');
+      assert.equal(await first.evaluate((el) => getComputedStyle(el).width), '36px');
+      await first.hover();
+      assert.equal(
+        await first.evaluate((el) => getComputedStyle(el).backgroundColor),
+        'rgb(238, 238, 238)'
+      );
+      await page.mouse.down();
+      assert.equal(
+        await first.evaluate((el) => getComputedStyle(el).backgroundColor),
+        'rgb(34, 34, 34)'
+      );
+      await page.mouse.up();
+      const grip = page.locator('#grip');
+      assert.equal(await grip.evaluate((el) => getComputedStyle(el).borderWidth), '0px');
+      const before = await grip.boundingBox();
+      await grip.press('ArrowRight');
+      assert.equal(Math.round((await grip.boundingBox()).x - before.x), 10);
+      const box = await grip.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2 + 40);
+      await page.mouse.up();
+      assert.equal(Math.round((await grip.boundingBox()).x - box.x), 80);
+      await page.evaluate(() => window.toolbarDrag.reset());
+      assert.equal(await page.locator('.canvas-toolbar').evaluate((el) => el.style.left), '');
+      await page.evaluate((editor) => {
+        document
+          .querySelector('#first')
+          .setAttribute(
+            editor ? 'data-web-title' : 'data-web-tip',
+            '长提示需要换行，确保全部内容都在画面内。'.repeat(8)
+          );
+      }, editor);
+      await first.hover();
+      await page.waitForFunction(() => !document.querySelector('.web-tooltip').hidden);
+      assert.ok(await tip.evaluate((el) => el.scrollWidth <= el.clientWidth + 2));
+      assert.ok((await tip.boundingBox()).width <= 220);
+      if (editor) {
+        await page.evaluate(() => {
+          const button = document.createElement('button');
+          button.id = 'header';
+          button.title = '让 AI 检查当前 UI 是否已接入游戏，并按项目现有流程完成接入。';
+          button.textContent = '接入游戏';
+          document.body.prepend(button);
+        });
+        await page.locator('#header').hover();
+        await page.waitForFunction(() => !!window.hostTooltip);
+        assert.equal(await tip.isHidden(), true);
+        await page.mouse.down();
+        assert.equal(await page.evaluate(() => window.hostTooltip), null);
+        await page.mouse.up();
+      }
       await page.close();
     }
   }

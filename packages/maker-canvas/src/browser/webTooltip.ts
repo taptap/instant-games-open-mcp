@@ -5,6 +5,8 @@ export function installCanvasWebTooltips(
     labelAttribute?: string;
     keyboardClass?: string;
     boundary?: { targets: string; container: string };
+    /** Return true when the host renders this tooltip instead of the canvas bubble. */
+    render?: (element: HTMLElement | null, text?: string) => boolean | void;
   } = {}
 ) {
   const targets =
@@ -56,8 +58,6 @@ export function installCanvasWebTooltips(
   function place() {
     if (!owner || !owner.isConnected) return hide();
     const box = owner.getBoundingClientRect();
-    const width = tip.offsetWidth;
-    const height = tip.offsetHeight;
     const center = box.left + box.width / 2;
     const boundary =
       options.boundary && owner.closest(options.boundary.targets)
@@ -66,6 +66,9 @@ export function installCanvasWebTooltips(
     const minX = boundary ? boundary.left + 6 : 6;
     const maxX = boundary ? boundary.right - 6 : window.innerWidth - 6;
     const minY = boundary ? boundary.top + 4 : 4;
+    tip.style.maxWidth = Math.min(220, Math.max(1, maxX - minX)) + 'px';
+    const width = tip.offsetWidth;
+    const height = tip.offsetHeight;
     const left = Math.max(minX, Math.min(center - width / 2, maxX - width));
     const below = box.top - 8 - height < minY;
     tip.dataset.side = below ? 'below' : 'above';
@@ -86,8 +89,8 @@ export function installCanvasWebTooltips(
     timer = window.setTimeout(() => {
       if (owner !== element || !element.isConnected) return;
       tip.textContent = text;
-      tip.hidden = false;
-      place();
+      tip.hidden = !!options.render?.(element, text);
+      if (!tip.hidden) place();
       tip.dataset.open = 'true';
     }, delay);
   }
@@ -95,6 +98,7 @@ export function installCanvasWebTooltips(
     clearTimeout(timer);
     if (tip.dataset.open === 'true') lastHide = Date.now();
     owner = null;
+    options.render?.(null);
     tip.dataset.open = 'false';
     tip.hidden = true;
   }
@@ -156,7 +160,7 @@ export function installCanvasWebTooltips(
 
 export function canvasWebTooltipStyles(M: string, L: string): string {
   return `/* Tooltip = Mivo .canvas-tooltip-host bubble: small dark pill above the target, shown by JS after 150ms. */
-${M} .web-tooltip { position: fixed; left: 0; top: 0; z-index: 2147483000; box-sizing: border-box; max-width: 220px; padding: 5px 9px; border: 1px solid rgba(255,250,240,.1); border-radius: 7px; background: rgba(28,28,27,.98); color: #fffaf0; box-shadow: 0 10px 24px rgba(0,0,0,.28); font-size: 12px; font-weight: 600; line-height: 1.35; text-align: center; white-space: nowrap; pointer-events: none; opacity: 0; -webkit-transform: translateY(3px); transform: translateY(3px); transition: opacity .12s ease, transform .12s ease; }
+${M} .web-tooltip { position: fixed; left: 0; top: 0; z-index: 2147483000; box-sizing: border-box; max-width: 220px; padding: 5px 9px; border: 1px solid rgba(255,250,240,.1); border-radius: 7px; background: rgba(28,28,27,.98); color: #fffaf0; box-shadow: 0 10px 24px rgba(0,0,0,.28); font-size: 12px; font-weight: 600; line-height: 1.35; text-align: center; white-space: normal; overflow-wrap: break-word; pointer-events: none; opacity: 0; -webkit-transform: translateY(3px); transform: translateY(3px); transition: opacity .12s ease, transform .12s ease; }
 ${M} .web-tooltip[data-open="true"] { opacity: 1; -webkit-transform: none; transform: none; }
 ${M} .web-tooltip[hidden] { display: none; }
 ${M} .web-tooltip::after { content: ''; position: absolute; left: var(--web-tip-arrow, 50%); top: 100%; width: 8px; height: 8px; margin: -4px 0 0 -4px; box-sizing: border-box; border-right: 1px solid rgba(255,250,240,.1); border-bottom: 1px solid rgba(255,250,240,.1); background: inherit; -webkit-transform: rotate(45deg); transform: rotate(45deg); }
@@ -165,3 +169,5 @@ ${L} .web-tooltip { border-color: rgba(37,46,41,.9); background: rgba(37,46,41,.
 ${L} .web-tooltip::after { border-color: rgba(37,46,41,.9); }
 @media (prefers-reduced-motion: reduce) { ${M} .web-tooltip { transition: none; } }`;
 }
+
+export { installWebToolbarDrag, webToolbarStyles } from './webToolbar.js';

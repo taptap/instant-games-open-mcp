@@ -708,3 +708,5 @@ Windows 正常预览由控制台或 Agent Node 直接持有 Runtime，旧 CIM �
 历史 breakaway 与强制手动 Host 方案不是当前默认流程。
 
 Web UI 编辑器单页构建同时内联共享画布的 `webTooltip.ts`，宿主通过 `window.UrhoxWebTooltip` 复用工具提示交互和样式；本地控制台入口保持原样。
+
+Web Canvas 与 UI 编辑器共享 webToolbar.ts 的圆形按钮、菜单样式和指针／方向键拖动逻辑；宿主提供工具动作与移动边界。

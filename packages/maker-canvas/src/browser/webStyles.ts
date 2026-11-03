@@ -1,3 +1,4 @@
+import { webToolbarStyles } from './webToolbar.js';
 import { canvasWebTooltipStyles } from './webTooltip.js';
 
 // The :not(#id) term adds ID weight so this opt-in skin wins over host theme CSS appended later.
@@ -138,16 +139,7 @@ ${L} {
   --web-scrim: rgba(255,255,255,.94);
 }
 
-${M} .workspace-toolbar { width: 48px; padding: 7px 5px; gap: 0; border: 1px solid var(--web-line); border-radius: 24px; background: var(--web-panel); box-shadow: var(--web-shadow); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-${M} .workspace-toolbar .workspace-toolbar-grip { display: flex; align-items: center; justify-content: center; height: 16px; min-height: 16px; margin-bottom: 2px; background: transparent; color: var(--web-muted); font-size: 0; line-height: 0; }
-${M} .workspace-toolbar .workspace-toolbar-grip:hover { color: var(--web-text); }
-${M} .workspace-toolbar .workspace-toolbar-grip svg { display: block; }
-${M} .workspace-actions { gap: 0; align-items: center; }
-${M} .workspace-actions > * + * { margin-top: 4px; }
-${M} .workspace-actions > button, ${M} .workspace-actions summary { box-sizing: border-box; width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--web-muted); font-weight: 400; }
-${M} .workspace-actions > button:hover:not(:disabled), ${M} .workspace-actions summary:hover { background: var(--web-wash); color: var(--web-text); }
-${M} .workspace-actions > button[aria-pressed="true"], ${M} .workspace-actions > button[aria-pressed="true"]:hover:not(:disabled), ${M} .workspace-actions .workspace-add[open] > summary { background: var(--web-text); color: var(--web-panel); }
-${M} .workspace-tool-sep { width: 20px; height: 1px; margin: 6px auto; background: var(--web-line); }
+${webToolbarStyles(M)}
 /* The save button carries saved/unsaved/saving/failed; the status text stays for screen readers only. */
 ${M} .workspace-toolbar #status { position: absolute; width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden; clip: rect(0 0 0 0); border: 0; white-space: nowrap; }
 ${M} .workspace-actions > #save { position: relative; }
@@ -161,9 +153,6 @@ ${M} .workspace-actions > #save[data-save-state="failed"]::after { background: #
 /* Pan mode and held Space own the cursor everywhere on the board, above card-level cursors. */
 ${M} #board.pan-tool, ${M} #board.pan-tool * { cursor: grab !important; }
 ${M} #board.grabbing, ${M} #board.grabbing * { cursor: grabbing !important; }
-${M} .workspace-menu-panel { padding: 6px; border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); box-shadow: var(--web-shadow); }
-${M} .workspace-menu-panel button { border: 0; border-radius: 8px; background: transparent; color: var(--web-text); padding: 8px 10px; }
-${M} .workspace-menu-panel button:hover:not(:disabled) { background: var(--web-wash); }
 ${M} .workspace-view-controls { gap: 0; }
 ${M} .workspace-view-controls > * + * { margin-left: 4px; }
 ${M} .workspace-view-controls button { height: 28px; min-height: 28px; padding: 0 10px; border: 0; border-radius: 14px; background: transparent; color: var(--web-muted); }
