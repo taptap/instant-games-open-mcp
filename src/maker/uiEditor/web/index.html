@@ -28,10 +28,12 @@
         <div class="menubar-right">
           <label class="device-label">屏幕
             <select id="deviceSelect">
-              <option value="720p">720p 720×1280</option>
-              <option value="1080p" selected>1080p 1080×1920</option>
-              <option value="2k">2K 1440×2560</option>
-              <option value="4k">4K 2160×3840</option>
+              <option value="720p">720p 720×1280 · DPR 1</option>
+              <option value="1080p" selected>1080p 1080×1920 · DPR 1.5</option>
+              <option value="2k">2K 1440×2560 · DPR 2</option>
+              <option value="4k">4K 2160×3840 · DPR 3</option>
+              <option value="iphone18">iPhone 18 Pro 1206×2622</option>
+              <option value="ipadpro">iPad Pro 13″ 2064×2752</option>
               <option value="customize">自定义分辨率…</option>
             </select>
           </label>
@@ -39,6 +41,7 @@
             <label><input type="radio" name="orientation" value="portrait" checked />竖屏</label>
             <label><input type="radio" name="orientation" value="landscape" />横屏</label>
           </div>
+          <label id="componentPreviewLabel" class="hidden"><input id="componentPreview" type="checkbox" /> 在屏幕中预览组件</label>
           <span id="scaleBadge" class="muted">1.00×</span>
           <button id="resetLayoutBtn" type="button" class="ghost" title="恢复默认面板尺寸和显示状态">重置布局</button>
           <span class="sep"></span>
@@ -186,13 +189,18 @@
     <header><h2 id="deviceTitle">自定义分辨率</h2><button type="button" data-close="deviceDialog" class="ghost" aria-label="关闭自定义分辨率">×</button></header>
     <form id="deviceForm">
       <div class="workbench-controls"><label>宽 <input id="deviceWidth" type="number" min="240" max="4096" required /></label><button id="deviceSwap" type="button" class="ghost" title="交换宽高" aria-label="交换宽高">⇄</button><label>高 <input id="deviceHeight" type="number" min="240" max="4096" required /></label></div>
-      <label><input id="safeAreaEnabled" type="checkbox" /> 显示安全区</label>
+      <div class="workbench-controls">
+        <label>设备 DPR <input id="deviceDpr" type="number" min="1" max="4" step="0.1" value="1" required /></label>
+        <label>UI 缩放 <input id="deviceScale" type="number" min="0.25" max="8" step="0.01" placeholder="自动 DEFAULT" /></label>
+      </div>
+      <label><input id="safeAreaEnabled" type="checkbox" /> 模拟安全区（参与布局，数值为物理像素）</label>
       <div class="safe-area-fields">
         <label>上 <input id="safeTop" type="number" min="0" max="2048" value="0" required /></label>
         <label>右 <input id="safeRight" type="number" min="0" max="2048" value="0" required /></label>
         <label>下 <input id="safeBottom" type="number" min="0" max="2048" value="0" required /></label>
         <label>左 <input id="safeLeft" type="number" min="0" max="2048" value="0" required /></label>
       </div>
+      <label>Tap 胶囊底边距屏幕顶部 <input id="nativeMenuBottom" type="number" min="0" max="4095" value="0" required /> px（0 表示不模拟）</label>
       <p id="deviceError" class="muted" role="alert"></p>
       <footer><span class="muted">仅预览，不修改 UI 设计尺寸</span><button type="submit">应用</button></footer>
     </form>
@@ -258,6 +266,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="src/bootstrap.js?v=20260928-ui2"></script>
+  <script type="module" src="src/bootstrap.js?v=20261103-ui-preview1"></script>
 </body>
 </html>

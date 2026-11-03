@@ -1,6 +1,6 @@
 (function (root) {
   "use strict";
-  var previewTypes = new Set(["Panel", "Label", "Button", "NanoVG"]);
+  var previewTypes = new Set(["Panel", "Label", "Button", "NanoVG", "SafeAreaView"]);
   // An allowlist shared by the browser, CLI and standalone document checker.
   var nanoOps = {
     save: "", restore: "", beginPath: "", closePath: "", fill: "", stroke: "",
@@ -132,6 +132,17 @@
           issue("UI_DUPLICATE_ID", "error", pointer + "/id", "同一文档的 id 重复：" + node.id +
             "；首次出现于 " + ids.get(node.id));
         } else ids.set(node.id, pointer + "/id");
+      }
+      if (node.aspectRatio != null && !token(node.aspectRatio) &&
+          !(typeof node.aspectRatio === "number" && Number.isFinite(node.aspectRatio) && node.aspectRatio > 0)) {
+        issue("UI_ASPECT_RATIO", "error", pointer + "/aspectRatio", "宽高比必须是正数。");
+      }
+      if (node.type === "SafeAreaView") {
+        if (node.nativeMenuInset != null && !token(node.nativeMenuInset) && typeof node.nativeMenuInset !== "boolean")
+          issue("UI_SAFE_AREA", "error", pointer + "/nativeMenuInset", "胶囊避让必须是布尔值。");
+        if (node.edges != null && !token(node.edges) && !["all", "none", "horizontal", "vertical"].includes(node.edges) &&
+            !(Array.isArray(node.edges) && node.edges.every(function (edge) { return ["top", "right", "bottom", "left"].includes(edge); })))
+          issue("UI_SAFE_AREA", "error", pointer + "/edges", "安全区方向应为 all/none/horizontal/vertical 或方向数组。");
       }
       Object.keys(node).forEach(function (key) {
         var value = node[key], at = pointer + "/" + key.replace(/~/g, "~0").replace(/\//g, "~1");

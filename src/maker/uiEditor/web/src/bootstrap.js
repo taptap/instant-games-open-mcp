@@ -1,5 +1,6 @@
 try {
-  const cacheVersion = "20261009-tree-state1";
+  const cacheVersion = "20261103-ui-scroll-preview";
+  const rendering = new URLSearchParams(location.search).has("render");
   window.UrhoxYogaEngine = (await import("../vendor/yoga-layout/dist/src/index.js")).default;
   await import("../skills/lua-ui-to-json/scripts/ui-json-check.js?" + cacheVersion);
   for (const name of [
@@ -7,8 +8,10 @@ try {
     "inspector", "nanovg", "canvas", "commands", "layout", "transform", "input", "preview", "save",
     "comparison", "workbench", "context-menu", "hotkeys", "guidance", "editor",
   ]) {
+    if (rendering && ["editor", "save", "comparison", "workbench", "context-menu", "hotkeys", "guidance", "layout"].includes(name)) continue;
     await import("./" + name + ".js?" + cacheVersion);
   }
+  await import("./automation.js?" + cacheVersion);
 } catch (error) {
   console.error(error);
   document.getElementById("sessionStatus").textContent = "编辑器加载失败，请刷新重试；仍失败请检查站点文件是否发布完整。";

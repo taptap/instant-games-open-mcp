@@ -210,6 +210,13 @@
     resolve: resolve,
     bindSrc: bindSrc,
     loadImage: loadImage,
+    whenReady: async function () {
+      var entries = Object.values(cache);
+      await Promise.all(entries.map(function (entry) {
+        return entry.done ? Promise.resolve() : new Promise(function (resolve) { entry.callbacks.add(resolve); });
+      }));
+      return Object.keys(cache).filter(function (key) { return !cache[key].image.naturalWidth; });
+    },
     fitRect: fitRect,
     setContext: function (next) {
       generation += 1;

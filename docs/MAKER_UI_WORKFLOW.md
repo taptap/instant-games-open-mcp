@@ -312,7 +312,13 @@ design 包含 path（assets/ 相对路径）、sha256、width、height；assets 
 rect 表示整个 PNG 画布的放置范围，不能混用按钮主体边界与含阴影/透明边距的画布边界。
 先裁透明留白或统一状态画布，再记录资源尺寸和哈希；默认/按下态要检查主体锚点是否一致。
 切图若发生形变，坐标记录不会自动修复形变，应选择备用或在编辑器调整，不宣称完全无误差。
-当前工具只组装固定坐标的静态 UI，不处理旋转/缩放节点、动态列表、百分比和响应式布局。
+未提供 adaptation 的历史输入继续组装固定坐标 UI。新全屏页面可提供 adaptation，
+共享组装器统一换算逻辑尺寸，输出百分比根、安全区、贴边/居中和比例布局；
+显式节点覆盖使用最终逻辑单位，null 删除初拟属性。原始 Bbox 和纠偏记录仍保留设计稿像素。
+画布自动交付默认使用 screen、逻辑短边 720 和安全区；此基准应由 AI 按项目缩放策略复核，
+不能解释为任意设计稿已自动适配。assembly-map.json.adaptation 记录初拟元素与待复核状态。
+字段及验收见 [Skill 适配指引](../skills/maker-ui-workflow/references/responsive.md)。
+不处理原始旋转/缩放节点或动态列表的自动还原。
 
 纠偏 JSON 的 version=1，layoutSha256 为解析后 layout 对象 JSON.stringify 的 SHA-256；
 review 包含 designSha256 与 evidence（实际对照截图路径），adjustments 每项为

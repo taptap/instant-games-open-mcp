@@ -39,7 +39,7 @@
   }
   function fitReference(ctx) {
     if (!image || !image.naturalWidth) return;
-    var size = root.UrhoxDoc.designSize(app.tree);
+    var size = app.designSize();
     var factor = Math.min(size.width / image.naturalWidth, size.height / image.naturalHeight) * settings.scale / 100;
     ctx.drawImage(image, settings.x, settings.y, image.naturalWidth * factor, image.naturalHeight * factor);
   }
