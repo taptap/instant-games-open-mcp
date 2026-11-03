@@ -4,26 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import type { MakerClientModel, MakerClientModelContext } from './types.js';
 
 const execFileAsync = promisify(execFile);
 const MODEL_LOOKUP_TIMEOUT_MS = 1000;
 const MAX_SESSION_BYTES = 64 * 1024;
 const MAX_TRANSCRIPT_BYTES = 1024 * 1024;
 const MAX_SCAN_ENTRIES = 512;
-
-export interface MakerClientModel {
-  client_model_id?: string;
-  client_model_name?: string;
-  resolved_model?: string;
-  model_provider?: string;
-  model_lookup_scope?: 'current_session' | 'latest_session';
-}
-
-export interface MakerClientModelContext {
-  clientName?: string;
-  /** Validated project directory; used only for local lookup, never sent in telemetry. */
-  projectDir?: string;
-}
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -395,7 +382,7 @@ async function readCurrentSessionModel(
 }
 
 /** Read at report time; explicitly mark latest-session fallbacks and isolate all failures. */
-export async function resolveMakerClientModel(
+export async function resolveLocalSessionModel(
   context: MakerClientModelContext = {}
 ): Promise<MakerClientModel> {
   const controller = new AbortController();

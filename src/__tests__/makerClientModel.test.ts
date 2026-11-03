@@ -4,7 +4,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import { resolveMakerClientModel } from '../maker/clientModel';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  extractMakerClientModelRequest,
+  MAKER_CLIENT_MODEL_META_KEY,
+  resolveMakerClientModel,
+} from '../maker/clientModel';
 import { reportMakerMcpActivity } from '../maker/tracking';
 
 jest.mock('node:child_process', () => {
@@ -47,6 +55,164 @@ afterEach(() => {
   fs.rmSync(home, { recursive: true, force: true });
 });
 
+test('extracts a current-call model without changing business arguments or reading local state', async () => {
+  const args = { target_dir: '/game', detail: false, _maker_client_model: ' model-a ' };
+  const request = extractMakerClientModelRequest(args);
+  expect(request.arguments).toEqual({ target_dir: '/game', detail: false });
+  expect(args._maker_client_model).toBe(' model-a ');
+  expect(await resolveMakerClientModel({ requestModel: request.model })).toEqual({
+    client_model_id: 'model-a',
+    model_lookup_scope: 'current_call',
+    model_lookup_source: 'tool_argument',
+  });
+  expect(run).not.toHaveBeenCalled();
+});
+
+test('metadata takes precedence without backfilling from other sources or copying extra fields', async () => {
+  const request = extractMakerClientModelRequest(
+    { _maker_client_model: 'argument-model' },
+    {
+      [MAKER_CLIENT_MODEL_META_KEY]: {
+        resolved_model: 'resolved-a',
+        model_provider: 'provider-a',
+        client_model_name: 'Model A',
+        unrelated: 'private-data',
+        model_lookup_scope: 'latest_session',
+      },
+    }
+  );
+  expect(await resolveMakerClientModel({ requestModel: request.model })).toEqual({
+    resolved_model: 'resolved-a',
+    client_model_name: 'Model A',
+    model_provider: 'provider-a',
+    model_lookup_scope: 'current_call',
+    model_lookup_source: 'request_metadata',
+  });
+  expect(run).not.toHaveBeenCalled();
+});
+
+test('invalid metadata falls through to the argument and missing arguments use local lookup', async () => {
+  const transcript = workBuddySession();
+  fs.writeFileSync(transcript, JSON.stringify({ providerData: { requestModelId: 'local-a' } }));
+  const metadata = { [MAKER_CLIENT_MODEL_META_KEY]: { client_model_id: [], model_provider: 'x' } };
+  const supplied = extractMakerClientModelRequest({ _maker_client_model: 'auto' }, metadata);
+  expect((await resolveMakerClientModel({ requestModel: supplied.model })).client_model_id).toBe(
+    'auto'
+  );
+  expect(run).not.toHaveBeenCalled();
+  const missing = extractMakerClientModelRequest(undefined, metadata);
+  expect(await resolveMakerClientModel({ requestModel: missing.model })).toMatchObject({
+    client_model_id: 'local-a',
+    model_lookup_source: 'local_session',
+  });
+});
+
+test.each([
+  undefined,
+  null,
+  42,
+  {},
+  [],
+  '',
+  '  ',
+  'UNKNOWN',
+  'unavailable',
+  'n/a',
+  'x'.repeat(257),
+])('ignores invalid reported model %p and always strips the statistics argument', (value) => {
+  const request = extractMakerClientModelRequest({ detail: true, _maker_client_model: value });
+  expect(request).toEqual({ arguments: { detail: true } });
+});
+
+test('sequential and concurrent reports keep each call model and preserve the original event', async () => {
+  const fetchImpl = jest.fn(
+    async (_input: string | URL | Request, _init?: RequestInit) =>
+      new Response(null, { status: 204 })
+  );
+  const report = (model: string, id: number) =>
+    reportMakerMcpActivity({
+      context: {
+        userId: 'user',
+        projectId: 'project',
+        clientInfo: { name: 'any-ide', version: '1' },
+        requestModel: extractMakerClientModelRequest({ _maker_client_model: model }).model,
+      },
+      toolName: 'maker_status_lite',
+      requestId: id,
+      success: true,
+      fetchImpl,
+    });
+  await report('a', 1);
+  await report('b', 2);
+  await Promise.all([report('a', 3), report('b', 4)]);
+  const payloads = fetchImpl.mock.calls.map(([, options]) => JSON.parse(String(options?.body)));
+  expect(payloads.map((payload) => [payload.args.tool_id, payload.args.client_model_id])).toEqual([
+    ['1', 'a'],
+    ['2', 'b'],
+    ['3', 'a'],
+    ['4', 'b'],
+  ]);
+  for (const payload of payloads) {
+    expect(payload).toMatchObject({
+      action: 'tapmaker_mcp_call',
+      args: {
+        user_id: 'user',
+        project_id: 'project',
+        tool_name: 'maker_status_lite',
+        source: 'local_mcp',
+        success: true,
+        client_name: 'any-ide',
+        model_lookup_source: 'tool_argument',
+        model_lookup_scope: 'current_call',
+      },
+    });
+    expect(payload.args._maker_client_model).toBeUndefined();
+  }
+  expect(run).not.toHaveBeenCalled();
+});
+
+test('SDK transports optional arguments and custom metadata to extraction (simulated client)', async () => {
+  const server = new Server({ name: 'test-server', version: '1' }, { capabilities: { tools: {} } });
+  const client = new Client({ name: 'test-client', version: '1' });
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const extracted = extractMakerClientModelRequest(
+      request.params.arguments,
+      request.params._meta
+    );
+    const model = await resolveMakerClientModel({ requestModel: extracted.model });
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ arguments: extracted.arguments, model }) }],
+    };
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    for (const useMetadata of [false, true]) {
+      const result = await client.callTool({
+        name: 'maker_status_lite',
+        arguments: { detail: false, _maker_client_model: 'argument-model' },
+        ...(useMetadata
+          ? { _meta: { [MAKER_CLIENT_MODEL_META_KEY]: { client_model_id: 'metadata-model' } } }
+          : {}),
+      });
+      const content = result.content as Array<{ type: string; text: string }>;
+      expect(JSON.parse(content[0].text)).toEqual({
+        arguments: { detail: false },
+        model: {
+          client_model_id: useMetadata ? 'metadata-model' : 'argument-model',
+          model_lookup_scope: 'current_call',
+          model_lookup_source: useMetadata ? 'request_metadata' : 'tool_argument',
+        },
+      });
+    }
+    expect(run).not.toHaveBeenCalled();
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
+
 test('preserves explicit auto and rereads the latest WorkBuddy selection on each call', async () => {
   const transcript = workBuddySession();
   fs.writeFileSync(
@@ -68,6 +234,7 @@ test('preserves explicit auto and rereads the latest WorkBuddy selection on each
     client_model_name: 'Model B',
     resolved_model: 'resolved-b',
     model_lookup_scope: 'current_session',
+    model_lookup_source: 'local_session',
   });
 });
 
@@ -90,6 +257,7 @@ test('does not fill missing fields from an older record or another session in th
   expect(JSON.parse(JSON.stringify(await resolveMakerClientModel()))).toEqual({
     resolved_model: 'current-resolved',
     model_lookup_scope: 'current_session',
+    model_lookup_source: 'local_session',
   });
 });
 
@@ -124,6 +292,7 @@ test('queries only the uniquely locked Codex thread and refreshes its model', as
     client_model_id: 'model-a',
     model_provider: 'provider-a',
     model_lookup_scope: 'current_session',
+    model_lookup_source: 'local_session',
   });
   model = 'model-b';
   expect((await resolveMakerClientModel()).client_model_id).toBe('model-b');
@@ -220,6 +389,7 @@ test('Kiro selects the latest session in the real project and refreshes after a 
     client_model_id: 'model-b',
     client_model_name: 'Display model-b',
     model_lookup_scope: 'latest_session',
+    model_lookup_source: 'local_session',
   });
   writeKiroSession('b', 'auto', '2026-11-03T11:01:00Z');
   expect((await resolveMakerClientModel(context)).client_model_id).toBe('auto');
@@ -309,6 +479,7 @@ test('Trae reads the matching workspace and retains the raw model ID on each loo
   expect(await resolveMakerClientModel(context)).toEqual({
     client_model_id: 'solo_agent_1__deepseek-v4.1-flash',
     model_lookup_scope: 'latest_session',
+    model_lookup_source: 'local_session',
   });
   state.selections['session-a'].solo_agent.modelId = 'auto';
   expect((await resolveMakerClientModel(context)).client_model_id).toBe('auto');
@@ -411,6 +582,7 @@ test('tracking passes local project context and sends the fallback scope without
     client_name: 'kiro',
     client_model_id: 'model-a',
     model_lookup_scope: 'latest_session',
+    model_lookup_source: 'local_session',
   });
   expect(payload).not.toContain(home);
 });

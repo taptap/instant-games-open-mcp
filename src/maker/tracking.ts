@@ -3,7 +3,7 @@
  */
 
 import { getMakerApiBaseUrl } from './config.js';
-import { resolveMakerClientModel, type MakerClientModel } from './clientModel.js';
+import { resolveMakerClientModel, type MakerClientModel } from './clientModel/index.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 
@@ -21,6 +21,7 @@ export interface MakerMcpTrackingContext {
   projectId: string;
   clientInfo?: { name: string; version: string };
   projectDir?: string;
+  requestModel?: MakerClientModel;
 }
 
 export interface MakerMcpActivityEvent {
@@ -147,6 +148,7 @@ export async function reportMakerMcpActivity(event: MakerMcpActivityEvent): Prom
     await resolveMakerClientModel({
       clientName: event.context.clientInfo?.name,
       projectDir: event.context.projectDir,
+      requestModel: event.context.requestModel,
     })
   );
 

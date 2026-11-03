@@ -1,4 +1,4 @@
-import clientModelModule from '../src/maker/clientModel.js';
+import clientModelModule from '../src/maker/clientModel/index.js';
 
 const args = process.argv.slice(2);
 if (args.length !== 0 && (args.length !== 2 || args[0] !== '--expect-model' || !args[1].trim())) {

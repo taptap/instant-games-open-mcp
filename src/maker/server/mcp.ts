@@ -136,6 +136,10 @@ import {
   type MakerMcpTrackingContext,
 } from '../tracking.js';
 import { MAKER_CAPABILITY_ROUTING_INDEX } from '../capabilityRouting.js';
+import {
+  extractMakerClientModelRequest,
+  MAKER_CLIENT_MODEL_ARGUMENT_SCHEMA,
+} from '../clientModel/index.js';
 import { generateResourceMeta, RESOURCE_META_TOOL } from '../resourceMeta.js';
 import {
   MAKER_ADS_INTEGRATION_GUIDE_URI,
@@ -297,6 +301,7 @@ export const tools = [
           description:
             'Set true only for explicit diagnostics. The default is a fast local summary without remote checks.',
         },
+        _maker_client_model: MAKER_CLIENT_MODEL_ARGUMENT_SCHEMA,
       },
     },
   },
@@ -778,7 +783,12 @@ export async function startMakerMcpServer(): Promise<void> {
     }
 
     const startedAt = Date.now();
-    const rawArgs = (request.params.arguments || {}) as Record<string, unknown>;
+    const modelRequest = extractMakerClientModelRequest(
+      request.params.arguments,
+      request.params._meta
+    );
+    const rawArgs = modelRequest.arguments;
+    request.params.arguments = rawArgs;
     const hasInvalidTargetDir =
       rawArgs.target_dir !== undefined &&
       (typeof rawArgs.target_dir !== 'string' || !rawArgs.target_dir.trim());
@@ -793,6 +803,7 @@ export async function startMakerMcpServer(): Promise<void> {
           targetDir,
           listClientRoots,
           clientInfo: server.getClientVersion(),
+          requestModel: modelRequest.model,
         });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
 
@@ -1040,6 +1051,7 @@ async function resolveMakerMcpTrackingContext(options: {
   targetDir?: string;
   listClientRoots?: MakerClientRootsProvider;
   clientInfo?: MakerMcpTrackingContext['clientInfo'];
+  requestModel?: MakerMcpTrackingContext['requestModel'];
 }): Promise<MakerMcpTrackingContext | null> {
   try {
     const context = await resolveMakerProjectContext({
@@ -1054,7 +1066,13 @@ async function resolveMakerMcpTrackingContext(options: {
     if (!userId || !projectId) {
       return null;
     }
-    return { userId, projectId, clientInfo: options.clientInfo, projectDir: identify.projectRoot };
+    return {
+      userId,
+      projectId,
+      clientInfo: options.clientInfo,
+      projectDir: identify.projectRoot,
+      requestModel: options.requestModel,
+    };
   } catch {
     return null;
   }

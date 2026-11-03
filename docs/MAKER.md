@@ -487,11 +487,30 @@ Maker MCP 使用已有 `tapmaker_mcp_call` action 上报本地开发活跃，并
 外层应用（例如 Cindy 内运行的 Codex）。服务端 `/tracking` 需保留这两个可选字段，
 才能按客户端分析调用及模型信息缺失情况。
 
-每次发送前另行读取会话模型，最多等待 1 秒，不缓存模型结果。可选字段为
+模型采集独立放在 `src/maker/clientModel/`，按以下顺序选择来源，不跨来源补齐字段：
+
+1. 本次工具请求的 `_meta["cn.taptap.maker/client-model"]`。这是本项目约定的对象，
+   可包含 `client_model_id`、`client_model_name`、`resolved_model`、`model_provider`，
+   至少提供有效的模型 ID 或实际模型；不假设现有客户端已支持此约定。
+2. 本次工具的可选字符串参数 `_maker_client_model`，作为 `client_model_id`。目前仅在
+   `maker_status_lite` 声明该参数进行试点，不扩展其他工具的公开参数。调用方仅在当前
+   运行上下文明确提供模型时填写，未知则省略，不猜测、不为填写参数额外调用 AI 或读文件。
+3. 没有有效的通用参数时，使用下述本地会话读取；仍无法取得就省略模型字段。
+
+通用参数随请求到达即可同步提取，统一入口移除私有参数后再进行业务处理和远端转发。
+每次调用单独保存校验后的模型信息，不跨调用复用、不缓存；本地读取最多等待 1 秒。
+只接收去掉首尾空白后不超过 256 字符的非空字符串，忽略 `unknown`、`unavailable`、
+`n/a`、`null`、`undefined` 占位值。无需修改各业务工具处理函数或增加模型查询工具。
+
+可选上报字段为
 `args.client_model_id`、`args.client_model_name`、`args.resolved_model` 和
 `args.model_provider`；缺失字段省略，只有来源明确给出 `auto` 时才保留该值。
-取得模型信息时附带 `args.model_lookup_scope`：`current_session` 表示通过会话记录或唯一锁
-直接关联，`latest_session` 表示当前项目最新/最后活跃对话的降级值，统计时应区分这两类。
+取得模型信息时附带 `args.model_lookup_source`：`request_metadata`、`tool_argument`、
+`local_session` 分别对应上述三个来源。`args.model_lookup_scope` 中，`current_call` 表示
+本次请求自报，`current_session` 表示通过会话记录或唯一锁直接关联，`latest_session` 表示
+当前项目最新/最后活跃对话的降级值。自报参数不等于已核实的真实模型；统计时需区分来源。
+
+本地读取方式如下：
 WorkBuddy 从父进程开始最多向上查找 6 层，通过 `.workbuddy/sessions/<pid>.json`
 定位会话，读取对应 JSONL 最后 1 MiB 中最新完整记录的 `providerData`。
 Cindy/Codex 在 macOS/Linux 上通过 `lsof` 查找祖先 Codex 进程实际打开的唯一
@@ -519,8 +538,9 @@ Kiro 和 Trae CN 根据握手名称或祖先进程识别，使用当前已解析
 仍需联调。多根工作区、定制数据目录和其他编辑器无已验证来源时允许返回空。
 命令不可用、权限不足、记录损坏、锁不唯一或解析超时，
 均省略模型信息并继续发送原事件，不自动安装依赖或调用额外 AI。
-模型字段表示上报时的会话状态；长任务执行期间切换模型时，可能与发起任务时不同。
-服务端 `/tracking` 需同时保留上述四个模型字段和 `model_lookup_scope` 才能按来源进入统计。
+本地模型字段表示上报时的会话状态；长任务执行期间切换模型时，可能与发起任务时不同。
+通用参数则保留请求到达时的值。服务端 `/tracking` 需同时保留上述四个模型字段、
+`model_lookup_scope` 和 `model_lookup_source` 才能按来源进入统计。
 
 切换 Agent 编辑器后，让该会话的 AI 在本仓库执行 `npm run test:maker:model`：
 先运行独立单元测试，再显示真实模型读取结果和耗时，不发送打点。
@@ -529,6 +549,11 @@ Kiro 和 Trae CN 根据握手名称或祖先进程识别，使用当前已解析
 输出 `model.model_lookup_scope = latest_session` 时，即使预期 ID 匹配，也只证明降级值一致，
 不能据此认定已准确关联调用所属对话。
 应通过 AI 的终端工具执行，普通系统终端可能没有会话关联；本自检不验证 MCP 握手或服务端入库。
+单元测试中的 SDK 模拟客户端只验证参数传递，命令末尾的真实读取结果只验证本地降级。
+真实 IDE 自动填写需另测：加载本次修改的 MCP，确认 `maker_status_lite` 的公开参数包含
+`_maker_client_model`，在单对话、切模型及双对话中分别调用，检查实际请求参数是否准确。
+测试时不要通过提示词提供模型答案；IDE 未填写时如本地降级成功，也不能算通用获取通过。
+真实 IDE 自动填写率和准确性尚待验证，通过后再决定是否向全部工具开放。
 
 Tool 调用、`maker://status` Resource 读取和 MCP 启动都计入本地活跃；Tool 使用真实工具名，
 Resource 使用 `maker://status`，启动事件使用 `@taptap/maker@<version>`。上报是异步的，
