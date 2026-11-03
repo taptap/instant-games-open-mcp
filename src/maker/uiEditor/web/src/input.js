@@ -27,6 +27,17 @@
     for (var i = 0; i < list.length; i++) {
       if (Math.abs(x - list[i].x) <= pad && Math.abs(y - list[i].y) <= pad) return list[i];
     }
+    // Keep point handles first so corners and rotation retain their gestures.
+    var nw = list.filter(function (h) { return h.id === "nw"; })[0];
+    var se = list.filter(function (h) { return h.id === "se"; })[0];
+    if (!nw || !se) return null;
+    for (var j = 0; j < list.length; j++) {
+      var edge = list[j];
+      if ((edge.id === "n" || edge.id === "s") &&
+          x >= nw.x && x <= se.x && Math.abs(y - edge.y) <= pad) return edge;
+      if ((edge.id === "w" || edge.id === "e") &&
+          y >= nw.y && y <= se.y && Math.abs(x - edge.x) <= pad) return edge;
+    }
     return null;
   }
 

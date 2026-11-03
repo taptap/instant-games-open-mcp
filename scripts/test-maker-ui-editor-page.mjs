@@ -330,6 +330,31 @@ try {
     );
   });
   assert.equal(safeFit, true);
+  const edgeGestures = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 500;
+    canvas.style.cssText = 'position:fixed;left:0;top:0;width:500px;height:500px';
+    document.body.appendChild(canvas);
+    canvas.setPointerCapture = () => {};
+    const selected = { type: 'Panel', position: 'absolute', left: 100, top: 100,
+      width: 300, height: 300, _layout: { x: 100, y: 100, w: 300, h: 300 } };
+    const app = { canvas, tree: { type: 'Panel', children: [selected] }, selected,
+      selectedNodes: [selected], beginHistory() {},
+      origin: () => ({ x: 0, y: 0 }), contentTransform: () => ({ x: 0, y: 0, scale: 1 }) };
+    window.UrhoxInput.bind(app);
+    const modes = [];
+    const rotate = window.UrhoxTransform.handles(app).find(handle => handle.id === 'rotate');
+    // Quarter-edge positions are deliberately away from midpoint handles.
+    for (const [x, y] of [[175, 100], [400, 175], [175, 400], [100, 175], [100, 100], [250, 100], [rotate.x, rotate.y]]) {
+      app.drag = null;
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, button: 0, pointerId: 1 }));
+      modes.push(app.drag && app.drag.mode);
+    }
+    app.drag = null;
+    canvas.remove();
+    return modes;
+  });
+  assert.deepEqual(edgeGestures, ['n', 'e', 's', 'w', 'nw', 'n', 'rotate']);
   const marquee = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 100;
