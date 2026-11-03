@@ -280,6 +280,42 @@ try {
     );
   });
   assert.equal(safeFit, true);
+  const frames = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1400;
+    const ctx = canvas.getContext('2d');
+    const tree = { type: 'Panel', width: 1000, height: 1000, _layout: { x: 0, y: 0, w: 1000, h: 1000 } };
+    const app = { canvas, ctx, tree, screen: { width: 1000, height: 1000 }, device: { bezel: 24 },
+      origin: () => ({ x: 200, y: 200 }), contentTransform: () => ({ x: 0, y: 0, scale: 1 }), selectedNodes: [] };
+    const pixel = (x, y) => Array.from(ctx.getImageData(x, y, 1, 1).data);
+    window.UrhoxCanvas.draw(app);
+    const defaults = { center: pixel(700, 700), bezel: pixel(190, 700) };
+    const vars = { '--editor-screen-bg': 'white', '--editor-frame-line': 'rgba(0,0,0,.08)',
+      '--editor-frame-shadow': 'rgba(0,0,0,.1)', '--editor-bezel': '0' };
+    for (const [key, value] of Object.entries(vars)) document.documentElement.style.setProperty(key, value);
+    const samples = [];
+    for (const mode of ['page', 'prefab']) {
+      app.editMode = mode;
+      for (const zoom of [0.25, 1, 2]) {
+        window.UrhoxView.setZoom(zoom);
+        window.UrhoxCanvas.draw(app);
+        samples.push({ mode, zoom, center: pixel(700, 700),
+          shadow: pixel(200 - Math.round(4 / zoom), 700),
+          clear: ctx.shadowBlur === 0 && ctx.shadowOffsetY === 0 });
+      }
+    }
+    for (const key of Object.keys(vars)) document.documentElement.style.removeProperty(key);
+    window.UrhoxView.fit();
+    return { defaults, samples };
+  });
+  assert.equal(frames.defaults.center[3], 0);
+  assert.ok(frames.defaults.bezel[3] > 100);
+  for (const sample of frames.samples) {
+    assert.deepEqual(sample.center, [255, 255, 255, 255]);
+    assert.ok(sample.shadow[3] > 0 && sample.shadow[3] < 100);
+    assert.equal(sample.clear, true);
+  }
+  assert.ok(Math.abs(frames.samples[0].shadow[3] - frames.samples[2].shadow[3]) <= 3);
   assert.deepEqual(errors, []);
   for (let tries = 0; tries < 50 && requested.length < 3; tries++) await page.waitForTimeout(100);
   assert.ok(requested.includes('assets/image/a b.png'), 'host asset URL resolves encoded paths');

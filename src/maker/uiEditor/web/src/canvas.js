@@ -6,7 +6,8 @@
   var BLUE = "#0D99FF";
   // Hosts may restyle the overlay and device frame through CSS variables on :root:
   // --editor-accent (selection colour), --editor-halo (contrast outline under accent strokes),
-  // --editor-handle (square | round), --editor-bezel and --editor-bezel-outline (px).
+  // --editor-handle (square | round), --editor-bezel and --editor-bezel-outline (px),
+  // --editor-screen-bg, --editor-frame-line and --editor-frame-shadow (optional colours).
   var frame = { accent: BLUE, halo: "", round: false, bezel: null, outline: 4 };
   var probes = {};
   // Colours go through a probe element so any CSS colour syntax resolves to rgb() for canvas.
@@ -35,6 +36,9 @@
     frame.round = style.getPropertyValue("--editor-handle").trim() === "round";
     frame.bezel = bezel >= 0 ? bezel : null;
     frame.outline = outline >= 0 ? outline : 4;
+    frame.screenBg = style.getPropertyValue("--editor-screen-bg").trim() ? resolveColor("--editor-screen-bg", "transparent") : "";
+    frame.line = style.getPropertyValue("--editor-frame-line").trim() ? resolveColor("--editor-frame-line", "transparent") : "";
+    frame.shadow = style.getPropertyValue("--editor-frame-shadow").trim() ? resolveColor("--editor-frame-shadow", "transparent") : "";
   }
   function strokeAccentRect(ctx, app, x, y, w, h, px) {
     if (frame.halo) {
@@ -289,6 +293,29 @@
     var src = window.UrhoxDoc.designSize(tree);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    var frameWidth = prefab ? src.width : screen.width;
+    var frameHeight = prefab ? src.height : screen.height;
+    var zoom = root.UrhoxView ? root.UrhoxView.getZoom() : 1;
+    zoom = Math.max(0.01, zoom);
+    if (frame.screenBg) {
+      ctx.save();
+      ctx.fillStyle = frame.screenBg;
+      if (frame.shadow) {
+        // Canvas shadows ignore the context transform; CSS zoom still scales the bitmap.
+        ctx.shadowColor = frame.shadow;
+        ctx.globalAlpha = 0.6;
+        ctx.shadowBlur = 2 / zoom;
+        ctx.shadowOffsetY = 1 / zoom;
+      }
+      ctx.fillRect(o.x, o.y, frameWidth, frameHeight);
+      if (frame.shadow) {
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 24 / zoom;
+        ctx.shadowOffsetY = 8 / zoom;
+        ctx.fillRect(o.x, o.y, frameWidth, frameHeight);
+      }
+      ctx.restore();
+    }
     ctx.setTransform(1, 0, 0, 1, o.x, o.y);
     ctx.translate(fit.x, fit.y);
     ctx.scale(fit.scale, fit.scale);
@@ -299,26 +326,30 @@
     if (!prefab) {
       var bezel = frame.bezel != null ? frame.bezel : device.bezel || 24;
       ctx.save();
-      ctx.fillStyle = "rgba(8, 10, 14, 0.55)";
-      ctx.beginPath();
-      ctx.rect(o.x - bezel, o.y - bezel, screen.width + bezel * 2, screen.height + bezel * 2);
-      ctx.rect(o.x, o.y, screen.width, screen.height);
-      ctx.fill("evenodd");
-      ctx.strokeStyle = "rgba(255,255,255,0.35)";
-      var ring = Math.min(frame.outline, bezel);
-      if (ring > 0) {
-        ctx.lineWidth = ring;
-        ctx.strokeRect(o.x - bezel + ring / 2, o.y - bezel + ring / 2, screen.width + bezel * 2 - ring, screen.height + bezel * 2 - ring);
+      if (bezel > 0) {
+        ctx.fillStyle = "rgba(8, 10, 14, 0.55)";
+        ctx.beginPath();
+        ctx.rect(o.x - bezel, o.y - bezel, screen.width + bezel * 2, screen.height + bezel * 2);
+        ctx.rect(o.x, o.y, screen.width, screen.height);
+        ctx.fill("evenodd");
+        ctx.strokeStyle = "rgba(255,255,255,0.35)";
+        var ring = Math.min(frame.outline, bezel);
+        if (ring > 0) {
+          ctx.lineWidth = ring;
+          ctx.strokeRect(o.x - bezel + ring / 2, o.y - bezel + ring / 2, screen.width + bezel * 2 - ring, screen.height + bezel * 2 - ring);
+        }
       }
-      ctx.strokeStyle = "rgba(255,255,255,0.7)";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(o.x + 0.5, o.y + 0.5, screen.width - 1, screen.height - 1);
+      ctx.strokeStyle = frame.line || "rgba(255,255,255,0.7)";
+      ctx.lineWidth = frame.line ? 1 / zoom : 1.5;
+      var inset = frame.line ? ctx.lineWidth / 2 : 0.5;
+      ctx.strokeRect(o.x + inset, o.y + inset, screen.width - inset * 2, screen.height - inset * 2);
       ctx.restore();
     } else {
       ctx.save();
-      ctx.strokeStyle = "rgba(255,255,255,0.22)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(o.x + 0.5, o.y + 0.5, src.width - 1, src.height - 1);
+      ctx.strokeStyle = frame.line || "rgba(255,255,255,0.22)";
+      ctx.lineWidth = frame.line ? 1 / zoom : 1;
+      var prefabInset = frame.line ? ctx.lineWidth / 2 : 0.5;
+      ctx.strokeRect(o.x + prefabInset, o.y + prefabInset, src.width - prefabInset * 2, src.height - prefabInset * 2);
       ctx.restore();
     }
 
