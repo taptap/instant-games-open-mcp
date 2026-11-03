@@ -495,6 +495,7 @@ WorkBuddy 从父进程开始最多向上查找 6 层，通过 `.workbuddy/sessio
 Cindy/Codex 在 macOS/Linux 上通过 `lsof` 查找祖先 Codex 进程实际打开的唯一
 `thread-writer-locks/<会话ID>.lock`，使用 `sqlite3` 只读查询同目录所属
 `state_5.sqlite` 的 `threads.model` 和 `model_provider`，不会按全局配置或最近会话猜测。
+此方式仅适用于能取得唯一会话锁的运行方式，不代表所有名为 Codex 的客户端都支持。
 Windows 使用 `Win32_Process.ParentProcessId` 查找 WorkBuddy 会话；本次不支持
 Windows Codex 的会话锁读取。命令不可用、权限不足、记录损坏、锁不唯一或解析超时，
 均省略模型信息并继续发送原事件，不自动安装依赖或调用额外 AI。

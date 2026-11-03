@@ -121,7 +121,7 @@ async function readWorkBuddyModel(
 
 async function readCodexModel(pid: number, signal: AbortSignal): Promise<MakerClientModel> {
   if (process.platform === 'win32') return {};
-  const output = await run('lsof', ['-a', '-p', String(pid), '-Fn'], signal);
+  const output = await run('lsof', ['-n', '-P', '-a', '-p', String(pid), '-Fn'], signal);
   const locks = new Set(
     output
       .split('\n')

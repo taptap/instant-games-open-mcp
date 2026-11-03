@@ -7,6 +7,10 @@ import {
   sanitizeMakerMcpTrackingError,
 } from '../maker/tracking';
 
+jest.mock('../maker/clientModel', () => ({
+  resolveMakerClientModel: jest.fn().mockResolvedValue({}),
+}));
+
 describe('maker MCP tracking', () => {
   test('builds a local MCP event with the configured identity and source', () => {
     expect(
