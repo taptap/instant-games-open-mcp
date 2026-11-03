@@ -18,6 +18,7 @@ const TRACKING_ERROR_MAX_LENGTH = 500;
 export interface MakerMcpTrackingContext {
   userId: string;
   projectId: string;
+  clientInfo?: { name: string; version: string };
 }
 
 export interface MakerMcpActivityEvent {
@@ -42,6 +43,8 @@ export interface MakerMcpTrackingPayload {
     tool_name: string;
     source: typeof MAKER_MCP_TRACKING_SOURCE;
     mcp_version: string;
+    client_name?: string;
+    client_version?: string;
     tool_id?: string;
     duration_ms?: number;
     success?: boolean;
@@ -70,6 +73,13 @@ export function buildMakerMcpTrackingPayload(
     source: MAKER_MCP_TRACKING_SOURCE,
     mcp_version: MAKER_MCP_VERSION,
   };
+
+  if (event.context.clientInfo?.name.trim()) {
+    args.client_name = event.context.clientInfo.name.trim();
+  }
+  if (event.context.clientInfo?.version.trim()) {
+    args.client_version = event.context.clientInfo.version.trim();
+  }
 
   if (event.requestId !== undefined && String(event.requestId).trim()) {
     args.tool_id = String(event.requestId);

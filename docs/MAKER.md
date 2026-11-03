@@ -481,6 +481,12 @@ Maker MCP 使用已有 `tapmaker_mcp_call` action 上报本地开发活跃，并
 `project_id` 只从当前项目的 `.maker-mcp/config.json` 读取；缺少任一字段、或当前调用
 无法准确解析到项目时不发送事件，不会使用 JWT、PAT、默认值或其它项目配置补齐。
 
+`args.client_name` 和 `args.client_version` 使用当前 MCP 连接初始化时提供的
+`clientInfo.name` 与 `clientInfo.version`，缺失或空白时省略，不按进程或安装配置推测。
+它们表示直接连接 MCP 的客户端身份，嵌入式客户端可能报告执行引擎名称，不能据此保证识别
+外层应用（例如 Cindy 内运行的 Codex）。服务端 `/tracking` 需保留这两个可选字段，
+才能按客户端分析调用及模型信息缺失情况。
+
 Tool 调用、`maker://status` Resource 读取和 MCP 启动都计入本地活跃；Tool 使用真实工具名，
 Resource 使用 `maker://status`，启动事件使用 `@taptap/maker@<version>`。上报是异步的，
 tracking 请求失败不会改变 MCP Tool 或 Resource 的结果。错误信息上报前会脱敏 PAT、Bearer、

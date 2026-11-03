@@ -695,12 +695,18 @@ export async function startMakerMcpServer(): Promise<void> {
     if (accessState.blocked) {
       return { tools: [tools[0]] };
     }
-    const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
+    const contextPromise = resolveMakerMcpTrackingContext({
+      listClientRoots,
+      clientInfo: server.getClientVersion(),
+    });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
     return listMakerTools();
   });
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
-    const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
+    const contextPromise = resolveMakerMcpTrackingContext({
+      listClientRoots,
+      clientInfo: server.getClientVersion(),
+    });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
     return { resources };
   });
@@ -724,7 +730,10 @@ export async function startMakerMcpServer(): Promise<void> {
     }
 
     const startedAt = Date.now();
-    const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
+    const contextPromise = resolveMakerMcpTrackingContext({
+      listClientRoots,
+      clientInfo: server.getClientVersion(),
+    });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
     try {
       const result = {
@@ -780,7 +789,11 @@ export async function startMakerMcpServer(): Promise<void> {
         : undefined;
     const contextPromise = hasInvalidTargetDir
       ? Promise.resolve(null)
-      : resolveMakerMcpTrackingContext({ targetDir, listClientRoots });
+      : resolveMakerMcpTrackingContext({
+          targetDir,
+          listClientRoots,
+          clientInfo: server.getClientVersion(),
+        });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
 
     try {
@@ -1026,6 +1039,7 @@ export async function resolveMakerMcpAccessState(
 async function resolveMakerMcpTrackingContext(options: {
   targetDir?: string;
   listClientRoots?: MakerClientRootsProvider;
+  clientInfo?: MakerMcpTrackingContext['clientInfo'];
 }): Promise<MakerMcpTrackingContext | null> {
   try {
     const context = await resolveMakerProjectContext({
@@ -1040,7 +1054,7 @@ async function resolveMakerMcpTrackingContext(options: {
     if (!userId || !projectId) {
       return null;
     }
-    return { userId, projectId };
+    return { userId, projectId, clientInfo: options.clientInfo };
   } catch {
     return null;
   }
