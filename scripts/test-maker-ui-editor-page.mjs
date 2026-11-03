@@ -192,7 +192,7 @@ try {
     window.UrhoxPreview.selectNode(window.UrhoxPreview.tree.children[2], true)
   );
   const commands = page.locator('[data-field="commands"] textarea');
-  await page.getByText('4 条指令 · 编辑', { exact: true }).click();
+  await page.getByText('4 条指令', { exact: true }).click();
   const changedCommands = JSON.stringify([
     ['beginPath'],
     ['rect', 0, 0, 30, 30],
@@ -212,7 +212,7 @@ try {
   await page.evaluate(() =>
     window.UrhoxPreview.selectNode(window.UrhoxPreview.tree.children[2], true)
   );
-  await page.getByText('5 条指令 · 编辑', { exact: true }).click();
+  await page.getByText('5 条指令', { exact: true }).click();
   await commands.fill('[bad json');
   await commands.press('Tab');
   assert.equal(await page.evaluate(() => window.UrhoxPreview.selected.commands.length), 5);

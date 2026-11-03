@@ -263,7 +263,7 @@
           if (JSON.stringify(parsed) === JSON.stringify(node[field.key])) return;
           emitChange(onChange, { phase: "start" });
           node[field.key] = parsed;
-          if (summary) summary.textContent = parsed.length + " 条指令 · 编辑";
+          if (summary) summary.textContent = parsed.length + " 条指令";
           input.value = formatJson(parsed);
           // Keep pointer targets alive when blur comes from clicking another row or field.
           emitChange(onChange, { phase: "end", live: true });
@@ -280,7 +280,7 @@
       if (field.key === "commands") {
         var details = document.createElement("details");
         var summary = document.createElement("summary");
-        summary.textContent = (Array.isArray(value) ? value.length : 0) + " 条指令 · 编辑";
+        summary.textContent = (Array.isArray(value) ? value.length : 0) + " 条指令";
         details.appendChild(summary); details.appendChild(input);
         wrap.appendChild(details);
       } else wrap.appendChild(input);
