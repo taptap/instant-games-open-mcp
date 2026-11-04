@@ -12,12 +12,15 @@
 
   function textMetrics(node, maxWidth) {
     var size = Number(node.fontSize) || 16;
-    if (measureContext) measureContext.font = font(node);
+    if (measureContext) {
+      measureContext.font = font(node);
+      measureContext.letterSpacing = (Number(node.letterSpacing) || 0) + "px";
+    }
     function width(text) {
       return measureContext ? measureContext.measureText(text).width : Array.from(text).length * size;
     }
     var lines = [];
-    String(node.text == null ? "" : node.text).split("\n").forEach(function (paragraph) {
+    String(node.text == null ? "" : node.text).split(/\r\n|\r|\n/).forEach(function (paragraph) {
       if (node.whiteSpace !== "normal" || !Number.isFinite(maxWidth) || maxWidth <= 0) {
         lines.push(paragraph);
         return;
@@ -32,7 +35,8 @@
       });
       lines.push(line);
     });
-    var lineHeight = size * (Number(node.lineHeight) || 1.4);
+    var multiplier = Number(node.lineHeight);
+    var lineHeight = size * (Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1.4);
     return { lines: lines, width: Math.max.apply(null, lines.map(width).concat([0])),
       height: Math.ceil(lines.length * lineHeight), lineHeight: lineHeight };
   }
@@ -100,6 +104,9 @@
       });
       if (typeof node.borderWidth === "number") yn.setBorder(Y.EDGE_ALL, Math.max(0, node.borderWidth));
       if (validLength(node.gap) && node.gap !== "auto") yn.setGap(Y.GUTTER_ALL, node.gap);
+      [["rowGap", Y.GUTTER_ROW], ["columnGap", Y.GUTTER_COLUMN]].forEach(function (pair) {
+        if (validLength(node[pair[0]]) && node[pair[0]] !== "auto") yn.setGap(pair[1], node[pair[0]]);
+      });
       var kids = node.children || [];
       if (!kids.length && (node.type === "Label" || node.type === "Button")) {
         yn.setMeasureFunc(function (width, widthMode) {

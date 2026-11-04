@@ -3,10 +3,6 @@
 (function (root) {
   "use strict";
 
-  function hasVal(node, key) {
-    return node[key] != null && node[key] !== "" && node[key] !== false;
-  }
-
   function isImageNode(node) {
     if (!node) return false;
     if (node.role === "Image" || node._isImage) return true;
@@ -47,6 +43,7 @@
       showIf: isImageNode,
       rows: [
         [{ key: "backgroundImage", label: "Source Image", kind: "asset" }],
+        [{ key: "backgroundImageOpacity", label: "图片透明度", kind: "number", min: 0, max: 1, placeholder: "1" }],
         [{ key: "backgroundFit", label: "Image Type", kind: "enum", options: [
           { value: "fill", label: "拉伸 Fill" },
           { value: "contain", label: "适应 Contain" },
@@ -62,12 +59,12 @@
       open: true,
       showIf: isTextNode,
       rows: [
-        [{ key: "text", label: "Text", kind: "text" }],
+        [{ key: "text", label: "Text", kind: "text", multiline: true }],
         [{ key: "fontSize", label: "字号", kind: "number" }, { key: "fontColor", label: "颜色", kind: "color" }],
         [{ key: "fontWeight", label: "粗细", kind: "enum", options: [
           { value: "normal", label: "常规" },
           { value: "bold", label: "加粗" },
-        ] }],
+        ] }, { key: "letterSpacing", label: "字间距", kind: "number", placeholder: "0" }],
         [{ key: "textAlign", label: "水平对齐", kind: "enum", options: [
           { value: "left", label: "左" },
           { value: "center", label: "中" },
@@ -76,6 +73,19 @@
           { value: "top", label: "上" },
           { value: "middle", label: "中" },
           { value: "bottom", label: "下" },
+        ] }],
+      ],
+    },
+    {
+      id: "text-layout",
+      title: "文本排版",
+      open: true,
+      showIf: function (node) { return node.type === "Label"; },
+      rows: [
+        [{ key: "lineHeight", label: "行高（倍数）", kind: "number", positive: true, placeholder: "默认 1.4" }],
+        [{ key: "whiteSpace", label: "换行方式", kind: "enum", options: [
+          { value: "nowrap", label: "不自动换行" },
+          { value: "normal", label: "自动换行" },
         ] }],
       ],
     },
@@ -89,7 +99,21 @@
         [{ key: "width", label: "Width", kind: "length" }, { key: "height", label: "Height", kind: "length" }],
         [{ key: "right", label: "右边距", kind: "length" }, { key: "bottom", label: "下边距", kind: "length" }],
         [{ key: "maxWidth", label: "最大宽度", kind: "length" }, { key: "maxHeight", label: "最大高度", kind: "length" }],
+        [{ key: "minWidth", label: "最小宽度", kind: "length" }, { key: "minHeight", label: "最小高度", kind: "length" }],
         [{ key: "aspectRatio", label: "宽高比", kind: "number" }],
+      ],
+    },
+    {
+      id: "spacing", title: "内外边距", open: false,
+      rows: [
+        [{ key: "padding", label: "内边距", kind: "length" }],
+        [{ key: "paddingHorizontal", label: "水平内边距", kind: "length" }, { key: "paddingVertical", label: "垂直内边距", kind: "length" }],
+        [{ key: "paddingLeft", label: "左内边距", kind: "length" }, { key: "paddingRight", label: "右内边距", kind: "length" }],
+        [{ key: "paddingTop", label: "上内边距", kind: "length" }, { key: "paddingBottom", label: "下内边距", kind: "length" }],
+        [{ key: "margin", label: "外边距", kind: "length" }],
+        [{ key: "marginHorizontal", label: "水平外边距", kind: "length" }, { key: "marginVertical", label: "垂直外边距", kind: "length" }],
+        [{ key: "marginLeft", label: "左外边距", kind: "length" }, { key: "marginRight", label: "右外边距", kind: "length" }],
+        [{ key: "marginTop", label: "上外边距", kind: "length" }, { key: "marginBottom", label: "下外边距", kind: "length" }],
       ],
     },
     {
@@ -98,15 +122,22 @@
       rows: [
         [{ key: "nativeMenuInset", label: "避让 Tap 胶囊", kind: "bool" }],
         [{ key: "edges", label: "避让方向", kind: "json" }],
+        [{ key: "mode", label: "避让方式", kind: "enum", options: ["padding", "margin"] }],
+      ],
+    },
+    {
+      id: "scroll", title: "滚动", open: true,
+      showIf: function (node) { return node.type === "ScrollView"; },
+      rows: [
+        [{ key: "scrollY", label: "纵向滚动", kind: "bool", fallback: true },
+         { key: "showScrollbar", label: "显示滚动条", kind: "bool", fallback: true }],
       ],
     },
     {
       id: "appearance",
       title: "外观",
       open: false,
-      showIf: function (node) {
-        return node.type !== "NanoVG" && (!isImageNode(node) || hasVal(node, "borderRadius") || hasVal(node, "opacity") || hasVal(node, "backgroundColor"));
-      },
+      showIf: function (node) { return node.type !== "NanoVG"; },
       rows: [
         [{ key: "backgroundColor", label: "Color", kind: "color" }, { key: "opacity", label: "透明度", kind: "number" }],
         [{ key: "borderRadius", label: "圆角", kind: "number" }, { key: "borderWidth", label: "描边", kind: "number" }],
@@ -117,14 +148,16 @@
       id: "flex",
       title: "布局 (Flex)",
       open: false,
-      showIf: function (node) {
-        return (node.children && node.children.length) || hasVal(node, "flexDirection") || hasVal(node, "gap");
-      },
       rows: [
-        [{ key: "flexDirection", label: "方向", kind: "enum", options: ["column", "row"] }, { key: "gap", label: "Gap", kind: "length" }],
-        [{ key: "justifyContent", label: "主轴对齐", kind: "enum", options: ["flex-start", "center", "flex-end", "space-between", "space-around"] },
-         { key: "alignItems", label: "交叉轴对齐", kind: "enum", options: ["flex-start", "center", "flex-end", "stretch"] }],
+        [{ key: "flexDirection", label: "方向", kind: "enum", options: ["column", "row", "column-reverse", "row-reverse"] }, { key: "gap", label: "Gap", kind: "length" }],
+        [{ key: "rowGap", label: "行间距", kind: "length" }, { key: "columnGap", label: "列间距", kind: "length" }],
+        [{ key: "justifyContent", label: "主轴对齐", kind: "enum", options: ["flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly"] },
+         { key: "alignItems", label: "交叉轴对齐", kind: "enum", options: ["flex-start", "center", "flex-end", "stretch", "baseline"] }],
+        [{ key: "alignSelf", label: "自身对齐", kind: "enum", options: ["auto", "flex-start", "center", "flex-end", "stretch", "baseline"] }],
+        [{ key: "flexWrap", label: "布局换行", kind: "enum", options: ["nowrap", "wrap", "wrap-reverse"] },
+         { key: "alignContent", label: "多行对齐", kind: "enum", options: ["flex-start", "center", "flex-end", "stretch", "space-between", "space-around"] }],
         [{ key: "flexGrow", label: "扩展", kind: "number" }, { key: "flexShrink", label: "收缩", kind: "number" }],
+        [{ key: "flexBasis", label: "弹性基准尺寸", kind: "length" }],
       ],
     },
     {
@@ -204,18 +237,31 @@
   }
 
   function bindControl(control, node, field, onChange) {
-    if (control.tagName === "INPUT" && control.type === "text") {
+    function apply() {
+      var raw = field.kind === "number" ? control.value.trim() : control.value;
+      var number = raw === "" ? undefined : Number(raw);
+      if (field.kind === "number" && number !== undefined &&
+          (!Number.isFinite(number) || field.positive && number <= 0 ||
+           field.min != null && number < field.min || field.max != null && number > field.max)) {
+        control.setCustomValidity(field.positive ? "请输入大于 0 的有限数值" : "请输入有效范围内的有限数值");
+        return false;
+      }
+      control.setCustomValidity("");
+      applyField(node, field, raw);
+      return true;
+    }
+    if (control.tagName === "TEXTAREA" || control.tagName === "INPUT" && control.type === "text") {
       var old = node[field.key];
       control.addEventListener("focus", function () {
         old = node[field.key];
         emitChange(onChange, { phase: "start" });
       });
       control.addEventListener("input", function () {
-        applyField(node, field, control.value);
+        if (!apply()) return;
         emitChange(onChange, { live: true });
       });
       control.addEventListener("change", function () {
-        applyField(node, field, control.value);
+        if (!apply()) { control.reportValidity(); return; }
         emitChange(onChange, { phase: "end" });
       });
       control.addEventListener("blur", function () {
@@ -223,8 +269,10 @@
       });
       control.addEventListener("keydown", function (event) {
         if (event.key === "Escape") {
-          node[field.key] = old;
+          if (old === undefined) delete node[field.key];
+          else node[field.key] = old;
           control.value = formatValue(old);
+          control.setCustomValidity("");
           emitChange(onChange, { live: true });
         }
       });
@@ -249,20 +297,29 @@
       wrap.className = "nanovg-field";
       var input = document.createElement("textarea");
       input.rows = field.key === "commands" ? 12 : 2;
-      input.value = JSON.stringify(value, null, 2);
+      input.value = value == null ? "" : JSON.stringify(value, null, 2);
+      if (field.key === "edges") input.placeholder = '"all" 或 ["top", "bottom"]';
       input.setAttribute("aria-label", field.label);
       var apply = document.createElement("button");
       apply.type = "button"; apply.textContent = "应用";
       var error = document.createElement("p"); error.setAttribute("role", "status");
       apply.addEventListener("click", function () {
         try {
-          var parsed = JSON.parse(input.value), candidate = Object.assign({}, node);
-          candidate[field.key] = parsed;
+          var parsed = input.value.trim() === "" ? undefined : JSON.parse(input.value), candidate = Object.assign({}, node);
+          if (parsed === undefined) delete candidate[field.key];
+          else candidate[field.key] = parsed;
           var problems = [];
-          root.UrhoxUICheck.checkNanoVG(candidate, function (at, message) { problems.push(at + ": " + message); }, function () {});
+          if (node.type === "NanoVG") {
+            root.UrhoxUICheck.checkNanoVG(candidate, function (at, message) { problems.push(at + ": " + message); }, function () {});
+          } else {
+            root.UrhoxUICheck.checkDocument({ tree: candidate }).diagnostics.forEach(function (item) {
+              if (item.severity === "error" && item.pointer === "/" + field.key) problems.push(item.message);
+            });
+          }
           if (problems.length) throw new Error(problems.join("\n"));
           emitChange(onChange, { phase: "start" });
-          node[field.key] = parsed;
+          if (parsed === undefined) delete node[field.key];
+          else node[field.key] = parsed;
           emitChange(onChange, { phase: "end" });
           error.textContent = "";
         } catch (e) { error.textContent = "未应用：" + e.message; }
@@ -300,11 +357,14 @@
     } else if (field.kind === "slider") {
       return makeSliderControl(node, field, onChange);
     } else {
-      control = document.createElement("input");
-      control.type = "text";
+      control = document.createElement(field.multiline && node.type === "Label" ? "textarea" : "input");
+      if (control.tagName === "TEXTAREA") control.rows = 3;
+      else control.type = "text";
       control.value = formatValue(value);
-      control.placeholder = field.kind === "length" ? "auto" : "";
+      control.placeholder = field.placeholder || (field.kind === "length" ? "auto" : "");
+      if (field.kind === "number") control.inputMode = "decimal";
     }
+    control.setAttribute("aria-label", field.label);
     bindControl(control, node, field, onChange);
     return control;
   }

@@ -1,5 +1,5 @@
 try {
-  const cacheVersion = "20261104-ui-adapt";
+  const cacheVersion = "20261104-ui-properties";
   const rendering = new URLSearchParams(location.search).has("render");
   window.UrhoxYogaEngine = (await import("../vendor/yoga-layout/dist/src/index.js")).default;
   await import("../skills/lua-ui-to-json/scripts/ui-json-check.js?" + cacheVersion);

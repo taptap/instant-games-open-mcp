@@ -116,6 +116,7 @@
     }
     if ((node.type === "Label" || node.type === "Button") && node.text) {
       ctx.font = root.UrhoxYoga.font(node);
+      ctx.letterSpacing = (Number(node.letterSpacing) || 0) + "px";
       ctx.textAlign = node.textAlign || (node.type === "Button" ? "center" : "left");
       ctx.textBaseline = "middle";
       var pad = node._padding || [0, 0, 0, 0];

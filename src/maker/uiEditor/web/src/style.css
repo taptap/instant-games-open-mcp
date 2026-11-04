@@ -510,7 +510,7 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .slider-field input[type="range"] { flex: 1; }
 .slider-value { width: 36px; color: var(--muted); font-size: 11px; }
 .insp-key { color: var(--muted); font-size: 10px; }
-.insp-cell input, .insp-cell select {
+.insp-cell input, .insp-cell select, .insp-cell textarea {
   width: 100%; background: var(--panel-2); color: var(--text);
   border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; font-size: 12px;
 }
