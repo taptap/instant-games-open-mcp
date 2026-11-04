@@ -14,7 +14,9 @@ import {
 } from '../../../packages/maker-canvas/src/domain.js';
 
 export function isLocalCanvasImagePath(path: string): boolean {
-  return /^assets\/image\/canvas-[a-f0-9-]{36}\.(png|jpg|webp)$/i.test(path);
+  return /^(?:(?:assets\/image|[.]maker\/canvases\/images)\/canvas-[a-f0-9-]{36}|maker-demo\/[a-f0-9]{64})\.(png|jpg|webp)$/i.test(
+    path
+  );
 }
 
 export function validateBboxImage(value: UiBboxImage): UiBboxImage {
@@ -51,7 +53,7 @@ export function validateUiAtlasPlan(value: unknown): UiAtlasPlan {
 
 export function isLocalImageAssetPath(path: string): boolean {
   return new RegExp(
-    '^(assets/image/canvas-|[.]maker/canvases/[0-9a-f-]{36}/resources/)[0-9a-f-]{36}[.]png$',
+    '^((assets/image/canvas-|[.]maker/canvases/images/canvas-|[.]maker/canvases/[0-9a-f-]{36}/resources/)[0-9a-f-]{36}|maker-demo/[a-f0-9]{64})[.]png$',
     'i'
   ).test(path);
 }

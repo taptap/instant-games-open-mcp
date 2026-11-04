@@ -1,4 +1,9 @@
-import type { CanvasDocument, CanvasNode, CanvasGroupQueueState } from '../contracts.js';
+import type {
+  CanvasDocument,
+  CanvasNode,
+  CanvasGroupQueueState,
+  CanvasWorkflowState,
+} from '../contracts.js';
 import { canvasReferences, canvasDependents } from '../core/dependencies.js';
 
 export function createCanvasGroupQueue(options: {
@@ -18,20 +23,59 @@ export function createCanvasGroupQueue(options: {
   changed(): void;
   error(message: string): void;
   haltReason?(): string | undefined;
+  /** Page-level reason a run must not start here (e.g. another page owns this canvas). */
+  blocked?(): string | undefined;
+  /** Fired once a group run has finished and its final phase is saved. */
+  settled?(groupId: string, phase: 'paused' | 'complete'): void;
 }) {
   const queues = new Map<string, CanvasGroupQueueState>();
+  /** Run tokens discarded by deletion; a later run of the same ID gets a new token. */
+  const removed = new Map<string, number>();
   const settling = new Set<CanvasGroupQueueState>();
   let documentState: CanvasDocument | null = null;
   let pumping = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const executing = (state: CanvasGroupQueueState) =>
-    ['queued', 'running', 'waiting'].includes(state.phase);
+  const executingPhase = (phase: string) => ['queued', 'running', 'waiting'].includes(phase);
+  const executing = (state: CanvasGroupQueueState) => executingPhase(state.phase);
+  /** Same canvas edits (delete, sync) replace the document object but keep queue ownership. */
+  const sameCanvas = (left: CanvasDocument | null, right: CanvasDocument | null) =>
+    Boolean(left && right && (left === right || left.id === right.id));
   function sync() {
-    if (documentState === options.getDocument()) return;
+    const next = options.getDocument();
+    if (documentState === next) return;
+    if (sameCanvas(documentState, next)) {
+      documentState = next;
+      return;
+    }
     queues.clear();
+    removed.clear();
     settling.clear();
     clearTimeout(timer);
-    documentState = options.getDocument();
+    documentState = next;
+  }
+  function savedQueueState(group: CanvasNode): CanvasGroupQueueState | undefined {
+    const saved = group.workflowState;
+    if (!saved) return undefined;
+    // A reloaded page has no executor; an executing phase means "stopped by reload".
+    const reloaded = executingPhase(saved.phase);
+    return {
+      groupId: group.id,
+      pending: [...saved.pending],
+      completed: saved.completed.length,
+      total: saved.completed.length + saved.pending.length,
+      finished: [...saved.completed],
+      failures: { ...saved.failures },
+      retries: { ...saved.retries },
+      running: {},
+      elapsedMs: group.workDurationMs || 0,
+      runStartedAt: undefined,
+      phase: reloaded ? 'paused' : saved.phase,
+      message: reloaded
+        ? '页面已重新打开，执行已停止；点击继续核对原任务并完成剩余步骤'
+        : saved.message,
+      stopping: false,
+      ...(saved.pauseReason && !reloaded ? { pauseReason: saved.pauseReason } : {}),
+    };
   }
   function members(groupId: string): CanvasNode[] {
     return (
@@ -53,13 +97,30 @@ export function createCanvasGroupQueue(options: {
       )
     );
   }
-  function start(groupId: string, alreadyConfirmed = false) {
+  /** Prelayout scope: local layout only, never the paid separation or its cut. */
+  function inScope(state: { scope?: 'prelayout' }, nodeId: string): boolean {
+    if (state.scope !== 'prelayout') return true;
+    const node = documentState?.nodes.find((item) => item.id === nodeId);
+    if (!node) return false;
+    if (node.type === 'image-assets') return false;
+    if (node.type !== 'image') return false;
+    return Boolean(node.uiAtlasPrelayout) || (!node.uiAtlasGroup && !node.uiArtTextId);
+  }
+  function start(groupId: string, alreadyConfirmed = false, scope?: 'prelayout') {
     sync();
     if (!documentState || (queues.get(groupId) && executing(queues.get(groupId)!))) return false;
-    const prior = queues.get(groupId);
+    const group = documentState.nodes.find((node) => node.id === groupId);
+    if (!group) return false;
+    const blocked = options.blocked?.();
+    if (blocked) {
+      options.error(blocked);
+      return false;
+    }
+    const prior = queues.get(groupId) || savedQueueState(group);
     const previous = prior?.pending || [];
     const candidates = members(groupId).filter(
-      (node) => options.needs(node.id) || options.problem?.(node.id)
+      (node) =>
+        inScope({ scope }, node.id) && (options.needs(node.id) || options.problem?.(node.id))
     );
     candidates.sort((left, right) => {
       const rank = (id: string) => (previous.includes(id) ? previous.indexOf(id) : previous.length);
@@ -93,7 +154,6 @@ export function createCanvasGroupQueue(options: {
       )
     )
       return false;
-    const group = documentState.nodes.find((node) => node.id === groupId)!;
     const resumingMemory = prior?.phase === 'paused';
     const resumingSaved = !resumingMemory && Boolean(group.workTimingOpen && group.workStartedAt);
     const resuming = resumingMemory || resumingSaved;
@@ -106,25 +166,64 @@ export function createCanvasGroupQueue(options: {
       for (const node of candidates) delete node.workDurationMs;
     } else if (!group.workStartedAt) group.workStartedAt = Date.now();
     group.workTimingOpen = true;
-    const persisted = group.workDurationMs || 0;
+    const persistedDuration = group.workDurationMs || 0;
     queues.set(groupId, {
       groupId,
       pending,
       completed: finished.length,
       total: finished.length + pending.length,
       finished,
+      // A resumed queue re-evaluates failures against the current card state.
+      // Persisted failures remain visible before Continue, but must not deadlock recovery.
       failures: {},
-      retries: resumingMemory ? { ...prior.retries } : {},
+      retries: resumingMemory ? { ...(prior?.retries || {}) } : {},
       running: {},
       // A recognition result may have increased the saved total after the last pause.
-      elapsedMs: resumingMemory ? Math.max(prior.elapsedMs, persisted) : resuming ? persisted : 0,
+      elapsedMs: resumingMemory
+        ? Math.max(prior?.elapsedMs || 0, persistedDuration)
+        : resuming
+          ? persistedDuration
+          : 0,
       runStartedAt: Date.now(),
       phase: 'queued',
-      message: '准备执行',
+      message: scope === 'prelayout' ? '执行本地预排' : '准备执行',
       stopping: false,
+      ...(scope ? { scope } : {}),
     });
+    persistState(queues.get(groupId)!);
     options.changed();
     void pump();
+    return true;
+  }
+  /** Record a deliberate checkpoint without running anything (all prior work already exists). */
+  function hold(groupId: string, reason: 'prelayout-review', message: string): boolean {
+    sync();
+    const group = documentState?.nodes.find((node) => node.id === groupId);
+    const current = queues.get(groupId);
+    if (!group || (current && executing(current))) return false;
+    const state: CanvasGroupQueueState = {
+      ...(current ||
+        savedQueueState(group) || {
+          groupId,
+          pending: [],
+          completed: 0,
+          total: 0,
+          finished: [],
+          failures: {},
+          retries: {},
+          running: {},
+          elapsedMs: group.workDurationMs || 0,
+          stopping: false,
+        }),
+      phase: 'paused',
+      message,
+      pauseReason: reason,
+      runStartedAt: undefined,
+    } as CanvasGroupQueueState;
+    delete state.scope;
+    queues.set(groupId, state);
+    persistState(state);
+    options.changed();
     return true;
   }
   function stop(groupId: string) {
@@ -133,7 +232,42 @@ export function createCanvasGroupQueue(options: {
     state.stopping = true;
     for (const id of Object.keys(state.running)) options.stopActive?.(id);
     state.message = state.active ? '当前步骤结束后停止；不取消远端任务' : '已停止后续';
+    persistState(state);
     if (!state.active) void settle(state, 'paused', '已停止后续');
+    options.changed();
+  }
+  /**
+   * Call before the nodes leave the document. Only runs of deleted cards and their dependents
+   * are discarded; other running results are still accepted and unrelated groups continue.
+   */
+  function remove(nodeIds: string[]) {
+    sync();
+    if (!documentState) return;
+    const ids = new Set(nodeIds);
+    const affected = new Set(ids);
+    for (const id of ids)
+      for (const node of canvasDependents(documentState, id)) affected.add(node.id);
+    for (const state of queues.values()) {
+      const affectsGroup =
+        ids.has(state.groupId) || members(state.groupId).some((node) => ids.has(node.id));
+      const discarded = Object.keys(state.running).filter((id) => affected.has(id));
+      if (!affectsGroup && !discarded.length) continue;
+      for (const id of discarded) {
+        removed.set(id, state.running[id]);
+        options.stopActive?.(id);
+      }
+      state.pending = state.pending.filter((id) => !ids.has(id));
+      state.finished = state.finished.filter((id) => !ids.has(id));
+      for (const id of ids) delete state.failures[id];
+      if (executing(state)) {
+        state.stopping = true;
+        state.message = '已删除相关卡片：停止此分组后续，忽略被删卡片的迟到结果';
+      }
+      updateCounts(state);
+      persistState(state);
+      if (executing(state) && !Object.keys(state.running).length)
+        void settle(state, 'paused', state.message);
+    }
     options.changed();
   }
   function move(groupId: string, nodeId: string, beforeId?: string): boolean {
@@ -180,6 +314,35 @@ export function createCanvasGroupQueue(options: {
     state.active = Object.keys(state.running)[0];
     state.startedAt = state.active ? state.running[state.active] : undefined;
   }
+  /** Persist a bounded checkpoint; full failure text stays in the run log. */
+  function persistState(
+    state: CanvasGroupQueueState,
+    phase: CanvasWorkflowState['phase'] = state.phase,
+    message = state.message
+  ) {
+    const group = documentState?.nodes.find((node) => node.id === state.groupId);
+    if (!group || group.type !== 'section') return;
+    const ids = new Set(documentState!.nodes.map((node) => node.id));
+    const workflowState: CanvasWorkflowState = {
+      phase,
+      message: message.slice(0, 400),
+      completed: state.finished.filter((id) => ids.has(id)),
+      pending: [...state.pending, ...Object.keys(state.running)].filter((id) => ids.has(id)),
+      failures: Object.fromEntries(
+        Object.entries(state.failures)
+          .filter(([id]) => ids.has(id))
+          .map(([id, text]) => [id, text.length > 300 ? text.slice(0, 299) + '…' : text])
+      ),
+      retries: Object.fromEntries(
+        Object.entries(state.retries)
+          .filter(([id]) => ids.has(id))
+          .map(([id, count]) => [id, Math.min(2, count)])
+      ),
+      updatedAt: Date.now(),
+      ...(phase === 'paused' && state.pauseReason ? { pauseReason: state.pauseReason } : {}),
+    };
+    group.workflowState = workflowState;
+  }
   function checkpoint() {
     sync();
     const now = Date.now();
@@ -197,7 +360,8 @@ export function createCanvasGroupQueue(options: {
   async function settle(
     state: CanvasGroupQueueState,
     phase: 'paused' | 'complete',
-    message: string
+    message: string,
+    pauseReason?: 'prelayout-review'
   ) {
     if (settling.has(state)) return;
     settling.add(state);
@@ -214,6 +378,11 @@ export function createCanvasGroupQueue(options: {
       if (!group.workStartedAt)
         group.workStartedAt = state.elapsedMs ? Date.now() - state.elapsedMs : Date.now();
     }
+    if (pauseReason) state.pauseReason = pauseReason;
+    else delete state.pauseReason;
+    delete state.scope;
+    // Save the final phase itself, so a reload never restores a phantom running executor.
+    persistState(state, phase, message);
     state.phase = 'waiting';
     state.message = '保存执行结果';
     options.changed();
@@ -225,9 +394,11 @@ export function createCanvasGroupQueue(options: {
     } finally {
       settling.delete(state);
     }
-    if (options.getDocument() !== current || queues.get(state.groupId) !== state) return;
+    if (!sameCanvas(options.getDocument(), current) || queues.get(state.groupId) !== state) return;
+    sync();
     state.phase = saved ? phase : 'paused';
     state.message = saved ? message : '画布保存失败，请先保存再继续';
+    if (!saved) delete state.pauseReason;
     if (!saved) {
       for (const queued of queues.values()) {
         if (!executing(queued) || queued === state) continue;
@@ -238,21 +409,42 @@ export function createCanvasGroupQueue(options: {
         if (queued !== state && executing(queued) && !Object.keys(queued.running).length)
           void settle(queued, 'paused', state.message);
       options.error(state.message);
+      persistState(state);
     }
     options.changed();
     void pump();
+    options.settled?.(state.groupId, state.phase as 'paused' | 'complete');
   }
-  async function execute(state: CanvasGroupQueueState, id: string, current: CanvasDocument) {
+  async function execute(state: CanvasGroupQueueState, id: string, initial: CanvasDocument) {
     let success = false;
     let failure = '';
+    const token = state.running[id];
+    const discarded = () => removed.get(id) === token;
     try {
       success = await options.run(id);
     } catch (error) {
       failure = error instanceof Error ? error.message : String(error);
-      options.error(failure);
+      if (!discarded()) options.error(failure);
     }
-    if (options.getDocument() !== current || queues.get(state.groupId) !== state) return;
+    if (!sameCanvas(options.getDocument(), initial) || queues.get(state.groupId) !== state) {
+      if (discarded()) removed.delete(id);
+      return;
+    }
+    sync();
+    const current = documentState!;
+    if (state.running[id] !== token) {
+      if (discarded()) removed.delete(id);
+      return;
+    }
     delete state.running[id];
+    if (discarded()) {
+      removed.delete(id);
+      updateCounts(state);
+      persistState(state);
+      if (!Object.keys(state.running).length) void settle(state, 'paused', state.message);
+      else void pump();
+      return;
+    }
     const halt = options.haltReason?.();
     if (halt) {
       state.pending.unshift(id);
@@ -309,6 +501,7 @@ export function createCanvasGroupQueue(options: {
     updateCounts(state);
     state.phase = Object.keys(state.running).length ? 'running' : 'queued';
     state.message = state.stopping ? '已停止后续' : '继续可执行分支';
+    persistState(state);
     options.changed();
     void pump();
   }
@@ -321,6 +514,7 @@ export function createCanvasGroupQueue(options: {
       const current = documentState;
       let progressed = true;
       while (current && options.getDocument() === current && progressed) {
+        // Same-canvas edits replace the document object; pump restarts on the next tick.
         progressed = false;
         for (const state of queues.values()) {
           if (!executing(state) || settling.has(state)) continue;
@@ -343,7 +537,7 @@ export function createCanvasGroupQueue(options: {
             ...Object.keys(state.running),
           ]);
           for (const node of members(state.groupId)) {
-            if (known.has(node.id) || !options.needs(node.id)) continue;
+            if (known.has(node.id) || !inScope(state, node.id) || !options.needs(node.id)) continue;
             state.pending.push(node.id);
             updateCounts(state);
           }
@@ -353,7 +547,14 @@ export function createCanvasGroupQueue(options: {
             continue;
           }
           if (!state.pending.length && !Object.keys(state.running).length) {
-            void settle(state, 'complete', '已完成');
+            if (state.scope === 'prelayout' && !Object.keys(state.failures).length)
+              void settle(
+                state,
+                'paused',
+                '预排已就绪：请查看各批预排图和识图标注，确认后点击继续分离生图',
+                'prelayout-review'
+              );
+            else void settle(state, 'complete', '已完成');
             continue;
           }
           if (!current.nodes.some((item) => item.id === state.groupId && item.type === 'section')) {
@@ -392,10 +593,16 @@ export function createCanvasGroupQueue(options: {
                     message
                 )
                 .join('；');
+              const review = !state.pending.length && state.scope === 'prelayout' && !reason;
               void settle(
                 state,
-                state.pending.length ? 'paused' : 'complete',
-                state.pending.length ? reason || '等待上游完成，请核查卡片状态' : '已完成'
+                state.pending.length || review ? 'paused' : 'complete',
+                state.pending.length
+                  ? reason || '等待上游完成，请核查卡片状态'
+                  : review
+                    ? '预排已就绪：请查看各批预排图和识图标注，确认后点击继续分离生图'
+                    : '已完成',
+                review ? 'prelayout-review' : undefined
               );
             }
             continue;
@@ -428,7 +635,7 @@ export function createCanvasGroupQueue(options: {
           state.message = '正在执行';
           options.changed();
           void execute(state, id, current).catch((error) => {
-            if (options.getDocument() !== current) return;
+            if (!sameCanvas(options.getDocument(), current)) return;
             state.stopping = true;
             state.message = '队列检查失败，请查看运行日志';
             options.error(error instanceof Error ? error.message : String(error));
@@ -463,12 +670,28 @@ export function createCanvasGroupQueue(options: {
         if (!state.finished.includes(nodeId)) state.finished.push(nodeId);
         updateCounts(state);
         state.message = '失败步骤已恢复，可继续剩余流程';
+        persistState(state);
         if (!state.pending.length) void settle(state, 'complete', '已完成');
         else options.changed();
       }
     },
     start,
+    hold,
+    /**
+     * Record a retry made outside the queue (the 015 coordinator) in the same per-card counter
+     * the queue checks before its own regenerations, so both share one budget. Returns the
+     * new count; the counter survives the next start of a paused run.
+     */
+    spendRetry(groupId: string, nodeId: string): number {
+      sync();
+      const state = queues.get(groupId);
+      if (!state) return Infinity;
+      state.retries[nodeId] = (state.retries[nodeId] || 0) + 1;
+      persistState(state);
+      return state.retries[nodeId];
+    },
     stop,
+    remove,
     move,
     remaining(groupId: string) {
       sync();
@@ -477,11 +700,24 @@ export function createCanvasGroupQueue(options: {
     },
     view(groupId: string) {
       sync();
-      const state = queues.get(groupId);
       const group = documentState?.nodes.find((node) => node.id === groupId);
+      // Saved checkpoints are a read-only projection; they never claim a live executor.
+      const state = queues.get(groupId) || (group ? savedQueueState(group) : undefined);
       if (state && state.runStartedAt === undefined)
         state.elapsedMs = Math.max(state.elapsedMs, group?.workDurationMs || 0);
-      return queues.get(groupId);
+      // A stopped or saved snapshot can lag behind the cards (reload, another tab, a save that
+      // landed before the queue's own checkpoint). Counts follow the cards, not the snapshot.
+      if (state && !executing(state)) {
+        const done = state.pending.filter(
+          (id) => !state.failures[id] && !options.needs(id) && !options.problem?.(id)
+        );
+        if (done.length) {
+          state.pending = state.pending.filter((id) => !done.includes(id));
+          state.finished.push(...done.filter((id) => !state.finished.includes(id)));
+          updateCounts(state);
+        }
+      }
+      return state;
     },
     blockedBy(groupId: string, nodeId: string) {
       sync();

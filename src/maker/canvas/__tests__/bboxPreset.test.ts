@@ -20,7 +20,8 @@ test('official Bbox preset preserves tested prompts, media and final export layo
     const files = new MakerCanvasFiles(root);
     const preset = canvasPresets().find((item) => item.id === id)!;
     const original = presetData.find((item) => item.id === id)!;
-    expect(preset.name).toBe('游戏UI制作 · Bbox预排参考图（实验）');
+    expect(preset.name).toBe('游戏UI制作 · Bbox预排参考图');
+    expect(canvasPresets().some((item) => item.id.endsWith('000013'))).toBe(false);
     expect(preset.skills).toEqual(['maker-ui-bbox-workflow']);
     expect(formatMakerSkillStatus()).toContain('maker-ui-bbox-workflow');
     expect(
@@ -73,8 +74,10 @@ test('official Bbox preset preserves tested prompts, media and final export layo
     const canvas = await files.create();
     const prepared = await files.prepareTemplate(id, canvas.id);
     for (const file of templateAssetPaths(prepared)) {
-      expect(fs.statSync(path.join(root, file)).size).toBeGreaterThan(0);
+      expect(fs.statSync(files.readMedia(file).file).size).toBeGreaterThan(0);
+      expect(file).toMatch(/^maker-demo\//);
     }
+    expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
     expect(prepared.cliOnly).toBe(true);
     expect(prepared.nodes).toHaveLength(3);
     expect(prepared.nodes.flatMap((node) => node.imageAssetsInfo?.items || [])).toHaveLength(0);

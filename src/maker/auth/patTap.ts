@@ -6,7 +6,7 @@ import type { MakerTapAuth } from '../types.js';
 import { getMakerEndpoints, requireMakerEndpoint } from '../config.js';
 import { DEFAULT_SHORT_FETCH_TIMEOUT_MS, fetchWithTimeout } from '../fetchTimeout.js';
 import { saveTapAuth } from '../storage.js';
-import { requireMakerPat } from '../git/pat.js';
+import { requireMakerPat } from './pat.js';
 import type { MakerEnvironment } from '../config.js';
 
 function getObjectValue(data: unknown, key: string): unknown {

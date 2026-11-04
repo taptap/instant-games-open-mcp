@@ -109,6 +109,8 @@ export interface CanvasImageModels {
   label: string;
   description?: string;
   defaultModel?: string;
+  /** Constraints of the MCP aspect_ratio argument, when the tool declares it. */
+  aspectRatio?: { required: boolean; values?: string[] };
   models: Array<{ id: string; label: string; maxReferenceImages?: number }>;
 }
 
@@ -157,6 +159,62 @@ export interface CanvasGroupQueueState {
   phase: 'queued' | 'running' | 'waiting' | 'paused' | 'complete';
   message: string;
   stopping: boolean;
+  /** Structured reason for a deliberate pause; absent for failures and manual stops. */
+  pauseReason?: CanvasWorkflowPauseReason;
+  /** In-memory execution scope; 'prelayout' stops before paid separation generation. */
+  scope?: 'prelayout';
+}
+
+export type CanvasWorkflowPauseReason = 'prelayout-review';
+
+/** One local UI delivery assembled from a confirmed resource archive version. */
+export interface CanvasUiDelivery {
+  id: string;
+  screen?: { name: string; key: string };
+  designSha256?: string;
+  archiveRevision: string;
+  uiId: string;
+  /** Project-relative folder holding images/, reserve/, source/ and ui/ of this version. */
+  directory: string;
+  uiFile: string;
+  referenceFile: string;
+  createdAt: string;
+  elements?: number;
+  steps: {
+    assembled: boolean;
+    meta: 'pending' | 'done' | 'blocked' | 'failed';
+    check: 'pending' | 'passed' | 'failed';
+  };
+  meta?: { generated: number; preserved: number; skipped: number };
+  check?: { nodes: number; errors: number; warnings: number; messages: string[] };
+  /** Last failure or blocking reason; full details stay in the delivery record. */
+  issue?: string;
+  /**
+   * What this version accepted without review so the run could finish: element IDs whose cut
+   * was not previewed, element IDs left out for lack of any PNG, and unbound categories.
+   * Empty lists mean nothing is pending; the review prompt hands the rest to an AI.
+   */
+  review?: { unreviewed: string[]; missing: string[]; unbound: string[] };
+  /**
+   * Who drove this version: the canvas button ('canvas'), or the CLI ('cli': a CLI run or
+   * assemble-ui, i.e. an AI following the Skill). A CLI version needs no AI hand-off prompt.
+   */
+  source?: 'canvas' | 'cli';
+}
+
+export interface CanvasUiDeliveryStatus {
+  /**
+   * True when the saved canvas has a resources archive to assemble. Unreviewed or missing
+   * assets do not block; they are reported in code/reason and in delivery.review.
+   */
+  ready: boolean;
+  code?: string;
+  reason?: string;
+  archiveRevision?: string;
+  delivery?: CanvasUiDelivery;
+  /** Older deliveries of the same bundle; kept, never overwritten. */
+  previous?: Array<Pick<CanvasUiDelivery, 'id' | 'archiveRevision' | 'uiFile' | 'createdAt'>>;
+  python?: { ready: boolean; message?: string };
 }
 
 export interface CanvasCommand {
@@ -179,4 +237,12 @@ export interface CanvasOperation {
   result?: unknown;
   resultExpired?: boolean;
   error?: string;
+  /**
+   * Set only on failed operations the page rejected before any side effect: INVALID_ARGS
+   * (arguments or state) or NOT_FOUND (canvas, card or edge missing). An uncoded failure may
+   * have started work; inspect the original cards instead of resubmitting paid steps.
+   */
+  code?: CanvasOperationErrorCode;
 }
+
+export type CanvasOperationErrorCode = 'INVALID_ARGS' | 'NOT_FOUND';

@@ -6,6 +6,7 @@
 
 import { startMakerMcpServer } from './server/mcp.js';
 import { formatCliError, runMakerCli } from './cli/commands.js';
+import { IMAGE_CLI_USAGE } from './cli/image.js';
 import { runPreviewSupervisor } from './preview/session.js';
 import { runConsoleSupervisor } from './console/cli.js';
 import { previewProject } from './preview/protocol.js';
@@ -93,6 +94,7 @@ function printHelp(): void {
       '  taptap-maker console open [--target-dir PROJECT_ABSOLUTE_PATH] [--no-open] [--json]',
       '  taptap-maker console status|stop [--json]',
       '  taptap-maker canvas capabilities',
+      `  ${IMAGE_CLI_USAGE}`,
       '  taptap-maker canvas list|pages|templates --target-dir PROJECT_ABSOLUTE_PATH',
       '  taptap-maker canvas ui-archives --target-dir PATH [--canvas-id ID]',
       '  taptap-maker canvas model-settings',
@@ -130,6 +132,7 @@ function printHelp(): void {
       '                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]',
       '                       [--cursor N --session-id ID --reload-id N] [--limit 1..500]',
       '  preview validate: [--mode validate|screenshot|both] [--entry SCRIPT.lua]',
+      '                    [--network]  # required for network/server projects; allocates a test server',
       '                    [--screenshot-frame N] [--validate-frames N] [--validate-timeout 1..580]',
       '                    [--validate-test SCRIPT.lua] [--validate-spike-threshold MS] [--nosound]',
       '                    [--output-dir /absolute/acceptance-directory]',

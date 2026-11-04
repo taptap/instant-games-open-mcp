@@ -13,6 +13,51 @@
     return event.metaKey || event.ctrlKey;
   }
 
+  var helpButton = document.getElementById("shortcutsBtn");
+  var help = document.createElement("dialog");
+  help.id = "editorShortcuts";
+  help.className = "editor-shortcuts";
+  help.setAttribute("aria-labelledby", "editorShortcutsTitle");
+  var modLabel = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
+  var groups = [
+    ["视图操作", [["按住空格 + 拖动", "临时平移视图"], ["中键拖动", "平移视图"], ["Shift + 1 / Shift + 2", "适配画板 / 所选"], ["Shift + 0", "原始比例"], ["Mod + + / Mod + -", "放大 / 缩小"], ["Esc", "取消选择或替换图片"]]],
+    ["选择与排版", [["Shift + 点击 / 框选", "多选 / 追加选择"], ["Mod + 点击", "选择重叠节点"], ["Mod + A", "全选"], ["Mod + G / Mod + Shift + G", "分组 / 取消分组"], ["方向键 / Shift + 方向键", "移动 1 / 10 像素"], ["Enter / Shift + Enter", "选择子节点 / 父节点"], ["[ / ]", "下移 / 上移一层"], ["Alt + [ / Alt + ]", "置底 / 置顶"], ["Shift + 拖动", "约束水平或垂直移动"], ["Shift / Alt + 缩放", "等比 / 从中心缩放"], ["Shift + 旋转", "15° 步进旋转"]]],
+    ["编辑与保存", [["Mod + C / X / V", "复制 / 剪切 / 粘贴"], ["Mod + D / Alt + 拖动", "复制所选"], ["F2", "重命名"], ["Mod + Shift + H / L", "切换显隐 / 锁定"], ["Delete / Backspace", "删除所选"], ["Mod + Z", "撤销"], ["Mod + Shift + Z / Mod + Y", "重做"], ["Mod + S", "保存"]]],
+  ];
+  help.innerHTML = '<div class="shortcut-heading"><h2 id="editorShortcutsTitle">UI 编辑器快捷键</h2><button type="button" aria-label="关闭快捷键" autofocus>×</button></div>' +
+    groups.map(function (group) { return '<section><h3>' + group[0] + '</h3>' + group[1].map(function (row) {
+      return '<div class="shortcut-row"><span>' + row[1] + '</span><kbd>' + row[0].replace(/Mod/g, modLabel) + '</kbd></div>';
+    }).join('') + '</section>'; }).join('') +
+    '<p>输入文字时不触发编辑快捷键。节点树获得焦点时，空格、回车和方向键用于树导航。</p>';
+  document.body.appendChild(help);
+  function positionHelp() {
+    if (!help.open) return;
+    var anchor = helpButton.getBoundingClientRect();
+    help.style.left = Math.max(8, Math.min(anchor.right - help.offsetWidth, window.innerWidth - help.offsetWidth - 8)) + "px";
+    help.style.top = Math.max(8, Math.min(anchor.bottom + 8, window.innerHeight - help.offsetHeight - 8)) + "px";
+  }
+  helpButton.addEventListener("click", function () {
+    if (help.open) help.close();
+    else { help.showModal(); help.scrollTop = 0; helpButton.setAttribute("aria-expanded", "true"); positionHelp(); }
+  });
+  help.querySelector("button").addEventListener("click", function () { help.close(); });
+  function outsideHelp(event) {
+    var rect = help.getBoundingClientRect();
+    return event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom;
+  }
+  // Close on click, not pointerdown: the closing gesture must not reach the editor underneath.
+  help.addEventListener("pointerdown", function (event) {
+    if (event.target === help && outsideHelp(event)) { event.preventDefault(); event.stopPropagation(); }
+  });
+  help.addEventListener("click", function (event) {
+    if (event.target === help && outsideHelp(event)) { event.preventDefault(); event.stopPropagation(); help.close(); }
+  });
+  help.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); help.close(); }
+  });
+  help.addEventListener("close", function () { helpButton.setAttribute("aria-expanded", "false"); });
+  window.addEventListener("resize", positionHelp);
+
   window.addEventListener("keydown", function (event) {
     if (event.defaultPrevented || event.isComposing) return;
     var save = mod(event) && event.key.toLowerCase() === "s";
@@ -83,7 +128,7 @@
       api.toggleLocked();
       return;
     }
-    if (mod(event) && key.toLowerCase() === "r") {
+    if (key === "F2" && !mod(event) && !event.altKey) {
       event.preventDefault();
       api.rename();
       return;

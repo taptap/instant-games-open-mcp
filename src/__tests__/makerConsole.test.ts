@@ -36,6 +36,48 @@ describe('Maker console project isolation', () => {
     fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   );
 
+  test('context checks bind to a registered project and reject arbitrary scope parameters', async () => {
+    const root = project('context');
+    const current = registry.add(root);
+    fs.writeFileSync(path.join(root, 'AGENTS.md'), 'private instructions');
+    const execute = jest.fn(async () => ({ ok: true }));
+    const packageRoot = path.join(directory, 'package');
+    fs.mkdirSync(path.join(packageRoot, 'skills/other'), { recursive: true });
+    fs.writeFileSync(path.join(packageRoot, 'skills/other/SKILL.md'), 'unrelated packaged skill');
+    const server = await startConsoleServer({
+      registry,
+      execute,
+      html: '',
+      version: 'test',
+      packageRoot,
+    });
+    const endpoint = server.origin + '/api/projects/' + current.key + '/context-check';
+    try {
+      const response = await fetch(endpoint);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        client: 'project',
+        sources: [{ path: 'AGENTS.md', kind: 'rules', scope: 'project' }],
+      });
+      for (const query of [
+        '?client=claude',
+        '?client=codex',
+        '?client=workbuddy',
+        '?client=cursor',
+        '?client=unknown',
+        '?client=project&client=claude',
+        '?homeDir=/tmp',
+      ]) {
+        expect((await fetch(endpoint + query)).status).toBe(400);
+      }
+      fs.writeFileSync(path.join(root, '.maker-mcp/config.json'), '{"project_id":"changed"}');
+      expect((await fetch(endpoint)).status).not.toBe(200);
+      expect(execute).not.toHaveBeenCalled();
+    } finally {
+      await server.close();
+    }
+  });
+
   test('hashes inline scripts regardless of HTML tag case', async () => {
     const source = 'window.test = true;';
     const server = await startConsoleServer({

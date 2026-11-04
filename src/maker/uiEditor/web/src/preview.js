@@ -608,7 +608,7 @@
     app.modifiedNodes = new Set();
     app.components = options.components || {};
     app.missingComponents = options.missingComponents || [];
-    setProjectConfig(options.projectConfig);
+    setProjectConfig(options.projectConfig, isScreenDoc(candidate) ? size : null);
     app.path = options.path || DEFAULT_UI;
     window.UrhoxAssets.setContext({
       assetRoot: options.assetRoot != null ? options.assetRoot : DEFAULT_ASSET_ROOT,
@@ -665,9 +665,13 @@
     }
   }
 
-  function setProjectConfig(config) {
+  // A screen document's own design size picks the orientation (wider than tall = landscape);
+  // the project setting is only the fallback for prefabs and square or unsized documents.
+  function setProjectConfig(config, size) {
     app.projectConfig = config || null;
-    app.orientation = config && config.orientation === "landscape" ? "landscape" : "portrait";
+    app.orientation = size && size.width !== size.height
+      ? (size.width > size.height ? "landscape" : "portrait")
+      : config && config.orientation === "landscape" ? "landscape" : "portrait";
     setDevice("1080p");
   }
 

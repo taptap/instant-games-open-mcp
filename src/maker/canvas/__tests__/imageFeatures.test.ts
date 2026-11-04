@@ -346,7 +346,7 @@ test.each(['local', 'chatgpt-web'] as const)(
     cut.uiRecognition!.results = [];
     delete cut.uiRecognition!.selectedId;
     await expect(controller.runImage(cut.id, async () => true)).rejects.toThrow(
-      source === 'local' ? 'AI 客户端' : 'ChatGPT'
+      '识图 API 尚未就绪'
     );
     expect(recognizeUi).not.toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();

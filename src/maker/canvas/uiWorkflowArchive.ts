@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { CanvasDocument } from './model.js';
+import { CanvasStoreError, type CanvasDocument } from './model.js';
 import { validateUiBbox } from './uiBbox.js';
 import {
   resourceBundleEntries,
@@ -45,7 +45,8 @@ export function uiArchiveFingerprint(document: CanvasDocument): string {
 
 export async function prepareUiWorkflowArchives(
   document: CanvasDocument,
-  readBlob: (path: string) => Promise<Blob>
+  readBlob: (path: string) => Promise<Blob>,
+  options: { skipUnavailableDemoResources?: boolean } = {}
 ): Promise<Array<{ record: UiWorkflowArchive; files: Array<{ name: string; bytes: Buffer }> }>> {
   const archives: Array<{
     record: UiWorkflowArchive;
@@ -118,14 +119,26 @@ export async function prepareUiWorkflowArchives(
       )
     )
       continue;
-    const entries = await resourceBundleEntries(
-      document,
-      target.id,
-      (value) => value,
-      undefined,
-      readBlob,
-      Number.MAX_SAFE_INTEGER
-    );
+    let entries: Awaited<ReturnType<typeof resourceBundleEntries>>;
+    try {
+      entries = await resourceBundleEntries(
+        document,
+        target.id,
+        (value) => value,
+        undefined,
+        readBlob,
+        Number.MAX_SAFE_INTEGER
+      );
+    } catch (error) {
+      // Autosave may retain incomplete templates, but explicit delivery must fail.
+      if (
+        options.skipUnavailableDemoResources &&
+        error instanceof CanvasStoreError &&
+        error.code === 'DEMO_RESOURCE_UNAVAILABLE'
+      )
+        continue;
+      throw error;
+    }
     const bindingEntry = entries.find((entry) => entry.name === 'bindings.json');
     if (!bindingEntry) continue;
     const bindings = JSON.parse(await bindingEntry.blob.text());

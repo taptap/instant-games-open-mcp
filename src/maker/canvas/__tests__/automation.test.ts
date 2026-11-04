@@ -59,6 +59,25 @@ test('lost exchange does not replay a dispatched command; result acknowledgement
   expect(() => bridge.status('other', command.requestId)).toThrow('不存在');
 });
 
+test('page rejection codes reach status only for failed results with a known code', () => {
+  for (const [result, code] of [
+    [{ status: 'failed', error: '卡片或分组不存在。', code: 'NOT_FOUND' }, 'NOT_FOUND'],
+    [{ status: 'failed', error: 'revision 已过期', code: 'INVALID_ARGS' }, 'INVALID_ARGS'],
+    [{ status: 'failed', error: '结果已留在页面，但保存失败。' }, undefined],
+    [{ status: 'failed', error: 'x', code: 'EXECUTED_MAYBE' }, undefined],
+    [{ status: 'succeeded', code: 'INVALID_ARGS' }, undefined],
+  ] as const) {
+    const { bridge, command, exchange } = fixture();
+    bridge.submit('project', command);
+    exchange();
+    exchange([{ id: command.requestId, ...result }]);
+    const operation = bridge.status('project', command.requestId);
+    expect(operation.status).toBe(result.status);
+    expect(operation.code).toBe(code);
+    if ('error' in result) expect(operation.error).toBe(result.error);
+  }
+});
+
 test('queued expiration proves not dispatched, running page loss is unknown and late results are accepted', () => {
   const stale = fixture();
   stale.bridge.submit('project', stale.command);

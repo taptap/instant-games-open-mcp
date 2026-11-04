@@ -13,9 +13,12 @@ interface Raster {
 }
 const PNG = pngjs.PNG as { sync: { read(bytes: Buffer): Raster; write(image: Raster): Buffer } };
 
-export function assertUiAtlasSources(files: MakerCanvasFiles, plan: UiAtlasPlan): void {
+export async function assertUiAtlasSources(
+  files: MakerCanvasFiles,
+  plan: UiAtlasPlan
+): Promise<void> {
   for (const source of [plan.bbox.design, plan.bbox.cutSource]) {
-    const bytes = fs.readFileSync(files.readMedia(source.path).file);
+    const bytes = fs.readFileSync((await files.loadMedia(source.path)).file);
     const info = files.imageInfo(source.path);
     if (
       createHash('sha256').update(bytes).digest('hex') !== source.sha256 ||
@@ -32,7 +35,8 @@ export async function prepareUiAtlasReference(
   input: UiAtlasPlan,
   width: number,
   height: number,
-  color: '#00FF00' | '#FF00FF' | 'transparent' = 'transparent'
+  color: '#00FF00' | '#FF00FF' | 'transparent' = 'transparent',
+  designPng?: Buffer
 ): Promise<string> {
   const plan = validateUiAtlasPlan(input);
   if ([plan.grid.marginX, plan.grid.marginY, plan.grid.gapX, plan.grid.gapY].some(Boolean))
@@ -43,14 +47,27 @@ export async function prepareUiAtlasReference(
   )
     throw new Error('预排输出尺寸与原尺寸排版不一致，不会缩放坐标。');
   const regions = plan.nativeLayout?.regions || imageAtlasRegions(width, height, plan.grid);
-  assertUiAtlasSources(files, plan);
+  await assertUiAtlasSources(files, plan);
   const textOnly = plan.slots.every((slot) => slot.role === 'text');
-  const bytes = fs.readFileSync(
+  const isPng = (bytes: Buffer) =>
+    bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  let bytes: Buffer = fs.readFileSync(
     files.readMedia(textOnly ? plan.bbox.design.path : plan.bbox.cutSource.path).file
   );
-  if (!bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
-    throw new Error('Bbox 预排实验模板需要 PNG 去文字图，请转换后重新识图；尚未提交生图。');
+  // A JPEG/WebP design stays the recognition identity; art text crops in-memory PNG pixels.
+  if (textOnly && !isPng(bytes) && designPng) bytes = designPng;
+  if (!isPng(bytes))
+    throw new Error(
+      textOnly
+        ? '美术字预排需要原稿的同尺寸 PNG，请在画布中执行预排；尚未提交生图。'
+        : 'Bbox 预排实验模板需要 PNG 去文字图，请转换后重新识图；尚未提交生图。'
+    );
   const source = PNG.sync.read(bytes);
+  if (
+    textOnly &&
+    (source.width !== plan.bbox.design.width || source.height !== plan.bbox.design.height)
+  )
+    throw new Error('原稿 PNG 与识图原稿尺寸不一致；尚未提交生图。');
   const background = color === '#00FF00' ? [0, 255, 0] : [255, 0, 255];
   const data = Buffer.alloc(width * height * 4);
   if (color !== 'transparent')

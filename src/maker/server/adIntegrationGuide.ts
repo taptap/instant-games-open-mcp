@@ -22,7 +22,10 @@ These are consecutive steps for Maker/UrhoX, not the separate Minigame/H5 ad wor
    settings_path may be remote (e.g. /userspaces/...); never treat it as a local path.
    Request success or synced_at is not local synchronization proof; ad.status=1 is activation only.
    Read the intended local project's .project/settings.json and compare @runtime.ad with the
-   returned configuration. If absent, different or unverifiable, pause ad implementation/testing
+   returned configuration, excluding only the sync timestamp synced_at from the equality check.
+   Compare all other configuration fields, including activation status and ad placements. A
+   synced_at-only difference does not require rewriting local settings or blocking implementation.
+   If configuration is absent, otherwise different or unverifiable, pause ad implementation/testing
    and report "remote configuration obtained; local synchronization not verified" with the missing
    evidence. No automatic local sync is provided by this call. Do not copy another project's
    configuration, guess fields, overwrite settings, or pull/build to resolve this automatically.

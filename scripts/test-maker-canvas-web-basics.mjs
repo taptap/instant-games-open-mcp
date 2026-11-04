@@ -512,7 +512,9 @@ await check('Chrome 74：内联脚本与浏览器产物可按 ES2019 解析', as
   // Host code is injected verbatim and must be lowered by the host; check the shared page only.
   const shared = getCanvasPageHtml({ hostScript: '/* __MAKER_CANVAS_HOST__ */' });
   assert.ok(shared.includes('/* __MAKER_CANVAS_HOST__ */'));
-  const scripts = [...shared.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+  const scripts = [...shared.matchAll(/<script>([\s\S]*?)<\/script[^>]*>/gi)].map(
+    (match) => match[1]
+  );
   assert.ok(scripts.length);
   for (const script of scripts) acorn.parse(script, { ecmaVersion: 2019, sourceType: 'script' });
   const seen = new Set();
@@ -5823,9 +5825,12 @@ try {
       assert.ok(mixedCopies.some((node) => node.assetPath === source.assetPath && !node.mirror));
       assert.ok(mixedCopies.every((node) => !node.mirror));
       await editor('undo', {});
+      await page.evaluate(() => window.__canvasEditor.syncSprites());
+      byKey = await mirrors();
       // Dragging a sprite card out of its group keeps it in the group.
       const inside = byKey.cutout_ref;
       await settle();
+      await card(inside.id).waitFor({ state: 'visible' });
       const from = await card(inside.id).boundingBox();
       await page.mouse.move(from.x + 40, from.y + 80);
       await page.mouse.down();
@@ -5932,6 +5937,8 @@ try {
       const undone = (await current()).nodes.find((node) => node.id === laidOut.id);
       assert.deepEqual([undone.x, undone.y], [moved.x, moved.y]);
       await editor('redo', {});
+      // Drain the sync triggered by redo; hiding stops future polls, not in-flight reads.
+      await page.evaluate(() => window.__canvasEditor.syncSprites());
       // Host hides the panel: no poll is pending; showing it again catches up right away.
       const before = await page.evaluate(() => {
         window.__canvasEditor.setPanelVisible(false);
@@ -5948,6 +5955,49 @@ try {
       await page.close();
     }
   );
+  await check('Web 精灵混合复制：模型卡检查先于镜像复制，不生成无来源的模型副本', async () => {
+    for (const type of ['model', 'model-views']) {
+      const assetPath = 'assets/image/model-copy-source.png';
+      const { page, current, card, errors } = await webPage({
+        features: spriteFeatures,
+        seedMedia: { [assetPath]: '#c33' },
+        seedDocuments: [
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            title: 'mixed copy',
+            revision: 1,
+            viewport: { x: 0, y: 0, scale: 1 },
+            edges: [],
+            nodes: [
+              {
+                id: 'mirror',
+                type: 'image',
+                x: 100,
+                y: 160,
+                width: 200,
+                height: 200,
+                assetPath,
+                mirror: { source: 'sprite-gen', name: 'hero', key: 'viewpoint:' + assetPath },
+              },
+              { id: 'model', type, x: 500, y: 160, width: 240, height: 200 },
+            ],
+          },
+        ],
+      });
+      await card('mirror').click({ position: { x: 30, y: 80 } });
+      await card('model').click({ position: { x: 30, y: 80 }, modifiers: ['Shift'] });
+      await page.keyboard.press('ControlOrMeta+d');
+      await page.waitForFunction(() =>
+        document.getElementById('error').textContent.includes('模型卡片依赖完整来源')
+      );
+      assert.equal((await current()).nodes.length, 2);
+      await page.keyboard.press('ControlOrMeta+c');
+      await page.keyboard.press('ControlOrMeta+v');
+      assert.equal((await current()).nodes.length, 2);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  });
   await check('Web 精灵同步：媒体晚到、强制刷新同路径文件无需改进度 JSON', async () => {
     const { page, current, card, settle, errors } = await spritePage();
     await startSprite(page, 'hero');

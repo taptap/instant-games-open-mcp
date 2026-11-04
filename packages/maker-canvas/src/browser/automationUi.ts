@@ -1,9 +1,11 @@
 import type { CanvasHostCapabilities } from './capabilities.js';
+import type { CanvasPlatform } from '../contracts/platform.js';
 import type { CanvasCommand } from '../contracts.js';
 import type { prepareCanvasNodeUpdatesWithValidation } from '../features/automation.js';
-import type { CanvasDocument, CanvasNode } from '../contracts.js';
+import type { CanvasDocument, CanvasEdge, CanvasNode } from '../contracts.js';
 import {
   canvasAutomationSnapshot,
+  canvasNodeGeometryValue,
   validateCanvasCommandStructure,
 } from '../features/automation.js';
 import { invalidateCanvasDependents } from '../features/templateWorkflow.js';
@@ -23,9 +25,11 @@ import { canvasModelGroup } from '../features/model3d.js';
 import { syncUiBboxWorkflow } from './uiBboxWorkflow.js';
 import { canvasMarkFromInput } from '../core/marks.js';
 import { snapshotCanvasSource } from '../core/dependencies.js';
+import { canvasEditorLayout } from './editorLifecycle.js';
 
 export function createCanvasAutomationUiWithHost(options: {
   capabilities?: CanvasHostCapabilities;
+  platform?: CanvasPlatform;
   prepareNodeUpdates: (
     document: CanvasDocument,
     input: Record<string, unknown>
@@ -63,6 +67,11 @@ export function createCanvasAutomationUiWithHost(options: {
   fillSlot?(id: string, assetPath: string): Promise<void>;
   /** Replaces an existing image in place; same validation and sizing as fillSlot. */
   replaceImage?(id: string, assetPath: string): Promise<void>;
+  /**
+   * Removes one reference edge exactly like the page wire UI (records undo, clears draft
+   * references); returns a rejection reason without changing anything.
+   */
+  disconnect?(edge: CanvasEdge): string | undefined;
   resetDraft(id: string): void;
   checkRecognition?(node: CanvasNode): Promise<void>;
   ensureRecognitionNote?(node: CanvasNode): void;
@@ -75,6 +84,19 @@ export function createCanvasAutomationUiWithHost(options: {
   clearError(): void;
   busyChanged(busy: boolean): void;
   queue: ReturnType<typeof createCanvasGroupQueue>;
+  /** 015 stage coordinator shared with the canvas buttons. */
+  ui015?: {
+    isWorkflowGroup(groupId: string): boolean;
+    advance(
+      groupId: string,
+      input?: { artText?: string[]; background?: boolean; cli?: boolean }
+    ): Promise<{ status: string; stage: string; message: string; [key: string]: unknown }>;
+    inspect(groupId: string): { stage: string; message: string } | undefined;
+    /** True while one start is still driving the group (queue, retries or assembly). */
+    active?(groupId: string): boolean;
+    /** Final result of the run once it has finished. */
+    outcome?(groupId: string): { status: string; stage: string; message: string } | undefined;
+  };
 }) {
   let editing = false;
   let running = false;
@@ -98,6 +120,7 @@ export function createCanvasAutomationUiWithHost(options: {
             ...saved,
             blocked: options.blocked() || null,
             capabilities: options.capabilities,
+            platform: options.platform,
             selectedIds: options.selected(),
             nodes: saved.nodes.map((node) => ({
               ...node,
@@ -245,7 +268,7 @@ export function createCanvasAutomationUiWithHost(options: {
       group: ['ids'],
       connect: ['from', 'to'],
       disconnect: ['edgeId'],
-      run: ['id', 'recognition'],
+      run: ['id', 'recognition', 'artText', 'background'],
       'confirm-model': ['id', 'reviewId'],
       'preview-model': ['id'],
       'preview-image-assets': ['id', 'grid', 'cut'],
@@ -301,19 +324,29 @@ export function createCanvasAutomationUiWithHost(options: {
       // Only unsaved edits block: autosave them first so commands are not refused for a pending debounce.
       if (command.action !== 'query' && command.revision !== current.revision)
         throw invalid('revision 已过期，请重新 inspect，不会覆盖人工修改。');
+      const arrived = canvasEditorLayout(current);
       running = true;
       try {
         const deadline = Date.now() + 10000;
         while (blocked && !options.blocked(true)) {
           const remaining = deadline - Date.now();
+          let timer: ReturnType<typeof setTimeout> | undefined;
           const saved =
             remaining > 0
               ? await Promise.race([
                   options.save(),
-                  new Promise<null>((resolve) => setTimeout(() => resolve(null), remaining)),
-                ])
+                  new Promise<null>((resolve) => {
+                    timer = setTimeout(() => resolve(null), remaining);
+                  }),
+                ]).finally(() => clearTimeout(timer))
               : null;
           if (saved === null) throw invalid('画布保存超时，命令未执行，请稍后重试。');
+          // Undo/redo must stay reachable to revert the edit that makes saving fail; every
+          // other block (tasks, panels, drafts, other pages) is re-checked below.
+          if (!saved && (command.action === 'undo' || command.action === 'redo')) {
+            blocked = options.blocked(true);
+            break;
+          }
           if (!saved) throw invalid('画布保存失败，命令未执行；请先处理保存错误后重试。');
           if (options.current() !== current)
             throw coded('NOT_FOUND', '当前画布已变化，请重新 inspect。');
@@ -324,6 +357,9 @@ export function createCanvasAutomationUiWithHost(options: {
       } finally {
         running = false;
       }
+      // Edits made while saving were never inspected by the caller: refuse instead of rebasing.
+      if (canvasEditorLayout(current) !== arrived)
+        throw invalid('revision 已过期，请重新 inspect，不会覆盖人工修改。');
       // The revision moved only because of this flush, which the caller's inspect already saw.
       expectedRevision = current.revision;
     }
@@ -407,17 +443,65 @@ export function createCanvasAutomationUiWithHost(options: {
       options.busyChanged(true);
       try {
         if (command.action === 'run' && target.type === 'mark') throw invalid('标注不能执行生成。');
-        if (command.action === 'run') {
+        const bbox015 =
+          target.type === 'section' &&
+          (target.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
+            (target.templateCliOnly && target.templateSkills?.includes('maker-ui-bbox-workflow')));
+        if (command.action === 'run' && bbox015) {
+          if (input.recognition === false)
+            throw invalid('实验模板需要当前识图结果，不能关闭识图。');
           if (
-            target.type === 'section' &&
-            (target.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
-              (target.templateCliOnly && target.templateSkills?.includes('maker-ui-bbox-workflow')))
-          ) {
-            if (input.recognition === false)
-              throw invalid('实验模板需要当前识图结果，不能关闭识图。');
-            if (syncUiBboxWorkflow(structuredClone(current), target.id, false).length)
-              throw invalid('请先按 Skill 执行 sync-ui-batches，再运行分组。');
+            input.artText !== undefined &&
+            !(
+              Array.isArray(input.artText) &&
+              input.artText.length <= 120 &&
+              input.artText.every((id) => typeof id === 'string')
+            )
+          )
+            throw invalid('artText 必须是 Bbox 文字 ID 数组。');
+          if (input.background !== undefined && typeof input.background !== 'boolean')
+            throw invalid('background 必须是布尔值。');
+          if (options.ui015) {
+            // Same coordinator as the canvas button: one run drives the group to the UI.
+            const advanced = await options.ui015.advance(target.id, {
+              cli: true,
+              ...(input.artText !== undefined ? { artText: input.artText as string[] } : {}),
+              ...(input.background !== undefined
+                ? { background: input.background as boolean }
+                : {}),
+            });
+            // advance() may already have prepared, re-planned or queued work: keep these uncoded.
+            if (advanced.status === 'failed') throw new Error(advanced.message);
+            if (advanced.status === 'started') {
+              for (;;) {
+                if (options.current()?.id !== current.id)
+                  throw new Error('画布已切换，原队列状态待确认。');
+                const state = options.queue.view(target.id);
+                const executing = state && ['queued', 'running', 'waiting'].includes(state.phase);
+                if (!executing && !options.ui015.active?.(target.id)) break;
+                await new Promise((resolve) => setTimeout(resolve, 250));
+              }
+            }
+            if (!(await options.save()))
+              throw new Error('结果已留在页面，但保存失败。请手动保存，不要重复生成。');
+            // Report how the run ended (ready or failed), not the "started" of the first call.
+            const final =
+              advanced.status === 'started' ? options.ui015.outcome?.(target.id) : advanced;
+            if (final?.status === 'failed') throw new Error(final.message);
+            return {
+              ...snapshot(),
+              workflow: {
+                ...advanced,
+                ...(final || {}),
+                current: options.ui015.inspect(target.id),
+              },
+            };
           }
+          // Hosts without the 015 coordinator keep the two-step contract (dry run, no side effects).
+          if (syncUiBboxWorkflow(structuredClone(current), target.id, false).length)
+            throw invalid('请先按 Skill 执行 sync-ui-batches，再运行分组。');
+        }
+        if (command.action === 'run') {
           const prelayoutRecognition =
             target.uiAtlasPrelayout && uiRecognitionSource(current, target);
           if (
@@ -673,24 +757,39 @@ export function createCanvasAutomationUiWithHost(options: {
           current.nodes.push(node);
           options.select([node.id]);
           options.changed();
-        } else if (input.type === 'model' || input.type === 'model-views') {
-          const source = node(input.sourceId, current);
-          if (options.nodeBlocked(source.id)) throw invalid('来源卡片正在执行，请稍后创建。');
-          options.addDerived(input.type, source.id);
-        } else if (input.type === 'sequence' || input.type === 'animation') {
-          const source = node(input.sourceId, current);
-          if (
-            options.nodeBlocked(source.id) ||
-            source.templatePending ||
-            !source.assetPath ||
-            source.type !== (input.type === 'sequence' ? 'video-source' : 'sequence')
-          )
-            throw invalid('派生卡片需要已就绪且类型匹配的来源。');
-          options.addDerived(input.type, source.id);
-          if (options.error()) throw new Error(options.error());
         } else {
-          if (input.sourceId !== undefined) throw invalid('此卡片不接受 sourceId。');
-          options.add(String(input.type));
+          const layout: Partial<Pick<CanvasNode, 'x' | 'y' | 'width' | 'height'>> = {};
+          for (const key of Object.keys(input)) {
+            if (key === 'x' || key === 'y' || key === 'width' || key === 'height')
+              layout[key] = validated(() =>
+                canvasNodeGeometryValue(input.type as CanvasNode['type'], key, input[key])
+              );
+            else if (key !== 'type' && key !== 'sourceId')
+              throw invalid(key + ' 仅适用于标注卡片。');
+          }
+          if (input.type === 'model' || input.type === 'model-views') {
+            const source = node(input.sourceId, current);
+            if (options.nodeBlocked(source.id)) throw invalid('来源卡片正在执行，请稍后创建。');
+            options.addDerived(input.type, source.id);
+          } else if (input.type === 'sequence' || input.type === 'animation') {
+            const source = node(input.sourceId, current);
+            if (
+              options.nodeBlocked(source.id) ||
+              source.templatePending ||
+              !source.assetPath ||
+              source.type !== (input.type === 'sequence' ? 'video-source' : 'sequence')
+            )
+              throw invalid('派生卡片需要已就绪且类型匹配的来源。');
+            options.addDerived(input.type, source.id);
+            if (options.error()) throw new Error(options.error());
+          } else {
+            if (input.sourceId !== undefined) throw invalid('此卡片不接受 sourceId。');
+            options.add(String(input.type));
+          }
+          if (options.error()) throw new Error(options.error());
+          const created = node(options.selected()[0], current);
+          Object.assign(created, layout);
+          options.changed();
         }
       } else if (command.action === 'update-nodes') {
         const updates = validated(() => options.prepareNodeUpdates(current, input));
@@ -783,11 +882,16 @@ export function createCanvasAutomationUiWithHost(options: {
           throw invalid('引用卡片尚未就绪。');
         if (!['first-frame', 'image-variant'].includes(edge.kind))
           throw invalid('首版仅支持移除图片参考连线，派生产物来源请保留。');
-        options.remember();
-        current.edges = current.edges.filter((item) => item !== edge);
-        const target = node(edge.to, current);
-        if (target.sectionId) target.templatePending = true;
-        invalidateCanvasDependents(current, edge.to);
+        if (options.disconnect) {
+          const reason = options.disconnect(edge);
+          if (reason) throw invalid(reason);
+        } else {
+          options.remember();
+          current.edges = current.edges.filter((item) => item !== edge);
+          const target = node(edge.to, current);
+          if (target.sectionId) target.templatePending = true;
+          invalidateCanvasDependents(current, edge.to);
+        }
         options.changed();
       }
       options.render();

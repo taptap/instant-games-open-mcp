@@ -1,5 +1,6 @@
 import { canvasMediaSources, refreshCanvasMedia } from './mediaVersions.js';
 import { canvasCapabilityReason, canvasFeatureEnabled } from './capabilities.js';
+import { canvasSupportsPlatform, validateCanvasPlatforms } from '../contracts/platform.js';
 import { installCanvasPolyfills } from './polyfills.js';
 import { nextCanvasExportCode } from './exportNaming.js';
 import { downloadCanvasResourceWithHost } from './resourceDownload.js';
@@ -24,7 +25,7 @@ import { validateImageAssetsInfoStructure } from '../features/imageAssets.js';
 import { imageAssetsBindingPlanStructure } from '../features/imageAssets.js';
 import { applyImageAssetsToDocument } from '../features/imageAssets.js';
 import { validateBboxImageStructure } from '../features/uiBbox.js';
-import { validateUiBboxStructure } from '../features/uiBbox.js';
+import { parseUiScreenName, validateUiBboxStructure } from '../features/uiBbox.js';
 import { validateUiRecognitionStructure } from '../features/uiRecognition.js';
 import { validateUiAtlasPlanStructure } from '../features/uiAssetBindings.js';
 import { collectImageAssetEntriesFromReader } from './imageAssets.js';
@@ -88,7 +89,9 @@ import { templateCategories } from '../features/templatePresentation.js';
 import { templatePresentation } from '../features/templatePresentation.js';
 import { canvasAutomationSnapshot } from '../features/automation.js';
 import { validateCanvasCommandStructure as validateCanvasCommand } from '../features/automation.js';
-import { syncUiBboxWorkflow } from './uiBboxWorkflow.js';
+import { syncUiBboxWorkflow, layoutUiWorkflowGroup } from './uiBboxWorkflow.js';
+import { createUi015Workflow } from './ui015Workflow.js';
+import { designPngData } from './designPng.js';
 import { CANVAS_MODEL_STYLES } from './model3dUi.js';
 import { canvasModelInput } from '../features/model3d.js';
 import { canvasModelIsCurrent } from '../features/model3d.js';
@@ -124,11 +127,17 @@ import { canvasMarkResizeEdge } from '../core/marks.js';
 import { canvasMarkFromInput } from '../core/marks.js';
 import { renderCanvasMark } from './marks.js';
 import { drawCanvasMark } from './marks.js';
+import { canvasPngPlan, canvasPngStill } from './canvasPng.js';
 import { createCanvasMarks } from './marks.js';
 import { decorateCanvasCard } from './cardUi.js';
 import { refreshCanvasGroupHeaders } from './cardUi.js';
 import { canvasGroupState } from './cardUi.js';
 import { CANVAS_CARD_UI_STYLES } from './cardUi.js';
+import {
+  decorateCanvasFlowCard,
+  syncCanvasFlowEffects,
+  CANVAS_FLOW_STYLES,
+} from './flowEffects.js';
 import { dispatchCanvasStoreRequest } from './store.js';
 import { withCanvasTimeout } from './requestTimeout.js';
 import { isUiCutoutSource } from '../features/uiCutout.js';
@@ -194,6 +203,7 @@ import { encodeImageAtlasRegions } from './imageAtlasExport.js';
 import { findAtlasContentRegions } from '../features/atlasContent.js';
 import { validateAtlasCrops } from '../features/atlasContent.js';
 import { alignAtlasCells } from '../features/atlasAlignment.js';
+import { alignNativeAtlasRegions, findNativeAtlasComponents } from '../features/atlasAlignment.js';
 import { assignAtlasCellsByCenter } from '../features/atlasAlignment.js';
 import { atlasLayoutError } from '../features/atlasAlignment.js';
 import { IMAGE_ASSETS_STYLES } from './imageAssetsUi.js';
@@ -265,6 +275,7 @@ import {
   CANVAS_COMMAND_ACTIONS,
   CANVAS_SEQUENCE_SETTING_FIELDS,
   prepareCanvasNodeUpdatesWithValidation,
+  canvasNodeGeometryValue,
 } from '../features/automation.js';
 import { createCanvasAutomationUiWithHost } from './automationUi.js';
 import { validateResourceBundleStructure } from '../features/resourceBundle.js';
@@ -291,7 +302,7 @@ function replaceCanvasPageText(page: string, search: string, replacement: string
 }
 
 const template =
-  "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title data-maker-canvas=\"maker-canvas-page\">创作画布</title>\n<style>\n:root { color-scheme: light dark; font-family: sans-serif; }\nbody { margin: 0; height: 100vh; display: flex; flex-direction: column; background: #101114; color: #f4f1ea; }\nheader { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid #2a2d34; }\nheader button, header select { background: #1c1f26; color: inherit; border: 1px solid #3a3f4a; border-radius: 6px; padding: 6px 8px; }\n#status { margin-left: auto; font-size: 13px; }\n#error { min-height: 1.2em; padding: 0 12px; color: #e6b15c; font-size: 13px; }\n#board { position: relative; flex: 1; overflow: hidden; background-image: radial-gradient(#2c3038 1px, transparent 1px); background-size: 22px 22px; touch-action: none; }\n#wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }\n.wire { fill: none; stroke: #d7b56d; stroke-width: 2; }\n#world { position: absolute; inset: 0; transform-origin: 0 0; }\n.card { position: absolute; box-sizing: border-box; border: 1px solid #3d4250; border-radius: 10px; background: #1a1d24; padding: 8px; overflow: hidden; }\n.card.selected { outline: 2px solid #e6b15c; }\n.card img { width: 100%; height: calc(100% - 28px); object-fit: contain; }\n.card p { margin: 8px 0 0; color: #b7b1a6; font-size: 13px; }\n.port { position: absolute; right: -10px; top: 50%; width: 22px; height: 22px; border-radius: 50%; border: 0; background: #e6b15c; color: #1a1d24; }\n#marquee { position: absolute; border: 1px solid #e6b15c; background: rgba(230,177,92,.15); pointer-events: none; }\n</style>\n</head>\n<body>\n<header>\n  <strong>创作画布</strong>\n  <select id=\"canvases\" aria-label=\"画布\"></select>\n  <button id=\"new-canvas\" type=\"button\">新建</button>\n  <button id=\"add-image\" type=\"button\">导入图片</button>\n  <button id=\"add-video\" type=\"button\">视频输入卡</button>\n  <button id=\"add-note\" type=\"button\">便签</button>\n  <button id=\"tool-select\" type=\"button\" aria-pressed=\"true\">鼠标</button>\n  <button id=\"tool-pan\" type=\"button\">拖拽</button>\n  <button id=\"mark-ellipse\" type=\"button\">圈选</button>\n  <button id=\"mark-arrow\" type=\"button\">箭头</button>\n  <button id=\"undo\" type=\"button\">撤销</button>\n  <button id=\"redo\" type=\"button\">重做</button>\n  <button id=\"save\" type=\"button\">保存</button>\n  <span id=\"status\">未保存</span>\n</header>\n<p id=\"error\"></p>\n<div id=\"board\"><svg id=\"wires\"></svg><div id=\"world\"></div><div id=\"marquee\" hidden></div></div>\n<input id=\"file\" type=\"file\" accept=\"image/png,image/jpeg,image/webp\" hidden>\n<script>/*__HELPERS__*/\n\n(function () {\n  const host = createCanvasHost();\n  const store = host.store;\n  const board = document.getElementById('board');\n  const world = document.getElementById('world');\n  const wires = document.getElementById('wires');\n  const status = document.getElementById('status');\n  const error = document.getElementById('error');\n  const select = document.getElementById('canvases');\n  const file = document.getElementById('file');\n  let documentState = null;\n  let savedKey = '';\n  let past = [];\n  let future = [];\n  let timer = 0;\n  let drag = null;\n  let space = false;\n  function handMode() { return Boolean(canvasMarks && canvasMarks.panning()); }\n  let opening = null;\n  const media = {};\n  const selected = new Set();\n  host.publishUnsaved(false);\n\n  function layout(value) {\n    return canvasEditorLayout(value);\n  }\n  function dirty() {\n    return Boolean(documentState) && layout(documentState) !== savedKey;\n  }\n  function publishDirty() {\n    host.publishUnsaved(dirty());\n  }\n  function setStatus(text) { status.textContent = text; publishDirty(); }\n  function setError(text) { error.textContent = text || ''; }\n  function remember() {\n    past.push(JSON.parse(JSON.stringify(documentState)));\n    if (past.length > 60) past.shift();\n    future = [];\n  }\n  async function request(path, options) {\n    const response = await dispatchCanvasStoreRequest(store, path, options);\n    const body = await response.json();\n    if (!response.ok) throw Object.assign(new Error(body.error || '请求失败 ' + response.status), { status: response.status });\n    return body;\n  }\n  function render() {\n    if (!documentState) return;\n    const view = documentState.viewport;\n    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';\n    world.replaceChildren();\n    for (const node of documentState.nodes) {\n      const card = document.createElement('article');\n      card.className = 'card ' + node.type + (selected.has(node.id) ? ' selected' : '');\n      card.dataset.id = node.id;\n      card.style.left = node.x + 'px';\n      card.style.top = node.y + 'px';\n      card.style.width = node.width + 'px';\n      card.style.height = node.height + 'px';\n      const title = document.createElement('strong');\n      title.textContent = node.title || '未命名';\n      card.append(title);\n      if (node.type === 'image' && node.assetPath && media[node.assetPath]) {\n        const img = document.createElement('img');\n        img.alt = node.title;\n        img.src = media[node.assetPath];\n        card.append(img);\n      }\n      if (node.type === 'note') {\n        const text = document.createElement('p');\n        text.textContent = node.text || '便签';\n        card.append(text);\n      }\n      if (node.type === 'video') {\n        const hint = document.createElement('p');\n        hint.textContent = '视频输入卡。生视频将在下一阶段接入。';\n        card.append(hint);\n      }\n      if (node.type === 'image' && node.assetPath) {\n        const port = document.createElement('button');\n        port.type = 'button';\n        port.className = 'port';\n        port.textContent = '+';\n        port.title = '拖到视频输入卡，保存为首帧';\n        port.addEventListener('pointerdown', function (event) { startWire(event, node.id); });\n        card.append(port);\n      }\n      card.addEventListener('pointerdown', function (event) {\n        if (event.target.classList.contains('port')) return;\n        selectNode(node.id, event.shiftKey);\n        startDrag(event, node.id);\n      });\n      world.append(card);\n    }\n    wires.setAttribute('viewBox', '0 0 ' + board.clientWidth + ' ' + board.clientHeight);\n    wires.replaceChildren();\n    for (const edge of documentState.edges) {\n      const from = documentState.nodes.find(function (node) { return node.id === edge.from; });\n      const to = documentState.nodes.find(function (node) { return node.id === edge.to; });\n      if (!from || !to) continue;\n      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');\n      const x1 = view.x + (from.x + from.width) * view.scale;\n      const y1 = view.y + (from.y + from.height / 2) * view.scale;\n      const x2 = view.x + to.x * view.scale;\n      const y2 = view.y + (to.y + to.height / 2) * view.scale;\n      path.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + 40) + ' ' + y1 + ', ' + (x2 - 40) + ' ' + y2 + ', ' + x2 + ' ' + y2);\n      path.setAttribute('class', 'wire');\n      wires.append(path);\n    }\n    if (layout(documentState) === savedKey) setStatus('已保存');\n    else if (status.textContent !== '保存中…') setStatus('未保存');\n    else publishDirty();\n  }\n  function selectNode(id, shift) {\n    if (!shift) selected.clear();\n    if (selected.has(id) && shift) selected.delete(id);\n    else selected.add(id);\n    render();\n  }\n  function localPoint(event) {\n    const rect = board.getBoundingClientRect();\n    return { x: event.clientX - rect.left, y: event.clientY - rect.top };\n  }\n  function startDrag(event, id) {\n    if (space) return;\n    const node = documentState.nodes.find(function (item) { return item.id === id; });\n    drag = { kind: 'move', id: id, x: event.clientX, y: event.clientY, ox: node.x, oy: node.y, moved: false };\n    board.setPointerCapture(event.pointerId);\n  }\n  function startWire(event, id) {\n    event.stopPropagation();\n    drag = { kind: 'wire', id: id };\n    board.setPointerCapture(event.pointerId);\n  }\n  board.addEventListener('pointerdown', function (event) {\n    if (event.target !== board && event.target !== world) return;\n    if (space || event.button === 1) {\n      drag = { kind: 'pan', x: event.clientX, y: event.clientY, ox: documentState.viewport.x, oy: documentState.viewport.y };\n      return;\n    }\n    const point = localPoint(event);\n    drag = { kind: 'marquee', x: point.x, y: point.y };\n    selected.clear();\n    render();\n  });\n  board.addEventListener('pointermove', function (event) {\n    if (!drag || !documentState) return;\n    if (drag.kind === 'move') {\n      const dx = (event.clientX - drag.x) / documentState.viewport.scale;\n      const dy = (event.clientY - drag.y) / documentState.viewport.scale;\n      if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3) {\n        remember();\n        drag.moved = true;\n      }\n      const node = documentState.nodes.find(function (item) { return item.id === drag.id; });\n      node.x = drag.ox + dx;\n      node.y = drag.oy + dy;\n      markDirty();\n      render();\n    } else if (drag.kind === 'marquee') {\n      const box = document.getElementById('marquee');\n      const point = localPoint(event);\n      box.hidden = false;\n      box.style.left = Math.min(drag.x, point.x) + 'px';\n      box.style.top = Math.min(drag.y, point.y) + 'px';\n      box.style.width = Math.abs(point.x - drag.x) + 'px';\n      box.style.height = Math.abs(point.y - drag.y) + 'px';\n    } else if (drag.kind === 'pan') {\n      documentState.viewport.x = drag.ox + event.clientX - drag.x;\n      documentState.viewport.y = drag.oy + event.clientY - drag.y;\n      markDirty();\n      render();\n    }\n  });\n  board.addEventListener('pointerup', function (event) {\n    if (!drag) return;\n    if (drag.kind === 'marquee') {\n      const point = localPoint(event);\n      selected.clear();\n      for (const id of nodesInMarquee(documentState.nodes, documentState.viewport, { x1: drag.x, y1: drag.y, x2: point.x, y2: point.y })) {\n        selected.add(id);\n      }\n      document.getElementById('marquee').hidden = true;\n      render();\n    }\n    if (drag.kind === 'wire') {\n      const hit = document.elementFromPoint(event.clientX, event.clientY);\n      const card = hit && hit.closest ? hit.closest('[data-id]') : null;\n      if (card) connect(drag.id, card.dataset.id);\n    }\n    drag = null;\n  });\n  board.addEventListener('wheel', function (event) {\n    if (!documentState) return;\n    event.preventDefault();\n    const point = localPoint(event);\n    const before = documentState.viewport.scale;\n    const next = Math.min(4, Math.max(0.15, before * (event.deltaY > 0 ? 0.9 : 1.1)));\n    const worldX = (point.x - documentState.viewport.x) / before;\n    const worldY = (point.y - documentState.viewport.y) / before;\n    documentState.viewport.scale = next;\n    documentState.viewport.x = point.x - worldX * next;\n    documentState.viewport.y = point.y - worldY * next;\n    markDirty();\n    render();\n  }, { passive: false });\n  function markDirty() {\n    setStatus('未保存');\n    clearTimeout(timer);\n    timer = setTimeout(function () { void flush(); }, 800);\n  }\n  function connect(fromId, toId) {\n    const from = documentState.nodes.find(function (node) { return node.id === fromId; });\n    const to = documentState.nodes.find(function (node) { return node.id === toId; });\n    if (!from || !to || from.type !== 'image' || !from.assetPath || to.type !== 'video') {\n      setError('首帧线只能从已导入图片连到视频输入卡。');\n      return;\n    }\n    remember();\n    documentState.edges = documentState.edges.filter(function (edge) { return edge.to !== toId; });\n    documentState.edges.push({ id: crypto.randomUUID(), from: fromId, to: toId, kind: 'first-frame' });\n    setError('');\n    markDirty();\n    render();\n  }\n  function add(type, point) {\n    remember();\n    const node = {\n      id: crypto.randomUUID(),\n      type: type,\n      x: point.x,\n      y: point.y,\n      width: type === 'note' ? 180 : 220,\n      height: type === 'note' ? 120 : 150,\n      title: type === 'image' ? '图片' : type === 'video' ? '视频输入' : '便签',\n    };\n    if (type === 'note') node.text = '便签';\n    documentState.nodes.push(node);\n    selected.clear();\n    selected.add(node.id);\n    markDirty();\n    render();\n  }\n  async function saveOnce() {\n    if (!documentState) return true;\n    const submittedId = documentState.id;\n    const snapshot = JSON.parse(JSON.stringify(documentState));\n    const submittedLayout = layout(snapshot);\n    if (submittedLayout === savedKey) {\n      if (documentState && documentState.id === submittedId && layout(documentState) === submittedLayout) setStatus('已保存');\n      return true;\n    }\n    setStatus('保存中…');\n    try {\n      const saved = await request('/canvases/' + submittedId, {\n        method: 'PUT',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify(snapshot),\n      });\n      const ack = saveAcknowledgement({\n        currentId: documentState ? documentState.id : null,\n        currentLayout: documentState ? layout(documentState) : null,\n        submittedId: submittedId,\n        submittedLayout: submittedLayout,\n        savedRevision: saved.revision,\n      });\n      if (!ack.apply) return true;\n      documentState.revision = ack.revision;\n      savedKey = ack.savedKey;\n      setStatus(ack.pending ? '未保存' : '已保存');\n      setError('');\n      return !ack.pending;\n    } catch (caught) {\n      if (!documentState || documentState.id !== submittedId) return false;\n      setStatus('未保存');\n      setError(caught.message || '保存失败');\n      return false;\n    }\n  }\n  async function flush() {\n    let guard = 0;\n    while (dirty() && guard < 5) {\n      guard += 1;\n      const ok = await saveOnce();\n      if (!ok) return false;\n    }\n    return !dirty();\n  }\n  function mediaUrl(assetPath) {\n    return store.mediaUrl(assetPath);\n  }\n  async function loadMedia(assetPath) {\n    media[assetPath] = mediaUrl(assetPath);\n  }\n  async function openDocument(id) {\n    const token = {};\n    opening = token;\n    const loaded = await request('/canvases/' + id);\n    if (opening !== token) return;\n    documentState = loaded;\n    savedKey = restored.savedLayout;\n    past = [];\n    future = [];\n    selected.clear();\n    select.value = id;\n    for (const node of documentState.nodes) {\n      if (node.assetPath) await loadMedia(node.assetPath);\n      if (opening !== token) return;\n    }\n    setStatus(dirty() ? '未保存' : '已保存');\n    setError('');\n    render();\n  }\n  async function leaveCurrent() {\n    const id = documentState && documentState.id;\n    const ok = await flush();\n    if (documentState && documentState.id === id && dirty()) {\n      setError('当前画布还有未保存编辑，已留在此画布。');\n      if (id) select.value = id;\n      return false;\n    }\n    return ok;\n  }\n  async function boot() {\n    if (host.unavailableReason) {\n      setError(host.unavailableReason);\n      return;\n    }\n    let list = await request('/canvases');\n    if (!list.length) {\n      const created = await request('/canvases', {\n        method: 'POST',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify({ title: '创作画布' }),\n      });\n      list = [{ id: created.id, title: created.title }];\n    }\n    select.replaceChildren();\n    for (const item of list) {\n      const option = document.createElement('option');\n      option.value = item.id;\n      option.textContent = item.title;\n      select.append(option);\n    }\n    await openDocument(list[0].id);\n  }\n  select.addEventListener('change', function () {\n    const next = select.value;\n    const current = documentState && documentState.id;\n    if (next === current) return;\n    void leaveCurrent().then(function (ok) {\n      if (!ok) return;\n      void openDocument(next);\n    });\n  });\n  document.getElementById('new-canvas').addEventListener('click', function () {\n    void leaveCurrent().then(async function (ok) {\n      if (!ok || (documentState && dirty())) return;\n      const created = await request('/canvases', {\n        method: 'POST',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify({ title: '创作画布' }),\n      });\n      if (documentState && dirty()) return;\n      const option = document.createElement('option');\n      option.value = created.id;\n      option.textContent = created.title;\n      select.append(option);\n      await openDocument(created.id);\n    });\n  });\n  document.getElementById('add-note').addEventListener('click', function () { add('note', { x: 80, y: 80 }); });\n  document.getElementById('add-video').addEventListener('click', function () { add('video', { x: 360, y: 80 }); });\n  document.getElementById('add-image').addEventListener('click', function () { file.click(); });\n  function requestImageImport(nodeId) {\n    if (!documentState) return;\n    if (generationUi && generationUi.isBusy) { setError(\"请等待当前生成完成后再替换图片。\"); return; }\n    pendingImageImport = { canvasId: documentState.id, nodeId: nodeId };\n    file.click();\n  }\n  async function importImageFile(chosen, request) {\n    if (!chosen || !request || !documentState) return;\n    if (chosen.size > 20 * 1024 * 1024) { setError(\"图片不能超过 20 MiB。\"); return; }\n    if (chosen.type && [\"image/png\", \"image/jpeg\", \"image/webp\"].indexOf(chosen.type) < 0) { setError(\"只接受 PNG、JPEG 或 WebP。\"); return; }\n    pendingAssetImports += 1;\n    publishDirty();\n    try {\n      const saved = await store.importImage(request.canvasId, await chosen.arrayBuffer(), chosen.type || \"application/octet-stream\");\n      if (!documentState || documentState.id !== request.canvasId) {\n        setError(\"已离开原画布。图片已写入当前项目，但没有放进其他画布。\");\n        return;\n      }\n      const recognitionCard = Boolean(request.createUiRecognition);\n      let node = documentState.nodes.find(function (item) { return item.id === request.nodeId && item.type === \"image\"; });\n      if (!recognitionCard && (!node || (node.assetPath && !templateWorkflow.canEditImage(node.id)))) { setError(\"图片卡已被修改，导入结果未挂载。\"); return; }\n      remember();\n      if (recognitionCard) {\n        const bitmap = await createImageBitmap(chosen);\n        const scale = Math.min(1, 1080 / Math.max(bitmap.width, 1));\n        const point = nextPlacement(\"image\");\n        node = { id: crypto.randomUUID(), type: \"image\", x: point.x, y: point.y, width: Math.max(320, Math.round(bitmap.width * scale)), height: Math.max(240, Math.round(bitmap.height * scale) + 42), title: \"UI 设计稿\", assetPath: saved.relativePath, uiRecognition: { enabled: true, inputRole: \"design\", results: [] } };\n        bitmap.close();\n        documentState.nodes.push(node);\n      } else {\n        node.title = (chosen.name.replace(/\\.[^.]+$/, \"\") || \"图片\").slice(0, 80);\n        node.assetPath = saved.relativePath;\n        delete node.generationDraft;\n        delete node.generation;\n        delete node.sourceSnapshot;\n        delete node.sourceSnapshots;\n      }\n      await loadMedia(saved.relativePath);\n      selected.clear();\n      selected.add(node.id);\n      setError(\"\");\n      markDirty();\n      render();\n    } catch (caught) { setError(caught.message || \"图片导入失败\"); return; } finally { finishAssetImport(); }\n    selectionAction = \"\";\n    if (!request.createUiRecognition && request.nodeId) await templateWorkflow.headChanged(request.nodeId);\n  }\n  file.addEventListener(\"cancel\", function () {\n    pendingImageImport = null;\n    publishDirty();\n  });\n  file.addEventListener(\"change\", function () {\n    const chosen = file.files && file.files[0];\n    file.value = \"\";\n    const request = pendingImageImport;\n    pendingImageImport = null;\n    if (chosen) void importImageFile(chosen, request);\n  });\n  function requestVideoImport(nodeId) {\n    if (!documentState) return;\n    pendingVideoImport = { canvasId: documentState.id, nodeId: nodeId };\n    videoFile.click();\n  }\n  async function importVideoFile(chosen, request) {\n    if (!chosen || !documentState) return;\n    if (chosen.size > 100 * 1024 * 1024) { setError('视频不能超过 100 MiB。'); return; }\n    if (chosen.type && !['video/mp4', 'video/quicktime', 'video/webm'].includes(chosen.type)) { setError('只接受 MP4、MOV 或 WebM 视频。'); return; }\n    const canvasId = request && request.canvasId ? request.canvasId : documentState.id;\n    pendingAssetImports += 1;\n    publishDirty();\n    try {\n      const saved = await store.importVideo(canvasId, chosen, chosen.type || '');\n      if (!documentState || documentState.id !== canvasId) { setError('已离开原画布。视频已写入项目，但没有添加到其他画布。'); return; }\n      const target = request && request.nodeId ? documentState.nodes.find(function (item) { return item.id === request.nodeId && item.type === \"video\"; }) : null;\n      const point = request && request.point ? request.point : nextPlacement('video-source');\n      const node = target || { id: crypto.randomUUID(), type: 'video-source', x: point.x, y: point.y, width: 240, height: 210, title: (chosen.name.replace(/\\.[^.]+$/, '') || '视频').slice(0, 80), assetPath: saved.relativePath };\n      remember();\n      node.type = 'video-source';\n      node.width = 240;\n      node.height = 210;\n      node.title = (chosen.name.replace(/\\.[^.]+$/, '') || '视频').slice(0, 80);\n      node.assetPath = saved.relativePath;\n      delete node.generationDraft;\n      delete node.generation;\n      delete node.sourceSnapshot;\n      documentState.edges = documentState.edges.filter(function (edge) { return edge.to !== node.id; });\n      if (!target) documentState.nodes.push(node);\n      selected.clear();\n      selected.add(node.id);\n      setError('');\n      markDirty();\n      render();\n    } catch (caught) { setError(caught.message || '视频导入失败'); } finally { finishAssetImport(); }\n  }\n  videoFile.addEventListener(\"cancel\", function () {\n    pendingVideoImport = null;\n    publishDirty();\n  });\n  videoFile.addEventListener(\"change\", function () {\n    const chosen = videoFile.files && videoFile.files[0];\n    videoFile.value = \"\";\n    const request = pendingVideoImport;\n    pendingVideoImport = null;\n    if (chosen) void importVideoFile(chosen, request);\n  });\n  document.getElementById('undo').addEventListener('click', function () {\n    const previous = past.pop();\n    if (!previous || !documentState) return;\n    future.unshift(JSON.parse(JSON.stringify(documentState)));\n    previous.revision = documentState.revision;\n    documentState = previous;\n    markDirty();\n    render();\n  });\n  document.getElementById('redo').addEventListener('click', function () {\n    const next = future.shift();\n    if (!next || !documentState) return;\n    past.push(JSON.parse(JSON.stringify(documentState)));\n    next.revision = documentState.revision;\n    documentState = next;\n    markDirty();\n    render();\n  });\n  window.addEventListener('keydown', function (event) {\n    if (event.code === 'Space') space = true;\n    const meta = event.metaKey || event.ctrlKey;\n    if (meta && event.key === 'z') {\n      event.preventDefault();\n      document.getElementById(event.shiftKey ? 'redo' : 'undo').click();\n    }\n  });\n  window.addEventListener('keyup', function (event) { if (event.code === 'Space') space = false; });\n  document.getElementById('save').addEventListener('click', function () { void flush(); });\n  void boot().catch(function (caught) { setError(caught.message); });\n})();\n</script>\n</body>\n</html>\n";
+  "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title data-maker-canvas=\"maker-canvas-page\">创作画布</title>\n<style>\n:root { color-scheme: light dark; font-family: sans-serif; }\nbody { margin: 0; height: 100vh; display: flex; flex-direction: column; background: #101114; color: #f4f1ea; }\nheader { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid #2a2d34; }\nheader button, header select { background: #1c1f26; color: inherit; border: 1px solid #3a3f4a; border-radius: 6px; padding: 6px 8px; }\n#status { margin-left: auto; font-size: 13px; }\n#error { min-height: 1.2em; padding: 0 12px; color: #e6b15c; font-size: 13px; }\n#board { position: relative; flex: 1; overflow: hidden; background-image: radial-gradient(#2c3038 1px, transparent 1px); background-size: 22px 22px; touch-action: none; }\n#wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }\n.wire { fill: none; stroke: #d7b56d; stroke-width: 2; }\n#world { position: absolute; inset: 0; transform-origin: 0 0; }\n.card { position: absolute; box-sizing: border-box; border: 1px solid #3d4250; border-radius: 10px; background: #1a1d24; padding: 8px; overflow: hidden; }\n.card.selected { outline: 2px solid #e6b15c; }\n.card img { width: 100%; height: calc(100% - 28px); object-fit: contain; }\n.card p { margin: 8px 0 0; color: #b7b1a6; font-size: 13px; }\n.port { position: absolute; right: -10px; top: 50%; width: 22px; height: 22px; border-radius: 50%; border: 0; background: #e6b15c; color: #1a1d24; }\n#marquee { position: absolute; border: 1px solid #e6b15c; background: rgba(230,177,92,.15); pointer-events: none; }\n</style>\n</head>\n<body>\n<header>\n  <strong>创作画布</strong>\n  <select id=\"canvases\" aria-label=\"画布\"></select>\n  <button id=\"new-canvas\" type=\"button\">新建</button>\n  <button id=\"add-image\" type=\"button\">导入图片</button>\n  <button id=\"add-video\" type=\"button\">视频输入卡</button>\n  <button id=\"add-note\" type=\"button\">便签</button>\n  <button id=\"tool-select\" type=\"button\" aria-pressed=\"true\">鼠标</button>\n  <button id=\"tool-pan\" type=\"button\">拖拽</button>\n  <button id=\"mark-ellipse\" type=\"button\">圈选</button>\n  <button id=\"mark-arrow\" type=\"button\">箭头</button>\n  <button id=\"undo\" type=\"button\">撤销</button>\n  <button id=\"redo\" type=\"button\">重做</button>\n  <button id=\"save\" type=\"button\">保存</button>\n  <span id=\"status\">未保存</span>\n</header>\n<p id=\"error\"></p>\n<div id=\"board\"><svg id=\"wires\"></svg><div id=\"world\"></div><div id=\"marquee\" hidden></div></div>\n<input id=\"file\" type=\"file\" accept=\"image/png,image/jpeg,image/webp\" hidden>\n<script>/*__HELPERS__*/\n\n(function () {\n  const host = createCanvasHost();\n  const store = host.store;\n  const board = document.getElementById('board');\n  const world = document.getElementById('world');\n  const wires = document.getElementById('wires');\n  const status = document.getElementById('status');\n  const error = document.getElementById('error');\n  const select = document.getElementById('canvases');\n  const file = document.getElementById('file');\n  let documentState = null;\n  let savedKey = '';\n  let past = [];\n  let future = [];\n  let timer = 0;\n  let drag = null;\n  let space = false;\n  function handMode() { return Boolean(canvasMarks && canvasMarks.panning()); }\n  let opening = null;\n  const media = {};\n  const selected = new Set();\n  host.publishUnsaved(false);\n\n  function layout(value) {\n    return canvasEditorLayout(value);\n  }\n  function dirty() {\n    return Boolean(documentState) && layout(documentState) !== savedKey;\n  }\n  function publishDirty() {\n    host.publishUnsaved(dirty());\n  }\n  function setStatus(text) { status.textContent = text; publishDirty(); }\n  function setError(text) { error.textContent = text || ''; }\n  function remember() {\n    past.push(JSON.parse(JSON.stringify(documentState)));\n    if (past.length > 60) past.shift();\n    future = [];\n  }\n  async function request(path, options) {\n    const response = await dispatchCanvasStoreRequest(store, path, options);\n    const body = await response.json();\n    if (!response.ok) throw Object.assign(new Error(body.error || '请求失败 ' + response.status), { status: response.status });\n    return body;\n  }\n  function render() {\n    if (!documentState) return;\n    const view = documentState.viewport;\n    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';\n    world.replaceChildren();\n    for (const node of documentState.nodes) {\n      const card = document.createElement('article');\n      card.className = 'card ' + node.type + (selected.has(node.id) ? ' selected' : '');\n      card.dataset.id = node.id;\n      card.style.left = node.x + 'px';\n      card.style.top = node.y + 'px';\n      card.style.width = node.width + 'px';\n      card.style.height = node.height + 'px';\n      const title = document.createElement('strong');\n      title.textContent = node.title || '未命名';\n      card.append(title);\n      if (node.type === 'image' && node.assetPath && media[node.assetPath]) {\n        const img = document.createElement('img');\n        img.alt = node.title;\n        img.src = media[node.assetPath];\n        card.append(img);\n      }\n      if (node.type === 'note') {\n        const text = document.createElement('p');\n        text.textContent = node.text || '便签';\n        card.append(text);\n      }\n      if (node.type === 'video') {\n        const hint = document.createElement('p');\n        hint.textContent = '视频输入卡。生视频将在下一阶段接入。';\n        card.append(hint);\n      }\n      if (node.type === 'image' && node.assetPath) {\n        const port = document.createElement('button');\n        port.type = 'button';\n        port.className = 'port';\n        port.textContent = '+';\n        port.title = '拖到视频输入卡，保存为首帧';\n        port.addEventListener('pointerdown', function (event) { startWire(event, node.id); });\n        card.append(port);\n      }\n      card.addEventListener('pointerdown', function (event) {\n        if (event.target.classList.contains('port')) return;\n        selectNode(node.id, event.shiftKey);\n        startDrag(event, node.id);\n      });\n      world.append(card);\n    }\n    wires.setAttribute('viewBox', '0 0 ' + board.clientWidth + ' ' + board.clientHeight);\n    wires.replaceChildren();\n    for (const edge of documentState.edges) {\n      const from = documentState.nodes.find(function (node) { return node.id === edge.from; });\n      const to = documentState.nodes.find(function (node) { return node.id === edge.to; });\n      if (!from || !to) continue;\n      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');\n      const x1 = view.x + (from.x + from.width) * view.scale;\n      const y1 = view.y + (from.y + from.height / 2) * view.scale;\n      const x2 = view.x + to.x * view.scale;\n      const y2 = view.y + (to.y + to.height / 2) * view.scale;\n      path.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + 40) + ' ' + y1 + ', ' + (x2 - 40) + ' ' + y2 + ', ' + x2 + ' ' + y2);\n      path.setAttribute('class', 'wire');\n      path.dataset.from = edge.from;\n      path.dataset.to = edge.to;\n      wires.append(path);\n    }\n    if (layout(documentState) === savedKey) setStatus('已保存');\n    else if (status.textContent !== '保存中…') setStatus('未保存');\n    else publishDirty();\n  }\n  function selectNode(id, shift) {\n    if (!shift) selected.clear();\n    if (selected.has(id) && shift) selected.delete(id);\n    else selected.add(id);\n    render();\n  }\n  function localPoint(event) {\n    const rect = board.getBoundingClientRect();\n    return { x: event.clientX - rect.left, y: event.clientY - rect.top };\n  }\n  function startDrag(event, id) {\n    if (space) return;\n    const node = documentState.nodes.find(function (item) { return item.id === id; });\n    drag = { kind: 'move', id: id, x: event.clientX, y: event.clientY, ox: node.x, oy: node.y, moved: false };\n    board.setPointerCapture(event.pointerId);\n  }\n  function startWire(event, id) {\n    event.stopPropagation();\n    drag = { kind: 'wire', id: id };\n    board.setPointerCapture(event.pointerId);\n  }\n  board.addEventListener('pointerdown', function (event) {\n    if (event.target !== board && event.target !== world) return;\n    if (space || event.button === 1) {\n      drag = { kind: 'pan', x: event.clientX, y: event.clientY, ox: documentState.viewport.x, oy: documentState.viewport.y };\n      return;\n    }\n    const point = localPoint(event);\n    drag = { kind: 'marquee', x: point.x, y: point.y };\n    selected.clear();\n    render();\n  });\n  board.addEventListener('pointermove', function (event) {\n    if (!drag || !documentState) return;\n    if (drag.kind === 'move') {\n      const dx = (event.clientX - drag.x) / documentState.viewport.scale;\n      const dy = (event.clientY - drag.y) / documentState.viewport.scale;\n      if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3) {\n        remember();\n        drag.moved = true;\n      }\n      const node = documentState.nodes.find(function (item) { return item.id === drag.id; });\n      node.x = drag.ox + dx;\n      node.y = drag.oy + dy;\n      markDirty();\n      render();\n    } else if (drag.kind === 'marquee') {\n      const box = document.getElementById('marquee');\n      const point = localPoint(event);\n      box.hidden = false;\n      box.style.left = Math.min(drag.x, point.x) + 'px';\n      box.style.top = Math.min(drag.y, point.y) + 'px';\n      box.style.width = Math.abs(point.x - drag.x) + 'px';\n      box.style.height = Math.abs(point.y - drag.y) + 'px';\n    } else if (drag.kind === 'pan') {\n      documentState.viewport.x = drag.ox + event.clientX - drag.x;\n      documentState.viewport.y = drag.oy + event.clientY - drag.y;\n      markDirty();\n      render();\n    }\n  });\n  board.addEventListener('pointerup', function (event) {\n    if (!drag) return;\n    if (drag.kind === 'marquee') {\n      const point = localPoint(event);\n      selected.clear();\n      for (const id of nodesInMarquee(documentState.nodes, documentState.viewport, { x1: drag.x, y1: drag.y, x2: point.x, y2: point.y })) {\n        selected.add(id);\n      }\n      document.getElementById('marquee').hidden = true;\n      render();\n    }\n    if (drag.kind === 'wire') {\n      const hit = document.elementFromPoint(event.clientX, event.clientY);\n      const card = hit && hit.closest ? hit.closest('[data-id]') : null;\n      if (card) connect(drag.id, card.dataset.id);\n    }\n    drag = null;\n  });\n  board.addEventListener('wheel', function (event) {\n    if (!documentState) return;\n    event.preventDefault();\n    const point = localPoint(event);\n    const before = documentState.viewport.scale;\n    const next = Math.min(4, Math.max(0.15, before * (event.deltaY > 0 ? 0.9 : 1.1)));\n    const worldX = (point.x - documentState.viewport.x) / before;\n    const worldY = (point.y - documentState.viewport.y) / before;\n    documentState.viewport.scale = next;\n    documentState.viewport.x = point.x - worldX * next;\n    documentState.viewport.y = point.y - worldY * next;\n    markDirty();\n    render();\n  }, { passive: false });\n  function markDirty() {\n    setStatus('未保存');\n    clearTimeout(timer);\n    timer = setTimeout(function () { void flush(); }, 800);\n  }\n  function connect(fromId, toId) {\n    const from = documentState.nodes.find(function (node) { return node.id === fromId; });\n    const to = documentState.nodes.find(function (node) { return node.id === toId; });\n    if (!from || !to || from.type !== 'image' || !from.assetPath || to.type !== 'video') {\n      setError('首帧线只能从已导入图片连到视频输入卡。');\n      return;\n    }\n    remember();\n    documentState.edges = documentState.edges.filter(function (edge) { return edge.to !== toId; });\n    documentState.edges.push({ id: crypto.randomUUID(), from: fromId, to: toId, kind: 'first-frame' });\n    setError('');\n    markDirty();\n    render();\n  }\n  function add(type, point) {\n    remember();\n    const node = {\n      id: crypto.randomUUID(),\n      type: type,\n      x: point.x,\n      y: point.y,\n      width: type === 'note' ? 180 : 220,\n      height: type === 'note' ? 120 : 150,\n      title: type === 'image' ? '图片' : type === 'video' ? '视频输入' : '便签',\n    };\n    if (type === 'note') node.text = '便签';\n    documentState.nodes.push(node);\n    selected.clear();\n    selected.add(node.id);\n    markDirty();\n    render();\n  }\n  async function saveOnce() {\n    if (!documentState) return true;\n    const submittedId = documentState.id;\n    const snapshot = JSON.parse(JSON.stringify(documentState));\n    const submittedLayout = layout(snapshot);\n    if (submittedLayout === savedKey) {\n      if (documentState && documentState.id === submittedId && layout(documentState) === submittedLayout) setStatus('已保存');\n      return true;\n    }\n    setStatus('保存中…');\n    try {\n      const saved = await request('/canvases/' + submittedId, {\n        method: 'PUT',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify(snapshot),\n      });\n      const ack = saveAcknowledgement({\n        currentId: documentState ? documentState.id : null,\n        currentLayout: documentState ? layout(documentState) : null,\n        submittedId: submittedId,\n        submittedLayout: submittedLayout,\n        savedRevision: saved.revision,\n      });\n      if (!ack.apply) return true;\n      documentState.revision = ack.revision;\n      savedKey = ack.savedKey;\n      setStatus(ack.pending ? '未保存' : '已保存');\n      setError('');\n      return !ack.pending;\n    } catch (caught) {\n      if (!documentState || documentState.id !== submittedId) return false;\n      setStatus('未保存');\n      setError(caught.message || '保存失败');\n      return false;\n    }\n  }\n  async function flush() {\n    let guard = 0;\n    while (dirty() && guard < 5) {\n      guard += 1;\n      const ok = await saveOnce();\n      if (!ok) return false;\n    }\n    return !dirty();\n  }\n  function mediaUrl(assetPath) {\n    return store.mediaUrl(assetPath);\n  }\n  async function loadMedia(assetPath) {\n    media[assetPath] = mediaUrl(assetPath);\n  }\n  async function openDocument(id) {\n    const token = {};\n    opening = token;\n    const loaded = await request('/canvases/' + id);\n    if (opening !== token) return;\n    documentState = loaded;\n    savedKey = restored.savedLayout;\n    past = [];\n    future = [];\n    selected.clear();\n    select.value = id;\n    for (const node of documentState.nodes) {\n      if (node.assetPath) await loadMedia(node.assetPath);\n      if (opening !== token) return;\n    }\n    setStatus(dirty() ? '未保存' : '已保存');\n    setError('');\n    render();\n  }\n  async function leaveCurrent() {\n    const id = documentState && documentState.id;\n    const ok = await flush();\n    if (documentState && documentState.id === id && dirty()) {\n      setError('当前画布还有未保存编辑，已留在此画布。');\n      if (id) select.value = id;\n      return false;\n    }\n    return ok;\n  }\n  async function boot() {\n    if (host.unavailableReason) {\n      setError(host.unavailableReason);\n      return;\n    }\n    let list = await request('/canvases');\n    if (!list.length) {\n      const created = await request('/canvases', {\n        method: 'POST',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify({ title: '创作画布' }),\n      });\n      list = [{ id: created.id, title: created.title }];\n    }\n    select.replaceChildren();\n    for (const item of list) {\n      const option = document.createElement('option');\n      option.value = item.id;\n      option.textContent = item.title;\n      select.append(option);\n    }\n    await openDocument(list[0].id);\n  }\n  select.addEventListener('change', function () {\n    const next = select.value;\n    const current = documentState && documentState.id;\n    if (next === current) return;\n    void leaveCurrent().then(function (ok) {\n      if (!ok) return;\n      void openDocument(next);\n    });\n  });\n  document.getElementById('new-canvas').addEventListener('click', function () {\n    void leaveCurrent().then(async function (ok) {\n      if (!ok || (documentState && dirty())) return;\n      const created = await request('/canvases', {\n        method: 'POST',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify({ title: '创作画布' }),\n      });\n      if (documentState && dirty()) return;\n      const option = document.createElement('option');\n      option.value = created.id;\n      option.textContent = created.title;\n      select.append(option);\n      await openDocument(created.id);\n    });\n  });\n  document.getElementById('add-note').addEventListener('click', function () { add('note', { x: 80, y: 80 }); });\n  document.getElementById('add-video').addEventListener('click', function () { add('video', { x: 360, y: 80 }); });\n  document.getElementById('add-image').addEventListener('click', function () { file.click(); });\n  function requestImageImport(nodeId) {\n    if (!documentState) return;\n    if (generationUi && generationUi.isBusy) { setError(\"请等待当前生成完成后再替换图片。\"); return; }\n    pendingImageImport = { canvasId: documentState.id, nodeId: nodeId };\n    file.click();\n  }\n  async function importImageFile(chosen, request) {\n    if (!chosen || !request || !documentState) return;\n    if (chosen.size > 20 * 1024 * 1024) { setError(\"图片不能超过 20 MiB。\"); return; }\n    if (chosen.type && [\"image/png\", \"image/jpeg\", \"image/webp\"].indexOf(chosen.type) < 0) { setError(\"只接受 PNG、JPEG 或 WebP。\"); return; }\n    pendingAssetImports += 1;\n    publishDirty();\n    try {\n      const saved = await store.importImage(request.canvasId, await chosen.arrayBuffer(), chosen.type || \"application/octet-stream\");\n      if (!documentState || documentState.id !== request.canvasId) {\n        setError(\"已离开原画布。图片已写入当前项目，但没有放进其他画布。\");\n        return;\n      }\n      const recognitionCard = Boolean(request.createUiRecognition);\n      let node = documentState.nodes.find(function (item) { return item.id === request.nodeId && item.type === \"image\"; });\n      if (!recognitionCard && (!node || (node.assetPath && !templateWorkflow.canEditImage(node.id)))) { setError(\"图片卡已被修改，导入结果未挂载。\"); return; }\n      remember();\n      if (recognitionCard) {\n        const bitmap = await createImageBitmap(chosen);\n        const scale = Math.min(1, 1080 / Math.max(bitmap.width, 1));\n        const point = nextPlacement(\"image\");\n        node = { id: crypto.randomUUID(), type: \"image\", x: point.x, y: point.y, width: Math.max(320, Math.round(bitmap.width * scale)), height: Math.max(240, Math.round(bitmap.height * scale) + 42), title: \"UI 设计稿\", assetPath: saved.relativePath, uiRecognition: { enabled: true, inputRole: \"design\", results: [] } };\n        bitmap.close();\n        documentState.nodes.push(node);\n      } else {\n        node.title = (chosen.name.replace(/\\.[^.]+$/, \"\") || \"图片\").slice(0, 80);\n        node.assetPath = saved.relativePath;\n        delete node.generationDraft;\n        delete node.generation;\n        delete node.sourceSnapshot;\n        delete node.sourceSnapshots;\n      }\n      await loadMedia(saved.relativePath);\n      selected.clear();\n      selected.add(node.id);\n      setError(\"\");\n      markDirty();\n      render();\n    } catch (caught) { setError(caught.message || \"图片导入失败\"); return; } finally { finishAssetImport(); }\n    selectionAction = \"\";\n    if (!request.createUiRecognition && request.nodeId) await templateWorkflow.headChanged(request.nodeId);\n  }\n  file.addEventListener(\"cancel\", function () {\n    pendingImageImport = null;\n    publishDirty();\n  });\n  file.addEventListener(\"change\", function () {\n    const chosen = file.files && file.files[0];\n    file.value = \"\";\n    const request = pendingImageImport;\n    pendingImageImport = null;\n    if (chosen) void importImageFile(chosen, request);\n  });\n  function requestVideoImport(nodeId) {\n    if (!documentState) return;\n    pendingVideoImport = { canvasId: documentState.id, nodeId: nodeId };\n    videoFile.click();\n  }\n  async function importVideoFile(chosen, request) {\n    if (!chosen || !documentState) return;\n    if (chosen.size > 100 * 1024 * 1024) { setError('视频不能超过 100 MiB。'); return; }\n    if (chosen.type && !['video/mp4', 'video/quicktime', 'video/webm'].includes(chosen.type)) { setError('只接受 MP4、MOV 或 WebM 视频。'); return; }\n    const canvasId = request && request.canvasId ? request.canvasId : documentState.id;\n    pendingAssetImports += 1;\n    publishDirty();\n    try {\n      const saved = await store.importVideo(canvasId, chosen, chosen.type || '');\n      if (!documentState || documentState.id !== canvasId) { setError('已离开原画布。视频已写入项目，但没有添加到其他画布。'); return; }\n      const target = request && request.nodeId ? documentState.nodes.find(function (item) { return item.id === request.nodeId && item.type === \"video\"; }) : null;\n      const point = request && request.point ? request.point : nextPlacement('video-source');\n      const node = target || { id: crypto.randomUUID(), type: 'video-source', x: point.x, y: point.y, width: 240, height: 210, title: (chosen.name.replace(/\\.[^.]+$/, '') || '视频').slice(0, 80), assetPath: saved.relativePath };\n      remember();\n      node.type = 'video-source';\n      node.width = 240;\n      node.height = 210;\n      node.title = (chosen.name.replace(/\\.[^.]+$/, '') || '视频').slice(0, 80);\n      node.assetPath = saved.relativePath;\n      delete node.generationDraft;\n      delete node.generation;\n      delete node.sourceSnapshot;\n      documentState.edges = documentState.edges.filter(function (edge) { return edge.to !== node.id; });\n      if (!target) documentState.nodes.push(node);\n      selected.clear();\n      selected.add(node.id);\n      setError('');\n      markDirty();\n      render();\n    } catch (caught) { setError(caught.message || '视频导入失败'); } finally { finishAssetImport(); }\n  }\n  videoFile.addEventListener(\"cancel\", function () {\n    pendingVideoImport = null;\n    publishDirty();\n  });\n  videoFile.addEventListener(\"change\", function () {\n    const chosen = videoFile.files && videoFile.files[0];\n    videoFile.value = \"\";\n    const request = pendingVideoImport;\n    pendingVideoImport = null;\n    if (chosen) void importVideoFile(chosen, request);\n  });\n  document.getElementById('undo').addEventListener('click', function () {\n    const previous = past.pop();\n    if (!previous || !documentState) return;\n    future.unshift(JSON.parse(JSON.stringify(documentState)));\n    previous.revision = documentState.revision;\n    documentState = previous;\n    markDirty();\n    render();\n  });\n  document.getElementById('redo').addEventListener('click', function () {\n    const next = future.shift();\n    if (!next || !documentState) return;\n    past.push(JSON.parse(JSON.stringify(documentState)));\n    next.revision = documentState.revision;\n    documentState = next;\n    markDirty();\n    render();\n  });\n  window.addEventListener('keydown', function (event) {\n    if (event.code === 'Space') space = true;\n    const meta = event.metaKey || event.ctrlKey;\n    if (meta && event.key === 'z') {\n      event.preventDefault();\n      document.getElementById(event.shiftKey ? 'redo' : 'undo').click();\n    }\n  });\n  window.addEventListener('keyup', function (event) { if (event.code === 'Space') space = false; });\n  document.getElementById('save').addEventListener('click', function () { void flush(); });\n  void boot().catch(function (caught) { setError(caught.message); });\n})();\n</script>\n</body>\n</html>\n";
 
 /** Image slots, image-to-image connectors, undo/redo/fill-slot commands and host feature gating. */
 function applyImageSlotPatches(source: string): string {
@@ -409,7 +420,7 @@ function applyImageSlotPatches(source: string): string {
       "    if (from.id === to.id) { setError('不能把图片连到自身。'); return; }",
       "    if (!from.assetPath && !allowEmptySource) { setError('请先生成或上传这张图片，再把它连为参考图。'); return; }",
       "    if (canvasNeedsProcessing(documentState, from)) { setError('请先完成参考图片的生成或处理。'); return; }",
-      "    if (generationUi && (generationUi.isNodeBusy(to.id) || generationUi.hasUnsettledResult(to.id))) { setError('目标图片正在生成或有未确认的任务，请稍后再连线。'); return; }",
+      "    if ((generationUi && (generationUi.isNodeBusy(to.id) || generationUi.hasUnsettledResult(to.id))) || (groupQueue && groupQueue.protects(to.id))) { setError('目标图片正在生成或有未确认的任务，请稍后再连线。'); return; }",
       "    if (documentState.edges.some(function (edge) { return edge.from === from.id && edge.to === to.id; })) { setError(''); return; }",
       "    if (canvasDependents(documentState, to.id).some(function (node) { return node.id === from.id; })) { setError('连线会形成循环引用。'); return; }",
       "    const inputs = documentState.edges.filter(function (edge) { return edge.to === to.id && edge.kind === 'image-variant'; });",
@@ -451,7 +462,7 @@ function applyImageSlotPatches(source: string): string {
   );
   patch(
     'group: createSection, connect: connect,',
-    'group: createSection, connect: connect, undo: function () { const count = past.length; undoEdit(); return past.length < count; }, redo: function () { const count = future.length; redoEdit(); return future.length < count; }, fillSlot: fillImageSlot, replaceImage: function (id, assetPath) { return placeImageInCard(id, assetPath, true); },'
+    'group: createSection, connect: connect, undo: function () { const count = past.length; undoEdit(); return past.length < count; }, redo: function () { const count = future.length; redoEdit(); return future.length < count; }, fillSlot: fillImageSlot, replaceImage: function (id, assetPath) { return placeImageInCard(id, assetPath, true); }, disconnect: function (edge) { if (groupQueue && (groupQueue.protects(edge.from) || groupQueue.protects(edge.to))) return "引用卡片尚未就绪，请稍后再删除连线。"; remember(); unwireEdge(edge); },'
   );
   patch(
     '  const automation = createCanvasAutomationUi({',
@@ -463,7 +474,9 @@ function applyImageSlotPatches(source: string): string {
       "    if (!slot) throw Object.assign(new Error('图片卡不存在。'), { code: 'NOT_FOUND' });",
       '    const previous = slot.assetPath;',
       "    if (slot.type !== 'image' || Boolean(previous) !== replace) throw Object.assign(new Error(replace ? '只能替换已有图片。' : '只能回填空图片槽。'), { code: 'INVALID_ARGS' });",
-      "    const title = (assetPath.split('/').pop().replace(/\\.[^.]+$/, '') || '图片').slice(0, 80);",
+      "    const named = (assetPath.split('/').pop().replace(/\\.[^.]+$/, '') || '图片').slice(0, 80);",
+      // Local canvas images are stored as canvas-<uuid>; that internal name is not a useful title.
+      "    const title = /^canvas-[a-f0-9-]{36}$/i.test(named) ? '图片' : named;",
       '    // Nothing has changed yet, so host rejections and decode failures mean "not executed".',
       "    const rejected = function (error) { if (error && !error.code) error.code = 'INVALID_ARGS'; throw error; };",
       '    const versions = store.mediaVersions ? await store.mediaVersions([assetPath]).catch(rejected) : undefined;',
@@ -498,13 +511,23 @@ function applyImageSlotPatches(source: string): string {
       "    if (['first-frame', 'image-variant'].indexOf(edge.kind) < 0) { setError('只能删除图片参考连线，派生产物来源请保留。'); return; }",
       "    if ((groupQueue && (groupQueue.protects(edge.from) || groupQueue.protects(edge.to))) || (generationUi && (generationUi.isNodeBusy(edge.to) || generationUi.hasUnsettledResult(edge.to)))) { setError('引用卡片尚未就绪，请稍后再删除连线。'); return; }",
       '    remember();',
+      '    unwireEdge(edge);',
+      "    setError('');",
+      '    markDirty();',
+      '    render();',
+      '  }',
+      // Shared by the wire UI and the Agent disconnect command so one host gives one result.
+      '  function unwireEdge(edge) {',
       '    documentState.edges = documentState.edges.filter(function (item) { return item !== edge; });',
       '    const target = documentState.nodes.find(function (node) { return node.id === edge.to; });',
       '    const unwired = target && !documentState.edges.some(function (item) { return item.from === edge.from && item.to === edge.to; });',
       // A draft source would otherwise re-add the deleted reference on the next generation.
       '    if (unwired && target.generationDraft) { if (target.generationDraft.sourceImageId === edge.from) delete target.generationDraft.sourceImageId; if (target.generationDraft.sourceImageIds) { target.generationDraft.sourceImageIds = target.generationDraft.sourceImageIds.filter(function (id) { return id !== edge.from; }); if (!target.generationDraft.sourceImageIds.length) delete target.generationDraft.sourceImageIds; } }',
-      "    if (unwired && !target.assetPath && target.type === 'image') target.referenceInput = target.referenceInput || { includeSelf: false };",
+      // Local template members (no draft) keep their original upstream input rule.
+      "    if (unwired && !target.assetPath && target.type === 'image' && (canvasWeb || target.generationDraft)) target.referenceInput = target.referenceInput || { includeSelf: false };",
       '    if (canvasWeb) {',
+      // An AI result regenerates from its recorded inputs only until a wire is cut; then the remaining wires are its inputs.
+      "      if (unwired && target.type === 'image' && target.assetPath && target.generation && !target.referenceInput && !target.mergeIcons && !target.uiAtlasPrelayout && !documentState.nodes.some(function (item) { return item.id === target.sectionId && item.templateId; })) target.referenceInput = { includeSelf: false };",
       // Web wires are relationships: forget the source snapshot so the kept image and its dependents stay current.
       '      if (unwired && target.sourceSnapshots) { target.sourceSnapshots = target.sourceSnapshots.filter(function (item) { return item.nodeId !== edge.from; }); if (!target.sourceSnapshots.length) delete target.sourceSnapshots; }',
       '      if (unwired && target.sourceSnapshot && target.sourceSnapshot.nodeId === edge.from) { if (target.sourceSnapshots) target.sourceSnapshot = target.sourceSnapshots[0]; else delete target.sourceSnapshot; }',
@@ -512,9 +535,6 @@ function applyImageSlotPatches(source: string): string {
       '      if (target && target.sectionId) target.templatePending = true;',
       '      invalidateCanvasDependents(documentState, edge.to);',
       '    }',
-      "    setError('');",
-      '    markDirty();',
-      '    render();',
       '  }',
       '  wireUi = createCanvasWireUi({',
     ].join('\n')
@@ -748,30 +768,33 @@ function applyWebInteractionPatches(source: string): string {
   // Web slots render at a CSS min size above node.width/height, so fit must use the drawn size.
   patch(
     [
-      '      const right = Math.max.apply(null, documentState.nodes.map(function (node) { return node.x + node.width; }));',
-      '      const bottom = Math.max.apply(null, documentState.nodes.map(function (node) { return node.y + node.height; }));',
+      '    const right = Math.max.apply(null, documentState.nodes.map(function (node) { return node.x + node.width; }));',
+      '    const bottom = Math.max.apply(null, documentState.nodes.map(function (node) { return node.y + node.height; }));',
     ].join('\n'),
     [
-      "      const drawn = function (node, key) { const card = world.querySelector('.card[data-id=\"' + node.id + '\"]'); return Math.max(node[key], canvasWeb && card ? (key === 'width' ? card.offsetWidth : card.offsetHeight) : 0); };",
-      "      const right = Math.max.apply(null, documentState.nodes.map(function (node) { return node.x + drawn(node, 'width'); }));",
-      "      const bottom = Math.max.apply(null, documentState.nodes.map(function (node) { return node.y + drawn(node, 'height'); }));",
+      "    const drawn = function (node, key) { const card = world.querySelector('.card[data-id=\"' + node.id + '\"]'); return Math.max(node[key], canvasWeb && card ? (key === 'width' ? card.offsetWidth : card.offsetHeight) : 0); };",
+      "    const right = Math.max.apply(null, documentState.nodes.map(function (node) { return node.x + drawn(node, 'width'); }));",
+      "    const bottom = Math.max.apply(null, documentState.nodes.map(function (node) { return node.y + drawn(node, 'height'); }));",
     ].join('\n')
   );
-  // Fit: Web floats the dock (and flow bar) over the board, so fit into what stays visible.
+  // Fit: both appearances float the tool dock (and the flow hint) over the board, so fit into
+  // what stays visible with 32px margins; group bars are still reserved below.
   patch(
     [
-      '      const scale = Math.min(4, Math.max(0.15, Math.min((board.clientWidth - 64) / width, (board.clientHeight - 64) / height)));',
+      '    function place(bar) {',
+      '      const scale = Math.min(4, Math.max(0.15, Math.min((board.clientWidth - 64) / width, (board.clientHeight - 64 - bar) / height)));',
       '      documentState.viewport.scale = scale;',
       '      documentState.viewport.x = (board.clientWidth - width * scale) / 2 - left * scale;',
-      '      documentState.viewport.y = (board.clientHeight - height * scale) / 2 - top * scale;',
+      '      documentState.viewport.y = (board.clientHeight - bar - height * scale) / 2 - top * scale;',
     ].join('\n'),
     [
-      '      const boardRect = board.getBoundingClientRect();',
-      "      const area = canvasWeb ? canvasWebFitArea({ left: boardRect.left, top: boardRect.top, width: board.clientWidth, height: board.clientHeight }, Array.from(document.querySelectorAll('.workspace-toolbar, #template-flow:not([hidden])')).map(function (item) { return item.getBoundingClientRect(); }).filter(function (rect) { return rect.width > 0 && rect.height > 0; }), 32) : { x: 32, y: 32, width: board.clientWidth - 64, height: board.clientHeight - 64 };",
-      '      const scale = Math.min(4, Math.max(0.15, Math.min(area.width / width, area.height / height)));',
+      '    const boardRect = board.getBoundingClientRect();',
+      "    const area = canvasWebFitArea({ left: boardRect.left, top: boardRect.top, width: board.clientWidth, height: board.clientHeight }, Array.from(document.querySelectorAll('.workspace-toolbar, #template-flow:not([hidden])')).map(function (item) { return item.getBoundingClientRect(); }).filter(function (rect) { return rect.width > 0 && rect.height > 0; }), 32);",
+      '    function place(bar) {',
+      '      const scale = Math.min(4, Math.max(0.15, Math.min(area.width / width, (area.height - bar) / height)));',
       '      documentState.viewport.scale = scale;',
       '      documentState.viewport.x = area.x + (area.width - width * scale) / 2 - left * scale;',
-      '      documentState.viewport.y = area.y + (area.height - height * scale) / 2 - top * scale;',
+      '      documentState.viewport.y = area.y + (area.height - bar - height * scale) / 2 - top * scale;',
     ].join('\n')
   );
   // Dock save button carries the save state; the separate status glyph is hidden in Web.
@@ -796,22 +819,6 @@ function applyWebInteractionPatches(source: string): string {
   patch(
     "      setStatus('未保存');\n      saveFailed = true;",
     "      canvasSaveFailed = true; setStatus('未保存');\n      saveFailed = true;"
-  );
-  // Space-to-pan: a focused dock button must not swallow Space, and the dock shows the hand.
-  patch(
-    "if (event.target.closest && event.target.closest('textarea, input, select, button')) return;",
-    [
-      "if (canvasWeb && event.code === 'Space' && event.target.closest && event.target.closest('.workspace-actions button, .workspace-actions summary')) { event.preventDefault(); space = true; if (canvasMarks) canvasMarks.preview(true); return; }",
-      "    if (event.target.closest && event.target.closest('textarea, input, select, button')) return;",
-      "    if (canvasWeb && event.code === 'Space' && canvasMarks) canvasMarks.preview(true);",
-    ].join('\n')
-  );
-  patch(
-    "window.addEventListener('keyup', function (event) { if (event.code === 'Space') space = false; });",
-    [
-      "window.addEventListener('keyup', function (event) { if (event.code !== 'Space') return; space = false; if (canvasWeb && canvasMarks) { canvasMarks.preview(false); if (event.target.closest && event.target.closest('.workspace-actions button, .workspace-actions summary')) event.preventDefault(); } });",
-      "  if (canvasWeb) window.addEventListener('blur', function () { space = false; if (canvasMarks) canvasMarks.preview(false); });",
-    ].join('\n')
   );
   patch(
     "    if (space || event.button === 1) {\n      if (event.target.closest && event.target.closest('textarea, input, button')) return;\n",
@@ -858,9 +865,9 @@ function applyWebMediaPatches(source: string): string {
     "if (canvasWeb) { const imageGenerate = actionButton('图片生成', function () { createLinkedSlot(node.id, false, true); }, false, canvasCapabilityReason(store, 'imageGeneration')); canvasWebIconAction(imageGenerate, 'image'); }\n        if (canvasFeatureEnabled(host, 'video')) { const video = actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video'); if (canvasWeb) canvasWebIconAction(video, 'video'); }"
   );
   patch(
-    "actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); }",
+    "if (canvasFeatureEnabled(host, 'video')) actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); }",
     // Web video results open their composer on selection (like image results), so no separate 生成视频 button.
-    "const generate = canvasWeb && node.type === 'video-source' ? null : actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (generate && canvasWeb) canvasWebIconAction(generate, 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) { const split = actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); if (canvasWeb) canvasWebIconAction(split, 'sequence'); } }"
+    "const generate = !canvasFeatureEnabled(host, 'video') || canvasWeb && node.type === 'video-source' ? null : actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (generate && canvasWeb) canvasWebIconAction(generate, 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) { const split = actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); if (canvasWeb) canvasWebIconAction(split, 'sequence'); } }"
   );
   // An empty Web video slot behaves like an image slot: selecting it opens its composer directly.
   patch(
@@ -1616,8 +1623,8 @@ function applySpriteGenPatches(source: string): string {
     ].join('\n')
   );
   patch(
-    '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; });',
-    '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; });\n    refreshSpriteHeaders();'
+    '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return ui015Workflow && ui015Workflow.isActive(id) ? "running" : groupQueue && groupQueue.view(id)?.phase; });',
+    '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return ui015Workflow && ui015Workflow.isActive(id) ? "running" : groupQueue && groupQueue.view(id)?.phase; });\n    refreshSpriteHeaders();'
   );
   // Sprite groups follow their mirror cards as images load and change size: a card is laid out at
   // its default size and resized to the image ratio once loaded, which would move its centre off
@@ -1741,6 +1748,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       ';',
     'const CANVAS_COMMAND_ACTIONS = ' + JSON.stringify(CANVAS_COMMAND_ACTIONS) + ';',
     prepareCanvasNodeUpdatesWithValidation.toString(),
+    canvasNodeGeometryValue.toString(),
     createCanvasAutomationUiWithHost.toString(),
     validateResourceBundleStructure.toString(),
     encodeCanvasImage.toString(),
@@ -1757,6 +1765,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasMediaSources.toString(),
     refreshCanvasMedia.toString(),
     nextCanvasExportCode.toString(),
+    validateCanvasPlatforms.toString(),
+    canvasSupportsPlatform.toString(),
     canvasCapabilityReason.toString(),
     canvasFeatureEnabled.toString(),
     integration.hostScript,
@@ -1774,6 +1784,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     applyImageAssetsToDocument.toString(),
     collectImageAssetEntriesFromReader.toString(),
     validateBboxImageStructure.toString(),
+    parseUiScreenName.toString(),
     validateUiBboxStructure.toString(),
     validateUiRecognitionStructure.toString(),
     validateUiAtlasPlanStructure.toString(),
@@ -1828,9 +1839,14 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasAutomationSnapshot.toString(),
     validateCanvasCommand.toString(),
     syncUiBboxWorkflow.toString(),
+    layoutUiWorkflowGroup.toString(),
+    createUi015Workflow.toString(),
+    designPngData.toString(),
     prepareCanvasReferences.toString(),
     applyCanvasReferences.toString(),
     decorateCanvasCard.toString(),
+    decorateCanvasFlowCard.toString(),
+    syncCanvasFlowEffects.toString(),
     refreshCanvasGroupHeaders.toString(),
     canvasGroupState.toString(),
     'const CANVAS_MARK_COLORS = ' + JSON.stringify(CANVAS_MARK_COLORS) + ';',
@@ -1847,6 +1863,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasMarkFromInput.toString(),
     renderCanvasMark.toString(),
     drawCanvasMark.toString(),
+    canvasPngPlan.toString(),
+    canvasPngStill.toString(),
     createCanvasMarks.toString(),
     createCanvasWorkspace.toString(),
     createCanvasLog.toString(),
@@ -1938,6 +1956,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     findAtlasContentRegions.toString(),
     validateAtlasCrops.toString(),
     alignAtlasCells.toString(),
+    alignNativeAtlasRegions.toString(),
+    findNativeAtlasComponents.toString(),
     assignAtlasCellsByCenter.toString(),
     atlasLayoutError.toString(),
     selectedUiAtlasPlan.toString(),
@@ -2502,9 +2522,11 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  function deleteSelected() {',
       '    if (!documentState || !selected.size) return;',
-      '    if (groupQueue && groupQueue.isBusy) { setError("请先停止分组队列并等待当前步骤结束，再删除卡片。"); return; }',
+      '    const queued = Boolean(groupQueue && Array.from(selected).some(function (id) { return groupQueue.protects(id); }));',
+      '    if (queued && !confirm("所选卡片正在执行，删除后将停止相关后续并忽略迟到结果，已提交远端任务不会取消。继续删除？")) return;',
       '    if (protectTemplateSelection()) return;',
       "    if (!sequenceUi.deleteNodes(Array.from(selected))) { setError('拆帧任务运行中，请先取消后再删除。'); return; }",
+      '    if (groupQueue) groupQueue.remove(Array.from(selected));',
       '    remember();',
       '    documentState = removeNodes(documentState, Array.from(selected));',
       '    if (documentState.templateFlow && documentState.templateFlow.stage === "complete") delete documentState.templateFlow;',
@@ -2515,6 +2537,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  function createSection() {',
       "    const members = documentState && documentState.nodes.filter(function (node) { return selected.has(node.id) && node.type !== 'section'; });",
       "    if (!members || !members.length) { setError('请先选择要放入分区的卡片。'); return; }",
+      '    if (ui015Workflow && members.some(function (node) { return node.sectionId && ui015Workflow.isActive(node.sectionId); })) { setError("Bbox 流程正在执行，请等待本轮流程结束后再调整分组。"); return; }',
       '    if (groupQueue && members.some(function (node) { return groupQueue.protects(node.id); })) { setError("请先停止相关队列，再调整分组。"); return; }',
       '    const padding = 28;',
       '    const left = Math.min.apply(null, members.map(function (node) { return node.x; })) - padding;',
@@ -2543,25 +2566,71 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  async function exportCanvasPng() {',
       '    if (!documentState) return;',
       '    const snapshot = structuredClone(documentState);',
-      "    const nodes = snapshot.nodes.filter(function (node) { return node.type !== 'section'; }).sort(function (left, right) { return (left.type === 'mark' ? 1 : 0) - (right.type === 'mark' ? 1 : 0); });",
-      "    if (!nodes.length) { setError('画布没有可导出的内容。'); return; }",
+      // Bounds follow the wires as drawn: Web draws every edge as a curve and ignores saved elbow routes.
+      '    const plan = canvasPngPlan(snapshot, function (edge, from, to) { return canvasWeb ? canvasWebWire(from, to, { x: 0, y: 0, scale: 1 }).points : canvasWireGeometry(from, to, snapshot.nodes, snapshot.edges, edge.route).points; });',
+      "    if (!plan) { setError('画布没有可导出的内容。'); return; }",
       '    return deliverResource({ filename: (snapshot.title || "canvas") + ".png", mime: "image/png", produce: async function () {',
-      '    const left = Math.min.apply(null, nodes.map(function (node) { return node.x; })) - 32;',
-      '    const top = Math.min.apply(null, nodes.map(function (node) { return node.y; })) - 32;',
-      '    const right = Math.max.apply(null, nodes.map(function (node) { return node.x + node.width; })) + 32;',
-      '    const bottom = Math.max.apply(null, nodes.map(function (node) { return node.y + node.height; })) + 32;',
-      '    const scale = Math.min(2, 2400 / Math.max(1, right - left), 1600 / Math.max(1, bottom - top));',
-      "    const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round((right - left) * scale)); canvas.height = Math.max(1, Math.round((bottom - top) * scale));",
+      '    const left = plan.left; const top = plan.top; const scale = plan.scale;',
+      "    const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(plan.width * scale)); canvas.height = Math.max(1, Math.round(plan.height * scale));",
       "    const context = canvas.getContext('2d'); context.fillStyle = '#101114'; context.fillRect(0, 0, canvas.width, canvas.height); context.font = '14px sans-serif';",
-      '    for (const node of nodes) {',
-      '      const x = (node.x - left) * scale; const y = (node.y - top) * scale; const width = node.width * scale; const height = node.height * scale;',
-      "      if (node.type === 'mark') { drawCanvasMark(context, node, x, y, width, height); continue; }",
-      "context.fillStyle = '#1a1d24'; context.strokeStyle = '#3d4250'; context.lineWidth = Math.max(1, scale); context.fillRect(x, y, width, height); context.strokeRect(x, y, width, height);",
-      "      context.fillStyle = '#f4f1ea'; context.fillText(node.title || '未命名', x + 8 * scale, y + 18 * scale);",
-      "      if (node.assetPath && media[node.assetPath] && (node.type === 'image' || node.type === 'sequence')) {",
-      '        await new Promise(function (resolve) { const image = new Image(); image.onload = function () { const ratio = Math.min((width - 16 * scale) / image.naturalWidth, (height - 32 * scale) / image.naturalHeight); const drawWidth = image.naturalWidth * ratio; const drawHeight = image.naturalHeight * ratio; context.drawImage(image, x + (width - drawWidth) / 2, y + 24 * scale + (height - 24 * scale - drawHeight) / 2, drawWidth, drawHeight); resolve(); }; image.onerror = resolve; image.src = media[node.assetPath]; });',
-      "      } else { context.fillStyle = '#b7b1a6'; context.fillText(node.type === 'video-source' ? '视频结果' : node.type === 'animation' ? '序列帧动画' : node.text || '', x + 8 * scale, y + 42 * scale); }",
+      '    function box(node) { return { x: (node.x - left) * scale, y: (node.y - top) * scale, width: node.width * scale, height: node.height * scale }; }',
+      '    function drawFit(source, sourceWidth, sourceHeight, area, crop) {',
+      '      const ratio = Math.min((area.width - 16 * scale) / sourceWidth, (area.height - 32 * scale) / sourceHeight); const drawWidth = sourceWidth * ratio; const drawHeight = sourceHeight * ratio;',
+      '      const dx = area.x + (area.width - drawWidth) / 2; const dy = area.y + 24 * scale + (area.height - 24 * scale - drawHeight) / 2;',
+      '      if (crop) context.drawImage(source, crop.x, crop.y, crop.width, crop.height, dx, dy, drawWidth, drawHeight); else context.drawImage(source, dx, dy, drawWidth, drawHeight);',
       '    }',
+      '    function loadImage(url) { return new Promise(function (resolve) { const image = new Image(); image.onload = function () { resolve(image); }; image.onerror = function () { resolve(null); }; image.src = url; }); }',
+      '    // One still per video, copied through a scratch canvas so a cross-origin video falls back to its label instead of failing the export.',
+      '    function videoStill(url) { return new Promise(function (resolve) {',
+      "      const video = document.createElement('video'); let settled = false;",
+      '      function finish(ok) {',
+      '        if (settled) return; settled = true; clearTimeout(timer); let still = null;',
+      "        if (ok && video.videoWidth && video.videoHeight) { const frame = document.createElement('canvas'); frame.width = video.videoWidth; frame.height = video.videoHeight; const frameContext = frame.getContext('2d'); frameContext.drawImage(video, 0, 0); try { frameContext.getImageData(0, 0, 1, 1); still = frame; } catch (caught) { still = null; } }",
+      "        video.removeAttribute('src'); video.load(); resolve(still);",
+      '      }',
+      '      const timer = setTimeout(function () { finish(false); }, 10000);',
+      "      video.muted = true; video.preload = 'auto';",
+      "      video.addEventListener('loadedmetadata', function () { if (isFinite(video.duration) && video.duration > 0) video.currentTime = Math.min(0.1, video.duration / 2); });",
+      "      video.addEventListener('seeked', function () { finish(true); });",
+      "      video.addEventListener('loadeddata', function () { if (!(isFinite(video.duration) && video.duration > 0)) finish(true); });",
+      "      video.addEventListener('error', function () { finish(false); });",
+      '      video.src = url;',
+      '    }); }',
+      '    for (const node of plan.sections) {',
+      '      const area = box(node);',
+      "      context.fillStyle = 'rgba(32,37,40,.45)'; context.strokeStyle = '#475256'; context.lineWidth = Math.max(1, scale); context.fillRect(area.x, area.y, area.width, area.height); context.strokeRect(area.x, area.y, area.width, area.height);",
+      "      context.fillStyle = '#1d2225'; context.fillRect(area.x, area.y, area.width, Math.min(area.height, 40 * scale));",
+      "      context.fillStyle = '#f1d18f'; context.fillText(node.title || '分组', area.x + 10 * scale, area.y + 24 * scale);",
+      '    }',
+      '    const view = { x: -left * scale, y: -top * scale, scale: scale };',
+      "    context.save(); context.strokeStyle = 'rgba(215,181,109,.8)'; context.lineWidth = 2 * scale; context.lineJoin = 'round'; context.lineCap = 'round';",
+      '    for (const edge of plan.edges) {',
+      '      const from = snapshot.nodes.find(function (node) { return node.id === edge.from; }); const to = snapshot.nodes.find(function (node) { return node.id === edge.to; });',
+      '      const curved = canvasWeb;',
+      '      context.stroke(new Path2D(curved ? canvasWebWire(from, to, view).d : canvasWirePath(from, to, snapshot.nodes, view, snapshot.edges, edge.route)));',
+      '      if (curved) continue;',
+      '      const points = canvasWireGeometry(from, to, snapshot.nodes, snapshot.edges, edge.route).points; const end = points[points.length - 1]; const before = points[points.length - 2];',
+      '      if (!before) continue;',
+      '      const angle = Math.atan2(end.y - before.y, end.x - before.x); const tipX = view.x + end.x * scale; const tipY = view.y + end.y * scale; const size = 8 * scale;',
+      '      context.beginPath(); context.moveTo(tipX - Math.cos(angle - 0.5) * size, tipY - Math.sin(angle - 0.5) * size); context.lineTo(tipX, tipY); context.lineTo(tipX - Math.cos(angle + 0.5) * size, tipY - Math.sin(angle + 0.5) * size); context.stroke();',
+      '    }',
+      '    context.restore();',
+      '    for (const node of plan.cards) {',
+      '      const area = box(node);',
+      "      context.fillStyle = '#1a1d24'; context.strokeStyle = '#3d4250'; context.lineWidth = Math.max(1, scale); context.fillRect(area.x, area.y, area.width, area.height); context.strokeRect(area.x, area.y, area.width, area.height);",
+      "      context.fillStyle = '#f4f1ea'; context.fillText(node.title || '未命名', area.x + 8 * scale, area.y + 18 * scale);",
+      '      const url = node.assetPath && (media[node.assetPath] || mediaUrl(node.assetPath));',
+      '      let drawn = false;',
+      "      if (url && (node.type === 'image' || node.type === 'sequence' || node.type === 'animation')) {",
+      '        const image = await loadImage(url); const crop = canvasPngStill(node);',
+      '        if (image) { if (crop) drawFit(image, crop.width, crop.height, area, crop); else drawFit(image, image.naturalWidth, image.naturalHeight, area); drawn = true; }',
+      "      } else if (url && node.type === 'video-source') {",
+      '        const still = await videoStill(url);',
+      '        if (still) { drawFit(still, still.width, still.height, area); drawn = true; }',
+      '      }',
+      "      if (!drawn) { context.fillStyle = '#b7b1a6'; context.fillText(node.type === 'video-source' ? '视频结果' : node.type === 'animation' ? '序列帧动画' : node.text || '', area.x + 8 * scale, area.y + 42 * scale); }",
+      '    }',
+      '    for (const node of plan.marks) { const area = box(node); drawCanvasMark(context, node, area.x, area.y, area.width, area.height); }',
       '    return new Promise(function (resolve, reject) { canvas.toBlob(function (blob) { if (blob) resolve(blob); else reject(new Error("画布截图编码失败。")); }, "image/png"); });',
       '    } });',
       '  }',
@@ -2574,21 +2643,27 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  function fitAll() {',
       '    if (!documentState) return;',
-      '    if (!documentState.nodes.length) { documentState.viewport = { x: 0, y: 0, scale: 1 }; }',
-      '    else {',
-      '      const left = Math.min.apply(null, documentState.nodes.map(function (node) { return node.x; }));',
-      '      const top = Math.min.apply(null, documentState.nodes.map(function (node) { return node.y; }));',
-      '      const right = Math.max.apply(null, documentState.nodes.map(function (node) { return node.x + node.width; }));',
-      '      const bottom = Math.max.apply(null, documentState.nodes.map(function (node) { return node.y + node.height; }));',
-      '      const width = Math.max(1, right - left);',
-      '      const height = Math.max(1, bottom - top);',
-      '      const scale = Math.min(4, Math.max(0.15, Math.min((board.clientWidth - 64) / width, (board.clientHeight - 64) / height)));',
+      '    if (!documentState.nodes.length) { documentState.viewport = { x: 0, y: 0, scale: 1 }; markDirty(); render(); return; }',
+      '    const left = Math.min.apply(null, documentState.nodes.map(function (node) { return node.x; }));',
+      '    const top = Math.min.apply(null, documentState.nodes.map(function (node) { return node.y; }));',
+      '    const right = Math.max.apply(null, documentState.nodes.map(function (node) { return node.x + node.width; }));',
+      '    const bottom = Math.max.apply(null, documentState.nodes.map(function (node) { return node.y + node.height; }));',
+      '    const width = Math.max(1, right - left);',
+      '    const height = Math.max(1, bottom - top);',
+      '    // Group bars hang below their group at screen size and get taller when the zoom narrows',
+      '    // them: place, measure at the new zoom, and place again until the bar fits (a few rounds).',
+      '    function barHeight() { return Math.max.apply(null, [0].concat(Array.from(world.querySelectorAll(".group-queue")).map(function (item) { return item.offsetHeight + 12; }))); }',
+      '    function place(bar) {',
+      '      const scale = Math.min(4, Math.max(0.15, Math.min((board.clientWidth - 64) / width, (board.clientHeight - 64 - bar) / height)));',
       '      documentState.viewport.scale = scale;',
       '      documentState.viewport.x = (board.clientWidth - width * scale) / 2 - left * scale;',
-      '      documentState.viewport.y = (board.clientHeight - height * scale) / 2 - top * scale;',
+      '      documentState.viewport.y = (board.clientHeight - bar - height * scale) / 2 - top * scale;',
+      '      markDirty();',
+      '      render();',
       '    }',
-      '    markDirty();',
-      '    render();',
+      '    let reserved = barHeight();',
+      '    place(reserved);',
+      '    for (let round = 0; round < 4 && barHeight() > reserved + 1; round++) { reserved = barHeight(); place(reserved); }',
       '  }',
       '  function markDirty() {',
     ].join('\n')
@@ -2659,7 +2734,47 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     "  window.addEventListener('keydown', function (event) {\n    if (event.code === 'Space') space = true;",
-    "  window.addEventListener('keydown', function (event) {\n    if (event.target.closest && event.target.closest('textarea, input, select, button')) return;\n    if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); deleteSelected(); return; }\n    if (event.code === 'Space') space = true;"
+    [
+      '  function setCanvasSpace(value) {',
+      '    space = value;',
+      '    if (canvasMarks) canvasMarks.preview(value);',
+      '  }',
+      "  window.addEventListener('keydown', function (event) {",
+      '    if (event.defaultPrevented || event.isComposing) return;',
+      '    const key = event.key.toLowerCase();',
+      "    const save = (event.metaKey || event.ctrlKey) && key === 's';",
+      '    if (save) event.preventDefault();',
+      "    if (!documentState || document.querySelector('dialog[open]')) return;",
+      '    if (save) { void flush(); return; }',
+      "    if (event.target.isContentEditable || event.target.closest && event.target.closest('textarea, input, select, [role=textbox]')) return;",
+      "    if (event.code === 'Space' && !event.metaKey && !event.ctrlKey && !event.altKey) {",
+      "      if (event.target.closest && event.target.closest('button, summary') && !event.target.closest('.workspace-actions')) return;",
+      '      event.preventDefault(); setCanvasSpace(true); return;',
+      '    }',
+      "    if (event.target.closest && event.target.closest('button, summary, a') && !event.target.closest('.workspace-actions')) return;",
+      "    if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); deleteSelected(); return; }",
+      '    if ((event.metaKey || event.ctrlKey) && !event.altKey) {',
+      "      if (key === 'y') { event.preventDefault(); document.getElementById('redo').click(); return; }",
+      "      if (key === 'd') { event.preventDefault(); if (!event.repeat) duplicateSelected(); return; }",
+      "      if (key === 'g' && !event.shiftKey) { event.preventDefault(); if (!event.repeat) createSection(); return; }",
+      "      if (key === 'a') { event.preventDefault(); selected.clear(); documentState.nodes.forEach(function (node) { selected.add(node.id); }); render(); return; }",
+      '    }',
+      "    if (event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && event.code === 'Digit1') { event.preventDefault(); fitAll(); return; }",
+    ].join('\n')
+  );
+  page = replaceCanvasPageText(
+    page,
+    "  window.addEventListener('keyup', function (event) { if (event.code === 'Space') space = false; });",
+    [
+      "  window.addEventListener('keyup', function (event) { if (event.code !== 'Space') return; if (space) event.preventDefault(); setCanvasSpace(false); }, true);",
+      '  function resetCanvasPan() {',
+      '    setCanvasSpace(false);',
+      "    if (drag && drag.kind === 'pan') drag = null;",
+      "    board.classList.remove('grabbing');",
+      '  }',
+      "  window.addEventListener('blur', resetCanvasPan);",
+      "  document.addEventListener('visibilitychange', function () { if (document.hidden) resetCanvasPan(); });",
+    ].join('\n')
   );
   page = replaceCanvasPageText(
     page,
@@ -2909,6 +3024,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  }',
       '  async function saveSnapshot() {',
       '    if (groupQueue) groupQueue.checkpoint();',
+      '    const peer = peerBlock();',
+      '    if (peer) { setStatus("未保存"); setError(peer); return false; }',
     ].join(String.fromCharCode(10))
   );
   page = replaceCanvasPageText(page, '      return !ack.pending;', '      return true;');
@@ -2924,6 +3041,10 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     '</style>',
     SEQUENCE_EDITOR_STYLES +
       '.sequence-editor[aria-label="本地图片编辑"] { width: min(560px, calc(100vw - 32px)); height: auto; padding: 20px; box-sizing: border-box; }' +
+      '#peer-block { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; gap: 12px; align-items: center; max-width: min(760px, calc(100% - 32px)); box-sizing: border-box; padding: 10px 14px; border-radius: 8px; background: #8a2c1c; color: #fff4ea; font-size: 13px; line-height: 1.5; box-shadow: 0 6px 18px rgba(0,0,0,.35); }' +
+      '#peer-block[hidden] { display: none; }' +
+      '#board[data-peer-blocked] #world { pointer-events: none; opacity: .6; }' +
+      '#peer-block button { flex: none; border: 1px solid #ffd2c2; border-radius: 6px; background: transparent; color: inherit; padding: 4px 10px; cursor: pointer; }' +
       '</style>'
   );
   page = replaceCanvasPageText(
@@ -2953,7 +3074,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '    for (const node of documentState.nodes) {',
-    "    const orderedNodes = documentState.nodes.filter(function (node) { return !resourceBundleOwner(documentState, node.id) || selected.has(node.id); }).sort(function (left, right) { return (left.type === 'section' ? -1 : 0) - (right.type === 'section' ? -1 : 0); });\n    for (const node of orderedNodes) {\n      if (node.type === 'video-source') fitVideoCard(node);\n      if (fitImageCard(node)) markDirty();"
+    "    const orderedNodes = documentState.nodes.filter(function (node) { return !resourceBundleOwner(documentState, node.id) || selected.has(node.id); }).sort(function (left, right) { return (left.type === 'section' ? -1 : 0) - (right.type === 'section' ? -1 : 0); });\n    for (const node of orderedNodes) {\n      if (node.type === 'video-source') fitVideoCard(node);\n      if (fitImageCard(node)) { markDirty(); if (node.sectionId && layoutUiWorkflowGroup(documentState, node.sectionId)) requestAnimationFrame(render); }"
   );
   page = replaceCanvasPageText(
     page,
@@ -3025,7 +3146,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      world.append(card);',
       '      if (node.type === "image" && node.assetPath) renderImageInfo(card, generationUi.imageTarget(node), node, function () {',
       '        if (!card.isConnected || !documentState || !documentState.nodes.includes(node)) return;',
-      '        if (fitImageCard(node)) { markDirty(); requestAnimationFrame(render); }',
+      '        if (fitImageCard(node)) { markDirty(); if (node.sectionId) layoutUiWorkflowGroup(documentState, node.sectionId); requestAnimationFrame(render); }',
       '      });',
       '    }',
       '    function renderSelectionToolbar() {',
@@ -3070,7 +3191,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       "        download.addEventListener('toggle', function () { if (!download.open) return; const rect = trigger.getBoundingClientRect(); formats.style.left = Math.max(8, rect.right - 144) + 'px'; formats.style.top = rect.bottom + 6 + 'px'; });",
       '        download.append(trigger, formats); actions.append(download);',
       '      }',
-      "      else if (node.type !== 'image') { const editingTemplateVideo = node.type === 'video-source' && templateWorkflow && templateWorkflow.canEditVideo(node.id); actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); }",
+      "      else if (node.type !== 'image') { const editingTemplateVideo = node.type === 'video-source' && templateWorkflow && templateWorkflow.canEditVideo(node.id); if (canvasFeatureEnabled(host, 'video')) actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); }",
       '      selectionMenu.append(actions);',
       "      if (panelOpen) { const panel = document.createElement('div'); panel.className = 'selection-panel'; const panelNode = node.type === 'image' && selectionAction === 'video' ? { id: 'video-draft:' + node.id, type: 'video', draftSourceId: node.id } : node; const workflowEdit = workflowMember && panelNode === node ? { canSubmit: !templateWorkflow.waitingForSource(node.id), submit: function (execute) { return templateWorkflow.runFrom(node.id, execute); } } : undefined; generationUi.render(panel, panelNode, documentState.nodes, selectionAction === 'outpaint' ? 'outpaint' : undefined, workflowEdit); selectionToolbar.append(panel); }",
       '      positionSelectionToolbar();',
@@ -3138,7 +3259,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  let pendingPlacement = null;',
       "  const contextMenu = document.getElementById('canvas-context-menu');",
-      '  imageAssetsUi = createImageAssetsUi({ deliver: deliverExport, current: function () { return documentState; }, store: store, remember: remember, changed: markDirty, save: flush, render: render, select: function (id) { selected.clear(); selected.add(id); }, blocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || generationUi.hasInputDraft() || sequenceUi.hasUnsavedFrames; }, resolve: function (id) { return templateWorkflow.resolveTarget(id, "image-assets"); }, error: setError });',
+      '  imageAssetsUi = createImageAssetsUi({ deliver: deliverExport, current: function () { return documentState; }, store: store, remember: remember, changed: markDirty, save: flush, render: render, select: function (id) { selected.clear(); selected.add(id); }, blocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || generationUi.hasInputDraft() || sequenceUi.hasUnsavedFrames; }, resolve: function (id) { return templateWorkflow.resolveTarget(id, "image-assets"); }, error: setError, log: function (message, level) { canvasLogs.add(message, level); } });',
       '  resourceExport = createCanvasResourceExport({ deliver: deliverResource, onBusyChange: publishDirty, getDocument: function () { return documentState; }, mediaUrl: function (path) { return store.mediaUrl(path); }, error: setError, progress: function (message) { setError(message, "info"); }, assets: imageAssetsUi, model: { ready: function (id) { const state = modelUi && modelUi.state(id); return state && state.status === "completed" && !state.stale; }, download: function (id) { return modelUi.download(id); } } });',
       '  function hideContextMenu() { contextMenu.hidden = true; }',
       '  function showContextMenu(event) {',
@@ -3268,7 +3389,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     'void boot().catch(function (caught) { setError(caught.message); });',
     [
       '  const templateModel = createCanvasTemplateModel();',
-      '  const templateUi = createCanvasTemplateUi({ deliver: deliverExport,',
+      '  const templateUi = createCanvasTemplateUi({ deliver: deliverExport, platform: store.platform,',
       '    store: store.templates, exchangeUnavailableReason: canvasCapabilityReason(store, "templateExchange"), model: templateModel, getDocument: function () { return documentState; }, selected: selected,',
       '    remember: remember, changed: markDirty, render: render, save: flush, error: setError,',
       '    busy: function (id) { return pendingAssetImports > 0 || Boolean(groupQueue && groupQueue.protects(id)) || sequenceUi.isBusy || generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || templateWorkflow.isNodeLoading(id); },',
@@ -3344,9 +3465,13 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  }',
       '  async function commitCanvasCutout(current, live, blob) {',
       '    live();',
+      // The result is a new card and wire; refuse before importing so saving cannot hit the store limit.
+      "    if (current.nodes.length >= 400 || current.edges.length >= 800) throw new Error('画布卡片已达到容量限制。');",
       '    const saved = await store.importImage(current.id, await blob.arrayBuffer(), "image/png");',
       '    await loadMedia(saved.relativePath);',
       '    const source = live();',
+      // Cards may have been added while the image was imported.
+      "    if (current.nodes.length >= 400 || current.edges.length >= 800) throw new Error('画布卡片已达到容量限制。');",
       '    remember();',
       '    const applied = applyLocalImageResult(current, source, saved.relativePath, undefined, function () { return crypto.randomUUID(); });',
       '    applied.title = (source.title + " · 抠图").slice(0, 80);',
@@ -3447,7 +3572,9 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    getDocument: function () { return documentState; },',
       '    needs: function (id) { return templateWorkflow.status(id) === "pending"; },',
       '    parallel: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); const group = node && documentState.nodes.find(function (item) { return item.id === node.sectionId; }); return Boolean(group && (["7e1cb6ad-732f-4dc3-a951-000000000013", "7e1cb6ad-732f-4dc3-a951-000000000015"].includes(group.templateId) || (group.templateCliOnly && group.templateSkills?.includes("maker-ui-bbox-workflow"))) && node.type === "image" && (!node.uiRecognition || node.uiRecognition.optional) && !node.uiAtlasPrelayout && canvasReferences(documentState, id).length); },',
-      '    imageConcurrency: function () { return Infinity; },',
+      // Each image request holds one of the browser's 6 connections to the console until the
+      // picture is done; 4 leaves room for saves, media and the CLI heartbeat (else ~30 s stall).
+      '    imageConcurrency: function () { return 4; },',
       '    save: flush,',
       '    problem: function (id) { if (sequenceUi.hasDraft(id)) return "此卡片有未保存的帧处理，请先保存或放弃后再继续队列。"; return generationUi.queueBlockReason(id); },',
       '    busy: function () { return templateWorkflow.isBusy || generationUi.isBusy || imageAssetsUi.isBusy || sequenceUi.isBusy || Boolean(sequenceEditor && sequenceEditor.isOpen) || Boolean(imageEditing && imageEditing.isBusy) || Boolean(videoHistory && videoHistory.isBusy) || pendingAssetImports > 0; },',
@@ -3456,11 +3583,13 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    prepareRetry: function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (!node) return; node.templatePending = true; invalidateCanvasDependents(documentState, id); markDirty(); canvasLogs.add(node.title + "：重新生图（每次分组运行最多2次），其余分支保留", "warning"); },',
       '    run: async function (id) { const ok = await templateWorkflow.runQueued(id); if (ok) return true; throw new Error(templateWorkflow.failure(id) || "步骤未完成，已暂停。请查看此卡片状态和运行日志。"); },',
       '    confirm: function (message) { return window.confirm(message); }, error: setError,',
-      '    haltReason: function () { return saveFailed ? "画布结果尚未保存，已停止后续生成；请先保存再继续。" : undefined; },',
+      '    haltReason: function () { return saveFailed ? "画布结果尚未保存，已停止后续生成；请先保存再继续。" : peerBlock() || undefined; },',
+      '    blocked: function () { return peerBlock() || undefined; },',
       '    expand: function (id) { if (documentState && ensureUiAtlasBatchCards(documentState, id)) markDirty(); },',
-      '    changed: function () { if (dirty()) markDirty(); if (groupQueueUi) groupQueueUi.refresh(); if (documentState) refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; }); publishDirty(); },',
+      '    settled: function (id, phase) { if (ui015Workflow) ui015Workflow.settled(id, phase); },',
+      '    changed: function () { if (dirty()) markDirty(); if (groupQueueUi) groupQueueUi.refresh(); if (documentState) refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return ui015Workflow && ui015Workflow.isActive(id) ? "running" : groupQueue && groupQueue.view(id)?.phase; }); publishDirty(); },',
       '  });',
-      '  groupQueueUi = createCanvasGroupQueueUi({ queue: groupQueue, node: function (id) { return documentState && documentState.nodes.find(function (node) { return node.id === id; }); }, scale: function () { return documentState && documentState.viewport.scale || 1; },',
+      '  groupQueueUi = createCanvasGroupQueueUi({ queue: groupQueue, node: function (id) { return documentState && documentState.nodes.find(function (node) { return node.id === id; }); }, scale: function () { return documentState && documentState.viewport.scale || 1; }, workflow: { view: function (id) { return ui015Workflow ? ui015Workflow.view(id) : undefined; } }, notice: function () { return peerReason; },',
       '    focus: function (id) { const node = documentState && documentState.nodes.find(function (node) { return node.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + (node.height || 200) / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; render(); },',
       '  });',
       '  setInterval(function () { groupQueueUi.tick(); }, 1000);',
@@ -3475,7 +3604,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '    function renderSelectionToolbar() {',
-    '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return groupQueue && groupQueue.view(id)?.phase; });\n    function renderSelectionToolbar() {'
+    '    refreshCanvasGroupHeaders(world, documentState.nodes, function (id) { return ui015Workflow && ui015Workflow.isActive(id) ? "running" : groupQueue && groupQueue.view(id)?.phase; });\n    function renderSelectionToolbar() {'
   );
   page = replaceCanvasPageText(
     page,
@@ -3565,7 +3694,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      remember(); current.nodes.push(node); selected.clear(); selected.add(node.id); markDirty();',
       '  }',
       '  const automation = createCanvasAutomationUi({',
-      '    capabilities: store.capabilities,',
+      '    capabilities: store.capabilities, platform: store.platform,',
       '    checkRecognition: function (node) { return uiRecognitionUi.checkRecognition(node); },',
       '    ensureRecognitionNote: function (node) { uiRecognitionUi.ensureNote(node); },',
       '    recognizeUi: function (node, recover, attemptId) { return uiRecognitionUi.runRecognition(node, true, recover, attemptId); },',
@@ -3573,6 +3702,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    blocked: function (allowUnsaved) {',
       '      if (pendingExports || (resourceExport && resourceExport.isBusy)) return "资源正在导出，请等待完成。";',
       '      if (canvasOpening) return "画布正在加载，请稍后重新 inspect。";',
+      '      const peer = peerBlock(); if (peer) return peer;',
       '      if (modelUi.isBusy) return "模型请求等待中，可停止本地等待后查询原任务。";',
       '      if (!allowUnsaved && (dirty() || pendingSave)) return "画布有未保存修改，请等待保存完成后重试。";',
       '      if (generationUi.hasInputDraft()) return "存在尚未提交的人工生成参数草稿；请先手动完成生成，或刷新页面明确放弃草稿。关闭面板不会丢弃草稿。";',
@@ -3642,10 +3772,34 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    },',
       '    query: async function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (node && node.uiRecognition?.pendingId) await uiRecognitionUi.query(id); else if (node && ["model", "model-views"].includes(node.type)) await modelUi.execute(id, "query"); else await generationUi.queryNode(id, true); },',
       '    error: function () { return error.textContent; }, clearError: function () { error.textContent = ""; }, queue: groupQueue,',
+      '    ui015: { isWorkflowGroup: function (id) { return ui015Workflow.isWorkflowGroup(id); }, advance: function (id, input) { return ui015Workflow.advance(id, input || {}); }, inspect: function (id) { const view = ui015Workflow.inspect(id); return view && { stage: view.stage, message: view.message }; }, active: function (id) { return ui015Workflow.isActive(id); }, outcome: function (id) { return ui015Workflow.outcome(id); } },',
       '    busyChanged: function (busy) { canvasAutomationBusy = busy; publishDirty(); }',
       '  });',
       '  document.getElementById("refresh-media").addEventListener("click", function () { const reason = hostEditBlocked(); if (reason) { setError(reason); return; } pendingExports++; publishDirty(); void refreshSources().then(function () { const unknown = documentState.nodes.some(function (node) { return node.assetPath && !node.assetVersion; }); setError(unknown ? "素材已刷新；旧结果未记录内容版本，来源待核实，不会自动重新生成。" : "素材已刷新，来源变化的结果需要重新处理。", "info"); }).catch(function (caught) { setError(caught.message); }).finally(function () { pendingExports--; publishDirty(); }); });',
-      '  host.connectAutomation({ current: function () { return documentState; }, execute: automation.execute, error: setError });',
+      '  let canvasPeers = { canvasId: "", revision: 0, busyPeers: 0 };',
+      '  let peerReason = "";',
+      '  const peerBanner = document.createElement("div");',
+      '  peerBanner.id = "peer-block"; peerBanner.hidden = true; peerBanner.setAttribute("role", "alert");',
+      '  board.append(peerBanner);',
+      '  function localCanvasBusy() { return Boolean((groupQueue && groupQueue.isBusy) || (ui015Workflow && ui015Workflow.active) || (templateWorkflow && templateWorkflow.isBusy) || (generationUi && generationUi.isBusy) || (uiRecognitionUi && uiRecognitionUi.isBusy) || (imageAssetsUi && imageAssetsUi.isBusy)); }',
+      '  /** Another page on this canvas saved newer content or is executing: this page must not save or run. */',
+      '  function peerBlock() {',
+      '    if (!documentState || canvasPeers.canvasId !== documentState.id) return "";',
+      '    if (canvasPeers.revision > documentState.revision) return "此画布已在另一个页面保存了更新内容，本页显示的是旧版本，不会保存也不能执行。请刷新本页查看最新状态，或关闭本页。";',
+      '    if (canvasPeers.busyPeers && !localCanvasBusy()) return "此画布正在另一个页面执行任务。本页只读，进度以执行中的页面为准；该页面完成后请刷新本页。";',
+      '    return "";',
+      '  }',
+      '  function updatePeerBlock() {',
+      '    const reason = peerBlock();',
+      '    if (reason === peerReason) return;',
+      '    peerReason = reason;',
+      '    peerBanner.replaceChildren();',
+      '    peerBanner.hidden = !reason;',
+      '    board.toggleAttribute("data-peer-blocked", Boolean(reason));',
+      '    if (reason) { const text = document.createElement("span"); text.textContent = reason; const reload = document.createElement("button"); reload.type = "button"; reload.textContent = "刷新本页"; reload.addEventListener("click", function () { location.reload(); }); peerBanner.append(text, reload); canvasLogs.add(reason, "warning"); }',
+      '    if (groupQueueUi) groupQueueUi.refresh();',
+      '  }',
+      '  host.connectAutomation({ current: function () { return documentState; }, execute: automation.execute, error: setError, busy: localCanvasBusy, peers: function (info) { canvasPeers = info; updatePeerBlock(); } });',
       '  const editorHandle = {',
       '    current: function () { return documentState ? structuredClone(documentState) : null; },',
       '    draft: function () { return dirty() ? { document: structuredClone(documentState), savedLayout: savedKey } : null; },',
@@ -3733,11 +3887,6 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     '    const next = future.shift();',
     '    if (imageAssetsUi && imageAssetsUi.isBusy) { setError("请等待游戏资产保存完成，再重做。"); return; }\n    if (modelUi && modelUi.isBusy) { setError("请先停止模型的本地等待，再重做。"); return; }\n    const next = future.shift();'
   );
-  page = replaceCanvasPageText(
-    page,
-    '  function duplicateSelected() {',
-    '  function duplicateSelected() {\n    if (documentState && documentState.nodes.some(function (node) { return selected.has(node.id) && ["model", "model-views"].includes(node.type); })) { setError("模型卡片依赖完整来源，请通过添加模板或另存模板创建独立流程。"); return; }'
-  );
   page = replaceCanvasPageText(page, '</style>', CANVAS_WIRE_STYLES + '</style>');
   page = replaceCanvasPageText(
     page,
@@ -3807,7 +3956,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '  let sequenceUi = null;',
-    '  let uiRecognitionUi = null; let sequenceUi = null;'
+    '  let ui015Workflow = null; let uiRecognitionUi = null; let sequenceUi = null;'
   );
   page = replaceCanvasPageText(
     page,
@@ -3815,8 +3964,21 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       '  uiRecognitionUi = createUiRecognitionUi({ current: function () { return documentState; }, store: store, save: flush, remember: remember, changed: markDirty, render: render, error: setError, loadMedia: loadMedia,',
       '    blocked: function () { return Boolean(groupQueue && groupQueue.isBusy) || generationUi.isBusy || sequenceUi.isBusy || pendingAssetImports > 0; },',
+      '    autoRunning: function (node) { return Boolean(ui015Workflow && node.sectionId && ui015Workflow.isActive(node.sectionId)); },',
       '    focus: function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + node.height / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; markDirty(); render(); },',
       '    openCanvas: async function (id) { const saved = await store.load(id); const option = document.createElement("option"); option.value = id; option.textContent = saved.title; select.append(option); await openDocument(id); },',
+      '  });',
+      '  ui015Workflow = createUi015Workflow({ current: function () { return documentState; }, store: store,',
+      '    needs: function (id) { return templateWorkflow.status(id) === "pending"; }, problem: function (id) { return generationUi.queueBlockReason(id); },',
+      '    runImage: function (id) { return uiRecognitionUi.runImage(id, function () { return generationUi.runTemplateImage(id); }, true, true); },',
+      '    recognize: function (id, recover) { const node = documentState.nodes.find(function (item) { return item.id === id; }); return node ? uiRecognitionUi.runRecognition(node, true, recover) : Promise.resolve(false); },',
+      '    recoverImage: function (id, force) { return generationUi.recoverForRetry(id, force); },',
+      '    recoverRecognition: function (id, force) { return uiRecognitionUi.recoverForRetry(id, force); },',
+      '    chooseDesign: requestImageImport, sync: syncUiBboxWorkflow,',
+      '    queue: { start: function (id, confirmed) { return groupQueue.start(id, confirmed); }, spendRetry: function (id, nodeId) { return groupQueue.spendRetry(id, nodeId); }, view: function (id) { return groupQueue.view(id); }, remaining: function (id) { return groupQueue.remaining(id); } },',
+      '    focus: function (id) { const node = documentState && documentState.nodes.find(function (item) { return item.id === id; }); if (!node) return; const view = documentState.viewport; view.x = board.clientWidth / 2 - (node.x + node.width / 2) * view.scale; view.y = board.clientHeight / 2 - (node.y + (node.height || 200) / 2) * view.scale; selected.clear(); selected.add(id); selectionAction = ""; render(); },',
+      '    log: function (message, level) { canvasLogs.add(message, level || "info"); }, failure: function () { return error.textContent; },',
+      '    remember: remember, save: flush, changed: markDirty, render: render, error: setError, blocked: peerBlock',
       '  });',
       '  groupQueue = createCanvasGroupQueue({',
     ].join(String.fromCharCode(10))
@@ -3939,7 +4101,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '</style>',
-    '.canvas-work-time { position:absolute; right:8px; bottom:8px; padding:2px 6px; border-radius:4px; background:var(--canvas-panel, #24221e); color:var(--canvas-text, #d5c8ad); font-size:12px; font-variant-numeric:tabular-nums; pointer-events:none; }\n</style>'
+    '.canvas-work-time { position:absolute; right:8px; bottom:8px; padding:2px 6px; border-radius:4px; background:var(--canvas-panel, #24221e); color:var(--canvas-text, #d5c8ad); font-size:12px; font-variant-numeric:tabular-nums; pointer-events:none; }\n.canvas-card-header > .canvas-work-time { position:static; flex:none; padding:1px 6px; font-size:11px; line-height:16px; white-space:nowrap; }\n</style>'
   );
   page = replaceCanvasPageText(
     page,
@@ -3954,6 +4116,28 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = applySpriteGenPatches(page);
   page = applyMissingMediaPatches(page);
   page = applyCardMenuPatches(page);
+  // Copy guards must wrap the final function, including the async mirror-copy branch.
+  page = replaceCanvasPageText(
+    page,
+    '  function duplicateSelected() {',
+    '  function duplicateSelected() {\n    if (documentState && documentState.nodes.some(function (node) { return selected.has(node.id) && ["model", "model-views"].includes(node.type); })) { setError("模型卡片依赖完整来源，请通过添加模板或另存模板创建独立流程。"); return; }'
+  );
+  page = replaceCanvasPageText(page, '</style>', CANVAS_FLOW_STYLES + '</style>');
+  page = replaceCanvasPageText(
+    page,
+    '      world.append(card);',
+    '      decorateCanvasFlowCard(card, node, overlayState, documentState);\n      world.append(card);'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    if (wireUi) wireUi.sync();',
+    '    if (wireUi) wireUi.sync();\n    syncCanvasFlowEffects(board);'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  void boot()',
+    '  document.documentElement.dataset.flowHidden = String(document.hidden);\n  document.addEventListener("visibilitychange", function () { document.documentElement.dataset.flowHidden = String(document.hidden); });\n  void boot()'
+  );
   // Keep template anchors from rewriting function bodies inside injected helpers.
   page = page.replace('/*__HELPERS__*/', () => helperSource);
   return page.replace(

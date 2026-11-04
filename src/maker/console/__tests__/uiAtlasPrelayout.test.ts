@@ -177,7 +177,10 @@ test('local preparation works without an image provider and records a visible re
   doc = await files.save(doc.id, doc, doc.revision);
   jest.mocked(settings.generationProvider).mockReturnValue({ source: 'maker', profile: undefined });
   const submit = jest.mocked(callRemoteProxyTool);
-  submit.mockResolvedValue({ structuredContent: { localPath: plan.bbox.cutSource.path } } as any);
+  const generatedPath = 'assets/image/generated.png';
+  fs.mkdirSync(path.join(root, 'assets/image'), { recursive: true });
+  fs.copyFileSync(files.readMedia(target.assetPath!).file, path.join(root, generatedPath));
+  submit.mockResolvedValue({ structuredContent: { localPath: generatedPath } } as any);
   const next = {
     ...input,
     targetNodeId: consumer.id,
@@ -190,8 +193,12 @@ test('local preparation works without an image provider and records a visible re
   );
   expect(submit).not.toHaveBeenCalled();
   const separated = await service.generateImage(next);
+  expect(separated.status).toBe('succeeded');
   expect(separated.referenceImages?.map((image) => image.assetPath)).toEqual([target.assetPath]);
-  expect(submit.mock.calls[0][0].args?.reference_images).toEqual([target.assetPath]);
+  const reference = files.readMedia(target.assetPath!);
+  expect(submit.mock.calls[0][0].args?.reference_images).toEqual([
+    'data:' + reference.type + ';base64,' + fs.readFileSync(reference.file).toString('base64'),
+  ]);
   plan.bbox.cutSource.sha256 = '0'.repeat(64);
   const stale = service.generateImage(next);
   await expect(stale).rejects.toThrow('预排');

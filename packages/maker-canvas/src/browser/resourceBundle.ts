@@ -62,9 +62,39 @@ export async function uiBundleManifestWithValidation(
         bbox = checked;
         recognitionId = recognition.id;
       }
-      if (source?.uiArtTextId && info.items.length === 1)
-        artTextBindings.push({ textId: source.uiArtTextId, path: entries[offset].name });
-      unboundCategories.push(member.title);
+      // Legacy single art text branch without a slot plan: export its PNG as an explicit
+      // asset. Only a real Bbox text ID that was reviewed counts as bound; "main-title" is
+      // a placeholder and stays unbound until the user picks the matching text.
+      const legacyText =
+        source?.uiArtTextId && info.items.length === 1 ? source.uiArtTextId : undefined;
+      const textBbox = bbox || (supplemental ? validation.validateUiBbox(supplemental) : undefined);
+      const knownText = Boolean(
+        legacyText && textBbox?.texts.some((text) => text.id === legacyText)
+      );
+      if (legacyText) {
+        const file = entries[offset];
+        const item = info.items[0];
+        assets.push({
+          id: 'asset_' + member.id + '_' + item.name,
+          path: file.name,
+          sha256: Array.from(
+            new Uint8Array(await crypto.subtle.digest('SHA-256', await file.blob.arrayBuffer()))
+          )
+            .map((value) => value.toString(16).padStart(2, '0'))
+            .join(''),
+          width: item.width,
+          height: item.height,
+          role: 'bound',
+          ...(item.contentRect ? { contentRect: item.contentRect } : {}),
+        });
+        artTextBindings.push({ textId: legacyText, path: file.name });
+      }
+      if (
+        !knownText ||
+        !['confirmed', 'recorded'].includes(info.uiBindingReview || '') ||
+        !legacyText
+      )
+        unboundCategories.push(member.title);
       offset += info.items.length;
       continue;
     }

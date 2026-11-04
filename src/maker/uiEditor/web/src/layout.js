@@ -160,9 +160,10 @@
   window.addEventListener("keydown", function (event) {
     if (event.defaultPrevented || event.isComposing || document.querySelector("dialog[open]")) return;
     if (window.UrhoxProject && window.UrhoxProject.isOpening && window.UrhoxProject.isOpening()) return;
-    if (event.target && event.target.closest("button, [role=button]")) return;
+    if (event.target && event.target.closest("button, [role=button]") &&
+        !event.target.closest(".chrome, .canvas-toolbar, .transform-toolbar")) return;
     if (event.target && (event.target.closest("input, textarea, select") || event.target.isContentEditable)) return;
-    if (event.code === "Space" && !event.repeat) {
+    if (event.code === "Space" && !event.metaKey && !event.ctrlKey && !event.altKey) {
       spaceDown = true;
       if (preview) preview.classList.add("space");
       event.preventDefault();
@@ -170,19 +171,22 @@
   });
   window.addEventListener("keyup", function (event) {
     if (event.code === "Space") {
+      if (spaceDown) event.preventDefault();
       spaceDown = false;
       if (preview) preview.classList.remove("space");
     }
-  });
+  }, true);
   function stopPan() {
     panning = false;
     if (preview) preview.classList.remove("panning");
   }
-  window.addEventListener("blur", function () {
+  function resetPan() {
     spaceDown = false;
     if (preview) preview.classList.remove("space");
     stopPan();
-  });
+  }
+  window.addEventListener("blur", resetPan);
+  document.addEventListener("visibilitychange", function () { if (document.hidden) resetPan(); });
 
   if (preview) {
     preview.addEventListener("wheel", function (event) {
@@ -240,7 +244,6 @@
 
   window.UrhoxView = {
     fit: fitPreview,
-    panBy: function (dx, dy) { panX += dx; panY += dy; applyView(); },
     getZoom: function () { return zoom; },
     setZoom: function (value) {
       if (!preview || !canvas) return;

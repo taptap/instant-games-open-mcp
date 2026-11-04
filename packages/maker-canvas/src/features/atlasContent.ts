@@ -7,6 +7,8 @@ export interface ImageAtlasCutSettings {
   regions?: ImageAtlasCrop[];
   expectedCount?: number;
   allowEmpty?: boolean;
+  /** Native UI crops were edited by a user and must bypass automatic alignment. */
+  manualNative?: boolean;
 }
 
 export function validateAtlasCrops(

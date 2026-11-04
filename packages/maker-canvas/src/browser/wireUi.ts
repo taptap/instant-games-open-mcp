@@ -192,6 +192,8 @@ export function createCanvasWireUi(options: {
     const to = resourceBundleOwner(doc, item.to) || doc.nodes.find((node) => node.id === item.to)!;
     path.setAttribute('d', canvasWirePath(from, to, doc.nodes, view, doc.edges, item.route));
     path.setAttribute('class', 'wire wire-focused');
+    (path as SVGPathElement).dataset.from = from.id;
+    (path as SVGPathElement).dataset.to = to.id;
     svg.append(path);
     overlay.append(svg);
     for (const handle of shape.handles) {

@@ -27,8 +27,14 @@ const callRemoteProxyToolMock = jest.mocked(callRemoteProxyTool);
 function project(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-canvas-generation-'));
   execFileSync('git', ['init'], { cwd: root });
+  fs.mkdirSync(path.join(root, 'assets/image'), { recursive: true });
   fs.writeFileSync(path.join(root, '.gitignore'), '.maker\n');
   return root;
+}
+
+function imageDataUrl(files: MakerCanvasFiles, reference: string): string {
+  const media = files.readMedia(reference);
+  return 'data:' + media.type + ';base64,' + fs.readFileSync(media.file).toString('base64');
 }
 
 function successfulImageResult(): any {
@@ -461,7 +467,31 @@ describe('CanvasGenerationService', () => {
     expect(recognized.submittedPrompt).toContain('原设计稿实际尺寸：1920×1080');
     expect(recognized.submittedPrompt).toContain('元素清单坐标基准为去文字识别输入图：576×1024');
     expect(recognized.submittedPrompt).not.toContain('原设计稿坐标基准');
-    const custom = await files.importImage(png(1700, 1000));
+    const custom = await files.importImage(png(1080, 2400));
+    await service.generateImage({
+      canvasId: doc.id,
+      prompt: 'custom',
+      aspectRatio: 'source',
+      resolution: '2K',
+      referenceImagePaths: [custom.relativePath],
+    });
+    expect(callRemoteProxyToolMock.mock.calls[2][0].args).toMatchObject({
+      target_size: '922x2048',
+    });
+    expect(callRemoteProxyToolMock.mock.calls[2][0].args).not.toHaveProperty('aspect_ratio');
+    await service.generateImage({
+      canvasId: doc.id,
+      prompt: 'exact size',
+      targetSize: '1080x2400',
+    });
+    expect(callRemoteProxyToolMock.mock.calls[3][0].args).toMatchObject({
+      target_size: '1080x2400',
+    });
+    expect(callRemoteProxyToolMock.mock.calls[3][0].args).not.toHaveProperty('aspect_ratio');
+    jest.mocked(imageModelDiscovery.canvasImageModels).mockResolvedValueOnce({
+      ...imageModelsFixture(),
+      aspectRatio: { required: true, values: ['1:1'] },
+    });
     await expect(
       service.generateImage({
         canvasId: doc.id,
@@ -469,8 +499,9 @@ describe('CanvasGenerationService', () => {
         aspectRatio: 'source',
         referenceImagePaths: [custom.relativePath],
       })
-    ).rejects.toThrow('尚未提交');
-    expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(2);
+    ).rejects.toThrow('要求 aspect_ratio');
+    expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(4);
+    expect(service.list(doc.id)).toHaveLength(4);
   });
 
   test('paired video gate rejects missing slots, reversed roles and alternate modes before remote calls', async () => {
@@ -652,16 +683,16 @@ describe('CanvasGenerationService', () => {
     expect(callRemoteProxyToolMock.mock.calls[0][0].args).toMatchObject({
       mode: 'first_last_frame',
       images: [
-        { url: sources[0].assetPath, role: 'first_frame' },
-        { url: sources[1].assetPath, role: 'last_frame' },
+        { url: imageDataUrl(files, sources[0].assetPath!), role: 'first_frame' },
+        { url: imageDataUrl(files, sources[1].assetPath!), role: 'last_frame' },
       ],
     });
     await service.retry(attempt.id, document.id);
     expect(callRemoteProxyToolMock.mock.calls[1][0].args).toMatchObject({
       mode: 'first_last_frame',
       images: [
-        { url: sources[0].assetPath, role: 'first_frame' },
-        { url: sources[1].assetPath, role: 'last_frame' },
+        { url: imageDataUrl(files, sources[0].assetPath!), role: 'first_frame' },
+        { url: imageDataUrl(files, sources[1].assetPath!), role: 'last_frame' },
       ],
     });
     await expect(
@@ -696,8 +727,8 @@ describe('CanvasGenerationService', () => {
     expect(callRemoteProxyToolMock.mock.calls[0][0].args).toMatchObject({
       mode: 'multi_modal_reference',
       images: [
-        { url: head.assetPath, role: 'reference_image' },
-        { url: reference.assetPath, role: 'reference_image' },
+        { url: imageDataUrl(files, head.assetPath!), role: 'reference_image' },
+        { url: imageDataUrl(files, reference.assetPath!), role: 'reference_image' },
       ],
     });
   });
@@ -753,7 +784,7 @@ describe('CanvasGenerationService', () => {
     expect(retried.status).toBe('succeeded');
     expect(retried.referenceImagePaths).toEqual([referencePath]);
     expect(callRemoteProxyToolMock.mock.calls[1][0].args).toMatchObject({
-      reference_images: [referencePath],
+      reference_images: ['data:image/png;base64,' + png.toString('base64')],
     });
     expect((await files.load(document.id)).nodes).toEqual([]);
   });
@@ -849,7 +880,7 @@ describe('CanvasGenerationService', () => {
 
     expect(attempt.status).toBe('succeeded');
     expect(attempt.targetNodeId).toBe(document.nodes[0].id);
-    expect(attempt.resultAssetPath).toMatch(/^assets\/image\/canvas-[0-9a-f-]+\.png$/);
+    expect(attempt.resultAssetPath).toMatch(/^\.maker\/canvases\/images\/canvas-[0-9a-f-]+\.png$/);
     expect(fs.existsSync(path.join(root, attempt.resultAssetPath!))).toBe(true);
   });
 
@@ -929,7 +960,7 @@ describe('CanvasGenerationService', () => {
       expect.objectContaining({ redirect: 'error' })
     );
     expect(recovered).toMatchObject({ id: failed.id, status: 'succeeded', credits: 12 });
-    expect(recovered.resultAssetPath).toMatch(/^assets\/image\/canvas-/);
+    expect(recovered.resultAssetPath).toMatch(/^\.maker\/canvases\/images\/canvas-/);
     expect(fs.readFileSync(path.join(root, recovered.resultAssetPath!)).subarray(0, 4)).toEqual(
       Buffer.from([137, 80, 78, 71])
     );
@@ -1006,7 +1037,7 @@ describe('CanvasGenerationService', () => {
     release(new Response(png));
     const recovered = await first;
     expect(recovered).toMatchObject({ id: failed.id, status: 'succeeded' });
-    expect(recovered.resultAssetPath).toMatch(/^assets\/image\/canvas-/);
+    expect(recovered.resultAssetPath).toMatch(/^\.maker\/canvases\/images\/canvas-/);
     const persisted = new CanvasGenerationService(root, {} as any).list(document.id)[0];
     expect(persisted).toMatchObject({
       id: failed.id,
@@ -1140,7 +1171,7 @@ describe('CanvasGenerationService', () => {
       document.nodes[0].assetPath
     );
     expect(callRemoteProxyToolMock.mock.calls[1][0].args).toMatchObject({
-      reference_images: [document.nodes[0].assetPath],
+      reference_images: [imageDataUrl(files, document.nodes[0].assetPath!)],
     });
   });
 

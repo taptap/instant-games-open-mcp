@@ -85,7 +85,7 @@ MCP runtime、workspace Roots 和当前项目上下文。
 
 ### 本地窗口预览
 
-按 `skills/taptap-maker-local/SKILL.md` 的 Local Window Preview 执行，
+从 `skills/taptap-maker-local/SKILL.md` 选择 Local Window Preview，只读取对应流程文档，
 使用本页 WorkBuddy launcher 调用插件内 CLI，不运行外部 npm/npx。
 本地预览不授权提交或推送；“预览／运行”有歧义时先澄清。
 macOS 使用 Runtime `game_url`，Windows 使用本地 manifest；平台限制和排障见

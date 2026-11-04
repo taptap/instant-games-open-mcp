@@ -77,6 +77,7 @@ export {
   validateBboxImageStructure as validateBboxImage,
   validateCutElements,
   validateBboxTexts,
+  parseUiScreenName,
   scaleCutElements,
   validateUiBboxStructure,
   // Compatibility name: structure validation only; hosts validate media access.
@@ -245,3 +246,6 @@ export type {
   CanvasSpriteMirrorCard,
   CanvasSpriteMirrorPlan,
 } from './features/spriteMirror.js';
+
+export * from './features/serverRecognition.js';
+export * from './features/recognitionRequest.js';

@@ -11,6 +11,46 @@ import { imageEditSources } from '../generationUi.js';
 
 const model = createCanvasTemplateModel();
 
+test('a partial selection preserves its source template platform through another instance', () => {
+  const document = fixture();
+  const sectionId = createId();
+  const ids = document.nodes.map((node) => node.id);
+  for (const node of document.nodes) node.sectionId = sectionId;
+  document.nodes.push({
+    id: sectionId,
+    type: 'section',
+    title: 'Web only',
+    x: 0,
+    y: 0,
+    width: 800,
+    height: 500,
+    templatePlatforms: ['web'],
+  });
+  const template = model.snapshot(document, ids, 'copy');
+  expect(template.platforms).toEqual(['web']);
+  expect(model.instantiate(template, { x: 0, y: 0 }).section.templatePlatforms).toEqual(['web']);
+});
+
+test('a selection with mutually exclusive platform requirements cannot become a shared template', () => {
+  const document = fixture();
+  const ids = document.nodes.map((node) => node.id);
+  for (const [index, platform] of (['local', 'web'] as const).entries()) {
+    const sectionId = createId();
+    document.nodes[index].sectionId = sectionId;
+    document.nodes.push({
+      id: sectionId,
+      type: 'section',
+      title: platform,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 500,
+      templatePlatforms: [platform],
+    });
+  }
+  expect(() => model.snapshot(document, ids, 'mixed')).toThrow('适用端');
+});
+
 test('saved templates and new instances never inherit prior work duration', () => {
   const document = fixture();
   for (const node of document.nodes) node.workDurationMs = 15000;

@@ -5,11 +5,21 @@ export function connectCanvasAutomation(options: {
   current(): { id: string; revision: number } | null;
   execute(command: CanvasCommand): Promise<unknown>;
   error?(message: string): void;
+  /** Whether this page is executing canvas work; other pages on the canvas become read-only. */
+  busy?(): boolean;
+  /** Newest saved revision of this canvas and how many other pages are executing on it. */
+  peers?(info: { canvasId: string; revision: number; busyPeers: number }): void;
 }) {
   let pageId: string | undefined;
   const results = new Map<
     string,
-    { id: string; status: 'succeeded' | 'failed'; result?: unknown; error?: string }
+    {
+      id: string;
+      status: 'succeeded' | 'failed';
+      result?: unknown;
+      error?: string;
+      code?: 'INVALID_ARGS' | 'NOT_FOUND';
+    }
   >();
   const seen = new Set<string>();
   let stopped = false;
@@ -29,6 +39,7 @@ export function connectCanvasAutomation(options: {
               pageId,
               canvasId: current.id,
               revision: current.revision,
+              busy: Boolean(options.busy?.()),
               received: [...seen],
               results: [...results.values()].slice(0, 1),
             }),
@@ -39,7 +50,12 @@ export function connectCanvasAutomation(options: {
           const body = await response.json();
           if (stopped) return;
           pageId = body.pageId;
-          for (const id of body.acknowledged) results.delete(id);
+          if (body.canvas) options.peers?.({ canvasId: current.id, ...body.canvas });
+          for (const id of body.acknowledged) {
+            results.delete(id);
+            // Completed receipts remain on the server; heartbeats only track pending work.
+            seen.delete(id);
+          }
           for (const command of body.commands as CanvasCommand[]) {
             if (seen.has(command.requestId)) continue;
             seen.add(command.requestId);
@@ -50,12 +66,16 @@ export function connectCanvasAutomation(options: {
                   status: 'succeeded',
                   result,
                 }),
-              (error) =>
+              (error) => {
+                // Only the executor's pre-side-effect rejections carry a code; keep the rest unknown.
+                const code = (error as { code?: unknown } | null)?.code;
                 results.set(command.requestId, {
                   id: command.requestId,
                   status: 'failed',
                   error: error instanceof Error ? error.message : String(error),
-                })
+                  ...(code === 'INVALID_ARGS' || code === 'NOT_FOUND' ? { code } : {}),
+                });
+              }
             );
           }
         } else {

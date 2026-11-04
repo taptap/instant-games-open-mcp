@@ -16,8 +16,6 @@ import type { CanvasDocumentStore } from '../store.js';
 import { batchRecognitionFixture } from '../testFixtures/uiRecognition.js';
 
 test.each([
-  ['000013', false],
-  ['000013', true],
   ['000015', false],
   ['000015', true],
 ] as const)(

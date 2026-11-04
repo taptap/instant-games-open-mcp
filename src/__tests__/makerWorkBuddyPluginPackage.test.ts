@@ -136,6 +136,20 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     expect(mcp.mcpServers['taptap-maker-plugin']).not.toHaveProperty('cwd');
   });
 
+  test('flattens local workflow references and keeps every entry link readable', () => {
+    const localSkill = path.join(pluginRoot, 'skills/taptap-maker-local');
+    const entry = fs.readFileSync(path.join(localSkill, 'SKILL.md'), 'utf8');
+    expect(entry).not.toContain('(references/');
+    expect(fs.existsSync(path.join(localSkill, 'references'))).toBe(false);
+    const references = path.join(projectRoot, 'skills/taptap-maker-local/references');
+    for (const name of fs.readdirSync(references)) {
+      expect(entry).toContain('(' + name + ')');
+      expect(fs.readFileSync(path.join(localSkill, name), 'utf8')).toBe(
+        fs.readFileSync(path.join(references, name), 'utf8')
+      );
+    }
+  });
+
   test('contains the runtime, cross-platform CLI, skills, commands, icon, and docs', () => {
     const requiredPaths = [
       'skills/lua-ui-to-json/SKILL.md',

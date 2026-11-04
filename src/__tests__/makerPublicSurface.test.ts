@@ -258,7 +258,10 @@ describe('Maker public documentation', () => {
   });
 
   test('bundled Maker skill defines the same evidence-first offline recovery boundary', () => {
-    const skill = fs.readFileSync(path.resolve('skills/taptap-maker-local/SKILL.md'), 'utf8');
+    const skill = fs.readFileSync(
+      path.resolve('skills/taptap-maker-local/references/diagnostics.md'),
+      'utf8'
+    );
     const normalizedSkill = skill.replace(/\s+/gu, ' ');
 
     for (const expected of [
