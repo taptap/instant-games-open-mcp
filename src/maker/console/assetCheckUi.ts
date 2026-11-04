@@ -242,6 +242,17 @@ function checkAssets(saved,body,key) {
       if(first&&assetKind(first)==='图片')row.append(assetImage(first,saved,key));row.append(info);return row;
     },'合并前需核对 UUID 和引用；额外占用不等于可以释放的空间。'));content.querySelector('details').open=true;
   }));
+  // Many files sitting directly in one folder are hard to find; frame sequences and generated UI workspaces are expected to be large.
+  result.directories
+    .filter(dir=>dir.path.startsWith('assets/')&&dir.count>=100&&!/(^|\/)frames$|^assets\/ui\/ui015-/.test(dir.path))
+    .sort((a,b)=>b.count-a.count).slice(0,2).forEach(dir=>{
+      const hint=node('div',undefined,'check-hint'),info=node('div'),actions=node('div',undefined,'check-actions');
+      info.append(node('strong','目录待整理：'+dir.path+' 直接放了 '+dir.count+' 个文件'),
+        node('p','共 '+assetBytes(dir.bytes)+'，占全部素材 '+Math.max(1,Math.round(dir.count/assets.length*100))+'%。文件多又没按用途分子目录，后续很难查找，建议按界面、角色、场景等归类。','muted'));
+      actions.append(button('查看这些文件',()=>checkAssetList(dir.path+' 下直接存放的文件',assets.filter(asset=>asset.path.split('/').slice(0,-1).join('/')===dir.path),saved,key,'这些文件直接放在该目录，没有放进子目录。')),
+        button('让 AI 给整理建议',()=>checkDialog('更新项目检查',content=>{const guide=projectCheckPrompt(true);guide.open=true;content.append(guide);})));
+      hint.append(info,actions);section.append(hint);
+    });
   section.append(stats);
   const problemPaths=new Set([...oversized,...unused].map(asset=>asset.path));
   const problemImages=assets.filter(asset=>assetKind(asset)==='图片'&&problemPaths.has(asset.path)).sort((a,b)=>Number(Math.max(b.width||0,b.height||0)>2048)-Number(Math.max(a.width||0,a.height||0)>2048)||Number(reviewed(a))-Number(reviewed(b))||b.bytes-a.bytes);
