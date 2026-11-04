@@ -2801,7 +2801,7 @@ function renderCanvas() {
 }
 ${modelSettingsScript}
 function setMotionVisible(visible) {
-  document.querySelector('.project-architecture-frame')?.contentWindow?.postMessage({type:'maker:architecture-visibility',visible:false},location.origin);
+  architectureFrame?.contentWindow?.postMessage({type:'maker:architecture-visibility',visible:false},location.origin);
   motionFrame?.contentWindow?.postMessage({type:'maker:motion-visibility',visible},location.origin);
 }
 function renderOther() {

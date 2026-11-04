@@ -1,5 +1,7 @@
 export const assetCheckScript = String.raw`
 const assetChecks = new Map();
+// The inline preview frame of the current report; hidden/re-rendered pages pause its animations through it.
+let architectureFrame = null;
 function assetBytes(bytes) {
   return bytes >= 1048576 ? (bytes / 1048576).toFixed(2) + ' MiB' : (bytes / 1024).toFixed(1) + ' KiB';
 }
@@ -118,7 +120,7 @@ function openCheckArchitecture(key,moduleId='') {
   },true);
 }
 window.addEventListener('message',event=>{
-  const frame=document.querySelector('.check-architecture-frame');
+  const frame=architectureFrame;
   if(disposed || page!=='other' || otherTab!=='architecture' || event.origin!==location.origin || !frame || event.source!==frame.contentWindow) return;
   if(event.data?.type==='maker:architecture-height' && Number.isFinite(event.data.height)){frame.style.height=Math.min(Math.max(event.data.height+2,240),1400)+'px';return;}
   if(event.data?.type!=='maker:architecture-expand' || !assetChecks.get(selected)?.result?.analysis.modules.some(module=>module.id===event.data.groupId)) return;
@@ -151,10 +153,10 @@ function checkArchitecture(saved,body,key) {
     onToggle:open=>architectureOpen.set(key,open),
     onChange:(open,host)=>{
       if(open&&!frame){
-        frame=node('iframe',undefined,'project-architecture-frame check-architecture-frame');frame.title='项目架构概览';
+        frame=architectureFrame=node('iframe',undefined,'project-architecture-frame check-architecture-frame');frame.title='项目架构概览';
         frame.src='/project-architecture?project='+encodeURIComponent(key)+'&view=compact';
         host.append(frame,node('p','连线为静态引用 · 点击模块查看详情','check-graph-note muted'));
-      }else if(!open&&frame){host.replaceChildren();frame=undefined;}
+      }else if(!open&&frame){host.replaceChildren();if(architectureFrame===frame)architectureFrame=null;frame=undefined;}
     },
   });
   body.append(block);
