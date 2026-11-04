@@ -20,6 +20,7 @@
           <button id="saveBtn" type="button" class="ghost" disabled>保存</button>
           <button id="changesBtn" type="button" class="ghost">变更</button>
           <button id="checkUiBtn" type="button" class="ghost">检查 UI</button>
+          <button id="adaptBtn" type="button" class="ghost" title="按游戏的屏幕方向，把当前 UI 在手机、iPhone、iPad 上各排一遍，检查越界、安全区和文字超框">适配检查</button>
           <button id="skillHelpBtn" type="button" class="ghost">AI Skill</button>
           <span id="currentDocument" class="muted truncate">正在读取当前项目的 UI 文档</span>
           <span id="saveStatus" class="muted" role="status" aria-live="polite"></span>
@@ -243,6 +244,24 @@
       </div>
     </div>
   </dialog>
+  <dialog id="adaptDialog" class="dialog-mask" aria-labelledby="adaptTitle">
+    <div class="dialog adapt">
+      <header class="adapt-head">
+        <h3 id="adaptTitle">多屏适配检查</h3>
+        <button id="adaptClose" type="button" class="ghost" aria-label="关闭适配检查">×</button>
+      </header>
+      <p id="adaptOrientation" class="muted"></p>
+      <p id="adaptSummary" role="status" aria-live="polite"></p>
+      <div id="adaptScenes" class="adapt-scenes"></div>
+      <div id="adaptIssues" class="adapt-issues"></div>
+      <p class="muted adapt-note">检查未保存的当前内容，红色轮廓为问题位置，淡红区域为模拟安全区。浏览器字体与引擎可能不同，动态数据按默认值；真机与引擎效果仍需复核。</p>
+      <div class="dialog-actions">
+        <span id="adaptCopyStatus" class="muted" role="status" aria-live="polite"></span>
+        <button id="adaptRerun" type="button" class="ghost">重新检查</button>
+        <button id="adaptCopy" type="button" class="ghost active">复制给 AI</button>
+      </div>
+    </div>
+  </dialog>
   <dialog id="deleteDialog" class="dialog-mask" aria-labelledby="deleteDialogTitle" aria-describedby="deleteDialogText">
     <div class="dialog">
       <h3 id="deleteDialogTitle">删除节点</h3>
@@ -266,6 +285,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="src/bootstrap.js?v=20261103-ui-preview1"></script>
+  <script type="module" src="src/bootstrap.js?v=20261104-ui-adapt"></script>
 </body>
 </html>

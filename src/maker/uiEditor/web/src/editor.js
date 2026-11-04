@@ -377,8 +377,15 @@
     var hasDocument = !!window.UrhoxPreview?.tree;
     if (documentNameEl) {
       var display = hasDocument ? window.UrhoxConfig.displayPath(currentFilePath()) : "尚未打开 UI 文档";
-      documentNameEl.textContent = display;
       documentNameEl.title = project.name + " · " + display;
+      // 路径太长时优先保留文件名，收起的是前面的目录。
+      var cut = hasDocument ? display.lastIndexOf("/") + 1 : 0;
+      if (cut > 0) {
+        var dir = document.createElement("span"), file = document.createElement("b");
+        dir.className = "doc-dir"; dir.textContent = display.slice(0, cut);
+        file.className = "doc-file"; file.textContent = display.slice(cut);
+        documentNameEl.replaceChildren(dir, file);
+      } else documentNameEl.textContent = display;
     }
     if (saveStatus) saveStatus.textContent = saving ? "正在保存…" : !hasDocument ? "" : dirty ? "未保存" : "已保存";
     renderAll();

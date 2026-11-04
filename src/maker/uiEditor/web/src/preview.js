@@ -321,7 +321,8 @@
     var warning = app.missingComponents.length
       ? " · 缺少组件 " + app.missingComponents.join(", ")
       : "";
-    app.metaEl.textContent = mode + " · " + CFG.displayPath(app.path) + " · " + window.UrhoxDoc.count(app.sourceTree || app.tree) + " nodes" + warning;
+    // 文档路径已显示在顶栏，这里只放当前文档独有的信息。
+    app.metaEl.textContent = mode + " · " + window.UrhoxDoc.count(app.sourceTree || app.tree) + " 个节点" + warning;
   }
 
   function updateToolbarState() {
@@ -663,21 +664,98 @@
     });
   }
 
-  function setDevice(id) {
+  function deviceFor(id, orientation) {
     var base = id === "custom" && app.customDevice ? app.customDevice : DEVICES[id] || DEVICES["1080p"];
-    var landscape = app.orientation === "landscape";
-    app.device = Object.assign({}, base, {
+    var landscape = orientation === "landscape";
+    var device = Object.assign({}, base, {
       width: landscape ? Math.max(base.width, base.height) : Math.min(base.width, base.height),
       height: landscape ? Math.min(base.width, base.height) : Math.max(base.width, base.height),
     });
     if (landscape && base.landscapeSafeArea) {
-      app.device.safeArea = Object.assign({}, base.landscapeSafeArea);
+      device.safeArea = Object.assign({}, base.landscapeSafeArea);
     } else if (base.safeArea && (base.width > base.height) !== landscape) {
       var area = base.safeArea;
-      app.device.safeArea = landscape
+      device.safeArea = landscape
         ? { top:area.left, right:area.top, bottom:area.right, left:area.bottom }
         : { top:area.right, right:area.bottom, bottom:area.left, left:area.top };
     }
+    return device;
+  }
+
+  // Lays the unsaved document out on other screens and hands each result to `visit`, then puts
+  // the real device back. Nothing is written to the document, history or selection.
+  function probeScenes(scenes, visit) {
+    if (!app.sourceTree || !inViewport()) return null;
+    var saved = { device: app.device, safeArea: app.safeArea, width: app.screen.width,
+      height: app.screen.height, orientation: app.orientation };
+    var scroll = {};
+    window.UrhoxDoc.walk(app.tree, function (node) {
+      if (node._scrollY) scroll[node._editorId] = node._scrollY;
+    });
+    var results = [];
+    try {
+      scenes.forEach(function (scene) {
+        var device = deviceFor(scene.id, scene.orientation);
+        app.device = device;
+        app.safeArea = device.safeArea || null;
+        app.screen.width = device.width;
+        app.screen.height = device.height;
+        rebuildPreview();
+        var logical = designSize(), scale = deviceScale();
+        var area = app.safeArea || {};
+        results.push(visit(scene, {
+          tree: app.tree, device: device, scale: scale, dpr: device.dpr || 1,
+          width: logical.width, height: logical.height,
+          safeArea: { top: (area.top || 0) / scale, right: (area.right || 0) / scale,
+            bottom: (area.bottom || 0) / scale, left: (area.left || 0) / scale },
+          sourceId: function (node) {
+            var source = sourceNode(node);
+            return source && window.UrhoxDoc.findByEditorId(app.sourceTree, source._editorId) === source
+              ? source._editorId : null;
+          },
+          paint: function (context) { window.UrhoxCanvas.paintTree(context, app.tree, app); },
+        }));
+      });
+    } finally {
+      app.device = saved.device;
+      app.safeArea = saved.safeArea;
+      app.screen.width = saved.width;
+      app.screen.height = saved.height;
+      app.orientation = saved.orientation;
+      rebuildPreview();
+      var restored = false;
+      window.UrhoxDoc.walk(app.tree, function (node) {
+        if (scroll[node._editorId] != null) { node._scrollY = scroll[node._editorId]; restored = true; }
+      });
+      if (restored) rebuildPreview();
+    }
+    return results;
+  }
+
+  function applyScene(scene) {
+    if (!inViewport()) return false;
+    app.orientation = scene.orientation;
+    setDevice(scene.id);
+    return true;
+  }
+
+  function selectEditorIds(editorIds) {
+    var nodes = (editorIds || []).map(function (id) {
+      return window.UrhoxDoc.findByEditorId(app.sourceTree, id);
+    }).filter(Boolean);
+    if (!nodes.length) return false;
+    nodes.forEach(function (node) {
+      window.UrhoxDoc.ancestors(app.sourceTree, node).forEach(function (parent) {
+        app.collapsed[window.UrhoxDoc.nodeKey(parent)] = false;
+      });
+    });
+    exitPickMode();
+    setSelection(nodes, true);
+    return true;
+  }
+
+  function setDevice(id) {
+    app.device = deviceFor(id, app.orientation);
     app.safeArea = app.device.safeArea || null;
     app.screen.width = app.device.width;
     app.screen.height = app.device.height;
@@ -697,6 +775,12 @@
     app.orientation = size && size.width !== size.height
       ? (size.width > size.height ? "landscape" : "portrait")
       : config && config.orientation === "landscape" ? "landscape" : "portrait";
+    // 游戏本身的方向，和用户在顶栏临时切换的方向分开记录；适配检查只看这个。
+    app.orientationInfo = size && size.width !== size.height
+      ? { orientation: app.orientation, source: "document" }
+      : config && (config.orientation === "landscape" || config.orientation === "portrait")
+        ? { orientation: config.orientation, source: "project" }
+        : { orientation: app.orientation, source: "unset" };
     setDevice(app.device.id || "1080p");
   }
 
@@ -898,6 +982,12 @@
         .map(function (n) { return window.UrhoxGeom.visualBounds(app.sourceTree || app.tree,n); }));
     },
     setDevice: setDevice,
+    probeScenes: probeScenes,
+    applyScene: applyScene,
+    selectEditorIds: selectEditorIds,
+    get canProbe() { return !!app.sourceTree && inViewport(); },
+    get orientationInfo() { return app.orientationInfo || { orientation: app.orientation || "portrait", source: "unset" }; },
+    get currentScene() { return { id: app.device.id, orientation: app.orientation || "portrait", name: app.device.name }; },
     setProjectConfig: setProjectConfig,
     getProjectConfig: function () { return app.projectConfig; },
     align: function (mode) { Cmd.align(app, mode); },

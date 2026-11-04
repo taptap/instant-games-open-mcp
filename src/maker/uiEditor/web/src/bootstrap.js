@@ -1,14 +1,14 @@
 try {
-  const cacheVersion = "20261103-ui-scroll-preview";
+  const cacheVersion = "20261104-ui-adapt";
   const rendering = new URLSearchParams(location.search).has("render");
   window.UrhoxYogaEngine = (await import("../vendor/yoga-layout/dist/src/index.js")).default;
   await import("../skills/lua-ui-to-json/scripts/ui-json-check.js?" + cacheVersion);
   for (const name of [
     "config", "project-config", "yoga-lite", "geom", "history", "doc", "assets", "ui-tools", "tree",
     "inspector", "nanovg", "canvas", "commands", "layout", "transform", "input", "preview", "save",
-    "comparison", "workbench", "context-menu", "hotkeys", "guidance", "editor",
+    "comparison", "workbench", "context-menu", "hotkeys", "guidance", "adapt", "adapt-ui", "editor",
   ]) {
-    if (rendering && ["editor", "save", "comparison", "workbench", "context-menu", "hotkeys", "guidance", "layout"].includes(name)) continue;
+    if (rendering && ["editor", "save", "comparison", "workbench", "context-menu", "hotkeys", "guidance", "adapt", "adapt-ui", "layout"].includes(name)) continue;
     await import("./" + name + ".js?" + cacheVersion);
   }
   await import("./automation.js?" + cacheVersion);
