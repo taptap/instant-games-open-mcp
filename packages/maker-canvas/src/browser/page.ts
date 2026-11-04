@@ -1632,7 +1632,7 @@ function applySpriteGenPatches(source: string): string {
   // the line. A size change re-applies the last plan (layout only; no file reads).
   patch(
     '    const orderedNodes = documentState.nodes.filter(',
-    "    documentState.nodes.forEach(function (item) { if (item.type === 'section' && item.spriteGen && (relayoutSpriteSection(item) || growSpriteSection(documentState, item.id))) markDirty(); });\n    const orderedNodes = documentState.nodes.filter("
+    "    documentState.nodes.forEach(function (item) { if (item.type !== 'section' || !item.spriteGen) return; try { if (relayoutSpriteSection(item) || growSpriteSection(documentState, item.id)) markDirty(); } catch (caught) {} });\n    const orderedNodes = documentState.nodes.filter("
   );
   patch(
     '  function spriteDocKey(doc, sectionId) {',
@@ -1645,9 +1645,14 @@ function applySpriteGenPatches(source: string): string {
       '    const key = spriteSizeKey(documentState, section.id);',
       '    if (key === spriteSizes.get(section.id)) return false;',
       // Leave out cards deleted since the plan was made so they are not added back.
-      '    const dismissed = section.spriteGen.dismissed;',
-      '    const live = Object.assign({}, plan, { cards: plan.cards.filter(function (card) { return dismissed.indexOf(card.key) < 0; }) });',
-      '    const edited = applySpriteMirror(documentState, section.id, live, function () { return crypto.randomUUID(); });',
+      '    const dismissed = section.spriteGen.dismissed || [];',
+      '    const present = Object.create(null);',
+      '    documentState.nodes.forEach(function (node) { if (node.mirror && node.sectionId === section.id) present[node.mirror.key] = true; });',
+      // Relayout only moves cards already on the canvas. Re-adding the plan after undo can exceed
+      // capacity after the canvas has been cleared, which would leave the page blank.
+      '    const live = Object.assign({}, plan, { cards: plan.cards.filter(function (card) { return dismissed.indexOf(card.key) < 0 && present[card.key]; }) });',
+      '    let edited = false;',
+      '    try { edited = applySpriteMirror(documentState, section.id, live, function () { return crypto.randomUUID(); }); } catch (caught) { return false; }',
       '    spriteSizes.set(section.id, spriteSizeKey(documentState, section.id));',
       '    return edited;',
       '  }',
