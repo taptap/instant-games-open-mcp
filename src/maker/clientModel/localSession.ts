@@ -5,6 +5,8 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import type { MakerClientModel, MakerClientModelContext } from './types.js';
+import { bestEffort } from '../system/bestEffort.js';
+import { LOCAL_PROBE_TIMEOUT_MS as MODEL_LOOKUP_TIMEOUT_MS } from './limits.js';
 import {
   cindyDataDirectory,
   readCindySessionModel,
@@ -12,10 +14,31 @@ import {
 } from './desktopSession.js';
 
 const execFileAsync = promisify(execFile);
-const MODEL_LOOKUP_TIMEOUT_MS = process.platform === 'win32' ? 2500 : 1000;
 const MAX_SESSION_BYTES = 64 * 1024;
 const MAX_TRANSCRIPT_BYTES = 1024 * 1024;
 const MAX_SCAN_ENTRIES = 512;
+const MAX_PENDING_PROBES = 4;
+let pendingProbes = 0;
+
+async function localProbe<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  fallback: T
+): Promise<T> {
+  if (pendingProbes >= MAX_PENDING_PROBES) return fallback;
+  return bestEffort(
+    async (signal) => {
+      pendingProbes++;
+      try {
+        return await operation(signal);
+      } finally {
+        // A timed-out OS read may still be pending; keep its slot until it really ends.
+        pendingProbes--;
+      }
+    },
+    MODEL_LOOKUP_TIMEOUT_MS,
+    fallback
+  );
+}
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -30,6 +53,7 @@ function modelString(value: unknown): string | undefined {
 }
 
 async function run(command: string, args: string[], signal: AbortSignal): Promise<string> {
+  signal.throwIfAborted();
   const { stdout } = await execFileAsync(command, args, {
     encoding: 'utf8',
     windowsHide: true,
@@ -49,7 +73,9 @@ async function readSessionText(
   signal.throwIfAborted();
   const handle = await open(filename, 'r');
   try {
+    signal.throwIfAborted();
     const stat = await handle.stat();
+    signal.throwIfAborted();
     if (!stat.isFile() || (!tail && stat.size > MAX_SESSION_BYTES)) {
       throw new Error('Unsupported session file');
     }
@@ -441,16 +467,7 @@ async function readClientProcesses(signal: AbortSignal) {
 
 /** Resolve stable IDE identity once; callers retain this only for their own connection. */
 export async function identifyLocalClient(clientName?: string) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), MODEL_LOOKUP_TIMEOUT_MS);
-  let clientProcesses: Array<{ pid: number; command: string }> = [];
-  try {
-    clientProcesses = await readClientProcesses(controller.signal);
-  } catch {
-    // A failed process lookup must not discard the client's handshake identity.
-  } finally {
-    clearTimeout(timeout);
-  }
+  const clientProcesses = await localProbe(readClientProcesses, []);
   const known = [
     ['Cindy', /(?:^|[/\\])cindy(?:\.exe|\.app(?:[/\\].*)?)?$/i],
     ['Cursor', /(?:^|[/\\])cursor(?:\.exe|\.app(?:[/\\].*)?)?$/i],
@@ -468,24 +485,10 @@ export async function identifyLocalClient(clientName?: string) {
 export async function resolveLocalSessionModel(
   context: MakerClientModelContext = {}
 ): Promise<MakerClientModel> {
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<MakerClientModel>((resolve) => {
-    timer = setTimeout(() => {
-      controller.abort();
-      resolve({});
-    }, MODEL_LOOKUP_TIMEOUT_MS);
-  });
-  try {
-    const model = await Promise.race([
-      readCurrentSessionModel(controller.signal, context),
-      timeout,
-    ]);
-    if (!Object.values(model).some(Boolean)) return {};
-    return { ...model, model_lookup_scope: model.model_lookup_scope ?? 'current_session' };
-  } catch {
-    return {};
-  } finally {
-    clearTimeout(timer);
-  }
+  const model = await localProbe<MakerClientModel>(
+    (signal) => readCurrentSessionModel(signal, context),
+    {}
+  );
+  if (!Object.values(model).some(Boolean)) return {};
+  return { ...model, model_lookup_scope: model.model_lookup_scope ?? 'current_session' };
 }

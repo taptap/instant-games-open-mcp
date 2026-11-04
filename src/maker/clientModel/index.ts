@@ -1,5 +1,7 @@
 import { identifyLocalClient, resolveLocalSessionModel } from './localSession.js';
 import type { MakerClientModel, MakerClientModelContext } from './types.js';
+import { bestEffort } from '../system/bestEffort.js';
+import { CLIENT_MODEL_TIMEOUT_MS } from './limits.js';
 
 export type { MakerClientModel, MakerClientModelContext } from './types.js';
 
@@ -76,15 +78,21 @@ export async function resolveMakerClientModel(
 /** One resolver per MCP connection: retain IDE identity, never a model from another call. */
 export function createMakerClientModelResolver() {
   let identity: ReturnType<typeof identifyLocalClient> | undefined;
-  return async (context: MakerClientModelContext = {}): Promise<MakerClientModel> => {
-    identity ??= identifyLocalClient(context.clientName);
-    const client = await identity;
-    const resolved = await resolveMakerClientModel({
-      ...context,
-      clientProcesses: client.clientProcesses,
-    });
-    // Legacy latest-session parsers are not evidence of the dialogue invoking this MCP.
-    const model = resolved.model_lookup_scope === 'latest_session' ? {} : resolved;
-    return { ...model, client_ide_name: client.clientIdeName ?? model.client_ide_name };
-  };
+  let client: Awaited<ReturnType<typeof identifyLocalClient>> | undefined;
+  return (context: MakerClientModelContext = {}): Promise<MakerClientModel> =>
+    bestEffort(
+      async () => {
+        identity ??= identifyLocalClient(context.clientName);
+        client = await identity;
+        const resolved = await resolveMakerClientModel({
+          ...context,
+          clientProcesses: client.clientProcesses,
+        });
+        // Legacy latest-session parsers are not evidence of the dialogue invoking this MCP.
+        const model = resolved.model_lookup_scope === 'latest_session' ? {} : resolved;
+        return { ...model, client_ide_name: client.clientIdeName ?? model.client_ide_name };
+      },
+      CLIENT_MODEL_TIMEOUT_MS,
+      { client_ide_name: client?.clientIdeName ?? reportedString(context.clientName) }
+    );
 }

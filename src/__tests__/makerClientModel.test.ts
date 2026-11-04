@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -380,11 +381,85 @@ test('does not guess a Codex thread when multiple locks are open', async () => {
 
 test('bounds a stalled lookup and aborts its command', async () => {
   jest.useFakeTimers();
-  run.mockImplementation(() => new Promise(() => {}));
+  let reject!: (error: Error) => void;
+  run.mockImplementation(
+    () =>
+      new Promise((_, fail) => {
+        reject = fail;
+      })
+  );
   const pending = resolveMakerClientModel();
   await jest.advanceTimersByTimeAsync(2501);
   expect(await pending).toEqual({});
   expect(run.mock.calls[0][2].signal.aborted).toBe(true);
+  reject(new Error('late failure after timeout'));
+  await jest.advanceTimersByTimeAsync(0);
+});
+
+test('bounds hung identity discovery and retains handshake identity on subsequent calls', async () => {
+  jest.useFakeTimers();
+  let reject!: (error: Error) => void;
+  run.mockImplementation(
+    () =>
+      new Promise((_, fail) => {
+        reject = fail;
+      })
+  );
+  const collect = createMakerClientModelResolver();
+  const pending = collect({ clientName: 'WorkBuddy' });
+  await jest.advanceTimersByTimeAsync(2501);
+  expect(await pending).toEqual({ client_ide_name: 'WorkBuddy' });
+  expect(run.mock.calls[0][2].signal.aborted).toBe(true);
+  expect(await collect({ clientName: 'WorkBuddy' })).toEqual({ client_ide_name: 'WorkBuddy' });
+  expect(run).toHaveBeenCalledTimes(1);
+  reject(new Error('late process failure'));
+  await jest.advanceTimersByTimeAsync(0);
+});
+
+test.each(['EACCES', 'EPERM', 'ENOENT'])('isolates process discovery %s failures', async (code) => {
+  run.mockRejectedValue(Object.assign(new Error('restricted environment'), { code }));
+  expect(await createMakerClientModelResolver()({ clientName: 'WorkBuddy' })).toEqual({
+    client_ide_name: 'WorkBuddy',
+  });
+});
+
+test.each(['EACCES', 'EPERM', 'ENOENT'])(
+  'isolates session file %s failures and can recover',
+  async (code) => {
+    const transcript = workBuddySession();
+    fs.writeFileSync(transcript, JSON.stringify({ providerData: { requestModelId: 'recovered' } }));
+    const open = jest
+      .spyOn(fsPromises, 'open')
+      .mockRejectedValueOnce(Object.assign(new Error('restricted file'), { code }));
+    const collect = createMakerClientModelResolver();
+    expect(await collect()).toEqual({ client_ide_name: 'WorkBuddy' });
+    open.mockRestore();
+    expect(await collect()).toMatchObject({ client_model_id: 'recovered' });
+  }
+);
+
+test('caps hung file reads until they settle, then allows fresh lookups', async () => {
+  jest.useFakeTimers();
+  const failures: Array<(error: Error) => void> = [];
+  const open = jest.spyOn(fsPromises, 'open').mockImplementation(
+    () =>
+      new Promise((_, reject) => {
+        failures.push(reject);
+      })
+  );
+  const collect = createMakerClientModelResolver();
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const pending = collect();
+    await jest.advanceTimersByTimeAsync(2501);
+    expect(await pending).toEqual({ client_ide_name: 'WorkBuddy' });
+  }
+  expect(open).toHaveBeenCalledTimes(4);
+  failures.forEach((reject) => reject(new Error('late file failure')));
+  await jest.advanceTimersByTimeAsync(0);
+  open.mockRestore();
+  const transcript = workBuddySession();
+  fs.writeFileSync(transcript, JSON.stringify({ providerData: { requestModelId: 'fresh' } }));
+  expect(await collect()).toMatchObject({ client_model_id: 'fresh' });
 });
 
 test('still reports client identity and the original event when model commands fail', async () => {

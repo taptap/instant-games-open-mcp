@@ -309,6 +309,53 @@ describe('maker MCP version status integration', () => {
     }
   });
 
+  test.each(['hang', 'reject'])(
+    'non-status business completes when model collection %s fails',
+    async (mode) => {
+      const { startMakerMcpServer } = await import('../maker/server/mcp');
+      const { resolveMakerClientModel } = await import('../maker/clientModel');
+      const { identifyMakerProject } = await import('../maker/server/identify');
+      const { loadProjectConfig } = await import('../maker/storage');
+      const { generateResourceMeta } = await import('../maker/resourceMeta');
+      const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+      const originalIdentify = jest.mocked(identifyMakerProject).getMockImplementation();
+      const originalConfig = jest.mocked(loadProjectConfig).getMockImplementation();
+      let reject!: (error: Error) => void;
+      try {
+        jest.mocked(identifyMakerProject).mockReturnValue({
+          source: 'cwd',
+          projectRoot: process.cwd(),
+          projectId: 'project',
+        } as ReturnType<typeof identifyMakerProject>);
+        jest.mocked(loadProjectConfig).mockReturnValue({ user_id: 'user', project_id: 'project' });
+        jest.mocked(resolveMakerClientModel).mockImplementation(() => {
+          if (mode === 'reject') return Promise.reject(new Error('model access denied'));
+          return new Promise((_, fail) => {
+            reject = fail;
+          });
+        });
+        jest
+          .mocked(generateResourceMeta)
+          .mockResolvedValue({ success: true, results: [], generatorCommit: 'test' });
+        await startMakerMcpServer();
+        const result = await mockServers[0].handlers.get(CallToolRequestSchema)!(
+          { params: { name: 'generate_resource_meta', arguments: {} } },
+          { requestId: 'model-failure', signal: new AbortController().signal }
+        );
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(resolveMakerClientModel).toHaveBeenCalledTimes(1);
+        expect(generateResourceMeta).toHaveBeenCalledTimes(1);
+        expect(result.isError).not.toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ success: true });
+      } finally {
+        reject?.(new Error('late model failure'));
+        jest.mocked(resolveMakerClientModel).mockResolvedValue({});
+        jest.mocked(identifyMakerProject).mockImplementation(originalIdentify!);
+        jest.mocked(loadProjectConfig).mockImplementation(originalConfig || (() => null));
+      }
+    }
+  );
+
   test.each([true, false])(
     'dispatches explicit meta calls locally and returns success=%s',
     async (success) => {

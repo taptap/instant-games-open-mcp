@@ -4,6 +4,8 @@
 
 import { getMakerApiBaseUrl } from './config.js';
 import { resolveMakerClientModel, type MakerClientModel } from './clientModel/index.js';
+import { CLIENT_MODEL_TIMEOUT_MS } from './clientModel/limits.js';
+import { bestEffort } from './system/bestEffort.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 
@@ -149,36 +151,35 @@ export async function reportMakerMcpActivity(event: MakerMcpActivityEvent): Prom
 
   Object.assign(
     payload.args,
-    event.context.resolvedModel ??
-      (await event.context.modelSnapshot) ??
-      (await resolveMakerClientModel({
-        clientName: event.context.clientInfo?.name,
-        projectDir: event.context.projectDir,
-        requestModel: event.context.requestModel,
-      }))
+    await bestEffort(
+      async () =>
+        event.context.resolvedModel ??
+        (await event.context.modelSnapshot) ??
+        (await resolveMakerClientModel({
+          clientName: event.context.clientInfo?.name,
+          projectDir: event.context.projectDir,
+          requestModel: event.context.requestModel,
+        })),
+      CLIENT_MODEL_TIMEOUT_MS,
+      {}
+    )
   );
 
   const fetchImpl = event.fetchImpl || fetch;
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    event.timeoutMs ?? MAKER_MCP_TRACKING_TIMEOUT_MS
+  await bestEffort(
+    async (signal) => {
+      const response = await fetchImpl(`${getMakerApiBaseUrl()}/tracking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal,
+      });
+      await response.body?.cancel();
+      if (!response.ok) {
+        throw new Error(`tracking request failed with HTTP ${response.status}`);
+      }
+    },
+    event.timeoutMs ?? MAKER_MCP_TRACKING_TIMEOUT_MS,
+    undefined
   );
-
-  try {
-    const response = await fetchImpl(`${getMakerApiBaseUrl()}/tracking`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    await response.body?.cancel();
-    if (!response.ok) {
-      throw new Error(`tracking request failed with HTTP ${response.status}`);
-    }
-  } catch {
-    // Tracking is intentionally best-effort. Never surface its failures to MCP users.
-  } finally {
-    clearTimeout(timeout);
-  }
 }
