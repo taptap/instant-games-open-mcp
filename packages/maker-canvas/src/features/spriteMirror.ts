@@ -646,44 +646,11 @@ export function applySpriteMirror(
         node.mirror.name === sprite.name &&
         node.sectionId === section.id
     );
-  // Check capacity before touching the document: automatic sync has no undo entry.
-  const removed = new Set(
-    options.tidy && plan.mergedReady
-      ? document.nodes
-          .filter((node) => mine(node) && node.mirror!.key === 'ready')
-          .map((node) => node.id)
-      : []
-  );
-  const kept = document.nodes.filter((node) => !removed.has(node.id));
-  const byKey = new Map(kept.filter(mine).map((node) => [node.mirror!.key, node]));
-  const plannedKeys = new Set(plan.cards.map((card) => card.key));
-  const additions = [...plannedKeys].filter((key) => !byKey.has(key)).length;
-  const related = new Set([...byKey.values()].map((node) => node.id).concat(sprite.sourceId));
-  const reset = new Set(
-    [...byKey.values()].filter((node) => plannedKeys.has(node.mirror!.key)).map((node) => node.id)
-  );
-  const edges = document.edges.filter(
-    (edge) =>
-      !removed.has(edge.from) &&
-      !removed.has(edge.to) &&
-      !(options.tidy && related.has(edge.from) && reset.has(edge.to))
-  );
-  const addedEdges = plan.cards.filter((card) => {
-    const node = byKey.get(card.key);
-    if (node && !options.tidy && node.mirror!.linked) return false;
-    if (node && edges.some((edge) => edge.to === node.id && related.has(edge.from))) return false;
-    return Boolean(
-      card.edgeKind &&
-        card.parent &&
-        (card.parent === 'source'
-          ? kept.some((item) => item.id === sprite.sourceId)
-          : byKey.has(card.parent) || plannedKeys.has(card.parent))
-    );
-  }).length;
-  if (kept.length + additions > 400 || edges.length + addedEdges > 800)
-    throw new Error(
-      '画布容量不足（最多 400 张卡片、800 条连线），请清理卡片或连线后重新同步精灵。'
-    );
+  // Card count only. Predicting new lines duplicated the sync and was wrong after undo.
+  const presentKeys = new Set(document.nodes.filter(mine).map((node) => node.mirror!.key));
+  const additions = plan.cards.filter((card) => !presentKeys.has(card.key)).length;
+  if (document.nodes.length + additions > 400)
+    throw new Error('画布容量不足（最多 400 张卡片），请清理卡片后重新同步精灵。');
   if (options.tidy && plan.mergedReady) {
     // The only removal 重新整理 does: a 主参考图 card duplicating the chosen candidate.
     const duplicate = document.nodes.filter((node) => mine(node) && node.mirror!.key === 'ready');

@@ -1632,7 +1632,7 @@ function applySpriteGenPatches(source: string): string {
   // the line. A size change re-applies the last plan (layout only; no file reads).
   patch(
     '    const orderedNodes = documentState.nodes.filter(',
-    "    documentState.nodes.forEach(function (item) { if (item.type !== 'section' || !item.spriteGen) return; try { if (relayoutSpriteSection(item) || growSpriteSection(documentState, item.id)) markDirty(); } catch (caught) {} });\n    const orderedNodes = documentState.nodes.filter("
+    "    documentState.nodes.forEach(function (item) { if (item.type === 'section' && item.spriteGen && (relayoutSpriteSection(item) || growSpriteSection(documentState, item.id))) markDirty(); });\n    const orderedNodes = documentState.nodes.filter("
   );
   patch(
     '  function spriteDocKey(doc, sectionId) {',
@@ -1652,7 +1652,7 @@ function applySpriteGenPatches(source: string): string {
       // capacity after the canvas has been cleared, which would leave the page blank.
       '    const live = Object.assign({}, plan, { cards: plan.cards.filter(function (card) { return dismissed.indexOf(card.key) < 0 && present[card.key]; }) });',
       '    let edited = false;',
-      '    try { edited = applySpriteMirror(documentState, section.id, live, function () { return crypto.randomUUID(); }); } catch (caught) { return false; }',
+      '    try { edited = applySpriteMirror(documentState, section.id, live, function () { return crypto.randomUUID(); }); } catch (caught) { if (!caught || String(caught.message || "").indexOf("容量不足") < 0) throw caught; return false; }',
       '    spriteSizes.set(section.id, spriteSizeKey(documentState, section.id));',
       '    return edited;',
       '  }',

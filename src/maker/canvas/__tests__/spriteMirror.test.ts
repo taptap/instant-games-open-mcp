@@ -529,27 +529,32 @@ test('untrimmed frames stay plain and invalid sheets are rejected', () => {
   expect(canvasSpriteFrameSet({ frames: {}, meta: sheet.meta })).toBeUndefined();
 });
 
-test.each(['nodes', 'edges'])('capacity rejection leaves the document unchanged: %s', (limit) => {
+test('a full canvas rejects new mirror cards and stays unchanged', () => {
   const doc = documentWithSource();
   createSpriteSection(doc, 'src', 'hero', 'character', 'sec', 1);
   const plan = reconcileSpriteMirror({ name: 'hero', progress: progress('plan') });
   expect(plan.cards.length).toBeGreaterThan(0);
-  if (limit === 'nodes')
-    while (doc.nodes.length < 400)
-      doc.nodes.push({
-        id: 'note-' + doc.nodes.length,
-        type: 'note',
-        x: 0,
-        y: 0,
-        width: 10,
-        height: 10,
-      });
-  else
-    for (let i = 0; i < 800; i++)
-      doc.edges.push({ id: 'edge-' + i, from: 'src', to: 'sec', kind: 'image-variant' });
+  while (doc.nodes.length < 400)
+    doc.nodes.push({
+      id: 'note-' + doc.nodes.length,
+      type: 'note',
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 10,
+    });
   const before = structuredClone(doc);
   expect(() => applySpriteMirror(doc, 'sec', plan, () => 'new')).toThrow('容量不足');
   expect(doc).toEqual(before);
+});
+
+test('line count alone does not block a sprite sync', () => {
+  const doc = documentWithSource();
+  createSpriteSection(doc, 'src', 'hero', 'character', 'sec', 1);
+  const plan = reconcileSpriteMirror({ name: 'hero', progress: progress('plan') });
+  for (let i = 0; i < 800; i++)
+    doc.edges.push({ id: 'edge-' + i, from: 'src', to: 'sec', kind: 'image-variant' });
+  expect(() => applySpriteMirror(doc, 'sec', plan, () => 'new-' + doc.nodes.length)).not.toThrow();
 });
 
 test('mirror lookup keys cannot mutate object prototypes', () => {
