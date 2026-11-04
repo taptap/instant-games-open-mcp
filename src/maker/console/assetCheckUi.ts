@@ -242,6 +242,7 @@ function checkAssets(saved,body,key) {
       if(first&&assetKind(first)==='图片')row.append(assetImage(first,saved,key));row.append(info);return row;
     },'合并前需核对 UUID 和引用；额外占用不等于可以释放的空间。'));content.querySelector('details').open=true;
   }));
+  section.append(stats);
   // Many files sitting directly in one folder are hard to find; frame sequences and generated UI workspaces are expected to be large.
   result.directories
     .filter(dir=>dir.path.startsWith('assets/')&&dir.count>=100&&!/(^|\/)frames$|^assets\/ui\/ui015-/.test(dir.path))
@@ -253,7 +254,6 @@ function checkAssets(saved,body,key) {
         button('让 AI 给整理建议',()=>checkDialog('更新项目检查',content=>{const guide=projectCheckPrompt(true);guide.open=true;content.append(guide);})));
       hint.append(info,actions);section.append(hint);
     });
-  section.append(stats);
   const problemPaths=new Set([...oversized,...unused].map(asset=>asset.path));
   const problemImages=assets.filter(asset=>assetKind(asset)==='图片'&&problemPaths.has(asset.path)).sort((a,b)=>Number(Math.max(b.width||0,b.height||0)>2048)-Number(Math.max(a.width||0,a.height||0)>2048)||Number(reviewed(a))-Number(reviewed(b))||b.bytes-a.bytes);
   const problemHead=node('div',undefined,'check-section-head');problemHead.append(node('h3','需要关注的图片'));
