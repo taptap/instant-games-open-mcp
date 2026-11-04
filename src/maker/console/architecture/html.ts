@@ -18,12 +18,6 @@ export const architectureBody = String.raw`
           <span>阅读提示</span>
           <p id="insight"></p>
         </div>
-        <nav class="tabs" aria-label="架构视图">
-          <button data-tab="structure" aria-selected="true">结构总览</button
-          ><button data-tab="flow">业务流程 / 源码导览</button
-          ><button data-tab="evidence">源码依据</button
-          >
-        </nav>
         <section id="structure">
           <div class="section-head">
             <div>
@@ -55,40 +49,6 @@ export const architectureBody = String.raw`
             <h3>实际启动入口</h3>
             <div id="entries"></div>
           </div>
-        </section>
-        <section id="flow" hidden>
-          <div class="section-head">
-            <div>
-              <h2 id="flow-title"></h2>
-              <p id="flow-note"></p>
-            </div>
-            <span id="flow-badge" class="badge"></span>
-          </div>
-          <div id="flow-map"></div>
-          <p id="flow-extra" class="callout"></p>
-        </section>
-        <section id="evidence" hidden>
-          <div class="section-head">
-            <div>
-              <h2>每条关系都能回到源码</h2>
-              <p>只展示路径、符号与行号，不向网页复制完整源码、凭证或配置。</p>
-            </div>
-          </div>
-          <div id="evidence-summary"></div>
-          <label class="file-search"
-            >查找文件或函数<input
-              id="file-search"
-              placeholder="例如：GameSession、main.lua、Start"
-          /></label>
-          <div id="files"></div>
-          <details>
-            <summary id="uncertain-title"></summary>
-            <div id="uncertain"></div>
-          </details>
-          <details>
-            <summary>外部库与扫描排除项</summary>
-            <div id="excluded"></div>
-          </details>
         </section>
         <footer id="footer"></footer>
       </main>

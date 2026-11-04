@@ -1,4 +1,15 @@
 export const architectureScript = String.raw`
+const architectureQuery = new URLSearchParams(location.search);
+const compactArchitecture = architectureQuery.get('view') === 'compact';
+document.body.classList.toggle('architecture-compact', compactArchitecture);
+const architectureReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+let architectureVisible = true;
+function syncArchitectureMotion() {
+  const paused = document.hidden || !architectureVisible || architectureReducedMotion.matches;
+  document.body.classList.toggle('architecture-motion-paused', paused);
+  const wires = document.getElementById('wires');
+  if (paused) wires.pauseAnimations(); else wires.unpauseAnimations();
+}
 const syncTheme = theme => document.body.classList.toggle('dark', theme === 'dark');
 syncTheme(window.MakerConsole.getTheme());
 window.MakerConsole.onThemeChange(syncTheme);
@@ -17,10 +28,8 @@ const data = await loadArchitecture(),
   $ = (id) => document.getElementById(id);
 let project = data.projects[0],
   groupId = "g0",
-  tab = "structure",
   tour = null,
   tourIndex = 0,
-  fileLimit = 60,
   toastTimer;
 const el = (tag, text, cls) => {
   const e = document.createElement(tag);
@@ -57,14 +66,7 @@ async function copy(value) {
     t.remove();
   }
   message(
-    ok ? "已复制源码位置" : "自动复制未成功，请在源码依据中查看文件路径。",
-  );
-}
-function sourceButton(ref, label) {
-  return btn(
-    label || ref.path + ":" + ref.line,
-    () => copy(project.path + "/" + ref.path + ":" + ref.line),
-    "flow-source",
+    ok ? "已复制源码位置" : "自动复制未成功，请手动记录文件路径。",
   );
 }
 function stopTour() {
@@ -72,26 +74,65 @@ function stopTour() {
   tour = null;
   $("tour").textContent = "逐个讲解";
 }
-function setTab(next) {
-  stopTour();
-  tab = next;
-  for (const id of ["structure", "flow", "evidence"])
-    $(id).hidden = id !== next;
-  document
-    .querySelectorAll("[data-tab]")
-    .forEach((b) =>
-      b.setAttribute("aria-selected", String(b.dataset.tab === next)),
-    );
-  if (next === "structure") requestAnimationFrame(drawWires);
-  if (next === "flow") renderFlow();
-  if (next === "evidence") renderEvidence();
+// Rows of modules ordered by dependency: a module that loads another sits above it.
+function layerGroups(p) {
+  const order = [...p.groups].sort((a, b) => b.lines - a.lines);
+  const next = new Map(order.map((g) => [g.id, []]));
+  const touched = new Set();
+  for (const e of p.groupEdges) {
+    if (e.from === e.to || e.kind === "包含职责") continue;
+    next.get(e.from)?.push(e.to);
+    touched.add(e.from);
+    touched.add(e.to);
+  }
+  if (!touched.size) return [order];
+  // Depth-first walk keeps only forward edges so mutual references cannot form a loop.
+  const state = new Map(),
+    forward = [];
+  const visit = (id) => {
+    state.set(id, 1);
+    for (const to of next.get(id)) {
+      if (state.get(to) === 1) continue;
+      forward.push([id, to]);
+      if (!state.has(to)) visit(to);
+    }
+    state.set(id, 2);
+  };
+  order.forEach((g) => state.has(g.id) || visit(g.id));
+  const level = new Map(order.map((g) => [g.id, 0]));
+  for (let i = 0; i < order.length; i++)
+    for (const [from, to] of forward)
+      level.set(to, Math.max(level.get(to), level.get(from) + 1));
+  // A long dependency chain would make one module per row; merge neighbouring levels into at most 4 rows.
+  const depth = Math.max(...level.values()) + 1,
+    rowCount = Math.min(depth, 4);
+  const rows = [];
+  const loose = [];
+  for (const g of order) {
+    if (!touched.has(g.id)) {
+      loose.push(g);
+      continue;
+    }
+    (rows[Math.floor((level.get(g.id) * rowCount) / depth)] ||= []).push(g);
+  }
+  rows.forEach((row) => row?.sort((a, b) => level.get(a.id) - level.get(b.id) || b.lines - a.lines));
+  const layers = rows.filter(Boolean);
+  if (loose.length) layers.push(loose);
+  return layers;
 }
+// Card width follows code size (square-root scale) so one huge module cannot crowd out the rest.
+const cardWidth = (lines) => Math.round(Math.min(380, 150 + Math.sqrt(lines) * 1.2));
+const fmtLines = (n) =>
+  n >= 10000 ? (n / 10000).toFixed(1) + " 万行" : n.toLocaleString() + " 行";
 function selectProject(p) {
   stopTour();
   project = p;
-  groupId = p.groups[0].id;
-  fileLimit = 60;
-  $("file-search").value = "";
+  const lineOf = new Map(p.files.map((f) => [f.path, f.lines]));
+  p.groups.forEach((g) => {
+    g.lines = g.files.reduce((sum, file) => sum + (lineOf.get(file) || 0), 0);
+  });
+  p.layers = layerGroups(p);
+  groupId = p.groups.find(g => g.id === architectureQuery.get('module'))?.id || p.groups[0].id;
   $("name").textContent = p.displayName;
   $("summary").textContent = p.summary;
   $("insight").textContent = p.insight;
@@ -136,9 +177,6 @@ function selectProject(p) {
     " 个源码文件 · 静态结构，不是实时运行追踪。";
 
   renderStructure();
-  if (tab === "flow") renderFlow();
-  if (tab === "evidence") renderEvidence();
-
 }
 function renderStructure() {
   const nodes = $("nodes");
@@ -149,11 +187,19 @@ function renderStructure() {
       related.add(edge.from);
       related.add(edge.to);
     }
-  project.groups.forEach((g, i) => {
+  let number = 0;
+  project.layers.forEach((layer) => {
+  const row = el("div", undefined, "layer");
+  nodes.append(row);
+  layer.forEach((g) => {
     const b = btn(
       "",
       () => {
         stopTour();
+        if (compactArchitecture) {
+          window.parent.postMessage({type:'maker:architecture-expand',groupId:g.id},location.origin);
+          return;
+        }
         groupId = g.id;
         renderStructure();
       },
@@ -161,20 +207,24 @@ function renderStructure() {
     );
     b.dataset.group = g.id;
     b.setAttribute("aria-pressed", String(g.id === groupId));
-    b.classList.toggle("dim", !related.has(g.id));
+    b.classList.toggle("dim", !compactArchitecture && !related.has(g.id));
     b.classList.toggle("linked", g.id !== groupId && related.has(g.id));
+    // Wider cards for bigger modules; the square root keeps a huge module from squeezing the rest.
+    b.style.flex = "0 0 " + cardWidth(g.lines) + "px";
     b.append(
-      el("span", String(i + 1).padStart(2, "0"), "number"),
+      el("span", String(++number).padStart(2, "0"), "number"),
       el("b", g.title),
       el("p", g.description),
       el(
         "small",
-        g.symbols.length
-          ? g.symbols.length + " 个函数 · " + g.files.length + " 个文件"
-          : g.files.length + " 个文件",
+        (g.symbols.length ? g.symbols.length + " 个函数 · " : "") +
+          g.files.length +
+          " 个文件" +
+          (g.lines ? " · " + fmtLines(g.lines) : ""),
       ),
     );
-    nodes.append(b);
+    row.append(b);
+  });
   });
   renderInspector();
   const relations = $("relationships");
@@ -212,7 +262,6 @@ function renderStructure() {
   requestAnimationFrame(drawWires);
 }
 function drawWires() {
-  if (tab !== "structure") return;
   const svg = $("wires"),
     map = $("map");
   svg.replaceChildren();
@@ -243,58 +292,91 @@ function drawWires() {
   defs.append(marker);
   svg.append(defs);
   const rect = map.getBoundingClientRect();
-  let lane = 0;
-  for (const edge of project.groupEdges) {
-    if (edge.from !== groupId && edge.to !== groupId) continue;
-    const a = $("nodes")
-        .querySelector('[data-group="' + edge.from + '"]')
-        .getBoundingClientRect(),
-      b = $("nodes")
-        .querySelector('[data-group="' + edge.to + '"]')
-        .getBoundingClientRect();
-    const ax = a.left + a.width / 2 - rect.left,
-      ay = a.bottom - rect.top,
-      bx = b.left + b.width / 2 - rect.left,
-      by = b.top - rect.top;
-    let d;
-    if (by > ay + 4) {
-      const mid = ay + 18 + (lane % 3) * 8;
-      d = "M " + ax + " " + ay + " V " + mid + " H " + bx + " V " + by;
-    } else if (Math.abs(a.top - b.top) < 10) {
-      const y = Math.max(a.bottom, b.bottom) - rect.top + 18 + (lane % 2) * 8;
-      d =
-        "M " +
-        ax +
-        " " +
-        ay +
-        " V " +
-        y +
-        " H " +
-        bx +
-        " V " +
-        (b.bottom - rect.top);
-    } else {
-      const side = rect.width - 7 - (lane % 2) * 6;
-      d =
-        "M " +
-        (a.right - rect.left) +
-        " " +
-        (a.top + a.height / 2 - rect.top) +
-        " H " +
-        side +
-        " V " +
-        (b.top + b.height / 2 - rect.top) +
-        " H " +
-        (b.right - rect.left);
-    }
+  const box = (id) => {
+    const r = $("nodes")
+      .querySelector('[data-group="' + id + '"]')
+      .getBoundingClientRect();
+    return {
+      l: r.left - rect.left,
+      w: r.width,
+      t: r.top - rect.top,
+      b: r.bottom - rect.top,
+    };
+  };
+  // Selecting a module shows all of its links. The small preview only draws downward links
+  // (a module to the lower-row module it depends on), at most the two strongest per module.
+  let edges = project.groupEdges.filter((e) => e.from !== e.to);
+  if (!compactArchitecture)
+    edges = edges.filter((e) => e.from === groupId || e.to === groupId);
+  let items = edges.map((edge) => {
+    const a = box(edge.from),
+      c = box(edge.to);
+    const dir = c.t > a.b + 4 ? "down" : c.b < a.t - 4 ? "up" : "row";
+    return { edge, a, c, dir, aSide: dir === "up" ? "t" : "b", cSide: dir === "down" ? "t" : "b" };
+  });
+  if (compactArchitecture) {
+    const count = new Map();
+    items = items
+      .filter((it) => it.dir === "down")
+      .sort((x, y) => y.edge.count - x.edge.count)
+      .filter((it) => {
+        const n = count.get(it.edge.from) || 0;
+        count.set(it.edge.from, n + 1);
+        return n < 2;
+      });
+  }
+  // Spread links along a card edge so they do not pile up on the card centre.
+  const slots = new Map();
+  const slot = (id, side, item, role) => {
+    const key = id + side;
+    slots.set(key, [...(slots.get(key) || []), { item, role }]);
+  };
+  items.forEach((it) => {
+    slot(it.edge.from, it.aSide, it, "a");
+    slot(it.edge.to, it.cSide, it, "c");
+  });
+  slots.forEach((list) => {
+    const other = (e) => {
+      const o = e.role === "a" ? e.item.c : e.item.a;
+      return o.l + o.w / 2;
+    };
+    list.sort((x, y) => other(x) - other(y));
+    list.forEach((e, index) => {
+      const self = e.role === "a" ? e.item.a : e.item.c;
+      e.item[e.role + "x"] = self.l + (self.w * (index + 1)) / (list.length + 1);
+    });
+  });
+  for (const { edge, a, c, dir, aSide, cSide, ax, cx } of items) {
+    const ay = aSide === "t" ? a.t : a.b,
+      cy = cSide === "t" ? c.t : c.b;
+    const mid = (ay + cy) / 2,
+      dip = ay + 28;
+    const d =
+      dir === "row"
+        ? "M " + ax + " " + ay + " C " + ax + " " + dip + ", " + cx + " " + (cy + 28) + ", " + cx + " " + cy
+        : "M " + ax + " " + ay + " C " + ax + " " + mid + ", " + cx + " " + mid + ", " + cx + " " + cy;
     const path = s("path", {
       d,
       class: "wire main" + (edge.kind === "包含职责" ? " dashed" : ""),
       "marker-end": "url(#arrow)",
     });
+    path.style.strokeWidth = String(1 + Math.min(2.5, Math.log2(edge.count + 1) / 2));
     svg.append(path);
-    lane++;
+    const flow = s("g", { class: "wire-flow" });
+    flow.append(
+      s("path", {
+        d: "M -8 -4 L 0 0 L -8 4",
+        fill: "none",
+        stroke: "var(--accent)",
+        "stroke-width": "2.5",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+      }),
+    );
+    flow.append(s("animateMotion", { path: d, dur: "3.2s", repeatCount: "indefinite", rotate: "auto" }));
+    svg.append(flow);
   }
+  syncArchitectureMotion();
 }
 function renderInspector() {
   const g = project.groups.find((g) => g.id === groupId),
@@ -334,15 +416,6 @@ function renderInspector() {
               f.functions.length +
               " 个具名函数",
           ),
-          btn("查看引用与函数", () => {
-            setTab("evidence");
-            $("file-search").value = path;
-            renderFiles();
-            $("evidence").scrollIntoView({
-              block: "start",
-              behavior: "instant",
-            });
-          }),
         );
         container.append(item);
       }
@@ -398,198 +471,6 @@ function renderInspector() {
     root.append(detail);
   }
 }
-function renderFlow() {
-  const root = $("flow-map");
-  root.replaceChildren();
-  const flow = project.flow;
-  if (flow) {
-    $("flow-title").textContent = flow.title;
-    $("flow-note").textContent = flow.note;
-    $("flow-badge").textContent = "AI 已阅读关键代码 · 以所列依据为准";
-    $("flow-extra").textContent = flow.extra;
-    const grid = el("div", undefined, "flow-nodes");
-    flow.nodes.forEach((n, i) => {
-      const card = el("article", undefined, "flow-node");
-      card.id = "flow-" + n.id;
-      card.append(
-        el("span", String(i + 1).padStart(2, "0"), "step-id"),
-        el("h3", n.label),
-        el("p", n.evidence.symbol, "source"),
-        sourceButton(n.evidence),
-      );
-      const links = el("div", undefined, "flow-links");
-      for (const edge of flow.edges.filter((e) => e.from === n.id)) {
-        const to = flow.nodes.find((x) => x.id === edge.to);
-        const b = btn("→ " + to.label, () => {
-          root
-            .querySelectorAll(".active")
-            .forEach((e) => e.classList.remove("active"));
-          $("flow-" + to.id).classList.add("active");
-          $("flow-" + to.id).scrollIntoView({
-            behavior: "instant",
-            block: "center",
-          });
-        });
-        b.append(el("span", edge.label));
-        links.append(b);
-      }
-      card.append(links);
-      grid.append(card);
-    });
-    root.append(grid);
-  } else {
-    $("flow-title").textContent = "按职责阅读这个项目";
-    $("flow-note").textContent =
-      "以下是源码导览顺序，不是已经验证的业务执行流程。";
-    $("flow-badge").textContent = "结构已梳理 · 业务流程尚未逐分支复核";
-    $("flow-extra").textContent =
-      "当前项目已提取真实文件与加载引用。复杂事件、闭包、动态加载和网络消息需要进一步阅读；不把 require 顺序当作游戏运行顺序。";
-    const grid = el("div", undefined, "guide");
-    project.guide.forEach((n, i) => {
-      const card = el("article");
-      card.append(
-        el("span", String(i + 1).padStart(2, "0"), "step-id"),
-        el("h3", n.title),
-        el("p", n.text),
-        sourceButton(n.evidence, "查看位置：" + n.evidence.path),
-      );
-      grid.append(card);
-    });
-    root.append(grid);
-  }
-}
-function renderEvidence() {
-  $("evidence-summary").textContent =
-    "字面量加载已解析 " +
-    project.edges.length +
-    " 处；人工确认动态加载 " +
-    project.manualEdges.length +
-    " 处；已识别外部库引用 " +
-    project.engineRefs.length +
-    " 处；其它未解析 " +
-    project.unresolved.length +
-    " 处。发现 " +
-    project.dynamicCount +
-    " 处动态 require。" +
-    (project.manualEdges.length
-      ? "其中已补充经阅读确认的加载关系，其余目标仍需核对。"
-      : project.dynamicCount
-        ? "动态目标未自动展开，需要结合上下文核对。"
-        : "");
-  renderFiles();
-  $("uncertain-title").textContent =
-    "未解析与读取边界 · " +
-    (project.unresolved.length + project.notes.length) +
-    " 项";
-  $("uncertain").replaceChildren();
-  for (const e of project.unresolved) {
-    const row = el("div", undefined, "source-edge");
-    row.append(
-      el("b", e.module),
-      el("small", e.from + ":" + e.line + " · " + e.reason),
-    );
-    $("uncertain").append(row);
-  }
-  for (const note of project.notes) $("uncertain").append(el("p", note));
-  if (!project.unresolved.length && !project.notes.length)
-    $("uncertain").append(
-      el("p", "本轮支持的字面量引用已解析；仍不覆盖运行时加载和完整语法校验。"),
-    );
-  $("excluded").replaceChildren(
-    el(
-      "p",
-      "外部库：" +
-        [...new Set(project.engineRefs.map((e) => e.module))].join("、"),
-    ),
-    el("p", "排除目录：" + project.skipped.join("、")),
-    el(
-      "p",
-      "字面量引用按 scripts/、assets/ 与根目录约定解析。自定义 package.path、模块别名、dofile/loadfile、字符串拼接及长字符串加载未做完整解释；扫描结果不是 Lua 编译器或运行时追踪器。",
-    ),
-  );
-}
-function renderFiles() {
-  const root = $("files"),
-    q = $("file-search").value.trim().toLowerCase();
-  root.replaceChildren();
-  const matches = project.files.filter(
-    (f) =>
-      f.path.toLowerCase().includes(q) ||
-      f.functions.some((x) => x.name.toLowerCase().includes(q)),
-  );
-  root.append(
-    el(
-      "p",
-      "匹配 " +
-        matches.length +
-        " 个文件，当前显示 " +
-        Math.min(matches.length, fileLimit) +
-        " 个。",
-      "source",
-    ),
-  );
-  for (const f of matches.slice(0, fileLimit)) {
-    const d = el("details", undefined, "file-card");
-    const s = el("summary", f.path);
-    s.append(
-      el("small", f.lines + " 行 / " + f.functions.length + " 个具名函数"),
-    );
-    d.append(s);
-    d.addEventListener("toggle", () => {
-      if (!d.open || d.dataset.loaded) return;
-      d.dataset.loaded = "1";
-      d.append(
-        btn("复制文件位置", () => copy(project.path + "/" + f.path)),
-        el("p", "源码 SHA-256：" + f.sha256, "source"),
-      );
-      const symbols = el("div", undefined, "symbols");
-      for (const fn of f.functions)
-        symbols.append(
-          btn(fn.name + " :" + fn.line, () =>
-            copy(project.path + "/" + f.path + ":" + fn.line),
-          ),
-        );
-      d.append(symbols);
-      const edges = [...project.edges, ...project.manualEdges].filter(
-        (e) => e.from === f.path,
-      );
-      for (const e of edges) {
-        const row = el("div", undefined, "source-edge");
-        row.append(
-          el("b", e.module + " → " + e.to),
-          el("small", "第 " + e.line + " 行 · " + (e.kind || "字面量加载")),
-        );
-        d.append(row);
-      }
-      const unresolved = [...project.engineRefs, ...project.unresolved].filter(
-        (e) => e.from === f.path,
-      );
-      for (const e of unresolved)
-        d.append(
-          el(
-            "p",
-            "第 " + e.line + " 行 · " + e.module + "（外部或未解析）",
-            "source",
-          ),
-        );
-    });
-    root.append(d);
-  }
-  if (matches.length > fileLimit)
-    root.append(
-      btn("再显示 60 个文件", () => {
-        fileLimit += 60;
-        renderFiles();
-      }),
-    );
-}
-$("file-search").oninput = () => {
-  fileLimit = 60;
-  renderFiles();
-};
-document
-  .querySelectorAll("[data-tab]")
-  .forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
 $("tour").onclick = () => {
   if (tour) {
     stopTour();
@@ -622,11 +503,27 @@ $("export").onclick = () => {
 };
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) stopTour();
+  syncArchitectureMotion();
 });
+architectureReducedMotion.addEventListener('change',syncArchitectureMotion);
 window.addEventListener("pagehide", stopTour);
-new ResizeObserver(() => requestAnimationFrame(drawWires)).observe($("map"));
+new ResizeObserver(() =>
+  requestAnimationFrame(() => {
+    drawWires();
+    if (compactArchitecture)
+      window.parent.postMessage(
+        { type: "maker:architecture-height", height: document.documentElement.scrollHeight },
+        location.origin,
+      );
+  }),
+).observe($("map"));
 selectProject(data.projects[0]);
 
-window.addEventListener("message",event => { if (event.source === window.parent && event.origin === location.origin && event.data?.type === "maker:architecture-visibility" && !event.data.visible) stopTour(); });
+window.addEventListener("message",event => {
+  if (event.source !== window.parent || event.origin !== location.origin || event.data?.type !== "maker:architecture-visibility") return;
+  architectureVisible = !!event.data.visible;
+  if (!architectureVisible) stopTour();
+  syncArchitectureMotion();
+});
 
 `;

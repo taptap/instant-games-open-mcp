@@ -6,6 +6,7 @@ import { getMakerHome, loadProjectConfig } from '../storage.js';
 import { writePrivateJson } from '../system/privateJson.js';
 import { inspectAssets } from './assets.js';
 import { inspectArchitecture } from './architecture.js';
+import { isLocalCanvasImagePath } from '../canvas/localMediaValidation.js';
 import { parseAnalysis, type Analysis, type Evidence } from './schema.js';
 
 const MAX_RESULT_BYTES = 32 * 1024 * 1024;
@@ -18,6 +19,26 @@ type Facts = {
 };
 type Published = { schema: 1; publishedAt: string; facts: Facts; analysis: Analysis };
 const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
+
+function assetHash(filename: string, expectedBytes: number): string {
+  const fd = fs.openSync(filename, 'r');
+  try {
+    const digest = createHash('sha256');
+    const buffer = Buffer.alloc(64 * 1024);
+    let size = 0;
+    while (size < expectedBytes) {
+      const count = fs.readSync(fd, buffer, 0, Math.min(buffer.length, expectedBytes - size), size);
+      if (!count) throw new Error('素材读取期间发生变化，请重新 collect。');
+      digest.update(buffer.subarray(0, count));
+      size += count;
+    }
+    if (fs.fstatSync(fd).size !== expectedBytes)
+      throw new Error('素材读取期间发生变化，请重新 collect。');
+    return digest.digest('hex');
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 
 function identity(targetDir: string): Identity {
   const root = previewProject(targetDir);
@@ -131,10 +152,99 @@ function validateEvidence(facts: Facts, analysis: Analysis) {
     )
       throw new Error('源码已变化，请重新 collect 并复核分析：' + file.path);
   }
+  if (analysis.organization) {
+    if (!facts.assets.sourceRevisions) throw new Error('分类报告需要新版 collect 依据。');
+    for (const file of facts.assets.sourceRevisions) {
+      const filename = localPath(facts.identity.root, file.path);
+      const stat = fs.statSync(filename);
+      if (
+        !stat.isFile() ||
+        stat.size !== file.bytes ||
+        stat.size > 4 * 1024 * 1024 ||
+        hash(fs.readFileSync(filename, 'utf8')) !== file.sha256
+      )
+        throw new Error('素材引用依据已变化，请重新 collect：' + file.path);
+    }
+    const assets = new Map(facts.assets.assets.map((asset) => [asset.path, asset]));
+    const targets = new Set<string>();
+    for (const item of analysis.organization.items) {
+      const asset = assets.get(item.path);
+      if (!asset) throw new Error('分类素材不在采集范围：' + item.path);
+      const stat = fs.statSync(localPath(facts.identity.root, item.path));
+      if (!stat.isFile() || stat.size !== asset.bytes || stat.mtimeMs !== asset.modifiedAt)
+        throw new Error('分类素材已变化，请重新 collect：' + item.path);
+      if (
+        asset.sha256 &&
+        assetHash(localPath(facts.identity.root, item.path), asset.bytes) !== asset.sha256
+      )
+        throw new Error('分类素材内容已变化，请重新 collect：' + item.path);
+      if (!item.suggestedPath) continue;
+      if (
+        isLocalCanvasImagePath(item.path) ||
+        asset.referenceEvidence?.some((ref) => ref.kind === 'canvas' && ref.relation === 'uses')
+      )
+        throw new Error(
+          '画布管理或直接使用的图片需通过画布正式接口处理，请保持原位或先核实：' + item.path
+        );
+      const target = item.suggestedPath;
+      if (
+        !target.startsWith('assets/') ||
+        target.includes('\\') ||
+        target
+          .split('/')
+          .some(
+            (part) =>
+              !part ||
+              part.startsWith('.') ||
+              /[<>:"|?*]/.test(part) ||
+              [...part].some((character) => character.charCodeAt(0) < 32) ||
+              /[. ]$/.test(part) ||
+              /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part)
+          ) ||
+        path.posix.basename(target) !== path.posix.basename(item.path)
+      )
+        throw new Error('建议路径须在 assets 内保留原文件名，且兼容 Windows：' + target);
+      const normalized = target.normalize('NFC').toLowerCase();
+      if (targets.has(normalized)) throw new Error('建议目标路径重复：' + target);
+      targets.add(normalized);
+      // Inspect existing ancestors without creating directories or following links.
+      let parent = facts.identity.root;
+      for (const part of target.split('/')) {
+        const exists = fs.existsSync(parent);
+        if (exists && !fs.statSync(parent).isDirectory())
+          throw new Error('建议目录被文件占用：' + target);
+        const collision = exists
+          ? fs
+              .readdirSync(parent)
+              .find(
+                (name) =>
+                  name.normalize('NFC').toLowerCase() === part.normalize('NFC').toLowerCase()
+              )
+          : undefined;
+        if (collision && collision !== part)
+          throw new Error('建议路径存在大小写或 Unicode 冲突：' + target);
+        parent = path.join(parent, part);
+        try {
+          if (fs.lstatSync(parent).isSymbolicLink()) throw new Error('建议路径包含链接：' + target);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+      }
+      if (fs.existsSync(parent) || fs.existsSync(parent + '.meta'))
+        throw new Error('建议目标或 meta 已存在：' + target);
+    }
+    for (const target of targets) {
+      const parts = target.split('/');
+      while (parts.pop() && parts.length)
+        if (targets.has(parts.join('/')))
+          throw new Error('建议目录与另一建议文件目标冲突：' + target);
+    }
+  }
   const evidence: Evidence[] = [
     ...analysis.guide.map((item) => item.evidence),
     ...(analysis.flow?.nodes.map((item) => item.evidence) ?? []),
     ...analysis.findings.flatMap((item) => item.evidence),
+    ...(analysis.organization?.items.flatMap((item) => item.evidence) ?? []),
   ];
   const lineCounts = new Map<string, number>();
   for (const ref of evidence) {
@@ -247,7 +357,7 @@ export function architectureView(saved: NonNullable<ReturnType<typeof readProjec
     path: facts.identity.root,
     name: path.basename(facts.identity.root),
     displayName: path.basename(facts.identity.root),
-    kind: 'AI 源码分析',
+    kind: analysis.auto ? '自动检查 · 按目录分组' : 'AI 源码分析',
     source: 'CLI 保存的检查结果',
     single: false,
     summary: analysis.summary,

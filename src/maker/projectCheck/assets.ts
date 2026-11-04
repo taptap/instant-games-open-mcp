@@ -2,8 +2,31 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { readImageDimensions } from '../canvas/imageDimensions.js';
+import { collectAssetRelations } from './relations.js';
 
-type Asset = { path: string; bytes: number; width?: number; height?: number; references: string[] };
+export type AssetReference = {
+  path: string;
+  line: number;
+  kind: 'path' | 'uuid' | 'filename' | 'registry' | 'canvas';
+  canvasId?: string;
+  nodeId?: string;
+  title?: string;
+  relation?: 'uses' | 'origin';
+  cachePath?: string;
+};
+export type Asset = {
+  path: string;
+  bytes: number;
+  modifiedAt?: number;
+  sha256?: string;
+  width?: number;
+  height?: number;
+  /** Set when the file has an image extension but is not a decodable bitmap (e.g. KTX texture). */
+  unreadable?: 'ktx';
+  references: string[];
+  referenceEvidence?: AssetReference[];
+  omittedReferences?: number;
+};
 export interface AssetCheck {
   checkedAt: string;
   complete: boolean;
@@ -13,13 +36,31 @@ export interface AssetCheck {
   warnings: string[];
   omittedWarnings: number;
   sourceCount: number;
+  sourceRevisions?: Array<{ path: string; bytes: number; sha256: string }>;
 }
 const TEXT = new Set(['.lua', '.json', '.xml', '.material', '.prefab', '.scene', '.meta']);
+/** KTX 1.1 / KTX 2.0 magic: «KTX 11» / «KTX 20». */
+async function isKtxTexture(filename: string): Promise<boolean> {
+  const handle = await fs.open(filename, 'r');
+  try {
+    const head = Buffer.alloc(12);
+    const { bytesRead } = await handle.read(head, 0, 12, 0);
+    const version = head.toString('latin1', 5, 7);
+    return (
+      bytesRead === 12 &&
+      head[0] === 0xab &&
+      head.toString('latin1', 1, 5) === 'KTX ' &&
+      (version === '11' || version === '20')
+    );
+  } finally {
+    await handle.close();
+  }
+}
 const IMAGES = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const MAX_ENTRIES = 20000;
 const MAX_TEXT = 4 * 1024 * 1024;
 const MAX_TEXT_TOTAL = 64 * 1024 * 1024;
-const MAX_HASH_TOTAL = 512 * 1024 * 1024;
+const MAX_HASH_TOTAL = 1024 * 1024 * 1024;
 
 /** Read-only inventory: reference evidence is conservative, never a deletion decision. */
 export async function inspectAssets(projectDir: string, signal?: AbortSignal): Promise<AssetCheck> {
@@ -33,8 +74,9 @@ export async function inspectAssets(projectDir: string, signal?: AbortSignal): P
     warnings: [],
     omittedWarnings: 0,
     sourceCount: 0,
+    sourceRevisions: [],
   };
-  const files: Array<{ path: string; bytes: number }> = [];
+  const files: Array<{ path: string; bytes: number; modifiedAt: number }> = [];
   let visited = 0,
     textBytes = 0,
     hashBytes = 0;
@@ -89,7 +131,7 @@ export async function inspectAssets(projectDir: string, signal?: AbortSignal): P
         else if (entry.isDirectory()) await walk(name, depth + 1);
         else if (entry.isFile()) {
           const stat = await fs.stat(await safeFile(name));
-          files.push({ path: name, bytes: stat.size });
+          files.push({ path: name, bytes: stat.size, modifiedAt: stat.mtimeMs });
         }
       }
     } catch (error) {
@@ -98,8 +140,21 @@ export async function inspectAssets(projectDir: string, signal?: AbortSignal): P
         warn(relative + '：无法完整读取目录');
     }
   }
-  for (const directory of ['assets', 'scripts', '.project', '.maker/canvases'])
+  for (const directory of [
+    'assets',
+    'scripts',
+    '.project',
+    '.maker/canvases',
+    '.maker/ui-workflows',
+  ])
     await walk(directory);
+  const registryPath = '.maker/assets/generated-assets.json';
+  try {
+    const stat = await fs.stat(await safeFile(registryPath));
+    files.push({ path: registryPath, bytes: stat.size, modifiedAt: stat.mtimeMs });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') warn('生成素材注册表无法安全读取');
+  }
   for (const entry of await fs.readdir(root, { withFileTypes: true })) {
     if (++visited > MAX_ENTRIES) {
       warn('目录项超过 20000，项目根扫描未完成');
@@ -107,7 +162,7 @@ export async function inspectAssets(projectDir: string, signal?: AbortSignal): P
     }
     if (entry.isFile() && path.extname(entry.name).toLowerCase() === '.lua') {
       const stat = await fs.stat(await safeFile(entry.name));
-      files.push({ path: entry.name, bytes: stat.size });
+      files.push({ path: entry.name, bytes: stat.size, modifiedAt: stat.mtimeMs });
     }
   }
   const assets = files.filter(
@@ -152,6 +207,11 @@ export async function inspectAssets(projectDir: string, signal?: AbortSignal): P
         await handle.close();
       }
       texts.push({ path: file.path, text });
+      result.sourceRevisions!.push({
+        path: file.path,
+        bytes: file.bytes,
+        sha256: createHash('sha256').update(text).digest('hex'),
+      });
       result.sourceCount++;
       if (file.path.endsWith('.meta')) {
         try {
@@ -167,12 +227,42 @@ export async function inspectAssets(projectDir: string, signal?: AbortSignal): P
     }
   }
   const references = new Map<string, Set<string>>();
+  const evidence = new Map<string, AssetReference[]>();
+  const omitted = new Map<string, number>();
+  const addReference = (target: string, ref: AssetReference) => {
+    const rows = evidence.get(target) ?? [];
+    if (rows.some((row) => JSON.stringify(row) === JSON.stringify(ref))) return;
+    if (rows.length < 40) rows.push(ref);
+    else omitted.set(target, (omitted.get(target) ?? 0) + 1);
+    evidence.set(target, rows);
+    const sources = references.get(target) ?? new Set<string>();
+    if (sources.size < 5) sources.add(ref.path);
+    references.set(target, sources);
+  };
+  collectAssetRelations(
+    root,
+    texts,
+    new Set(assets.map((asset) => asset.path)),
+    addReference,
+    warn
+  );
   for (const source of texts) {
     signal?.throwIfAborted();
+    // Managed history and registry entries describe provenance, not runtime usage.
+    if (source.path.startsWith('.maker/') && !source.path.startsWith('.maker/ui-workflows/'))
+      continue;
     // Include path literals and UUIDs in code/config/Canvas, but not a resource's own meta.
+    let line = 1,
+      cursor = 0;
     for (const match of source.text.matchAll(/["']([^"'\r\n]{1,2048})["']/g)) {
+      line += source.text.slice(cursor, match.index).split('\n').length - 1;
+      cursor = match.index;
       const normalized = match[1].split(String.fromCharCode(92)).join('/');
-      const token = normalized.startsWith('./') ? normalized.slice(2) : normalized;
+      const token = path.isAbsolute(normalized)
+        ? path.relative(root, normalized).split(path.sep).join('/')
+        : normalized.startsWith('./')
+          ? normalized.slice(2)
+          : normalized;
       const candidates = [
         token,
         path.posix.normalize(path.posix.join(path.posix.dirname(source.path), token)),
@@ -180,17 +270,30 @@ export async function inspectAssets(projectDir: string, signal?: AbortSignal): P
       for (const candidate of candidates)
         for (const target of aliases.get(candidate) ?? []) {
           if (source.path === target || source.path === target + '.meta') continue;
-          const sources = references.get(target) ?? new Set<string>();
-          if (sources.size < 5) sources.add(source.path);
-          references.set(target, sources);
+          addReference(target, {
+            path: source.path,
+            line,
+            kind:
+              candidate === path.posix.basename(target)
+                ? 'filename'
+                : candidate === target || candidate === target.slice(7)
+                  ? 'path'
+                  : 'uuid',
+          });
         }
     }
   }
+  let ktxCount = 0;
   const sizes = new Map<number, Asset[]>();
   const directories = new Map<string, { path: string; count: number; bytes: number }>();
   for (const file of assets) {
     signal?.throwIfAborted();
-    const asset: Asset = { ...file, references: [...(references.get(file.path) ?? [])] };
+    const asset: Asset = {
+      ...file,
+      references: [...(references.get(file.path) ?? [])],
+      referenceEvidence: evidence.get(file.path) ?? [],
+      omittedReferences: omitted.get(file.path) ?? 0,
+    };
     const directory = path.posix.dirname(file.path);
     const row = directories.get(directory) ?? { path: directory, count: 0, bytes: 0 };
     row.count++;
@@ -204,7 +307,10 @@ export async function inspectAssets(projectDir: string, signal?: AbortSignal): P
         Object.assign(asset, dimensions);
       } catch {
         signal?.throwIfAborted();
-        warn(file.path + '：无法读取图片尺寸或超过 64 MiB');
+        if (await isKtxTexture(await safeFile(file.path))) {
+          asset.unreadable = 'ktx';
+          ktxCount++;
+        } else warn(file.path + '：无法读取图片尺寸或超过 64 MiB');
       }
     }
     result.assets.push(asset);
@@ -212,12 +318,38 @@ export async function inspectAssets(projectDir: string, signal?: AbortSignal): P
     sameSize.push(asset);
     sizes.set(file.bytes, sameSize);
   }
-  for (const group of sizes.values()) {
-    if (group.length < 2) continue;
+  // Preview needs a digest, so images the report highlights (oversized, or no explicit reference)
+  // are hashed before other same-size candidates; otherwise the read budget runs out on unrelated files.
+  const attention = (asset: Asset) =>
+    Math.max(asset.width ?? 0, asset.height ?? 0) > 2048 ||
+    !asset.referenceEvidence?.some(
+      (ref) =>
+        ref.kind === 'path' ||
+        ref.kind === 'uuid' ||
+        (ref.kind === 'canvas' && ref.relation === 'uses')
+    );
+  const previewable = (asset: Asset) =>
+    Boolean(asset.width) &&
+    Boolean(asset.height) &&
+    asset.bytes <= 16 * 1024 * 1024 &&
+    (asset.width ?? 0) * (asset.height ?? 0) <= 16777216;
+  if (ktxCount)
+    warn(
+      ktxCount +
+        ' 个 .png/.jpg/.webp 文件实际是 KTX 压缩纹理，无法解码，不参与尺寸与超大图检查，也不能预览'
+    );
+  const groups = [...sizes.values()]
+    .filter((group) => group.length >= 2 || (previewable(group[0]) && attention(group[0])))
+    .sort(
+      (a, b) =>
+        Number(b.some((file) => previewable(file) && attention(file))) -
+        Number(a.some((file) => previewable(file) && attention(file)))
+    );
+  for (const group of groups) {
     const hashes = new Map<string, string[]>();
     for (const file of group) {
       if (hashBytes + file.bytes > MAX_HASH_TOTAL) {
-        warn(file.path + '：超过 512 MiB 哈希读取预算，重复检查不完整');
+        warn(file.path + '：超过 1 GiB 哈希读取预算，重复检查不完整');
         continue;
       }
       try {
@@ -248,6 +380,7 @@ export async function inspectAssets(projectDir: string, signal?: AbortSignal): P
           await handle.close();
         }
         const digest = hash.digest('hex');
+        file.sha256 = digest;
         const paths = hashes.get(digest) ?? [];
         paths.push(file.path);
         hashes.set(digest, paths);

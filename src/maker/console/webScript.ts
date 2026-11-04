@@ -4,6 +4,7 @@ import { modelSettingsScript } from './modelSettingsUi.js';
 import { contextCheckScript } from './contextCheckUi.js';
 import { architecturePreviewScript } from './architecturePreview.js';
 import { assetCheckScript } from './assetCheckUi.js';
+import { assetLibraryScript } from './assetLibraryUi.js';
 
 export const consoleScript = String.raw`
 ${consoleThemeScript}
@@ -3002,6 +3003,10 @@ onProjectChange(() => {
 });
 ${architecturePreviewScript}
 ${assetCheckScript}
+${assetLibraryScript}
+onProjectChange(() => {
+  document.querySelectorAll('dialog[data-project-key]').forEach(dialog => dialog.close());
+});
 document.addEventListener('DOMContentLoaded',async () => {
   window.addEventListener('beforeunload', protectUiEditorUnload);
   $('git-pull-conflict-copy')?.addEventListener('click',() => void copyGitPrompt($('git-pull-conflict-prompt').value));

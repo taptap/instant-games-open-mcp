@@ -1,4 +1,17 @@
 export type Evidence = { path: string; line: number; symbol: string };
+export type AssetOrganization = {
+  groups: Array<{ id: string; title: string; description: string }>;
+  items: Array<{
+    path: string;
+    groupId: string | null;
+    role: 'runtime' | 'source' | 'history' | 'unknown';
+    usage: string;
+    action: 'keep' | 'review' | 'move';
+    reason: string;
+    suggestedPath?: string;
+    evidence: Evidence[];
+  }>;
+};
 export type Analysis = {
   schema: 1;
   factsRevision: string;
@@ -22,10 +35,13 @@ export type Analysis = {
     evidence: Evidence[];
   }>;
   limitations: string[];
+  organization?: AssetOrganization;
+  /** Set by the console's automatic check: directory grouping without AI source analysis. */
+  auto?: true;
 };
 
 export const projectCheckCapabilities = {
-  version: 1,
+  version: 2,
   commands: {
     collect:
       'project-check collect --target-dir ABSOLUTE_PROJECT --json: read local facts and save a bounded snapshot in Maker home; returns facts and revisions.',
@@ -66,6 +82,22 @@ export const projectCheckCapabilities = {
       },
     ],
     limitations: ['List incomplete checks and unresolved dynamic references'],
+    organization: {
+      groups: [
+        { id: 'ui-home', title: '界面 / 主界面', description: 'Purpose based on actual use' },
+      ],
+      items: [
+        {
+          path: 'assets/image/home.png',
+          groupId: 'ui-home',
+          role: 'source',
+          usage: 'Explain actual use; inspect images and callers before classifying',
+          action: 'review',
+          reason: 'List unresolved dependencies before proposing a move',
+          evidence: [{ path: 'assets/image/home.png', line: 1, symbol: 'Reviewed image' }],
+        },
+      ],
+    },
   },
   flow: {
     title: 'Reviewed business flow',
@@ -88,6 +120,10 @@ export const projectCheckCapabilities = {
     'Both revisions must match. Invalid or conflicting publication preserves the previous result. Collect does not replace published results.',
     'Results are dated snapshots, not live verification. Reading the console or show does not scan project files.',
     'No asset mutation, compression, upload, build or deletion is performed. image compress is a separate existing PNG lossless command.',
+    'organization is optional for legacy reports. Use at most 64 purpose groups and 20000 unique collected asset paths. Omitted items remain unclassified, never infer their purpose from filenames alone.',
+    'Each organization item requires groupId (null for unclassified), role (runtime/source/history/unknown), usage, action (keep/review/move), reason and 1-50 evidence entries. Canvas caches are managed separately, not move candidates.',
+    'Only action=move accepts and requires suggestedPath: a new canonical assets/ path preserving the basename. Existing targets, duplicate targets, symlinks and stale asset facts are rejected. This is a proposal, not permission or an executable migration plan.',
+    'referenceEvidence distinguishes path/uuid, ambiguous filename, registry metadata and saved canvas uses/origin. Origin links match recorded task IDs, not current image bytes. Missing links are unknown; registry metadata is not runtime use.',
   ],
 };
 
@@ -119,6 +155,45 @@ function evidence(value: unknown): Evidence {
 }
 function unique(ids: string[]) {
   if (new Set(ids).size !== ids.length) throw new Error('Duplicate module or flow node ID.');
+}
+
+function organization(value: unknown): AssetOrganization {
+  const input = object(value);
+  const groups = list(input.groups, 64, (value) => {
+    const group = object(value);
+    return { id: id(group.id), title: text(group.title), description: text(group.description) };
+  });
+  unique(groups.map((group) => group.id));
+  const ids = new Set(groups.map((group) => group.id));
+  const items = list(input.items, 20000, (value) => {
+    const item = object(value);
+    if (item.groupId !== null && (typeof item.groupId !== 'string' || !ids.has(item.groupId)))
+      throw new Error('Unknown asset group.');
+    if (
+      typeof item.role !== 'string' ||
+      !['runtime', 'source', 'history', 'unknown'].includes(item.role) ||
+      typeof item.action !== 'string' ||
+      !['keep', 'review', 'move'].includes(item.action)
+    )
+      throw new Error('Invalid asset role or action.');
+    if (item.action !== 'move' && item.suggestedPath !== undefined)
+      throw new Error('Only move proposals accept suggestedPath.');
+    const refs = list(item.evidence, 50, evidence);
+    if (!refs.length) throw new Error('Asset classification requires evidence.');
+    return {
+      path: text(item.path),
+      groupId: item.groupId as string | null,
+      role: item.role as AssetOrganization['items'][number]['role'],
+      usage: text(item.usage),
+      action: item.action as AssetOrganization['items'][number]['action'],
+      reason: text(item.reason),
+      evidence: refs,
+      ...(item.action === 'move' ? { suggestedPath: text(item.suggestedPath) } : {}),
+    };
+  });
+  if (new Set(items.map((item) => item.path)).size !== items.length)
+    throw new Error('Duplicate classified asset.');
+  return { groups, items };
 }
 
 /** Normalize untrusted AI output before persisting or passing it to the viewer. */
@@ -190,5 +265,7 @@ export function parseAnalysis(value: unknown): Analysis {
     flow,
     findings,
     limitations: list(a.limitations, 100, text),
+    ...(a.organization === undefined ? {} : { organization: organization(a.organization) }),
+    ...(a.auto === true ? { auto: true as const } : {}),
   };
 }
