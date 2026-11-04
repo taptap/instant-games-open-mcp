@@ -16,7 +16,7 @@ let projectid = initialQuery.get('projectid') || '';
 let selected = initialQuery.get('project') || '';
 const hasExplicitProject = initialQuery.has('projectid') || initialQuery.has('project');
 let page = selected ? 'overview' : 'projects';
-let otherTab = 'motion';
+let otherTab = 'architecture';
 let motionFrame;
 let selectionEpoch = 0;
 let viewEpoch = 0;
