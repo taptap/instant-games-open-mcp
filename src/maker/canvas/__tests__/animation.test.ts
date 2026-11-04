@@ -107,6 +107,7 @@ describe('animation output cards', () => {
     const elements: Array<{ tag: string; dataset: Record<string, string> }> = [];
     const drawing = { clearRect: jest.fn(), drawImage: jest.fn() };
     const loads: Array<() => void> = [];
+    const failures: Array<() => void> = [];
     let images = 0;
     const factory = new Script('(' + createAnimationCards.toString() + ')').runInNewContext({
       document: {
@@ -126,11 +127,13 @@ describe('animation output cards', () => {
       },
       Image: class {
         onload?: () => void;
+        onerror?: () => void;
         constructor() {
           images += 1;
         }
         set src(_value: string) {
           loads.push(() => this.onload?.());
+          failures.push(() => this.onerror?.());
         }
       },
       performance: { now: () => 0 },
@@ -183,6 +186,11 @@ describe('animation output cards', () => {
     render();
     expect(images).toBe(2);
     expect(canvases()).toHaveLength(2);
+    failures.at(-1)!();
+    render();
+    expect(images).toBe(3);
+    loads.at(-1)!();
+    expect(canvases().at(-1)!.dataset.frameIndex).toBe('0');
   });
 
   test('copies a saved result without linking its mutable frame metadata', () => {

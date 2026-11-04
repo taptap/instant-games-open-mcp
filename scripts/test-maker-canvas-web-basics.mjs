@@ -5811,6 +5811,18 @@ try {
       const shown = await card(pasted.id).boundingBox();
       assert.ok(shown && shown.x >= 0 && shown.x + shown.width <= 1400, '复制卡在视野内');
       await editor('undo', {});
+      // Mixed selections must retain ordinary cards as well as copied mirrors.
+      await card(byKey.cutout_ref.id).click({ position: { x: 40, y: 80 } });
+      await card(source.id).click({ position: { x: 40, y: 60 }, modifiers: ['Shift'] });
+      await page.keyboard.press('ControlOrMeta+d');
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 2,
+        beforeCopy
+      );
+      const mixedCopies = (await current()).nodes.slice(-2);
+      assert.ok(mixedCopies.some((node) => node.assetPath === source.assetPath && !node.mirror));
+      assert.ok(mixedCopies.every((node) => !node.mirror));
+      await editor('undo', {});
       // Dragging a sprite card out of its group keeps it in the group.
       const inside = byKey.cutout_ref;
       await settle();
@@ -5936,6 +5948,37 @@ try {
       await page.close();
     }
   );
+  await check('Web 精灵同步：媒体晚到、强制刷新同路径文件无需改进度 JSON', async () => {
+    const { page, current, card, settle, errors } = await spritePage();
+    await startSprite(page, 'hero');
+    const assetPath = 'assets/image/late.png';
+    await page.evaluate(
+      ({ progress }) => {
+        window.__canvasProjectJson = { '.build/sprite-gen/hero/_progress.json': progress };
+      },
+      { progress: spriteProgress('plan', { flags: { viewpoint_candidates: [assetPath] } }) }
+    );
+    await page.evaluate(() => window.__canvasEditor.syncSprites());
+    assert.ok(!(await current()).nodes.some((node) => node.assetPath === assetPath));
+    await page.evaluate(async (path) => {
+      await window.__canvasAddMedia('#c33', 80, 80, path);
+      window.dispatchEvent(new Event('online'));
+    }, assetPath);
+    await page.waitForFunction(
+      (path) => window.__canvasEditor.current().nodes.some((node) => node.assetPath === path),
+      assetPath
+    );
+    const node = (await current()).nodes.find((node) => node.assetPath === assetPath);
+    await settle();
+    const before = await card(node.id).locator('img').getAttribute('src');
+    await page.evaluate(async (path) => {
+      await window.__canvasAddMedia('#33c', 80, 80, path);
+      await window.__canvasEditor.syncSprites();
+    }, assetPath);
+    assert.notEqual(await card(node.id).locator('img').getAttribute('src'), before);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
   await check(
     'Web 精灵同步：完成态裁边精灵表生成可播放的动画卡与序列帧卡，阶段为已完成（明暗）',
     async () => {

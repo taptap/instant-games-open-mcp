@@ -1323,6 +1323,7 @@ function applyCardMenuPatches(source: string): string {
       '    const copies = [];',
       '    try {',
       '      for (const node of nodes) {',
+      '        if (!node.mirror) { copies.push({ node: node, path: node.assetPath, plain: true }); continue; }',
       "        const blob = await host.readSource(node.assetPath, AbortSignal.timeout(60000), '素材读取失败，可能已被移动或删除。');",
       "        const image = node.type === 'image';",
       "        const type = blob.type || (image ? (/\\.jpe?g$/i.test(node.assetPath) ? 'image/jpeg' : /\\.webp$/i.test(node.assetPath) ? 'image/webp' : 'image/png') : (/\\.webm$/i.test(node.assetPath) ? 'video/webm' : /\\.mov$/i.test(node.assetPath) ? 'video/quicktime' : 'video/mp4'));",
@@ -1334,8 +1335,8 @@ function applyCardMenuPatches(source: string): string {
       '      for (const item of copies) {',
       '        const section = item.node.sectionId && documentState.nodes.find(function (other) { return other.id === item.node.sectionId; });',
       "        const copy = { id: crypto.randomUUID(), type: item.node.type, x: section ? section.x + section.width + 48 : item.node.x + 36, y: item.node.y, width: item.node.width, height: item.node.height, title: (item.node.title || '').replace(/ · 主参考图$/, ''), assetPath: item.path };",
-      '        documentState.nodes.push(copy); selected.add(copy.id);',
-      '        await loadMedia(item.path);',
+      '        if (item.plain) { const original = JSON.parse(JSON.stringify(item.node)); resetImageFeatureCopy(original, false); original.id = copy.id; original.x += 36; original.y += 36; delete original.sectionId; delete original.templatePending; delete original.sourceSnapshot; delete original.sourceSnapshots; if (original.generation) original.generation = { prompt: original.generation.prompt, operation: "generate" }; if (original.assetPath && original.videoInputMode === "first_last_frame") delete original.videoInputMode; documentState.nodes.push(original); } else documentState.nodes.push(copy); selected.add(copy.id);',
+      '        if (item.path) await loadMedia(item.path);',
       '      }',
       '      markDirty(); render();',
       "    } catch (caught) { setError((caught && caught.message) || '复制失败，请稍后重试。'); } finally { finishAssetImport(); }",
@@ -1345,7 +1346,8 @@ function applyCardMenuPatches(source: string): string {
       '    if (mirrored.length) {',
       "      const copyable = mirrored.filter(function (node) { return (node.type === 'image' || node.type === 'video-source') && node.assetPath; });",
       "      if (copyable.length !== mirrored.length) { setError('精灵的序列帧和动画卡片暂不支持复制，可以先下载再导入。'); return; }",
-      '      void copyMirrorsAsPlain(copyable); return;',
+      '      if (protectTemplateSelection()) return;',
+      "      void copyMirrorsAsPlain(documentState.nodes.filter(function (node) { return selected.has(node.id) && node.type !== 'section'; })); return;",
       '    }',
     ].join('\n')
   );
@@ -1412,9 +1414,9 @@ function applyCardMenuPatches(source: string): string {
   );
   // The copy lands outside the (possibly wide) sprite group: pan so it is in view.
   patch(
-    '        await loadMedia(item.path);\n      }\n      markDirty(); render();',
+    '        if (item.path) await loadMedia(item.path);\n      }\n      markDirty(); render();',
     [
-      '        await loadMedia(item.path);',
+      '        if (item.path) await loadMedia(item.path);',
       '      }',
       '      const last = documentState.nodes.find(function (node) { return selected.has(node.id); });',
       '      if (last) {',
@@ -1510,7 +1512,7 @@ function applySpriteGenPatches(source: string): string {
       '    const missing = [];',
       // Cards only appear once the host can serve their file; known files re-read after a change.
       '    for (const card of reconcileSpriteMirror(input).cards) {',
-      '      if (!store.prepareMedia || (media[card.assetPath] && !filesChanged)) continue;',
+      '      if (!store.prepareMedia || (media[card.assetPath] && !filesChanged && !force)) continue;',
       '      try { await store.prepareMedia(card.assetPath, Boolean(media[card.assetPath])); if (!store.mediaUrl(card.assetPath)) missing.push(card.assetPath); else missingMedia.delete(card.assetPath); }',
       '      catch (caught) { missing.push(card.assetPath); }',
       '    }',
@@ -1528,7 +1530,7 @@ function applySpriteGenPatches(source: string): string {
       '    const tidy = spriteTidy.delete(sectionId);',
       '    const edited = applySpriteMirror(current, sectionId, plan, function () { return crypto.randomUUID(); }, { tidy: tidy });',
       '    current.nodes.forEach(function (node) { if (node.mirror && node.sectionId === sectionId && node.assetPath) media[node.assetPath] = store.mediaUrl(node.assetPath); });',
-      "    spriteStatus.set(sectionId, plan.stage); spriteFiles.set(sectionId, signature); spriteSeen.set(sectionId, signature + '\\n' + spriteDocKey(current, sectionId));",
+      "    spriteStatus.set(sectionId, plan.stage); spriteFiles.set(sectionId, signature); if (missing.length) spriteSeen.delete(sectionId); else spriteSeen.set(sectionId, signature + '\\n' + spriteDocKey(current, sectionId));",
       '    if (edited) markDirty();',
       '    render();',
       '  }',
@@ -1559,7 +1561,7 @@ function applySpriteGenPatches(source: string): string {
       '  function scheduleSpritePoll() {',
       '    clearTimeout(spriteTimer); spriteTimer = 0;',
       "    if (!spriteSyncEnabled() || canvasPanelHidden || document.visibilityState !== 'visible') return;",
-      '    if (!spriteSections().some(function (section) { const stage = spriteStatus.get(section.id); return !stage || !stage.done; })) return;',
+      '    if (!spriteSections().some(function (section) { const stage = spriteStatus.get(section.id); return !stage || !stage.done || !spriteSeen.has(section.id); })) return;',
       '    spriteTimer = setTimeout(function () { spriteTimer = 0; void syncAllSprites(false); }, 10000);',
       '  }',
       "  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { if (!canvasPanelHidden) void syncAllSprites(false); } else { clearTimeout(spriteTimer); spriteTimer = 0; } });",

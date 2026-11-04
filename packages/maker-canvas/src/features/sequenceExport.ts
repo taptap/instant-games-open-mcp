@@ -51,6 +51,10 @@ export function sequenceExportManifest(
     throw new Error(
       '这组帧来自带裁边偏移或多页的精灵表，画布暂不支持重新导出；请直接使用项目中的精灵表文件。'
     );
+  if (
+    info.frames.some((frame) => frame.duration !== undefined && frame.duration !== 1000 / info.fps)
+  )
+    throw new Error('这组帧包含独立帧时长，画布暂不支持重新导出；请直接使用项目中的精灵表文件。');
   const first = info.frames[0];
   for (const frame of info.frames) {
     if (
