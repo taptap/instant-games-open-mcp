@@ -576,7 +576,7 @@ export function growSpriteSection(document: CanvasDocument, sectionId: string): 
   if (!section) return false;
   const members = document.nodes.filter((node) => node.sectionId === sectionId);
   if (!members.length) return false;
-  const edge = (values: number[], pick: (...items: number[]) => number) => pick.apply(null, values);
+  const edge = (values: number[], pick: (...items: number[]) => number) => pick(...values);
   const left = Math.min(
     section.x,
     edge(
@@ -646,6 +646,44 @@ export function applySpriteMirror(
         node.mirror.name === sprite.name &&
         node.sectionId === section.id
     );
+  // Check capacity before touching the document: automatic sync has no undo entry.
+  const removed = new Set(
+    options.tidy && plan.mergedReady
+      ? document.nodes
+          .filter((node) => mine(node) && node.mirror!.key === 'ready')
+          .map((node) => node.id)
+      : []
+  );
+  const kept = document.nodes.filter((node) => !removed.has(node.id));
+  const byKey = new Map(kept.filter(mine).map((node) => [node.mirror!.key, node]));
+  const plannedKeys = new Set(plan.cards.map((card) => card.key));
+  const additions = [...plannedKeys].filter((key) => !byKey.has(key)).length;
+  const related = new Set([...byKey.values()].map((node) => node.id).concat(sprite.sourceId));
+  const reset = new Set(
+    [...byKey.values()].filter((node) => plannedKeys.has(node.mirror!.key)).map((node) => node.id)
+  );
+  const edges = document.edges.filter(
+    (edge) =>
+      !removed.has(edge.from) &&
+      !removed.has(edge.to) &&
+      !(options.tidy && related.has(edge.from) && reset.has(edge.to))
+  );
+  const addedEdges = plan.cards.filter((card) => {
+    const node = byKey.get(card.key);
+    if (node && !options.tidy && node.mirror!.linked) return false;
+    if (node && edges.some((edge) => edge.to === node.id && related.has(edge.from))) return false;
+    return Boolean(
+      card.edgeKind &&
+        card.parent &&
+        (card.parent === 'source'
+          ? kept.some((item) => item.id === sprite.sourceId)
+          : byKey.has(card.parent) || plannedKeys.has(card.parent))
+    );
+  }).length;
+  if (kept.length + additions > 400 || edges.length + addedEdges > 800)
+    throw new Error(
+      '画布容量不足（最多 400 张卡片、800 条连线），请清理卡片或连线后重新同步精灵。'
+    );
   if (options.tidy && plan.mergedReady) {
     // The only removal 重新整理 does: a 主参考图 card duplicating the chosen candidate.
     const duplicate = document.nodes.filter((node) => mine(node) && node.mirror!.key === 'ready');
@@ -680,7 +718,7 @@ export function applySpriteMirror(
   }
   // Only adds: cards sprite-gen no longer lists (e.g. replaced candidates) stay with their lines;
   // the user deletes them by hand if not wanted.
-  const existing: Record<string, CanvasNode> = {};
+  const existing: Record<string, CanvasNode> = Object.create(null);
   document.nodes.filter(mine).forEach((node) => (existing[node.mirror!.key] = node));
   const source = document.nodes.find((node) => node.id === sprite.sourceId);
   const origin = source && source.sectionId === section.id ? source : undefined;
@@ -692,9 +730,9 @@ export function applySpriteMirror(
   };
   const gapX = 56;
   const gapY = 40;
-  const ids: Record<string, string> = {};
+  const ids: Record<string, string> = Object.create(null);
   if (source) ids.source = source.id;
-  const fresh: Record<string, boolean> = {};
+  const fresh: Record<string, boolean> = Object.create(null);
   for (const card of plan.cards) {
     let node = Object.prototype.hasOwnProperty.call(existing, card.key)
       ? existing[card.key]
@@ -769,15 +807,15 @@ export function applySpriteMirror(
   // downward in creation order, so new candidates fan out below the ones already there.
   // A card that already has a line from the source or another mirror card keeps it: layout and
   // edges follow that line instead of the plan, so a late intermediate output never rewires it.
-  const keyOf: Record<string, string> = {};
+  const keyOf: Record<string, string> = Object.create(null);
   Object.keys(ids).forEach((key) => (keyOf[ids[key]] = key));
   const incoming = (node: CanvasNode) =>
     document.edges.find((edge) => edge.to === node.id && Boolean(keyOf[edge.from]));
-  const planned: Record<string, CanvasSpriteMirrorCard> = {};
+  const planned: Record<string, CanvasSpriteMirrorCard> = Object.create(null);
   plan.cards.forEach((card) => (planned[card.key] = card));
   // Document order = creation order (new cards are pushed last).
   const keys = document.nodes.filter(mine).map((node) => node.mirror!.key);
-  const children: Record<string, string[]> = {};
+  const children: Record<string, string[]> = Object.create(null);
   const roots: string[] = [];
   for (const key of keys) {
     const line = fresh[key] ? undefined : incoming(existing[key]);
@@ -786,7 +824,7 @@ export function applySpriteMirror(
       (children[parent] = children[parent] || []).push(key);
     else roots.push(key);
   }
-  const depth: Record<string, number> = {};
+  const depth: Record<string, number> = Object.create(null);
   const widths: number[] = [];
   const measure = (key: string, level: number) => {
     if (depth[key] !== undefined) return;
@@ -821,7 +859,7 @@ export function applySpriteMirror(
   // one horizontal centre line and siblings are symmetric about their parent's line. Subtrees are
   // stacked so they never overlap. Shapes are measured bottom-up relative to each card's centre.
   type Shape = { up: number; down: number; offsets: number[] };
-  const shapes: Record<string, Shape> = {};
+  const shapes: Record<string, Shape> = Object.create(null);
   const shapeOf = (key: string): Shape => {
     if (shapes[key]) return shapes[key];
     const node = key === 'source' ? source! : existing[key];
@@ -847,7 +885,7 @@ export function applySpriteMirror(
     );
     return (shapes[key] = { up, down, offsets });
   };
-  const done: Record<string, boolean> = {};
+  const done: Record<string, boolean> = Object.create(null);
   // Lays out the subtree whose root centre is `centre` (a card that stays put keeps its own
   // centre); returns the subtree's bottom edge.
   const place = (key: string, centre: number): number => {

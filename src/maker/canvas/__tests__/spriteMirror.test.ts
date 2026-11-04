@@ -528,3 +528,42 @@ test('untrimmed frames stay plain and invalid sheets are rejected', () => {
   expect(canvasSpriteFrameSet(outside)).toBeUndefined();
   expect(canvasSpriteFrameSet({ frames: {}, meta: sheet.meta })).toBeUndefined();
 });
+
+test.each(['nodes', 'edges'])('capacity rejection leaves the document unchanged: %s', (limit) => {
+  const doc = documentWithSource();
+  createSpriteSection(doc, 'src', 'hero', 'character', 'sec', 1);
+  const plan = reconcileSpriteMirror({ name: 'hero', progress: progress('plan') });
+  expect(plan.cards.length).toBeGreaterThan(0);
+  if (limit === 'nodes')
+    while (doc.nodes.length < 400)
+      doc.nodes.push({
+        id: 'note-' + doc.nodes.length,
+        type: 'note',
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+      });
+  else
+    for (let i = 0; i < 800; i++)
+      doc.edges.push({ id: 'edge-' + i, from: 'src', to: 'sec', kind: 'image-variant' });
+  const before = structuredClone(doc);
+  expect(() => applySpriteMirror(doc, 'sec', plan, () => 'new')).toThrow('容量不足');
+  expect(doc).toEqual(before);
+});
+
+test('mirror lookup keys cannot mutate object prototypes', () => {
+  const doc = documentWithSource();
+  createSpriteSection(doc, 'src', 'hero', 'character', 'sec', 1);
+  const plan = reconcileSpriteMirror({ name: 'hero', progress: progress('plan') });
+  plan.cards = ['__proto__', 'constructor', 'toString'].map((key) => ({
+    ...plan.cards[0],
+    key,
+    parent: 'source',
+  }));
+  const before = Object.getOwnPropertyNames(Object.prototype);
+  let next = 0;
+  expect(() => applySpriteMirror(doc, 'sec', plan, () => 'new-' + next++)).not.toThrow();
+  expect(doc.nodes.filter((node) => node.mirror)).toHaveLength(3);
+  expect(Object.getOwnPropertyNames(Object.prototype)).toEqual(before);
+});

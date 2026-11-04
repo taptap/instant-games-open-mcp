@@ -223,7 +223,11 @@ describe('Maker console canvas', () => {
       const document = {
         createElement: () => ({
           dataset: {},
-          append: jest.fn(),
+          children: [],
+          remove: jest.fn(),
+          append: jest.fn(function (this: { children: unknown[] }, child: unknown) {
+            this.children.push(child);
+          }),
           addEventListener: jest.fn(),
           setAttribute: jest.fn(),
         }),

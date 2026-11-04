@@ -6087,7 +6087,21 @@ try {
           meta: { image: 'spritesheet.png', size: { w: 64, h: 32 } },
         },
       });
+      const delayedSheet = await page.evaluate(() => {
+        const path = 'assets/sprites/hero/walk/spritesheet.json';
+        const sheet = window.__canvasProjectJson[path];
+        delete window.__canvasProjectJson[path];
+        return sheet;
+      });
       await page.evaluate(() => window.__canvasEditor.syncSprites());
+      assert.ok(!(await current()).nodes.some((node) => node.mirror?.key === 'animation:walk'));
+      await page.evaluate((sheet) => {
+        window.__canvasProjectJson['assets/sprites/hero/walk/spritesheet.json'] = sheet;
+        window.dispatchEvent(new Event('online'));
+      }, delayedSheet);
+      await page.waitForFunction(() =>
+        window.__canvasEditor.current().nodes.some((node) => node.mirror?.key === 'animation:walk')
+      );
       const doc = await current();
       const byKey = Object.fromEntries(
         doc.nodes.filter((node) => node.mirror).map((node) => [node.mirror.key, node])
