@@ -166,6 +166,7 @@ const TWO_PART_COMMANDS = new Set([
   'git',
 ]);
 const BOOLEAN_OPTIONS = new Set([
+  'component_preview',
   'dry_run',
   'saved',
   'allow_paid',
@@ -3295,6 +3296,7 @@ function printHelp(): void {
       '  taptap-maker ui nanovg-adapter [--json]',
       '  taptap-maker ui list --target-dir PROJECT_ABSOLUTE_PATH [--json]',
       '  taptap-maker ui inspect|check|open --target-dir PATH --file assets/ui/screen.ui.json',
+      '  taptap-maker ui preview|layout --target-dir PATH --file assets/ui/screen.ui.json --device iphone18',
       '  taptap-maker ui create --target-dir PATH --file assets/ui/new.ui.json --input-file FILE [--dry-run]',
       '  taptap-maker ui patch --target-dir PATH --file assets/ui/screen.ui.json --revision SHA256 --input-file FILE [--dry-run]',
       '  taptap-maker canvas capabilities',

@@ -215,13 +215,21 @@
     ctx.transform.apply(ctx, root.UrhoxGeom.nodeMatrix(node));
     ctx.globalAlpha *= node.opacity == null ? 1 : Math.max(0, Math.min(1, node.opacity));
     paintNode(ctx, node, app);
-    if (node.overflow === "hidden" || node.overflow === "scroll") {
+    if (node.type === "ScrollView" || node.overflow === "hidden" || node.overflow === "scroll") {
       boxPath(ctx, node._layout, node.borderRadius);
       ctx.clip();
     }
     (node.children || []).slice().sort(function (a, b) {
       return (a.zIndex || 0) - (b.zIndex || 0);
     }).forEach(function (child) { paintTree(ctx, child, app); });
+    if (node.type === "ScrollView" && node._scrollMaxY > 0 && node.showScrollbar !== false) {
+      var viewport = node._layout;
+      var thumbHeight = Math.max(16, viewport.h * viewport.h / (viewport.h + node._scrollMaxY));
+      thumbHeight = Math.min(viewport.h, thumbHeight);
+      var thumbY = viewport.y + (viewport.h - thumbHeight) * (node._scrollY || 0) / node._scrollMaxY;
+      ctx.fillStyle = "rgba(180,200,215,0.6)";
+      ctx.fillRect(viewport.x + viewport.w - 3, thumbY, 3, thumbHeight);
+    }
     ctx.restore();
   }
 
@@ -234,8 +242,8 @@
     if (!canvas || !ctx || !tree) return;
     var o = app.origin();
     var fit = app.contentTransform();
-    var prefab = app.editMode === "prefab";
-    var src = window.UrhoxDoc.designSize(tree);
+    var prefab = !app.inViewport();
+    var src = app.designSize();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(1, 0, 0, 1, o.x, o.y);
@@ -373,6 +381,7 @@
 
   root.UrhoxCanvas = {
     draw: draw,
+    paintTree: paintTree,
     handlesFor: handlesFor,
     handleSize: handleSize,
   };

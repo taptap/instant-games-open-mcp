@@ -87,6 +87,17 @@
         [{ key: "position", label: "定位", kind: "enum", options: ["relative", "absolute"] }],
         [{ key: "left", label: "相对父级 X", kind: "length" }, { key: "top", label: "相对父级 Y", kind: "length" }],
         [{ key: "width", label: "Width", kind: "length" }, { key: "height", label: "Height", kind: "length" }],
+        [{ key: "right", label: "右边距", kind: "length" }, { key: "bottom", label: "下边距", kind: "length" }],
+        [{ key: "maxWidth", label: "最大宽度", kind: "length" }, { key: "maxHeight", label: "最大高度", kind: "length" }],
+        [{ key: "aspectRatio", label: "宽高比", kind: "number" }],
+      ],
+    },
+    {
+      id: "safe-area", title: "安全区", open: true,
+      showIf: function (node) { return node.type === "SafeAreaView"; },
+      rows: [
+        [{ key: "nativeMenuInset", label: "避让 Tap 胶囊", kind: "bool" }],
+        [{ key: "edges", label: "避让方向", kind: "json" }],
       ],
     },
     {
@@ -111,6 +122,9 @@
       },
       rows: [
         [{ key: "flexDirection", label: "方向", kind: "enum", options: ["column", "row"] }, { key: "gap", label: "Gap", kind: "length" }],
+        [{ key: "justifyContent", label: "主轴对齐", kind: "enum", options: ["flex-start", "center", "flex-end", "space-between", "space-around"] },
+         { key: "alignItems", label: "交叉轴对齐", kind: "enum", options: ["flex-start", "center", "flex-end", "stretch"] }],
+        [{ key: "flexGrow", label: "扩展", kind: "number" }, { key: "flexShrink", label: "收缩", kind: "number" }],
       ],
     },
     {
@@ -130,7 +144,6 @@
       open: false,
       rows: [
         [{ key: "zIndex", label: "Z", kind: "number" }, { key: "pointerEvents", label: "Raycast", kind: "enum", options: ["auto", "none", "box-none", "box-only"] }],
-        [{ key: "right", label: "Right", kind: "length" }, { key: "bottom", label: "Bottom", kind: "length" }],
         [{ key: "overflow", label: "Overflow", kind: "enum", options: ["visible", "hidden"] }],
         [{ key: "borderColor", label: "边色", kind: "color" }],
         [{ key: "locked", label: "锁定", kind: "bool" }],

@@ -25,6 +25,13 @@ export interface UiAssemblyBbox {
   texts: Array<{ id: string; [key: string]: unknown }>;
 }
 export interface UiAssemblyInput {
+  adaptation?: {
+    mode: 'screen' | 'component';
+    logicalShortSide?: number;
+    safeArea?: boolean;
+    nativeMenuInset?: boolean;
+    nodes?: Record<string, Record<string, string | number | null>>;
+  };
   screen?: { name: string; key: string };
   bbox: UiAssemblyBbox;
   assets: UiAssemblyAsset[];

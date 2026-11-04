@@ -487,26 +487,83 @@ Maker MCP 使用已有 `tapmaker_mcp_call` action 上报本地开发活跃，并
 外层应用（例如 Cindy 内运行的 Codex）。服务端 `/tracking` 需保留这两个可选字段，
 才能按客户端分析调用及模型信息缺失情况。
 
-每次发送前另行读取当前会话模型，最多等待 1 秒，不缓存模型结果。可选字段为
-`args.client_model_id`、`args.client_model_name`、`args.resolved_model` 和
-`args.model_provider`；缺失字段省略，只有来源明确给出 `auto` 时才保留该值。
-WorkBuddy 从父进程开始最多向上查找 6 层，通过 `.workbuddy/sessions/<pid>.json`
-定位会话，读取对应 JSONL 最后 1 MiB 中最新完整记录的 `providerData`。
-Cindy/Codex 在 macOS/Linux 上通过 `lsof` 查找祖先 Codex 进程实际打开的唯一
-`thread-writer-locks/<会话ID>.lock`，使用 `sqlite3` 只读查询同目录所属
-`state_5.sqlite` 的 `threads.model` 和 `model_provider`，不会按全局配置或最近会话猜测。
-此方式仅适用于能取得唯一会话锁的运行方式，不代表所有名为 Codex 的客户端都支持。
-Windows 使用 `Win32_Process.ParentProcessId` 查找 WorkBuddy 会话；本次不支持
-Windows Codex 的会话锁读取。命令不可用、权限不足、记录损坏、锁不唯一或解析超时，
-均省略模型信息并继续发送原事件，不自动安装依赖或调用额外 AI。
-模型字段表示上报时的会话状态；长任务执行期间切换模型时，可能与发起任务时不同。
-服务端 `/tracking` 需同时保留上述四个模型字段才能进入统计。
+模型采集独立放在 `src/maker/clientModel/`。目标是自动上报模型名称及 Agent/IDE，
+不要求用户填写模型，也不依赖 AI 主动补参数。模型原始选择值写入 `client_model_id`
+（例如 `grok-4.7`）；来源提供显示名、实际执行模型或服务商时，分别写入
+`client_model_name`、`resolved_model`、`model_provider`，不推测别名或服务商。
 
-切换 Agent 编辑器后，让该会话的 AI 在本仓库执行 `npm run test:maker:model`：
-先运行独立单元测试，再显示真实模型读取结果和耗时，不发送打点。
-可加 `-- --expect-model <模型ID>` 核对当前选择；不匹配或读不到时返回非零退出码。
-未指定预期值时，`DETECTED` 表示读到模型，`UNAVAILABLE` 表示正常降级，不能当作获取成功。
-应通过 AI 的终端工具执行，普通系统终端可能没有会话关联；本自检不验证 MCP 握手或服务端入库。
+每条 MCP 连接持有独立的采集器。首次使用时识别 IDE 与祖先进程并保存，后续复用，
+不因某次模型读取失败丢弃已识别的 IDE。只缓存稳定的客户端身份，不缓存模型值。
+工具/资源触发后，在项目上下文解析完成时开始一次模型读取；状态展示、启动打点和
+该次业务打点共享这个 Promise/结果，业务结束时不重新查询。没有后台模型切换监听。
+
+模型按以下顺序取值，字段不跨来源拼接，也不复用上一调用的结果：
+
+1. 客户端确实发送的 `_meta["cn.taptap.maker/client-model"]`，至少提供有效的
+   `client_model_id` 或 `resolved_model`。这是可选接入协议，不是 MCP 标准必传字段。
+2. 旧客户端已经发送的 `_maker_client_model` 仍兼容提取，但已撤下工具公开 schema 中的
+   试填参数。声明参数不会让客户端自动注入模型，不能把它作为自动采集主方案。
+3. 自动采集的主路径是从 MCP 祖先进程关联当前会话，再读取模型元数据；Windows 也执行读取。
+4. 仍然没有可靠来源时，省略模型字段，保留独立识别的 IDE，原事件继续上报。
+   连接采集器拒绝将旧解析器的 `latest_session` 结果作为当前对话模型发送。
+
+统一入口在业务处理和远端转发前移除 `_maker_client_model`。`request_metadata`、
+`tool_argument`、`local_session` 分别写入 `model_lookup_source`。
+`model_lookup_scope` 的 `current_call` 表示本次请求自报，`current_session` 表示直接
+关联会话，`latest_session` 表示同项目最近活跃会话降级。后者不能当作当前调用的精确模型。
+
+IDE 名称保留两层语义：`client_name` / `client_version` 始终来自 MCP 握手；本地识别到
+外层应用时额外写入 `client_ide_name`；只取得握手身份时保留该名称，不宣称识别到外层应用。
+例如 Cindy 的 Codex 引擎可能上报
+`client_name=codex`、`client_ide_name=Cindy`。不能直接把 Codex 握手名称改成 Cindy，
+也不根据模型名称猜 IDE。服务端 `/tracking` 需保留这些可选字段。
+
+本地读取范围如下：
+
+| 客户端               | 模型来源与关联方式                                                                                                                                                                                                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cindy                | 标准用户数据目录的唯一 `cindy-*.db`，只查询 `sessions` 的模型及关联元数据。用继承的 `CODEX_THREAD_ID`，或祖先 Codex 进程持有的唯一会话锁关联 `sdk_session_id`；也支持唯一 `active_turn_pid`。必须与当前项目 realpath 一致。找不到精确关联就留空，不再使用最近活跃会话。 |
+| Windows Codex        | `CODEX_HOME/state_5.sqlite`，未设置时使用 `~/.codex`。通过继承的线程 ID 或祖先进程持有的唯一 writer lock 查当前 `threads` 记录，标记 `current_session`；不能确定时留空。                                                                                                |
+| macOS/Linux Codex    | 保留 `lsof` 查找祖先进程唯一 `thread-writer-locks/<会话ID>.lock`，再只读查询对应 `state_5.sqlite` 的模型。                                                                                                                                                              |
+| WorkBuddy            | 祖先 PID 对应的 `~/.workbuddy/sessions/<pid>.json` 关联会话，校验当前项目后读取 JSONL 尾部最新 `providerData`。Windows 项目目录中的盘符去冒号并转为小写，例如 `F:\Maker\game` 对应 `f-Maker-game`。日志记录可能滞后于当前调用，需通过真实客户端验收后才宣称支持。       |
+| Kiro                 | 保留旧解析器，结果为 `latest_session`；连接采集器不将该模型用于当前对话上报。                                                                                                                                                                                           |
+| Trae CN              | 保留旧解析器，结果为 `latest_session`；连接采集器不将该模型用于当前对话上报。                                                                                                                                                                                           |
+| Cursor / Claude Code | 尚无已验证的模型适配；识别 IDE 不等于已经支持模型采集。                                                                                                                                                                                                                 |
+
+Cindy 通过握手、祖先应用进程，或携带确切线程 ID 的标准 Cindy Codex home 识别。
+Windows 默认目录为 `%APPDATA%/Cindy`；macOS 为 `~/Library/Application Support/Cindy`；
+Linux 为 `${XDG_CONFIG_HOME:-~/.config}/Cindy`。只接受唯一账号数据库，多个账号库不猜测
+当前账号。忽略归档、隐藏和远程会话；按实际执行目录（优先 worktree）匹配项目 realpath。
+有明确线程 ID 却找不到匹配时不借用其他会话。模型为空、多个精确关联冲突、数据库损坏
+或缺少必要字段时留空，不从旧记录补模型。Cindy/Codex 的自动路径必须为 `current_session`，
+不能将其他编辑器已有的 `latest_session` 降级计作当前对话精确采集通过。
+
+Windows 的 writer lock 通过系统 Restart Manager 的只读文件占用查询获得：只查询
+`thread-writer-locks` 内最多 128 个 UUID 锁文件，匹配调用所属的 Codex PID。只使用
+StartSession/RegisterResources/GetList/EndSession，不调用 shutdown/restart，不重启任何进程，
+不安装 handle.exe，也不读取进程内存、聊天正文或认证配置。macOS/Linux 仍用 `lsof`。
+
+本地查询使用已有 `sqlite3 -readonly`，不安装依赖、不读取聊天正文、凭证或全局默认模型，
+不上报本地路径、会话 ID 或 PID。扫描、结果大小有上限；macOS/Linux 总等待预算为 1 秒，
+Windows 为 2.5 秒（包含进程发现和 SQLite 启动），超时终止命令并正常降级。
+首次客户端身份识别和每次模型读取各自受上述预算约束；后续调用复用祖先进程发现结果。
+非状态工具在入口创建异步模型快照，打点等待同一快照；不在长任务结束后重新读取模型。
+文件来源仍受客户端写入时机影响，不能把历史消息解析自动视为当前调用的精确采集。
+
+`maker_status_lite` 返回新增 `Client model reporting` 区块，包含模型、IDE、来源和范围；
+`status=unavailable` 明确表示没有取得模型。状态显示与该次工具打点共享一个采集快照，
+即使快照为空也不二次读取。`tracking=scheduled_best_effort` 只表示安排异步上报，
+不代表服务端接收或入库；缺少项目身份时显示 `skipped_missing_project_identity`。
+启动事件不借用触发工具的自报参数；没有自报参数时可复用该次调用的自动采集快照，
+避免同时重复启动 Windows 查询。
+
+验证时先运行 `npm run test:maker:model`，检查真实读取 JSON，再加载新构建的 MCP，直接调用
+`maker_status_lite({})`，核对状态与实际 `/tracking` 载荷。分别测试单对话、切模型、
+双对话 A/B/A；`latest_session` 只能按最近活跃对话验证，不计作精确关联通过。
+`-- --expect-model <模型ID>` 可核对用户预先知道的模型；不要用读到的结果反填预期。
+SDK 模拟请求、真实本地读取、实际构建包传输和生产入库是不同验收层级，不能互相替代。
+其他客户端或非标准数据目录无已验证来源时允许留空；所有 IDE 精确覆盖仍需要客户端提供
+每次请求的模型元数据，Maker MCP 无法单方面强制现有客户端传入。
 
 Tool 调用、`maker://status` Resource 读取和 MCP 启动都计入本地活跃；Tool 使用真实工具名，
 Resource 使用 `maker://status`，启动事件使用 `@taptap/maker@<version>`。上报是异步的，

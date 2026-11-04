@@ -163,6 +163,9 @@ mark { background:#ddbc59; color:#191c20; border-radius:2px; }
 }
 .app-title { white-space: nowrap; font-size: 13px; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+#currentDocument { display: inline-flex; min-width: 0; max-width: 420px; }
+#currentDocument .doc-dir { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+#currentDocument .doc-file { flex: none; font-weight: 600; color: var(--text); }
 .meta-path { margin-left: auto; max-width: 42%; }
 
 .toolbar button, .ghost, .menubar button {
@@ -230,6 +233,39 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .guide-list { color: var(--muted); font-size: 13px; line-height: 1.6; padding-left: 18px; }
 .ghost.danger { color: #fecaca; border-color: #7f1d1d; }
+.dialog.adapt { width: min(920px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; box-sizing: border-box; }
+.adapt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.adapt-head h3 { margin: 0; }
+#adaptOrientation { margin: 2px 0 0; font-size: 12px; }
+#adaptSummary { margin: 4px 0 12px; font-size: 13px; }
+.adapt-scenes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.adapt-scene { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 8px 8px; text-align: center; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; color: var(--text); font: inherit; }
+.adapt-scene:hover, .adapt-scene:focus-visible { border-color: var(--accent); }
+.adapt-scene.current { box-shadow: inset 0 0 0 1px var(--accent); }
+.adapt-scene.current strong::after { content: "（当前）"; font-weight: 400; color: var(--muted); }
+.adapt-scene strong { font-size: 12px; }
+.adapt-thumb { display: flex; align-items: center; justify-content: center; width: 100%; height: 120px; }
+.adapt-thumb canvas { border-radius: 3px; box-shadow: 0 0 0 1px var(--line); }
+.adapt-scene-meta { font-size: 11px; color: var(--muted); }
+.adapt-scene-meta.problem { color: #f87171; }
+.adapt-scene-meta.warning { color: #d99a06; }
+.adapt-scene-meta.ok { color: #3fb27f; }
+.adapt-issues { margin: 14px 0 6px; max-height: 240px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.adapt-issue { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; width: 100%; text-align: left; padding: 7px 10px; background: transparent; color: var(--text); font: inherit; font-size: 12px; border: 1px solid var(--line); border-left-width: 3px; border-radius: 4px; cursor: pointer; }
+.adapt-issue:hover, .adapt-issue:focus-visible { background: var(--panel-2); }
+.adapt-issue.problem { border-left-color: #f87171; }
+.adapt-issue.warning { border-left-color: #fbbf24; }
+.adapt-issue.hint { border-left-color: #94a3b8; }
+.adapt-issue-head { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.adapt-issue-node { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.adapt-issue-msg { grid-column: 1; color: var(--muted); overflow-wrap: anywhere; }
+.adapt-chips { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; align-content: center; max-width: 260px; }
+.adapt-chip { padding: 1px 6px; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 9px; white-space: nowrap; }
+.adapt-hints summary { cursor: pointer; font-size: 12px; color: var(--muted); padding: 4px 2px 6px; }
+.adapt-hints .adapt-issue { margin-bottom: 6px; }
+.adapt-ok { margin: 6px 0; color: #3fb27f; font-size: 13px; }
+.adapt-note { font-size: 11px; margin: 8px 0 0; }
+.dialog-actions #adaptCopyStatus { margin-right: auto; align-self: center; font-size: 12px; }
 .device-label {
   display: flex;
   align-items: center;

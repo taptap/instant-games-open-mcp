@@ -136,6 +136,10 @@ import {
   type MakerMcpTrackingContext,
 } from '../tracking.js';
 import { MAKER_CAPABILITY_ROUTING_INDEX } from '../capabilityRouting.js';
+import {
+  createMakerClientModelResolver,
+  extractMakerClientModelRequest,
+} from '../clientModel/index.js';
 import { generateResourceMeta, RESOURCE_META_TOOL } from '../resourceMeta.js';
 import {
   MAKER_ADS_INTEGRATION_GUIDE_URI,
@@ -690,12 +694,26 @@ export async function startMakerMcpServer(): Promise<void> {
   const listClientRoots = createServerClientRootsProvider(server);
   const remoteProxyManager: MakerRemoteProxyManager = createMakerRemoteProxyManager();
   const startupReportedProjects = new Set<string>();
+  const collectClientModel = createMakerClientModelResolver();
+  const resolveTrackingContext = async (
+    options: Parameters<typeof resolveMakerMcpTrackingContext>[0]
+  ) => {
+    const context = await resolveMakerMcpTrackingContext(options);
+    if (context) {
+      context.modelSnapshot = collectClientModel({
+        clientName: options.clientInfo?.name,
+        projectDir: context.projectDir,
+        requestModel: options.requestModel,
+      }).catch(() => ({}));
+    }
+    return context;
+  };
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const accessState = await accessStatePromise;
     if (accessState.blocked) {
       return { tools: [tools[0]] };
     }
-    const contextPromise = resolveMakerMcpTrackingContext({
+    const contextPromise = resolveTrackingContext({
       listClientRoots,
       clientInfo: server.getClientVersion(),
     });
@@ -703,7 +721,7 @@ export async function startMakerMcpServer(): Promise<void> {
     return listMakerTools();
   });
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
-    const contextPromise = resolveMakerMcpTrackingContext({
+    const contextPromise = resolveTrackingContext({
       listClientRoots,
       clientInfo: server.getClientVersion(),
     });
@@ -730,7 +748,7 @@ export async function startMakerMcpServer(): Promise<void> {
     }
 
     const startedAt = Date.now();
-    const contextPromise = resolveMakerMcpTrackingContext({
+    const contextPromise = resolveTrackingContext({
       listClientRoots,
       clientInfo: server.getClientVersion(),
     });
@@ -778,7 +796,12 @@ export async function startMakerMcpServer(): Promise<void> {
     }
 
     const startedAt = Date.now();
-    const rawArgs = (request.params.arguments || {}) as Record<string, unknown>;
+    const modelRequest = extractMakerClientModelRequest(
+      request.params.arguments,
+      request.params._meta
+    );
+    const rawArgs = modelRequest.arguments;
+    request.params.arguments = rawArgs;
     const hasInvalidTargetDir =
       rawArgs.target_dir !== undefined &&
       (typeof rawArgs.target_dir !== 'string' || !rawArgs.target_dir.trim());
@@ -789,12 +812,15 @@ export async function startMakerMcpServer(): Promise<void> {
         : undefined;
     const contextPromise = hasInvalidTargetDir
       ? Promise.resolve(null)
-      : resolveMakerMcpTrackingContext({
+      : resolveTrackingContext({
           targetDir,
           listClientRoots,
           clientInfo: server.getClientVersion(),
+          requestModel: modelRequest.model,
         });
-    void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
+    if (name !== 'maker_status_lite') {
+      void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
+    }
 
     try {
       if (name === 'maker_status_lite') {
@@ -803,17 +829,40 @@ export async function startMakerMcpServer(): Promise<void> {
           skip_remote_sync?: boolean;
           detail?: boolean;
         };
+        const trackingContext = await contextPromise;
+        const model = await (trackingContext?.modelSnapshot ??
+          collectClientModel({
+            clientName: server.getClientVersion()?.name,
+            requestModel: modelRequest.model,
+          }));
+        if (trackingContext) trackingContext.resolvedModel = model;
+        void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
         const toolResult = {
           content: [
             {
               type: 'text',
-              text: await formatStatus({
-                targetDir: args.target_dir,
-                skipRemoteSync: args.skip_remote_sync,
-                detail: args.detail,
-                listClientRoots,
-                remoteProxyManager,
-              }),
+              text:
+                (await formatStatus({
+                  targetDir: args.target_dir,
+                  skipRemoteSync: args.skip_remote_sync,
+                  detail: args.detail,
+                  listClientRoots,
+                  remoteProxyManager,
+                })) +
+                '\n\nClient model reporting\n\n' +
+                JSON.stringify(
+                  {
+                    status:
+                      model.client_model_id || model.resolved_model ? 'detected' : 'unavailable',
+                    client_name: server.getClientVersion()?.name,
+                    ...model,
+                    tracking: trackingContext
+                      ? 'scheduled_best_effort'
+                      : 'skipped_missing_project_identity',
+                  },
+                  null,
+                  2
+                ),
             },
           ],
         };
@@ -1040,6 +1089,7 @@ async function resolveMakerMcpTrackingContext(options: {
   targetDir?: string;
   listClientRoots?: MakerClientRootsProvider;
   clientInfo?: MakerMcpTrackingContext['clientInfo'];
+  requestModel?: MakerMcpTrackingContext['requestModel'];
 }): Promise<MakerMcpTrackingContext | null> {
   try {
     const context = await resolveMakerProjectContext({
@@ -1054,7 +1104,13 @@ async function resolveMakerMcpTrackingContext(options: {
     if (!userId || !projectId) {
       return null;
     }
-    return { userId, projectId, clientInfo: options.clientInfo };
+    return {
+      userId,
+      projectId,
+      clientInfo: options.clientInfo,
+      projectDir: identify.projectRoot,
+      requestModel: options.requestModel,
+    };
   } catch {
     return null;
   }
@@ -1090,7 +1146,14 @@ async function reportMakerMcpStartupFromPromise(
     }
     reportedProjects.add(key);
     await reportMakerMcpActivity({
-      context,
+      context: {
+        ...context,
+        requestModel: undefined,
+        resolvedModel: context.requestModel ? undefined : context.resolvedModel,
+        modelSnapshot: context.requestModel
+          ? context.modelSnapshot?.then(({ client_ide_name }) => ({ client_ide_name }))
+          : context.modelSnapshot,
+      },
       toolName: `@taptap/maker@${VERSION}`,
       success: true,
     });

@@ -650,7 +650,8 @@ export function createUi015Workflow(options: {
       '2. 缺少素材的元素：在 inspect 中找到其所在分离卡，按第 1 步补画并确认。识图本身漏项或分类错误时才 recognize-ui 重新识图（会让下游批次失效）。',
       '3. 所有批次确认后 canvas assemble-ui --new-version 生成新版本；新版本的 review 三个列表都应为空，meta done，引用检查 0 错误。',
       '4. ui open 打开新 UI，对照同名参考图检查位置、尺寸、层级、字号、颜色、美术字、背景和按钮状态；偏差用 ui inspect / patch（先 dry-run 再带 revision）修正。',
-      '5. 完成标准：全部批次已确认、review 列表为空、引用检查 0 错误、编辑器对照无明显偏差。达不到时报告具体剩余项，不要把部分结果报为完成。',
+      '5. 按 maker-ui-workflow/references/responsive.md 复核多分辨率：读取 assembly-map.json 的 adaptation，检查自动推断的锚点和分组；切换 720p、1080p、iPhone 18 Pro、iPad Pro 及横竖屏，修复贴边、居中、安全区、溢出和字号。拖动并保存重开后约束仍应保留。接入前核对 UI.Init 缩放策略。',
+      '6. 完成标准：全部批次已确认、review 列表为空、引用检查 0 错误、设计稿对照及多分辨率预览通过。达不到时报告具体剩余项，不要把部分结果报为完成；编辑器通过不代表引擎已验证。',
       '分离卡：' +
         (found
           ? separations(found.members)

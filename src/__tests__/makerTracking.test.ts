@@ -12,6 +12,44 @@ jest.mock('../maker/clientModel', () => ({
 }));
 
 describe('maker MCP tracking', () => {
+  test('sends the entry snapshot without reading the model again when reporting completes', async () => {
+    const { resolveMakerClientModel } = await import('../maker/clientModel');
+    jest.mocked(resolveMakerClientModel).mockClear();
+    const fetchImpl = jest.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+    await reportMakerMcpActivity({
+      context: {
+        userId: 'user',
+        projectId: 'project',
+        modelSnapshot: Promise.resolve({ client_model_id: 'at-entry', client_ide_name: 'Cindy' }),
+      },
+      toolName: 'maker_status_lite',
+      fetchImpl,
+    });
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).args).toMatchObject({
+      client_model_id: 'at-entry',
+      client_ide_name: 'Cindy',
+    });
+    expect(resolveMakerClientModel).not.toHaveBeenCalled();
+  });
+
+  test('preserves IDE when the entry snapshot has no model, without looking up a later model', async () => {
+    const { resolveMakerClientModel } = await import('../maker/clientModel');
+    jest.mocked(resolveMakerClientModel).mockClear();
+    const fetchImpl = jest.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+    await reportMakerMcpActivity({
+      context: {
+        userId: 'user',
+        projectId: 'project',
+        modelSnapshot: Promise.resolve({ client_ide_name: 'Cindy' }),
+      },
+      toolName: 'maker_status_lite',
+      fetchImpl,
+    });
+    const args = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).args;
+    expect(args.client_ide_name).toBe('Cindy');
+    expect(args).not.toHaveProperty('client_model_id');
+    expect(resolveMakerClientModel).not.toHaveBeenCalled();
+  });
   test('builds a local MCP event with the configured identity and source', () => {
     expect(
       buildMakerMcpTrackingPayload({

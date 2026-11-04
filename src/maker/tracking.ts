@@ -3,7 +3,7 @@
  */
 
 import { getMakerApiBaseUrl } from './config.js';
-import { resolveMakerClientModel, type MakerClientModel } from './clientModel.js';
+import { resolveMakerClientModel, type MakerClientModel } from './clientModel/index.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 
@@ -20,6 +20,12 @@ export interface MakerMcpTrackingContext {
   userId: string;
   projectId: string;
   clientInfo?: { name: string; version: string };
+  projectDir?: string;
+  requestModel?: MakerClientModel;
+  /** Per-call snapshot shared with status diagnostics, including an unavailable empty result. */
+  resolvedModel?: MakerClientModel;
+  /** Started at tool entry; reporting awaits the same lookup rather than rereading later. */
+  modelSnapshot?: Promise<MakerClientModel>;
 }
 
 export interface MakerMcpActivityEvent {
@@ -141,7 +147,16 @@ export async function reportMakerMcpActivity(event: MakerMcpActivityEvent): Prom
     return;
   }
 
-  Object.assign(payload.args, await resolveMakerClientModel());
+  Object.assign(
+    payload.args,
+    event.context.resolvedModel ??
+      (await event.context.modelSnapshot) ??
+      (await resolveMakerClientModel({
+        clientName: event.context.clientInfo?.name,
+        projectDir: event.context.projectDir,
+        requestModel: event.context.requestModel,
+      }))
+  );
 
   const fetchImpl = event.fetchImpl || fetch;
   const controller = new AbortController();

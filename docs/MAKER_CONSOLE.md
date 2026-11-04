@@ -190,6 +190,40 @@ JSON/TOML 仅基础识别，不解析完整客户端继承、覆盖或实际生�
 可使用控制台地址的 page=ui-editor 和 ui=assets/相对路径直达生成的文档，保留原项目参数并 URL 编码。
 UI 编辑器只保存已有 .ui.json，不自动生成 meta、发布游戏或改加载逻辑。新文件由工作流显式生成 meta。
 
+#### 多分辨率预览
+
+屏幕菜单保留 720p、1080p、2K、4K、自定义分辨率，增加 iPhone 18 Pro（1206×2622，DPR 3）
+和 iPad Pro 13 英寸（2064×2752，DPR 2）。物理分辨率来源于
+[Apple iPhone 规格](https://www.apple.com/iphone-18-pro/specs/)及
+[Apple iPad Pro 规格](https://www.apple.com/ipad-pro/specs/)。
+设备安全区为可调整的模拟值，不代表所有系统、宿主窗口和胶囊状态。
+720p、1080p、2K、4K 分别使用模拟 DPR 1、1.5、2、3，在 DEFAULT 策略下对应同一逻辑画幅
+（横屏 1280×720，竖屏 720×1280），用于比较相同布局在不同像素密度下的显示。
+这些 DPR 是预设假设，不由物理分辨率唯一决定；模拟更大逻辑桌面时用自定义分辨率及实际 DPR。
+
+页面按设备物理尺寸 / UI 缩放系数得到逻辑视口，再交给 Yoga 布局；默认模拟 UI.Scale.DEFAULT，
+不再把设计稿整体等比塞进设备框。固定像素根保持固定大小，百分比根跟随视口。
+组件保持自身尺寸，可勾选“在屏幕中预览组件”放入临时居中容器；该容器不写入 JSON。
+编辑区“适应”和缩放只改变查看比例。切换设备及方向不修改文档和撤销记录。
+
+自定义设备可调整 DPR、UI 缩放（留空为 DEFAULT）、安全区物理像素边距和 Tap 胶囊底边位置。
+项目使用固定缩放或设计分辨率策略时，应填入该设备对应的实际缩放值。SafeAreaView 的 padding/margin、
+edges 和 nativeMenuInset 参与布局，背景不受影响；绝对定位控件应放在安全区内的普通布局容器中。
+拖动和缩放沿用原锚点、百分比及 aspectRatio；flex 节点保持原定位方式，不自动改成 absolute。
+参考图对照随当前逻辑视口显示；像素对位应先选择组装记录的逻辑参考尺寸及缩放 1。
+浏览器预览不执行游戏 Lua，不能代替真实引擎的字体、动态内容及真机验证。
+
+顶部「适配检查」把当前（含未保存修改的）文档依次放到标准手机 16:9、iPhone 18 Pro、iPad Pro 13 英寸各排一遍。
+只检查游戏本身的方向：文档设计尺寸有宽高时按宽高判断，否则取项目设置的屏幕方向（`screen_orientation`），
+与顶栏临时切换的横竖屏无关；两者都没有时才横竖都查，并在弹窗里说明。弹窗上方是每块屏幕的缩略图（红色轮廓标出问题位置，淡红区域为模拟安全区），
+下方按严重程度列出问题，名称仅数字不同的节点（如 item_1…item_40）合并为一条。
+检查项：按钮、文字、图片被屏幕边缘裁切（问题）；整个控件在屏幕外、被 overflow 父容器截掉、
+进入安全区、文字比控件宽或高（警告）；按钮触控区折算后低于 40 pt（提示，默认收起）。
+滚动列表内的内容靠滚动露出，不按屏幕裁切判断；铺满屏幕的背景图不检查。
+点击缩略图切换到该屏幕，点击问题行切换到首个受影响的屏幕并选中全部相关节点，「复制给 AI」输出同样内容的 Markdown。
+检查不修改文档、撤销记录和选择，结束后恢复当前设备与滚动位置；组件需勾选“在屏幕中预览组件”后才可检查。
+结果是编辑器模拟，字体、动态数据和安全区数值与真机、引擎可能不同。
+
 ### 画布与 UI 编辑器快捷键
 
 画布右下角“适配画布”旁、UI 编辑器顶部“适应”旁提供键盘图标，点击可查看当前编辑区的快捷键。
@@ -229,6 +263,9 @@ UI 编辑器只保存已有 .ui.json，不自动生成 meta、发布游戏或改
 避免“粘住”拖拽模式。UI 节点树获得焦点时保留树的空格、回车和方向键导航。
 画布滚轮默认缩放；常驻拖拽模式下普通滚轮/双指滑动平移，Mod+滚轮缩放。
 UI 编辑器滚轮缩放，两者也提供可点击的缩放与适配按钮。
+UI 编辑器的纵向 `ScrollView` 在内容溢出时，容器内滚轮滚动列表，
+Ctrl/Mod+滚轮仍缩放画布。滚动位置仅用于预览，不保存进 UI.json；
+当前不模拟横向滚动、触摸惯性或可拖动滚动条。普通 Panel 的 overflow 不代表可交互滚动。
 重命名统一使用 F2，不再占用 Mod+R，让浏览器刷新保留原行为。
 
 保留的鼠标组合操作：
@@ -246,7 +283,8 @@ UI 编辑器滚轮缩放，两者也提供可点击的缩放与适配按钮。
 ### UI 文档 CLI
 
 同包 CLI 提供 taptap-maker ui，使用 ui capabilities 查看操作格式。
-除 open 外均直接操作已绑定项目的保存文件，不需要浏览器或控制台进程。
+list/inspect/create/patch/check 直接操作已绑定项目的保存文件，不需要浏览器或控制台进程。
+preview/layout 使用下文的编辑器渲染连接；open 获取或打开编辑器地址。
 每次明确传入项目绝对路径；文档路径相对项目根且必须为 assets 内的 .ui.json。
 
 ```sh
@@ -295,6 +333,33 @@ CLI 不读取或改写网页未保存的草稿；CLI 写入后，在编辑器文
 或通过 ui open 打开保存版本。旧网页草稿直接保存时会报告冲突，须保留草稿并合并。
 open 返回带项目和 checkout 身份的控制台地址；不带 --no-open 时使用系统浏览器打开。
 这些命令不自动生成 meta、不导入外部图片、不改 Lua、不构建或发布游戏。
+
+### UI 预览与布局 CLI
+
+首次用 ui open --no-open 获取地址，在浏览器打开该项目的 UI 编辑器并保持连接。
+之后直接用 CLI 切设备、查询布局或输出干净 PNG，不需要逐次点击编辑器控件：
+
+```sh
+taptap-maker ui layout --target-dir /absolute/project --file assets/ui/main.ui.json --device iphone18 --json
+taptap-maker ui preview --target-dir /absolute/project --file assets/ui/main.ui.json --device ipadpro --orientation landscape --output-file /absolute/preview.png --json
+taptap-maker ui layout --target-dir /absolute/project --file assets/ui/main.ui.json --width 2520 --height 1080 --id close --json
+```
+
+- 设备 ID：720p、1080p（默认）、2k、4k、iphone18、ipadpro，与编辑器共用配置。
+  自定义 width/height 必须成对，按给定宽高原样使用；预设方向用 portrait/landscape。
+- 高级参数使用 --input 或 --input-file：例如
+  `{"device":"iphone18","safeArea":{"top":186,"bottom":102},"nativeMenuBottom":240,"dpr":3}`。
+  可指定 scale 覆盖 UI 缩放；尺寸和安全区均为物理像素。设备安全区只是可编辑模拟值。
+- 组件默认按自身尺寸渲染；加 --component-preview 后放到指定设备屏幕中居中预览。
+- 两个命令均返回保存文件的 revision、物理/逻辑视口、实际 Yoga 布局、变换后边界和警告。
+  layout/visualBounds 为逻辑单位，physicalBounds 为物理像素；布局坐标相对整个逻辑画幅。
+  --id/--pointer 定位保存树中的节点；结果 pointer 指向展开后的预览树，不直接用于 patch。
+- preview 不带 --output-file 时写入 Maker home/ui-previews 缓存；指定路径必须是已存在目录内的
+  绝对 PNG 路径，不覆盖已有文件。不导出设备框、选中框或安全区辅助线，默认不写游戏 assets。
+- 使用独立渲染页面，复用编辑器 Yoga、组件/模板展开、绘图及资源加载；不会切换当前文档、
+  改变当前设备或读取/覆盖未保存草稿。不是无浏览器执行，断开页面后会报错或超时。
+- 预览会等待图片加载完成，缺图/缺组件显式给出警告；动态数据、字体及引擎差异仍需游戏内复核。
+  根文档使用提交时快照，依赖素材使用渲染时的保存版本。PNG 每边最多 4096 像素。
 
 ### NanoVG 图层
 

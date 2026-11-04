@@ -1,4 +1,4 @@
-import clientModelModule from '../src/maker/clientModel.js';
+import clientModelModule from '../src/maker/clientModel/index.js';
 
 const args = process.argv.slice(2);
 if (args.length !== 0 && (args.length !== 2 || args[0] !== '--expect-model' || !args[1].trim())) {
@@ -7,7 +7,7 @@ if (args.length !== 0 && (args.length !== 2 || args[0] !== '--expect-model' || !
 } else {
   const expected = args[1];
   const startedAt = performance.now();
-  const model = await clientModelModule.resolveMakerClientModel();
+  const model = await clientModelModule.resolveMakerClientModel({ projectDir: process.cwd() });
   const matches = expected === undefined ? null : model.client_model_id === expected;
   console.log(
     JSON.stringify(
