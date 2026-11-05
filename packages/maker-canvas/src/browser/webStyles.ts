@@ -654,6 +654,14 @@ ${M} .web-mention-option b { flex: none; margin-right: 6px; color: var(--web-tex
 ${M} .web-mention-option span { overflow: hidden; color: var(--web-muted); text-overflow: ellipsis; }
 ${M} .web-mention-option[aria-selected="true"] { background: var(--web-menu-hover); }
 ${M} .web-mention-option[aria-selected="true"]::after { display: none; }
+/* @图N chips: a mirror behind the prompt draws the text; the textarea's own text is transparent. */
+${M} #selection-toolbar .web-prompt-mention { position: relative; order: 2; }
+${M} #selection-toolbar .web-prompt-mirror { position: absolute; top: 0; right: 0; bottom: 0; left: 0; box-sizing: border-box; overflow: hidden; border-style: solid; border-color: transparent; color: var(--web-composer-ink); white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; pointer-events: none; }
+${M} #selection-toolbar .web-prompt-mirror[hidden] { display: none; }
+${M} #selection-toolbar .generation-prompt.web-prompt-mirrored { position: relative; color: transparent; caret-color: var(--web-composer-ink); }
+${M} #selection-toolbar .generation-prompt.web-prompt-mirrored::selection { color: transparent; background: var(--web-accent-ring); }
+${M} .web-prompt-chip { border-radius: 4px; background: var(--web-accent-ring); box-shadow: 0 0 0 2px var(--web-accent-ring); color: var(--web-accent); }
+${M} .web-prompt-chip-image { border-radius: 3px; background-position: center; background-size: cover; background-repeat: no-repeat; color: transparent; }
 /* In-place crop (page applyWebEditPatches): box on the card image, bar under it. */
 ${M} .web-crop-layer { position: absolute; z-index: 30; overflow: hidden; touch-action: none; }
 ${M} .web-crop-box { position: absolute; box-sizing: border-box; border: calc(2px * var(--web-inv, 1)) solid var(--web-accent); box-shadow: 0 0 0 9999px rgba(0,0,0,.55); cursor: move; }

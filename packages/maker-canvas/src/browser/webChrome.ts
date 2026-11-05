@@ -235,6 +235,10 @@ export function installCanvasWebSelects() {
  * thumbnails above it, in the order they are sent) and inserts `@图N` for the chosen one, so the
  * prompt can name each image. Text typed after `@` filters by number or caption; ↑/↓ move,
  * Enter or Tab picks, Escape, a space or leaving the field closes the list.
+ * Each `@图N` that matches an input image shows as a chip with that image's thumbnail. The prompt
+ * stays a plain textarea (its value is what gets sent): its text is transparent and a mirror
+ * behind it draws the same text, with the `@` of a token replaced by the thumbnail, so wrapping
+ * and the caret line up exactly.
  */
 export function installCanvasWebMentions() {
   const fields =
@@ -251,6 +255,77 @@ export function installCanvasWebMentions() {
     open.list.remove();
     open = null;
   }
+  const mainFields = '#selection-toolbar textarea.generation-prompt';
+  function syncMirror(field: HTMLTextAreaElement) {
+    const mirror = field.previousElementSibling as HTMLElement | null;
+    if (!mirror || !mirror.classList.contains('web-prompt-mirror')) return;
+    const style = getComputedStyle(field);
+    for (const name of [
+      'fontFamily',
+      'fontSize',
+      'fontWeight',
+      'lineHeight',
+      'letterSpacing',
+      'paddingTop',
+      'paddingRight',
+      'paddingBottom',
+      'paddingLeft',
+      'borderTopWidth',
+      'borderRightWidth',
+      'borderBottomWidth',
+      'borderLeftWidth',
+    ] as const)
+      mirror.style[name] = style[name];
+    const images = tiles(field);
+    mirror.replaceChildren();
+    let last = 0;
+    const value = field.value;
+    const pattern = /@图(\d+)/g;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(value))) {
+      const tile = images[Number(match[1]) - 1];
+      if (!tile) continue;
+      mirror.append(value.slice(last, match.index));
+      const chip = document.createElement('span');
+      chip.className = 'web-prompt-chip';
+      const at = document.createElement('span');
+      at.className = 'web-prompt-chip-image';
+      at.textContent = '@';
+      at.style.backgroundImage = 'url("' + tile.src.replace(/"/g, '%22') + '")';
+      chip.append(at, match[0].slice(1));
+      mirror.append(chip);
+      last = match.index + match[0].length;
+    }
+    // A trailing newline needs a character after it to take up its line.
+    mirror.append(value.slice(last) + (value.endsWith('\n') ? ' ' : ''));
+    mirror.scrollTop = field.scrollTop;
+    // Without a chip the textarea draws its own text and the mirror stays out of the way.
+    const mirrored = mirror.childElementCount > 0;
+    mirror.hidden = !mirrored;
+    field.classList.toggle('web-prompt-mirrored', mirrored);
+  }
+  function wrap(field: HTMLTextAreaElement) {
+    if (field.dataset.webMentions) return;
+    field.dataset.webMentions = '1';
+    const box = document.createElement('div');
+    box.className = 'web-prompt-mention';
+    const mirror = document.createElement('div');
+    mirror.className = 'web-prompt-mirror';
+    mirror.setAttribute('aria-hidden', 'true');
+    field.replaceWith(box);
+    box.append(mirror, field);
+    field.addEventListener('scroll', () => {
+      mirror.scrollTop = field.scrollTop;
+    });
+    syncMirror(field);
+  }
+  // The composer is rebuilt on selection changes; wrap each new prompt once its thumbnails exist.
+  // Only new prompts are handled here: syncing the mirror mutates the DOM and would loop.
+  new MutationObserver(() => {
+    document.querySelectorAll<HTMLTextAreaElement>(mainFields).forEach((field) => {
+      if (!field.dataset.webMentions) wrap(field);
+    });
+  }).observe(document.body, { childList: true, subtree: true });
   function tiles(field: HTMLTextAreaElement) {
     const panel = field.closest('.generation-panel') || field.closest('#selection-toolbar');
     if (!panel) return [];
@@ -349,6 +424,7 @@ export function installCanvasWebMentions() {
     (event) => {
       const field = event.target as HTMLTextAreaElement | null;
       if (!field || !field.matches || !field.matches(fields)) return;
+      if (field.dataset.webMentions) syncMirror(field);
       const typed = (event as InputEvent).data;
       if (open && open.field === field) update(field);
       else if (typed && typed.slice(-1) === '@') update(field);

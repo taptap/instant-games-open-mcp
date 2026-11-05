@@ -306,7 +306,7 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
   附带的图片文件被忽略，避免多上传一份；
   宿主不接受为卡片素材、但 `readSource` 能读到的图片（如 sprite-gen 候选图）上传一份副本。画布内
   ⌘/Ctrl+C 会在系统剪贴板写入标记，之后的粘贴复制卡片；系统剪贴板换成文件后粘贴文件。
-- 素材库按钮（仅 Web，宿主提供 `toggleAssetPanel` 时出现在页签栏最左侧，layers 图标加「素材库」文字）：
+- 资产按钮（仅 Web，宿主提供 `toggleAssetPanel` 时出现在页签栏最左侧，layers 图标加「资产」文字）：
   打开或关闭宿主的素材面板，按下态由宿主通过 `setAssetPanelOpen` 同步。
 - 选中一个空图片槽后 ⌘/Ctrl+V 粘贴图片，直接填进该槽。
 - 图片工具（仅 Web，`features.imageTools: true`）：图片卡的选中图标与右键菜单在「编辑」组加入裁剪、
@@ -316,7 +316,9 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
   应用，「取消」、Esc 或点空白处放弃；裁剪时隐藏卡片菜单与生成面板。
 - 提示词 @ 引用（仅 Web）：在生成面板的提示词里输入 `@`，列出该面板的输入图片（即上方缩略图，按发送
   顺序编号），选中后插入 `@图N`；`@` 后继续输入按编号或说明过滤，↑/↓ 选择，Enter / Tab 确认，
-  Esc、空格或离开输入框关闭。
+  Esc、空格或离开输入框关闭。提示词里与某张输入图对应的 `@图N` 显示为带该图缩略图的标签：输入框仍是
+  原生 textarea（发送的就是它的文字），文字设为透明，背后的镜像层画出同样的文字并把 `@` 换成缩略图，
+  换行与光标位置完全一致。
 - 分组重命名（仅 Web）：在分组标题上快速按两下，或右键「重命名分组」，就地编辑；Enter 保存，Esc 取消，
   失焦保存；最长 80 字。
 - 下拉框（仅 Web）：单选 `<select>` 的弹出列表改为与右键菜单同样式的浮层，`<select>` 仍是值的来源，
@@ -427,6 +429,8 @@ dismissed }`。同名分组复用（沿用其来源与类型）并再次调用�
   404 显示「等待对话开始」，未知版本只镜像最终精灵表并显示「中间过程暂不支持此版本」。
 - 镜像卡 `mirror = { source: 'sprite-gen', name, key }` 只读：无生成面板、侧边「+」与编辑入口，可移动、
   删除（键写入 `dismissed`，不再加回）、下载与加入对话。同步不进撤销栈、自动保存；撤销/重做后重新同步。
+- 避让：同步让分组向右或向下变大时，原本在旧边界右侧（或下方）且与分组同行（或同列）的卡片和分组整体
+  平移让开（保持彼此间距，分组连同成员一起移动），不再被盖住；这一步和同步一样不进撤销栈。
 - 时机：打开画布、`syncSprites()`、页面可见且有未完成精灵时每 10 秒一次；每个分组单飞。页面从不写
   `.build/` 或 `assets/sprites/`。
 - 精灵表帧带裁边：`FrameSetFrame` 新增可选 `sourceWidth/sourceHeight/offsetX/offsetY/duration`，

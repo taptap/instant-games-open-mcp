@@ -2657,7 +2657,7 @@ try {
     }
   );
   await check(
-    'Web 素材库按钮：仅宿主提供 toggleAssetPanel 时出现，点击切换并同步按下态',
+    'Web 资产按钮：仅宿主提供 toggleAssetPanel 时出现在左上角，点击切换并同步按下态',
     async () => {
       const plain = await webPage();
       assert.equal(await plain.page.locator('#asset-panel').count(), 0);
@@ -2670,7 +2670,7 @@ try {
         await button.evaluate((item) => item.parentElement.firstElementChild === item),
         true
       );
-      assert.equal((await button.innerText()).trim(), '素材库');
+      assert.equal((await button.innerText()).trim(), '资产');
       await button.click();
       assert.equal(await page.evaluate(() => window.__canvasAssetPanelToggles), 1);
       await page.evaluate(() => window.__canvasEditor.setAssetPanelOpen(true));
@@ -2901,6 +2901,18 @@ try {
       assert.equal(await mentions.count(), 0);
       await page.keyboard.type('放大');
       assert.equal(await prompt.inputValue(), '把@图1 放大');
+      // The token shows as a chip with the image's thumbnail; the textarea keeps the plain text.
+      const chip = page.locator('#selection-toolbar .web-prompt-mirror .web-prompt-chip');
+      assert.equal(await chip.count(), 1);
+      assert.equal((await chip.innerText()).replace('@', ''), '图1');
+      assert.match(
+        await chip.locator('.web-prompt-chip-image').evaluate((item) => item.style.backgroundImage),
+        /^url\(/
+      );
+      assert.equal(
+        await prompt.evaluate((item) => getComputedStyle(item).color),
+        'rgba(0, 0, 0, 0)'
+      );
       await page.keyboard.type('@x');
       assert.equal(await mentions.count(), 0, '无匹配时不显示');
       assert.deepEqual(errors, []);

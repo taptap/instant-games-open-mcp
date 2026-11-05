@@ -1659,7 +1659,7 @@ function applyMediaDropPatches(source: string): string {
     '</style>',
     '.canvas-appearance-web .card.web-drop-target { outline: 2px dashed var(--web-accent, #3b82f6); outline-offset: 3px; }\n</style>'
   );
-  // 素材库 dock button: opens the host's asset panel (host.toggleAssetPanel); assets dragged from
+  // 资产 button (tab row): opens the host's asset panel (host.toggleAssetPanel); assets dragged from
   // it land through the drop handler above.
   patch(
     '  const editorHandle = {\n',
@@ -1670,9 +1670,9 @@ function applyMediaDropPatches(source: string): string {
       "    assetPanelButton.type = 'button';",
       "    assetPanelButton.id = 'asset-panel';",
       "    assetPanelButton.setAttribute('aria-pressed', 'false');",
-      "    assetPanelButton.title = '素材库：拖入画布或空图片槽即可添加';",
-      // lucide layers, the Maker shell's 素材库 icon; the label keeps it findable.
-      '    assetPanelButton.innerHTML = \'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>素材库</span>\';',
+      "    assetPanelButton.title = '资产：拖入画布或空图片槽即可添加';",
+      // lucide layers and the label 资产, as in the Maker shell's activity bar.
+      '    assetPanelButton.innerHTML = \'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>资产</span>\';',
       "    assetPanelButton.addEventListener('click', function () { host.toggleAssetPanel(); });",
       // Top-left, before the canvas tabs: the panel opens on that side.
       "    const tabsRow = document.querySelector('.workspace-tabs-row');",

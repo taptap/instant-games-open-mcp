@@ -50,7 +50,7 @@ export interface CanvasEditorHandle {
    */
   setPanelVisible(visible: boolean): void;
   /**
-   * Optional: the host reports whether its asset panel is open, so the dock's 素材库 button
+   * Optional: the host reports whether its asset panel is open, so the 资产 button
    * shows the right pressed state when the panel is closed from the host side.
    */
   setAssetPanelOpen?(open: boolean): void;
@@ -82,7 +82,7 @@ export interface CanvasPageHost {
    */
   pickProjectImages?(): Promise<{ path: string; name: string; kind?: 'image' | 'video' }[]>;
   /**
-   * Optional (Web appearance): shows a 素材库 button in the dock that opens or closes the host's
+   * Optional (Web appearance): shows a 资产 button at the start of the tab row that opens or closes the host's
    * asset panel. Assets dragged from that panel arrive as `application/x-asset` drops; the host
    * reports the panel state back through CanvasEditorHandle.setAssetPanelOpen.
    */
