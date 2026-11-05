@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { ConsoleError, type ConsoleProject } from '../console/types.js';
-import { claimRecoveryMutex } from '../system/recoveryMutex.js';
+import { claimUiSaveLock } from './saveLock.js';
 
 const imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg']);
 const fontExtensions = new Set(['.ttf', '.otf', '.woff', '.woff2']);
@@ -137,7 +137,7 @@ export async function saveUiFile(root: string, body: Record<string, unknown>) {
   }
   if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.type !== 'string')
     throw new ConsoleError('UI 文档必须包含根节点 type。');
-  const release = await claimRecoveryMutex(
+  const release = await claimUiSaveLock(
     path.join(root, '.maker', 'ui-editor-save.lock'),
     () => new ConsoleError('该项目正在保存 UI，请稍后再试。', 409)
   );
@@ -173,7 +173,7 @@ export async function createUiFile(root: string, relative: string, content: stri
   if (!tree || typeof tree !== 'object' || Array.isArray(tree) || typeof tree.type !== 'string')
     throw new ConsoleError('UI 文档必须包含根节点 type。');
   root = await fs.realpath(root);
-  const release = await claimRecoveryMutex(
+  const release = await claimUiSaveLock(
     path.join(root, '.maker', 'ui-editor-save.lock'),
     () => new ConsoleError('该项目正在保存 UI，请稍后再试。', 409)
   );

@@ -26,6 +26,36 @@ beforeEach(() => {
 });
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
+test('template platform survives storage, archive and instance; local catalog excludes web-only', async () => {
+  const model = createCanvasTemplateModel();
+  const first = createId();
+  const second = createId();
+  const template = await files.saveTemplate({
+    id: createId(),
+    name: 'Web workflow',
+    revision: 0,
+    platforms: ['web'],
+    nodes: [
+      { id: first, type: 'image', title: 'input', x: 0, y: 0, width: 200, height: 120 },
+      { id: second, type: 'image-assets', title: 'output', x: 240, y: 0, width: 200, height: 120 },
+    ],
+    edges: [{ id: createId(), from: first, to: second, kind: 'image-assets' }],
+  });
+  expect(files.getTemplate(template.id).platforms).toEqual(['web']);
+  expect((await files.listTemplatePage()).items).toHaveLength(0);
+  expect((await files.listTemplates()).some((item) => item.id === template.id)).toBe(false);
+  const copy = model.instantiate(template, { x: 0, y: 0 });
+  const canvas = await files.create();
+  canvas.nodes = copy.nodes;
+  canvas.edges = copy.edges;
+  await files.save(canvas.id, canvas, canvas.revision);
+  const loaded = await files.load(canvas.id);
+  expect(model.snapshot(loaded, [copy.section.id], 'copy').platforms).toEqual(['web']);
+  const archive = await files.exportTemplate(template.id, template.revision);
+  const imported = await files.importTemplate(archive);
+  expect(imported.platforms).toEqual(['web']);
+});
+
 test('template Skills survive local save, instantiation, reload and CLI inspection', async () => {
   const model = createCanvasTemplateModel();
   const canvas = await files.create();
@@ -66,7 +96,7 @@ test('template Skills survive local save, instantiation, reload and CLI inspecti
 });
 
 test('workflow preview reads only images belonging to the template without importing assets', async () => {
-  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000013');
+  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000015');
   const node = template.nodes.find((item) => item.type === 'image' && item.assetPath)!;
   const result = await files.readTemplatePreviewImage(template.id, template.revision, node.id);
   expect(result.type).toMatch(/^image\//);
@@ -82,9 +112,16 @@ test('workflow preview reads only images belonging to the template without impor
   const customNode = custom.nodes.find((item) => item.type === 'image' && item.assetPath)!;
   const image = await files.readTemplatePreviewImage(custom.id, custom.revision, customNode.id);
   expect(image.type).toMatch(/^image\//);
-  fs.unlinkSync(path.join(root, customNode.assetPath!));
+  const imported = await files.importImage(image.bytes);
+  const localCustom = await files.saveTemplate({
+    ...custom,
+    nodes: custom.nodes.map((item) =>
+      item.id === customNode.id ? { ...item, assetPath: imported.relativePath } : item
+    ),
+  });
+  fs.unlinkSync(path.join(root, imported.relativePath));
   await expect(
-    files.readTemplatePreviewImage(custom.id, custom.revision, customNode.id)
+    files.readTemplatePreviewImage(localCustom.id, localCustom.revision, customNode.id)
   ).rejects.toThrow('不存在');
 });
 
@@ -187,7 +224,7 @@ test('500 templates use paged summaries, cached parsing, global search and no co
   const first = await readTemplatePage(folder, read, 1, '');
   expect(first.total).toBe(500);
   expect(first.items).toHaveLength(24);
-  expect(first.presets).toHaveLength(13);
+  expect(first.presets).toHaveLength(builtinCanvasTemplates().length);
   expect(first.items.every((item) => !('nodes' in item) && !('edges' in item))).toBe(true);
   expect(read).toHaveBeenCalledTimes(500);
   const second = await readTemplatePage(folder, read, 2, '');
@@ -220,7 +257,7 @@ test('bad files and symbolic links do not break the library or expose outside te
   const result = await files.listTemplatePage();
   expect(result.skipped).toBe(2);
   expect(result.items).toEqual([]);
-  expect(result.presets).toHaveLength(13);
+  expect(result.presets).toHaveLength(builtinCanvasTemplates().length);
 });
 
 test('cover source chooses a starting image, falling back to a stable image or no cover', async () => {

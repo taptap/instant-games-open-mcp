@@ -1,8 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { getGitCommand } from '../system/git.js';
+import { runGit } from '../git/exec.js';
 import { sameProjectPathSpelling } from '../system/projectPath.js';
 
 const NAME = '.maker-preview';
@@ -61,15 +59,10 @@ export async function ensurePreviewWorkspace(project: string): Promise<string> {
   if (stat && (!stat.isFile() || stat.isSymbolicLink()))
     throw new Error('项目 .gitignore 不是普通文件，无法安全排除预览缓存。');
   if (fs.existsSync(path.join(project, '.git'))) {
-    const tracked = await promisify(execFile)(
-      getGitCommand(),
-      ['-C', project, 'ls-files', '--', NAME],
-      {
-        windowsHide: true,
-        timeout: 10000,
-        maxBuffer: 1024 * 1024,
-      }
-    );
+    const tracked = await runGit(['-C', project, 'ls-files', '--', NAME], {
+      timeoutMs: 10000,
+      maxBuffer: 1024 * 1024,
+    });
     if (tracked.stdout.trim())
       throw new Error('预览缓存已被 Git 跟踪，请先移出索引，避免提交或上传缓存。');
   }
@@ -81,8 +74,7 @@ export async function ensurePreviewWorkspace(project: string): Promise<string> {
     );
   if (fs.existsSync(path.join(project, '.git'))) {
     try {
-      await promisify(execFile)(
-        getGitCommand(),
+      await runGit(
         [
           '-C',
           project,
@@ -92,7 +84,7 @@ export async function ensurePreviewWorkspace(project: string): Promise<string> {
           '--',
           NAME + '/source/cache-probe',
         ],
-        { windowsHide: true, timeout: 10000 }
+        { timeoutMs: 10000 }
       );
     } catch {
       throw new Error('项目忽略规则未生效，请将 /.maker-preview/ 放在 .gitignore 最后再重试。');

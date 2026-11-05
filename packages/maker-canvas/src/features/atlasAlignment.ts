@@ -1,6 +1,9 @@
-import type { ImageAtlasGrid } from '../contracts.js';
+import type { ImageAtlasCrop, ImageAtlasGrid, UiAtlasPlan } from '../contracts.js';
 
-export function atlasLayoutError(message: string, reason?: 'missing-separator'): Error {
+export function atlasLayoutError(
+  message: string,
+  reason?: 'missing-separator' | 'native-alignment'
+): Error {
   return Object.assign(new Error(message), {
     code: 'ATLAS_LAYOUT_INVALID',
     ...(reason ? { reason } : {}),
@@ -217,4 +220,300 @@ export function alignAtlasCells(
     }
   }
   return cells;
+}
+
+/**
+ * Match generated sprites in a native (original-size) UI atlas to their planned slots, so a
+ * subject that drifted a few pixels or grew slightly is not clipped by the fixed crop.
+ * Solid subjects are found first, then soft edge pixels join the nearest unique subject.
+ * Output sizes and bindings never change. Based on the Web canvas fix (19cffd936, 6f68130ee);
+ * unlike it, sprites that touch neighbours are cut at slot borders instead of blocking, and
+ * only missing subjects or large strays outside every slot fail for manual review.
+ */
+export function alignNativeAtlasRegions(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  plan: UiAtlasPlan,
+  regions: ImageAtlasCrop[]
+):
+  | {
+      placements: Array<
+        | {
+            source: { x: number; y: number; width: number; height: number };
+            target: { x: number; y: number; width: number; height: number };
+          }
+        | undefined
+      >;
+      pixelOwners: Uint8Array;
+      /** Components that touched several slots and were cut at slot borders. */
+      split: number;
+    }
+  | undefined {
+  if (plan.slots.every((slot) => slot.role === 'background')) return;
+  const fail = (message: string): never => {
+    throw atlasLayoutError(
+      message + '；请打开资源卡的「调整参数」核对裁切框。原图和已有素材保留，不会自动重新生图。',
+      'native-alignment'
+    );
+  };
+  const overlap = (
+    a: { x: number; y: number; width: number; height: number },
+    b: { x: number; y: number; width: number; height: number }
+  ) =>
+    Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
+    Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+  let peak = 0;
+  for (let offset = 3; offset < data.length; offset += 4) peak = Math.max(peak, data[offset]);
+  const labels = new Uint16Array(width * height);
+  let parts: Array<{ x: number; y: number; width: number; height: number }> = [];
+  try {
+    // Locate solid subjects first; faint shadows must not join adjacent sprites.
+    parts = findNativeAtlasComponents(data, width, height, Math.max(8, Math.min(32, peak)), labels);
+  } catch (error) {
+    if ((error as { code?: string }).code !== 'ATLAS_LAYOUT_INVALID') throw error;
+    fail('无法确认素材完整边界：' + (error as Error).message);
+  }
+  const usable = regions.map((_, index) => plan.slots[index].role !== 'reserve');
+  // Region containing a pixel; outside all slots, the unique nearest slot within 8 px.
+  const regionAt = (x: number, y: number): number => {
+    let best = 0;
+    let bestDistance = 9;
+    let tied = false;
+    for (let index = 0; index < regions.length; index++) {
+      if (!usable[index]) continue;
+      const region = regions[index];
+      const dx = Math.max(region.x - x, 0, x - (region.x + region.width - 1));
+      const dy = Math.max(region.y - y, 0, y - (region.y + region.height - 1));
+      const distance = Math.max(dx, dy);
+      if (distance === 0) return index + 1;
+      if (distance < bestDistance) {
+        best = index + 1;
+        bestDistance = distance;
+        tied = false;
+      } else if (distance === bestDistance) tied = true;
+    }
+    return tied ? 0 : best;
+  };
+  const SPLIT = 255;
+  const found = regions.map(() => false);
+  const componentOwners = new Uint8Array(parts.length + 1);
+  let split = 0;
+  // A whole sheet can drift and stretch (seen: everything ~100 px low, the bottom bar wholly
+  // below its slot). First pair components one-to-one with slots of similar size near them;
+  // only components left over go through the overlap rules below.
+  const sizeMatched = new Map<number, number>();
+  const pairs: Array<{ part: number; slot: number; score: number }> = [];
+  parts.forEach((part, partIndex) => {
+    regions.forEach((region, index) => {
+      if (!usable[index]) return;
+      const rw = part.width / region.width;
+      const rh = part.height / region.height;
+      if (rw < 0.75 || rw > 1.35 || rh < 0.75 || rh > 1.35) return;
+      const distance = Math.hypot(
+        part.x + part.width / 2 - (region.x + region.width / 2),
+        part.y + part.height / 2 - (region.y + region.height / 2)
+      );
+      const reach = Math.max(region.width, region.height, part.width, part.height);
+      if (distance > reach * 0.6) return;
+      pairs.push({
+        part: partIndex,
+        slot: index,
+        score: Math.abs(Math.log(rw)) + Math.abs(Math.log(rh)) + distance / reach,
+      });
+    });
+  });
+  const pairedSlots = new Set<number>();
+  for (const pair of pairs.sort((a, b) => a.score - b.score)) {
+    if (sizeMatched.has(pair.part) || pairedSlots.has(pair.slot)) continue;
+    // Only unambiguous sizes: another slot of near-equal score would make this a guess.
+    const rival = pairs.find(
+      (other) =>
+        other.part === pair.part &&
+        other.slot !== pair.slot &&
+        !pairedSlots.has(other.slot) &&
+        other.score - pair.score < 0.05
+    );
+    if (rival) continue;
+    sizeMatched.set(pair.part, pair.slot);
+    pairedSlots.add(pair.slot);
+  }
+  parts.forEach((part, partIndex) => {
+    const paired = sizeMatched.get(partIndex);
+    // Large components only: small icons in dense sheets keep the overlap rules.
+    if (paired !== undefined && part.width * part.height >= 64 * 64) {
+      componentOwners[partIndex + 1] = paired + 1;
+      found[paired] = true;
+      return;
+    }
+    const owners = regions
+      .map((region, index) => ({ index, area: usable[index] ? overlap(region, part) : 0 }))
+      .filter((owner) => owner.area > 0);
+    // A sprite that touches a single slot belongs to it however far it drifted (seen in real
+    // runs: an item drawn ~30 px low and larger than its slot). Overlap majority only decides
+    // between several slots; otherwise a drifted sprite would be split and clipped.
+    const major =
+      owners.length === 1
+        ? owners
+        : owners.filter((owner) => owner.area > (part.width * part.height) / 2);
+    const coversOther =
+      major.length === 1 &&
+      regions.some(
+        (region, other) =>
+          other !== major[0].index &&
+          usable[other] &&
+          region.x + region.width / 2 >= part.x &&
+          region.x + region.width / 2 < part.x + part.width &&
+          region.y + region.height / 2 >= part.y &&
+          region.y + region.height / 2 < part.y + part.height
+      );
+    if (major.length === 1 && !coversOther) {
+      componentOwners[partIndex + 1] = major[0].index + 1;
+      found[major[0].index] = true;
+    } else if (owners.length) {
+      // Generated sprites that touch their neighbours are cut at the planned slot borders,
+      // the same boundary the fixed crop used; isolated sprites still get drift correction.
+      componentOwners[partIndex + 1] = SPLIT;
+      split++;
+    } else {
+      // Outside every slot: a small edge fragment joins the unique nearby slot; anything else
+      // is dropped (a fixed crop would not include it either). If it was some slot's subject,
+      // that slot reports a missing subject below.
+      const owner = regionAt(
+        part.x + Math.floor(part.width / 2),
+        part.y + Math.floor(part.height / 2)
+      );
+      componentOwners[partIndex + 1] = owner && part.width <= 16 && part.height <= 16 ? owner : 0;
+    }
+  });
+  // Solid pixels: whole-component owner, or per-pixel slot for split components.
+  const coreOwners = new Uint8Array(width * height);
+  for (let pixel = 0; pixel < coreOwners.length; pixel++) {
+    const label = labels[pixel];
+    if (!label) continue;
+    const owner = componentOwners[label];
+    coreOwners[pixel] =
+      owner === SPLIT ? regionAt(pixel % width, Math.floor(pixel / width)) : owner;
+    if (coreOwners[pixel]) found[coreOwners[pixel] - 1] = true;
+  }
+  regions.forEach((region, index) => {
+    if (!found[index] && plan.slots[index].state !== 'pressed' && usable[index])
+      fail(region.name + ' 没有找到对应素材');
+  });
+  const radii = regions.map((region) =>
+    Math.max(2, Math.min(8, Math.min(region.width, region.height) * 0.2))
+  );
+  const offsets: Array<{ dx: number; dy: number; squared: number }> = [];
+  for (let dy = -8; dy <= 8; dy++)
+    for (let dx = -8; dx <= 8; dx++) {
+      const squared = dx * dx + dy * dy;
+      if (squared > 0 && squared <= 64) offsets.push({ dx, dy, squared });
+    }
+  offsets.sort((a, b) => a.squared - b.squared);
+  const pixelOwners = new Uint8Array(width * height);
+  const bounds = regions.map(() => ({ left: width, top: height, right: 0, bottom: 0 }));
+  for (let pixel = 0; pixel < pixelOwners.length; pixel++) {
+    if (!data[pixel * 4 + 3]) continue;
+    const x = pixel % width;
+    const y = Math.floor(pixel / width);
+    let owner = labels[pixel] ? coreOwners[pixel] : 0;
+    if (!labels[pixel]) {
+      // Recover original soft pixels by distance to a fixed core, not flood-fill connectivity.
+      let nearest = Infinity;
+      let tied = false;
+      for (const offset of offsets) {
+        if (offset.squared > nearest) break;
+        const nx = x + offset.dx;
+        const ny = y + offset.dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const candidate = coreOwners[ny * width + nx];
+        if (!candidate) continue;
+        if (nearest === Infinity) {
+          owner = candidate;
+          nearest = offset.squared;
+        } else if (candidate !== owner) tied = true;
+      }
+      if (tied || !owner || nearest > radii[owner - 1] * radii[owner - 1]) continue;
+    }
+    if (!owner) continue;
+    pixelOwners[pixel] = owner;
+    const bound = bounds[owner - 1];
+    bound.left = Math.min(bound.left, x);
+    bound.top = Math.min(bound.top, y);
+    bound.right = Math.max(bound.right, x + 1);
+    bound.bottom = Math.max(bound.bottom, y + 1);
+  }
+  const placements = regions.map((region, index) => {
+    if (!found[index] || bounds[index].right <= bounds[index].left) return undefined;
+    const { left, top, right, bottom } = bounds[index];
+    const source = { x: left, y: top, width: right - left, height: bottom - top };
+    // Never enlarge; modest overgrowth shrinks proportionally into the planned size.
+    const scale = Math.min(1, region.width / source.width, region.height / source.height);
+    return {
+      source,
+      target: {
+        x:
+          region.x +
+          (scale < 1
+            ? (region.width - source.width * scale) / 2
+            : Math.max(0, Math.min(left - region.x, region.width - source.width))),
+        y:
+          region.y +
+          (scale < 1
+            ? (region.height - source.height * scale) / 2
+            : Math.max(0, Math.min(top - region.y, region.height - source.height))),
+        width: source.width * scale,
+        height: source.height * scale,
+      },
+    };
+  });
+  return { placements, pixelOwners, split };
+}
+
+export function findNativeAtlasComponents(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  threshold = 8,
+  labels = new Uint16Array(width * height)
+): Array<{ x: number; y: number; width: number; height: number }> {
+  if (data.length !== width * height * 4) throw new Error('图集像素尺寸无效。');
+  const queue = new Uint32Array(width * height);
+  const parts: Array<{ x: number; y: number; width: number; height: number }> = [];
+  for (let start = 0; start < labels.length; start++) {
+    if (labels[start] || data[start * 4 + 3] < threshold) continue;
+    let head = 0;
+    let tail = 1;
+    const label = parts.length + 1;
+    queue[0] = start;
+    labels[start] = label;
+    let left = start % width;
+    let right = left;
+    let top = Math.floor(start / width);
+    let bottom = top;
+    while (head < tail) {
+      const pixel = queue[head++];
+      const x = pixel % width;
+      const y = Math.floor(pixel / width);
+      left = Math.min(left, x);
+      right = Math.max(right, x);
+      top = Math.min(top, y);
+      bottom = Math.max(bottom, y);
+      for (let row = Math.max(0, y - 1); row <= Math.min(height - 1, y + 1); row++)
+        for (let column = Math.max(0, x - 1); column <= Math.min(width - 1, x + 1); column++) {
+          const next = row * width + column;
+          if (!labels[next] && data[next * 4 + 3] >= threshold) {
+            labels[next] = label;
+            queue[tail++] = next;
+          }
+        }
+    }
+    // A subject touching the atlas border is kept: the model drew it past the canvas and the
+    // planned slot crop could not recover more either. Checkpoint B still reviews every batch.
+    // (The Web canvas rejects these, which blocked a whole character batch in a real run.)
+    parts.push({ x: left, y: top, width: right - left + 1, height: bottom - top + 1 });
+    if (parts.length > 4096) throw atlasLayoutError('透明图中碎片过多，请检查背景。');
+  }
+  if (!parts.length) throw atlasLayoutError('图集中没有可切分的素材。');
+  return parts;
 }

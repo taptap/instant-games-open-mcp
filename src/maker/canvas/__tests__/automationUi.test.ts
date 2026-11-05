@@ -244,6 +244,103 @@ test('save failure reports an unsaved result and releases the UI without rolling
   expect(ui.isEditing).toBe(false);
 });
 
+test('CLI undo stays reachable when the pending edit cannot be saved', async () => {
+  const { ui, options, command } = fixture();
+  let saveable = false;
+  options.blocked.mockImplementation((allowUnsaved?: boolean) =>
+    allowUnsaved || saveable ? undefined : '画布有未保存修改，请等待保存完成后重试。'
+  );
+  options.save.mockImplementation(async () => saveable);
+  const undo = jest.fn(() => {
+    saveable = true;
+    return true;
+  });
+  Object.assign(options, { undo, redo: jest.fn(() => false) });
+  // Ordinary edits are still refused before any change while saving fails.
+  await expect(
+    ui.execute({ ...command, action: 'rename', input: { title: 'blocked title' } })
+  ).rejects.toMatchObject({ code: 'INVALID_ARGS', message: expect.stringContaining('保存失败') });
+  expect(options.remember).not.toHaveBeenCalled();
+  await expect(ui.execute({ ...command, action: 'undo', input: {} })).resolves.toBeTruthy();
+  expect(undo).toHaveBeenCalledTimes(1);
+});
+
+test('CLI undo after a failed save still honours other blocks', async () => {
+  const { ui, options, command } = fixture();
+  options.blocked.mockImplementation((allowUnsaved?: boolean) =>
+    allowUnsaved ? undefined : '画布有未保存修改，请等待保存完成后重试。'
+  );
+  options.save.mockResolvedValue(false);
+  const undo = jest.fn(() => true);
+  Object.assign(options, { undo, redo: jest.fn(() => true) });
+  let calls = 0;
+  options.blocked.mockImplementation((allowUnsaved?: boolean) => {
+    // A dialog opens while the failed save is reported: undo must not run through it.
+    if (allowUnsaved) return calls++ > 1 ? '请先完成或关闭正在编辑的面板。' : undefined;
+    return '画布有未保存修改，请等待保存完成后重试。';
+  });
+  await expect(ui.execute({ ...command, action: 'undo', input: {} })).rejects.toMatchObject({
+    code: 'INVALID_ARGS',
+  });
+  expect(undo).not.toHaveBeenCalled();
+});
+
+test('CLI disconnect uses the host unwiring and reports its refusal as not executed', async () => {
+  const { ui, options, current, command } = fixture();
+  current.nodes.push({ ...current.nodes[0], id: 'target', assetPath: 'target.png' });
+  current.edges.push({ id: 'edge', from: 'image', to: 'target', kind: 'image-variant' });
+  const disconnect = jest.fn((edge: { id: string }) => {
+    current.edges = current.edges.filter((item) => item.id !== edge.id);
+    return undefined;
+  });
+  Object.assign(options, { disconnect });
+  await ui.execute({ ...command, action: 'disconnect', input: { edgeId: 'edge' } });
+  expect(disconnect).toHaveBeenCalledWith(expect.objectContaining({ id: 'edge' }));
+  expect(current.edges).toHaveLength(0);
+  expect(options.remember).not.toHaveBeenCalled();
+  current.edges.push({ id: 'edge2', from: 'image', to: 'target', kind: 'image-variant' });
+  disconnect.mockImplementation(() => '引用卡片尚未就绪，请稍后再删除连线。' as any);
+  await expect(
+    ui.execute({
+      ...command,
+      revision: current.revision,
+      action: 'disconnect',
+      input: { edgeId: 'edge2' },
+    })
+  ).rejects.toMatchObject({ code: 'INVALID_ARGS' });
+  expect(current.edges).toHaveLength(1);
+});
+
+test('015 run argument errors are rejections, coordinator failures stay uncoded', async () => {
+  const { ui, options, current, command } = fixture();
+  current.nodes.push({
+    id: 'group',
+    type: 'section',
+    title: '015',
+    x: 0,
+    y: 0,
+    width: 800,
+    height: 600,
+    templateId: '7e1cb6ad-732f-4dc3-a951-000000000015',
+  });
+  const advance = jest.fn(async () => ({
+    status: 'failed',
+    stage: 'prepare',
+    message: '准备失败',
+  }));
+  Object.assign(options, {
+    ui015: { isWorkflowGroup: () => true, advance, inspect: () => undefined },
+  });
+  const run = { ...command, action: 'run', allowPaid: true };
+  await expect(
+    ui.execute({ ...run, input: { id: 'group', artText: 'all' } })
+  ).rejects.toMatchObject({ code: 'INVALID_ARGS' });
+  expect(advance).not.toHaveBeenCalled();
+  const failure = await ui.execute({ ...run, input: { id: 'group' } }).catch((error) => error);
+  expect(failure.message).toBe('准备失败');
+  expect(failure.code).toBeUndefined();
+});
+
 test('an asynchronous template insertion serializes mutations but permits inspection', async () => {
   const { ui, options, command } = fixture();
   let finish!: () => void;

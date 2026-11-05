@@ -178,6 +178,8 @@ export {
 export type { CanvasBundleValidation, CanvasResourceBundleHost } from './browser/resourceBundle.js';
 
 export { canvasCapabilityReason, canvasFeatureEnabled } from './browser/capabilities.js';
+export { canvasSupportsPlatform, validateCanvasPlatforms } from './contracts/platform.js';
+export type { CanvasPlatform, CanvasPlatformScope } from './contracts/platform.js';
 export type {
   CanvasCapability,
   CanvasHostCapabilities,

@@ -14,6 +14,8 @@ export function validateImageAssetsInfoStructure(value: unknown): ImageAssetsInf
     !['unreviewed', 'confirmed', 'recorded'].includes(info.uiBindingReview)
   )
     throw new Error('UI 素材绑定核对状态无效。');
+  if (info.manualNative !== undefined && typeof info.manualNative !== 'boolean')
+    throw new Error('手动原尺寸裁切标记无效。');
   if (
     info.background !== undefined &&
     (!info.background ||
@@ -76,6 +78,7 @@ export function validateImageAssetsInfoStructure(value: unknown): ImageAssetsInf
   });
   return {
     ...(info.uiBindingReview ? { uiBindingReview: info.uiBindingReview } : {}),
+    ...(info.manualNative ? { manualNative: true } : {}),
     width: info.width,
     ...(info.cutMode ? { cutMode: info.cutMode } : {}),
     height: info.height,

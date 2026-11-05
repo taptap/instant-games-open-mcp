@@ -288,9 +288,9 @@ test('real PNG hashes are checked; output is new-only and assets stay untouched'
     const file = path.join(dir, 'layout.json'),
       out = path.join(dir, 'output');
     fs.writeFileSync(file, JSON.stringify(layout));
-    run(dir, file, out);
+    const delivered = run(dir, file, out);
     assert.equal(
-      JSON.parse(fs.readFileSync(path.join(out, 'assembled.ui.json'))).children[0].children.length,
+      JSON.parse(fs.readFileSync(path.join(out, delivered.uiFileName))).children[0].children.length,
       2
     );
     assert.throws(() => run(dir, file, out), /EEXIST/);
@@ -372,15 +372,15 @@ test('Bbox file input produces editable UI, reference and a reusable correction 
     const filename = path.join(directory, 'assembly.json');
     fs.writeFileSync(filename, JSON.stringify(input));
     const output = path.join(directory, 'output');
-    run(directory, filename, output);
+    const delivered = run(directory, filename, output);
     const layout = JSON.parse(fs.readFileSync(path.join(output, 'layout.json'), 'utf8'));
     assert.deepEqual(
       layout.elements.find((element) => element.id === 'T001').rect,
       [50, 90, 80, 30]
     );
-    assert(fs.existsSync(path.join(output, 'assembled.reference.png')));
+    assert(fs.existsSync(path.join(output, delivered.referenceFileName)));
     assert.equal(
-      JSON.parse(fs.readFileSync(path.join(output, 'assembled.ui.json'), 'utf8')).children[0]
+      JSON.parse(fs.readFileSync(path.join(output, delivered.uiFileName), 'utf8')).children[0]
         .children[0].text,
       '购买'
     );

@@ -1,9 +1,8 @@
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { getGitCommand } from '../system/git.js';
 import { validQrcodePublication } from '../qrcodePreflight.js';
+import { runGitSync } from './exec.js';
 
 const file = '.project/project.json';
 
@@ -13,15 +12,13 @@ export async function withQrcodeFastForward(
   remoteRef: string,
   fastForward: (revision: string) => Promise<void>
 ): Promise<void> {
+  // Synchronous on purpose: the index.lock swap below must not interleave with other work.
   const git = (args: string[], index?: string) =>
-    execFileSync(getGitCommand(), args, {
+    runGitSync(args, {
       cwd,
-      encoding: 'utf8',
-      timeout: 15000,
+      timeoutMs: 15000,
       maxBuffer: 2 * 1024 * 1024,
-      env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', ...(index ? { GIT_INDEX_FILE: index } : {}) },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
+      env: { GIT_OPTIONAL_LOCKS: '0', ...(index ? { GIT_INDEX_FILE: index } : {}) },
     });
   const head = git(['rev-parse', 'HEAD']).trim();
   const remote = git(['rev-parse', remoteRef]).trim();

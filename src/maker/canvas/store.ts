@@ -1,6 +1,7 @@
 import type {
   CanvasGenerationAttempt,
   CanvasModelSettings,
+  CanvasUiDeliveryStatus,
   CanvasVideoHistory,
 } from '../../../packages/maker-canvas/src/contracts.js';
 export type {
@@ -77,6 +78,33 @@ export function createBrowserCanvasDocumentStore(
     return body as T;
   }
   return {
+    platform: 'local',
+    uiDelivery: (canvasId, nodeId) =>
+      request<CanvasUiDeliveryStatus>(
+        '/canvases/' + canvasId + '/ui-delivery?nodeId=' + encodeURIComponent(nodeId),
+        { signal: AbortSignal.timeout(120000) }
+      ),
+    assembleUi: (canvasId, nodeId, newVersion?: boolean, designPng?: string, source?: string) =>
+      request<CanvasUiDeliveryStatus>('/canvases/' + canvasId + '/ui-delivery', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          nodeId,
+          ...(newVersion ? { newVersion: true } : {}),
+          ...(designPng ? { designPng } : {}),
+          ...(source === 'cli' ? { source } : {}),
+        }),
+        signal: AbortSignal.timeout(10 * 60 * 1000),
+      }),
+    setupPython: () =>
+      request<{ ready: boolean; message?: string }>('/canvases/python/setup', {
+        method: 'POST',
+        signal: AbortSignal.timeout(20 * 60 * 1000),
+      }),
+    // `project=<key>` is the explicit project selector; `checkout` alone is ignored by the
+    // console, which then fell back to the last selected project and lost the file.
+    uiEditorUrl: (file) =>
+      '/?' + new URLSearchParams({ project: projectKey, page: 'ui-editor', ui: file }).toString(),
     videoHistory: (offset = 0, limit = 30) =>
       request<CanvasVideoHistory>('/canvases/video-history?offset=' + offset + '&limit=' + limit),
     modelSettings: async () => {

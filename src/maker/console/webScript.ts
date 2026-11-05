@@ -1,6 +1,8 @@
 import { consoleIcons } from './webIcons.js';
 import { consoleThemeScript } from '../webTheme.js';
 import { modelSettingsScript } from './modelSettingsUi.js';
+import { contextCheckScript } from './contextCheckUi.js';
+import { architecturePreviewScript } from './architecturePreview.js';
 
 export const consoleScript = String.raw`
 ${consoleThemeScript}
@@ -12,6 +14,8 @@ let projectid = initialQuery.get('projectid') || '';
 let selected = initialQuery.get('project') || '';
 const hasExplicitProject = initialQuery.has('projectid') || initialQuery.has('project');
 let page = selected ? 'overview' : 'projects';
+let otherTab = 'motion';
+let motionFrame;
 let selectionEpoch = 0;
 let viewEpoch = 0;
 let projectNotice = '';
@@ -1092,6 +1096,8 @@ function startActivityLease() {
   activityTimer = setInterval(() => void sendActivity(true),60000);
 }
 function dispose() {
+  architecturePreview.suspend();
+  setMotionVisible(false);
   offline = true;
   disposed = true;
   clearTimeout(pollTimer);
@@ -1198,7 +1204,7 @@ function chooseProject(key, updateUrl = true) {
   }
   const project = state.projects.find(p => p.key === key);
   selected = key;
-  if (!project?.valid && page !== 'projects' && page !== 'documents') page = 'projects';
+  if (!project?.valid && !['projects','documents','other'].includes(page)) page = 'projects';
   if (updateUrl) setProjectQuery();
   if (updateUrl) void api('/api/console-preferences', {
     method:'PUT',body:{selectedProjectKey:key || null}
@@ -1227,7 +1233,7 @@ function updateChrome() {
   $('context').title = currentProject()?.name || '本地项目';
   $('footer-path').textContent = currentProject()?.path || '';
   document.querySelectorAll('nav [data-page]').forEach(b => {
-    b.disabled = !loaded || (!['documents','settings'].includes(b.dataset.page) && !currentProject()?.valid);
+    b.disabled = !loaded || (!['documents','settings','other'].includes(b.dataset.page) && !currentProject()?.valid);
     if (b.dataset.page === page) b.setAttribute('aria-current','page');
     else b.removeAttribute('aria-current');
   });
@@ -1539,7 +1545,10 @@ function renderProjects() {
     if (p.key === selected) label.append(node('span','当前项目','tag'));
     if (!p.valid) label.append(node('p', text(p.error,'项目不可用'), 'bad'));
     const actions = node('div', undefined, 'actions');
-    actions.append(button('打开', () => chooseProject(p.key), {disabled:!p.valid}));
+    actions.append(button('打开', () => {
+      chooseProject(p.key);
+      if (selected === p.key) navigate('overview');
+    }, {disabled:!p.valid}));
     actions.append(button('移除登记（保留项目文件）', () => void removeProject(p.key), {
       icon:'trash',iconOnly:true,className:'icon-button danger',disabled:busy() || busy(p.key),
       focus:'remove-' + p.key
@@ -1591,6 +1600,7 @@ function overviewTasks() {
   title.append(node('h2','最近任务'),node('span','保留最近 10 次','muted'));
   return [title,...(tasks.length ? tasks.map(task => taskBlock(task)) : [node('p','暂无控制台任务','muted')])];
 }
+${contextCheckScript}
 function renderOverview() {
   const p = currentProject();
   const title = heading(p.name,p.path,true);
@@ -1656,7 +1666,8 @@ function renderOverview() {
   serviceActions.append(button('关闭Maker控制台',() => void shutdownConsole(),{
     className:'console-shutdown',disabled:offline || shutdownPending,focus:'console-shutdown'
   }));
-  replace($('view'),[title,metrics,columns,recent,serviceActions]);
+  replace($('view'),[title,metrics,columns,contextCheckSection(),recent,serviceActions]);
+  ensureInitialContextCheck();
 }
 async function shutdownConsole() {
   if (shutdownPending || offline || disposed) return;
@@ -2787,8 +2798,35 @@ function renderCanvas() {
   canvasFrames.forEach((item, itemKey) => { item.hidden = itemKey !== key; });
 }
 ${modelSettingsScript}
+function setMotionVisible(visible) {
+  motionFrame?.contentWindow?.postMessage({type:'maker:motion-visibility',visible},location.origin);
+}
+function renderOther() {
+  const motion = otherTab === 'motion';
+  $('other-motion').hidden = !motion;
+  $('other-architecture').hidden = motion;
+  document.querySelectorAll('[data-other-tab]').forEach(tab => {
+    tab.setAttribute('aria-selected',String(tab.dataset.otherTab === otherTab));
+    tab.tabIndex = tab.dataset.otherTab === otherTab ? 0 : -1;
+  });
+  if (motion) {
+    if (!motionFrame) {
+      motionFrame = node('iframe',undefined,'motion-library-frame');
+      motionFrame.title = 'UI 动效库';
+      motionFrame.src = '/ui-motion';
+      motionFrame.addEventListener('load',() => setMotionVisible(page === 'other' && otherTab === 'motion'));
+      $('other-motion').append(motionFrame);
+    }
+    setMotionVisible(true);
+  } else {
+    setMotionVisible(false);
+    architecturePreview.render($('other-architecture'));
+  }
+}
 function navigate(next) {
-  if (!currentProject()?.valid && !['projects','documents','settings'].includes(next)) return;
+  // Keep the unfinished tools dormant until their navigation entry is restored.
+  if (next === 'other') return;
+  if (!currentProject()?.valid && !['projects','documents','settings','other'].includes(next)) return;
   viewEpoch++; commitRequest++; gitLoading = false; page = next;
   render();
   if (next === 'overview' && !detail) void loadProject();
@@ -2796,13 +2834,16 @@ function navigate(next) {
   if (next === 'build') void refreshPreview();
 }
 function render() {
+  architecturePreview.suspend();
+  setMotionVisible(false);
   document.body.classList.toggle('canvas-mode', page === 'canvas' || page === 'ui-editor');
   $('close-canvas').hidden = true;
   syncValidationPolling();
   updateChrome();
   $('view').setAttribute('aria-busy','false');
   const plugin = currentProject()?.valid && pluginDescriptors().find(item => page === 'plugin:' + item.id);
-  $('view').hidden = Boolean(plugin) || page === 'canvas' || page === 'ui-editor';
+  $('view').hidden = Boolean(plugin) || ['canvas','ui-editor','other'].includes(page);
+  $('other-view').hidden = page !== 'other';
   $('plugin-views').hidden = !plugin;
   $('canvas-views').hidden = page !== 'canvas';
   $('ui-editor-view').hidden = page !== 'ui-editor';
@@ -2812,6 +2853,7 @@ function render() {
   if (plugin) { renderPlugin(plugin); return; }
   if (page === 'documents') { void renderDocuments(); return; }
   if (page === 'settings') { void renderVisionSettings(); return; }
+  if (page === 'other') { renderOther(); return; }
   if (page === 'projects' || !currentProject()?.valid) renderProjects();
   else if (page === 'build') renderBuild();
   else if (page === 'git') renderGit();
@@ -2892,11 +2934,11 @@ async function pollState() {
   $('connection').title = '最近连接：' + new Date().toLocaleTimeString('zh-CN');
   $('connection').className = 'good';
   lastStateError = '';
-  if (selected && !currentProject()?.valid && !['projects','documents','settings'].includes(page)) page = 'projects';
+  if (selected && !currentProject()?.valid && !['projects','documents','settings','other'].includes(page)) page = 'projects';
   let projectChanged = false;
   if (first && projectNotice === '') projectNotice = currentProjectNotice();
   else projectChanged = publishProjectChange();
-  if (projectChanged || (first && ['ui-editor', 'documents', 'settings'].includes(page))) render();
+  if (projectChanged || (first && ['ui-editor', 'documents', 'settings', 'other'].includes(page))) render();
   else {
     updateChrome();
     if (page === 'projects' && (first || priorProjects !== JSON.stringify(state.projects))) renderProjects();
@@ -2956,6 +2998,7 @@ onProjectChange(() => {
   documentRequest++;
   documentDirectoryRequest++;
 });
+${architecturePreviewScript}
 document.addEventListener('DOMContentLoaded',async () => {
   window.addEventListener('beforeunload', protectUiEditorUnload);
   $('git-pull-conflict-copy')?.addEventListener('click',() => void copyGitPrompt($('git-pull-conflict-prompt').value));
@@ -3027,6 +3070,21 @@ document.addEventListener('DOMContentLoaded',async () => {
   $('maker-version-picker').addEventListener('change',selectMakerVersion);
   $('dismiss').addEventListener('click',() => { $('feedback').hidden = true; });
   document.querySelectorAll('nav [data-page]').forEach(b => b.addEventListener('click',() => navigate(b.dataset.page)));
+  document.querySelectorAll('[data-other-tab]').forEach(tab => {
+    tab.addEventListener('click',() => {
+      architecturePreview.suspend();
+      otherTab = tab.dataset.otherTab;
+      renderOther();
+    });
+    tab.addEventListener('keydown',event => {
+      if (!['ArrowUp','ArrowDown','Home','End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 'motion' : event.key === 'End' ? 'architecture'
+        : otherTab === 'motion' ? 'architecture' : 'motion';
+      const target = document.querySelector('[data-other-tab="' + next + '"]');
+      target.click(); target.focus();
+    });
+  });
   window.addEventListener('popstate',() => {
     chooseProject(projectKeyFromQuery(new URLSearchParams(location.search)),false);
   });

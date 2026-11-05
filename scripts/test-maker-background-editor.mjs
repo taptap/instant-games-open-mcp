@@ -8,7 +8,7 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const compiled = await build({
   stdin: {
     contents:
-      'export { openBackgroundEditor } from "./src/maker/canvas/backgroundUi.ts"; export { createBackgroundRemoval } from "./src/maker/canvas/backgroundRemoval.ts"; export { SEQUENCE_EDITOR_STYLES } from "./src/maker/canvas/sequenceEditorStyles.ts";',
+      'export { openBackgroundEditor } from "./src/maker/canvas/backgroundUi.ts"; export { createBackgroundRemoval } from "./src/maker/canvas/backgroundRemoval.ts"; export { CANVAS_BACKGROUND_DEFAULTS } from "./packages/maker-canvas/src/browser/backgroundRemoval.ts"; export { SEQUENCE_EDITOR_STYLES } from "./src/maker/canvas/sequenceEditorStyles.ts";',
     resolveDir: repo,
   },
   bundle: true,
@@ -17,7 +17,12 @@ const compiled = await build({
   write: false,
   logLevel: 'silent',
 });
-const { openBackgroundEditor, createBackgroundRemoval, SEQUENCE_EDITOR_STYLES } = await import(
+const {
+  openBackgroundEditor,
+  createBackgroundRemoval,
+  CANVAS_BACKGROUND_DEFAULTS,
+  SEQUENCE_EDITOR_STYLES,
+} = await import(
   'data:text/javascript;base64,' + Buffer.from(compiled.outputFiles[0].text).toString('base64')
 );
 const playwrightModule =
@@ -44,8 +49,11 @@ try {
   });
   await page.setContent('<style>' + SEQUENCE_EDITOR_STYLES + '</style>');
   await page.addScriptTag({
+    // The page injects the shared defaults the same way (getCanvasPageHtml helpers).
     content:
-      'window.openBackgroundEditor = ' +
+      'const CANVAS_BACKGROUND_DEFAULTS = ' +
+      JSON.stringify(CANVAS_BACKGROUND_DEFAULTS) +
+      '; window.openBackgroundEditor = ' +
       openBackgroundEditor.toString() +
       '; window.createBackgroundRemoval = ' +
       createBackgroundRemoval.toString() +

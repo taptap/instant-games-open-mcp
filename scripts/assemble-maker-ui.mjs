@@ -9,7 +9,7 @@ if (process.argv[1] && fs.realpathSync(process.argv[1]) === fileURLToPath(import
       throw new Error(
         'Usage: node scripts/assemble-maker-ui.mjs <project> <layout.json> <new-output-dir> [corrections.json]'
       );
-    run(...process.argv.slice(2));
+    console.log(JSON.stringify(run(...process.argv.slice(2))));
   } catch (error) {
     console.error('UI 组装未完成：' + error.message);
     process.exitCode = 1;

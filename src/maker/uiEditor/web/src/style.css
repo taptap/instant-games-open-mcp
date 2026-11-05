@@ -46,6 +46,23 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 .menubar-left, .menubar-right { flex-wrap: wrap; }
 .examples-help { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:4px; color:var(--muted); }
 .examples-help:hover, .examples-help:focus-visible { color:var(--text); background:var(--panel-2); outline:1px solid var(--accent); }
+#shortcutsBtn { display:inline-flex; align-items:center; justify-content:center; }
+dialog.editor-shortcuts {
+  position:fixed; margin:0; width:360px; max-width:calc(100vw - 16px);
+  max-height:min(620px, calc(100vh - 24px)); overflow:auto; overscroll-behavior:contain;
+  padding:16px; border:1px solid var(--line); border-radius:12px;
+  background:var(--panel); color:var(--text); box-shadow:0 8px 32px #0003;
+  font-size:12px; line-height:1.5;
+}
+dialog.editor-shortcuts::backdrop { background:transparent; }
+.editor-shortcuts .shortcut-heading { position:sticky; top:-16px; background:var(--panel); display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.editor-shortcuts h2 { font-size:15px; margin:0; }
+.editor-shortcuts .shortcut-heading button { padding:2px 8px; font-size:20px; line-height:1.2; }
+.editor-shortcuts h3 { margin:16px 0 6px; font-size:12px; color:var(--muted); }
+.editor-shortcuts .shortcut-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:6px 0; }
+.editor-shortcuts kbd { max-width:66%; text-align:right; font:inherit; font-weight:600; }
+.editor-shortcuts section:first-of-type .shortcut-row:first-of-type { color:var(--accent); font-weight:600; }
+.editor-shortcuts p { margin:14px 0 0; color:var(--muted); font-size:12px; }
 .transform-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:5px 8px; border-bottom:1px solid var(--line); font-size:12px; }
 .transform-toolbar label { display:flex; align-items:center; gap:5px; }
 .transform-toolbar input { width:64px; }

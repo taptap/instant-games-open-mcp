@@ -16,7 +16,6 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { selectedUiRecognition, uiRecognitionSource } from '../canvas/uiRecognition.js';
 import {
-  IMAGE_OUTPUT_RATIOS,
   canvasOriginalImage,
   imageRatioInfo,
   resolveImageSize,
@@ -124,6 +123,8 @@ export class CanvasGenerationService {
     sourceImageIds?: string[];
     referenceImagePaths?: string[];
     targetNodeId?: string;
+    /** In-memory PNG of a non-PNG design; used only by the local art-text prelayout. */
+    designPng?: Buffer;
   }): Promise<CanvasGenerationAttempt> {
     let attemptCreated = false;
     try {
@@ -159,13 +160,11 @@ export class CanvasGenerationService {
       }
       if (options.resolution && !['1K', '2K'].includes(options.resolution))
         throw new Error('图片分辨率无效。');
-      if (options.aspectRatio && !['source', ...IMAGE_OUTPUT_RATIOS].includes(options.aspectRatio))
-        throw new Error('图片比例无效。');
       if (options.targetSize && !/^[1-9]\d{0,3}x[1-9]\d{0,3}$/.test(options.targetSize))
         throw new Error('图片目标尺寸无效。');
-      this.assertImageSources(document, sourceImageIds, sourceImagePaths, files);
+      await this.assertImageSources(document, sourceImageIds, sourceImagePaths, files);
       for (const referencePath of referenceImagePaths) {
-        if (!files.readMedia(referencePath).type.startsWith('image/'))
+        if (!(await files.loadMedia(referencePath)).type.startsWith('image/'))
           throw new Error('参考图必须是项目内的图片素材。');
       }
       const remoteReferences = [...new Set([...sourceImagePaths, ...referenceImagePaths])];
@@ -185,7 +184,7 @@ export class CanvasGenerationService {
             !recognition ||
             !original.assetPath ||
             createHash('sha256')
-              .update(fs.readFileSync(files.readMedia(original.assetPath).file))
+              .update(fs.readFileSync((await files.loadMedia(original.assetPath)).file))
               .digest('hex') !== recognition.sourceSha256
           )
             throw new Error('原稿识图清单缺失或已过期，请重新识图后再生成。');
@@ -229,6 +228,7 @@ export class CanvasGenerationService {
       const originalPath =
         originalNode?.assetPath ||
         (remoteReferences.length === 1 ? remoteReferences[0] : undefined);
+      if (originalPath?.startsWith('maker-demo/')) await files.loadMedia(originalPath);
       const originalInfo = originalPath ? files.imageInfo(originalPath) : undefined;
       const originalImage =
         originalPath && originalInfo
@@ -238,12 +238,8 @@ export class CanvasGenerationService {
       const requestedRatio =
         options.aspectRatio ||
         (requestedPixels
-          ? imageRatioInfo({ width: requestedPixels[0], height: requestedPixels[1] }).common
+          ? imageRatioInfo({ width: requestedPixels[0], height: requestedPixels[1] }).ratio
           : '1:1');
-      if (!requestedRatio)
-        throw new Error(
-          '目标尺寸为非常见比例，可能影响结果；请明确选择支持的输出比例，尚未提交生图。'
-        );
       const size = resolveImageSize(requestedRatio, options.resolution, originalInfo);
       const targetSize =
         options.aspectRatio === 'source' ? size.targetSize : options.targetSize || size.targetSize;
@@ -255,7 +251,7 @@ export class CanvasGenerationService {
       )
         throw new Error('输出尺寸与原尺寸预排记录不一致；尚未提交生图。');
       if (usesPrelayout) {
-        assertUiAtlasSources(files, uiAtlasPlan!);
+        await assertUiAtlasSources(files, uiAtlasPlan!);
         const preparedInfo =
           prelayoutSource?.assetPath && files.imageInfo(prelayoutSource.assetPath);
         if (
@@ -292,7 +288,8 @@ export class CanvasGenerationService {
           uiAtlasPlan,
           targetWidth,
           targetHeight,
-          options.cutoutColor || 'transparent'
+          options.cutoutColor || 'transparent',
+          options.designPng
         );
       }
       const references = remoteReferences.flatMap((assetPath) => {
@@ -349,6 +346,7 @@ export class CanvasGenerationService {
         remoteReferences.length
       );
       let model: string | undefined;
+      let remoteAspectRatio: string | undefined;
       if (!localPrelayout) {
         if (provider.source === 'local')
           throw new ConsoleError(
@@ -377,6 +375,23 @@ export class CanvasGenerationService {
         if (canvasImageProviderIdentity() !== canvasImageProviderIdentity(provider))
           throw new ConsoleError('生图来源或模型配置已变化，请重新确认后提交。', 409);
         if (provider.source === 'maker') {
+          const ratio = available.aspectRatio;
+          if (ratio) {
+            const [ratioWidth, ratioHeight] = size.aspectRatio.split(':').map(Number);
+            const candidates = [
+              size.aspectRatio,
+              imageRatioInfo({ width: ratioWidth, height: ratioHeight }).ratio,
+            ];
+            remoteAspectRatio = ratio.values
+              ? candidates.find((value) => value !== undefined && ratio.values!.includes(value))
+              : size.aspectRatio;
+            if (!remoteAspectRatio && ratio.required)
+              throw new ConsoleError(
+                '当前 Maker MCP 要求 aspect_ratio，但未声明支持输出比例 ' +
+                  size.aspectRatio +
+                  '；本次未提交，请调整输出比例。'
+              );
+          }
           model =
             !options.model || options.model === 'auto' ? available.defaultModel : options.model;
           const choice = available.models.find((item) => item.id === model);
@@ -476,14 +491,18 @@ export class CanvasGenerationService {
             prompt: attempt.submittedPrompt,
             name: options.name || 'canvas-image',
             target_size: targetSize,
-            aspect_ratio: size.aspectRatio,
+            ...(remoteAspectRatio ? { aspect_ratio: remoteAspectRatio } : {}),
             ...(model ? { model } : {}),
             ...(options.resolution ? { resolution: options.resolution } : {}),
             ...(options.cutoutColor === 'transparent' ? { transparent: true } : {}),
             ...(attempt.toolName === 'edit_image'
-              ? { image: remoteReferences[0] }
+              ? { image: files.remoteImageReference(remoteReferences[0]) }
               : remoteReferences.length
-                ? { reference_images: remoteReferences }
+                ? {
+                    reference_images: remoteReferences.map((reference) =>
+                      files.remoteImageReference(reference)
+                    ),
+                  }
                 : {}),
           },
         });
@@ -597,9 +616,9 @@ export class CanvasGenerationService {
       throw new Error('请先确认按当前参数执行视频生成。');
     if (!imagePaths.length || imagePaths.length > (model === '2.5' ? 30 : 9))
       throw new Error('视频参考图数量超出当前模型支持范围。');
-    this.assertImageSources(document, sourceImageIds, sourceImagePaths, files);
+    await this.assertImageSources(document, sourceImageIds, sourceImagePaths, files);
     for (const referencePath of referenceImagePaths) {
-      if (!files.readMedia(referencePath).type.startsWith('image/'))
+      if (!(await files.loadMedia(referencePath)).type.startsWith('image/'))
         throw new Error('视频参考素材必须是图片。');
     }
     if (options.targetNodeId) {
@@ -669,7 +688,7 @@ export class CanvasGenerationService {
           mode,
           prompt: options.prompt,
           images: imagePaths.map((url, index) => ({
-            url,
+            url: files.remoteImageReference(url, 30 * 1024 * 1024),
             role:
               mode === 'first_frame'
                 ? 'first_frame'
@@ -1057,7 +1076,15 @@ export class CanvasGenerationService {
   }
 
   private finishImageDelivery(attempt: CanvasGenerationAttempt, files: MakerCanvasFiles): void {
-    attempt.resultAssetPath ||= files.importGeneratedImage(attempt.deliveredAssetPath!);
+    if (!attempt.resultAssetPath) {
+      const delivered = attempt.deliveredAssetPath!;
+      if (delivered.startsWith('.maker/canvases/images/')) {
+        files.readMedia(delivered);
+        attempt.resultAssetPath = delivered;
+      } else {
+        attempt.resultAssetPath = files.importGeneratedImage(delivered);
+      }
+    }
     attempt.resultImageInfo = files.imageInfo(attempt.resultAssetPath);
     const warning = attempt.resultImageInfo
       ? imageResultWarning(attempt.resultImageInfo, attempt.parameters?.targetSize)
@@ -1178,20 +1205,20 @@ export class CanvasGenerationService {
     return attempt;
   }
 
-  private assertImageSources(
+  private async assertImageSources(
     document: Awaited<ReturnType<MakerCanvasFiles['load']>>,
     sourceImageIds: string[],
     sourceImagePaths: string[],
     files: MakerCanvasFiles
-  ): void {
+  ): Promise<void> {
     if (sourceImageIds.length !== sourceImagePaths.length) {
       throw new Error('图生任务的来源节点和素材数量不一致。');
     }
     if (new Set(sourceImageIds).size !== sourceImageIds.length) {
       throw new Error('图生任务的来源图片不能重复。');
     }
-    sourceImagePaths.forEach((sourceImagePath, index) => {
-      const media = files.readMedia(sourceImagePath);
+    for (const [index, sourceImagePath] of sourceImagePaths.entries()) {
+      const media = await files.loadMedia(sourceImagePath);
       if (!media.type.startsWith('image/')) {
         throw new Error('图生任务的来源必须是图片素材。');
       }
@@ -1205,7 +1232,7 @@ export class CanvasGenerationService {
           createHash('sha256').update(fs.readFileSync(media.file)).digest('hex')
       )
         throw new Error('来源图片内容已变化，请刷新素材并确认参数后再生成。');
-    });
+    }
   }
 
   private writeAttempt(attempt: CanvasGenerationAttempt): void {

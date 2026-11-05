@@ -163,6 +163,18 @@ test('archives recognition and resource snapshots independently of the canvas, p
     document = await files.save(document.id, document, document.revision);
     await files.archiveUi(document.id);
     expect(fs.statSync(path.join(root, resource.bindingsPath!)).mtimeMs).toBe(before);
+    const missing = structuredClone(document);
+    missing.nodes.find(
+      (node) => node.type === 'image-assets'
+    )!.imageAssetsInfo!.items[0].assetPath = 'maker-demo/' + '0'.repeat(64) + '.png';
+    const savedMissing = await files.save(missing.id, missing, missing.revision);
+    expect(
+      files.listUiArchives(document.id).filter((record) => record.stage === 'resources')
+    ).toHaveLength(1);
+    await expect(files.archiveUi(document.id)).rejects.toMatchObject({
+      code: 'DEMO_RESOURCE_UNAVAILABLE',
+    });
+    document = await files.save(document.id, document, savedMissing.revision);
     const unboundAtlas = { ...atlas, id: createId(), generation: { ...atlas.generation! } };
     delete unboundAtlas.generation.uiAtlasPlan;
     document.nodes.push(unboundAtlas);

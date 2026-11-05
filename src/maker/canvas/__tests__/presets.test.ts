@@ -40,8 +40,7 @@ test('lists portable presets without importing assets or creating a canvas', asy
     '二合图标生成 · 风格参考→升级图集→游戏资产',
     'UI风格裂变 · 同一界面→三种风格',
     '角色概念设计 · 角色参考→完整展示图',
-    '游戏UI制作',
-    '游戏UI制作 · Bbox预排参考图（实验）',
+    '游戏UI制作 · Bbox预排参考图',
   ]);
   expect(templates.every((template) => template.builtin && !('assets' in template))).toBe(true);
   expect(await files.list()).toEqual([]);
@@ -267,58 +266,6 @@ test('crop preset contains five aligned transparent stages whose pixels match th
   expect(prompt).toContain('排列：5列×1行');
 });
 
-test('new game UI workflow keeps examples but starts every downstream step pending', async () => {
-  const canvas = await files.create('新游戏UI流程');
-  const preset = canvasPresets().find((item) => item.name === '游戏UI制作')!;
-  const prepared = await files.prepareTemplate(preset.id, canvas.id);
-  const before = JSON.stringify(prepared);
-  const instance = model.instantiate(prepared, { x: 0, y: 0 });
-  canvas.nodes = instance.nodes;
-  canvas.edges = instance.edges;
-  const source = canvas.nodes.find(
-    (node) => node.type === 'image' && !canvas.edges.some((edge) => edge.to === node.id)
-  )!;
-  expect(source.assetPath).toBeTruthy();
-  expect(source.uiRecognition).toMatchObject({ inputRole: 'design', optional: true });
-  const design = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
-  const clean = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!;
-  expect(design.id).toBe(source.id);
-  expect(design.uiRecognition?.results).toEqual([]);
-  expect(clean.uiRecognition?.results).toEqual([]);
-  expect(canvasNeedsProcessing(canvas, source)).toBe(false);
-  const atlases = canvas.nodes.filter((node) => node.uiAtlasGroup);
-  const background = canvas.nodes.find((node) => node.title.includes('背景准备'))!;
-  expect(canvas.edges).toContainEqual(
-    expect.objectContaining({ from: clean.id, to: background.id, kind: 'image-variant' })
-  );
-  expect(atlases).toHaveLength(6);
-  for (const atlas of atlases)
-    expect(canvas.edges).toContainEqual(
-      expect.objectContaining({
-        from: ['panels', 'background'].includes(atlas.uiAtlasGroup!) ? background.id : clean.id,
-        to: atlas.id,
-        kind: 'image-variant',
-      })
-    );
-  const downstream = canvas.nodes.filter((node) =>
-    canvas.edges.some((edge) => edge.to === node.id)
-  );
-  expect(downstream).toHaveLength(19);
-  for (const node of downstream) {
-    expect(Boolean(node.templatePending)).toBe(node.type !== 'resource-bundle');
-    expect(canvasNeedsProcessing(canvas, node)).toBe(true);
-    if (node.type === 'image') expect(node.assetPath).toBeTruthy();
-    if (node.type === 'image-assets') expect(node.imageAssetsInfo?.items.length).toBeGreaterThan(0);
-  }
-  expect(clean.templatePending).toBe(true);
-  const saved = await files.save(canvas.id, canvas, canvas.revision);
-  const reopened = await files.load(saved.id);
-  expect(reopened.nodes.filter((node) => node.templatePending)).toHaveLength(
-    downstream.filter((node) => node.type !== 'resource-bundle').length
-  );
-  expect(JSON.stringify(prepared)).toBe(before);
-});
-
 test.each([4, 5, 6])(
   'asset preset %i starts pending and preserves completed state until reference changes',
   async (index) => {
@@ -404,6 +351,10 @@ test.each([0, 1, 2])(
       x: 2000,
       y: 0,
     });
+    expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+    expect(first.nodes.filter((node) => node.assetPath).map((node) => node.assetPath)).toEqual(
+      second.nodes.filter((node) => node.assetPath).map((node) => node.assetPath)
+    );
     expect(first.nodes.every((node) => !second.nodes.some((other) => other.id === node.id))).toBe(
       true
     );

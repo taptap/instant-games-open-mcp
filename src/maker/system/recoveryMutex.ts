@@ -39,11 +39,8 @@ export function claimRecoveryMutex(
           resolve(tryPort(offset + 1));
           return;
         }
-        reject(
-          error.code === 'EADDRINUSE' || error.code === 'EACCES'
-            ? busyError(recoveryMutexPort(filename))
-            : error
-        );
+        // Exhausted permission failures are not evidence of another lock owner.
+        reject(error.code === 'EADDRINUSE' ? busyError(recoveryMutexPort(filename)) : error);
       });
       server.listen({ host: '127.0.0.1', port, exclusive: true }, () => {
         resolve(

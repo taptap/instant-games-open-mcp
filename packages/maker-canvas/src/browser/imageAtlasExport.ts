@@ -9,6 +9,7 @@ import { uiBindingContentRect, validateUiNativeRegions } from '../features/uiAss
 import { createBackgroundRemoval } from './backgroundRemoval.js';
 import {
   alignAtlasCells,
+  alignNativeAtlasRegions,
   assignAtlasCellsByCenter,
   atlasLayoutError,
 } from '../features/atlasAlignment.js';
@@ -25,6 +26,12 @@ export interface PreparedImageAtlas {
   grid: ImageAtlasGrid;
   mode: 'grid' | 'content';
   regions: ImageAtlasCrop[];
+  manualNative?: boolean;
+  /**
+   * Native slot matching failed, so the planned slot crops are used as they are (the same
+   * boxes as before alignment existed). Export continues; the batch is flagged for review.
+   */
+  alignmentWarning?: string;
   background: { color?: [number, number, number]; mode: 'all' | 'connected' };
   canvas: HTMLCanvasElement;
 }
@@ -35,8 +42,11 @@ export async function prepareImageAtlas(
   backgroundColor?: [number, number, number],
   backgroundMode: 'all' | 'connected' = 'connected',
   cut: ImageAtlasCutSettings = {},
-  nativePlan?: UiAtlasPlan
+  nativePlan?: UiAtlasPlan,
+  /** User-edited native crops use the original pixels; automatic matching must not veto them. */
+  manualNative = false
 ): Promise<PreparedImageAtlas> {
+  manualNative = manualNative || cut.manualNative === true;
   if (!source.size || source.size > 128 * 1024 * 1024) throw new Error('图片为空或超过 128 MiB。');
   if (cut.mode && !['grid', 'content'].includes(cut.mode)) throw new Error('切图模式无效。');
   if (
@@ -55,6 +65,7 @@ export async function prepareImageAtlas(
     context.drawImage(bitmap, 0, 0);
     let pixels: ImageData | undefined;
     if (
+      nativePlan?.nativeLayout ||
       backgroundColor ||
       cut.mode === 'content' ||
       (!grid.marginX && !grid.marginY && !grid.gapX && !grid.gapY)
@@ -165,11 +176,55 @@ export async function prepareImageAtlas(
           );
       }
     }
+    let alignmentWarning: string | undefined;
     if (nativePlan?.nativeLayout) {
       const layout = nativePlan.nativeLayout;
       if (layout.width !== bitmap.width || layout.height !== bitmap.height)
         throw new Error('原尺寸状态处理必须使用生成时的图集尺寸。');
       regions = validateUiNativeRegions(nativePlan, regions);
+      try {
+        const aligned = manualNative
+          ? undefined
+          : alignNativeAtlasRegions(pixels!.data, bitmap.width, bitmap.height, nativePlan, regions);
+        if (aligned) {
+          // Redraw each matched subject (with its own pixel mask) inside its planned slot.
+          const isolated = document.createElement('canvas');
+          const isolatedContext = isolated.getContext('2d');
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          aligned.placements.forEach((placement, index) => {
+            if (!placement) return;
+            const { source: from, target: to } = placement;
+            isolated.width = from.width;
+            isolated.height = from.height;
+            const content = isolatedContext.createImageData(from.width, from.height);
+            for (let y = 0; y < from.height; y++)
+              for (let x = 0; x < from.width; x++) {
+                const sourcePixel = (from.y + y) * bitmap.width + from.x + x;
+                if (aligned.pixelOwners[sourcePixel] !== index + 1) continue;
+                const targetPixel = (y * from.width + x) * 4;
+                for (let channel = 0; channel < 4; channel++)
+                  content.data[targetPixel + channel] = pixels!.data[sourcePixel * 4 + channel];
+              }
+            isolatedContext.putImageData(content, 0, 0);
+            context.drawImage(
+              isolated,
+              0,
+              0,
+              from.width,
+              from.height,
+              to.x,
+              to.y,
+              to.width,
+              to.height
+            );
+          });
+        }
+      } catch (error) {
+        if ((error as { code?: string }).code !== 'ATLAS_LAYOUT_INVALID') throw error;
+        // Fall back to the planned slot crops on the original pixels: the run must not stop
+        // on a crop judgement. The preview shows the warning and the boxes stay editable.
+        alignmentWarning = (error as Error).message;
+      }
       nativePlan.slots.forEach((slot, index) => {
         if (slot.state !== 'pressed') return;
         const normalIndex = nativePlan.slots.findIndex(
@@ -197,6 +252,8 @@ export async function prepareImageAtlas(
       grid: { ...grid },
       mode: cut.mode || 'grid',
       regions: validateAtlasCrops(bitmap.width, bitmap.height, regions),
+      ...(manualNative ? { manualNative: true } : {}),
+      ...(alignmentWarning ? { alignmentWarning } : {}),
       background: { color: backgroundColor && [...backgroundColor], mode: backgroundMode },
       canvas,
     };
@@ -260,8 +317,10 @@ export async function encodeImageAtlasRegions(prepared: PreparedImageAtlas) {
     grid: { ...prepared.grid },
     regions,
     cutMode: prepared.mode,
+    ...(prepared.manualNative ? { manualNative: true } : {}),
     background: structuredClone(prepared.background),
     items,
+    ...(prepared.alignmentWarning ? { alignmentWarning: prepared.alignmentWarning } : {}),
   };
 }
 
@@ -285,7 +344,9 @@ export async function createImageAtlasExport(
       grid,
       settings.backgroundColor,
       settings.backgroundMode,
-      settings
+      settings,
+      undefined,
+      settings.manualNative
     ));
   const entries = [
     {

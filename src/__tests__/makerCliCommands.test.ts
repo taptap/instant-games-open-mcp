@@ -11,7 +11,8 @@ import { parse as parseYaml } from 'yaml';
 import { requestTapAuthWithPat } from '../maker/auth/patTap';
 import { loginWithCliAuthCode } from '../maker/auth/cliLogin';
 import { setMakerEnvironmentOverride } from '../maker/config';
-import { cloneMakerProject, listMakerProjects } from '../maker/cli/projects';
+import { listMakerProjects } from '../maker/cli/projects';
+import { cloneMakerProject } from '../maker/git/clone';
 import {
   checkAiDevKitUpdate,
   inspectAiDevKit,
@@ -119,10 +120,6 @@ jest.mock('../maker/cli/projects', () => ({
     gameType: 'sce',
     stage: 'plan',
   })),
-  cloneMakerProject: jest.fn(async (options) => ({
-    targetDir: options.targetDir,
-    appId: options.appId,
-  })),
   listMakerProjects: jest.fn(async () => [
     {
       id: 'app-1',
@@ -132,6 +129,12 @@ jest.mock('../maker/cli/projects', () => ({
   ]),
 }));
 
+jest.mock('../maker/git/clone', () => ({
+  cloneMakerProject: jest.fn(async (options) => ({
+    targetDir: options.targetDir,
+    appId: options.appId,
+  })),
+}));
 jest.mock('../maker/cli/devKit', () => ({
   DEV_KIT_GITIGNORE_STAGING_FILE: '.gitignore.dev-kit-before-clone',
   finalizeStagedDevKitGitignore: jest.fn(),

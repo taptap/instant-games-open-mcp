@@ -15,7 +15,7 @@ const invalid = (message: string): never => {
   throw new CanvasStoreError(message, 400, 'INVALID_TEMPLATE_ARCHIVE');
 };
 
-export function templateAssetPaths(template: CanvasWorkflowTemplate): string[] {
+export function templateAssetPaths(template: Pick<CanvasWorkflowTemplate, 'nodes'>): string[] {
   return [
     ...new Set(
       template.nodes.flatMap((node) => [
@@ -83,13 +83,15 @@ export function remapTemplateAssets(
 
 export async function exportTemplateArchive(
   template: CanvasWorkflowTemplate,
-  readMedia: (relative: string) => { file: string; type: string }
+  readMedia: (
+    relative: string
+  ) => { file: string; type: string } | Promise<{ file: string; type: string }>
 ): Promise<Buffer> {
   const assets: Record<string, string> = {};
   const entries = new Map<string, Buffer>();
   let total = 0;
   for (const relative of templateAssetPaths(template)) {
-    const source = readMedia(relative);
+    const source = await readMedia(relative);
     const stat = await fs.stat(source.file);
     if (stat.size > TEMPLATE_ARCHIVE_LIMIT) invalid('模板包超过 128 MiB，请减少素材后导出。');
     const bytes = await fs.readFile(source.file);

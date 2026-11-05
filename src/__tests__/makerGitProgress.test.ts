@@ -6,7 +6,7 @@ import {
   getMakerGitRetryDecision,
   parseGitProgressLine,
   runMakerGitNetworkOperationWithTransientRetry,
-} from '../maker/cli/projects';
+} from '../maker/git';
 
 describe('maker git progress parsing', () => {
   const originalRetryDelay = process.env.TAPTAP_MAKER_GIT_RETRY_DELAY_MS;

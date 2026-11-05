@@ -10,6 +10,7 @@ import { builtinPresetDescriptions } from '../features/presetDescriptions.js';
 import { templatePresentation } from '../features/templatePresentation.js';
 import { resetImageFeatureCopy } from '../features/imageFeatures.js';
 import { canvasNodeVersion } from '../core/dependencies.js';
+import { validateCanvasPlatforms, type CanvasPlatform } from '../contracts/platform.js';
 
 export type { CanvasTemplateStore } from '../browser/store.js';
 
@@ -99,6 +100,8 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       delete node.workDurationMs;
       delete node.workStartedAt;
       delete node.workTimingOpen;
+      delete node.workflowState;
+      delete node.workflowLayoutOrigin;
       resetImageFeatureCopy(node, false);
       if (node.uiRecognitionSourceId && !selected.has(node.uiRecognitionSourceId))
         delete node.uiRecognitionSourceId;
@@ -143,6 +146,17 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       }
     }
     const sectionIds = new Set(members(document, ids).map((node) => node.sectionId));
+    const scopes = document.nodes
+      .filter((node) => node.type === 'section' && sectionIds.has(node.id))
+      .map((node) => node.templatePlatforms)
+      .filter((scope): scope is CanvasPlatform[] => scope !== undefined);
+    scopes.forEach(validateCanvasPlatforms);
+    const platforms = scopes.length
+      ? (['local', 'web'] as CanvasPlatform[]).filter((platform) =>
+          scopes.every((scope) => scope.includes(platform))
+        )
+      : undefined;
+    validateCanvasPlatforms(platforms);
     const skills = [
       ...new Set(
         document.nodes
@@ -153,6 +167,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
     return {
       id: createId(),
       name: name.trim(),
+      ...(platforms ? { platforms } : {}),
       ...(skills.length ? { skills } : {}),
       ...(document.nodes.some(
         (node) =>
@@ -189,6 +204,8 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
       delete node.workDurationMs;
       delete node.workStartedAt;
       delete node.workTimingOpen;
+      delete node.workflowState;
+      delete node.workflowLayoutOrigin;
       if (node.uiRecognitionSourceId)
         node.uiRecognitionSourceId = ids.get(node.uiRecognitionSourceId);
       resetImageFeatureCopy(node, true);
@@ -220,6 +237,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
     section.templateId = template.id;
     section.templateRevision = template.revision;
     if (template.cliOnly) section.templateCliOnly = true;
+    if (template.platforms) section.templatePlatforms = [...template.platforms];
     if (template.skills?.length) section.templateSkills = [...template.skills];
     nodes.forEach((node) => {
       node.sectionId = section.id;

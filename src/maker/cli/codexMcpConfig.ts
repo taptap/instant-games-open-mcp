@@ -25,6 +25,35 @@ type TomlTable = {
 
 type MultilineString = 'basic' | 'literal' | undefined;
 
+/** Read registration names and explicit enabled flags without exposing commands or credentials. */
+export function listCodexMcpRegistrations(content: string): Array<{
+  name: string;
+  enabled: boolean;
+}> {
+  return findTomlTables(content).flatMap((table) => {
+    const match = /^mcp_servers\s*\.\s*(?:([A-Za-z0-9_-]+)|"((?:[^"\\]|\\.)*)"|'([^']*)')\s*$/.exec(
+      table.path
+    );
+    if (!match) return [];
+    let name = match[1] || match[3];
+    if (match[2] !== undefined) {
+      try {
+        name = JSON.parse('"' + match[2] + '"') as string;
+      } catch {
+        return [];
+      }
+    }
+    return [
+      {
+        name,
+        enabled:
+          findTomlBooleanAssignment(content, table.bodyStart, table.bodyEnd, 'enabled')?.value !==
+          false,
+      },
+    ];
+  });
+}
+
 export function findCodexMcpTables(content: string, mcpName: string): CodexMcpTable[] {
   const mainPath = `mcp_servers.${mcpName}`;
   return findTomlTables(content).flatMap((table) => {

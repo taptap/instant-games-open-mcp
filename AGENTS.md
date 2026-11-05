@@ -108,8 +108,12 @@
 
 ## Git 与提交
 
-- 不直接向 `main` 提交；优先沿用当前合适分支，不为小修自动切分支。需要新分支时默认
-  使用 `fix/`；确认需要 minor 版本升级的新功能才使用 `feature/`，不使用 `codex/` 前缀。
+- 不直接向 `main` 提交。Maker 按版本开发时使用 `dev/<版本号>`，例如 `dev/0.0.40`；
+  开始新一轮前先 fetch，从最新 `origin/main` 创建分支，不沿用已合并 PR 的旧分支。
+  当前版本开发期间沿用对应分支，不为小修自动切分支；该版本合并、发版后，下一版本
+  仍从最新 `origin/main` 创建新的 `dev/<版本号>`。`dev/` 只是命名前缀，不创建独立 `dev` 分支。
+- 非版本开发任务需要新分支时默认使用 `fix/`；确认需要 minor 版本升级的新功能才使用
+  `feature/`，不使用 `codex/` 前缀。
 - Commit 使用 Conventional Commits：
   `feat`、`fix`、`refactor`、`perf`、`docs`、`chore`、`test`、`ci`、`build`、`style`。
   type/scope 使用英文小写，subject 不以句号结尾；重要改动的 body 用短 bullet 说明行为、

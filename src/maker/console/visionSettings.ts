@@ -77,7 +77,10 @@ export function readVisionSettings(): VisionSettings | undefined {
           : {}),
       };
     }
-    return validateSettings(input);
+    const settings = validateSettings(input);
+    if (settings.source === 'local' || settings.source === 'chatgpt-web')
+      settings.source = 'server';
+    return settings;
   } catch {
     throw new ConsoleError('本机识图设置无法读取，请在控制台设置中重新保存。');
   }
@@ -89,7 +92,7 @@ function validateSettings(input: Partial<VisionSettings>): VisionSettings {
     input.source === undefined
       ? hasLegacyApi
         ? 'custom'
-        : 'local'
+        : 'server'
       : validateVisionSource(input.source);
   if (source !== 'custom') {
     const storedBaseUrl = input.baseUrl || input.endpoint;
@@ -141,6 +144,8 @@ export function visionSettingsForDisplay() {
   };
 }
 export function saveVisionSettings(input: Record<string, unknown>) {
+  if (input.source === 'local' || input.source === 'chatgpt-web')
+    throw new ConsoleError('旧识图来源已停用，请选择 Server API 或自定义 API。');
   if (fs.existsSync(filename()) && !fs.lstatSync(filename()).isFile())
     throw new ConsoleError('识图设置文件不能是符号链接或目录。');
   let previous: VisionSettings | undefined;
@@ -246,7 +251,10 @@ export function readModelSettings(): ModelSettings {
     if (input.version !== 2) {
       const legacy = validateSettings(input);
       const settings = emptyModelSettings();
-      settings.vision = { source: legacy.source };
+      // Retain legacy settings on disk, but resolve retired vision sources to the default API.
+      settings.vision = {
+        source: ['local', 'chatgpt-web'].includes(legacy.source) ? 'server' : legacy.source,
+      };
       settings.visionConfigured = true;
       if (legacy.apiKey && legacy.baseUrl) {
         settings.profiles.push({
@@ -281,7 +289,15 @@ export function readModelSettings(): ModelSettings {
     return {
       version: 2,
       visionConfigured: input.visionConfigured === true,
-      vision: input.visionConfigured === true ? input.vision : { source: 'server' },
+      vision:
+        input.visionConfigured === true
+          ? {
+              ...input.vision,
+              source: ['local', 'chatgpt-web'].includes(input.vision.source)
+                ? 'server'
+                : input.vision.source,
+            }
+          : { source: 'server' },
       generation: input.generation,
       profiles,
     };
@@ -357,10 +373,8 @@ export function updateModelSettings(input: Record<string, unknown>) {
   } else if (input.action === 'select') {
     if (input.kind !== 'vision' && input.kind !== 'generation')
       throw new ConsoleError('模型用途无效。');
-    const allowed =
-      input.kind === 'vision'
-        ? ['local', 'server', 'custom', 'chatgpt-web']
-        : ['maker', 'local', 'custom'];
+    // Retired vision choices: 'local', 'chatgpt-web'. Keep their stored types readable.
+    const allowed = input.kind === 'vision' ? ['server', 'custom'] : ['maker', 'local', 'custom'];
     if (!allowed.includes(String(input.source))) throw new ConsoleError('模型来源无效。');
     const choice = settings[input.kind];
     if (input.source === 'custom') {

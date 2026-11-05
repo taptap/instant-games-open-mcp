@@ -194,10 +194,133 @@ export function createCanvasWorkspace(options: {
     button('−', '缩小画布', () => options.zoom(1 / 1.1)),
     percentage,
     button('+', '放大画布', () => options.zoom(1.1)),
-    fit
+    fit,
+    shortcutHelp()
   );
   bottom.append(document.getElementById('canvas-log')!, controls);
   main.after(bottom);
+  function shortcutHelp() {
+    const trigger = button('', '快捷键', () => {
+      if (panel.open) panel.close();
+      else {
+        panel.showModal();
+        panel.scrollTop = 0;
+        trigger.setAttribute('aria-expanded', 'true');
+        position();
+      }
+    });
+    trigger.id = 'canvas-shortcuts-button';
+    iconButton(
+      trigger,
+      '快捷键',
+      '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h1m4 0h1m4 0h1M6 12h1m4 0h1m4 0h1M7 15h10"/>'
+    );
+    trigger.setAttribute('aria-haspopup', 'dialog');
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.setAttribute('aria-controls', 'canvas-shortcuts');
+    const panel = document.createElement('dialog');
+    panel.id = 'canvas-shortcuts';
+    panel.className = 'canvas-shortcuts';
+    panel.setAttribute('aria-labelledby', 'canvas-shortcuts-title');
+    const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
+    const groups = [
+      [
+        '视图操作',
+        [
+          ['按住空格 + 拖动', '临时平移画布'],
+          ['中键拖动', '平移画布'],
+          ['Shift + 1', '适配全部内容'],
+          ['Esc', '退出常驻拖拽模式'],
+        ],
+      ],
+      [
+        '选择与排版',
+        [
+          ['Shift / Mod + 点击', '多选卡片'],
+          ['Shift / Mod + 框选', '追加选择'],
+          ['Mod + A', '全选'],
+          ['Mod + G', '分组'],
+        ],
+      ],
+      [
+        '编辑与保存',
+        [
+          ['Mod + D', '复制所选'],
+          ['Delete / Backspace', '删除所选'],
+          ['Mod + Z', '撤销'],
+          ['Mod + Shift + Z / Mod + Y', '重做'],
+          ['Mod + S', '保存'],
+        ],
+      ],
+    ] as const;
+    panel.innerHTML =
+      '<div class="shortcut-heading"><h2 id="canvas-shortcuts-title">画布快捷键</h2><button type="button" aria-label="关闭快捷键" autofocus>×</button></div>' +
+      groups
+        .map(
+          ([title, rows]) =>
+            '<section><h3>' +
+            title +
+            '</h3>' +
+            rows
+              .map(
+                ([key, label]) =>
+                  '<div class="shortcut-row"><span>' +
+                  label +
+                  '</span><kbd>' +
+                  key.replace(/Mod/g, mod) +
+                  '</kbd></div>'
+              )
+              .join('') +
+            '</section>'
+        )
+        .join('') +
+      '<p>松开空格恢复原工具。输入文字时不触发画布快捷键。</p>';
+    panel.querySelector('button')!.addEventListener('click', () => panel.close());
+    function position() {
+      if (!panel.open) return;
+      const anchor = trigger.getBoundingClientRect();
+      panel.style.left =
+        Math.max(
+          8,
+          Math.min(anchor.right - panel.offsetWidth, window.innerWidth - panel.offsetWidth - 8)
+        ) + 'px';
+      panel.style.top = Math.max(8, anchor.top - panel.offsetHeight - 8) + 'px';
+    }
+    // Keep the backdrop until click completes so dismissal cannot click through to a card.
+    function outside(event: MouseEvent) {
+      const rect = panel.getBoundingClientRect();
+      return (
+        event.clientX < rect.left ||
+        event.clientX > rect.right ||
+        event.clientY < rect.top ||
+        event.clientY > rect.bottom
+      );
+    }
+    panel.addEventListener('pointerdown', (event) => {
+      if (event.target === panel && outside(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    });
+    panel.addEventListener('click', (event) => {
+      if (event.target === panel && outside(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        panel.close();
+      }
+    });
+    panel.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        panel.close();
+      }
+    });
+    panel.addEventListener('close', () => trigger.setAttribute('aria-expanded', 'false'));
+    window.addEventListener('resize', position);
+    document.body.append(panel);
+    return trigger;
+  }
   const menus = [library, add, more];
   for (const item of menus) item.panel.classList.add('maker-toolbar-menu');
   add.root.classList.add('maker-toolbar-add');
@@ -747,6 +870,24 @@ body {
 .workspace-view-controls button {
   min-width: 30px;
 }
+#canvas-shortcuts-button { display:inline-flex; align-items:center; justify-content:center; }
+#canvas-shortcuts-button svg { width:18px; height:18px; }
+dialog.canvas-shortcuts {
+  position:fixed; margin:0; box-sizing:border-box; width:360px; max-width:calc(100vw - 16px);
+  max-height:min(620px, calc(100vh - 24px)); overflow:auto; overscroll-behavior:contain;
+  padding:16px; border:1px solid var(--canvas-line); border-radius:12px;
+  background:var(--canvas-panel); color:var(--canvas-text); box-shadow:0 8px 32px #0003;
+  font-size:12px; line-height:1.5;
+}
+dialog.canvas-shortcuts::backdrop { background:transparent; }
+.canvas-shortcuts .shortcut-heading { position:sticky; top:-16px; background:var(--canvas-panel); display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.canvas-shortcuts h2 { font-size:15px; margin:0; }
+.canvas-shortcuts .shortcut-heading button { padding:2px 8px; font-size:20px; line-height:1.2; background:var(--canvas-soft); color:var(--canvas-text); border:1px solid var(--canvas-line); border-radius:6px; }
+.canvas-shortcuts h3 { margin:16px 0 6px; font-size:12px; color:var(--canvas-muted); }
+.canvas-shortcuts .shortcut-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:6px 0; }
+.canvas-shortcuts kbd { max-width:66%; text-align:right; font:inherit; font-weight:600; }
+.canvas-shortcuts section:first-of-type .shortcut-row:first-of-type { color:var(--canvas-accent); font-weight:600; }
+.canvas-shortcuts p { margin:14px 0 0; color:var(--canvas-muted); font-size:12px; }
 .workspace-tabs-row [hidden],
 .workspace-toolbar [hidden] {
   display: none !important;

@@ -1,7 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import {
   MakerProjectRegistry,
   MakerProjectRegistryError,
@@ -14,11 +12,11 @@ import {
 } from '../projectSettings.js';
 import { MAKER_QR_CATEGORIES, inspectMakerQrcodePreparation } from '../qrcodePreflight.js';
 import { isDeveloperId } from '../qrcodeInteraction.js';
-import { getGitCommand } from '../system/git.js';
+import { runGit } from '../git/exec.js';
+import { parseStatusZ } from '../git/status.js';
 import { pullConsoleGit, type ConsoleGitPullResult } from './gitPull.js';
 import { ConsoleError, type ConsoleProject } from './types.js';
 
-const exec = promisify(execFile);
 function objectFile(filename: string): Record<string, any> {
   const stat = fs.statSync(filename);
   if (!stat.isFile() || stat.size > 2 * 1024 * 1024)
@@ -45,18 +43,15 @@ async function git(
   timeout = 15000
 ): Promise<string> {
   signal?.throwIfAborted();
-  const result = await exec(
-    getGitCommand(),
+  const result = await runGit(
     ['-c', 'core.fsmonitor=false', '-c', 'core.quotePath=false', '--no-pager', ...args],
     {
       cwd: root,
-      encoding: 'utf8',
-      timeout,
+      timeoutMs: timeout,
       maxBuffer: 1024 * 1024,
       signal,
       killSignal: 'SIGKILL',
-      windowsHide: true,
-      env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' },
+      env: { GIT_OPTIONAL_LOCKS: '0' },
     }
   );
   return result.stdout;
@@ -136,13 +131,12 @@ export class ConsoleProjects {
       const directories = entries
         .map((file) => path.posix.dirname(file))
         .filter((dir) => !['.', 'scripts', 'assets'].includes(dir));
-      const raw = (
-        await inspectGit(['status', '--porcelain=v1', '-z', '--untracked-files=all'])
-      ).split('\0');
       const files = new Set<string>();
-      for (let i = 0; i < raw.length && raw[i]; i++) {
-        files.add(raw[i].slice(3));
-        if (/[RC]/.test(raw[i].slice(0, 2)) && raw[i + 1]) files.add(raw[++i]);
+      for (const entry of parseStatusZ(
+        await inspectGit(['status', '--porcelain=v1', '-z', '--untracked-files=all'])
+      )) {
+        files.add(entry.path);
+        if (entry.originalPath) files.add(entry.originalPath);
       }
       for (const file of files) {
         if (Date.now() >= deadline || signal?.aborted) return { checked: false, changed: false };
@@ -237,20 +231,14 @@ export class ConsoleProjects {
   }
 
   private async changes(root: string, signal?: AbortSignal) {
-    const raw = (
+    return parseStatusZ(
       await git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=normal'], signal)
-    ).split('\0');
-    const result: { status: string; path: string }[] = [];
-    for (let i = 0; i < raw.length && raw[i]; i++) {
-      result.push({ status: raw[i].slice(0, 2), path: raw[i].slice(3) });
-      if (/[RC]/.test(raw[i].slice(0, 2))) i++;
-    }
-    return result;
+    ).map((entry) => ({ status: entry.status, path: entry.path }));
   }
 
   /**
-   * 拉取当前登记项目的远端 main。浏览器不能指定远端、分支或 Git 参数。
-   * 不创建或持有 Git 锁；并发写入由 Git 自己的 index.lock 拒绝。
+   * 拉取当前登记项目的远端 main（快进或合并，冲突时取消合并）。
+   * 浏览器不能指定远端、分支或 Git 参数。并发写入由 Git 自己的 index.lock 拒绝。
    */
   async pullGit(key: string, signal?: AbortSignal): Promise<ConsoleGitPullResult> {
     const project = this.resolve(key);

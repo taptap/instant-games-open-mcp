@@ -99,7 +99,7 @@ export function createAnimationCards(
           .join(';'),
       ].join('|');
       let entry = reused.get(node.id);
-      if (!entry || entry.key !== key) {
+      if (!entry || entry.key !== key || entry.failed) {
         const canvas = document.createElement('canvas');
         canvas.className = 'animation-preview checkerboard';
         canvas.width = 320;

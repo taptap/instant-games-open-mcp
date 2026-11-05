@@ -31,12 +31,10 @@ import {
   formatMakerToolRegistrationCwdStatus,
   formatMakerProxyToolsStatusSafely,
   formatMakerRemoteSyncStatusSafely,
-  formatPushResult,
   inspectMakerQrcodeToolPreflight,
   inspectMakerProxyToolPreflight,
   inspectMakerProxyProjectContext,
   isSensitiveDiagnosticKey,
-  pushThenBuildCurrentDirectory,
   resources,
   retryMakerProxyOperation,
   resolveMakerProjectContext,
@@ -50,7 +48,7 @@ import {
   inspectMakerRemoteSyncStatus,
   pushMakerProject,
   readMakerProjectLocalChanges,
-} from '../maker/cli/projects';
+} from '../maker/git';
 import { savePat, saveProjectConfig, saveTapAuth } from '../maker/storage';
 import { AI_DEV_KIT_VERSION_METADATA_FILE } from '../maker/cli/devKit';
 import {
@@ -265,8 +263,9 @@ describe('maker build local-change guard', () => {
     expect(status.status).toBe('needs_pull');
     expect(status.behindCount).toBe(1);
     expect(status.hasLocalChanges).toBe(true);
-    expect(status.nextAction).toContain('本地有未提交改动');
-    expect(status.nextAction).toContain('不要直接 pull');
+    expect(status.nextAction).toContain('本地也有未提交改动');
+    expect(status.nextAction).toContain('taptap-maker git sync');
+    expect(status.nextAction).not.toContain('stash');
   });
 
   test('status allows straightforward pull when remote is ahead and workspace is clean', async () => {
@@ -283,7 +282,7 @@ describe('maker build local-change guard', () => {
     expect(status.status).toBe('needs_pull');
     expect(status.hasLocalChanges).toBe(false);
     expect(status.nextAction).toContain('工作区干净');
-    expect(status.nextAction).toContain('git pull --ff-only origin main');
+    expect(status.nextAction).toContain('taptap-maker git sync');
   });
 
   test('status fetch auth failures guide users to refresh Maker PAT', () => {
@@ -369,9 +368,13 @@ describe('maker build local-change guard', () => {
     expect(result.failure?.nextAction).not.toContain('远端已有新提交');
     expect(result.transientRetries).toBe(0);
 
-    const output = formatPushResult(
-      tempDir,
-      { targetDir: tempDir, submitResult: result },
+    const output = formatBuildResult(
+      {
+        mode: 'submit_failed_before_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        submitResult: result,
+      },
       { elapsedMs: 1000, elapsed: '1s', progressEvents: 1 }
     );
     expect(output).toContain('- classification: branch_not_allowed');
@@ -612,9 +615,13 @@ describe('maker build local-change guard', () => {
     expect(result.failure?.nextAction).toContain('从本地 commit 移除');
     expect(result.failure?.nextAction).not.toContain('粘贴新的 Maker PAT');
 
-    const output = formatPushResult(
-      tempDir,
-      { targetDir: tempDir, submitResult: result },
+    const output = formatBuildResult(
+      {
+        mode: 'submit_failed_before_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        submitResult: result,
+      },
       { elapsedMs: 1000, elapsed: '1s', progressEvents: 1 }
     );
     expect(output).toContain('- classification: forbidden_path');
@@ -5154,156 +5161,12 @@ describe('maker build local-change guard', () => {
     );
   });
 
-  test('submit tool pushes and then runs remote build', async () => {
-    const pushedCwds: string[] = [];
-    const remoteBuildTargetDirs: string[] = [];
-
-    const result = await pushThenBuildCurrentDirectory({
-      targetDir: tempDir,
-      pushLocalChanges: async (options) => {
-        pushedCwds.push(options.cwd);
-        return {
-          branch: 'main',
-          committed: true,
-          commitHash: 'abc1234',
-          message: 'chore: update maker project',
-          pushed: true,
-          status: 'pushed',
-        };
-      },
-      callRemoteBuild: async (targetDir) => {
-        remoteBuildTargetDirs.push(targetDir);
-        return {
-          mode: 'remote_build',
-          projectRoot: fs.realpathSync(tempDir),
-          projectId: 'app-1',
-          projectPath: 'app-1/workspace',
-          serverUrl: 'https://maker.example.test/mcp',
-          env: 'rnd',
-          timeoutMs: 600000,
-          buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
-          resultText: 'build ok',
-        };
-      },
-    });
-
-    expect(result.submitResult.pushed).toBe(true);
-    expect(result.buildResult?.mode).toBe('remote_build');
-    expect(pushedCwds).toEqual([tempDir]);
-    expect(remoteBuildTargetDirs).toEqual([tempDir]);
-  });
-
-  test('submit tool does not run remote build when push has no changes', async () => {
-    const remoteBuildTargetDirs: string[] = [];
-
-    const result = await pushThenBuildCurrentDirectory({
-      targetDir: tempDir,
-      pushLocalChanges: async () => ({
-        branch: 'main',
-        committed: false,
-        pushed: false,
-        status: 'clean',
-      }),
-      callRemoteBuild: async (targetDir) => {
-        remoteBuildTargetDirs.push(targetDir);
-        throw new Error('should not build clean submit');
-      },
-    });
-
-    expect(result.submitResult.status).toBe('clean');
-    expect(result.buildResult).toBeUndefined();
-    expect(remoteBuildTargetDirs).toEqual([]);
-  });
-
-  test('submit tool preserves pushed result when remote build fails', async () => {
-    const result = await pushThenBuildCurrentDirectory({
-      targetDir: tempDir,
-      pushLocalChanges: async () => ({
-        branch: 'main',
-        committed: true,
-        commitHash: 'abc1234',
-        message: 'chore: update maker project',
-        pushed: true,
-        status: 'pushed',
-      }),
-      callRemoteBuild: async () => {
-        throw new Error('remote build failed');
-      },
-    });
-
-    expect(result.submitResult.pushed).toBe(true);
-    expect(result.submitResult.commitHash).toBe('abc1234');
-    expect(result.buildResult).toBeUndefined();
-    expect(result.buildFailure?.message).toBe('remote build failed');
-  });
-
-  test('push result only reports build finished when remote build result exists', () => {
-    const output = formatPushResult(
-      tempDir,
+  test('push failure output explains Maker retry path', () => {
+    const output = formatBuildResult(
       {
-        targetDir: tempDir,
-        submitResult: {
-          branch: 'main',
-          committed: true,
-          commitHash: 'abc1234',
-          message: 'chore: update maker project',
-          pushed: true,
-          status: 'pushed',
-        },
-      },
-      {
-        elapsedMs: 1000,
-        elapsed: '1s',
-        progressEvents: 1,
-      }
-    );
-
-    expect(output).toContain('remote build result is missing');
-    expect(output).toContain('internal contract error');
-    expect(output).not.toContain('remote Maker build finished');
-    expect(output).not.toContain('remote_build:');
-  });
-
-  test('formats push remote build block with Maker app preview URL', () => {
-    const output = formatPushResult(
-      tempDir,
-      {
-        targetDir: tempDir,
-        submitResult: {
-          branch: 'main',
-          committed: true,
-          commitHash: 'abc1234',
-          message: 'chore: update maker project',
-          pushed: true,
-          status: 'pushed',
-        },
-        buildResult: {
-          mode: 'remote_build',
-          projectRoot: tempDir,
-          projectId: 'app-rnd',
-          projectPath: 'app-rnd/workspace',
-          serverUrl: 'https://fuping.agnt.xd.com/mcp/v1',
-          env: 'rnd',
-          timeoutMs: 600000,
-          buildArgs: {},
-          resultText: 'build ok',
-        },
-      },
-      {
-        elapsedMs: 1000,
-        elapsed: '1s',
-        progressEvents: 1,
-      }
-    );
-
-    expect(output).toContain('- maker_url: https://fuping.agnt.xd.com/app/app-rnd?localDev=1');
-  });
-
-  test('push failure output explains Maker retry path without generic git push', () => {
-    const output = formatPushResult(
-      tempDir,
-      {
-        targetDir: tempDir,
+        mode: 'submit_failed_before_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
         submitResult: {
           branch: 'main',
           committed: true,
@@ -5325,17 +5188,12 @@ describe('maker build local-change guard', () => {
           },
         },
       },
-      {
-        elapsedMs: 1000,
-        elapsed: '1s',
-        progressEvents: 1,
-      }
+      { elapsedMs: 1000, elapsed: '1s', progressEvents: 1 }
     );
 
     expect(output).toContain('push_recovery:');
     expect(output).toContain('- committed_but_unpushed: yes');
     expect(output).toContain('- retry_tool: maker_build_current_directory');
-    expect(output).toContain('- do_not_use_generic_git_push: yes');
     expect(output).toContain('504 Gateway Timeout');
   });
 

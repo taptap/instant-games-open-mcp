@@ -180,6 +180,7 @@ export function openImageAtlasDialogWithHost(
     buttons.push(create);
   }
   let source: Blob | undefined;
+  let manualNative = Boolean(actions?.cut?.manualNative);
   let prepared: PreparedImageAtlas | undefined;
   let regions: ImageAtlasCrop[] | undefined = actions?.cut?.regions;
   let selected = 0;
@@ -245,6 +246,13 @@ export function openImageAtlasDialogWithHost(
         prepared.regions.length +
         ' 件 · ' +
         (mode.value === 'content' ? '按实际区域切图，各图尺寸可能不同' : '保留规则单格尺寸');
+      // A failed automatic match falls back to the planned slot boxes; editing switches to manual.
+      if (bindingPlan?.nativeLayout)
+        status.textContent += manualNative
+          ? ' · 手动裁框预览，请核对全部素材，输出尺寸不变'
+          : prepared.alignmentWarning
+            ? ' · 自动校正未通过，已按原槽位裁切：' + prepared.alignmentWarning
+            : ' · 透明边界校正预览，输出尺寸不变';
       if (mode.value === 'content' && count && count !== prepared.regions.length)
         throw new Error(
           '预期 ' +
@@ -276,7 +284,10 @@ export function openImageAtlasDialogWithHost(
         grid[key] = fields[key].value === '' ? NaN : Number(fields[key].value);
         fields[key].disabled = mode.value !== 'grid';
       }
-      if (reset) regions = undefined;
+      if (reset) {
+        regions = undefined;
+        manualNative = false;
+      }
       if (mode.value === 'slots' && !regions) {
         const bitmap = await createImageBitmap(source);
         try {
@@ -306,7 +317,8 @@ export function openImageAtlasDialogWithHost(
           mode: mode.value === 'slots' ? 'grid' : mode.value,
           ...(mode.value !== 'grid' && regions ? { regions } : {}),
         },
-        bindingPlan
+        bindingPlan,
+        manualNative
       );
       if (token !== revision || closed) return;
       prepared = result;
@@ -363,8 +375,16 @@ export function openImageAtlasDialogWithHost(
     });
     prepared.regions = regions;
     draw();
-    // Rebuild derived button states from the original image after moving native crops.
-    if (bindingPlan?.nativeLayout && valid) void render();
+    // Explicit native crop edits use the original pixels; automatic matching must not veto them.
+    if (bindingPlan?.nativeLayout) {
+      try {
+        validateUiNativeRegions(bindingPlan, regions);
+      } catch {
+        return;
+      }
+      manualNative = true;
+      void render();
+    }
   }
   for (const [key, labelText] of Object.entries({ x: 'X', y: 'Y', width: '宽', height: '高' })) {
     const label = document.createElement('label');

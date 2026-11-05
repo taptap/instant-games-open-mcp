@@ -4,9 +4,9 @@ export function canvasCachedImage(url: string): HTMLImageElement {
   const owner = canvasCachedImage as unknown as { cache?: Map<string, HTMLImageElement> };
   const cache = owner.cache || (owner.cache = new Map());
   let image = cache.get(url);
-  if (image) {
-    cache.delete(url);
-  } else {
+  if (image) cache.delete(url);
+  // A failed load never recovers on its own; request it again like an uncached render would.
+  if (!image || (image.complete && !image.naturalWidth)) {
     image = new Image();
     image.decoding = 'async';
     image.src = url;

@@ -512,7 +512,9 @@ await check('Chrome 74：内联脚本与浏览器产物可按 ES2019 解析', as
   // Host code is injected verbatim and must be lowered by the host; check the shared page only.
   const shared = getCanvasPageHtml({ hostScript: '/* __MAKER_CANVAS_HOST__ */' });
   assert.ok(shared.includes('/* __MAKER_CANVAS_HOST__ */'));
-  const scripts = [...shared.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+  const scripts = [...shared.matchAll(/<script>([\s\S]*?)<\/script[^>]*>/gi)].map(
+    (match) => match[1]
+  );
   assert.ok(scripts.length);
   for (const script of scripts) acorn.parse(script, { ecmaVersion: 2019, sourceType: 'script' });
   const seen = new Set();
@@ -2323,6 +2325,128 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   });
+  await check('Web 生成面板：来源已变化时发送按钮在参数行右侧，不是顶部整条', async () => {
+    const kneel = 'assets/image/canvas/r-k.png';
+    const lying = 'assets/image/canvas/r-l.png';
+    const base = { type: 'image', y: 200, width: 240, height: 240 };
+    const { page, settle, card } = await webPage({
+      seedMedia: { [kneel]: '#c33', [lying]: '#3a7' },
+      seedDocuments: [
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          title: 'r',
+          revision: 1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [
+            { ...base, id: 'r-k', title: '来源', x: 120, assetPath: kneel },
+            {
+              ...base,
+              id: 'r-l',
+              title: '生图结果',
+              x: 520,
+              assetPath: lying,
+              generation: {
+                prompt: '小猫吃饭',
+                operation: 'variant',
+                sourceImageId: 'r-k',
+                referenceImagePaths: [],
+                parameters: {},
+              },
+              sourceSnapshot: { nodeId: 'r-k', version: 'image|old|manual-asset' },
+              sourceSnapshots: [{ nodeId: 'r-k', version: 'image|old|manual-asset' }],
+            },
+          ],
+          edges: [{ id: 'r-e', from: 'r-k', to: 'r-l', kind: 'image-variant' }],
+        },
+      ],
+    });
+    await card('r-l').waitFor();
+    await settle();
+    await page.mouse.click(1300, 860);
+    await card('r-l').click({ position: { x: 60, y: 30 }, force: true });
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    await panel.waitFor();
+    const box = await panel.evaluate((root) => {
+      const rect = (selector) => root.querySelector(selector).getBoundingClientRect();
+      const send = rect('.generation-action-primary');
+      const fields = rect('.generation-fields');
+      return {
+        send: [send.width, send.top, send.right],
+        fields: [fields.top, fields.bottom],
+        panel: root.getBoundingClientRect().right,
+      };
+    });
+    assert.equal(box.send[0], 32, '发送按钮是 32px 圆钮');
+    assert.ok(box.send[1] >= box.fields[0] - 4 && box.send[1] <= box.fields[1], '与参数同一行');
+    assert.ok(box.panel - box.send[2] < 16, '靠右');
+    await page.close();
+  });
+  await check('Web 复制：派生结果卡复制后不进入待处理（⌘/Ctrl+D、⌘/Ctrl+C/V）', async () => {
+    const kneel = 'assets/image/canvas/copy-kneel.png';
+    const lying = 'assets/image/canvas/copy-lying.png';
+    const base = { type: 'image', y: 200, width: 240, height: 240 };
+    const { page, errors, settle, current, card, blank } = await webPage({
+      seedMedia: { [kneel]: '#c33', [lying]: '#3a7' },
+      seedDocuments: [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          title: '复制画布',
+          revision: 1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [
+            { ...base, id: 'copy-k', title: '来源', x: 120, assetPath: kneel },
+            {
+              ...base,
+              id: 'copy-l',
+              title: '图片变体 · 已保存结果',
+              x: 520,
+              assetPath: lying,
+              generation: {
+                prompt: '躺姿',
+                operation: 'variant',
+                sourceImageId: 'copy-k',
+                referenceImagePaths: [],
+                parameters: {},
+              },
+              sourceSnapshot: { nodeId: 'copy-k', version: 'image|' + kneel + '|manual-asset' },
+              sourceSnapshots: [{ nodeId: 'copy-k', version: 'image|' + kneel + '|manual-asset' }],
+            },
+          ],
+          edges: [{ id: 'copy-edge', from: 'copy-k', to: 'copy-l', kind: 'image-variant' }],
+        },
+      ],
+    });
+    await card('copy-l').waitFor();
+    await settle();
+    for (const keys of [['ControlOrMeta+d'], ['ControlOrMeta+c', 'ControlOrMeta+v']]) {
+      await blank();
+      await page.mouse.click(1300, 860);
+      await card('copy-l').click({ position: { x: 60, y: 80 } });
+      const count = (await current()).nodes.length;
+      for (const key of keys) await page.keyboard.press(key);
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 1,
+        count
+      );
+      const copy = (await current()).nodes.at(-1);
+      assert.equal(copy.sourceSnapshot, undefined);
+      assert.equal(copy.sourceSnapshots, undefined);
+      await settle();
+      assert.equal(
+        await card(copy.id).locator('.card-state-overlay').count(),
+        0,
+        '复制卡无待处理遮罩'
+      );
+      assert.equal(
+        await card(copy.id).evaluate((item) => item.classList.contains('template-pending')),
+        false
+      );
+      await page.keyboard.press('ControlOrMeta+z');
+      await settle();
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
   await check('Web 外观：AI 结果面板显示生成它的来源图，原位再生成只发送来源', async () => {
     const kneel = 'assets/image/canvas/seed-kneel.png';
     const lying = 'assets/image/canvas/seed-lying.png';
@@ -2494,8 +2618,8 @@ try {
           assert.equal(await button.locator('svg').count(), 1, name + ' 为图标');
           assert.equal((await button.innerText()).trim(), '', name + ' 不显示文字');
         }
-        const download = menu.getByRole('button', { name: '下载图片', exact: true });
-        assert.equal(await download.getAttribute('data-web-tip'), '下载图片');
+        const download = menu.getByRole('button', { name: '下载 PNG', exact: true });
+        assert.equal(await download.getAttribute('data-web-tip'), '下载 PNG');
         assert.equal(await download.locator('svg').count(), 1);
         assert.equal(await menu.locator('details').count(), 0, '下载不再是折叠菜单');
         const bar = await menu.boundingBox();
@@ -2507,7 +2631,42 @@ try {
         });
         await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
         await contextMenu.waitFor();
-        assert.deepEqual(await imageItems(), ['加入对话', '抠图', '调整抠图', '下载', '下载 JPG']);
+        // Same names and order as the selection icons: 编辑 / 对话 / 导出.
+        assert.deepEqual(await imageItems(), [
+          '抠图',
+          '调整抠图',
+          '加入对话',
+          '下载 PNG',
+          '下载 JPG',
+        ]);
+        const iconOrder = await page.evaluate(() =>
+          [...document.querySelectorAll('#selection-menu .selection-actions > button')].map(
+            (item) => item.getAttribute('aria-label')
+          )
+        );
+        assert.deepEqual(
+          iconOrder.filter((label) =>
+            ['抠图', '调整抠图', '加入对话', '下载 PNG', '下载 JPG'].includes(label)
+          ),
+          ['抠图', '调整抠图', '加入对话', '下载 PNG', '下载 JPG']
+        );
+        // One separator between each visible group, none around empty ones.
+        const groups = await page.evaluate(() => {
+          const out = [[]];
+          for (const item of document.querySelector('#canvas-context-menu').children) {
+            if (item.hidden) continue;
+            if (item.matches('.canvas-menu-separator')) out.push([]);
+            else if (item.matches('button')) out[out.length - 1].push(item.textContent);
+          }
+          return out;
+        });
+        assert.deepEqual(groups, [
+          ['图片生成'],
+          ['抠图', '调整抠图'],
+          ['加入对话'],
+          ['下载 PNG', '下载 JPG'],
+          ['复制卡片', '删除卡片'],
+        ]);
         const opened = await contextMenu.boundingBox();
         await shoot('v7-' + theme + '-image-context-menu.png', {
           x: Math.max(0, opened.x - 24),
@@ -2524,7 +2683,7 @@ try {
         { nodeId: image.id, assetPath: image.assetPath },
       ]);
       await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
-      await contextMenu.getByRole('button', { name: '下载', exact: true }).click();
+      await contextMenu.getByRole('button', { name: '下载 PNG', exact: true }).click();
       await page.waitForFunction(() => window.__canvasDelivered);
       assert.match(await page.evaluate(() => window.__canvasDelivered.filename), /\.png$/);
       await page.evaluate(() => (window.__canvasDelivered = undefined));
@@ -2556,7 +2715,7 @@ try {
             .filter((item) => !item.hidden)
             .map((item) => item.textContent)
         ),
-        ['下载', '下载 JPG'],
+        ['下载 PNG', '下载 JPG'],
         '无 addToChat / cutout 时只保留下载'
       );
       await plain.page.close();
@@ -3013,12 +3172,12 @@ try {
         assert.equal(result.type, 'image/png');
         assert.ok(result.size > 0);
       };
-      await contextMenu.getByRole('button', { name: '下载', exact: true }).click();
+      await contextMenu.getByRole('button', { name: '下载 PNG', exact: true }).click();
       await delivered(1);
       await page.evaluate(() => (window.__canvasDelivered = undefined));
       await blank();
       await card(image.id).click({ position: { x: 100, y: 120 } });
-      await page.locator('#selection-menu').getByRole('button', { name: '下载图片' }).click();
+      await page.locator('#selection-menu').getByRole('button', { name: '下载 PNG' }).click();
       await delivered(2);
       assert.deepEqual(errors, []);
       await page.close();
@@ -3034,7 +3193,7 @@ try {
     await settle();
     await blank();
     await card(image.id).click({ position: { x: 100, y: 120 } });
-    const icon = page.locator('#selection-menu').getByRole('button', { name: '下载图片' });
+    const icon = page.locator('#selection-menu').getByRole('button', { name: '下载 PNG' });
     await icon.waitFor();
     let download = page.waitForEvent('download', { timeout: 5000 });
     await icon.click();
@@ -3044,7 +3203,7 @@ try {
     download = page.waitForEvent('download', { timeout: 5000 });
     await page
       .locator('#canvas-context-menu')
-      .getByRole('button', { name: '下载', exact: true })
+      .getByRole('button', { name: '下载 PNG', exact: true })
       .click();
     assert.match((await download).suggestedFilename(), /\.png$/);
     assert.deepEqual(errors, []);
@@ -4210,6 +4369,39 @@ try {
     const members = (await current()).nodes.filter((node) => node.sectionId === section.id);
     assert.deepEqual(members.map((node) => node.id).sort(), [first.id, second.id].sort());
     assert.deepEqual(await menuLabels(page), ['取消分组', '删除分组']);
+    // 分组 with an existing group and another card selected: the card joins that group.
+    const third = await importImage('第三张', '#58b', 120, 90);
+    await editor('update-nodes', {
+      nodes: [{ id: third.id, x: section.x + section.width + 60, y: section.y + 40 }],
+    });
+    await settle();
+    await blank();
+    await card(section.id).click({ position: { x: 20, y: 20 } });
+    await card(third.id).click({ position: { x: 40, y: 50 }, modifiers: ['Shift'] });
+    await page.locator('#selection-menu').getByRole('button', { name: '分组' }).click();
+    const joined = await current();
+    assert.equal(joined.nodes.filter((node) => node.type === 'section').length, 1, '没有新建分组');
+    assert.equal(joined.nodes.find((node) => node.id === third.id).sectionId, section.id);
+    const grownGroup = joined.nodes.find((node) => node.id === section.id);
+    const placed = joined.nodes.find((node) => node.id === third.id);
+    assert.ok(grownGroup.x + grownGroup.width >= placed.x + placed.width, '分组扩大到包含新卡');
+    // ⌘/Ctrl+C / ⌘/Ctrl+V duplicates a plain card.
+    const beforePaste = (await current()).nodes.length;
+    await blank();
+    await card(third.id).click({ position: { x: 40, y: 50 } });
+    await page.keyboard.press('ControlOrMeta+c');
+    await page.keyboard.press('ControlOrMeta+v');
+    assert.equal((await current()).nodes.length, beforePaste + 1);
+    await editor('undo', {});
+    // Undo the join, the move and the import so the rest of this check sees two cards again.
+    for (let step = 0; step < 3; step++) await editor('undo', {});
+    assert.equal(
+      (await current()).nodes.some((node) => node.id === third.id),
+      false
+    );
+    await settle();
+    await blank();
+    await card(section.id).click({ position: { x: 20, y: 20 } });
     assert.equal(await card(section.id).locator('.web-node-handle').count(), 4);
     // Group corners have no visible dot, only an invisible resize hit area on the box corner.
     const corner = await card(section.id)
@@ -5585,9 +5777,71 @@ try {
       await settle();
       await card(byKey.cutout_ref.id).click({ position: { x: 40, y: 80 } });
       await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
-      assert.deepEqual(await menuLabels(page), ['下载图片']);
+      assert.deepEqual(await menuLabels(page), ['下载 PNG', '下载 JPG', '复制为普通卡片']);
       assert.equal(await card(byKey.cutout_ref.id).locator('.canvas-port').count(), 0);
       assert.equal(await page.locator('#selection-toolbar .selection-panel').count(), 0);
+      // 复制为普通卡片: the file is copied into the canvas folder; the copy sits outside the group.
+      const beforeCopy = (await current()).nodes.length;
+      await page.locator('#selection-menu').getByRole('button', { name: '复制为普通卡片' }).click();
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 1,
+        beforeCopy
+      );
+      const copied = (await current()).nodes.at(-1);
+      const groupNow = await spriteSection(current, 'hero');
+      assert.equal(copied.mirror, undefined);
+      assert.equal(copied.sectionId, undefined);
+      assert.match(copied.assetPath, /^assets\/image\//);
+      assert.ok(copied.x >= groupNow.x + groupNow.width, '复制卡在分组外');
+      await editor('undo', {});
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count,
+        beforeCopy
+      );
+      // ⌘/Ctrl+C then ⌘/Ctrl+V on a sprite card also copies it as a plain card.
+      await card(byKey.cutout_ref.id).click({ position: { x: 40, y: 80 } });
+      await page.keyboard.press('ControlOrMeta+c');
+      await page.keyboard.press('ControlOrMeta+v');
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 1,
+        beforeCopy
+      );
+      const pasted = (await current()).nodes.at(-1);
+      assert.equal(pasted.mirror, undefined);
+      assert.match(pasted.assetPath, /^assets\/image\//);
+      // The copy is panned into view.
+      const shown = await card(pasted.id).boundingBox();
+      assert.ok(shown && shown.x >= 0 && shown.x + shown.width <= 1400, '复制卡在视野内');
+      await editor('undo', {});
+      // Mixed selections must retain ordinary cards as well as copied mirrors.
+      await card(byKey.cutout_ref.id).click({ position: { x: 40, y: 80 } });
+      await card(source.id).click({ position: { x: 40, y: 60 }, modifiers: ['Shift'] });
+      await page.keyboard.press('ControlOrMeta+d');
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 2,
+        beforeCopy
+      );
+      const mixedCopies = (await current()).nodes.slice(-2);
+      assert.ok(mixedCopies.some((node) => node.assetPath === source.assetPath && !node.mirror));
+      assert.ok(mixedCopies.every((node) => !node.mirror));
+      await editor('undo', {});
+      await page.evaluate(() => window.__canvasEditor.syncSprites());
+      byKey = await mirrors();
+      // Dragging a sprite card out of its group keeps it in the group.
+      const inside = byKey.cutout_ref;
+      await settle();
+      await card(inside.id).waitFor({ state: 'visible' });
+      const from = await card(inside.id).boundingBox();
+      await page.mouse.move(from.x + 40, from.y + 80);
+      await page.mouse.down();
+      await page.mouse.move(from.x + 40, from.y - 400, { steps: 8 });
+      await page.mouse.up();
+      assert.equal(
+        (await current()).nodes.find((node) => node.id === inside.id).sectionId,
+        section.id,
+        '精灵卡拖出分组框仍属于分组'
+      );
+      await editor('undo', {});
       await page.mouse.move(10, 10);
       await themes(page, (theme) => shoot('v20-sprite-group-' + theme + '.png'));
       const removed = byKey['viewpoint:assets/image/vp_2.png'];
@@ -5683,6 +5937,8 @@ try {
       const undone = (await current()).nodes.find((node) => node.id === laidOut.id);
       assert.deepEqual([undone.x, undone.y], [moved.x, moved.y]);
       await editor('redo', {});
+      // Drain the sync triggered by redo; hiding stops future polls, not in-flight reads.
+      await page.evaluate(() => window.__canvasEditor.syncSprites());
       // Host hides the panel: no poll is pending; showing it again catches up right away.
       const before = await page.evaluate(() => {
         window.__canvasEditor.setPanelVisible(false);
@@ -5699,10 +5955,84 @@ try {
       await page.close();
     }
   );
+  await check('Web 精灵混合复制：模型卡检查先于镜像复制，不生成无来源的模型副本', async () => {
+    for (const type of ['model', 'model-views']) {
+      const assetPath = 'assets/image/model-copy-source.png';
+      const { page, current, card, errors } = await webPage({
+        features: spriteFeatures,
+        seedMedia: { [assetPath]: '#c33' },
+        seedDocuments: [
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            title: 'mixed copy',
+            revision: 1,
+            viewport: { x: 0, y: 0, scale: 1 },
+            edges: [],
+            nodes: [
+              {
+                id: 'mirror',
+                type: 'image',
+                x: 100,
+                y: 160,
+                width: 200,
+                height: 200,
+                assetPath,
+                mirror: { source: 'sprite-gen', name: 'hero', key: 'viewpoint:' + assetPath },
+              },
+              { id: 'model', type, x: 500, y: 160, width: 240, height: 200 },
+            ],
+          },
+        ],
+      });
+      await card('mirror').click({ position: { x: 30, y: 80 } });
+      await card('model').click({ position: { x: 30, y: 80 }, modifiers: ['Shift'] });
+      await page.keyboard.press('ControlOrMeta+d');
+      await page.waitForFunction(() =>
+        document.getElementById('error').textContent.includes('模型卡片依赖完整来源')
+      );
+      assert.equal((await current()).nodes.length, 2);
+      await page.keyboard.press('ControlOrMeta+c');
+      await page.keyboard.press('ControlOrMeta+v');
+      assert.equal((await current()).nodes.length, 2);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  });
+  await check('Web 精灵同步：媒体晚到、强制刷新同路径文件无需改进度 JSON', async () => {
+    const { page, current, card, settle, errors } = await spritePage();
+    await startSprite(page, 'hero');
+    const assetPath = 'assets/image/late.png';
+    await page.evaluate(
+      ({ progress }) => {
+        window.__canvasProjectJson = { '.build/sprite-gen/hero/_progress.json': progress };
+      },
+      { progress: spriteProgress('plan', { flags: { viewpoint_candidates: [assetPath] } }) }
+    );
+    await page.evaluate(() => window.__canvasEditor.syncSprites());
+    assert.ok(!(await current()).nodes.some((node) => node.assetPath === assetPath));
+    await page.evaluate(async (path) => {
+      await window.__canvasAddMedia('#c33', 80, 80, path);
+      window.dispatchEvent(new Event('online'));
+    }, assetPath);
+    await page.waitForFunction(
+      (path) => window.__canvasEditor.current().nodes.some((node) => node.assetPath === path),
+      assetPath
+    );
+    const node = (await current()).nodes.find((node) => node.assetPath === assetPath);
+    await settle();
+    const before = await card(node.id).locator('img').getAttribute('src');
+    await page.evaluate(async (path) => {
+      await window.__canvasAddMedia('#33c', 80, 80, path);
+      await window.__canvasEditor.syncSprites();
+    }, assetPath);
+    assert.notEqual(await card(node.id).locator('img').getAttribute('src'), before);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
   await check(
     'Web 精灵同步：完成态裁边精灵表生成可播放的动画卡与序列帧卡，阶段为已完成（明暗）',
     async () => {
-      const { page, errors, current, card, shoot } = await spritePage();
+      const { page, errors, current, card, settle, shoot } = await spritePage();
       await startSprite(page, 'hero');
       const section = await spriteSection(current, 'hero');
       await page.evaluate(async () => {
@@ -5757,7 +6087,21 @@ try {
           meta: { image: 'spritesheet.png', size: { w: 64, h: 32 } },
         },
       });
+      const delayedSheet = await page.evaluate(() => {
+        const path = 'assets/sprites/hero/walk/spritesheet.json';
+        const sheet = window.__canvasProjectJson[path];
+        delete window.__canvasProjectJson[path];
+        return sheet;
+      });
       await page.evaluate(() => window.__canvasEditor.syncSprites());
+      assert.ok(!(await current()).nodes.some((node) => node.mirror?.key === 'animation:walk'));
+      await page.evaluate((sheet) => {
+        window.__canvasProjectJson['assets/sprites/hero/walk/spritesheet.json'] = sheet;
+        window.dispatchEvent(new Event('online'));
+      }, delayedSheet);
+      await page.waitForFunction(() =>
+        window.__canvasEditor.current().nodes.some((node) => node.mirror?.key === 'animation:walk')
+      );
       const doc = await current();
       const byKey = Object.fromEntries(
         doc.nodes.filter((node) => node.mirror).map((node) => [node.mirror.key, node])
@@ -5779,6 +6123,12 @@ try {
           kind
         );
       assert.equal(byKey['sequence:walk'].sourceVideoId, byKey['video:walk'].id);
+      // A mirrored video keeps only 复制为普通卡片 (no empty selection pill above it).
+      await settle();
+      await card(byKey['video:walk'].id).click({ position: { x: 40, y: 40 } });
+      await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+      assert.deepEqual(await menuLabels(page), ['复制为普通卡片']);
+      await page.mouse.click(10, 10);
       assert.equal(byKey['animation:walk'].frameSetInfo.frames[1].offsetX, 6);
       assert.equal(await spriteBadge(page, section.id), '已完成');
       // The tree grows to the right (source → video → sequence → animation); fit it on screen.

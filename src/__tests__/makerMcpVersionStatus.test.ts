@@ -98,7 +98,7 @@ jest.mock('../maker/storage', () => ({
   loadTapAuth: jest.fn(() => undefined),
 }));
 
-jest.mock('../maker/cli/projects', () => ({
+jest.mock('../maker/git', () => ({
   inspectMakerDirectoryGitStatus: jest.fn(() => ({
     isUsableMakerGitRepo: false,
     issue: 'unbound',
@@ -330,7 +330,7 @@ describe('maker MCP version status integration', () => {
   });
 
   test('marks a blocked Maker submission as a tool error', async () => {
-    const projects = await import('../maker/cli/projects');
+    const projects = await import('../maker/git');
     const storage = await import('../maker/storage');
     const { startMakerMcpServer } = await import('../maker/server/mcp');
     const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
@@ -411,7 +411,10 @@ describe('maker MCP version status integration', () => {
     expect(instructions).toContain('image, video, music, sound-effect');
     expect(instructions).toContain('generate_resource_meta');
     expect(instructions).toContain('maker-ui-workflow');
-    expect((instructions as string).length).toBeLessThanOrEqual(1600);
+    expect(instructions).toContain('canvas capabilities');
+    expect(instructions).toContain('canvas templates');
+    expect(instructions).toContain('canvas-video.md');
+    expect((instructions as string).length).toBeLessThanOrEqual(2200);
     expect(instructions).not.toMatch(
       /agents update|global memory|~\/.(?:codex|claude|workbuddy)/iu
     );

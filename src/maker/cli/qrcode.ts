@@ -8,7 +8,7 @@ import {
   type MakerQrcodePublication,
 } from '../qrcodePreflight.js';
 import { parseQrcodeInteraction, parseQrcodeRecovery } from '../qrcodeInteraction.js';
-import { pushMakerProject } from './projects.js';
+import { pushMakerProject } from '../git/index.js';
 
 type QrcodeDependencies = {
   access: () => Promise<{ blocked: boolean; message?: string }>;
