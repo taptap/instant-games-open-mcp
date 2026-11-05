@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { previewProject } from '../preview/protocol.js';
 import { getMakerHome, loadProjectConfig } from '../storage.js';
 import { writePrivateJson } from '../system/privateJson.js';
-import { claimRecoveryMutex } from '../system/recoveryMutex.js';
+import { claimUiSaveLock } from '../uiEditor/saveLock.js';
 import { processPresence } from '../system/processPresence.js';
 import { inspectAssets } from './assets.js';
 import { inspectArchitecture } from './architecture.js';
@@ -78,8 +78,8 @@ async function withLock<T>(project: Identity, action: () => T): Promise<T> {
   const dir = directory(project);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const lock = path.join(dir, '.lock');
-  const release = await claimRecoveryMutex(
-    lock,
+  const release = await claimUiSaveLock(
+    lock + '.guard',
     () => new Error('另一个项目检查正在保存，请稍后重试。')
   );
   let owned = false;

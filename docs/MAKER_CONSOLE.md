@@ -70,7 +70,7 @@ show 只读最近结果。collect 不覆盖已发布结果；版本冲突、路�
 会拒绝 publish，保留原结果。JSON 契约和上限以 capabilities 为准。
 结果按项目 realpath 与 project_id 隔离，保存在 Maker home/project-checks，不写游戏目录。
 CLI 与控制台必须使用同一 Maker home；保存使用跨进程锁与私有 JSON 原子替换。
-锁记录持有进程，确认进程退出后在系统互斥保护下回收；旧版无归属记录的锁保留并提示人工核实。
+保存复用 UI 动态端口锁核对持有者，确认进程退出后回收；旧版无归属记录的锁保留并提示人工核实。
 结果显示采集和生成时间，不代表后续项目修改已复核。
 
 素材事实覆盖 assets、scripts、项目根 Lua、.project、.maker/canvases、.maker/ui-workflows

@@ -10,6 +10,7 @@ import {
 } from '../maker/projectCheck/store';
 import { buildAutoAnalysis, runAutoProjectCheck } from '../maker/projectCheck/auto';
 import { claimRecoveryMutex } from '../maker/system/recoveryMutex';
+import { claimUiSaveLock } from '../maker/uiEditor/saveLock';
 import * as architecture from '../maker/projectCheck/architecture';
 
 describe('project check review regressions', () => {
@@ -79,14 +80,25 @@ describe('project check review regressions', () => {
     expect(fs.existsSync(lock)).toBe(true);
   });
 
-  test('does not recover while another writer holds the OS mutex', async () => {
-    const release = await claimRecoveryMutex(path.join(dir, '.lock'), () => new Error('busy'));
+  test('does not recover while another writer holds the save lock', async () => {
+    const release = await claimUiSaveLock(path.join(dir, '.lock.guard'), () => new Error('busy'));
     try {
       await expect(collectProjectCheck(root)).rejects.toThrow('正在保存');
     } finally {
       await release();
     }
     await collectProjectCheck(root);
+  });
+
+  test('collects and publishes when the former fixed port is occupied', async () => {
+    const release = await claimRecoveryMutex(path.join(dir, '.lock'), () => new Error('busy'));
+    try {
+      const collected = await collectProjectCheck(root);
+      await publishProjectCheck(root, buildAutoAnalysis(collected));
+      expect(readProjectCheck(root)!.analysis.auto).toBe(true);
+    } finally {
+      await release();
+    }
   });
 
   test('media report cache avoids rereads and invalidates on replacement, deletion and rebinding', async () => {
