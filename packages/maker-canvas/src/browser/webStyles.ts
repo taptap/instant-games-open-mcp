@@ -646,21 +646,29 @@ ${M} .web-select-option:hover:not(:disabled), ${M} .web-select-option:focus { ba
 ${M} .web-select-option[aria-selected="true"] { position: relative; color: var(--web-text); }
 ${M} .web-select-option[aria-selected="true"]::after { content: ''; position: absolute; right: 10px; top: 50%; width: 12px; height: 12px; margin-top: -6px; background: currentColor; -webkit-mask: ${CHECK_ICON} center / contain no-repeat; mask: ${CHECK_ICON} center / contain no-repeat; }
 ${M} .web-select-option:disabled { opacity: .45; }
-/* Crop editor (webImageTools.ts). */
-${M} .web-crop-dialog { padding: 16px 20px; border: 1px solid var(--web-line); border-radius: 16px; background: var(--web-panel); color: var(--web-text); box-shadow: 0 28px 80px rgba(0,0,0,.45); font-family: inherit; }
-${M} .web-crop-dialog::backdrop { background: rgba(0,0,0,.45); }
-${L} .web-crop-dialog::backdrop { background: rgba(35,35,35,.24); }
-${M} .web-crop-dialog h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
-${M} .web-crop-stage { position: relative; overflow: hidden; margin: 0 auto; background: var(--web-soft); user-select: none; touch-action: none; }
-${M} .web-crop-stage img { display: block; width: 100%; height: 100%; pointer-events: none; }
-${M} .web-crop-box { position: absolute; box-sizing: border-box; border: 1px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,.5); cursor: move; }
-${M} .web-crop-handle { position: absolute; width: 12px; height: 12px; border: 2px solid var(--web-accent); border-radius: 50%; background: #fff; }
-${M} .web-crop-nw { left: -7px; top: -7px; cursor: nwse-resize; }
-${M} .web-crop-ne { right: -7px; top: -7px; cursor: nesw-resize; }
-${M} .web-crop-sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
-${M} .web-crop-se { right: -7px; bottom: -7px; cursor: nwse-resize; }
-${M} .web-crop-dialog footer { display: flex; align-items: center; margin-top: 14px; }
-${M} .web-crop-size { flex: 1; color: var(--web-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-${M} .web-crop-dialog footer button { box-sizing: border-box; height: 32px; margin-left: 8px; padding: 0 14px; border: 1px solid var(--web-line); border-radius: 8px; background: transparent; color: var(--web-text); font-size: 13px; font-weight: 500; }
-${M} .web-crop-dialog footer .web-crop-apply { border-color: var(--web-text); background: var(--web-text); color: var(--web-panel); }
+/* @ mention list (installCanvasWebMentions): thumbnail, 图N, caption. */
+${M} .web-mention-list { min-width: 200px; max-width: 320px; }
+${M} .web-mention-option { height: 40px; min-height: 40px; padding-right: 10px; }
+${M} .web-mention-option img { flex: none; width: 28px; height: 28px; margin-right: 8px; border-radius: 6px; object-fit: cover; background: var(--web-soft); }
+${M} .web-mention-option b { flex: none; margin-right: 6px; color: var(--web-text); font-weight: 600; }
+${M} .web-mention-option span { overflow: hidden; color: var(--web-muted); text-overflow: ellipsis; }
+${M} .web-mention-option[aria-selected="true"] { background: var(--web-menu-hover); }
+${M} .web-mention-option[aria-selected="true"]::after { display: none; }
+/* In-place crop (page applyWebEditPatches): box on the card image, bar under it. */
+${M} .web-crop-layer { position: absolute; z-index: 30; overflow: hidden; touch-action: none; }
+${M} .web-crop-box { position: absolute; box-sizing: border-box; border: calc(2px * var(--web-inv, 1)) solid var(--web-accent); box-shadow: 0 0 0 9999px rgba(0,0,0,.55); cursor: move; }
+${M} .web-crop-handle { position: absolute; box-sizing: border-box; width: calc(14px * var(--web-inv, 1)); height: calc(14px * var(--web-inv, 1)); border: calc(2px * var(--web-inv, 1)) solid var(--web-accent); border-radius: calc(3px * var(--web-inv, 1)); background: #fff; }
+${M} .web-crop-nw { left: calc(-8px * var(--web-inv, 1)); top: calc(-8px * var(--web-inv, 1)); cursor: nwse-resize; }
+${M} .web-crop-ne { right: calc(-8px * var(--web-inv, 1)); top: calc(-8px * var(--web-inv, 1)); cursor: nesw-resize; }
+${M} .web-crop-sw { left: calc(-8px * var(--web-inv, 1)); bottom: calc(-8px * var(--web-inv, 1)); cursor: nesw-resize; }
+${M} .web-crop-se { right: calc(-8px * var(--web-inv, 1)); bottom: calc(-8px * var(--web-inv, 1)); cursor: nwse-resize; }
+${M} #board.web-cropping #selection-toolbar, ${M} #board.web-cropping #selection-menu { display: none !important; }
+/* The crop layer would be cut by the image frame's selection outline; the box draws its own. */
+${M} #board.web-cropping .card.image.selected .canvas-card-content { outline: 0; }
+${M} .web-crop-bar { position: absolute; z-index: 40; display: flex; align-items: center; padding: 6px; border: 1px solid var(--web-line); border-radius: 14px; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: var(--web-shadow); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); white-space: nowrap; }
+${M} .web-crop-bar button { box-sizing: border-box; height: 32px; min-height: 32px; margin: 0; padding: 0 12px; border: 0; border-radius: 9px; background: transparent; color: inherit; font: inherit; font-size: 13px; font-weight: 500; line-height: 32px; opacity: .8; }
+${M} .web-crop-bar button + button { margin-left: 2px; }
+${M} .web-crop-bar button:hover, ${M} .web-crop-bar button[aria-pressed="true"] { background: var(--web-float-wash); opacity: 1; }
+${M} .web-crop-bar .web-crop-done { opacity: 1; }
+${M} .web-crop-divider { width: 1px; height: 20px; margin: 0 6px; background: var(--web-float-wash); }
 `;

@@ -440,6 +440,59 @@ test('a sprite section grows left and up as well as right and down', () => {
   expect(growSpriteSection(doc, 'sec')).toBe(false);
 });
 
+test('a growing sprite section pushes the cards and groups beside it out of the way', () => {
+  const doc = documentWithSource();
+  createSpriteSection(doc, 'src', 'hero', 'character', 'sec', 1);
+  const section = doc.nodes.find((node) => node.id === 'sec')!;
+  const right = section.x + section.width;
+  const bottom = section.y + section.height;
+  const card = (id: string, x: number, y: number, sectionId?: string) => ({
+    id,
+    type: 'image' as const,
+    title: id,
+    x,
+    y,
+    width: 100,
+    height: 80,
+    ...(sectionId ? { sectionId } : {}),
+  });
+  doc.nodes.push(
+    // Right of the section, on its rows: pushed together, keeping their 40px spacing.
+    card('beside', right + 40, section.y + 20),
+    card('further', right + 180, section.y + 20),
+    // Far below the section's rows: stays.
+    card('away', right + 40, bottom + 400),
+    // Another group and its member move as one.
+    {
+      id: 'other',
+      type: 'section',
+      title: '分组',
+      x: right + 40,
+      y: section.y + 150,
+      width: 160,
+      height: 120,
+    },
+    card('member', right + 60, section.y + 180, 'other'),
+    // Below the section, under its columns: pushed down.
+    card('under', section.x + 10, bottom + 20)
+  );
+  // The source (a member) moves past the bottom-right corner, so the section grows both ways.
+  const source = doc.nodes.find((node) => node.id === 'src')!;
+  expect(source.sectionId).toBe('sec');
+  source.x = right + 200;
+  source.y = bottom + 100;
+  expect(growSpriteSection(doc, 'sec')).toBe(true);
+  const at = (id: string) => doc.nodes.find((node) => node.id === id)!;
+  const newRight = section.x + section.width;
+  const newBottom = section.y + section.height;
+  expect(at('beside').x).toBeGreaterThanOrEqual(newRight + 32);
+  expect(at('further').x - at('beside').x).toBe(140);
+  expect(at('member').x - at('other').x).toBe(20);
+  expect(at('other').x).toBeGreaterThanOrEqual(newRight + 32);
+  expect(at('under').y).toBeGreaterThanOrEqual(newBottom + 32);
+  expect(at('away').x).toBe(right + 40);
+});
+
 test('tree layout fans siblings out downward and keeps cards the user moved', () => {
   const doc = documentWithSource();
   createSpriteSection(doc, 'src', 'hero', 'character', 'sec', 1);

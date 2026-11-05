@@ -230,6 +230,164 @@ export function installCanvasWebSelects() {
   );
 }
 
+/**
+ * Typing `@` in the generation composer's prompt lists the composer's input images (the
+ * thumbnails above it, in the order they are sent) and inserts `@图N` for the chosen one, so the
+ * prompt can name each image. Text typed after `@` filters by number or caption; ↑/↓ move,
+ * Enter or Tab picks, Escape, a space or leaving the field closes the list.
+ */
+export function installCanvasWebMentions() {
+  const fields =
+    '#selection-toolbar textarea.generation-prompt, #selection-toolbar .prompt-section-input';
+  let open: {
+    field: HTMLTextAreaElement;
+    start: number;
+    list: HTMLElement;
+    items: Array<{ element: HTMLButtonElement; token: string }>;
+    active: number;
+  } | null = null;
+  function close() {
+    if (!open) return;
+    open.list.remove();
+    open = null;
+  }
+  function tiles(field: HTMLTextAreaElement) {
+    const panel = field.closest('.generation-panel') || field.closest('#selection-toolbar');
+    if (!panel) return [];
+    return Array.from(panel.querySelectorAll('.generation-references .generation-reference'))
+      .map((tile) => ({
+        src: (tile.querySelector('img') as HTMLImageElement | null)?.src || '',
+        caption: (tile.querySelector('small')?.textContent || '').trim(),
+      }))
+      .filter((tile) => tile.src)
+      .map((tile, index) => ({ ...tile, token: '图' + (index + 1) }));
+  }
+  function choose(index: number) {
+    if (!open) return;
+    const { field, start, items } = open;
+    const item = items[index];
+    if (!item) return;
+    const end = field.selectionStart ?? field.value.length;
+    const text = '@' + item.token + ' ';
+    field.value = field.value.slice(0, start) + text + field.value.slice(end);
+    const caret = start + text.length;
+    field.setSelectionRange(caret, caret);
+    close();
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.focus();
+  }
+  function highlight(index: number) {
+    if (!open || !open.items.length) return;
+    open.active = (index + open.items.length) % open.items.length;
+    open.items.forEach((item, position) =>
+      item.element.setAttribute('aria-selected', String(position === open!.active))
+    );
+    open.items[open.active].element.scrollIntoView({ block: 'nearest' });
+  }
+  function show(field: HTMLTextAreaElement, start: number, query: string) {
+    const all = tiles(field);
+    const shown = all.filter(
+      (tile) =>
+        !query ||
+        tile.token.indexOf(query) >= 0 ||
+        tile.caption.indexOf(query) >= 0 ||
+        String(all.indexOf(tile) + 1) === query
+    );
+    if (!shown.length) {
+      close();
+      return;
+    }
+    const list = open && open.field === field ? open.list : document.createElement('div');
+    list.className = 'web-select-list web-mention-list';
+    list.setAttribute('role', 'listbox');
+    list.setAttribute('aria-label', '引用输入图片');
+    list.replaceChildren();
+    const items = shown.map((tile, index) => {
+      const element = document.createElement('button');
+      element.type = 'button';
+      element.className = 'web-select-option web-mention-option';
+      element.setAttribute('role', 'option');
+      const image = document.createElement('img');
+      image.src = tile.src;
+      image.alt = '';
+      const token = document.createElement('b');
+      token.textContent = tile.token;
+      const caption = document.createElement('span');
+      caption.textContent = tile.caption;
+      element.append(image, token, caption);
+      element.addEventListener('mousedown', (event) => event.preventDefault());
+      element.addEventListener('click', (event) => {
+        event.stopPropagation();
+        choose(index);
+      });
+      list.append(element);
+      return { element, token: tile.token };
+    });
+    if (!list.isConnected) document.body.append(list);
+    open = { field, start, list, items, active: 0 };
+    highlight(0);
+    const rect = field.getBoundingClientRect();
+    const height = list.offsetHeight;
+    const top = rect.top - height - 6 >= 8 ? rect.top - height - 6 : rect.bottom + 6;
+    list.style.top = Math.round(top) + 'px';
+    list.style.left =
+      Math.max(8, Math.min(window.innerWidth - list.offsetWidth - 8, Math.round(rect.left))) + 'px';
+  }
+  function update(field: HTMLTextAreaElement) {
+    const caret = field.selectionStart ?? 0;
+    const before = field.value.slice(0, caret);
+    const at = before.lastIndexOf('@');
+    const query = at >= 0 ? before.slice(at + 1) : '';
+    if (at < 0 || /\s/.test(query) || query.length > 12) {
+      close();
+      return;
+    }
+    show(field, at, query);
+  }
+  document.addEventListener(
+    'input',
+    (event) => {
+      const field = event.target as HTMLTextAreaElement | null;
+      if (!field || !field.matches || !field.matches(fields)) return;
+      const typed = (event as InputEvent).data;
+      if (open && open.field === field) update(field);
+      else if (typed && typed.slice(-1) === '@') update(field);
+    },
+    true
+  );
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      if (!open || event.target !== open.field || event.isComposing) return;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp')
+        highlight(open.active + (event.key === 'ArrowDown' ? 1 : -1));
+      else if (event.key === 'Enter' || event.key === 'Tab') choose(open.active);
+      else if (event.key === 'Escape') close();
+      else return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+    true
+  );
+  document.addEventListener(
+    'focusout',
+    (event) => {
+      if (open && event.target === open.field)
+        setTimeout(() => {
+          if (open && document.activeElement !== open.field) close();
+        }, 0);
+    },
+    true
+  );
+  document.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (open && !open.list.contains(event.target as Node) && event.target !== open.field) close();
+    },
+    true
+  );
+}
+
 /** Immediate tooltip for Web icon-only buttons; migrates native titles so only one bubble shows. */
 export function installCanvasWebTooltips() {
   const targets =
@@ -557,6 +715,7 @@ export function createCanvasWebChrome(options: {
   const board = options.board;
   installCanvasWebTooltips();
   installCanvasWebSelects();
+  installCanvasWebMentions();
   // Web dock and tab icons: plain lucide at stroke 2, matching the Maker shell (lucide-react).
   const lucide = (paths: string, size: number) =>
     '<svg viewBox="0 0 24 24" width="' +

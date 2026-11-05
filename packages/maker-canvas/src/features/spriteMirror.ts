@@ -570,6 +570,9 @@ export function dismissSpriteMirrors(
 /**
  * Grows a sprite section in every direction to keep its members inside (28px sides, 68px under the
  * header, as createSpriteSection); never shrinks it. Growing left/up moves its top-left corner.
+ * Growing right or down pushes the cards and groups it would now cover out of the way: everything
+ * that started right of (or below) the old edge and shares the section's rows (or columns) moves
+ * by one amount, so their own layout stays as it was. A group moves with its members.
  */
 export function growSpriteSection(document: CanvasDocument, sectionId: string): boolean {
   const section = document.nodes.find((node) => node.id === sectionId && node.type === 'section');
@@ -611,10 +614,45 @@ export function growSpriteSection(document: CanvasDocument, sectionId: string): 
   const height = Math.round(Math.min(20000, bottom - top));
   if (x === section.x && y === section.y && width === section.width && height === section.height)
     return false;
+  const old = {
+    right: section.x + section.width,
+    bottom: section.y + section.height,
+  };
   section.x = x;
   section.y = y;
   section.width = width;
   section.height = height;
+  // Inlined: the page receives this function through toString().
+  const gap = 32;
+  const outside = document.nodes.filter((node) => node.id !== sectionId && !node.sectionId);
+  const move = (node: (typeof outside)[number], dx: number, dy: number) => {
+    node.x += dx;
+    node.y += dy;
+    if (node.type === 'section')
+      for (const member of document.nodes)
+        if (member.sectionId === node.id) {
+          member.x += dx;
+          member.y += dy;
+        }
+  };
+  if (x + width > old.right) {
+    const band = outside.filter(
+      (node) => node.x >= old.right && node.y < y + height + gap && node.y + node.height > y - gap
+    );
+    const push = band.length
+      ? Math.ceil(x + width + gap - Math.min(...band.map((node) => node.x)))
+      : 0;
+    if (push > 0) for (const node of band) move(node, push, 0);
+  }
+  if (y + height > old.bottom) {
+    const band = outside.filter(
+      (node) => node.y >= old.bottom && node.x < x + width + gap && node.x + node.width > x - gap
+    );
+    const push = band.length
+      ? Math.ceil(y + height + gap - Math.min(...band.map((node) => node.y)))
+      : 0;
+    if (push > 0) for (const node of band) move(node, 0, push);
+  }
   return true;
 }
 
