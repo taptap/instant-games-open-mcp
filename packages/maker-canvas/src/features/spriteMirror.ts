@@ -633,6 +633,10 @@ export function growSpriteSection(document: CanvasDocument, sectionId: string): 
         if (member.sectionId === node.id) {
           member.x += dx;
           member.y += dy;
+          if (member.mirror?.placed) {
+            member.mirror.placed.x += dx;
+            member.mirror.placed.y += dy;
+          }
         }
   };
   if (x + width > old.right) {

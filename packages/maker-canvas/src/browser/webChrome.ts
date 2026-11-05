@@ -162,7 +162,11 @@ export function installCanvasWebSelects() {
       close(false);
     };
     const dismiss = (event: Event) => {
-      if (event.type === 'scroll' && list.contains(event.target as Node)) return;
+      if (
+        (event.type === 'scroll' || event.type === 'wheel') &&
+        list.contains(event.target as Node)
+      )
+        return;
       close(false);
     };
     list.addEventListener('keydown', (event) => {

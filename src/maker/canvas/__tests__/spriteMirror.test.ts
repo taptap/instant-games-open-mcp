@@ -477,6 +477,13 @@ test('a growing sprite section pushes the cards and groups beside it out of the 
     card('under', section.x + 10, bottom + 20)
   );
   // The source (a member) moves past the bottom-right corner, so the section grows both ways.
+  const member = doc.nodes.find((node) => node.id === 'member')!;
+  member.mirror = {
+    source: 'sprite-gen',
+    name: 'other',
+    key: 'ready',
+    placed: { x: member.x - 7, y: member.y - 9 },
+  };
   const source = doc.nodes.find((node) => node.id === 'src')!;
   expect(source.sectionId).toBe('sec');
   source.x = right + 200;
@@ -488,6 +495,8 @@ test('a growing sprite section pushes the cards and groups beside it out of the 
   expect(at('beside').x).toBeGreaterThanOrEqual(newRight + 32);
   expect(at('further').x - at('beside').x).toBe(140);
   expect(at('member').x - at('other').x).toBe(20);
+  expect(member.x - member.mirror!.placed!.x).toBe(7);
+  expect(member.y - member.mirror!.placed!.y).toBe(9);
   expect(at('other').x).toBeGreaterThanOrEqual(newRight + 32);
   expect(at('under').y).toBeGreaterThanOrEqual(newBottom + 32);
   expect(at('away').x).toBe(right + 40);
