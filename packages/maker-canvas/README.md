@@ -299,6 +299,16 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
 - 空白处右键：「新建图片卡片」（右键点处空槽）、「上传图片」（本地文件，放到右键点处）与
   「从素材库添加」（仅宿主提供 `pickProjectImages` 时出现；逐张走 `importProjectAsset`
   的项目素材校验，从右键点向右排开不重叠，最多 20 张）。
+- 拖入与粘贴（仅 Web）：桌面文件拖到画板或 ⌘/Ctrl+V 粘贴（PNG/JPEG/WebP；开启 `video` 时另含
+  MP4/MOV/WebM），每个文件一张卡，从落点（粘贴时为指针位置，指针不在画板时为视口空位）向右排开，
+  最多 20 个；上传期间卡上显示「上传中」，失败的占位卡自动移除，整次拖入是一步撤销。落在空图片/视频槽上
+  时原位填充该槽。宿主拖来的 `application/x-asset`（素材面板、对话里的图片）按项目路径引用，不上传；
+  宿主不接受为卡片素材、但 `readSource` 能读到的图片（如 sprite-gen 候选图）上传一份副本。画布内
+  ⌘/Ctrl+C 会在系统剪贴板写入标记，之后的粘贴复制卡片；系统剪贴板换成文件后粘贴文件。
+- 素材库按钮（仅 Web，宿主提供 `toggleAssetPanel` 时出现在工具条「+」右侧）：打开或关闭宿主的
+  素材面板，按下态由宿主通过 `setAssetPanelOpen` 同步。
+- `editor.reload()`：宿主得知画布文件在页面外被改写（如 Agent 直接写文件）时调用，原地重读并保留
+  视口与仍存在的选中；有未保存编辑、导入、草稿或运行中的任务时不重读并返回 false，撤销历史从重读后开始。
 - 工具条：选择/拖拽按钮的激活态与光标跟随实际模式（拖拽为 grab/grabbing，含空格临时平移）；
   保存只保留一个图标，`data-save-state` 为 saved / unsaved / saving / failed，并带对应提示，
   不再单列 ✓ / … 状态。
