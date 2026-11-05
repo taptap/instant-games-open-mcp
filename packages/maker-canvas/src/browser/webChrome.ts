@@ -507,6 +507,9 @@ export function installCanvasWebTooltips() {
   let timer = 0;
   let keyboard = false;
   let lastHide = 0;
+  // While a button is held (e.g. dragging the toolbar by its grip) no tooltip shows: the captured
+  // pointer keeps hovering the moving button and the bubble would stay where it first opened.
+  let pressed = false;
   const root = document.documentElement;
   const measure = document.createElement('canvas').getContext('2d');
   /** Mirrors the flag on :root so CSS shows focus rings for keyboard focus only (no :focus-visible on Chrome 74). */
@@ -581,6 +584,7 @@ export function installCanvasWebTooltips() {
   document.addEventListener(
     'pointerover',
     (event) => {
+      if (pressed) return;
       const element = find(event.target);
       if (element) {
         if (element !== owner) show(element);
@@ -613,10 +617,19 @@ export function installCanvasWebTooltips() {
     'pointerdown',
     () => {
       setKeyboard(false);
+      pressed = true;
       hide();
     },
     true
   );
+  for (const name of ['pointerup', 'pointercancel'])
+    document.addEventListener(
+      name,
+      () => {
+        pressed = false;
+      },
+      true
+    );
   document.addEventListener('focusin', (event) => {
     const element = find(event.target);
     if (element && keyboard) show(element);

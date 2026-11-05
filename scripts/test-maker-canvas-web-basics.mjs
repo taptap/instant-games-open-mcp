@@ -2677,6 +2677,17 @@ try {
       assert.equal(await button.getAttribute('aria-pressed'), 'true');
       await page.evaluate(() => window.__canvasEditor.setAssetPanelOpen(false));
       assert.equal(await button.getAttribute('aria-pressed'), 'false');
+      // Dragging the toolbar by its grip shows no tooltip left behind at the old spot.
+      const grip = page.locator('.workspace-toolbar-grip');
+      const box = await grip.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.locator('.web-tooltip:not([hidden])').waitFor();
+      await page.mouse.down();
+      await page.mouse.move(box.x + 300, box.y + 200, { steps: 8 });
+      await page.waitForTimeout(400);
+      assert.equal(await page.locator('.web-tooltip').isHidden(), true, '拖动时不显示提示');
+      await page.mouse.up();
+      assert.ok((await grip.boundingBox()).x > box.x + 200, '工具条已移动');
       assert.deepEqual(errors, []);
       await page.close();
     }
