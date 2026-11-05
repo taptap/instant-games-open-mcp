@@ -8,6 +8,7 @@
   var objectUrls = [];
   var handlePromises = {};
   var generation = 0;
+  var fonts = {};
   var bindings = new WeakMap();
   var context = { assetRoot: "", handleMap: {}, blobMap: {} };
 
@@ -206,6 +207,32 @@
   }
 
   root.UrhoxAssets = {
+    loadFont: function (path, onReady) {
+      if (typeof path !== "string" || path.includes("\\") ||
+          !/^(?:assets\/)?Fonts\/[^?#]+\.(?:ttf|otf|woff2?)$/i.test(path) ||
+          path.split("/").some(function (part) { return part === ".." || part === "."; })) return;
+      if (!fonts[path]) {
+        var version = generation;
+        var entry = { face: null, error: false };
+        fonts[path] = entry;
+        var resourcePath = path.replace(/^assets\//, "");
+        entry.promise = Promise.resolve(resolve(resourcePath) || resolveHandle(resourcePath)).then(function (url) {
+          if (!url) throw new Error("Font resource not found");
+          var face = new FontFace(path, "url(" + JSON.stringify(url) + ")");
+          entry.face = face;
+          return face.load();
+        }).then(function (face) {
+          if (version !== generation) return;
+          document.fonts.add(face);
+          if (onReady) onReady();
+        }).catch(function () { entry.error = true; });
+      }
+      return fonts[path].promise;
+    },
+    whenFontsReady: async function () {
+      await Promise.all(Object.values(fonts).map(function (entry) { return entry.promise; }));
+      return Object.keys(fonts).filter(function (path) { return fonts[path].error; });
+    },
     colorToCss: colorToCss,
     resolve: resolve,
     bindSrc: bindSrc,
@@ -220,6 +247,8 @@
     fitRect: fitRect,
     setContext: function (next) {
       generation += 1;
+      Object.values(fonts).forEach(function (entry) { if (entry.face) document.fonts.delete(entry.face); });
+      fonts = {};
       revokeUrls();
       context = next || { assetRoot: "", handleMap: {}, blobMap: {} };
       cache = {};

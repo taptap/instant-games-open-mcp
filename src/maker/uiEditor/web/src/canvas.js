@@ -115,6 +115,7 @@
       ctx.stroke();
     }
     if ((node.type === "Label" || node.type === "Button") && node.text) {
+      assets.loadFont(node.fontFamily, function () { app.layout(); app.draw(); });
       ctx.font = root.UrhoxYoga.font(node);
       ctx.letterSpacing = (Number(node.letterSpacing) || 0) + "px";
       ctx.textAlign = node.textAlign || (node.type === "Button" ? "center" : "left");

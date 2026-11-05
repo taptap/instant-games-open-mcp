@@ -852,6 +852,8 @@
       await document.fonts.ready;
       layoutNow();
       draw();
+      var missingFonts = await window.UrhoxAssets.whenFontsReady();
+      layoutNow();
       var missingImages = await window.UrhoxAssets.whenReady();
       var size = designSize(), scale = inViewport() ? deviceScale() : 1;
       var width = inViewport() ? app.screen.width : Math.ceil(size.width);
@@ -879,6 +881,7 @@
       if (!nodes.length) throw new Error("目标节点未出现在展开后的预览树中。");
       var warnings = ["编辑器模拟结果，不代表引擎或真机验收；动态数据使用编辑器默认值，字体使用浏览器字体。"];
       if (missingImages.length) warnings.push("图片未能解码或读取：" + missingImages.join(", "));
+      if (missingFonts.length) warnings.push("字体未能读取：" + missingFonts.join(", "));
       if (app.missingComponents.length) warnings.push("缺少组件：" + app.missingComponents.join(", "));
       window.UrhoxDoc.walk(app.sourceTree, function (node) {
         if (node.$repeat && node.$repeat.template && !app.templates[node.$repeat.template]) warnings.push("缺少模板：" + node.$repeat.template);

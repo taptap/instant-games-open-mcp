@@ -6,8 +6,12 @@
     ? document.createElement("canvas").getContext("2d") : null;
 
   function font(node) {
+    var family = node.fontFamily;
+    if (family && !/^(?:serif|sans-serif|monospace|cursive|fantasy|system-ui)$/.test(family)) family = JSON.stringify(family);
     return (node.fontWeight === "bold" ? "700 " : "400 ") +
-      (Number(node.fontSize) || 16) + "px 'PingFang SC', 'Noto Sans SC', sans-serif";
+      (Number(node.fontSize) || 16) + "px " +
+      (family ? family + ", " : "") +
+      "'PingFang SC', 'Noto Sans SC', sans-serif";
   }
 
   function textMetrics(node, maxWidth) {
