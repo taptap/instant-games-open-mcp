@@ -137,6 +137,7 @@
   }
 
   function placeWorldRects(app, nodes, worlds) {
+    if (app.rebuildPreview) app.rebuildPreview();
     nodes.forEach(function (node, i) { Doc().setWorldRect(sourceRoot(app), node, worlds[i]); });
     if (app.rebuildPreview) app.rebuildPreview();
     app.layout();
@@ -333,6 +334,7 @@
       newParent.children = newParent.children || [];
       newParent.children.splice(next, 0, node);
       if (!sameParent && node.position === "absolute") {
+        if (app.rebuildPreview) app.rebuildPreview();
         Doc().setWorldRect(sourceRoot(app), node, world);
         if (app.rebuildPreview) app.rebuildPreview();
         app.layout();

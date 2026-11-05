@@ -65,7 +65,8 @@ design 包含 path（assets/ 相对路径）、sha256、width、height；assets 
 rect 表示整个 PNG 画布的放置范围，不能混用按钮主体边界与含阴影/透明边距的画布边界。
 先裁透明留白或统一状态画布，再记录资源尺寸和哈希；默认/按下态要检查主体锚点是否一致。
 切图若发生形变，坐标记录不会自动修复形变，应选择备用或在编辑器调整，不宣称完全无误差。
-当前工具只组装固定坐标的静态 UI，不处理旋转/缩放节点、动态列表、百分比和响应式布局。
+默认输入保留固定坐标行为；完整页面通过可选 adaptation 输出响应式布局，
+格式和验收见[多分辨率适配](responsive.md)。不处理动态列表或原始旋转/缩放节点的自动还原。
 
 纠偏 JSON 的 version=1，layoutSha256 为解析后 layout 对象 JSON.stringify 的 SHA-256；
 review 包含 designSha256 与 evidence（实际对照截图路径），adjustments 每项为

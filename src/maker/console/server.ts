@@ -22,11 +22,16 @@ import {
 import { ConsoleUpdates } from './updates.js';
 import { ConsoleDocuments } from './documents.js';
 import { inspectContext } from './contextCheck.js';
+import { readProjectCheck, architectureView } from '../projectCheck/store.js';
+import { runAutoProjectCheck } from '../projectCheck/auto.js';
+import { getArchitectureHtml } from './architecture/page.js';
+import { projectCheckImage } from './projectCheckMedia.js';
 import { chooseProjectDirectory } from './folderPicker.js';
 import { discoverConsoleProjects } from './projectDiscovery.js';
 import { handleCanvasProjectRoute } from './canvasRoutes.js';
 import { resolvedModelSettingsForDisplay } from './canvasRecognition.js';
 import { handleUiEditorRoute, serveUiEditor } from './uiEditorRoutes.js';
+import { UiRenderBridge } from '../uiEditor/renderBridge.js';
 import { consoleThemeScript, consoleThemeStyles } from '../webTheme.js';
 import { CanvasAutomationBridge } from '../canvas/automationBridge.js';
 import { getCanvasPageHtml } from '../canvas/page.js';
@@ -90,6 +95,7 @@ export async function startConsoleServer(options: {
   const updates = new ConsoleUpdates(options.version, options.distribution);
   const documents = new ConsoleDocuments(options.packageRoot || '');
   const canvasAutomation = new CanvasAutomationBridge();
+  const uiRender = new UiRenderBridge();
   const remoteProxyManager = options.remoteProxyManager || createMakerRemoteProxyManager();
   let selectedProjectKey = readSelectedProjectKey(options.preferencesFile);
   let luaLspCache: { at: number; value: Record<string, unknown> } | undefined;
@@ -243,14 +249,18 @@ export async function startConsoleServer(options: {
       }
       if (
         request.method === 'GET' &&
-        ['/canvas', '/canvas-model-preview', '/ui-motion'].includes(url.pathname)
+        ['/canvas', '/canvas-model-preview', '/ui-motion', '/project-architecture'].includes(
+          url.pathname
+        )
       ) {
         const html =
-          url.pathname === '/ui-motion'
-            ? getUiMotionHtml()
-            : url.pathname === '/canvas'
-              ? getCanvasPageHtml()
-              : getCanvasModelPreviewHtml();
+          url.pathname === '/project-architecture'
+            ? getArchitectureHtml()
+            : url.pathname === '/ui-motion'
+              ? getUiMotionHtml()
+              : url.pathname === '/canvas'
+                ? getCanvasPageHtml()
+                : getCanvasModelPreviewHtml();
         const source = html.match(/<script>([\s\S]*?)<\/script>/i)?.[1] ?? '';
         const hash = createHash('sha256').update(source).digest('base64');
         response.setHeader(
@@ -459,11 +469,12 @@ export async function startConsoleServer(options: {
       if (!project) throw new ConsoleError('Not found.', 404);
       const [, key, suffix] = project;
       if (suffix?.startsWith('ui-editor/')) {
-        const release = request.method === 'POST' ? tasks.occupy(key) : undefined;
+        const release =
+          request.method === 'POST' && suffix === 'ui-editor/save' ? tasks.occupy(key) : undefined;
         try {
           // Image loads are static reads, not expensive project queries; still await them on close.
           await read(
-            () => handleUiEditorRoute(request, response, options.registry, key, suffix),
+            () => handleUiEditorRoute(request, response, options.registry, key, suffix, uiRender),
             !suffix.startsWith('ui-editor/files/')
           );
           touch();
@@ -488,8 +499,56 @@ export async function startConsoleServer(options: {
         const ready = await read(() => plugins.open(plugin[1], key, origin));
         touch();
         json(200, ready);
+      } else if (request.method === 'POST' && suffix === 'project-check/run') {
+        const body = await bodyForMutation();
+        touch();
+        const root = options.registry.resolve(key).path;
+        const published = await read(async () => {
+          const existing = readProjectCheck(root);
+          if (existing && !existing.analysis.auto && body.replace !== true)
+            throw new ConsoleError(
+              '已有 AI 分析结果，自动检查会替换其中的模块说明和整理建议，请确认后再重新检查。',
+              409
+            );
+          return runAutoProjectCheck(root, existing?.resultRevision ?? 'none');
+        }, false);
+        touch();
+        json(200, published);
       } else if (request.method === 'GET' && !suffix) {
         json(200, await read(() => options.registry.detail(key, readAbort.signal)));
+      } else if (
+        request.method === 'GET' &&
+        ['architecture', 'project-check'].includes(suffix ?? '')
+      ) {
+        if (url.search) throw new ConsoleError('项目检查仅支持当前项目，不接受自定义路径参数。');
+        const saved = await read(() => readProjectCheck(options.registry.resolve(key).path));
+        json(
+          200,
+          suffix === 'architecture' ? (saved ? architectureView(saved) : null) : { result: saved }
+        );
+      } else if (request.method === 'GET' && suffix === 'project-check/image') {
+        const media = await read(
+          () =>
+            projectCheckImage(
+              options.registry.resolve(key).path,
+              url.searchParams,
+              request.headers['if-none-match']
+            ),
+          false
+        );
+        // no-cache keeps the browser copy but forces revalidation, so changed files are never shown stale.
+        const headers = {
+          ETag: media.etag,
+          'Cache-Control': 'private, no-cache',
+          'X-Content-Type-Options': 'nosniff',
+        };
+        if (media.notModified) {
+          response.writeHead(304, headers);
+          response.end();
+        } else {
+          response.writeHead(200, { ...headers, 'Content-Type': media.type });
+          response.end(media.bytes);
+        }
       } else if (request.method === 'GET' && suffix === 'context-check') {
         if (url.search) throw new ConsoleError('项目检查仅支持当前项目，不接受检查范围参数。');
         json(

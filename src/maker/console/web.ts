@@ -49,6 +49,7 @@ export function getConsoleHtml(): string {
   <button data-page="documents" disabled>文档 / Skill</button>
   <button data-page="canvas">自由画布</button>
   <button data-page="ui-editor">UI 编辑器</button>
+  <button data-page="other">其他</button>
   <span id="plugin-tabs" class="plugin-tabs"></span>
 </nav>
 <button id="close-canvas" type="button" hidden>关闭当前项目画布</button>
@@ -57,9 +58,10 @@ export function getConsoleHtml(): string {
 <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>
 <main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
 <section id="other-view" class="other-workspace" aria-label="其他工具" hidden>
-  <aside class="other-tabs" role="tablist" aria-label="其他工具页签" aria-orientation="vertical">
+  <!-- UI 动效库入口暂时关闭，功能完成后移除 hidden 并恢复 otherTab 默认值 motion。 -->
+  <aside class="other-tabs" role="tablist" aria-label="其他工具页签" aria-orientation="vertical" hidden>
     <button id="other-motion-tab" role="tab" aria-controls="other-motion" data-other-tab="motion">UI 动效库</button>
-    <button id="other-architecture-tab" role="tab" aria-controls="other-architecture" data-other-tab="architecture">项目架构</button>
+    <button id="other-architecture-tab" role="tab" aria-controls="other-architecture" data-other-tab="architecture">项目检查</button>
   </aside>
   <div id="other-motion" role="tabpanel" aria-labelledby="other-motion-tab"></div>
   <div id="other-architecture" role="tabpanel" aria-labelledby="other-architecture-tab" hidden></div>

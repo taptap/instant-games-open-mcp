@@ -506,6 +506,19 @@ export async function canvasConsoleConnection(projectPath: string) {
   };
 }
 
+export async function uiEditorConsoleConnection(projectPath: string) {
+  const { previewProject } = await import('../preview/protocol.js');
+  const root = previewProject(projectPath);
+  const session = await ensureSession();
+  const project = await request(session, '/api/projects', { path: root });
+  return {
+    projectKey: project.key as string,
+    url: session.origin + '/ui-editor/?project=' + project.key,
+    request: (route: string, body?: unknown) =>
+      request(session, '/api/projects/' + project.key + '/ui-editor/render/' + route, body, 60000),
+  };
+}
+
 export async function openUiEditorConsole(projectPath: string, file: string, noOpen = false) {
   const { previewProject } = await import('../preview/protocol.js');
   const { inspectUiDocument } = await import('../uiEditor/documents.js');

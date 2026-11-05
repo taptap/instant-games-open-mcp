@@ -30,6 +30,7 @@ const REQUIRED_SKILLS = [
   'maker-ui-workflow',
   'maker-ui-bbox-workflow',
   'lua-ui-to-json',
+  'maker-project-check',
   'taptap-maker-local',
   'taptap-maker-dev-kit-guide',
   'taptap-maker-plugin-lifecycle',

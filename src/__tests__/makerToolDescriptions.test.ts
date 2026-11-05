@@ -30,6 +30,14 @@ describe('Maker non-audio tool descriptions', () => {
 
   afterEach(() => fs.rmSync(targetDir, { recursive: true, force: true }));
 
+  test('model collection does not ask the agent to supply its own model', async () => {
+    const listed = await listMakerTools();
+    const exposed = listed.tools.filter(
+      (tool) => '_maker_client_model' in (tool.inputSchema.properties ?? {})
+    );
+    expect(exposed).toEqual([]);
+  });
+
   test('keeps local status and build descriptions focused on public behavior', () => {
     const statusDescription =
       tools.find((tool) => tool.name === 'maker_status_lite')?.description || '';

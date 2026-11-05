@@ -59,6 +59,7 @@ test('npm package includes both local workflow guides in an isolated package', (
       'skills/maker-ui-workflow',
       'skills/maker-ui-bbox-workflow',
       'skills/lua-ui-to-json',
+      'skills/maker-project-check',
       'bin/taptap-maker',
       'skills/taptap-maker-local',
       'skills/taptap-maker-dev-kit-guide',

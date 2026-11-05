@@ -34,6 +34,7 @@ const SHARED_SKILLS = [
   'maker-ui-workflow',
   'maker-ui-bbox-workflow',
   'lua-ui-to-json',
+  'maker-project-check',
   'taptap-maker-local',
   'taptap-maker-dev-kit-guide',
 ];
@@ -306,6 +307,7 @@ async function main() {
   const uiSkill = join(pluginRoot, 'skills/maker-ui-workflow');
   renameSync(join(uiSkill, 'scripts/assemble-ui.mjs'), join(uiSkill, 'assemble-ui.mjs'));
   renameSync(join(uiSkill, 'references/workflow.md'), join(uiSkill, 'workflow.md'));
+  renameSync(join(uiSkill, 'references/responsive.md'), join(uiSkill, 'responsive.md'));
   renameSync(join(uiSkill, 'references/chatgpt-web.md'), join(uiSkill, 'chatgpt-web.md'));
   for (const directory of ['scripts', 'references'])
     rmSync(join(uiSkill, directory), { recursive: true });
@@ -316,6 +318,7 @@ async function main() {
       readFileSync(file, 'utf8')
         .replaceAll('scripts/assemble-ui.mjs', 'assemble-ui.mjs')
         .replaceAll('references/workflow.md', 'workflow.md')
+        .replaceAll('references/responsive.md', 'responsive.md')
         .replaceAll('references/chatgpt-web.md', 'chatgpt-web.md')
     );
   }
@@ -340,6 +343,14 @@ async function main() {
         .replaceAll('references/diagnostics.md', 'diagnostics.md')
         .replaceAll('references/nanovg.md', 'nanovg.md')
         .replaceAll('../runtime/MakerNanoVG.lua', 'MakerNanoVG.lua')
+        .replaceAll(
+          '../../maker-ui-workflow/references/responsive.md',
+          '../maker-ui-workflow/responsive.md'
+        )
+        .replaceAll(
+          '../maker-ui-workflow/references/responsive.md',
+          '../maker-ui-workflow/responsive.md'
+        )
     );
   }
 

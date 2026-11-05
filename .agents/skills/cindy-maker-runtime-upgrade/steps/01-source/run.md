@@ -8,8 +8,10 @@
 1. 读取两仓 AGENTS.md；插件仓再读 README、plugin-authoring、Maker maintenance 和
    .greptile 审查契约的相关章节。Maker 仓读 docs/CI_CD.md、RELEASE_PR_GUARDS.md
    的 Maker-only 构建/打包约定。不要加载与此任务无关的整个文档索引。
-2. 两仓分别检查 git status、分支、HEAD、remotes、浅克隆状态。新升级分支基于已核对的
-   最新官方 main；已有本轮分支继续使用。脏树不自动切换/清理，可在独立工作树完成升级。
+2. 两仓分别检查 git status、分支、HEAD、remotes、浅克隆状态。在修改插件前先 fetch 并核对
+   官方 main，从该提交新建本轮升级分支，记录分支名和基线 SHA；恢复已有本轮分支时继续
+   使用。不得在 main 开始修改或复用已合并 PR 的旧分支。保留已有改动，脏树不能安全
+   切换时在独立工作树完成升级，不自动清理或覆盖。
    Maker 源码只是读取/取产物时，不切其分支。远端地址输出先去掉认证信息。
 3. 确定仓库外 EVIDENCE_ROOT，复制 [交接模板](../../templates/run-record.md)。
    记录源码、插件、证据三个根路径；Windows 不套用原 Mac 用户路径。

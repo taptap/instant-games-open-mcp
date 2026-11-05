@@ -33,14 +33,14 @@ node .agents/skills/cindy-maker-runtime-upgrade/scripts/check-history.mjs --plug
 先逐组审清差异和适配方案，再统一应用补丁、运行回归并回填结果；各组末尾“验收”是
 最终候选的通过标准，不能要求尚未适配的新包先通过才允许读下一组。
 
-| 顺序 | 本组文档                                                  | 重点                                   |
-| ---- | --------------------------------------------------------- | -------------------------------------- |
-| 2A   | [Runtime 补丁](../../compatibility/01-runtime.md)         | V1-V10、上游等价修复、画布付费请求恢复 |
-| 2B   | [Host 与进程](../../compatibility/02-host.md)             | H1-H7、Electron/Windows、roots、超时   |
-| 2C   | [账号与目录](../../compatibility/03-account.md)           | A1-A4、T1-T2、PAT/项目隔离/身份恢复    |
-| 2D   | [工具与产品契约](../../compatibility/04-tools.md)         | T3-T6、M1-M3、Git/媒体策略/引导        |
-| 2E   | [界面与本地验证](../../compatibility/05-ui-validation.md) | U1-U4、L1-L7、画布/编辑器/证据         |
-| 2F   | [来源与包安全](../../compatibility/06-package.md)         | P1-P3、N1-N3、增量网络/下载/凭证风险   |
+| 顺序 | 本组文档                                                  | 重点                                           |
+| ---- | --------------------------------------------------------- | ---------------------------------------------- |
+| 2A   | [Runtime 补丁](../../compatibility/01-runtime.md)         | V1-V10、上游等价修复、画布付费请求恢复         |
+| 2B   | [Host 与进程](../../compatibility/02-host.md)             | H1-H8、Electron/Windows、roots、等待与分块传输 |
+| 2C   | [账号与目录](../../compatibility/03-account.md)           | A1-A4、T1-T2、PAT/项目隔离/身份恢复            |
+| 2D   | [工具与产品契约](../../compatibility/04-tools.md)         | T3-T6、M1-M3、Git/媒体策略/引导                |
+| 2E   | [界面与本地验证](../../compatibility/05-ui-validation.md) | U1-U4、L1-L7、画布/编辑器/证据                 |
+| 2F   | [来源与包安全](../../compatibility/06-package.md)         | P1-P3、N1-N3、增量网络/下载/凭证风险           |
 
 每项核对清单中的历史保护，记录新包实际实现、处理结论、证据及缺口；不重复抄来源。
 “上游等价替代”须验证正常及相关异常行为，不能仅凭函数名、版本号或字面串移除补丁。

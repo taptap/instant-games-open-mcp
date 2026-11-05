@@ -71,5 +71,53 @@ module.exports = (async function () {
   UrhoxDoc.resetKeys();
   UrhoxDoc.ensureEditorIds(restored);
   assert.notEqual(UrhoxDoc.getEditorId({}), "e9000");
+  for (const mode of ["padding", "margin"]) {
+    const safe = { type: "SafeAreaView", mode, width: 200, height: 200,
+      [mode]: 20, [mode + "Horizontal"]: 12, [mode + "Top"]: 0,
+      children: [{ width: 20, height: 20 }] };
+    layout(safe, 300, 300, { safeArea: { top: 5, left: 3 } });
+    assert.equal(safe.children[0]._layout.x, 15, mode + " respects horizontal shorthand");
+    assert.equal(safe.children[0]._layout.y, 5, mode + " respects explicit zero");
+    layout(safe, 300, 300, { safeArea: {} });
+    assert.equal(safe.children[0]._layout.x, 12, mode + " preserves spacing with no inset");
+    assert.equal(safe[mode], 20, "safe area never mutates authored spacing");
+  }
+
+  // Exercise the real preview rebuild with a minimal DOM; layout and expansion are not mocked.
+  const element = { getContext: () => ({}), dataset: {}, style: {},
+    classList: { toggle() {} }, addEventListener() {}, querySelectorAll: () => [] };
+  global.document = { getElementById: () => element, querySelectorAll: () => [], addEventListener() {} };
+  let app;
+  global.UrhoxInput = { bind(value) { app = value; } };
+  vm.runInThisContext(fs.readFileSync(require.resolve("../web/src/preview.js"), "utf8"));
+  const list = () => ({ type: "ScrollView", width: 100, height: 80,
+    children: [{ width: 50, height: 400 }] });
+  for (const kind of ["plain", "placeholder", "component", "repeat"]) {
+    app.tree = null;
+    app.sourceTree = { type: "Panel", width: 300, height: 500, children: [list()] };
+    app.components = { list: { type: "Panel", children: [list()] } };
+    app.templates = { list: list() };
+    if (kind === "placeholder") app.sourceTree.id = "$name";
+    if (kind === "component") app.sourceTree.children.push({ component: "list" });
+    if (kind === "repeat") app.sourceTree.children.push({ $repeat: { template: "list", count: 2 } });
+    app.rebuildPreview();
+    let count = 0;
+    UrhoxDoc.walk(app.tree, node => { if (node.type === "ScrollView") node._scrollY = 40 + count++ * 20; });
+    app.layout();
+    count = 0;
+    UrhoxDoc.walk(app.tree, node => {
+      if (node.type === "ScrollView") assert.equal(node._scrollY, 40 + count++ * 20, kind + " scroll survives");
+    });
+    assert.throws(() => UrhoxPreview.probeScenes([{ id: "1080p", orientation: "portrait" }], () => {
+      UrhoxDoc.walk(app.tree, node => { if (node.type === "ScrollView") node._scrollY = 0; });
+      throw new Error("probe interrupted");
+    }), /probe interrupted/);
+    count = 0;
+    UrhoxDoc.walk(app.tree, node => {
+      if (node.type === "ScrollView") assert.equal(node._scrollY, 40 + count++ * 20, kind + " probe restores scroll");
+    });
+    assert(!JSON.stringify(UrhoxHistory.cloneForSave(app.sourceTree)).includes("_scroll"));
+  }
+  delete global.document;
   console.log("layout-regression.test.js passed");
 })();

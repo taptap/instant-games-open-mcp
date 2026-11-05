@@ -223,6 +223,13 @@ If the cause is unclear, inspect `cloud-status` and, as needed, `cloud-diff` usi
 `--target-dir`. If cloud changes need committing to recover the push, use `cloud-commit` once,
 then `git sync` and retry the original Maker submit/build operation. If cloud state is clean or
 the error identifies another cause, address that cause instead of repeatedly syncing or committing.
+When a push is rejected by the cloud, always show the user the original remote error
+(`failure.stderr`/`stdout`) instead of a paraphrase. Only the project owner can `cloud-commit`;
+collaborators should ask the owner (or 塔拉拉 in the Maker web editor) to commit cloud changes.
+If the error looks like a Git lock (`index.lock`, "another git process", "锁"), the usual cause is
+塔拉拉 (the Maker web agent) developing in the cloud at the same time as local work. Tell the user
+this, suggest letting 塔拉拉 finish/stop and commit its cloud changes first, then retry later. Do not
+delete lock files and do not loop `push`/`sync`/`cloud-commit`; the local commit is preserved.
 `cloud_workspace_blocked` means
 the automatic cloud commit did not finish (follow `next_action`); `merge_conflict` means resolve
 `conflict_files`, commit, and retry; `auth` means refreshing PAT;

@@ -12,6 +12,7 @@ import { ensureGitAvailable } from '../system/git.js';
 import { CloudGitError, commitCloudGit, getCloudGitStatus } from './cloud.js';
 import {
   createGitFailure,
+  gitLockGuidance,
   nextActionForFailure,
   toMakerGitFailure,
   type MakerGitFailure,
@@ -285,7 +286,7 @@ export async function pushMakerProject(
           nextAction:
             cloudRepair.status === 'cloud_clean'
               ? '远端拒绝推送，但云端 Git 接口显示工作区是干净的。请根据 failure.stderr/stdout 排查实际原因，不要重复 cloud-commit。'
-              : `${failure.nextAction} 自动恢复返回：${cloudRepair.message}`,
+              : `${failure.nextAction} 自动恢复返回：${cloudRepair.message}${gitLockGuidance(`${failure.message}\n${cloudRepair.message ?? ''}`)}`,
         },
         cloudRepair
       );
