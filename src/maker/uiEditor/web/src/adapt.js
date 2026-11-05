@@ -197,12 +197,25 @@
     return canvas;
   }
 
-  function run() {
+  async function run() {
     var api = root.UrhoxPreview;
+    var source = api.tree;
     var info = api.orientationInfo;
     var current = api.currentScene;
     var custom = current.id === "custom" ? { id: "custom", name: current.name || "自定义", short: "自定义" } : null;
     var scenes = scenesFor(info, custom);
+    var fonts = new Set();
+    // Include expanded components and labels visible only on another checked screen.
+    if (!api.probeScenes(scenes, function (_, ctx) {
+      root.UrhoxDoc.walk(ctx.tree, function (node) {
+        if ((node.type === "Label" || node.type === "Button") && node.text && node.fontFamily) {
+          fonts.add(node.fontFamily);
+          root.UrhoxAssets.loadFont(node.fontFamily);
+        }
+      });
+    })) return null;
+    var missingFonts = (await root.UrhoxAssets.whenFontsReady()).filter(function (path) { return fonts.has(path); });
+    if (api.tree !== source || !api.canProbe) return null;
     var results = api.probeScenes(scenes, function (scene, ctx) {
       var logical = { width: ctx.width, height: ctx.height, safeArea: ctx.safeArea };
       var issues = analyze(ctx);
@@ -244,7 +257,9 @@
     order.sort(function (a, b) {
       return SEVERITY[a.severity].rank - SEVERITY[b.severity].rank || b.scenes.length - a.scenes.length;
     });
-    return { results: results, issues: order, orientation: info, note: orientationNote(info) };
+    var note = orientationNote(info);
+    if (missingFonts.length) note += "；以下字体加载失败，使用备用字体检查：" + missingFonts.join("、");
+    return { results: results, issues: order, orientation: info, note: note };
   }
 
   function sceneName(scene) { return scene.name + (scene.both ? " · " + ORIENTATION_TEXT[scene.orientation] : ""); }

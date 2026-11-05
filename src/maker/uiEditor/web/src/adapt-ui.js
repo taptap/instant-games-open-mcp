@@ -6,6 +6,7 @@
   var button = el("adaptBtn"), dialog = el("adaptDialog");
   if (!button || !dialog) return;
   var report = null;
+  var checkVersion = 0;
 
   function node(tag, className, text) {
     var item = document.createElement(tag);
@@ -103,6 +104,7 @@
   function open() {
     var api = root.UrhoxPreview;
     if (!api || (root.UrhoxProject && root.UrhoxProject.isOpening && root.UrhoxProject.isOpening())) return;
+    var version = ++checkVersion;
     report = null;
     el("adaptCopyStatus").textContent = "";
     el("adaptOrientation").textContent = "";
@@ -117,13 +119,17 @@
     }
     el("adaptSummary").textContent = "正在检查…";
     requestAnimationFrame(function () {
-      setTimeout(function () {
+      setTimeout(async function () {
+        if (version !== checkVersion || !dialog.open) return;
         try {
-          report = root.UrhoxAdapt.run();
+          var result = await root.UrhoxAdapt.run();
+          if (version !== checkVersion || !dialog.open) return;
+          report = result;
           if (!report) { dialog.close(); return; }
           el("adaptOrientation").textContent = report.note;
           summary(); renderScenes(); renderIssues();
         } catch (error) {
+          if (version !== checkVersion || !dialog.open) return;
           console.error(error);
           el("adaptSummary").textContent = "检查失败：" + (error && error.message || error);
         }
@@ -132,6 +138,7 @@
   }
 
   button.addEventListener("click", open);
+  dialog.addEventListener("close", function () { checkVersion++; report = null; });
   el("adaptClose").addEventListener("click", function () { dialog.close(); });
   el("adaptRerun").addEventListener("click", open);
   el("adaptCopy").addEventListener("click", async function () {
