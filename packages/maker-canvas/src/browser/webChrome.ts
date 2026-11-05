@@ -25,6 +25,10 @@ export function canvasWebIconAction(
     | 'sprite'
     | 'tidy'
     | 'copy'
+    | 'crop'
+    | 'rotate'
+    | 'flipX'
+    | 'flipY'
 ): HTMLElement {
   // Inlined here because helpers are injected into the page via toString().
   const paths = {
@@ -69,6 +73,16 @@ export function canvasWebIconAction(
     copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
     // lucide layout-dashboard
     tidy: '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+    // lucide crop
+    crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
+    // lucide rotate-cw
+    rotate: '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+    // lucide flip-horizontal-2
+    flipX:
+      '<path d="m3 7 5 5-5 5V7"/><path d="m21 7-5 5 5 5V7"/><path d="M12 20v2"/><path d="M12 14v2"/><path d="M12 8v2"/><path d="M12 2v2"/>',
+    // lucide flip-vertical-2
+    flipY:
+      '<path d="m17 3-5 5-5-5h10"/><path d="m17 21-5-5-5 5h10"/><path d="M4 12H2"/><path d="M10 12H8"/><path d="M16 12h-2"/><path d="M22 12h-2"/>',
   };
   const label = button.getAttribute('aria-label') || button.textContent || '';
   button.setAttribute('aria-label', label);
@@ -81,6 +95,139 @@ export function canvasWebIconAction(
     paths[icon] +
     '</svg>';
   return button;
+}
+
+/**
+ * Replaces the native popup of every single-choice `<select>` on the page with a list drawn in
+ * the Web menu style. The `<select>` stays the source of truth: picking an option sets its value
+ * and fires `input` and `change`, so existing listeners keep working. Opens on click, Space, Enter
+ * and the arrow keys; Escape, Tab, an outside click, scrolling or resizing closes it.
+ */
+export function installCanvasWebSelects() {
+  let open: { select: HTMLSelectElement; list: HTMLElement; detach(): void } | null = null;
+  function close(refocus: boolean) {
+    const current = open;
+    if (!current) return;
+    open = null;
+    current.detach();
+    current.list.remove();
+    if (refocus && current.select.isConnected) current.select.focus();
+  }
+  function show(select: HTMLSelectElement) {
+    close(false);
+    const list = document.createElement('div');
+    list.className = 'web-select-list';
+    list.setAttribute('role', 'listbox');
+    const items: HTMLButtonElement[] = [];
+    Array.from(select.options).forEach((option, index) => {
+      if (option.hidden) return;
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'web-select-option';
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', String(index === select.selectedIndex));
+      item.disabled = option.disabled;
+      item.textContent = option.textContent;
+      item.addEventListener('mousedown', (event) => event.preventDefault());
+      item.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (select.isConnected && select.selectedIndex !== index) {
+          select.selectedIndex = index;
+          select.dispatchEvent(new Event('input', { bubbles: true }));
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        close(true);
+      });
+      items.push(item);
+      list.append(item);
+    });
+    // Modal dialogs live in the top layer; the list must sit inside them to show above.
+    (select.closest('dialog') || document.body).append(list);
+    const rect = select.getBoundingClientRect();
+    list.style.minWidth = Math.round(rect.width) + 'px';
+    const height = list.offsetHeight;
+    const below = window.innerHeight - rect.bottom - 8;
+    const top = height <= below || rect.top < height + 8 ? rect.bottom + 4 : rect.top - height - 4;
+    list.style.top = Math.max(8, Math.round(top)) + 'px';
+    list.style.left =
+      Math.max(8, Math.min(window.innerWidth - list.offsetWidth - 8, Math.round(rect.left))) + 'px';
+    const chosen = items.find((item) => item.getAttribute('aria-selected') === 'true') || items[0];
+    if (chosen) {
+      chosen.scrollIntoView({ block: 'nearest' });
+      chosen.focus();
+    }
+    const outside = (event: Event) => {
+      const target = event.target as Node | null;
+      if (target && (list.contains(target) || target === select)) return;
+      close(false);
+    };
+    const dismiss = (event: Event) => {
+      if (event.type === 'scroll' && list.contains(event.target as Node)) return;
+      close(false);
+    };
+    list.addEventListener('keydown', (event) => {
+      event.stopPropagation();
+      const index = items.indexOf(document.activeElement as HTMLButtonElement);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(true);
+      } else if (event.key === 'Tab') {
+        close(false);
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        for (let next = index + step; next >= 0 && next < items.length; next += step)
+          if (!items[next].disabled) {
+            items[next].focus();
+            break;
+          }
+      }
+    });
+    document.addEventListener('pointerdown', outside, true);
+    window.addEventListener('resize', dismiss);
+    window.addEventListener('blur', dismiss);
+    document.addEventListener('scroll', dismiss, true);
+    document.addEventListener('wheel', dismiss, { capture: true, passive: true });
+    open = {
+      select,
+      list,
+      detach() {
+        document.removeEventListener('pointerdown', outside, true);
+        window.removeEventListener('resize', dismiss);
+        window.removeEventListener('blur', dismiss);
+        document.removeEventListener('scroll', dismiss, true);
+        document.removeEventListener('wheel', dismiss, true);
+      },
+    };
+  }
+  function target(event: Event): HTMLSelectElement | null {
+    const element = event.target as Element | null;
+    const select = element && element.closest ? element.closest('select') : null;
+    return select && !select.disabled && !select.multiple && select.size <= 1 ? select : null;
+  }
+  document.addEventListener(
+    'mousedown',
+    (event) => {
+      const select = target(event);
+      if (!select || event.button !== 0) return;
+      event.preventDefault();
+      select.focus();
+      if (open && open.select === select) close(false);
+      else show(select);
+    },
+    true
+  );
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      const select = target(event);
+      if (!select || event.target !== select || event.metaKey || event.ctrlKey) return;
+      if ([' ', 'Enter', 'ArrowDown', 'ArrowUp'].indexOf(event.key) < 0) return;
+      event.preventDefault();
+      show(select);
+    },
+    true
+  );
 }
 
 /** Immediate tooltip for Web icon-only buttons; migrates native titles so only one bubble shows. */
@@ -409,6 +556,7 @@ export function createCanvasWebChrome(options: {
 }) {
   const board = options.board;
   installCanvasWebTooltips();
+  installCanvasWebSelects();
   // Web dock and tab icons: plain lucide at stroke 2, matching the Maker shell (lucide-react).
   const lucide = (paths: string, size: number) =>
     '<svg viewBox="0 0 24 24" width="' +

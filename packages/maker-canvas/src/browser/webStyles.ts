@@ -159,6 +159,9 @@ ${M} .workspace-actions > #save[data-save-state="failed"]::after { background: #
 /* Pan mode and held Space own the cursor everywhere on the board, above card-level cursors. */
 ${M} #board.pan-tool, ${M} #board.pan-tool * { cursor: grab !important; }
 ${M} #board.grabbing, ${M} #board.grabbing * { cursor: grabbing !important; }
+/* Dot grid from the text colour at low alpha, so it stays visible on any host background. */
+${M} #board { background-image: radial-gradient(rgba(255,255,255,.2) 1.2px, transparent 1.4px); }
+${L} #board { background-image: radial-gradient(rgba(0,0,0,.2) 1.2px, transparent 1.4px); }
 ${M} .workspace-menu-panel { padding: 6px; border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); box-shadow: var(--web-shadow); }
 ${M} .workspace-menu-panel button { border: 0; border-radius: 8px; background: transparent; color: var(--web-text); padding: 8px 10px; }
 ${M} .workspace-menu-panel button:hover:not(:disabled) { background: var(--web-wash); }
@@ -635,4 +638,29 @@ ${M} .background-body input[type="range"]::-moz-range-track { height: 4px; borde
 ${M} .background-body input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 2px solid var(--web-panel); border-radius: 50%; background: var(--web-accent); }
 ${M} .background-body input[type="range"]:focus { outline: none; }
 ${K} .background-body input[type="range"]:focus::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--web-focus-ring); }
+/* Select popups (installCanvasWebSelects), drawn like the context menu. */
+${M} .web-select-list { position: fixed; z-index: 2147483000; box-sizing: border-box; max-height: 320px; overflow-y: auto; padding: 6px; border: 1px solid var(--web-menu-line); border-radius: 8px; background: var(--web-menu-bg); color: var(--web-menu-ink); box-shadow: var(--web-shadow); }
+${M} .web-select-option { display: flex; align-items: center; box-sizing: border-box; width: 100%; height: 32px; min-height: 32px; margin: 0; padding: 0 28px 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--web-menu-ink); font: inherit; font-size: 13px; font-weight: 500; text-align: left; white-space: nowrap; }
+${M} .web-select-option + .web-select-option { margin-top: 2px; }
+${M} .web-select-option:hover:not(:disabled), ${M} .web-select-option:focus { background: var(--web-menu-hover); color: var(--web-text); outline: none; }
+${M} .web-select-option[aria-selected="true"] { position: relative; color: var(--web-text); }
+${M} .web-select-option[aria-selected="true"]::after { content: ''; position: absolute; right: 10px; top: 50%; width: 12px; height: 12px; margin-top: -6px; background: currentColor; -webkit-mask: ${CHECK_ICON} center / contain no-repeat; mask: ${CHECK_ICON} center / contain no-repeat; }
+${M} .web-select-option:disabled { opacity: .45; }
+/* Crop editor (webImageTools.ts). */
+${M} .web-crop-dialog { padding: 16px 20px; border: 1px solid var(--web-line); border-radius: 16px; background: var(--web-panel); color: var(--web-text); box-shadow: 0 28px 80px rgba(0,0,0,.45); font-family: inherit; }
+${M} .web-crop-dialog::backdrop { background: rgba(0,0,0,.45); }
+${L} .web-crop-dialog::backdrop { background: rgba(35,35,35,.24); }
+${M} .web-crop-dialog h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+${M} .web-crop-stage { position: relative; overflow: hidden; margin: 0 auto; background: var(--web-soft); user-select: none; touch-action: none; }
+${M} .web-crop-stage img { display: block; width: 100%; height: 100%; pointer-events: none; }
+${M} .web-crop-box { position: absolute; box-sizing: border-box; border: 1px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,.5); cursor: move; }
+${M} .web-crop-handle { position: absolute; width: 12px; height: 12px; border: 2px solid var(--web-accent); border-radius: 50%; background: #fff; }
+${M} .web-crop-nw { left: -7px; top: -7px; cursor: nwse-resize; }
+${M} .web-crop-ne { right: -7px; top: -7px; cursor: nesw-resize; }
+${M} .web-crop-sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
+${M} .web-crop-se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+${M} .web-crop-dialog footer { display: flex; align-items: center; margin-top: 14px; }
+${M} .web-crop-size { flex: 1; color: var(--web-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+${M} .web-crop-dialog footer button { box-sizing: border-box; height: 32px; margin-left: 8px; padding: 0 14px; border: 1px solid var(--web-line); border-radius: 8px; background: transparent; color: var(--web-text); font-size: 13px; font-weight: 500; }
+${M} .web-crop-dialog footer .web-crop-apply { border-color: var(--web-text); background: var(--web-text); color: var(--web-panel); }
 `;

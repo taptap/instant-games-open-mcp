@@ -2650,14 +2650,14 @@ try {
       assert.equal(await plain.page.locator('#asset-panel').count(), 0);
       await plain.page.close();
       const { page, errors } = await webPage({ assetPanel: true });
-      const button = page.locator('.workspace-actions > #asset-panel');
+      const button = page.locator('.workspace-tabs-row > #asset-panel');
       await button.waitFor();
+      // Top-left, before the canvas tabs, with a visible label.
       assert.equal(
-        await button.evaluate((item) =>
-          item.previousElementSibling?.classList.contains('workspace-add')
-        ),
+        await button.evaluate((item) => item.parentElement.firstElementChild === item),
         true
       );
+      assert.equal((await button.innerText()).trim(), '素材库');
       await button.click();
       assert.equal(await page.evaluate(() => window.__canvasAssetPanelToggles), 1);
       await page.evaluate(() => window.__canvasEditor.setAssetPanelOpen(true));
@@ -2668,6 +2668,183 @@ try {
       await page.close();
     }
   );
+  await check('Web 图片编辑：裁剪、旋转 90°、水平/垂直翻转原位替换图片，一步撤销', async () => {
+    const { page, errors, settle, current, nodeOf, card, importImage, blank, editor } =
+      await webPage({ features: { ...webFeatures, imageTools: true } });
+    // Pixel check of the transform helper: a 2×1 image, red on the left, blue on the right.
+    const pixels = await page.evaluate(() => {
+      const source = document.createElement('canvas');
+      source.width = 2;
+      source.height = 1;
+      const context = source.getContext('2d');
+      context.fillStyle = '#f00';
+      context.fillRect(0, 0, 1, 1);
+      context.fillStyle = '#00f';
+      context.fillRect(1, 0, 1, 1);
+      const read = (canvas) =>
+        Array.from(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data)
+          .filter((_, index) => index % 4 === 0)
+          .join(',');
+      const rotated = canvasTransformedImage(source, { type: 'rotate' });
+      return {
+        flipX: read(canvasTransformedImage(source, { type: 'flip-x' })),
+        rotated: [rotated.width, rotated.height, read(rotated)].join('/'),
+        crop: read(
+          canvasTransformedImage(source, { type: 'crop', x: 1, y: 0, width: 5, height: 5 })
+        ),
+      };
+    });
+    // Red channel per pixel: flip moves red to the right; rotation turns 2×1 into 1×2.
+    assert.deepEqual(pixels, { flipX: '0,255', rotated: '1/2/255,0', crop: '0' });
+    const image = await importImage('编辑', '#c33', 80, 40);
+    await editor('update-nodes', { nodes: [{ id: image.id, x: 300, y: 240 }] });
+    await settle();
+    await blank();
+    await card(image.id).click({ position: { x: 60, y: 60 } });
+    const menu = page.locator('#selection-menu');
+    const before = await nodeOf(image.id);
+    await menu.getByRole('button', { name: '旋转 90°' }).click();
+    await page.waitForFunction(
+      (id) =>
+        window.__canvasEditor.current().nodes.find((node) => node.id === id).imageInfo?.width ===
+        40,
+      image.id
+    );
+    await settle();
+    const rotated = await nodeOf(image.id);
+    assert.notEqual(rotated.assetPath, before.assetPath);
+    assert.deepEqual([rotated.imageInfo.width, rotated.imageInfo.height], [40, 80]);
+    assert.equal(rotated.x, before.x);
+    assert.ok(rotated.height > rotated.width, '卡片高度跟随新比例');
+    for (const name of ['水平翻转', '垂直翻转']) {
+      const path = (await nodeOf(image.id)).assetPath;
+      await blank();
+      await card(image.id).click({ position: { x: 30, y: 60 } });
+      await menu.getByRole('button', { name }).click();
+      await page.waitForFunction(
+        ({ id, path }) =>
+          window.__canvasEditor.current().nodes.find((node) => node.id === id).assetPath !== path,
+        { id: image.id, path }
+      );
+      await settle();
+    }
+    // Crop: drag the bottom-right corner in to half the size.
+    await blank();
+    await card(image.id).click({ position: { x: 30, y: 60 } });
+    await menu.getByRole('button', { name: '裁剪' }).click();
+    const dialog = page.locator('dialog.web-crop-dialog');
+    await dialog.waitFor();
+    const stage = await dialog.locator('.web-crop-stage').boundingBox();
+    const corner = await dialog.locator('.web-crop-se').boundingBox();
+    await page.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      corner.x + corner.width / 2 - stage.width / 2,
+      corner.y + corner.height / 2 - stage.height / 2,
+      { steps: 4 }
+    );
+    await page.mouse.up();
+    assert.equal(await dialog.locator('.web-crop-size').innerText(), '20 × 40');
+    await dialog.getByRole('button', { name: '应用' }).click();
+    await page.waitForFunction(
+      (id) =>
+        window.__canvasEditor.current().nodes.find((node) => node.id === id).imageInfo?.width ===
+        20,
+      image.id
+    );
+    await settle();
+    assert.equal((await nodeOf(image.id)).imageInfo.height, 40);
+    // One undo per edit: four edits back to the original file.
+    await blank();
+    for (let step = 0; step < 4; step++) await page.keyboard.press('ControlOrMeta+z');
+    await settle();
+    assert.equal((await nodeOf(image.id)).assetPath, before.assetPath);
+    assert.equal((await current()).nodes.length, 1);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 分组重命名、空槽粘贴替换、下拉框用 Web 样式弹层', async () => {
+    const { page, errors, settle, current, nodeOf, card, importImage, blank, editor } =
+      await webPage({ features: { ...webFeatures, sections: true } });
+    const first = await importImage('甲', '#c96', 80, 60);
+    const second = await importImage('乙', '#69c', 80, 60);
+    await editor('update-nodes', {
+      nodes: [
+        { id: first.id, x: 220, y: 220 },
+        { id: second.id, x: 480, y: 220 },
+      ],
+    });
+    await settle();
+    await blank();
+    await card(first.id).click({ position: { x: 40, y: 60 } });
+    await card(second.id).click({ position: { x: 40, y: 60 }, modifiers: ['Shift'] });
+    await page.locator('#selection-menu').getByRole('button', { name: '分组' }).click();
+    await settle();
+    const section = (await current()).nodes.find((node) => node.type === 'section');
+    await card(section.id).locator('.canvas-card-title').first().dblclick();
+    const input = card(section.id).locator('input.web-section-rename');
+    await input.waitFor();
+    await page.keyboard.type('角色组');
+    await page.keyboard.press('Enter');
+    await settle();
+    assert.equal((await nodeOf(section.id)).title, '角色组');
+    // Escape keeps the old name; the menu entry opens the same editor.
+    await blank();
+    await card(section.id).click({ button: 'right', position: { x: 20, y: 20 } });
+    await page.locator('#canvas-context-menu [data-canvas-action="web-rename-group"]').click();
+    await input.waitFor();
+    await page.keyboard.type('不要');
+    await page.keyboard.press('Escape');
+    assert.equal((await nodeOf(section.id)).title, '角色组');
+    // Paste with one empty slot selected fills that slot instead of adding a card.
+    const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', { nodes: [{ id: slotId, x: 300, y: 560 }] });
+    await settle();
+    await blank();
+    await card(slotId).click({ position: { x: 60, y: 60 } });
+    const count = (await current()).nodes.length;
+    await page.evaluate(async () => {
+      const data = new DataTransfer();
+      const canvas = document.createElement('canvas');
+      canvas.width = 30;
+      canvas.height = 20;
+      canvas.getContext('2d').fillRect(0, 0, 30, 20);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      data.items.add(new File([blob], '贴图.png', { type: 'image/png' }));
+      document.body.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })
+      );
+    });
+    await page.waitForFunction(
+      (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id)?.assetPath,
+      slotId
+    );
+    await settle();
+    assert.equal((await current()).nodes.length, count);
+    // A composer select opens the Web list instead of the native popup.
+    const slot = (await editor('add-node', { type: 'image' })).selectedIds[0];
+    await editor('update-nodes', { nodes: [{ id: slot, x: 700, y: 560 }] });
+    await settle();
+    await blank();
+    await card(slot).click({ position: { x: 60, y: 60 } });
+    const select = page.locator('#selection-toolbar .generation-panel select').last();
+    await select.waitFor();
+    const options = await select.evaluate((item) =>
+      Array.from(item.options).map((option) => option.value)
+    );
+    const target = options[options.length - 1];
+    await select.click();
+    const list = page.locator('.web-select-list');
+    await list.waitFor();
+    await list
+      .locator('.web-select-option')
+      .nth(options.length - 1)
+      .click();
+    assert.equal(await list.count(), 0);
+    assert.equal(await select.inputValue(), target);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
   await check(
     'reload：外部改写画布文件后原地重读，保留视口与选中；有进行中的导入时跳过',
     async () => {
@@ -4715,7 +4892,7 @@ try {
     const labels = await menu
       .locator('button:not([hidden])')
       .evaluateAll((items) => items.map((item) => item.textContent));
-    assert.deepEqual(labels, ['取消分组', '删除分组']);
+    assert.deepEqual(labels, ['重命名分组', '取消分组', '删除分组']);
     await menu.getByRole('button', { name: '删除分组' }).click();
     doc = await current();
     assert.equal(doc.nodes.length, 0, '删除分组同时删除成员');

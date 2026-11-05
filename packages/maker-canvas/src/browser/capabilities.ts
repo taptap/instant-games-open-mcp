@@ -39,9 +39,11 @@ export type CanvasPageFeature =
   | 'imageEditing'
   | 'cutout'
   | 'connectors'
-  | 'spriteGen';
+  | 'spriteGen'
+  | 'imageTools';
 /**
- * Omitted keeps the current page; false hides an entry. connectors and spriteGen are opt-in (true).
+ * Omitted keeps the current page; false hides an entry. connectors, spriteGen and imageTools are
+ * opt-in (true). imageTools (Web appearance only) adds 裁剪 / 旋转 90° / 水平翻转 / 垂直翻转 to image cards.
  * spriteGen (Web appearance only) shows 「生成精灵」 when the host also provides startSpriteGen, and
  * mirrors sprite-gen progress into sprite groups through store.readProjectJson.
  */
@@ -54,5 +56,7 @@ export function canvasFeatureEnabled(
   // Cutout used to ride on imageEditing; hosts that never set it keep that coupling.
   if (feature === 'cutout' && value === undefined)
     return canvasFeatureEnabled(host, 'imageEditing');
-  return feature === 'connectors' || feature === 'spriteGen' ? value === true : value !== false;
+  return feature === 'connectors' || feature === 'spriteGen' || feature === 'imageTools'
+    ? value === true
+    : value !== false;
 }

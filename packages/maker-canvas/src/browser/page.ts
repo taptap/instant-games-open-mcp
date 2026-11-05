@@ -47,12 +47,14 @@ import {
   canvasWebIconAction,
   canvasWebSlot,
   installCanvasWebTooltips,
+  installCanvasWebSelects,
   createCanvasWebChrome,
   decorateCanvasWebCards,
   canvasWebSyncVideoPlay,
   canvasWebVideoBar,
   openCanvasWebSlotChooser,
 } from './webChrome.js';
+import { canvasTransformedImage, openCanvasWebCropDialog } from './webImageTools.js';
 import { canvasCachedImage, canvasWhenImageReady } from './mediaReuse.js';
 import { CANVAS_WIRE_STYLES } from './wireUi.js';
 import { drawUiRecognition } from './uiRecognitionUi.js';
@@ -1232,16 +1234,16 @@ function applyMissingMediaPatches(source: string): string {
  */
 const CANVAS_CARD_ACTION_GROUPS = [
   ['图片生成', '视频生成', '生成精灵', '拆序列帧'],
-  ['抠图', '调整抠图'],
+  ['抠图', '调整抠图', '裁剪', '旋转 90°', '水平翻转', '垂直翻转'],
   ['加入对话'],
   ['下载 PNG', '下载 JPG'],
 ];
 const CANVAS_CARD_MENU_ORDER = [
   ['web-image-generate', 'web-video', 'web-sprite-gen', 'web-sequence'],
-  ['quick-cutout', 'adjust-cutout'],
+  ['quick-cutout', 'adjust-cutout', 'web-crop', 'web-rotate', 'web-flip-x', 'web-flip-y'],
   ['add-to-chat'],
   ['download-image', 'download-image-jpg'],
-  ['web-tidy-sprite', 'web-group', 'web-ungroup', 'web-delete-group'],
+  ['web-tidy-sprite', 'web-rename-group', 'web-group', 'web-ungroup', 'web-delete-group'],
   ['duplicate', 'delete'],
 ];
 function applyCardMenuPatches(source: string): string {
@@ -1524,7 +1526,9 @@ function applyMediaDropPatches(source: string): string {
       // Only an empty, idle, editable slot takes a drop; anything else gets a new card.
       '  function canvasDropSlot(target) {',
       "    const card = target && target.closest ? target.closest('.card[data-id]') : null;",
-      '    const node = card && documentState && documentState.nodes.find(function (item) { return item.id === card.dataset.id; });',
+      '    return canvasFillableSlot(card && documentState && documentState.nodes.find(function (item) { return item.id === card.dataset.id; }));',
+      '  }',
+      '  function canvasFillableSlot(node) {',
       "    if (!node || (node.type !== 'image' && node.type !== 'video') || node.assetPath || node.mirror || canvasUploadingCards.has(node.id)) return null;",
       '    if (generationUi && (generationUi.isNodeBusy(node.id) || generationUi.hasUnsettledResult(node.id))) return null;',
       '    if (templateWorkflow && (templateWorkflow.locked(node.id) || templateWorkflow.isNodeLoading(node.id))) return null;',
@@ -1640,7 +1644,10 @@ function applyMediaDropPatches(source: string): string {
       "    if (data && Array.from(data.types || []).indexOf('application/x-maker-canvas-cards') >= 0) { event.preventDefault(); pasteCanvasCards(); return; }",
       '    if (!data || !data.files || !data.files.length) return;',
       '    event.preventDefault();',
-      '    void importCanvasFiles(data.files, canvasPointer ? canvasDropPoint(worldPoint(canvasPointer), 220, 150) : null, null);',
+      // A single selected empty slot takes the first pasted file, like a drop onto it.
+      '    const only = selected.size === 1 ? documentState.nodes.find(function (node) { return selected.has(node.id); }) : null;',
+      '    const slot = canvasFillableSlot(only);',
+      '    void importCanvasFiles(data.files, slot ? { x: slot.x + slot.width + 32, y: slot.y } : canvasPointer ? canvasDropPoint(worldPoint(canvasPointer), 220, 150) : null, slot);',
       '  });',
       '  const editorHandle = {\n',
     ].join('\n')
@@ -1660,13 +1667,13 @@ function applyMediaDropPatches(source: string): string {
       "    assetPanelButton.type = 'button';",
       "    assetPanelButton.id = 'asset-panel';",
       "    assetPanelButton.setAttribute('aria-pressed', 'false');",
-      "    assetPanelButton.setAttribute('aria-label', '素材库');",
       "    assetPanelButton.title = '素材库：拖入画布或空图片槽即可添加';",
-      // lucide images
-      '    assetPanelButton.innerHTML = \'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16"/><path d="M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2"/><circle cx="13" cy="7" r="1" fill="currentColor"/><rect x="8" y="2" width="14" height="14" rx="2"/></svg>\';',
+      // lucide layers, the Maker shell's 素材库 icon; the label keeps it findable.
+      '    assetPanelButton.innerHTML = \'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>素材库</span>\';',
       "    assetPanelButton.addEventListener('click', function () { host.toggleAssetPanel(); });",
-      "    const addMenu = document.querySelector('.workspace-actions .workspace-add');",
-      "    if (addMenu) addMenu.after(assetPanelButton); else document.querySelector('.workspace-actions').append(assetPanelButton);",
+      // Top-left, before the canvas tabs: the panel opens on that side.
+      "    const tabsRow = document.querySelector('.workspace-tabs-row');",
+      '    if (tabsRow) tabsRow.prepend(assetPanelButton); else document.body.prepend(assetPanelButton);',
       '  }',
       '  const editorHandle = {',
       "    setAssetPanelOpen: function (open) { if (assetPanelButton) assetPanelButton.setAttribute('aria-pressed', String(Boolean(open))); },\n",
@@ -1692,7 +1699,161 @@ function applyMediaDropPatches(source: string): string {
   );
   patch(
     '</style>',
-    '.canvas-appearance-web .workspace-actions > #asset-panel[aria-pressed="true"], .canvas-appearance-web .workspace-actions > #asset-panel[aria-pressed="true"]:hover:not(:disabled) { background: var(--web-wash); color: var(--web-text); }\n</style>'
+    ':root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel { display: inline-flex; flex: none; align-items: center; margin-right: 6px; padding: 0 10px 0 8px; } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel svg { flex: none; margin-right: 6px; } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel[aria-pressed="true"] { background: var(--web-wash); color: var(--web-text); } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel + * { margin-left: 0; padding-left: 8px; border-left: 1px solid var(--web-line); }\n</style>'
+  );
+  return page;
+}
+/**
+ * Web card editing:
+ * - group titles rename in place (double-click the title, or 「重命名分组」 in the menu);
+ * - an image card can be cropped, turned 90° clockwise or flipped. The result is a new PNG in the
+ *   project and replaces the card's image in place (id, position, width, lines and generation
+ *   info stay; height follows the new ratio). The original file is kept, and one undo restores it.
+ */
+function applyWebEditPatches(source: string): string {
+  let page = source;
+  const patch = (search: string, replacement: string) => {
+    page = replaceCanvasPageText(page, search, replacement);
+  };
+  patch(
+    '      world.append(card);',
+    // After append: focus() needs the input in the document.
+    "      world.append(card);\n      if (canvasWeb && node.type === 'section' && sectionRename && sectionRename.id === node.id) mountSectionRename(card);"
+  );
+  patch(
+    '<button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button>',
+    '<button type="button" data-canvas-action="web-rename-group" data-menu-scope="web" hidden>重命名分组</button><button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button>'
+  );
+  patch(
+    "'web-ungroup': Boolean(one && one.type === 'section'),",
+    "'web-rename-group': Boolean(one && one.type === 'section'), 'web-ungroup': Boolean(one && one.type === 'section'),"
+  );
+  patch(
+    "    if (value === 'web-tidy-sprite') {",
+    "    if (value === 'web-rename-group') { if (contextNode) startSectionRename(contextNode.id); return; }\n    if (value === 'web-tidy-sprite') {"
+  );
+  patch(
+    "adjust.classList.add('web-cutout-adjust'); canvasWebIconAction(adjust, 'chevron'); } }",
+    "adjust.classList.add('web-cutout-adjust'); canvasWebIconAction(adjust, 'chevron'); } }\n        if (canvasWeb && canvasFeatureEnabled(host, 'imageTools') && !node.mirror) { [['裁剪', 'crop', 'crop'], ['旋转 90°', 'rotate', 'rotate'], ['水平翻转', 'flipX', 'flip-x'], ['垂直翻转', 'flipY', 'flip-y']].forEach(function (entry) { canvasWebIconAction(actionButton(entry[0], function () { void transformCanvasImage(node, entry[2]); }), entry[1]); }); }"
+  );
+  patch(
+    '<button type="button" data-canvas-action="adjust-cutout" data-menu-scope="image" hidden>调整抠图</button>',
+    '<button type="button" data-canvas-action="adjust-cutout" data-menu-scope="image" hidden>调整抠图</button><button type="button" data-canvas-action="web-crop" data-menu-scope="image" hidden>裁剪</button><button type="button" data-canvas-action="web-rotate" data-menu-scope="image" hidden>旋转 90°</button><button type="button" data-canvas-action="web-flip-x" data-menu-scope="image" hidden>水平翻转</button><button type="button" data-canvas-action="web-flip-y" data-menu-scope="image" hidden>垂直翻转</button>'
+  );
+  patch(
+    "contextMenu.querySelectorAll('[data-canvas-action=quick-cutout], [data-canvas-action=adjust-cutout]').forEach(function (item) { item.hidden = true; });",
+    "contextMenu.querySelectorAll('[data-canvas-action=quick-cutout], [data-canvas-action=adjust-cutout], [data-canvas-action=web-crop], [data-canvas-action=web-rotate], [data-canvas-action=web-flip-x], [data-canvas-action=web-flip-y]').forEach(function (item) { item.hidden = true; }); if (!canvasFeatureEnabled(host, 'imageTools')) contextMenu.querySelectorAll('[data-canvas-action=web-crop], [data-canvas-action=web-rotate], [data-canvas-action=web-flip-x], [data-canvas-action=web-flip-y]').forEach(function (item) { item.hidden = true; });"
+  );
+  patch(
+    "    if (value === 'quick-cutout') { if (contextImage) void quickCutout(contextImage); return; }",
+    [
+      "    const imageTool = { 'web-crop': 'crop', 'web-rotate': 'rotate', 'web-flip-x': 'flip-x', 'web-flip-y': 'flip-y' }[value];",
+      '    if (imageTool) { if (contextImage) void transformCanvasImage(contextImage, imageTool); return; }',
+      "    if (value === 'quick-cutout') { if (contextImage) void quickCutout(contextImage); return; }",
+    ].join('\n')
+  );
+  patch(
+    '  var canvasCutoutBusy = new Set();',
+    [
+      '  var canvasCutoutBusy = new Set();',
+      '  var sectionRename = null;',
+      '  function startSectionRename(id) {',
+      "    const node = documentState && documentState.nodes.find(function (item) { return item.id === id && item.type === 'section'; });",
+      '    if (!node || peerReason || (templateWorkflow && templateWorkflow.locked(node.id))) return;',
+      "    sectionRename = { id: node.id, value: node.title || '', input: null, focused: false };",
+      '    render();',
+      '  }',
+      '  function finishSectionRename(commit) {',
+      '    const edit = sectionRename; sectionRename = null;',
+      '    if (!edit) return;',
+      "    const node = documentState && documentState.nodes.find(function (item) { return item.id === edit.id && item.type === 'section'; });",
+      '    const value = edit.value.trim().slice(0, 80);',
+      '    if (commit && node && value && value !== node.title) { remember(); node.title = value; markDirty(); }',
+      '    render();',
+      '  }',
+      // One input per edit, moved into each re-rendered card so typing and focus survive renders.
+      '  function mountSectionRename(card) {',
+      "    const title = card.querySelector('.canvas-card-title'); if (!title) return;",
+      '    const edit = sectionRename;',
+      '    let input = edit.input;',
+      '    if (!input) {',
+      "      input = document.createElement('input');",
+      "      input.className = 'web-section-rename'; input.value = edit.value; input.maxLength = 80;",
+      "      input.setAttribute('aria-label', '分组名称');",
+      "      ['pointerdown', 'click', 'dblclick', 'wheel', 'contextmenu'].forEach(function (name) { input.addEventListener(name, function (event) { event.stopPropagation(); }); });",
+      "      input.addEventListener('input', function () { if (sectionRename === edit) edit.value = input.value; });",
+      "      input.addEventListener('keydown', function (event) {",
+      '        event.stopPropagation();',
+      "        if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); finishSectionRename(true); }",
+      "        else if (event.key === 'Escape') { event.preventDefault(); finishSectionRename(false); }",
+      '      });',
+      // A re-render blurs it for a moment and mount refocuses it; only a real blur commits.
+      "      input.addEventListener('blur', function () { setTimeout(function () { if (sectionRename === edit && document.activeElement !== input) finishSectionRename(true); }, 0); });",
+      '      edit.input = input;',
+      '    }',
+      '    title.replaceWith(input);',
+      '    input.focus();',
+      '    if (!edit.focused) { edit.focused = true; input.select(); }',
+      '  }',
+      // Double-press on a group title: the first press re-renders the card, so a native dblclick
+      // would land on a replaced node; two presses on the same title within 450 ms count instead.
+      '  var sectionTitlePress = null;',
+      "  world.addEventListener('pointerdown', function (event) {",
+      '    if (!canvasWeb || !documentState || event.button !== 0 || !event.target || !event.target.closest) return;',
+      "    const title = event.target.closest('.card.section .canvas-card-title');",
+      "    const card = title && title.closest('.card[data-id]');",
+      '    if (!card) { sectionTitlePress = null; return; }',
+      '    const now = Date.now();',
+      '    if (sectionTitlePress && sectionTitlePress.id === card.dataset.id && now - sectionTitlePress.at < 450) {',
+      '      sectionTitlePress = null; event.preventDefault(); event.stopPropagation(); startSectionRename(card.dataset.id); return;',
+      '    }',
+      '    sectionTitlePress = { id: card.dataset.id, at: now };',
+      '  }, true);',
+      '  async function transformCanvasImage(node, transform) {',
+      '    if ((imageEditing && imageEditing.isBusy) || pendingAssetImports || canvasCutoutBusy.size || !documentState) return;',
+      "    if (node.type !== 'image' || !node.assetPath || node.mirror) { setError('请选择已有图片。'); return; }",
+      "    if (generationUi && (generationUi.isNodeBusy(node.id) || generationUi.hasUnsettledResult(node.id))) { setError('图片仍在生成中，请稍后再编辑。'); return; }",
+      '    const decision = templateWorkflow && templateWorkflow.resolveTarget(node.id, "image", node.id);',
+      '    if (decision && decision.kind === "blocked") { setError(decision.message); return; }',
+      '    const current = documentState; const id = node.id; const sourcePath = node.assetPath;',
+      "    const live = function () { const item = current.nodes.find(function (entry) { return entry.id === id; }); if (documentState !== current || !item || item.assetPath !== sourcePath) throw new Error('图片已变化，编辑结果没有写入。'); return item; };",
+      '    let operation = { type: transform };',
+      '    let blob;',
+      "    try { blob = await host.readSource(sourcePath, AbortSignal.timeout(60000), '图片读取失败'); }",
+      "    catch (caught) { setError('图片编辑失败：' + ((caught && caught.message) || '图片读取失败')); return; }",
+      "    if (transform === 'crop') {",
+      '      let bitmap; const url = URL.createObjectURL(blob); let rect = null;',
+      '      try { bitmap = await createImageBitmap(blob); rect = await openCanvasWebCropDialog(url, bitmap.width, bitmap.height); }',
+      "      catch (caught) { setError('图片编辑失败：' + ((caught && caught.message) || '图片无法解码')); return; }",
+      '      finally { URL.revokeObjectURL(url); if (bitmap && bitmap.close) bitmap.close(); }',
+      '      if (!rect) return;',
+      "      operation = { type: 'crop', x: rect.x, y: rect.y, width: rect.width, height: rect.height };",
+      '    }',
+      "    pendingAssetImports++; canvasCutoutBusy.add(id); publishDirty(); setError(''); render();",
+      '    try {',
+      '      live();',
+      '      const bitmap = await createImageBitmap(blob);',
+      '      const canvas = canvasTransformedImage(bitmap, operation); if (bitmap.close) bitmap.close();',
+      "      const png = await new Promise(function (resolve, reject) { canvas.toBlob(function (out) { if (out) resolve(out); else reject(new Error('图片编码失败')); }, 'image/png'); });",
+      '      live();',
+      "      const saved = await store.importImage(current.id, await png.arrayBuffer(), 'image/png');",
+      "      const prepared = await prepareCanvasImportedNode(current.id, { assetPath: saved.relativePath, kind: 'image', title: (live().title || '图片').slice(0, 80) }, store.mediaUrl);",
+      '      await loadMedia(prepared.assetPath);',
+      '      const item = live();',
+      '      remember();',
+      '      item.assetPath = prepared.assetPath;',
+      '      if (prepared.imageInfo) item.imageInfo = prepared.imageInfo; else delete item.imageInfo;',
+      '      delete item.assetVersion;',
+      '      fitImageCard(item);',
+      '      markDirty();',
+      "    } catch (caught) { setError('图片编辑失败：' + ((caught && caught.message) || '处理出错')); }",
+      '    finally { canvasCutoutBusy.delete(id); finishAssetImport(); render(); }',
+      '  }',
+    ].join('\n')
+  );
+  patch(
+    '</style>',
+    '.canvas-appearance-web .card.section .web-section-rename { box-sizing: border-box; width: 100%; min-width: 0; height: 22px; padding: 0 6px; border: 1px solid var(--web-accent, #3b82f6); border-radius: 6px; background: var(--web-panel, #2a2828); color: var(--web-text, #d4d4d4); font: inherit; font-size: 13px; font-weight: 500; outline: none; }\n</style>'
   );
   return page;
 }
@@ -2061,7 +2222,10 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasWebSlot.toString(),
     canvasComposerKey.toString(),
     canvasWebIconAction.toString(),
+    canvasTransformedImage.toString(),
+    openCanvasWebCropDialog.toString(),
     installCanvasWebTooltips.toString(),
+    installCanvasWebSelects.toString(),
     canvasWebSyncVideoPlay.toString(),
     canvasWebVideoBar.toString(),
     openCanvasWebSlotChooser.toString(),
@@ -4364,6 +4528,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = applyMissingMediaPatches(page);
   page = applyCardMenuPatches(page);
   page = applyMediaDropPatches(page);
+  page = applyWebEditPatches(page);
   // Copy guards must wrap the final function, including the async mirror-copy branch.
   page = replaceCanvasPageText(
     page,
