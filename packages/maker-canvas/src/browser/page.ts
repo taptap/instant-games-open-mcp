@@ -1582,15 +1582,28 @@ function applyMediaDropPatches(source: string): string {
       "    const kind = asset && asset.type === 'video' ? 'video' : asset && asset.type === 'image' ? 'image' : '';",
       "    if (!path || !kind || (kind === 'video' && !canvasFeatureEnabled(host, 'video'))) { setError(canvasFeatureEnabled(host, 'video') ? '只能添加图片或视频素材。' : '只能添加图片素材。'); return; }",
       '    const blocked = canvasDropBlocked(); if (blocked) { setError(blocked); return; }',
-      "    const named = String((asset && asset.name) || path.split('/').pop() || '').replace(/\\.[^.]+$/, '');",
-      "    const title = (named || (kind === 'video' ? '视频' : '图片')).slice(0, 80);",
+      "    const fileName = String((asset && asset.name) || path.split('/').pop() || '');",
+      "    const title = (fileName.replace(/\\.[^.]+$/, '') || (kind === 'video' ? '视频' : '图片')).slice(0, 80);",
+      '    let copy = false;',
       '    pendingAssetImports++; publishDirty();',
       '    try {',
       "      if (slot && kind === 'image' && slot.type === 'image') await fillImageSlot(slot.id, path);",
       '      else await importProjectAsset({ assetPath: path, kind: kind, title: title }, canvasDropPoint(point, 240, 240));',
       "      setError('');",
-      "    } catch (caught) { setError((caught && caught.message) || '素材添加失败'); }",
-      '    finally { finishAssetImport(); render(); }',
+      '    } catch (caught) {',
+      // The host only references files it accepts as card media (e.g. not sprite-gen work
+      // files shown in chat); an image it can still read is uploaded as a copy instead.
+      "      copy = kind === 'image' && Boolean(caught && caught.code === 'INVALID_ARGS' && host.readSource);",
+      "      if (!copy) setError((caught && caught.message) || '素材添加失败');",
+      '    } finally { finishAssetImport(); render(); }',
+      '    if (!copy) return;',
+      '    let file;',
+      '    try {',
+      "      const blob = await host.readSource(path, undefined, '素材读取失败，无法添加到画布。');",
+      "      const type = blob.type || ({ png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' })[(path.split('.').pop() || '').toLowerCase()] || '';",
+      '      file = new File([blob], fileName || title, { type: type });',
+      "    } catch (caught) { setError((caught && caught.message) || '素材读取失败，无法添加到画布。'); return; }",
+      '    await importCanvasFiles([file], canvasDropPoint(point, 220, 150), slot && documentState && documentState.nodes.indexOf(slot) >= 0 ? slot : null);',
       '  }',
       "  board.addEventListener('pointermove', function (event) { canvasPointer = { clientX: event.clientX, clientY: event.clientY }; });",
       "  board.addEventListener('pointerleave', function () { canvasPointer = null; });",
@@ -1635,6 +1648,51 @@ function applyMediaDropPatches(source: string): string {
   patch(
     '</style>',
     '.canvas-appearance-web .card.web-drop-target { outline: 2px dashed var(--web-accent, #3b82f6); outline-offset: 3px; }\n</style>'
+  );
+  // 素材库 dock button: opens the host's asset panel (host.toggleAssetPanel); assets dragged from
+  // it land through the drop handler above.
+  patch(
+    '  const editorHandle = {\n',
+    [
+      '  var assetPanelButton = null;',
+      "  if (canvasWeb && typeof host.toggleAssetPanel === 'function') {",
+      "    assetPanelButton = document.createElement('button');",
+      "    assetPanelButton.type = 'button';",
+      "    assetPanelButton.id = 'asset-panel';",
+      "    assetPanelButton.setAttribute('aria-pressed', 'false');",
+      "    assetPanelButton.setAttribute('aria-label', '素材库');",
+      "    assetPanelButton.title = '素材库：拖入画布或空图片槽即可添加';",
+      // lucide images
+      '    assetPanelButton.innerHTML = \'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16"/><path d="M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2"/><circle cx="13" cy="7" r="1" fill="currentColor"/><rect x="8" y="2" width="14" height="14" rx="2"/></svg>\';',
+      "    assetPanelButton.addEventListener('click', function () { host.toggleAssetPanel(); });",
+      "    const addMenu = document.querySelector('.workspace-actions .workspace-add');",
+      "    if (addMenu) addMenu.after(assetPanelButton); else document.querySelector('.workspace-actions').append(assetPanelButton);",
+      '  }',
+      '  const editorHandle = {',
+      "    setAssetPanelOpen: function (open) { if (assetPanelButton) assetPanelButton.setAttribute('aria-pressed', String(Boolean(open))); },\n",
+    ].join('\n')
+  );
+  // The host saw the open canvas file change outside this page (e.g. an Agent wrote it): re-read
+  // it when nothing local would be lost. Keeps the viewport and the still-present selection.
+  patch(
+    '    syncSprites: function () { return syncAllSprites(true); },',
+    [
+      '    reload: async function () {',
+      '      if (!documentState || dirty() || hostEditBlocked() || peerReason) return false;',
+      '      const id = documentState.id; const view = Object.assign({}, documentState.viewport); const keep = Array.from(selected);',
+      '      await openDocument(id);',
+      '      if (!documentState || documentState.id !== id || dirty()) return false;',
+      '      documentState.viewport = view; savedKey = layout(documentState);',
+      '      keep.forEach(function (nodeId) { if (documentState.nodes.some(function (node) { return node.id === nodeId; })) selected.add(nodeId); });',
+      '      render();',
+      '      return true;',
+      '    },',
+      '    syncSprites: function () { return syncAllSprites(true); },',
+    ].join('\n')
+  );
+  patch(
+    '</style>',
+    '.canvas-appearance-web .workspace-actions > #asset-panel[aria-pressed="true"], .canvas-appearance-web .workspace-actions > #asset-panel[aria-pressed="true"]:hover:not(:disabled) { background: var(--web-wash); color: var(--web-text); }\n</style>'
   );
   return page;
 }

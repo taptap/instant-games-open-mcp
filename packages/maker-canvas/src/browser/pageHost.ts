@@ -38,10 +38,22 @@ export interface CanvasEditorHandle {
    */
   syncSprites(): Promise<void>;
   /**
+   * Re-reads the open canvas from the store after the host saw its file change outside the page
+   * (e.g. an Agent wrote it). Skipped, resolving false, while there are unsaved edits, imports,
+   * drafts or running tasks, so local work is never replaced. Keeps the viewport and the
+   * selection of cards that still exist; the undo history restarts from the reloaded state.
+   */
+  reload(): Promise<boolean>;
+  /**
    * The host shows or hides the canvas panel without unloading it. While hidden the page stops
    * sprite polling, animation frames and video playback; showing it again syncs sprites at once.
    */
   setPanelVisible(visible: boolean): void;
+  /**
+   * Optional: the host reports whether its asset panel is open, so the dock's 素材库 button
+   * shows the right pressed state when the panel is closed from the host side.
+   */
+  setAssetPanelOpen?(open: boolean): void;
 }
 /** Payload of CanvasPageHost.startSpriteGen. */
 export interface CanvasSpriteGenStart {
@@ -69,6 +81,12 @@ export interface CanvasPageHost {
    * `kind` absent means image, except paths under assets/video/.
    */
   pickProjectImages?(): Promise<{ path: string; name: string; kind?: 'image' | 'video' }[]>;
+  /**
+   * Optional (Web appearance): shows a 素材库 button in the dock that opens or closes the host's
+   * asset panel. Assets dragged from that panel arrive as `application/x-asset` drops; the host
+   * reports the panel state back through CanvasEditorHandle.setAssetPanelOpen.
+   */
+  toggleAssetPanel?(): void;
   /**
    * Optional (with features.spriteGen): called after 「生成精灵」 has created and saved the group
    * 「精灵：<名>」. The host opens a new chat and prefills the sprite-gen prompt; the page never

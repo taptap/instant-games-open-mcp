@@ -43,6 +43,8 @@ function testHostScript() {
       return target;
     }
     window.__canvasAddMedia = addMedia;
+    // Stands in for another writer (e.g. an Agent) changing a canvas file behind the page.
+    window.__canvasExternalWrite = (doc) => docs.set(doc.id, copy(doc));
     // Seeded canvases stand in for documents saved by an earlier session.
     const seeded = Promise.all(
       Object.entries(config.seedMedia || {}).map(([target, color]) =>
@@ -419,6 +421,11 @@ function testHostScript() {
       pickProjectImages: config.pickProjectImages
         ? async () => window.__canvasPick || []
         : undefined,
+      toggleAssetPanel: config.assetPanel
+        ? () => {
+            window.__canvasAssetPanelToggles = (window.__canvasAssetPanelToggles || 0) + 1;
+          }
+        : undefined,
       startSpriteGen: config.startSpriteGen
         ? async (input) => {
             const starts = (window.__canvasSpriteStarts = window.__canvasSpriteStarts || []);
@@ -441,7 +448,12 @@ function testHostScript() {
       validateUiAtlasPlan: validateUiAtlasPlanStructure,
       downloadCanvasResource,
       async prepareCanvasImportedNode(canvasId, input) {
-        if (typeof input.assetPath !== 'string' || !media.has(input.assetPath))
+        // Like the Web host: readable work files (sprite-gen) are not card media.
+        if (
+          typeof input.assetPath !== 'string' ||
+          !media.has(input.assetPath) ||
+          input.assetPath.startsWith('.build/')
+        )
           throw new Error('只允许引用当前项目内的素材。');
         return prepareCanvasImportedNodeFromMedia(input, store.mediaUrl);
       },
@@ -2561,6 +2573,21 @@ try {
         (await current()).nodes.find((node) => node.assetPath === assetPath).title,
         '素材'
       );
+      // A readable file the host won't reference (a sprite-gen candidate in chat) is uploaded as a copy.
+      const work = '.build/sprite-gen/hero/candidates/1.png';
+      await page.evaluate((work) => window.__canvasAddMedia('#963', 40, 40, work), work);
+      const copied = (await current()).nodes.length;
+      await drop(800, 600, { asset: { type: 'image', name: '1.png', path: '/workspace/' + work } });
+      await page.waitForFunction(
+        (count) =>
+          window.__canvasEditor.current().nodes.length === count &&
+          window.__canvasEditor.current().nodes.at(-1).assetPath,
+        copied + 1
+      );
+      await settle();
+      const copy = (await current()).nodes.at(-1);
+      assert.match(copy.assetPath, /^assets\/image\/canvas\//);
+      assert.equal(copy.title, '1');
       // Paste: system files become cards; after an in-canvas ⌘C the marker pastes the cards instead.
       const paste = (files, marker) =>
         page.evaluate(
@@ -2612,6 +2639,84 @@ try {
         pasted + 3
       );
       await settle();
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check(
+    'Web 素材库按钮：仅宿主提供 toggleAssetPanel 时出现，点击切换并同步按下态',
+    async () => {
+      const plain = await webPage();
+      assert.equal(await plain.page.locator('#asset-panel').count(), 0);
+      await plain.page.close();
+      const { page, errors } = await webPage({ assetPanel: true });
+      const button = page.locator('.workspace-actions > #asset-panel');
+      await button.waitFor();
+      assert.equal(
+        await button.evaluate((item) =>
+          item.previousElementSibling?.classList.contains('workspace-add')
+        ),
+        true
+      );
+      await button.click();
+      assert.equal(await page.evaluate(() => window.__canvasAssetPanelToggles), 1);
+      await page.evaluate(() => window.__canvasEditor.setAssetPanelOpen(true));
+      assert.equal(await button.getAttribute('aria-pressed'), 'true');
+      await page.evaluate(() => window.__canvasEditor.setAssetPanelOpen(false));
+      assert.equal(await button.getAttribute('aria-pressed'), 'false');
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check(
+    'reload：外部改写画布文件后原地重读，保留视口与选中；有进行中的导入时跳过',
+    async () => {
+      const { page, errors, editor, settle, current, card } = await webPage();
+      const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await settle();
+      const before = await current();
+      const external = structuredClone(before);
+      external.viewport = { x: 999, y: 999, scale: 2 };
+      external.revision += 1;
+      external.nodes.push({
+        id: 'external-note',
+        type: 'note',
+        x: 40,
+        y: 40,
+        width: 180,
+        height: 120,
+        title: '便签',
+        text: 'Agent 写入',
+      });
+      await page.evaluate((doc) => window.__canvasExternalWrite(doc), external);
+      assert.equal(await page.evaluate(() => window.__canvasEditor.reload()), true);
+      const after = await current();
+      assert.ok(after.nodes.some((node) => node.id === 'external-note'));
+      assert.deepEqual(after.viewport, before.viewport, '保留当前视口');
+      assert.equal(await card('external-note').count(), 1);
+      assert.equal(
+        await card(slotId).evaluate((item) => item.classList.contains('selected')),
+        true
+      );
+      assert.equal(await page.evaluate(() => window.__canvasUnsaved), false);
+      // An upload in flight blocks the reload.
+      await page.evaluate(() => {
+        window.__canvasImportGate = new Promise(
+          (resolve) => (window.__canvasReleaseImport = resolve)
+        );
+        const data = new DataTransfer();
+        data.items.add(
+          new File([new Uint8Array([137, 80, 78, 71])], 'a.png', { type: 'image/png' })
+        );
+        document.body.dispatchEvent(
+          new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })
+        );
+      });
+      assert.equal(await page.evaluate(() => window.__canvasEditor.reload()), false);
+      await page.evaluate(() => {
+        window.__canvasImportGate = undefined;
+        window.__canvasReleaseImport();
+      });
       assert.deepEqual(errors, []);
       await page.close();
     }
