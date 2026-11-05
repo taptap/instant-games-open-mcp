@@ -1,7 +1,7 @@
 import { collectProjectCheck, publishProjectCheck } from './store.js';
 type Collected = Awaited<ReturnType<typeof collectProjectCheck>>;
 const MAX_MODULES = 48;
-const running = new Map<string, Promise<ReturnType<typeof publishProjectCheck>>>();
+const running = new Map<string, ReturnType<typeof publishProjectCheck>>();
 function groupOf(file: string): string {
   const parts = file.split('/');
   if (parts.length === 1) return '';
@@ -57,11 +57,16 @@ export function buildAutoAnalysis(collected: Collected) {
   };
 }
 /** Collect facts and publish the baseline report. Concurrent calls for one project share one run. */
-export function runAutoProjectCheck(targetDir: string) {
+export function runAutoProjectCheck(targetDir: string, resultRevision: string) {
   const current = running.get(targetDir);
   if (current) return current;
   const run = collectProjectCheck(targetDir)
-    .then((collected) => publishProjectCheck(targetDir, buildAutoAnalysis(collected)))
+    .then((collected) =>
+      publishProjectCheck(targetDir, {
+        ...buildAutoAnalysis(collected),
+        resultRevision,
+      })
+    )
     .finally(() => running.delete(targetDir));
   running.set(targetDir, run);
   return run;

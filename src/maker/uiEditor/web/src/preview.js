@@ -144,8 +144,26 @@
     return found;
   }
 
+  // Generated children get new editor IDs on expansion; anchor them to their source host.
+  function walkScrollState(tree, visit, key, sourceIds) {
+    if (!tree) return;
+    if (!sourceIds) {
+      sourceIds = new Set();
+      window.UrhoxDoc.walk(app.sourceTree, function (node) { sourceIds.add(node._editorId); });
+    }
+    if (sourceIds.has(tree._editorId)) key = tree._editorId;
+    visit(tree, key);
+    (tree.children || []).forEach(function (child, index) {
+      walkScrollState(child, visit, key + "/" + index, sourceIds);
+    });
+  }
+
   function rebuildPreview() {
     if (!app.sourceTree) return;
+    var scroll = new Map();
+    walkScrollState(app.tree, function (node, key) {
+      if (node.type === "ScrollView") scroll.set(key, node._scrollY || 0);
+    });
     window.UrhoxDoc.ensureEditorIds(app.sourceTree);
     if (!needsPreviewCopy(app.sourceTree)) {
       app.tree = app.sourceTree;
@@ -156,6 +174,9 @@
       window.UrhoxDoc.expandPropDefaults(app.tree);
     }
     window.UrhoxDoc.ensureEditorIds(app.tree);
+    walkScrollState(app.tree, function (node, key) {
+      if (node.type === "ScrollView" && scroll.has(key)) node._scrollY = scroll.get(key);
+    });
     var src = designSize();
     var layoutRoot = app.editMode === "prefab" && app.componentPreview
       ? { type: "Panel", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", children: [app.tree] }
@@ -688,9 +709,9 @@
     if (!app.sourceTree || !inViewport()) return null;
     var saved = { device: app.device, safeArea: app.safeArea, width: app.screen.width,
       height: app.screen.height, orientation: app.orientation };
-    var scroll = {};
-    window.UrhoxDoc.walk(app.tree, function (node) {
-      if (node._scrollY) scroll[node._editorId] = node._scrollY;
+    var scroll = new Map();
+    walkScrollState(app.tree, function (node, key) {
+      if (node.type === "ScrollView") scroll.set(key, node._scrollY || 0);
     });
     var results = [];
     try {
@@ -724,8 +745,8 @@
       app.orientation = saved.orientation;
       rebuildPreview();
       var restored = false;
-      window.UrhoxDoc.walk(app.tree, function (node) {
-        if (scroll[node._editorId] != null) { node._scrollY = scroll[node._editorId]; restored = true; }
+      walkScrollState(app.tree, function (node, key) {
+        if (scroll.has(key)) { node._scrollY = scroll.get(key); restored = true; }
       });
       if (restored) rebuildPreview();
     }

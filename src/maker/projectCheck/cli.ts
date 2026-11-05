@@ -39,7 +39,7 @@ export async function runProjectCheckCli(
         throw new Error('分析文件必须小于 4 MiB。');
       const text = await fs.readFile(options.input_file, 'utf8');
       if (Buffer.byteLength(text) > 4 * 1024 * 1024) throw new Error('分析文件必须小于 4 MiB。');
-      print(publishProjectCheck(options.target_dir, JSON.parse(text.replace(/^\uFEFF/, ''))));
+      print(await publishProjectCheck(options.target_dir, JSON.parse(text.replace(/^\uFEFF/, ''))));
     }
   } catch (error) {
     if (!options.json) throw error;

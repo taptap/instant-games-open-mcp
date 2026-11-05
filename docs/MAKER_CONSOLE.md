@@ -60,6 +60,7 @@ POST /api/projects/:key/project-check/run，只读扫描源码与素材（不调
 结果写入 Maker home），按目录给 Lua 脚本分组，报告标记 analysis.auto 并显示“自动检查 · 模块按目录分组”。
 同一项目并发请求共用一次运行；项目已存在 AI 分析结果时，服务端要求 replace:true，页面先弹确认，
 避免静默覆盖模块职责说明和整理建议。检查期间显示加载状态与已用时间。
+自动检查固定扫描前确认的报告版本；扫描期间有新报告发布时拒绝覆盖，保留新报告。
 AI 检查由用户通过 AI 对话发起，空状态与工具栏“让 AI 更新”提供可复制指令；完成后重新打开检查页读取最新快照。
 
 CLI 提供 project-check capabilities / collect / publish / show。
@@ -69,6 +70,7 @@ show 只读最近结果。collect 不覆盖已发布结果；版本冲突、路�
 会拒绝 publish，保留原结果。JSON 契约和上限以 capabilities 为准。
 结果按项目 realpath 与 project_id 隔离，保存在 Maker home/project-checks，不写游戏目录。
 CLI 与控制台必须使用同一 Maker home；保存使用跨进程锁与私有 JSON 原子替换。
+锁记录持有进程，确认进程退出后在系统互斥保护下回收；旧版无归属记录的锁保留并提示人工核实。
 结果显示采集和生成时间，不代表后续项目修改已复核。
 
 素材事实覆盖 assets、scripts、项目根 Lua、.project、.maker/canvases、.maker/ui-workflows

@@ -510,7 +510,7 @@ export async function startConsoleServer(options: {
               '已有 AI 分析结果，自动检查会替换其中的模块说明和整理建议，请确认后再重新检查。',
               409
             );
-          return runAutoProjectCheck(root);
+          return runAutoProjectCheck(root, existing?.resultRevision ?? 'none');
         }, false);
         touch();
         json(200, published);

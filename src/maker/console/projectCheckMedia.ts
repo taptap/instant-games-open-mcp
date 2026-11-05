@@ -16,7 +16,7 @@ export async function projectCheckImage(
     params.getAll('revision').length !== 1
   )
     throw new ConsoleError('素材预览参数无效。');
-  const saved = readProjectCheck(root);
+  const saved = readProjectCheck(root, true);
   if (!saved || saved.resultRevision !== params.get('revision'))
     throw new ConsoleError('检查结果已更新，请重新打开项目检查。', 409);
   const relative = params.get('path')!;

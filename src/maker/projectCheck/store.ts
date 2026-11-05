@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto';
 import { previewProject } from '../preview/protocol.js';
 import { getMakerHome, loadProjectConfig } from '../storage.js';
 import { writePrivateJson } from '../system/privateJson.js';
+import { claimRecoveryMutex } from '../system/recoveryMutex.js';
+import { processPresence } from '../system/processPresence.js';
 import { inspectAssets } from './assets.js';
 import { inspectArchitecture } from './architecture.js';
 import { isLocalCanvasImagePath } from '../canvas/localMediaValidation.js';
@@ -72,22 +74,39 @@ function writeJson(filename: string, value: unknown) {
     throw new Error('检查结果超过 32 MiB，原结果未改动。');
   writePrivateJson(filename, value);
 }
-function withLock<T>(project: Identity, action: () => T): T {
+async function withLock<T>(project: Identity, action: () => T): Promise<T> {
   const dir = directory(project);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const lock = path.join(dir, '.lock');
+  const release = await claimRecoveryMutex(
+    lock,
+    () => new Error('另一个项目检查正在保存，请稍后重试。')
+  );
+  let owned = false;
   try {
+    if (fs.existsSync(lock)) {
+      const owner = readJson<{ pid: number }>(path.join(lock, 'owner.json'));
+      if (!owner || processPresence(owner.value.pid) !== 'missing')
+        throw new Error(
+          '项目检查锁仍被占用或归属不明；请确认保存进程已退出后再移除锁目录：' + lock
+        );
+      fs.unlinkSync(path.join(lock, 'owner.json'));
+      fs.rmdirSync(lock);
+    }
     fs.mkdirSync(lock, { mode: 0o700 });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST')
-      throw new Error('另一个项目检查正在保存，请稍后重试。');
-    throw error;
-  }
-  try {
+    owned = true;
+    writePrivateJson(path.join(lock, 'owner.json'), { pid: process.pid });
     sameIdentity(identity(project.root), project);
     return action();
   } finally {
-    fs.rmdirSync(lock);
+    try {
+      if (owned) {
+        fs.rmSync(path.join(lock, 'owner.json'), { force: true });
+        fs.rmdirSync(lock);
+      }
+    } finally {
+      await release();
+    }
   }
 }
 
@@ -272,7 +291,7 @@ function validateEvidence(facts: Facts, analysis: Analysis) {
   }
 }
 
-export function publishProjectCheck(targetDir: string, input: unknown) {
+export async function publishProjectCheck(targetDir: string, input: unknown) {
   const project = identity(targetDir);
   const analysis = parseAnalysis(input);
   return withLock(project, () => {
@@ -304,18 +323,48 @@ export function publishProjectCheck(targetDir: string, input: unknown) {
   });
 }
 
+// Only image requests share cached reports; publication always reads fresh revisions.
+const mediaReports = new Map<
+  string,
+  { stamp: string; saved: NonNullable<ReturnType<typeof readProjectCheck>> }
+>();
 /** Result viewer: reads one saved report, without scanning project files. */
-export function readProjectCheck(targetDir: string) {
+export function readProjectCheck(
+  targetDir: string,
+  cacheForMedia = false
+): (Published & { resultRevision: string }) | null {
   const project = identity(targetDir);
-  const saved = readJson<Published>(path.join(directory(project), 'result.json'));
+  const filename = path.join(directory(project), 'result.json');
+  let stamp = '';
+  if (cacheForMedia) {
+    try {
+      const stat = fs.lstatSync(filename, { bigint: true });
+      if (!stat.isFile() || stat.size > BigInt(MAX_RESULT_BYTES))
+        throw new Error('检查结果文件无效或超过 32 MiB。');
+      stamp = [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].join(':');
+      const cached = mediaReports.get(filename);
+      if (cached?.stamp === stamp) return cached.saved;
+    } catch (error) {
+      mediaReports.delete(filename);
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw error;
+    }
+    mediaReports.delete(filename);
+  }
+  const saved = readJson<Published>(filename);
   if (!saved) return null;
   if (saved.value.schema !== 1) throw new Error('不支持的项目检查结果版本。');
   sameIdentity(saved.value.facts.identity, project);
-  return {
+  const result = {
     ...saved.value,
     analysis: parseAnalysis(saved.value.analysis),
     resultRevision: saved.revision,
   };
+  if (cacheForMedia) {
+    if (mediaReports.size >= 4) mediaReports.delete(mediaReports.keys().next().value!);
+    mediaReports.set(filename, { stamp, saved: result });
+  }
+  return result;
 }
 
 export function architectureView(saved: NonNullable<ReturnType<typeof readProjectCheck>>) {

@@ -67,8 +67,11 @@
         if (!enabled) return;
         var inset = area[edge] || 0;
         if (edge === "top" && node.nativeMenuInset) inset = Math.max(inset, environment.nativeMenuBottom || 0);
-        var key = (node.mode && node.mode !== "padding" ? "margin" : "padding") + edge[0].toUpperCase() + edge.slice(1);
-        node[key] = (Number(node[key]) || 0) + inset;
+        var mode = node.mode && node.mode !== "padding" ? "margin" : "padding";
+        var key = mode + edge[0].toUpperCase() + edge.slice(1);
+        var axis = mode + (edge === "left" || edge === "right" ? "Horizontal" : "Vertical");
+        var base = node[key] != null ? node[key] : node[axis] != null ? node[axis] : node[mode];
+        node[key] = (Number(base) || 0) + inset;
       });
     }
     var yn = Y.Node.create(config);
