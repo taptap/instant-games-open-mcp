@@ -1709,9 +1709,10 @@ function applyMediaDropPatches(source: string): string {
 /**
  * Web card editing:
  * - group titles rename in place (double-click the title, or 「重命名分组」 in the menu);
- * - an image card can be cropped, turned 90° clockwise or flipped. The result is a new PNG in the
- *   project and replaces the card's image in place (id, position, width, lines and generation
- *   info stay; height follows the new ratio). The original file is kept, and one undo restores it.
+ * - an image card can be cropped, turned 90° clockwise or flipped. Each result is a new PNG in the
+ *   project; the original file is kept and one undo reverts the edit. A crop becomes a new card to
+ *   the right of the source, linked to it (like 抠图); rotation and flips replace the card's image
+ *   in place (id, position, width, lines and generation info stay; height follows the new ratio).
  */
 function applyWebEditPatches(source: string): string {
   let page = source;
@@ -1941,6 +1942,19 @@ function applyWebEditPatches(source: string): string {
       "      const prepared = await prepareCanvasImportedNode(current.id, { assetPath: saved.relativePath, kind: 'image', title: (live().title || '图片').slice(0, 80) }, store.mediaUrl);",
       '      await loadMedia(prepared.assetPath);',
       '      const item = live();',
+      "      if (operation.type === 'crop') {",
+      // A crop keeps the original: the result is a new card to the right, linked like 抠图.
+      "        if (current.nodes.length >= 400 || current.edges.length >= 800) throw new Error('画布卡片已达到容量限制。');",
+      '        remember();',
+      '        const cropped = applyLocalImageResult(current, item, prepared.assetPath, undefined, function () { return crypto.randomUUID(); });',
+      "        cropped.title = ((item.title || '图片') + ' · 裁剪').slice(0, 80);",
+      '        if (prepared.imageInfo) cropped.imageInfo = prepared.imageInfo;',
+      '        fitImageCard(cropped);',
+      '        invalidateCanvasDependents(current, cropped.id);',
+      "        selected.clear(); selected.add(cropped.id); selectionAction = '';",
+      '        markDirty();',
+      '        return;',
+      '      }',
       '      remember();',
       '      item.assetPath = prepared.assetPath;',
       '      if (prepared.imageInfo) item.imageInfo = prepared.imageInfo; else delete item.imageInfo;',

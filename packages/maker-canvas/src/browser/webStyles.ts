@@ -660,7 +660,8 @@ ${M} #selection-toolbar .web-prompt-mirror { position: absolute; top: 0; right: 
 ${M} #selection-toolbar .web-prompt-mirror[hidden] { display: none; }
 ${M} #selection-toolbar .generation-prompt.web-prompt-mirrored { position: relative; color: transparent; caret-color: var(--web-composer-ink); }
 ${M} #selection-toolbar .generation-prompt.web-prompt-mirrored::selection { color: transparent; background: var(--web-accent-ring); }
-${M} .web-prompt-chip { border-radius: 4px; background: var(--web-accent-ring); box-shadow: 0 0 0 2px var(--web-accent-ring); color: var(--web-accent); }
+/* Solid accent pill; the spread draws its side padding over the spaces around the token. */
+${M} .web-prompt-chip { border-radius: 4px; background: var(--web-accent); box-shadow: 0 0 0 3px var(--web-accent); color: var(--canvas-accent-foreground, #fff); }
 ${M} .web-prompt-chip-image { border-radius: 3px; background-position: center; background-size: cover; background-repeat: no-repeat; color: transparent; }
 /* In-place crop (page applyWebEditPatches): box on the card image, bar under it. */
 ${M} .web-crop-layer { position: absolute; z-index: 30; overflow: hidden; touch-action: none; }

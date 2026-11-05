@@ -343,7 +343,9 @@ export function installCanvasWebMentions() {
     const item = items[index];
     if (!item) return;
     const end = field.selectionStart ?? field.value.length;
-    const text = '@' + item.token + ' ';
+    // A space on each side gives the chip room for its padding.
+    const lead = start > 0 && !/\s/.test(field.value[start - 1]) ? ' ' : '';
+    const text = lead + '@' + item.token + ' ';
     field.value = field.value.slice(0, start) + text + field.value.slice(end);
     const caret = start + text.length;
     field.setSelectionRange(caret, caret);
@@ -428,6 +430,33 @@ export function installCanvasWebMentions() {
       const typed = (event as InputEvent).data;
       if (open && open.field === field) update(field);
       else if (typed && typed.slice(-1) === '@') update(field);
+    },
+    true
+  );
+  // Backspace / Delete next to (or inside) an @图N token removes the whole token.
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      const field = event.target as HTMLTextAreaElement | null;
+      if (open || event.isComposing || (event.key !== 'Backspace' && event.key !== 'Delete'))
+        return;
+      if (!field || !field.matches || !field.matches(mainFields)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const caret = field.selectionStart ?? 0;
+      if (caret !== field.selectionEnd) return;
+      const pattern = /@图\d+/g;
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(field.value))) {
+        const from = match.index;
+        const to = from + match[0].length;
+        const hit =
+          event.key === 'Backspace' ? caret > from && caret <= to : caret >= from && caret < to;
+        if (!hit) continue;
+        event.preventDefault();
+        field.setRangeText('', from, to, 'start');
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
     },
     true
   );

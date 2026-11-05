@@ -2682,7 +2682,7 @@ try {
     }
   );
   await check(
-    'Web 图片编辑：就地裁剪（比例/完成/取消）、旋转 90°、水平/垂直翻转原位替换图片，一步撤销',
+    'Web 图片编辑：就地裁剪生成连线新卡（比例/完成/取消），旋转 90°、水平/垂直翻转原位替换，一步撤销',
     async () => {
       const { page, errors, settle, current, nodeOf, card, importImage, blank, editor } =
         await webPage({ features: { ...webFeatures, imageTools: true } });
@@ -2784,16 +2784,20 @@ try {
         { steps: 4 }
       );
       await page.mouse.up();
+      const flipped = (await nodeOf(image.id)).assetPath;
       await page.locator('.web-crop-bar').getByRole('button', { name: '完成' }).click();
-      await page.waitForFunction(
-        (id) =>
-          window.__canvasEditor.current().nodes.find((node) => node.id === id).imageInfo?.width ===
-          20,
-        image.id
-      );
+      // The crop is a new card to the right, linked to the source; the source keeps its image.
+      await page.waitForFunction(() => window.__canvasEditor.current().nodes.length === 2);
       await settle();
       assert.equal(await page.locator('.web-crop-bar').count(), 0);
-      assert.equal((await nodeOf(image.id)).imageInfo.height, 40);
+      const doc = await current();
+      const cropped = doc.nodes.find((node) => node.id !== image.id);
+      const source = doc.nodes.find((node) => node.id === image.id);
+      assert.equal(source.assetPath, flipped);
+      assert.deepEqual([cropped.imageInfo.width, cropped.imageInfo.height], [20, 40]);
+      assert.equal(cropped.title, '编辑 · 裁剪');
+      assert.ok(cropped.x > source.x + source.width);
+      assert.ok(doc.edges.some((edge) => edge.from === image.id && edge.to === cropped.id));
       // One undo per edit: four edits back to the original file.
       await blank();
       for (let step = 0; step < 4; step++) await page.keyboard.press('ControlOrMeta+z');
@@ -2900,7 +2904,7 @@ try {
       await page.keyboard.press('Enter');
       assert.equal(await mentions.count(), 0);
       await page.keyboard.type('放大');
-      assert.equal(await prompt.inputValue(), '把@图1 放大');
+      assert.equal(await prompt.inputValue(), '把 @图1 放大');
       // The token shows as a chip with the image's thumbnail; the textarea keeps the plain text.
       const chip = page.locator('#selection-toolbar .web-prompt-mirror .web-prompt-chip');
       assert.equal(await chip.count(), 1);
@@ -2913,6 +2917,12 @@ try {
         await prompt.evaluate((item) => getComputedStyle(item).color),
         'rgba(0, 0, 0, 0)'
       );
+      // Backspace right after the token removes all of it.
+      for (let step = 0; step < 3; step++) await page.keyboard.press('ArrowLeft');
+      await page.keyboard.press('Backspace');
+      assert.equal(await prompt.inputValue(), '把  放大');
+      assert.equal(await chip.count(), 0);
+      await page.keyboard.press('End');
       await page.keyboard.type('@x');
       assert.equal(await mentions.count(), 0, '无匹配时不显示');
       assert.deepEqual(errors, []);
