@@ -394,14 +394,16 @@ parameters.mode, prompt, error, remoteStatus, executionState, credits, createdAt
 未设置或 `'default'` 保持原外观。
 
 ## 图生精灵（features.spriteGen）
+
 流程由对话里的 Agent 跑 sprite-gen；画布只读 sprite-gen 自己的文件，把产物镜像成分组内的只读卡片。
+
 - 宿主契约：`host.startSpriteGen?({ canvasId, nodeId, spriteName, spriteType: 'character' | 'generic',
-  sourcePath })` 由页面在建组并保存后调用（新开对话并预填提示词）；`store.readProjectJson?(path)` 返回
+sourcePath })` 由页面在建组并保存后调用（新开对话并预填提示词）；`store.readProjectJson?(path)` 返回
   解析后的 JSON，不存在时以 `status: 404` 的 Error 拒绝；镜像媒体经 `store.prepareMedia?(path, refresh?)`
-  + `store.mediaUrl(path)`，读不到的文件不出卡。`editor.syncSprites()` 供宿主在 Agent 工具调用后触发同步。
+  - `store.mediaUrl(path)`，读不到的文件不出卡。`editor.syncSprites()` 供宿主在 Agent 工具调用后触发同步。
 - 「生成精灵」（图片选中菜单，lucide `sparkles`，在「视频生成」之后）：精灵名 `/^[\p{L}\p{N}_-]{1,40}$/u`
   与素材类型；建分组「精灵：<名>」包含原图，`section.spriteGen = { name, type, sourceId, startedAt,
-  dismissed }`。同名分组复用（沿用其来源与类型）并再次调用钩子；钩子失败显示为页面错误，分组保留。
+dismissed }`。同名分组复用（沿用其来源与类型）并再次调用钩子；钩子失败显示为页面错误，分组保留。
 - 同步（`features/spriteMirror.ts` 纯函数 reconcile/apply）：读 `.build/sprite-gen/<名>/_progress.json`
   （schema v3）、`assets/sprites/<名>/sprite.json` 与各动作 `spritesheet.json`；镜像键 `cutout_ref`、`cutout`、
   `ready`、`viewpoint:<path>`、`pose:<姿态>:<path>`、`pose-selected:<姿态>`、`video:<id>`、`sequence:<id>`、
@@ -415,6 +417,7 @@ parameters.mode, prompt, error, remoteStatus, executionState, credits, createdAt
 - 精灵表帧带裁边：`FrameSetFrame` 新增可选 `sourceWidth/sourceHeight/offsetX/offsetY/duration`，
   `FrameSetInfo.pages`；动画卡与序列帧格按偏移画在原尺寸框内，有逐帧时长时按时长播放。多页精灵表只列出、
   预览第 1 页并标注「共 N 页，仅预览第 1 页」。带偏移或多页的帧集拒绝从画布重新导出。
+
 ## 自动化命令补充
 
 - `inspect` 及所有返回快照的命令带 `selectedIds`。
