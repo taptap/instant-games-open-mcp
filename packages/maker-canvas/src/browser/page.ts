@@ -1401,24 +1401,41 @@ function applyCardMenuPatches(source: string): string {
     ].join('\n')
   );
   // ⌘/Ctrl+C remembers the selected cards, ⌘/Ctrl+V and ⌘/Ctrl+D duplicate them (sprite cards go
-  // through 复制为普通卡片). In-canvas only: nothing is written to the system clipboard.
+  // through 复制为普通卡片). The card ids stay in the page; the system clipboard only gets a marker
+  // so the paste handler (applyMediaDropPatches) can tell "cards copied last" from "file copied
+  // last". ⌘V is not prevented, so the browser still fires `paste`; the timer covers browsers that
+  // fire no `paste` on a non-editable page.
   patch(
     "if (meta && event.key.toLowerCase() === 'z')",
     [
       "if (canvasWeb && meta && !event.altKey && !event.shiftKey && ['c', 'v', 'd'].indexOf(event.key.toLowerCase()) >= 0) {",
       '      const shortcut = event.key.toLowerCase();',
       "      const cards = documentState ? documentState.nodes.filter(function (node) { return selected.has(node.id) && node.type !== 'section'; }).map(function (node) { return node.id; }) : [];",
-      "      if (shortcut === 'c') { if (cards.length && !(window.getSelection && String(window.getSelection()))) { canvasClipboard = { canvasId: documentState.id, ids: cards }; event.preventDefault(); } return; }",
-      "      const source = shortcut === 'v' ? (canvasClipboard && documentState && canvasClipboard.canvasId === documentState.id ? canvasClipboard.ids.filter(function (id) { return documentState.nodes.some(function (node) { return node.id === id; }); }) : []) : cards;",
-      '      if (!source.length) return;',
-      '      event.preventDefault(); selected.clear(); source.forEach(function (id) { selected.add(id); }); duplicateSelected(); return;',
+      "      if (shortcut === 'c') { if (cards.length && !(window.getSelection && String(window.getSelection()))) { canvasClipboard = { canvasId: documentState.id, ids: cards }; canvasCopyMarker = true; setTimeout(function () { canvasCopyMarker = false; }, 0); } return; }",
+      "      if (shortcut === 'v') { clearTimeout(canvasCardPaste); canvasCardPaste = canvasClipboardCards().length ? setTimeout(function () { canvasCardPaste = 0; pasteCanvasCards(); }, 150) : 0; return; }",
+      '      if (!cards.length) return;',
+      '      event.preventDefault(); selected.clear(); cards.forEach(function (id) { selected.add(id); }); duplicateSelected(); return;',
       '    }',
       "    if (meta && event.key.toLowerCase() === 'z')",
     ].join('\n')
   );
   patch(
     '  async function copyMirrorsAsPlain(nodes) {',
-    '  var canvasClipboard = null;\n  async function copyMirrorsAsPlain(nodes) {'
+    [
+      '  var canvasClipboard = null;',
+      '  var canvasCopyMarker = false;',
+      '  var canvasCardPaste = 0;',
+      '  function canvasClipboardCards() {',
+      '    if (!canvasClipboard || !documentState || canvasClipboard.canvasId !== documentState.id) return [];',
+      '    return canvasClipboard.ids.filter(function (id) { return documentState.nodes.some(function (node) { return node.id === id; }); });',
+      '  }',
+      '  function pasteCanvasCards() {',
+      '    const source = canvasClipboardCards();',
+      '    if (!source.length) return;',
+      '    selected.clear(); source.forEach(function (id) { selected.add(id); }); duplicateSelected();',
+      '  }',
+      '  async function copyMirrorsAsPlain(nodes) {',
+    ].join('\n')
   );
   // The copy lands outside the (possibly wide) sprite group: pan so it is in view.
   patch(
@@ -1452,6 +1469,172 @@ function applyCardMenuPatches(source: string): string {
       '      delete copy.sourceSnapshot; delete copy.sourceSnapshots;',
       "      if (copy.assetPath && copy.videoInputMode === 'first_last_frame') delete copy.videoInputMode;",
     ].join('\n')
+  );
+  return page;
+}
+/**
+ * Web media drop and paste:
+ * - desktop files (drop or ⌘/Ctrl+V) become image/video cards, one per file in a row, each showing
+ *   上传中 until its upload is written; a failed upload removes its placeholder;
+ * - a project asset dragged from the host (`application/x-asset`, e.g. the asset panel or a chat
+ *   image) is referenced in place, without uploading;
+ * - dropping onto an empty image/video slot fills that slot instead of adding a card.
+ * The whole drop is one undo step.
+ */
+function applyMediaDropPatches(source: string): string {
+  let page = source;
+  const patch = (search: string, replacement: string) => {
+    page = replaceCanvasPageText(page, search, replacement);
+  };
+  // Dropped uploads share the drop's single undo step.
+  patch(
+    '      remember();\n      if (recognitionCard) {',
+    '      if (!request.skipRemember) remember();\n      if (recognitionCard) {'
+  );
+  patch(
+    "      remember();\n      if (target && target.type === 'image') convertSlotNode(target, 'video-source');",
+    "      if (!(request && request.skipRemember)) remember();\n      if (target && target.type === 'image') convertSlotNode(target, 'video-source');"
+  );
+  patch(
+    'canvasCardStatus({ busy: nodeBusy || sequenceUi.isNodeBusy(node.id)',
+    'canvasCardStatus({ busy: nodeBusy || sequenceUi.isNodeBusy(node.id) || canvasUploadingCards.has(node.id)'
+  );
+  patch(
+    'renderCanvasCardStatus(card, overlayState, { stopWaiting:',
+    "renderCanvasCardStatus(card, overlayState, { title: canvasUploadingCards.has(node.id) ? '上传中' : undefined, hint: canvasUploadingCards.has(node.id) ? '上传完成后自动显示' : undefined, stopWaiting:"
+  );
+  patch(
+    '  const editorHandle = {\n',
+    [
+      '  var canvasUploadingCards = new Set();',
+      '  var canvasPointer = null;',
+      "  const CANVAS_DROP_TYPES = ['Files', 'application/x-asset'];",
+      '  function canvasDropKind(file) {',
+      "    const type = file.type || '';",
+      "    if (['image/png', 'image/jpeg', 'image/webp'].indexOf(type) >= 0 || (!type && /\\.(png|jpe?g|webp)$/i.test(file.name))) return 'image';",
+      "    if (canvasFeatureEnabled(host, 'video') && (['video/mp4', 'video/quicktime', 'video/webm'].indexOf(type) >= 0 || (!type && /\\.(mp4|mov|webm)$/i.test(file.name)))) return 'video';",
+      "    return '';",
+      '  }',
+      '  function canvasDropBlocked() {',
+      "    if (!documentState || canvasOpening) return '画布正在加载，请稍后再试。';",
+      '    if (peerReason) return peerReason;',
+      "    if (canvasAutomationBusy) return 'AI 正在操作画布，请稍后再试。';",
+      "    return '';",
+      '  }',
+      // Only an empty, idle, editable slot takes a drop; anything else gets a new card.
+      '  function canvasDropSlot(target) {',
+      "    const card = target && target.closest ? target.closest('.card[data-id]') : null;",
+      '    const node = card && documentState && documentState.nodes.find(function (item) { return item.id === card.dataset.id; });',
+      "    if (!node || (node.type !== 'image' && node.type !== 'video') || node.assetPath || node.mirror || canvasUploadingCards.has(node.id)) return null;",
+      '    if (generationUi && (generationUi.isNodeBusy(node.id) || generationUi.hasUnsettledResult(node.id))) return null;',
+      '    if (templateWorkflow && (templateWorkflow.locked(node.id) || templateWorkflow.isNodeLoading(node.id))) return null;',
+      '    return node;',
+      '  }',
+      '  function canvasMarkDropSlot(node) {',
+      "    world.querySelectorAll('.card.web-drop-target').forEach(function (card) { if (!node || card.dataset.id !== node.id) card.classList.remove('web-drop-target'); });",
+      "    const card = node && world.querySelector('.card[data-id=\"' + node.id + '\"]');",
+      "    if (card) card.classList.add('web-drop-target');",
+      '  }',
+      '  function canvasDropPoint(point, width, height) { return { x: Math.round(point.x - width / 2), y: Math.round(point.y - height / 2) }; }',
+      '  function canvasDropIgnored(event) {',
+      "    return !canvasWeb || !event.dataTransfer || !Array.from(event.dataTransfer.types || []).some(function (type) { return CANVAS_DROP_TYPES.indexOf(type) >= 0; }) || Boolean(event.target && event.target.closest && event.target.closest('dialog, .group-queue'));",
+      '  }',
+      '  async function importCanvasFiles(list, point, slot) {',
+      '    const blocked = canvasDropBlocked(); if (blocked) { setError(blocked); return; }',
+      '    const files = Array.from(list || []);',
+      '    const accepted = files.filter(function (file) { return canvasDropKind(file); }).slice(0, 20);',
+      "    if (!accepted.length) { setError(canvasFeatureEnabled(host, 'video') ? '只能添加 PNG、JPEG、WebP 图片或 MP4、MOV、WebM 视频。' : '只能添加 PNG、JPEG 或 WebP 图片。'); return; }",
+      "    if (documentState.nodes.length + accepted.length > 400) { setError('卡片已达到容量限制。'); return; }",
+      '    const current = documentState;',
+      '    remember();',
+      "    let at = point || nextPlacement('image');",
+      '    const items = accepted.map(function (file, index) {',
+      '      const kind = canvasDropKind(file);',
+      '      let target = index === 0 && slot && current.nodes.indexOf(slot) >= 0 ? slot : null;',
+      '      const created = !target;',
+      "      if (!target) { add('image', at, false); target = current.nodes[current.nodes.length - 1]; at = { x: target.x + target.width + 32, y: target.y }; }",
+      '      canvasUploadingCards.add(target.id);',
+      "      return { file: file, kind: kind, id: target.id, created: created, route: { canvasId: current.id, nodeId: target.id, convert: target.type !== (kind === 'video' ? 'video' : 'image'), skipRemember: true } };",
+      '    });',
+      '    render();',
+      '    const done = [];',
+      '    let failed = 0;',
+      '    for (const item of items) {',
+      "      try { if (item.kind === 'video') await importVideoFile(item.file, item.route); else await importImageFile(item.file, item.route); }",
+      '      finally { canvasUploadingCards.delete(item.id); }',
+      '      const node = current.nodes.find(function (entry) { return entry.id === item.id; });',
+      '      if (node && node.assetPath) { done.push(node.id); continue; }',
+      '      failed++;',
+      '      if (node && item.created && documentState === current) {',
+      '        current.nodes = current.nodes.filter(function (entry) { return entry !== node; });',
+      '        current.edges = current.edges.filter(function (edge) { return edge.from !== node.id && edge.to !== node.id; });',
+      '        selected.delete(node.id); markDirty();',
+      '      }',
+      '      render();',
+      '    }',
+      '    if (documentState === current && done.length) { selected.clear(); done.forEach(function (id) { selected.add(id); }); render(); }',
+      "    if (!failed && files.length > accepted.length) setError('已添加 ' + done.length + ' 个文件；不支持的文件已跳过。', 'info');",
+      '  }',
+      '  async function importCanvasAsset(raw, point, slot) {',
+      '    let asset = null;',
+      '    try { asset = JSON.parse(raw); } catch (caught) { return; }',
+      "    const path = asset && typeof asset.path === 'string' ? asset.path.replace(/^\\/workspace\\//, '') : '';",
+      "    const kind = asset && asset.type === 'video' ? 'video' : asset && asset.type === 'image' ? 'image' : '';",
+      "    if (!path || !kind || (kind === 'video' && !canvasFeatureEnabled(host, 'video'))) { setError(canvasFeatureEnabled(host, 'video') ? '只能添加图片或视频素材。' : '只能添加图片素材。'); return; }",
+      '    const blocked = canvasDropBlocked(); if (blocked) { setError(blocked); return; }',
+      "    const named = String((asset && asset.name) || path.split('/').pop() || '').replace(/\\.[^.]+$/, '');",
+      "    const title = (named || (kind === 'video' ? '视频' : '图片')).slice(0, 80);",
+      '    pendingAssetImports++; publishDirty();',
+      '    try {',
+      "      if (slot && kind === 'image' && slot.type === 'image') await fillImageSlot(slot.id, path);",
+      '      else await importProjectAsset({ assetPath: path, kind: kind, title: title }, canvasDropPoint(point, 240, 240));',
+      "      setError('');",
+      "    } catch (caught) { setError((caught && caught.message) || '素材添加失败'); }",
+      '    finally { finishAssetImport(); render(); }',
+      '  }',
+      "  board.addEventListener('pointermove', function (event) { canvasPointer = { clientX: event.clientX, clientY: event.clientY }; });",
+      "  board.addEventListener('pointerleave', function () { canvasPointer = null; });",
+      "  board.addEventListener('dragover', function (event) {",
+      '    if (canvasDropIgnored(event)) return;',
+      "    event.preventDefault(); event.dataTransfer.dropEffect = 'copy';",
+      '    canvasMarkDropSlot(canvasDropSlot(event.target));',
+      '  });',
+      "  board.addEventListener('dragleave', function (event) { if (!event.relatedTarget || !board.contains(event.relatedTarget)) canvasMarkDropSlot(null); });",
+      "  board.addEventListener('drop', function (event) {",
+      '    if (canvasDropIgnored(event)) return;',
+      '    event.preventDefault(); canvasMarkDropSlot(null);',
+      '    if (!documentState) return;',
+      '    const slot = canvasDropSlot(event.target);',
+      '    const point = worldPoint(event);',
+      '    const files = event.dataTransfer.files;',
+      '    if (files && files.length) { void importCanvasFiles(files, canvasDropPoint(point, 220, 150), slot); return; }',
+      "    const raw = event.dataTransfer.getData('application/x-asset');",
+      '    if (raw) void importCanvasAsset(raw, point, slot);',
+      '  });',
+      "  document.addEventListener('copy', function (event) {",
+      '    if (!canvasCopyMarker || !event.clipboardData) return;',
+      '    canvasCopyMarker = false;',
+      "    event.clipboardData.setData('application/x-maker-canvas-cards', '1');",
+      '    event.preventDefault();',
+      '  });',
+      "  document.addEventListener('paste', function (event) {",
+      '    if (!canvasWeb || !documentState) return;',
+      '    const target = event.target;',
+      "    if (target && (target.isContentEditable || (target.closest && target.closest('textarea, input, select, [role=textbox]')))) return;",
+      '    clearTimeout(canvasCardPaste); canvasCardPaste = 0;',
+      "    if (document.querySelector('dialog[open]')) return;",
+      '    const data = event.clipboardData;',
+      "    if (data && Array.from(data.types || []).indexOf('application/x-maker-canvas-cards') >= 0) { event.preventDefault(); pasteCanvasCards(); return; }",
+      '    if (!data || !data.files || !data.files.length) return;',
+      '    event.preventDefault();',
+      '    void importCanvasFiles(data.files, canvasPointer ? canvasDropPoint(worldPoint(canvasPointer), 220, 150) : null, null);',
+      '  });',
+      '  const editorHandle = {\n',
+    ].join('\n')
+  );
+  patch(
+    '</style>',
+    '.canvas-appearance-web .card.web-drop-target { outline: 2px dashed var(--web-accent, #3b82f6); outline-offset: 3px; }\n</style>'
   );
   return page;
 }
@@ -4122,6 +4305,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = applySpriteGenPatches(page);
   page = applyMissingMediaPatches(page);
   page = applyCardMenuPatches(page);
+  page = applyMediaDropPatches(page);
   // Copy guards must wrap the final function, including the async mirror-copy branch.
   page = replaceCanvasPageText(
     page,

@@ -177,6 +177,9 @@ function testHostScript() {
         return copy(next);
       },
       async importImage(canvasId, bytes, type) {
+        // Tests hold uploads open (to see 上传中) or fail them.
+        if (window.__canvasImportGate) await window.__canvasImportGate;
+        if (window.__canvasImportFail) throw new Error('上传失败（测试）');
         const target = 'assets/image/canvas/' + crypto.randomUUID() + '.png';
         media.set(target, URL.createObjectURL(new Blob([bytes], { type })));
         return { relativePath: target };
@@ -2447,6 +2450,172 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   });
+  await check(
+    'Web 拖入/粘贴本地文件：每个文件一张卡并显示上传中，失败移除占位，空槽原位填充',
+    async () => {
+      const { page, errors, editor, settle, current, card, blank } = await webPage();
+      // Dispatches dragover + drop (files or an x-asset payload) at a board point.
+      const drop = (x, y, payload) =>
+        page.evaluate(
+          async ({ x, y, payload }) => {
+            const data = new DataTransfer();
+            for (const file of payload.files || []) {
+              const canvas = document.createElement('canvas');
+              canvas.width = 30;
+              canvas.height = 20;
+              canvas.getContext('2d').fillRect(0, 0, 30, 20);
+              const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+              data.items.add(
+                new File([blob], file, { type: file.endsWith('.txt') ? 'text/plain' : 'image/png' })
+              );
+            }
+            if (payload.asset) data.setData('application/x-asset', JSON.stringify(payload.asset));
+            const target = document.elementFromPoint(x, y);
+            const init = {
+              dataTransfer: data,
+              clientX: x,
+              clientY: y,
+              bubbles: true,
+              cancelable: true,
+            };
+            const over = new DragEvent('dragover', init);
+            target.dispatchEvent(over);
+            target.dispatchEvent(new DragEvent('drop', init));
+            return over.defaultPrevented;
+          },
+          { x, y, payload }
+        );
+      await settle();
+      const before = (await current()).nodes.length;
+      await page.evaluate(() => {
+        window.__canvasImportGate = new Promise(
+          (resolve) => (window.__canvasReleaseImport = resolve)
+        );
+      });
+      assert.equal(await drop(500, 400, { files: ['甲.png', '乙.png', '说明.txt'] }), true);
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 2,
+        before
+      );
+      const placeholders = (await current()).nodes.slice(-2);
+      for (const node of placeholders)
+        assert.match(await card(node.id).locator('.card-state-overlay').innerText(), /上传中/);
+      assert.equal(placeholders[1].y, placeholders[0].y, '多文件排成一行');
+      assert.ok(placeholders[1].x >= placeholders[0].x + placeholders[0].width + 32);
+      await page.evaluate(() => {
+        window.__canvasImportGate = undefined;
+        window.__canvasReleaseImport();
+      });
+      await page.waitForFunction(
+        (ids) =>
+          ids.every(
+            (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id)?.assetPath
+          ),
+        placeholders.map((node) => node.id)
+      );
+      await settle();
+      const filled = (await current()).nodes.slice(-2);
+      assert.deepEqual(
+        filled.map((node) => node.title),
+        ['甲', '乙']
+      );
+      for (const node of filled)
+        assert.equal(await card(node.id).locator('.card-state-overlay').count(), 0);
+      // One undo removes the whole drop.
+      await blank();
+      await page.keyboard.press('ControlOrMeta+z');
+      await settle();
+      assert.equal((await current()).nodes.length, before);
+      // A failed upload drops its placeholder.
+      await page.evaluate(() => (window.__canvasImportFail = true));
+      await drop(500, 400, { files: ['坏.png'] });
+      await page.waitForFunction(() => /上传失败/.test(document.body.innerText));
+      await settle();
+      assert.equal((await current()).nodes.length, before);
+      await page.evaluate(() => (window.__canvasImportFail = false));
+      // Dropping onto an empty slot fills it in place.
+      const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await settle();
+      await editor('update-nodes', { nodes: [{ id: slotId, x: 300, y: 300 }] });
+      await settle();
+      const box = await card(slotId).boundingBox();
+      await drop(box.x + box.width / 2, box.y + box.height / 2, { files: ['丙.png'] });
+      await page.waitForFunction(
+        (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id)?.assetPath,
+        slotId
+      );
+      await settle();
+      assert.equal((await current()).nodes.length, before + 1);
+      // A project asset (asset panel / chat image) is referenced without uploading.
+      const assetPath = await page.evaluate(() => window.__canvasAddMedia('#36c', 40, 40));
+      await drop(800, 300, {
+        asset: { type: 'image', name: '素材.png', path: '/workspace/' + assetPath },
+      });
+      await page.waitForFunction(
+        (assetPath) =>
+          window.__canvasEditor.current().nodes.some((node) => node.assetPath === assetPath),
+        assetPath
+      );
+      await settle();
+      assert.equal(
+        (await current()).nodes.find((node) => node.assetPath === assetPath).title,
+        '素材'
+      );
+      // Paste: system files become cards; after an in-canvas ⌘C the marker pastes the cards instead.
+      const paste = (files, marker) =>
+        page.evaluate(
+          async ({ files, marker }) => {
+            const data = new DataTransfer();
+            for (const name of files)
+              data.items.add(
+                new File(
+                  [
+                    await (
+                      await fetch(
+                        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+                      )
+                    ).blob(),
+                  ],
+                  name,
+                  { type: 'image/png' }
+                )
+              );
+            if (marker) data.setData('application/x-maker-canvas-cards', '1');
+            document.body.dispatchEvent(
+              new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })
+            );
+          },
+          { files, marker }
+        );
+      const pasted = (await current()).nodes.length;
+      const withMedia = (await current()).nodes.filter((node) => node.assetPath).length;
+      await paste(['贴.png'], false);
+      await page.waitForFunction(
+        (count) =>
+          window.__canvasEditor.current().nodes.filter((node) => node.assetPath).length === count,
+        withMedia + 1
+      );
+      await settle();
+      assert.equal((await current()).nodes.length, pasted + 1);
+      await card(slotId).click({ position: { x: 60, y: 80 } });
+      await page.keyboard.press('ControlOrMeta+c');
+      await paste([], true);
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count,
+        pasted + 2
+      );
+      await settle();
+      // ⌘V with no paste event (some browsers on a non-editable page) still pastes the cards.
+      await page.keyboard.press('ControlOrMeta+v');
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count,
+        pasted + 3
+      );
+      await settle();
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
   await check('Web 外观：AI 结果面板显示生成它的来源图，原位再生成只发送来源', async () => {
     const kneel = 'assets/image/canvas/seed-kneel.png';
     const lying = 'assets/image/canvas/seed-lying.png';
