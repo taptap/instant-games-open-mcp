@@ -3924,7 +3924,7 @@ function pushRecoveryUserMessage(failure?: MakerGitFailure): string {
     case 'remote_transient':
       return '本地提交已经保留，但还没推送到 Maker 远端；远端临时异常恢复后，直接重试 Maker 提交/构建工具即可。';
     case 'cloud_workspace_blocked':
-      return '本地提交已经保留，但 Maker 云端工作区有未提交改动，推送被拒绝且自动修复未完成；按 failure.next_action 处理后，再重试 Maker 提交/构建工具。';
+      return '本地提交已经保留，但 Maker 云端工作区有未提交改动，推送被拒绝且自动修复未完成；请把 failure 中的远端报错原文告诉用户，按 failure.next_action 处理（若疑似 Git 锁，多半是塔拉拉在云端同时开发，建议让塔拉拉先处理），再重试 Maker 提交/构建工具。';
     case 'merge_conflict':
       return '本地提交已经保留；合并 Maker 远端 main 时有冲突，已自动取消合并。请按 failure.conflict_files 处理冲突后，再重试 Maker 提交/构建工具。';
     default:
