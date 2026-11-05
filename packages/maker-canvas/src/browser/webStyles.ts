@@ -160,8 +160,8 @@ ${M} .workspace-actions > #save[data-save-state="failed"]::after { background: #
 ${M} #board.pan-tool, ${M} #board.pan-tool * { cursor: grab !important; }
 ${M} #board.grabbing, ${M} #board.grabbing * { cursor: grabbing !important; }
 /* Dot grid from the text colour at low alpha, so it stays visible on any host background. */
-${M} #board { background-image: radial-gradient(rgba(255,255,255,.2) 1.2px, transparent 1.4px); }
-${L} #board { background-image: radial-gradient(rgba(0,0,0,.2) 1.2px, transparent 1.4px); }
+${M} #board { background-image: radial-gradient(rgba(255,255,255,.12) 1px, transparent 1.2px); }
+${L} #board { background-image: radial-gradient(rgba(0,0,0,.13) 1px, transparent 1.2px); }
 ${M} .workspace-menu-panel { padding: 6px; border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); box-shadow: var(--web-shadow); }
 ${M} .workspace-menu-panel button { border: 0; border-radius: 8px; background: transparent; color: var(--web-text); padding: 8px 10px; }
 ${M} .workspace-menu-panel button:hover:not(:disabled) { background: var(--web-wash); }
