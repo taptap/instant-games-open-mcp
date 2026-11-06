@@ -29,6 +29,8 @@ function appCache(screenOrientation: number): AppCacheInfo {
     app_id: 925728,
     app_title: 'H5 orientation test',
     level: {
+      app_id: 925728,
+      app_title: 'H5 orientation test',
       status: 1,
       data: {
         title: 'H5 orientation test',
@@ -36,6 +38,8 @@ function appCache(screenOrientation: number): AppCacheInfo {
       },
     },
     upload_level: {
+      app_id: 925728,
+      app_title: 'H5 orientation test',
       status: 1,
       form_data: {
         info: {
@@ -47,7 +51,7 @@ function appCache(screenOrientation: number): AppCacheInfo {
   };
 }
 
-describe('H5 first upload screen orientation', () => {
+describe('H5 upload', () => {
   const tempDirs: string[] = [];
   const originalFetch = global.fetch;
 
@@ -122,25 +126,60 @@ describe('H5 first upload screen orientation', () => {
     expect(result).toContain('无法确认服务端当前横竖屏设置');
     expect(result).toContain('上传已暂停');
     expect(result).toContain('authorization expired');
-    expect(result).toContain('请稍后重试');
+    expect(result).toContain('npm i -g @taptap/cli');
+    expect(result).not.toContain('请稍后重试');
     expect(result).not.toContain('请先选择游戏横竖屏');
     expect(fetchAppDetail).toHaveBeenCalledWith(925728, context, true);
     expect(getH5PackageUploadParams).not.toHaveBeenCalled();
     expect(editAppInfo).not.toHaveBeenCalled();
   });
 
-  test('guides reauthorization instead of retrying upload when authentication expired', async () => {
+  test('guides CLI authorization when MCP authentication expired', async () => {
     const { context } = createProject(1);
     jest.mocked(fetchAppDetail).mockRejectedValue(createAuthError('TOKEN_EXPIRED'));
 
     const result = await handleUploadGame({ gamePath: '.', genre: 'casual' }, context);
 
-    expect(result).toContain('授权已失效');
-    expect(result).toContain('clear_auth_data');
-    expect(result).toContain('完成授权后重新调用 `upload_h5_game`');
+    expect(result).toContain('TOKEN_EXPIRED');
+    expect(result).toContain('按官方 Skills 指引完成登录授权');
+    expect(result).toContain('npm i -g @taptap/cli');
+    expect(result).not.toContain('clear_auth_data');
+    expect(result).not.toContain('重新调用 `upload_h5_game`');
     expect(getH5PackageUploadParams).not.toHaveBeenCalled();
     expect(editAppInfo).not.toHaveBeenCalled();
   });
+
+  test.each(['upload-params', 'upload', 'submit'] as const)(
+    'guides CLI migration after %s fails without continuing the old workflow',
+    async (stage) => {
+      const { context } = createProject(1);
+      const failure = new Error('该游戏不是关卡类型');
+      if (stage === 'upload-params') {
+        jest.mocked(getH5PackageUploadParams).mockRejectedValueOnce(failure);
+      } else if (stage === 'upload') {
+        jest.mocked(global.fetch).mockResolvedValueOnce({ ok: false, status: 503 } as Response);
+      } else {
+        jest.mocked(editAppInfo).mockRejectedValueOnce(failure);
+      }
+      const uploadTool = h5GameTools.find((tool) => tool.definition.name === 'upload_h5_game')!;
+
+      const result = await uploadTool
+        .handler({ gamePath: '.', screenOrientation: 1 }, context)
+        .catch((error: Error) => error);
+      const message = result instanceof Error ? result.message : result;
+
+      expect(message).toContain(stage === 'upload' ? '上传失败：503' : failure.message);
+      expect(message).toContain('停止重试当前 MCP 上传/发布流程');
+      expect(message).toContain('npm i -g @taptap/cli');
+      expect(message).toContain('npx skills add taptap/cli -a universal');
+      expect(message).toContain('先核对远端包体和版本状态');
+      expect(message).not.toContain('请重试');
+      expect(refreshAppCache).not.toHaveBeenCalled();
+      if (stage === 'upload-params') expect(global.fetch).not.toHaveBeenCalled();
+      if (stage !== 'submit') expect(editAppInfo).not.toHaveBeenCalled();
+      if (stage === 'submit') expect(result).toHaveProperty('cause', failure);
+    }
+  );
 
   test('submits the selected orientation with the first package and verifies it', async () => {
     const { context } = createProject(0);
@@ -168,6 +207,7 @@ describe('H5 first upload screen orientation', () => {
       context
     );
     expect(result).toContain('发布成功');
+    expect(result).not.toContain('npm i -g @taptap/cli');
   });
 
   test('uses the latest server orientation instead of a stale valid cached value', async () => {
@@ -217,6 +257,7 @@ describe('H5 first upload screen orientation', () => {
     expect(result).toContain('不要重新上传');
     expect(result).toContain('尚未确认');
     expect(result).not.toContain('发布成功');
+    expect(result).not.toContain('npm i -g @taptap/cli');
   });
 
   test('warns not to re-upload when refreshing app info fails after submission', async () => {
@@ -232,5 +273,6 @@ describe('H5 first upload screen orientation', () => {
     expect(result).toContain('不要重新上传');
     expect(result).toContain('temporary query failure');
     expect(result).not.toContain('发布成功');
+    expect(result).not.toContain('npm i -g @taptap/cli');
   });
 });
