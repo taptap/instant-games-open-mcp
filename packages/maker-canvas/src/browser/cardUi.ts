@@ -119,7 +119,8 @@ export function refreshCanvasGroupHeaders(
       card,
     ])
   );
-  for (const group of nodes.filter((node) => node.type === 'section')) {
+  // Sprite groups show sprite-gen's stage instead; the page writes their badge.
+  for (const group of nodes.filter((node) => node.type === 'section' && !node.spriteGen)) {
     const badge = cards.get(group.id)?.querySelector<HTMLElement>('.canvas-group-state');
     if (!badge) continue;
     const members = nodes.filter(

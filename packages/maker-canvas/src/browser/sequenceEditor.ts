@@ -16,6 +16,8 @@ export function renderSequenceResult(
   const label = document.createElement('div');
   label.className = 'sequence-source-label';
   label.textContent = source ? '视频源：' + source.title : '视频来源缺失';
+  if (node.frameSetInfo?.pages && node.frameSetInfo.pages > 1)
+    label.textContent += ' · 共 ' + node.frameSetInfo.pages + ' 页，仅预览第 1 页';
   if (node.sourceStale && node.frameSetInfo) {
     const stale = document.createElement('small');
     stale.className = 'generation-status generation-status-stale';
@@ -44,7 +46,10 @@ export function renderSequenceResult(
     });
     const paint = () => {
       for (const { canvas, frame } of canvases) {
-        const scale = Math.min(canvas.width / frame.width, canvas.height / frame.height);
+        // Trimmed sheet frames are drawn at their offset inside the untrimmed source box.
+        const boxWidth = frame.sourceWidth || frame.width;
+        const boxHeight = frame.sourceHeight || frame.height;
+        const scale = Math.min(canvas.width / boxWidth, canvas.height / boxHeight);
         canvas
           .getContext('2d')
           ?.drawImage(
@@ -53,8 +58,8 @@ export function renderSequenceResult(
             frame.y,
             frame.width,
             frame.height,
-            (canvas.width - frame.width * scale) / 2,
-            (canvas.height - frame.height * scale) / 2,
+            (canvas.width - boxWidth * scale) / 2 + (frame.offsetX || 0) * scale,
+            (canvas.height - boxHeight * scale) / 2 + (frame.offsetY || 0) * scale,
             frame.width * scale,
             frame.height * scale
           );

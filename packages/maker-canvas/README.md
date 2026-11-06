@@ -99,6 +99,7 @@ uiArchive 表达宿主保存归档能力，不禁用通用 ZIP 导出，也不�
 | imageEditing   | 快速编辑、扩展画面、去纯色背景、本地编辑                                             |
 | cutout         | 选中菜单「去纯色背景」（Web 为一键「抠图」+「调整抠图」）；未声明时跟随 imageEditing |
 | connectors     | 唯一默认关闭的项；设为 true 才显示图片左右连接点并允许选中连线删除                   |
+| spriteGen      | 默认关闭；设为 true（仅 Web 外观）且宿主提供 `startSpriteGen` 才显示「生成精灵」     |
 
 Web 只保留图片、便签、标注、图片槽、连线、导入、删除、复制、撤销/重做和图片下载时，
 传 `features: { templates: false, uiRecognition: false, video: false, sequence: false,
@@ -237,6 +238,9 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
 - 点击空图片槽只选中并打开下方面板，不弹文件选择；单选空槽时图片框上方居中出现「上传」
   胶囊（距框 14px，屏幕高度不超过 30px 且不超过框高 20%），只有它会打开本地导入
   （键盘聚焦槽内导入按钮回车仍可导入）。生成中的槽和已有图片不显示。
+- 空图片槽的导入与空视频槽的「导入视频」（两种外观）都可选 PNG/JPEG/WebP 图片或 MP4/MOV/WebM 视频
+  （图片 ≤20 MiB、视频 ≤100 MiB；未开 `features.video` 时图片槽仍只收图片）。按所选文件类型原位改变卡片：
+  保留 id 与位置，去掉旧类型专用字段和新类型不能有的连线，一次撤销即还原。
 - 选中已有图片的图片槽（AI 生成结果，带 `generation`）仍打开下方提示词面板；在该面板重新生成会
   把结果原位写回同一张卡（`targetNodeId` 为该卡；保留 id、位置、宽度、标题与连线，高度按新图比例），
   上一张图只保留在撤销栈和素材文件中。普通导入或上传填充的图片只显示选中菜单；经「快速编辑」
@@ -295,6 +299,34 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
 - 空白处右键：「新建图片卡片」（右键点处空槽）、「上传图片」（本地文件，放到右键点处）与
   「从素材库添加」（仅宿主提供 `pickProjectImages` 时出现；逐张走 `importProjectAsset`
   的项目素材校验，从右键点向右排开不重叠，最多 20 张）。
+- 拖入与粘贴（仅 Web）：桌面文件拖到画板或 ⌘/Ctrl+V 粘贴（PNG/JPEG/WebP；开启 `video` 时另含
+  MP4/MOV/WebM），每个文件一张卡，从落点（粘贴时为指针位置，指针不在画板时为视口空位）向右排开，
+  最多 20 个；上传期间卡上显示「上传中」，失败的占位卡自动移除，整次拖入是一步撤销。落在空图片/视频槽上
+  时原位填充该槽。宿主拖来的 `application/x-asset`（素材面板、对话里的图片）按项目路径引用，不上传；同一次拖放里浏览器
+  附带的图片文件被忽略，避免多上传一份；
+  宿主不接受为卡片素材、但 `readSource` 能读到的图片（如 sprite-gen 候选图）上传一份副本。画布内
+  ⌘/Ctrl+C 会在系统剪贴板写入标记，之后的粘贴复制卡片；系统剪贴板换成文件后粘贴文件。
+- 资产按钮（仅 Web，宿主提供 `toggleAssetPanel` 时出现在页签栏最左侧，layers 图标加「资产」文字）：
+  打开或关闭宿主的素材面板，按下态由宿主通过 `setAssetPanelOpen` 同步。
+- 选中一个空图片槽后 ⌘/Ctrl+V 粘贴图片，直接填进该槽。
+- 图片工具（仅 Web，`features.imageTools: true`）：图片卡的选中图标与右键菜单在「编辑」组加入裁剪、
+  旋转 90°（顺时针）、水平翻转、垂直翻转。结果另存为项目内新 PNG，原文件保留，每次一步撤销。裁剪结果是右侧一张
+  新卡「<原标题> · 裁剪」，与原图连线（同「抠图」）；旋转与翻转原位替换卡片图片（id、位置、宽度、连线与
+  生成信息保留，高度跟随新比例）。裁剪就地进行：裁剪框直接画在卡片
+  图片上（拖框移动、拖四角缩放），图片下方的工具条可选 自由 / 1:1 / 4:3 / 16:9，「完成」或 Enter
+  应用，「取消」、Esc 或点空白处放弃；裁剪时隐藏卡片菜单与生成面板。
+- 提示词 @ 引用（仅 Web）：在生成面板的提示词里输入 `@`，列出该面板的输入图片（即上方缩略图，按发送
+  顺序编号），选中后插入 `@图N`（前后补空格，留出标签的内边距）；`@` 后继续输入按编号或说明过滤，↑/↓ 选择，Enter / Tab 确认，
+  Esc、空格或离开输入框关闭。提示词里与某张输入图对应的 `@图N` 显示为带该图缩略图的标签：输入框仍是
+  原生 textarea（发送的就是它的文字），文字设为透明，背后的镜像层画出同样的文字并把 `@` 换成缩略图，
+  换行与光标位置完全一致。退格或 Delete 落在标签上时整段删除。
+- 分组重命名（仅 Web）：在分组标题上快速按两下，或右键「重命名分组」，就地编辑；Enter 保存，Esc 取消，
+  失焦保存；最长 80 字。
+- 下拉框（仅 Web）：单选 `<select>` 的弹出列表改为与右键菜单同样式的浮层，`<select>` 仍是值的来源，
+  选择后触发 `input` / `change`；点击、空格、回车与方向键打开，Esc、Tab、点外部、滚动或缩放关闭。
+- 画板点阵（仅 Web）：用前景色低透明度绘制，暗色与亮色背景下都可见。
+- `editor.reload()`：宿主得知画布文件在页面外被改写（如 Agent 直接写文件）时调用，原地重读并保留
+  视口与仍存在的选中；有未保存编辑、导入、草稿或运行中的任务时不重读并返回 false，撤销历史从重读后开始。
 - 工具条：选择/拖拽按钮的激活态与光标跟随实际模式（拖拽为 grab/grabbing，含空格临时平移）；
   保存只保留一个图标，`data-save-state` 为 saved / unsaved / saving / failed，并带对应提示，
   不再单列 ✓ / … 状态。
@@ -334,6 +366,11 @@ referenceImagePaths, provider, model?, resolution, aspectRatio, targetSize, oper
   `first-frame` 从该图连入，不继承任何图片参数。未开 `features.video` 或空图片槽的「+」仍直接新建图片槽。
 - 视频结果卡不带原生控件：按下拖动与图片卡一样移动卡片，点击卡片只选中、不播放；播放/暂停只走框内
   左下角 28px 圆形按钮（`.web-video-play`，lucide play / pause，`aria-label` 随状态切换）。
+- 播放按钮右侧为紧凑进度条（`canvasWebVideoBar`，每个复用的 `<video>` 只建一次，重渲染不重置）：
+  显示「当前 / 时长」，点击或拖动轨道跳转，带静音切换；悬停、选中、聚焦或播放中才显示，隐藏时不拦截
+  指针，进度条上的指针事件不冒泡到卡片拖拽。轨道为 `role="slider"`，方向键 ±1s、Home/End 到首尾，
+  同步 `aria-valuenow` / `aria-valuetext`。MediaRecorder 产出的 WebM 时长为 `Infinity`，加载元数据后
+  先探测一次真实时长再回到 0。
 - 文生视频：未连接也未导入任何图片的视频槽可只按提示词生成，面板不显示输入方式胶囊，比例只提供
   `16:9`（默认）/`9:16`/`1:1`（自适应依赖图片）；连接图片后自动回到首帧等模式。
 - 模型 2.5 不再弹页面自己的「按当前参数开始生成视频？」确认，费用确认由 Web 宿主负责，页面传
@@ -367,11 +404,39 @@ parameters.mode, prompt, error, remoteStatus, executionState, credits, createdAt
 
 两种外观共有的修复：视频结果卡的 `<video>` 按卡片 id + 媒体 URL 跨渲染复用（此前每次 `render()`
 重建，点击、平移都会重新加载并把播放进度归零而闪烁）；序列帧卡帧格用 `canvasCachedImage` 缓存的已解码
-图集同步重绘；序列帧编辑器跨进度刷新保留预览画布、抽帧视频与按 Blob 缓存的缩略图位图，处理过程中不再闪。
+图集同步重绘；动画卡在 `createAnimationCards` 闭包内按卡片 id + 图集 URL/帧布局复用已绘制的 canvas
+与已解码图集（不依赖页面全局缓存，单独注入时同样可用），重渲染时当前帧立即可见、播放计时连续；序列帧编辑器跨进度刷新保留预览画布、抽帧视频与按 Blob 缓存的缩略图位图，处理过程中不再闪。
 拖拽、缩放或平移时提示词面板不再随每次 `pointermove` 重建，只重新定位，
 下拉、已输入提示词和选择保持原节点（以 `canvasComposerKey` 判断卡片内容是否变化）；生图模型
 列表按工具（`generate_image` / `edit_image`）缓存，提交时仍读取最新值并刷新缓存，读取失败不缓存。
 未设置或 `'default'` 保持原外观。
+
+## 图生精灵（features.spriteGen）
+
+流程由对话里的 Agent 跑 sprite-gen；画布只读 sprite-gen 自己的文件，把产物镜像成分组内的只读卡片。
+
+- 宿主契约：`host.startSpriteGen?({ canvasId, nodeId, spriteName, spriteType: 'character' | 'generic',
+sourcePath })` 由页面在建组并保存后调用（新开对话并预填提示词）；`store.readProjectJson?(path)` 返回
+  解析后的 JSON，不存在时以 `status: 404` 的 Error 拒绝；镜像媒体经 `store.prepareMedia?(path, refresh?)`
+  - `store.mediaUrl(path)`，读不到的文件不出卡。`editor.syncSprites()` 供宿主在 Agent 工具调用后触发同步。
+- 「生成精灵」（图片选中菜单，lucide `sparkles`，在「视频生成」之后）：精灵名 `/^[\p{L}\p{N}_-]{1,40}$/u`
+  与素材类型；建分组「精灵：<名>」包含原图，`section.spriteGen = { name, type, sourceId, startedAt,
+dismissed }`。同名分组复用（沿用其来源与类型）并再次调用钩子；钩子失败显示为页面错误，分组保留。
+- 同步（`features/spriteMirror.ts` 纯函数 reconcile/apply）：读 `.build/sprite-gen/<名>/_progress.json`
+  （schema v3）、`assets/sprites/<名>/sprite.json` 与各动作 `spritesheet.json`；镜像键 `cutout_ref`、`cutout`、
+  `ready`、`viewpoint:<path>`、`pose:<姿态>:<path>`、`pose-selected:<姿态>`、`video:<id>`、`sequence:<id>`、
+  `animation:<id>`，按阶段分行排在分组内并自动撑大分组。候选路径去掉 `/workspace/` 前缀，只接受
+  `assets/`、`.build/sprite-gen/` 与工作目录相对的 `_gen_*`。只有可读的 v3 进度会删除不再产出的镜像卡；
+  404 显示「等待对话开始」，未知版本只镜像最终精灵表并显示「中间过程暂不支持此版本」。
+- 镜像卡 `mirror = { source: 'sprite-gen', name, key }` 只读：无生成面板、侧边「+」与编辑入口，可移动、
+  删除（键写入 `dismissed`，不再加回）、下载与加入对话。同步不进撤销栈、自动保存；撤销/重做后重新同步。
+- 避让：同步让分组向右或向下变大时，原本在旧边界右侧（或下方）且与分组同行（或同列）的卡片和分组整体
+  平移让开（保持彼此间距，分组连同成员一起移动），不再被盖住；这一步和同步一样不进撤销栈。
+- 时机：打开画布、`syncSprites()`、页面可见且有未完成精灵时每 10 秒一次；每个分组单飞。页面从不写
+  `.build/` 或 `assets/sprites/`。
+- 精灵表帧带裁边：`FrameSetFrame` 新增可选 `sourceWidth/sourceHeight/offsetX/offsetY/duration`，
+  `FrameSetInfo.pages`；动画卡与序列帧格按偏移画在原尺寸框内，有逐帧时长时按时长播放。多页精灵表只列出、
+  预览第 1 页并标注「共 N 页，仅预览第 1 页」。带偏移或多页的帧集拒绝从画布重新导出。
 
 ## 自动化命令补充
 

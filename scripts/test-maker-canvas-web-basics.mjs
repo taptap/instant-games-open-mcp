@@ -43,6 +43,8 @@ function testHostScript() {
       return target;
     }
     window.__canvasAddMedia = addMedia;
+    // Stands in for another writer (e.g. an Agent) changing a canvas file behind the page.
+    window.__canvasExternalWrite = (doc) => docs.set(doc.id, copy(doc));
     // Seeded canvases stand in for documents saved by an earlier session.
     const seeded = Promise.all(
       Object.entries(config.seedMedia || {}).map(([target, color]) =>
@@ -177,6 +179,9 @@ function testHostScript() {
         return copy(next);
       },
       async importImage(canvasId, bytes, type) {
+        // Tests hold uploads open (to see 上传中) or fail them.
+        if (window.__canvasImportGate) await window.__canvasImportGate;
+        if (window.__canvasImportFail) throw new Error('上传失败（测试）');
         const target = 'assets/image/canvas/' + crypto.randomUUID() + '.png';
         media.set(target, URL.createObjectURL(new Blob([bytes], { type })));
         return { relativePath: target };
@@ -301,6 +306,28 @@ function testHostScript() {
       },
     };
     if (!config.videoStore) delete store.videoHistory;
+    window.__canvasSetMedia = (target, blob) => media.set(target, URL.createObjectURL(blob));
+    // Simulates a file moved or deleted outside the canvas; resolves its bytes for restoring.
+    window.__canvasDropMedia = async (target) => {
+      const url = media.get(target);
+      const blob = url ? await (await fetch(url)).blob() : null;
+      if (url) URL.revokeObjectURL(url);
+      media.delete(target);
+      return blob;
+    };
+    // Maker Web sprite mirror contract: read-only project JSON (404 when absent) and media probes.
+    if (config.projectJson) {
+      store.readProjectJson = async (target) => {
+        (calls.json = calls.json || []).push(target);
+        const files = window.__canvasProjectJson || config.projectJson;
+        if (!Object.prototype.hasOwnProperty.call(files, target))
+          throw Object.assign(new Error('文件不存在：' + target), { status: 404 });
+        return copy(files[target]);
+      };
+      store.prepareMedia = async (target) => {
+        if (!media.has(target)) throw Object.assign(new Error('素材不存在'), { status: 404 });
+      };
+    }
     async function readSource(target, signal, failure) {
       if (window.__canvasReadHold) await window.__canvasReadHold;
       const response = await fetch(store.mediaUrl(target), { signal });
@@ -394,6 +421,24 @@ function testHostScript() {
       pickProjectImages: config.pickProjectImages
         ? async () => window.__canvasPick || []
         : undefined,
+      toggleAssetPanel: config.assetPanel
+        ? () => {
+            window.__canvasAssetPanelToggles = (window.__canvasAssetPanelToggles || 0) + 1;
+          }
+        : undefined,
+      startSpriteGen: config.startSpriteGen
+        ? async (input) => {
+            const starts = (window.__canvasSpriteStarts = window.__canvasSpriteStarts || []);
+            starts.push({ ...copy(input), unsaved: window.__canvasUnsaved });
+            if (window.__canvasSpriteFail) throw new Error('模拟打开对话失败');
+            return { chatId: 'chat-' + starts.length };
+          }
+        : undefined,
+      openSpriteChat: config.startSpriteGen
+        ? (chatId) => {
+            (window.__canvasSpriteChats = window.__canvasSpriteChats || []).push(chatId);
+          }
+        : undefined,
       readSource,
       // Counted separately so tests can prove a download went through the host delivery hook.
       deliverExport(request) {
@@ -403,7 +448,12 @@ function testHostScript() {
       validateUiAtlasPlan: validateUiAtlasPlanStructure,
       downloadCanvasResource,
       async prepareCanvasImportedNode(canvasId, input) {
-        if (typeof input.assetPath !== 'string' || !media.has(input.assetPath))
+        // Like the Web host: readable work files (sprite-gen) are not card media.
+        if (
+          typeof input.assetPath !== 'string' ||
+          !media.has(input.assetPath) ||
+          input.assetPath.startsWith('.build/')
+        )
           throw new Error('只允许引用当前项目内的素材。');
         return prepareCanvasImportedNodeFromMedia(input, store.mediaUrl);
       },
@@ -2290,6 +2340,659 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   });
+  await check('Web 生成面板：来源已变化时发送按钮在参数行右侧，不是顶部整条', async () => {
+    const kneel = 'assets/image/canvas/r-k.png';
+    const lying = 'assets/image/canvas/r-l.png';
+    const base = { type: 'image', y: 200, width: 240, height: 240 };
+    const { page, settle, card } = await webPage({
+      seedMedia: { [kneel]: '#c33', [lying]: '#3a7' },
+      seedDocuments: [
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          title: 'r',
+          revision: 1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [
+            { ...base, id: 'r-k', title: '来源', x: 120, assetPath: kneel },
+            {
+              ...base,
+              id: 'r-l',
+              title: '生图结果',
+              x: 520,
+              assetPath: lying,
+              generation: {
+                prompt: '小猫吃饭',
+                operation: 'variant',
+                sourceImageId: 'r-k',
+                referenceImagePaths: [],
+                parameters: {},
+              },
+              sourceSnapshot: { nodeId: 'r-k', version: 'image|old|manual-asset' },
+              sourceSnapshots: [{ nodeId: 'r-k', version: 'image|old|manual-asset' }],
+            },
+          ],
+          edges: [{ id: 'r-e', from: 'r-k', to: 'r-l', kind: 'image-variant' }],
+        },
+      ],
+    });
+    await card('r-l').waitFor();
+    await settle();
+    await page.mouse.click(1300, 860);
+    await card('r-l').click({ position: { x: 60, y: 30 }, force: true });
+    const panel = page.locator('#selection-toolbar .generation-panel');
+    await panel.waitFor();
+    const box = await panel.evaluate((root) => {
+      const rect = (selector) => root.querySelector(selector).getBoundingClientRect();
+      const send = rect('.generation-action-primary');
+      const fields = rect('.generation-fields');
+      return {
+        send: [send.width, send.top, send.right],
+        fields: [fields.top, fields.bottom],
+        panel: root.getBoundingClientRect().right,
+      };
+    });
+    assert.equal(box.send[0], 32, '发送按钮是 32px 圆钮');
+    assert.ok(box.send[1] >= box.fields[0] - 4 && box.send[1] <= box.fields[1], '与参数同一行');
+    assert.ok(box.panel - box.send[2] < 16, '靠右');
+    await page.close();
+  });
+  await check('Web 复制：派生结果卡复制后不进入待处理（⌘/Ctrl+D、⌘/Ctrl+C/V）', async () => {
+    const kneel = 'assets/image/canvas/copy-kneel.png';
+    const lying = 'assets/image/canvas/copy-lying.png';
+    const base = { type: 'image', y: 200, width: 240, height: 240 };
+    const { page, errors, settle, current, card, blank } = await webPage({
+      seedMedia: { [kneel]: '#c33', [lying]: '#3a7' },
+      seedDocuments: [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          title: '复制画布',
+          revision: 1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [
+            { ...base, id: 'copy-k', title: '来源', x: 120, assetPath: kneel },
+            {
+              ...base,
+              id: 'copy-l',
+              title: '图片变体 · 已保存结果',
+              x: 520,
+              assetPath: lying,
+              generation: {
+                prompt: '躺姿',
+                operation: 'variant',
+                sourceImageId: 'copy-k',
+                referenceImagePaths: [],
+                parameters: {},
+              },
+              sourceSnapshot: { nodeId: 'copy-k', version: 'image|' + kneel + '|manual-asset' },
+              sourceSnapshots: [{ nodeId: 'copy-k', version: 'image|' + kneel + '|manual-asset' }],
+            },
+          ],
+          edges: [{ id: 'copy-edge', from: 'copy-k', to: 'copy-l', kind: 'image-variant' }],
+        },
+      ],
+    });
+    await card('copy-l').waitFor();
+    await settle();
+    for (const keys of [['ControlOrMeta+d'], ['ControlOrMeta+c', 'ControlOrMeta+v']]) {
+      await blank();
+      await page.mouse.click(1300, 860);
+      await card('copy-l').click({ position: { x: 60, y: 80 } });
+      const count = (await current()).nodes.length;
+      for (const key of keys) await page.keyboard.press(key);
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 1,
+        count
+      );
+      const copy = (await current()).nodes.at(-1);
+      assert.equal(copy.sourceSnapshot, undefined);
+      assert.equal(copy.sourceSnapshots, undefined);
+      await settle();
+      assert.equal(
+        await card(copy.id).locator('.card-state-overlay').count(),
+        0,
+        '复制卡无待处理遮罩'
+      );
+      assert.equal(
+        await card(copy.id).evaluate((item) => item.classList.contains('template-pending')),
+        false
+      );
+      await page.keyboard.press('ControlOrMeta+z');
+      await settle();
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check(
+    'Web 拖入/粘贴本地文件：每个文件一张卡并显示上传中，失败移除占位，空槽原位填充',
+    async () => {
+      const { page, errors, editor, settle, current, card, blank } = await webPage();
+      // Dispatches dragover + drop (files or an x-asset payload) at a board point.
+      const drop = (x, y, payload) =>
+        page.evaluate(
+          async ({ x, y, payload }) => {
+            const data = new DataTransfer();
+            for (const file of payload.files || []) {
+              const canvas = document.createElement('canvas');
+              canvas.width = 30;
+              canvas.height = 20;
+              canvas.getContext('2d').fillRect(0, 0, 30, 20);
+              const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+              data.items.add(
+                new File([blob], file, { type: file.endsWith('.txt') ? 'text/plain' : 'image/png' })
+              );
+            }
+            if (payload.asset) data.setData('application/x-asset', JSON.stringify(payload.asset));
+            const target = document.elementFromPoint(x, y);
+            const init = {
+              dataTransfer: data,
+              clientX: x,
+              clientY: y,
+              bubbles: true,
+              cancelable: true,
+            };
+            const over = new DragEvent('dragover', init);
+            target.dispatchEvent(over);
+            target.dispatchEvent(new DragEvent('drop', init));
+            return over.defaultPrevented;
+          },
+          { x, y, payload }
+        );
+      await settle();
+      const before = (await current()).nodes.length;
+      await page.evaluate(() => {
+        window.__canvasImportGate = new Promise(
+          (resolve) => (window.__canvasReleaseImport = resolve)
+        );
+      });
+      assert.equal(await drop(500, 400, { files: ['甲.png', '乙.png', '说明.txt'] }), true);
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 2,
+        before
+      );
+      const placeholders = (await current()).nodes.slice(-2);
+      for (const node of placeholders)
+        assert.match(await card(node.id).locator('.card-state-overlay').innerText(), /上传中/);
+      assert.equal(placeholders[1].y, placeholders[0].y, '多文件排成一行');
+      assert.ok(placeholders[1].x >= placeholders[0].x + placeholders[0].width + 32);
+      await page.evaluate(() => {
+        window.__canvasImportGate = undefined;
+        window.__canvasReleaseImport();
+      });
+      await page.waitForFunction(
+        (ids) =>
+          ids.every(
+            (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id)?.assetPath
+          ),
+        placeholders.map((node) => node.id)
+      );
+      await settle();
+      const filled = (await current()).nodes.slice(-2);
+      assert.deepEqual(
+        filled.map((node) => node.title),
+        ['甲', '乙']
+      );
+      for (const node of filled)
+        assert.equal(await card(node.id).locator('.card-state-overlay').count(), 0);
+      // One undo removes the whole drop.
+      await blank();
+      await page.keyboard.press('ControlOrMeta+z');
+      await settle();
+      assert.equal((await current()).nodes.length, before);
+      // A failed upload drops its placeholder.
+      await page.evaluate(() => (window.__canvasImportFail = true));
+      await drop(500, 400, { files: ['坏.png'] });
+      await page.waitForFunction(() => /上传失败/.test(document.body.innerText));
+      await settle();
+      assert.equal((await current()).nodes.length, before);
+      await page.evaluate(() => (window.__canvasImportFail = false));
+      // Dropping onto an empty slot fills it in place.
+      const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await settle();
+      await editor('update-nodes', { nodes: [{ id: slotId, x: 300, y: 300 }] });
+      await settle();
+      const box = await card(slotId).boundingBox();
+      await drop(box.x + box.width / 2, box.y + box.height / 2, { files: ['丙.png'] });
+      await page.waitForFunction(
+        (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id)?.assetPath,
+        slotId
+      );
+      await settle();
+      assert.equal((await current()).nodes.length, before + 1);
+      // A project asset (asset panel / chat image) is referenced without uploading.
+      const assetPath = await page.evaluate(() => window.__canvasAddMedia('#36c', 40, 40));
+      await drop(800, 300, {
+        asset: { type: 'image', name: '素材.png', path: '/workspace/' + assetPath },
+      });
+      await page.waitForFunction(
+        (assetPath) =>
+          window.__canvasEditor.current().nodes.some((node) => node.assetPath === assetPath),
+        assetPath
+      );
+      await settle();
+      assert.equal(
+        (await current()).nodes.find((node) => node.assetPath === assetPath).title,
+        '素材'
+      );
+      // Dragging an <img> also carries the picture as a File: the project asset still wins, so no copy.
+      const both = await page.evaluate(() => window.__canvasAddMedia('#3c6', 40, 40));
+      const beforeBoth = (await current()).nodes.length;
+      await drop(900, 300, {
+        files: ['副本.png'],
+        asset: { type: 'image', name: '引用.png', path: '/workspace/' + both },
+      });
+      await page.waitForFunction(
+        (both) => window.__canvasEditor.current().nodes.some((node) => node.assetPath === both),
+        both
+      );
+      await settle();
+      assert.equal((await current()).nodes.length, beforeBoth + 1);
+      // A readable file the host won't reference (a sprite-gen candidate in chat) is uploaded as a copy.
+      const work = '.build/sprite-gen/hero/candidates/1.png';
+      await page.evaluate((work) => window.__canvasAddMedia('#963', 40, 40, work), work);
+      const copied = (await current()).nodes.length;
+      await drop(800, 600, { asset: { type: 'image', name: '1.png', path: '/workspace/' + work } });
+      await page.waitForFunction(
+        (count) =>
+          window.__canvasEditor.current().nodes.length === count &&
+          window.__canvasEditor.current().nodes.at(-1).assetPath,
+        copied + 1
+      );
+      await settle();
+      const copy = (await current()).nodes.at(-1);
+      assert.match(copy.assetPath, /^assets\/image\/canvas\//);
+      assert.equal(copy.title, '1');
+      // Paste: system files become cards; after an in-canvas ⌘C the marker pastes the cards instead.
+      const paste = (files, marker) =>
+        page.evaluate(
+          async ({ files, marker }) => {
+            const data = new DataTransfer();
+            for (const name of files)
+              data.items.add(
+                new File(
+                  [
+                    await (
+                      await fetch(
+                        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+                      )
+                    ).blob(),
+                  ],
+                  name,
+                  { type: 'image/png' }
+                )
+              );
+            if (marker) data.setData('application/x-maker-canvas-cards', '1');
+            document.body.dispatchEvent(
+              new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })
+            );
+          },
+          { files, marker }
+        );
+      const pasted = (await current()).nodes.length;
+      const withMedia = (await current()).nodes.filter((node) => node.assetPath).length;
+      await paste(['贴.png'], false);
+      await page.waitForFunction(
+        (count) =>
+          window.__canvasEditor.current().nodes.filter((node) => node.assetPath).length === count,
+        withMedia + 1
+      );
+      await settle();
+      assert.equal((await current()).nodes.length, pasted + 1);
+      await card(slotId).click({ position: { x: 60, y: 80 } });
+      await page.keyboard.press('ControlOrMeta+c');
+      await paste([], true);
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count,
+        pasted + 2
+      );
+      await settle();
+      // ⌘V with no paste event (some browsers on a non-editable page) still pastes the cards.
+      await page.keyboard.press('ControlOrMeta+v');
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count,
+        pasted + 3
+      );
+      await settle();
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check(
+    'Web 资产按钮：仅宿主提供 toggleAssetPanel 时出现在左上角，点击切换并同步按下态',
+    async () => {
+      const plain = await webPage();
+      assert.equal(await plain.page.locator('#asset-panel').count(), 0);
+      await plain.page.close();
+      const { page, errors } = await webPage({ assetPanel: true });
+      const button = page.locator('.workspace-tabs-row > #asset-panel');
+      await button.waitFor();
+      // Top-left, before the canvas tabs, with a visible label.
+      assert.equal(
+        await button.evaluate((item) => item.parentElement.firstElementChild === item),
+        true
+      );
+      assert.equal((await button.innerText()).trim(), '资产');
+      await button.click();
+      assert.equal(await page.evaluate(() => window.__canvasAssetPanelToggles), 1);
+      await page.evaluate(() => window.__canvasEditor.setAssetPanelOpen(true));
+      assert.equal(await button.getAttribute('aria-pressed'), 'true');
+      await page.evaluate(() => window.__canvasEditor.setAssetPanelOpen(false));
+      assert.equal(await button.getAttribute('aria-pressed'), 'false');
+      // Dragging the toolbar by its grip shows no tooltip left behind at the old spot.
+      const grip = page.locator('.workspace-toolbar-grip');
+      const box = await grip.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.locator('.web-tooltip:not([hidden])').waitFor();
+      await page.mouse.down();
+      await page.mouse.move(box.x + 300, box.y + 200, { steps: 8 });
+      await page.waitForTimeout(400);
+      assert.equal(await page.locator('.web-tooltip').isHidden(), true, '拖动时不显示提示');
+      await page.mouse.up();
+      assert.ok((await grip.boundingBox()).x > box.x + 200, '工具条已移动');
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check(
+    'Web 图片编辑：就地裁剪生成连线新卡（比例/完成/取消），旋转 90°、水平/垂直翻转原位替换，一步撤销',
+    async () => {
+      const { page, errors, settle, current, nodeOf, card, importImage, blank, editor } =
+        await webPage({ features: { ...webFeatures, imageTools: true } });
+      // Pixel check of the transform helper: a 2×1 image, red on the left, blue on the right.
+      const pixels = await page.evaluate(() => {
+        const source = document.createElement('canvas');
+        source.width = 2;
+        source.height = 1;
+        const context = source.getContext('2d');
+        context.fillStyle = '#f00';
+        context.fillRect(0, 0, 1, 1);
+        context.fillStyle = '#00f';
+        context.fillRect(1, 0, 1, 1);
+        const read = (canvas) =>
+          Array.from(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data)
+            .filter((_, index) => index % 4 === 0)
+            .join(',');
+        const rotated = canvasTransformedImage(source, { type: 'rotate' });
+        return {
+          flipX: read(canvasTransformedImage(source, { type: 'flip-x' })),
+          rotated: [rotated.width, rotated.height, read(rotated)].join('/'),
+          crop: read(
+            canvasTransformedImage(source, { type: 'crop', x: 1, y: 0, width: 5, height: 5 })
+          ),
+          // 1:1 on a 200×100 image: a centred 100×100 box.
+          ratio: JSON.stringify(canvasCropRatioRect({ x: 0, y: 0, w: 1, h: 1 }, 1, 200, 100)),
+        };
+      });
+      // Red channel per pixel: flip moves red to the right; rotation turns 2×1 into 1×2.
+      assert.deepEqual(pixels, {
+        flipX: '0,255',
+        rotated: '1/2/255,0',
+        crop: '0',
+        ratio: JSON.stringify({ x: 0.25, y: 0, w: 0.5, h: 1 }),
+      });
+      const image = await importImage('编辑', '#c33', 80, 40);
+      await editor('update-nodes', { nodes: [{ id: image.id, x: 300, y: 240 }] });
+      await settle();
+      await blank();
+      await card(image.id).click({ position: { x: 60, y: 60 } });
+      const menu = page.locator('#selection-menu');
+      const before = await nodeOf(image.id);
+      await menu.getByRole('button', { name: '旋转 90°' }).click();
+      await page.waitForFunction(
+        (id) =>
+          window.__canvasEditor.current().nodes.find((node) => node.id === id).imageInfo?.width ===
+          40,
+        image.id
+      );
+      await settle();
+      const rotated = await nodeOf(image.id);
+      assert.notEqual(rotated.assetPath, before.assetPath);
+      assert.deepEqual([rotated.imageInfo.width, rotated.imageInfo.height], [40, 80]);
+      assert.equal(rotated.x, before.x);
+      assert.ok(rotated.height > rotated.width, '卡片高度跟随新比例');
+      for (const name of ['水平翻转', '垂直翻转']) {
+        const path = (await nodeOf(image.id)).assetPath;
+        await blank();
+        await card(image.id).click({ position: { x: 30, y: 60 } });
+        await menu.getByRole('button', { name }).click();
+        await page.waitForFunction(
+          ({ id, path }) =>
+            window.__canvasEditor.current().nodes.find((node) => node.id === id).assetPath !== path,
+          { id: image.id, path }
+        );
+        await settle();
+      }
+      // Crop in place: the box sits on the card and the bar under it has ratios, 完成 and 取消.
+      await blank();
+      await card(image.id).click({ position: { x: 30, y: 60 } });
+      await menu.getByRole('button', { name: '裁剪' }).click();
+      const box = card(image.id).locator('.web-crop-box');
+      await box.waitFor();
+      const bar = page.locator('.web-crop-bar');
+      assert.deepEqual(
+        await bar.locator('button').evaluateAll((items) => items.map((item) => item.textContent)),
+        ['自由', '1:1', '4:3', '16:9', '完成', '取消']
+      );
+      assert.equal(await page.locator('#selection-menu').isVisible(), false);
+      // 1:1 on a 40×80 image: a 40×40 square; 取消 leaves the image as it was.
+      await bar.getByRole('button', { name: '1:1' }).click();
+      const square = await card(image.id).locator('.web-crop-box').boundingBox();
+      assert.ok(Math.abs(square.width - square.height) < 1.5, '1:1 为正方形');
+      const unchanged = (await nodeOf(image.id)).assetPath;
+      await bar.getByRole('button', { name: '取消' }).click();
+      assert.equal(await card(image.id).locator('.web-crop-box').count(), 0);
+      assert.equal((await nodeOf(image.id)).assetPath, unchanged);
+      // Free: drag the bottom-right corner to the middle, then 完成.
+      await card(image.id).click({ position: { x: 30, y: 60 } });
+      await menu.getByRole('button', { name: '裁剪' }).click();
+      await box.waitFor();
+      const frame = await box.boundingBox();
+      const corner = await card(image.id).locator('.web-crop-se').boundingBox();
+      await page.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(
+        corner.x + corner.width / 2 - frame.width / 2,
+        corner.y + corner.height / 2 - frame.height / 2,
+        { steps: 4 }
+      );
+      await page.mouse.up();
+      const flipped = (await nodeOf(image.id)).assetPath;
+      await page.locator('.web-crop-bar').getByRole('button', { name: '完成' }).click();
+      // The crop is a new card to the right, linked to the source; the source keeps its image.
+      await page.waitForFunction(() => window.__canvasEditor.current().nodes.length === 2);
+      await settle();
+      assert.equal(await page.locator('.web-crop-bar').count(), 0);
+      const doc = await current();
+      const cropped = doc.nodes.find((node) => node.id !== image.id);
+      const source = doc.nodes.find((node) => node.id === image.id);
+      assert.equal(source.assetPath, flipped);
+      assert.deepEqual([cropped.imageInfo.width, cropped.imageInfo.height], [20, 40]);
+      assert.equal(cropped.title, '编辑 · 裁剪');
+      assert.ok(cropped.x > source.x + source.width);
+      assert.ok(doc.edges.some((edge) => edge.from === image.id && edge.to === cropped.id));
+      // One undo per edit: four edits back to the original file.
+      await blank();
+      for (let step = 0; step < 4; step++) await page.keyboard.press('ControlOrMeta+z');
+      await settle();
+      assert.equal((await nodeOf(image.id)).assetPath, before.assetPath);
+      assert.equal((await current()).nodes.length, 1);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check(
+    'Web 分组重命名、空槽粘贴替换、下拉框用 Web 样式弹层、提示词 @ 引用输入图片',
+    async () => {
+      const { page, errors, settle, current, nodeOf, card, importImage, blank, editor } =
+        await webPage({ features: { ...webFeatures, sections: true } });
+      const first = await importImage('甲', '#c96', 80, 60);
+      const second = await importImage('乙', '#69c', 80, 60);
+      await editor('update-nodes', {
+        nodes: [
+          { id: first.id, x: 220, y: 220 },
+          { id: second.id, x: 480, y: 220 },
+        ],
+      });
+      await settle();
+      await blank();
+      await card(first.id).click({ position: { x: 40, y: 60 } });
+      await card(second.id).click({ position: { x: 40, y: 60 }, modifiers: ['Shift'] });
+      await page.locator('#selection-menu').getByRole('button', { name: '分组' }).click();
+      await settle();
+      const section = (await current()).nodes.find((node) => node.type === 'section');
+      await card(section.id).locator('.canvas-card-title').first().dblclick();
+      const input = card(section.id).locator('input.web-section-rename');
+      await input.waitFor();
+      await page.keyboard.type('角色组');
+      await page.keyboard.press('Enter');
+      await settle();
+      assert.equal((await nodeOf(section.id)).title, '角色组');
+      // Escape keeps the old name; the menu entry opens the same editor.
+      await blank();
+      await card(section.id).click({ button: 'right', position: { x: 20, y: 20 } });
+      await page.locator('#canvas-context-menu [data-canvas-action="web-rename-group"]').click();
+      await input.waitFor();
+      await page.keyboard.type('不要');
+      await page.keyboard.press('Escape');
+      assert.equal((await nodeOf(section.id)).title, '角色组');
+      // Paste with one empty slot selected fills that slot instead of adding a card.
+      const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await editor('update-nodes', { nodes: [{ id: slotId, x: 300, y: 560 }] });
+      await settle();
+      await blank();
+      await card(slotId).click({ position: { x: 60, y: 60 } });
+      const count = (await current()).nodes.length;
+      await page.evaluate(async () => {
+        const data = new DataTransfer();
+        const canvas = document.createElement('canvas');
+        canvas.width = 30;
+        canvas.height = 20;
+        canvas.getContext('2d').fillRect(0, 0, 30, 20);
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        data.items.add(new File([blob], '贴图.png', { type: 'image/png' }));
+        document.body.dispatchEvent(
+          new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })
+        );
+      });
+      await page.waitForFunction(
+        (id) => window.__canvasEditor.current().nodes.find((node) => node.id === id)?.assetPath,
+        slotId
+      );
+      await settle();
+      assert.equal((await current()).nodes.length, count);
+      // A composer select opens the Web list instead of the native popup.
+      const slot = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await editor('update-nodes', { nodes: [{ id: slot, x: 700, y: 560 }] });
+      await settle();
+      // An input image for the @ list below (before any composer draft exists).
+      await editor('connect', { from: first.id, to: slot });
+      await settle();
+      await blank();
+      await card(slot).click({ position: { x: 60, y: 60 } });
+      const select = page.locator('#selection-toolbar .generation-panel select').last();
+      await select.waitFor();
+      const options = await select.evaluate((item) =>
+        Array.from(item.options).map((option) => option.value)
+      );
+      const target = options[options.length - 1];
+      await select.click();
+      const list = page.locator('.web-select-list');
+      await list.waitFor();
+      await list
+        .locator('.web-select-option')
+        .nth(options.length - 1)
+        .click();
+      assert.equal(await list.count(), 0);
+      assert.equal(await select.inputValue(), target);
+      // @ in the prompt lists the composer's input images and inserts @图N.
+      const prompt = page.locator('#selection-toolbar textarea.generation-prompt');
+      await prompt.waitFor();
+      await prompt.click();
+      await page.keyboard.type('把@');
+      const mentions = page.locator('.web-mention-list');
+      await mentions.waitFor();
+      assert.equal(await mentions.locator('.web-mention-option').count(), 1);
+      assert.match(await mentions.locator('.web-mention-option').first().innerText(), /图1/);
+      await page.keyboard.press('Enter');
+      assert.equal(await mentions.count(), 0);
+      await page.keyboard.type('放大');
+      assert.equal(await prompt.inputValue(), '把 @图1 放大');
+      // The token shows as a chip with the image's thumbnail; the textarea keeps the plain text.
+      const chip = page.locator('#selection-toolbar .web-prompt-mirror .web-prompt-chip');
+      assert.equal(await chip.count(), 1);
+      assert.equal((await chip.innerText()).replace('@', ''), '图1');
+      assert.match(
+        await chip.locator('.web-prompt-chip-image').evaluate((item) => item.style.backgroundImage),
+        /^url\(/
+      );
+      assert.equal(
+        await prompt.evaluate((item) => getComputedStyle(item).color),
+        'rgba(0, 0, 0, 0)'
+      );
+      // Backspace right after the token removes all of it.
+      for (let step = 0; step < 3; step++) await page.keyboard.press('ArrowLeft');
+      await page.keyboard.press('Backspace');
+      assert.equal(await prompt.inputValue(), '把  放大');
+      assert.equal(await chip.count(), 0);
+      await page.keyboard.press('End');
+      await page.keyboard.type('@x');
+      assert.equal(await mentions.count(), 0, '无匹配时不显示');
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check(
+    'reload：外部改写画布文件后原地重读，保留视口与选中；有进行中的导入时跳过',
+    async () => {
+      const { page, errors, editor, settle, current, card } = await webPage();
+      const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await settle();
+      const before = await current();
+      const external = structuredClone(before);
+      external.viewport = { x: 999, y: 999, scale: 2 };
+      external.revision += 1;
+      external.nodes.push({
+        id: 'external-note',
+        type: 'note',
+        x: 40,
+        y: 40,
+        width: 180,
+        height: 120,
+        title: '便签',
+        text: 'Agent 写入',
+      });
+      await page.evaluate((doc) => window.__canvasExternalWrite(doc), external);
+      assert.equal(await page.evaluate(() => window.__canvasEditor.reload()), true);
+      const after = await current();
+      assert.ok(after.nodes.some((node) => node.id === 'external-note'));
+      assert.deepEqual(after.viewport, before.viewport, '保留当前视口');
+      assert.equal(await card('external-note').count(), 1);
+      assert.equal(
+        await card(slotId).evaluate((item) => item.classList.contains('selected')),
+        true
+      );
+      assert.equal(await page.evaluate(() => window.__canvasUnsaved), false);
+      // An upload in flight blocks the reload.
+      await page.evaluate(() => {
+        window.__canvasImportGate = new Promise(
+          (resolve) => (window.__canvasReleaseImport = resolve)
+        );
+        const data = new DataTransfer();
+        data.items.add(
+          new File([new Uint8Array([137, 80, 78, 71])], 'a.png', { type: 'image/png' })
+        );
+        document.body.dispatchEvent(
+          new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })
+        );
+      });
+      assert.equal(await page.evaluate(() => window.__canvasEditor.reload()), false);
+      await page.evaluate(() => {
+        window.__canvasImportGate = undefined;
+        window.__canvasReleaseImport();
+      });
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
   await check('Web 外观：AI 结果面板显示生成它的来源图，原位再生成只发送来源', async () => {
     const kneel = 'assets/image/canvas/seed-kneel.png';
     const lying = 'assets/image/canvas/seed-lying.png';
@@ -2461,8 +3164,8 @@ try {
           assert.equal(await button.locator('svg').count(), 1, name + ' 为图标');
           assert.equal((await button.innerText()).trim(), '', name + ' 不显示文字');
         }
-        const download = menu.getByRole('button', { name: '下载图片', exact: true });
-        assert.equal(await download.getAttribute('data-web-tip'), '下载图片');
+        const download = menu.getByRole('button', { name: '下载 PNG', exact: true });
+        assert.equal(await download.getAttribute('data-web-tip'), '下载 PNG');
         assert.equal(await download.locator('svg').count(), 1);
         assert.equal(await menu.locator('details').count(), 0, '下载不再是折叠菜单');
         const bar = await menu.boundingBox();
@@ -2474,7 +3177,42 @@ try {
         });
         await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
         await contextMenu.waitFor();
-        assert.deepEqual(await imageItems(), ['加入对话', '抠图', '调整抠图', '下载', '下载 JPG']);
+        // Same names and order as the selection icons: 编辑 / 对话 / 导出.
+        assert.deepEqual(await imageItems(), [
+          '抠图',
+          '调整抠图',
+          '加入对话',
+          '下载 PNG',
+          '下载 JPG',
+        ]);
+        const iconOrder = await page.evaluate(() =>
+          [...document.querySelectorAll('#selection-menu .selection-actions > button')].map(
+            (item) => item.getAttribute('aria-label')
+          )
+        );
+        assert.deepEqual(
+          iconOrder.filter((label) =>
+            ['抠图', '调整抠图', '加入对话', '下载 PNG', '下载 JPG'].includes(label)
+          ),
+          ['抠图', '调整抠图', '加入对话', '下载 PNG', '下载 JPG']
+        );
+        // One separator between each visible group, none around empty ones.
+        const groups = await page.evaluate(() => {
+          const out = [[]];
+          for (const item of document.querySelector('#canvas-context-menu').children) {
+            if (item.hidden) continue;
+            if (item.matches('.canvas-menu-separator')) out.push([]);
+            else if (item.matches('button')) out[out.length - 1].push(item.textContent);
+          }
+          return out;
+        });
+        assert.deepEqual(groups, [
+          ['图片生成'],
+          ['抠图', '调整抠图'],
+          ['加入对话'],
+          ['下载 PNG', '下载 JPG'],
+          ['复制卡片', '删除卡片'],
+        ]);
         const opened = await contextMenu.boundingBox();
         await shoot('v7-' + theme + '-image-context-menu.png', {
           x: Math.max(0, opened.x - 24),
@@ -2491,7 +3229,7 @@ try {
         { nodeId: image.id, assetPath: image.assetPath },
       ]);
       await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
-      await contextMenu.getByRole('button', { name: '下载', exact: true }).click();
+      await contextMenu.getByRole('button', { name: '下载 PNG', exact: true }).click();
       await page.waitForFunction(() => window.__canvasDelivered);
       assert.match(await page.evaluate(() => window.__canvasDelivered.filename), /\.png$/);
       await page.evaluate(() => (window.__canvasDelivered = undefined));
@@ -2523,7 +3261,7 @@ try {
             .filter((item) => !item.hidden)
             .map((item) => item.textContent)
         ),
-        ['下载', '下载 JPG'],
+        ['下载 PNG', '下载 JPG'],
         '无 addToChat / cutout 时只保留下载'
       );
       await plain.page.close();
@@ -2619,7 +3357,8 @@ try {
         await page.waitForFunction(() => document.querySelector('.web-tooltip').hidden);
         // Dock buttons share the helper: their native title is migrated on first hover.
         const undo = page.locator('.workspace-actions > button').first();
-        const name = await undo.getAttribute('aria-label');
+        // The tooltip shows the title (which carries the shortcut), not just the aria-label.
+        const name = await undo.evaluate((item) => item.title || item.dataset.webTip);
         await undo.hover();
         await shown(name, '工具条按钮');
         assert.equal(await undo.getAttribute('title'), null);
@@ -2979,12 +3718,12 @@ try {
         assert.equal(result.type, 'image/png');
         assert.ok(result.size > 0);
       };
-      await contextMenu.getByRole('button', { name: '下载', exact: true }).click();
+      await contextMenu.getByRole('button', { name: '下载 PNG', exact: true }).click();
       await delivered(1);
       await page.evaluate(() => (window.__canvasDelivered = undefined));
       await blank();
       await card(image.id).click({ position: { x: 100, y: 120 } });
-      await page.locator('#selection-menu').getByRole('button', { name: '下载图片' }).click();
+      await page.locator('#selection-menu').getByRole('button', { name: '下载 PNG' }).click();
       await delivered(2);
       assert.deepEqual(errors, []);
       await page.close();
@@ -3000,7 +3739,7 @@ try {
     await settle();
     await blank();
     await card(image.id).click({ position: { x: 100, y: 120 } });
-    const icon = page.locator('#selection-menu').getByRole('button', { name: '下载图片' });
+    const icon = page.locator('#selection-menu').getByRole('button', { name: '下载 PNG' });
     await icon.waitFor();
     let download = page.waitForEvent('download', { timeout: 5000 });
     await icon.click();
@@ -3010,7 +3749,7 @@ try {
     download = page.waitForEvent('download', { timeout: 5000 });
     await page
       .locator('#canvas-context-menu')
-      .getByRole('button', { name: '下载', exact: true })
+      .getByRole('button', { name: '下载 PNG', exact: true })
       .click();
     assert.match((await download).suggestedFilename(), /\.png$/);
     assert.deepEqual(errors, []);
@@ -3174,7 +3913,11 @@ try {
   });
 
   await check('Web 外观：空白处右键菜单新建槽/上传/素材库，素材库按钩子显示', async () => {
-    const { page, errors, current, settle } = await webPage({ pickProjectImages: true });
+    const { page, errors, current, settle } = await webPage({
+      pickProjectImages: true,
+      features: { ...webFeatures, video: true },
+      videoStore: true,
+    });
     await settle();
     const menu = page.locator('#canvas-context-menu');
     const worldAt = (x, y) =>
@@ -3194,7 +3937,25 @@ try {
     const labels = await menu
       .locator('button:not([hidden])')
       .evaluateAll((items) => items.map((item) => item.textContent));
-    assert.deepEqual(labels, ['新建图片卡片', '上传图片', '从素材库添加']);
+    assert.deepEqual(labels, [
+      '新建图片卡片',
+      '新建视频卡片',
+      '上传图片',
+      '上传视频',
+      '从素材库添加',
+    ]);
+    // One separator between 新建 and the upload / library entries.
+    assert.deepEqual(
+      await menu.evaluate((root) =>
+        Array.from(root.children)
+          .filter((item) => !item.hidden)
+          .map((item) =>
+            item.classList.contains('canvas-menu-separator') ? '|' : item.textContent
+          )
+          .slice(0, 6)
+      ),
+      ['新建图片卡片', '新建视频卡片', '|', '上传图片', '上传视频', '从素材库添加']
+    );
     const point = await worldAt(700, 360);
     await menu.getByRole('button', { name: '新建图片卡片' }).click();
     const slot = (await current()).nodes.at(-1);
@@ -3214,6 +3975,23 @@ try {
     );
     const added = (await current()).nodes.find((node) => node.assetPath === picked);
     assert.equal(added.title, '素材库图');
+    // Project videos come through the same picker as video cards (kind or assets/video/ path).
+    await settle();
+    const pickedVideo = await page.evaluate(() => window.__canvasAddVideo());
+    await page.evaluate(
+      (path) => (window.__canvasPick = [{ path, name: '素材库视频.webm' }]),
+      pickedVideo
+    );
+    await page.mouse.click(1300, 840);
+    await page.mouse.click(400, 300, { button: 'right' });
+    await menu.getByRole('button', { name: '从素材库添加' }).click();
+    await page.waitForFunction(
+      (path) => window.__canvasEditor.current().nodes.some((node) => node.assetPath === path),
+      pickedVideo
+    );
+    const addedVideo = (await current()).nodes.find((node) => node.assetPath === pickedVideo);
+    assert.equal(addedVideo.type, 'video-source', '素材库视频成为视频卡');
+    assert.equal(addedVideo.title, '素材库视频');
     assert.ok(Math.abs(added.x - pickPoint.x) < 1 && Math.abs(added.y - pickPoint.y) < 1);
     // Paths are validated by the host import; unknown paths add nothing.
     await settle();
@@ -3317,6 +4095,85 @@ try {
     await settle();
     const third = await branch(second);
     assert.ok((await current()).edges.some((edge) => edge.from === second && edge.to === third));
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 标注框：四角显示圆点，拖角可斜向同时改宽高，左上角固定右下边', async () => {
+    const { page, errors, settle, current, card, blank } = await webPage();
+    await settle();
+    await blank();
+    await page.locator('#mark-ellipse').click();
+    await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+    const node = async () => (await current()).nodes.filter((item) => item.type === 'mark').at(-1);
+    const start = await node();
+    const frame = card(start.id);
+    assert.equal(await frame.locator('.mark-corner').count(), 4);
+    // Every swatch, the white one included, is a round chip with a visible ring on the menu.
+    const swatches = await page
+      .locator('#selection-menu .mark-color')
+      .evaluateAll((items) =>
+        items.map((item) => [
+          getComputedStyle(item).borderRadius,
+          getComputedStyle(item).boxShadow,
+          item.getBoundingClientRect().width,
+        ])
+      );
+    assert.equal(swatches.length, 5);
+    for (const [radius, shadow, width] of swatches) {
+      assert.equal(radius, '50%');
+      assert.notEqual(shadow, 'none', '色块有描边');
+      assert.ok(Math.abs(width - 22) < 0.5);
+    }
+    if (process.env.CANVAS_SCREENSHOT_DIR) {
+      const menuBox = await page.locator('#selection-menu').boundingBox();
+      await page.screenshot({
+        path: path.join(process.env.CANVAS_SCREENSHOT_DIR, 'v14-mark-colors.png'),
+        clip: {
+          x: menuBox.x - 10,
+          y: menuBox.y - 10,
+          width: menuBox.width + 20,
+          height: menuBox.height + 20,
+        },
+      });
+    }
+    assert.equal(
+      await frame
+        .locator('.mark-corner[data-corner="se"]')
+        .evaluate((item) => getComputedStyle(item, '::before').content),
+      '""',
+      '选中时角上有圆点'
+    );
+    assert.equal(await frame.locator('.resize-handle').isVisible(), false, '旧右下手柄隐藏');
+    const scale = (await current()).viewport.scale;
+    const drag = async (corner, dx, dy) => {
+      const box = await frame.locator('.mark-corner[data-corner="' + corner + '"]').boundingBox();
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + dx, y + dy, { steps: 6 });
+      await page.mouse.up();
+    };
+    await drag('se', 60, 40);
+    const grown = await node();
+    assert.ok(Math.abs(grown.width - start.width - 60 / scale) < 3, '右下角加宽：' + grown.width);
+    assert.ok(
+      Math.abs(grown.height - start.height - 40 / scale) < 3,
+      '右下角加高：' + grown.height
+    );
+    assert.deepEqual([grown.x, grown.y], [start.x, start.y], '右下角不动左上');
+    await drag('nw', -30, -20);
+    const pulled = await node();
+    assert.ok(
+      Math.abs(pulled.x - (grown.x - 30 / scale)) < 3 &&
+        Math.abs(pulled.y - (grown.y - 20 / scale)) < 3,
+      '左上角移动'
+    );
+    assert.ok(
+      Math.abs(pulled.x + pulled.width - (grown.x + grown.width)) < 2 &&
+        Math.abs(pulled.y + pulled.height - (grown.y + grown.height)) < 2,
+      '左上角拖动固定右下边'
+    );
     assert.deepEqual(errors, []);
     await page.close();
   });
@@ -3497,7 +4354,7 @@ try {
     await settle();
     const save = page.locator('#save');
     assert.equal(await save.getAttribute('data-save-state'), 'saved');
-    assert.equal(await save.getAttribute('title'), '已保存');
+    assert.match(await save.getAttribute('title'), /^已保存（(⌘S|Ctrl\+S)）$/);
     assert.equal(
       await page.locator('.workspace-toolbar #status').evaluate((item) => item.offsetWidth <= 1),
       true,
@@ -3769,6 +4626,25 @@ try {
     await settle();
     await blank();
     await card(source.id).click({ position: { x: 100, y: 120 } });
+    // 图片生成 sits before 视频生成 and creates a connected image slot (same as the side +).
+    const imageActions = await page
+      .locator('#selection-menu .selection-actions > button')
+      .evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')));
+    assert.deepEqual(imageActions.slice(0, 2), ['图片生成', '视频生成']);
+    const before = (await current()).nodes.length;
+    await page.locator('#selection-menu').getByRole('button', { name: '图片生成' }).click();
+    const imageSlot = (await current()).nodes.at(-1);
+    assert.equal((await current()).nodes.length, before + 1);
+    assert.equal(imageSlot.type, 'image');
+    assert.equal(imageSlot.assetPath, undefined);
+    assert.ok(
+      (await current()).edges.some((edge) => edge.from === source.id && edge.to === imageSlot.id),
+      '图片生成槽连到源图'
+    );
+    await editor('delete-nodes', { ids: [imageSlot.id] });
+    await settle();
+    await blank();
+    await card(source.id).click({ position: { x: 100, y: 120 } });
     const entry = page.locator('#selection-menu').getByRole('button', { name: '视频生成' });
     assert.equal(await entry.getAttribute('data-web-tip'), '视频生成');
     assert.ok(await entry.evaluate((item) => item.classList.contains('web-icon-action')));
@@ -3882,7 +4758,14 @@ try {
     assert.equal(await card(slotId).locator('.canvas-port').count(), 0);
     await blank();
     await card(slotId).click({ position: { x: 100, y: 60 } });
-    assert.deepEqual(await menuLabels(page), ['生成视频', '拆序列帧']);
+    // Like an AI image result, selecting the video result opens its composer; no 生成视频 button.
+    assert.deepEqual(await menuLabels(page), ['拆序列帧']);
+    await page.locator('#selection-toolbar .generation-panel-video').waitFor();
+    assert.equal(
+      await page.locator('#selection-toolbar textarea.generation-prompt').inputValue(),
+      '角色挥剑',
+      '面板带出原提示词'
+    );
     assert.equal(await card(slotId).locator('.web-node-handle').count(), 4);
     // templates/resourceExport stay off: no template edit or export entries on the video result.
     await card(slotId).click({ position: { x: 100, y: 60 }, button: 'right' });
@@ -3918,7 +4801,7 @@ try {
     const labels = await menu
       .locator('button:not([hidden])')
       .evaluateAll((items) => items.map((item) => item.textContent));
-    assert.deepEqual(labels, ['新建图片卡片', '上传图片', '新建视频卡片', '导入视频']);
+    assert.deepEqual(labels, ['新建图片卡片', '新建视频卡片', '上传图片', '上传视频']);
     await menu.getByRole('button', { name: '新建视频卡片' }).click();
     const slot = (await current()).nodes.find((node) => node.type === 'video');
     await page.locator('#selection-toolbar .generation-panel-video').waitFor();
@@ -3931,7 +4814,7 @@ try {
     await blank();
     const chooser = page.waitForEvent('filechooser');
     await page.mouse.click(400, 600, { button: 'right' });
-    await menu.getByRole('button', { name: '导入视频' }).click();
+    await menu.getByRole('button', { name: '上传视频' }).click();
     const bytes = await page.evaluate(() => window.__canvasVideoBytes());
     await (
       await chooser
@@ -4032,7 +4915,56 @@ try {
     const members = (await current()).nodes.filter((node) => node.sectionId === section.id);
     assert.deepEqual(members.map((node) => node.id).sort(), [first.id, second.id].sort());
     assert.deepEqual(await menuLabels(page), ['取消分组', '删除分组']);
+    // 分组 with an existing group and another card selected: the card joins that group.
+    const third = await importImage('第三张', '#58b', 120, 90);
+    await editor('update-nodes', {
+      nodes: [{ id: third.id, x: section.x + section.width + 60, y: section.y + 40 }],
+    });
+    await settle();
+    await blank();
+    await card(section.id).click({ position: { x: 20, y: 20 } });
+    await card(third.id).click({ position: { x: 40, y: 50 }, modifiers: ['Shift'] });
+    await page.locator('#selection-menu').getByRole('button', { name: '分组' }).click();
+    const joined = await current();
+    assert.equal(joined.nodes.filter((node) => node.type === 'section').length, 1, '没有新建分组');
+    assert.equal(joined.nodes.find((node) => node.id === third.id).sectionId, section.id);
+    const grownGroup = joined.nodes.find((node) => node.id === section.id);
+    const placed = joined.nodes.find((node) => node.id === third.id);
+    assert.ok(grownGroup.x + grownGroup.width >= placed.x + placed.width, '分组扩大到包含新卡');
+    // ⌘/Ctrl+C / ⌘/Ctrl+V duplicates a plain card.
+    const beforePaste = (await current()).nodes.length;
+    await blank();
+    await card(third.id).click({ position: { x: 40, y: 50 } });
+    await page.keyboard.press('ControlOrMeta+c');
+    await page.keyboard.press('ControlOrMeta+v');
+    assert.equal((await current()).nodes.length, beforePaste + 1);
+    await editor('undo', {});
+    // Undo the join, the move and the import so the rest of this check sees two cards again.
+    for (let step = 0; step < 3; step++) await editor('undo', {});
+    assert.equal(
+      (await current()).nodes.some((node) => node.id === third.id),
+      false
+    );
+    await settle();
+    await blank();
+    await card(section.id).click({ position: { x: 20, y: 20 } });
     assert.equal(await card(section.id).locator('.web-node-handle').count(), 4);
+    // Group corners have no visible dot, only an invisible resize hit area on the box corner.
+    const corner = await card(section.id)
+      .locator('.web-node-handle.is-nw')
+      .evaluate((item) => {
+        const style = getComputedStyle(item);
+        return {
+          at: [parseFloat(item.style.left), parseFloat(item.style.top)],
+          paint: [style.backgroundColor, style.borderTopWidth],
+          cursor: style.cursor,
+        };
+      });
+    assert.deepEqual(corner, {
+      at: [0, 0],
+      paint: ['rgba(0, 0, 0, 0)', '0px'],
+      cursor: 'nwse-resize',
+    });
     assert.equal(
       await card(section.id).evaluate((item) => getComputedStyle(item).borderTopLeftRadius),
       '16px'
@@ -4055,7 +4987,7 @@ try {
     const labels = await menu
       .locator('button:not([hidden])')
       .evaluateAll((items) => items.map((item) => item.textContent));
-    assert.deepEqual(labels, ['取消分组', '删除分组']);
+    assert.deepEqual(labels, ['重命名分组', '取消分组', '删除分组']);
     await menu.getByRole('button', { name: '删除分组' }).click();
     doc = await current();
     assert.equal(doc.nodes.length, 0, '删除分组同时删除成员');
@@ -4172,6 +5104,349 @@ try {
       await page.close();
     }
   );
+  await check('Web 视频卡：播放键与进度条同高同底边（缩放 1× / 放大 / 缩小）', async () => {
+    const { page, errors, editor, settle, card, blank } = await webPage({
+      features: videoFeatures,
+      videoStore: true,
+    });
+    await settle();
+    const video = await importVideo(page, '对齐');
+    await editor('update-nodes', { nodes: [{ id: video.id, x: 300, y: 200 }] });
+    await settle();
+    await blank();
+    await waitMetadata(card(video.id).locator('video'));
+    // Ctrl+wheel zooms in Web (a plain wheel pans); several steps reach 放大 / 缩小.
+    for (const wheel of [0, -10, 10]) {
+      if (wheel) {
+        const media = await card(video.id).locator('video').boundingBox();
+        await page.mouse.move(media.x + media.width / 2, media.y + media.height / 2);
+        await page.keyboard.down('Control');
+        for (let step = 0; step < 20; step++) await page.mouse.wheel(0, wheel);
+        await page.keyboard.up('Control');
+        await page.waitForTimeout(100);
+      }
+      const media = await card(video.id).locator('video').boundingBox();
+      await page.mouse.move(media.x + media.width / 2, media.y + media.height / 3);
+      await page.waitForFunction(
+        (id) =>
+          Number(
+            getComputedStyle(document.querySelector('.card[data-id="' + id + '"] .web-video-bar'))
+              .opacity
+          ) > 0.9,
+        video.id
+      );
+      const chip = await card(video.id).locator('.web-video-play').boundingBox();
+      const bar = await card(video.id).locator('.web-video-bar').boundingBox();
+      assert.ok(
+        Math.abs(chip.height - bar.height) < 0.6,
+        '同高 ' + chip.height + ' / ' + bar.height
+      );
+      assert.ok(
+        Math.abs(chip.y + chip.height - (bar.y + bar.height)) < 0.6,
+        '同底边 wheel=' + wheel
+      );
+      assert.ok(bar.x - (chip.x + chip.width) > 0, '进度条在播放键右侧');
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check(
+    'Web 触控板：双指滑动平移画布，捏合 / Ctrl+滚轮按指针缩放；默认外观滚轮仍缩放',
+    async () => {
+      const { page, errors, settle, current } = await webPage();
+      await settle();
+      const view = async () => (await current()).viewport;
+      const start = await view();
+      await page.mouse.move(700, 450);
+      // Two-finger scroll arrives as a plain wheel with both axes.
+      await page.mouse.wheel(40, 25);
+      await page.mouse.wheel(-10, 15);
+      let now = await view();
+      assert.equal(now.scale, start.scale, '双指滑动不缩放');
+      assert.ok(
+        Math.abs(now.x - (start.x - 30)) < 0.5 && Math.abs(now.y - (start.y - 40)) < 0.5,
+        '按位移平移：' + JSON.stringify(now)
+      );
+      // Shift+wheel (mouse) scrolls sideways.
+      const beforeShift = now;
+      await page.keyboard.down('Shift');
+      await page.mouse.wheel(0, 50);
+      await page.keyboard.up('Shift');
+      now = await view();
+      assert.equal(now.scale, beforeShift.scale);
+      assert.ok(
+        Math.abs(beforeShift.x - now.x - 50) < 0.5 && Math.abs(now.y - beforeShift.y) < 0.5,
+        'Shift+滚轮横向平移'
+      );
+      // Pinch is reported as Ctrl+wheel: small deltas zoom a little, around the pointer.
+      const pivot = { x: 700, y: 450 };
+      const board = await page.locator('#board').boundingBox();
+      const worldBefore = {
+        x: (pivot.x - board.x - now.x) / now.scale,
+        y: (pivot.y - board.y - now.y) / now.scale,
+      };
+      await page.keyboard.down('Control');
+      for (let step = 0; step < 10; step++) await page.mouse.wheel(0, -10);
+      await page.keyboard.up('Control');
+      const zoomed = await view();
+      assert.ok(
+        zoomed.scale > now.scale * 1.1 && zoomed.scale < now.scale * 1.35,
+        '捏合平滑放大：' + zoomed.scale
+      );
+      const worldAfter = {
+        x: (pivot.x - board.x - zoomed.x) / zoomed.scale,
+        y: (pivot.y - board.y - zoomed.y) / zoomed.scale,
+      };
+      assert.ok(
+        Math.abs(worldAfter.x - worldBefore.x) < 0.5 &&
+          Math.abs(worldAfter.y - worldBefore.y) < 0.5,
+        '以指针为中心缩放'
+      );
+      await settle();
+      assert.deepEqual(errors, []);
+      await page.close();
+      // Default appearance keeps wheel = zoom.
+      const plain = await openCanvas({});
+      await plain.page.waitForFunction(() => window.__canvasEditor.current());
+      const plainStart = await plain.page.evaluate(
+        () => window.__canvasEditor.current().viewport.scale
+      );
+      await plain.page.mouse.move(700, 450);
+      await plain.page.mouse.wheel(0, -120);
+      await plain.page.waitForFunction(
+        (scale) => window.__canvasEditor.current().viewport.scale > scale,
+        plainStart
+      );
+      assert.deepEqual(plain.errors, []);
+      await plain.page.close();
+    }
+  );
+  await check('Web 工具条快捷键：V/H/R/A 切换或放置，⌘/Ctrl+S 保存，tooltip 写明按键', async () => {
+    const { page, errors, settle, current } = await webPage();
+    await settle();
+    // The Web tooltip moves title into data-web-tip once it has shown.
+    const title = (id) =>
+      page.locator('#' + id).evaluate((item) => item.title || item.dataset.webTip || '');
+    assert.equal(await title('tool-select'), '鼠标（V）');
+    assert.match(await title('tool-pan'), /^拖拽画布（H · 按住空格临时拖拽）$/);
+    assert.equal(await title('mark-ellipse'), '标注框（R）');
+    assert.equal(await title('mark-arrow'), '箭头（A）');
+    assert.match(await title('save'), /^已保存（(⌘S|Ctrl\+S)）$/);
+    await page.mouse.click(1300, 840);
+    await page.keyboard.press('h');
+    assert.equal(await page.locator('#tool-pan').getAttribute('aria-pressed'), 'true');
+    await page.keyboard.press('v');
+    assert.equal(await page.locator('#tool-select').getAttribute('aria-pressed'), 'true');
+    const marks = async () => (await current()).nodes.filter((node) => node.type === 'mark');
+    await page.keyboard.press('r');
+    await page.keyboard.press('Escape');
+    await page.mouse.click(1300, 840);
+    await page.keyboard.press('a');
+    const placed = await marks();
+    assert.deepEqual(
+      placed.map((node) => node.mark.shape),
+      ['ellipse', 'arrow'],
+      'R 放标注框、A 放箭头'
+    );
+    await page.keyboard.press('ControlOrMeta+s');
+    await settle();
+    // Typing in a field never triggers tool keys.
+    await page.evaluate(() => {
+      const input = document.createElement('input');
+      input.id = 'shortcut-probe';
+      document.body.append(input);
+    });
+    await page.locator('#shortcut-probe').focus();
+    await page.keyboard.type('vhra');
+    assert.equal((await marks()).length, 2, '输入框里打字不触发');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check(
+    'Web 视频卡进度条：时间/时长，点击与拖动跳转不拖卡，键盘 ±1s，重渲染不重置，卡片仍可拖',
+    async () => {
+      const { page, errors, editor, settle, current, card, blank, shoot } = await webPage({
+        features: videoFeatures,
+        videoStore: true,
+      });
+      await settle();
+      const video = await importVideo(page, '进度条');
+      await editor('update-nodes', { nodes: [{ id: video.id, x: 300, y: 200 }] });
+      await settle();
+      await blank();
+      const player = card(video.id).locator('video');
+      await waitMetadata(player);
+      await page.waitForFunction((id) => {
+        const item = document.querySelector('.card[data-id="' + id + '"] video');
+        return Number.isFinite(item.duration) && item.duration > 0 && item.currentTime === 0;
+      }, video.id);
+      await player.evaluate((item) => (window.__videoMark = item));
+      const bar = card(video.id).locator('.web-video-bar');
+      const track = bar.getByRole('slider', { name: '播放进度' });
+      assert.equal(
+        await bar.evaluate((item) => getComputedStyle(item).opacity),
+        '0',
+        '未悬停时隐藏'
+      );
+      await card(video.id).hover({ position: { x: 120, y: 100 } });
+      await page.waitForFunction(
+        (id) =>
+          getComputedStyle(document.querySelector('.card[data-id="' + id + '"] .web-video-bar'))
+            .opacity > '0.9',
+        video.id
+      );
+      const duration = await player.evaluate((item) => item.duration);
+      assert.match(await bar.locator('.web-video-time').textContent(), /^0:00 \/ 0:0\d$/);
+      assert.equal(await track.getAttribute('aria-valuenow'), '0');
+      assert.equal(
+        await track.getAttribute('aria-valuemax'),
+        String(Math.round(duration * 10) / 10)
+      );
+      await themes(page, (theme) => shoot('v12-' + theme + '-video-progress.png'));
+      const before = (await current()).nodes.find((node) => node.id === video.id);
+      const rect = await track.boundingBox();
+      await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      const clicked = await player.evaluate((item) => item.currentTime / item.duration);
+      assert.ok(Math.abs(clicked - 0.5) < 0.08, '点击中点跳到一半：' + clicked);
+      assert.equal(await player.evaluate((item) => item.paused), true, '跳转不触发播放');
+      // Real mouse flow: after clicking the track, arrows keep seeking.
+      await page.keyboard.press('ArrowRight');
+      const afterClick = await player.evaluate((item) => item.currentTime);
+      assert.ok(
+        Math.abs(afterClick - Math.min(duration, clicked * duration + 1)) < 0.05,
+        '点击进度条后 → 前进 1s：' + afterClick
+      );
+      // A re-render (autosave ack, task update, Agent edit) must not drop the slider's focus.
+      await editor('update-nodes', { nodes: [{ id: video.id, title: '进度条 焦点' }] });
+      // Focus comes back on the next frame (the card is laid out by then).
+      await page.waitForFunction(() =>
+        document.activeElement.classList.contains('web-video-track')
+      );
+      await page.keyboard.press('ArrowLeft');
+      const afterRender = await player.evaluate((item) => item.currentTime);
+      assert.ok(
+        Math.abs(afterRender - Math.max(0, afterClick - 1)) < 0.05,
+        '重渲染后 ← 仍后退：' + afterRender
+      );
+      // Drag along the bar: seeks, never moves the card.
+      await page.mouse.move(rect.x + rect.width * 0.2, rect.y + rect.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(rect.x + rect.width * 0.6, rect.y + rect.height / 2 + 30, { steps: 6 });
+      await page.mouse.move(rect.x + rect.width * 0.9, rect.y + rect.height / 2 + 30, { steps: 4 });
+      await page.mouse.up();
+      await settle();
+      const dragged = await player.evaluate((item) => item.currentTime / item.duration);
+      assert.ok(Math.abs(dragged - 0.9) < 0.08, '拖动跳到 90%：' + dragged);
+      const still = (await current()).nodes.find((node) => node.id === video.id);
+      assert.deepEqual([still.x, still.y], [before.x, before.y], '拖进度条不移动卡片');
+      // Keyboard: focused slider steps 1s, clamped to the clip; arrows don't nudge the card.
+      await track.focus();
+      await page.keyboard.press('Home');
+      assert.equal(await player.evaluate((item) => item.currentTime), 0);
+      await page.keyboard.press('ArrowRight');
+      const stepped = await player.evaluate((item) => item.currentTime);
+      assert.ok(Math.abs(stepped - Math.min(1, duration)) < 0.01, '→ 前进 1s');
+      await page.keyboard.press('ArrowLeft');
+      assert.equal(await player.evaluate((item) => item.currentTime), 0, '← 后退 1s');
+      await page.keyboard.press('End');
+      assert.equal(
+        await track.getAttribute('aria-valuenow'),
+        String(Math.round(duration * 10) / 10)
+      );
+      assert.match(await track.getAttribute('aria-valuetext'), /^0:0\d \/ 0:0\d$/);
+      const keyed = (await current()).nodes.find((node) => node.id === video.id);
+      assert.deepEqual([keyed.x, keyed.y], [before.x, before.y], '方向键不挪卡片');
+      // Mute toggle.
+      const mute = bar.locator('.web-video-mute');
+      const muted = await player.evaluate((item) => item.muted);
+      await mute.click();
+      assert.equal(await player.evaluate((item) => item.muted), !muted);
+      assert.equal(await mute.getAttribute('aria-pressed'), String(!muted));
+      // Arrows also seek from the play chip and from a selected card with nothing focused.
+      const chip = card(video.id).locator('.web-video-play');
+      await player.evaluate((item) => (item.currentTime = 0));
+      await chip.focus();
+      await page.keyboard.press('ArrowRight');
+      assert.ok(
+        Math.abs((await player.evaluate((item) => item.currentTime)) - Math.min(1, duration)) <
+          0.05,
+        '播放键上 → 前进 1s'
+      );
+      await editor('update-nodes', { nodes: [{ id: video.id, title: '进度条 播放键' }] });
+      await page.waitForFunction(
+        () => document.activeElement.classList.contains('web-video-play'),
+        null,
+        { timeout: 2000 }
+      );
+      await blank();
+      await card(video.id).click({ position: { x: 120, y: 60 } });
+      await player.evaluate((item) => (item.currentTime = 0));
+      await page.keyboard.press('ArrowRight');
+      assert.ok(
+        Math.abs((await player.evaluate((item) => item.currentTime)) - Math.min(1, duration)) <
+          0.05,
+        '选中视频卡 → 前进 1s'
+      );
+      await page.keyboard.press('ArrowLeft');
+      assert.equal(await player.evaluate((item) => item.currentTime), 0, '选中视频卡 ← 后退 1s');
+      // Playing: controls fade after 2s idle even while selected or hovered, and come back on pointer move.
+      const opacity = (selector) =>
+        card(video.id)
+          .locator(selector)
+          .evaluate((item) => Number(getComputedStyle(item).opacity));
+      await player.evaluate((item) => {
+        item.loop = true;
+        item.muted = true;
+      });
+      const pic = await player.boundingBox();
+      await page.mouse.move(pic.x + pic.width / 2, pic.y + pic.height / 3);
+      await chip.click();
+      await page.waitForFunction(() => !window.__videoMark.paused);
+      await page.mouse.move(pic.x + pic.width / 2 + 5, pic.y + pic.height / 3);
+      assert.ok((await opacity('.web-video-bar')) > 0.9, '播放刚开始进度条可见');
+      await page.waitForTimeout(2400);
+      assert.equal(await opacity('.web-video-bar'), 0, '播放中静止 2s 后进度条隐藏');
+      assert.equal(await opacity('.web-video-play'), 0, '播放中静止 2s 后播放键隐藏');
+      await page.mouse.move(pic.x + pic.width / 2 + 20, pic.y + pic.height / 3);
+      await page.waitForTimeout(200);
+      assert.ok((await opacity('.web-video-bar')) > 0.9, '移动鼠标后进度条回来');
+      await chip.click();
+      await page.waitForFunction(() => window.__videoMark.paused);
+      await page.waitForTimeout(2400);
+      assert.ok((await opacity('.web-video-bar')) > 0.9, '暂停时不自动隐藏');
+      // Re-renders keep the same bar and position.
+      await player.evaluate((item) => (item.currentTime = item.duration / 2));
+      const barMark = await bar.evaluate((item) => (window.__barMark = item) && true);
+      assert.ok(barMark);
+      await blank();
+      await page.mouse.move(700, 500);
+      await page.mouse.wheel(0, -120);
+      await editor('update-nodes', { nodes: [{ id: video.id, title: '进度条 2' }] });
+      const kept = await page.evaluate((id) => {
+        const element = document.querySelector('.card[data-id="' + id + '"] .web-video-bar');
+        return {
+          same: element === window.__barMark,
+          ratio: window.__videoMark.currentTime / window.__videoMark.duration,
+        };
+      }, video.id);
+      assert.equal(kept.same, true, '同一进度条');
+      assert.ok(Math.abs(kept.ratio - 0.5) < 0.02, '进度不重置');
+      await page.mouse.wheel(0, 120);
+      await settle();
+      // The card still drags from the picture area.
+      await blank();
+      const start = (await current()).nodes.find((node) => node.id === video.id);
+      const box = await player.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 3 + 40, { steps: 6 });
+      await page.mouse.up();
+      const moved = (await current()).nodes.find((node) => node.id === video.id);
+      assert.ok(moved.x - start.x > 40 && moved.y - start.y > 20, '拖画面仍移动卡片');
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
   await check('默认外观：视频卡重渲染也复用同一 <video>（共用修复），保留原生控件', async () => {
     const { page, errors } = await openCanvas({ videoStore: true });
     const video = await importVideo(page, '默认视频');
@@ -4191,6 +5466,118 @@ try {
       true
     );
     assert.equal(await page.locator('.web-video-play').count(), 0);
+    assert.equal(await page.locator('.web-video-bar').count(), 0);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 序列帧/动画卡：与图片卡同款（框外标题、圆角面板、选中四角手柄）', async () => {
+    const atlas = 'assets/image/canvas/style-atlas.png';
+    const frame = (index) => ({
+      index,
+      time: index / 8,
+      x: index * 60,
+      y: 0,
+      width: 60,
+      height: 120,
+    });
+    const frameSetInfo = {
+      fps: 8,
+      frameCount: 2,
+      width: 60,
+      height: 120,
+      columns: 2,
+      rows: 1,
+      frames: [frame(0), frame(1)],
+    };
+    const { page, errors } = await openCanvas({
+      features: videoFeatures,
+      appearance: 'web',
+      seedMedia: { [atlas]: '#c33' },
+      seedDocuments: [
+        {
+          id: '55555555-5555-4555-8555-555555555555',
+          title: '样式画布',
+          revision: 1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          nodes: [
+            {
+              id: 'seq-s',
+              type: 'sequence',
+              x: 120,
+              y: 160,
+              width: 420,
+              height: 300,
+              title: '视频转序列帧',
+              assetPath: atlas,
+              sequenceSettings: {
+                start: 0,
+                end: 1,
+                fps: 8,
+                cutout: false,
+                backgroundColor: '#00ff00',
+                tolerance: 48,
+                duplicateThreshold: 0.985,
+                width: 60,
+                height: 120,
+                fit: 'contain',
+                pixel: false,
+              },
+              frameSetInfo,
+            },
+            {
+              id: 'anim-s',
+              type: 'animation',
+              x: 620,
+              y: 160,
+              width: 320,
+              height: 300,
+              title: '序列帧动画',
+              assetPath: atlas,
+              frameSetInfo,
+            },
+          ],
+          edges: [],
+        },
+      ],
+    });
+    await page.waitForSelector('.card[data-id="seq-s"] .canvas-card-content');
+    for (const id of ['seq-s', 'anim-s']) {
+      const card = page.locator('.card[data-id="' + id + '"]');
+      await card.locator('.canvas-card-title').click();
+      await page.waitForFunction(
+        (id) =>
+          document.querySelectorAll('.card[data-id="' + id + '"] .web-node-handle').length === 4,
+        id
+      );
+      const style = await card.evaluate((element) => {
+        const css = (item) => getComputedStyle(item);
+        const content = element.querySelector('.canvas-card-content');
+        const header = element.querySelector('.canvas-card-header');
+        return {
+          media: element.classList.contains('web-media'),
+          cardBorder: css(element).borderTopWidth,
+          cardBg: css(element).backgroundColor,
+          headerBorder: css(header).borderBottomWidth,
+          radius: css(content).borderTopLeftRadius,
+          meta: css(element.querySelector('.canvas-card-meta')).display,
+          grip: css(element.querySelector(':scope > .resize-handle') || element).display,
+        };
+      });
+      assert.equal(style.media, true, id + ' 用媒体卡外观');
+      assert.equal(style.cardBorder, '0px', id + ' 卡片外框去掉');
+      assert.equal(style.cardBg, 'rgba(0, 0, 0, 0)', id + ' 标题行透明');
+      assert.equal(style.headerBorder, '0px', id + ' 标题行无分隔线');
+      assert.equal(style.radius, '12px', id + ' 内容圆角面板');
+      assert.notEqual(style.meta, 'none', id + ' 保留帧数信息');
+      assert.equal(style.grip, 'none', id + ' 旧右下手柄隐藏');
+    }
+    if (process.env.CANVAS_SCREENSHOT_DIR) {
+      fs.mkdirSync(process.env.CANVAS_SCREENSHOT_DIR, { recursive: true });
+      await page.screenshot({
+        path: path.join(process.env.CANVAS_SCREENSHOT_DIR, 'v13-sequence-animation-cards.png'),
+        clip: { x: 80, y: 100, width: 920, height: 420 },
+      });
+    }
     assert.deepEqual(errors, []);
     await page.close();
   });
@@ -4288,6 +5675,88 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   });
+  for (const appearance of ['web', 'default']) {
+    await check(
+      '动画卡（' + appearance + '）：重渲染复用同一 canvas，当前帧立即可见（不闪）',
+      async () => {
+        const atlas = 'assets/image/canvas/animation-atlas.png';
+        const frame = (index) => ({
+          index,
+          time: index / 8,
+          x: index * 60,
+          y: 0,
+          width: 60,
+          height: 120,
+        });
+        const { page, errors } = await openCanvas({
+          features: videoFeatures,
+          ...(appearance === 'web' ? { appearance } : {}),
+          seedMedia: { [atlas]: '#c33' },
+          seedDocuments: [
+            {
+              id: '44444444-4444-4444-8444-444444444444',
+              title: '动画画布',
+              revision: 1,
+              viewport: { x: 0, y: 0, scale: 1 },
+              nodes: [
+                {
+                  id: 'anim-1',
+                  type: 'animation',
+                  x: 240,
+                  y: 160,
+                  width: 360,
+                  height: 300,
+                  title: '动画',
+                  assetPath: atlas,
+                  frameSetInfo: {
+                    fps: 8,
+                    frameCount: 2,
+                    width: 60,
+                    height: 120,
+                    columns: 2,
+                    rows: 1,
+                    frames: [frame(0), frame(1)],
+                  },
+                },
+              ],
+              edges: [],
+            },
+          ],
+        });
+        await page.waitForFunction(() => {
+          const canvas = document.querySelector('.card[data-id="anim-1"] .animation-preview');
+          return canvas && canvas.getContext('2d').getImageData(160, 120, 1, 1).data[3] > 0;
+        });
+        const sync = await page.evaluate(() => {
+          const board = document.getElementById('board');
+          const before = document.querySelector('.card[data-id="anim-1"] .animation-preview');
+          const card = before.closest('.card');
+          board.dispatchEvent(
+            new WheelEvent('wheel', {
+              deltaY: -100,
+              clientX: 600,
+              clientY: 400,
+              bubbles: true,
+              cancelable: true,
+            })
+          );
+          const canvas = document.querySelector('.card[data-id="anim-1"] .animation-preview');
+          return {
+            rerendered: canvas.closest('.card') !== card,
+            same: canvas === before,
+            alpha: canvas.getContext('2d').getImageData(160, 120, 1, 1).data[3],
+            play: canvas.closest('.card').querySelector('.animation-controls button').disabled,
+          };
+        });
+        assert.equal(sync.rerendered, true, '卡片已重建');
+        assert.equal(sync.same, true, '复用同一 canvas');
+        assert.ok(sync.alpha > 0, '重渲染后同步可见');
+        assert.equal(sync.play, false, '播放按钮立即可用');
+        assert.deepEqual(errors, []);
+        await page.close();
+      }
+    );
+  }
   await check(
     'Web 侧边＋：选择「图片卡片 / 视频卡片」，键盘可用；视频槽以首帧连入，曲线连线',
     async () => {
@@ -4486,6 +5955,792 @@ try {
       await page.close();
     }
   );
+  const slotPng = {
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64'
+    ),
+  };
+  await check(
+    'Web 空卡片：图片槽「上传」选 WebM 原位变成视频卡（同 id、去掉连线），可撤销',
+    async () => {
+      const { page, errors, editor, settle, current, card, importImage, blank } = await webPage({
+        features: videoFeatures,
+        videoStore: true,
+      });
+      const source = await importImage('参考');
+      const slotId = (await editor('add-node', { type: 'image' })).selectedIds[0];
+      await editor('update-nodes', { nodes: [{ id: slotId, x: 420, y: 220 }] });
+      await editor('connect', { from: source.id, to: slotId });
+      await settle();
+      await blank();
+      await card(slotId).click({ position: { x: 60, y: 80 } });
+      const chooser = page.waitForEvent('filechooser');
+      await card(slotId).locator('.web-slot-upload').click();
+      const picked = await chooser;
+      const accept = await picked.element().evaluate((input) => input.accept);
+      for (const type of [
+        'image/png',
+        'image/jpeg',
+        'image/webp',
+        'video/mp4',
+        'video/webm',
+        'video/quicktime',
+      ])
+        assert.ok(accept.includes(type), 'accept 包含 ' + type);
+      const bytes = await page.evaluate(() => window.__canvasVideoBytes());
+      await picked.setFiles({
+        name: '错建.webm',
+        mimeType: 'video/webm',
+        buffer: Buffer.from(bytes),
+      });
+      await page.waitForFunction(
+        (id) =>
+          window.__canvasEditor.current().nodes.find((node) => node.id === id).type ===
+          'video-source',
+        slotId
+      );
+      const doc = await current();
+      const node = doc.nodes.find((item) => item.id === slotId);
+      assert.equal(node.x, 420);
+      assert.equal(node.y, 220);
+      assert.equal(node.title, '错建');
+      assert.match(node.assetPath, /^assets\/video\//);
+      for (const key of ['generationDraft', 'referenceInput', 'generation'])
+        assert.equal(node[key], undefined, key);
+      assert.equal(
+        doc.edges.filter((edge) => edge.to === slotId || edge.from === slotId).length,
+        0
+      );
+      await card(slotId).locator('video').waitFor({ state: 'attached' });
+      await settle();
+      await editor('undo', {});
+      const restored = (await current()).nodes.find((item) => item.id === slotId);
+      assert.equal(restored.type, 'image');
+      assert.equal(restored.assetPath, undefined);
+      assert.ok(
+        (await current()).edges.some((edge) => edge.from === source.id && edge.to === slotId)
+      );
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check('Web 空卡片：视频槽「导入视频」选 PNG 原位变成图片卡（同 id），可撤销', async () => {
+    const { page, errors, editor, settle, current, card, blank } = await webPage({
+      features: videoFeatures,
+      videoStore: true,
+    });
+    const slotId = (await editor('add-node', { type: 'video' })).selectedIds[0];
+    await editor('update-nodes', { nodes: [{ id: slotId, x: 380, y: 240 }] });
+    await settle();
+    await blank();
+    await card(slotId).click({ position: { x: 60, y: 80 } });
+    const upload = page.locator('#selection-toolbar .generation-action.web-icon-action');
+    await upload.waitFor();
+    const chooser = page.waitForEvent('filechooser');
+    await upload.click();
+    const picked = await chooser;
+    assert.ok((await picked.element().evaluate((input) => input.accept)).includes('image/png'));
+    await picked.setFiles({ name: '错建图.png', ...slotPng });
+    await page.waitForFunction((id) => {
+      const node = window.__canvasEditor.current().nodes.find((item) => item.id === id);
+      return node.type === 'image' && node.assetPath;
+    }, slotId);
+    const node = (await current()).nodes.find((item) => item.id === slotId);
+    assert.equal(node.x, 380);
+    assert.equal(node.y, 240);
+    assert.equal(node.title, '错建图');
+    assert.equal(node.generationDraft, undefined);
+    assert.equal(node.videoInputMode, undefined);
+    await card(slotId).locator('img').waitFor();
+    await settle();
+    await editor('undo', {});
+    const restored = (await current()).nodes.find((item) => item.id === slotId);
+    assert.equal(restored.type, 'video');
+    assert.equal(restored.assetPath, undefined);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  const spriteFeatures = { ...videoFeatures, spriteGen: true };
+  const spriteProgress = (state, context = {}) => ({
+    schema_version: 3,
+    sprite_type: 'character',
+    state,
+    cursor: null,
+    context: { sprite_name: 'hero', options: {}, flags: {}, anims: [], ...context },
+  });
+  const spritePage = async () => {
+    const opened = await webPage({
+      features: spriteFeatures,
+      videoStore: true,
+      projectJson: {},
+      startSpriteGen: true,
+    });
+    const source = await opened.importImage('勇者', '#c33', 80, 80);
+    await opened.editor('update-nodes', { nodes: [{ id: source.id, x: 200, y: 200 }] });
+    await opened.settle();
+    await opened.card(source.id).click({ position: { x: 40, y: 60 } });
+    await opened.page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+    return { ...opened, source };
+  };
+  const startSprite = async (page, name, type) => {
+    await page.locator('#selection-menu').getByRole('button', { name: '生成精灵' }).click();
+    const dialog = page.locator('dialog.sprite-gen-dialog');
+    await dialog.waitFor();
+    await dialog.locator('input[name="sprite-name"]').fill(name);
+    if (type === 'generic')
+      await dialog.locator('.sprite-gen-option', { hasText: '通用序列帧' }).click();
+    const count = await page.evaluate(() => (window.__canvasSpriteStarts || []).length);
+    await dialog.getByRole('button', { name: '开始' }).click();
+    await page.waitForFunction(
+      (count) => (window.__canvasSpriteStarts || []).length > count,
+      count
+    );
+    await dialog.waitFor({ state: 'detached' });
+  };
+  const spriteSection = async (current, name) =>
+    (await current()).nodes.find(
+      (node) => node.type === 'section' && node.spriteGen?.name === name
+    );
+  const spriteBadge = (page, id) =>
+    page.locator('.card[data-id="' + id + '"] .canvas-group-state').textContent();
+  await check(
+    'Web 生成精灵：图标入口、对话框校验、建「精灵：名」分组并调用 startSpriteGen（明暗）',
+    async () => {
+      const { page, errors, current, source, shoot } = await spritePage();
+      const labels = await menuLabels(page);
+      assert.ok(labels.indexOf('生成精灵') === labels.indexOf('视频生成') + 1, labels.join(','));
+      const entry = page.locator('#selection-menu').getByRole('button', { name: '生成精灵' });
+      assert.ok(await entry.evaluate((item) => item.classList.contains('web-icon-action')));
+      assert.equal(await entry.locator('svg').getAttribute('stroke-width'), '2');
+      await entry.click();
+      const dialog = page.locator('dialog.sprite-gen-dialog');
+      await dialog.waitFor();
+      const name = dialog.locator('input[name="sprite-name"]');
+      assert.equal(await name.inputValue(), '勇者');
+      await name.fill('a/b');
+      assert.match(await dialog.locator('.sprite-gen-error').textContent(), /只能包含/);
+      await dialog.getByRole('button', { name: '开始' }).click();
+      assert.equal(await dialog.isVisible(), true);
+      await name.fill('');
+      await dialog.getByRole('button', { name: '开始' }).click();
+      assert.equal(await dialog.locator('.sprite-gen-error').textContent(), '请填写精灵名。');
+      await name.fill('hero');
+      await themes(page, (theme) => shoot('v20-sprite-dialog-' + theme + '.png'));
+      assert.equal(await page.evaluate(() => (window.__canvasSpriteStarts || []).length), 0);
+      await dialog.locator('.sprite-gen-option', { hasText: '通用序列帧' }).click();
+      await dialog.getByRole('button', { name: '开始' }).click();
+      await page.waitForFunction(() => (window.__canvasSpriteStarts || []).length === 1);
+      await dialog.waitFor({ state: 'detached' });
+      const doc = await current();
+      const section = doc.nodes.find((node) => node.type === 'section');
+      assert.equal(section.title, '精灵：hero');
+      assert.deepEqual(
+        { ...section.spriteGen, startedAt: typeof section.spriteGen.startedAt, chatId: undefined },
+        {
+          name: 'hero',
+          type: 'generic',
+          sourceId: source.id,
+          startedAt: 'number',
+          dismissed: [],
+          chatId: undefined,
+        }
+      );
+      // The host reports the new chat; the group keeps it for 「打开生成对话」.
+      await page.waitForFunction(
+        () =>
+          window.__canvasEditor.current().nodes.find((node) => node.type === 'section').spriteGen
+            .chatId === 'chat-1'
+      );
+      const open = page
+        .locator('.card[data-id="' + section.id + '"]')
+        .getByRole('button', { name: '打开生成对话' });
+      await open.click();
+      assert.deepEqual(await page.evaluate(() => window.__canvasSpriteChats), ['chat-1']);
+      assert.equal(doc.nodes.find((node) => node.id === source.id).sectionId, section.id);
+      const [call] = await page.evaluate(() => window.__canvasSpriteStarts);
+      assert.deepEqual(call, {
+        canvasId: doc.id,
+        nodeId: source.id,
+        spriteName: 'hero',
+        spriteType: 'generic',
+        sourcePath: source.assetPath,
+        unsaved: false,
+      });
+      await page.waitForFunction(
+        (id) =>
+          document.querySelector('.card[data-id="' + id + '"] .canvas-group-state')?.textContent ===
+          '等待对话开始',
+        section.id
+      );
+      // Same name reuses the group and asks the host again.
+      await page
+        .locator('.card[data-id="' + source.id + '"]')
+        .click({ position: { x: 40, y: 60 } });
+      await startSprite(page, 'hero');
+      assert.equal((await current()).nodes.filter((node) => node.type === 'section').length, 1);
+      assert.equal(await page.evaluate(() => window.__canvasSpriteStarts.length), 2);
+      // Hook failures surface as the page error; the group stays.
+      await page.evaluate(() => (window.__canvasSpriteFail = true));
+      await page
+        .locator('.card[data-id="' + source.id + '"]')
+        .click({ position: { x: 40, y: 60 } });
+      await startSprite(page, 'hero');
+      await page.waitForFunction(() =>
+        document.getElementById('error').textContent.includes('模拟打开对话失败')
+      );
+      assert.ok(await spriteSection(current, 'hero'));
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check(
+    'Web 精灵同步：中途进度生成镜像卡、连线与阶段；只读菜单；删除后不再加回（明暗）',
+    async () => {
+      const { page, errors, editor, settle, current, card, source, shoot } = await spritePage();
+      await startSprite(page, 'hero');
+      const section = await spriteSection(current, 'hero');
+      const base = '.build/sprite-gen/hero/_gen_images/';
+      await page.evaluate(
+        async ({ base }) => {
+          await window.__canvasAddMedia('#e8e4dc', 96, 96, base + 'cutout_ref.png');
+          await window.__canvasAddMedia('#36c', 96, 128, 'assets/image/vp_1.png');
+          await window.__canvasAddMedia('#c63', 96, 128, 'assets/image/vp_2.png');
+          // sprite-gen copies the chosen viewpoint (vp_2) onto ready.png.
+          await window.__canvasAddMedia('#c63', 96, 128, base + 'ready.png');
+        },
+        { base }
+      );
+      const progressPath = '.build/sprite-gen/hero/_progress.json';
+      await page.evaluate(
+        ({ progressPath, progress }) => (window.__canvasProjectJson = { [progressPath]: progress }),
+        {
+          progressPath,
+          progress: spriteProgress('plan', {
+            flags: {
+              viewpoint_candidates: [
+                '/workspace/assets/image/vp_1.png',
+                'assets/image/vp_2.png',
+                '../evil.png',
+                'assets/image/missing.png',
+              ],
+            },
+          }),
+        }
+      );
+      await page.evaluate(() => window.__canvasEditor.syncSprites());
+      const mirrors = async () =>
+        Object.fromEntries(
+          (await current()).nodes
+            .filter((node) => node.mirror)
+            .map((node) => [node.mirror.key, node])
+        );
+      let byKey = await mirrors();
+      assert.deepEqual(Object.keys(byKey).sort(), [
+        'cutout_ref',
+        'viewpoint:assets/image/vp_1.png',
+        'viewpoint:assets/image/vp_2.png',
+      ]);
+      for (const node of Object.values(byKey)) {
+        assert.equal(node.sectionId, section.id);
+        assert.deepEqual(node.mirror.source, 'sprite-gen');
+      }
+      const edges = (await current()).edges.map((edge) => [edge.from, edge.to, edge.kind]);
+      for (const [from, to] of [
+        // 抠图 → 视角候选; ready.png duplicates vp_2, so vp_2 stands in for 主参考图.
+        [source.id, byKey.cutout_ref.id],
+        [byKey.cutout_ref.id, byKey['viewpoint:assets/image/vp_1.png'].id],
+        [byKey.cutout_ref.id, byKey['viewpoint:assets/image/vp_2.png'].id],
+      ])
+        assert.ok(
+          edges.some((edge) => edge[0] === from && edge[1] === to && edge[2] === 'image-variant')
+        );
+      assert.equal(await spriteBadge(page, section.id), '确认动画清单 · 待确认');
+      // Header keeps the sprite name whole and drops the member count.
+      const header = await page.evaluate((id) => {
+        const card = document.querySelector('.card[data-id="' + id + '"]');
+        const title = card.querySelector('.canvas-card-title');
+        return {
+          whole: title.scrollWidth <= title.clientWidth + 1,
+          meta: getComputedStyle(card.querySelector('.canvas-card-meta')).display,
+          tip: card.querySelector('.canvas-group-state').title,
+        };
+      }, section.id);
+      assert.equal(header.whole, true, '分组名完整显示');
+      assert.equal(header.meta, 'none', '精灵分组不显示卡片数');
+      assert.match(header.tip, /请在对话中确认/);
+      // Waiting for the user = orange dot; working = green.
+      const dot = () =>
+        page.evaluate(
+          (id) =>
+            getComputedStyle(
+              document.querySelector('.card[data-id="' + id + '"] .canvas-group-state'),
+              '::before'
+            ).backgroundColor,
+          section.id
+        );
+      assert.equal(await dot(), 'rgb(247, 107, 21)', '待确认为橘色');
+      assert.equal(byKey['viewpoint:assets/image/vp_2.png'].title, '视角候选 2 · 主参考图');
+      await card(byKey['viewpoint:assets/image/vp_2.png'].id).locator('img').waitFor();
+      // Cards resize to their image ratio after loading; the layout follows so centre lines hold.
+      await page.waitForFunction(
+        ({ chain, ready, first, last }) => {
+          const nodes = window.__canvasEditor.current().nodes;
+          const at = (id) => nodes.find((node) => node.id === id);
+          const mid = (node) => node.y + node.height / 2;
+          const [a, c, d, r] = [at(chain), at(first), at(last), ready];
+          return c.height !== 240 && Math.abs((c.y + d.y + d.height) / 2 - mid(a)) < 1 && !r;
+        },
+        {
+          chain: byKey.cutout_ref.id,
+          ready: null,
+          first: byKey['viewpoint:assets/image/vp_1.png'].id,
+          last: byKey['viewpoint:assets/image/vp_2.png'].id,
+        }
+      );
+      byKey = await mirrors();
+      // Tree layout: candidates fan out right of the cutout; 主参考图 follows the chosen one.
+      const [vp1, vp2] = ['vp_1', 'vp_2'].map((n) => byKey['viewpoint:assets/image/' + n + '.png']);
+      assert.ok(vp1.x > byKey.cutout_ref.x + byKey.cutout_ref.width, '候选在抠图右侧');
+      assert.equal(vp1.x, vp2.x, '候选同列');
+      assert.ok(vp2.y >= vp1.y + vp1.height, '候选向下排开');
+      const grown = (await current()).nodes.find((node) => node.id === section.id);
+      const vp = byKey['viewpoint:assets/image/vp_2.png'];
+      assert.ok(
+        grown.x + grown.width >= vp.x + vp.width && grown.y + grown.height >= vp.y + vp.height
+      );
+      // Sync is not a user action: undo goes back to before the group, redo re-syncs the mirrors.
+      await settle();
+      await editor('undo', {});
+      assert.equal(await spriteSection(current, 'hero'), undefined);
+      await editor('redo', {});
+      await page.waitForFunction(
+        () => window.__canvasEditor.current().nodes.filter((node) => node.mirror).length === 3
+      );
+      byKey = await mirrors();
+      // Read-only: only 下载 remains (no addToChat hook here), no side ports, no 生成精灵.
+      await settle();
+      await card(byKey.cutout_ref.id).click({ position: { x: 40, y: 80 } });
+      await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+      assert.deepEqual(await menuLabels(page), ['下载 PNG', '下载 JPG', '复制为普通卡片']);
+      assert.equal(await card(byKey.cutout_ref.id).locator('.canvas-port').count(), 0);
+      assert.equal(await page.locator('#selection-toolbar .selection-panel').count(), 0);
+      // 复制为普通卡片: the file is copied into the canvas folder; the copy sits outside the group.
+      const beforeCopy = (await current()).nodes.length;
+      await page.locator('#selection-menu').getByRole('button', { name: '复制为普通卡片' }).click();
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 1,
+        beforeCopy
+      );
+      const copied = (await current()).nodes.at(-1);
+      const groupNow = await spriteSection(current, 'hero');
+      assert.equal(copied.mirror, undefined);
+      assert.equal(copied.sectionId, undefined);
+      assert.match(copied.assetPath, /^assets\/image\//);
+      assert.ok(copied.x >= groupNow.x + groupNow.width, '复制卡在分组外');
+      await editor('undo', {});
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count,
+        beforeCopy
+      );
+      // ⌘/Ctrl+C then ⌘/Ctrl+V on a sprite card also copies it as a plain card.
+      await card(byKey.cutout_ref.id).click({ position: { x: 40, y: 80 } });
+      await page.keyboard.press('ControlOrMeta+c');
+      await page.keyboard.press('ControlOrMeta+v');
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 1,
+        beforeCopy
+      );
+      const pasted = (await current()).nodes.at(-1);
+      assert.equal(pasted.mirror, undefined);
+      assert.match(pasted.assetPath, /^assets\/image\//);
+      // The copy is panned into view.
+      const shown = await card(pasted.id).boundingBox();
+      assert.ok(shown && shown.x >= 0 && shown.x + shown.width <= 1400, '复制卡在视野内');
+      await editor('undo', {});
+      // Mixed selections must retain ordinary cards as well as copied mirrors.
+      await card(byKey.cutout_ref.id).click({ position: { x: 40, y: 80 } });
+      await card(source.id).click({ position: { x: 40, y: 60 }, modifiers: ['Shift'] });
+      await page.keyboard.press('ControlOrMeta+d');
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count + 2,
+        beforeCopy
+      );
+      const mixedCopies = (await current()).nodes.slice(-2);
+      assert.ok(mixedCopies.some((node) => node.assetPath === source.assetPath && !node.mirror));
+      assert.ok(mixedCopies.every((node) => !node.mirror));
+      await editor('undo', {});
+      await page.evaluate(() => window.__canvasEditor.syncSprites());
+      byKey = await mirrors();
+      // Dragging a sprite card out of its group keeps it in the group.
+      const inside = byKey.cutout_ref;
+      await settle();
+      await card(inside.id).waitFor({ state: 'visible' });
+      const from = await card(inside.id).boundingBox();
+      await page.mouse.move(from.x + 40, from.y + 80);
+      await page.mouse.down();
+      await page.mouse.move(from.x + 40, from.y - 400, { steps: 8 });
+      await page.mouse.up();
+      assert.equal(
+        (await current()).nodes.find((node) => node.id === inside.id).sectionId,
+        section.id,
+        '精灵卡拖出分组框仍属于分组'
+      );
+      await editor('undo', {});
+      await page.mouse.move(10, 10);
+      await themes(page, (theme) => shoot('v20-sprite-group-' + theme + '.png'));
+      const removed = byKey['viewpoint:assets/image/vp_2.png'];
+      await card(removed.id).click({ position: { x: 40, y: 80 } });
+      await page.keyboard.press('Delete');
+      await page.waitForFunction(
+        (id) => !window.__canvasEditor.current().nodes.some((node) => node.id === id),
+        removed.id
+      );
+      assert.deepEqual((await spriteSection(current, 'hero')).spriteGen.dismissed, [
+        'viewpoint:assets/image/vp_2.png',
+      ]);
+      await page.evaluate(() => window.__canvasEditor.syncSprites());
+      byKey = await mirrors();
+      assert.equal(byKey['viewpoint:assets/image/vp_2.png'], undefined);
+      assert.equal(Object.keys(byKey).length, 3);
+      // A file moved away keeps its card as 素材丢失; moving it back restores the image.
+      const lost = byKey['viewpoint:assets/image/vp_1.png'];
+      const touchProgress = (stamp) =>
+        page.evaluate(
+          ({ progressPath, stamp }) => {
+            window.__canvasProjectJson[progressPath].updated_at = stamp;
+            return window.__canvasEditor.syncSprites();
+          },
+          { progressPath, stamp }
+        );
+      const kept = await page.evaluate(async (sourcePath) => {
+        const blob = await window.__canvasDropMedia('assets/image/vp_1.png');
+        window.__canvasKeptBlob = blob;
+        // A plain (non-mirror) card whose file is gone: its <img> fails on the next render.
+        await window.__canvasDropMedia(sourcePath);
+        return Boolean(blob);
+      }, source.assetPath);
+      assert.ok(kept);
+      await touchProgress('t1');
+      await card(lost.id).locator('.card-state-missing').waitFor();
+      await card(source.id).locator('.card-state-missing').waitFor();
+      assert.ok(
+        (await current()).nodes.some((node) => node.id === lost.id),
+        '丢失的卡片保留'
+      );
+      assert.match(await card(lost.id).locator('.card-state-missing').textContent(), /素材丢失/);
+      await page.mouse.move(10, 10);
+      // shoot() waits for every image to decode, which a missing file never does.
+      if (process.env.CANVAS_SCREENSHOT_DIR)
+        await themes(page, (theme) =>
+          page.screenshot({
+            path: path.join(
+              process.env.CANVAS_SCREENSHOT_DIR,
+              'v20-sprite-missing-' + theme + '.png'
+            ),
+          })
+        );
+      await page.evaluate(() =>
+        window.__canvasSetMedia('assets/image/vp_1.png', window.__canvasKeptBlob)
+      );
+      await touchProgress('t2');
+      await card(lost.id).locator('img').waitFor();
+      assert.equal(await card(lost.id).locator('.card-state-missing').count(), 0);
+      // 重新整理: a card the user dragged away goes back into the tree; undo restores the drag.
+      const laidOut = (await mirrors()).ready;
+      await settle();
+      const box = await card(laidOut.id).boundingBox();
+      await page.mouse.move(box.x + 40, box.y + 80);
+      await page.mouse.down();
+      await page.mouse.move(box.x + 140, box.y + 260, { steps: 6 });
+      await page.mouse.up();
+      await page.waitForFunction(
+        ({ id, y }) => window.__canvasEditor.current().nodes.find((n) => n.id === id).y > y + 100,
+        { id: laidOut.id, y: laidOut.y }
+      );
+      const moved = (await mirrors()).ready;
+      await settle();
+      // The group's top-left blank strip stays on screen however far the tree grows.
+      await card(section.id).click({ position: { x: 12, y: 52 } });
+      await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+      assert.deepEqual(await menuLabels(page), ['重新整理', '取消分组', '删除分组']);
+      await page.locator('#selection-menu').getByRole('button', { name: '重新整理' }).click();
+      await page.waitForFunction(
+        ({ id, x, y }) => {
+          const node = window.__canvasEditor.current().nodes.find((n) => n.id === id);
+          return node.x === x && node.y === y;
+        },
+        { id: laidOut.id, x: laidOut.x, y: laidOut.y }
+      );
+      const tidied = await current();
+      assert.ok(
+        tidied.edges.some((edge) => edge.from === byKey.cutout_ref.id && edge.to === lost.id),
+        '抠图 → 视角候选 连线仍在'
+      );
+      await settle();
+      await editor('undo', {});
+      const undone = (await current()).nodes.find((node) => node.id === laidOut.id);
+      assert.deepEqual([undone.x, undone.y], [moved.x, moved.y]);
+      await editor('redo', {});
+      // Drain the sync triggered by redo; hiding stops future polls, not in-flight reads.
+      await page.evaluate(() => window.__canvasEditor.syncSprites());
+      // Host hides the panel: no poll is pending; showing it again catches up right away.
+      const before = await page.evaluate(() => {
+        window.__canvasEditor.setPanelVisible(false);
+        return window.__canvasCalls.json.length;
+      });
+      await page.waitForTimeout(300);
+      assert.equal(await page.evaluate(() => window.__canvasCalls.json.length), before);
+      await page.evaluate(() => window.__canvasEditor.setPanelVisible(true));
+      await page.waitForFunction((count) => window.__canvasCalls.json.length > count, before);
+      // Mirrors are only read: the sync asked for these files and wrote nothing back.
+      const reads = await page.evaluate(() => window.__canvasCalls.json);
+      assert.ok(reads.includes(progressPath) && reads.includes('assets/sprites/hero/sprite.json'));
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check('Web 精灵混合复制：模型卡检查先于镜像复制，不生成无来源的模型副本', async () => {
+    for (const type of ['model', 'model-views']) {
+      const assetPath = 'assets/image/model-copy-source.png';
+      const { page, current, card, errors } = await webPage({
+        features: spriteFeatures,
+        seedMedia: { [assetPath]: '#c33' },
+        seedDocuments: [
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            title: 'mixed copy',
+            revision: 1,
+            viewport: { x: 0, y: 0, scale: 1 },
+            edges: [],
+            nodes: [
+              {
+                id: 'mirror',
+                type: 'image',
+                x: 100,
+                y: 160,
+                width: 200,
+                height: 200,
+                assetPath,
+                mirror: { source: 'sprite-gen', name: 'hero', key: 'viewpoint:' + assetPath },
+              },
+              { id: 'model', type, x: 500, y: 160, width: 240, height: 200 },
+            ],
+          },
+        ],
+      });
+      await card('mirror').click({ position: { x: 30, y: 80 } });
+      await card('model').click({ position: { x: 30, y: 80 }, modifiers: ['Shift'] });
+      await page.keyboard.press('ControlOrMeta+d');
+      await page.waitForFunction(() =>
+        document.getElementById('error').textContent.includes('模型卡片依赖完整来源')
+      );
+      assert.equal((await current()).nodes.length, 2);
+      await page.keyboard.press('ControlOrMeta+c');
+      await page.keyboard.press('ControlOrMeta+v');
+      assert.equal((await current()).nodes.length, 2);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  });
+  await check('Web 精灵同步：媒体晚到、强制刷新同路径文件无需改进度 JSON', async () => {
+    const { page, current, card, settle, errors } = await spritePage();
+    await startSprite(page, 'hero');
+    const assetPath = 'assets/image/late.png';
+    await page.evaluate(
+      ({ progress }) => {
+        window.__canvasProjectJson = { '.build/sprite-gen/hero/_progress.json': progress };
+      },
+      { progress: spriteProgress('plan', { flags: { viewpoint_candidates: [assetPath] } }) }
+    );
+    await page.evaluate(() => window.__canvasEditor.syncSprites());
+    assert.ok(!(await current()).nodes.some((node) => node.assetPath === assetPath));
+    await page.evaluate(async (path) => {
+      await window.__canvasAddMedia('#c33', 80, 80, path);
+      window.dispatchEvent(new Event('online'));
+    }, assetPath);
+    await page.waitForFunction(
+      (path) => window.__canvasEditor.current().nodes.some((node) => node.assetPath === path),
+      assetPath
+    );
+    const node = (await current()).nodes.find((node) => node.assetPath === assetPath);
+    await settle();
+    const before = await card(node.id).locator('img').getAttribute('src');
+    await page.evaluate(async (path) => {
+      await window.__canvasAddMedia('#33c', 80, 80, path);
+      await window.__canvasEditor.syncSprites();
+    }, assetPath);
+    assert.notEqual(await card(node.id).locator('img').getAttribute('src'), before);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check(
+    'Web 精灵同步：完成态裁边精灵表生成可播放的动画卡与序列帧卡，阶段为已完成（明暗）',
+    async () => {
+      const { page, errors, current, card, settle, shoot } = await spritePage();
+      await startSprite(page, 'hero');
+      const section = await spriteSection(current, 'hero');
+      await page.evaluate(async () => {
+        await window.__canvasAddMedia(
+          '#3a7',
+          96,
+          96,
+          '.build/sprite-gen/hero/_gen_images/ready.png'
+        );
+        const atlas = document.createElement('canvas');
+        atlas.width = 64;
+        atlas.height = 32;
+        const context = atlas.getContext('2d');
+        context.fillStyle = '#ff0000';
+        context.fillRect(0, 0, 24, 32);
+        context.fillStyle = '#0000ff';
+        context.fillRect(24, 0, 24, 32);
+        const blob = await new Promise((resolve) => atlas.toBlob(resolve, 'image/png'));
+        window.__canvasSetMedia('assets/sprites/hero/walk/spritesheet.png', blob);
+        const video = new Uint8Array(await window.__canvasVideoBytes());
+        window.__canvasSetMedia(
+          '.build/sprite-gen/hero/_gen_videos/walk/anim.mp4',
+          new Blob([video], { type: 'video/webm' })
+        );
+      });
+      const frame = (x, offsetX, duration) => ({
+        frame: { x, y: 0, w: 24, h: 32 },
+        rotated: false,
+        trimmed: true,
+        spriteSourceSize: { x: offsetX, y: 4, w: 24, h: 32 },
+        sourceSize: { w: 40, h: 40 },
+        duration,
+      });
+      await page.evaluate((files) => (window.__canvasProjectJson = files), {
+        '.build/sprite-gen/hero/_progress.json': spriteProgress('done', {
+          anims: [
+            {
+              id: 'walk',
+              play_type: 'loop',
+              action: '走',
+              status: 'done',
+              video_ref: 'https://cdn.example/x.mp4',
+            },
+          ],
+        }),
+        'assets/sprites/hero/sprite.json': {
+          meta: { relatedMultiPacks: ['walk/spritesheet.json'] },
+        },
+        'assets/sprites/hero/walk/spritesheet.json': {
+          frames: { walk_0001: frame(0, 8, 120), walk_0002: frame(24, 6, 120) },
+          animations: [{ name: 'walk', frames: ['walk_0001', 'walk_0002'], repeat: -1, fps: 8 }],
+          meta: { image: 'spritesheet.png', size: { w: 64, h: 32 } },
+        },
+      });
+      const delayedSheet = await page.evaluate(() => {
+        const path = 'assets/sprites/hero/walk/spritesheet.json';
+        const sheet = window.__canvasProjectJson[path];
+        delete window.__canvasProjectJson[path];
+        return sheet;
+      });
+      await page.evaluate(() => window.__canvasEditor.syncSprites());
+      assert.ok(!(await current()).nodes.some((node) => node.mirror?.key === 'animation:walk'));
+      await page.evaluate((sheet) => {
+        window.__canvasProjectJson['assets/sprites/hero/walk/spritesheet.json'] = sheet;
+        window.dispatchEvent(new Event('online'));
+      }, delayedSheet);
+      await page.waitForFunction(() =>
+        window.__canvasEditor.current().nodes.some((node) => node.mirror?.key === 'animation:walk')
+      );
+      const doc = await current();
+      const byKey = Object.fromEntries(
+        doc.nodes.filter((node) => node.mirror).map((node) => [node.mirror.key, node])
+      );
+      assert.deepEqual(Object.keys(byKey).sort(), [
+        'animation:walk',
+        'ready',
+        'sequence:walk',
+        'video:walk',
+      ]);
+      const kinds = [
+        [byKey.ready.id, byKey['video:walk'].id, 'image-to-video'],
+        [byKey['video:walk'].id, byKey['sequence:walk'].id, 'sequence-source'],
+        [byKey['sequence:walk'].id, byKey['animation:walk'].id, 'sequence-animation'],
+      ];
+      for (const [from, to, kind] of kinds)
+        assert.ok(
+          doc.edges.some((edge) => edge.from === from && edge.to === to && edge.kind === kind),
+          kind
+        );
+      assert.equal(byKey['sequence:walk'].sourceVideoId, byKey['video:walk'].id);
+      // A mirrored video keeps only 复制为普通卡片 (no empty selection pill above it).
+      await settle();
+      await card(byKey['video:walk'].id).click({ position: { x: 40, y: 40 } });
+      await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+      assert.deepEqual(await menuLabels(page), ['复制为普通卡片']);
+      await page.mouse.click(10, 10);
+      assert.equal(byKey['animation:walk'].frameSetInfo.frames[1].offsetX, 6);
+      assert.equal(await spriteBadge(page, section.id), '已完成');
+      // The tree grows to the right (source → video → sequence → animation); fit it on screen.
+      await page.locator('#fit-canvas').click();
+      const sequence = card(byKey['sequence:walk'].id);
+      await sequence.locator('.sequence-result-grid canvas').nth(1).waitFor();
+      assert.equal(await sequence.locator('.sequence-result-grid canvas').count(), 2);
+      assert.equal(
+        await sequence.locator('.sequence-edit-button, .sequence-animation-button').count(),
+        0
+      );
+      const animation = card(byKey['animation:walk'].id);
+      const pixel = () =>
+        animation.locator('canvas.animation-preview').evaluate((canvas) => ({
+          index: canvas.dataset.frameIndex,
+          rgba: Array.from(canvas.getContext('2d').getImageData(160, 120, 1, 1).data),
+        }));
+      await page.waitForFunction(
+        (id) =>
+          document.querySelector('.card[data-id="' + id + '"] canvas.animation-preview')?.dataset
+            .frameIndex === '0',
+        byKey['animation:walk'].id
+      );
+      const first = await pixel();
+      assert.deepEqual(first.rgba.slice(0, 3), [255, 0, 0], '首帧按偏移绘制且非空白');
+      await animation.getByRole('button', { name: '播放动画' }).click();
+      await page.waitForFunction(
+        (id) =>
+          document.querySelector('.card[data-id="' + id + '"] canvas.animation-preview')?.dataset
+            .frameIndex === '1',
+        byKey['animation:walk'].id
+      );
+      const second = await pixel();
+      assert.deepEqual(second.rgba.slice(0, 3), [0, 0, 255], '播放到第 2 帧');
+      // Offsets matter: frame 1 sits 8px into the 40px box (scaled ×6), so x=60 stays empty.
+      const edge = await animation
+        .locator('canvas.animation-preview')
+        .evaluate((canvas) => canvas.getContext('2d').getImageData(60, 120, 1, 1).data[3]);
+      assert.equal(edge, 0);
+      await animation.getByRole('button', { name: '暂停' }).click();
+      await themes(page, (theme) => shoot('v20-sprite-done-' + theme + '.png'));
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  );
+  await check('生成精灵入口：默认外观与缺少 startSpriteGen 时都不显示', async () => {
+    for (const config of [
+      { features: { spriteGen: true }, startSpriteGen: true, projectJson: {} },
+      { features: spriteFeatures, appearance: 'web', projectJson: {} },
+    ]) {
+      const { page, errors } = await openCanvas(config);
+      const assetPath = await page.evaluate(() => window.__canvasAddMedia('#c33', 40, 40));
+      await page.evaluate(
+        (assetPath) =>
+          window.__canvasEditor.importProjectAsset({ assetPath, kind: 'image', title: '来源图' }),
+        assetPath
+      );
+      await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
+      assert.equal(
+        await page.locator('#selection-menu').getByRole('button', { name: '生成精灵' }).count(),
+        0
+      );
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  });
   await check('默认外观：视频/分组入口与文案不变，无 Web 菜单项', async () => {
     const { page, errors } = await openCanvas({ videoStore: true });
     assert.equal(await page.locator('#add-video').textContent(), '视频输入卡');

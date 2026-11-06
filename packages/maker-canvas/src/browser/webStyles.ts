@@ -21,6 +21,16 @@ const PLUS_ICON =
 // lucide Video, drawn like IMAGE_ICON for the empty video slot.
 const VIDEO_ICON =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.35' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5'/%3E%3Crect x='2' y='6' width='14' height='12' rx='2'/%3E%3C/svg%3E\")";
+// lucide Ellipsis / X / Minus for buttons whose DOM text the shared page owns (card ⋯, tab ×, zoom −/+).
+const ELLIPSIS_ICON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='1'/%3E%3Ccircle cx='19' cy='12' r='1'/%3E%3Ccircle cx='5' cy='12' r='1'/%3E%3C/svg%3E\")";
+const X_ICON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6 6 18'/%3E%3Cpath d='m6 6 12 12'/%3E%3C/svg%3E\")";
+const MINUS_ICON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M5 12h14'/%3E%3C/svg%3E\")";
+// lucide ChevronDown for the cutout panel selects.
+const CHEVRON_ICON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")";
 const SPRING = 'cubic-bezier(.34,1.56,.64,1)';
 
 /** Opt-in Mivo-like skin for host appearance 'web'; layout and DOM stay the page defaults. */
@@ -149,6 +159,9 @@ ${M} .workspace-actions > #save[data-save-state="failed"]::after { background: #
 /* Pan mode and held Space own the cursor everywhere on the board, above card-level cursors. */
 ${M} #board.pan-tool, ${M} #board.pan-tool * { cursor: grab !important; }
 ${M} #board.grabbing, ${M} #board.grabbing * { cursor: grabbing !important; }
+/* Dot grid from the text colour at low alpha, so it stays visible on any host background. */
+${M} #board { background-image: radial-gradient(rgba(255,255,255,.12) 1px, transparent 1.2px); }
+${L} #board { background-image: radial-gradient(rgba(0,0,0,.13) 1px, transparent 1.2px); }
 ${M} .workspace-menu-panel { padding: 6px; border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); box-shadow: var(--web-shadow); }
 ${M} .workspace-menu-panel button { border: 0; border-radius: 8px; background: transparent; color: var(--web-text); padding: 8px 10px; }
 ${M} .workspace-menu-panel button:hover:not(:disabled) { background: var(--web-wash); }
@@ -315,6 +328,9 @@ ${M} #selection-toolbar .generation-asset-reset:hover:not(:disabled) { text-deco
 ${M} #selection-toolbar .generation-asset-reset:disabled { color: var(--web-muted); opacity: .6; cursor: default; }
 ${M} #selection-toolbar .generation-actions { order: 4; flex: 0 0 auto; display: flex; align-items: center; margin-left: auto; padding: 0 4px 2px 8px; gap: 0; }
 ${M} #selection-toolbar .generation-actions > * + * { margin-left: 8px; }
+/* Some states (e.g. 来源已变化 → 刷新结果) append the action straight into the panel instead of
+   .generation-actions: keep it at the end of the fields row, not a full-width bar on top. */
+${M} #selection-toolbar .generation-panel > .generation-action { order: 4; flex: 0 0 auto; align-self: center; margin: 6px 4px 2px auto; }
 ${M} #selection-toolbar .generation-status, ${M} #selection-toolbar .generation-error, ${M} #selection-toolbar .generation-panel > small { order: 5; padding: 0 4px; font-size: 11px; }
 ${M} #selection-toolbar .generation-status, ${M} #selection-toolbar .generation-panel > small { color: var(--web-composer-muted); }
 ${M} #selection-toolbar .generation-action { height: 30px; min-height: 30px; padding: 0 10px; border: 1px solid var(--web-composer-line); border-radius: 15px; background: transparent; color: var(--web-composer-ink); font-size: 12px; }
@@ -415,7 +431,15 @@ ${M} .card.web-media .web-node-handle::after { content: ''; position: absolute; 
 ${M} .card.web-media .web-node-handle.is-nw, ${M} .card.web-media .web-node-handle.is-se { cursor: nwse-resize; }
 ${M} .card.web-media .web-node-handle.is-ne, ${M} .card.web-media .web-node-handle.is-sw { cursor: nesw-resize; }
 ${M} .card.web-media .web-node-handle:disabled { opacity: .45; cursor: default; }
+/* Group corners: invisible 20px hit area on the box corner; the resize cursor is the affordance. */
+${M} .card.web-media .web-node-handle.is-group { width: calc(20px * var(--web-inv, 1)); height: calc(20px * var(--web-inv, 1)); border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+${M} .card.web-media .web-node-handle.is-group::after { display: none; }
+${M} .card.web-media .web-node-handle.is-group:disabled { opacity: 0; }
 ${M} .card.web-media > .resize-handle { display: none; }
+/* Annotation frames: the same round corner dots once selected; corners resize both edges (diagonal drag). */
+${M} .card.canvas-mark > .resize-handle { display: none; }
+${M} .card.canvas-mark .mark-corner { width: calc(20px * var(--web-inv, 1)); height: calc(20px * var(--web-inv, 1)); margin: calc(-10px * var(--web-inv, 1)) 0 0 calc(-10px * var(--web-inv, 1)); }
+${M} .card.canvas-mark.selected .mark-corner::before { content: ''; position: absolute; left: 50%; top: 50%; box-sizing: border-box; width: calc(10px * var(--web-inv, 1)); height: calc(10px * var(--web-inv, 1)); border: calc(2px * var(--web-inv, 1)) solid var(--web-accent); border-radius: 50%; background: #fffaf0; box-shadow: 0 1px 3px rgba(0,0,0,.25); -webkit-transform: translate(-50%, -50%); transform: translate(-50%, -50%); }
 
 /* Group = quiet rounded frame with the caption inside its top edge; selection uses the card outline and ring. */
 ${M} .card.section.canvas-card { overflow: visible; border: 1px solid var(--web-line); border-radius: 16px; background: var(--web-group-bg); box-shadow: none; }
@@ -427,14 +451,15 @@ ${M} .card.section .canvas-card-title { color: var(--web-text); font-size: 13px;
 ${M} .card.section .canvas-card-meta { display: inline; margin-left: 8px; color: var(--web-muted); font-size: 12px; }
 ${M} .card.section .canvas-group-state { height: 20px; padding: 0 8px; border: 1px solid var(--web-line); border-radius: 999px; background: transparent; color: var(--web-muted); font-size: 11px; line-height: 18px; }
 
-/* Sequence and animation cards: panel-toned frame with pill buttons, matching the composer surface. */
-${M} .card.sequence.canvas-card, ${M} .card.animation.canvas-card { border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); color: var(--web-text); box-shadow: 0 14px 32px rgba(35,35,35,.18); }
-${M} .card.sequence.canvas-card.selected, ${M} .card.animation.canvas-card.selected { outline: calc(2px * var(--web-inv, 1)) solid var(--web-accent); outline-offset: 0; }
-${M} .card.sequence .canvas-card-header, ${M} .card.animation .canvas-card-header { border-bottom: 1px solid var(--web-line); background: transparent; }
-${M} .card.sequence .canvas-card-title, ${M} .card.animation .canvas-card-title { color: var(--web-text); font-size: 13px; font-weight: 500; }
+/* Sequence and animation cards = image card: bare title row (title · frame count) over a panel-toned frame, same outline, ring and corner handles. */
+${M} .card.sequence.canvas-card, ${M} .card.animation.canvas-card { overflow: visible; border: 0; border-radius: 0; background: transparent; color: var(--web-text); box-shadow: none; }
+${M} .card.sequence.canvas-card.selected, ${M} .card.animation.canvas-card.selected { outline: none; }
+${M} .card.sequence.web-media:not(.section) .canvas-card-heading, ${M} .card.animation.web-media:not(.section) .canvas-card-heading { display: flex; flex-direction: row; align-items: baseline; gap: 6px; }
+${M} .card.sequence.web-media .canvas-card-meta, ${M} .card.animation.web-media .canvas-card-meta { display: inline; flex: none; font-size: 12px; line-height: 20px; }
+${M} .card.sequence .canvas-card-content, ${M} .card.animation .canvas-card-content { border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); box-shadow: 0 14px 32px rgba(35,35,35,.18); }
+${M} .card.sequence.selected .canvas-card-content, ${M} .card.animation.selected .canvas-card-content { outline: calc(2px * var(--web-inv, 1)) solid var(--web-accent); outline-offset: 0; }
+${M} .card.sequence.selected::before, ${M} .card.animation.selected::before { content: ''; position: absolute; left: 0; right: 0; top: 40px; bottom: 0; z-index: 0; border-radius: 12px; box-shadow: 0 0 0 calc(4px * var(--web-inv, 1)) var(--web-accent); opacity: .18; pointer-events: none; }
 ${M} .card.sequence .canvas-card-meta, ${M} .card.animation .canvas-card-meta, ${M} .sequence-source-label, ${M} .sequence-result-empty, ${M} .sequence-result-grid figure, ${M} .animation-caption { color: var(--web-muted); }
-${M} .card.sequence .canvas-card-menu, ${M} .card.animation .canvas-card-menu { border-radius: 6px; background: transparent; color: var(--web-muted); }
-${M} .card.sequence .canvas-card-menu:hover, ${M} .card.animation .canvas-card-menu:hover { background: var(--web-wash); color: var(--web-text); }
 ${M} .sequence-result-grid canvas, ${M} .card.animation .animation-preview { border-radius: 8px; background: repeating-conic-gradient(var(--web-soft) 0% 25%, var(--web-panel) 0% 50%) 0 / 16px 16px; }
 ${M} .sequence-edit-button, ${M} .sequence-animation-button, ${M} .animation-controls button { box-sizing: border-box; height: 28px; min-height: 28px; padding: 0 12px; border: 1px solid var(--web-pill-line); border-radius: 999px; background: var(--web-pill-bg); color: var(--web-pill-ink); box-shadow: 0 6px 18px rgba(35,35,35,.12); font: inherit; font-size: 12px; font-weight: 600; line-height: 26px; cursor: pointer; }
 ${M} .sequence-edit-button:hover, ${M} .sequence-animation-button:hover, ${M} .animation-controls button:hover:not(:disabled) { background: var(--web-pill-hover); }
@@ -501,6 +526,44 @@ ${M} .video-history article strong { font-size: 13px; font-weight: 600; }
 ${M} .video-history article p { margin: 4px 0 0; color: var(--web-muted); font-size: 12px; }
 ${M} .video-history article button { height: 28px; min-height: 28px; margin: 10px 6px 0 0; padding: 0 12px; border-color: var(--web-pill-line); border-radius: 999px; background: var(--web-pill-bg); color: var(--web-pill-ink); font-size: 12px; font-weight: 600; line-height: 26px; }
 ${M} .video-history article button:hover:not(:disabled) { background: var(--web-pill-hover); }
+/* 生成精灵: the 视频历史 shell at form width; fields use the composer input tokens. */
+${M} .sequence-editor.video-history.sprite-gen-dialog { width: 420px; overflow: visible; }
+${M} .sprite-gen-field { display: block; margin: 14px 0 0; padding: 0; border: 0; min-width: 0; }
+${M} .sprite-gen-field > span, ${M} .sprite-gen-field > legend { display: block; margin: 0 0 8px; padding: 0; color: var(--web-text); font-size: 13px; font-weight: 500; }
+${M} .sprite-gen-field input[type="text"] { box-sizing: border-box; display: block; width: 100%; height: 36px; margin: 0; padding: 0 12px; border: 1px solid var(--web-composer-line); border-radius: 10px; background: var(--web-composer-bg); color: var(--web-composer-ink); font: inherit; font-size: 13px; outline: none; }
+${M} .sprite-gen-field input[type="text"]:focus { border-color: var(--web-accent); }
+${M} .sprite-gen-field input[aria-invalid="true"] { border-color: #e5484d; }
+${M} .sprite-gen-dialog > small { display: block; margin: 6px 0 0; color: var(--web-muted); font-size: 12px; }
+/* Type choice: two side-by-side cards; the visually hidden radio drives the checked card. */
+${M} .sprite-gen-choices { display: flex; }
+${M} .sprite-gen-choices > * + * { margin-left: 8px; }
+${M} .sprite-gen-option { position: relative; display: block; flex: 1; min-width: 0; cursor: pointer; }
+${M} .sprite-gen-option input { position: absolute; left: 0; top: 0; width: 1px; height: 1px; margin: 0; opacity: 0; }
+${M} .sprite-gen-choice { display: block; box-sizing: border-box; height: 100%; padding: 10px 12px; border: 1px solid var(--web-composer-line); border-radius: 10px; background: var(--web-composer-bg); transition: border-color .12s, box-shadow .12s; }
+${M} .sprite-gen-choice strong { display: block; color: var(--web-text); font-size: 13px; font-weight: 600; line-height: 18px; }
+${M} .sprite-gen-choice small { display: block; margin-top: 2px; color: var(--web-muted); font-size: 12px; line-height: 17px; }
+${M} .sprite-gen-option:hover .sprite-gen-choice { border-color: var(--web-muted); }
+${M} .sprite-gen-option input:checked + .sprite-gen-choice { border-color: var(--web-accent); box-shadow: 0 0 0 1px var(--web-accent); }
+${K} .sprite-gen-option input:focus + .sprite-gen-choice { box-shadow: 0 0 0 1px var(--web-accent), 0 0 0 4px var(--web-focus-ring); }
+${M} .sprite-gen-dialog > .sprite-gen-error { margin: 10px 0 0; color: #e5484d; font-size: 12px; line-height: 1.5; }
+${M} .sprite-gen-dialog > .sprite-gen-error:empty { display: none; }
+${M} .sequence-editor.video-history.sprite-gen-dialog footer { margin-top: 20px; }
+/* Sprite group header: keep the name whole, drop the member count, let the stage pill truncate. */
+${M} .card.section.canvas-sprite-group .canvas-card-meta { display: none; }
+${M} .card.section.canvas-sprite-group .canvas-card-heading { flex: 0 1 auto; max-width: 55%; }
+${M} .card.section.canvas-sprite-group .canvas-card-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+${M} .card.section.canvas-sprite-group .canvas-group-state { flex: 0 1 auto; min-width: 0; margin-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+${M} .card.section.canvas-sprite-group .canvas-group-state:before { flex: none; }
+/* Stage dot: green while sprite-gen works, orange when the conversation waits for the user. */
+${M} .card.section .canvas-sprite-stage[data-state="loading"]:before { background: #30a46c; }
+${M} .card.section .canvas-sprite-stage[data-state="waiting"]:before { background: #f76b15; }
+${M} .card.section .canvas-sprite-stage[data-state="ready"]:before { background: var(--web-accent); }
+${M} .card.section .canvas-sprite-stage[data-state="failed"]:before { background: #e5484d; }
+${M} .card.section.canvas-sprite-group .canvas-sprite-chat { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; min-width: 24px; height: 24px; min-height: 24px; margin: 0 0 0 4px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--web-muted); cursor: pointer; }
+${M} .card.section.canvas-sprite-group .canvas-sprite-chat:hover { background: var(--web-wash); color: var(--web-text); }
+${M} .card.section.canvas-sprite-group .canvas-sprite-chat svg { width: 14px; height: 14px; }
+${L} .sprite-gen-dialog > .sprite-gen-error { color: #ce2c31; }
+${L} .sprite-gen-field input[aria-invalid="true"] { border-color: #ce2c31; }
 ${M} .video-history footer { display: flex; justify-content: flex-end; margin-top: 14px; }
 ${M} .video-history footer > * + * { margin-left: 8px; }
 /* Pointer focus draws no ring; keyboard focus gets one subtle 1.5px accent ring, overriding per-control rings. */
@@ -508,17 +571,113 @@ ${P} :focus { outline: none !important; }
 ${K} :focus:not(.canvas-port):not(.card) { outline: 1.5px solid var(--web-focus-ring) !important; outline-offset: 1px !important; }
 ${K} .card .port.canvas-port:focus { opacity: 1; pointer-events: auto; }
 ${K} .card .port.canvas-port:focus::before { box-shadow: 0 0 0 1.5px var(--web-focus-ring); }
-/* Video result: no native controls (they swallowed the drag); a Mivo-like 28px round play chip sits bottom-left. */
-${M} .card.video-source .web-video-play { position: absolute; left: 10px; bottom: 10px; z-index: 4; display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 28px; height: 28px; min-height: 28px; margin: 0; padding: 0; border: 1px solid var(--web-glass-edge); border-radius: 50%; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: 0 2px 8px rgba(0,0,0,.24); cursor: pointer; opacity: .92; -webkit-transform: scale(var(--web-inv, 1)); transform: scale(var(--web-inv, 1)); -webkit-transform-origin: 0 100%; transform-origin: 0 100%; transition: opacity .12s; }
+/* Video result: no native controls (they swallowed the drag); a 28px round play chip sits bottom-left, sized like the bar beside it. */
+${M} .card.video-source .web-video-play { position: absolute; left: calc(10px * var(--web-inv, 1)); bottom: calc(10px * var(--web-inv, 1)); z-index: 4; display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: calc(28px * var(--web-inv, 1)); height: calc(28px * var(--web-inv, 1)); min-height: 0; margin: 0; padding: 0; border: 1px solid var(--web-glass-edge); border-radius: 50%; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: 0 2px 8px rgba(0,0,0,.24); cursor: pointer; opacity: .92; transition: opacity .12s; }
 ${M} .card.video-source .web-video-play:hover { opacity: 1; }
-${M} .card.video-source .web-video-play svg { display: block; flex: none; }
+${M} .card.video-source .web-video-play svg { display: block; flex: none; width: calc(14px * var(--web-inv, 1)); height: calc(14px * var(--web-inv, 1)); }
 ${M} .card.video-source .web-video-play[data-playing="false"] svg { margin-left: 2px; }
 ${L} .card.video-source .web-video-play { box-shadow: 0 2px 8px rgba(35,35,35,.16); }
 ${M} .card.video-source .video-source-preview { cursor: inherit; }
+/* Progress bar beside the play chip: hidden (and click-through, so the card still drags) until hover, selection or focus. */
+${M} .card.video-source .web-video-bar { position: absolute; left: calc(46px * var(--web-inv, 1)); right: calc(10px * var(--web-inv, 1)); bottom: calc(10px * var(--web-inv, 1)); z-index: 4; display: flex; align-items: center; box-sizing: border-box; height: calc(28px * var(--web-inv, 1)); padding: 0 calc(4px * var(--web-inv, 1)) 0 calc(10px * var(--web-inv, 1)); border: 1px solid var(--web-glass-edge); border-radius: 999px; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: 0 2px 8px rgba(0,0,0,.24); font-size: calc(11px * var(--web-inv, 1)); font-variant-numeric: tabular-nums; line-height: 1; opacity: 0; pointer-events: none; transition: opacity .12s; }
+${M} .card.video-source:hover .web-video-bar, ${M} .card.video-source.selected .web-video-bar, ${M} .card.video-source .web-video-bar[data-seeking], ${M} .card.video-source .web-video-bar:focus-within { opacity: .96; pointer-events: auto; }
+/* While playing, both controls fade after 2s idle so they don't cover the picture; moving over the video brings them back. */
+${M} .card.video-source .video-source-preview[data-idle] ~ .web-video-bar:not(:hover):not([data-seeking]), ${M} .card.video-source .video-source-preview[data-idle] ~ .web-video-play:not(:hover) { opacity: 0; pointer-events: none; }
+${L} .card.video-source .web-video-bar { box-shadow: 0 2px 8px rgba(35,35,35,.16); }
+${M} .web-video-time { flex: none; margin-right: calc(10px * var(--web-inv, 1)); white-space: nowrap; }
+${M} .web-video-track { position: relative; flex: 1; min-width: 24px; height: calc(18px * var(--web-inv, 1)); cursor: pointer; touch-action: none; }
+${M} .web-video-track::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: calc(3px * var(--web-inv, 1)); border-radius: 999px; background: var(--web-line); -webkit-transform: translateY(-50%); transform: translateY(-50%); }
+${M} .web-video-fill { position: absolute; left: 0; top: 50%; height: calc(3px * var(--web-inv, 1)); border-radius: 999px; background: var(--web-accent); -webkit-transform: translateY(-50%); transform: translateY(-50%); pointer-events: none; }
+${M} .web-video-thumb { position: absolute; top: 50%; width: calc(10px * var(--web-inv, 1)); height: calc(10px * var(--web-inv, 1)); border-radius: 50%; background: var(--web-float-ink); box-shadow: 0 1px 3px rgba(0,0,0,.3); -webkit-transform: translate(-50%, -50%); transform: translate(-50%, -50%); pointer-events: none; }
+${M} .web-video-mute { flex: none; display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: calc(22px * var(--web-inv, 1)); height: calc(22px * var(--web-inv, 1)); min-height: 0; margin: 0 0 0 calc(6px * var(--web-inv, 1)); padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; opacity: .8; }
+${M} .web-video-mute:hover { opacity: 1; background: var(--web-pill-hover); }
+${M} .web-video-mute svg { width: calc(14px * var(--web-inv, 1)); height: calc(14px * var(--web-inv, 1)); }
 /* Side + chooser = the context menu rows at a compact 148px width. */
 ${M} .web-slot-chooser { position: fixed; z-index: 60; box-sizing: border-box; width: 148px; padding: 6px; border: 1px solid var(--web-menu-line); border-radius: 8px; background: var(--web-menu-bg); color: var(--web-menu-ink); box-shadow: var(--web-shadow); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 ${M} .web-slot-chooser button { display: flex; align-items: center; box-sizing: border-box; width: 100%; height: 34px; min-height: 34px; margin: 0; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--web-menu-ink); font: inherit; font-size: 13px; font-weight: 500; text-align: left; white-space: nowrap; cursor: pointer; }
 ${M} .web-slot-chooser button + button { margin-top: 2px; }
 ${M} .web-slot-chooser button svg { flex: none; margin-right: 8px; }
 ${M} .web-slot-chooser button:hover, ${M} .web-slot-chooser button:focus { background: var(--web-menu-hover); color: var(--web-text); }
+
+/* Text glyph buttons drawn as lucide icons (same set and stroke as the Maker shell). */
+${M} .card .canvas-card-menu { display: inline-flex; align-items: center; justify-content: center; font-size: 0; line-height: 0; }
+${M} .card .canvas-card-menu::before { content: ''; display: block; width: 16px; height: 16px; background: currentColor; -webkit-mask: ${ELLIPSIS_ICON} center / contain no-repeat; mask: ${ELLIPSIS_ICON} center / contain no-repeat; }
+${M} .workspace-tab button:last-child:not([role="tab"]):not(#rename-canvas) { font-size: 0; line-height: 0; }
+${M} .workspace-tab button:last-child:not([role="tab"]):not(#rename-canvas)::before { content: ''; display: block; width: 13px; height: 13px; background: currentColor; -webkit-mask: ${X_ICON} center / contain no-repeat; mask: ${X_ICON} center / contain no-repeat; }
+${M} .workspace-view-controls button[aria-label="缩小画布"], ${M} .workspace-view-controls button[aria-label="放大画布"] { display: inline-flex; align-items: center; justify-content: center; font-size: 0; line-height: 0; }
+${M} .workspace-view-controls button[aria-label="缩小画布"]::before, ${M} .workspace-view-controls button[aria-label="放大画布"]::before { content: ''; display: block; width: 16px; height: 16px; background: currentColor; }
+${M} .workspace-view-controls button[aria-label="缩小画布"]::before { -webkit-mask: ${MINUS_ICON} center / contain no-repeat; mask: ${MINUS_ICON} center / contain no-repeat; }
+${M} .workspace-view-controls button[aria-label="放大画布"]::before { -webkit-mask: ${ADD_ICON} center / contain no-repeat; mask: ${ADD_ICON} center / contain no-repeat; }
+${M} #canvas-context-menu .canvas-menu-separator { height: 1px; margin: 4px 10px; background: var(--web-line); }
+${M} #canvas-context-menu .canvas-menu-separator[hidden] { display: none; }
+
+/* Mark colour swatches: round chips with a hairline ring so the white swatch stays visible on the light menu. */
+${M} #selection-menu .selection-label { margin: 0 6px 0 4px; color: var(--web-muted); font-size: 12px; font-weight: 500; }
+${M} #selection-menu .mark-color { box-sizing: border-box; width: 22px; min-width: 22px; height: 22px; min-height: 22px; margin: 0 3px; padding: 0; border: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.22); outline: none; }
+${M} #selection-menu .mark-color[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(0,0,0,.22), 0 0 0 2px var(--web-float-bg), 0 0 0 4px var(--web-accent); }
+${M} #selection-menu .mark-color:hover:not([aria-pressed="true"]) { box-shadow: inset 0 0 0 1px rgba(0,0,0,.22), 0 0 0 2px var(--web-float-bg), 0 0 0 3px var(--web-line); }
+
+/* 去背景 / 调整抠图 side panel: two-column form, pill selects, a light track slider with the accent thumb. */
+${M} .background-body > aside { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: min-content; align-content: start; grid-column-gap: 10px; grid-row-gap: 12px; }
+${M} .background-body > aside > * { grid-column: 1 / -1; margin: 0; }
+${M} .background-body > aside > p { color: var(--web-muted); font-size: 12px; line-height: 1.7; }
+${M} .background-body > aside > p[role="status"]:empty { display: none; }
+${M} .background-body > aside > select:first-of-type { grid-column: 1; }
+${M} .background-body > aside > input[type="text"] { grid-column: 2; }
+${M} .background-body > aside > select, ${M} .background-body > aside > input[type="text"] { box-sizing: border-box; width: 100%; max-width: none; height: 36px; margin: 0; padding: 0 12px; border: 1px solid var(--web-composer-line); border-radius: 10px; background-color: var(--web-composer-bg); color: var(--web-composer-ink); font: inherit; font-size: 13px; outline: none; }
+${M} .background-body > aside > select { -webkit-appearance: none; appearance: none; padding-right: 32px; background-image: ${CHEVRON_ICON}; background-repeat: no-repeat; background-position: right 10px center; background-size: 14px 14px; cursor: pointer; }
+${M} .background-body > aside > select:focus, ${M} .background-body > aside > input[type="text"]:focus { border-color: var(--web-accent); }
+${M} .background-body > aside > input[type="text"]::placeholder { color: var(--web-muted); }
+${M} .background-body > aside > button { width: 100%; height: 36px; min-height: 36px; border-radius: 10px; }
+${M} .background-body > aside > .sequence-editor-field { display: block; margin: 4px 0 0; color: var(--web-muted); font-size: 12px; }
+${M} .background-body > aside > .sequence-editor-field > span { display: block; margin-bottom: 8px; }
+${M} .background-body input[type="range"] { -webkit-appearance: none; appearance: none; display: block; box-sizing: border-box; width: 100%; height: 16px; margin: 0; padding: 0; border: 0; background: transparent; cursor: pointer; }
+${M} .background-body input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: var(--web-line); }
+${M} .background-body input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border: 2px solid var(--web-panel); border-radius: 50%; background: var(--web-accent); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+${M} .background-body input[type="range"]::-moz-range-track { height: 4px; border-radius: 999px; background: var(--web-line); }
+${M} .background-body input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 2px solid var(--web-panel); border-radius: 50%; background: var(--web-accent); }
+${M} .background-body input[type="range"]:focus { outline: none; }
+${K} .background-body input[type="range"]:focus::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--web-focus-ring); }
+/* Select popups (installCanvasWebSelects), drawn like the context menu. */
+${M} .web-select-list { position: fixed; z-index: 2147483000; box-sizing: border-box; max-height: 320px; overflow-y: auto; padding: 6px; border: 1px solid var(--web-menu-line); border-radius: 8px; background: var(--web-menu-bg); color: var(--web-menu-ink); box-shadow: var(--web-shadow); }
+${M} .web-select-option { display: flex; align-items: center; box-sizing: border-box; width: 100%; height: 32px; min-height: 32px; margin: 0; padding: 0 28px 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--web-menu-ink); font: inherit; font-size: 13px; font-weight: 500; text-align: left; white-space: nowrap; }
+${M} .web-select-option + .web-select-option { margin-top: 2px; }
+${M} .web-select-option:hover:not(:disabled), ${M} .web-select-option:focus { background: var(--web-menu-hover); color: var(--web-text); outline: none; }
+${M} .web-select-option[aria-selected="true"] { position: relative; color: var(--web-text); }
+${M} .web-select-option[aria-selected="true"]::after { content: ''; position: absolute; right: 10px; top: 50%; width: 12px; height: 12px; margin-top: -6px; background: currentColor; -webkit-mask: ${CHECK_ICON} center / contain no-repeat; mask: ${CHECK_ICON} center / contain no-repeat; }
+${M} .web-select-option:disabled { opacity: .45; }
+/* @ mention list (installCanvasWebMentions): thumbnail, 图N, caption. */
+${M} .web-mention-list { min-width: 200px; max-width: 320px; }
+${M} .web-mention-option { height: 40px; min-height: 40px; padding-right: 10px; }
+${M} .web-mention-option img { flex: none; width: 28px; height: 28px; margin-right: 8px; border-radius: 6px; object-fit: cover; background: var(--web-soft); }
+${M} .web-mention-option b { flex: none; margin-right: 6px; color: var(--web-text); font-weight: 600; }
+${M} .web-mention-option span { overflow: hidden; color: var(--web-muted); text-overflow: ellipsis; }
+${M} .web-mention-option[aria-selected="true"] { background: var(--web-menu-hover); }
+${M} .web-mention-option[aria-selected="true"]::after { display: none; }
+/* @图N chips: a mirror behind the prompt draws the text; the textarea's own text is transparent. */
+${M} #selection-toolbar .web-prompt-mention { position: relative; order: 2; }
+${M} #selection-toolbar .web-prompt-mirror { position: absolute; top: 0; right: 0; bottom: 0; left: 0; box-sizing: border-box; overflow: hidden; border-style: solid; border-color: transparent; color: var(--web-composer-ink); white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; pointer-events: none; }
+${M} #selection-toolbar .web-prompt-mirror[hidden] { display: none; }
+${M} #selection-toolbar .generation-prompt.web-prompt-mirrored { position: relative; color: transparent; caret-color: var(--web-composer-ink); }
+${M} #selection-toolbar .generation-prompt.web-prompt-mirrored::selection { color: transparent; background: var(--web-accent-ring); }
+/* Solid accent pill; the spread draws its side padding over the spaces around the token. */
+${M} .web-prompt-chip { border-radius: 4px; background: var(--web-accent); box-shadow: 0 0 0 3px var(--web-accent); color: var(--canvas-accent-foreground, #fff); }
+${M} .web-prompt-chip-image { border-radius: 3px; background-position: center; background-size: cover; background-repeat: no-repeat; color: transparent; }
+/* In-place crop (page applyWebEditPatches): box on the card image, bar under it. */
+${M} .web-crop-layer { position: absolute; z-index: 30; overflow: hidden; touch-action: none; }
+${M} .web-crop-box { position: absolute; box-sizing: border-box; border: calc(2px * var(--web-inv, 1)) solid var(--web-accent); box-shadow: 0 0 0 9999px rgba(0,0,0,.55); cursor: move; }
+${M} .web-crop-handle { position: absolute; box-sizing: border-box; width: calc(14px * var(--web-inv, 1)); height: calc(14px * var(--web-inv, 1)); border: calc(2px * var(--web-inv, 1)) solid var(--web-accent); border-radius: calc(3px * var(--web-inv, 1)); background: #fff; }
+${M} .web-crop-nw { left: calc(-8px * var(--web-inv, 1)); top: calc(-8px * var(--web-inv, 1)); cursor: nwse-resize; }
+${M} .web-crop-ne { right: calc(-8px * var(--web-inv, 1)); top: calc(-8px * var(--web-inv, 1)); cursor: nesw-resize; }
+${M} .web-crop-sw { left: calc(-8px * var(--web-inv, 1)); bottom: calc(-8px * var(--web-inv, 1)); cursor: nesw-resize; }
+${M} .web-crop-se { right: calc(-8px * var(--web-inv, 1)); bottom: calc(-8px * var(--web-inv, 1)); cursor: nwse-resize; }
+${M} #board.web-cropping #selection-toolbar, ${M} #board.web-cropping #selection-menu { display: none !important; }
+/* The crop layer would be cut by the image frame's selection outline; the box draws its own. */
+${M} #board.web-cropping .card.image.selected .canvas-card-content { outline: 0; }
+${M} .web-crop-bar { position: absolute; z-index: 40; display: flex; align-items: center; padding: 6px; border: 1px solid var(--web-line); border-radius: 14px; background: var(--web-float-bg); color: var(--web-float-ink); box-shadow: var(--web-shadow); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); white-space: nowrap; }
+${M} .web-crop-bar button { box-sizing: border-box; height: 32px; min-height: 32px; margin: 0; padding: 0 12px; border: 0; border-radius: 9px; background: transparent; color: inherit; font: inherit; font-size: 13px; font-weight: 500; line-height: 32px; opacity: .8; }
+${M} .web-crop-bar button + button { margin-left: 2px; }
+${M} .web-crop-bar button:hover, ${M} .web-crop-bar button[aria-pressed="true"] { background: var(--web-float-wash); opacity: 1; }
+${M} .web-crop-bar .web-crop-done { opacity: 1; }
+${M} .web-crop-divider { width: 1px; height: 20px; margin: 0 6px; background: var(--web-float-wash); }
 `;

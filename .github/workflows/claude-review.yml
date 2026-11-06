@@ -31,6 +31,7 @@ jobs:
           fetch-depth: 0
 
       - uses: anthropics/claude-code-action@v1
+        id: claude
         env:
           ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
         with:
@@ -45,3 +46,50 @@ jobs:
             Post ONE PR comment using `gh pr comment` with the exact output format from docs/CODE_REVIEW.md.
             For 阻塞问题 and 警告, also add inline comments via
             `mcp__github_inline_comment__create_inline_comment` with `confirmed: true`.
+
+      - name: Report Claude failure category
+        if: failure() && steps.claude.outcome == 'failure'
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          path = pathlib.Path(os.environ.get('EXECUTION_FILE') or '/home/runner/work/_temp/claude-execution-output.json')
+          if not path.is_file():
+              print('Claude execution diagnostics unavailable')
+              raise SystemExit(0)
+          raw = path.read_text()
+          try:
+              records = json.loads(raw)
+          except ValueError:
+              records = []
+              for line in raw.splitlines():
+                  try:
+                      records.append(json.loads(line))
+                  except ValueError:
+                      pass
+          # Never print conversation text, tool output, credentials, or raw API responses.
+          signals = ['authentication_error', 'permission_error', 'not_found_error',
+                     'invalid_request_error', 'rate_limit_error', 'overloaded_error',
+                     'api_error', 'model_not_found', 'insufficient_quota', 'billing_error']
+          found = sorted({signal for signal in signals if re.search(r'\b' + signal + r'\b', raw)})
+          for label, pattern in [
+              ('model_unavailable', r'model.{0,120}(not found|not available|not supported|does not exist)'),
+              ('credentials_rejected', r'(invalid|expired).{0,30}(api.key|token|credential)'),
+              ('network_error', r'ECONNREFUSED|ETIMEDOUT|ENOTFOUND|connection error'),
+          ]:
+              if re.search(pattern, raw, re.I):
+                  found.append(label)
+          print('Claude failure categories: ' + (', '.join(found) or 'unspecified'))
+          def visit(value):
+              if isinstance(value, dict):
+                  status = value.get('status_code', value.get('status'))
+                  if isinstance(status, int) and 400 <= status <= 599:
+                      print('Claude HTTP status: ' + str(status))
+                  for item in value.values():
+                      visit(item)
+              elif isinstance(value, list):
+                  for item in value:
+                      visit(item)
+          visit(records)
+          PY

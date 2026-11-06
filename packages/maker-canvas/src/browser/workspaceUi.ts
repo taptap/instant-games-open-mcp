@@ -106,6 +106,39 @@ export function createCanvasWorkspace(options: {
   panTool.title = '拖拽画布：只平移和缩放，适合触控板';
   iconButton(ellipse, '标注框', '<rect x="5" y="6" width="14" height="12" rx="1"/>');
   iconButton(arrow, '箭头', '<path d="M4 12h12"/><path d="m13 6 6 6-6 6"/>');
+  // Web: single-key tool shortcuts and ⌘/Ctrl+S, listed in each tooltip; the default page keeps its keys.
+  if (document.documentElement.classList.contains('canvas-appearance-web')) {
+    const mod = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl+';
+    const keyed: Array<[HTMLElement, string, string, string]> = [
+      [selectTool, 'v', '鼠标', 'V'],
+      [panTool, 'h', '拖拽画布', 'H · 按住空格临时拖拽'],
+      [ellipse, 'r', '标注框', 'R'],
+      [arrow, 'a', '箭头', 'A'],
+    ];
+    for (const [element, key, label, hint] of keyed) {
+      element.title = label + '（' + hint + '）';
+      element.setAttribute('aria-keyshortcuts', key.toUpperCase());
+    }
+    // The save label itself follows the save state (page syncCanvasSaveState appends the keys).
+    save.setAttribute('aria-keyshortcuts', mod === '⌘' ? 'Meta+S' : 'Control+S');
+    window.addEventListener('keydown', (event) => {
+      if (event.defaultPrevented || event.repeat || switching) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.('input, textarea, select, [contenteditable="true"], dialog')) return;
+      if (document.querySelector('dialog[open]')) return;
+      const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && key === 's') {
+        event.preventDefault();
+        save.click();
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      const match = keyed.find((item) => item[1] === key);
+      if (!match || (match[0] as HTMLButtonElement).disabled) return;
+      event.preventDefault();
+      match[0].click();
+    });
+  }
   const toolSep = document.createElement('span');
   toolSep.className = 'workspace-tool-sep';
   toolSep.setAttribute('aria-hidden', 'true');

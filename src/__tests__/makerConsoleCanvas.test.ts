@@ -136,7 +136,7 @@ describe('Maker console canvas', () => {
     expect(script).not.toContain('function renderSequenceCard(');
     expect(script).toContain('sequenceUi.createFromVideo(node.id)');
     expect(script).toContain('maxSequenceFrameCount');
-    expect(script).not.toContain("board.addEventListener('drop'");
+    expect(script).toContain('if (canvasDropIgnored(event)) return;');
     expect(script).toContain('function nextPlacement(type)');
     expect(script).toContain("add('video', pendingPlacement || nextPlacement('video'))");
     expect(script).toContain("kind: 'image-variant'");
@@ -223,7 +223,11 @@ describe('Maker console canvas', () => {
       const document = {
         createElement: () => ({
           dataset: {},
-          append: jest.fn(),
+          children: [],
+          remove: jest.fn(),
+          append: jest.fn(function (this: { children: unknown[] }, child: unknown) {
+            this.children.push(child);
+          }),
           addEventListener: jest.fn(),
           setAttribute: jest.fn(),
         }),

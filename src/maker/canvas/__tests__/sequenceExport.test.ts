@@ -188,3 +188,11 @@ test('ZIP allows 120 frames plus Lua and README, but still caps entry count', as
     createCanvasZip([...entries, { name: 'extra', blob: new Blob(['x']) }])
   ).rejects.toThrow('文件数量');
 });
+
+test('refuses to discard per-frame timing in either export format', () => {
+  const data = info();
+  data.frames[0].duration = 100;
+  data.frames[1].duration = 400;
+  expect(() => sequenceExportManifest(data, 64, 32)).toThrow('独立帧时长');
+  expect(() => sequenceExportLua(data, 'clip')).toThrow('独立帧时长');
+});

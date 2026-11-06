@@ -11,30 +11,46 @@ export function canvasWebIconAction(
   button: HTMLElement,
   icon:
     | 'chat'
+    | 'openChat'
     | 'cutout'
     | 'chevron'
     | 'download'
     | 'trash'
+    | 'image'
     | 'video'
     | 'sequence'
     | 'upload'
     | 'group'
     | 'ungroup'
+    | 'sprite'
+    | 'tidy'
+    | 'copy'
+    | 'crop'
+    | 'rotate'
+    | 'flipX'
+    | 'flipY'
 ): HTMLElement {
   // Inlined here because helpers are injected into the page via toString().
   const paths = {
     // lucide message-square-plus
     chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>',
+    // lucide message-square-text
+    openChat:
+      '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M13 8H7"/><path d="M17 12H7"/>',
     // lucide square-scissors
     cutout:
       '<rect width="20" height="20" x="2" y="2" rx="2"/><circle cx="8" cy="8" r="2"/><path d="M9.414 9.414 12 12"/><path d="M14.8 14.8 18 18"/><circle cx="8" cy="16" r="2"/><path d="m18 6-8.586 8.586"/>',
     // lucide chevron-down
     chevron: '<path d="m6 9 6 6 6-6"/>',
-    // Same glyph as the default page's download summary.
-    download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
+    // lucide download
+    download:
+      '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
     // lucide trash-2
     trash:
       '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+    // lucide image
+    image:
+      '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
     // lucide video
     video:
       '<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
@@ -50,6 +66,23 @@ export function canvasWebIconAction(
     // lucide ungroup
     ungroup:
       '<rect width="8" height="6" x="5" y="4" rx="1"/><rect width="8" height="6" x="11" y="14" rx="1"/>',
+    // lucide sparkles
+    sprite:
+      '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+    // lucide copy
+    copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+    // lucide layout-dashboard
+    tidy: '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+    // lucide crop
+    crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
+    // lucide rotate-cw
+    rotate: '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+    // lucide flip-horizontal-2
+    flipX:
+      '<path d="m3 7 5 5-5 5V7"/><path d="m21 7-5 5 5 5V7"/><path d="M12 20v2"/><path d="M12 14v2"/><path d="M12 8v2"/><path d="M12 2v2"/>',
+    // lucide flip-vertical-2
+    flipY:
+      '<path d="m17 3-5 5-5-5h10"/><path d="m17 21-5-5-5 5h10"/><path d="M4 12H2"/><path d="M10 12H8"/><path d="M16 12h-2"/><path d="M22 12h-2"/>',
   };
   const label = button.getAttribute('aria-label') || button.textContent || '';
   button.setAttribute('aria-label', label);
@@ -58,10 +91,410 @@ export function canvasWebIconAction(
   button.dataset.webTip = label;
   if (icon !== 'chevron') button.classList.add('web-icon-action');
   button.innerHTML =
-    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     paths[icon] +
     '</svg>';
   return button;
+}
+
+/**
+ * Replaces the native popup of every single-choice `<select>` on the page with a list drawn in
+ * the Web menu style. The `<select>` stays the source of truth: picking an option sets its value
+ * and fires `input` and `change`, so existing listeners keep working. Opens on click, Space, Enter
+ * and the arrow keys; Escape, Tab, an outside click, scrolling or resizing closes it.
+ */
+export function installCanvasWebSelects() {
+  let open: { select: HTMLSelectElement; list: HTMLElement; detach(): void } | null = null;
+  function close(refocus: boolean) {
+    const current = open;
+    if (!current) return;
+    open = null;
+    current.detach();
+    current.list.remove();
+    if (refocus && current.select.isConnected) current.select.focus();
+  }
+  function show(select: HTMLSelectElement) {
+    close(false);
+    const list = document.createElement('div');
+    list.className = 'web-select-list';
+    list.setAttribute('role', 'listbox');
+    const items: HTMLButtonElement[] = [];
+    Array.from(select.options).forEach((option, index) => {
+      if (option.hidden) return;
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'web-select-option';
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', String(index === select.selectedIndex));
+      item.disabled = option.disabled;
+      item.textContent = option.textContent;
+      item.addEventListener('mousedown', (event) => event.preventDefault());
+      item.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (select.isConnected && select.selectedIndex !== index) {
+          select.selectedIndex = index;
+          select.dispatchEvent(new Event('input', { bubbles: true }));
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        close(true);
+      });
+      items.push(item);
+      list.append(item);
+    });
+    // Modal dialogs live in the top layer; the list must sit inside them to show above.
+    (select.closest('dialog') || document.body).append(list);
+    const rect = select.getBoundingClientRect();
+    list.style.minWidth = Math.round(rect.width) + 'px';
+    const height = list.offsetHeight;
+    const below = window.innerHeight - rect.bottom - 8;
+    const top = height <= below || rect.top < height + 8 ? rect.bottom + 4 : rect.top - height - 4;
+    list.style.top = Math.max(8, Math.round(top)) + 'px';
+    list.style.left =
+      Math.max(8, Math.min(window.innerWidth - list.offsetWidth - 8, Math.round(rect.left))) + 'px';
+    const chosen = items.find((item) => item.getAttribute('aria-selected') === 'true') || items[0];
+    if (chosen) {
+      chosen.scrollIntoView({ block: 'nearest' });
+      chosen.focus();
+    }
+    const outside = (event: Event) => {
+      const target = event.target as Node | null;
+      if (target && (list.contains(target) || target === select)) return;
+      close(false);
+    };
+    const dismiss = (event: Event) => {
+      if (
+        (event.type === 'scroll' || event.type === 'wheel') &&
+        list.contains(event.target as Node)
+      )
+        return;
+      close(false);
+    };
+    list.addEventListener('keydown', (event) => {
+      event.stopPropagation();
+      const index = items.indexOf(document.activeElement as HTMLButtonElement);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(true);
+      } else if (event.key === 'Tab') {
+        close(false);
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        for (let next = index + step; next >= 0 && next < items.length; next += step)
+          if (!items[next].disabled) {
+            items[next].focus();
+            break;
+          }
+      }
+    });
+    document.addEventListener('pointerdown', outside, true);
+    window.addEventListener('resize', dismiss);
+    window.addEventListener('blur', dismiss);
+    document.addEventListener('scroll', dismiss, true);
+    document.addEventListener('wheel', dismiss, { capture: true, passive: true });
+    open = {
+      select,
+      list,
+      detach() {
+        document.removeEventListener('pointerdown', outside, true);
+        window.removeEventListener('resize', dismiss);
+        window.removeEventListener('blur', dismiss);
+        document.removeEventListener('scroll', dismiss, true);
+        document.removeEventListener('wheel', dismiss, true);
+      },
+    };
+  }
+  function target(event: Event): HTMLSelectElement | null {
+    const element = event.target as Element | null;
+    const select = element && element.closest ? element.closest('select') : null;
+    return select && !select.disabled && !select.multiple && select.size <= 1 ? select : null;
+  }
+  document.addEventListener(
+    'mousedown',
+    (event) => {
+      const select = target(event);
+      if (!select || event.button !== 0) return;
+      event.preventDefault();
+      select.focus();
+      if (open && open.select === select) close(false);
+      else show(select);
+    },
+    true
+  );
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      const select = target(event);
+      if (!select || event.target !== select || event.metaKey || event.ctrlKey) return;
+      if ([' ', 'Enter', 'ArrowDown', 'ArrowUp'].indexOf(event.key) < 0) return;
+      event.preventDefault();
+      show(select);
+    },
+    true
+  );
+}
+
+/**
+ * Typing `@` in the generation composer's prompt lists the composer's input images (the
+ * thumbnails above it, in the order they are sent) and inserts `@图N` for the chosen one, so the
+ * prompt can name each image. Text typed after `@` filters by number or caption; ↑/↓ move,
+ * Enter or Tab picks, Escape, a space or leaving the field closes the list.
+ * Each `@图N` that matches an input image shows as a chip with that image's thumbnail. The prompt
+ * stays a plain textarea (its value is what gets sent): its text is transparent and a mirror
+ * behind it draws the same text, with the `@` of a token replaced by the thumbnail, so wrapping
+ * and the caret line up exactly.
+ */
+export function installCanvasWebMentions() {
+  const fields =
+    '#selection-toolbar textarea.generation-prompt, #selection-toolbar .prompt-section-input';
+  let open: {
+    field: HTMLTextAreaElement;
+    start: number;
+    list: HTMLElement;
+    items: Array<{ element: HTMLButtonElement; token: string }>;
+    active: number;
+  } | null = null;
+  function close() {
+    if (!open) return;
+    open.list.remove();
+    open = null;
+  }
+  const mainFields = '#selection-toolbar textarea.generation-prompt';
+  function syncMirror(field: HTMLTextAreaElement) {
+    const mirror = field.previousElementSibling as HTMLElement | null;
+    if (!mirror || !mirror.classList.contains('web-prompt-mirror')) return;
+    const style = getComputedStyle(field);
+    for (const name of [
+      'fontFamily',
+      'fontSize',
+      'fontWeight',
+      'lineHeight',
+      'letterSpacing',
+      'paddingTop',
+      'paddingRight',
+      'paddingBottom',
+      'paddingLeft',
+      'borderTopWidth',
+      'borderRightWidth',
+      'borderBottomWidth',
+      'borderLeftWidth',
+    ] as const)
+      mirror.style[name] = style[name];
+    const images = tiles(field);
+    mirror.replaceChildren();
+    let last = 0;
+    const value = field.value;
+    const pattern = /@图(\d+)/g;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(value))) {
+      const tile = images[Number(match[1]) - 1];
+      if (!tile) continue;
+      mirror.append(value.slice(last, match.index));
+      const chip = document.createElement('span');
+      chip.className = 'web-prompt-chip';
+      const at = document.createElement('span');
+      at.className = 'web-prompt-chip-image';
+      at.textContent = '@';
+      at.style.backgroundImage = 'url("' + tile.src.replace(/"/g, '%22') + '")';
+      chip.append(at, match[0].slice(1));
+      mirror.append(chip);
+      last = match.index + match[0].length;
+    }
+    // A trailing newline needs a character after it to take up its line.
+    mirror.append(value.slice(last) + (value.endsWith('\n') ? ' ' : ''));
+    mirror.scrollTop = field.scrollTop;
+    // Without a chip the textarea draws its own text and the mirror stays out of the way.
+    const mirrored = mirror.childElementCount > 0;
+    mirror.hidden = !mirrored;
+    field.classList.toggle('web-prompt-mirrored', mirrored);
+  }
+  function wrap(field: HTMLTextAreaElement) {
+    if (field.dataset.webMentions) return;
+    field.dataset.webMentions = '1';
+    const box = document.createElement('div');
+    box.className = 'web-prompt-mention';
+    const mirror = document.createElement('div');
+    mirror.className = 'web-prompt-mirror';
+    mirror.setAttribute('aria-hidden', 'true');
+    field.replaceWith(box);
+    box.append(mirror, field);
+    field.addEventListener('scroll', () => {
+      mirror.scrollTop = field.scrollTop;
+    });
+    syncMirror(field);
+  }
+  // The composer is rebuilt on selection changes; wrap each new prompt once its thumbnails exist.
+  // Only new prompts are handled here: syncing the mirror mutates the DOM and would loop.
+  new MutationObserver(() => {
+    document.querySelectorAll<HTMLTextAreaElement>(mainFields).forEach((field) => {
+      if (!field.dataset.webMentions) wrap(field);
+    });
+  }).observe(document.body, { childList: true, subtree: true });
+  function tiles(field: HTMLTextAreaElement) {
+    const panel = field.closest('.generation-panel') || field.closest('#selection-toolbar');
+    if (!panel) return [];
+    return Array.from(panel.querySelectorAll('.generation-references .generation-reference'))
+      .map((tile) => ({
+        src: (tile.querySelector('img') as HTMLImageElement | null)?.src || '',
+        caption: (tile.querySelector('small')?.textContent || '').trim(),
+      }))
+      .filter((tile) => tile.src)
+      .map((tile, index) => ({ ...tile, token: '图' + (index + 1) }));
+  }
+  function choose(index: number) {
+    if (!open) return;
+    const { field, start, items } = open;
+    const item = items[index];
+    if (!item) return;
+    const end = field.selectionStart ?? field.value.length;
+    // A space on each side gives the chip room for its padding.
+    const lead = start > 0 && !/\s/.test(field.value[start - 1]) ? ' ' : '';
+    const text = lead + '@' + item.token + ' ';
+    field.value = field.value.slice(0, start) + text + field.value.slice(end);
+    const caret = start + text.length;
+    field.setSelectionRange(caret, caret);
+    close();
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.focus();
+  }
+  function highlight(index: number) {
+    if (!open || !open.items.length) return;
+    open.active = (index + open.items.length) % open.items.length;
+    open.items.forEach((item, position) =>
+      item.element.setAttribute('aria-selected', String(position === open!.active))
+    );
+    open.items[open.active].element.scrollIntoView({ block: 'nearest' });
+  }
+  function show(field: HTMLTextAreaElement, start: number, query: string) {
+    const all = tiles(field);
+    const shown = all.filter(
+      (tile) =>
+        !query ||
+        tile.token.indexOf(query) >= 0 ||
+        tile.caption.indexOf(query) >= 0 ||
+        String(all.indexOf(tile) + 1) === query
+    );
+    if (!shown.length) {
+      close();
+      return;
+    }
+    const list = open && open.field === field ? open.list : document.createElement('div');
+    list.className = 'web-select-list web-mention-list';
+    list.setAttribute('role', 'listbox');
+    list.setAttribute('aria-label', '引用输入图片');
+    list.replaceChildren();
+    const items = shown.map((tile, index) => {
+      const element = document.createElement('button');
+      element.type = 'button';
+      element.className = 'web-select-option web-mention-option';
+      element.setAttribute('role', 'option');
+      const image = document.createElement('img');
+      image.src = tile.src;
+      image.alt = '';
+      const token = document.createElement('b');
+      token.textContent = tile.token;
+      const caption = document.createElement('span');
+      caption.textContent = tile.caption;
+      element.append(image, token, caption);
+      element.addEventListener('mousedown', (event) => event.preventDefault());
+      element.addEventListener('click', (event) => {
+        event.stopPropagation();
+        choose(index);
+      });
+      list.append(element);
+      return { element, token: tile.token };
+    });
+    if (!list.isConnected) document.body.append(list);
+    open = { field, start, list, items, active: 0 };
+    highlight(0);
+    const rect = field.getBoundingClientRect();
+    const height = list.offsetHeight;
+    const top = rect.top - height - 6 >= 8 ? rect.top - height - 6 : rect.bottom + 6;
+    list.style.top = Math.round(top) + 'px';
+    list.style.left =
+      Math.max(8, Math.min(window.innerWidth - list.offsetWidth - 8, Math.round(rect.left))) + 'px';
+  }
+  function update(field: HTMLTextAreaElement) {
+    const caret = field.selectionStart ?? 0;
+    const before = field.value.slice(0, caret);
+    const at = before.lastIndexOf('@');
+    const query = at >= 0 ? before.slice(at + 1) : '';
+    if (at < 0 || /\s/.test(query) || query.length > 12) {
+      close();
+      return;
+    }
+    show(field, at, query);
+  }
+  document.addEventListener(
+    'input',
+    (event) => {
+      const field = event.target as HTMLTextAreaElement | null;
+      if (!field || !field.matches || !field.matches(fields)) return;
+      if (field.dataset.webMentions) syncMirror(field);
+      const typed = (event as InputEvent).data;
+      if (open && open.field === field) update(field);
+      else if (typed && typed.slice(-1) === '@') update(field);
+    },
+    true
+  );
+  // Backspace / Delete next to (or inside) an @图N token removes the whole token.
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      const field = event.target as HTMLTextAreaElement | null;
+      if (open || event.isComposing || (event.key !== 'Backspace' && event.key !== 'Delete'))
+        return;
+      if (!field || !field.matches || !field.matches(mainFields)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const caret = field.selectionStart ?? 0;
+      if (caret !== field.selectionEnd) return;
+      const pattern = /@图\d+/g;
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(field.value))) {
+        const from = match.index;
+        const to = from + match[0].length;
+        const hit =
+          event.key === 'Backspace' ? caret > from && caret <= to : caret >= from && caret < to;
+        if (!hit) continue;
+        event.preventDefault();
+        field.setRangeText('', from, to, 'start');
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+    },
+    true
+  );
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      if (!open || event.target !== open.field || event.isComposing) return;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp')
+        highlight(open.active + (event.key === 'ArrowDown' ? 1 : -1));
+      else if (event.key === 'Enter' || event.key === 'Tab') choose(open.active);
+      else if (event.key === 'Escape') close();
+      else return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+    true
+  );
+  document.addEventListener(
+    'focusout',
+    (event) => {
+      if (open && event.target === open.field)
+        setTimeout(() => {
+          if (open && document.activeElement !== open.field) close();
+        }, 0);
+    },
+    true
+  );
+  document.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (open && !open.list.contains(event.target as Node) && event.target !== open.field) close();
+    },
+    true
+  );
 }
 
 /** Immediate tooltip for Web icon-only buttons; migrates native titles so only one bubble shows. */
@@ -78,6 +511,9 @@ export function installCanvasWebTooltips() {
   let timer = 0;
   let keyboard = false;
   let lastHide = 0;
+  // While a button is held (e.g. dragging the toolbar by its grip) no tooltip shows: the captured
+  // pointer keeps hovering the moving button and the bubble would stay where it first opened.
+  let pressed = false;
   const root = document.documentElement;
   const measure = document.createElement('canvas').getContext('2d');
   /** Mirrors the flag on :root so CSS shows focus rings for keyboard focus only (no :focus-visible on Chrome 74). */
@@ -152,6 +588,7 @@ export function installCanvasWebTooltips() {
   document.addEventListener(
     'pointerover',
     (event) => {
+      if (pressed) return;
       const element = find(event.target);
       if (element) {
         if (element !== owner) show(element);
@@ -184,10 +621,19 @@ export function installCanvasWebTooltips() {
     'pointerdown',
     () => {
       setKeyboard(false);
+      pressed = true;
       hide();
     },
     true
   );
+  for (const name of ['pointerup', 'pointercancel'])
+    document.addEventListener(
+      name,
+      () => {
+        pressed = false;
+      },
+      true
+    );
   document.addEventListener('focusin', (event) => {
     const element = find(event.target);
     if (element && keyboard) show(element);
@@ -253,11 +699,14 @@ export function decorateCanvasWebCards(options: {
     const box = frame
       ? { x: frame.offsetLeft, y: frame.offsetTop, w: frame.offsetWidth, h: frame.offsetHeight }
       : { x: 0, y: 0, w: card.offsetWidth, h: card.offsetHeight };
+    // Groups are large rounded frames: no visible dot, only an invisible corner hit area that
+    // shows the resize cursor (dots on a rounded rectangle looked off either way).
+    const group = node.type === 'section';
     for (const corner of ['nw', 'ne', 'sw', 'se']) {
       const handle = document.createElement('button');
       handle.type = 'button';
       handle.tabIndex = -1;
-      handle.className = 'web-node-handle is-' + corner;
+      handle.className = 'web-node-handle is-' + corner + (group ? ' is-group' : '');
       handle.setAttribute('aria-label', node.type === 'image' ? '调整图片大小' : '调整卡片大小');
       handle.style.left = box.x + (corner[1] === 'e' ? box.w : 0) + 'px';
       handle.style.top = box.y + (corner[0] === 's' ? box.h : 0) + 'px';
@@ -269,10 +718,10 @@ export function decorateCanvasWebCards(options: {
       card.append(handle);
     }
   }
-  // Video, video result and group frames share the image selection chrome; sections frame the whole card.
+  // Video, video result, sequence, animation and group frames share the image selection chrome; sections frame the whole card.
   world
     .querySelectorAll(
-      ':scope > .card.video[data-id], :scope > .card.video-source[data-id], :scope > .card.section[data-id]'
+      ':scope > .card.video[data-id], :scope > .card.video-source[data-id], :scope > .card.section[data-id], :scope > .card.sequence[data-id], :scope > .card.animation[data-id]'
     )
     .forEach((element) => {
       const card = element as HTMLElement;
@@ -387,7 +836,64 @@ export function createCanvasWebChrome(options: {
 }) {
   const board = options.board;
   installCanvasWebTooltips();
-  const grip = document.querySelector('.workspace-toolbar-grip');
+  installCanvasWebSelects();
+  installCanvasWebMentions();
+  // Web dock and tab icons: plain lucide at stroke 2, matching the Maker shell (lucide-react).
+  const lucide = (paths: string, size: number) =>
+    '<svg viewBox="0 0 24 24" width="' +
+    size +
+    '" height="' +
+    size +
+    '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    paths +
+    '</svg>';
+  const dockIcons: Array<[string, string]> = [
+    // lucide mouse-pointer-2
+    [
+      '#tool-select',
+      '<path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/>',
+    ],
+    // lucide hand
+    [
+      '#tool-pan',
+      '<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
+    ],
+    // lucide square
+    ['#mark-ellipse', '<rect width="18" height="18" x="3" y="3" rx="2"/>'],
+    // lucide arrow-right
+    ['#mark-arrow', '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'],
+    // lucide plus
+    ['.workspace-add > summary', '<path d="M5 12h14"/><path d="M12 5v14"/>'],
+    // lucide layout-grid
+    [
+      '#add-template',
+      '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+    ],
+    // lucide save
+    [
+      '#save',
+      '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+    ],
+    // lucide ellipsis
+    [
+      '.workspace-more > summary',
+      '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+    ],
+  ];
+  for (const [selector, paths] of dockIcons) {
+    const element = document.querySelector(selector);
+    if (element) element.innerHTML = lucide(paths, 20);
+  }
+  // lucide pencil
+  const rename = document.getElementById('rename-canvas');
+  if (rename)
+    rename.innerHTML = lucide(
+      '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+      16
+    );
+  const grip = document.querySelector('.workspace-toolbar-grip') as HTMLElement | null;
+  // Arrow keys still move it; the tooltip only names the drag.
+  if (grip) grip.title = '拖动工具条';
   // lucide grip-horizontal: the Braille glyph renders unevenly across system fonts.
   if (grip)
     grip.innerHTML =
@@ -512,6 +1018,174 @@ export function canvasWebSyncVideoPlay(button: HTMLElement, player: HTMLVideoEle
     '</svg>';
 }
 
+/** Web video progress bar (time, seek slider, mute); built once per reused player so it survives re-renders. */
+export function canvasWebVideoBar(player: HTMLVideoElement): HTMLElement {
+  const owner = player as HTMLVideoElement & {
+    canvasWebBar?: HTMLElement;
+    canvasWebKey?: (event: KeyboardEvent) => boolean;
+    canvasWebWake?: () => void;
+  };
+  if (owner.canvasWebBar) return owner.canvasWebBar;
+  const bar = document.createElement('div');
+  bar.className = 'web-video-bar';
+  const time = document.createElement('span');
+  time.className = 'web-video-time';
+  const track = document.createElement('div');
+  track.className = 'web-video-track';
+  track.tabIndex = 0;
+  track.setAttribute('role', 'slider');
+  track.setAttribute('aria-label', '播放进度');
+  track.setAttribute('aria-valuemin', '0');
+  const fill = document.createElement('div');
+  fill.className = 'web-video-fill';
+  const thumb = document.createElement('div');
+  thumb.className = 'web-video-thumb';
+  track.append(fill, thumb);
+  const mute = document.createElement('button');
+  mute.type = 'button';
+  mute.className = 'web-video-mute';
+  bar.append(time, track, mute);
+  owner.canvasWebBar = bar;
+  const clock = (seconds: number) => {
+    const whole = Math.max(0, Math.floor(seconds || 0));
+    return Math.floor(whole / 60) + ':' + String(whole % 60).padStart(2, '0');
+  };
+  const duration = () => (Number.isFinite(player.duration) ? player.duration : 0);
+  let frame = 0;
+  // While playing, the controls fade after 2s without pointer or key activity so they don't cover the picture.
+  // The flag sits on the <video> so CSS can hide both the play chip and the bar that follow it.
+  let idle = 0;
+  const wake = () => {
+    clearTimeout(idle);
+    delete player.dataset.idle;
+    if (player.paused || player.ended) return;
+    idle = window.setTimeout(() => {
+      if (!player.paused && !player.ended && !bar.dataset.seeking) player.dataset.idle = 'true';
+    }, 2000);
+  };
+  const sync = () => {
+    const total = duration();
+    const now = Math.min(player.currentTime || 0, total || Infinity);
+    const text = clock(now) + ' / ' + clock(total);
+    const ratio = total ? Math.min(1, now / total) : 0;
+    time.textContent = text;
+    fill.style.width = ratio * 100 + '%';
+    thumb.style.left = ratio * 100 + '%';
+    track.setAttribute('aria-valuemax', String(Math.round(total * 10) / 10));
+    track.setAttribute('aria-valuenow', String(Math.round(now * 10) / 10));
+    track.setAttribute('aria-valuetext', text);
+    bar.dataset.playing = String(!player.paused && !player.ended);
+    const muted = player.muted || player.volume === 0;
+    const label = muted ? '取消静音' : '静音';
+    mute.setAttribute('aria-label', label);
+    mute.setAttribute('aria-pressed', String(muted));
+    mute.dataset.webTip = label;
+    // lucide volume-2 / volume-x
+    mute.innerHTML =
+      '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/>' +
+      (muted
+        ? '<line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/>'
+        : '<path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.7"/>') +
+      '</svg>';
+  };
+  // timeupdate fires ~4Hz, so a frame loop keeps the bar smooth while playing.
+  const loop = () => {
+    frame = 0;
+    sync();
+    if (!player.paused && !player.ended && player.isConnected) frame = requestAnimationFrame(loop);
+  };
+  const seek = (seconds: number) => {
+    const total = duration();
+    if (!total) return;
+    player.currentTime = Math.max(0, Math.min(total, seconds));
+    sync();
+  };
+  const seekAt = (clientX: number) => {
+    const rect = track.getBoundingClientRect();
+    if (rect.width > 0) seek(((clientX - rect.left) / rect.width) * duration());
+  };
+  // MediaRecorder WebMs report an Infinity duration until seeked past the end, which leaves nothing to seek.
+  let probing = false;
+  player.addEventListener('loadedmetadata', () => {
+    if (player.duration !== Infinity || !player.paused || player.currentTime) return;
+    probing = true;
+    player.currentTime = 1e7;
+  });
+  player.addEventListener('durationchange', () => {
+    if (!probing || !Number.isFinite(player.duration)) return;
+    probing = false;
+    player.currentTime = 0;
+  });
+  [
+    'loadedmetadata',
+    'durationchange',
+    'timeupdate',
+    'seeked',
+    'pause',
+    'ended',
+    'volumechange',
+  ].forEach((name) => player.addEventListener(name, sync));
+  player.addEventListener('play', () => {
+    if (!frame) frame = requestAnimationFrame(loop);
+    sync();
+  });
+  // The card drags on pointerdown, so nothing that starts on the bar may reach it.
+  ['pointerdown', 'mousedown', 'click', 'dblclick', 'contextmenu'].forEach((name) =>
+    bar.addEventListener(name, (event) => event.stopPropagation())
+  );
+  track.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    track.focus({ preventScroll: true });
+    track.setPointerCapture(event.pointerId);
+    bar.dataset.seeking = 'true';
+    seekAt(event.clientX);
+  });
+  track.addEventListener('pointermove', (event) => {
+    if (track.hasPointerCapture(event.pointerId)) seekAt(event.clientX);
+  });
+  const release = (event: PointerEvent) => {
+    if (track.hasPointerCapture(event.pointerId)) track.releasePointerCapture(event.pointerId);
+    delete bar.dataset.seeking;
+    wake();
+  };
+  track.addEventListener('pointerup', release);
+  track.addEventListener('pointercancel', release);
+  // Shared by the slider, the play chip and the page's selected-card shortcut.
+  const keySeek = (event: KeyboardEvent) => {
+    const steps: Record<string, number> = {
+      ArrowLeft: -1,
+      ArrowDown: -1,
+      ArrowRight: 1,
+      ArrowUp: 1,
+    };
+    if (event.key in steps) seek((player.currentTime || 0) + steps[event.key]);
+    else if (event.key === 'Home') seek(0);
+    else if (event.key === 'End') seek(duration());
+    else return false;
+    wake();
+    return true;
+  };
+  owner.canvasWebKey = keySeek;
+  owner.canvasWebWake = wake;
+  track.addEventListener('keydown', (event) => {
+    if (!keySeek(event)) return;
+    // Canvas shortcuts (delete, selected-card seek) must not also act on the same key.
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  player.addEventListener('pointermove', wake);
+  bar.addEventListener('pointermove', wake);
+  bar.addEventListener('focusin', wake);
+  ['play', 'pause', 'ended'].forEach((name) => player.addEventListener(name, wake));
+  mute.addEventListener('click', () => {
+    player.muted = !(player.muted || player.volume === 0);
+    if (!player.muted && player.volume === 0) player.volume = 1;
+    sync();
+  });
+  sync();
+  return bar;
+}
 /** Side + chooser: a small menu next to the ring; arrows move, Esc closes and refocuses the +. */
 export function openCanvasWebSlotChooser(options: {
   anchor: HTMLElement;
@@ -548,7 +1222,7 @@ export function openCanvasWebSlotChooser(options: {
     button.setAttribute('role', 'menuitem');
     button.tabIndex = -1;
     button.innerHTML =
-      '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
       icons[item.icon] +
       '</svg>';
     const text = document.createElement('span');

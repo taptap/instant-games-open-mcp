@@ -31,6 +31,40 @@ export interface CanvasEditorHandle {
     kind: 'image' | 'video';
     title: string;
   }): Promise<void>;
+  /**
+   * Re-reads sprite-gen progress for every sprite group on the open canvas and mirrors new
+   * outputs (e.g. after an Agent tool call). Resolves when done; a no-op unless features.spriteGen
+   * is on and store.readProjectJson exists. Mirror edits autosave and are not undo steps.
+   */
+  syncSprites(): Promise<void>;
+  /**
+   * Re-reads the open canvas from the store after the host saw its file change outside the page
+   * (e.g. an Agent wrote it). Skipped, resolving false, while there are unsaved edits, imports,
+   * drafts or running tasks, so local work is never replaced. Keeps the viewport and the
+   * selection of cards that still exist; the undo history restarts from the reloaded state.
+   */
+  reload(): Promise<boolean>;
+  /**
+   * The host shows or hides the canvas panel without unloading it. While hidden the page stops
+   * sprite polling, animation frames and video playback; showing it again syncs sprites at once.
+   */
+  setPanelVisible(visible: boolean): void;
+  /**
+   * Optional: the host reports whether its asset panel is open, so the 资产 button
+   * shows the right pressed state when the panel is closed from the host side.
+   */
+  setAssetPanelOpen?(open: boolean): void;
+}
+/** Payload of CanvasPageHost.startSpriteGen. */
+export interface CanvasSpriteGenStart {
+  canvasId: string;
+  /** Source image card inside the sprite group. */
+  nodeId: string;
+  /** Matches /^[\p{L}\p{N}_-]{1,40}$/u; sprite-gen files go to .build/sprite-gen/<name>/. */
+  spriteName: string;
+  spriteType: 'character' | 'generic';
+  /** Workspace-relative asset path of the source image. */
+  sourcePath: string;
 }
 
 /** Host bindings for the existing page. Factories supply host callbacks to the shared controllers. */
@@ -42,8 +76,26 @@ export interface CanvasPageHost {
   appearance?: 'default' | 'web';
   /** Optional: shows 「加入对话」 for selected image cards; absent hides the button. */
   addToChat?(items: { nodeId: string; assetPath: string }[]): Promise<void> | void;
-  /** Optional: shows 「从素材库添加」 in the blank-canvas menu; paths go through prepareCanvasImportedNode. */
-  pickProjectImages?(): Promise<{ path: string; name: string }[]>;
+  /**
+   * Optional: shows 「从素材库添加」 in the blank-canvas menu; paths go through prepareCanvasImportedNode.
+   * `kind` absent means image, except paths under assets/video/.
+   */
+  pickProjectImages?(): Promise<{ path: string; name: string; kind?: 'image' | 'video' }[]>;
+  /**
+   * Optional (Web appearance): shows a 资产 button at the start of the tab row that opens or closes the host's
+   * asset panel. Assets dragged from that panel arrive as `application/x-asset` drops; the host
+   * reports the panel state back through CanvasEditorHandle.setAssetPanelOpen.
+   */
+  toggleAssetPanel?(): void;
+  /**
+   * Optional (with features.spriteGen): called after 「生成精灵」 has created and saved the group
+   * 「精灵：<名>」. The host opens a new chat and prefills the sprite-gen prompt; the page never
+   * drives sprite-gen itself. Rejections are shown as the page error; the group stays.
+   * Resolves with the new chat's id once it exists (stored on the group for 「打开生成对话」).
+   */
+  startSpriteGen?(input: CanvasSpriteGenStart): Promise<{ chatId?: string } | void>;
+  /** Optional: 「打开生成对话」 in a sprite group header switches to that chat. */
+  openSpriteChat?(chatId: string): Promise<void> | void;
   onReady?(editor: CanvasEditorHandle): void;
   /** Called only after the normal authorized load. Scope drafts by user, project and canvas. */
   recoverDraft?(loaded: CanvasDocument): Promise<CanvasEditorDraft | null | undefined>;
