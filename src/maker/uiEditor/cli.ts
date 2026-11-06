@@ -40,10 +40,12 @@ export const uiCliCapabilities = {
   dryRun: 'create and patch support --dry-run. No project files or directories are written.',
   open: 'Opens the integrated console editor; --no-open returns the URL only. preview/layout require a connected editor page for the same project; document commands need no browser.',
   rendering: {
+    designMapping:
+      'Root previewFit=contain with positive numeric width/height declares a verified game-side centered design-coordinate mapping. It overrides DEFAULT and explicit UI scale for preview only; physicalBounds include centering, while layout/visualBounds retain design coordinates. Does not install a runtime transform.',
     commands:
       'ui preview|layout --target-dir PATH --file assets/ui/screen.ui.json [--device ID] [--orientation portrait|landscape] [--width N --height N] [--component-preview] [--id ID | --pointer POINTER]',
     options:
-      'Optional --input/--input-file JSON: {device,orientation,width,height,dpr,scale,safeArea:{top,right,bottom,left},nativeMenuBottom,componentPreview,id,pointer}. Do not repeat fields in flags and JSON. Dimensions and insets are physical pixels; custom width/height are used as supplied.',
+      'Optional --input/--input-file JSON: {device,orientation,width,height,dpr,scale,designResolution:{width,height},safeArea:{top,right,bottom,left},nativeMenuBottom,componentPreview,id,pointer}. Do not repeat fields in flags and JSON. Dimensions and insets are physical pixels; custom width/height are used as supplied. designResolution simulates UI.Scale.DESIGN_RESOLUTION across devices and cannot be combined with scale; CLI does not inherit browser preferences.',
     output:
       'preview writes a clean PNG to Maker home/ui-previews or --output-file ABSOLUTE.png (exclusive, never overwrite). Both return saved revision, viewport, expanded nodes with logical layout, transformed visualBounds and physicalBounds, and warnings. Pointers in results address the expanded tree; input selectors address the saved tree.',
     boundary:

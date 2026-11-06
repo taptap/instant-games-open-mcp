@@ -475,6 +475,10 @@
       if (node.children != null && !Array.isArray(node.children)) {
         throw new Error(path + ".children 必须是数组");
       }
+      if (root.UrhoxUICheck) {
+        var mappingError = root.UrhoxUICheck.previewFitError(node, path === "root");
+        if (mappingError) throw new Error(path + ": " + mappingError);
+      }
       (node.children || []).forEach(function (child, i) { visit(child, path + ".children[" + i + "]"); });
     }
     visit(tree, "root");

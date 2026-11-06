@@ -194,6 +194,12 @@
         <label>设备 DPR <input id="deviceDpr" type="number" min="1" max="4" step="0.1" value="1" required /></label>
         <label>UI 缩放 <input id="deviceScale" type="number" min="0.25" max="8" step="0.01" placeholder="自动 DEFAULT" /></label>
       </div>
+      <label><input id="designResolutionEnabled" type="checkbox" /> 使用游戏的 UI.Scale.DESIGN_RESOLUTION</label>
+      <div class="workbench-controls">
+        <label>设计宽 <input id="designResolutionWidth" type="number" min="1" max="16384" step="any" /></label>
+        <label>设计高 <input id="designResolutionHeight" type="number" min="1" max="16384" step="any" /></label>
+      </div>
+      <p class="muted">设计分辨率仅用于模拟引擎缩放，切换设备时自动重算；按项目记住，不修改游戏。</p>
       <label><input id="safeAreaEnabled" type="checkbox" /> 模拟安全区（参与布局，数值为物理像素）</label>
       <div class="safe-area-fields">
         <label>上 <input id="safeTop" type="number" min="0" max="2048" value="0" required /></label>

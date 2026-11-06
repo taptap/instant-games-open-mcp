@@ -257,6 +257,9 @@
           if (project === origin) return openUiFile(file, reload);
         } }];
       }
+      items.push({ label: "拷贝路径", run: function () {
+        return navigator.clipboard.writeText(window.UrhoxConfig.displayPath(file.path));
+      } });
       menu.open(items, event.clientX, event.clientY);
     });
   }

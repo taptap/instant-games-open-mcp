@@ -34,6 +34,7 @@ export function uiRenderOptions(options: Record<string, unknown>) {
     'height',
     'dpr',
     'scale',
+    'designResolution',
     'safeArea',
     'nativeMenuBottom',
     'componentPreview',
@@ -65,6 +66,22 @@ export function uiRenderOptions(options: Record<string, unknown>) {
     throw new ConsoleError('尺寸必须是整数。');
   const dpr = number('dpr', device.dpr || 1, 1, 4);
   const scale = options.scale === undefined ? null : number('scale', 1, 0.25, 8);
+  let designResolution: { width: number; height: number } | null = null;
+  if (options.designResolution !== undefined) {
+    const value = options.designResolution as Record<string, unknown> | null;
+    if (
+      !value ||
+      typeof value !== 'object' ||
+      Array.isArray(value) ||
+      Object.keys(value).some((key) => !['width', 'height'].includes(key)) ||
+      ![value.width, value.height].every(
+        (size) => typeof size === 'number' && Number.isFinite(size) && size >= 1 && size <= 16384
+      )
+    )
+      throw new ConsoleError('designResolution 必须提供 1..16384 范围内的 width 和 height。');
+    if (scale !== null) throw new ConsoleError('designResolution 与固定 scale 不能同时指定。');
+    designResolution = { width: value.width as number, height: value.height as number };
+  }
   const area =
     options.safeArea ??
     (options.width !== undefined
@@ -98,6 +115,7 @@ export function uiRenderOptions(options: Record<string, unknown>) {
     height,
     dpr,
     scale,
+    designResolution,
     safeArea,
     nativeMenuBottom: number('nativeMenuBottom', 0, 0, height - 1),
     componentPreview: options.componentPreview === true,

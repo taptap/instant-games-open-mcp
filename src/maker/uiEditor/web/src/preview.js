@@ -43,6 +43,19 @@
   app.ctx = app.canvas.getContext("2d");
   app.screen.width = app.device.width;
   app.screen.height = app.device.height;
+  function validDesignResolution(value) {
+    return value && typeof value === "object" && !Array.isArray(value) &&
+      [value.width, value.height].every(function (size) { return Number.isFinite(size) && size >= 1 && size <= 16384; });
+  }
+  // Preview preferences belong to the project, never to a device preset or the saved UI tree.
+  var scalePreferenceKey = CFG.FILE_ROOT && "urhox-ui-design-resolution:" + CFG.FILE_ROOT;
+  var renderOnly = typeof location !== "undefined" && new URLSearchParams(location.search).has("render");
+  if (scalePreferenceKey && !renderOnly) {
+    try {
+      var preference = JSON.parse(localStorage.getItem(scalePreferenceKey));
+      if (validDesignResolution(preference)) app.designResolution = preference;
+    } catch (_) {}
+  }
 
   function origin() {
     return {
@@ -53,6 +66,7 @@
 
   function isScreenDoc(tree) {
     if (!tree) return true;
+    if (tree.previewFit === "contain") return true;
     if (tree.width === "100%" || tree.height === "100%" || tree.type === "SafeAreaView") return true;
     var w = typeof tree.width === "number" ? tree.width : 0;
     var h = typeof tree.height === "number" ? tree.height : 0;
@@ -62,6 +76,8 @@
 
   function designSize() {
     if (!inViewport()) return window.UrhoxDoc.designSize(app.tree);
+    var design = containedDesign();
+    if (design) return design;
     var scale = deviceScale();
     return { width: app.screen.width / scale, height: app.screen.height / scale };
   }
@@ -71,24 +87,40 @@
   }
 
   function deviceScale() {
+    var design = containedDesign();
+    if (design) return Math.min(app.screen.width / design.width, app.screen.height / design.height);
+    if (app.designResolution) return Math.min(app.screen.width / app.designResolution.width, app.screen.height / app.designResolution.height);
     if (app.device.scale > 0) return app.device.scale;
     var dpr = app.device.dpr || 1;
     var shortSide = Math.min(app.screen.width, app.screen.height) / dpr;
     return dpr * Math.max(0.625, Math.min(1, Math.sqrt(shortSide / 720)));
   }
 
+  // Exported drawing coordinates opt in to the game's outer contain transform.
+  // A fixed-size Yoga root alone does not imply this mapping.
+  function containedDesign() {
+    var tree = app.sourceTree;
+    return inViewport() && tree && tree.previewFit === "contain" &&
+      Number.isFinite(tree.width) && tree.width > 0 && Number.isFinite(tree.height) && tree.height > 0
+      ? { width: tree.width, height: tree.height } : null;
+  }
+
   function layoutEnvironment() {
-    var scale = deviceScale(), area = app.safeArea || {};
-    return { scale: scale, safeArea: { top: (area.top || 0) / scale, right: (area.right || 0) / scale,
-      bottom: (area.bottom || 0) / scale, left: (area.left || 0) / scale },
-      nativeMenuBottom: (app.device.nativeMenuBottom || 0) / scale };
+    var fit = contentTransform(), scale = fit.scale, area = app.safeArea || {};
+    return { scale: containedDesign() ? 0 : scale, safeArea: { top: Math.max(0, (area.top || 0) - fit.y) / scale,
+      right: Math.max(0, (area.right || 0) - fit.x) / scale,
+      bottom: Math.max(0, (area.bottom || 0) - fit.y) / scale,
+      left: Math.max(0, (area.left || 0) - fit.x) / scale },
+      nativeMenuBottom: Math.max(0, (app.device.nativeMenuBottom || 0) - fit.y) / scale };
   }
 
   function contentTransform() {
     if (!inViewport()) {
       return { scale: 1, x: 0, y: 0 };
     }
-    return { scale: deviceScale(), x: 0, y: 0 };
+    var scale = deviceScale(), design = containedDesign();
+    return { scale: scale, x: design ? (app.screen.width - design.width * scale) / 2 : 0,
+      y: design ? (app.screen.height - design.height * scale) / 2 : 0 };
   }
 
   function updateScaleBadge() {
@@ -109,7 +141,8 @@
     if (deviceSelect) deviceSelect.disabled = false;
     var fit = contentTransform();
     if (badge) {
-      badge.textContent = "逻辑视口 " + src.width + "×" + src.height + " · " + (app.device.scale ? "指定缩放 " : "UI.Scale.DEFAULT ") + fit.scale.toFixed(2) + "×";
+      badge.textContent = (containedDesign() ? "设计坐标 " : "逻辑视口 ") + src.width + "×" + src.height + " · " +
+        (containedDesign() ? "等比居中 " : app.designResolution ? "UI.Scale.DESIGN_RESOLUTION " : app.device.scale ? "指定缩放 " : "UI.Scale.DEFAULT ") + fit.scale.toFixed(2) + "×";
     }
     if (label) {
       label.textContent = "页面  " + app.device.name + "  " + app.screen.width + "×" + app.screen.height + "  ·  UI " + src.width + "×" + src.height + " ×" + fit.scale.toFixed(2);
@@ -300,7 +333,10 @@
     if (opts.phase === "start") { beginHistory(); return; }
     else if (opts.phase === "end") commitHistory();
     else if (!opts.live) pushHistory();
+    var previousMode = app.editMode;
+    app.editMode = isScreenDoc(app.sourceTree) ? "screen" : "prefab";
     rebuildPreview();
+    if (previousMode !== app.editMode) resizeCanvas();
     if (opts.live) {
       draw();
     } else {
@@ -316,6 +352,7 @@
       var source = app.sourceTree;
       window.UrhoxInspector.render(app.inspectorEl, app.selected, onInspectorChange, {
         selection: nodes,
+        root: source,
         blocked: nodes.some(function (n) {
           return n.locked || window.UrhoxDoc.isGenerated(n) ||
             window.UrhoxDoc.ancestors(source, n).some(function (p) { return p.locked; });
@@ -541,7 +578,10 @@
     if (!snap) return;
     app.sourceTree = snap.tree;
     window.UrhoxDoc.ensureEditorIds(app.sourceTree);
+    var previousMode = app.editMode;
+    app.editMode = isScreenDoc(app.sourceTree) ? "screen" : "prefab";
     rebuildPreview();
+    if (previousMode !== app.editMode) resizeCanvas();
     var ids = snap.selectedIds || (snap.selectedId ? [snap.selectedId] : []);
     app.selectedNodes = ids.map(function (id) {
       return window.UrhoxDoc.findByEditorId(app.sourceTree, id);
@@ -722,11 +762,12 @@
         app.screen.width = device.width;
         app.screen.height = device.height;
         rebuildPreview();
-        var logical = designSize(), scale = deviceScale();
+        var fit = contentTransform(), scale = fit.scale;
         var area = app.safeArea || {};
         results.push(visit(scene, {
           tree: app.tree, device: device, scale: scale, dpr: device.dpr || 1,
-          width: logical.width, height: logical.height,
+          width: app.screen.width / scale, height: app.screen.height / scale,
+          offsetX: fit.x / scale, offsetY: fit.y / scale,
           safeArea: { top: (area.top || 0) / scale, right: (area.right || 0) / scale,
             bottom: (area.bottom || 0) / scale, left: (area.left || 0) / scale },
           sourceId: function (node) {
@@ -734,7 +775,12 @@
             return source && window.UrhoxDoc.findByEditorId(app.sourceTree, source._editorId) === source
               ? source._editorId : null;
           },
-          paint: function (context) { window.UrhoxCanvas.paintTree(context, app.tree, app); },
+          paint: function (context) {
+            context.save();
+            context.translate(fit.x / scale, fit.y / scale);
+            window.UrhoxCanvas.paintTree(context, app.tree, app);
+            context.restore();
+          },
         }));
       });
     } finally {
@@ -845,7 +891,7 @@
       await this.loadTreeAsync(job.tree, { path: CFG.FILE_ROOT + job.file });
       app.componentPreview = options.componentPreview;
       if (inViewport()) {
-        if (!this.configureDevice(options.width, options.height, options.safeArea, options.dpr, options.scale, options.nativeMenuBottom)) {
+        if (!this.configureDevice(options.width, options.height, options.safeArea, options.dpr, options.scale, options.nativeMenuBottom, options.designResolution)) {
           throw new Error("预览设备参数无效。");
         }
       }
@@ -855,13 +901,13 @@
       var missingFonts = await window.UrhoxAssets.whenFontsReady();
       layoutNow();
       var missingImages = await window.UrhoxAssets.whenReady();
-      var size = designSize(), scale = inViewport() ? deviceScale() : 1;
+      var size = designSize(), fit = contentTransform(), scale = fit.scale;
       var width = inViewport() ? app.screen.width : Math.ceil(size.width);
       var height = inViewport() ? app.screen.height : Math.ceil(size.height);
       if (!(width > 0 && height > 0 && width <= 4096 && height <= 4096)) throw new Error("预览画幅必须在 1..4096 像素内。");
       var nodes = [];
       function physical(box) {
-        return box ? { x: box.x * scale, y: box.y * scale, w: box.w * scale, h: box.h * scale } : null;
+        return box ? { x: box.x * scale + fit.x, y: box.y * scale + fit.y, w: box.w * scale, h: box.h * scale } : null;
       }
       function visit(node, pointer, hidden) {
         hidden = hidden || !!node._hidden;
@@ -886,14 +932,26 @@
       window.UrhoxDoc.walk(app.sourceTree, function (node) {
         if (node.$repeat && node.$repeat.template && !app.templates[node.$repeat.template]) warnings.push("缺少模板：" + node.$repeat.template);
       });
-      var result = { viewport: { width: width, height: height, logicalWidth: size.width, logicalHeight: size.height,
+      var result = { viewport: { width: width, height: height,
+        logicalWidth: inViewport() ? width / scale : size.width, logicalHeight: inViewport() ? height / scale : size.height,
         scale: scale, dpr: options.dpr, device: options.device, mode: inViewport() ? "screen" : "component",
         safeArea: inViewport() ? app.safeArea : null, nativeMenuBottom: inViewport() ? options.nativeMenuBottom : 0 },
         tree: "expanded", coordinateSystem: "logical viewport; physicalBounds in pixels", nodes: nodes, warnings: warnings };
+      if (containedDesign()) {
+        result.viewport.previewFit = "contain";
+        result.viewport.designWidth = size.width;
+        result.viewport.designHeight = size.height;
+        result.viewport.offsetX = fit.x;
+        result.viewport.offsetY = fit.y;
+        result.coordinateSystem = "design coordinates; physicalBounds include centered contain mapping in pixels";
+      } else if (inViewport() && app.designResolution) {
+        result.viewport.designResolution = Object.assign({}, app.designResolution);
+      }
       if (job.action !== "preview") return { result: result };
       var output = document.createElement("canvas");
       output.width = width; output.height = height;
       var context = output.getContext("2d");
+      context.translate(fit.x, fit.y);
       context.scale(scale, scale);
       window.UrhoxCanvas.paintTree(context, app.tree, app);
       return { result: result, png: output.toDataURL("image/png").split(",")[1] };
@@ -918,14 +976,23 @@
     markClean: markClean,
     getCleanJSON: function () { return JSON.parse(app.cleanState || "{}"); },
     getDevice: function () { return { width:app.screen.width, height:app.screen.height, safeArea:app.safeArea || null,
-      dpr:app.device.dpr || 1, scale:app.device.scale || null, nativeMenuBottom:app.device.nativeMenuBottom || 0, prefab:!inViewport() }; },
-    configureDevice: function (width, height, area, dpr, scale, nativeMenuBottom) {
+      dpr:app.device.dpr || 1, scale:app.device.scale || null, designResolution:app.designResolution ? Object.assign({}, app.designResolution) : null,
+      nativeMenuBottom:app.device.nativeMenuBottom || 0, prefab:!inViewport() }; },
+    configureDevice: function (width, height, area, dpr, scale, nativeMenuBottom, designResolution) {
       if (!inViewport() || !Number.isInteger(width) || !Number.isInteger(height) ||
           width < 240 || height < 240 || width > 4096 || height > 4096) return false;
       dpr = dpr == null ? 1 : dpr;
       if (!Number.isFinite(dpr) || dpr < 1 || dpr > 4 ||
           scale != null && (!Number.isFinite(scale) || scale < 0.25 || scale > 8) ||
           nativeMenuBottom != null && (!Number.isFinite(nativeMenuBottom) || nativeMenuBottom < 0 || nativeMenuBottom >= height)) return false;
+      if (designResolution != null && (!validDesignResolution(designResolution) || scale != null)) return false;
+      app.designResolution = designResolution ? { width:designResolution.width, height:designResolution.height } : null;
+      if (scalePreferenceKey && !renderOnly) {
+        try {
+          if (app.designResolution) localStorage.setItem(scalePreferenceKey, JSON.stringify(app.designResolution));
+          else localStorage.removeItem(scalePreferenceKey);
+        } catch (_) {}
+      }
       app.device = { id:"custom", name:"自定义", width:width, height:height, bezel:24 };
       Object.assign(app.device, { dpr:dpr, scale:scale, nativeMenuBottom:nativeMenuBottom || 0 });
       app.device.safeArea = area;

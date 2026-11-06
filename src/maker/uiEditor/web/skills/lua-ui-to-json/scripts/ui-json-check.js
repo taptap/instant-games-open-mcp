@@ -88,6 +88,14 @@
     return typeof value === "number" && Number.isFinite(value) ||
       typeof value === "string" && /^(auto|-?\d+(?:\.\d+)?%?)$/.test(value);
   }
+  function previewFitError(node, isRoot) {
+    if (node.previewFit === undefined) return null;
+    if (!isRoot || node.previewFit !== "contain") return "previewFit 仅允许在文档根节点声明 contain。";
+    if (!(Number.isFinite(node.width) && node.width > 0 && Number.isFinite(node.height) && node.height > 0)) {
+      return "设计坐标等比居中需要根节点 width、height 为正数；百分比布局应移除 previewFit。";
+    }
+    return null;
+  }
   function checkDocument(options) {
     var diagnostics = [], ids = new Map(), count = 0, limited = false, parameterized = false;
     function issue(code, severity, pointer, message) {
@@ -120,6 +128,8 @@
       if (!node || typeof node !== "object" || Array.isArray(node)) {
         issue("UI_NODE", "error", pointer, "节点必须是对象。"); return;
       }
+      var mappingError = previewFitError(node, depth === 0);
+      if (mappingError) issue("UI_PREVIEW_FIT", "error", pointer + "/previewFit", mappingError);
       if (typeof node.type !== "string" || !node.type.trim()) {
         issue("UI_NODE_TYPE", "error", pointer + "/type", "每个节点都需要非空 type。");
       } else if (!previewTypes.has(node.type)) {
@@ -223,7 +233,7 @@
         .concat(options.resourceExists ? [] : ["resource-existence"]),
     };
   }
-  var api = { checkDocument: checkDocument, checkNanoVG: checkNanoVG, nanoOps: nanoOps };
+  var api = { checkDocument: checkDocument, checkNanoVG: checkNanoVG, nanoOps: nanoOps, previewFitError: previewFitError };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.UrhoxUICheck = api;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -4,6 +4,7 @@ const vm = require("vm");
 
 module.exports = (async function () {
   global.window = global;
+  global.UrhoxUICheck = require('../../../../skills/lua-ui-to-json/scripts/ui-json-check.cjs');
   for (const name of ['geom', 'history', 'doc']) {
     vm.runInThisContext(fs.readFileSync(require.resolve('../web/src/' + name + '.js'), 'utf8'));
   }
@@ -117,6 +118,84 @@ module.exports = (async function () {
       if (node.type === "ScrollView") assert.equal(node._scrollY, 40 + count++ * 20, kind + " probe restores scroll");
     });
     assert(!JSON.stringify(UrhoxHistory.cloneForSave(app.sourceTree)).includes("_scroll"));
+  }
+  vm.runInThisContext(fs.readFileSync(require.resolve("../web/src/adapt.js"), "utf8"));
+  const near = (actual, expected) => assert(Math.abs(actual - expected) < 0.001, `${actual} != ${expected}`);
+  const drawing = { type: "Panel", width: 1920, height: 1080, previewFit: "contain",
+    children: [{ type: "Button", id: "left-control", position: "absolute", left: 0, top: 0, width: 180, height: 100 }] };
+  for (const [width, height, dpr, scale, x, y] of [
+    [1280, 720, 1, 2 / 3, 0, 0],
+    [844, 390, 1, 390 / 1080, 75.333333, 0],
+    [1688, 780, 2, 780 / 1080, 150.666667, 0],
+    [720, 1280, 1, 0.375, 0, 437.5],
+  ]) {
+    app.sourceTree = UrhoxHistory.cloneForSave(drawing);
+    app.tree = null;
+    app.templates = {}; app.components = {}; app.editMode = "screen";
+    app.screen = { width, height };
+    app.device = app.customDevice = { id: "custom", width, height, dpr, scale: 2 };
+    app.safeArea = { top: 10, right: 20, bottom: 10, left: 20 };
+    app.customDevice.safeArea = app.safeArea;
+    app.rebuildPreview();
+    const fit = app.contentTransform();
+    near(fit.scale, scale); near(fit.x, x); near(fit.y, y);
+    near(app.tree._layout.w, 1920); near(app.tree._layout.h, 1080);
+    assert.deepEqual(app.designSize(), { width: 1920, height: 1080 });
+    const orientation = width > height ? "landscape" : "portrait";
+    UrhoxPreview.probeScenes([{ id: "custom", orientation }], (_, ctx) => {
+      near(ctx.offsetX * ctx.scale, x); near(ctx.offsetY * ctx.scale, y);
+      near(ctx.width * ctx.scale, width); near(ctx.height * ctx.scale, height);
+      const issues = UrhoxAdapt.analyze(ctx);
+      assert(!issues.some(i => i.code === "offscreen" || i.code === "cutByScreen"));
+      if (x > 20 && y === 0) {
+        const unsafe = issues.find(i => i.code === "unsafe");
+        assert(unsafe && !unsafe.message.includes("左侧"), "letterboxing keeps the left control clear of the inset");
+      }
+      const calls = [];
+      global.UrhoxCanvas = { paintTree() { calls.push("paint"); } };
+      ctx.paint({ save() {}, restore() {}, translate(tx, ty) { near(tx * scale, x); near(ty * scale, y); } });
+      assert.deepEqual(calls, ["paint"]);
+    });
+    assert.deepEqual(UrhoxHistory.cloneForSave(app.sourceTree), drawing, "mapping and checks never rewrite design coordinates");
+  }
+  // Opt-in only: a fixed root still overflows under DEFAULT, and a responsive root still fills it.
+  delete app.sourceTree.previewFit;
+  app.screen = { width: 1920, height: 1080 };
+  app.device = { dpr: 1.5 };
+  app.rebuildPreview();
+  assert.deepEqual(app.contentTransform(), { x: 0, y: 0, scale: 1.5 });
+  near(app.tree._layout.w, 1920);
+  app.sourceTree.width = app.sourceTree.height = "100%";
+  app.rebuildPreview();
+  near(app.tree._layout.w, 1280); near(app.tree._layout.h, 720);
+  // Engine DESIGN_RESOLUTION scales the viewport, not the root; responsive pages keep
+  // using the extra space on tall/wide screens instead of receiving a contain offset.
+  app.designResolution = { width: 1080, height: 1920 };
+  app.sourceTree = { type: "Panel", width: "100%", height: "100%", children: [
+    { id: "footer", position: "absolute", left: 0, bottom: 0, width: "100%", height: 180 }
+  ] };
+  for (const [width, height, dpr] of [[1080,1920,1.5], [1170,2532,3], [2048,2732,2], [844,390,1]]) {
+    app.screen = { width, height };
+    app.device = app.customDevice = { id: "custom", width, height, dpr };
+    app.rebuildPreview();
+    const scale = Math.min(width / 1080, height / 1920);
+    near(app.contentTransform().scale, scale);
+    assert.equal(app.contentTransform().x, 0); assert.equal(app.contentTransform().y, 0);
+    near(app.tree._layout.w * scale, width); near(app.tree._layout.h * scale, height);
+    const footer = app.tree.children[0]._layout;
+    near((footer.y + footer.h) * scale, height);
+    UrhoxPreview.probeScenes([{ id: "custom", orientation: width > height ? "landscape" : "portrait" }], (_, ctx) => {
+      near(ctx.scale, scale); near(ctx.height * ctx.scale, height);
+    });
+  }
+  app.designResolution = null;
+  assert.equal(UrhoxUICheck.checkDocument({ tree: drawing }).errors, 0);
+  for (const invalid of [
+    { ...drawing, width: "100%" }, { ...drawing, height: 0 }, { ...drawing, previewFit: "cover" },
+    { type: "Panel", children: [drawing] },
+  ]) {
+    assert(UrhoxUICheck.checkDocument({ tree: invalid }).diagnostics.some(d => d.code === "UI_PREVIEW_FIT"));
+    assert.throws(() => UrhoxDoc.validateTree(invalid), /previewFit|设计坐标/);
   }
   delete global.document;
   console.log("layout-regression.test.js passed");
