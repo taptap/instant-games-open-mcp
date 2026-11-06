@@ -5769,6 +5769,38 @@ try {
       await card(source.id).click({ position: { x: 100, y: 120 } });
       const port = card(source.id).locator('.canvas-port-output');
       const chooser = page.locator('.web-slot-chooser');
+      const start = await port.boundingBox();
+      const dropAt = { x: start.x + start.width / 2 + 80, y: start.y + start.height / 2 };
+      const worldDrop = await page.evaluate((point) => {
+        const box = document.getElementById('board').getBoundingClientRect();
+        const view = window.__canvasEditor.current().viewport;
+        return {
+          x: (point.x - box.left - view.x) / view.scale,
+          y: (point.y - box.top - view.y) / view.scale,
+        };
+      }, dropAt);
+      await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(dropAt.x, dropAt.y, {
+        steps: 8,
+      });
+      await page.mouse.up();
+      await settle();
+      const dragged = await current();
+      assert.equal(dragged.nodes.length, 2);
+      const draggedSlot = dragged.nodes.find((node) => node.id !== source.id);
+      assert.equal(draggedSlot.type, 'image');
+      assert.equal(draggedSlot.x, Math.round(worldDrop.x - 110));
+      assert.equal(draggedSlot.y, Math.round(worldDrop.y - 75));
+      assert.ok(
+        dragged.edges.some(
+          (edge) =>
+            edge.from === source.id && edge.to === draggedSlot.id && edge.kind === 'image-variant'
+        )
+      );
+      await page.keyboard.press('ControlOrMeta+z');
+      await settle();
+      await card(source.id).click({ position: { x: 100, y: 120 } });
       await port.click();
       await chooser.waitFor();
       assert.deepEqual(
@@ -5924,6 +5956,10 @@ try {
       );
       await selects.nth(0).selectOption('2.5');
       await panel.locator('textarea.generation-prompt').fill('雨夜城市航拍');
+      assert.equal(await page.evaluate(() => window.__canvasEditor.hasInputDraft()), true);
+      await page.evaluate(() => window.__canvasEditor.setPanelVisible(false));
+      assert.equal(await page.evaluate(() => window.__canvasEditor.hasInputDraft()), true);
+      await page.evaluate(() => window.__canvasEditor.setPanelVisible(true));
       const send = panel.locator('.generation-action-primary');
       assert.equal(await send.isDisabled(), false);
       await themes(page, (theme) => shoot('v11-' + theme + '-text-to-video-composer.png'));

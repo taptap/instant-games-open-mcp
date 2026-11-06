@@ -382,6 +382,7 @@ function applyImageSlotPatches(source: string): string {
     '      if (card) connect(drag.id, card.dataset.id);\n      else if (drag.moved) {',
     [
       "      if (card) { if (card.dataset.id !== drag.id) { if (drag.reverse) connect(card.dataset.id, drag.id); else connect(drag.id, card.dataset.id); } else if (!drag.moved && canvasFeatureEnabled(host, 'connectors')) createLinkedSlot(drag.id, drag.reverse); }",
+      "      else if (drag.moved && canvasWeb && canvasFeatureEnabled(host, 'connectors')) { createLinkedSlot(drag.id, drag.reverse, true, worldPoint(event)); }",
       "      else if (drag.moved && !drag.reverse && canvasFeatureEnabled(host, 'video') && documentState.nodes.some(function (item) { return item.id === drag.id && item.assetPath; })) {",
     ].join('\n')
   );
@@ -1040,7 +1041,7 @@ function applyWebCardUxPatches(source: string): string {
       "    if (!card || card.type !== 'image') return;",
     ].join('\n'),
     [
-      '  function createLinkedSlot(id, left, direct) {',
+      '  function createLinkedSlot(id, left, direct, at) {',
       '    const card = documentState && documentState.nodes.find(function (node) { return node.id === id; });',
       "    if (!card || card.type !== 'image') return;",
       // Only a saved image can feed a video slot, so other + presses keep creating an image slot directly.
@@ -1080,6 +1081,14 @@ function applyWebCardUxPatches(source: string): string {
       '  }',
       '  function connectImages(from, to, shouldRemember, allowEmptySource) {',
     ].join('\n')
+  );
+  patch(
+    '    const point = { x: left ? card.x - width - gap : card.x + card.width + gap, y: card.y };',
+    '    const point = at ? { x: Math.round(at.x - width / 2), y: Math.round(at.y - height / 2) } : { x: left ? card.x - width - gap : card.x + card.width + gap, y: card.y };'
+  );
+  patch(
+    'for (let tries = 0; tries < 20 && documentState.nodes.some(function (node) { return node.type !== "section"',
+    'for (let tries = 0; !at && tries < 20 && documentState.nodes.some(function (node) { return node.type !== "section"'
   );
   return page;
 }
@@ -2238,7 +2247,8 @@ function applySpriteGenPatches(source: string): string {
   );
   patch(
     '    execute: automation.execute,\n',
-    '    syncSprites: function () { return syncAllSprites(true); },\n' +
+    '    hasInputDraft: function () { return Boolean(generationUi && generationUi.hasInputDraft()); },\n' +
+      '    syncSprites: function () { return syncAllSprites(true); },\n' +
       // Host panel closed/opened (the iframe is only hidden with CSS, so document.hidden stays false):
       // pause polling, animation frames and playing videos; catch up on reopen.
       '    setPanelVisible: function (visible) { const hidden = !visible; if (hidden === canvasPanelHidden) return; canvasPanelHidden = hidden; animationCards.setPaused(hidden); if (hidden) { clearTimeout(spriteTimer); spriteTimer = 0; world.querySelectorAll("video").forEach(function (video) { video.pause(); }); } else void syncAllSprites(false); },\n    execute: automation.execute,\n'
