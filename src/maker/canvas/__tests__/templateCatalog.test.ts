@@ -136,8 +136,8 @@ test.each(
   async (template) => {
     await files.listTemplates();
     const previews = templatePresentation(template.id).previews!;
-    const images = template.nodes.filter((node) => node.type === 'image');
     for (const [slot, preview] of previews.entries()) {
+      const images = template.nodes.filter((node) => node.type === (preview.type || 'image'));
       expect(templateCoverSource(template, slot)).toBe(images[preview.index].assetPath);
       const wrong = PNG.sync.write(new PNG({ width: 2, height: 2 }));
       fs.writeFileSync(
@@ -152,25 +152,38 @@ test.each(
       expect(source.source).toBe(true);
       expect(source.bytes.equals(wrong)).toBe(false);
     }
-    if (previews.length === 2) {
-      const second = await files.readTemplateCover(template.id, template.revision, 1);
+    if (previews.length >= 2) {
+      const slot = previews.length - 1;
+      const second = await files.readTemplateCover(template.id, template.revision, slot);
       expect(
         second.bytes.equals(
           (await files.readTemplateCover(template.id, template.revision, 0)).bytes
         )
       ).toBe(false);
-      const cached = PNG.sync.write(new PNG({ width: 768, height: 400 }));
-      files.saveTemplateCover(template.id, template.revision, cached, 1);
-      expect((await files.readTemplateCover(template.id, template.revision, 1)).source).toBe(false);
+      const animation = templateCoverAnimation(template, true, slot);
+      const cached = PNG.sync.write(
+        new PNG(
+          animation
+            ? {
+                width: Math.min(8, animation.frames.length) * 128,
+                height: Math.ceil(animation.frames.length / 8) * 128,
+              }
+            : { width: 128, height: 128 }
+        )
+      );
+      files.saveTemplateCover(template.id, template.revision, cached, slot);
+      expect((await files.readTemplateCover(template.id, template.revision, slot)).source).toBe(
+        false
+      );
       expect((await files.readTemplateCover(template.id, template.revision, 0)).source).toBe(true);
     } else {
       await expect(files.readTemplateCover(template.id, template.revision, 1)).rejects.toThrow(
         '预览'
       );
     }
-    await expect(files.readTemplateCover(template.id, template.revision, 2)).rejects.toThrow(
-      '预览'
-    );
+    await expect(
+      files.readTemplateCover(template.id, template.revision, previews.length)
+    ).rejects.toThrow('预览');
   }
 );
 
@@ -280,7 +293,8 @@ test('covers prefer animation then saved frames, sampling the whole action withi
   const animation = template.nodes.find((node) => node.type === 'animation')!;
   expect(templateCoverSource(template)).toBe(animation.assetPath);
   const preview = templateCoverAnimation(template)!;
-  expect(preview.frames).toHaveLength(32);
+  expect(preview.frames).toHaveLength(50);
+  expect(preview.fps).toBeLessThanOrEqual(12);
   expect(preview.frames[0]).toEqual(
     expect.objectContaining({
       x: animation.frameSetInfo!.frames[0].x,
@@ -295,11 +309,14 @@ test('covers prefer animation then saved frames, sampling the whole action withi
   );
   expect(preview.frames.length / preview.fps).toBeCloseTo(5);
   const packed = templateCoverAnimation(template, true)!;
-  expect(
-    packed.frames.every(
-      (frame) => frame.width === 128 && frame.height === 128 && frame.x < 1024 && frame.y < 512
-    )
-  ).toBe(true);
+  packed.frames.forEach((frame, index) => {
+    expect(Math.max(frame.width, frame.height)).toBeCloseTo(128);
+    expect(frame.width / frame.height).toBeCloseTo(
+      preview.frames[index].width / preview.frames[index].height
+    );
+    expect(frame.x + frame.width / 2).toBeCloseTo((index % 8) * 128 + 64);
+    expect(frame.y + frame.height / 2).toBeCloseTo(Math.floor(index / 8) * 128 + 64);
+  });
   const withoutAnimation = {
     ...template,
     nodes: template.nodes.filter((node) => node.type !== 'animation'),
@@ -310,6 +327,48 @@ test('covers prefer animation then saved frames, sampling the whole action withi
   const imagesOnly = { ...template, nodes: template.nodes.filter((node) => node.type === 'image') };
   expect(templateCoverAnimation(imagesOnly)).toBeUndefined();
   expect(templateCoverSource(imagesOnly)).toBe(imagesOnly.nodes[0].assetPath);
+});
+
+test.each([
+  [1920, 1080, 128, 72],
+  [1080, 1920, 72, 128],
+  [512, 512, 128, 128],
+])(
+  'cached animation covers preserve %s x %s image area',
+  (width, height, expectedWidth, expectedHeight) => {
+    const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000016');
+    const animation = template.nodes.find((node) => node.type === 'animation')!;
+    animation.frameSetInfo!.frames = animation.frameSetInfo!.frames.map((frame) => ({
+      ...frame,
+      width,
+      height,
+    }));
+    const compact = templateCoverAnimation(template, true)!;
+    expect(compact.frames[0]).toEqual({
+      x: (128 - expectedWidth) / 2,
+      y: (128 - expectedHeight) / 2,
+      width: expectedWidth,
+      height: expectedHeight,
+    });
+  }
+);
+
+test('lightweight covers sample held frames by time without shortening the action', () => {
+  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000016');
+  const node = template.nodes.find((item) => item.type === 'animation')!;
+  const info = node.frameSetInfo!;
+  info.frames = Array.from({ length: 24 }, (_, index) => ({
+    ...info.frames[0],
+    x: index * 128,
+    duration: index === 0 ? 1000 : 1000 / 23,
+  }));
+  const animation = templateCoverAnimation(template)!;
+  expect(animation.fps).toBeLessThanOrEqual(12);
+  expect(animation.frames.length / animation.fps).toBeCloseTo(2);
+  expect(animation.frames.slice(0, 11).every((frame) => frame.x === 0)).toBe(true);
+  expect(animation.frames.at(-1)!.x).toBe(23 * 128);
+  info.frames = Array.from({ length: 160 }, () => ({ ...info.frames[0], duration: 1000 }));
+  expect(templateCoverAnimation(template)!.frames).toHaveLength(128);
 });
 
 test('revision-bound thumbnails are small, isolated, invalidate on replace and reject unsafe paths', async () => {
@@ -326,6 +385,7 @@ test('revision-bound thumbnails are small, isolated, invalidate on replace and r
     builtin.id + '-cover-' + builtin.revision + '.png'
   );
   fs.writeFileSync(oldCache, png);
+  fs.writeFileSync(oldCache.replace('-cover-', '-cover-v3-0-'), png);
   expect((await files.readTemplateCover(builtin.id, builtin.revision)).source).toBe(true);
   files.saveTemplateCover(builtin.id, builtin.revision, png);
   expect((await files.readTemplateCover(builtin.id, builtin.revision)).bytes).toEqual(png);
@@ -353,14 +413,14 @@ test('revision-bound thumbnails are small, isolated, invalidate on replace and r
       path.join(
         root,
         '.maker/canvases/templates',
-        replaced.id + '-cover-v3-0-' + replaced.revision + '.png'
+        replaced.id + '-cover-v4-0-' + replaced.revision + '.png'
       )
     )
   ).toBe(false);
   const cache = path.join(
     root,
     '.maker/canvases/templates',
-    builtin.id + '-cover-v3-0-' + builtin.revision + '.png'
+    builtin.id + '-cover-v4-0-' + builtin.revision + '.png'
   );
   fs.unlinkSync(cache);
   const external = path.join(root, 'outside.png');

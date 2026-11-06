@@ -1,6 +1,12 @@
 import fs from 'node:fs';
+import { validateImportedFrameSet } from '../../../packages/maker-canvas/src/browser/automationAssets.js';
 import { resolvedModelSettingsForDisplay } from '../console/canvasRecognition.js';
-import { canvasExportDirectory, readCanvasImport, writeCanvasExport } from './automationFiles.js';
+import {
+  canvasExportDirectory,
+  readCanvasImport,
+  readCanvasTemplateImport,
+  writeCanvasExport,
+} from './automationFiles.js';
 import { selectCanvasSnapshot } from './automationInfo.js';
 import { randomUUID } from 'node:crypto';
 import { canvasConsoleConnection } from '../console/cli.js';
@@ -33,6 +39,8 @@ export async function runCanvasCli(
     'archive-ui': ['canvas_id'],
     list: [],
     templates: ['page', 'q'],
+    'export-template': ['id', 'revision', 'output_dir'],
+    'import-template': ['file'],
     pages: [],
     sessions: [],
     status: ['operation_id', 'timeout'],
@@ -173,6 +181,39 @@ export async function runCanvasCli(
     });
     return;
   }
+  if (action === 'import-template') {
+    const bytes = readCanvasTemplateImport(options.file);
+    const connection = sessionConnection || (await canvasConsoleConnection(options.target_dir));
+    const response = await connection.transfer('/templates/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/zip' },
+      body: new Uint8Array(bytes),
+    });
+    const template = await response.json();
+    print({
+      templateId: template.id,
+      revision: template.revision,
+      name: template.name,
+      skills: template.skills || [],
+    });
+    return;
+  }
+  if (action === 'export-template') {
+    if (typeof options.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(options.id))
+      throw new Error('缺少有效 --id 模板 ID；请先用 canvas templates 查询。');
+    const revision = Number(options.revision);
+    if (!Number.isSafeInteger(revision) || revision < 1)
+      throw new Error('缺少有效 --revision 模板版本；请先用 canvas templates 查询。');
+    const directory = canvasExportDirectory(options.output_dir);
+    const connection = sessionConnection || (await canvasConsoleConnection(options.target_dir));
+    const response = await connection.transfer(
+      '/templates/' + encodeURIComponent(options.id) + '/export?revision=' + revision
+    );
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const outputPath = writeCanvasExport(directory, 'template.zip', bytes);
+    print({ templateId: options.id, revision, outputPath, size: bytes.byteLength });
+    return;
+  }
   const connection = sessionConnection || (await canvasConsoleConnection(options.target_dir));
   if (action === 'sessions') {
     print({ sessions: await connection.request('/automation/sessions') });
@@ -308,13 +349,16 @@ export async function runCanvasCli(
       typeof input !== 'object' ||
       Array.isArray(input) ||
       Object.keys(input).some(
-        (key) => !(replacesImage ? ['id', 'prompt'] : ['title', 'prompt', 'sourceId']).includes(key)
+        (key) =>
+          !(
+            replacesImage ? ['id', 'prompt'] : ['title', 'prompt', 'sourceId', 'frameSetInfo']
+          ).includes(key)
       )
     )
       throw new Error(
         replacesImage
           ? action + ' 使用 --file 时 input 只接受 id 和可选 prompt。'
-          : 'import input 只接受可选 title、prompt、sourceId；素材由 --file 指定。'
+          : 'import input 支持 title、prompt、sourceId，或动画图集的 frameSetInfo；素材由 --file 指定。'
       );
     if (
       replacesImage &&
@@ -348,6 +392,11 @@ export async function runCanvasCli(
       if (exists) throw new Error('原 request-id 已有记录，请用 status 查询，不要再次导入。');
     }
     const asset = readCanvasImport(options.file);
+    if ('frameSetInfo' in input) {
+      if (asset.kind !== 'image' || 'prompt' in input || 'sourceId' in input)
+        throw new Error('动画图集不能与视频、prompt 或 sourceId 混用。');
+      command.input.frameSetInfo = validateImportedFrameSet(input.frameSetInfo);
+    }
     if (replacesImage && asset.kind !== 'image')
       throw new Error(action + ' 只接受 PNG、JPEG 或 WebP 图片。');
     if (asset.kind !== 'image' && ('prompt' in input || 'sourceId' in input))

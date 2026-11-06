@@ -4,7 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { MakerCanvasFiles } from '../files.js';
 import { createId, emptyDocument } from '../model.js';
-import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from '../templates.js';
+import {
+  createCanvasTemplateModel,
+  isBuiltinCanvasTemplate,
+  templateCoverAnimation,
+  templateCoverNode,
+} from '../templates.js';
 import { isCanvasNodeStale } from '../dependencies.js';
 import { canvasNeedsProcessing, invalidateCanvasDependents } from '../templateWorkflow.js';
 import { canvasPresets, builtinCanvasTemplates } from '../presets.js';
@@ -41,6 +46,7 @@ test('lists portable presets without importing assets or creating a canvas', asy
     'UI风格裂变 · 同一界面→三种风格',
     '角色概念设计 · 角色参考→完整展示图',
     '游戏UI制作 · Bbox预排参考图',
+    '场景家具 · 独立入场动画',
   ]);
   expect(templates.every((template) => template.builtin && !('assets' in template))).toBe(true);
   expect(await files.list()).toEqual([]);
@@ -427,6 +433,81 @@ test('protects builtins and rejects invalid preparation before importing media',
     code: 'NOT_FOUND',
   });
   expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+});
+
+test('furniture preset previews the full result and restores portable independent instances', async () => {
+  const preset = presetByNumber(16);
+  const listed = (await files.listTemplates()).find((item) => item.id === preset.id)!;
+  expect(listed.skills).toEqual(['maker-scene-furniture-workflow']);
+  expect(listed.platforms).toEqual(['local']);
+  expect(listed.cliOnly).toBe(true);
+  const cover = templateCoverNode(listed)!;
+  expect(cover.type).toBe('animation');
+  expect(listed.revision).toBe(5);
+  expect(
+    listed.nodes
+      .filter((node) => node.type === 'image')
+      .slice(0, 2)
+      .every((node) => node.title.includes('欧卡皇室'))
+  ).toBe(true);
+  expect(cover.frameSetInfo?.frames).toHaveLength(120);
+  const preview = templateCoverAnimation(listed)!;
+  expect(preview.frames).toHaveLength(120);
+  expect(preview.fps).toBeLessThanOrEqual(12);
+  expect(preview.frames.length / preview.fps).toBeCloseTo(10.125);
+  expect(templateCoverNode(listed, 1)?.title).toBe('示例 · 王座');
+  expect(templateCoverNode(listed, 2)?.title).toBe('示例 · 地毯');
+  expect(templateCoverNode(listed, 3)?.title).toBe('示例 · 书桌');
+  expect(templateCoverNode(listed, 4)?.title).toBe('示例 · 书柜');
+  expect(templateCoverNode(listed, 5)).toBeUndefined();
+  for (const localMarker of ['/Users/', '.maker/', 'cgt-202611', 'new-user-seaside'])
+    expect(JSON.stringify(preset)).not.toContain(localMarker);
+  expect(Object.values(preset.assets).every((asset) => asset.resourceId)).toBe(true);
+
+  const recipe = JSON.parse(
+    fs.readFileSync('skills/maker-scene-furniture-workflow/assets/royal-room-recipe.json', 'utf8')
+  );
+  expect(Object.keys(recipe.sources)).toHaveLength(7);
+  expect(recipe.objects).toHaveLength(25);
+  expect(recipe.objects.filter((item: { reuseOf?: string }) => !item.reuseOf)).toHaveLength(21);
+  for (const source of Object.values(recipe.sources) as Array<{
+    resourceId: string;
+    sha256: string;
+    cdn: string;
+  }>) {
+    expect(
+      Object.values(preset.assets).some((asset) => asset.resourceId === source.resourceId)
+    ).toBe(true);
+    expect(source.sha256).toBe(source.resourceId);
+    expect(source.cdn.startsWith('https://')).toBe(true);
+  }
+
+  const canvas = await files.create('官方家具模板');
+  const prepared = await files.prepareTemplate(preset.id, canvas.id);
+  const first = model.instantiate(prepared, { x: 0, y: 0 });
+  const second = model.instantiate(prepared, { x: 5000, y: 0 });
+  expect(first.nodes.every((node) => !second.nodes.some((other) => node.id === other.id))).toBe(
+    true
+  );
+  expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+  const video = first.nodes.find((node) => node.type === 'video-source')!;
+  expect(video.videoInputMode).toBe('first_last_frame');
+  expect(
+    first.edges
+      .filter((edge) => edge.to === video.id)
+      .map((edge) => edge.kind)
+      .sort()
+  ).toEqual(['frame-first', 'frame-last']);
+  expect(
+    video.generation?.sourceImageIds?.every((id) => first.nodes.some((node) => node.id === id))
+  ).toBe(true);
+  expect(first.nodes.filter((node) => node.type === 'animation')).toHaveLength(22);
+  const saved = await files.save(
+    canvas.id,
+    { ...canvas, nodes: first.nodes, edges: first.edges },
+    canvas.revision
+  );
+  expect((await files.load(canvas.id)).nodes).toEqual(saved.nodes);
 });
 
 test('four directions preserve distinct neutral examples and keep outputs explicitly pending', async () => {

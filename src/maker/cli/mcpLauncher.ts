@@ -54,6 +54,7 @@ const PUBLISHED_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-
 const SELF_RUNTIME_DIRECTORIES = [
   'skills/maker-ui-workflow',
   'skills/maker-ui-bbox-workflow',
+  'skills/maker-scene-furniture-workflow',
   'skills/lua-ui-to-json',
   'skills/maker-project-check',
   'skills/taptap-maker-local',

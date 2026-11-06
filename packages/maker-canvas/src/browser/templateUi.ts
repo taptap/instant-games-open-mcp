@@ -362,6 +362,7 @@ export function createCanvasTemplateUiWithHost(options: {
       card.className = 'workflow-template-row';
       card.dataset.templateId = summary.id;
       const previews = summary.builtin ? templatePresentation(summary.id).previews : undefined;
+      if (previews?.length === 5) card.classList.add('template-result-previews');
       const media = document.createElement('div');
       media.className = 'template-previews';
       for (const [slot, preview] of (previews || [{ label: '效果预览' }]).entries()) {
@@ -375,7 +376,14 @@ export function createCanvasTemplateUiWithHost(options: {
         media.append(figure);
         if (summary.builtin && templatePresentation(summary.id).modelPreview)
           covers!.observeModel(cover, summary);
-        else covers!.observe(cover, summary, slot, card);
+        else
+          covers!.observe(
+            cover,
+            summary,
+            slot,
+            card,
+            slot > 0 && previews?.[slot]?.type === 'animation'
+          );
       }
       const content = document.createElement('div');
       content.className = 'template-card-content';

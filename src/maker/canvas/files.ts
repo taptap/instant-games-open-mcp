@@ -305,10 +305,10 @@ export class MakerCanvasFiles {
     if (!sourcePath) fail('模板没有此预览图片。', 404, 'NOT_FOUND');
     const animation = templateCoverAnimation(template, false, slot);
     const relative =
-      '.maker/canvases/templates/' + id + '-cover-v3-' + slot + '-' + revision + '.png';
+      '.maker/canvases/templates/' + id + '-cover-v4-' + slot + '-' + revision + '.png';
     if (fs.existsSync(path.join(this.root, relative))) {
       const file = this.safeProjectFile(relative);
-      if (fs.statSync(file).size > 2 * 1024 * 1024) fail('缩略图过大。', 413, 'STORAGE_LIMIT');
+      if (fs.statSync(file).size > 10 * 1024 * 1024) fail('缩略图过大。', 413, 'STORAGE_LIMIT');
       return {
         bytes: fs.readFileSync(file),
         type: 'image/png',
@@ -342,7 +342,7 @@ export class MakerCanvasFiles {
     const height = animation ? Math.ceil(animation.frames.length / 8) * 128 : 768;
     if (
       bytes.length < 24 ||
-      bytes.length > 2 * 1024 * 1024 ||
+      bytes.length > 10 * 1024 * 1024 ||
       !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
       bytes.toString('ascii', 12, 16) !== 'IHDR' ||
       bytes.readUInt32BE(16) < 1 ||
@@ -353,11 +353,14 @@ export class MakerCanvasFiles {
     )
       fail('缩略图 PNG 尺寸或大小不符合预览规格。', 400, 'INVALID_IMAGE');
     const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'templates'));
-    this.atomicWrite(folder, id + '-cover-v3-' + slot + '-' + revision + '.png', bytes);
+    this.atomicWrite(folder, id + '-cover-v4-' + slot + '-' + revision + '.png', bytes);
   }
 
   private removeTemplateCover(id: string, revision: number): void {
-    for (const marker of ['-cover-', '-cover-v2-', '-cover-v3-0-', '-cover-v3-1-']) {
+    const markers = ['-cover-', '-cover-v2-'];
+    for (const version of [3, 4])
+      for (let slot = 0; slot < 5; slot++) markers.push('-cover-v' + version + '-' + slot + '-');
+    for (const marker of markers) {
       const relative = '.maker/canvases/templates/' + id + marker + revision + '.png';
       if (fs.existsSync(path.join(this.root, relative)))
         fs.unlinkSync(this.safeProjectFile(relative));
@@ -1872,7 +1875,7 @@ export class MakerCanvasFiles {
       ...(input.ratio === undefined ? {} : { ratio: text(input.ratio, 20, '视频比例') }),
       ...(input.duration === undefined
         ? {}
-        : { duration: numberIn(input.duration, 4, 8, '视频时长') }),
+        : { duration: numberIn(input.duration, 4, input.model === '2.5' ? 30 : 15, '视频时长') }),
       // Whether the game-asset constraint is appended to the request; the prompt no longer carries it.
       ...(input.assetConstraints === undefined
         ? {}
@@ -1886,6 +1889,8 @@ export class MakerCanvasFiles {
     }
     const settings = value as Record<string, unknown>;
     if (
+      (settings.sampling !== undefined &&
+        !['uniform', 'adaptive'].includes(String(settings.sampling))) ||
       typeof settings.cutout !== 'boolean' ||
       typeof settings.pixel !== 'boolean' ||
       typeof settings.backgroundColor !== 'string' ||
@@ -1901,6 +1906,9 @@ export class MakerCanvasFiles {
       start: numberIn(settings.start, 0, 86400, '起始时间'),
       end: numberIn(settings.end, 0, 86400, '结束时间'),
       fps: numberIn(settings.fps, 1, 30, '帧率'),
+      ...(settings.sampling === undefined
+        ? {}
+        : { sampling: settings.sampling as 'uniform' | 'adaptive' }),
       cutout: settings.cutout,
       ...(settings.cutoutMode === undefined
         ? {}
@@ -1936,6 +1944,9 @@ export class MakerCanvasFiles {
       return {
         index,
         time: numberIn(frame.time, 0, 86400, '帧时间'),
+        ...(frame.duration === undefined
+          ? {}
+          : { duration: numberIn(frame.duration, Number.MIN_VALUE, 86400000, '单帧时长') }),
         x: numberIn(frame.x, 0, 4096, '帧横坐标'),
         y: numberIn(frame.y, 0, 4096, '帧纵坐标'),
         width: numberIn(frame.width, 1, 2048, '帧宽度'),

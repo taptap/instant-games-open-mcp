@@ -292,7 +292,7 @@ test('CLI recognition settings cannot overwrite results or attach to unrelated c
 
 test.each([
   { fps: 100 },
-  { end: 0 },
+  { end: -1 },
   { width: 0 },
   { width: 12.5 },
   { end: 100 },

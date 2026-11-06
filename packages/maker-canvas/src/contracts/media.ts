@@ -2,6 +2,7 @@ export interface SequenceSettings {
   start: number;
   end: number;
   fps: number;
+  sampling?: 'uniform' | 'adaptive';
   cutout: boolean;
   cutoutMode?: 'connected' | 'chroma';
   backgroundColor: string;

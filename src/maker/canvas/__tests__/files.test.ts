@@ -282,7 +282,7 @@ describe('Maker canvas files', () => {
           parameters:
             type === 'image'
               ? { model: 'gpt', resolution: '2K' }
-              : { model: '2.5', duration: 8, mode: 'first_frame' as const },
+              : { model: '2.5', duration: 10, mode: 'first_frame' as const },
         };
         document.nodes.push({
           id: createId(),
@@ -827,8 +827,14 @@ describe('Maker canvas files', () => {
     canvas = await files.save(canvas.id, canvas, canvas.revision);
     expect(canvas.nodes[1].sequenceSettings?.cutoutMode).toBeUndefined();
     canvas.nodes[1].sequenceSettings!.cutoutMode = 'chroma';
+    canvas.nodes[1].sequenceSettings!.sampling = 'adaptive';
+    canvas.nodes[1].sequenceSettings!.end = 0;
     canvas = await files.save(canvas.id, canvas, canvas.revision);
     expect((await files.load(canvas.id)).nodes[1].sequenceSettings?.cutoutMode).toBe('chroma');
+    expect((await files.load(canvas.id)).nodes[1].sequenceSettings).toMatchObject({
+      sampling: 'adaptive',
+      end: 0,
+    });
     await expect(
       files.save(
         canvas.id,

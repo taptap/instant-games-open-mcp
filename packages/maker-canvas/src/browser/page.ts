@@ -11,7 +11,10 @@ import {
   createResourceBundleZipWithHost,
 } from './resourceBundle.js';
 import { detectUiCutoutColorFromReader } from './uiCutout.js';
-import { prepareCanvasImportedNodeFromMedia } from './automationAssets.js';
+import {
+  prepareCanvasImportedNodeFromMedia,
+  validateImportedFrameSet,
+} from './automationAssets.js';
 import { canvasEditorLayout, restoreCanvasEditorDraft } from './editorLifecycle.js';
 import { canvasImageTool } from '../features/imageModels.js';
 import { createCanvasResourceExportWithHost } from './resourceExport.js';
@@ -82,7 +85,7 @@ import { uiRecognitionPreview } from '../features/uiRecognition.js';
 import { uiExtractionPlan } from '../features/uiRecognition.js';
 import { selectedUiExtraction } from '../features/uiRecognition.js';
 import { setUiRecognitionMode } from '../features/uiRecognition.js';
-import { createCanvasTemplateModel } from './templates.js';
+import { createCanvasTemplateModel, templateCoverFrame } from './templates.js';
 import { isBuiltinCanvasTemplate } from './templates.js';
 import { createCanvasTemplateUiWithHost } from './templateUi.js';
 import { openCanvasTemplatePreview } from './templatePreview.js';
@@ -2297,6 +2300,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     deliverCanvasImage.toString(),
     canvasEditorLayout.toString(),
     restoreCanvasEditorDraft.toString(),
+    validateImportedFrameSet.toString(),
     prepareCanvasImportedNodeFromMedia.toString(),
     detectUiCutoutColorFromReader.toString(),
     uiDataHash.toString(),
@@ -2426,6 +2430,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     isBuiltinCanvasTemplate.toString(),
     createCanvasTemplateUiWithHost.toString(),
     openCanvasTemplatePreview.toString(),
+    templateCoverFrame.toString(),
     createTemplateCovers.toString(),
     'const DEFAULT_SEQUENCE_FPS = ' + DEFAULT_SEQUENCE_FPS + ';',
     'const DEFAULT_SEQUENCE_DURATION = ' + DEFAULT_SEQUENCE_DURATION + ';',
@@ -3537,7 +3542,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    hasFailure: function (id) { return Boolean(generationUi.nodeState(id)) || sequenceUi.view(id).run?.status === "failed"; },',
       '    failure: function (id) { return generationUi.failure(id); },',
       '    completed: function (id) { if (groupQueue) groupQueue.completed(id); },',
-      '    video: function (id, duration, confirmed) { return generationUi.runTemplateVideo(id, duration, confirmed, canvasAutomationBusy); }, sequence: sequenceUi.runTemplate, importImage: requestImageImport,',
+      '    video: function (id, duration, confirmed) { return generationUi.runTemplateVideo(id, duration, confirmed || canvasAutomationBusy, canvasAutomationBusy); }, sequence: sequenceUi.runTemplate, importImage: requestImageImport,',
       '    image: function (id, automatic) { return uiRecognitionUi.runImage(id, function () { return generationUi.runTemplateImage(id); }, Boolean((groupQueue && groupQueue.isBusy) || canvasAutomationBusy), automatic); },',
       '    assets: function (id) { return uiRecognitionUi.runAssets(id, function () { return imageAssetsUi.runSavedGrid(id); }); },',
       '    refreshAnimation: function (id) { if (!refreshAnimationFromSource(documentState, id)) throw new Error("动画来源图集或连线尚未就绪。"); markDirty(); },',
@@ -3900,7 +3905,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '        card.querySelectorAll("button,input,select,textarea").forEach(function (control) { control.disabled = true; });',
       '        card.addEventListener("dblclick", function (event) { event.stopImmediatePropagation(); }, true);',
       '      }',
-      '      renderCanvasCardStatus(card, overlayState, { stopWaiting: generationUi.canStopWaiting(node.id) ? function () { generationUi.stopWaiting(node.id); } : undefined, waitingForSource: templateWorkflow.waitingForSource(node.id), adjust: templateWorkflow.canAdjust(node.id) ? function () { selected.clear(); selected.add(node.id); if (node.type === "sequence") { sequenceUi.beginEdit(node.id); sequenceEditor.open(node.id); } else if (node.type === "image-assets") { void imageAssetsUi.run(node.id).catch(function (caught) { setError(caught.message); }); } else { selectionAction = "workflow"; render(); } } : undefined, waitTimedOut: generationState && generationState.status === "timedout", resume: (!generationState || generationState.status !== "timedout") && templateWorkflow.canContinue(node.id) ? function () { selectionAction = ""; return templateWorkflow.runFrom(node.id); } : undefined, detail: templateWorkflow.failure(node.id) || sequenceState && sequenceState.error, stoppedWaiting: generationState && generationState.status === "canceled", query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
+      '      renderCanvasCardStatus(card, overlayState, { stopWaiting: generationUi.canStopWaiting(node.id) ? function () { generationUi.stopWaiting(node.id); } : undefined, waitingForSource: templateWorkflow.waitingForSource(node.id), adjust: (templateWorkflow.canAdjust(node.id) || node.type === "sequence" && !nodeBusy && !sequenceUi.isNodeBusy(node.id)) ? function () { selected.clear(); selected.add(node.id); if (node.type === "sequence") { sequenceUi.beginEdit(node.id); sequenceEditor.open(node.id); } else if (node.type === "image-assets") { void imageAssetsUi.run(node.id).catch(function (caught) { setError(caught.message); }); } else { selectionAction = "workflow"; render(); } } : undefined, waitTimedOut: generationState && generationState.status === "timedout", resume: (!generationState || generationState.status !== "timedout") && templateWorkflow.canContinue(node.id) ? function () { selectionAction = ""; return templateWorkflow.runFrom(node.id); } : undefined, detail: templateWorkflow.failure(node.id) || sequenceState && sequenceState.error, stoppedWaiting: generationState && generationState.status === "canceled", query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
       '      world.append(card);',
     ].join('\n')
   );

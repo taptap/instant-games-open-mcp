@@ -44,6 +44,13 @@ export function canvasAutomationCapabilities() {
     limits: { updateNodesPerCommand: 100 },
     templateDiscovery: {
       search: 'canvas templates --target-dir PATH --q "keyword" [--page N]',
+      import: 'canvas import-template --target-dir PATH --file ABSOLUTE_TEMPLATE_ZIP',
+      importPolicy:
+        'Imports a ZIP as a new template through the existing archive validation service, without a browser or file picker. Returns templateId for add-template; does not create a canvas, install Skills or generate media. Never overwrites an existing template. On interrupted response, inspect templates before retrying to avoid duplicate imports.',
+      export:
+        'canvas export-template --target-dir PATH --id TEMPLATE_ID --revision N --output-dir EXISTING_ABSOLUTE_DIRECTORY',
+      exportPolicy:
+        'Exports the saved template through the existing archive service without opening a browser or save dialog. Requires the revision returned by templates; stale revisions fail. Never overwrites existing output files. Template ZIP includes prompts, connections and media; canvas export produces game resources instead.',
       results:
         'presets contains matching builtin templates; items contains matching user templates. total counts user templates only; total=0 does not mean no builtin matches. Check both arrays.',
       instruction:
@@ -174,6 +181,8 @@ export function canvasAutomationCapabilities() {
         reviewId: 'current review token; requires explicit user approval of all returned previews',
       },
       import: {
+        frameSetInfo:
+          'Optional fixed-cell image atlas metadata: fps, frameCount (1..120), width/height (up to 4096), columns, rows, frames[{index,time,x,y,width,height,duration?}]. Creates an animation card. duration is milliseconds; time is seconds. Actual image dimensions must match. Cannot combine with video, prompt or sourceId. No generation or file dialog.',
         file: 'CLI --file: absolute local path; page hosts pass assetPath (project-relative, any Unicode file name)',
         kind: 'optional image/video; default image',
         title: 'optional 1..80 chars; default the file name without extension',

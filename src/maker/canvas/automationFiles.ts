@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { TEMPLATE_ARCHIVE_LIMIT } from './templateArchive.js';
 
 export function readCanvasImport(filename: string) {
   if (!path.isAbsolute(filename)) throw new Error('--file 必须为本地素材绝对路径。');
@@ -16,13 +17,26 @@ export function readCanvasImport(filename: string) {
   if (!mime) throw new Error('仅支持 PNG、JPEG、WebP、MP4、MOV、WebM。');
   const kind = mime.startsWith('image/') ? 'image' : 'video';
   const limit = (kind === 'image' ? 20 : 100) * 1024 * 1024;
+  const bytes = readBoundedFile(
+    filename,
+    limit,
+    kind === 'image' ? '图片必须是1字节至20 MiB的文件。' : '视频必须是1字节至100 MiB的文件。'
+  );
+  return { bytes, mime, kind, title: path.basename(filename, path.extname(filename)).slice(0, 80) };
+}
+
+export function readCanvasTemplateImport(filename: unknown): Buffer {
+  if (typeof filename !== 'string' || !path.isAbsolute(filename))
+    throw new Error('--file 必须为模板 ZIP 的绝对路径。');
+  if (path.extname(filename).toLowerCase() !== '.zip') throw new Error('模板导入仅支持 ZIP 文件。');
+  return readBoundedFile(filename, TEMPLATE_ARCHIVE_LIMIT, '模板必须是1字节至128 MiB的文件。');
+}
+
+function readBoundedFile(filename: string, limit: number, invalidSize: string): Buffer {
   const descriptor = fs.openSync(filename, 'r');
   try {
     const stat = fs.fstatSync(descriptor);
-    if (!stat.isFile() || stat.size < 1 || stat.size > limit)
-      throw new Error(
-        kind === 'image' ? '图片必须是1字节至20 MiB的文件。' : '视频必须是1字节至100 MiB的文件。'
-      );
+    if (!stat.isFile() || stat.size < 1 || stat.size > limit) throw new Error(invalidSize);
     const bytes = Buffer.alloc(stat.size);
     let offset = 0;
     while (offset < bytes.length) {
@@ -33,12 +47,7 @@ export function readCanvasImport(filename: string) {
     const after = fs.fstatSync(descriptor);
     if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs)
       throw new Error('读取期间素材文件发生变化，请重新检查文件。');
-    return {
-      bytes,
-      mime,
-      kind,
-      title: path.basename(filename, path.extname(filename)).slice(0, 80),
-    };
+    return bytes;
   } finally {
     fs.closeSync(descriptor);
   }

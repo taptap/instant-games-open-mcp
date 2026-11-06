@@ -55,7 +55,7 @@ test('template state validates node relationships and duration', () => {
   for (const patch of [
     { videoId: 'missing' },
     { duration: 3 },
-    { duration: 9 },
+    { duration: 31 },
     { stage: 'invalid' },
   ]) {
     expect(() => parseTemplateFlow({ ...document.templateFlow, ...patch }, document)).toThrow();
@@ -420,7 +420,7 @@ test('queue execution runs only its requested step without another reference con
   expect(await flow.runQueued('video')).toBe(true);
   expect(executions).toEqual(['video']);
   expect(options.confirm).not.toHaveBeenCalled();
-  expect(options.video).toHaveBeenCalledWith('video', 4, true);
+  expect(options.video).toHaveBeenCalledWith('video', 4, false);
   expect(document.nodes.find((node) => node.id === 'sequence')?.templatePending).toBe(true);
 });
 

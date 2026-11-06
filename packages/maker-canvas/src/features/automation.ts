@@ -12,6 +12,7 @@ export const CANVAS_SEQUENCE_SETTING_FIELDS = [
   'start',
   'end',
   'fps',
+  'sampling',
   'width',
   'height',
   'fit',
@@ -256,6 +257,11 @@ export function prepareCanvasNodeUpdatesWithValidation(
           }
           settings.parameters = { ...settings.parameters, ...value };
           if (
+            !image &&
+            (settings.parameters.duration || 4) > (settings.parameters.model === '2.5' ? 30 : 15)
+          )
+            throw new Error('视频时长超出当前模型支持范围。');
+          if (
             node.videoInputMode === 'first_last_frame' &&
             settings.parameters.mode !== undefined &&
             settings.parameters.mode !== 'first_last_frame'
@@ -286,11 +292,16 @@ export function prepareCanvasNodeUpdatesWithValidation(
             settings.tolerance,
           ].every(Number.isFinite) ||
           settings.start < 0 ||
-          settings.end <= settings.start ||
+          settings.end < 0 ||
+          (settings.end !== 0 && settings.end <= settings.start) ||
           settings.end > 86400 ||
           settings.fps < 1 ||
           settings.fps > 30 ||
-          Math.ceil((settings.end - settings.start) * settings.fps - 1e-8) > 120 ||
+          (settings.sampling !== undefined &&
+            !['uniform', 'adaptive'].includes(settings.sampling)) ||
+          (settings.end !== 0 &&
+            Math.ceil((settings.end - settings.start) * settings.fps - 1e-8) >
+              (settings.sampling === 'adaptive' ? 900 : 120)) ||
           !Number.isInteger(settings.width) ||
           !Number.isInteger(settings.height) ||
           settings.width < 1 ||

@@ -322,7 +322,7 @@ export async function handleCanvasProjectRoute(options: {
       const revision = Number(searchParams.get('revision'));
       if (!Number.isSafeInteger(revision) || revision < 1) throw new ConsoleError('模板版本无效。');
       const slot = Number(searchParams.get('slot') || 0);
-      if (slot !== 0 && slot !== 1) throw new ConsoleError('预览位置无效。');
+      if (!Number.isInteger(slot) || slot < 0 || slot > 4) throw new ConsoleError('预览位置无效。');
       if (method === 'GET') {
         const result = await files.readTemplateCover(cover[1], revision, slot);
         response.writeHead(200, {
@@ -339,7 +339,7 @@ export async function handleCanvasProjectRoute(options: {
         files.saveTemplateCover(
           cover[1],
           revision,
-          await readBytes(request, 2 * 1024 * 1024),
+          await readBytes(request, 10 * 1024 * 1024),
           slot
         );
         send(response, 200, { ok: true });

@@ -606,14 +606,19 @@ export class CanvasGenerationService {
     if (!['2.0', '2.5'].includes(model)) throw new Error('视频模型无效。');
     if (options.resolution && !['480p', '720p'].includes(options.resolution))
       throw new Error('视频分辨率无效。');
-    if (!Number.isInteger(duration) || duration < 4 || duration > 8)
+    if (!Number.isInteger(duration) || duration < 4 || duration > (model === '2.5' ? 30 : 15))
       throw new Error('视频时长超出当前模型支持范围。');
     if (!['adaptive', '16:9', '4:3', '1:1', '3:4', '9:16', '21:9'].includes(ratio))
       throw new Error('视频比例无效。');
     if (model === '2.5' && mode !== 'multi_modal_reference' && ratio !== 'adaptive')
       throw new Error('Seedance 2.5 首帧生成只能使用自动比例。');
-    if (model === '2.5' && options.userConfirmed !== true)
-      throw new Error('请先确认按当前参数执行视频生成。');
+    const estimatedCredits = duration * (model === '2.5' ? 300 : 200);
+    if (estimatedCredits > 1000 && options.userConfirmed !== true)
+      throw new Error(
+        '预计消耗 ' +
+          estimatedCredits +
+          ' 积分，实际以平台扣费为准。请先确认按当前参数执行视频生成。'
+      );
     if (!imagePaths.length || imagePaths.length > (model === '2.5' ? 30 : 9))
       throw new Error('视频参考图数量超出当前模型支持范围。');
     await this.assertImageSources(document, sourceImageIds, sourceImagePaths, files);
