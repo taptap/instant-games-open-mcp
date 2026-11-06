@@ -1086,6 +1086,10 @@ function applyWebCardUxPatches(source: string): string {
     '    const point = { x: left ? card.x - width - gap : card.x + card.width + gap, y: card.y };',
     '    const point = at ? { x: Math.round(at.x - width / 2), y: Math.round(at.y - height / 2) } : { x: left ? card.x - width - gap : card.x + card.width + gap, y: card.y };'
   );
+  patch(
+    'for (let tries = 0; tries < 20 && documentState.nodes.some(function (node) { return node.type !== "section"',
+    'for (let tries = 0; !at && tries < 20 && documentState.nodes.some(function (node) { return node.type !== "section"'
+  );
   return page;
 }
 /**

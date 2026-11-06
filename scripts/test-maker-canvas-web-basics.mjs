@@ -5770,9 +5770,18 @@ try {
       const port = card(source.id).locator('.canvas-port-output');
       const chooser = page.locator('.web-slot-chooser');
       const start = await port.boundingBox();
+      const dropAt = { x: start.x + start.width / 2 + 80, y: start.y + start.height / 2 };
+      const worldDrop = await page.evaluate((point) => {
+        const box = document.getElementById('board').getBoundingClientRect();
+        const view = window.__canvasEditor.current().viewport;
+        return {
+          x: (point.x - box.left - view.x) / view.scale,
+          y: (point.y - box.top - view.y) / view.scale,
+        };
+      }, dropAt);
       await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
       await page.mouse.down();
-      await page.mouse.move(start.x + start.width / 2 + 430, start.y + start.height / 2 + 260, {
+      await page.mouse.move(dropAt.x, dropAt.y, {
         steps: 8,
       });
       await page.mouse.up();
@@ -5781,6 +5790,8 @@ try {
       assert.equal(dragged.nodes.length, 2);
       const draggedSlot = dragged.nodes.find((node) => node.id !== source.id);
       assert.equal(draggedSlot.type, 'image');
+      assert.equal(draggedSlot.x, Math.round(worldDrop.x - 110));
+      assert.equal(draggedSlot.y, Math.round(worldDrop.y - 75));
       assert.ok(
         dragged.edges.some(
           (edge) =>
