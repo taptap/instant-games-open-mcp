@@ -5956,6 +5956,10 @@ try {
       );
       await selects.nth(0).selectOption('2.5');
       await panel.locator('textarea.generation-prompt').fill('雨夜城市航拍');
+      assert.equal(await page.evaluate(() => window.__canvasEditor.hasInputDraft()), true);
+      await page.evaluate(() => window.__canvasEditor.setPanelVisible(false));
+      assert.equal(await page.evaluate(() => window.__canvasEditor.hasInputDraft()), true);
+      await page.evaluate(() => window.__canvasEditor.setPanelVisible(true));
       const send = panel.locator('.generation-action-primary');
       assert.equal(await send.isDisabled(), false);
       await themes(page, (theme) => shoot('v11-' + theme + '-text-to-video-composer.png'));

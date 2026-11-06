@@ -2247,7 +2247,8 @@ function applySpriteGenPatches(source: string): string {
   );
   patch(
     '    execute: automation.execute,\n',
-    '    syncSprites: function () { return syncAllSprites(true); },\n' +
+    '    hasInputDraft: function () { return Boolean(generationUi && generationUi.hasInputDraft()); },\n' +
+      '    syncSprites: function () { return syncAllSprites(true); },\n' +
       // Host panel closed/opened (the iframe is only hidden with CSS, so document.hidden stays false):
       // pause polling, animation frames and playing videos; catch up on reopen.
       '    setPanelVisible: function (visible) { const hidden = !visible; if (hidden === canvasPanelHidden) return; canvasPanelHidden = hidden; animationCards.setPaused(hidden); if (hidden) { clearTimeout(spriteTimer); spriteTimer = 0; world.querySelectorAll("video").forEach(function (video) { video.pause(); }); } else void syncAllSprites(false); },\n    execute: automation.execute,\n'
