@@ -758,14 +758,14 @@ export class MakerCanvasFiles {
     }
     const next = this.parse(input, id);
     next.revision = current.revision + 1;
-    this.assertAssets(next, true);
+    const unavailableImages = this.assertAssets(next, true, new Set(templateAssetPaths(current)));
     const archives =
       uiArchiveFingerprint(current) === uiArchiveFingerprint(next)
         ? []
         : await prepareUiWorkflowArchives(
             next,
             async (relative) => new Blob([fs.readFileSync(this.readMedia(relative).file)]),
-            { skipUnavailableDemoResources: true }
+            { skipUnavailableDemoResources: true, unavailableImages }
           );
     if (this.read(id).revision !== baseRevision)
       fail('画布已被其他保存更新。请保留当前编辑，刷新后再合并。', 409, 'CONFLICT');
@@ -1169,7 +1169,30 @@ export class MakerCanvasFiles {
     }
   }
 
-  private assertAssets(document: CanvasDocument, allowUnavailableDemoResources = false): void {
+  private isMissingImage(reference: string): boolean {
+    if (
+      reference.startsWith('maker-demo/') ||
+      (!isLocalCanvasImagePath(reference) && !RESOURCE_RELATIVE.test(reference))
+    )
+      return false;
+    let current = this.root;
+    for (const part of reference.split('/')) {
+      current = path.join(current, part);
+      try {
+        if (fs.lstatSync(current).isSymbolicLink()) return false;
+      } catch (error) {
+        return (error as NodeJS.ErrnoException).code === 'ENOENT';
+      }
+    }
+    return false;
+  }
+
+  private assertAssets(
+    document: CanvasDocument,
+    allowUnavailableDemoResources = false,
+    retainedReferences: ReadonlySet<string> = new Set()
+  ): Set<string> {
+    const unavailableImages = new Set<string>();
     for (const node of document.nodes) {
       const references = [
         ...(node.generation?.referenceImagePaths || []),
@@ -1180,6 +1203,11 @@ export class MakerCanvasFiles {
         try {
           this.readMedia(reference);
         } catch (error) {
+          // Existing missing images must not prevent saving unrelated canvas edits.
+          if (retainedReferences.has(reference) && this.isMissingImage(reference)) {
+            unavailableImages.add(reference);
+            continue;
+          }
           if (
             !allowUnavailableDemoResources ||
             !(error instanceof CanvasStoreError) ||
@@ -1189,6 +1217,7 @@ export class MakerCanvasFiles {
         }
       }
     }
+    return unavailableImages;
   }
 
   private parse(value: unknown, id: string, includeImageInfo = true): CanvasDocument {

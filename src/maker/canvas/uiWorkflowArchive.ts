@@ -46,12 +46,13 @@ export function uiArchiveFingerprint(document: CanvasDocument): string {
 export async function prepareUiWorkflowArchives(
   document: CanvasDocument,
   readBlob: (path: string) => Promise<Blob>,
-  options: { skipUnavailableDemoResources?: boolean } = {}
+  options: { skipUnavailableDemoResources?: boolean; unavailableImages?: ReadonlySet<string> } = {}
 ): Promise<Array<{ record: UiWorkflowArchive; files: Array<{ name: string; bytes: Buffer }> }>> {
   const archives: Array<{
     record: UiWorkflowArchive;
     files: Array<{ name: string; bytes: Buffer }>;
   }> = [];
+  const unavailableImage = new Error('Existing canvas image is unavailable.');
   const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const directory = (uiId: string, revision: string) =>
     '.maker/canvases/ui-archives/' + uiId + '/' + revision;
@@ -126,11 +127,15 @@ export async function prepareUiWorkflowArchives(
         target.id,
         (value) => value,
         undefined,
-        readBlob,
+        (reference) => {
+          if (options.unavailableImages?.has(reference)) throw unavailableImage;
+          return readBlob(reference);
+        },
         Number.MAX_SAFE_INTEGER
       );
     } catch (error) {
       // Autosave may retain incomplete templates, but explicit delivery must fail.
+      if (error === unavailableImage) continue;
       if (
         options.skipUnavailableDemoResources &&
         error instanceof CanvasStoreError &&

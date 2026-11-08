@@ -502,6 +502,23 @@ test('furniture preset previews the full result and restores portable independen
     video.generation?.sourceImageIds?.every((id) => first.nodes.some((node) => node.id === id))
   ).toBe(true);
   expect(first.nodes.filter((node) => node.type === 'animation')).toHaveLength(22);
+  const instance = { ...canvas, nodes: first.nodes, edges: first.edges };
+  const sequence = first.nodes.find((node) => node.type === 'sequence')!;
+  const animation = first.nodes.find((node) => node.type === 'animation')!;
+  expect(canvasNeedsProcessing(instance, sequence)).toBe(false);
+  expect(canvasNeedsProcessing(instance, animation)).toBe(false);
+  const changed = structuredClone(instance);
+  const reference = changed.nodes.find((node) => node.type === 'image')!;
+  reference.assetPath = '.maker/canvases/images/canvas-' + createId() + '.png';
+  invalidateCanvasDependents(changed, reference.id);
+  expect(
+    canvasNeedsProcessing(changed, changed.nodes.find((node) => node.id === sequence.id)!)
+  ).toBe(true);
+  expect(
+    canvasNeedsProcessing(changed, changed.nodes.find((node) => node.id === animation.id)!)
+  ).toBe(true);
+  const custom = model.instantiate({ ...prepared, builtin: false }, { x: 0, y: 0 });
+  expect(custom.nodes.find((node) => node.type === 'sequence')?.templatePending).toBe(true);
   const saved = await files.save(
     canvas.id,
     { ...canvas, nodes: first.nodes, edges: first.edges },

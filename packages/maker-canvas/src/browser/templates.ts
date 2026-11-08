@@ -218,6 +218,9 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
   }
   function instantiate(template: CanvasWorkflowTemplate, position: { x: number; y: number }) {
     const nodes: CanvasNode[] = JSON.parse(JSON.stringify(template.nodes));
+    // This official workflow ships usable results; changing inputs still invalidates dependents.
+    const reuseFurnitureSample =
+      template.builtin && template.id === '7e1cb6ad-732f-4dc3-a951-000000000016';
     const modelWorkflow = nodes.some((node) => node.type === 'model-views');
     const ids = new Map(nodes.map((node) => [node.id, createId()]));
     for (const node of nodes) {
@@ -249,6 +252,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
         node.generation.sourceImageIds = node.generation.sourceImageIds.map((id) => ids.get(id)!);
       if (
         !['model', 'model-views', 'resource-bundle', 'mark'].includes(node.type) &&
+        !(reuseFurnitureSample && node.assetPath) &&
         template.edges.some((edge) => ids.get(edge.to) === node.id)
       )
         node.templatePending = true;
