@@ -83,16 +83,18 @@ export class ConsoleProjects {
     const error = entry.error;
     const config = error ? {} : optionalConfig(entry.path, 'project.json');
     const title = text(config.taptap_publish?.title)?.trim();
+    const missingPublicationConfig = !error && (!title || title === '<game title, required>');
     const name =
       title && title !== '<game title, required>'
         ? title
-        : path.basename(entry.path) + (error ? '' : '（未发布）');
+        : path.basename(entry.path) + (error ? '' : '（缺少发布配置）');
     return {
       key: entry.key,
       projectid: entry.binding,
       path: entry.path,
       name,
       valid: !error,
+      missingPublicationConfig,
       ...(error ? { error } : {}),
     };
   }

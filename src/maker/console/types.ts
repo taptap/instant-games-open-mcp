@@ -8,6 +8,7 @@ export interface ConsoleProject {
   name: string;
   path: string;
   valid: boolean;
+  missingPublicationConfig?: boolean;
   error?: string;
 }
 
