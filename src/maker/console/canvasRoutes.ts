@@ -1,4 +1,5 @@
 import { readCanvasMedia } from './canvasMedia.js';
+import { canvasImagePreview } from './canvasImagePreview.js';
 import { canvasImageModels } from './canvasImageModels.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createReadStream, statSync } from 'node:fs';
@@ -363,12 +364,16 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     if (method === 'GET' && suffix === 'canvas-media') {
-      const media = await files.loadMedia(searchParams.get('path') || '');
+      const reference = searchParams.get('path') || '';
+      const media: { file: string; type: string; bytes?: Buffer } =
+        searchParams.get('preview') === '1'
+          ? await canvasImagePreview(files).read(reference)
+          : await files.loadMedia(reference);
       response.setHeader('Content-Type', media.type);
       response.setHeader('X-Content-Type-Options', 'nosniff');
       response.setHeader('Cache-Control', 'no-store');
       const expected = searchParams.get('version');
-      let pinned: Buffer | undefined;
+      let pinned: Buffer | undefined = media.bytes;
       if (expected) {
         if (!/^[a-f0-9]{64}$/.test(expected)) throw new ConsoleError('素材版本无效。', 400);
         const content = await readCanvasMedia(media.file);

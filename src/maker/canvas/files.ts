@@ -120,6 +120,25 @@ export class MakerCanvasFiles {
     this.assertStorageShape();
   }
 
+  /** Optional display hints; never part of the canvas document or its source versions. */
+  readPreviewImageIndex(): unknown {
+    try {
+      const file = this.safeProjectFile('.maker/canvases/image-previews.json');
+      if (fs.statSync(file).size > CANVAS_JSON_LIMIT) return {};
+      return JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      return {};
+    }
+  }
+
+  async writePreviewImageIndex(value: unknown): Promise<void> {
+    this.assertStorageShape();
+    await this.assertIgnored();
+    const bytes = Buffer.from(JSON.stringify(value));
+    if (bytes.length > CANVAS_JSON_LIMIT) return;
+    this.atomicWrite(this.canvasDir(true)!, 'image-previews.json', bytes);
+  }
+
   async assertWritableForGeneration(): Promise<void> {
     this.assertStorageShape();
     await this.assertIgnored();

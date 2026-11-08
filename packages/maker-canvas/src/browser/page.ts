@@ -1186,6 +1186,10 @@ function applyMissingMediaPatches(source: string): string {
     page = replaceCanvasPageText(page, search, replacement);
   };
   patch(
+    'img.src = media[node.assetPath];',
+    'img.src = store.previewMediaUrl ? store.previewMediaUrl(node.assetPath) : media[node.assetPath];'
+  );
+  patch(
     '  const media = {};\n',
     [
       '  const media = {};',
@@ -1210,7 +1214,7 @@ function applyMissingMediaPatches(source: string): string {
       '    if (!node || !node.assetPath || MEDIA_CARD_TYPES.indexOf(node.type) < 0) return null;',
       // Only the card's own file counts; e.g. a first-frame preview of another card is ignored.
       "    const src = element.getAttribute('src');",
-      '    if (!src || (src !== media[node.assetPath] && src !== store.mediaUrl(node.assetPath))) return null;',
+      '    if (!src || (src !== media[node.assetPath] && src !== store.mediaUrl(node.assetPath) && src !== (store.previewMediaUrl && store.previewMediaUrl(node.assetPath)))) return null;',
       '    return { card: card, node: node };',
       '  }',
       "  world.addEventListener('error', function (event) { const hit = mediaCard(event); if (!hit || missingMedia.has(hit.node.assetPath)) return; missingMedia.add(hit.node.assetPath); showMediaMissing(hit.card); }, true);",
@@ -3891,7 +3895,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      if (modelUi) modelUi.render(card, node);',
       '      if (node.type === "mark") renderCanvasMark(card, node); else decorateCanvasCard(card, node, title, showContextMenu);',
       '      if (node.type === "image-assets" && imageAssetsUi) { card.querySelector(".canvas-card-content")?.remove(); imageAssetsUi.render(card, node); }',
-      '      if (node.type === "resource-bundle") { card.querySelector(".canvas-card-content")?.remove(); renderResourceBundle(card, node, documentState, store.mediaUrl); }',
+      '      if (node.type === "resource-bundle") { card.querySelector(".canvas-card-content")?.remove(); renderResourceBundle(card, node, documentState, store.previewMediaUrl || store.mediaUrl); }',
       '      const templateStatus = templateWorkflow && templateWorkflow.status(node.id);',
       '      const creditsLabel = generationUi && generationUi.creditsLabel(node); if (creditsLabel) { const credits = document.createElement("small"); credits.className = "generation-credits"; credits.textContent = creditsLabel; credits.title = "当前结果的 MCP 返回积分，不是累计消耗或余额；未返回表示暂无数据。"; card.append(credits); }',
       '      const nodeBusy = Boolean((generationUi && generationUi.isNodeBusy(node.id)) || (templateWorkflow && templateWorkflow.isNodeLoading(node.id)) || (canvasCutoutBusy && canvasCutoutBusy.has(node.id)));',
