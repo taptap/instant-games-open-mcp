@@ -49,11 +49,69 @@
   }
   // Preview preferences belong to the project, never to a device preset or the saved UI tree.
   var scalePreferenceKey = CFG.FILE_ROOT && "urhox-ui-design-resolution:" + CFG.FILE_ROOT;
+  var adaptationPreferencePrefix = "urhox-ui-adaptation:" + (CFG.FILE_ROOT || "");
   var renderOnly = typeof location !== "undefined" && new URLSearchParams(location.search).has("render");
   if (scalePreferenceKey && !renderOnly) {
     try {
       var preference = JSON.parse(localStorage.getItem(scalePreferenceKey));
       if (validDesignResolution(preference)) app.designResolution = preference;
+    } catch (_) {}
+  }
+
+  function projectRelativePath(path) {
+    var value = String(path || "");
+    if (CFG.displayPath) value = CFG.displayPath(value);
+    else if (CFG.FILE_ROOT && value.indexOf(CFG.FILE_ROOT) === 0) value = value.slice(CFG.FILE_ROOT.length);
+    return value;
+  }
+
+  function adaptationPreferenceKey(path) {
+    return adaptationPreferencePrefix + projectRelativePath(path);
+  }
+
+  function orientationPreferenceKey(path) {
+    return "urhox-ui-orientation:" + (CFG.FILE_ROOT || "") + projectRelativePath(path);
+  }
+
+  function readOrientationPreference(path) {
+    if (renderOnly || typeof localStorage === "undefined") return null;
+    try {
+      var raw = localStorage.getItem(orientationPreferenceKey(path));
+      if (!raw) return null;
+      var value = JSON.parse(raw);
+      return value && (value.orientation === "landscape" || value.orientation === "portrait")
+        ? value.orientation : null;
+    } catch (_) { return null; }
+  }
+
+  function rememberOrientationPreference(path, orientation) {
+    if (renderOnly || typeof localStorage === "undefined" || !path) return;
+    try {
+      localStorage.setItem(orientationPreferenceKey(path), JSON.stringify({
+        orientation: orientation === "landscape" ? "landscape" : "portrait",
+      }));
+    } catch (_) {}
+  }
+
+  function readAdaptationPreference(path) {
+    if (renderOnly || typeof localStorage === "undefined") return null;
+    try {
+      var raw = localStorage.getItem(adaptationPreferenceKey(path));
+      // Read the pre-normalization key once so existing editor sessions keep their state.
+      if (!raw) raw = localStorage.getItem(adaptationPreferencePrefix + String(path || ""));
+      var value = JSON.parse(raw);
+      if (!value || value.mode !== "screen" || value.logicalShortSide <= 0) return null;
+      if (value.orientation !== "landscape" && value.orientation !== "portrait") return null;
+      return { mode: "screen", logicalShortSide: value.logicalShortSide, orientation: value.orientation };
+    } catch (_) { return null; }
+  }
+
+  function rememberAdaptationPreference(path, orientation) {
+    if (renderOnly || typeof localStorage === "undefined" || !path) return;
+    try {
+      localStorage.setItem(adaptationPreferenceKey(path), JSON.stringify({
+        mode: "screen", logicalShortSide: 720, orientation: orientation === "landscape" ? "landscape" : "portrait",
+      }));
     } catch (_) {}
   }
 
@@ -76,8 +134,7 @@
 
   function designSize() {
     if (!inViewport()) return window.UrhoxDoc.designSize(app.tree);
-    var design = containedDesign();
-    if (design) return design;
+    if (containedDesign()) return containedDesign();
     var scale = deviceScale();
     return { width: app.screen.width / scale, height: app.screen.height / scale };
   }
@@ -86,8 +143,51 @@
     return app.editMode !== "prefab" || app.componentPreview;
   }
 
+  function adaptedLogicalDraft() {
+    var adapt = app.documentAdaptation;
+    return !!(adapt && adapt.mode === "screen" && adapt.logicalShortSide > 0);
+  }
+
+  // The editor's adaptation adds this stable wrapper. It lets a saved adapted UI reopen
+  // correctly even when the browser preference was cleared or the editor was reopened elsewhere.
+  function hasEditorAdaptedStructure(tree) {
+    if (!tree || tree.width !== "100%" || tree.height !== "100%") return false;
+    var safe = (tree.children || []).find(function (node) {
+      return node && /^safe_area(?:_\d+)?$/.test(String(node.id || "")) &&
+        node.type === "SafeAreaView" && node.position === "absolute" &&
+        node.left === 0 && node.top === 0 && node.right === 0 && node.bottom === 0;
+    });
+    var content = safe && (safe.children || []).find(function (node) {
+      return node && /^safe_content(?:_\d+)?$/.test(String(node.id || "")) &&
+        node.type === "Panel" && node.flexGrow === 1;
+    });
+    return !!(safe && safe.position === "absolute" && content && content.flexGrow === 1);
+  }
+
+  // Original art size is only a viewport when the JSON is still in design pixels.
+  // An adapted export already lives in the engine logical viewport; using the art size
+  // there splits absolute offsets from right/center anchors.
+  function draftDesign() {
+    var design = app.documentDesign;
+    if (adaptedLogicalDraft()) return null;
+    return inViewport() && design && design.width > 0 && design.height > 0 && !mappedDesign()
+      ? design : null;
+  }
+
+  function numericScreenDesign() {
+    var tree = app.sourceTree;
+    if (!inViewport() || !tree || tree.previewFit) return null;
+    if (typeof tree.width !== "number" || typeof tree.height !== "number") return null;
+    if (!(tree.width > 0 && tree.height > 0) || !isScreenDoc(tree)) return null;
+    return { width: tree.width, height: tree.height };
+  }
+
+  function pageDesign() {
+    return containedDesign() || numericScreenDesign() || draftDesign();
+  }
+
   function deviceScale() {
-    var design = containedDesign();
+    var design = pageDesign();
     if (design) return Math.min(app.screen.width / design.width, app.screen.height / design.height);
     if (app.designResolution) return Math.min(app.screen.width / app.designResolution.width, app.screen.height / app.designResolution.height);
     if (app.device.scale > 0) return app.device.scale;
@@ -105,9 +205,101 @@
       ? { width: tree.width, height: tree.height } : null;
   }
 
+  // Editor-only preview for an exported design canvas. It is not previewFit and is never saved.
+  function legacyDesignCanvas() {
+    var tree = app.sourceTree;
+    if (!inViewport() || !tree || tree.previewFit) return null;
+    if (typeof tree.width !== "number" || typeof tree.height !== "number") return null;
+    if (!(tree.width > 0 && tree.height > 0) || !isScreenDoc(tree)) return null;
+    return { width: tree.width, height: tree.height };
+  }
+
+  function mappedDesign() {
+    return containedDesign() || legacyDesignCanvas();
+  }
+
+  var responsiveLengths = ["left", "right", "top", "bottom", "width", "height", "minWidth", "maxWidth",
+    "minHeight", "maxHeight", "margin", "marginLeft", "marginRight", "marginTop", "marginBottom",
+    "padding", "paddingLeft", "paddingRight", "paddingTop", "paddingBottom", "paddingHorizontal",
+    "paddingVertical", "gap", "flexBasis", "fontSize", "borderRadius", "borderWidth"];
+
+  function scaledLength(value, factor) {
+    return Math.round(value * factor * 1000) / 1000;
+  }
+
+  // Same screen adaptation the current canvas exporter applies. Caller must save; this does not write the file.
+  function applyLegacyAdaptation(tree) {
+    tree = tree || app.sourceTree;
+    if (!tree || typeof tree.width !== "number" || typeof tree.height !== "number" || !(tree.width > 0 && tree.height > 0)) return null;
+    if (tree === app.sourceTree) pushHistory();
+    var shortSide = Math.min(tree.width, tree.height);
+    var factor = 720 / shortSide;
+    var reference = { width: tree.width * factor, height: tree.height * factor };
+    function visit(node) {
+      responsiveLengths.forEach(function (key) {
+        if (typeof node[key] === "number") node[key] = scaledLength(node[key], factor);
+      });
+      (node.children || []).forEach(visit);
+    }
+    visit(tree);
+    function anchor(node, start, end, size, extent) {
+      var length = node[size];
+      if (typeof length !== "number") return;
+      var offset = node[start] || 0;
+      var centerOffset = offset + length / 2 - extent / 2;
+      if (Math.abs(centerOffset) <= extent * 0.1) {
+        node[start] = "50%";
+        node[start === "left" ? "marginLeft" : "marginTop"] = scaledLength(offset - extent / 2, 1);
+      } else if (centerOffset > 0) {
+        node[end] = scaledLength(extent - offset - length, 1);
+        delete node[start];
+      }
+    }
+    var backgrounds = [], content = [];
+    (tree.children || []).forEach(function (node) {
+      if (node.id === "background" && node.backgroundImage) {
+        node.left = 0; node.top = 0; node.right = 0; node.bottom = 0;
+        delete node.width; delete node.height;
+        backgrounds.push(node);
+        return;
+      }
+      anchor(node, "left", "right", "width", reference.width);
+      anchor(node, "top", "bottom", "height", reference.height);
+      content.push(node);
+    });
+    var ids = {};
+    function uniqueId(base) {
+      var id = base, index = 1;
+      while (ids[id]) id = base + "_" + index++;
+      ids[id] = true;
+      return id;
+    }
+    window.UrhoxDoc.walk(tree, function (node) { if (node.id) ids[node.id] = true; });
+    tree.width = "100%";
+    tree.height = "100%";
+    tree.children = backgrounds.concat([{
+      type: "SafeAreaView", id: uniqueId("safe_area"), position: "absolute",
+      left: 0, top: 0, right: 0, bottom: 0,
+      children: [{ type: "Panel", id: uniqueId("safe_content"), flexGrow: 1, minWidth: 0, minHeight: 0, children: content }],
+    }]);
+    if (tree === app.sourceTree) {
+      rememberAdaptationPreference(app.path, app.orientation);
+      rememberOrientationPreference(app.path, app.orientation);
+      app.editMode = "screen";
+      // The adaptation changes the root sizing model, not the preview/game orientation.
+      // Keep the current device orientation selected by the editor.
+      setDevice(app.device.id || "1080p");
+      rebuildPreview();
+      resizeCanvas();
+      refresh();
+      if (window.UrhoxView) window.UrhoxView.fit();
+    }
+    return { factor: factor, reference: reference };
+  }
+
   function layoutEnvironment() {
     var fit = contentTransform(), scale = fit.scale, area = app.safeArea || {};
-    return { scale: containedDesign() ? 0 : scale, safeArea: { top: Math.max(0, (area.top || 0) - fit.y) / scale,
+    return { scale: mappedDesign() ? 0 : scale, safeArea: { top: Math.max(0, (area.top || 0) - fit.y) / scale,
       right: Math.max(0, (area.right || 0) - fit.x) / scale,
       bottom: Math.max(0, (area.bottom || 0) - fit.y) / scale,
       left: Math.max(0, (area.left || 0) - fit.x) / scale },
@@ -118,7 +310,7 @@
     if (!inViewport()) {
       return { scale: 1, x: 0, y: 0 };
     }
-    var scale = deviceScale(), design = containedDesign();
+    var scale = deviceScale(), design = mappedDesign();
     return { scale: scale, x: design ? (app.screen.width - design.width * scale) / 2 : 0,
       y: design ? (app.screen.height - design.height * scale) / 2 : 0 };
   }
@@ -141,8 +333,8 @@
     if (deviceSelect) deviceSelect.disabled = false;
     var fit = contentTransform();
     if (badge) {
-      badge.textContent = (containedDesign() ? "设计坐标 " : "逻辑视口 ") + src.width + "×" + src.height + " · " +
-        (containedDesign() ? "等比居中 " : app.designResolution ? "UI.Scale.DESIGN_RESOLUTION " : app.device.scale ? "指定缩放 " : "UI.Scale.DEFAULT ") + fit.scale.toFixed(2) + "×";
+      badge.textContent = (containedDesign() ? "设计坐标 " : pageDesign() ? "设计尺寸 " : "逻辑视口 ") + src.width + "×" + src.height + " · " +
+        (containedDesign() ? "等比居中 " : pageDesign() ? "设计稿基准 " : app.designResolution ? "UI.Scale.DESIGN_RESOLUTION " : app.device.scale ? "指定缩放 " : "UI.Scale.DEFAULT ") + fit.scale.toFixed(2) + "×";
     }
     if (label) {
       label.textContent = "页面  " + app.device.name + "  " + app.screen.width + "×" + app.screen.height + "  ·  UI " + src.width + "×" + src.height + " ×" + fit.scale.toFixed(2);
@@ -693,7 +885,24 @@
     app.missingComponents = options.missingComponents || [];
     app.editMode = isScreenDoc(candidate) ? "screen" : "prefab";
     app.componentPreview = false;
-    setProjectConfig(options.projectConfig, typeof candidate.width === "number" && typeof candidate.height === "number" && isScreenDoc(candidate) ? size : null);
+    var numericDesign = typeof candidate.width === "number" && typeof candidate.height === "number" && isScreenDoc(candidate) ? size : null;
+    var draft = options.designDraft && options.designDraft.width > 0 && options.designDraft.height > 0 ? options.designDraft : null;
+    var savedAdaptation = readAdaptationPreference(options.path);
+    var projectDesign = options.projectConfig && options.projectConfig.designWidth > 0 && options.projectConfig.designHeight > 0
+      ? { width: options.projectConfig.designWidth, height: options.projectConfig.designHeight } : null;
+    var inferredAdaptation = !numericDesign && hasEditorAdaptedStructure(candidate)
+      ? { mode: "screen", logicalShortSide: 720 } : null;
+    app.documentAdaptation = !numericDesign && ((draft && draft.adaptation) || savedAdaptation || inferredAdaptation) || null;
+    app.documentDesign = !numericDesign && isScreenDoc(candidate) ? (draft || projectDesign) : null;
+    var savedOrientation = readOrientationPreference(options.path);
+    var orientationHint = savedAdaptation && savedAdaptation.orientation
+      ? { width: savedAdaptation.orientation === "landscape" ? 2 : 1, height: savedAdaptation.orientation === "landscape" ? 1 : 2 }
+      : numericDesign || app.documentDesign;
+    setProjectConfig(options.projectConfig, orientationHint);
+    if (savedOrientation && app.editMode === "screen") {
+      app.orientation = savedOrientation;
+      setDevice(app.device.id || "1080p");
+    }
     app.path = options.path || DEFAULT_UI;
     window.UrhoxAssets.setContext({
       assetRoot: options.assetRoot != null ? options.assetRoot : DEFAULT_ASSET_ROOT,
@@ -944,6 +1153,13 @@
         result.viewport.offsetX = fit.x;
         result.viewport.offsetY = fit.y;
         result.coordinateSystem = "design coordinates; physicalBounds include centered contain mapping in pixels";
+      } else if (legacyDesignCanvas()) {
+        result.viewport.legacyDesignPreview = true;
+        result.viewport.designWidth = size.width;
+        result.viewport.designHeight = size.height;
+        result.viewport.offsetX = fit.x;
+        result.viewport.offsetY = fit.y;
+        result.coordinateSystem = "exported design coordinates; physicalBounds include editor-only centered preview, JSON is unchanged";
       } else if (inViewport() && app.designResolution) {
         result.viewport.designResolution = Object.assign({}, app.designResolution);
       }
@@ -957,6 +1173,8 @@
       return { result: result, png: output.toDataURL("image/png").split(",")[1] };
     },
     loadTree: loadTree,
+    legacyDesignInfo: legacyDesignCanvas,
+    applyLegacyAdaptation: applyLegacyAdaptation,
     loadTreeAsync: async function (tree, options) {
       options = options || {};
       window.UrhoxDoc.validateTree(tree);
@@ -1174,7 +1392,9 @@
     radio.addEventListener("change", function () {
       if (!radio.checked || !inViewport()) return;
       var next = radio.value;
-      app.orientation = next; setDevice(app.device.id);
+      app.orientation = next;
+      rememberOrientationPreference(app.path, next);
+      setDevice(app.device.id);
     });
   });
 

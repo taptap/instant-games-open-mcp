@@ -85,9 +85,20 @@ module.exports = (async function () {
   }
 
   // Exercise the real preview rebuild with a minimal DOM; layout and expansion are not mocked.
+  let elementValue = "";
   const element = { getContext: () => ({}), dataset: {}, style: {},
     classList: { toggle() {} }, addEventListener() {}, querySelectorAll: () => [] };
+  Object.defineProperty(element, "value", {
+    get() { return elementValue; },
+    set(value) { elementValue = String(value); },
+  });
   global.document = { getElementById: () => element, querySelectorAll: () => [], addEventListener() {} };
+  const localStorageData = {};
+  global.localStorage = {
+    getItem(key) { return localStorageData[key] || null; },
+    setItem(key, value) { localStorageData[key] = String(value); },
+    removeItem(key) { delete localStorageData[key]; },
+  };
   let app;
   global.UrhoxInput = { bind(value) { app = value; } };
   vm.runInThisContext(fs.readFileSync(require.resolve("../web/src/preview.js"), "utf8"));
@@ -158,16 +169,30 @@ module.exports = (async function () {
     });
     assert.deepEqual(UrhoxHistory.cloneForSave(app.sourceTree), drawing, "mapping and checks never rewrite design coordinates");
   }
-  // Opt-in only: a fixed root still overflows under DEFAULT, and a responsive root still fills it.
+  // Exported fixed screens preview at their own design size. This does not write previewFit.
   delete app.sourceTree.previewFit;
+  const before = UrhoxHistory.cloneForSave(app.sourceTree);
   app.screen = { width: 1920, height: 1080 };
   app.device = { dpr: 1.5 };
   app.rebuildPreview();
-  assert.deepEqual(app.contentTransform(), { x: 0, y: 0, scale: 1.5 });
-  near(app.tree._layout.w, 1920);
+  assert.deepEqual(app.contentTransform(), { x: 0, y: 0, scale: 1 });
+  near(app.tree._layout.w, 1920); near(app.tree._layout.h, 1080);
+  assert.deepEqual(UrhoxHistory.cloneForSave(app.sourceTree), before);
+  app.sourceTree = { type: "Panel", width: 1080, height: 1920, children: [
+    { id: "title", position: "absolute", left: 28.125, top: 15.9375, width: 1026.5625, height: 137.8125 }
+  ] };
+  app.screen = { width: 1080, height: 1920 };
+  app.device = { dpr: 1.5 };
+  app.rebuildPreview();
+  assert.deepEqual(app.contentTransform(), { x: 0, y: 0, scale: 1 });
+  near(app.tree._layout.w, 1080); near(app.tree.children[0]._layout.x, 28.125);
+  assert.equal(app.sourceTree.previewFit, undefined);
   app.sourceTree.width = app.sourceTree.height = "100%";
+  app.screen = { width: 1920, height: 1080 };
+  app.device = { dpr: 1.5 };
   app.rebuildPreview();
   near(app.tree._layout.w, 1280); near(app.tree._layout.h, 720);
+  assert.deepEqual(app.contentTransform(), { x: 0, y: 0, scale: 1.5 });
   // Engine DESIGN_RESOLUTION scales the viewport, not the root; responsive pages keep
   // using the extra space on tall/wide screens instead of receiving a contain offset.
   app.designResolution = { width: 1080, height: 1920 };
@@ -197,6 +222,114 @@ module.exports = (async function () {
     assert(UrhoxUICheck.checkDocument({ tree: invalid }).diagnostics.some(d => d.code === "UI_PREVIEW_FIT"));
     assert.throws(() => UrhoxDoc.validateTree(invalid), /previewFit|设计坐标/);
   }
+  const legacy = { type: "Panel", width: 1080, height: 1920, children: [
+    { id: "title", position: "absolute", left: 28, top: 16, width: 1080, height: 138 }
+  ] };
+  const adapted = UrhoxPreview.applyLegacyAdaptation(legacy);
+  assert.equal(legacy.width, "100%");
+  assert.equal(legacy.height, "100%");
+  near(adapted.factor, 720 / 1080);
+  near(legacy.children[0].children[0].children[0].width, 720);
+  global.UrhoxCanvas = { draw() {}, paintTree() {} };
+  global.UrhoxTree = { render() { return new Set(); } };
+  global.UrhoxCommands = {
+    canGroup() { return false; }, canUngroup() { return false; }, deleteTargets() { return []; },
+  };
+  app.sourceTree = { type: "Panel", width: 1080, height: 1920, children: [
+    { id: "title", position: "absolute", left: 28, top: 16, width: 1080, height: 138 }
+  ] };
+  app.tree = app.sourceTree;
+  app.history = new UrhoxHistory.History(80);
+  app.editMode = "screen";
+  app.path = "assets/ui/test.ui.json";
+  const beforeAdaptation = UrhoxHistory.cloneForSave(app.sourceTree);
+  UrhoxPreview.applyLegacyAdaptation();
+  UrhoxPreview.undo();
+  assert.deepEqual(UrhoxHistory.cloneForSave(app.sourceTree), beforeAdaptation,
+    "legacy adaptation must be undoable from the original document");
+  app.sourceTree = { type: "Panel", width: 2048, height: 1152, children: [] };
+  app.tree = app.sourceTree;
+  app.editMode = "screen";
+  UrhoxPreview.setProjectConfig(null, { width: 2048, height: 1152 });
+  assert.equal(UrhoxPreview.currentScene.orientation, "landscape");
+  UrhoxPreview.applyLegacyAdaptation();
+  assert.equal(UrhoxPreview.currentScene.orientation, "landscape",
+    "legacy adaptation must preserve the current landscape orientation");
+  const adaptedPath = UrhoxPreview.currentPath;
+  app.sourceTree = UrhoxHistory.cloneForSave(app.sourceTree);
+  app.sourceTree.width = app.sourceTree.height = "100%";
+  global.UrhoxAssets = { setContext() {} };
+  UrhoxPreview.loadTree(app.sourceTree, { path: adaptedPath });
+  assert.equal(UrhoxPreview.currentScene.orientation, "landscape",
+    "saved legacy adaptation must keep its orientation after reopening");
+  app.sourceTree = { type: "Panel", width: "100%", height: "100%", children: [
+    { id: "title", position: "absolute", left: 70, top: 26, width: 100, height: 40 }
+  ] };
+  app.documentDesign = { width: 1350, height: 2400 };
+  app.documentAdaptation = { mode: "screen", logicalShortSide: 720 };
+  app.designResolution = null;
+  app.editMode = "screen";
+  app.screen = { width: 1080, height: 1920 };
+  app.device = { id: "1080p", dpr: 1.5, width: 1080, height: 1920 };
+  app.rebuildPreview();
+  near(app.tree._layout.w, 720);
+  near(app.tree._layout.h, 1280);
+  near(app.tree.children[0]._layout.x, 70);
+  assert.equal(app.contentTransform().x, 0);
+  app.documentAdaptation = null;
+  app.rebuildPreview();
+  near(app.tree._layout.w, 1350);
+  near(app.tree._layout.h, 2400);
+
+  // A saved adapted tree must still use the logical viewport when its browser preference is gone.
+  Object.keys(localStorageData).forEach((key) => delete localStorageData[key]);
+  const persistedAdapted = { type: "Panel", width: "100%", height: "100%", children: [
+    { id: "background", type: "Panel", position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },
+    { id: "safe_area", type: "SafeAreaView", position: "absolute", left: 0, top: 0, right: 0, bottom: 0,
+      children: [{ id: "safe_content", type: "Panel", flexGrow: 1, minWidth: 0, minHeight: 0, children: [
+        { id: "title", position: "absolute", left: 70, top: 26, width: 100, height: 40 }
+      ] }] }
+  ] };
+  app.device.dpr = 1.5;
+  UrhoxPreview.loadTree(persistedAdapted, {
+    path: "assets/ui/persisted-adapted.ui.json",
+    designDraft: { width: 2048, height: 1152 },
+  });
+  near(app.tree._layout.w, 1920);
+  near(app.tree._layout.h, 1080);
+
+  // Generated wrapper IDs may receive suffixes when the source already uses the base IDs.
+  app.sourceTree = { type: "Panel", width: 2048, height: 1152, children: [
+    { id: "safe_area", type: "Panel" }, { id: "safe_content", type: "Panel" },
+    { id: "title", position: "absolute", left: 70, top: 26, width: 100, height: 40 }
+  ] };
+  app.tree = app.sourceTree;
+  app.path = "assets/ui/conflicting-adapted.ui.json";
+  app.editMode = "screen";
+  app.orientation = "landscape";
+  UrhoxPreview.applyLegacyAdaptation();
+  const conflictingAdapted = UrhoxHistory.cloneForSave(app.sourceTree);
+  assert(conflictingAdapted.children.some((node) => node.id === "safe_area_1"));
+  const generatedSafe = conflictingAdapted.children.find((node) => node.id === "safe_area_1");
+  assert(generatedSafe.children.some((node) => node.id === "safe_content_1"));
+  Object.keys(localStorageData).forEach((key) => delete localStorageData[key]);
+  UrhoxPreview.loadTree(conflictingAdapted, {
+    path: app.path,
+    designDraft: { width: 2048, height: 1152 },
+  });
+  near(app.tree._layout.w, 1920);
+  near(app.tree._layout.h, 1080);
+
+  localStorageData["urhox-ui-orientation:assets/ui/persisted-adapted.ui.json"] =
+    JSON.stringify({ orientation: "landscape" });
+  app.orientation = "portrait";
+  UrhoxPreview.loadTree(persistedAdapted, {
+    path: "assets/ui/persisted-adapted.ui.json",
+    designDraft: { width: 1152, height: 2048 },
+  });
+  assert.equal(UrhoxPreview.currentScene.orientation, "landscape",
+    "manual preview orientation survives reopening the UI");
+
   delete global.document;
   console.log("layout-regression.test.js passed");
 })();

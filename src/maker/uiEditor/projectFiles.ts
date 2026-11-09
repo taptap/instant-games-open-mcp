@@ -45,6 +45,130 @@ export async function readUiFile(root: string, relative: string): Promise<Buffer
   return fs.readFile(filename);
 }
 
+const designResolutionPattern =
+  /UI\.Scale\.DESIGN_RESOLUTION\s*\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\)/g;
+
+function longBracketLevel(source: string, index: number): number {
+  if (source[index] !== '[') return -1;
+  let cursor = index + 1;
+  while (source[cursor] === '=') cursor += 1;
+  return source[cursor] === '[' ? cursor - index - 1 : -1;
+}
+
+function maskLongBracket(
+  source: string,
+  start: number,
+  level: number
+): { text: string; next: number } {
+  const close = ']' + '='.repeat(level) + ']';
+  const end = source.indexOf(close, start);
+  const next = end < 0 ? source.length : end + close.length;
+  return {
+    text: source.slice(start, next).replace(/[^\n]/g, ' '),
+    next,
+  };
+}
+
+function maskLuaCommentsAndStrings(source: string): string {
+  let output = '';
+  let index = 0;
+  while (index < source.length) {
+    const current = source[index];
+    const next = source[index + 1];
+    const stringLevel = longBracketLevel(source, index);
+    if (stringLevel >= 0) {
+      const masked = maskLongBracket(source, index, stringLevel);
+      output += masked.text;
+      index = masked.next;
+      continue;
+    }
+    if (current === '"' || current === "'") {
+      const quote = current;
+      output += ' ';
+      index += 1;
+      while (index < source.length) {
+        output += source[index] === '\n' ? '\n' : ' ';
+        if (source[index] === '\\') {
+          index += 2;
+          continue;
+        }
+        if (source[index] === quote) {
+          index += 1;
+          break;
+        }
+        index += 1;
+      }
+      continue;
+    }
+    if (current === '-' && next === '-') {
+      output += '  ';
+      index += 2;
+      const blockLevel = longBracketLevel(source, index);
+      if (blockLevel >= 0) {
+        const masked = maskLongBracket(source, index, blockLevel);
+        output += masked.text;
+        index = masked.next;
+      } else {
+        while (index < source.length && source[index] !== '\n') {
+          output += ' ';
+          index += 1;
+        }
+      }
+      continue;
+    }
+    output += current;
+    index += 1;
+  }
+  return output;
+}
+
+async function detectUniqueDesignResolution(
+  root: string
+): Promise<{ width: number; height: number } | null> {
+  const found = new Set<string>();
+  const scripts = path.join(root, 'scripts');
+  async function walk(dir: string, depth: number): Promise<void> {
+    if (depth > 6) return;
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name === 'dev' || entry.name === 'tests' || entry.name.startsWith('.')) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(full, depth + 1);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.endsWith('.lua')) continue;
+      let source: string;
+      try {
+        const stat = await fs.stat(full);
+        if (stat.size > 1_000_000) continue;
+        source = maskLuaCommentsAndStrings(await fs.readFile(full, 'utf8'));
+      } catch {
+        continue;
+      }
+      for (const match of source.matchAll(designResolutionPattern)) {
+        found.add(match[1] + 'x' + match[2]);
+      }
+    }
+  }
+  try {
+    const scriptsStat = await fs.lstat(scripts);
+    if (scriptsStat.isSymbolicLink() || !scriptsStat.isDirectory()) return null;
+  } catch {
+    return null;
+  }
+  await walk(scripts, 0);
+  if (found.size !== 1) return null;
+  const [width, height] = [...found][0].split('x').map(Number);
+  if (!(width > 0 && height > 0)) return null;
+  return { width, height };
+}
+
 export async function uiEditorManifest(project: Pick<ConsoleProject, 'path' | 'key' | 'name'>) {
   const prefix = '/api/projects/' + project.key + '/ui-editor/files/';
   const encode = (relative: string) => relative.split('/').map(encodeURIComponent).join('/');
@@ -96,22 +220,31 @@ export async function uiEditorManifest(project: Pick<ConsoleProject, 'path' | 'k
   }
   await walk('assets', 0);
   ui.sort((a, b) => String(a.path).localeCompare(String(b.path)));
-  let config;
+  let config: Record<string, unknown> | undefined;
+  const detectedDesign = await detectUniqueDesignResolution(root);
   const configPath = path.join(root, '.project', 'project.json');
+  let raw: Record<string, any> | null = null;
   try {
     if (
       (await fs.realpath(configPath)) !== configPath ||
       (await fs.stat(configPath)).size > MAX_UI_JSON
     )
       throw new Error('项目配置路径或大小无效');
-    const raw = JSON.parse(await fs.readFile(configPath, 'utf8'));
+    raw = JSON.parse(await fs.readFile(configPath, 'utf8'));
+  } catch {
+    /* Project configuration is optional for UI editor resolution detection. */
+  }
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     config = {
       orientation: raw.taptap_publish?.screen_orientation,
-      designWidth: raw.designWidth ?? raw.design_width,
-      designHeight: raw.designHeight ?? raw.design_height,
+      designWidth: raw.designWidth ?? raw.design_width ?? detectedDesign?.width,
+      designHeight: raw.designHeight ?? raw.design_height ?? detectedDesign?.height,
     };
-  } catch {
-    /* UI documents retain their own dimensions when project configuration is unavailable. */
+  } else if (detectedDesign) {
+    config = {
+      designWidth: detectedDesign.width,
+      designHeight: detectedDesign.height,
+    };
   }
   return { name: project.name, projectKey: project.key, ui, assets, config };
 }
