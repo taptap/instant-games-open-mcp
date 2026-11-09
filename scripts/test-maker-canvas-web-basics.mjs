@@ -1948,7 +1948,21 @@ try {
       await page.mouse.click(300, 700, { button: 'right' });
       chooser = page.waitForEvent('filechooser');
       await page.locator('#canvas-context-menu').getByRole('button', { name: '上传图片' }).click();
+      await page.evaluate(() => {
+        window.__canvasImportGate = new Promise((resolve) => {
+          window.__canvasImportRelease = resolve;
+        });
+      });
       await (await chooser).setFiles({ name: 'menu.png', ...png });
+      await page.locator('.card-state-loading').waitFor();
+      assert.equal(
+        await page.locator('.card-state-loading .web-state-tip b').textContent(),
+        '上传中'
+      );
+      await page.evaluate(() => {
+        window.__canvasImportRelease();
+        window.__canvasImportGate = undefined;
+      });
       await page.waitForFunction(() =>
         window.__canvasEditor
           .current()
@@ -4718,6 +4732,11 @@ try {
     const slotId = (await current()).nodes.find((node) => node.type === 'video').id;
     const overlay = card(slotId).locator('.card-state-loading');
     await overlay.waitFor();
+    assert.equal(
+      await card(slotId).evaluate((item) => getComputedStyle(item).boxShadow),
+      'none',
+      '生成中不显示整卡阴影'
+    );
     assert.equal(
       await card(slotId).locator('.canvas-flow-orbit').count(),
       1,

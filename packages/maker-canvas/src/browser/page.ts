@@ -4175,7 +4175,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '    if (chosen) void importImageFile(chosen, request);',
-    '    if (chosen && request && request.create && documentState && documentState.id === request.canvasId) { createBlankImageSlot(); request.nodeId = Array.from(selected)[0]; }\n    if (chosen) void importImageFile(chosen, request);'
+    '    if (canvasWeb && chosen && request && request.create && documentState && documentState.id === request.canvasId) { void importCanvasFiles([chosen], request.point || nextPlacement("image"), null); return; }\n    if (chosen && request && request.create && documentState && documentState.id === request.canvasId) { createBlankImageSlot(); request.nodeId = Array.from(selected)[0]; }\n    if (chosen) void importImageFile(chosen, request);'
   );
   page = replaceCanvasPageText(
     page,
