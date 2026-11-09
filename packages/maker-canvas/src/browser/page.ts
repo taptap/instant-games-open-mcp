@@ -1017,6 +1017,18 @@ function applyMediaReusePatches(source: string): string {
       '  function fitVideoCard(node) {',
     ].join('\n')
   );
+  patch(
+    "  board.addEventListener('pointermove', function (event) {",
+    "  function canvasDragToChat(event, phase) { if (!host.dragImagesToChat || !drag || drag.kind !== 'move') return false; const ids = drag.positions.map(function (item) { return item.id; }); const items = documentState.nodes.filter(function (node) { return ids.indexOf(node.id) >= 0 && node.type === 'image' && node.assetPath; }).map(function (node) { return { nodeId: node.id, assetPath: node.assetPath }; }); if (!items.length) return false; return host.dragImagesToChat(items, { x: event.clientX, y: event.clientY }, phase); }\n  board.addEventListener('pointermove', function (event) {\n    if (drag && drag.kind === 'move' && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3 && canvasDragToChat(event, 'move')) return;"
+  );
+  patch(
+    "  board.addEventListener('pointerup', function (event) {",
+    "  board.addEventListener('pointerup', function (event) {\n    if (drag && drag.kind === 'move' && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3 && canvasDragToChat(event, 'drop')) { for (const position of drag.positions) { const node = documentState.nodes.find(function (item) { return item.id === position.id; }); if (node) { node.x = position.x; node.y = position.y; } } if (drag.moved) past.pop(); drag = null; if (board.hasPointerCapture(event.pointerId)) board.releasePointerCapture(event.pointerId); markDirty(); render(); return; }"
+  );
+  patch(
+    "  board.addEventListener('pointerdown', function (event) {",
+    "  board.addEventListener('pointercancel', function (event) { canvasDragToChat(event, 'cancel'); });\n  board.addEventListener('pointerdown', function (event) {"
+  );
   return page;
 }
 /** Web-only card UX: draggable video cards, curved wires for every edge kind, side + chooser. */
@@ -1712,6 +1724,7 @@ function applyMediaDropPatches(source: string): string {
       '    if (tabsRow) tabsRow.prepend(assetPanelButton); else document.body.prepend(assetPanelButton);',
       '  }',
       '  const editorHandle = {',
+      '    setView: function (view) { if (!documentState || !view || ![view.x, view.y, view.scale].every(Number.isFinite)) return; documentState.viewport = { x: view.x, y: view.y, scale: Math.max(.05, Math.min(4, view.scale)) }; render(); },',
       "    setAssetPanelOpen: function (open) { if (assetPanelButton) assetPanelButton.setAttribute('aria-pressed', String(Boolean(open))); },\n",
     ].join('\n')
   );
