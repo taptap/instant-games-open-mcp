@@ -1956,6 +1956,11 @@ try {
       await (await chooser).setFiles({ name: 'menu.png', ...png });
       await page.locator('.card-state-loading').waitFor();
       assert.equal(
+        await page.locator('#selection-toolbar').isVisible(),
+        false,
+        '上传占位卡不显示提示词输入框'
+      );
+      assert.equal(
         await page.locator('.card-state-loading .web-state-tip b').textContent(),
         '上传中'
       );
