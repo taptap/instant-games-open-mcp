@@ -16,7 +16,7 @@ let projectid = initialQuery.get('projectid') || '';
 let selected = initialQuery.get('project') || '';
 const hasExplicitProject = initialQuery.has('projectid') || initialQuery.has('project');
 let page = selected ? 'overview' : 'projects';
-let otherTab = 'architecture';
+let otherTab = 'motion';
 let motionFrame;
 let selectionEpoch = 0;
 let viewEpoch = 0;
@@ -2812,7 +2812,7 @@ function renderCanvas() {
 ${modelSettingsScript}
 function setMotionVisible(visible) {
   architectureFrame?.contentWindow?.postMessage({type:'maker:architecture-visibility',visible:false},location.origin);
-  motionFrame?.contentWindow?.postMessage({type:'maker:motion-visibility',visible},location.origin);
+  motionFrame?.contentWindow?.postMessage({type:'maker:motion-visibility',visible:visible && !document.hidden},location.origin);
 }
 function renderOther() {
   const motion = otherTab === 'motion';
@@ -2825,7 +2825,7 @@ function renderOther() {
   if (motion) {
     if (!motionFrame) {
       motionFrame = node('iframe',undefined,'motion-library-frame');
-      motionFrame.title = 'UI 动效库';
+      motionFrame.title = 'UI 动效';
       motionFrame.src = '/ui-motion';
       motionFrame.addEventListener('load',() => setMotionVisible(page === 'other' && otherTab === 'motion'));
       $('other-motion').append(motionFrame);
@@ -2847,7 +2847,7 @@ function navigate(next) {
 }
 function render() {
   architecturePreview.suspend();
-  setMotionVisible(false);
+  setMotionVisible(page === 'other' && otherTab === 'motion');
   document.body.classList.toggle('canvas-mode', page === 'canvas' || page === 'ui-editor');
   $('close-canvas').hidden = true;
   syncValidationPolling();
@@ -3097,7 +3097,7 @@ document.addEventListener('DOMContentLoaded',async () => {
     tab.addEventListener('keydown',event => {
       if (!['ArrowUp','ArrowDown','Home','End'].includes(event.key)) return;
       event.preventDefault();
-      const next = event.key === 'Home' ? 'motion' : event.key === 'End' ? 'architecture'
+      const next = event.key === 'Home' ? 'architecture' : event.key === 'End' ? 'motion'
         : otherTab === 'motion' ? 'architecture' : 'motion';
       const target = document.querySelector('[data-other-tab="' + next + '"]');
       target.click(); target.focus();
@@ -3109,6 +3109,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   document.addEventListener('visibilitychange',() => {
     clearTimeout(pollTimer);
     syncValidationPolling();
+    setMotionVisible(page === 'other' && otherTab === 'motion');
     if (!document.hidden) { void sendActivity(); void poll(); }
   });
   render();

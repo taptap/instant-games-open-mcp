@@ -1,6 +1,8 @@
 import http from 'node:http';
 import { getCanvasModelPreviewHtml } from '../canvas/modelPreviewPage.js';
-import { getUiMotionHtml } from './uiMotion/page.js';
+import { getUiMotionHtml, getUiMotionReference } from './uiMotion/page.js';
+import { serveUiMotionSample } from './uiMotion/sample.js';
+import { getOriginalMotionReference, serveOriginalMotion } from './uiMotion/originals.js';
 import fs from 'node:fs';
 import type { Socket } from 'node:net';
 import { createHash } from 'node:crypto';
@@ -223,6 +225,41 @@ export async function startConsoleServer(options: {
         throw new ConsoleError('Foreign host or origin rejected.', 403);
       }
       const url = new URL(request.url || '/', origin);
+      if (request.method === 'GET' && url.pathname === '/ui-motion/vector-sample') {
+        serveUiMotionSample(response);
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/ui-motion/motion-lab') {
+        serveUiMotionSample(response, 'lab');
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/ui-motion/original-reference') {
+        const reference = getOriginalMotionReference(url.searchParams.get('id') || '');
+        if (!reference) throw new ConsoleError('原版演示尚未接入或示例不存在。', 404);
+        json(200, reference);
+        return;
+      }
+      if (request.method === 'GET' && url.pathname.startsWith('/ui-motion/original/')) {
+        serveOriginalMotion(url, response);
+        return;
+      }
+      if (
+        request.method === 'GET' &&
+        ['/ui-motion/reference', '/ui-motion/demo'].includes(url.pathname)
+      ) {
+        const id = url.searchParams.get('id') || '';
+        const reference = getUiMotionReference(id);
+        if (!reference) throw new ConsoleError('未找到该 UI 动效示例。', 404);
+        if (url.pathname === '/ui-motion/reference') json(200, reference);
+        else {
+          response.writeHead(200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Content-Disposition': 'attachment; filename="maker-ui-motion-' + id + '.html"',
+          });
+          response.end(reference.files[0].content);
+        }
+        return;
+      }
       if (request.method === 'GET' && url.pathname === '/console-theme.css') {
         response.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8' });
         response.end(consoleThemeStyles);
