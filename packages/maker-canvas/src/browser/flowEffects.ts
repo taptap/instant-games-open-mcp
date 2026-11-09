@@ -99,8 +99,8 @@ export function syncCanvasFlowEffects(board: HTMLElement) {
 }
 
 export const CANVAS_FLOW_STYLES = `
-:root { --flow-running:#e9bb4f; --flow-success:var(--canvas-accent); --flow-failed:#ed7478; --flow-waiting:#65716e; }
-:root[data-theme=light] { --flow-running:#ae7908; --flow-failed:#cf444b; --flow-waiting:#adb9b4; }
+:root { --flow-running:var(--canvas-accent); --flow-success:var(--canvas-accent); --flow-failed:#ed7478; --flow-waiting:#65716e; }
+:root[data-theme=light] { --flow-failed:#cf444b; --flow-waiting:#adb9b4; }
 [data-flow-state=running] { --flow-color:var(--flow-running); }
 [data-flow-state=success] { --flow-color:var(--flow-success); }
 [data-flow-state=failed] { --flow-color:var(--flow-failed); }
@@ -108,12 +108,17 @@ export const CANVAS_FLOW_STYLES = `
 [data-flow-state=paused] { --flow-color:#8aa0b4; }
 [data-flow-state=unknown] { --flow-color:var(--flow-running); }
 #world .card[data-flow-state] { border-color:var(--flow-color); animation:none; box-shadow:0 3px 10px #0003; }
-#world .card[data-flow-state=running] { box-shadow:0 0 22px #e9bb4f30; }
+#world .card[data-flow-state=running] { box-shadow:none; }
 #world .card[data-flow-state=success] { box-shadow:0 0 14px #00ad9d20; }
 #world .card[data-flow-state=failed] { box-shadow:0 0 16px #ed747830; }
 #world .card[data-flow-state].selected { outline:none; box-shadow:0 0 18px var(--flow-color); }
+.canvas-appearance-web #world .card.web-media[data-flow-state],
+.canvas-appearance-web #world .card.image[data-flow-state] { background:transparent; box-shadow:none; border:0; }
+.canvas-appearance-web #world .card[data-flow-state] .canvas-card-header { background:transparent; }
+.canvas-appearance-web #world .card[data-flow-state] .canvas-card-content { position:relative; }
 /* The SVG covers the border box, so its stroke follows the existing border's centreline. */
 .canvas-flow-orbit { position:absolute; inset:-1px; width:calc(100% + 2px); height:calc(100% + 2px); overflow:visible; z-index:9; pointer-events:none; }
+.canvas-appearance-web .card > .canvas-flow-orbit { top:40px; bottom:0; left:0; right:0; width:100%; height:calc(100% - 40px); }
 .canvas-flow-orbit rect { x:.5px; y:.5px; rx:8.5px; width:calc(100% - 1px); height:calc(100% - 1px); fill:none; stroke:var(--flow-color); stroke-width:2; stroke-dasharray:14 86; filter:drop-shadow(0 0 3px var(--flow-color)); animation:canvas-flow-orbit 3s linear infinite; }
 @keyframes canvas-flow-orbit { to { stroke-dashoffset:-100; } }
 #board .wire[data-flow-state] { stroke:var(--flow-color); stroke-dasharray:none; opacity:.85; }

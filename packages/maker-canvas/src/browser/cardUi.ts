@@ -56,7 +56,8 @@ export function decorateCanvasCard(
           node.mergeIcons.stageCount +
           '阶段'
         : kinds[node.type];
-  heading.append(title, metadata);
+  heading.append(title);
+  if (node.type !== 'note') heading.append(metadata);
   const more = document.createElement('button');
   more.type = 'button';
   more.className = 'canvas-card-menu';

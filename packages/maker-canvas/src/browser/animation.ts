@@ -8,6 +8,7 @@ export function createAnimationCards(
     key: string;
     canvas: HTMLCanvasElement;
     atlas: HTMLImageElement;
+    atlases: Map<string, HTMLImageElement>;
     ready: boolean;
     failed: boolean;
     current: number;
@@ -105,6 +106,7 @@ export function createAnimationCards(
       const url = mediaUrl(node.assetPath);
       const key = [
         url,
+        (info.atlasPaths || []).map(mediaUrl).join(','),
         info.fps,
         info.frames
           .map((frame) =>
@@ -134,6 +136,7 @@ export function createAnimationCards(
           key,
           canvas,
           atlas: new Image(),
+          atlases: new Map(),
           ready: false,
           failed: false,
           current: -1,
@@ -187,7 +190,7 @@ export function createAnimationCards(
             ' · ' +
             info.fps +
             ' FPS' +
-            (info.pages && info.pages > 1 ? ' · 共 ' + info.pages + ' 页，仅预览第 1 页' : '');
+            (info.pages && info.pages > 1 ? ' · 共 ' + info.pages + ' 张图集' : '');
       };
       const draw = (index: number) => {
         if (item.current === index) return;
@@ -201,7 +204,7 @@ export function createAnimationCards(
         const scale = Math.min(canvas.width / boxWidth, canvas.height / boxHeight);
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.drawImage(
-          item.atlas,
+          frame.atlasPath ? item.atlases.get(frame.atlasPath)! : item.atlas,
           frame.x,
           frame.y,
           frame.width,
@@ -234,9 +237,32 @@ export function createAnimationCards(
         mounted.set(node.id, timing);
         schedule();
       };
+      if (info.missingPages?.length) {
+        label.textContent = '图集缺失，无法完整播放';
+        play.disabled = true;
+        return;
+      }
+      if (info.atlasPaths?.length && !item.ready && !item.failed && !item.atlases.size) {
+        let remaining = info.atlasPaths.length;
+        for (const path of info.atlasPaths) {
+          const image = new Image();
+          item.atlases.set(path, image);
+          image.onload = () => {
+            if (--remaining === 0 && !item.failed) {
+              item.ready = true;
+              if (item.version === generation && item.card?.isConnected) mount();
+            }
+          };
+          image.onerror = () => {
+            item.failed = true;
+            if (item.label) item.label.textContent = '图集读取失败，无法完整播放';
+          };
+          image.src = mediaUrl(path);
+        }
+      }
       if (item.ready) mount();
       else if (item.failed) label.textContent = '图集读取失败，请检查素材。';
-      else if (!item.atlas.onload) {
+      else if (!info.atlasPaths?.length && !item.atlas.onload) {
         item.atlas.onload = () => {
           item.ready = true;
           if (item.version !== generation || !item.card?.isConnected) return;

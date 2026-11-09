@@ -21,6 +21,7 @@ export interface VideoInfo {
 }
 
 export interface FrameSetFrame {
+  atlasPath?: string;
   index: number;
   time: number;
   x: number;
@@ -47,7 +48,10 @@ export interface FrameSetInfo {
   columns: number;
   rows: number;
   frames: FrameSetFrame[];
-  /** Atlas pages in the source sheet; only page 1 is listed in frames and previewed. */
+  /** Full project paths for all atlas textures, in page order. */
+  atlasPaths?: string[];
+  missingPages?: string[];
+  /** Atlas page count. */
   pages?: number;
 }
 
