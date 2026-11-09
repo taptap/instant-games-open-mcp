@@ -2415,6 +2415,26 @@ try {
     assert.ok(box.panel - box.send[2] < 16, '靠右');
     await page.close();
   });
+  await check('Web 便签：工具栏新增、编辑保存与撤销', async () => {
+    const { page, errors, settle, current, card } = await webPage();
+    await page.getByRole('button', { name: '添加便签', exact: true }).click();
+    const note = (await current()).nodes.find((node) => node.type === 'note');
+    assert.ok(note);
+    const input = card(note.id).getByRole('textbox', { name: '便签内容' });
+    await input.fill('角色配色：蓝白');
+    await input.blur();
+    await settle();
+    assert.equal(
+      (await current()).nodes.find((node) => node.id === note.id).text,
+      '角色配色：蓝白'
+    );
+    await page.mouse.click(1300, 860);
+    await page.keyboard.press('ControlOrMeta+z');
+    await settle();
+    assert.equal((await current()).nodes.find((node) => node.id === note.id).text, '便签');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
   await check('Web 复制：派生结果卡复制后不进入待处理（⌘/Ctrl+D、⌘/Ctrl+C/V）', async () => {
     const kneel = 'assets/image/canvas/copy-kneel.png';
     const lying = 'assets/image/canvas/copy-lying.png';

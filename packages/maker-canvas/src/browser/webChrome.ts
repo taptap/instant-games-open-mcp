@@ -884,6 +884,17 @@ export function createCanvasWebChrome(options: {
     const element = document.querySelector(selector);
     if (element) element.innerHTML = lucide(paths, 20);
   }
+  const note = document.getElementById('add-note');
+  const arrow = document.getElementById('mark-arrow');
+  if (note && arrow) {
+    note.setAttribute('aria-label', '添加便签');
+    note.title = '添加便签';
+    note.innerHTML = lucide(
+      '<path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M16 3v5h5"/><path d="M7 12h10M7 16h6"/>',
+      20
+    );
+    arrow.after(note);
+  }
   // lucide pencil
   const rename = document.getElementById('rename-canvas');
   if (rename)
