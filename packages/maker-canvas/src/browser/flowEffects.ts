@@ -50,7 +50,9 @@ export function decorateCanvasFlowCard(
   // Preserve phase when selection, dragging or task updates rebuild the card.
   border.style.animationDelay = -((Date.now() / 1000) % 3) + 's';
   orbit.append(border);
-  card.append(orbit);
+  const content =
+    card.closest('.canvas-appearance-web') && card.querySelector('.canvas-card-content');
+  (content || card).append(orbit);
 }
 
 /** Called after cards and wires render, including viewport changes. No document mutations. */
@@ -112,6 +114,10 @@ export const CANVAS_FLOW_STYLES = `
 #world .card[data-flow-state=success] { box-shadow:0 0 14px #00ad9d20; }
 #world .card[data-flow-state=failed] { box-shadow:0 0 16px #ed747830; }
 #world .card[data-flow-state].selected { outline:none; box-shadow:0 0 18px var(--flow-color); }
+.canvas-appearance-web #world .card.web-media[data-flow-state],
+.canvas-appearance-web #world .card.image[data-flow-state] { background:transparent; box-shadow:none; border:0; }
+.canvas-appearance-web #world .card[data-flow-state] .canvas-card-header { background:transparent; }
+.canvas-appearance-web #world .card[data-flow-state] .canvas-card-content { position:relative; }
 /* The SVG covers the border box, so its stroke follows the existing border's centreline. */
 .canvas-flow-orbit { position:absolute; inset:-1px; width:calc(100% + 2px); height:calc(100% + 2px); overflow:visible; z-index:9; pointer-events:none; }
 .canvas-flow-orbit rect { x:.5px; y:.5px; rx:8.5px; width:calc(100% - 1px); height:calc(100% - 1px); fill:none; stroke:var(--flow-color); stroke-width:2; stroke-dasharray:14 86; filter:drop-shadow(0 0 3px var(--flow-color)); animation:canvas-flow-orbit 3s linear infinite; }
