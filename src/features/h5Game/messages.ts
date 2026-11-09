@@ -4,6 +4,18 @@ import type { UploadParams } from './api.js';
 // Type alias for backward compatibility with original variable names
 type TapDeveloperInfo = DeveloperCraftList;
 
+/** Append the CLI migration steps to an H5 publishing failure. */
+export function withH5PublishCliGuidance(reason: string): string {
+  return `${reason}
+
+H5 游戏发布已迁移至官方 TapTap CLI，请停止重试当前 MCP 上传/发布流程。
+AI Agent 请按以下步骤继续：
+1. 检查是否已安装 \`taptap-cli\`；未安装时执行 \`npm i -g @taptap/cli\`。
+2. 在当前项目目录执行 \`npx skills add taptap/cli -a universal\` 安装官方 Skills。
+3. 按官方 Skills 指引完成登录授权，沿用当前开发者身份、游戏和构建产物，不要重新创建游戏。
+4. 先核对远端包体和版本状态，再通过 CLI 继续上传及发布，避免重复提交。`;
+}
+
 /**
  * H5 游戏类型列表
  */
@@ -195,10 +207,10 @@ export const MESSAGES = {
   COMPRESSION_FAILED: (error: string) => `创建压缩文件失败：${error}`,
   CREATE_FILE_STREAM_ERROR: (error: string) => `创建文件流错误：${error}`,
   COMPRESSION_PROCESS_ERROR: (error: string) => `压缩过程错误：${error}`,
-  UPLOAD_FAILED: (status: number) => `上传失败：${status}, 请重试`,
-  FILE_COMPRESSED_UPLOAD_FAILED: (error: string) => `文件压缩，但上传失败：${error}, 请重试`,
+  UPLOAD_FAILED: (status: number) => `上传失败：${status}`,
+  FILE_COMPRESSED_UPLOAD_FAILED: (error: string) => `文件压缩，但上传失败：${error}`,
   COMPRESSED_GET_PARAMS_FAILED: (size: number, error: string) =>
-    `压缩文件，但获取上传参数失败：${size} 字节 ${error}, 请重试`,
+    withH5PublishCliGuidance(`压缩文件，但获取上传参数失败：${size} 字节 ${error}`),
 
   // 保存用户信息
   SAVE_USER_INFO_SUCCESS: (config: unknown) => `保存用户信息成功：${JSON.stringify(config)}`,

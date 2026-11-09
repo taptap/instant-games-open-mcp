@@ -320,6 +320,11 @@ console.log(result);
 
 专为 H5 游戏提供的发布和部署工具。
 
+H5 游戏发布已迁移至官方 TapTap CLI，以下 MCP 上传工具保留兼容。
+上传/发布失败时会保留原始错误并提示安装 `@taptap/cli` 和官方 Skills，停止重试旧 MCP 流程。
+Agent 应沿用当前游戏，先核对远端包体及版本状态，再按 CLI 官方 Skills 继续操作。
+已提交但回读未确认的情况仍提示先查询状态，不应重新上传。
+
 **Tools (工具):**
 
 - `prepare_h5_upload`: **上传第一步**。收集游戏信息，确认构建目录（如 dist/build）。
