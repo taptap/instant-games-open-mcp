@@ -6785,10 +6785,24 @@ try {
         },
         'assets/sprites/hero/walk/spritesheet.json': {
           frames: { walk_0001: frame(0, 8, 120), walk_0002: frame(24, 6, 120) },
-          animations: [{ name: 'walk', frames: ['walk_0001', 'walk_0002'], repeat: -1, fps: 8 }],
-          meta: { image: 'spritesheet.png', size: { w: 64, h: 32 } },
+          animations: [
+            { name: 'walk', frames: ['walk_0001', 'walk_0002', 'walk_0003'], repeat: -1, fps: 8 },
+          ],
+          meta: {
+            image: 'spritesheet.png',
+            size: { w: 64, h: 32 },
+            relatedMultiPacks: ['spritesheet-1.json'],
+          },
+        },
+        'assets/sprites/hero/walk/spritesheet-1.json': {
+          frames: { walk_0003: frame(0, 8, 120) },
+          animations: [{ name: 'walk', frames: ['walk_0003'], fps: 8 }],
+          meta: { image: 'spritesheet-1.png', size: { w: 64, h: 32 } },
         },
       });
+      await page.evaluate(() =>
+        window.__canvasAddMedia('#00ff00', 64, 32, 'assets/sprites/hero/walk/spritesheet-1.png')
+      );
       const delayedSheet = await page.evaluate(() => {
         const path = 'assets/sprites/hero/walk/spritesheet.json';
         const sheet = window.__canvasProjectJson[path];
@@ -6837,7 +6851,7 @@ try {
       await page.locator('#fit-canvas').click();
       const sequence = card(byKey['sequence:walk'].id);
       await sequence.locator('.sequence-result-grid canvas').nth(1).waitFor();
-      assert.equal(await sequence.locator('.sequence-result-grid canvas').count(), 2);
+      assert.equal(await sequence.locator('.sequence-result-grid canvas').count(), 3);
       assert.equal(
         await sequence.locator('.sequence-edit-button, .sequence-animation-button').count(),
         0
@@ -6865,6 +6879,13 @@ try {
       );
       const second = await pixel();
       assert.deepEqual(second.rgba.slice(0, 3), [0, 0, 255], '播放到第 2 帧');
+      await page.waitForFunction(
+        (id) =>
+          document.querySelector('.card[data-id="' + id + '"] canvas.animation-preview')?.dataset
+            .frameIndex === '2',
+        byKey['animation:walk'].id
+      );
+      assert.deepEqual((await pixel()).rgba.slice(0, 3), [0, 255, 0], '跨页播放使用第二张图集');
       // Offsets matter: frame 1 sits 8px into the 40px box (scaled ×6), so x=60 stays empty.
       const edge = await animation
         .locator('canvas.animation-preview')

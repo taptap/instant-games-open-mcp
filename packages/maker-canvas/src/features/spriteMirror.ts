@@ -106,7 +106,8 @@ export function canvasSpriteStage(
  * (only page 1 is previewed) and `pages` reports the total.
  */
 export function canvasSpriteFrameSet(
-  sheet: unknown
+  sheet: unknown,
+  related: Record<string, unknown> = Object.create(null)
 ): { info: FrameSetInfo; image: string; animation: string } | undefined {
   const record = (value: unknown): value is Record<string, any> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -202,11 +203,66 @@ export function canvasSpriteFrameSet(
     frame.time = Math.round(elapsed) / 1000;
     elapsed += frame.duration || 1000 / fps;
   }
+  const atlasPaths = [image];
+  const missingPages: string[] = [];
+  const names = Array.isArray(meta.relatedMultiPacks) ? meta.relatedMultiPacks.slice(0, 31) : [];
+  if (names.length && Object.keys(related).length) {
+    const all = new Map(
+      keys
+        .filter((key) => Object.prototype.hasOwnProperty.call(sheet.frames, key))
+        .map((key, index) => [key, { ...frames[index], atlasPath: image }])
+    );
+    for (const name of names) {
+      if (typeof name !== 'string' || !/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,80}\.json$/.test(name)) {
+        missingPages.push(String(name));
+        continue;
+      }
+      const page = Object.prototype.hasOwnProperty.call(related, name) ? related[name] : undefined;
+      const parsed = canvasSpriteFrameSet(page);
+      if (!parsed || !record(page) || !record(page.frames)) {
+        missingPages.push(name);
+        continue;
+      }
+      atlasPaths.push(parsed.image);
+      const pageKeys: string[] =
+        Array.isArray(page.animations) && Array.isArray(page.animations[0]?.frames)
+          ? page.animations[0].frames.filter((key: string) =>
+              Object.prototype.hasOwnProperty.call(page.frames, key)
+            )
+          : Object.keys(page.frames);
+      pageKeys.forEach((key, index) => {
+        if (parsed.info.frames[index])
+          all.set(key, { ...parsed.info.frames[index], atlasPath: parsed.image });
+      });
+    }
+    const order = animation && Array.isArray(animation.frames) ? keys : [...all.keys()].sort();
+    for (const key of order) if (!all.has(key)) missingPages.push('frame:' + key);
+    if (order.length > 600) missingPages.push('frame-limit');
+    frames.splice(
+      0,
+      frames.length,
+      ...order
+        .slice(0, 600)
+        .filter((key) => all.has(key))
+        .map((key) => all.get(key)!)
+    );
+    elapsed = 0;
+    frames.forEach((frame, index) => {
+      frame.index = index;
+      frame.time = elapsed / 1000;
+      elapsed += frame.duration || 1000 / fps;
+    });
+  }
+  if (Object.keys(related).length)
+    frames.forEach((frame) => {
+      frame.atlasPath = frame.atlasPath || image;
+    });
   const columns = Math.ceil(Math.sqrt(frames.length));
   const pages = 1 + (Array.isArray(meta.relatedMultiPacks) ? meta.relatedMultiPacks.length : 0);
   return {
     info: {
       fps,
+      ...(Object.keys(related).length ? { atlasPaths, missingPages } : {}),
       frameCount: frames.length,
       width: size.w,
       height: size.h,
@@ -319,13 +375,30 @@ export function reconcileSpriteMirror(input: {
   const sheets = input.sheets || {};
   const addSheet = (id: string, row: number, parents: string[]) => {
     const sheet = Object.prototype.hasOwnProperty.call(sheets, id) ? sheets[id] : undefined;
-    const parsed = sheet === undefined ? undefined : canvasSpriteFrameSet(sheet);
+    const parsed =
+      sheet === undefined
+        ? undefined
+        : canvasSpriteFrameSet(
+            sheet,
+            Object.fromEntries(
+              Object.entries(sheets)
+                .filter(([key]) => key.startsWith(id + '/'))
+                .map(([key, value]) => [key.slice(id.length + 1), value])
+            )
+          );
     if (!parsed) return;
     const assetPath = canvasSpriteMediaPath(
       'assets/sprites/' + name + '/' + id + '/' + parsed.image,
       name,
       'image'
     );
+    if (parsed.info.atlasPaths) {
+      const prefix = 'assets/sprites/' + name + '/' + id + '/';
+      parsed.info.atlasPaths = parsed.info.atlasPaths.map((path) => prefix + path);
+      parsed.info.frames.forEach((frame) => {
+        if (frame.atlasPath) frame.atlasPath = prefix + frame.atlasPath;
+      });
+    }
     push({
       key: 'sequence:' + id,
       type: 'sequence',

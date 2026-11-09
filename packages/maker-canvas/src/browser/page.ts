@@ -638,7 +638,7 @@ function applyWebInteractionPatches(source: string): string {
   patch(
     "if (canvasFeatureEnabled(host, 'imageEditing')) actionButton('去纯色背景', function () { void openLocalImage(node, 'cutout'); });",
     // Web 抠图 is one click with the editor defaults; the default page keeps the full editor.
-    "if (host.addToChat) { const chat = actionButton('加入对话', function () { void addSelectionToChat([node]); }); if (canvasWeb) { canvasWebIconAction(chat, 'chat'); chat.draggable = true; chat.dataset.canvasChatDrag = node.id; chat.title = '加入对话，或拖入对话框引用'; chat.addEventListener('pointerdown', function (event) { event.stopPropagation(); }); } }\n        if (canvasFeatureEnabled(host, 'cutout')) { const cutout = actionButton(canvasWeb ? '抠图' : '去纯色背景', function () { if (canvasWeb) void quickCutout(node); else void openLocalImage(node, 'cutout'); }); if (canvasWeb) { canvasWebIconAction(cutout, 'cutout'); const adjust = actionButton('调整抠图', function () { void adjustCutout(node); }); adjust.classList.add('web-cutout-adjust'); canvasWebIconAction(adjust, 'chevron'); } }"
+    "if (host.addToChat) { const chat = actionButton('加入对话', function () { void addSelectionToChat([node]); }); if (canvasWeb) canvasWebIconAction(chat, 'chat'); }\n        if (canvasFeatureEnabled(host, 'cutout')) { const cutout = actionButton(canvasWeb ? '抠图' : '去纯色背景', function () { if (canvasWeb) void quickCutout(node); else void openLocalImage(node, 'cutout'); }); if (canvasWeb) { canvasWebIconAction(cutout, 'cutout'); const adjust = actionButton('调整抠图', function () { void adjustCutout(node); }); adjust.classList.add('web-cutout-adjust'); canvasWebIconAction(adjust, 'chevron'); } }"
   );
   patch(
     'if (chosen.length !== 1 || !generationUi || ',
@@ -2062,7 +2062,7 @@ function applySpriteGenPatches(source: string): string {
       "    const progress = await readSpriteJson('.build/sprite-gen/' + name + '/_progress.json');",
       "    const sprite = await readSpriteJson(output + 'sprite.json');",
       '    const sheets = Object.create(null); let sheetsMissing = false;',
-      "    for (const id of canvasSpriteSheetIds(progress.value, sprite.value)) { const sheet = await readSpriteJson(output + id + '/spritesheet.json'); if (sheet.value !== undefined) sheets[id] = sheet.value; else sheetsMissing = true; }",
+      "    for (const id of canvasSpriteSheetIds(progress.value, sprite.value)) { const sheet = await readSpriteJson(output + id + '/spritesheet.json'); if (sheet.value !== undefined) { sheets[id] = sheet.value; const pages = sheet.value && sheet.value.meta && sheet.value.meta.relatedMultiPacks; if (Array.isArray(pages)) for (const page of pages.slice(0, 31)) { if (typeof page !== 'string' || !/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,80}\\.json$/.test(page)) { sheetsMissing = true; continue; } const part = await readSpriteJson(output + id + '/' + page); sheets[id + '/' + page] = part.value; if (part.value === undefined) sheetsMissing = true; } } else sheetsMissing = true; }",
       "    const signature = JSON.stringify([progress.missing ? 404 : progress.error ? 'error' : progress.value, sprite.value === undefined ? null : sprite.value, sheets]);",
       '    const filesChanged = signature !== spriteFiles.get(sectionId);',
       "    if (!force && signature + '\\n' + spriteDocKey(doc, sectionId) === spriteSeen.get(sectionId)) return;",
@@ -2071,7 +2071,7 @@ function applySpriteGenPatches(source: string): string {
       // Cards only appear once the host can serve their file; known files re-read after a change.
       '    for (const card of reconcileSpriteMirror(input).cards) {',
       '      if (!store.prepareMedia || (media[card.assetPath] && !filesChanged && !force)) continue;',
-      '      try { await store.prepareMedia(card.assetPath, Boolean(media[card.assetPath])); if (!store.mediaUrl(card.assetPath)) missing.push(card.assetPath); else missingMedia.delete(card.assetPath); }',
+      '      try { for (const path of (card.frameSetInfo && card.frameSetInfo.atlasPaths || [card.assetPath])) { await store.prepareMedia(path, Boolean(media[path])); media[path] = store.mediaUrl(path); if (!media[path]) missing.push(path); else missingMedia.delete(path); } }',
       '      catch (caught) { missing.push(card.assetPath); }',
       '    }',
       '    missing.forEach(function (path) { missingMedia.add(path); });',
@@ -3488,7 +3488,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  sequenceUi = createSequenceUiController({',
       '    store: store,',
       '    processor: sequenceProcessor,',
-      '    renderCard: renderSequenceResult,',
+      '    renderCard: function (card, node, source, run, url, onSetting, onAction) { renderSequenceResult(card, node, source, run, url, onSetting, onAction, store.mediaUrl); },',
       '    onOpen: function (id) { sequenceEditor.open(id); },',
       '    resolveTarget: function (id, type, targetId) { return templateWorkflow.resolveTarget(id, type, targetId); },',
       '    onSaved: function (id) { return templateWorkflow.nodeChanged(id); },',

@@ -11,13 +11,15 @@ export function renderSequenceResult(
   run: SequenceRunView | undefined,
   atlasUrl: string | undefined,
   _onSetting: (key: keyof SequenceSettings, value: unknown) => void,
-  onAction: (action: string) => void
+  onAction: (action: string) => void,
+  mediaUrl?: (path: string) => string
 ): void {
   const label = document.createElement('div');
   label.className = 'sequence-source-label';
   label.textContent = source ? '视频源：' + source.title : '视频来源缺失';
   if (node.frameSetInfo?.pages && node.frameSetInfo.pages > 1)
-    label.textContent += ' · 共 ' + node.frameSetInfo.pages + ' 页，仅预览第 1 页';
+    label.textContent += ' · 共 ' + node.frameSetInfo.pages + ' 张图集';
+  if (node.frameSetInfo?.missingPages?.length) label.textContent += ' · 图集缺失，预览不完整';
   if (node.sourceStale && node.frameSetInfo) {
     const stale = document.createElement('small');
     stale.className = 'generation-status generation-status-stale';
@@ -42,10 +44,15 @@ export function renderSequenceResult(
       caption.textContent = String(index + 1);
       tile.append(canvas, caption);
       grid.append(tile);
-      return { canvas, frame };
+      return {
+        canvas,
+        frame,
+        atlas: frame.atlasPath && mediaUrl ? canvasCachedImage(mediaUrl(frame.atlasPath)) : atlas,
+      };
     });
     const paint = () => {
-      for (const { canvas, frame } of canvases) {
+      for (const { canvas, frame, atlas } of canvases) {
+        if (!atlas.complete || !atlas.naturalWidth) continue;
         // Trimmed sheet frames are drawn at their offset inside the untrimmed source box.
         const boxWidth = frame.sourceWidth || frame.width;
         const boxHeight = frame.sourceHeight || frame.height;
@@ -65,9 +72,10 @@ export function renderSequenceResult(
           );
       }
     };
-    canvasWhenImageReady(atlas, paint, () => {
-      grid.textContent = '帧集图片读取失败，请点击编辑检查。';
-    });
+    for (const image of new Set(canvases.map((item) => item.atlas)))
+      canvasWhenImageReady(image, paint, () => {
+        grid.textContent = '帧集图片读取失败，请点击编辑检查。';
+      });
   } else {
     grid.classList.add('sequence-result-empty');
     grid.textContent =
