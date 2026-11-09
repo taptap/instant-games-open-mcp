@@ -413,6 +413,14 @@ function testHostScript() {
       store,
       features: config.features,
       appearance: config.appearance,
+      dragImagesToChat: config.dragToChat
+        ? (items, point, phase) => {
+            if (phase === 'cancel' || point.x >= 100) return false;
+            if (phase === 'drop')
+              (window.__canvasChat = window.__canvasChat || []).push(copy(items));
+            return true;
+          }
+        : undefined,
       addToChat: config.addToChat
         ? (items) => {
             (window.__canvasChat = window.__canvasChat || []).push(copy(items));
@@ -2413,6 +2421,32 @@ try {
     assert.equal(box.send[0], 32, '发送按钮是 32px 圆钮');
     assert.ok(box.send[1] >= box.fields[0] - 4 && box.send[1] <= box.fields[1], '与参数同一行');
     assert.ok(box.panel - box.send[2] < 16, '靠右');
+    await page.close();
+  });
+  await check('Web 图片拖入对话引用，原卡位置不变；画布内仍可移动', async () => {
+    const { page, errors, current, card, importImage, settle } = await webPage({
+      dragToChat: true,
+    });
+    const node = await importImage('引用测试', '#c33', 100, 100);
+    const before = (await current()).nodes.find((item) => item.id === node.id);
+    const box = await card(node.id).boundingBox();
+    await page.mouse.move(box.x + 60, box.y + 70);
+    await page.mouse.down();
+    await page.mouse.move(50, 400, { steps: 10 });
+    await page.mouse.up();
+    await settle();
+    assert.equal(await page.evaluate(() => window.__canvasChat.length), 1);
+    const after = (await current()).nodes.find((item) => item.id === node.id);
+    assert.equal(after.x, before.x);
+    assert.equal(after.y, before.y);
+    const next = await card(node.id).boundingBox();
+    await page.mouse.move(next.x + 60, next.y + 70);
+    await page.mouse.down();
+    await page.mouse.move(next.x + 160, next.y + 170, { steps: 5 });
+    await page.mouse.up();
+    await settle();
+    assert.notEqual((await current()).nodes.find((item) => item.id === node.id).x, before.x);
+    assert.deepEqual(errors, []);
     await page.close();
   });
   await check('Web 便签：工具栏新增、编辑保存与撤销', async () => {

@@ -76,6 +76,11 @@ export interface CanvasPageHost {
   appearance?: 'default' | 'web';
   /** Optional: shows 「加入对话」 for selected image cards; absent hides the button. */
   addToChat?(items: { nodeId: string; assetPath: string }[]): Promise<void> | void;
+  dragImagesToChat?(
+    items: { nodeId: string; assetPath: string }[],
+    point: { x: number; y: number },
+    phase: 'move' | 'drop' | 'cancel'
+  ): boolean;
   /**
    * Optional: shows 「从素材库添加」 in the blank-canvas menu; paths go through prepareCanvasImportedNode.
    * `kind` absent means image, except paths under assets/video/.
