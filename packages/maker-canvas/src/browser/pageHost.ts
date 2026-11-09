@@ -20,6 +20,7 @@ export interface CanvasEditorDraft {
 
 export interface CanvasEditorHandle {
   open(id: string): Promise<void>;
+  setView(view: { x: number; y: number; scale: number }): void;
   current(): CanvasDocument | null;
   draft(): CanvasEditorDraft | null;
   save(): Promise<boolean>;
