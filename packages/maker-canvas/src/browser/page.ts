@@ -1755,7 +1755,7 @@ function applyWebEditPatches(source: string): string {
   patch(
     '      world.append(card);',
     // After append: focus() needs the input in the document.
-    "      world.append(card);\n      if (canvasWeb && node.type === 'section' && sectionRename && sectionRename.id === node.id) mountSectionRename(card);\n      if (canvasWeb && canvasCrop && canvasCrop.id === node.id) mountCanvasCrop(card, node);"
+    "      world.append(card);\n      if (canvasWeb && ['section', 'note'].indexOf(node.type) >= 0 && sectionRename && sectionRename.id === node.id) mountSectionRename(card);\n      if (canvasWeb && canvasCrop && canvasCrop.id === node.id) mountCanvasCrop(card, node);"
   );
   patch(
     '<button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button>',
@@ -1795,15 +1795,15 @@ function applyWebEditPatches(source: string): string {
       '  var canvasCutoutBusy = new Set();',
       '  var sectionRename = null;',
       '  function startSectionRename(id) {',
-      "    const node = documentState && documentState.nodes.find(function (item) { return item.id === id && item.type === 'section'; });",
+      "    const node = documentState && documentState.nodes.find(function (item) { return item.id === id && ['section', 'note'].indexOf(item.type) >= 0; });",
       '    if (!node || peerReason || (templateWorkflow && templateWorkflow.locked(node.id))) return;',
-      "    sectionRename = { id: node.id, value: node.title || '', input: null, focused: false };",
+      "    sectionRename = { id: node.id, value: node.title || '', kind: node.type, input: null, focused: false };",
       '    render();',
       '  }',
       '  function finishSectionRename(commit) {',
       '    const edit = sectionRename; sectionRename = null;',
       '    if (!edit) return;',
-      "    const node = documentState && documentState.nodes.find(function (item) { return item.id === edit.id && item.type === 'section'; });",
+      "    const node = documentState && documentState.nodes.find(function (item) { return item.id === edit.id && ['section', 'note'].indexOf(item.type) >= 0; });",
       '    const value = edit.value.trim().slice(0, 80);',
       '    if (commit && node && value && value !== node.title) { remember(); node.title = value; markDirty(); }',
       '    render();',
@@ -1816,7 +1816,7 @@ function applyWebEditPatches(source: string): string {
       '    if (!input) {',
       "      input = document.createElement('input');",
       "      input.className = 'web-section-rename'; input.value = edit.value; input.maxLength = 80;",
-      "      input.setAttribute('aria-label', '分组名称');",
+      "      input.setAttribute('aria-label', edit.kind === 'note' ? '便签名称' : '分组名称');",
       "      ['pointerdown', 'click', 'dblclick', 'wheel', 'contextmenu'].forEach(function (name) { input.addEventListener(name, function (event) { event.stopPropagation(); }); });",
       "      input.addEventListener('input', function () { if (sectionRename === edit) edit.value = input.value; });",
       "      input.addEventListener('keydown', function (event) {",
@@ -1837,7 +1837,7 @@ function applyWebEditPatches(source: string): string {
       '  var sectionTitlePress = null;',
       "  world.addEventListener('pointerdown', function (event) {",
       '    if (!canvasWeb || !documentState || event.button !== 0 || !event.target || !event.target.closest) return;',
-      "    const title = event.target.closest('.card.section .canvas-card-title');",
+      "    const title = event.target.closest('.card.section .canvas-card-title, .card.note .canvas-card-title');",
       "    const card = title && title.closest('.card[data-id]');",
       '    if (!card) { sectionTitlePress = null; return; }',
       '    const now = Date.now();',

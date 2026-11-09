@@ -2432,6 +2432,18 @@ try {
     await page.keyboard.press('ControlOrMeta+z');
     await settle();
     assert.equal((await current()).nodes.find((node) => node.id === note.id).text, '便签');
+    assert.equal(await card(note.id).locator('.canvas-card-meta').count(), 0);
+    await card(note.id).locator('.canvas-card-title').dblclick();
+    const name = page.getByRole('textbox', { name: '便签名称', exact: true });
+    await name.fill('美术方向');
+    await name.press('Enter');
+    await settle();
+    assert.equal((await current()).nodes.find((node) => node.id === note.id).title, '美术方向');
+    await card(note.id).locator('.canvas-card-title').dblclick();
+    await name.fill('放弃修改');
+    await name.press('Escape');
+    await settle();
+    assert.equal((await current()).nodes.find((node) => node.id === note.id).title, '美术方向');
     assert.deepEqual(errors, []);
     await page.close();
   });
