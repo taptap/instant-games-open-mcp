@@ -2083,9 +2083,12 @@ function applySpriteGenPatches(source: string): string {
       '    const missing = [];',
       // Cards only appear once the host can serve their file; known files re-read after a change.
       '    for (const card of reconcileSpriteMirror(input).cards) {',
-      '      if (!store.prepareMedia || (media[card.assetPath] && !filesChanged && !force)) continue;',
-      '      try { for (const path of (card.frameSetInfo && card.frameSetInfo.atlasPaths || [card.assetPath])) { await store.prepareMedia(path, Boolean(media[path])); media[path] = store.mediaUrl(path); if (!media[path]) missing.push(path); else missingMedia.delete(path); } }',
-      '      catch (caught) { missing.push(card.assetPath); }',
+      '      if (!store.prepareMedia) continue;',
+      '      for (const path of (card.frameSetInfo && card.frameSetInfo.atlasPaths || [card.assetPath])) {',
+      '        if (media[path] && !missingMedia.has(path) && !filesChanged && !force) continue;',
+      '        try { await store.prepareMedia(path, Boolean(media[path])); media[path] = store.mediaUrl(path); if (!media[path]) missing.push(path); else missingMedia.delete(path); }',
+      '        catch (caught) { missing.push(path); }',
+      '      }',
       '    }',
       '    missing.forEach(function (path) { missingMedia.add(path); });',
       // sprite-gen copies the chosen viewpoint onto ready.png; find it by bytes to draw 候选 → 主参考图.

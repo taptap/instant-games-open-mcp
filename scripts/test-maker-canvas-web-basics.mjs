@@ -6910,6 +6910,28 @@ try {
         0
       );
       const animation = card(byKey['animation:walk'].id);
+      await page.evaluate(async () => {
+        const path = 'assets/sprites/hero/walk/spritesheet-1.png';
+        await window.__canvasDropMedia(path);
+        await window.__canvasEditor.syncSprites();
+        window.dispatchEvent(new Event('online'));
+      });
+      await page.waitForTimeout(100);
+      await page.evaluate(async () => {
+        await window.__canvasAddMedia(
+          '#00ff00',
+          64,
+          32,
+          'assets/sprites/hero/walk/spritesheet-1.png'
+        );
+        window.dispatchEvent(new Event('online'));
+      });
+      await page.waitForFunction(
+        (id) =>
+          !document.querySelector('.card[data-id="' + id + '"] .animation-controls button')
+            ?.disabled,
+        byKey['animation:walk'].id
+      );
       const pixel = () =>
         animation.locator('canvas.animation-preview').evaluate((canvas) => ({
           index: canvas.dataset.frameIndex,

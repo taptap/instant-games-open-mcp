@@ -53,6 +53,7 @@ export function renderSequenceResult(
     const paint = () => {
       for (const { canvas, frame, atlas } of canvases) {
         if (!atlas.complete || !atlas.naturalWidth) continue;
+        canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
         // Trimmed sheet frames are drawn at their offset inside the untrimmed source box.
         const boxWidth = frame.sourceWidth || frame.width;
         const boxHeight = frame.sourceHeight || frame.height;
