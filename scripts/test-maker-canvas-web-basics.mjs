@@ -2637,6 +2637,43 @@ try {
       );
       await settle();
       assert.equal((await current()).nodes.length, pasted + 1);
+      const uploaded = (await current()).nodes.at(-1);
+      await card(uploaded.id).click({ position: { x: 60, y: 80 } });
+      await page.keyboard.press('ControlOrMeta+c');
+      await page.waitForTimeout(50);
+      const copiedTypes = await page.evaluate(() => {
+        const data = new DataTransfer();
+        document.body.dispatchEvent(
+          new ClipboardEvent('copy', { clipboardData: data, bubbles: true, cancelable: true })
+        );
+        window.__copiedCanvasData = data;
+        return Array.from(data.types);
+      });
+      assert.ok(
+        copiedTypes.includes('application/x-maker-canvas-cards'),
+        '延迟 copy 事件仍应接管卡片剪贴板'
+      );
+      await page.evaluate(() =>
+        document.body.dispatchEvent(
+          new ClipboardEvent('paste', {
+            clipboardData: window.__copiedCanvasData,
+            bubbles: true,
+            cancelable: true,
+          })
+        )
+      );
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count,
+        pasted + 2
+      );
+      await settle();
+      assert.equal(
+        (await current()).nodes.at(-1).assetPath,
+        uploaded.assetPath,
+        '复制复用已上传素材，不再次上传'
+      );
+      await page.keyboard.press('ControlOrMeta+z');
+      await settle();
       await card(slotId).click({ position: { x: 60, y: 80 } });
       await page.keyboard.press('ControlOrMeta+c');
       await paste([], true);
