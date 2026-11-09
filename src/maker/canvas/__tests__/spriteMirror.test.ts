@@ -641,6 +641,7 @@ test('combines atlas pages in animation order and reports missing pages', () => 
   second.meta.image = 'spritesheet-1.png';
   second.frames = { walk_0003: second.frames.walk_0001 } as typeof second.frames;
   second.animations[0].frames = ['walk_0003'];
+  first.animations[0].frames = ['walk_0001', 'walk_0002'];
   const parsed = canvasSpriteFrameSet(first, { 'spritesheet-1.json': second })!;
   expect(parsed.info.frameCount).toBe(3);
   expect(parsed.info.frames.map((frame) => frame.atlasPath)).toEqual([

@@ -212,6 +212,7 @@ export function canvasSpriteFrameSet(
         .filter((key) => Object.prototype.hasOwnProperty.call(sheet.frames, key))
         .map((key, index) => [key, { ...frames[index], atlasPath: image }])
     );
+    const pageOrder: string[] = [];
     for (const name of names) {
       if (typeof name !== 'string' || !/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,80}\.json$/.test(name)) {
         missingPages.push(String(name));
@@ -230,12 +231,16 @@ export function canvasSpriteFrameSet(
               Object.prototype.hasOwnProperty.call(page.frames, key)
             )
           : Object.keys(page.frames);
+      pageOrder.push(...pageKeys);
       pageKeys.forEach((key, index) => {
         if (parsed.info.frames[index])
           all.set(key, { ...parsed.info.frames[index], atlasPath: parsed.image });
       });
     }
-    const order = animation && Array.isArray(animation.frames) ? keys : [...all.keys()].sort();
+    const order =
+      animation && Array.isArray(animation.frames)
+        ? [...keys, ...pageOrder.filter((key) => !keys.includes(key))]
+        : [...all.keys()].sort();
     for (const key of order) if (!all.has(key)) missingPages.push('frame:' + key);
     if (order.length > 600) missingPages.push('frame-limit');
     frames.splice(

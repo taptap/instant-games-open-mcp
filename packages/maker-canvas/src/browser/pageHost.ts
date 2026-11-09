@@ -19,6 +19,7 @@ export interface CanvasEditorDraft {
 }
 
 export interface CanvasEditorHandle {
+  open(id: string): Promise<void>;
   current(): CanvasDocument | null;
   draft(): CanvasEditorDraft | null;
   save(): Promise<boolean>;
@@ -69,6 +70,7 @@ export interface CanvasSpriteGenStart {
 
 /** Host bindings for the existing page. Factories supply host callbacks to the shared controllers. */
 export interface CanvasPageHost {
+  readOnly?: boolean;
   store: CanvasDocumentStore;
   /** Hides page entry points; absent keeps every existing entry. Commands are not filtered. */
   features?: CanvasPageFeatures;

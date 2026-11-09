@@ -413,6 +413,7 @@ function testHostScript() {
       store,
       features: config.features,
       appearance: config.appearance,
+      readOnly: config.readOnly === true,
       dragImagesToChat: config.dragToChat
         ? (items, point, phase) => {
             if (phase === 'cancel' || point.x >= 100) return false;
@@ -2465,6 +2466,29 @@ try {
     assert.equal(await page.evaluate(() => window.__canvasChat.length), 2);
     assert.equal(await page.evaluate(() => window.__canvasChat[1][0].assetPath), videoPath);
     assert.equal((await current()).nodes.find((item) => item.id === video.id).x, video.x);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 只读宿主：平移不产生草稿且可切换画布', async () => {
+    const ids = ['44444444-4444-4444-8444-444444444444', '55555555-5555-4555-8555-555555555555'];
+    const { page, errors, current, settle } = await webPage({
+      readOnly: true,
+      seedDocuments: ids.map((id) => ({
+        id,
+        title: id,
+        revision: 1,
+        viewport: { x: 0, y: 0, scale: 1 },
+        nodes: [],
+        edges: [],
+      })),
+    });
+    await page.evaluate(() => window.__canvasEditor.setView({ x: 40, y: 70, scale: 1.2 }));
+    assert.equal(await page.evaluate(() => window.__canvasEditor.draft()), null);
+    const first = (await current()).id;
+    const next = ids.find((id) => id !== first);
+    await page.evaluate((id) => window.__canvasEditor.open(id), next);
+    await settle();
+    assert.equal((await current()).id, next);
     assert.deepEqual(errors, []);
     await page.close();
   });
