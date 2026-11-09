@@ -139,6 +139,9 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     expect(entry).toContain('(recipe.md)');
     expect(entry).toContain('(game-integration.md)');
     expect(entry).not.toMatch(/(?:assets|references|scripts)\//);
+    expect(fs.readFileSync(path.join(skill, 'scene_assets.py'), 'utf8')).toContain(
+      "Path(__file__).parent/'game-integration.md'"
+    );
     expect(fs.readFileSync(path.join(skill, 'game-integration.md'), 'utf8')).not.toContain(
       'assets/SceneFurniturePlayer.lua'
     );

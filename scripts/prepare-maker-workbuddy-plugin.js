@@ -312,11 +312,15 @@ async function main() {
     }
     rmSync(join(furnitureSkill, directory), { recursive: true });
   }
-  for (const name of ['SKILL.md', 'game-integration.md']) {
+  for (const name of ['SKILL.md', 'game-integration.md', 'scene_assets.py']) {
     const file = join(furnitureSkill, name);
     writeFileSync(
       file,
       readFileSync(file, 'utf8')
+        .replaceAll(
+          "Path(__file__).parent.parent/'references/game-integration.md'",
+          "Path(__file__).parent/'game-integration.md'"
+        )
         .replaceAll('assets/royal-room-recipe.json', 'royal-room-recipe.json')
         .replaceAll('assets/SceneFurniturePlayer.lua', 'SceneFurniturePlayer.lua')
         .replaceAll('references/recipe.md', 'recipe.md')

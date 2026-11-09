@@ -3,6 +3,7 @@ import io
 import json
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from PIL import Image, ImageDraw
 from scene_assets import bake, export, load_recipe, sway_pose
@@ -37,6 +38,13 @@ class SceneAssetsTest(unittest.TestCase):
         self.assertEqual(b['speed'], 2)
         self.assertEqual(scene['playback']['autoplay'], False)
         self.assertFalse((self.root/'output/.incomplete').exists())
+        self.assertTrue((self.root/'output/README.md').is_file())
+        self.assertTrue((self.root/'preview/manifest.json').is_file())
+        self.assertFalse((self.root/'preview/.incomplete').exists())
+        with zipfile.ZipFile(self.root/'output.zip') as bundle:
+            self.assertIsNone(bundle.testzip())
+            self.assertIn('README.md', bundle.namelist())
+            self.assertIn('scene.json', bundle.namelist())
         with self.assertRaises(FileExistsError):
             export(self.root, self.path, self.root/'output')
 
