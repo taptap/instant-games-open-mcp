@@ -638,7 +638,7 @@ function applyWebInteractionPatches(source: string): string {
   patch(
     "if (canvasFeatureEnabled(host, 'imageEditing')) actionButton('去纯色背景', function () { void openLocalImage(node, 'cutout'); });",
     // Web 抠图 is one click with the editor defaults; the default page keeps the full editor.
-    "if (host.addToChat) { const chat = actionButton('加入对话', function () { void addSelectionToChat([node]); }); if (canvasWeb) canvasWebIconAction(chat, 'chat'); }\n        if (canvasFeatureEnabled(host, 'cutout')) { const cutout = actionButton(canvasWeb ? '抠图' : '去纯色背景', function () { if (canvasWeb) void quickCutout(node); else void openLocalImage(node, 'cutout'); }); if (canvasWeb) { canvasWebIconAction(cutout, 'cutout'); const adjust = actionButton('调整抠图', function () { void adjustCutout(node); }); adjust.classList.add('web-cutout-adjust'); canvasWebIconAction(adjust, 'chevron'); } }"
+    "if (host.addToChat) { const chat = actionButton('加入对话', function () { void addSelectionToChat([node]); }); if (canvasWeb) { canvasWebIconAction(chat, 'chat'); chat.draggable = true; chat.dataset.canvasChatDrag = node.id; chat.title = '加入对话，或拖入对话框引用'; chat.addEventListener('pointerdown', function (event) { event.stopPropagation(); }); } }\n        if (canvasFeatureEnabled(host, 'cutout')) { const cutout = actionButton(canvasWeb ? '抠图' : '去纯色背景', function () { if (canvasWeb) void quickCutout(node); else void openLocalImage(node, 'cutout'); }); if (canvasWeb) { canvasWebIconAction(cutout, 'cutout'); const adjust = actionButton('调整抠图', function () { void adjustCutout(node); }); adjust.classList.add('web-cutout-adjust'); canvasWebIconAction(adjust, 'chevron'); } }"
   );
   patch(
     'if (chosen.length !== 1 || !generationUi || ',
@@ -1759,11 +1759,11 @@ function applyWebEditPatches(source: string): string {
   );
   patch(
     '<button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button>',
-    '<button type="button" data-canvas-action="web-rename-group" data-menu-scope="web" hidden>重命名分组</button><button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button>'
+    '<button type="button" data-canvas-action="web-rename-group" data-menu-scope="web" hidden>重命名</button><button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button>'
   );
   patch(
     "'web-ungroup': Boolean(one && one.type === 'section'),",
-    "'web-rename-group': Boolean(one && one.type === 'section'), 'web-ungroup': Boolean(one && one.type === 'section'),"
+    "'web-rename-group': Boolean(one && ['section', 'note'].indexOf(one.type) >= 0), 'web-ungroup': Boolean(one && one.type === 'section'),"
   );
   patch(
     "    if (value === 'web-tidy-sprite') {",

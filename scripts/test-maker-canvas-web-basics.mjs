@@ -2445,6 +2445,15 @@ try {
     await settle();
     assert.equal((await current()).nodes.find((node) => node.id === note.id).title, '美术方向');
     assert.deepEqual(errors, []);
+    await card(note.id).locator('.canvas-card-menu').click();
+    await page
+      .locator('#canvas-context-menu')
+      .getByRole('button', { name: '重命名', exact: true })
+      .click();
+    await name.fill('菜单改名');
+    await name.press('Enter');
+    await settle();
+    assert.equal((await current()).nodes.find((node) => node.id === note.id).title, '菜单改名');
     await page.close();
   });
   await check('Web 复制：派生结果卡复制后不进入待处理（⌘/Ctrl+D、⌘/Ctrl+C/V）', async () => {

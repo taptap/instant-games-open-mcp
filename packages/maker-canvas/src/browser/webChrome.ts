@@ -884,6 +884,22 @@ export function createCanvasWebChrome(options: {
     const element = document.querySelector(selector);
     if (element) element.innerHTML = lucide(paths, 20);
   }
+  const addMenu = document.querySelector('.workspace-add .workspace-menu-panel');
+  if (addMenu) {
+    for (const [id, label] of [
+      ['add-generation', '新建图片卡片'],
+      ['add-video', '新建视频卡片'],
+      ['add-image', '导入图片'],
+      ['add-video-source', '导入视频'],
+      ['create-section', '分组'],
+    ]) {
+      const button = document.getElementById(id);
+      if (button) {
+        button.textContent = label;
+        addMenu.append(button);
+      }
+    }
+  }
   const note = document.getElementById('add-note');
   const arrow = document.getElementById('mark-arrow');
   if (note && arrow) {
