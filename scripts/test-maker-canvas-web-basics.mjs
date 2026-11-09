@@ -4718,6 +4718,24 @@ try {
     const slotId = (await current()).nodes.find((node) => node.type === 'video').id;
     const overlay = card(slotId).locator('.card-state-loading');
     await overlay.waitFor();
+    assert.equal(
+      await card(slotId).locator('.canvas-flow-orbit').count(),
+      1,
+      '动态描边必须挂在内容区内'
+    );
+    const frameBounds = await card(slotId).evaluate((item) => {
+      const content = item.querySelector('.card-state-loading').getBoundingClientRect();
+      const orbit = item.querySelector('.canvas-flow-orbit').getBoundingClientRect();
+      return {
+        contentTop: content.top,
+        orbitTop: orbit.top,
+        scale: window.__canvasEditor.current().viewport.scale,
+      };
+    });
+    assert.ok(
+      Math.abs(frameBounds.contentTop - frameBounds.orbitTop) < 3 * frameBounds.scale,
+      JSON.stringify(frameBounds)
+    );
     assert.ok(await card(slotId).evaluate((item) => item.classList.contains('web-media')));
     assert.equal(await overlay.locator('.web-state-tip b').textContent(), '处理中');
     assert.equal(
