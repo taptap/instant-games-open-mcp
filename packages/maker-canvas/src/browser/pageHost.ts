@@ -19,6 +19,8 @@ export interface CanvasEditorDraft {
 }
 
 export interface CanvasEditorHandle {
+  open(id: string): Promise<void>;
+  setView(view: { x: number; y: number; scale: number }): void;
   current(): CanvasDocument | null;
   draft(): CanvasEditorDraft | null;
   save(): Promise<boolean>;
@@ -69,6 +71,7 @@ export interface CanvasSpriteGenStart {
 
 /** Host bindings for the existing page. Factories supply host callbacks to the shared controllers. */
 export interface CanvasPageHost {
+  readOnly?: boolean;
   store: CanvasDocumentStore;
   /** Hides page entry points; absent keeps every existing entry. Commands are not filtered. */
   features?: CanvasPageFeatures;
@@ -76,6 +79,11 @@ export interface CanvasPageHost {
   appearance?: 'default' | 'web';
   /** Optional: shows 「加入对话」 for selected image cards; absent hides the button. */
   addToChat?(items: { nodeId: string; assetPath: string }[]): Promise<void> | void;
+  dragImagesToChat?(
+    items: { nodeId: string; assetPath: string }[],
+    point: { x: number; y: number },
+    phase: 'move' | 'drop' | 'cancel'
+  ): boolean;
   /**
    * Optional: shows 「从素材库添加」 in the blank-canvas menu; paths go through prepareCanvasImportedNode.
    * `kind` absent means image, except paths under assets/video/.

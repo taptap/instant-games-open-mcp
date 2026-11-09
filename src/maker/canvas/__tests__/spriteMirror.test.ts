@@ -634,3 +634,25 @@ test('mirror lookup keys cannot mutate object prototypes', () => {
   expect(doc.nodes.filter((node) => node.mirror)).toHaveLength(3);
   expect(Object.getOwnPropertyNames(Object.prototype)).toEqual(before);
 });
+
+test('combines atlas pages in animation order and reports missing pages', () => {
+  const first = trimmedSheet(1);
+  const second = trimmedSheet();
+  second.meta.image = 'spritesheet-1.png';
+  second.frames = { walk_0003: second.frames.walk_0001 } as typeof second.frames;
+  second.animations[0].frames = ['walk_0003'];
+  first.animations[0].frames = ['walk_0001', 'walk_0002'];
+  const parsed = canvasSpriteFrameSet(first, { 'spritesheet-1.json': second })!;
+  expect(parsed.info.frameCount).toBe(3);
+  expect(parsed.info.frames.map((frame) => frame.atlasPath)).toEqual([
+    'spritesheet.png',
+    'spritesheet.png',
+    'spritesheet-1.png',
+  ]);
+  expect(parsed.info.frames[2].time).toBe(0.25);
+  expect(parsed.info.missingPages).toEqual([]);
+  expect(
+    canvasSpriteFrameSet(first, { 'spritesheet-1.json': undefined })!.info.missingPages
+  ).toContain('spritesheet-1.json');
+  expect(() => sequenceExportManifest(parsed.info, 64, 32)).toThrow();
+});

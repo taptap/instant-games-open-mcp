@@ -1017,6 +1017,18 @@ function applyMediaReusePatches(source: string): string {
       '  function fitVideoCard(node) {',
     ].join('\n')
   );
+  patch(
+    "  board.addEventListener('pointermove', function (event) {",
+    "  function canvasDragToChat(event, phase) { if (!host.dragImagesToChat || !drag || drag.kind !== 'move') return false; const ids = drag.positions.map(function (item) { return item.id; }); const items = documentState.nodes.filter(function (node) { return ids.indexOf(node.id) >= 0 && (node.type === 'image' || node.type === 'video-source') && node.assetPath; }).map(function (node) { return { nodeId: node.id, assetPath: node.assetPath }; }); if (!items.length) return false; return host.dragImagesToChat(items, { x: event.clientX, y: event.clientY }, phase); }\n  board.addEventListener('pointermove', function (event) {\n    if (drag && drag.kind === 'move' && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3 && canvasDragToChat(event, 'move')) return;"
+  );
+  patch(
+    "  board.addEventListener('pointerup', function (event) {",
+    "  board.addEventListener('pointerup', function (event) {\n    if (drag && drag.kind === 'move' && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3 && canvasDragToChat(event, 'drop')) { for (const position of drag.positions) { const node = documentState.nodes.find(function (item) { return item.id === position.id; }); if (node) { node.x = position.x; node.y = position.y; } } if (drag.moved) past.pop(); drag = null; if (board.hasPointerCapture(event.pointerId)) board.releasePointerCapture(event.pointerId); markDirty(); render(); return; }"
+  );
+  patch(
+    "  board.addEventListener('pointerdown', function (event) {",
+    "  board.addEventListener('pointercancel', function (event) { canvasDragToChat(event, 'cancel'); });\n  board.addEventListener('pointerdown', function (event) {"
+  );
   return page;
 }
 /** Web-only card UX: draggable video cards, curved wires for every edge kind, side + chooser. */
@@ -1424,7 +1436,7 @@ function applyCardMenuPatches(source: string): string {
       "if (canvasWeb && meta && !event.altKey && !event.shiftKey && ['c', 'v', 'd'].indexOf(event.key.toLowerCase()) >= 0) {",
       '      const shortcut = event.key.toLowerCase();',
       "      const cards = documentState ? documentState.nodes.filter(function (node) { return selected.has(node.id) && node.type !== 'section'; }).map(function (node) { return node.id; }) : [];",
-      "      if (shortcut === 'c') { if (cards.length && !(window.getSelection && String(window.getSelection()))) { canvasClipboard = { canvasId: documentState.id, ids: cards }; canvasCopyMarker = true; setTimeout(function () { canvasCopyMarker = false; }, 0); } return; }",
+      "      if (shortcut === 'c') { if (cards.length && !(window.getSelection && String(window.getSelection()))) canvasClipboard = { canvasId: documentState.id, ids: cards }; return; }",
       "      if (shortcut === 'v') { clearTimeout(canvasCardPaste); canvasCardPaste = canvasClipboardCards().length ? setTimeout(function () { canvasCardPaste = 0; pasteCanvasCards(); }, 150) : 0; return; }",
       '      if (!cards.length) return;',
       '      event.preventDefault(); selected.clear(); cards.forEach(function (id) { selected.add(id); }); duplicateSelected(); return;',
@@ -1436,7 +1448,6 @@ function applyCardMenuPatches(source: string): string {
     '  async function copyMirrorsAsPlain(nodes) {',
     [
       '  var canvasClipboard = null;',
-      '  var canvasCopyMarker = false;',
       '  var canvasCardPaste = 0;',
       '  function canvasClipboardCards() {',
       '    if (!canvasClipboard || !documentState || canvasClipboard.canvasId !== documentState.id) return [];',
@@ -1567,7 +1578,7 @@ function applyMediaDropPatches(source: string): string {
       '      const kind = canvasDropKind(file);',
       '      let target = index === 0 && slot && current.nodes.indexOf(slot) >= 0 ? slot : null;',
       '      const created = !target;',
-      "      if (!target) { add('image', at, false); target = current.nodes[current.nodes.length - 1]; at = { x: target.x + target.width + 32, y: target.y }; }",
+      "      if (!target) { target = { id: crypto.randomUUID(), type: 'image', x: at.x, y: at.y, width: 220, height: 150, title: '图片' }; current.nodes.push(target); selected.clear(); selected.add(target.id); at = { x: target.x + target.width + 32, y: target.y }; }",
       '      canvasUploadingCards.add(target.id);',
       "      return { file: file, kind: kind, id: target.id, created: created, route: { canvasId: current.id, nodeId: target.id, convert: target.type !== (kind === 'video' ? 'video' : 'image'), skipRemember: true } };",
       '    });',
@@ -1660,8 +1671,14 @@ function applyMediaDropPatches(source: string): string {
       '    if (files && files.length) void importCanvasFiles(files, canvasDropPoint(point, 220, 150), slot);',
       '  });',
       "  document.addEventListener('copy', function (event) {",
-      '    if (!canvasCopyMarker || !event.clipboardData) return;',
-      '    canvasCopyMarker = false;',
+      '    if (!canvasWeb || !documentState || !event.clipboardData) return;',
+      '    const target = event.target;',
+      "    if (target && (target.isContentEditable || (target.closest && target.closest('textarea, input, select, [role=textbox]')))) return;",
+      "    if (document.querySelector('dialog[open]') || (window.getSelection && String(window.getSelection()))) return;",
+      "    const cards = documentState.nodes.filter(function (node) { return selected.has(node.id) && node.type !== 'section'; }).map(function (node) { return node.id; });",
+      '    if (!cards.length) return;',
+      '    canvasClipboard = { canvasId: documentState.id, ids: cards };',
+      '    event.clipboardData.clearData();',
       "    event.clipboardData.setData('application/x-maker-canvas-cards', '1');",
       '    event.preventDefault();',
       '  });',
@@ -1707,6 +1724,8 @@ function applyMediaDropPatches(source: string): string {
       '    if (tabsRow) tabsRow.prepend(assetPanelButton); else document.body.prepend(assetPanelButton);',
       '  }',
       '  const editorHandle = {',
+      '    open: function (id) { return workspace.activate(id); },',
+      '    setView: function (view) { if (!documentState || !view || ![view.x, view.y, view.scale].every(Number.isFinite)) return; documentState.viewport = { x: view.x, y: view.y, scale: Math.max(.05, Math.min(4, view.scale)) }; if (host.readOnly) { const saved = JSON.parse(savedKey); saved.viewport = { x: documentState.viewport.x, y: documentState.viewport.y, scale: documentState.viewport.scale }; savedKey = JSON.stringify(saved); } render(); },',
       "    setAssetPanelOpen: function (open) { if (assetPanelButton) assetPanelButton.setAttribute('aria-pressed', String(Boolean(open))); },\n",
     ].join('\n')
   );
@@ -1750,15 +1769,15 @@ function applyWebEditPatches(source: string): string {
   patch(
     '      world.append(card);',
     // After append: focus() needs the input in the document.
-    "      world.append(card);\n      if (canvasWeb && node.type === 'section' && sectionRename && sectionRename.id === node.id) mountSectionRename(card);\n      if (canvasWeb && canvasCrop && canvasCrop.id === node.id) mountCanvasCrop(card, node);"
+    "      world.append(card);\n      if (canvasWeb && ['section', 'note'].indexOf(node.type) >= 0 && sectionRename && sectionRename.id === node.id) mountSectionRename(card);\n      if (canvasWeb && canvasCrop && canvasCrop.id === node.id) mountCanvasCrop(card, node);"
   );
   patch(
     '<button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button>',
-    '<button type="button" data-canvas-action="web-rename-group" data-menu-scope="web" hidden>重命名分组</button><button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button>'
+    '<button type="button" data-canvas-action="web-rename-group" data-menu-scope="web" hidden>重命名</button><button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button>'
   );
   patch(
     "'web-ungroup': Boolean(one && one.type === 'section'),",
-    "'web-rename-group': Boolean(one && one.type === 'section'), 'web-ungroup': Boolean(one && one.type === 'section'),"
+    "'web-rename-group': Boolean(one && ['section', 'note'].indexOf(one.type) >= 0), 'web-ungroup': Boolean(one && one.type === 'section'),"
   );
   patch(
     "    if (value === 'web-tidy-sprite') {",
@@ -1790,15 +1809,15 @@ function applyWebEditPatches(source: string): string {
       '  var canvasCutoutBusy = new Set();',
       '  var sectionRename = null;',
       '  function startSectionRename(id) {',
-      "    const node = documentState && documentState.nodes.find(function (item) { return item.id === id && item.type === 'section'; });",
+      "    const node = documentState && documentState.nodes.find(function (item) { return item.id === id && ['section', 'note'].indexOf(item.type) >= 0; });",
       '    if (!node || peerReason || (templateWorkflow && templateWorkflow.locked(node.id))) return;',
-      "    sectionRename = { id: node.id, value: node.title || '', input: null, focused: false };",
+      "    sectionRename = { id: node.id, value: node.title || '', kind: node.type, input: null, focused: false };",
       '    render();',
       '  }',
       '  function finishSectionRename(commit) {',
       '    const edit = sectionRename; sectionRename = null;',
       '    if (!edit) return;',
-      "    const node = documentState && documentState.nodes.find(function (item) { return item.id === edit.id && item.type === 'section'; });",
+      "    const node = documentState && documentState.nodes.find(function (item) { return item.id === edit.id && ['section', 'note'].indexOf(item.type) >= 0; });",
       '    const value = edit.value.trim().slice(0, 80);',
       '    if (commit && node && value && value !== node.title) { remember(); node.title = value; markDirty(); }',
       '    render();',
@@ -1811,7 +1830,7 @@ function applyWebEditPatches(source: string): string {
       '    if (!input) {',
       "      input = document.createElement('input');",
       "      input.className = 'web-section-rename'; input.value = edit.value; input.maxLength = 80;",
-      "      input.setAttribute('aria-label', '分组名称');",
+      "      input.setAttribute('aria-label', edit.kind === 'note' ? '便签名称' : '分组名称');",
       "      ['pointerdown', 'click', 'dblclick', 'wheel', 'contextmenu'].forEach(function (name) { input.addEventListener(name, function (event) { event.stopPropagation(); }); });",
       "      input.addEventListener('input', function () { if (sectionRename === edit) edit.value = input.value; });",
       "      input.addEventListener('keydown', function (event) {",
@@ -1832,7 +1851,7 @@ function applyWebEditPatches(source: string): string {
       '  var sectionTitlePress = null;',
       "  world.addEventListener('pointerdown', function (event) {",
       '    if (!canvasWeb || !documentState || event.button !== 0 || !event.target || !event.target.closest) return;',
-      "    const title = event.target.closest('.card.section .canvas-card-title');",
+      "    const title = event.target.closest('.card.section .canvas-card-title, .card.note .canvas-card-title');",
       "    const card = title && title.closest('.card[data-id]');",
       '    if (!card) { sectionTitlePress = null; return; }',
       '    const now = Date.now();',
@@ -2057,7 +2076,7 @@ function applySpriteGenPatches(source: string): string {
       "    const progress = await readSpriteJson('.build/sprite-gen/' + name + '/_progress.json');",
       "    const sprite = await readSpriteJson(output + 'sprite.json');",
       '    const sheets = Object.create(null); let sheetsMissing = false;',
-      "    for (const id of canvasSpriteSheetIds(progress.value, sprite.value)) { const sheet = await readSpriteJson(output + id + '/spritesheet.json'); if (sheet.value !== undefined) sheets[id] = sheet.value; else sheetsMissing = true; }",
+      "    for (const id of canvasSpriteSheetIds(progress.value, sprite.value)) { const sheet = await readSpriteJson(output + id + '/spritesheet.json'); if (sheet.value !== undefined) { sheets[id] = sheet.value; const pages = sheet.value && sheet.value.meta && sheet.value.meta.relatedMultiPacks; if (Array.isArray(pages)) for (const page of pages.slice(0, 31)) { if (typeof page !== 'string' || !/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,80}\\.json$/.test(page)) { sheetsMissing = true; continue; } const part = await readSpriteJson(output + id + '/' + page); sheets[id + '/' + page] = part.value; if (part.value === undefined) sheetsMissing = true; } } else sheetsMissing = true; }",
       "    const signature = JSON.stringify([progress.missing ? 404 : progress.error ? 'error' : progress.value, sprite.value === undefined ? null : sprite.value, sheets]);",
       '    const filesChanged = signature !== spriteFiles.get(sectionId);',
       "    if (!force && signature + '\\n' + spriteDocKey(doc, sectionId) === spriteSeen.get(sectionId)) return;",
@@ -2065,9 +2084,12 @@ function applySpriteGenPatches(source: string): string {
       '    const missing = [];',
       // Cards only appear once the host can serve their file; known files re-read after a change.
       '    for (const card of reconcileSpriteMirror(input).cards) {',
-      '      if (!store.prepareMedia || (media[card.assetPath] && !filesChanged && !force)) continue;',
-      '      try { await store.prepareMedia(card.assetPath, Boolean(media[card.assetPath])); if (!store.mediaUrl(card.assetPath)) missing.push(card.assetPath); else missingMedia.delete(card.assetPath); }',
-      '      catch (caught) { missing.push(card.assetPath); }',
+      '      if (!store.prepareMedia) continue;',
+      '      for (const path of (card.frameSetInfo && card.frameSetInfo.atlasPaths || [card.assetPath])) {',
+      '        if (media[path] && !missingMedia.has(path) && !filesChanged && !force) continue;',
+      '        try { await store.prepareMedia(path, Boolean(media[path])); media[path] = store.mediaUrl(path); if (!media[path]) missing.push(path); else missingMedia.delete(path); }',
+      '        catch (caught) { missing.push(path); }',
+      '      }',
       '    }',
       '    missing.forEach(function (path) { missingMedia.add(path); });',
       // sprite-gen copies the chosen viewpoint onto ready.png; find it by bytes to draw 候选 → 主参考图.
@@ -3483,7 +3505,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  sequenceUi = createSequenceUiController({',
       '    store: store,',
       '    processor: sequenceProcessor,',
-      '    renderCard: renderSequenceResult,',
+      '    renderCard: function (card, node, source, run, url, onSetting, onAction) { renderSequenceResult(card, node, source, run, url, onSetting, onAction, store.mediaUrl); },',
       '    onOpen: function (id) { sequenceEditor.open(id); },',
       '    resolveTarget: function (id, type, targetId) { return templateWorkflow.resolveTarget(id, type, targetId); },',
       '    onSaved: function (id) { return templateWorkflow.nodeChanged(id); },',
@@ -3718,7 +3740,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      const workflowMember = templateWorkflow.isMember(node.id);',
       '      const restricted = workflowMember && (templateWorkflow.status(node.id) === "pending" || remoteState && ["failed", "unknown", "canceled", "timedout"].includes(remoteState.status));',
       '      const adjusting = selectionAction === "workflow" && templateWorkflow.canAdjust(node.id);',
-      '      if (nodeBusy || node.type === "image" && remoteState && ["running", "pending", "unknown", "canceled"].includes(remoteState.status) || templateWorkflow.locked(node.id) && !adjusting) { selectionMenu.hidden = true; selectionToolbar.hidden = true; return; }',
+      '      if (nodeBusy || (canvasUploadingCards && canvasUploadingCards.has(node.id)) || node.type === "image" && remoteState && ["running", "pending", "unknown", "canceled"].includes(remoteState.status) || templateWorkflow.locked(node.id) && !adjusting) { selectionMenu.hidden = true; selectionToolbar.hidden = true; return; }',
       "      const emptyImage = node.type === 'image' && !node.assetPath;",
       '      selectionMenu.hidden = emptyImage || restricted;',
       '      const panelOpen = restricted ? adjusting : emptyImage || Boolean(selectionAction);',
@@ -4170,7 +4192,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '    if (chosen) void importImageFile(chosen, request);',
-    '    if (chosen && request && request.create && documentState && documentState.id === request.canvasId) { createBlankImageSlot(); request.nodeId = Array.from(selected)[0]; }\n    if (chosen) void importImageFile(chosen, request);'
+    '    if (canvasWeb && chosen && request && request.create && documentState && documentState.id === request.canvasId) { void importCanvasFiles([chosen], request.point || nextPlacement("image"), null); return; }\n    if (chosen && request && request.create && documentState && documentState.id === request.canvasId) { createBlankImageSlot(); request.nodeId = Array.from(selected)[0]; }\n    if (chosen) void importImageFile(chosen, request);'
   );
   page = replaceCanvasPageText(
     page,

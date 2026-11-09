@@ -21,6 +21,7 @@ async function check(name, run) {
 function testHostScript() {
   function createCanvasHost() {
     const config = window.__canvasTestConfig || {};
+    if (config.saveFail) window.__canvasSaveFail = true;
     const docs = new Map();
     const media = new Map();
     const attempts = new Map();
@@ -413,6 +414,19 @@ function testHostScript() {
       store,
       features: config.features,
       appearance: config.appearance,
+      readOnly: config.readOnly === true,
+      recoverDraft: config.recoveredDraft
+        ? async (loaded) =>
+            config.recoveredDraft.document.id === loaded.id ? config.recoveredDraft : null
+        : undefined,
+      dragImagesToChat: config.dragToChat
+        ? (items, point, phase) => {
+            if (phase === 'cancel' || point.x >= 100) return false;
+            if (phase === 'drop')
+              (window.__canvasChat = window.__canvasChat || []).push(copy(items));
+            return true;
+          }
+        : undefined,
       addToChat: config.addToChat
         ? (items) => {
             (window.__canvasChat = window.__canvasChat || []).push(copy(items));
@@ -1948,7 +1962,26 @@ try {
       await page.mouse.click(300, 700, { button: 'right' });
       chooser = page.waitForEvent('filechooser');
       await page.locator('#canvas-context-menu').getByRole('button', { name: '上传图片' }).click();
+      await page.evaluate(() => {
+        window.__canvasImportGate = new Promise((resolve) => {
+          window.__canvasImportRelease = resolve;
+        });
+      });
       await (await chooser).setFiles({ name: 'menu.png', ...png });
+      await page.locator('.card-state-loading').waitFor();
+      assert.equal(
+        await page.locator('#selection-toolbar').isVisible(),
+        false,
+        '上传占位卡不显示提示词输入框'
+      );
+      assert.equal(
+        await page.locator('.card-state-loading .web-state-tip b').textContent(),
+        '上传中'
+      );
+      await page.evaluate(() => {
+        window.__canvasImportRelease();
+        window.__canvasImportGate = undefined;
+      });
       await page.waitForFunction(() =>
         window.__canvasEditor
           .current()
@@ -2396,6 +2429,167 @@ try {
     assert.ok(box.panel - box.send[2] < 16, '靠右');
     await page.close();
   });
+  await check('Web 图片拖入对话引用，原卡位置不变；画布内仍可移动', async () => {
+    const { page, errors, current, card, importImage, settle } = await webPage({
+      dragToChat: true,
+      features: { ...webFeatures, video: true },
+      videoStore: true,
+    });
+    const node = await importImage('引用测试', '#c33', 100, 100);
+    const before = (await current()).nodes.find((item) => item.id === node.id);
+    const box = await card(node.id).boundingBox();
+    await page.mouse.move(box.x + 60, box.y + 70);
+    await page.mouse.down();
+    await page.mouse.move(50, 400, { steps: 10 });
+    await page.mouse.up();
+    await settle();
+    assert.equal(await page.evaluate(() => window.__canvasChat.length), 1);
+    const after = (await current()).nodes.find((item) => item.id === node.id);
+    assert.equal(after.x, before.x);
+    assert.equal(after.y, before.y);
+    const next = await card(node.id).boundingBox();
+    await page.mouse.move(next.x + 60, next.y + 70);
+    await page.mouse.down();
+    await page.mouse.move(next.x + 160, next.y + 170, { steps: 5 });
+    await page.mouse.up();
+    await settle();
+    assert.notEqual((await current()).nodes.find((item) => item.id === node.id).x, before.x);
+    const videoPath = await page.evaluate(() => window.__canvasAddVideo());
+    await page.evaluate(
+      (assetPath) =>
+        window.__canvasEditor.importProjectAsset({ assetPath, kind: 'video', title: '视频引用' }),
+      videoPath
+    );
+    await settle();
+    const video = (await current()).nodes.find((item) => item.assetPath === videoPath);
+    const videoBox = await card(video.id).boundingBox();
+    await page.mouse.move(videoBox.x + 50, videoBox.y + 50);
+    await page.mouse.down();
+    await page.mouse.move(50, 400, { steps: 10 });
+    await page.mouse.up();
+    await settle();
+    assert.equal(await page.evaluate(() => window.__canvasChat.length), 2);
+    assert.equal(await page.evaluate(() => window.__canvasChat[1][0].assetPath), videoPath);
+    assert.equal((await current()).nodes.find((item) => item.id === video.id).x, video.x);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 只读宿主：平移不产生草稿且可切换画布', async () => {
+    const ids = ['44444444-4444-4444-8444-444444444444', '55555555-5555-4555-8555-555555555555'];
+    const { page, errors, current, settle } = await webPage({
+      readOnly: true,
+      seedDocuments: ids.map((id) => ({
+        id,
+        title: id,
+        revision: 1,
+        viewport: { x: 0, y: 0, scale: 1 },
+        nodes: [],
+        edges: [],
+      })),
+    });
+    await page.evaluate(() => window.__canvasEditor.setView({ x: 40, y: 70, scale: 1.2 }));
+    assert.equal(await page.evaluate(() => window.__canvasEditor.draft()), null);
+    const first = (await current()).id;
+    const next = ids.find((id) => id !== first);
+    await page.evaluate((id) => window.__canvasEditor.open(id), next);
+    await settle();
+    assert.equal((await current()).id, next);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 只读宿主：保存失败时拒绝离开，平移不清除已恢复草稿', async () => {
+    const ids = ['66666666-6666-4666-8666-666666666666', '77777777-7777-4777-8777-777777777777'];
+    const saved = {
+      id: ids[0],
+      title: '草稿画布',
+      revision: 1,
+      viewport: { x: 0, y: 0, scale: 1 },
+      nodes: [
+        {
+          id: 'note-1',
+          type: 'note',
+          x: 40,
+          y: 40,
+          width: 180,
+          height: 120,
+          title: '便签',
+          text: '已保存',
+        },
+      ],
+      edges: [],
+    };
+    const layout = (document) => {
+      const copy = JSON.parse(JSON.stringify(document));
+      delete copy.revision;
+      for (const node of copy.nodes || []) delete node.imageInfo;
+      return JSON.stringify(copy);
+    };
+    const draftDocument = JSON.parse(JSON.stringify(saved));
+    draftDocument.nodes[0].text = '未保存';
+    const { page, errors, current } = await webPage({
+      readOnly: true,
+      saveFail: true,
+      seedDocuments: [saved, { ...saved, id: ids[1], title: '另一张', nodes: [] }],
+      recoveredDraft: { document: draftDocument, savedLayout: layout(saved) },
+    });
+    assert.equal((await current()).nodes[0].text, '未保存');
+    await page.evaluate(() => window.__canvasEditor.setView({ x: 40, y: 70, scale: 1.2 }));
+    const draft = await page.evaluate(() => window.__canvasEditor.draft());
+    assert.equal(draft.document.nodes[0].text, '未保存');
+    assert.equal(draft.document.viewport.x, 40);
+    assert.equal(JSON.parse(draft.savedLayout).nodes[0].text, '已保存');
+    assert.equal(JSON.parse(draft.savedLayout).viewport.x, 40);
+    await page.evaluate((id) => window.__canvasEditor.open(id), ids[1]);
+    assert.equal((await current()).id, ids[0]);
+    assert.equal((await current()).nodes[0].text, '未保存');
+    assert.equal(
+      (await page.evaluate(() => window.__canvasEditor.draft())).document.nodes[0].text,
+      '未保存'
+    );
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 便签：工具栏新增、编辑保存与撤销', async () => {
+    const { page, errors, settle, current, card } = await webPage();
+    await page.getByRole('button', { name: '添加便签', exact: true }).click();
+    const note = (await current()).nodes.find((node) => node.type === 'note');
+    assert.ok(note);
+    const input = card(note.id).getByRole('textbox', { name: '便签内容' });
+    await input.fill('角色配色：蓝白');
+    await input.blur();
+    await settle();
+    assert.equal(
+      (await current()).nodes.find((node) => node.id === note.id).text,
+      '角色配色：蓝白'
+    );
+    await page.mouse.click(1300, 860);
+    await page.keyboard.press('ControlOrMeta+z');
+    await settle();
+    assert.equal((await current()).nodes.find((node) => node.id === note.id).text, '便签');
+    assert.equal(await card(note.id).locator('.canvas-card-meta').count(), 0);
+    await card(note.id).locator('.canvas-card-title').dblclick();
+    const name = page.getByRole('textbox', { name: '便签名称', exact: true });
+    await name.fill('美术方向');
+    await name.press('Enter');
+    await settle();
+    assert.equal((await current()).nodes.find((node) => node.id === note.id).title, '美术方向');
+    await card(note.id).locator('.canvas-card-title').dblclick();
+    await name.fill('放弃修改');
+    await name.press('Escape');
+    await settle();
+    assert.equal((await current()).nodes.find((node) => node.id === note.id).title, '美术方向');
+    assert.deepEqual(errors, []);
+    await card(note.id).locator('.canvas-card-menu').click();
+    await page
+      .locator('#canvas-context-menu')
+      .getByRole('button', { name: '重命名', exact: true })
+      .click();
+    await name.fill('菜单改名');
+    await name.press('Enter');
+    await settle();
+    assert.equal((await current()).nodes.find((node) => node.id === note.id).title, '菜单改名');
+    await page.close();
+  });
   await check('Web 复制：派生结果卡复制后不进入待处理（⌘/Ctrl+D、⌘/Ctrl+C/V）', async () => {
     const kneel = 'assets/image/canvas/copy-kneel.png';
     const lying = 'assets/image/canvas/copy-lying.png';
@@ -2637,6 +2831,43 @@ try {
       );
       await settle();
       assert.equal((await current()).nodes.length, pasted + 1);
+      const uploaded = (await current()).nodes.at(-1);
+      await card(uploaded.id).click({ position: { x: 60, y: 80 } });
+      await page.keyboard.press('ControlOrMeta+c');
+      await page.waitForTimeout(50);
+      const copiedTypes = await page.evaluate(() => {
+        const data = new DataTransfer();
+        document.body.dispatchEvent(
+          new ClipboardEvent('copy', { clipboardData: data, bubbles: true, cancelable: true })
+        );
+        window.__copiedCanvasData = data;
+        return Array.from(data.types);
+      });
+      assert.ok(
+        copiedTypes.includes('application/x-maker-canvas-cards'),
+        '延迟 copy 事件仍应接管卡片剪贴板'
+      );
+      await page.evaluate(() =>
+        document.body.dispatchEvent(
+          new ClipboardEvent('paste', {
+            clipboardData: window.__copiedCanvasData,
+            bubbles: true,
+            cancelable: true,
+          })
+        )
+      );
+      await page.waitForFunction(
+        (count) => window.__canvasEditor.current().nodes.length === count,
+        pasted + 2
+      );
+      await settle();
+      assert.equal(
+        (await current()).nodes.at(-1).assetPath,
+        uploaded.assetPath,
+        '复制复用已上传素材，不再次上传'
+      );
+      await page.keyboard.press('ControlOrMeta+z');
+      await settle();
       await card(slotId).click({ position: { x: 60, y: 80 } });
       await page.keyboard.press('ControlOrMeta+c');
       await paste([], true);
@@ -4681,6 +4912,29 @@ try {
     const slotId = (await current()).nodes.find((node) => node.type === 'video').id;
     const overlay = card(slotId).locator('.card-state-loading');
     await overlay.waitFor();
+    assert.equal(
+      await card(slotId).evaluate((item) => getComputedStyle(item).boxShadow),
+      'none',
+      '生成中不显示整卡阴影'
+    );
+    assert.equal(
+      await card(slotId).locator('.canvas-flow-orbit').count(),
+      1,
+      '动态描边必须挂在内容区内'
+    );
+    const frameBounds = await card(slotId).evaluate((item) => {
+      const content = item.querySelector('.card-state-loading').getBoundingClientRect();
+      const orbit = item.querySelector('.canvas-flow-orbit').getBoundingClientRect();
+      return {
+        contentTop: content.top,
+        orbitTop: orbit.top,
+        scale: window.__canvasEditor.current().viewport.scale,
+      };
+    });
+    assert.ok(
+      Math.abs(frameBounds.contentTop - frameBounds.orbitTop) < 3 * frameBounds.scale,
+      JSON.stringify(frameBounds)
+    );
     assert.ok(await card(slotId).evaluate((item) => item.classList.contains('web-media')));
     assert.equal(await overlay.locator('.web-state-tip b').textContent(), '处理中');
     assert.equal(
@@ -4987,7 +5241,7 @@ try {
     const labels = await menu
       .locator('button:not([hidden])')
       .evaluateAll((items) => items.map((item) => item.textContent));
-    assert.deepEqual(labels, ['重命名分组', '取消分组', '删除分组']);
+    assert.deepEqual(labels, ['重命名', '取消分组', '删除分组']);
     await menu.getByRole('button', { name: '删除分组' }).click();
     doc = await current();
     assert.equal(doc.nodes.length, 0, '删除分组同时删除成员');
@@ -6665,10 +6919,24 @@ try {
         },
         'assets/sprites/hero/walk/spritesheet.json': {
           frames: { walk_0001: frame(0, 8, 120), walk_0002: frame(24, 6, 120) },
-          animations: [{ name: 'walk', frames: ['walk_0001', 'walk_0002'], repeat: -1, fps: 8 }],
-          meta: { image: 'spritesheet.png', size: { w: 64, h: 32 } },
+          animations: [
+            { name: 'walk', frames: ['walk_0001', 'walk_0002', 'walk_0003'], repeat: -1, fps: 8 },
+          ],
+          meta: {
+            image: 'spritesheet.png',
+            size: { w: 64, h: 32 },
+            relatedMultiPacks: ['spritesheet-1.json'],
+          },
+        },
+        'assets/sprites/hero/walk/spritesheet-1.json': {
+          frames: { walk_0003: frame(0, 8, 120) },
+          animations: [{ name: 'walk', frames: ['walk_0003'], fps: 8 }],
+          meta: { image: 'spritesheet-1.png', size: { w: 64, h: 32 } },
         },
       });
+      await page.evaluate(() =>
+        window.__canvasAddMedia('#00ff00', 64, 32, 'assets/sprites/hero/walk/spritesheet-1.png')
+      );
       const delayedSheet = await page.evaluate(() => {
         const path = 'assets/sprites/hero/walk/spritesheet.json';
         const sheet = window.__canvasProjectJson[path];
@@ -6717,12 +6985,34 @@ try {
       await page.locator('#fit-canvas').click();
       const sequence = card(byKey['sequence:walk'].id);
       await sequence.locator('.sequence-result-grid canvas').nth(1).waitFor();
-      assert.equal(await sequence.locator('.sequence-result-grid canvas').count(), 2);
+      assert.equal(await sequence.locator('.sequence-result-grid canvas').count(), 3);
       assert.equal(
         await sequence.locator('.sequence-edit-button, .sequence-animation-button').count(),
         0
       );
       const animation = card(byKey['animation:walk'].id);
+      await page.evaluate(async () => {
+        const path = 'assets/sprites/hero/walk/spritesheet-1.png';
+        await window.__canvasDropMedia(path);
+        await window.__canvasEditor.syncSprites();
+        window.dispatchEvent(new Event('online'));
+      });
+      await page.waitForTimeout(100);
+      await page.evaluate(async () => {
+        await window.__canvasAddMedia(
+          '#00ff00',
+          64,
+          32,
+          'assets/sprites/hero/walk/spritesheet-1.png'
+        );
+        window.dispatchEvent(new Event('online'));
+      });
+      await page.waitForFunction(
+        (id) =>
+          !document.querySelector('.card[data-id="' + id + '"] .animation-controls button')
+            ?.disabled,
+        byKey['animation:walk'].id
+      );
       const pixel = () =>
         animation.locator('canvas.animation-preview').evaluate((canvas) => ({
           index: canvas.dataset.frameIndex,
@@ -6745,6 +7035,13 @@ try {
       );
       const second = await pixel();
       assert.deepEqual(second.rgba.slice(0, 3), [0, 0, 255], '播放到第 2 帧');
+      await page.waitForFunction(
+        (id) =>
+          document.querySelector('.card[data-id="' + id + '"] canvas.animation-preview')?.dataset
+            .frameIndex === '2',
+        byKey['animation:walk'].id
+      );
+      assert.deepEqual((await pixel()).rgba.slice(0, 3), [0, 255, 0], '跨页播放使用第二张图集');
       // Offsets matter: frame 1 sits 8px into the 40px box (scaled ×6), so x=60 stays empty.
       const edge = await animation
         .locator('canvas.animation-preview')

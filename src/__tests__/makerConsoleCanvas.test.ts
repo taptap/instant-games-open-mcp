@@ -132,7 +132,9 @@ describe('Maker console canvas', () => {
       'createSequenceEditor({ maxFrames: MAX_SEQUENCE_FRAMES, controller: sequenceUi'
     );
     expect(script).toContain('let sequenceEditor');
-    expect(script).toContain('renderCard: renderSequenceResult');
+    expect(script).toContain(
+      'renderSequenceResult(card, node, source, run, url, onSetting, onAction, store.mediaUrl)'
+    );
     expect(script).not.toContain('function renderSequenceCard(');
     expect(script).toContain('sequenceUi.createFromVideo(node.id)');
     expect(script).toContain('maxSequenceFrameCount');
@@ -233,6 +235,7 @@ describe('Maker console canvas', () => {
         }),
       };
       new Script('(function () {' + handler![1] + '})();').runInNewContext({
+        canvasUploadingCards: new Set(),
         document,
         // Page-scope state the handler reads: default (local) host, no drag or cutout.
         host: {},
