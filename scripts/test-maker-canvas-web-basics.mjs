@@ -21,6 +21,7 @@ async function check(name, run) {
 function testHostScript() {
   function createCanvasHost() {
     const config = window.__canvasTestConfig || {};
+    if (config.saveFail) window.__canvasSaveFail = true;
     const docs = new Map();
     const media = new Map();
     const attempts = new Map();
@@ -414,6 +415,10 @@ function testHostScript() {
       features: config.features,
       appearance: config.appearance,
       readOnly: config.readOnly === true,
+      recoverDraft: config.recoveredDraft
+        ? async (loaded) =>
+            config.recoveredDraft.document.id === loaded.id ? config.recoveredDraft : null
+        : undefined,
       dragImagesToChat: config.dragToChat
         ? (items, point, phase) => {
             if (phase === 'cancel' || point.x >= 100) return false;
@@ -2489,6 +2494,58 @@ try {
     await page.evaluate((id) => window.__canvasEditor.open(id), next);
     await settle();
     assert.equal((await current()).id, next);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+  await check('Web 只读宿主：保存失败时拒绝离开，平移不清除已恢复草稿', async () => {
+    const ids = ['66666666-6666-4666-8666-666666666666', '77777777-7777-4777-8777-777777777777'];
+    const saved = {
+      id: ids[0],
+      title: '草稿画布',
+      revision: 1,
+      viewport: { x: 0, y: 0, scale: 1 },
+      nodes: [
+        {
+          id: 'note-1',
+          type: 'note',
+          x: 40,
+          y: 40,
+          width: 180,
+          height: 120,
+          title: '便签',
+          text: '已保存',
+        },
+      ],
+      edges: [],
+    };
+    const layout = (document) => {
+      const copy = JSON.parse(JSON.stringify(document));
+      delete copy.revision;
+      for (const node of copy.nodes || []) delete node.imageInfo;
+      return JSON.stringify(copy);
+    };
+    const draftDocument = JSON.parse(JSON.stringify(saved));
+    draftDocument.nodes[0].text = '未保存';
+    const { page, errors, current } = await webPage({
+      readOnly: true,
+      saveFail: true,
+      seedDocuments: [saved, { ...saved, id: ids[1], title: '另一张', nodes: [] }],
+      recoveredDraft: { document: draftDocument, savedLayout: layout(saved) },
+    });
+    assert.equal((await current()).nodes[0].text, '未保存');
+    await page.evaluate(() => window.__canvasEditor.setView({ x: 40, y: 70, scale: 1.2 }));
+    const draft = await page.evaluate(() => window.__canvasEditor.draft());
+    assert.equal(draft.document.nodes[0].text, '未保存');
+    assert.equal(draft.document.viewport.x, 40);
+    assert.equal(JSON.parse(draft.savedLayout).nodes[0].text, '已保存');
+    assert.equal(JSON.parse(draft.savedLayout).viewport.x, 40);
+    await page.evaluate((id) => window.__canvasEditor.open(id), ids[1]);
+    assert.equal((await current()).id, ids[0]);
+    assert.equal((await current()).nodes[0].text, '未保存');
+    assert.equal(
+      (await page.evaluate(() => window.__canvasEditor.draft())).document.nodes[0].text,
+      '未保存'
+    );
     assert.deepEqual(errors, []);
     await page.close();
   });
@@ -5184,7 +5241,7 @@ try {
     const labels = await menu
       .locator('button:not([hidden])')
       .evaluateAll((items) => items.map((item) => item.textContent));
-    assert.deepEqual(labels, ['重命名分组', '取消分组', '删除分组']);
+    assert.deepEqual(labels, ['重命名', '取消分组', '删除分组']);
     await menu.getByRole('button', { name: '删除分组' }).click();
     doc = await current();
     assert.equal(doc.nodes.length, 0, '删除分组同时删除成员');

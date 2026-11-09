@@ -1724,8 +1724,8 @@ function applyMediaDropPatches(source: string): string {
       '    if (tabsRow) tabsRow.prepend(assetPanelButton); else document.body.prepend(assetPanelButton);',
       '  }',
       '  const editorHandle = {',
-      '    open: function (id) { return openDocument(id); },',
-      '    setView: function (view) { if (!documentState || !view || ![view.x, view.y, view.scale].every(Number.isFinite)) return; documentState.viewport = { x: view.x, y: view.y, scale: Math.max(.05, Math.min(4, view.scale)) }; if (host.readOnly) savedKey = layout(documentState); render(); },',
+      '    open: function (id) { return workspace.activate(id); },',
+      '    setView: function (view) { if (!documentState || !view || ![view.x, view.y, view.scale].every(Number.isFinite)) return; documentState.viewport = { x: view.x, y: view.y, scale: Math.max(.05, Math.min(4, view.scale)) }; if (host.readOnly) { const saved = JSON.parse(savedKey); saved.viewport = { x: documentState.viewport.x, y: documentState.viewport.y, scale: documentState.viewport.scale }; savedKey = JSON.stringify(saved); } render(); },',
       "    setAssetPanelOpen: function (open) { if (assetPanelButton) assetPanelButton.setAttribute('aria-pressed', String(Boolean(open))); },\n",
     ].join('\n')
   );
