@@ -187,6 +187,34 @@ module.exports = (async function () {
   assert.deepEqual(app.contentTransform(), { x: 0, y: 0, scale: 1 });
   near(app.tree._layout.w, 1080); near(app.tree.children[0]._layout.x, 28.125);
   assert.equal(app.sourceTree.previewFit, undefined);
+  const fixedScaleTree = UrhoxHistory.cloneForSave(app.sourceTree);
+  app.screen = { width: 1170, height: 2532 };
+  for (const scale of [1, 2]) {
+    app.device = { dpr: 3, scale };
+    app.rebuildPreview();
+    assert.deepEqual(app.contentTransform(), { x: 0, y: 0, scale });
+    near(app.designSize().width, 1170 / scale);
+    near(app.designSize().height, 2532 / scale);
+    near(app.tree._layout.w, 1080);
+    assert.equal(UrhoxPreview.legacyDesignInfo(), null);
+  }
+  app.device = { dpr: 3 };
+  app.designResolution = { width: 720, height: 1280 };
+  app.rebuildPreview();
+  near(app.contentTransform().scale, 1170 / 720);
+  assert.equal(app.contentTransform().x, 0);
+  assert.equal(app.contentTransform().y, 0);
+  assert.equal(UrhoxPreview.legacyDesignInfo(), null);
+  assert.deepEqual(UrhoxHistory.cloneForSave(app.sourceTree), fixedScaleTree);
+  app.documentDesign = { width: 1080, height: 1920 };
+  app.sourceTree = { type: "Panel", width: "100%", height: "100%" };
+  app.rebuildPreview();
+  near(app.tree._layout.w, 720);
+  near(app.tree._layout.h, 2532 * 720 / 1170);
+  app.designResolution = null;
+  app.documentDesign = null;
+  app.device = { dpr: 1.5 };
+  app.screen = { width: 1080, height: 1920 };
   app.sourceTree.width = app.sourceTree.height = "100%";
   app.screen = { width: 1920, height: 1080 };
   app.device = { dpr: 1.5 };
@@ -230,6 +258,26 @@ module.exports = (async function () {
   assert.equal(legacy.height, "100%");
   near(adapted.factor, 720 / 1080);
   near(legacy.children[0].children[0].children[0].width, 720);
+  const flowingRoot = { type: "Panel", width: 1080, height: 1920,
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    alignContent: "center", flexWrap: "wrap", padding: 30, rowGap: 15, columnGap: 24,
+    children: [{ id: "first", width: 300, height: 150 }, { id: "last", width: 240, height: 120 }] };
+  layout(flowingRoot, 1080, 1920, { scale: 0 });
+  const originalFlow = flowingRoot.children.map(node => ({ ...node._layout }));
+  UrhoxPreview.applyLegacyAdaptation(flowingRoot);
+  layout(flowingRoot, 720, 1280, { scale: 0 });
+  const flowingContent = flowingRoot.children[0].children[0];
+  for (const [index, node] of flowingContent.children.entries()) {
+    for (const key of ["x", "y", "w", "h"]) near(node._layout[key], originalFlow[index][key] * 2 / 3);
+    assert.equal(node.left, undefined);
+    assert.equal(node.top, undefined);
+  }
+  assert.equal(flowingContent.flexDirection, "row");
+  assert.equal(flowingContent.justifyContent, "space-between");
+  assert.equal(flowingContent.padding, 20);
+  assert.equal(flowingContent.rowGap, 10);
+  assert.equal(flowingContent.columnGap, 16);
+  assert.equal(flowingRoot.padding, undefined);
   global.UrhoxCanvas = { draw() {}, paintTree() {} };
   global.UrhoxTree = { render() { return new Set(); } };
   global.UrhoxCommands = {

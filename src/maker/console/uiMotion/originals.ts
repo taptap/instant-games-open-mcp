@@ -9,6 +9,10 @@ type ReferenceCatalog = {
   images: string[];
   scenes: { id: string; ui: string; canvasId: string; boundary?: string }[];
 };
+const maxCatalogBytes = 1024 * 1024;
+const maxReferenceFiles = 1024;
+const maxReferenceBytes = 32 * 1024 * 1024;
+const maxFileBytes = 24 * 1024 * 1024;
 const playerFiles = new Set([
   'index.html',
   'player.js',
@@ -129,14 +133,19 @@ function source() {
   try {
     const root = fs.realpathSync(configured);
     const filename = withinRoot(root, 'ui-motion-native/catalog.json');
-    if (!filename) return;
+    if (!filename || fs.statSync(filename).size > maxCatalogBytes) return;
     const catalog = JSON.parse(fs.readFileSync(filename, 'utf8')) as ReferenceCatalog;
     if (
       catalog.version !== 1 ||
       !Array.isArray(catalog.files) ||
       !Array.isArray(catalog.scenes) ||
       !Array.isArray(catalog.images) ||
-      !catalog.files.every((item) => typeof item.path === 'string' && allowedPath(item.path))
+      catalog.files.length > maxReferenceFiles ||
+      catalog.images.length > maxReferenceFiles ||
+      !catalog.files.every(
+        (item) => item && typeof item.path === 'string' && allowedPath(item.path)
+      ) ||
+      !catalog.images.every((name) => typeof name === 'string' && allowedPath(name))
     )
       return;
     return { root, catalog };
@@ -144,9 +153,8 @@ function source() {
     return;
   }
 }
-function sourceFile(family: string, name: string): string | undefined {
+function sourceFile(family: string, name: string, context = source()): string | undefined {
   if (family !== 'neon' && family !== 'clockwork') return;
-  const context = source();
   if (!context) return;
   const relative = playerFiles.has(name) ? 'ui-motion-native/' + name : name;
   if (!allowedPath(relative) || !context.catalog.files.some((item) => item.path === relative))
@@ -155,9 +163,10 @@ function sourceFile(family: string, name: string): string | undefined {
 }
 
 export function getOriginalMotionExamples() {
+  const context = source();
   return originalMotionExamples.map((example) => ({
     ...example,
-    available: Boolean(sourceFile(example.family, 'index.html')),
+    available: Boolean(sourceFile(example.family, 'index.html', context)),
     preview:
       '/ui-motion/original/' + example.family + '/index.html?thumbnail=1&example=' + example.id,
     entry: '/ui-motion/original/' + example.family + '/index.html?embed=1&example=' + example.id,
@@ -165,27 +174,42 @@ export function getOriginalMotionExamples() {
 }
 
 export function getOriginalMotionReference(id: string) {
-  const example = getOriginalMotionExamples().find((item) => item.id === id);
+  const example = originalMotionExamples.find((item) => item.id === id);
   const context = source();
-  if (!example?.available || !context) return null;
+  if (!example || !context || !sourceFile(example.family, 'index.html', context)) return null;
   const base = '/ui-motion/original/' + example.family + '/';
+  let totalBytes = 0;
+  const files = context.catalog.files.flatMap(({ path: name }) => {
+    if (!/\.(?:lua|json|meta|md|js|css|html|txt)$/.test(name)) return [];
+    const filename = sourceFile(example.family, name, context);
+    if (!filename) return [];
+    const size = fs.statSync(filename).size;
+    totalBytes += size;
+    if (size > maxFileBytes || totalBytes > maxReferenceBytes)
+      throw new ConsoleError('原生动效参考包超过大小上限。', 413);
+    return [{ path: name, filename }];
+  });
   return {
     version: 2,
     variant: 'original',
-    example,
+    example: {
+      ...example,
+      available: true,
+      entry: base + 'index.html?embed=1&example=' + example.id,
+      preview: base + 'index.html?thumbnail=1&example=' + example.id,
+    },
     assetBase: base,
     boundary:
       '已审核原创设计经 Maker 画布分离为独立 PNG，并按坐标组装可编辑 UI.json。控制台读取游戏同一套素材和 Lua 时间线；角色姿态与矢量光效实时组合。示例提供交互与动画，后续台词、存档和章节业务由接入项目实现。',
     manifest: context.catalog,
     assets: context.catalog.images
-      .filter((name) => sourceFile(example.family, name))
+      .filter((name) => sourceFile(example.family, name, context))
       .map((name) => ({ path: name, url: base + name })),
-    files: context.catalog.files.flatMap(({ path: name }) => {
-      const filename = sourceFile(example.family, name);
-      return filename && /\.(?:lua|json|meta|md|js|css|html|txt)$/.test(name)
-        ? [{ path: name, url: base + name, content: fs.readFileSync(filename, 'utf8') }]
-        : [];
-    }),
+    files: files.map(({ path: name, filename }) => ({
+      path: name,
+      url: base + name,
+      content: fs.readFileSync(filename, 'utf8'),
+    })),
   };
 }
 
@@ -209,6 +233,8 @@ export function serveOriginalMotion(url: URL, response: ServerResponse): void {
   const filename = sourceFile(family, name);
   const type = mime[path.extname(name).toLowerCase()];
   if (!filename || !type) throw new ConsoleError('原生动效参考文件不存在。', 404);
+  if (fs.statSync(filename).size > maxFileBytes)
+    throw new ConsoleError('原生动效参考文件超过大小上限。', 413);
   response.setHeader(
     'Content-Security-Policy',
     [

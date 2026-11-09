@@ -123,5 +123,5 @@ test('template execution passes through paired input instead of treating it as a
     importImage: () => {},
   });
   expect(await workflow.runQueued(video.id)).toBe(true);
-  expect(runVideo).toHaveBeenCalledWith(video.id, 5, true);
+  expect(runVideo).toHaveBeenCalledWith(video.id, 5, false);
 });

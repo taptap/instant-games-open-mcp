@@ -169,14 +169,14 @@
   // there splits absolute offsets from right/center anchors.
   function draftDesign() {
     var design = app.documentDesign;
-    if (adaptedLogicalDraft()) return null;
+    if (adaptedLogicalDraft() || app.designResolution || app.device.scale > 0) return null;
     return inViewport() && design && design.width > 0 && design.height > 0 && !mappedDesign()
       ? design : null;
   }
 
   function numericScreenDesign() {
     var tree = app.sourceTree;
-    if (!inViewport() || !tree || tree.previewFit) return null;
+    if (!inViewport() || !tree || tree.previewFit || app.designResolution || app.device.scale > 0) return null;
     if (typeof tree.width !== "number" || typeof tree.height !== "number") return null;
     if (!(tree.width > 0 && tree.height > 0) || !isScreenDoc(tree)) return null;
     return { width: tree.width, height: tree.height };
@@ -207,11 +207,7 @@
 
   // Editor-only preview for an exported design canvas. It is not previewFit and is never saved.
   function legacyDesignCanvas() {
-    var tree = app.sourceTree;
-    if (!inViewport() || !tree || tree.previewFit) return null;
-    if (typeof tree.width !== "number" || typeof tree.height !== "number") return null;
-    if (!(tree.width > 0 && tree.height > 0) || !isScreenDoc(tree)) return null;
-    return { width: tree.width, height: tree.height };
+    return numericScreenDesign();
   }
 
   function mappedDesign() {
@@ -221,7 +217,7 @@
   var responsiveLengths = ["left", "right", "top", "bottom", "width", "height", "minWidth", "maxWidth",
     "minHeight", "maxHeight", "margin", "marginLeft", "marginRight", "marginTop", "marginBottom",
     "padding", "paddingLeft", "paddingRight", "paddingTop", "paddingBottom", "paddingHorizontal",
-    "paddingVertical", "gap", "flexBasis", "fontSize", "borderRadius", "borderWidth"];
+    "paddingVertical", "gap", "rowGap", "columnGap", "flexBasis", "fontSize", "borderRadius", "borderWidth"];
 
   function scaledLength(value, factor) {
     return Math.round(value * factor * 1000) / 1000;
@@ -243,6 +239,7 @@
     }
     visit(tree);
     function anchor(node, start, end, size, extent) {
+      if (node.position !== "absolute") return;
       var length = node[size];
       if (typeof length !== "number") return;
       var offset = node[start] || 0;
@@ -275,12 +272,18 @@
       return id;
     }
     window.UrhoxDoc.walk(tree, function (node) { if (node.id) ids[node.id] = true; });
+    var contentPanel = { type: "Panel", id: uniqueId("safe_content"), flexGrow: 1, minWidth: 0, minHeight: 0, children: content };
+    ["flexDirection", "justifyContent", "alignItems", "alignContent", "flexWrap",
+      "padding", "paddingLeft", "paddingRight", "paddingTop", "paddingBottom", "paddingHorizontal",
+      "paddingVertical", "gap", "rowGap", "columnGap"].forEach(function (key) {
+      if (tree[key] !== undefined) { contentPanel[key] = tree[key]; delete tree[key]; }
+    });
     tree.width = "100%";
     tree.height = "100%";
     tree.children = backgrounds.concat([{
       type: "SafeAreaView", id: uniqueId("safe_area"), position: "absolute",
       left: 0, top: 0, right: 0, bottom: 0,
-      children: [{ type: "Panel", id: uniqueId("safe_content"), flexGrow: 1, minWidth: 0, minHeight: 0, children: content }],
+      children: [contentPanel],
     }]);
     if (tree === app.sourceTree) {
       rememberAdaptationPreference(app.path, app.orientation);

@@ -140,6 +140,7 @@ describe('Maker MCP launcher', () => {
       for (const skill of [
         'maker-ui-workflow',
         'maker-ui-bbox-workflow',
+        'maker-scene-furniture-workflow',
         'lua-ui-to-json',
         'maker-project-check',
         'taptap-maker-local',
@@ -324,6 +325,7 @@ describe('Maker MCP launcher', () => {
       for (const skill of [
         'maker-ui-workflow',
         'maker-ui-bbox-workflow',
+        'maker-scene-furniture-workflow',
         'lua-ui-to-json',
         'maker-project-check',
         'taptap-maker-local',
@@ -384,6 +386,7 @@ function createSelfRuntimeFixture(prefix: string): {
   for (const skill of [
     'maker-ui-workflow',
     'maker-ui-bbox-workflow',
+    'maker-scene-furniture-workflow',
     'lua-ui-to-json',
     'maker-project-check',
     'taptap-maker-local',
