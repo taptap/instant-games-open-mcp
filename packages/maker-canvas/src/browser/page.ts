@@ -1019,7 +1019,7 @@ function applyMediaReusePatches(source: string): string {
   );
   patch(
     "  board.addEventListener('pointermove', function (event) {",
-    "  function canvasDragToChat(event, phase) { if (!host.dragImagesToChat || !drag || drag.kind !== 'move') return false; const ids = drag.positions.map(function (item) { return item.id; }); const items = documentState.nodes.filter(function (node) { return ids.indexOf(node.id) >= 0 && node.type === 'image' && node.assetPath; }).map(function (node) { return { nodeId: node.id, assetPath: node.assetPath }; }); if (!items.length) return false; return host.dragImagesToChat(items, { x: event.clientX, y: event.clientY }, phase); }\n  board.addEventListener('pointermove', function (event) {\n    if (drag && drag.kind === 'move' && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3 && canvasDragToChat(event, 'move')) return;"
+    "  function canvasDragToChat(event, phase) { if (!host.dragImagesToChat || !drag || drag.kind !== 'move') return false; const ids = drag.positions.map(function (item) { return item.id; }); const items = documentState.nodes.filter(function (node) { return ids.indexOf(node.id) >= 0 && (node.type === 'image' || node.type === 'video-source') && node.assetPath; }).map(function (node) { return { nodeId: node.id, assetPath: node.assetPath }; }); if (!items.length) return false; return host.dragImagesToChat(items, { x: event.clientX, y: event.clientY }, phase); }\n  board.addEventListener('pointermove', function (event) {\n    if (drag && drag.kind === 'move' && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3 && canvasDragToChat(event, 'move')) return;"
   );
   patch(
     "  board.addEventListener('pointerup', function (event) {",

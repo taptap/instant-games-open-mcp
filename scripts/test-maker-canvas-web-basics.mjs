@@ -2426,6 +2426,8 @@ try {
   await check('Web 图片拖入对话引用，原卡位置不变；画布内仍可移动', async () => {
     const { page, errors, current, card, importImage, settle } = await webPage({
       dragToChat: true,
+      features: { ...webFeatures, video: true },
+      videoStore: true,
     });
     const node = await importImage('引用测试', '#c33', 100, 100);
     const before = (await current()).nodes.find((item) => item.id === node.id);
@@ -2446,6 +2448,23 @@ try {
     await page.mouse.up();
     await settle();
     assert.notEqual((await current()).nodes.find((item) => item.id === node.id).x, before.x);
+    const videoPath = await page.evaluate(() => window.__canvasAddVideo());
+    await page.evaluate(
+      (assetPath) =>
+        window.__canvasEditor.importProjectAsset({ assetPath, kind: 'video', title: '视频引用' }),
+      videoPath
+    );
+    await settle();
+    const video = (await current()).nodes.find((item) => item.assetPath === videoPath);
+    const videoBox = await card(video.id).boundingBox();
+    await page.mouse.move(videoBox.x + 50, videoBox.y + 50);
+    await page.mouse.down();
+    await page.mouse.move(50, 400, { steps: 10 });
+    await page.mouse.up();
+    await settle();
+    assert.equal(await page.evaluate(() => window.__canvasChat.length), 2);
+    assert.equal(await page.evaluate(() => window.__canvasChat[1][0].assetPath), videoPath);
+    assert.equal((await current()).nodes.find((item) => item.id === video.id).x, video.x);
     assert.deepEqual(errors, []);
     await page.close();
   });
