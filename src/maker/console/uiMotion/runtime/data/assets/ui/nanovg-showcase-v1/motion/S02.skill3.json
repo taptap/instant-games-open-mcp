@@ -1,0 +1,206 @@
+{
+  "version": 1,
+  "id": "S02.skill3",
+  "name": "破空 · 斜刃",
+  "category": "interaction",
+  "duration": 0.9,
+  "nodes": [
+    {
+      "id": "actor",
+      "name": "蓄力与回位",
+      "transform": {
+        "dx": 0,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "slash",
+      "name": "弧光展开",
+      "transform": {
+        "scale": 0.6,
+        "opacity": 0,
+        "rotation": -20
+      }
+    },
+    {
+      "id": "flash",
+      "name": "命中闪光",
+      "transform": {
+        "scale": 0.3,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "fragments",
+      "name": "爆片散开",
+      "transform": {
+        "scale": 0.65,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "ring",
+      "name": "冲击环",
+      "transform": {
+        "scale": 0.4,
+        "opacity": 0
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "actor",
+      "prop": "dx",
+      "at": 0,
+      "duration": 0.12,
+      "from": 0,
+      "to": -16,
+      "ease": "outCubic"
+    },
+    {
+      "node": "actor",
+      "prop": "rotation",
+      "at": 0,
+      "duration": 0.12,
+      "from": 0,
+      "to": -2,
+      "ease": "outCubic"
+    },
+    {
+      "node": "slash",
+      "prop": "scale",
+      "at": 0.13,
+      "duration": 0.29,
+      "from": 0.6,
+      "to": 1.05,
+      "ease": "outCubic"
+    },
+    {
+      "node": "slash",
+      "prop": "opacity",
+      "at": 0.13,
+      "duration": 0.29,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "slash",
+      "prop": "rotation",
+      "at": 0.13,
+      "duration": 0.29,
+      "from": -20,
+      "to": 8,
+      "ease": "outCubic"
+    },
+    {
+      "node": "flash",
+      "prop": "scale",
+      "at": 0.26,
+      "duration": 0.1,
+      "from": 0.3,
+      "to": 1.15,
+      "ease": "outCubic"
+    },
+    {
+      "node": "flash",
+      "prop": "opacity",
+      "at": 0.26,
+      "duration": 0.1,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "fragments",
+      "prop": "scale",
+      "at": 0.29,
+      "duration": 0.32,
+      "from": 0.65,
+      "to": 1.25,
+      "ease": "outCubic"
+    },
+    {
+      "node": "fragments",
+      "prop": "opacity",
+      "at": 0.29,
+      "duration": 0.32,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "ring",
+      "prop": "scale",
+      "at": 0.2,
+      "duration": 0.32,
+      "from": 0.4,
+      "to": 1.2,
+      "ease": "outCubic"
+    },
+    {
+      "node": "ring",
+      "prop": "opacity",
+      "at": 0.2,
+      "duration": 0.32,
+      "from": 0,
+      "to": 0.8,
+      "ease": "outCubic"
+    },
+    {
+      "node": "actor",
+      "prop": "dx",
+      "at": 0.12,
+      "duration": 0.26,
+      "from": -16,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "actor",
+      "prop": "rotation",
+      "at": 0.12,
+      "duration": 0.26,
+      "from": -2,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "slash",
+      "prop": "opacity",
+      "at": 0.42,
+      "duration": 0.22,
+      "from": 1,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "flash",
+      "prop": "opacity",
+      "at": 0.36,
+      "duration": 0.22,
+      "from": 1,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "fragments",
+      "prop": "opacity",
+      "at": 0.61,
+      "duration": 0.22,
+      "from": 1,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "ring",
+      "prop": "opacity",
+      "at": 0.52,
+      "duration": 0.22,
+      "from": 0.8,
+      "to": 0,
+      "ease": "outCubic"
+    }
+  ],
+  "skill": 3
+}

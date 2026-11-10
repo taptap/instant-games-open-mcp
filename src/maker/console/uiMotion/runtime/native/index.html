@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Maker UI 动效</title>
+  <link rel="stylesheet" href="player.css">
+</head>
+<body>
+  <main>
+    <div class="stage-space"><div class="viewport">
+      <canvas id="stage" width="1280" height="720" tabindex="0" aria-label="分层 UI 演示，空格暂停，左右逐帧"></canvas>
+      <div id="actions" class="hotspots" aria-label="界面交互"></div>
+      <output id="toast" class="toast" role="status" hidden></output>
+    </div></div>
+    <div class="controls">
+      <button id="play" aria-pressed="false">播放</button>
+      <button id="replay">重播</button>
+      <output id="time"></output>
+      <select id="speed" aria-label="播放速度"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+    </div>
+    <div id="timeline" class="timeline" aria-label="动画关键帧，左右方向键逐帧"><div id="markers"></div><div id="playhead" aria-hidden="true"></div></div>
+    <p id="status" role="status">正在加载独立素材…</p>
+  </main>
+  <script src="player.js" defer></script>
+</body>
+</html>

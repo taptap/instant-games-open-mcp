@@ -4,6 +4,33 @@ const find = (id) => examples.find((item) => item.id === id);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 let timelineFrames = false;
 let localSelection;
+for (const [kind, title] of [['source', 'LuaTween.lua · 源码'], ['readme', 'LuaTween · 使用说明']]) {
+  $('library-' + kind).onclick = event => {
+    event.preventDefault();
+    $('library-title').textContent = title;
+    $('library-content').textContent = luaTweenReading[kind];
+    $('library-viewer').showModal();
+    $('library-content').scrollTop = 0;
+  };
+}
+$('close-library').onclick = () => $('library-viewer').close();
+function luaTweenHandoff() {
+  return [
+    '将选中的动效接入当前游戏已有 UI；只有我明确要求整套示例时才导入完整界面。目标项目或控件不明确时，先问接到哪里，不要让我选择技术方案。',
+    standalone
+      ? '读取我提供的离线 HTML：luaTweenLibrary 标识库版本，luaTweenDocs 包含库 README、API 与接入指南，LuaMotion 初始化参数含实际 Lua 源码。'
+      : '先读取当前演示接入参考包：'+location.origin+'/ui-motion/runtime-reference。files 是 {path,content} 文件列表，assets 是素材地址与 SHA-256；不是已经安装到游戏的文件。',
+    '按 taptap-maker-local 的 LuaTween UI Integration 指引接入；未安装该 Skill 时直接阅读参考包 '+luaTweenLibrary.integration+'，无需用户安装 Skill。',
+    '先读 '+luaTweenLibrary.readme+' 与源码顶部使用注释，详细 API 见 '+luaTweenLibrary.api+'；运行代码来源 '+luaTweenLibrary.source+'，commit '+luaTweenLibrary.commit+'；随包仅补使用注释，文件 SHA-256 '+luaTweenLibrary.sha256+'。项目已有原版不能仅因注释导致的哈希不同就重复安装。',
+    '接入前先做防重复检查：搜索整个目标项目的 LuaTween 源码、require 路径（含别名或封装）、LuaTween.Update(dt) 更新入口，以及目标控件已有的动效与事件绑定；不能只凭 scripts/LuaTween.lua 不存在就判定未接入。',
+    '已接入且相同或确认兼容时，复用现有模块路径、统一更新入口与控件绑定，不重复复制库、添加调度器或绑定同一事件；部分接入只补缺失环节，同一指令重复执行也不能叠加接入。不兼容时说明冲突并确认处理方式，不覆盖用户代码。确认未接入时才将参考包 '+luaTweenLibrary.path+' 放入游戏 scripts/（已有目录规范则沿用），require("LuaTween") 使用。',
+    '只取所选效果需要的 Lua 配方与适配代码；仅使用动效时保留现有美术，不导入全部皮肤、演示入口或 Fengari。实际调用原版 To/Value/Path/Sequence，禁止 JS 移植、手写缓动或仅补间时钟。',
+    '接入实际控件事件和项目统一 LuaTween.Update(dt)；重触发与关闭只清理该组件的句柄，不用 KillAll/Clear，不覆盖 main.lua。',
+    '在目标游戏实际操作：触发、连点、动画中关闭、重新打开；检查布局、命中、暂停和其它动效。联网项目沿用联网预览，不能只靠单元测试或截图宣称通过。',
+    '最后告诉我效果接到了哪里、怎样触发、LuaTween 和接入代码的位置及验证结果；不要让我手动安装库。不要发布、提交、远端构建或调用付费生成。',
+    '若控制台链接失效，用当前 Maker CLI console status/open --no-open --json 找到新地址并核对库版本；跨电脑 AI 使用下载的接入参考包，素材使用包内稳定地址并校验 SHA-256。',
+  ];
+}
 function renderTimeline() {
   $('timeline-unit').textContent = timelineFrames ? '帧 → 秒' : '秒 → 帧';
   $('keyframe-tracks').replaceChildren();
@@ -75,42 +102,40 @@ function renderLocalCards() {
 function setupLocalViewer() {
   $('close-local').onclick = () => $('local-viewer').close();
   $('local-viewer').addEventListener('close',()=>{
+    $('local-handoff-status').textContent = '';
     if (!$('local-viewer').open) $('local-frame').removeAttribute('src');
   });
   $('use-local').onclick = () => {
     if (!localSelection) return;
-    if (localSelection.kind === 'lab') {
-      const lab = $('local-frame').contentWindow?.MotionLab;
-      const state = lab?.state();
-      const skin = lab?.skins.find(item => item.id === state?.ui?.skin);
-      const effect = lab?.catalog.categories.flatMap(group => group.items).find(item => item.id === state?.id);
-      $('prompt').value = [
-        '参考更多动效工坊，接入用户指定的 UI 动效。',
-        skin && effect ? '当前选用：'+skin.name+'（'+skin.id+'） / '+effect.title+'（'+effect.id+'）。' : '先在示例中确认所选风格与动效。',
-        '本机示例项目：'+localSelection.project,
-        '先读 assets/ui/motion-lab-v2/README.md 与 assets/ui/motion-lab-v1/catalog.json，选择具体条目。',
-        '共 36 组动效、7 种按钮反馈；原生入口 scripts/MotionLabMain.lua。',
-        '提供七套组件皮肤，先选择风格，再选择动效；不包含超级玛利奥和皮克敏。',
-        'scripts/MotionLab.lua 同时供网页实时预览与游戏原生 NanoVG 使用。',
-        '组件绘制与交互见 scripts/MotionLabComponents.lua；独立 PNG 与精确坐标在 assets/ui/motion-lab-v2/ 对应风格目录。',
-        '保留已确认设计的组件造型、排版、材质和比例；读取 layout.json 按图层接入，勿合并为整屏截图热区。',
-        '网页通过 Lua VM + Canvas2D 绘制；不是视频、截图序列或原生验收证明。',
-        '此工坊没有底部时间轴；catalog.json 保留阶段时序，供 AI 研究和接入。',
-        '径向菜单、弹性回弹与磁铁拖拽是自动演示，真实拖拽需另接输入。',
-        '保留所选视觉设计，只修改用户指定项目，不要直接覆盖 main.lua。',
-      ].join(String.fromCharCode(10));
-      $('copy-status').textContent=''; $('handoff').showModal();
+    const frame = $('local-frame').contentWindow;
+    let lab, snapshot;
+    try {
+      lab = frame?.MotionLab;
+      snapshot = localSelection.kind === 'lab' ? lab?.state() : frame?.NanoVGShowcase?.getState();
+    } catch { snapshot = undefined; }
+    if (!snapshot) {
+      $('local-handoff-status').textContent = '演示尚未加载完成，请等待后再选用；加载失败时关闭后重开。';
       return;
     }
-    $('prompt').value = [
-      '参考 '+localSelection.id+' '+localSelection.name+'，接入可编辑 NanoVG UI 与交互。',
-      '本机示例项目：'+localSelection.project,
-      '读取 assets/ui/nanovg-showcase-v1/showcase.json、对应 UI.json 和 motion/*.json。',
-      '原生宿主：scripts/NanoVGShowcase.lua；入口：scripts/NanoVGShowcaseMain.lua。',
-      '背景和角色使用独立 PNG，其余 UI 使用 NanoVG。保留设计和同游戏内的转场关系。',
-      '关键帧读取实际动效数据；Seek 只检查姿态，不能推进业务或触发完成回调。',
-      '请先研究示例，再修改用户指定的目标游戏；不要直接覆盖 main.lua。',
-    ].join(String.fromCharCode(10));
+    $('local-handoff-status').textContent = '';
+    let selection;
+    if (localSelection.kind === 'lab') {
+      const skin = lab.skins.find(item => item.id === snapshot.ui.skin);
+      const effect = lab.catalog.categories.flatMap(group => group.items).find(item => item.id === snapshot.id);
+      selection = [
+        '请接入当前选中的 LuaTween 动效：'+effect.title+'（'+effect.id+'）；参考皮肤：'+skin.name+'（'+skin.id+'）。',
+        '效果源码 scripts/MotionLabRecipes.lua；所选阶段时序见 assets/ui/motion-lab-v1/catalog.json。默认只复用该效果，不移植整个工坊。',
+        '如需复用示例 UI，先读 assets/ui/motion-lab-v2/README.md；在 assets/ui/motion-lab-v2/designs.json 中按皮肤 id '+skin.id+' 查找布局，对应生成数据为 scripts/MotionLabDesign.lua。保留分层与文字，不改成整屏截图热区。',
+        '径向菜单、弹性回弹和磁铁拖拽在示例中为自动演示，真实输入需接到项目控件。',
+      ];
+    } else {
+      selection = [
+        '请接入当前选中的 LuaTween UI 动效：界面 '+snapshot.scene+'，片段 '+snapshot.clip+'。以当前选择为准，不是最初打开的演示卡片。',
+        '读取 assets/ui/nanovg-showcase-v1/showcase.json 中该片段对应的 motion/*.json 与 UI.json；绘制与宿主参考 scripts/NanoVGShowcase.lua。',
+        '只复用所选效果；需要整套示例 UI 时才引入其独立 PNG 和 NanoVG 布局，不改写项目入口。',
+      ];
+    }
+    $('prompt').value = [...selection, ...luaTweenHandoff()].join(String.fromCharCode(10));
     $('copy-status').textContent=''; $('handoff').showModal();
   };
 }
@@ -476,6 +501,7 @@ $('back').onclick = () => {
 $('close-handoff').onclick = () => $('handoff').close();
 $('close-original').onclick = () => $('original-viewer').close();
 $('original-viewer').addEventListener('close', () => {
+  $('original-handoff-status').textContent = '';
   originalVisibility(false);
   $('original-frame').removeAttribute('src');
   originalSelection = null;
@@ -494,12 +520,12 @@ $('original-assets').onclick = async () => {
     if (!$('asset-viewer').open) return;
     for (const asset of reference.assets) {
       const link = document.createElement('a');
-      link.href = asset.url;
+      link.href = reference.assetBase + asset.path;
       link.target = '_blank';
       link.rel = 'noopener';
       if (['.png', '.webp', '.jpg', '.svg'].some(ext => asset.path.endsWith(ext))) {
         const image = document.createElement('img');
-        image.src = asset.url;
+        image.src = link.href;
         image.alt = asset.path;
         image.loading = 'lazy';
         link.append(image);
@@ -518,18 +544,28 @@ document.querySelectorAll('[data-library]').forEach(button => {
   button.onclick = () => setLibrary(button.dataset.library);
 });
 $('use-original').onclick = () => {
-  const item = originalSelection;
+  let snapshot;
+  try { snapshot = $('original-frame').contentWindow?.nativeDemo?.getState(); }
+  catch { snapshot = undefined; }
+  if (!snapshot) {
+    $('original-handoff-status').textContent = '演示尚未加载完成，请等待后再选用；加载失败时关闭后重开。';
+    return;
+  }
+  $('original-handoff-status').textContent = '';
+  const item = originals.find(example => example.id === snapshot.example) || originalSelection;
   $('prompt').value = [
-    '请参考图片 UI「' + item.id + ' ' + item.name + '」为我的游戏制作 UI 演示。',
+    '请接入图片 UI「' + item.id + ' ' + item.name + '」的 LuaTween 动效。',
+    '演示当前选择：角色 '+snapshot.focused+'，章节 '+snapshot.chapter+(snapshot.effect ? '，反馈 '+snapshot.effect : '')+'；仅作表现参考，不导入演示游戏业务。',
     '先读取本机 Maker 控制台图片 UI 参考包：' + location.origin + '/ui-motion/original-reference?id=' + item.id,
-    '复用本次 Maker 画布生成/分离的 UI 设计、人物、布局和时间轴；保留原设计风格。',
-    '先读 manifest、UI.json、S01–S05NativeDemo.lua、NativeAttack.lua 和 NativeTransitions.lua；将独立 PNG 按 path 放入游戏。',
-    '网页从同一套 PNG 和 UI.json 渲染，时间线从原生 Lua 导出；游戏接入以 Lua 和可编辑 UI.json 为准。',
+    '仅使用动效时保留游戏现有 UI；明确复用示例界面时才导入其独立 PNG、布局与文字，保留已选设计。',
+    '先读 manifest 与所选场景的共享 Lua 配方；完整界面才需要 UI.json、对应场景脚本及独立 PNG，不要导入无关文件。',
+    '必须使用原版 LuaTween.lua；Motion.lua、ClipPlayer.lua 仅在所选配方需要时引入。完整实际源码：'+location.origin+'/ui-motion/runtime-reference。',
+    '网页与原生从同一份时间线生成 Lua 属性配方，使用同一套 PNG 和 UI.json；游戏接入以 Lua 和可编辑 UI.json 为准。',
     '不得使用视频、整屏参考截图、原视频抽帧或原帧人物序列。图片部件、文字、交互和动效须分别实现。',
     '先研究源码、关联界面及 manifest 的交互边界，再适配真实项目节点；保留连点保护、暂停、倒退和销毁行为。',
-    'S01 双角色入场与背景推近是补充设计；S02 使用六幅生成姿态与光效，S04 使用二维轨迹网格，均为二维动作近似。',
-    'S05 为制作中的交互原型，背景分离、开幕帘和齿轮图标未完成；其它角色全身、后续台词、地图和章节业务按 manifest 的边界处理。',
-    '保留本次图片 UI 的设计与素材，不使用 NanoVG 绘制示例替换。不要接入真实扣费、发奖、存档或账号操作。',
+    'S01 双角色入场与背景推近是补充设计；S02 使用六幅生成姿态与光效，属于二维动作近似，不是骨骼动画。',
+    '后续台词、地图和章节业务按 manifest 的边界处理；不得将演示交互误称为已接入真实游戏业务。',
+    ...luaTweenHandoff(),
   ].join(String.fromCharCode(10));
   $('handoff').showModal();
   $('copy-status').textContent = '';
@@ -537,7 +573,7 @@ $('use-original').onclick = () => {
 $('use').onclick = () => {
   const online = !standalone && (location.protocol === 'http:' || location.protocol === 'https:');
   const lines = [
-    '请参考 NanoVG 绘制示例「' + current.id + ' ' + current.name + '」制作 UI 演示。',
+    '请将 NanoVG 绘制示例「' + current.id + ' ' + current.name + '」的所选动效接入现有 UI。',
     online
       ? '先读取本机 Maker 控制台参考包：' +
         location.origin +
@@ -545,14 +581,15 @@ $('use').onclick = () => {
         current.id
       : '请读取我提供的 maker-ui-motion HTML 文件；其中包含完整演示源码和时间线。',
     '参考包内 demo.html 可独立运行，motion.json 是实际预览使用的时间线与交互契约；先阅读源码再适配真实 UI 节点。',
-    '本次动效：' + current.clips.map((item) => item.label).join('、') + '。',
+    '当前片段：' + clip.id + '（' + clip.label + '）。只接入当前选择，不默认导入全部片段。',
     '交互：' + current.interaction,
     '实现时保留入场、反馈、退出和重复触发状态；参考包是网页示例，不假设项目已有同名函数。',
     'Maker 接入：' +
       Object.entries(contract.native)
         .map(([key, value]) => key + '：' + value)
         .join('；'),
-    '先完成一个可操作 Demo，再逐项优化美术。不要接入真实扣费、发奖、存档或账号操作。',
+    '保留游戏现有美术与业务，不增加演示中的扣费、发奖、存档或账号操作。',
+    ...luaTweenHandoff(),
   ];
   $('prompt').value = lines.join(String.fromCharCode(10));
   $('handoff').showModal();

@@ -1,0 +1,947 @@
+{
+  "version": 1,
+  "name": "更多动效",
+  "source": "田园种菜乐 / LuaTweenUIDemo.lua",
+  "sourceSha256": "e9a7007f4fdc27fe685805e6f22b040c212973a02c456ea8ff2c400325fbae44",
+  "designSize": [2048, 1152],
+  "fps": 60,
+  "categories": [
+    {
+      "id": "button",
+      "title": "按钮反馈",
+      "count": 11,
+      "items": [
+        {
+          "id": "button-feedback-1",
+          "title": "按压",
+          "sourceHandler": "Demo.HandleClick",
+          "sourceIndex": 1,
+          "mode": "pointer-feedback",
+          "duration": 0.62,
+          "tracks": [
+            {
+              "name": "按压反馈",
+              "start": 0,
+              "end": 0.62
+            }
+          ]
+        },
+        {
+          "id": "button-feedback-2",
+          "title": "弹跳",
+          "sourceHandler": "Demo.HandleClick",
+          "sourceIndex": 2,
+          "mode": "pointer-feedback",
+          "duration": 0.62,
+          "tracks": [
+            {
+              "name": "弹跳反馈",
+              "start": 0,
+              "end": 0.62
+            }
+          ]
+        },
+        {
+          "id": "button-feedback-3",
+          "title": "抖动",
+          "sourceHandler": "Demo.HandleClick",
+          "sourceIndex": 3,
+          "mode": "pointer-feedback",
+          "duration": 0.62,
+          "tracks": [
+            {
+              "name": "抖动反馈",
+              "start": 0,
+              "end": 0.62
+            }
+          ]
+        },
+        {
+          "id": "button-feedback-4",
+          "title": "波纹",
+          "sourceHandler": "Demo.HandleClick",
+          "sourceIndex": 4,
+          "mode": "pointer-feedback",
+          "duration": 0.62,
+          "tracks": [
+            {
+              "name": "波纹反馈",
+              "start": 0,
+              "end": 0.62
+            }
+          ]
+        },
+        {
+          "id": "button-feedback-5",
+          "title": "扫光",
+          "sourceHandler": "Demo.HandleClick",
+          "sourceIndex": 5,
+          "mode": "pointer-feedback",
+          "duration": 0.62,
+          "tracks": [
+            {
+              "name": "扫光反馈",
+              "start": 0,
+              "end": 0.62
+            }
+          ]
+        },
+        {
+          "id": "button-feedback-6",
+          "title": "摇摆",
+          "sourceHandler": "Demo.HandleClick",
+          "sourceIndex": 6,
+          "mode": "pointer-feedback",
+          "duration": 0.62,
+          "tracks": [
+            {
+              "name": "摇摆反馈",
+              "start": 0,
+              "end": 0.62
+            }
+          ]
+        },
+        {
+          "id": "button-feedback-7",
+          "title": "吸入",
+          "sourceHandler": "Demo.HandleClick",
+          "sourceIndex": 7,
+          "mode": "pointer-feedback",
+          "duration": 0.62,
+          "tracks": [
+            {
+              "name": "吸入反馈",
+              "start": 0,
+              "end": 0.62
+            }
+          ]
+        },
+        {
+          "id": "cta",
+          "title": "CTA 按压",
+          "sourceFunction": "PressCTA",
+          "mode": "click-triggered-demonstration",
+          "duration": 0.25,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "按压回弹",
+              "start": 0,
+              "end": 0.25
+            }
+          ]
+        },
+        {
+          "id": "ripple",
+          "title": "冲击波反馈",
+          "sourceFunction": "PlayRipple",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.2,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "第一圈扩散",
+              "start": 0,
+              "end": 0.88
+            },
+            {
+              "name": "第二圈扩散",
+              "start": 0.16,
+              "end": 1.04
+            },
+            {
+              "name": "第三圈扩散",
+              "start": 0.32,
+              "end": 1.2
+            }
+          ]
+        },
+        {
+          "id": "buttonField",
+          "title": "按钮力场",
+          "sourceFunction": "PlayButtonField",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.55,
+          "autoHold": 1.55,
+          "tracks": [
+            {
+              "name": "按钮力场",
+              "start": 0,
+              "end": 1.1
+            },
+            {
+              "name": "碎片绕入",
+              "start": 0,
+              "end": 1.155
+            }
+          ]
+        },
+        {
+          "id": "buttonBlast",
+          "title": "按钮爆破",
+          "sourceFunction": "PlayButtonBlast",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.25,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "错峰冲击波",
+              "start": 0,
+              "end": 0.79
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "popup",
+      "title": "弹窗提示",
+      "count": 6,
+      "items": [
+        {
+          "id": "bubble",
+          "title": "气泡提示",
+          "sourceFunction": "PlayBubbleUI",
+          "mode": "click-triggered-demonstration",
+          "duration": 0.32,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "气泡透明度",
+              "start": 0,
+              "end": 0.22
+            },
+            {
+              "name": "气泡弹入",
+              "start": 0,
+              "end": 0.32
+            }
+          ]
+        },
+        {
+          "id": "portrait",
+          "title": "侧栏提示",
+          "sourceFunction": "PlayPortraitUI",
+          "mode": "click-triggered-demonstration",
+          "duration": 0.36,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "遮罩淡入",
+              "start": 0,
+              "end": 0.22
+            },
+            {
+              "name": "对话滑入",
+              "start": 0,
+              "end": 0.36
+            }
+          ]
+        },
+        {
+          "id": "modal",
+          "title": "全屏 UI",
+          "sourceFunction": "PlayFullUI",
+          "mode": "click-triggered-demonstration",
+          "duration": 0.28,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "遮罩淡入",
+              "start": 0,
+              "end": 0.2
+            },
+            {
+              "name": "面板弹入",
+              "start": 0,
+              "end": 0.28
+            }
+          ]
+        },
+        {
+          "id": "dialog",
+          "title": "对话框",
+          "sourceFunction": "PlayDialogUI",
+          "mode": "click-triggered-demonstration",
+          "duration": 0.34,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "面板淡入",
+              "start": 0,
+              "end": 0.22
+            },
+            {
+              "name": "面板位移",
+              "start": 0,
+              "end": 0.34
+            }
+          ]
+        },
+        {
+          "id": "toast",
+          "title": "Toast",
+          "sourceFunction": "PlayToastUI",
+          "mode": "click-triggered-demonstration",
+          "duration": 2.65,
+          "autoHold": 2.65,
+          "tracks": [
+            {
+              "name": "提示入场",
+              "start": 0,
+              "end": 0.28
+            },
+            {
+              "name": "提示停留",
+              "start": 0.28,
+              "end": 2.2
+            },
+            {
+              "name": "提示离场",
+              "start": 2.2,
+              "end": 2.56
+            }
+          ]
+        },
+        {
+          "id": "banner",
+          "title": "横幅通知",
+          "sourceFunction": "PlayBannerUI",
+          "mode": "click-triggered-demonstration",
+          "duration": 2.2,
+          "autoHold": 2.2,
+          "tracks": [
+            {
+              "name": "横幅飞入",
+              "start": 0,
+              "end": 0.32
+            },
+            {
+              "name": "横幅停留",
+              "start": 0.32,
+              "end": 1.8
+            },
+            {
+              "name": "横幅飞出",
+              "start": 1.8,
+              "end": 2.08
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "list",
+      "title": "列表卡片",
+      "count": 6,
+      "items": [
+        {
+          "id": "list",
+          "title": "列表 UI",
+          "sourceFunction": "PlayListUI",
+          "mode": "click-triggered-demonstration",
+          "duration": 0.35,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "列表淡入",
+              "start": 0,
+              "end": 0.22
+            },
+            {
+              "name": "行项目滑入",
+              "start": 0,
+              "end": 0.35
+            }
+          ]
+        },
+        {
+          "id": "sideList",
+          "title": "右侧列表按钮",
+          "sourceFunction": "PlaySideListUI",
+          "mode": "click-triggered-demonstration",
+          "duration": 0.42,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "抽屉淡入",
+              "start": 0,
+              "end": 0.3
+            },
+            {
+              "name": "抽屉回弹",
+              "start": 0,
+              "end": 0.42
+            }
+          ]
+        },
+        {
+          "id": "cards",
+          "title": "卡片入场",
+          "sourceFunction": "PlayCardsUI",
+          "mode": "click-triggered-demonstration",
+          "duration": 0.38,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "卡片淡入",
+              "start": 0,
+              "end": 0.24
+            },
+            {
+              "name": "卡片弹入",
+              "start": 0,
+              "end": 0.38
+            }
+          ]
+        },
+        {
+          "id": "magnetList",
+          "title": "磁吸任务列表",
+          "sourceFunction": "PlayMagnetList",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.7,
+          "autoHold": 1.7,
+          "tracks": [
+            {
+              "name": "面板入场",
+              "start": 0,
+              "end": 0.28
+            },
+            {
+              "name": "任务错峰吸附",
+              "start": 0.16,
+              "end": 1.14
+            }
+          ]
+        },
+        {
+          "id": "flipCards",
+          "title": "翻牌揭晓",
+          "sourceFunction": "PlayFlipCards",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.9,
+          "autoHold": 1.9,
+          "tracks": [
+            {
+              "name": "第一张翻牌",
+              "start": 0.22,
+              "end": 0.77
+            },
+            {
+              "name": "第二张翻牌",
+              "start": 0.5,
+              "end": 1.05
+            },
+            {
+              "name": "第三张翻牌",
+              "start": 0.78,
+              "end": 1.33
+            }
+          ]
+        },
+        {
+          "id": "panelFlip",
+          "title": "面板翻转",
+          "sourceFunction": "PlayPanelFlip",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.65,
+          "autoHold": 1.65,
+          "tracks": [
+            {
+              "name": "面板翻转",
+              "start": 0.12,
+              "end": 0.94
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "transition",
+      "title": "入场转场",
+      "count": 5,
+      "items": [
+        {
+          "id": "main",
+          "title": "主界面入场",
+          "sourceFunction": "PlayMainEnter",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.1,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "背景",
+              "start": 0,
+              "end": 0.3
+            },
+            {
+              "name": "标题",
+              "start": 0.05,
+              "end": 0.5
+            },
+            {
+              "name": "主视觉",
+              "start": 0.1,
+              "end": 0.7
+            },
+            {
+              "name": "左侧栏",
+              "start": 0.22,
+              "end": 1.1
+            },
+            {
+              "name": "右侧栏",
+              "start": 0.28,
+              "end": 0.76
+            },
+            {
+              "name": "底部操作",
+              "start": 0.35,
+              "end": 0.85
+            }
+          ]
+        },
+        {
+          "id": "transition",
+          "title": "上下刷屏",
+          "sourceFunction": "PlaySceneTransition",
+          "mode": "click-triggered-demonstration",
+          "duration": 0.68,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "遮场",
+              "start": 0,
+              "end": 0.32
+            },
+            {
+              "name": "揭开",
+              "start": 0.32,
+              "end": 0.68
+            }
+          ]
+        },
+        {
+          "id": "star",
+          "title": "星星切屏",
+          "sourceFunction": "PlayStarTransition",
+          "mode": "click-triggered-demonstration",
+          "duration": 0.68,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "遮场",
+              "start": 0,
+              "end": 0.32
+            },
+            {
+              "name": "揭开",
+              "start": 0.32,
+              "end": 0.68
+            }
+          ]
+        },
+        {
+          "id": "circle",
+          "title": "圆形切屏",
+          "sourceFunction": "PlayCircleTransition",
+          "mode": "click-triggered-demonstration",
+          "duration": 0.68,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "遮场",
+              "start": 0,
+              "end": 0.32
+            },
+            {
+              "name": "揭开",
+              "start": 0.32,
+              "end": 0.68
+            }
+          ]
+        },
+        {
+          "id": "particleWipe",
+          "title": "色块刷屏",
+          "sourceFunction": "PlayParticleWipe",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.45,
+          "autoHold": 1.45,
+          "tracks": [
+            {
+              "name": "色块铺满",
+              "start": 0,
+              "end": 0.72
+            },
+            {
+              "name": "色块揭开",
+              "start": 0.72,
+              "end": 1.44
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reward",
+      "title": "奖励收集",
+      "count": 6,
+      "items": [
+        {
+          "id": "reward",
+          "title": "奖励弹层",
+          "sourceFunction": "PlayRewardUI",
+          "mode": "click-triggered-demonstration",
+          "duration": 0.45,
+          "autoHold": 1.25,
+          "tracks": [
+            {
+              "name": "面板淡入",
+              "start": 0,
+              "end": 0.24
+            },
+            {
+              "name": "奖励弹入",
+              "start": 0,
+              "end": 0.45
+            }
+          ]
+        },
+        {
+          "id": "rewardBurst",
+          "title": "奖励爆发",
+          "sourceFunction": "PlayRewardBurst",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.85,
+          "autoHold": 1.85,
+          "tracks": [
+            {
+              "name": "面板弹入",
+              "start": 0.22,
+              "end": 0.6
+            },
+            {
+              "name": "弧线收集",
+              "start": 0,
+              "end": 1.406
+            },
+            {
+              "name": "数字滚动",
+              "start": 0.5,
+              "end": 1.35
+            }
+          ]
+        },
+        {
+          "id": "arcFly",
+          "title": "轨道飞入",
+          "sourceFunction": "PlayArcFly",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.85,
+          "autoHold": 1.85,
+          "tracks": [
+            {
+              "name": "图标沿轨飞入",
+              "start": 0,
+              "end": 1.315
+            },
+            {
+              "name": "收集面板",
+              "start": 0.55,
+              "end": 0.95
+            },
+            {
+              "name": "落点回弹",
+              "start": 0.82,
+              "end": 1.535
+            }
+          ]
+        },
+        {
+          "id": "scoreRoll",
+          "title": "数字翻滚",
+          "sourceFunction": "PlayScoreRoll",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.85,
+          "autoHold": 1.85,
+          "tracks": [
+            {
+              "name": "数字滚动",
+              "start": 0,
+              "end": 1.1
+            },
+            {
+              "name": "落点弹跳",
+              "start": 1.1,
+              "end": 1.45
+            }
+          ]
+        },
+        {
+          "id": "magnetDock",
+          "title": "磁吸归位",
+          "sourceFunction": "PlayMagnetDock",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.7,
+          "autoHold": 1.7,
+          "tracks": [
+            {
+              "name": "散点归位",
+              "start": 0,
+              "end": 1.205
+            }
+          ]
+        },
+        {
+          "id": "rewardBox",
+          "title": "奖励箱爆开",
+          "sourceFunction": "PlayRewardBox",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.9,
+          "autoHold": 1.9,
+          "tracks": [
+            {
+              "name": "箱体蓄力",
+              "start": 0,
+              "end": 0.42
+            },
+            {
+              "name": "爆开白闪",
+              "start": 0.42,
+              "end": 0.7
+            },
+            {
+              "name": "奖励飞入",
+              "start": 0.58,
+              "end": 1.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guide",
+      "title": "引导特效",
+      "count": 9,
+      "items": [
+        {
+          "id": "spotlight",
+          "title": "聚光引导",
+          "sourceFunction": "PlaySpotlight",
+          "mode": "click-triggered-demonstration",
+          "duration": 2.0,
+          "autoHold": 2.0,
+          "tracks": [
+            {
+              "name": "焦点移动",
+              "start": 0,
+              "end": 1.55
+            },
+            {
+              "name": "高亮扩展",
+              "start": 1.55,
+              "end": 1.9
+            }
+          ]
+        },
+        {
+          "id": "radialMenu",
+          "title": "径向菜单",
+          "sourceFunction": "PlayRadialMenu",
+          "mode": "automatic-demonstration",
+          "duration": 1.55,
+          "autoHold": 1.55,
+          "tracks": [
+            {
+              "name": "中心展开",
+              "start": 0,
+              "end": 0.24
+            },
+            {
+              "name": "菜单错峰",
+              "start": 0.12,
+              "end": 0.815
+            }
+          ]
+        },
+        {
+          "id": "maskSweep",
+          "title": "遮罩扫描",
+          "sourceFunction": "PlayMaskSweep",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.65,
+          "autoHold": 1.65,
+          "tracks": [
+            {
+              "name": "扫描显露",
+              "start": 0,
+              "end": 1.15
+            }
+          ]
+        },
+        {
+          "id": "elasticPull",
+          "title": "弹性回弹",
+          "sourceFunction": "PlayElasticPull",
+          "mode": "automatic-demonstration",
+          "duration": 1.55,
+          "autoHold": 1.55,
+          "tracks": [
+            {
+              "name": "抽屉拉出",
+              "start": 0,
+              "end": 0.4956
+            },
+            {
+              "name": "松手回弹",
+              "start": 0.4956,
+              "end": 1.18
+            }
+          ]
+        },
+        {
+          "id": "focusLens",
+          "title": "放大镜聚焦",
+          "sourceFunction": "PlayFocusLens",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.8,
+          "autoHold": 1.8,
+          "tracks": [
+            {
+              "name": "镜头淡入",
+              "start": 0,
+              "end": 0.25
+            },
+            {
+              "name": "第一段移动",
+              "start": 0,
+              "end": 0.5
+            },
+            {
+              "name": "第二段移动",
+              "start": 0.5,
+              "end": 1
+            }
+          ]
+        },
+        {
+          "id": "scatterMagnet",
+          "title": "散点磁吸",
+          "sourceFunction": "PlayScatterMagnet",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.65,
+          "autoHold": 1.65,
+          "tracks": [
+            {
+              "name": "核心显露",
+              "start": 0,
+              "end": 0.25
+            },
+            {
+              "name": "碎片磁吸",
+              "start": 0,
+              "end": 1.225
+            }
+          ]
+        },
+        {
+          "id": "magnetDrag",
+          "title": "磁铁拖拽",
+          "sourceFunction": "PlayMagnetDrag",
+          "mode": "automatic-demonstration",
+          "duration": 1.55,
+          "autoHold": 1.55,
+          "tracks": [
+            {
+              "name": "接近吸附槽",
+              "start": 0,
+              "end": 0.713
+            },
+            {
+              "name": "吸附回弹",
+              "start": 0.713,
+              "end": 1.15
+            }
+          ]
+        },
+        {
+          "id": "shatterPanel",
+          "title": "面板碎裂",
+          "sourceFunction": "PlayShatterPanel",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.5,
+          "autoHold": 1.5,
+          "tracks": [
+            {
+              "name": "面板显示",
+              "start": 0,
+              "end": 0.3
+            },
+            {
+              "name": "碎片飞散",
+              "start": 0.3,
+              "end": 1.12
+            }
+          ]
+        },
+        {
+          "id": "pixelDissolve",
+          "title": "像素瓦解",
+          "sourceFunction": "PlayPixelDissolve",
+          "mode": "click-triggered-demonstration",
+          "duration": 1.5,
+          "autoHold": 1.5,
+          "tracks": [
+            {
+              "name": "面板显示",
+              "start": 0,
+              "end": 0.12
+            },
+            {
+              "name": "像素散开",
+              "start": 0.12,
+              "end": 1.07
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sequence": [
+    "main",
+    "banner",
+    "bubble",
+    "dialog",
+    "list",
+    "sideList",
+    "cards",
+    "toast",
+    "transition",
+    "star",
+    "circle",
+    "particleWipe",
+    "rewardBurst",
+    "magnetList",
+    "flipCards",
+    "ripple",
+    "spotlight",
+    "cta",
+    "arcFly",
+    "radialMenu",
+    "scoreRoll",
+    "panelFlip",
+    "magnetDock",
+    "maskSweep",
+    "elasticPull",
+    "focusLens",
+    "scatterMagnet",
+    "buttonField",
+    "magnetDrag",
+    "shatterPanel",
+    "buttonBlast",
+    "rewardBox",
+    "pixelDissolve"
+  ]
+}

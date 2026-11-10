@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "id": "S05.select2",
+  "name": "章节 2 确认",
+  "category": "interaction",
+  "duration": 0.42,
+  "nodes": [
+    {
+      "id": "chapter2",
+      "name": "章节 2",
+      "transform": {
+        "scale": 1
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "chapter2",
+      "prop": "scale",
+      "at": 0,
+      "duration": 0.14,
+      "from": 1,
+      "to": 1.025,
+      "ease": "outCubic"
+    },
+    {
+      "node": "chapter2",
+      "prop": "scale",
+      "at": 0.14,
+      "duration": 0.28,
+      "from": 1.025,
+      "to": 1,
+      "ease": "outCubic"
+    }
+  ]
+}

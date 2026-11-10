@@ -1,0 +1,384 @@
+{
+  "type": "Panel",
+  "id": "root",
+  "width": 2048,
+  "height": 880,
+  "children": [
+    {
+      "backgroundFit": "cover",
+      "type": "Panel",
+      "id": "background",
+      "width": 2048,
+      "height": 880,
+      "position": "absolute",
+      "left": 0,
+      "top": 0,
+      "backgroundImage": "ui/s04-redesign-v1/images/background/asset_70ef0acb-87bd-49c0-ae46-59c19ab4e939_item_001.png"
+    },
+    {
+      "backgroundFit": "contain",
+      "type": "Panel",
+      "id": "E001",
+      "width": 49,
+      "height": 52,
+      "position": "absolute",
+      "left": 190,
+      "top": 25,
+      "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_005.png"
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Panel",
+      "id": "E002",
+      "width": 675,
+      "height": 286,
+      "position": "absolute",
+      "left": 117,
+      "top": 39,
+      "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_7f16d4de-5b54-4fcf-a380-0f60e33dda9a_item_001.png",
+      "children": [
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "T001",
+          "width": 503,
+          "height": 104,
+          "position": "absolute",
+          "left": 122,
+          "top": 106,
+          "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_e49c1c85-f860-41a2-8ecc-ed7b5e7ad80c_item_001.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "T002",
+          "width": 224,
+          "height": 43,
+          "position": "absolute",
+          "left": 279,
+          "top": 218,
+          "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_f075d4ac-8f07-4991-a00a-fce9847e3fb0_item_001.png"
+        }
+      ]
+    },
+    {
+      "backgroundFit": "contain",
+      "type": "Panel",
+      "id": "E010",
+      "width": 76,
+      "height": 76,
+      "position": "absolute",
+      "left": 1737,
+      "top": 91,
+      "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_004.png"
+    },
+    {
+      "backgroundFit": "contain",
+      "type": "Panel",
+      "id": "E011",
+      "width": 797,
+      "height": 835,
+      "position": "absolute",
+      "left": 855,
+      "top": 45,
+      "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_10dae5b5-320e-477b-9c34-f10f418c866e_item_001.png",
+      "zIndex": 10
+    },
+    {
+      "backgroundFit": "contain",
+      "type": "Panel",
+      "id": "E012",
+      "width": 412,
+      "height": 451,
+      "position": "absolute",
+      "left": 574,
+      "top": 255,
+      "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_10dae5b5-320e-477b-9c34-f10f418c866e_item_002.png",
+      "zIndex": 12
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Panel",
+      "id": "E013",
+      "width": 583,
+      "height": 202,
+      "position": "absolute",
+      "left": 456,
+      "top": 678,
+      "backgroundImage": "ui/s04-redesign-v1/images/effects/hat-back.png",
+      "zIndex": 11
+    },
+    {
+      "text": "回顾",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "fontSize": 30,
+      "fontWeight": "normal",
+      "fontColor": [255, 240, 200, 255],
+      "type": "Label",
+      "id": "T003",
+      "width": 62,
+      "height": 30,
+      "position": "absolute",
+      "left": 1748,
+      "top": 172,
+      "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+    },
+    {
+      "type": "Panel",
+      "id": "menu1",
+      "position": "absolute",
+      "left": 187,
+      "top": 349,
+      "width": 350,
+      "height": 137,
+      "pointerEvents": "box-none",
+      "zIndex": 20,
+      "children": [
+        {
+          "backgroundFit": "fill",
+          "type": "Panel",
+          "id": "E003",
+          "width": 235,
+          "height": 90,
+          "position": "absolute",
+          "left": 95,
+          "top": 30,
+          "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_004.png",
+          "children": [
+            {
+              "text": "演出序幕",
+              "textAlign": "center",
+              "verticalAlign": "middle",
+              "fontSize": 37,
+              "fontWeight": "normal",
+              "fontColor": [255, 229, 174, 255],
+              "type": "Label",
+              "id": "T004",
+              "width": 149,
+              "height": 37,
+              "position": "absolute",
+              "left": 51,
+              "top": 18,
+              "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+            }
+          ]
+        },
+        {
+          "backgroundFit": "fill",
+          "type": "Panel",
+          "id": "E004",
+          "width": 128,
+          "height": 137,
+          "position": "absolute",
+          "left": 4,
+          "top": 0,
+          "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_001.png",
+          "children": [
+            {
+              "backgroundFit": "contain",
+              "type": "Panel",
+              "id": "E005",
+              "width": 85,
+              "height": 78,
+              "position": "absolute",
+              "left": 24,
+              "top": 33,
+              "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_003.png"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Panel",
+      "id": "menu2",
+      "position": "absolute",
+      "left": 187,
+      "top": 501,
+      "width": 350,
+      "height": 140,
+      "pointerEvents": "box-none",
+      "zIndex": 20,
+      "children": [
+        {
+          "backgroundFit": "fill",
+          "type": "Panel",
+          "id": "E006",
+          "width": 232,
+          "height": 91,
+          "position": "absolute",
+          "left": 98,
+          "top": 30,
+          "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_003.png",
+          "children": [
+            {
+              "text": "剧目档案",
+              "textAlign": "center",
+              "verticalAlign": "middle",
+              "fontSize": 37,
+              "fontWeight": "normal",
+              "fontColor": [255, 229, 174, 255],
+              "type": "Label",
+              "id": "T005",
+              "width": 150,
+              "height": 38,
+              "position": "absolute",
+              "left": 53,
+              "top": 17,
+              "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+            }
+          ]
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E007",
+          "width": 132,
+          "height": 140,
+          "position": "absolute",
+          "left": 3,
+          "top": 0,
+          "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_002.png"
+        }
+      ]
+    },
+    {
+      "type": "Panel",
+      "id": "menu3",
+      "position": "absolute",
+      "left": 187,
+      "top": 658,
+      "width": 350,
+      "height": 145,
+      "pointerEvents": "box-none",
+      "zIndex": 20,
+      "children": [
+        {
+          "backgroundFit": "fill",
+          "type": "Panel",
+          "id": "E008",
+          "width": 233,
+          "height": 91,
+          "position": "absolute",
+          "left": 97,
+          "top": 32,
+          "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_002.png",
+          "children": [
+            {
+              "text": "星仪收藏",
+              "textAlign": "center",
+              "verticalAlign": "middle",
+              "fontSize": 37,
+              "fontWeight": "normal",
+              "fontColor": [255, 229, 174, 255],
+              "type": "Label",
+              "id": "T006",
+              "width": 151,
+              "height": 39,
+              "position": "absolute",
+              "left": 51,
+              "top": 16,
+              "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+            }
+          ]
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E009",
+          "width": 138,
+          "height": 145,
+          "position": "absolute",
+          "left": 0,
+          "top": 0,
+          "backgroundImage": "ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_001.png"
+        }
+      ]
+    },
+    {
+      "type": "Panel",
+      "id": "hatFront",
+      "position": "absolute",
+      "left": 456,
+      "top": 678,
+      "width": 583,
+      "height": 202,
+      "backgroundImage": "ui/s04-redesign-v1/images/effects/hat-front.png",
+      "backgroundFit": "fill",
+      "pointerEvents": "none",
+      "zIndex": 13
+    },
+    {
+      "type": "Panel",
+      "id": "clapper",
+      "position": "absolute",
+      "left": 1556,
+      "top": 537,
+      "width": 353,
+      "height": 309,
+      "pointerEvents": "box-none",
+      "zIndex": 20,
+      "children": [
+        {
+          "backgroundFit": "fill",
+          "type": "Panel",
+          "id": "E014",
+          "width": 353,
+          "height": 309,
+          "position": "absolute",
+          "left": 0,
+          "top": 0,
+          "backgroundImage": "ui/s04-redesign-v1/images/effects/clapper-body.png",
+          "children": [
+            {
+              "text": "开启演出",
+              "textAlign": "center",
+              "verticalAlign": "middle",
+              "fontSize": 58,
+              "fontWeight": "normal",
+              "fontColor": [255, 224, 175, 255],
+              "type": "Label",
+              "id": "T007",
+              "width": 233,
+              "height": 89,
+              "position": "absolute",
+              "left": 58,
+              "top": 128,
+              "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+            },
+            {
+              "text": "BEGIN PERFORMANCE",
+              "textAlign": "center",
+              "verticalAlign": "middle",
+              "fontSize": 21,
+              "fontWeight": "normal",
+              "fontColor": [255, 228, 183, 255],
+              "type": "Label",
+              "id": "T008",
+              "width": 220,
+              "height": 54,
+              "position": "absolute",
+              "left": 72,
+              "top": 192,
+              "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+            }
+          ]
+        },
+        {
+          "type": "Panel",
+          "id": "clapperTop",
+          "position": "absolute",
+          "left": 0,
+          "top": 0,
+          "width": 353,
+          "height": 309,
+          "backgroundImage": "ui/s04-redesign-v1/images/effects/clapper-top.png",
+          "backgroundFit": "fill",
+          "pointerEvents": "none"
+        }
+      ]
+    }
+  ],
+  "name": "绒幕星仪剧场"
+}

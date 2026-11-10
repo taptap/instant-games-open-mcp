@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>更多动效 · 七种 UI 材质与配色</title>
+  <style>__CSS__</style>
+</head>
+<body>
+  <main>
+    <section class="viewport" aria-label="UI 动效体验">
+      <div class="stage-fit">
+        <div class="stage">
+          <canvas id="stage" width="2048" height="1152" aria-label="可交互 UI 组件与动效"></canvas>
+          <div id="hits"></div>
+        </div>
+      </div>
+      <button id="skin-prev" class="skin-nav previous" type="button" aria-label="上一套界面" title="上一套界面（←）"><span aria-hidden="true"></span></button>
+      <button id="skin-next" class="skin-nav next" type="button" aria-label="下一套界面" title="下一套界面（→）"><span aria-hidden="true"></span></button>
+      <div class="skin-picker">
+        <button id="skin-toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="skins" aria-label="选择界面"><span id="skin-name"></span><span id="skin-count" aria-hidden="true"></span><span class="picker-arrow" aria-hidden="true"></span></button>
+        <nav id="skins" class="skin-menu" aria-label="选择界面" hidden></nav>
+      </div>
+    </section>
+    <span id="status" role="status">准备中…</span>
+  </main>
+  <script>const DATA=__DATA__;</script>
+  <script type="module">__JS__</script>
+</body>
+</html>

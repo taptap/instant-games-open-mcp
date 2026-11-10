@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { ServerResponse } from 'node:http';
 import { ConsoleError } from '../types.js';
+import { motionAssets, motionLuaSources, motionRuntimeScript } from './runtime.js';
+import { bundledSample } from './bundled.js';
 
 /** A local candidate stays outside the bundled example library. */
 export function getUiMotionSampleFile(
@@ -25,6 +27,10 @@ export function getUiMotionSampleFile(
 
 /** Read only the optional fixed local catalog; never accept arbitrary asset URLs. */
 export function getUiMotionSampleCatalog() {
+  if (!process.env.TAPTAP_MAKER_UI_MOTION_REFERENCE_DIR)
+    return JSON.parse(motionAssets()['data/ui-motion-vector-sample/catalog.json']).map(
+      (item: Record<string, unknown>) => ({ ...item, project: '随包 LuaTween 演示资源' })
+    );
   const sample = getUiMotionSampleFile();
   if (!sample) return [];
   try {
@@ -61,6 +67,8 @@ export function getUiMotionSampleCatalog() {
 }
 
 export function getUiMotionLab() {
+  if (!process.env.TAPTAP_MAKER_UI_MOTION_REFERENCE_DIR)
+    return { project: '随包 LuaTween 演示资源', entry: '/ui-motion/motion-lab' };
   const filename = getUiMotionSampleFile('lab');
   return filename
     ? { project: path.dirname(path.dirname(filename)), entry: '/ui-motion/motion-lab' }
@@ -72,7 +80,13 @@ export function serveUiMotionSample(
   variant: 'showcase' | 'lab' = 'showcase'
 ): void {
   const filename = getUiMotionSampleFile(variant);
-  if (!filename) throw new ConsoleError('本机尚未准备 NanoVG 动效示例。', 404);
+  if (!filename && process.env.TAPTAP_MAKER_UI_MOTION_REFERENCE_DIR)
+    throw new ConsoleError('本机尚未准备 NanoVG 动效示例。', 404);
+  const html = filename
+    ? upgradeMotionSample(fs.readFileSync(filename, 'utf8'), variant)
+    : bundledSample(variant);
+  if (Buffer.byteLength(html) > (variant === 'lab' ? 48 : 24) * 1024 * 1024)
+    throw new ConsoleError('LuaTween 演示超过大小上限。', 413);
   response.writeHead(200, {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'no-store',
@@ -80,15 +94,56 @@ export function serveUiMotionSample(
       "default-src 'none'",
       "script-src 'unsafe-inline'",
       "style-src 'unsafe-inline'",
-      'img-src data:',
-      'font-src data:',
+      "img-src 'self' data:",
+      "font-src 'self' data:",
       "media-src 'none'",
       "object-src 'none'",
-      "connect-src 'none'",
+      "connect-src 'self'",
       "frame-ancestors 'self'",
       "base-uri 'none'",
       "form-action 'none'",
     ].join('; '),
   });
-  response.end(fs.readFileSync(filename));
+  response.end(html);
+}
+
+export function upgradeMotionSample(html: string, variant: 'showcase' | 'lab'): string {
+  const assets = motionAssets();
+  if (variant === 'lab') {
+    const match = /<script>const DATA=([\s\S]*?);<\/script\b[^>]*>/i.exec(html);
+    if (!match) throw new ConsoleError('动效工坊素材格式不匹配，请更新参考素材。', 409);
+    const data = JSON.parse(match[1]);
+    const sources = motionLuaSources();
+    data.lua =
+      ['LuaTween', 'MotionLabRecipes', 'MotionLabDesign', 'MotionLabComponents']
+        .map(
+          (name) =>
+            'package.preload[' + JSON.stringify(name) + ']=function()\n' + sources[name] + '\nend\n'
+        )
+        .join('') + sources.MotionLab;
+    const scripts = [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi)];
+    const player = scripts.at(-1);
+    if (!player || player.index === undefined) throw new ConsoleError('动效工坊入口不完整。', 409);
+    html =
+      html.slice(0, player.index) +
+      '<script type="module">' +
+      assets['lab/bridge.bundle.js'].replace(/<\/script/gi, '<\\/script') +
+      '</script>' +
+      html.slice(player.index + player[0].length);
+    return html.replace(
+      match[0],
+      () => '<script>const DATA=' + JSON.stringify(data).replace(/</g, '\\u003c') + ';</script>'
+    );
+  }
+  const scripts = [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi)];
+  const player = scripts.at(-1);
+  if (!player || player.index === undefined || !html.includes('const DATA='))
+    throw new ConsoleError('完整界面素材格式不匹配，请更新参考素材。', 409);
+  return (
+    html.slice(0, player.index) +
+    '<script>' +
+    (motionRuntimeScript() + assets['showcase/player.js']).replace(/<\/script/gi, '<\\/script') +
+    '</script>' +
+    html.slice(player.index + player[0].length)
+  );
 }

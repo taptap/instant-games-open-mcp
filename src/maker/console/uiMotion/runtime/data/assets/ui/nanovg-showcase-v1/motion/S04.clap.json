@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "id": "S04.clap",
+  "name": "场记板开合",
+  "category": "interaction",
+  "duration": 0.7,
+  "nodes": [
+    {
+      "id": "clap-lid",
+      "name": "场记板上盖",
+      "transform": {
+        "rotation": 0
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "clap-lid",
+      "prop": "rotation",
+      "at": 0,
+      "duration": 0.25,
+      "from": 0,
+      "to": -13,
+      "ease": "outCubic"
+    },
+    {
+      "node": "clap-lid",
+      "prop": "rotation",
+      "at": 0.4,
+      "duration": 0.17,
+      "from": -13,
+      "to": 0,
+      "ease": "outCubic"
+    }
+  ]
+}

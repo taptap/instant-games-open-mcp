@@ -1,6 +1,6 @@
 # Maker 示例资源维护
 
-官方画布模板使用 src/maker/demoResources.json。每个图片/视频/MDL 模型一个地址，
+官方画布模板和 LuaTween 演示使用 src/maker/demoResources.json。每个图片/视频/MDL 模型/TTF 字体一个地址，
 不打 ZIP，不增加 MCP tool。编辑器代码和 WASM 随包分发，示例改为外部链接，不再内置。
 
 ```text
@@ -23,7 +23,9 @@ node scripts/maker-demo-resources.mjs upload
 add 可选第二个文件参数作为列表缩略图。素材按 SHA-256 命名并去重，模板引用 resourceId。
 optimize 更新 ID 及已有模板/编辑器引用，PNG 优化编码，JPEG 优化熵编码，不缩放、量化或重新有损编码。
 压缩前后逐像素核对 RGBA、尺寸及颜色元数据，变大则保留原字节；验证失败立即停止。
-缩略图是单独的列表预览，不用于导入素材或游戏贴图；视频和 MDL 模型保留原字节。
+缩略图是单独的列表预览，不用于导入素材或游戏贴图；视频、MDL 模型和 TTF 字体保留原字节。
+LuaTween 演示的 resourceMap.json 维护游戏资源路径与 resourceId 的对应，optimize 同步重写其引用；
+字体许可证、Lua 源码和 UI.json 随代码分发，媒体继续使用同一下载校验与缓存流程。
 upload 在本地文件或无损检查不合格时拒绝上传；pending 可只查看待上传列表。
 
 这是官方模板图片的固定入库流程，包括缩略图；新图片先 add，再 prepare，最后引用

@@ -1,0 +1,652 @@
+{
+  "type": "Panel",
+  "id": "root",
+  "width": 2048,
+  "height": 944,
+  "children": [
+    {
+      "backgroundFit": "cover",
+      "type": "Panel",
+      "id": "background",
+      "width": 2048,
+      "height": 944,
+      "position": "absolute",
+      "left": 0,
+      "top": 0,
+      "backgroundImage": "ui/s05-redesign-v1/images/background/asset_437ca95a-c49e-4b39-a557-c2ae48a7a9fa_item_001.png"
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Button",
+      "id": "E001",
+      "width": 112,
+      "height": 142,
+      "position": "absolute",
+      "left": 139,
+      "top": 9,
+      "backgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_003.png",
+      "pressedBackgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_004.png",
+      "children": [
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E002",
+          "width": 45,
+          "height": 55,
+          "position": "absolute",
+          "left": 29,
+          "top": 50,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_009.png"
+        }
+      ]
+    },
+    {
+      "type": "Panel",
+      "id": "puppetRig",
+      "position": "absolute",
+      "left": 676,
+      "top": 0,
+      "width": 447,
+      "height": 872,
+      "pointerEvents": "box-none",
+      "transformOrigin": "top",
+      "children": [
+        {
+          "type": "Panel",
+          "id": "stringLeft",
+          "position": "absolute",
+          "left": 19,
+          "top": 0,
+          "width": 2,
+          "height": 496,
+          "backgroundColor": [207, 188, 141, 220],
+          "pointerEvents": "none"
+        },
+        {
+          "type": "Panel",
+          "id": "stringHead",
+          "position": "absolute",
+          "left": 180,
+          "top": 0,
+          "width": 2,
+          "height": 185,
+          "backgroundColor": [207, 188, 141, 220],
+          "pointerEvents": "none"
+        },
+        {
+          "type": "Panel",
+          "id": "stringRight",
+          "position": "absolute",
+          "left": 412,
+          "top": 0,
+          "width": 2,
+          "height": 252,
+          "backgroundColor": [207, 188, 141, 220],
+          "pointerEvents": "none"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E003",
+          "width": 447,
+          "height": 715,
+          "position": "absolute",
+          "left": 0,
+          "top": 157,
+          "backgroundImage": "ui/s05-redesign-v1/images/artwork/asset_df41fc62-a3a1-4b3f-b4a3-4450126e3799_item_001.png"
+        }
+      ]
+    },
+    {
+      "backgroundFit": "contain",
+      "type": "Panel",
+      "id": "E004",
+      "width": 121,
+      "height": 238,
+      "position": "absolute",
+      "left": 1122,
+      "top": 597,
+      "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_001.png"
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Panel",
+      "id": "E005",
+      "width": 263,
+      "height": 76,
+      "position": "absolute",
+      "left": 1375,
+      "top": 22,
+      "backgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_012.png",
+      "children": [
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E006",
+          "width": 71,
+          "height": 67,
+          "position": "absolute",
+          "left": 17,
+          "top": 3,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_008.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E007",
+          "width": 42,
+          "height": 42,
+          "position": "absolute",
+          "left": 203,
+          "top": 15,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_011.png"
+        },
+        {
+          "text": "100",
+          "textAlign": "right",
+          "verticalAlign": "middle",
+          "fontSize": 31,
+          "fontWeight": "normal",
+          "fontColor": [249, 231, 191, 255],
+          "type": "Label",
+          "id": "T001",
+          "width": 57,
+          "height": 35,
+          "position": "absolute",
+          "left": 114,
+          "top": 18,
+          "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+        }
+      ]
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Panel",
+      "id": "E008",
+      "width": 244,
+      "height": 73,
+      "position": "absolute",
+      "left": 1657,
+      "top": 23,
+      "backgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_013.png",
+      "children": [
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E009",
+          "width": 73,
+          "height": 91,
+          "position": "absolute",
+          "left": -1,
+          "top": -11,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_004.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E010",
+          "width": 41,
+          "height": 42,
+          "position": "absolute",
+          "left": 188,
+          "top": 14,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_011.png"
+        },
+        {
+          "text": "15",
+          "textAlign": "right",
+          "verticalAlign": "middle",
+          "fontSize": 31,
+          "fontWeight": "normal",
+          "fontColor": [249, 231, 191, 255],
+          "type": "Label",
+          "id": "T002",
+          "width": 38,
+          "height": 34,
+          "position": "absolute",
+          "left": 117,
+          "top": 17,
+          "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+        }
+      ]
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Button",
+      "id": "E011",
+      "width": 307,
+      "height": 99,
+      "position": "absolute",
+      "left": 141,
+      "top": 610,
+      "backgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_008.png",
+      "pressedBackgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_009.png",
+      "children": [
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E012",
+          "width": 78,
+          "height": 68,
+          "position": "absolute",
+          "left": 13,
+          "top": 14,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_007.png"
+        },
+        {
+          "text": "机关试演",
+          "textAlign": "center",
+          "verticalAlign": "middle",
+          "fontSize": 35,
+          "fontWeight": "normal",
+          "fontColor": [246, 228, 182, 255],
+          "type": "Label",
+          "id": "T009",
+          "width": 140,
+          "height": 36,
+          "position": "absolute",
+          "left": 126,
+          "top": 28,
+          "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+        }
+      ]
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Button",
+      "id": "E013",
+      "width": 350,
+      "height": 94,
+      "position": "absolute",
+      "left": 136,
+      "top": 715,
+      "backgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_010.png",
+      "pressedBackgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_011.png",
+      "children": [
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E014",
+          "width": 85,
+          "height": 87,
+          "position": "absolute",
+          "left": 22,
+          "top": -5,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_005.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E015",
+          "width": 48,
+          "height": 46,
+          "position": "absolute",
+          "left": -37,
+          "top": 23,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_010.png"
+        },
+        {
+          "text": "月灯巡游",
+          "textAlign": "center",
+          "verticalAlign": "middle",
+          "fontSize": 34,
+          "fontWeight": "normal",
+          "fontColor": [246, 228, 182, 255],
+          "type": "Label",
+          "id": "T010",
+          "width": 139,
+          "height": 36,
+          "position": "absolute",
+          "left": 149,
+          "top": 27,
+          "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+        }
+      ]
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Button",
+      "id": "E016",
+      "width": 310,
+      "height": 102,
+      "position": "absolute",
+      "left": 146,
+      "top": 815,
+      "backgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_006.png",
+      "pressedBackgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_007.png",
+      "children": [
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E017",
+          "width": 105,
+          "height": 111,
+          "position": "absolute",
+          "left": 11,
+          "top": -3,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_003.png"
+        },
+        {
+          "text": "星仪档案",
+          "textAlign": "center",
+          "verticalAlign": "middle",
+          "fontSize": 35,
+          "fontWeight": "normal",
+          "fontColor": [246, 228, 182, 255],
+          "type": "Label",
+          "id": "T011",
+          "width": 140,
+          "height": 36,
+          "position": "absolute",
+          "left": 138,
+          "top": 31,
+          "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+        }
+      ]
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Panel",
+      "id": "E018",
+      "width": 624,
+      "height": 800,
+      "position": "absolute",
+      "left": 1320,
+      "top": 119,
+      "backgroundImage": "ui/s05-redesign-v1/images/panels/asset_cc9fd04b-267f-4107-a0ed-c7648d8f94de_item_001.png",
+      "children": []
+    },
+    {
+      "type": "Panel",
+      "id": "paperContent",
+      "position": "absolute",
+      "left": 1320,
+      "top": 119,
+      "width": 624,
+      "height": 800,
+      "pointerEvents": "box-none",
+      "children": [
+        {
+          "backgroundFit": "fill",
+          "type": "Panel",
+          "id": "E019",
+          "width": 448,
+          "height": 125,
+          "position": "absolute",
+          "left": 7,
+          "top": 23,
+          "backgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_005.png",
+          "children": [
+            {
+              "backgroundFit": "contain",
+              "type": "Panel",
+              "id": "E021",
+              "width": 34,
+              "height": 38,
+              "position": "absolute",
+              "left": 26,
+              "top": 66,
+              "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_014.png"
+            },
+            {
+              "text": "第三幕·月灯巡游",
+              "textAlign": "center",
+              "verticalAlign": "middle",
+              "fontSize": 38,
+              "fontWeight": "normal",
+              "fontColor": [244, 232, 201, 255],
+              "type": "Label",
+              "id": "T003",
+              "width": 307,
+              "height": 76,
+              "position": "absolute",
+              "left": 77,
+              "top": 22,
+              "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+            }
+          ]
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E020",
+          "width": 179,
+          "height": 160,
+          "position": "absolute",
+          "left": 408,
+          "top": -21,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_002.png"
+        },
+        {
+          "backgroundFit": "fill",
+          "type": "Panel",
+          "id": "E022",
+          "width": 469,
+          "height": 259,
+          "position": "absolute",
+          "left": 96,
+          "top": 104,
+          "backgroundImage": "ui/s05-redesign-v1/images/equipment/asset_95f90e05-e1ed-448b-8768-aa27bd6845e3_item_001.png",
+          "children": [
+            {
+              "backgroundFit": "contain",
+              "type": "Panel",
+              "id": "E023",
+              "width": 439,
+              "height": 240,
+              "position": "absolute",
+              "left": 17,
+              "top": 9,
+              "backgroundImage": "ui/s05-redesign-v1/images/artwork/asset_df41fc62-a3a1-4b3f-b4a3-4450126e3799_item_002.png"
+            }
+          ]
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E024",
+          "width": 77,
+          "height": 73,
+          "position": "absolute",
+          "left": 515,
+          "top": 306,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_006.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E025",
+          "width": 31,
+          "height": 36,
+          "position": "absolute",
+          "left": 132,
+          "top": 382,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_015.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E026",
+          "width": 31,
+          "height": 36,
+          "position": "absolute",
+          "left": 133,
+          "top": 429,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_015.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E027",
+          "width": 31,
+          "height": 36,
+          "position": "absolute",
+          "left": 133,
+          "top": 474,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_015.png"
+        },
+        {
+          "backgroundFit": "fill",
+          "type": "Panel",
+          "id": "E028",
+          "width": 419,
+          "height": 12,
+          "position": "absolute",
+          "left": 117,
+          "top": 525,
+          "backgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_014.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E029",
+          "width": 35,
+          "height": 39,
+          "position": "absolute",
+          "left": 235,
+          "top": 538,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_012.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E030",
+          "width": 35,
+          "height": 39,
+          "position": "absolute",
+          "left": 271,
+          "top": 538,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_012.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E031",
+          "width": 35,
+          "height": 39,
+          "position": "absolute",
+          "left": 307,
+          "top": 538,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_012.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E032",
+          "width": 35,
+          "height": 39,
+          "position": "absolute",
+          "left": 343,
+          "top": 538,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_013.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E033",
+          "width": 35,
+          "height": 39,
+          "position": "absolute",
+          "left": 379,
+          "top": 538,
+          "backgroundImage": "ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_013.png"
+        },
+        {
+          "backgroundFit": "fill",
+          "type": "Button",
+          "id": "E034",
+          "width": 541,
+          "height": 169,
+          "position": "absolute",
+          "left": 71,
+          "top": 578,
+          "backgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_001.png",
+          "pressedBackgroundImage": "ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_002.png",
+          "children": [
+            {
+              "text": "进入故事",
+              "textAlign": "center",
+              "verticalAlign": "middle",
+              "fontSize": 53,
+              "fontWeight": "normal",
+              "fontColor": [255, 240, 200, 255],
+              "type": "Label",
+              "id": "T008",
+              "width": 219,
+              "height": 53,
+              "position": "absolute",
+              "left": 163,
+              "top": 50,
+              "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+            }
+          ]
+        },
+        {
+          "text": "寻找遗失的星图",
+          "textAlign": "left",
+          "verticalAlign": "middle",
+          "fontSize": 31,
+          "fontWeight": "bold",
+          "fontColor": [56, 35, 21, 255],
+          "type": "Label",
+          "id": "T004",
+          "width": 217,
+          "height": 32,
+          "position": "absolute",
+          "left": 175,
+          "top": 382,
+          "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+        },
+        {
+          "text": "点亮沉睡的月灯",
+          "textAlign": "left",
+          "verticalAlign": "middle",
+          "fontSize": 30,
+          "fontWeight": "bold",
+          "fontColor": [56, 35, 21, 255],
+          "type": "Label",
+          "id": "T005",
+          "width": 216,
+          "height": 32,
+          "position": "absolute",
+          "left": 176,
+          "top": 429,
+          "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+        },
+        {
+          "text": "揭开剧团的秘密",
+          "textAlign": "left",
+          "verticalAlign": "middle",
+          "fontSize": 31,
+          "fontWeight": "bold",
+          "fontColor": [56, 35, 21, 255],
+          "type": "Label",
+          "id": "T006",
+          "width": 219,
+          "height": 32,
+          "position": "absolute",
+          "left": 176,
+          "top": 476,
+          "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+        },
+        {
+          "text": "难度：",
+          "textAlign": "left",
+          "verticalAlign": "middle",
+          "fontSize": 23,
+          "fontWeight": "bold",
+          "fontColor": [56, 35, 21, 255],
+          "type": "Label",
+          "id": "T007",
+          "width": 69,
+          "height": 28,
+          "position": "absolute",
+          "left": 155,
+          "top": 545,
+          "fontFamily": "Fonts/NotoSerifSC-Regular.ttf"
+        }
+      ]
+    }
+  ],
+  "name": "月灯巡游章节"
+}
