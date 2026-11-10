@@ -41,6 +41,7 @@ AI 负责最后的看图复核与定向修复，直到达到第 4 节的完成�
 ## 3. 复核修复（把结果修到完整）
 
 多分辨率适配按同包 [适配指引](../maker-ui-workflow/references/responsive.md) 执行。
+贴边、居中、拉伸和列表伸缩只按[排版参数](../maker-ui-workflow/references/layout.md)调整，不新造对齐字段。
 自动组装使用全屏、安全区和初拟锚点；先看 assembly-map.json 的 adaptation，按用途修正分组，
 不能把自动推断当成已验证布局，也不能把非全屏组件强制全屏。
 
