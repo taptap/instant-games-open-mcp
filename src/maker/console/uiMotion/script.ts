@@ -125,7 +125,7 @@ function setupLocalViewer() {
       selection = [
         '请接入当前选中的 LuaTween 动效：'+effect.title+'（'+effect.id+'）；参考皮肤：'+skin.name+'（'+skin.id+'）。',
         '效果源码 scripts/MotionLabRecipes.lua；所选阶段时序见 assets/ui/motion-lab-v1/catalog.json。默认只复用该效果，不移植整个工坊。',
-        '如需复用示例 UI，先读 assets/ui/motion-lab-v2/README.md 与所选皮肤的 layout.json，保留分层与文字，不改成整屏截图热区。',
+        '如需复用示例 UI，先读 assets/ui/motion-lab-v2/README.md；在 assets/ui/motion-lab-v2/designs.json 中按皮肤 id '+skin.id+' 查找布局，对应生成数据为 scripts/MotionLabDesign.lua。保留分层与文字，不改成整屏截图热区。',
         '径向菜单、弹性回弹和磁铁拖拽在示例中为自动演示，真实输入需接到项目控件。',
       ];
     } else {
@@ -552,7 +552,7 @@ $('use-original').onclick = () => {
     return;
   }
   $('original-handoff-status').textContent = '';
-  const item = originalSelection.kind === 'transition' ? originalSelection : originals.find(example => example.id === snapshot?.example) || originalSelection;
+  const item = originals.find(example => example.id === snapshot.example) || originalSelection;
   $('prompt').value = [
     '请接入图片 UI「' + item.id + ' ' + item.name + '」的 LuaTween 动效。',
     '演示当前选择：角色 '+snapshot.focused+'，章节 '+snapshot.chapter+(snapshot.effect ? '，反馈 '+snapshot.effect : '')+'；仅作表现参考，不导入演示游戏业务。',

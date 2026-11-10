@@ -486,7 +486,7 @@ function tick(now) {
       current.kind === 'transition' ? Math.max(0, seconds - current.duration / 2) : 0;
     pause();
     pending = null;
-    if (next) open(next.id, next.auto, resumeAt);
+    if (next) openExample(next.id, next.auto, resumeAt);
     else if (current.id === 'S02' && seconds >= 1.4) {
       seconds = 0.6;
       paint();
@@ -502,7 +502,7 @@ function seek(value) {
   seconds = clamp(value, start, end);
   paint();
 }
-function open(id, autoplay = true, resumeAt = 0) {
+function openExample(id, autoplay = true, resumeAt = 0) {
   pause();
   pending = null;
   effect = null;
@@ -575,7 +575,7 @@ function act(action) {
     }
   } else if (current.id === 'S03') {
     if (action === 'skip') {
-      open('S01');
+      openExample('S01');
       return true;
     }
     if (action === 'auto') {
@@ -584,7 +584,7 @@ function act(action) {
       notify(auto ? 'AUTO 已开启' : 'AUTO 已关闭');
       if (auto && !dialogueEnded) play();
     } else if (dialogueEnded) {
-      open('S03');
+      openExample('S03');
       return true;
     } else if (seconds < 28 / 30) notify('台词正在显示');
     else {
@@ -599,12 +599,12 @@ function act(action) {
       goTransition('T03');
       return true;
     } else if (action === 'back') {
-      open('S04', false);
+      openExample('S04', false);
       seek(sceneConfig('S04').settled);
       notify('绒幕星仪剧场 · 活动主页');
       return true;
     } else if (action === 'rabbit') {
-      open('S04');
+      openExample('S04');
       return true;
     } else notify(action === 'review' ? '回顾已选中' : '轶事已选中');
   } else if (current.id === 'S05') {
@@ -642,7 +642,7 @@ function notify(message) {
 }
 function goTransition(id, from, to) {
   const source = { focused, chapter, selectedAction };
-  open(id);
+  openExample(id);
   if (from && to) current = { ...current, from, to };
   ({ focused, chapter, selectedAction } = source);
   pending = { id: current.to, auto: true };
@@ -775,7 +775,7 @@ function renderTimeline() {
 $('play').onclick = togglePlayback;
 // A transition card still replays its transition after entering the destination scene.
 $('replay').onclick = () =>
-  open(
+  openExample(
     catalog.transitions.some((item) => item.id === requestedExample)
       ? requestedExample
       : activeExample
@@ -857,9 +857,9 @@ window.addEventListener('pagehide', pause);
     document.fonts.load('20px "Fonts/NotoSerifSC-Regular.ttf"'),
   ]);
   await document.fonts.ready;
-  open(activeExample);
+  openExample(activeExample);
   window.nativeDemo = {
-    open,
+    open: openExample,
     seek,
     pause,
     act,

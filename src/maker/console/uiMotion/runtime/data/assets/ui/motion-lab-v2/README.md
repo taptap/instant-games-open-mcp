@@ -6,10 +6,10 @@
 
 ## 原生接入
 
-- 各关键词目录包含独立 PNG、空白与退选状态、选中边框，以及 layout.json。
+- 各关键词目录对应独立 PNG、空白与退选状态及选中边框，媒体从参考包 assets 列表按需下载。
 - 浮动菜单与列表返回按钮使用独立的 \*-floating.png 透明轮廓；返回按钮保持原图比例。
 - 顺播中的停止按钮复用 header-sequence-blank.png 材质，并绘制对应风格的动态文字。
-- designs.json 是布局和名称的唯一来源；scripts/MotionLabDesign.lua 是其生成数据。
+- assets/ui/motion-lab-v2/designs.json 是布局和名称的唯一来源，按数组条目的 id 匹配所选皮肤；scripts/MotionLabDesign.lua 是其生成数据。
 - scripts/MotionLabComponents.lua 负责图层绘制、选择、提示、弹窗与组件反馈。
 - scripts/MotionLab.lua 负责目录、播放时钟、重播、33 项顺播和输入路由。
 - scripts/MotionLabMain.lua 是独立 NanoVG 入口，不覆盖项目 main.lua。
@@ -22,4 +22,4 @@
 GetControls() 返回当前可操作区域。网页和 Maker 原生执行同一份动效 Lua。
 图层边缘含配套背景的纹理，换用其他背景前需处理边缘。
 
-更新布局数据后运行 node ui-motion-lab/build.mjs，生成 Lua 数据及控制台内的自包含预览。
+维护本仓库时更新 designs.json，再按 Maker 的现有构建流程生成 Lua 数据与预览；接入项目直接使用参考包中已生成的数据。

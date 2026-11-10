@@ -177,7 +177,9 @@ function Demo.Update(dt)
         if state.time>=recipe.duration then
             state.playing=false
             if not state.inspect then
-                if recipe.category=='transition' then Demo.Scene(recipe.target,false)
+                if recipe.category=='transition' then
+                    Demo.Scene(recipe.target,false)
+                    if state.scene=='S03' then Demo.Run('S03.type') end
                 elseif state.scene=='S03' and recipe.category=='entry' then Demo.Run('S03.type') end
             end
         end

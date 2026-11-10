@@ -706,9 +706,10 @@
         if (S.time >= clip().duration) {
           S.playing = false;
           if (!S.inspect) {
-            if (clip().category === 'transition' && !S.transitionDemo)
+            if (clip().category === 'transition' && !S.transitionDemo) {
               setScene(clip().target, false);
-            else if (S.scene === 'S03' && clip().category === 'entry') run('S03.type');
+              if (S.scene === 'S03') run('S03.type');
+            } else if (S.scene === 'S03' && clip().category === 'entry') run('S03.type');
           }
         }
       }

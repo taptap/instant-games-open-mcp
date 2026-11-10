@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { ServerResponse } from 'node:http';
 import { createHash } from 'node:crypto';
 import { bundledOriginalReference, bundledRuntimeReference } from '../uiMotion/bundled.js';
+import { upgradeMotionSample } from '../uiMotion/sample.js';
 import {
   getOriginalMotionExamples,
   getOriginalMotionReference,
@@ -113,6 +114,31 @@ describe('original UI motion reference limits', () => {
     expect(reference.assets.every((file) => file.url.startsWith('https://') && file.sha256)).toBe(
       true
     );
+  });
+
+  test.each(['lab', 'showcase'] as const)(
+    'upgrades mixed-case script tags in %s samples',
+    (variant) => {
+      const html =
+        '<ScRiPt>const DATA={"lua":"legacy lua"};</sCrIpT><SCRIPT>legacyPlayer();</SCRIPT>';
+      const upgraded = upgradeMotionSample(html, variant);
+      expect(upgraded).not.toContain('legacyPlayer()');
+      if (variant === 'lab') expect(upgraded).not.toContain('legacy lua');
+      expect(upgraded).toContain('LuaTween');
+    }
+  );
+
+  test('delivers the documented skin layouts and generated Lua data', () => {
+    const reference = bundledRuntimeReference();
+    const designs = JSON.parse(
+      reference.files.find((file) => file.path === 'assets/ui/motion-lab-v2/designs.json')!.content
+    );
+    expect(designs).toHaveLength(7);
+    expect(designs.every((skin: { id: string }) => typeof skin.id === 'string')).toBe(true);
+    expect(reference.files.some((file) => file.path === 'scripts/MotionLabDesign.lua')).toBe(true);
+    expect(
+      reference.files.find((file) => file.path === 'assets/ui/motion-lab-v2/README.md')!.content
+    ).not.toContain('layout.json');
   });
 
   test('serves packaged library documentation with and without a local reference override', async () => {
