@@ -13,6 +13,34 @@ let paints = [],
   loadingSkin = false,
   skinError = '';
 const images = new Map();
+const loading = document.createElement('div');
+loading.id = 'lab-loading';
+loading.setAttribute('role', 'status');
+const loadingText = document.createElement('span'),
+  retry = document.createElement('button');
+retry.textContent = '重新加载';
+retry.onclick = () => location.reload();
+loading.append(loadingText, retry);
+$('.viewport').append(loading);
+let loadingTimer;
+function reportLoading(state, message) {
+  if (error && state !== 'error') return;
+  clearTimeout(loadingTimer);
+  loading.dataset.state = state;
+  loading.hidden = state === 'ready';
+  $('#status').hidden = state !== 'ready';
+  loadingText.textContent = message;
+  retry.hidden = state !== 'error';
+  if (parent !== window)
+    parent.postMessage({ type: 'maker:motion-lab-loading', state }, location.origin);
+  if (state === 'loading')
+    loadingTimer = setTimeout(() => {
+      error = true;
+      retry.onclick = () => location.reload();
+      reportLoading('error', '加载超时，请检查网络后重新加载。');
+    }, 60000);
+}
+reportLoading('loading', '正在准备字体与 LuaTween 演示…');
 function val(i) {
   const t = lua.lua_type(L, i);
   if (t === lua.LUA_TSTRING) return to_jsstring(lua.lua_tolstring(L, i));
@@ -164,7 +192,8 @@ for (const [n, v] of Object.entries({
 }
 function fail(message) {
   error = true;
-  $('#status').textContent = '动效加载失败：' + message + '。请关闭后重新打开。';
+  retry.onclick = () => location.reload();
+  reportLoading('error', '动效加载失败：' + message);
   throw new Error(message);
 }
 function call(name, ...args) {
@@ -182,10 +211,13 @@ async function loadSkinImages(id) {
     path.startsWith('ui/motion-lab-v2/' + id + '/')
   );
   const loaded = new Map();
+  const total = queue.length;
+  const controller = new AbortController();
+  reportLoading('loading', '正在加载皮肤图片 0/' + total + '…');
   let failure;
   await Promise.all(
     Array.from({ length: Math.min(4, queue.length) }, async () => {
-      while (queue.length && !failure) {
+      while (queue.length && !failure && !error) {
         const [path, src] = queue.shift();
         try {
           let blob;
@@ -195,26 +227,35 @@ async function loadSkinImages(id) {
             );
             blob = new Blob([bytes], { type: 'image/webp' });
           } else {
-            const response = await fetch(src);
+            const response = await fetch(src, { signal: controller.signal });
             if (!response.ok) throw new Error('HTTP ' + response.status);
             blob = await response.blob();
           }
           loaded.set(path, await createImageBitmap(blob));
+          if (error) throw new Error('加载已超时');
+          if (!failure)
+            reportLoading('loading', '正在加载皮肤图片 ' + loaded.size + '/' + total + '…');
         } catch (cause) {
-          failure = new Error(path + '：' + cause.message);
+          failure ||= new Error(path + '：' + cause.message);
+          controller.abort();
         }
       }
     })
   );
-  if (failure) {
+  if (failure || error) {
     for (const bitmap of loaded.values()) bitmap.close();
-    throw failure;
+    throw failure || new Error('加载已超时');
   }
   for (const bitmap of images.values()) bitmap.close();
   images.clear();
   for (const [path, bitmap] of loaded) images.set(path, bitmap);
 }
-await Promise.all([document.fonts.load('24px LabSerif'), document.fonts.load('24px LabBold')]);
+try {
+  await Promise.all([document.fonts.load('24px LabSerif'), document.fonts.load('24px LabBold')]);
+  if (error) throw new Error('字体加载超时');
+} catch (cause) {
+  fail('字体准备失败：' + cause.message);
+}
 if (
   lauxlib.luaL_loadstring(L, to_luastring(DATA.lua)) !== lua.LUA_OK ||
   lua.lua_pcall(L, 0, 1, 0) !== lua.LUA_OK
@@ -236,7 +277,7 @@ function back() {
   else action('Home');
 }
 function action(name, ...args) {
-  if (loadingSkin) return false;
+  if (loadingSkin || error) return false;
   if (name === 'Activate' && ['shell:back', 'shell:close'].includes(args[0])) {
     back();
     return true;
@@ -307,9 +348,13 @@ function turnSkin(delta) {
 }
 async function setSkin(id) {
   const skin = skins.find((s) => s.id === id);
-  if (!skin || loadingSkin) return false;
+  if (!skin || loadingSkin || error) return false;
   showSkinMenu(false);
-  if (skinIndex === skins.indexOf(skin)) return true;
+  if (skinIndex === skins.indexOf(skin)) {
+    skinError = '';
+    reportLoading('ready', '演示已就绪');
+    return true;
+  }
   loadingSkin = true;
   $('#status').className = '';
   $('#status').textContent = '加载 ' + skin.name + '…';
@@ -344,10 +389,15 @@ async function setSkin(id) {
     } catch {}
     draw();
     sync();
+    reportLoading('ready', '演示已就绪');
     return true;
   } catch (cause) {
-    skinError = '皮肤加载失败：' + cause.message + '。请选择该皮肤重试。';
+    skinError = '皮肤加载失败：' + cause.message;
     $('#status').textContent = skinError;
+    if (!error) {
+      retry.onclick = () => setSkin(id);
+      reportLoading('error', skinError);
+    }
     return false;
   } finally {
     loadingSkin = false;

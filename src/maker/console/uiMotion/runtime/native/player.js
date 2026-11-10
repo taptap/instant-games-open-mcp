@@ -9,6 +9,41 @@ const canvas = $('stage'),
   ctx = canvas.getContext('2d');
 const images = new Map(),
   scenes = new Map();
+let loadingState = 'loading',
+  loadingTimer;
+function reportLoading(state, message) {
+  if (loadingState !== 'loading') return;
+  clearTimeout(loadingTimer);
+  loadingState = state;
+  $('loading').dataset.state = state;
+  $('loading').hidden = state === 'ready';
+  $('loading-text').textContent = message;
+  $('retry').hidden = state !== 'error';
+  document.body.classList.toggle('loading', state !== 'ready');
+  $('play').disabled = $('replay').disabled = state !== 'ready';
+  if (parent !== window)
+    parent.postMessage(
+      { type: 'maker:motion-loading', id: requestedExample, state, message },
+      location.origin
+    );
+  if (state === 'loading')
+    loadingTimer = setTimeout(
+      () => failLoading(new Error('加载长时间无进展，请检查网络后重试。')),
+      60000
+    );
+}
+function failLoading(error) {
+  if (loadingState !== 'loading') return;
+  reportLoading('error', '演示加载失败：' + error.message);
+  $('status').textContent = '演示加载失败：' + error.message;
+  console.error(error);
+  if (thumbnail)
+    parent.postMessage(
+      { type: 'maker:motion-thumbnail-error', id: requestedExample, message: error.message },
+      location.origin
+    );
+}
+$('retry').onclick = () => location.reload();
 let catalog,
   timelines,
   current,
@@ -737,6 +772,7 @@ function renderActions() {
   }
 }
 function togglePlayback() {
+  if (loadingState !== 'ready') return;
   if (playing) pause();
   else {
     if (seconds >= stopAt) stopAt = end;
@@ -781,11 +817,13 @@ $('replay').onclick = () =>
       : activeExample
   );
 $('timeline').onclick = (e) => {
+  if (loadingState !== 'ready') return;
   if (e.target.closest('button')) return;
   const r = e.currentTarget.getBoundingClientRect();
   seek(Math.round(clamp((e.clientX - r.left) / r.width) * end * 30) / 30);
 };
 window.addEventListener('keydown', (e) => {
+  if (loadingState !== 'ready') return;
   if (e.target.closest('input,select,button')) return;
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     e.preventDefault();
@@ -810,6 +848,7 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', pause);
 (async () => {
+  reportLoading('loading', '正在读取界面布局…');
   [catalog, timelines] = await Promise.all([json('catalog.json'), json('timelines.json')]);
   const transition = catalog.transitions.find((s) => s.id === activeExample);
   const required = thumbnail
@@ -838,9 +877,11 @@ window.addEventListener('pagehide', pause);
   }
   if (!thumbnail || transition?.id === 'T03') paths.add(catalog.card);
   const queue = [...paths];
+  const total = queue.length;
+  reportLoading('loading', '素材加载中 0/' + total + ' · 首次使用需要下载');
   await Promise.all(
     Array.from({ length: Math.min(4, queue.length) }, async () => {
-      while (queue.length) {
+      while (queue.length && loadingState === 'loading') {
         const path = queue.shift();
         const image = new Image();
         await new Promise((resolve, reject) => {
@@ -849,14 +890,18 @@ window.addEventListener('pagehide', pause);
           image.src = path;
         });
         images.set(path, image);
+        reportLoading('loading', '素材加载中 ' + images.size + '/' + total);
       }
     })
   );
+  if (loadingState !== 'loading') return;
+  reportLoading('loading', '素材已就绪，正在准备字体…');
   await Promise.all([
     document.fonts.load('20px MakerMenu'),
     document.fonts.load('20px "Fonts/NotoSerifSC-Regular.ttf"'),
   ]);
   await document.fonts.ready;
+  if (loadingState !== 'loading') return;
   openExample(activeExample);
   window.nativeDemo = {
     open: openExample,
@@ -873,12 +918,5 @@ window.addEventListener('pagehide', pause);
       images: images.size,
     }),
   };
-})().catch((error) => {
-  $('status').textContent = '演示加载失败：' + error.message;
-  console.error(error);
-  if (thumbnail)
-    parent.postMessage(
-      { type: 'maker:motion-thumbnail-error', id: activeExample, message: error.message },
-      location.origin
-    );
-});
+  reportLoading('ready', '演示已就绪');
+})().catch(failLoading);

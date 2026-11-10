@@ -166,6 +166,21 @@ main {
   height: min(760px, 68dvh);
   border: 0;
 }
+.original-stage { position: relative; }
+.motion-loading {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px; padding: 24px;
+  background: var(--soft); color: var(--muted); font: 13px/1.6 sans-serif; text-align: center; overflow-wrap: anywhere;
+}
+.motion-loading::before {
+  content: ''; width: 24px; height: 24px; border: 2px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%; animation: motion-loading-spin .8s linear infinite;
+}
+.motion-loading[data-state='error']::before { display: none; }
+.example-media .motion-loading { pointer-events: none; }
+.preview-retry { margin: 0 20px 16px; }
+@keyframes motion-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .motion-loading::before { animation: none; } }
 .original-actions {
   display: flex;
   flex-wrap: wrap;
@@ -311,6 +326,7 @@ main {
   height: 100%;
   min-height: 0;
 }
+.local-viewer:not([data-kind='lab']) #close-lab { display: none; }
 .local-viewer[data-kind='lab'] {
   width: min(1740px, calc(100vw - 24px));
   height: min(calc(100dvh - 24px), max(480px, 70vw));

@@ -6,16 +6,17 @@
   <title>Maker UI 动效</title>
   <link rel="stylesheet" href="player.css">
 </head>
-<body>
+<body class="loading">
   <main>
     <div class="stage-space"><div class="viewport">
       <canvas id="stage" width="1280" height="720" tabindex="0" aria-label="分层 UI 演示，空格暂停，左右逐帧"></canvas>
       <div id="actions" class="hotspots" aria-label="界面交互"></div>
       <output id="toast" class="toast" role="status" hidden></output>
+      <div id="loading" class="loading-panel" role="status"><span id="loading-text">正在准备演示…</span><button id="retry" hidden>重新加载</button></div>
     </div></div>
     <div class="controls">
-      <button id="play" aria-pressed="false">播放</button>
-      <button id="replay">重播</button>
+      <button id="play" aria-pressed="false" disabled>播放</button>
+      <button id="replay" disabled>重播</button>
       <output id="time"></output>
       <select id="speed" aria-label="播放速度"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
     </div>

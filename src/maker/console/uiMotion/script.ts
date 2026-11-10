@@ -101,7 +101,11 @@ function renderLocalCards() {
 }
 function setupLocalViewer() {
   $('close-local').onclick = () => $('local-viewer').close();
+  $('close-lab').onclick = () => $('local-viewer').close();
   $('local-viewer').addEventListener('close',()=>{
+    clearTimeout(labLoadTimer);
+    $('local-loading').hidden = true;
+    $('use-local').disabled = false;
     $('local-handoff-status').textContent = '';
     if (!$('local-viewer').open) $('local-frame').removeAttribute('src');
   });
@@ -139,20 +143,59 @@ function setupLocalViewer() {
     $('copy-status').textContent=''; $('handoff').showModal();
   };
 }
+let labLoadTimer;
+function loadMotionLab() {
+  clearTimeout(labLoadTimer);
+  const loading = $('local-loading');
+  loading.hidden = false; loading.dataset.state = 'loading';
+  loading.querySelector('span').textContent = '正在打开更多动效…';
+  $('retry-local').hidden = true; $('use-local').disabled = true;
+  const previous = $('local-frame'), frame = previous.cloneNode(false);
+  frame.removeAttribute('src'); previous.replaceWith(frame);
+  frame.src = motionLab.entry;
+  labLoadTimer = setTimeout(() => {
+    loading.dataset.state = 'error';
+    loading.querySelector('span').textContent = '打开超时，请检查网络后重新加载。';
+    $('retry-local').hidden = false;
+  }, 60000);
+}
 if (motionLab) {
+  $('retry-local').onclick = loadMotionLab;
   $('open-motion-lab').onclick = () => {
     pause(); localSelection = {...motionLab,kind:'lab'};
     $('local-viewer').dataset.kind = 'lab';
     $('local-title').textContent = '更多动效'; $('open-local').hidden = true;
-    $('local-frame').src = motionLab.entry; $('local-viewer').showModal();
+    loadMotionLab(); $('local-viewer').showModal();
   };
   window.addEventListener('message',event=>{
+    if (event.origin === location.origin && event.source === $('local-frame').contentWindow &&
+        $('local-viewer').open && $('local-viewer').dataset.kind === 'lab' &&
+        event.data?.type === 'maker:motion-lab-loading' && $('local-loading').dataset.state !== 'error') {
+      clearTimeout(labLoadTimer);
+      $('local-loading').hidden = true;
+      $('use-local').disabled = event.data.state !== 'ready';
+    }
     if (event.origin === location.origin && event.source === $('local-frame').contentWindow &&
         event.data?.type === 'maker:motion-lab-back') $('local-viewer').close();
   });
 }
 if (localSamples.length || motionLab) setupLocalViewer();
 let originalSelection;
+let originalLoadTimer;
+function originalLoading(state, message) {
+  clearTimeout(originalLoadTimer);
+  const loading = $('original-loading');
+  loading.hidden = state === 'ready';
+  loading.dataset.state = state;
+  loading.querySelector('span').textContent = message;
+  $('retry-original').hidden = state !== 'error';
+  $('use-original').disabled = state !== 'ready';
+  $('original-frame').setAttribute('aria-busy', String(state === 'loading'));
+  if (state === 'loading') originalLoadTimer = setTimeout(() => {
+    originalLoading('error', '加载长时间无进展，请检查网络后重试。');
+    $('original-frame').removeAttribute('src');
+  }, 60000);
+}
 function setLibrary(variant) {
   pause();
   $('original-library').hidden = variant !== 'original';
@@ -162,6 +205,7 @@ function setLibrary(variant) {
   document.querySelector('.page-heading .index').textContent = count('scene') + ' SCENES / ' + count('transition') + ' TRANSITIONS';
   document.querySelectorAll('[data-library]').forEach(button =>
     button.setAttribute('aria-pressed', String(button.dataset.library === variant)));
+  if (variant === 'original') nextThumbnail();
 }
 function originalVisibility(visible) {
   if (standalone || !originalSelection) return;
@@ -173,13 +217,64 @@ function openOriginal(item) {
   originalSelection = item;
   $('original-title').textContent = item.name;
   $('open-original').href = item.entry.replace('embed=1&', '');
-  $('original-frame').src = item.entry;
-  $('original-viewer').showModal();
+  const frame = $('original-frame');
+  const replacement = frame.cloneNode(false);
+  replacement.src = item.entry;
+  replacement.addEventListener('load', () => originalVisibility(hostVisible && !document.hidden));
+  frame.replaceWith(replacement);
+  originalLoading('loading', '正在准备演示…首次使用需要下载素材');
+  if (!$('original-viewer').open) $('original-viewer').showModal();
 }
 const thumbnailQueue = [];
+const thumbnailCandidates = new Map();
+const thumbnailObserver = new IntersectionObserver(entries => {
+  for (const entry of entries) {
+    if (!entry.isIntersecting) continue;
+    const preview = thumbnailCandidates.get(entry.target);
+    if (!preview) continue;
+    thumbnailCandidates.delete(entry.target);
+    thumbnailObserver.unobserve(entry.target);
+    thumbnailQueue.push(preview);
+  }
+  nextThumbnail();
+}, {rootMargin:'160px'});
+let activeThumbnail;
+function thumbnailLoading(preview, message) {
+  preview.loading.querySelector('span').textContent = message;
+  clearTimeout(preview.timer);
+  preview.timer = setTimeout(() => finishThumbnail('加载长时间无进展，请检查网络后重试。'), 60000);
+}
+function finishThumbnail(error, image) {
+  const preview = activeThumbnail;
+  if (!preview) return;
+  clearTimeout(preview.timer);
+  preview.frame.remove();
+  preview.media.setAttribute('aria-busy', 'false');
+  preview.loading.hidden = !error;
+  preview.loading.dataset.state = error ? 'error' : 'ready';
+  preview.loading.querySelector('span').textContent = error ? '预览加载失败，可重试或直接体验' : '';
+  preview.loading.title = error || '';
+  preview.retry.hidden = !error;
+  if (image) preview.media.prepend(image);
+  activeThumbnail = null;
+  nextThumbnail();
+}
 function nextThumbnail() {
+  if (activeThumbnail || $('original-library').hidden) return;
   const next = thumbnailQueue.shift();
-  if (next) next.frame.src = next.url;
+  if (!next) return;
+  activeThumbnail = next;
+  const frame = document.createElement('iframe');
+  frame.title = next.item.name + '实际分层渲染预览';
+  frame.tabIndex = -1;
+  frame.setAttribute('aria-hidden', 'true');
+  next.frame = frame;
+  next.loading.hidden = false;
+  next.loading.dataset.state = 'loading';
+  next.media.setAttribute('aria-busy', 'true');
+  next.media.prepend(frame);
+  thumbnailLoading(next, '正在加载预览…首次使用需要下载素材');
+  frame.src = next.item.preview;
 }
 function renderOriginalCards() {
   for (const item of originals) {
@@ -193,14 +288,29 @@ function renderOriginalCards() {
     const media = document.createElement('div');
     media.className = 'example-media';
     if (item.available) {
-      const preview = document.createElement('iframe');
-      preview.title = item.name + '实际分层渲染预览';
-      preview.dataset.thumbnail = item.id;
-      preview.loading = 'lazy';
-      preview.tabIndex = -1;
-      preview.setAttribute('aria-hidden', 'true');
-      media.append(preview);
-      thumbnailQueue.push({frame:preview, url:item.preview});
+      const loading = document.createElement('div');
+      loading.className = 'motion-loading';
+      loading.setAttribute('role', 'status');
+      const label = document.createElement('span');
+      label.textContent = '等待加载预览…';
+      loading.append(label);
+      media.append(loading);
+      const retry = document.createElement('button');
+      retry.className = 'preview-retry';
+      retry.textContent = '重试预览';
+      retry.setAttribute('aria-label', '重试预览：' + item.name);
+      retry.hidden = true;
+      const preview = {item, media, loading, retry};
+      retry.onclick = () => {
+        retry.hidden = true;
+        loading.dataset.state = 'loading';
+        label.textContent = '等待重新加载…';
+        thumbnailQueue.unshift(preview);
+        nextThumbnail();
+      };
+      card.append(retry);
+      thumbnailCandidates.set(media, preview);
+      thumbnailObserver.observe(media);
     }
     const tag = document.createElement('span');
     tag.className = 'example-id';
@@ -217,7 +327,7 @@ function renderOriginalCards() {
     summary.textContent = item.summary;
     body.append(title, summary);
     button.append(media, body);
-    card.append(button);
+    card.prepend(button);
     $(item.kind === 'scene' ? 'original-scenes' : 'original-transitions').append(card);
     button.onclick = () => openOriginal(item);
   }
@@ -226,24 +336,29 @@ function renderOriginalCards() {
   nextThumbnail();
 }
 window.addEventListener('message', event => {
-  if (event.origin !== location.origin || !['maker:motion-thumbnail','maker:motion-thumbnail-error'].includes(event.data?.type)) return;
-  const preview = [...document.querySelectorAll('iframe[data-thumbnail]')]
-    .find(frame => frame.contentWindow === event.source && frame.dataset.thumbnail === event.data.id);
-  if (!preview) return;
+  if (event.origin !== location.origin) return;
+  if (event.data?.type === 'maker:motion-loading' && typeof event.data.message === 'string') {
+    if (originalSelection && $('original-loading').dataset.state === 'loading' && event.source === $('original-frame').contentWindow &&
+        event.data.id === originalSelection.id && ['loading','ready','error'].includes(event.data.state)) {
+      originalLoading(event.data.state, event.data.message);
+    } else if (activeThumbnail && event.source === activeThumbnail.frame.contentWindow &&
+        event.data.id === activeThumbnail.item.id && event.data.state === 'loading') {
+      thumbnailLoading(activeThumbnail, event.data.message);
+    }
+    return;
+  }
+  if (!['maker:motion-thumbnail','maker:motion-thumbnail-error'].includes(event.data?.type)) return;
+  const preview = activeThumbnail;
+  if (!preview || event.source !== preview.frame.contentWindow || event.data.id !== preview.item.id) return;
   if (event.data.type === 'maker:motion-thumbnail-error') {
-    const error = document.createElement('span');
-    error.textContent = '预览加载失败';
-    error.title = event.data.message;
-    preview.replaceWith(error);
-    nextThumbnail();
+    finishThumbnail(event.data.message || '素材加载失败');
     return;
   }
   if (typeof event.data.image !== 'string' || !event.data.image.startsWith('data:image/png;base64,')) return;
   const image = document.createElement('img');
   image.src = event.data.image;
-  image.alt = preview.title;
-  preview.replaceWith(image);
-  nextThumbnail();
+  image.alt = preview.frame.title;
+  finishThumbnail(null, image);
 });
 let current,
   clip,
@@ -500,13 +615,14 @@ $('back').onclick = () => {
 };
 $('close-handoff').onclick = () => $('handoff').close();
 $('close-original').onclick = () => $('original-viewer').close();
+$('retry-original').onclick = () => { if (originalSelection) openOriginal(originalSelection); };
 $('original-viewer').addEventListener('close', () => {
+  clearTimeout(originalLoadTimer);
   $('original-handoff-status').textContent = '';
   originalVisibility(false);
   $('original-frame').removeAttribute('src');
   originalSelection = null;
 });
-$('original-frame').addEventListener('load', () => originalVisibility(hostVisible && !document.hidden));
 $('close-assets').onclick = () => $('asset-viewer').close();
 $('original-assets').onclick = async () => {
   const id = originalSelection.id;

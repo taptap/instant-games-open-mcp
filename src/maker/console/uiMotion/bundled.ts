@@ -47,7 +47,7 @@ export function bundledSample(variant: 'showcase' | 'lab'): string {
       .replace('__FONT_SERIF__', resourceUrl('assets/ui/motion-lab-v1/fonts/Serif.ttf'))
       .replace('__FONT_BOLD__', resourceUrl('assets/ui/motion-lab-v1/fonts/Bold.ttf'));
     return assets['lab/template.html']
-      .replace('__CSS__', () => css)
+      .replace('__CSS__', () => css + '\n' + assets['lab/loading.css'])
       .replace('__DATA__', () => scriptJSON(data))
       .replace('__JS__', () => assets['lab/bridge.bundle.js'].replace(/<\/script/gi, '<\\/script'));
   }

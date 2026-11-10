@@ -324,6 +324,8 @@ function bundledMotionFile(name: string): string | undefined {
     return motionDocumentationFiles().find((file) => file.path === name)?.content;
   const relative = name.replace(/^ui-motion-native\//, '');
   if (relative === 'player.js') return motionRuntimeScript() + motionAssets()['native/player.js'];
+  if (relative === 'index.html' || relative === 'player.css')
+    return motionAssets()['native/' + relative];
   if (name.startsWith('scripts/')) return motionAssets()['lua/' + name.slice(8)];
   return undefined;
 }

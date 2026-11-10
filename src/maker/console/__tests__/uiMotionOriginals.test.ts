@@ -60,7 +60,7 @@ describe('original UI motion reference limits', () => {
         {
           path: 'ui-motion-native/index.html',
           url: '/ui-motion/original/neon/ui-motion-native/index.html',
-          content: '<html>preview</html>',
+          content: expect.stringContaining('id="loading"'),
         },
       ]),
     });
@@ -72,7 +72,7 @@ describe('original UI motion reference limits', () => {
     expect(response.writeHead).toHaveBeenCalledWith(200, {
       'Content-Type': 'text/html; charset=utf-8',
     });
-    expect(response.end).toHaveBeenCalledWith(Buffer.from('<html>preview</html>'));
+    expect(String(response.end.mock.calls[0][0])).toContain('id="loading"');
   });
 
   test('delivers the original library, shared integration guide and portable media URLs', () => {
@@ -99,6 +99,22 @@ describe('original UI motion reference limits', () => {
     expect(
       reference.assets.every((asset) => asset.url.startsWith('https://') && asset.sha256)
     ).toBe(true);
+  });
+
+  test('keeps local reference player styles aligned with the bundled loading markup', async () => {
+    sparseFile('ui-motion-native/player.css', 0);
+    writeCatalog();
+    const response = { setHeader: jest.fn(), writeHead: jest.fn(), end: jest.fn() };
+    await serveOriginalMotion(
+      new URL('http://localhost/ui-motion/original/neon/player.css'),
+      response as unknown as ServerResponse
+    );
+    const css = String(response.end.mock.calls[0][0]);
+    expect(css).toContain('.loading-panel');
+    const reference = getOriginalMotionReference('S01');
+    expect(
+      reference?.files.find((file) => file.path === 'ui-motion-native/player.css')?.content
+    ).toBe(css);
   });
 
   test('delivers every original manifest file including native fonts', () => {
@@ -142,6 +158,18 @@ describe('original UI motion reference limits', () => {
       }
     }
   );
+
+  test('upgrades local lab loading styles without replacing its font sources', () => {
+    const html =
+      '<head><style>@font-face{font-family:LabSerif;src:url(local.ttf)}</style></HEAD>' +
+      '<script>const DATA={"lua":"legacy"};</script><script>legacyPlayer();</script>';
+    const upgraded = upgradeMotionSample(html, 'lab');
+    expect(upgraded).toContain('src:url(local.ttf)');
+    expect(upgraded).toContain('#lab-loading');
+    expect(upgraded).toContain('maker:motion-lab-loading');
+    expect(upgraded).not.toContain('__FONT_SERIF__');
+    expect(upgraded).not.toContain('__FONT_BOLD__');
+  });
 
   test('delivers the documented skin layouts and generated Lua data', () => {
     const reference = bundledRuntimeReference();
