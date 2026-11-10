@@ -30,7 +30,7 @@
 | `flexShrink`                                              | 空间不够时能否缩小。不写时预览按不缩小处理                               |
 | `flexWrap`                                                | `wrap` 时放不下就换行                                                    |
 | `gap` / `rowGap` / `columnGap`                            | 子节点之间的间距                                                         |
-| `overflow`                                                | `visible` 画出容器，`hidden` 裁切，`scroll` 超出后滚动                   |
+| `overflow`                                                | `visible` 允许超出容器，`hidden` / `scroll` 裁切；滚动需要 `ScrollView`  |
 
 安全区不是普通对齐参数。`SafeAreaView` 只给自己的 padding 或 margin 加刘海和手势条。
 绝对定位的按钮要放进它内部的普通容器，不能指望套一层就自动避开。
@@ -58,7 +58,8 @@
 背景铺满父容器，不跟安全区缩进去：`left` / `top` / `right` / `bottom` 都是 `0`，不写宽高。
 画面用 `backgroundFit: "cover"`，需要完整留白时用 `"contain"`。
 
-列表区域随屏幕变高、每一行尺寸不变：列表容器 `flexGrow: 1`，行保持原宽高；超出用
-`overflow: "scroll"`，不要把行压扁。
+列表区域随屏幕变高、每一行尺寸不变：使用 `ScrollView` 作为列表容器，设置 `flexGrow: 1`，
+行保持原宽高，不要把行压扁。容器高度需受父布局约束，内容超出时才能滚动；
+普通 `Panel` 仅设置 `overflow: "scroll"` 只会裁切，不会获得滚动交互。
 
 这套字段够用就只改这些。没有屏幕断点，也不要新造对齐模式字段。
