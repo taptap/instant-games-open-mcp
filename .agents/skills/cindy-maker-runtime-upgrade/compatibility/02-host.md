@@ -12,6 +12,11 @@
 | H6  | 41d53ce、435abb3；account.runMaker/isMakerCliOutputComplete                      | login/pat/apps/doctor/init/preview 等逐命令核对终态；进度/半截 JSON 不当完成，最终 JSON 后回收 ParentPort 保活进程；非零退出仍交有效失败证据。保留 14min CLI 限时、输出上限与现有进度机制                            |
 | H7  | f4ccda7、4d4a992；main.js nodeRequest/account/roots budget                       | 原 60s 长请求/工具发现统一 120s，短请求仍 30s；进度 token 独立、maxTotalMs=900000。核对远端工具、静默窗口、总时限和内部 115s 的层次。不新增定时假心跳；无进度仍可能 120s 超时，不能承诺无限等待                      |
 
+“生成超过120秒”按 H7 核对：120秒是长请求的静默窗口，不是有进度时的总时限。
+除参数断言外，验证真实bundle的远端进度转发保留调用方token、启用续期，
+未知超时不盲目重发；区分参数/进度回归与真实长生成，不把前者冒称后者，
+不为验证扣费或引入已被否定的定时假心跳。
+
 本组验收：逐项标出新上游增加的启动路径及覆盖情况，完成现有 deferred/stdio/roots
 真实 Runtime 测试与定向回归。模拟时钟/钉死 stdio 不等于实际 Windows Cindy；
 CLI 真进程在第三步，Electron 子进程生命周期在第四步。无 Node 的故障只在隔离进程模拟，
