@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ServerResponse } from 'node:http';
 import { createHash } from 'node:crypto';
-import { bundledRuntimeReference } from '../uiMotion/bundled.js';
+import { bundledOriginalReference, bundledRuntimeReference } from '../uiMotion/bundled.js';
 import {
   getOriginalMotionExamples,
   getOriginalMotionReference,
@@ -98,6 +98,21 @@ describe('original UI motion reference limits', () => {
     expect(
       reference.assets.every((asset) => asset.url.startsWith('https://') && asset.sha256)
     ).toBe(true);
+  });
+
+  test('delivers every original manifest file including native fonts', () => {
+    const reference = bundledOriginalReference({ id: 'S04', family: 'clockwork' });
+    const delivered = new Set([...reference.files, ...reference.assets].map((file) => file.path));
+    for (const file of reference.manifest.files) expect(delivered.has(file.path)).toBe(true);
+    expect(reference.assets.map((file) => file.path)).toEqual(
+      expect.arrayContaining([
+        'assets/Fonts/Menu-Black.ttf',
+        'assets/Fonts/NotoSerifSC-Regular.ttf',
+      ])
+    );
+    expect(reference.assets.every((file) => file.url.startsWith('https://') && file.sha256)).toBe(
+      true
+    );
   });
 
   test('serves packaged library documentation with and without a local reference override', async () => {

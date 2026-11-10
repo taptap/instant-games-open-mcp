@@ -9,7 +9,7 @@ local Demo = {}
 local scene
 ---@type MotionController
 local control
-local clap, inputs
+local clap, clapPlayer, clapFinished, inputs
 local phase, savedPhase, requested = "stopped", "entry", nil
 local selected = 1
 local entryEnd = 1.3
@@ -22,6 +22,12 @@ local controls = {
     {node = "clapper", action = "clap", label = "开启演出"},
     {node = "E012", action = "rabbit", label = "礼帽兔子"},
 }
+
+local function clearClap()
+    if clap then clap:Kill(false); clap = nil end
+    if clapPlayer then clapPlayer:Destroy(); clapPlayer = nil end
+    clapFinished = false
+end
 
 function Demo.Init(host)
     scene = Scene.Load(host, "ui/ui015-a64b2869/v-f8b6ba273b67/ui/s04_redesign.ui.json")
@@ -43,6 +49,12 @@ function Demo.Init(host)
     print("[S04 redesign] new magician, layered hat and rabbit, menus and clapper ready")
 end
 function Demo.Update(dt)
+    if clapFinished then
+        clearClap()
+        phase = "idle"
+        scene.bridges.clapperTop.widget:SetStyle({rotate = 0})
+        requested = 5
+    end
     scene:Fit(); inputs:Update(dt)
     if phase == "entry" and control.clock.time >= entryEnd then phase = "idle" end
 end
@@ -51,14 +63,11 @@ function Demo.Confirm()
     phase = "clap"
     local clock = {time = 0}
     local player = ClipPlayer.New(Recipes.Clap())
+    clapPlayer = player
     clap = LuaTween.To(clock, {time = .46}, .46, "linear"):OnUpdate(function()
         scene.bridges.clapperTop.widget:SetStyle({rotate = player:Sample(clock.time).clapper.angle})
-    end):OnKill(function() player:Destroy()
     end):OnComplete(function()
-        player:Destroy()
-        phase = "idle"
-        scene.bridges.clapperTop.widget:SetStyle({rotate = 0})
-        requested = 5
+        clapFinished = true
     end)
     return true
 end
@@ -73,7 +82,7 @@ function Demo.Activate(action)
     return true
 end
 function Demo.Seek(t)
-    if clap then clap:Kill(false); clap = nil end
+    clearClap()
     scene.bridges.clapperTop.widget:SetStyle({rotate = 0})
     control:Seek(t):Pause(); phase = "paused"; savedPhase = t < entryEnd and "entry" or "idle"
 end
@@ -102,7 +111,7 @@ function Demo.Reference()
     return result
 end
 function Demo.Shutdown()
-    if clap then clap:Kill(false); clap = nil end
+    clearClap()
     if scene then scene:Destroy(); scene = nil end
     control, inputs, requested, phase = nil, nil, nil, "stopped"
 end

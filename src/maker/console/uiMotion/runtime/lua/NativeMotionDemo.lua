@@ -99,8 +99,8 @@ end
 function App.TogglePause()
     paused = not paused
     if not paused then
-        if transition and transition.paused then transition:TogglePause()
-        elseif active.GetState().phase == "paused" then active.TogglePause() end
+        if transition and transition.paused then transition:TogglePause() end
+        if active.GetState().phase == "paused" then active.TogglePause() end
     end
 end
 function App.Replay()
@@ -108,6 +108,7 @@ function App.Replay()
     if transition then
         transition:Seek(0)
         sampleTransition(0, true)
+        if active.GetState().phase == "paused" then active.TogglePause() end
         transition.controller:Restart(); transition.switched = false; transition.paused = false
     else active.Replay() end
 end

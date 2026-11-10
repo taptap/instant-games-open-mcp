@@ -31,6 +31,99 @@ function execute(source) {
   }
 }
 
+const nativeHostStub = `
+  local function widget(props)
+    local result={props=props or {},children={}}
+    function result:SetStyle(style) for key,value in pairs(style) do self.props[key]=value end end
+    function result:GetProp(key) return self.props[key] or (key=='text' and 'dialogue' or 100) end
+    function result:SetText(text) self.text=text end
+    function result:AddChild(child) child.parent=self;self.children[child.props.id or #self.children+1]=child end
+    function result:RemoveChild(child) child.parent=nil end
+    function result:Destroy() end
+    function result:FindById(id)
+      if not self.children[id] then self:AddChild(widget({id=id})) end
+      return self.children[id]
+    end
+    return result
+  end
+  local UI={Panel=widget,Init=function()end,Shutdown=function()end,SetRoot=function()end,
+    Scale={DEFAULT=1},GetSafeContentArea=function()return 0,0,2048,1152 end,
+    UILoader={LoadFromFile=function()local root=widget();return {GetRoot=function()return root end}end},
+    Widget={Extend=function()return setmetatable({},{__call=function(_,props)return widget(props)end})end}}
+  package.preload['urhox-libs/UI']=function()return UI end
+  package.preload['urhox-libs/UI/Core/ImageCache']=function()return {}end
+  package.preload.UrhoxMotion=function()return {Bind=function(target)
+    return {widget=target,Apply=function()end,Destroy=function()end}
+  end}end
+  package.preload.NativeControls=function()return {New=function()
+    return {Update=function()end,Select=function()end,Notify=function()end}
+  end}end
+`;
+
+test('native S04 completes and cancels claps without mutating the active update traversal', () => {
+  execute(
+    nativeHostStub +
+      `
+    local Tween=require('LuaTween')
+    local demo=require('S04RedesignDemo')
+    local survivor=Tween.To({value=0},{value=1},100):Pause()
+    for _,action in ipairs({'complete','seek','shutdown','pending-shutdown'}) do
+      demo.Init(require('urhox-libs/UI').Panel({}))
+      Tween.Update(1.31);demo.Update(1.31)
+      local baseline=Tween.TotalActive()
+      assert(demo.Confirm());assert(not demo.Confirm())
+      Tween.Update(.1);demo.Update(.1)
+      if action=='complete' then
+        demo.TogglePause();Tween.Update(1);demo.Update(1)
+        assert(demo.GetState().phase=='paused')
+        demo.TogglePause();Tween.Update(.5);demo.Update(.5)
+        assert(demo.GetState().phase=='idle' and demo.TakeRequest()==5)
+        assert(Tween.TotalActive()==baseline)
+        assert(demo.Confirm());Tween.Update(.5);demo.Update(.5)
+        assert(demo.TakeRequest()==5)
+      elseif action=='seek' then
+        demo.Seek(1.3);Tween.Update(.5);demo.Update(.5)
+        assert(demo.GetState().phase=='paused' and demo.TakeRequest()==nil)
+        assert(Tween.TotalActive()==baseline)
+      elseif action=='pending-shutdown' then Tween.Update(.5) end
+      demo.Shutdown();Tween.Update(.1)
+      assert(Tween.TotalActive()==1 and not survivor.killed,action)
+    end
+    survivor:Kill()
+  `
+  );
+});
+
+test('native host resumes scene and transition together after seeks and replay', () => {
+  execute(
+    nativeHostStub +
+      `
+    local Tween=require('LuaTween')
+    local app=require('NativeMotionDemo')
+    local survivor=Tween.To({value=0},{value=1},100):Pause()
+    local function step(seconds) for frame=1,math.ceil(seconds*60) do app.Update(1/60) end end
+    for _,case in ipairs({{'T01',1,2,.4},{'T02',2,3,10/30},{'T03',4,5,32/30}}) do
+      for _,progress in ipairs({.25,.75}) do
+        for _,action in ipairs({'resume','replay'}) do
+          app.Init(case[2]);step(2)
+          assert(app.Transition(case[1],case[3]))
+          app.Seek(case[4]*progress)
+          assert(app.GetState().phase=='paused' and app.GetState().paused)
+          if action=='resume' then app.TogglePause() else app.Replay() end
+          assert(not app.GetState().paused and app.GetState().phase~='paused')
+          step(3)
+          local state=app.GetState()
+          local expectedPhase=case[3]==3 and 'complete' or 'idle'
+          assert(state.scene==case[3] and state.phase==expectedPhase and not state.transition,case[1]..action)
+          app.Shutdown();assert(Tween.TotalActive()==1 and not survivor.killed)
+        end
+      end
+    end
+    survivor:Kill()
+  `
+  );
+});
+
 test('adds only usage comments to the original LuaTween library and identifies both files', () => {
   const library = JSON.parse(assets['library.json']);
   assert.equal(createHash('sha256').update(sources.LuaTween).digest('hex'), library.sha256);

@@ -141,9 +141,11 @@ export function bundledOriginalReference(example: { id: string; family: string }
     boundary: '网页与 Maker 共用原版 LuaTween。独立素材与 UI 布局不变；游戏业务由接入项目实现。',
     manifest: catalog,
     files,
-    assets: catalog.images.map((name: string) => {
-      const info = demoResourceInfo(resources[name].resourceId);
-      return { path: name, url: info.cdn ?? resourceUrl(name), sha256: info.sha256 };
-    }),
+    assets: [...sourceNames]
+      .filter((name) => resources[name])
+      .map((name) => {
+        const info = demoResourceInfo(resources[name].resourceId);
+        return { path: name, url: info.cdn ?? resourceUrl(name), sha256: info.sha256 };
+      }),
   };
 }
