@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { ServerResponse } from 'node:http';
+import { createHash } from 'node:crypto';
+import { bundledRuntimeReference } from '../uiMotion/bundled.js';
 import {
   getOriginalMotionExamples,
   getOriginalMotionReference,
@@ -50,13 +52,19 @@ describe('original UI motion reference limits', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  test('returns the registered source and serves small files', () => {
+  test('returns the registered source and serves small files', async () => {
     expect(getOriginalMotionReference('S01')).toMatchObject({
       example: { id: 'S01', available: true },
-      files: [{ path: 'ui-motion-native/index.html', content: '<html>preview</html>' }],
+      files: expect.arrayContaining([
+        {
+          path: 'ui-motion-native/index.html',
+          url: '/ui-motion/original/neon/ui-motion-native/index.html',
+          content: '<html>preview</html>',
+        },
+      ]),
     });
     const response = { setHeader: jest.fn(), writeHead: jest.fn(), end: jest.fn() };
-    serveOriginalMotion(
+    await serveOriginalMotion(
       new URL('http://localhost/ui-motion/original/neon/index.html'),
       response as unknown as ServerResponse
     );
@@ -64,6 +72,45 @@ describe('original UI motion reference limits', () => {
       'Content-Type': 'text/html; charset=utf-8',
     });
     expect(response.end).toHaveBeenCalledWith(Buffer.from('<html>preview</html>'));
+  });
+
+  test('delivers the original library, shared integration guide and portable media URLs', () => {
+    const reference = bundledRuntimeReference();
+    const library = reference.files.find((file) => file.path === reference.library.path)!;
+    expect(createHash('sha256').update(library.content).digest('hex')).toBe(
+      reference.library.sha256
+    );
+    for (const name of [
+      reference.library.readme,
+      reference.library.api,
+      reference.library.integration,
+    ])
+      expect(reference.files.find((file) => file.path === name)?.content).toBeTruthy();
+    expect(
+      reference.files.find((file) => file.path === reference.library.integration)?.content
+    ).toBe(
+      fs.readFileSync(
+        path.join(process.cwd(), 'skills/taptap-maker-local/references/ui-motion.md'),
+        'utf8'
+      )
+    );
+    expect(reference.assets.length).toBeGreaterThan(0);
+    expect(
+      reference.assets.every((asset) => asset.url.startsWith('https://') && asset.sha256)
+    ).toBe(true);
+  });
+
+  test('serves packaged library documentation with and without a local reference override', async () => {
+    for (const directory of [root, undefined]) {
+      if (directory) process.env.TAPTAP_MAKER_UI_MOTION_REFERENCE_DIR = directory;
+      else delete process.env.TAPTAP_MAKER_UI_MOTION_REFERENCE_DIR;
+      const response = { setHeader: jest.fn(), writeHead: jest.fn(), end: jest.fn() };
+      await serveOriginalMotion(
+        new URL('http://localhost/ui-motion/original/neon/docs/LuaTween-integration.md'),
+        response as unknown as ServerResponse
+      );
+      expect(String(response.end.mock.calls[0][0])).toContain('# LuaTween UI Integration');
+    }
   });
 
   test('rejects an oversized catalog before reading it', () => {
@@ -104,17 +151,17 @@ describe('original UI motion reference limits', () => {
     }
   );
 
-  test('rejects oversized individual files before sending headers or reading content', () => {
+  test('rejects oversized individual files before sending headers or reading content', async () => {
     sparseFile('assets/Fonts/Menu-Black.ttf', 24 * 1024 * 1024 + 1);
     writeCatalog();
     const read = jest.spyOn(fs, 'readFileSync');
     const response = { setHeader: jest.fn(), writeHead: jest.fn(), end: jest.fn() };
-    expect(() =>
+    await expect(
       serveOriginalMotion(
         new URL('http://localhost/ui-motion/original/neon/assets/Fonts/Menu-Black.ttf'),
         response as unknown as ServerResponse
       )
-    ).toThrow('参考文件超过大小上限');
+    ).rejects.toThrow('参考文件超过大小上限');
     expect(response.writeHead).not.toHaveBeenCalled();
     expect(response.end).not.toHaveBeenCalled();
     expect(

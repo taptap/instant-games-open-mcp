@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "id": "S05.entry",
+  "name": "章节揭幕",
+  "category": "entry",
+  "duration": 1.2,
+  "nodes": [
+    {
+      "id": "chapter1",
+      "name": "章节 1",
+      "transform": {
+        "dy": 55,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "chapter2",
+      "name": "章节 2",
+      "transform": {
+        "dy": 55,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "chapter3",
+      "name": "章节 3",
+      "transform": {
+        "dy": 55,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "heading",
+      "name": "章节标题",
+      "transform": {
+        "opacity": 0,
+        "dy": -15
+      }
+    },
+    {
+      "id": "chapter-enter",
+      "name": "进入按钮",
+      "transform": {
+        "opacity": 0
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "chapter1",
+      "prop": "dy",
+      "at": 0.06,
+      "duration": 0.65,
+      "from": 55,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "chapter1",
+      "prop": "opacity",
+      "at": 0.06,
+      "duration": 0.65,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "chapter2",
+      "prop": "dy",
+      "at": 0.21,
+      "duration": 0.65,
+      "from": 55,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "chapter2",
+      "prop": "opacity",
+      "at": 0.21,
+      "duration": 0.65,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "chapter3",
+      "prop": "dy",
+      "at": 0.36,
+      "duration": 0.65,
+      "from": 55,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "chapter3",
+      "prop": "opacity",
+      "at": 0.36,
+      "duration": 0.65,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "heading",
+      "prop": "opacity",
+      "at": 0,
+      "duration": 0.6,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "heading",
+      "prop": "dy",
+      "at": 0,
+      "duration": 0.6,
+      "from": -15,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "chapter-enter",
+      "prop": "opacity",
+      "at": 0.5,
+      "duration": 0.5,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    }
+  ]
+}

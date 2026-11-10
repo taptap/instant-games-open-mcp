@@ -34,24 +34,8 @@ const MotionDemo = (() => {
     '港口的灯亮了。准备好了吗？今晚，我们会找到那座藏在雾里的剧院。',
     '听，钟声正在引路。带上你的勇气，接下来的舞台属于我们。',
   ];
-  const ease = {
-    linear: (p) => p,
-    outCubic: (p) => 1 - (1 - p) ** 3,
-    inQuad: (p) => p * p,
-    outExpo: (p) => (p === 1 ? 1 : 1 - 2 ** (-10 * p)),
-    outBack: (p) => 1 + 2.70158 * (p - 1) ** 3 + 1.70158 * (p - 1) ** 2,
-    inOutCubic: (p) => (p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2),
-  };
   function sample(clip, time) {
-    const poses = {};
-    for (const tr of clip.tracks) {
-      const pose = (poses[tr.node] ||= {});
-      if (!(tr.prop in pose)) pose[tr.prop] = tr.from;
-      if (time >= tr.at)
-        pose[tr.prop] =
-          tr.from + (tr.to - tr.from) * ease[tr.ease](clamp((time - tr.at) / tr.duration));
-    }
-    return poses;
+    return LuaMotion.sample(clip, time);
   }
   function render(canvas, example, clip, time, state = {}) {
     const c = canvas.getContext('2d'),
@@ -827,13 +811,13 @@ const MotionDemo = (() => {
         c.translate(dx, 0);
         if (example.id === 'T03') {
           // Foreground cards overscan all edges before the host swaps content.
+          const cards = LuaMotion.named('BuiltinCards', null, p);
           for (let i = 0; i < 5; i++) {
-            const q = clamp((p - i * 0.035) / 0.4),
-              s = 0.06 + q * 12;
+            const card = cards['card' + i];
             c.save();
             c.translate(190 + i * 235, 390 - i * 28);
-            c.rotate((1 - q) * (-0.5 + i * 0.21));
-            c.scale(s, s);
+            c.rotate(card.rotation);
+            c.scale(card.scale, card.scale);
             rect(-86, -126, 172, 252, '#f1dfb0', 10);
             rect(-76, -116, 152, 232, '#315647', 7);
             text('A', -61, -92, 28, '#e4c77e', 700);

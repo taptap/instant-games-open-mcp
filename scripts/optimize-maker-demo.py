@@ -83,6 +83,8 @@ def main():
         filename.write_text(json.dumps(replace(json.loads(filename.read_text())), ensure_ascii=False, separators=(',', ':')) + '\n')
     if 'editor' in manifest:
         manifest['editor'] = replace(manifest['editor'])
+    motion_map = ROOT / 'src/maker/console/uiMotion/runtime/resourceMap.json'
+    motion_map.write_text(json.dumps(replace(json.loads(motion_map.read_text())), ensure_ascii=False, indent=2) + '\n')
     manifest['resources'] = resources
     MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
     print(json.dumps({'imagesChecked': checked, 'bytesBefore': before, 'bytesAfter': after,

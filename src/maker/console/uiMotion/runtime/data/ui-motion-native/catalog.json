@@ -1,0 +1,1610 @@
+{
+  "version": 1,
+  "entry": "scripts/UIRedesignPreview.lua",
+  "images": [
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_282ca9cd-f040-4ebf-8a19-42ecc159c823_item_001.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_3f47c1b1-1109-4add-8b12-a4d5d29ff9b5_item_001.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_3f47c1b1-1109-4add-8b12-a4d5d29ff9b5_item_002.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_001.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_002.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_003.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_ca87904a-e955-42ae-9b3f-ab3d0a20be30_item_001.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_001.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_002.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_003.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_004.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_005.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_006.png",
+    "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_007.png",
+    "assets/ui/s01-redesign-v1/images/background/E001-normal.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_190eb20b-7bf8-48f0-a628-9ba04b258a00_item_001.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_2fcaed82-cdb7-4355-b198-61209c21fcf0_item_001.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_001.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_002.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_003.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_004.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_005.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_006.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_007.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_008.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_009.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_010.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_011.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_012.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_013.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_014.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_001.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_002.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_003.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_004.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_005.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_006.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_81c18dd2-d1d7-478f-8d46-647ad4616c72_item_001.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_81c18dd2-d1d7-478f-8d46-647ad4616c72_item_002.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_81c18dd2-d1d7-478f-8d46-647ad4616c72_item_003.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_001.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_002.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_003.png",
+    "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_004.png",
+    "assets/ui/s02-redesign-v1/images/artwork/E004-normal.png",
+    "assets/ui/s02-redesign-v1/images/background/asset_120f9667-612e-4372-90ce-2770ce959705_item_001.png",
+    "assets/ui/s02-redesign-v1/images/characters/mica.png",
+    "assets/ui/s02-redesign-v1/images/characters/rin.png",
+    "assets/ui/s02-redesign-v1/images/characters/sable.png",
+    "assets/ui/s02-redesign-v1/images/characters/vela.png",
+    "assets/ui/s02-redesign-v1/motion/poses/pose1.png",
+    "assets/ui/s02-redesign-v1/motion/poses/pose2.png",
+    "assets/ui/s02-redesign-v1/motion/poses/pose3.png",
+    "assets/ui/s02-redesign-v1/motion/poses/pose4.png",
+    "assets/ui/s02-redesign-v1/motion/poses/pose5.png",
+    "assets/ui/s02-redesign-v1/motion/poses/pose6.png",
+    "assets/ui/s03-redesign-v1/assembled-v1/images/asset_01ced7b8-b0c5-420a-8828-36b9fd627dca_item_001.png",
+    "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_001.png",
+    "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_002.png",
+    "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_003.png",
+    "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_004.png",
+    "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_001.png",
+    "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_002.png",
+    "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_003.png",
+    "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_004.png",
+    "assets/ui/s03-redesign-v1/assembled-v1/images/asset_47993c62-3bfb-4ed6-aac8-1b64d1afc1ab_item_001.png",
+    "assets/ui/s03-redesign-v1/assembled-v1/images/asset_8f1a7571-e2ac-4259-8df7-3f09bacde522_item_001.png",
+    "assets/ui/s03-redesign-v1/images/background/asset_1839dd70-771f-4db5-b663-7d74a724cd05_item_001.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_10dae5b5-320e-477b-9c34-f10f418c866e_item_001.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_10dae5b5-320e-477b-9c34-f10f418c866e_item_002.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_001.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_002.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_003.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_004.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_005.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_7f16d4de-5b54-4fcf-a380-0f60e33dda9a_item_001.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_001.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_002.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_003.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_004.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_e49c1c85-f860-41a2-8ecc-ed7b5e7ad80c_item_001.png",
+    "assets/ui/s04-redesign-v1/assembled-v1/images/asset_f075d4ac-8f07-4991-a00a-fce9847e3fb0_item_001.png",
+    "assets/ui/s04-redesign-v1/images/background/asset_70ef0acb-87bd-49c0-ae46-59c19ab4e939_item_001.png",
+    "assets/ui/s04-redesign-v1/images/effects/clapper-body.png",
+    "assets/ui/s04-redesign-v1/images/effects/clapper-top.png",
+    "assets/ui/s04-redesign-v1/images/effects/hat-back.png",
+    "assets/ui/s04-redesign-v1/images/effects/hat-front.png",
+    "assets/ui/s04-redesign-v1/images/effects/orrery-star-card.png",
+    "assets/ui/s05-redesign-v1/images/artwork/asset_df41fc62-a3a1-4b3f-b4a3-4450126e3799_item_001.png",
+    "assets/ui/s05-redesign-v1/images/artwork/asset_df41fc62-a3a1-4b3f-b4a3-4450126e3799_item_002.png",
+    "assets/ui/s05-redesign-v1/images/background/asset_437ca95a-c49e-4b39-a557-c2ae48a7a9fa_item_001.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_001.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_002.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_003.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_004.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_005.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_006.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_007.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_008.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_009.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_010.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_011.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_012.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_013.png",
+    "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_014.png",
+    "assets/ui/s05-redesign-v1/images/effects/opening-curtain-left.png",
+    "assets/ui/s05-redesign-v1/images/effects/opening-curtain-right.png",
+    "assets/ui/s05-redesign-v1/images/equipment/asset_95f90e05-e1ed-448b-8768-aa27bd6845e3_item_001.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_001.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_002.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_003.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_004.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_005.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_006.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_007.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_008.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_009.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_010.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_011.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_012.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_013.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_014.png",
+    "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_015.png",
+    "assets/ui/s05-redesign-v1/images/panels/asset_cc9fd04b-267f-4107-a0ed-c7648d8f94de_item_001.png"
+  ],
+  "card": "assets/ui/s04-redesign-v1/images/effects/orrery-star-card.png",
+  "scenes": [
+    {
+      "id": "S01",
+      "name": "主菜单",
+      "kind": "scene",
+      "ui": "assets/ui/ui015-e4be1752/v-8c8b4b0e087e/ui/s01_redesign.ui.json",
+      "canvasId": "08c65ce8-8fb7-4da1-af50-b7de245e3a9d",
+      "entry": 0.7,
+      "settled": 0.7,
+      "ready": 0.7,
+      "actions": [
+        {
+          "outline": [0.06, 0.05, 0.99, 0.05, 0.94, 0.95, 0.01, 0.95],
+          "action": "menu1",
+          "node": "E005",
+          "label": "START GAME"
+        },
+        {
+          "outline": [0.06, 0.05, 0.99, 0.05, 0.94, 0.95, 0.01, 0.95],
+          "action": "menu2",
+          "node": "E007",
+          "label": "SETTINGS"
+        },
+        {
+          "outline": [0.06, 0.05, 0.99, 0.05, 0.94, 0.95, 0.01, 0.95],
+          "action": "menu3",
+          "node": "E008",
+          "label": "GALLERY"
+        },
+        {
+          "outline": [0.06, 0.05, 0.99, 0.05, 0.94, 0.95, 0.01, 0.95],
+          "action": "menu4",
+          "node": "E009",
+          "label": "ONLINE MODE"
+        },
+        {
+          "action": "confirmMenu",
+          "node": "E010",
+          "label": "PRESS ANY BUTTON"
+        }
+      ],
+      "boundary": "原创双角色分层入场、菜单焦点及确认；设置等业务入口提供事件反馈。"
+    },
+    {
+      "id": "S02",
+      "name": "角色选择",
+      "kind": "scene",
+      "ui": "assets/ui/ui015-e69e9731/v-5f2bcbecf50b/ui/s02_redesign.ui.json",
+      "canvasId": "1383c422-5933-473f-bd14-176970dfed59",
+      "entry": 0.6,
+      "settled": 0.6,
+      "ready": 0.6,
+      "actions": [
+        {
+          "outline": [0.0167, 0.0272, 0.9766, 0.2529, 0.9799, 0.9767, 0.0201, 0.7665],
+          "action": "select1",
+          "node": "E001",
+          "label": "VELA"
+        },
+        {
+          "outline": [0.0196, 0.0087, 0.9765, 0.2121, 0.9804, 0.9827, 0.0196, 0.7879],
+          "action": "select2",
+          "node": "E003",
+          "label": "RIN"
+        },
+        {
+          "outline": [0.0159, 0.0128, 0.9841, 0.2255, 0.9683, 0.9872, 0.0119, 0.7787],
+          "action": "select3",
+          "node": "E005",
+          "label": "MICA"
+        },
+        {
+          "outline": [0.0159, 0.0128, 0.9841, 0.2255, 0.9683, 0.9872, 0.0119, 0.7787],
+          "action": "select4",
+          "node": "E007",
+          "label": "SABLE"
+        },
+        {
+          "shape": "circle",
+          "action": "skill1",
+          "node": "E027",
+          "label": "脉冲攻击"
+        },
+        {
+          "shape": "circle",
+          "action": "skill2",
+          "node": "E028",
+          "label": "旋刃预览"
+        },
+        {
+          "shape": "circle",
+          "action": "skill3",
+          "node": "E029",
+          "label": "护盾预览"
+        },
+        {
+          "action": "next",
+          "node": "E025",
+          "label": "进入剧情"
+        },
+        {
+          "rect": [0, 0, 155, 48],
+          "action": "auto",
+          "node": "E010",
+          "label": "AUTO"
+        },
+        {
+          "rect": [0, 0, 155, 48],
+          "action": "next",
+          "node": "E012",
+          "label": "SKIP"
+        }
+      ],
+      "boundary": "四名原创角色与属性切换；VELA 六段生成姿态与矢量光效，其他角色提供技能反馈。"
+    },
+    {
+      "id": "S03",
+      "name": "剧情对话",
+      "kind": "scene",
+      "ui": "assets/ui/ui015-5ddc4204/v-95c6f64e564d/ui/s03_redesign.ui.json",
+      "canvasId": "3b04762e-db0b-4240-b890-365a145763b2",
+      "entry": 0.9333333333333333,
+      "settled": 0.9333333333333333,
+      "ready": 0,
+      "actions": [
+        {
+          "zIndex": -1,
+          "action": "dialogue",
+          "node": "E007",
+          "label": "继续对话"
+        },
+        {
+          "rect": [-10, -10, 69, 69],
+          "action": "dialogue",
+          "outline": [0.5, 0.05, 0.95, 0.5, 0.5, 0.95, 0.05, 0.5],
+          "label": "菱形继续",
+          "node": "E010"
+        },
+        {
+          "outline": [0.13, 0.05, 0.99, 0.05, 0.87, 0.95, 0.01, 0.95],
+          "action": "auto",
+          "node": "E003",
+          "label": "AUTO"
+        },
+        {
+          "outline": [0.13, 0.05, 0.99, 0.05, 0.87, 0.95, 0.01, 0.95],
+          "action": "skip",
+          "node": "E005",
+          "label": "SKIP"
+        }
+      ],
+      "boundary": "RIN 逐字对话、继续、AUTO 与 SKIP；后续台词由接入项目提供。"
+    },
+    {
+      "id": "S04",
+      "name": "绒幕星仪剧场",
+      "kind": "scene",
+      "ui": "assets/ui/ui015-a64b2869/v-f8b6ba273b67/ui/s04_redesign.ui.json",
+      "canvasId": "a319f27d-143c-485c-9d79-89fc0960350e",
+      "entry": 1.3,
+      "settled": 2.3,
+      "ready": 1.3,
+      "actions": [
+        {
+          "rect": [-14, -10, 77, 72],
+          "action": "back",
+          "node": "E001",
+          "label": "返回"
+        },
+        {
+          "action": "episode1",
+          "node": "menu1",
+          "label": "演出序幕"
+        },
+        {
+          "action": "episode2",
+          "node": "menu2",
+          "label": "剧目档案"
+        },
+        {
+          "action": "episode3",
+          "node": "menu3",
+          "label": "星仪收藏"
+        },
+        {
+          "rect": [-10, -10, 96, 118],
+          "action": "review",
+          "node": "E010",
+          "label": "回顾"
+        },
+        {
+          "action": "clap",
+          "node": "clapper",
+          "label": "开启演出"
+        },
+        {
+          "action": "rabbit",
+          "node": "E012",
+          "label": "礼帽兔子"
+        }
+      ],
+      "boundary": "原创魔术师与瓷兔分层入场；菜单、兔子、场记板交互。"
+    },
+    {
+      "id": "S05",
+      "name": "章节剧场",
+      "kind": "scene",
+      "ui": "assets/ui/ui015-19bcb09d/v-5b8d00911028/ui/s05_redesign.ui.json",
+      "canvasId": "375db9c6-8aa6-40ab-b53d-7571f6457d21",
+      "entry": 1.5,
+      "settled": 1.5,
+      "ready": 1.5,
+      "actions": [
+        {
+          "action": "back",
+          "node": "E001",
+          "label": "返回绒幕星仪剧场"
+        },
+        {
+          "action": "story",
+          "node": "E034",
+          "label": "进入故事"
+        },
+        {
+          "action": "puppet",
+          "node": "E003",
+          "label": "重播木偶入场"
+        },
+        {
+          "action": "chapter1",
+          "node": "E011",
+          "label": "机关试演"
+        },
+        {
+          "action": "chapter2",
+          "node": "E013",
+          "label": "月灯巡游"
+        },
+        {
+          "action": "chapter3",
+          "node": "E016",
+          "label": "星仪档案"
+        },
+        {
+          "rect": [-8, -8, 58, 58],
+          "action": "currency1",
+          "node": "E007",
+          "label": "补充金币"
+        },
+        {
+          "rect": [-8, -8, 58, 58],
+          "action": "currency2",
+          "node": "E010",
+          "label": "补充星晶"
+        }
+      ],
+      "boundary": "独立环境、两侧开幕、木偶入场、章节选择；剧情业务由接入项目提供。"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "T01",
+      "kind": "transition",
+      "to": "S02",
+      "duration": 0.4,
+      "from": "S01"
+    },
+    {
+      "id": "T02",
+      "kind": "transition",
+      "to": "S03",
+      "duration": 0.3333333333333333,
+      "from": "S02"
+    },
+    {
+      "id": "T03",
+      "kind": "transition",
+      "to": "S05",
+      "duration": 1.0666666666666667,
+      "from": "S04"
+    }
+  ],
+  "files": [
+    {
+      "path": "assets/Fonts/Menu-Black.ttf",
+      "sha256": "2e4413c405bdf804f26571579b9b2dd8ea4732ea57a3b034f2467cad45a886e0"
+    },
+    {
+      "path": "assets/Fonts/Menu-Black.ttf.meta",
+      "sha256": "13002509a792233b5d081fb2adfaff2a20f34f6db642afb0b867f56a00af2bbf"
+    },
+    {
+      "path": "assets/Fonts/NotoSerifSC-OFL.txt",
+      "sha256": "5e0da210fb04058a8c0087985d2d456b931c2579811a49655721d3cf0c36b6d6"
+    },
+    {
+      "path": "assets/Fonts/NotoSerifSC-Regular.ttf",
+      "sha256": "e4f7fa45933254257f7859022a627c6898494a43e5056d6d91d1a65031a6439d"
+    },
+    {
+      "path": "assets/Fonts/NotoSerifSC-Regular.ttf.meta",
+      "sha256": "f9d097564f2d7de5558d0a88965dd3ce6f2a0691f455537c09cb4a9fd5017053"
+    },
+    {
+      "path": "assets/Fonts/OFL.txt",
+      "sha256": "0cdce67c045f1a5bb3ab7bd8d1e5e125b54007f584c1291656c7b55a7c987587"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_282ca9cd-f040-4ebf-8a19-42ecc159c823_item_001.png",
+      "sha256": "3d1ff089cbcbc85aa72e99c514e2e369dc9d3e06d8566e5aec7988ee88da89e5"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_282ca9cd-f040-4ebf-8a19-42ecc159c823_item_001.png.meta",
+      "sha256": "2c91133d43be590474eaba10f6ecc5690334c143dd9b03ea59aceaf5338c65a6"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_3f47c1b1-1109-4add-8b12-a4d5d29ff9b5_item_001.png",
+      "sha256": "63b29a474832f3003b57f7ccf7badb27e6436ff6e17575ce8667819fa3843fff"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_3f47c1b1-1109-4add-8b12-a4d5d29ff9b5_item_001.png.meta",
+      "sha256": "b6fc4001a948c1186a2425750d281ccf5f13d02d4edbb5883cef8cb1b3aae30d"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_3f47c1b1-1109-4add-8b12-a4d5d29ff9b5_item_002.png",
+      "sha256": "4075fba0a9bb9c03cbe770c0edd5d3e81372fb8695391bd0d028b788e64309ea"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_3f47c1b1-1109-4add-8b12-a4d5d29ff9b5_item_002.png.meta",
+      "sha256": "4b84bc11e2d5f639dc7a51b5afc227d5fcca9759dc308d99c8a1743cc49dde91"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_001.png",
+      "sha256": "ce582cd7d15efe3cbe75147f9a91edeba1b6426c10d51a3af8aa1230e59c935b"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_001.png.meta",
+      "sha256": "da1ff2907ac5731cbc27c8248b58c8c0b2510273b5fe7ce23004aedcbf0ebc0f"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_002.png",
+      "sha256": "0f0843ee23ede021bfce2c5e20437f1343d6b321eae7af140cecf3bb713ca386"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_002.png.meta",
+      "sha256": "fdaefafdf8297965243f5451057a4173fb71356596cd871703e6b267e5a99e4f"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_003.png",
+      "sha256": "a27589563ceffc76a191dbb0ac7ecf310f5efc2eeaf82a8a3dd5fe997f62a239"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_003.png.meta",
+      "sha256": "4f2ef2190a98ce62c98c23e9611c71f32887c53bb6e35d3def64ba58567f23a8"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_ca87904a-e955-42ae-9b3f-ab3d0a20be30_item_001.png",
+      "sha256": "9770fedd66021d3748c75c73156385a88b968b6791ab12368396d732e50ff046"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_ca87904a-e955-42ae-9b3f-ab3d0a20be30_item_001.png.meta",
+      "sha256": "83332d52da6a2670d54e8669584ef42450a6bb8bc19446d044bd7490998e5ac5"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_001.png",
+      "sha256": "6d95442315893d0a4fdc5749f8596f15ded846f49784a1983109614127352b7f"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_001.png.meta",
+      "sha256": "dd723379af543621f437279c427ffee3926b51271b75c6a620db1cae935029cc"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_002.png",
+      "sha256": "08838276d61200e8d4a89e72523320d1673f21cb20a8c91e81c80866cf3fc80c"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_002.png.meta",
+      "sha256": "86e1a4ce853c20d36e9040968e1938364fc42da9fe287f4dcb894d0c46af4da5"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_003.png",
+      "sha256": "dbd98334ddfa4592a76f5af927cc6de4b97eb030de5c4e74663c6631b3ba8bcc"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_003.png.meta",
+      "sha256": "c33ccb3df188a37f55ff8d63b546410fd9ca4d03b065a7dbeb74647642598a09"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_004.png",
+      "sha256": "c990b0d8c8debbc1733d22c0c6c93ea235dbe62ed6b8aba0206152af7c46cad8"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_004.png.meta",
+      "sha256": "f0556b0d47b8b882cb4bfd3253d0fc643eaaaaa63966c196e89ce84c4ea22208"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_005.png",
+      "sha256": "75e207c75573f04356da1987a6089566bf79401202c9bcc3e4832a3e72aec9b0"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_005.png.meta",
+      "sha256": "d92f21088abda053a354a152e0bb7267c78517a5336cfa53b017ba45edd7fb2f"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_006.png",
+      "sha256": "e995e86d2c0624371d6471e0ce1db3f5cda4de80a55e9f049c6204bea914d80f"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_006.png.meta",
+      "sha256": "b2186596292c5cfe8c65d4929a118eb2f42ad52a154dcb16321315c366a4f851"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_007.png",
+      "sha256": "d78d60bf32e4ac8c10c5ab480d0bd9db58d69f32e8ea5d44dd2dc11f264e1278"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_007.png.meta",
+      "sha256": "b41db93e89697cf02817303f2d8e5b8cbd0b17f506a7106a7628cfa759b55a40"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/images/background/E001-normal.png",
+      "sha256": "cff75bf9f17a2f3618ad37818914d8f4fec347e10b479d71a7fd876ae57c5f80"
+    },
+    {
+      "path": "assets/ui/s01-redesign-v1/images/background/E001-normal.png.meta",
+      "sha256": "c0e488d08b872531cf3e616bc165d937c6e462a2eccc378472c9a858dedeb0b5"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_190eb20b-7bf8-48f0-a628-9ba04b258a00_item_001.png",
+      "sha256": "9a3adb188413b4e2025cbc48152f4f9da3c7a1afc5cad35b6d7dd0094485cf7e"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_190eb20b-7bf8-48f0-a628-9ba04b258a00_item_001.png.meta",
+      "sha256": "22c4f25ac2c67066e53591fdef65b6c2ac938e34e376035386c665731da56a98"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_2fcaed82-cdb7-4355-b198-61209c21fcf0_item_001.png",
+      "sha256": "05ebc7cce34a615ed0a4cf00ca1892747afc64b8e773c5f53f2a8ab9b97f7f2e"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_2fcaed82-cdb7-4355-b198-61209c21fcf0_item_001.png.meta",
+      "sha256": "16df544ea5d7264a927e3674ac414ebbb8c1e1ba65af1ed648a2bc18ae544d37"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_001.png",
+      "sha256": "8d7abc5dbd7680cc210dff44701e838218b67ae61636a0f94e8478fb3b898939"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_001.png.meta",
+      "sha256": "bf36a2d54f5d2242e49041bef0f4e395949ad87ef6014f64f09a9fa08ca058ba"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_002.png",
+      "sha256": "cc9f032a1893c2bfb5c31d14a1bcfb6c8195726f6a208ead1c641bc07f6fba14"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_002.png.meta",
+      "sha256": "d0380444ad1bb9e56d7f84b7dc776b101ee945318b64ae6622a805298b6a7114"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_003.png",
+      "sha256": "abea7bdeb2a54fe57f6e5df36058e6014a55626e3ef2d9b0e0ee6e345b47f06c"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_003.png.meta",
+      "sha256": "c0b7f50f283976c2d544a04af47fb249965cc5f0d39015908126c09f1bc7130d"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_004.png",
+      "sha256": "5fbfe7a4bd859859b3a469d5135e555fb936069138592b3e8ccc5c1d7f293973"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_004.png.meta",
+      "sha256": "978e3ac5095424e332c61174ffa5d6ff60d3d92afea7f4738ba14ba5bb5ed956"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_005.png",
+      "sha256": "2d8769ca98e50f4c980d9fb5ee312b9d6fb9fbbc39a3205c62dc3eec3d481f2a"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_005.png.meta",
+      "sha256": "ff47cd39c177ba7df5bb5ed65e38804211cd9a4e273a7cb73ccaf1a330aa97e5"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_006.png",
+      "sha256": "3ce9939abcfaa1640ab0c91e89bc32bd00c28956c31aa8e9794e7b23734774f9"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_006.png.meta",
+      "sha256": "8573245cac3810d2e94307f095b052276429b92cfdaab77765451dd94dac9879"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_007.png",
+      "sha256": "c2363710d73cb8a92c44d2b694c4a92fe7c97d289c958995dc9670a053abbd6e"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_007.png.meta",
+      "sha256": "198622ef8963ed6a7d0957c2a8da87d2780123c1c5d16296a7f45e4a98ebbde8"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_008.png",
+      "sha256": "39b4915365a724423a7f96d6a40be851cd867040a33b63f349610e10e6ac0425"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_008.png.meta",
+      "sha256": "ffaaa69ff1c0d7fd720cd4cc742e8f62871b5efae41670f0c9c2f57a5891f5a9"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_009.png",
+      "sha256": "420fae58cda588101f91d0431d31dd16de7f95a477c433fe52ed149f684ae47a"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_009.png.meta",
+      "sha256": "298b55d5ad253e0809a94c6212b55af98c399c636ae2d75ec34afffe88b8f7a3"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_010.png",
+      "sha256": "773e10b43b7c3f08f69cf1cbf470c792157f4875007d7966b979ad2b17ad7375"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_010.png.meta",
+      "sha256": "207cf32f0acdd8068f56a2134632b925be71a5a9c10fd9d4a10f26b75ab7950b"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_011.png",
+      "sha256": "0aa21ecd90f07d9452001df451e60623c851e3d453c48de22b1938dcf87b9554"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_011.png.meta",
+      "sha256": "65dc9e409bcd60e752651f8989982a63a3ae7ea873f7641b1ea8a4dae6422c1d"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_012.png",
+      "sha256": "1220cc1416f1e08e2dba22ac2482f615fb319cf27a5c5683a8b080ccb6995098"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_012.png.meta",
+      "sha256": "4453bbcd2472b1febc78d9b0a92b7c5260fb9504a51a3717a2572e20184aa8c7"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_013.png",
+      "sha256": "68620718e475b506ea4cf516c783403ec9fad858098a9af991573c3da95bf117"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_013.png.meta",
+      "sha256": "d6e3f582bd0b7d931964292f366db03811d1ad8ad6b0058d849657d8736cd709"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_014.png",
+      "sha256": "c03b2d38b1729bbf327104a131ed6733382bd3338c4228106c594416c410fd67"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_014.png.meta",
+      "sha256": "49feedd8c34b7020a71f50ccbf884a53093ef7f5ad5535180ddf097cfef5523b"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_001.png",
+      "sha256": "d20b4274beeff7713a1a2becae055cc8836e14bca9dad7511c143cd4f3e15123"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_001.png.meta",
+      "sha256": "ecbd90fd2c0b691ec62672df53b9d005dc69f31a3762ec9cc1b5a9335a378e5f"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_002.png",
+      "sha256": "dc0c8b7348fc988771025269179a9f756f0115b94b3c5e0737ff67baf9021da1"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_002.png.meta",
+      "sha256": "172a4fa4ace578c444c90da7c435340a70e30f681ec51157e0f6c143587a4ade"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_003.png",
+      "sha256": "b98045fd2ceab5a13eca0643b98ce28f6d239fe262088c551681f5290e212adf"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_003.png.meta",
+      "sha256": "23bdf8e47bb3ea6f6c4234aeacd0a7817cb387735bcea692e9aae2f5df8727bb"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_004.png",
+      "sha256": "55a070fc4c20db729efa42b70d06bf201f59da99f964bb8aaa78de8afc175303"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_004.png.meta",
+      "sha256": "53241069a595e0c49998bbcde91f4824f2b610870c14f19cd7112f7343b7b5b4"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_005.png",
+      "sha256": "6c0b143e5be074396c843e03be97a9ea1b7a53d1003327b6553020f79ce1355c"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_005.png.meta",
+      "sha256": "8233a4c614527201b23c72dd38a58296a08e1ea957d40064885b9d5625a29ea9"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_006.png",
+      "sha256": "0d51c8bedd1d2d5c84f759eae63965b173a61c18b635b5831009c73549c68e80"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_006.png.meta",
+      "sha256": "4cc6e5711c68c785326d19f42c8cbdd575b465f22b3c00aade8b65d454547eda"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_81c18dd2-d1d7-478f-8d46-647ad4616c72_item_001.png",
+      "sha256": "4d4488eee7e6588d7563ea252b105bd86813f4f3f3352dec4910f77bf07545a1"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_81c18dd2-d1d7-478f-8d46-647ad4616c72_item_001.png.meta",
+      "sha256": "4120b9b01b6008ecbb0a89e30f8b4af13256c999075bc48c86a91213d77641be"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_81c18dd2-d1d7-478f-8d46-647ad4616c72_item_002.png",
+      "sha256": "9c335a68feac67cb7e2b12bedd4980354db26c13f7afad229d8e534d642b1842"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_81c18dd2-d1d7-478f-8d46-647ad4616c72_item_002.png.meta",
+      "sha256": "7438990ffdbcb56156404427ea1d9cb940803677b5adc6ecc07738eff5ff3db6"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_81c18dd2-d1d7-478f-8d46-647ad4616c72_item_003.png",
+      "sha256": "c8d7efa4c1c3cecdbd0e9d112eee0c5a8ec452b08161a960ddcb902663d740a6"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_81c18dd2-d1d7-478f-8d46-647ad4616c72_item_003.png.meta",
+      "sha256": "3c6e58b58404689ecec0181d7a4a642190ea2e6176ca816e12d8a590e1717794"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_001.png",
+      "sha256": "36c46047989f49641f2acbf0482603fb041ad76c5cd2c9091f633500c3864abc"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_001.png.meta",
+      "sha256": "e168d18259439349c5030afdef4b39006397cff29dc87be8895c0d811a4861c4"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_002.png",
+      "sha256": "3244d2586aba9737975a876248a0334a080c7655d1d97bce1f7d9788a253e70d"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_002.png.meta",
+      "sha256": "3d207e395edac22e9698f972e87e82214b1b1c256ef58c29f2cd1a79ead2e9e1"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_003.png",
+      "sha256": "669b599d8eaec91812553e2e481e627334a12f5f69a57a7426ae331e61115fdd"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_003.png.meta",
+      "sha256": "39731e02ef0a99c866d93a4076d7048b7fb4570146516cc3de4b6afe2f16dbe0"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_004.png",
+      "sha256": "76bf9dd61304e131013d5a1a8a4b3920a11022020d1456185b9720dbcd62df89"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_004.png.meta",
+      "sha256": "cd7e1d607111f5ae6727b0b91cf77a6ec50f7ea60484ca313b71becae0309002"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/images/artwork/E004-normal.png",
+      "sha256": "4896248987a694775fb153d50155f36b7b70d901c3f2c5be5c8572041aff57dd"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/images/artwork/E004-normal.png.meta",
+      "sha256": "2d304fe5bf009f6b1f9023c78c6891172b65a745cceed485e04f4b344941aa02"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/images/background/asset_120f9667-612e-4372-90ce-2770ce959705_item_001.png",
+      "sha256": "d0f3301c3f9f3281e2260fda194821cd128dd71b1ce6b24a4c0d7d1f9a5998e3"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/images/background/asset_120f9667-612e-4372-90ce-2770ce959705_item_001.png.meta",
+      "sha256": "8750c6858906818a73c1809d515c7e5ac2d586b6a0a01f0cabb3a368030175db"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/images/characters/mica.png",
+      "sha256": "68b819101a9d52ab8a1940f1bc0ca1016df8055adb3d889a8f2689f709891c89"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/images/characters/mica.png.meta",
+      "sha256": "8d62ff9c3133b196e1a396c370484aace6b5301b962cc71954c54d96e93a7951"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/images/characters/rin.png",
+      "sha256": "f39a93d5d3de77969534a58d77990d27a4dbafc418e062110423c4184c1f7b08"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/images/characters/rin.png.meta",
+      "sha256": "3044620c8e7d74944fec216b6d6ea466cc74c6a24313be617a62cd23f3378647"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/images/characters/sable.png",
+      "sha256": "8ba873fb1876fe1c48ef66cf720e95bff6be84b54f1c80455e77d6976245b735"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/images/characters/sable.png.meta",
+      "sha256": "d0cb13c2ae85d21403c574eb7d4c03d2ca879f2cd28a057fdae099e7ccb240e9"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/images/characters/vela.png",
+      "sha256": "a8d8d7555d5dba48b44160cf6c9eca56770a5e7be770cc036dc818acd159f31a"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/images/characters/vela.png.meta",
+      "sha256": "276ed64a8c21371302d36b291ab1feb561758553ed663d349e62bbcbcad8af0c"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/motion/poses/pose1.png",
+      "sha256": "61d8b5e8ed9b07f08afa3cbb016a1c191924a11d313d1e3ddce89708ba9638c2"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/motion/poses/pose1.png.meta",
+      "sha256": "093746d7714807c406bac275b1f7b715a4fd54a4923dfd6ee6a06e406eb0790b"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/motion/poses/pose2.png",
+      "sha256": "334316831e9dce26cd7751bdfd4c406d95e115d5603f55d170057c8a3c3905a4"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/motion/poses/pose2.png.meta",
+      "sha256": "dd08314cd90da1c3def127c61dc95a58c1f6d4a6d3d82a40ee81023b7848321a"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/motion/poses/pose3.png",
+      "sha256": "c8afbb6a6ffb81f1d33ae4c9ab35e74dfcd3aa040ae1b3f65bbc32336ff6c8b5"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/motion/poses/pose3.png.meta",
+      "sha256": "f878f82c340bca76b1a9f526ddbff56dc9dbde06c447f85792c8cf780a88c381"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/motion/poses/pose4.png",
+      "sha256": "fa04e008cae8c34e258f614dd9439d4976c51a5e851e6ba576f5c34e514b6c62"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/motion/poses/pose4.png.meta",
+      "sha256": "9a8d2da85a2f998c23011cdbdb56fec488332e3c2a3cb23fd199578421141231"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/motion/poses/pose5.png",
+      "sha256": "e5c39623a40d70a09f6ba51c28bc8564260c5a1fae6e3324b5bbca9e35f48cd3"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/motion/poses/pose5.png.meta",
+      "sha256": "491a15da1e7ec902e1ff62c01f3b04650100e012d76442ce22d17da1daa0a043"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/motion/poses/pose6.png",
+      "sha256": "159fa6bc26c840259e89401a909df6eba3425e3d38895a2e4bb5492e33a9208a"
+    },
+    {
+      "path": "assets/ui/s02-redesign-v1/motion/poses/pose6.png.meta",
+      "sha256": "9488cd9793707571e66e1d1162938e850c56e9ba3d2cf5428ec1fe5c530094f1"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_01ced7b8-b0c5-420a-8828-36b9fd627dca_item_001.png",
+      "sha256": "20d1ca8180ad4184752d92787955f42919f0f23981135afa8780193581c0ebed"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_01ced7b8-b0c5-420a-8828-36b9fd627dca_item_001.png.meta",
+      "sha256": "11a304f7304b82487e22887272e59b4541981b2c26a33e7ca20ef41b36ed07cf"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_001.png",
+      "sha256": "18cb8f4bd24f97d723afd6d0621fa03d103b555447c99995c9a58c07c40356eb"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_001.png.meta",
+      "sha256": "10438af6129c1b7ff057bf772bd2825ab28d7501d7fdd4ad54035f7db512b6ac"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_002.png",
+      "sha256": "aabf470ef678c85883bee9b96913c1104641abc918f13dba99ae6ab7f2fd8bde"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_002.png.meta",
+      "sha256": "2bb94abc78f63a293515df759e70d814c53860b56761ede8a6c6fe6ac0d88d9a"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_003.png",
+      "sha256": "bd36ecd697c854654ec8b35f78aabbc411b2e25396a3ece58159271a6ee48441"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_003.png.meta",
+      "sha256": "d23d70244b33ed25630415898d879396801150da763135c2da6602a385ce90e9"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_004.png",
+      "sha256": "7e0a9a6aa66bbe40980524e59684bdcf152924b0c5985f4c557e554cfd77ec1f"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_004.png.meta",
+      "sha256": "36bb1cb39a815b907ef9fc6a8d96ddc6dec8a25b599cd6323d20bf6977f62da4"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_001.png",
+      "sha256": "d8a1abd93b57bb342cf3af897cd5d7177c0f65de912cc1ebd72454c6925e9b86"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_001.png.meta",
+      "sha256": "40dc944d5112ee29d21f8f479708fa3ef4b0092f7ccd8ba087fce9f884141f18"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_002.png",
+      "sha256": "c978fb03cc56cbe4665038b72d365e9ea43fc81acdc319f889b7efeccd4fb386"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_002.png.meta",
+      "sha256": "0db1a7d2512cb0b14930e48bc6f296bf0901bb5f9d1d362eb1ddcf2456e3d0f2"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_003.png",
+      "sha256": "a3bd39434fb06b05bdbde315299b8d0cd153c2d6efd099eab2b528598d19e262"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_003.png.meta",
+      "sha256": "77f2beaed40f0b295718d19f2a84f8d4a01d3b1321529708a2216a0d101cc65e"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_004.png",
+      "sha256": "e22186e2f38d7dd632f55e94fb23465cd34c66793c47a2ce9bb28fb08142446b"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_004.png.meta",
+      "sha256": "2eaf1e6b7b59b5d17041b168f073c465282b63dab888a89c94b9ee011c098748"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_47993c62-3bfb-4ed6-aac8-1b64d1afc1ab_item_001.png",
+      "sha256": "9bf95beb97add2acf1f03dbe1aec64a42e11fed62e159a8c8ed26415f7f41d49"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_47993c62-3bfb-4ed6-aac8-1b64d1afc1ab_item_001.png.meta",
+      "sha256": "e2221f1cad59f3139dc8aa7029b248f51d7326d17d25ea0f5091f40839581e6c"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_8f1a7571-e2ac-4259-8df7-3f09bacde522_item_001.png",
+      "sha256": "6bb376e4cf7a9def3ec4c88fb7d8baee2c0f3e19440bc989f75d0bed70d3d1d3"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/assembled-v1/images/asset_8f1a7571-e2ac-4259-8df7-3f09bacde522_item_001.png.meta",
+      "sha256": "9ea0930e35c70c5d427e82632d94b8313b2ed9f3ceee8b05bf50d2a831be9fee"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/images/background/asset_1839dd70-771f-4db5-b663-7d74a724cd05_item_001.png",
+      "sha256": "e1b2cd20beb9b78a647b73b2c3b6a978e029772a10075452b8a927776a465a2f"
+    },
+    {
+      "path": "assets/ui/s03-redesign-v1/images/background/asset_1839dd70-771f-4db5-b663-7d74a724cd05_item_001.png.meta",
+      "sha256": "ea18b6f82668097ead42262fb1086782d2e3c6fdcd8f0c1563909952cc6b4efb"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_10dae5b5-320e-477b-9c34-f10f418c866e_item_001.png",
+      "sha256": "a10a88c14a4508c4fd656fb19c5312c5f4c1f7425fece83ab9a92315c17239ca"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_10dae5b5-320e-477b-9c34-f10f418c866e_item_001.png.meta",
+      "sha256": "1456751706eedc5c7977ad01df1b7fe4efd175217c082a3330a0df21270f755d"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_10dae5b5-320e-477b-9c34-f10f418c866e_item_002.png",
+      "sha256": "b30eed087029c333e81cedbe7480793242b4a8391ac597c48c63205f842188e8"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_10dae5b5-320e-477b-9c34-f10f418c866e_item_002.png.meta",
+      "sha256": "69b39238370125c5d150f5ecdd9be7a5d8fe4a604b282382de41f10e7d1dae51"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_001.png",
+      "sha256": "4b1962566c15715c960d890fa77aea71a8c2806acba6cd2597142365bdae06a1"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_001.png.meta",
+      "sha256": "8f0f6b572e53622fbbd87d4a15d91e67a39d2690864251abe614888a06cde179"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_002.png",
+      "sha256": "55242ca4eec1ee025f3c575dcc62181ff6959cf7894a315c6e6aa202c233cb7b"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_002.png.meta",
+      "sha256": "7114cd4f0b69a12a08b3392bde4372121a58d9a885a2384a2e6dfb2199efe24e"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_003.png",
+      "sha256": "a3d796dd0d612eaf6b8cb4ae6674f69af126c46fc18ca850b78ab5dd58dd3354"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_003.png.meta",
+      "sha256": "4045cec0037b4d8e0cb0ebcc15ac17c000e44749053583e1ef5dfb66048bba4c"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_004.png",
+      "sha256": "1673d8b6ef96adcaeae4131a686188fad099ab9b6f73b6407828c60d6d44865d"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_004.png.meta",
+      "sha256": "e8beb86a1910134864cda3e486f7abdd9c1a7a7901b0345630285fbeb132c16f"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_005.png",
+      "sha256": "6c4c12c83b270ec4e9be582e059ddacc9ff0b6ffd87a7b0fc76592e1f8e1c209"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_005.png.meta",
+      "sha256": "5b68a316cec7d60da249cdd20411b22f7a826429d6be9d60db7d2f66ed58b2bc"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_7f16d4de-5b54-4fcf-a380-0f60e33dda9a_item_001.png",
+      "sha256": "1e94e55bd69784ab199f385ac60c5ae0099831ac99abbd74e450675f7e4225b0"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_7f16d4de-5b54-4fcf-a380-0f60e33dda9a_item_001.png.meta",
+      "sha256": "e7549a957f225ee31722db6f02352f891ee3089b30c3d974d02b275b2cfd9f5a"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_001.png",
+      "sha256": "62170914b7b6eb7300c545d6970bd14126fe90828a0666f475489a0e380d2df3"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_001.png.meta",
+      "sha256": "a7a7ee1ee7854859451a6dd0e86116873e10290be6b436d099696216e863d745"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_002.png",
+      "sha256": "2949f94169c65a807d2a85068c2ee9bb6afd81bfb2e5fcdd091c81a089a232c6"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_002.png.meta",
+      "sha256": "cb72f9399c4936c32f9b78e3a1ccd37d035713bf3f45112f437a55990bbac42f"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_003.png",
+      "sha256": "86e582097bac7024f842e5af2ece9d05e481935f85284311fd70d57c4a4e7602"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_003.png.meta",
+      "sha256": "c7115ecf86a95acaa0b5cf6708f171f025919b7351be6980ed4eb2be6d75fe9f"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_004.png",
+      "sha256": "c74939c3f70ca8ca89694a4e6f022e40a0941810ec57cb60dcf785a2b17f5130"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_004.png.meta",
+      "sha256": "c82fb8eaaa9209deb36ab66208deb81e4f3f3573186b2e0c5aa724d1303de1b6"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_e49c1c85-f860-41a2-8ecc-ed7b5e7ad80c_item_001.png",
+      "sha256": "793a32b2ca5812bc523b59317b3d2a1f88119a88ee6323b4d71b4d6bd43fe0cf"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_e49c1c85-f860-41a2-8ecc-ed7b5e7ad80c_item_001.png.meta",
+      "sha256": "1baa73079412e5820300cb4b3c30eb9a23631815e4881ff69e278d7ec489b536"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_f075d4ac-8f07-4991-a00a-fce9847e3fb0_item_001.png",
+      "sha256": "c4f8a8200cb77c2e6ca2d856a95e4acc47f22bf594dac2f005f8c76ab1a60b8a"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/assembled-v1/images/asset_f075d4ac-8f07-4991-a00a-fce9847e3fb0_item_001.png.meta",
+      "sha256": "29354c352c891c3e110c6d75ba4a6aa335bba6ac2c8236fff42b3b0b9615ede1"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/images/background/asset_70ef0acb-87bd-49c0-ae46-59c19ab4e939_item_001.png",
+      "sha256": "5df5a49854e9573b1857bdf540b7e502e6ced8bb42cf43e47c5923801ed3c80c"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/images/background/asset_70ef0acb-87bd-49c0-ae46-59c19ab4e939_item_001.png.meta",
+      "sha256": "3d665ed4a6463c83d7b010ec0533e29e2c8f674a7fecb434aca31a6c5bb946df"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/images/effects/clapper-body.png",
+      "sha256": "f1fc3679a5dd2f17231ee3a8e02927fb05c605853eb8dbcbd6ea915a8204f701"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/images/effects/clapper-body.png.meta",
+      "sha256": "877790a5a0b9d319d5cf555054a4a4ceea4dc9a5ecedee183cfd60ada40bf1e4"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/images/effects/clapper-top.png",
+      "sha256": "5ee9cac1f2bc97b9769afa69949ed244117c09d6fa17ebaf4eedf88706c091b4"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/images/effects/clapper-top.png.meta",
+      "sha256": "07c55975b3232b8b6dcb592b5e2fe6672401cec8e8e1175d7c600b7c2d2f61ca"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/images/effects/hat-back.png",
+      "sha256": "0eaa1dcefd187ba0cba2e7838483bbe99ed15d640eddf86f420efafb919453ec"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/images/effects/hat-back.png.meta",
+      "sha256": "5098cc7857c3776b74e49a88b181142b65f5c0487f196f2f25c99e3af4cdc6c6"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/images/effects/hat-front.png",
+      "sha256": "de8614c9d0b31f74c60214cf460480d75923a904086157ced80026e1fc5b2dbf"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/images/effects/hat-front.png.meta",
+      "sha256": "14a25be5ad84886d3ba96e9d31cdb2ccaadd5f1cd8504e5a93af45f246f288db"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/images/effects/orrery-star-card.png",
+      "sha256": "860690ce5041221164f23f94cbbefb5918ff1b28181181cd601bb4bd9f7333af"
+    },
+    {
+      "path": "assets/ui/s04-redesign-v1/images/effects/orrery-star-card.png.meta",
+      "sha256": "3cc873d67f477b1baf79efd9e81126ca66e54f3b6c4b14ec25496e465b777644"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/artwork/asset_df41fc62-a3a1-4b3f-b4a3-4450126e3799_item_001.png",
+      "sha256": "5209c0b3ef776ea7adfd3ec310972ac93a7cb76fb6b8c929fc0644919846b9dc"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/artwork/asset_df41fc62-a3a1-4b3f-b4a3-4450126e3799_item_001.png.meta",
+      "sha256": "8c89969df96514dbb10f688c86d0b704bc6be0254d4ff95ddde1db527bf515ad"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/artwork/asset_df41fc62-a3a1-4b3f-b4a3-4450126e3799_item_002.png",
+      "sha256": "d2e521d43eecc5b38d82f4776b6d9a74f088a1134704e01eca2eae8e211a6d49"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/artwork/asset_df41fc62-a3a1-4b3f-b4a3-4450126e3799_item_002.png.meta",
+      "sha256": "63572ebf9434c285f9162f732ac85d7ad79636a9ee79fb41814bf0f97efbe864"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/background/asset_437ca95a-c49e-4b39-a557-c2ae48a7a9fa_item_001.png",
+      "sha256": "4f6a3539fa1a5dc05719c2bd1f5c918d68e97acc46afac46f4618a3aa84690a3"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/background/asset_437ca95a-c49e-4b39-a557-c2ae48a7a9fa_item_001.png.meta",
+      "sha256": "907d3b90f91d2da2bfbfeb4f84de05a858b39770d15b69f0172b943fbd88ee80"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_001.png",
+      "sha256": "6b8b1d6955735c28cffbddb6c83fa7ebc9968aec7a2e61784618b647b9cf1435"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_001.png.meta",
+      "sha256": "e4a9700de43443ad99e6fca2a2c3e3e907de48f90a9f089395c54578dc29dbba"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_002.png",
+      "sha256": "950e7316de3184466c002792b0a6e854642e2cc6c4fef158d09359a7c53f4f9d"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_002.png.meta",
+      "sha256": "628b6e725f2bce54beeacb9568e5964f14080651c510a08101b71060ffb01d11"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_003.png",
+      "sha256": "4f81616ec382d6439796ec3bfb6496098aeb3cb2b4570198274d8b1a377fda05"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_003.png.meta",
+      "sha256": "b2eddc143cd62eed46c4863ab8033770e2966b277297efa9300aefcbe1fd138f"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_004.png",
+      "sha256": "b21c77c2e8088d26cb768373be02b9a6656c909228110d7ad49a805d1d5da5bd"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_004.png.meta",
+      "sha256": "cb985517e8f02e6ae2217afa46aa16ffc9517cc7d12e8c6dfbfe008febf4f363"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_005.png",
+      "sha256": "534506b93a2f9c0f7cd92e2944383ad069d5cad7d1fc4d2cc87167965b4141a5"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_005.png.meta",
+      "sha256": "cff31aa1fa452ac09acd1348619c3ffa89fdc62c5a2db23c287b52f6c64fd5b4"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_006.png",
+      "sha256": "ddae660f1eff6c5e11d022b469ae0776ec34318ef1c7ef9c1c4278e0bd1cea5c"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_006.png.meta",
+      "sha256": "0332451a54c0b6fae408d804fbb7771985d755fb0cb01300f3580f736a9186af"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_007.png",
+      "sha256": "12cfd9600aa2bb6a41d3e53351871ed1553ec2c34f5f32698240cbc55960d303"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_007.png.meta",
+      "sha256": "572856e919316847507ddb773d229ab7f151ce4ef465a428e387cb2dde04dde0"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_008.png",
+      "sha256": "89239b94a2a0314786933fb9cd9f82ac4ad776ee449c1583c793ac2f3127e9ea"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_008.png.meta",
+      "sha256": "57f8c2a0f693c189ccc28a79f2143605a9c479a2edc7dc30b4a0847a227b7dfc"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_009.png",
+      "sha256": "31d5e6d98252429aa4a3f4290736eaa15f6443facae1c1b8a312431c0802c4ef"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_009.png.meta",
+      "sha256": "078e952aa01c0c97579cef222b9560cf34c68baf29d7932ab5471c7364229004"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_010.png",
+      "sha256": "51304548688c8045df496061098c0cccca34c3265c88c0c3ce9a5e3bdcb834c9"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_010.png.meta",
+      "sha256": "6c374e921ed25c95d6660fc31b97c9ad8acf390fbe1aa62257e48802f6dc1bd2"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_011.png",
+      "sha256": "1ab22f37047918a020ae9fd3f0c707355faf9026395710ffdc34e47b7f86f435"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_011.png.meta",
+      "sha256": "4d2dcac2caa0503f90ea8a87801bdcf205d4ea48a1e5f45f33812ea1639c1f04"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_012.png",
+      "sha256": "b3690d72cd148c503d6ba00a970b7489e394d726c4a702c236728ddb557a2f6e"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_012.png.meta",
+      "sha256": "2045e327252b30fecc0e5f49107073da57ad96c4fe8ae74956c582675916056e"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_013.png",
+      "sha256": "ee6c111330a0515ac3abb01bccb7cafdc1e491dd194024dbbc5d92c743f00548"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_013.png.meta",
+      "sha256": "4e425bf030f1b7ce356103ec76c5e31dcb01f766de5a61450d8cc32654869196"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_014.png",
+      "sha256": "5942c3b69ac8e4a2d98d513d1eda788ac7c13279db8ee9204124b951c39de75b"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_014.png.meta",
+      "sha256": "e7b02b75dadde4f109730db091a9a127becb05e6fda81b0bf72c00f761d3d166"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/effects/opening-curtain-left.png",
+      "sha256": "0cf033ad29d17141402777dd0f433d101fcf8ace0c385720d7b2ebcbba79a8c1"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/effects/opening-curtain-left.png.meta",
+      "sha256": "c2a88ae8fd1505b152838e39e8615ae3ad6924b83c55fd7a82818d2b35b9db11"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/effects/opening-curtain-right.png",
+      "sha256": "cf0692e2f665a7fc1b6e585aeae03d6fd2ca86ab17339d9a1b65e9b70cc2250a"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/effects/opening-curtain-right.png.meta",
+      "sha256": "391cb75b2cec4ca1d794e13c2245b4e69168783a4ab86fc9277454ce8c342857"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/equipment/asset_95f90e05-e1ed-448b-8768-aa27bd6845e3_item_001.png",
+      "sha256": "5d5e800183e40d8e479963cce438b22da10a54a453ed101f445eed8205a8b06a"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/equipment/asset_95f90e05-e1ed-448b-8768-aa27bd6845e3_item_001.png.meta",
+      "sha256": "834e0c98e4bc8198871bcba138bfac4f1e6abc9370198c18d04c11320119815f"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_001.png",
+      "sha256": "3f7098cd1341417d9dba361035c6c0fa5d5b68f718101a084849d0e6e2f9aeb2"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_001.png.meta",
+      "sha256": "ca19e1132a87a3e40263b1d5e2cee644c1d84273c7eeb4803734f56b164a994e"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_002.png",
+      "sha256": "601840c958a4b518924f21969d27064b07765240a3420d1ea9298dd7777d7918"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_002.png.meta",
+      "sha256": "cc943e3edbc0adb161e78e67cc5ca6abe5eef7623f60118c8fee69b377bff931"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_003.png",
+      "sha256": "9d00e4ef970588cdf43ecf7d29388e5f92c4d14c0f6463b71f0e316f0f4939a6"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_003.png.meta",
+      "sha256": "ea630e75a8d7c8a08c45746295daf14ea4d5b42867e16f6a55c1d21c1015a0f4"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_004.png",
+      "sha256": "571909b6b669b1d1ff619c46d4ef392bb7cec490c6523b97125431d7599dff9f"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_004.png.meta",
+      "sha256": "d94e58ab6cef6c7ab169e56ce37d1b26a1a5bf4abe44673286a93c126734432f"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_005.png",
+      "sha256": "b3cb5f61a2f298f38457f2e05d179d8ce28c48021e25c6e1fa36ad904d2f2dca"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_005.png.meta",
+      "sha256": "253e46db6797d32802cab638b89154803c7d06992aa67ddc22b578b5a7970f0e"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_006.png",
+      "sha256": "e49f200116c7b99bdfa41418209650df531829bb94d645637e28d6fadfaa47d4"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_006.png.meta",
+      "sha256": "c379dbfe7bb90e896fe69b50044451ee0680ebf4d17141a61854a71842b5d0a0"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_007.png",
+      "sha256": "fc6894e0c5d70a55a714f4cce464a78a4ad24d9d83877b1db0e603250387959a"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_007.png.meta",
+      "sha256": "a3848b0dd0d8e5135ba75365d218ce6cfd48ad2a5cab9c0bd375f68380ca3afb"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_008.png",
+      "sha256": "9754fa1e1e5d7b2b4e34330906b5f5c90ee7cc3d823a80c43027a01fe01497ea"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_008.png.meta",
+      "sha256": "ffa317783389a9f711ceb7327b800b7963dd5eb1869b0f3680cb937e95d4ee3b"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_009.png",
+      "sha256": "e8fada9df2d4789fe8f1c122d52e25537eb272620c8504237a45e1b2f5b1b190"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_009.png.meta",
+      "sha256": "7f2342ab76fa019d6350deeb654d7ac08b55e5e49add326b27aebc3ab661d1e1"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_010.png",
+      "sha256": "7aea7bb1fb8588404c35a4e5ae53baba3e02ca50c8e5f822b9ae59e5ec77eee3"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_010.png.meta",
+      "sha256": "0f7c76fe8b96ffadec811cb4365c247a860255ba62d1cc7ff63098caba209e48"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_011.png",
+      "sha256": "1bb2177e6b4c4b89f71caa268250f0a82c864e0d60fc5c1cf078c16d84958713"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_011.png.meta",
+      "sha256": "d8f802ce73afaf4b4dc0b7d6c8d7554e020dc8813d9071fdfbb1f90b25390bf2"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_012.png",
+      "sha256": "4fa58cdab614cf65b4600288775ba0d814ace69b5ff2a62f5b8826cd73d30728"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_012.png.meta",
+      "sha256": "b12cb0ad372df0457676c35793983cc33dd1f0d7c860b49d4c960e0e210b8168"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_013.png",
+      "sha256": "3f5ed75dc0e4a7b6918d34b9cef50088ee0cdd42f2e88347d776d66e2f0f298f"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_013.png.meta",
+      "sha256": "0623b1f6d34196ba7811e9017a5a4d4899979243b6223ad4cc61159ea52e69f4"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_014.png",
+      "sha256": "944e5b391981e8703e373a1181d8ab00fefc90bace733366444826fdfdbbef3a"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_014.png.meta",
+      "sha256": "904093f08d911b38596eb4c461dee2c20e8fb26ec8238f88396dfe2f4b9e5bce"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_015.png",
+      "sha256": "33ccbc278c34b98776cfead273d61ce1ba60503e952b639e94f23c6458d4dd2d"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_015.png.meta",
+      "sha256": "ec4953857e20629d8f6327d96e75140d833b9c73395ac9708099f3865d76e874"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/panels/asset_cc9fd04b-267f-4107-a0ed-c7648d8f94de_item_001.png",
+      "sha256": "fe9a2de5dbb08c8ae9a318dc900da4dd175b22bbbd5855a8b15dbe76c30dfe41"
+    },
+    {
+      "path": "assets/ui/s05-redesign-v1/images/panels/asset_cc9fd04b-267f-4107-a0ed-c7648d8f94de_item_001.png.meta",
+      "sha256": "bae27e49e676f7c37a5582f24fc757d24bed9b2e1cabeaa3c994b8df7a90a4e3"
+    },
+    {
+      "path": "assets/ui/ui015-19bcb09d/v-5b8d00911028/ui/s05_redesign.ui.json",
+      "sha256": "d187004a1701d26e5352daa913f54f2ebc0bbad0f97287b1ab6c26f1190af01b"
+    },
+    {
+      "path": "assets/ui/ui015-19bcb09d/v-5b8d00911028/ui/s05_redesign.ui.json.meta",
+      "sha256": "a24d09e68a317513cab96cd53f7dbe298b6d41e4e8912b1484d94e6f5edbd309"
+    },
+    {
+      "path": "assets/ui/ui015-5ddc4204/v-95c6f64e564d/ui/s03_redesign.ui.json",
+      "sha256": "70e6c84c91ba9e818de78534744f943d1beb230191a1c11fcae0f14e754376e3"
+    },
+    {
+      "path": "assets/ui/ui015-5ddc4204/v-95c6f64e564d/ui/s03_redesign.ui.json.meta",
+      "sha256": "b36899e3c7be0846d81a41f25691991a92d61374d24087fa4d0635b858b55e94"
+    },
+    {
+      "path": "assets/ui/ui015-a64b2869/v-f8b6ba273b67/ui/s04_redesign.ui.json",
+      "sha256": "1e2b6d4b951b5245e72e6d487210c09b36fa5fdd812c706e595aa1b211b5350a"
+    },
+    {
+      "path": "assets/ui/ui015-a64b2869/v-f8b6ba273b67/ui/s04_redesign.ui.json.meta",
+      "sha256": "9898b5da4649dbea12f676a5c78dde7f401d140fa6e8cb9e179743b0bcae8263"
+    },
+    {
+      "path": "assets/ui/ui015-e4be1752/v-8c8b4b0e087e/ui/s01_redesign.ui.json",
+      "sha256": "d5073153574228e085768755d852d19f4114fc2b2f6fc7cb262fa711989e57b7"
+    },
+    {
+      "path": "assets/ui/ui015-e4be1752/v-8c8b4b0e087e/ui/s01_redesign.ui.json.meta",
+      "sha256": "f4deb70494f699a9775bba43c4905f589bae88b8790d420458e8f49fdf8e99fc"
+    },
+    {
+      "path": "assets/ui/ui015-e69e9731/v-5f2bcbecf50b/ui/s02_redesign.ui.json",
+      "sha256": "1d4aa04ff8d1d55a56093aab4751c7694dd31715ab779e105e931a874289961e"
+    },
+    {
+      "path": "assets/ui/ui015-e69e9731/v-5f2bcbecf50b/ui/s02_redesign.ui.json.meta",
+      "sha256": "72f85c687a9f6b7722a046fe9c23b8614beaacb0e66eb59dfe5ce88862e21644"
+    },
+    {
+      "path": "scripts/Easing.lua",
+      "sha256": "b97a0cb240a97bc285580f40c33971a90daedf3c6616572208602c6c1817e1a0"
+    },
+    {
+      "path": "scripts/LuaTween.lua",
+      "sha256": "36d6fbdccc8be2b2d96797192c323b4b285ab4b72558e7c5fb467f557d9f7767"
+    },
+    {
+      "path": "scripts/Motion.lua",
+      "sha256": "c327efb13efaa72b20e7f20a605ce1de629367e0e7bff546f5d19fa372a9c60c"
+    },
+    {
+      "path": "scripts/NativeControls.lua",
+      "sha256": "9f7b9928e16110adcbb6c9a64f94e9ffe6165f0a23a158d6327cf79700b62831"
+    },
+    {
+      "path": "scripts/NativeControls.lua.meta",
+      "sha256": "755c2947f5e7b962fadeb775aef2d87ccc9f30d8894752de06c0a5403d426457"
+    },
+    {
+      "path": "scripts/NativeMotionDemo.lua",
+      "sha256": "398bb2fb5cd06c47b0c836d4bcf000da63261de592bd7f15ab4e16b2ddfd3974"
+    },
+    {
+      "path": "scripts/NativeMotionDemo.lua.meta",
+      "sha256": "4b8c35d459d466539b46299f32023cd901c6a27ec80a099bf36e7a5e45ae980c"
+    },
+    {
+      "path": "scripts/NativeScene.lua",
+      "sha256": "88c6c576644db4abd9e4908466a618edaefe609c14f5f2936399bd943872eece"
+    },
+    {
+      "path": "scripts/NativeTransitions.lua",
+      "sha256": "fbfd3cf86a2d16927378aeccda18cf94da92791a588aee3ef39398c295f5a576"
+    },
+    {
+      "path": "scripts/NativeTransitions.lua.meta",
+      "sha256": "b2126c8b7f68a485256f109de586e9c66ab713dbf663260ec19dae629992600c"
+    },
+    {
+      "path": "scripts/RedesignAttack.lua",
+      "sha256": "986b832163ccb188cfe379830f86b38f901b89c46274aa1c86052e9c91bf66d5"
+    },
+    {
+      "path": "scripts/RedesignAttack.lua.meta",
+      "sha256": "cfa0fc582292caf437cf95d6fa15a421663e594778d96a665496652742ab07f5"
+    },
+    {
+      "path": "scripts/S01RedesignDemo.lua",
+      "sha256": "9b64b3cb353f8a149bd5b240bbdffeed49b9f0adab8f7f01e940daf9c6d3c50e"
+    },
+    {
+      "path": "scripts/S01RedesignDemo.lua.meta",
+      "sha256": "3f3c3151c0efe3e6b31de40e1789f7b4101f1bde3f053f9b8d9ad807782a164b"
+    },
+    {
+      "path": "scripts/S02RedesignDemo.lua",
+      "sha256": "0b4db068dc252ed6ad2594ebd17d92f220218e006de964745f9df8c7e94fa104"
+    },
+    {
+      "path": "scripts/S02RedesignDemo.lua.meta",
+      "sha256": "60c01657a806eee05ccd010bbc75d838d392f41b696eb729e4f89130c4b1e1a6"
+    },
+    {
+      "path": "scripts/S03RedesignDemo.lua",
+      "sha256": "bbb93f855551538eaaae54f012021ed98ae08b7ab7ee8b3db1722180bfd7c6bf"
+    },
+    {
+      "path": "scripts/S03RedesignDemo.lua.meta",
+      "sha256": "c28ba05f68398dd21070d40e9ebdba83081134c0c31197cf9f26bfdefa150ec7"
+    },
+    {
+      "path": "scripts/S04RedesignDemo.lua",
+      "sha256": "884cbbba5a2a4e4fb3f47906792638a2fe7200b010adbf21c1287a191395222d"
+    },
+    {
+      "path": "scripts/S05RedesignDemo.lua",
+      "sha256": "9243e48f1102d4238b18d365ce263aa65aa18e6e47c20b1df77d58a2db9ca2d6"
+    },
+    {
+      "path": "scripts/UIRedesignPreview.lua",
+      "sha256": "3b7b6650314abb37977a9d91e4258509c5aa7b63e4570d0f79792a419c4253b9"
+    },
+    {
+      "path": "scripts/UIRedesignPreview.lua.meta",
+      "sha256": "d3a403fccb7439ee8e465658fc8029b767b646aef1dcf5656a13491e2b5fc882"
+    },
+    {
+      "path": "scripts/UrhoxMotion.lua",
+      "sha256": "deb5b479cdc7dfa8bb35a6a80c5fb5ea96270ae9543afe2859d444cb0a8456ab"
+    },
+    {
+      "path": "scripts/WidgetBridge.lua",
+      "sha256": "40db79e97d075b838866a0c67717debe66b3271f014e51288b31dbdefa3855e2"
+    },
+    {
+      "path": "ui-motion-native/README.md",
+      "sha256": "0933d15a8ff4c20c289d2595608d2fa0f966f2a9bc5c3c1e6e695d83a91db38a"
+    },
+    {
+      "path": "ui-motion-native/catalog.json"
+    },
+    {
+      "path": "ui-motion-native/index.html",
+      "sha256": "3ac0d17984adaa67646d105d67d3af47184e525d6a11676c4386623a9d6975ef"
+    },
+    {
+      "path": "ui-motion-native/player.css",
+      "sha256": "0913e38a16577c270da46bc4f41c0514fbb364b73c36a248fe0a13202c8b4d1d"
+    },
+    {
+      "path": "ui-motion-native/player.js",
+      "sha256": "c93b87e82882ccf34c84c3ab87c8083fa57395b9ef5a4842d5f3f898cb7bb365"
+    },
+    {
+      "path": "ui-motion-native/timelines.json",
+      "sha256": "6a02040d9ba8d46a4b8b68c000dbbfb04bc19512af1f4c5892bc301070b4e6b8"
+    }
+  ],
+  "limitations": [
+    "人物动作采用生成 PNG 姿态与实时矢量光效，属于二维动作演示。",
+    "S03 提供一句台词；设置、档案、章节后续业务由接入项目实现。",
+    "原生截图采集未取得，真机视觉与手动操作由用户复查。"
+  ],
+  "nativeValidation": {
+    "runId": "98a4a2ba-5d8d-4907-a7ff-9e20c884573e",
+    "frames": 1040,
+    "runtime": "PASS",
+    "lua_errors": 0,
+    "resource_errors": 0,
+    "engine_errors": 0,
+    "total_errors": 0,
+    "interactions": "PASS",
+    "checks": 175,
+    "screenshotCollected": false,
+    "realDeviceReview": "user",
+    "currentRevisionValidated": true,
+    "appliesTo": "approved-original-redesign-s01-s05"
+  }
+}

@@ -103,6 +103,16 @@ main {
   letter-spacing: 0.15em;
   color: var(--muted);
 }
+.library-intro {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.library-intro strong { font-weight: 500; }
+.library-intro p { margin: 0; }
+.library-intro a { color: inherit; text-underline-offset: 3px; }
+#library-content { margin: 0; padding: 20px; max-height: 65vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.7; }
+.handoff-help, #local-handoff-status, #original-handoff-status { font-size: 12px; color: var(--muted); }
 .library-variants {
   display: flex;
   flex-wrap: wrap;

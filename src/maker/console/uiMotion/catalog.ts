@@ -245,8 +245,10 @@ export const motionContract = {
     '按两套本地 UI 演示的 S01–S04、T01–T03 整理；原创矢量示意素材，时长为便于交互重新编排。不是原片复刻。',
   boundary: '网页可运行参考，非 Maker 原生即插即用组件；未接入游戏账号、战斗、奖励或存档。',
   native: {
-    Motion: '跨节点编排与绝对时间 sample(t)；事件与姿态采样分开，Seek 保持暂停。',
-    LuaTween: '沿用目标项目现有 LuaTween 和统一 Update(dt)，仅取消当前页面自己的 controller。',
+    Motion:
+      'ClipPlayer.lua 与 Motion.lua 使用原版 LuaTween 补间每条属性轨道；Seek 保持暂停且不执行业务回调。',
+    LuaTween:
+      '网页 Fengari 与 Maker 使用同一份 LuaTween.lua 和 Lua 配方。必须真实调用该库；项目统一 Update(dt)，仅取消当前页面自己的 controller。',
     WidgetBridge:
       '仅为无原生过渡的 wrapper 映射位移、缩放、旋转、透明度；裁切、轴缩放和文字进度需显式 adapter。',
     NanoVG: '只绘制斜面、弧光、白芯、环等特效；图片、文字与 Button 使用真实 UI 节点。',

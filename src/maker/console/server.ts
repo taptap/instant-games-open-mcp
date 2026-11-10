@@ -2,6 +2,7 @@ import http from 'node:http';
 import { getCanvasModelPreviewHtml } from '../canvas/modelPreviewPage.js';
 import { getUiMotionHtml, getUiMotionReference } from './uiMotion/page.js';
 import { serveUiMotionSample } from './uiMotion/sample.js';
+import { bundledRuntimeReference, serveMotionResource } from './uiMotion/bundled.js';
 import { getOriginalMotionReference, serveOriginalMotion } from './uiMotion/originals.js';
 import fs from 'node:fs';
 import type { Socket } from 'node:net';
@@ -225,6 +226,14 @@ export async function startConsoleServer(options: {
         throw new ConsoleError('Foreign host or origin rejected.', 403);
       }
       const url = new URL(request.url || '/', origin);
+      if (request.method === 'GET' && url.pathname === '/ui-motion/runtime-reference') {
+        json(200, bundledRuntimeReference());
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/ui-motion/resource') {
+        await serveMotionResource(url, response);
+        return;
+      }
       if (request.method === 'GET' && url.pathname === '/ui-motion/vector-sample') {
         serveUiMotionSample(response);
         return;
@@ -240,7 +249,7 @@ export async function startConsoleServer(options: {
         return;
       }
       if (request.method === 'GET' && url.pathname.startsWith('/ui-motion/original/')) {
-        serveOriginalMotion(url, response);
+        await serveOriginalMotion(url, response);
         return;
       }
       if (

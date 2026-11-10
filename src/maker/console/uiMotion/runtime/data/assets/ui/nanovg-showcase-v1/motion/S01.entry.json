@@ -1,0 +1,264 @@
+{
+  "version": 1,
+  "duration": 1.6,
+  "nodes": [
+    {
+      "id": "actor",
+      "transform": {
+        "dx": 95,
+        "dy": 20,
+        "opacity": 0
+      },
+      "name": "NOVA 入场"
+    },
+    {
+      "id": "ground-shadow",
+      "transform": {
+        "dx": 0,
+        "dy": 0,
+        "opacity": 0
+      },
+      "name": "落地阴影"
+    },
+    {
+      "id": "title",
+      "transform": {
+        "dx": 0,
+        "dy": -22,
+        "opacity": 0
+      },
+      "name": "标题落位"
+    },
+    {
+      "id": "banner",
+      "transform": {
+        "dx": 0,
+        "dy": -28,
+        "opacity": 0
+      },
+      "name": "港口旗帜"
+    },
+    {
+      "id": "menu1",
+      "transform": {
+        "dx": -110,
+        "dy": 0,
+        "opacity": 0
+      },
+      "name": "开始旅程"
+    },
+    {
+      "id": "menu2",
+      "transform": {
+        "dx": -110,
+        "dy": 0,
+        "opacity": 0
+      },
+      "name": "旅程设置"
+    },
+    {
+      "id": "menu3",
+      "transform": {
+        "dx": -110,
+        "dy": 0,
+        "opacity": 0
+      },
+      "name": "旅行档案"
+    }
+  ],
+  "tracks": [
+    {
+      "node": "actor",
+      "prop": "dx",
+      "at": 0.04,
+      "duration": 0.95,
+      "from": 95,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "actor",
+      "prop": "dy",
+      "at": 0.04,
+      "duration": 0.95,
+      "from": 20,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "actor",
+      "prop": "opacity",
+      "at": 0.04,
+      "duration": 0.95,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "ground-shadow",
+      "prop": "dx",
+      "at": 0.15,
+      "duration": 0.7,
+      "from": 0,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "ground-shadow",
+      "prop": "dy",
+      "at": 0.15,
+      "duration": 0.7,
+      "from": 0,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "ground-shadow",
+      "prop": "opacity",
+      "at": 0.15,
+      "duration": 0.7,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "title",
+      "prop": "dx",
+      "at": 0.18,
+      "duration": 0.8,
+      "from": 0,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "title",
+      "prop": "dy",
+      "at": 0.18,
+      "duration": 0.8,
+      "from": -22,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "title",
+      "prop": "opacity",
+      "at": 0.18,
+      "duration": 0.8,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "banner",
+      "prop": "dx",
+      "at": 0.4,
+      "duration": 0.85,
+      "from": 0,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "banner",
+      "prop": "dy",
+      "at": 0.4,
+      "duration": 0.85,
+      "from": -28,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "banner",
+      "prop": "opacity",
+      "at": 0.4,
+      "duration": 0.85,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "menu1",
+      "prop": "dx",
+      "at": 0.42,
+      "duration": 0.55,
+      "from": -110,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "menu1",
+      "prop": "dy",
+      "at": 0.42,
+      "duration": 0.55,
+      "from": 0,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "menu1",
+      "prop": "opacity",
+      "at": 0.42,
+      "duration": 0.55,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "menu2",
+      "prop": "dx",
+      "at": 0.56,
+      "duration": 0.55,
+      "from": -110,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "menu2",
+      "prop": "dy",
+      "at": 0.56,
+      "duration": 0.55,
+      "from": 0,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "menu2",
+      "prop": "opacity",
+      "at": 0.56,
+      "duration": 0.55,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "menu3",
+      "prop": "dx",
+      "at": 0.7,
+      "duration": 0.55,
+      "from": -110,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "menu3",
+      "prop": "dy",
+      "at": 0.7,
+      "duration": 0.55,
+      "from": 0,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "menu3",
+      "prop": "opacity",
+      "at": 0.7,
+      "duration": 0.55,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    }
+  ],
+  "interactions": [],
+  "id": "S01.entry",
+  "name": "主菜单入场",
+  "category": "entry"
+}

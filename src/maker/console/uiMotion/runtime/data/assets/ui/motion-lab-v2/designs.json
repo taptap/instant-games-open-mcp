@@ -1,0 +1,3621 @@
+[
+  {
+    "source": "neutral-ui-components",
+    "locked": 3,
+    "task": 1,
+    "card": 2,
+    "ink": "#f2eedb",
+    "hot": "#79ece1",
+    "font": "serif",
+    "id": "teal-gold",
+    "size": [2048, 1152],
+    "backdrop": "ui/motion-lab-v2/teal-gold/backdrop.png",
+    "nodes": [
+      {
+        "name": "header-back",
+        "box": [26, 10, 221, 65],
+        "group": "header-back",
+        "children": [],
+        "control": "shell:back",
+        "label": "返回示例",
+        "path": "ui/motion-lab-v2/teal-gold/header-back.png"
+      },
+      {
+        "name": "header-title",
+        "box": [720, 5, 995, 66],
+        "group": "header-title",
+        "children": [],
+        "path": "ui/motion-lab-v2/teal-gold/header-title.png"
+      },
+      {
+        "name": "header-sequence",
+        "box": [1014, 8, 1257, 68],
+        "group": "header-sequence",
+        "children": [],
+        "control": "shell:sequence",
+        "label": "顺序体验 33 项",
+        "path": "ui/motion-lab-v2/teal-gold/header-sequence.png",
+        "caption": {
+          "x": 121.5,
+          "y": 30.6,
+          "size": 25,
+          "width": 191.97,
+          "color": "#f2eedb"
+        }
+      },
+      {
+        "name": "header-close",
+        "box": [1986, 12, 2033, 63],
+        "group": "header-close",
+        "children": [],
+        "control": "shell:close",
+        "label": "关闭动效工坊",
+        "path": "ui/motion-lab-v2/teal-gold/header-close.png"
+      },
+      {
+        "name": "replay",
+        "box": [1356, 110, 1524, 181],
+        "group": "replay",
+        "children": [],
+        "control": "shell:replay",
+        "label": "重播",
+        "path": "ui/motion-lab-v2/teal-gold/replay.png"
+      },
+      {
+        "name": "home",
+        "box": [1580, 998, 2024, 1083],
+        "group": "home",
+        "children": [],
+        "control": "shell:home",
+        "label": "回到主界面",
+        "path": "ui/motion-lab-v2/teal-gold/home.png"
+      },
+      {
+        "name": "primary",
+        "box": [47, 268, 283, 367],
+        "group": "primary",
+        "children": [],
+        "control": "ui:feedback",
+        "label": "开始",
+        "path": "ui/motion-lab-v2/teal-gold/primary.png"
+      },
+      {
+        "name": "secondary",
+        "box": [286, 276, 466, 357],
+        "group": "secondary",
+        "children": [],
+        "control": "ui:secondary",
+        "label": "确认",
+        "path": "ui/motion-lab-v2/teal-gold/secondary.png",
+        "caption": {
+          "x": 94.5,
+          "y": 40.5,
+          "size": 27,
+          "color": "#f2eedb"
+        }
+      },
+      {
+        "name": "back",
+        "box": [468, 277, 644, 357],
+        "group": "back",
+        "children": [],
+        "control": "ui:outline",
+        "label": "返回",
+        "path": "ui/motion-lab-v2/teal-gold/back.png"
+      },
+      {
+        "name": "toast",
+        "box": [1237, 211, 1520, 279],
+        "group": "toast",
+        "children": [],
+        "control": "ui:toast",
+        "label": "已保存提示",
+        "path": "ui/motion-lab-v2/teal-gold/toast.png",
+        "caption": {
+          "x": 172.63,
+          "y": 34.0,
+          "size": 20,
+          "color": "#f2eedb",
+          "width": 155.65
+        }
+      },
+      {
+        "name": "banner",
+        "box": [1238, 297, 1521, 359],
+        "group": "banner",
+        "children": [],
+        "control": "ui:banner",
+        "label": "任务更新通知",
+        "path": "ui/motion-lab-v2/teal-gold/banner.png",
+        "caption": {
+          "x": 172.63,
+          "y": 31.0,
+          "size": 20,
+          "color": "#f2eedb",
+          "width": 155.65
+        }
+      },
+      {
+        "name": "tab-1",
+        "box": [683, 275, 858, 360],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:1",
+        "label": "切换标签 1",
+        "path": "ui/motion-lab-v2/teal-gold/tab-1.png"
+      },
+      {
+        "name": "tab-2",
+        "box": [858, 275, 1028, 360],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:2",
+        "label": "切换标签 2",
+        "path": "ui/motion-lab-v2/teal-gold/tab-2.png"
+      },
+      {
+        "name": "tab-3",
+        "box": [1029, 275, 1213, 360],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:3",
+        "label": "切换标签 3",
+        "path": "ui/motion-lab-v2/teal-gold/tab-3.png"
+      },
+      {
+        "name": "list",
+        "box": [35, 450, 548, 772],
+        "group": "list",
+        "children": [
+          {
+            "name": "task-1",
+            "box": [50, 522, 532, 594],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:1",
+            "label": "选择任务 1",
+            "path": "ui/motion-lab-v2/teal-gold/task-1.png"
+          },
+          {
+            "name": "task-2",
+            "box": [50, 600, 532, 672],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:2",
+            "label": "选择任务 2",
+            "path": "ui/motion-lab-v2/teal-gold/task-2.png"
+          },
+          {
+            "name": "task-3",
+            "box": [50, 678, 532, 750],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:3",
+            "label": "选择任务 3",
+            "path": "ui/motion-lab-v2/teal-gold/task-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/teal-gold/list.png"
+      },
+      {
+        "name": "modal",
+        "box": [570, 446, 1074, 773],
+        "group": "modal",
+        "children": [
+          {
+            "name": "cancel",
+            "box": [631, 674, 816, 738],
+            "group": "modal",
+            "children": [],
+            "control": "ui:cancel",
+            "label": "取消",
+            "path": "ui/motion-lab-v2/teal-gold/cancel.png"
+          },
+          {
+            "name": "confirm",
+            "box": [827, 668, 1020, 740],
+            "group": "modal",
+            "children": [],
+            "control": "ui:confirm",
+            "label": "确认操作",
+            "path": "ui/motion-lab-v2/teal-gold/confirm.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/teal-gold/modal.png"
+      },
+      {
+        "name": "card-1",
+        "box": [1095, 526, 1233, 683],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:1",
+        "label": "选择选项 1",
+        "path": "ui/motion-lab-v2/teal-gold/card-1.png"
+      },
+      {
+        "name": "card-2",
+        "box": [1235, 523, 1388, 688],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:2",
+        "label": "选择选项 2",
+        "path": "ui/motion-lab-v2/teal-gold/card-2.png"
+      },
+      {
+        "name": "card-3",
+        "box": [1386, 526, 1525, 683],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:3",
+        "label": "选择选项 3",
+        "path": "ui/motion-lab-v2/teal-gold/card-3.png"
+      },
+      {
+        "name": "badge",
+        "box": [1253, 453, 1383, 533],
+        "group": "items",
+        "children": [],
+        "path": "ui/motion-lab-v2/teal-gold/badge.png"
+      },
+      {
+        "name": "dialogue",
+        "box": [35, 851, 724, 1072],
+        "group": "dialogue",
+        "children": [
+          {
+            "name": "portrait",
+            "box": [58, 876, 194, 1015],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/teal-gold/portrait.png"
+          },
+          {
+            "name": "dialogue-text",
+            "box": [203, 956, 520, 993],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/teal-gold/dialogue-text.png",
+            "caption": {
+              "x": 0,
+              "y": 18.5,
+              "size": 27,
+              "color": "#f2eedb",
+              "width": 317
+            }
+          }
+        ],
+        "control": "ui:dialogue",
+        "label": "继续对话",
+        "path": "ui/motion-lab-v2/teal-gold/dialogue.png"
+      },
+      {
+        "name": "reward",
+        "box": [749, 841, 1349, 1090],
+        "group": "reward",
+        "children": [
+          {
+            "name": "claim",
+            "box": [1157, 946, 1331, 1027],
+            "group": "reward",
+            "children": [],
+            "control": "ui:claim",
+            "label": "领取奖励",
+            "path": "ui/motion-lab-v2/teal-gold/claim.png",
+            "caption": {
+              "x": 87.0,
+              "y": 39.69,
+              "size": 27,
+              "color": "#f2eedb"
+            }
+          },
+          {
+            "name": "prize-1",
+            "box": [800, 923, 902, 1036],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:1",
+            "label": "奖励详情 1",
+            "path": "ui/motion-lab-v2/teal-gold/prize-1.png",
+            "caption": {
+              "x": 51.0,
+              "y": 50.85,
+              "size": 27,
+              "color": "#f2eedb",
+              "width": 82
+            }
+          },
+          {
+            "name": "prize-2",
+            "box": [912, 923, 1015, 1036],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:2",
+            "label": "奖励详情 2",
+            "path": "ui/motion-lab-v2/teal-gold/prize-2.png"
+          },
+          {
+            "name": "prize-3",
+            "box": [1023, 923, 1127, 1036],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:3",
+            "label": "奖励详情 3",
+            "path": "ui/motion-lab-v2/teal-gold/prize-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/teal-gold/reward.png"
+      },
+      {
+        "name": "auto",
+        "box": [1365, 979, 1524, 1028],
+        "group": "auto",
+        "children": [],
+        "control": "ui:auto",
+        "label": "自动领取",
+        "path": "ui/motion-lab-v2/teal-gold/auto.png"
+      },
+      {
+        "name": "setting",
+        "box": [1390, 868, 1495, 968],
+        "group": "setting",
+        "children": [],
+        "control": "ui:settings",
+        "label": "设置",
+        "path": "ui/motion-lab-v2/teal-gold/setting.png"
+      },
+      {
+        "name": "category-1",
+        "box": [1572, 192, 1800, 270],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:1",
+        "label": "动效分类 1",
+        "path": "ui/motion-lab-v2/teal-gold/category-1.png"
+      },
+      {
+        "name": "category-2",
+        "box": [1800, 189, 2032, 272],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:2",
+        "label": "动效分类 2",
+        "path": "ui/motion-lab-v2/teal-gold/category-2.png"
+      },
+      {
+        "name": "category-3",
+        "box": [1573, 269, 1800, 343],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:3",
+        "label": "动效分类 3",
+        "path": "ui/motion-lab-v2/teal-gold/category-3.png"
+      },
+      {
+        "name": "category-4",
+        "box": [1800, 269, 2031, 344],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:4",
+        "label": "动效分类 4",
+        "path": "ui/motion-lab-v2/teal-gold/category-4.png"
+      },
+      {
+        "name": "category-5",
+        "box": [1573, 343, 1800, 417],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:5",
+        "label": "动效分类 5",
+        "path": "ui/motion-lab-v2/teal-gold/category-5.png"
+      },
+      {
+        "name": "category-6",
+        "box": [1800, 343, 2030, 417],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:6",
+        "label": "动效分类 6",
+        "path": "ui/motion-lab-v2/teal-gold/category-6.png"
+      },
+      {
+        "name": "directory",
+        "box": [1571, 490, 2031, 881],
+        "group": "directory",
+        "children": [
+          {
+            "name": "entry-1",
+            "box": [1574, 491, 2027, 558],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:1",
+            "label": "选择 1",
+            "path": "ui/motion-lab-v2/teal-gold/entry-1.png",
+            "caption": {
+              "x": 45.300000000000004,
+              "y": 33.5,
+              "size": 28,
+              "color": "#f2eedb"
+            }
+          },
+          {
+            "name": "entry-2",
+            "box": [1574, 558, 2027, 622],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:2",
+            "label": "选择 2",
+            "path": "ui/motion-lab-v2/teal-gold/entry-2.png"
+          },
+          {
+            "name": "entry-3",
+            "box": [1574, 622, 2027, 680],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:3",
+            "label": "选择 3",
+            "path": "ui/motion-lab-v2/teal-gold/entry-3.png"
+          },
+          {
+            "name": "entry-4",
+            "box": [1574, 680, 2027, 749],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:4",
+            "label": "选择 4",
+            "path": "ui/motion-lab-v2/teal-gold/entry-4.png"
+          },
+          {
+            "name": "entry-5",
+            "box": [1574, 749, 2027, 813],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:5",
+            "label": "选择 5",
+            "path": "ui/motion-lab-v2/teal-gold/entry-5.png"
+          },
+          {
+            "name": "entry-6",
+            "box": [1574, 813, 2027, 880],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:6",
+            "label": "选择 6",
+            "path": "ui/motion-lab-v2/teal-gold/entry-6.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/teal-gold/directory.png"
+      },
+      {
+        "name": "directory-heading",
+        "box": [1575, 443, 1967, 484],
+        "group": "directory",
+        "children": [],
+        "path": "ui/motion-lab-v2/teal-gold/directory-heading.png"
+      }
+    ],
+    "name": "深青描金",
+    "verification": {
+      "previewSha256": "e95532edf1a3c441e34f6d95a3b9ea1c108605403aab49e1722f387ab78092f3",
+      "size": [2048, 1152]
+    }
+  },
+  {
+    "source": "neutral-ui-components",
+    "locked": 4,
+    "task": 2,
+    "card": 2,
+    "ink": "#fffdf7",
+    "hot": "#efff00",
+    "font": "bold",
+    "id": "neon-ink",
+    "size": [2048, 1152],
+    "backdrop": "ui/motion-lab-v2/neon-ink/backdrop.png",
+    "nodes": [
+      {
+        "name": "header-back",
+        "box": [20, 6, 297, 95],
+        "group": "header-back",
+        "children": [],
+        "control": "shell:back",
+        "label": "返回示例",
+        "path": "ui/motion-lab-v2/neon-ink/header-back.png"
+      },
+      {
+        "name": "header-title",
+        "box": [635, 0, 1046, 102],
+        "group": "header-title",
+        "children": [],
+        "path": "ui/motion-lab-v2/neon-ink/header-title.png"
+      },
+      {
+        "name": "header-sequence",
+        "box": [1042, 0, 1378, 88],
+        "group": "header-sequence",
+        "children": [],
+        "control": "shell:sequence",
+        "label": "顺序体验 33 项",
+        "path": "ui/motion-lab-v2/neon-ink/header-sequence.png",
+        "caption": {
+          "x": 168.0,
+          "y": 44.88,
+          "size": 25,
+          "width": 265.44,
+          "color": "#242329"
+        }
+      },
+      {
+        "name": "header-close",
+        "box": [1938, 7, 2037, 91],
+        "group": "header-close",
+        "children": [],
+        "control": "shell:close",
+        "label": "关闭动效工坊",
+        "path": "ui/motion-lab-v2/neon-ink/header-close.png"
+      },
+      {
+        "name": "replay",
+        "box": [1342, 109, 1507, 188],
+        "group": "replay",
+        "children": [],
+        "control": "shell:replay",
+        "label": "重播",
+        "path": "ui/motion-lab-v2/neon-ink/replay.png"
+      },
+      {
+        "name": "home",
+        "box": [1597, 940, 1998, 1100],
+        "group": "home",
+        "children": [],
+        "control": "shell:home",
+        "label": "回到主界面",
+        "path": "ui/motion-lab-v2/neon-ink/home.png"
+      },
+      {
+        "name": "primary",
+        "box": [65, 237, 368, 380],
+        "group": "primary",
+        "children": [],
+        "control": "ui:feedback",
+        "label": "开始",
+        "path": "ui/motion-lab-v2/neon-ink/primary.png"
+      },
+      {
+        "name": "secondary",
+        "box": [359, 275, 546, 360],
+        "group": "secondary",
+        "children": [],
+        "control": "ui:secondary",
+        "label": "确认",
+        "path": "ui/motion-lab-v2/neon-ink/secondary.png",
+        "caption": {
+          "x": 98.175,
+          "y": 42.5,
+          "size": 27,
+          "color": "#fffdf7"
+        }
+      },
+      {
+        "name": "back",
+        "box": [550, 276, 727, 360],
+        "group": "back",
+        "children": [],
+        "control": "ui:outline",
+        "label": "返回",
+        "path": "ui/motion-lab-v2/neon-ink/back.png"
+      },
+      {
+        "name": "toast",
+        "box": [496, 116, 790, 222],
+        "group": "toast",
+        "children": [],
+        "control": "ui:toast",
+        "label": "已保存提示",
+        "path": "ui/motion-lab-v2/neon-ink/toast.png",
+        "caption": {
+          "x": 179.34,
+          "y": 53.0,
+          "size": 20,
+          "color": "#171719",
+          "width": 161.70000000000002
+        }
+      },
+      {
+        "name": "banner",
+        "box": [810, 124, 1143, 222],
+        "group": "banner",
+        "children": [],
+        "control": "ui:banner",
+        "label": "任务更新通知",
+        "path": "ui/motion-lab-v2/neon-ink/banner.png",
+        "caption": {
+          "x": 203.13,
+          "y": 49.0,
+          "size": 23,
+          "color": "#171719",
+          "width": 183.15
+        }
+      },
+      {
+        "name": "tab-1",
+        "box": [797, 276, 978, 367],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:1",
+        "label": "切换标签 1",
+        "path": "ui/motion-lab-v2/neon-ink/tab-1.png"
+      },
+      {
+        "name": "tab-2",
+        "box": [976, 276, 1145, 367],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:2",
+        "label": "切换标签 2",
+        "path": "ui/motion-lab-v2/neon-ink/tab-2.png"
+      },
+      {
+        "name": "tab-3",
+        "box": [1145, 276, 1316, 367],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:3",
+        "label": "切换标签 3",
+        "path": "ui/motion-lab-v2/neon-ink/tab-3.png"
+      },
+      {
+        "name": "tab-4",
+        "box": [1316, 275, 1487, 357],
+        "group": "tabs",
+        "children": [],
+        "path": "ui/motion-lab-v2/neon-ink/tab-4.png"
+      },
+      {
+        "name": "list",
+        "box": [43, 440, 517, 784],
+        "group": "list",
+        "children": [
+          {
+            "name": "task-1",
+            "box": [70, 468, 492, 556],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:1",
+            "label": "选择任务 1",
+            "path": "ui/motion-lab-v2/neon-ink/task-1.png"
+          },
+          {
+            "name": "task-2",
+            "box": [70, 562, 492, 650],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:2",
+            "label": "选择任务 2",
+            "path": "ui/motion-lab-v2/neon-ink/task-2.png"
+          },
+          {
+            "name": "task-3",
+            "box": [70, 656, 492, 744],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:3",
+            "label": "选择任务 3",
+            "path": "ui/motion-lab-v2/neon-ink/task-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/neon-ink/list.png"
+      },
+      {
+        "name": "modal",
+        "box": [513, 438, 1066, 801],
+        "group": "modal",
+        "children": [
+          {
+            "name": "cancel",
+            "box": [592, 678, 763, 756],
+            "group": "modal",
+            "children": [],
+            "control": "ui:cancel",
+            "label": "取消",
+            "path": "ui/motion-lab-v2/neon-ink/cancel.png"
+          },
+          {
+            "name": "confirm",
+            "box": [765, 652, 999, 768],
+            "group": "modal",
+            "children": [],
+            "control": "ui:confirm",
+            "label": "确认操作",
+            "path": "ui/motion-lab-v2/neon-ink/confirm.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/neon-ink/modal.png"
+      },
+      {
+        "name": "card-1",
+        "box": [1070, 485, 1218, 749],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:1",
+        "label": "选择选项 1",
+        "path": "ui/motion-lab-v2/neon-ink/card-1.png"
+      },
+      {
+        "name": "card-2",
+        "box": [1203, 484, 1372, 749],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:2",
+        "label": "选择选项 2",
+        "path": "ui/motion-lab-v2/neon-ink/card-2.png"
+      },
+      {
+        "name": "card-3",
+        "box": [1357, 484, 1505, 749],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:3",
+        "label": "选择选项 3",
+        "path": "ui/motion-lab-v2/neon-ink/card-3.png"
+      },
+      {
+        "name": "badge",
+        "box": [1251, 416, 1414, 513],
+        "group": "items",
+        "children": [],
+        "path": "ui/motion-lab-v2/neon-ink/badge.png"
+      },
+      {
+        "name": "dialogue",
+        "box": [44, 842, 757, 1110],
+        "group": "dialogue",
+        "children": [
+          {
+            "name": "portrait",
+            "box": [68, 873, 270, 1074],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/neon-ink/portrait.png"
+          },
+          {
+            "name": "dialogue-text",
+            "box": [288, 958, 584, 1011],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/neon-ink/dialogue-text.png",
+            "caption": {
+              "x": 0,
+              "y": 26.5,
+              "size": 27,
+              "color": "#171719",
+              "width": 296
+            }
+          }
+        ],
+        "control": "ui:dialogue",
+        "label": "继续对话",
+        "path": "ui/motion-lab-v2/neon-ink/dialogue.png"
+      },
+      {
+        "name": "reward",
+        "box": [757, 806, 1507, 1112],
+        "group": "reward",
+        "children": [
+          {
+            "name": "claim",
+            "box": [1192, 932, 1377, 1084],
+            "group": "reward",
+            "children": [],
+            "control": "ui:claim",
+            "label": "领取奖励",
+            "path": "ui/motion-lab-v2/neon-ink/claim.png",
+            "caption": {
+              "x": 95.275,
+              "y": 79.79999999999998,
+              "size": 29,
+              "color": "#171719"
+            }
+          },
+          {
+            "name": "prize-1",
+            "box": [814, 933, 945, 1060],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:1",
+            "label": "奖励详情 1",
+            "path": "ui/motion-lab-v2/neon-ink/prize-1.png",
+            "caption": {
+              "x": 65.5,
+              "y": 57.15,
+              "size": 34,
+              "color": "#fffdf7",
+              "width": 111
+            }
+          },
+          {
+            "name": "prize-2",
+            "box": [947, 933, 1076, 1060],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:2",
+            "label": "奖励详情 2",
+            "path": "ui/motion-lab-v2/neon-ink/prize-2.png"
+          },
+          {
+            "name": "prize-3",
+            "box": [1075, 933, 1190, 1060],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:3",
+            "label": "奖励详情 3",
+            "path": "ui/motion-lab-v2/neon-ink/prize-3.png"
+          },
+          {
+            "name": "auto",
+            "box": [1370, 1008, 1503, 1065],
+            "group": "auto",
+            "children": [],
+            "control": "ui:auto",
+            "label": "自动领取",
+            "path": "ui/motion-lab-v2/neon-ink/auto.png"
+          },
+          {
+            "name": "setting",
+            "box": [1399, 884, 1483, 973],
+            "group": "setting",
+            "children": [],
+            "control": "ui:settings",
+            "label": "设置",
+            "path": "ui/motion-lab-v2/neon-ink/setting.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/neon-ink/reward.png"
+      },
+      {
+        "name": "category-1",
+        "box": [1538, 209, 1787, 288],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:1",
+        "label": "动效分类 1",
+        "path": "ui/motion-lab-v2/neon-ink/category-1.png"
+      },
+      {
+        "name": "category-2",
+        "box": [1782, 206, 2035, 286],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:2",
+        "label": "动效分类 2",
+        "path": "ui/motion-lab-v2/neon-ink/category-2.png"
+      },
+      {
+        "name": "category-3",
+        "box": [1540, 285, 1787, 362],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:3",
+        "label": "动效分类 3",
+        "path": "ui/motion-lab-v2/neon-ink/category-3.png"
+      },
+      {
+        "name": "category-4",
+        "box": [1782, 285, 2034, 361],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:4",
+        "label": "动效分类 4",
+        "path": "ui/motion-lab-v2/neon-ink/category-4.png"
+      },
+      {
+        "name": "category-5",
+        "box": [1540, 361, 1787, 438],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:5",
+        "label": "动效分类 5",
+        "path": "ui/motion-lab-v2/neon-ink/category-5.png"
+      },
+      {
+        "name": "category-6",
+        "box": [1782, 361, 2034, 438],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:6",
+        "label": "动效分类 6",
+        "path": "ui/motion-lab-v2/neon-ink/category-6.png"
+      },
+      {
+        "name": "directory",
+        "box": [1540, 471, 2027, 904],
+        "group": "directory",
+        "children": [
+          {
+            "name": "entry-1",
+            "box": [1559, 472, 2023, 543],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:1",
+            "label": "选择 1",
+            "path": "ui/motion-lab-v2/neon-ink/entry-1.png",
+            "caption": {
+              "x": 46.400000000000006,
+              "y": 35.5,
+              "size": 28,
+              "color": "#fffdf7"
+            }
+          },
+          {
+            "name": "entry-2",
+            "box": [1559, 543, 2023, 614],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:2",
+            "label": "选择 2",
+            "path": "ui/motion-lab-v2/neon-ink/entry-2.png"
+          },
+          {
+            "name": "entry-3",
+            "box": [1559, 614, 2023, 683],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:3",
+            "label": "选择 3",
+            "path": "ui/motion-lab-v2/neon-ink/entry-3.png"
+          },
+          {
+            "name": "entry-4",
+            "box": [1545, 683, 2026, 761],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:4",
+            "label": "选择 4",
+            "path": "ui/motion-lab-v2/neon-ink/entry-4.png"
+          },
+          {
+            "name": "entry-5",
+            "box": [1559, 761, 2023, 827],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:5",
+            "label": "选择 5",
+            "path": "ui/motion-lab-v2/neon-ink/entry-5.png"
+          },
+          {
+            "name": "entry-6",
+            "box": [1559, 827, 2023, 903],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:6",
+            "label": "选择 6",
+            "path": "ui/motion-lab-v2/neon-ink/entry-6.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/neon-ink/directory.png"
+      },
+      {
+        "name": "section-label-1",
+        "box": [49, 214, 182, 275],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/neon-ink/section-label-1.png"
+      },
+      {
+        "name": "section-label-2",
+        "box": [43, 395, 240, 463],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/neon-ink/section-label-2.png"
+      },
+      {
+        "name": "section-label-3",
+        "box": [515, 393, 657, 459],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/neon-ink/section-label-3.png"
+      },
+      {
+        "name": "section-label-4",
+        "box": [45, 808, 185, 868],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/neon-ink/section-label-4.png"
+      },
+      {
+        "name": "section-label-5",
+        "box": [735, 815, 873, 869],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/neon-ink/section-label-5.png"
+      }
+    ],
+    "name": "霓虹涂鸦",
+    "verification": {
+      "previewSha256": "51971be8f40bb5b0e14caead74cdf57a7675689c6db7422f06737238765026d8",
+      "size": [2048, 1152]
+    }
+  },
+  {
+    "source": "neutral-ui-components",
+    "locked": 4,
+    "task": 1,
+    "card": 2,
+    "ink": "#78426e",
+    "hot": "#ff68b1",
+    "font": "bold",
+    "id": "pastel-round",
+    "size": [2048, 1152],
+    "backdrop": "ui/motion-lab-v2/pastel-round/backdrop.png",
+    "nodes": [
+      {
+        "name": "header-back",
+        "box": [48, 5, 289, 81],
+        "group": "header-back",
+        "children": [],
+        "control": "shell:back",
+        "label": "返回示例",
+        "path": "ui/motion-lab-v2/pastel-round/header-back.png"
+      },
+      {
+        "name": "header-title",
+        "box": [710, 0, 1096, 87],
+        "group": "header-title",
+        "children": [],
+        "path": "ui/motion-lab-v2/pastel-round/header-title.png"
+      },
+      {
+        "name": "header-sequence",
+        "box": [1116, 4, 1404, 78],
+        "group": "header-sequence",
+        "children": [],
+        "control": "shell:sequence",
+        "label": "顺序体验 33 项",
+        "path": "ui/motion-lab-v2/pastel-round/header-sequence.png",
+        "caption": {
+          "x": 144.0,
+          "y": 37.74,
+          "size": 25,
+          "width": 227.52,
+          "color": "#78426e"
+        }
+      },
+      {
+        "name": "header-close",
+        "box": [1947, 0, 2039, 85],
+        "group": "header-close",
+        "children": [],
+        "control": "shell:close",
+        "label": "关闭动效工坊",
+        "path": "ui/motion-lab-v2/pastel-round/header-close.png"
+      },
+      {
+        "name": "replay",
+        "box": [1356, 108, 1505, 177],
+        "group": "replay",
+        "children": [],
+        "control": "shell:replay",
+        "label": "重播",
+        "path": "ui/motion-lab-v2/pastel-round/replay.png"
+      },
+      {
+        "name": "home",
+        "box": [1560, 987, 2020, 1096],
+        "group": "home",
+        "children": [],
+        "control": "shell:home",
+        "label": "回到主界面",
+        "path": "ui/motion-lab-v2/pastel-round/home.png"
+      },
+      {
+        "name": "primary",
+        "box": [221, 190, 472, 323],
+        "group": "primary",
+        "children": [],
+        "control": "ui:feedback",
+        "label": "开始",
+        "path": "ui/motion-lab-v2/pastel-round/primary.png"
+      },
+      {
+        "name": "secondary",
+        "box": [470, 226, 650, 313],
+        "group": "secondary",
+        "children": [],
+        "control": "ui:secondary",
+        "label": "确认",
+        "path": "ui/motion-lab-v2/pastel-round/secondary.png",
+        "caption": {
+          "x": 94.5,
+          "y": 43.5,
+          "size": 27,
+          "color": "#78426e"
+        }
+      },
+      {
+        "name": "back",
+        "box": [654, 226, 829, 313],
+        "group": "back",
+        "children": [],
+        "control": "ui:outline",
+        "label": "返回",
+        "path": "ui/motion-lab-v2/pastel-round/back.png"
+      },
+      {
+        "name": "toast",
+        "box": [59, 1000, 283, 1084],
+        "group": "toast",
+        "children": [],
+        "control": "ui:toast",
+        "label": "已保存提示",
+        "path": "ui/motion-lab-v2/pastel-round/toast.png",
+        "caption": {
+          "x": 136.64,
+          "y": 42.0,
+          "size": 15,
+          "color": "#78426e",
+          "width": 123.20000000000002
+        }
+      },
+      {
+        "name": "banner",
+        "box": [297, 998, 556, 1084],
+        "group": "banner",
+        "children": [],
+        "control": "ui:banner",
+        "label": "任务更新通知",
+        "path": "ui/motion-lab-v2/pastel-round/banner.png",
+        "caption": {
+          "x": 157.99,
+          "y": 43.0,
+          "size": 18,
+          "color": "#78426e",
+          "width": 142.45000000000002
+        }
+      },
+      {
+        "name": "tab-1",
+        "box": [874, 208, 1051, 318],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:1",
+        "label": "切换标签 1",
+        "path": "ui/motion-lab-v2/pastel-round/tab-1.png"
+      },
+      {
+        "name": "tab-2",
+        "box": [1040, 208, 1177, 318],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:2",
+        "label": "切换标签 2",
+        "path": "ui/motion-lab-v2/pastel-round/tab-2.png"
+      },
+      {
+        "name": "tab-3",
+        "box": [1172, 208, 1313, 318],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:3",
+        "label": "切换标签 3",
+        "path": "ui/motion-lab-v2/pastel-round/tab-3.png"
+      },
+      {
+        "name": "tab-4",
+        "box": [1309, 232, 1487, 305],
+        "group": "tabs",
+        "children": [],
+        "path": "ui/motion-lab-v2/pastel-round/tab-4.png"
+      },
+      {
+        "name": "list",
+        "box": [32, 369, 532, 708],
+        "group": "list",
+        "children": [
+          {
+            "name": "task-1",
+            "box": [51, 439, 514, 513],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:1",
+            "label": "选择任务 1",
+            "path": "ui/motion-lab-v2/pastel-round/task-1.png"
+          },
+          {
+            "name": "task-2",
+            "box": [51, 519, 514, 593],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:2",
+            "label": "选择任务 2",
+            "path": "ui/motion-lab-v2/pastel-round/task-2.png"
+          },
+          {
+            "name": "task-3",
+            "box": [51, 599, 514, 673],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:3",
+            "label": "选择任务 3",
+            "path": "ui/motion-lab-v2/pastel-round/task-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/pastel-round/list.png"
+      },
+      {
+        "name": "modal",
+        "box": [552, 381, 980, 710],
+        "group": "modal",
+        "children": [
+          {
+            "name": "cancel",
+            "box": [592, 604, 756, 680],
+            "group": "modal",
+            "children": [],
+            "control": "ui:cancel",
+            "label": "取消",
+            "path": "ui/motion-lab-v2/pastel-round/cancel.png"
+          },
+          {
+            "name": "confirm",
+            "box": [761, 598, 948, 681],
+            "group": "modal",
+            "children": [],
+            "control": "ui:confirm",
+            "label": "确认操作",
+            "path": "ui/motion-lab-v2/pastel-round/confirm.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/pastel-round/modal.png"
+      },
+      {
+        "name": "card-1",
+        "box": [1011, 427, 1176, 673],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:1",
+        "label": "选择选项 1",
+        "path": "ui/motion-lab-v2/pastel-round/card-1.png"
+      },
+      {
+        "name": "card-2",
+        "box": [1171, 420, 1342, 675],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:2",
+        "label": "选择选项 2",
+        "path": "ui/motion-lab-v2/pastel-round/card-2.png"
+      },
+      {
+        "name": "card-3",
+        "box": [1337, 426, 1504, 673],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:3",
+        "label": "选择选项 3",
+        "path": "ui/motion-lab-v2/pastel-round/card-3.png"
+      },
+      {
+        "name": "badge",
+        "box": [1201, 375, 1338, 437],
+        "group": "items",
+        "children": [],
+        "path": "ui/motion-lab-v2/pastel-round/badge.png"
+      },
+      {
+        "name": "dialogue",
+        "box": [35, 789, 897, 1104],
+        "group": "dialogue",
+        "children": [
+          {
+            "name": "portrait",
+            "box": [48, 793, 258, 992],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/pastel-round/portrait.png"
+          },
+          {
+            "name": "dialogue-text",
+            "box": [295, 873, 616, 919],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/pastel-round/dialogue-text.png",
+            "caption": {
+              "x": 0,
+              "y": 23.0,
+              "size": 27,
+              "color": "#78426e",
+              "width": 321
+            }
+          },
+          {
+            "name": "auto",
+            "box": [642, 1007, 876, 1083],
+            "group": "auto",
+            "children": [],
+            "control": "ui:auto",
+            "label": "自动领取",
+            "path": "ui/motion-lab-v2/pastel-round/auto.png"
+          },
+          {
+            "name": "setting",
+            "box": [560, 1002, 641, 1085],
+            "group": "setting",
+            "children": [],
+            "control": "ui:settings",
+            "label": "设置",
+            "path": "ui/motion-lab-v2/pastel-round/setting.png"
+          }
+        ],
+        "control": "ui:dialogue",
+        "label": "继续对话",
+        "path": "ui/motion-lab-v2/pastel-round/dialogue.png"
+      },
+      {
+        "name": "reward",
+        "box": [916, 743, 1489, 1096],
+        "group": "reward",
+        "children": [
+          {
+            "name": "claim",
+            "box": [1050, 979, 1369, 1084],
+            "group": "reward",
+            "children": [],
+            "control": "ui:claim",
+            "label": "领取奖励",
+            "path": "ui/motion-lab-v2/pastel-round/claim.png",
+            "caption": {
+              "x": 165.88,
+              "y": 55.125,
+              "size": 30,
+              "color": "#fff7fa"
+            }
+          },
+          {
+            "name": "prize-1",
+            "box": [989, 840, 1131, 977],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:1",
+            "label": "奖励详情 1",
+            "path": "ui/motion-lab-v2/pastel-round/prize-1.png",
+            "caption": {
+              "x": 71.0,
+              "y": 61.65,
+              "size": 34,
+              "color": "#78426e",
+              "width": 122
+            }
+          },
+          {
+            "name": "prize-2",
+            "box": [1135, 840, 1276, 977],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:2",
+            "label": "奖励详情 2",
+            "path": "ui/motion-lab-v2/pastel-round/prize-2.png"
+          },
+          {
+            "name": "prize-3",
+            "box": [1278, 840, 1419, 977],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:3",
+            "label": "奖励详情 3",
+            "path": "ui/motion-lab-v2/pastel-round/prize-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/pastel-round/reward.png"
+      },
+      {
+        "name": "category-1",
+        "box": [1543, 181, 1789, 257],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:1",
+        "label": "动效分类 1",
+        "path": "ui/motion-lab-v2/pastel-round/category-1.png"
+      },
+      {
+        "name": "category-2",
+        "box": [1783, 174, 2035, 262],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:2",
+        "label": "动效分类 2",
+        "path": "ui/motion-lab-v2/pastel-round/category-2.png"
+      },
+      {
+        "name": "category-3",
+        "box": [1544, 255, 1788, 328],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:3",
+        "label": "动效分类 3",
+        "path": "ui/motion-lab-v2/pastel-round/category-3.png"
+      },
+      {
+        "name": "category-4",
+        "box": [1784, 253, 2034, 328],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:4",
+        "label": "动效分类 4",
+        "path": "ui/motion-lab-v2/pastel-round/category-4.png"
+      },
+      {
+        "name": "category-5",
+        "box": [1544, 328, 1789, 400],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:5",
+        "label": "动效分类 5",
+        "path": "ui/motion-lab-v2/pastel-round/category-5.png"
+      },
+      {
+        "name": "category-6",
+        "box": [1784, 328, 2034, 401],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:6",
+        "label": "动效分类 6",
+        "path": "ui/motion-lab-v2/pastel-round/category-6.png"
+      },
+      {
+        "name": "directory",
+        "box": [1541, 434, 2034, 877],
+        "group": "directory",
+        "children": [
+          {
+            "name": "entry-1",
+            "box": [1544, 435, 2031, 509],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:1",
+            "label": "选择 1",
+            "path": "ui/motion-lab-v2/pastel-round/entry-1.png",
+            "caption": {
+              "x": 48.7,
+              "y": 37.0,
+              "size": 28,
+              "color": "#78426e"
+            }
+          },
+          {
+            "name": "entry-2",
+            "box": [1544, 509, 2031, 580],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:2",
+            "label": "选择 2",
+            "path": "ui/motion-lab-v2/pastel-round/entry-2.png"
+          },
+          {
+            "name": "entry-3",
+            "box": [1544, 580, 2031, 651],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:3",
+            "label": "选择 3",
+            "path": "ui/motion-lab-v2/pastel-round/entry-3.png"
+          },
+          {
+            "name": "entry-4",
+            "box": [1541, 651, 2034, 729],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:4",
+            "label": "选择 4",
+            "path": "ui/motion-lab-v2/pastel-round/entry-4.png"
+          },
+          {
+            "name": "entry-5",
+            "box": [1544, 729, 2031, 801],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:5",
+            "label": "选择 5",
+            "path": "ui/motion-lab-v2/pastel-round/entry-5.png"
+          },
+          {
+            "name": "entry-6",
+            "box": [1544, 801, 2031, 876],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:6",
+            "label": "选择 6",
+            "path": "ui/motion-lab-v2/pastel-round/entry-6.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/pastel-round/directory.png"
+      },
+      {
+        "name": "section-label-1",
+        "box": [40, 185, 237, 239],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/pastel-round/section-label-1.png"
+      },
+      {
+        "name": "section-label-2",
+        "box": [908, 722, 1060, 781],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/pastel-round/section-label-2.png"
+      }
+    ],
+    "name": "粉彩圆角",
+    "verification": {
+      "previewSha256": "2471574f077b825cf27563d917dc78d032a151f843ee5891d932ab23d2aacae2",
+      "size": [2048, 1152]
+    }
+  },
+  {
+    "source": "neutral-ui-components",
+    "locked": 3,
+    "task": 1,
+    "card": 2,
+    "ink": "#65482e",
+    "hot": "#36b6a3",
+    "font": "bold",
+    "id": "paper-stitch",
+    "size": [2048, 1152],
+    "backdrop": "ui/motion-lab-v2/paper-stitch/backdrop.png",
+    "nodes": [
+      {
+        "name": "header-back",
+        "box": [15, 6, 280, 86],
+        "group": "header-back",
+        "children": [],
+        "control": "shell:back",
+        "label": "返回示例",
+        "path": "ui/motion-lab-v2/paper-stitch/header-back.png"
+      },
+      {
+        "name": "header-title",
+        "box": [758, 5, 1023, 83],
+        "group": "header-title",
+        "children": [],
+        "path": "ui/motion-lab-v2/paper-stitch/header-title.png"
+      },
+      {
+        "name": "header-sequence",
+        "box": [1029, 12, 1338, 79],
+        "group": "header-sequence",
+        "children": [],
+        "control": "shell:sequence",
+        "label": "顺序体验 33 项",
+        "path": "ui/motion-lab-v2/paper-stitch/header-sequence.png",
+        "caption": {
+          "x": 132.87,
+          "y": 34.17,
+          "size": 25,
+          "width": 244.11,
+          "color": "#65482e"
+        }
+      },
+      {
+        "name": "header-close",
+        "box": [1955, 4, 2038, 84],
+        "group": "header-close",
+        "children": [],
+        "control": "shell:close",
+        "label": "关闭动效工坊",
+        "path": "ui/motion-lab-v2/paper-stitch/header-close.png"
+      },
+      {
+        "name": "replay",
+        "box": [1310, 112, 1482, 193],
+        "group": "replay",
+        "children": [],
+        "control": "shell:replay",
+        "label": "重播",
+        "path": "ui/motion-lab-v2/paper-stitch/replay.png"
+      },
+      {
+        "name": "home",
+        "box": [1548, 1006, 2011, 1115],
+        "group": "home",
+        "children": [],
+        "control": "shell:home",
+        "label": "回到主界面",
+        "path": "ui/motion-lab-v2/paper-stitch/home.png"
+      },
+      {
+        "name": "primary",
+        "box": [49, 240, 335, 371],
+        "group": "primary",
+        "children": [],
+        "control": "ui:feedback",
+        "label": "开始",
+        "path": "ui/motion-lab-v2/paper-stitch/primary.png"
+      },
+      {
+        "name": "secondary",
+        "box": [331, 267, 564, 357],
+        "group": "secondary",
+        "children": [],
+        "control": "ui:secondary",
+        "label": "确认",
+        "path": "ui/motion-lab-v2/paper-stitch/secondary.png",
+        "caption": {
+          "x": 122.325,
+          "y": 45.0,
+          "size": 27,
+          "color": "#65482e"
+        }
+      },
+      {
+        "name": "back",
+        "box": [569, 267, 790, 357],
+        "group": "back",
+        "children": [],
+        "control": "ui:outline",
+        "label": "返回",
+        "path": "ui/motion-lab-v2/paper-stitch/back.png"
+      },
+      {
+        "name": "toast",
+        "box": [534, 111, 816, 209],
+        "group": "toast",
+        "children": [],
+        "control": "ui:toast",
+        "label": "已保存提示",
+        "path": "ui/motion-lab-v2/paper-stitch/toast.png",
+        "caption": {
+          "x": 172.02,
+          "y": 49.0,
+          "size": 20,
+          "color": "#65482e",
+          "width": 155.10000000000002
+        }
+      },
+      {
+        "name": "banner",
+        "box": [861, 111, 1162, 210],
+        "group": "banner",
+        "children": [],
+        "control": "ui:banner",
+        "label": "任务更新通知",
+        "path": "ui/motion-lab-v2/paper-stitch/banner.png",
+        "caption": {
+          "x": 183.60999999999999,
+          "y": 49.5,
+          "size": 21,
+          "color": "#65482e",
+          "width": 165.55
+        }
+      },
+      {
+        "name": "tab-1",
+        "box": [831, 238, 1069, 357],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:1",
+        "label": "切换标签 1",
+        "path": "ui/motion-lab-v2/paper-stitch/tab-1.png"
+      },
+      {
+        "name": "tab-2",
+        "box": [1055, 238, 1262, 357],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:2",
+        "label": "切换标签 2",
+        "path": "ui/motion-lab-v2/paper-stitch/tab-2.png"
+      },
+      {
+        "name": "tab-3",
+        "box": [1257, 238, 1475, 357],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:3",
+        "label": "切换标签 3",
+        "path": "ui/motion-lab-v2/paper-stitch/tab-3.png"
+      },
+      {
+        "name": "list",
+        "box": [29, 430, 485, 771],
+        "group": "list",
+        "children": [
+          {
+            "name": "task-1",
+            "box": [37, 481, 464, 562],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:1",
+            "label": "选择任务 1",
+            "path": "ui/motion-lab-v2/paper-stitch/task-1.png"
+          },
+          {
+            "name": "task-2",
+            "box": [37, 568, 464, 649],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:2",
+            "label": "选择任务 2",
+            "path": "ui/motion-lab-v2/paper-stitch/task-2.png"
+          },
+          {
+            "name": "task-3",
+            "box": [37, 655, 464, 736],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:3",
+            "label": "选择任务 3",
+            "path": "ui/motion-lab-v2/paper-stitch/task-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/paper-stitch/list.png"
+      },
+      {
+        "name": "modal",
+        "box": [491, 412, 991, 779],
+        "group": "modal",
+        "children": [
+          {
+            "name": "cancel",
+            "box": [553, 652, 740, 735],
+            "group": "modal",
+            "children": [],
+            "control": "ui:cancel",
+            "label": "取消",
+            "path": "ui/motion-lab-v2/paper-stitch/cancel.png"
+          },
+          {
+            "name": "confirm",
+            "box": [739, 648, 959, 749],
+            "group": "modal",
+            "children": [],
+            "control": "ui:confirm",
+            "label": "确认操作",
+            "path": "ui/motion-lab-v2/paper-stitch/confirm.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/paper-stitch/modal.png"
+      },
+      {
+        "name": "card-1",
+        "box": [1007, 505, 1174, 703],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:1",
+        "label": "选择选项 1",
+        "path": "ui/motion-lab-v2/paper-stitch/card-1.png"
+      },
+      {
+        "name": "card-2",
+        "box": [1166, 469, 1330, 708],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:2",
+        "label": "选择选项 2",
+        "path": "ui/motion-lab-v2/paper-stitch/card-2.png"
+      },
+      {
+        "name": "card-3",
+        "box": [1326, 502, 1483, 704],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:3",
+        "label": "选择选项 3",
+        "path": "ui/motion-lab-v2/paper-stitch/card-3.png"
+      },
+      {
+        "name": "badge",
+        "box": [1182, 413, 1328, 491],
+        "group": "items",
+        "children": [],
+        "path": "ui/motion-lab-v2/paper-stitch/badge.png"
+      },
+      {
+        "name": "dialogue",
+        "box": [24, 835, 733, 1104],
+        "group": "dialogue",
+        "children": [
+          {
+            "name": "portrait",
+            "box": [65, 838, 262, 1088],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/paper-stitch/portrait.png"
+          },
+          {
+            "name": "dialogue-text",
+            "box": [312, 933, 606, 983],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/paper-stitch/dialogue-text.png",
+            "caption": {
+              "x": 0,
+              "y": 25.0,
+              "size": 27,
+              "color": "#65482e",
+              "width": 294
+            }
+          }
+        ],
+        "control": "ui:dialogue",
+        "label": "继续对话",
+        "path": "ui/motion-lab-v2/paper-stitch/dialogue.png"
+      },
+      {
+        "name": "reward",
+        "box": [757, 818, 1353, 1122],
+        "group": "reward",
+        "children": [
+          {
+            "name": "claim",
+            "box": [931, 1027, 1203, 1118],
+            "group": "reward",
+            "children": [],
+            "control": "ui:claim",
+            "label": "领取奖励",
+            "path": "ui/motion-lab-v2/paper-stitch/claim.png",
+            "caption": {
+              "x": 138.72,
+              "y": 48.230000000000004,
+              "size": 30,
+              "color": "#fff9e7"
+            }
+          },
+          {
+            "name": "prize-1",
+            "box": [850, 902, 991, 1023],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:1",
+            "label": "奖励详情 1",
+            "path": "ui/motion-lab-v2/paper-stitch/prize-1.png",
+            "caption": {
+              "x": 70.5,
+              "y": 54.45,
+              "size": 34,
+              "color": "#65482e",
+              "width": 121
+            }
+          },
+          {
+            "name": "prize-2",
+            "box": [991, 902, 1133, 1023],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:2",
+            "label": "奖励详情 2",
+            "path": "ui/motion-lab-v2/paper-stitch/prize-2.png"
+          },
+          {
+            "name": "prize-3",
+            "box": [1133, 902, 1272, 1023],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:3",
+            "label": "奖励详情 3",
+            "path": "ui/motion-lab-v2/paper-stitch/prize-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/paper-stitch/reward.png"
+      },
+      {
+        "name": "auto",
+        "box": [1355, 978, 1490, 1032],
+        "group": "auto",
+        "children": [],
+        "control": "ui:auto",
+        "label": "自动领取",
+        "path": "ui/motion-lab-v2/paper-stitch/auto.png"
+      },
+      {
+        "name": "setting",
+        "box": [1374, 862, 1467, 951],
+        "group": "setting",
+        "children": [],
+        "control": "ui:settings",
+        "label": "设置",
+        "path": "ui/motion-lab-v2/paper-stitch/setting.png"
+      },
+      {
+        "name": "category-1",
+        "box": [1519, 192, 1777, 272],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:1",
+        "label": "动效分类 1",
+        "path": "ui/motion-lab-v2/paper-stitch/category-1.png"
+      },
+      {
+        "name": "category-2",
+        "box": [1776, 191, 2038, 272],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:2",
+        "label": "动效分类 2",
+        "path": "ui/motion-lab-v2/paper-stitch/category-2.png"
+      },
+      {
+        "name": "category-3",
+        "box": [1519, 269, 1778, 344],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:3",
+        "label": "动效分类 3",
+        "path": "ui/motion-lab-v2/paper-stitch/category-3.png"
+      },
+      {
+        "name": "category-4",
+        "box": [1775, 269, 2038, 344],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:4",
+        "label": "动效分类 4",
+        "path": "ui/motion-lab-v2/paper-stitch/category-4.png"
+      },
+      {
+        "name": "category-5",
+        "box": [1519, 343, 1779, 419],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:5",
+        "label": "动效分类 5",
+        "path": "ui/motion-lab-v2/paper-stitch/category-5.png"
+      },
+      {
+        "name": "category-6",
+        "box": [1775, 343, 2038, 419],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:6",
+        "label": "动效分类 6",
+        "path": "ui/motion-lab-v2/paper-stitch/category-6.png"
+      },
+      {
+        "name": "directory",
+        "box": [1530, 454, 2033, 921],
+        "group": "directory",
+        "children": [
+          {
+            "name": "entry-1",
+            "box": [1532, 455, 2029, 533],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:1",
+            "label": "选择 1",
+            "path": "ui/motion-lab-v2/paper-stitch/entry-1.png",
+            "caption": {
+              "x": 49.7,
+              "y": 39.0,
+              "size": 28,
+              "color": "#65482e"
+            }
+          },
+          {
+            "name": "entry-2",
+            "box": [1532, 533, 2029, 609],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:2",
+            "label": "选择 2",
+            "path": "ui/motion-lab-v2/paper-stitch/entry-2.png"
+          },
+          {
+            "name": "entry-3",
+            "box": [1532, 609, 2029, 686],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:3",
+            "label": "选择 3",
+            "path": "ui/motion-lab-v2/paper-stitch/entry-3.png"
+          },
+          {
+            "name": "entry-4",
+            "box": [1531, 686, 2032, 765],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:4",
+            "label": "选择 4",
+            "path": "ui/motion-lab-v2/paper-stitch/entry-4.png"
+          },
+          {
+            "name": "entry-5",
+            "box": [1532, 765, 2029, 841],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:5",
+            "label": "选择 5",
+            "path": "ui/motion-lab-v2/paper-stitch/entry-5.png"
+          },
+          {
+            "name": "entry-6",
+            "box": [1532, 841, 2029, 920],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:6",
+            "label": "选择 6",
+            "path": "ui/motion-lab-v2/paper-stitch/entry-6.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/paper-stitch/directory.png"
+      },
+      {
+        "name": "section-label-1",
+        "box": [35, 210, 215, 252],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/paper-stitch/section-label-1.png"
+      },
+      {
+        "name": "section-label-2",
+        "box": [820, 210, 1014, 255],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/paper-stitch/section-label-2.png"
+      },
+      {
+        "name": "section-label-3",
+        "box": [32, 390, 222, 436],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/paper-stitch/section-label-3.png"
+      },
+      {
+        "name": "section-label-4",
+        "box": [498, 390, 614, 432],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/paper-stitch/section-label-4.png"
+      },
+      {
+        "name": "section-label-5",
+        "box": [748, 788, 896, 841],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/paper-stitch/section-label-5.png"
+      }
+    ],
+    "name": "纸感缝线",
+    "verification": {
+      "previewSha256": "a0fdbc31d8b9ac16bb69abebd051e7038656cd2958fae6d99c356d3a31322783",
+      "size": [2048, 1152]
+    }
+  },
+  {
+    "source": "neutral-ui-components",
+    "locked": 4,
+    "task": 1,
+    "card": 1,
+    "ink": "#ffe4a4",
+    "hot": "#a5ff63",
+    "font": "serif",
+    "id": "brass-frame",
+    "size": [2048, 1152],
+    "backdrop": "ui/motion-lab-v2/brass-frame/backdrop.png",
+    "nodes": [
+      {
+        "name": "header-back",
+        "box": [14, 4, 309, 80],
+        "group": "header-back",
+        "children": [],
+        "control": "shell:back",
+        "label": "返回示例",
+        "path": "ui/motion-lab-v2/brass-frame/header-back.png"
+      },
+      {
+        "name": "header-title",
+        "box": [712, 0, 1099, 76],
+        "group": "header-title",
+        "children": [],
+        "path": "ui/motion-lab-v2/brass-frame/header-title.png"
+      },
+      {
+        "name": "header-sequence",
+        "box": [1104, 4, 1371, 76],
+        "group": "header-sequence",
+        "children": [],
+        "control": "shell:sequence",
+        "label": "顺序体验 33 项",
+        "path": "ui/motion-lab-v2/brass-frame/header-sequence.png",
+        "caption": {
+          "x": 133.5,
+          "y": 36.72,
+          "size": 25,
+          "width": 210.93,
+          "color": "#ffe4a4"
+        }
+      },
+      {
+        "name": "header-close",
+        "box": [1951, 0, 2032, 78],
+        "group": "header-close",
+        "children": [],
+        "control": "shell:close",
+        "label": "关闭动效工坊",
+        "path": "ui/motion-lab-v2/brass-frame/header-close.png"
+      },
+      {
+        "name": "replay",
+        "box": [1344, 116, 1497, 188],
+        "group": "replay",
+        "children": [],
+        "control": "shell:replay",
+        "label": "重播",
+        "path": "ui/motion-lab-v2/brass-frame/replay.png"
+      },
+      {
+        "name": "home",
+        "box": [1580, 1002, 2004, 1093],
+        "group": "home",
+        "children": [],
+        "control": "shell:home",
+        "label": "回到主界面",
+        "path": "ui/motion-lab-v2/brass-frame/home.png"
+      },
+      {
+        "name": "primary",
+        "box": [51, 234, 340, 343],
+        "group": "primary",
+        "children": [],
+        "control": "ui:feedback",
+        "label": "开始",
+        "path": "ui/motion-lab-v2/brass-frame/primary.png"
+      },
+      {
+        "name": "secondary",
+        "box": [338, 248, 551, 328],
+        "group": "secondary",
+        "children": [],
+        "control": "ui:secondary",
+        "label": "确认",
+        "path": "ui/motion-lab-v2/brass-frame/secondary.png",
+        "caption": {
+          "x": 111.825,
+          "y": 40.0,
+          "size": 27,
+          "color": "#513a20"
+        }
+      },
+      {
+        "name": "back",
+        "box": [551, 251, 746, 328],
+        "group": "back",
+        "children": [],
+        "control": "ui:outline",
+        "label": "返回",
+        "path": "ui/motion-lab-v2/brass-frame/back.png"
+      },
+      {
+        "name": "toast",
+        "box": [765, 116, 1037, 198],
+        "group": "toast",
+        "children": [],
+        "control": "ui:toast",
+        "label": "已保存提示",
+        "path": "ui/motion-lab-v2/brass-frame/toast.png",
+        "caption": {
+          "x": 165.92,
+          "y": 41.0,
+          "size": 19,
+          "color": "#ffe4a4",
+          "width": 149.60000000000002
+        }
+      },
+      {
+        "name": "banner",
+        "box": [1053, 118, 1323, 198],
+        "group": "banner",
+        "children": [],
+        "control": "ui:banner",
+        "label": "任务更新通知",
+        "path": "ui/motion-lab-v2/brass-frame/banner.png",
+        "caption": {
+          "x": 164.7,
+          "y": 40.0,
+          "size": 19,
+          "color": "#ffe4a4",
+          "width": 148.5
+        }
+      },
+      {
+        "name": "tab-1",
+        "box": [774, 236, 974, 339],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:1",
+        "label": "切换标签 1",
+        "path": "ui/motion-lab-v2/brass-frame/tab-1.png"
+      },
+      {
+        "name": "tab-2",
+        "box": [968, 236, 1137, 339],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:2",
+        "label": "切换标签 2",
+        "path": "ui/motion-lab-v2/brass-frame/tab-2.png"
+      },
+      {
+        "name": "tab-3",
+        "box": [1134, 236, 1306, 339],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:3",
+        "label": "切换标签 3",
+        "path": "ui/motion-lab-v2/brass-frame/tab-3.png"
+      },
+      {
+        "name": "tab-4",
+        "box": [1303, 251, 1491, 327],
+        "group": "tabs",
+        "children": [],
+        "path": "ui/motion-lab-v2/brass-frame/tab-4.png"
+      },
+      {
+        "name": "list",
+        "box": [40, 391, 510, 754],
+        "group": "list",
+        "children": [
+          {
+            "name": "task-1",
+            "box": [68, 450, 488, 533],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:1",
+            "label": "选择任务 1",
+            "path": "ui/motion-lab-v2/brass-frame/task-1.png"
+          },
+          {
+            "name": "task-2",
+            "box": [68, 539, 488, 622],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:2",
+            "label": "选择任务 2",
+            "path": "ui/motion-lab-v2/brass-frame/task-2.png"
+          },
+          {
+            "name": "task-3",
+            "box": [68, 628, 488, 711],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:3",
+            "label": "选择任务 3",
+            "path": "ui/motion-lab-v2/brass-frame/task-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/brass-frame/list.png"
+      },
+      {
+        "name": "modal",
+        "box": [515, 376, 1030, 750],
+        "group": "modal",
+        "children": [
+          {
+            "name": "cancel",
+            "box": [579, 625, 774, 702],
+            "group": "modal",
+            "children": [],
+            "control": "ui:cancel",
+            "label": "取消",
+            "path": "ui/motion-lab-v2/brass-frame/cancel.png"
+          },
+          {
+            "name": "confirm",
+            "box": [772, 616, 979, 709],
+            "group": "modal",
+            "children": [],
+            "control": "ui:confirm",
+            "label": "确认操作",
+            "path": "ui/motion-lab-v2/brass-frame/confirm.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/brass-frame/modal.png"
+      },
+      {
+        "name": "card-1",
+        "box": [1053, 461, 1212, 713],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:1",
+        "label": "选择选项 1",
+        "path": "ui/motion-lab-v2/brass-frame/card-1.png"
+      },
+      {
+        "name": "card-2",
+        "box": [1204, 463, 1347, 713],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:2",
+        "label": "选择选项 2",
+        "path": "ui/motion-lab-v2/brass-frame/card-2.png"
+      },
+      {
+        "name": "card-3",
+        "box": [1346, 463, 1493, 713],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:3",
+        "label": "选择选项 3",
+        "path": "ui/motion-lab-v2/brass-frame/card-3.png"
+      },
+      {
+        "name": "badge",
+        "box": [1101, 410, 1235, 477],
+        "group": "items",
+        "children": [],
+        "path": "ui/motion-lab-v2/brass-frame/badge.png"
+      },
+      {
+        "name": "dialogue",
+        "box": [40, 811, 760, 1107],
+        "group": "dialogue",
+        "children": [
+          {
+            "name": "portrait",
+            "box": [78, 854, 259, 1058],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/brass-frame/portrait.png"
+          },
+          {
+            "name": "dialogue-text",
+            "box": [299, 933, 571, 980],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/brass-frame/dialogue-text.png",
+            "caption": {
+              "x": 0,
+              "y": 23.5,
+              "size": 25,
+              "color": "#65482e",
+              "width": 272
+            }
+          }
+        ],
+        "control": "ui:dialogue",
+        "label": "继续对话",
+        "path": "ui/motion-lab-v2/brass-frame/dialogue.png"
+      },
+      {
+        "name": "reward",
+        "box": [779, 779, 1386, 1106],
+        "group": "reward",
+        "children": [
+          {
+            "name": "claim",
+            "box": [919, 1003, 1255, 1100],
+            "group": "reward",
+            "children": [],
+            "control": "ui:claim",
+            "label": "领取奖励",
+            "path": "ui/motion-lab-v2/brass-frame/claim.png",
+            "caption": {
+              "x": 174.72,
+              "y": 48.015,
+              "size": 30,
+              "color": "#ffe4a4"
+            }
+          },
+          {
+            "name": "prize-1",
+            "box": [862, 870, 1013, 1002],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:1",
+            "label": "奖励详情 1",
+            "path": "ui/motion-lab-v2/brass-frame/prize-1.png",
+            "caption": {
+              "x": 75.5,
+              "y": 59.4,
+              "size": 34,
+              "color": "#513a20",
+              "width": 131
+            }
+          },
+          {
+            "name": "prize-2",
+            "box": [1014, 870, 1165, 1002],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:2",
+            "label": "奖励详情 2",
+            "path": "ui/motion-lab-v2/brass-frame/prize-2.png"
+          },
+          {
+            "name": "prize-3",
+            "box": [1166, 870, 1318, 1002],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:3",
+            "label": "奖励详情 3",
+            "path": "ui/motion-lab-v2/brass-frame/prize-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/brass-frame/reward.png"
+      },
+      {
+        "name": "auto",
+        "box": [1394, 961, 1490, 1055],
+        "group": "auto",
+        "children": [],
+        "control": "ui:auto",
+        "label": "自动领取",
+        "path": "ui/motion-lab-v2/brass-frame/auto.png"
+      },
+      {
+        "name": "setting",
+        "box": [1393, 858, 1491, 945],
+        "group": "setting",
+        "children": [],
+        "control": "ui:settings",
+        "label": "设置",
+        "path": "ui/motion-lab-v2/brass-frame/setting.png"
+      },
+      {
+        "name": "category-1",
+        "box": [1531, 200, 1783, 274],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:1",
+        "label": "动效分类 1",
+        "path": "ui/motion-lab-v2/brass-frame/category-1.png"
+      },
+      {
+        "name": "category-2",
+        "box": [1778, 197, 2027, 277],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:2",
+        "label": "动效分类 2",
+        "path": "ui/motion-lab-v2/brass-frame/category-2.png"
+      },
+      {
+        "name": "category-3",
+        "box": [1532, 272, 1783, 342],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:3",
+        "label": "动效分类 3",
+        "path": "ui/motion-lab-v2/brass-frame/category-3.png"
+      },
+      {
+        "name": "category-4",
+        "box": [1778, 271, 2027, 343],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:4",
+        "label": "动效分类 4",
+        "path": "ui/motion-lab-v2/brass-frame/category-4.png"
+      },
+      {
+        "name": "category-5",
+        "box": [1532, 341, 1783, 415],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:5",
+        "label": "动效分类 5",
+        "path": "ui/motion-lab-v2/brass-frame/category-5.png"
+      },
+      {
+        "name": "category-6",
+        "box": [1778, 341, 2027, 415],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:6",
+        "label": "动效分类 6",
+        "path": "ui/motion-lab-v2/brass-frame/category-6.png"
+      },
+      {
+        "name": "directory",
+        "box": [1545, 438, 2019, 899],
+        "group": "directory",
+        "children": [
+          {
+            "name": "entry-1",
+            "box": [1551, 440, 2016, 515],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:1",
+            "label": "选择 1",
+            "path": "ui/motion-lab-v2/brass-frame/entry-1.png",
+            "caption": {
+              "x": 46.5,
+              "y": 37.5,
+              "size": 28,
+              "color": "#513a20"
+            }
+          },
+          {
+            "name": "entry-2",
+            "box": [1551, 515, 2016, 589],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:2",
+            "label": "选择 2",
+            "path": "ui/motion-lab-v2/brass-frame/entry-2.png"
+          },
+          {
+            "name": "entry-3",
+            "box": [1551, 589, 2016, 663],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:3",
+            "label": "选择 3",
+            "path": "ui/motion-lab-v2/brass-frame/entry-3.png"
+          },
+          {
+            "name": "entry-4",
+            "box": [1545, 663, 2019, 742],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:4",
+            "label": "选择 4",
+            "path": "ui/motion-lab-v2/brass-frame/entry-4.png"
+          },
+          {
+            "name": "entry-5",
+            "box": [1551, 742, 2016, 815],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:5",
+            "label": "选择 5",
+            "path": "ui/motion-lab-v2/brass-frame/entry-5.png"
+          },
+          {
+            "name": "entry-6",
+            "box": [1551, 815, 2016, 897],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:6",
+            "label": "选择 6",
+            "path": "ui/motion-lab-v2/brass-frame/entry-6.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/brass-frame/directory.png"
+      },
+      {
+        "name": "section-label-1",
+        "box": [45, 196, 292, 241],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/brass-frame/section-label-1.png"
+      },
+      {
+        "name": "section-label-2",
+        "box": [45, 357, 223, 411],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/brass-frame/section-label-2.png"
+      },
+      {
+        "name": "section-label-3",
+        "box": [510, 357, 700, 407],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/brass-frame/section-label-3.png"
+      },
+      {
+        "name": "section-label-4",
+        "box": [766, 760, 904, 820],
+        "group": "decoration",
+        "children": [],
+        "path": "ui/motion-lab-v2/brass-frame/section-label-4.png"
+      }
+    ],
+    "name": "复古铜框",
+    "verification": {
+      "previewSha256": "d2e62931fd1faa1c0522d948794e9ac7f057d2fe6a626f74fd1542e1af9708f9",
+      "size": [2048, 1152]
+    }
+  },
+  {
+    "source": "neutral-ui-components",
+    "locked": 4,
+    "task": 1,
+    "card": 2,
+    "ink": "#ecf9ff",
+    "hot": "#ff961f",
+    "font": "bold",
+    "id": "tech-cut",
+    "size": [2048, 1152],
+    "backdrop": "ui/motion-lab-v2/tech-cut/backdrop.png",
+    "nodes": [
+      {
+        "name": "header-back",
+        "box": [12, 5, 240, 74],
+        "group": "header-back",
+        "children": [],
+        "control": "shell:back",
+        "label": "返回示例",
+        "path": "ui/motion-lab-v2/tech-cut/header-back.png"
+      },
+      {
+        "name": "header-title",
+        "box": [707, 2, 995, 68],
+        "group": "header-title",
+        "children": [],
+        "path": "ui/motion-lab-v2/tech-cut/header-title.png"
+      },
+      {
+        "name": "header-sequence",
+        "box": [1013, 5, 1269, 68],
+        "group": "header-sequence",
+        "children": [],
+        "control": "shell:sequence",
+        "label": "顺序体验 33 项",
+        "path": "ui/motion-lab-v2/tech-cut/header-sequence.png",
+        "caption": {
+          "x": 128.0,
+          "y": 32.13,
+          "size": 25,
+          "width": 202.24,
+          "color": "#ecf9ff"
+        }
+      },
+      {
+        "name": "header-close",
+        "box": [1979, 9, 2038, 65],
+        "group": "header-close",
+        "children": [],
+        "control": "shell:close",
+        "label": "关闭动效工坊",
+        "path": "ui/motion-lab-v2/tech-cut/header-close.png"
+      },
+      {
+        "name": "replay",
+        "box": [1336, 102, 1502, 164],
+        "group": "replay",
+        "children": [],
+        "control": "shell:replay",
+        "label": "重播",
+        "path": "ui/motion-lab-v2/tech-cut/replay.png"
+      },
+      {
+        "name": "home",
+        "box": [1598, 1028, 1981, 1104],
+        "group": "home",
+        "children": [],
+        "control": "shell:home",
+        "label": "回到主界面",
+        "path": "ui/motion-lab-v2/tech-cut/home.png"
+      },
+      {
+        "name": "primary",
+        "box": [40, 232, 305, 328],
+        "group": "primary",
+        "children": [],
+        "control": "ui:feedback",
+        "label": "开始",
+        "path": "ui/motion-lab-v2/tech-cut/primary.png"
+      },
+      {
+        "name": "secondary",
+        "box": [307, 241, 463, 314],
+        "group": "secondary",
+        "children": [],
+        "control": "ui:secondary",
+        "label": "确认",
+        "path": "ui/motion-lab-v2/tech-cut/secondary.png",
+        "caption": {
+          "x": 81.9,
+          "y": 36.5,
+          "size": 27,
+          "color": "#ecf9ff"
+        }
+      },
+      {
+        "name": "back",
+        "box": [471, 241, 625, 314],
+        "group": "back",
+        "children": [],
+        "control": "ui:outline",
+        "label": "返回",
+        "path": "ui/motion-lab-v2/tech-cut/back.png"
+      },
+      {
+        "name": "toast",
+        "box": [1240, 190, 1493, 260],
+        "group": "toast",
+        "children": [],
+        "control": "ui:toast",
+        "label": "已保存提示",
+        "path": "ui/motion-lab-v2/tech-cut/toast.png",
+        "caption": {
+          "x": 154.32999999999998,
+          "y": 35.0,
+          "size": 17,
+          "color": "#ecf9ff",
+          "width": 139.15
+        }
+      },
+      {
+        "name": "banner",
+        "box": [1239, 264, 1493, 335],
+        "group": "banner",
+        "children": [],
+        "control": "ui:banner",
+        "label": "任务更新通知",
+        "path": "ui/motion-lab-v2/tech-cut/banner.png",
+        "caption": {
+          "x": 154.94,
+          "y": 35.5,
+          "size": 18,
+          "color": "#ecf9ff",
+          "width": 139.70000000000002
+        }
+      },
+      {
+        "name": "tab-1",
+        "box": [649, 235, 810, 318],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:1",
+        "label": "切换标签 1",
+        "path": "ui/motion-lab-v2/tech-cut/tab-1.png"
+      },
+      {
+        "name": "tab-2",
+        "box": [790, 235, 924, 318],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:2",
+        "label": "切换标签 2",
+        "path": "ui/motion-lab-v2/tech-cut/tab-2.png"
+      },
+      {
+        "name": "tab-3",
+        "box": [906, 235, 1046, 318],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:3",
+        "label": "切换标签 3",
+        "path": "ui/motion-lab-v2/tech-cut/tab-3.png"
+      },
+      {
+        "name": "tab-4",
+        "box": [1035, 239, 1209, 312],
+        "group": "tabs",
+        "children": [],
+        "path": "ui/motion-lab-v2/tech-cut/tab-4.png"
+      },
+      {
+        "name": "list",
+        "box": [40, 429, 504, 723],
+        "group": "list",
+        "children": [
+          {
+            "name": "task-1",
+            "box": [53, 453, 492, 529],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:1",
+            "label": "选择任务 1",
+            "path": "ui/motion-lab-v2/tech-cut/task-1.png"
+          },
+          {
+            "name": "task-2",
+            "box": [53, 535, 492, 611],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:2",
+            "label": "选择任务 2",
+            "path": "ui/motion-lab-v2/tech-cut/task-2.png"
+          },
+          {
+            "name": "task-3",
+            "box": [53, 617, 492, 693],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:3",
+            "label": "选择任务 3",
+            "path": "ui/motion-lab-v2/tech-cut/task-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/tech-cut/list.png"
+      },
+      {
+        "name": "modal",
+        "box": [508, 426, 1009, 733],
+        "group": "modal",
+        "children": [
+          {
+            "name": "cancel",
+            "box": [568, 626, 757, 699],
+            "group": "modal",
+            "children": [],
+            "control": "ui:cancel",
+            "label": "取消",
+            "path": "ui/motion-lab-v2/tech-cut/cancel.png"
+          },
+          {
+            "name": "confirm",
+            "box": [765, 620, 963, 701],
+            "group": "modal",
+            "children": [],
+            "control": "ui:confirm",
+            "label": "确认操作",
+            "path": "ui/motion-lab-v2/tech-cut/confirm.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/tech-cut/modal.png"
+      },
+      {
+        "name": "card-1",
+        "box": [1021, 455, 1180, 696],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:1",
+        "label": "选择选项 1",
+        "path": "ui/motion-lab-v2/tech-cut/card-1.png"
+      },
+      {
+        "name": "card-2",
+        "box": [1174, 449, 1343, 704],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:2",
+        "label": "选择选项 2",
+        "path": "ui/motion-lab-v2/tech-cut/card-2.png"
+      },
+      {
+        "name": "card-3",
+        "box": [1342, 455, 1500, 696],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:3",
+        "label": "选择选项 3",
+        "path": "ui/motion-lab-v2/tech-cut/card-3.png"
+      },
+      {
+        "name": "badge",
+        "box": [1220, 399, 1361, 466],
+        "group": "items",
+        "children": [],
+        "path": "ui/motion-lab-v2/tech-cut/badge.png"
+      },
+      {
+        "name": "dialogue",
+        "box": [43, 833, 797, 1054],
+        "group": "dialogue",
+        "children": [
+          {
+            "name": "portrait",
+            "box": [73, 864, 243, 1026],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/tech-cut/portrait.png"
+          },
+          {
+            "name": "dialogue-text",
+            "box": [278, 928, 579, 972],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/tech-cut/dialogue-text.png",
+            "caption": {
+              "x": 0,
+              "y": 22.0,
+              "size": 27,
+              "color": "#ecf9ff",
+              "width": 301
+            }
+          }
+        ],
+        "control": "ui:dialogue",
+        "label": "继续对话",
+        "path": "ui/motion-lab-v2/tech-cut/dialogue.png"
+      },
+      {
+        "name": "reward",
+        "box": [818, 800, 1351, 1100],
+        "group": "reward",
+        "children": [
+          {
+            "name": "claim",
+            "box": [935, 997, 1250, 1079],
+            "group": "reward",
+            "children": [],
+            "control": "ui:claim",
+            "label": "领取奖励",
+            "path": "ui/motion-lab-v2/tech-cut/claim.png",
+            "caption": {
+              "x": 184.27499999999998,
+              "y": 40.589999999999996,
+              "size": 30,
+              "color": "#ecf9ff"
+            }
+          },
+          {
+            "name": "prize-1",
+            "box": [872, 868, 1013, 996],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:1",
+            "label": "奖励详情 1",
+            "path": "ui/motion-lab-v2/tech-cut/prize-1.png",
+            "caption": {
+              "x": 70.5,
+              "y": 57.6,
+              "size": 34,
+              "color": "#ecf9ff",
+              "width": 121
+            }
+          },
+          {
+            "name": "prize-2",
+            "box": [1024, 868, 1165, 996],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:2",
+            "label": "奖励详情 2",
+            "path": "ui/motion-lab-v2/tech-cut/prize-2.png"
+          },
+          {
+            "name": "prize-3",
+            "box": [1167, 868, 1310, 996],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:3",
+            "label": "奖励详情 3",
+            "path": "ui/motion-lab-v2/tech-cut/prize-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/tech-cut/reward.png"
+      },
+      {
+        "name": "auto",
+        "box": [1365, 967, 1503, 1014],
+        "group": "auto",
+        "children": [],
+        "control": "ui:auto",
+        "label": "自动领取",
+        "path": "ui/motion-lab-v2/tech-cut/auto.png"
+      },
+      {
+        "name": "setting",
+        "box": [1357, 890, 1426, 953],
+        "group": "setting",
+        "children": [],
+        "control": "ui:settings",
+        "label": "设置",
+        "path": "ui/motion-lab-v2/tech-cut/setting.png"
+      },
+      {
+        "name": "category-1",
+        "box": [1534, 172, 1785, 256],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:1",
+        "label": "动效分类 1",
+        "path": "ui/motion-lab-v2/tech-cut/category-1.png"
+      },
+      {
+        "name": "category-2",
+        "box": [1781, 169, 2035, 258],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:2",
+        "label": "动效分类 2",
+        "path": "ui/motion-lab-v2/tech-cut/category-2.png"
+      },
+      {
+        "name": "category-3",
+        "box": [1534, 255, 1785, 337],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:3",
+        "label": "动效分类 3",
+        "path": "ui/motion-lab-v2/tech-cut/category-3.png"
+      },
+      {
+        "name": "category-4",
+        "box": [1781, 254, 2035, 337],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:4",
+        "label": "动效分类 4",
+        "path": "ui/motion-lab-v2/tech-cut/category-4.png"
+      },
+      {
+        "name": "category-5",
+        "box": [1534, 337, 1785, 420],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:5",
+        "label": "动效分类 5",
+        "path": "ui/motion-lab-v2/tech-cut/category-5.png"
+      },
+      {
+        "name": "category-6",
+        "box": [1781, 337, 2035, 420],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:6",
+        "label": "动效分类 6",
+        "path": "ui/motion-lab-v2/tech-cut/category-6.png"
+      },
+      {
+        "name": "directory",
+        "box": [1533, 494, 2034, 922],
+        "group": "directory",
+        "children": [
+          {
+            "name": "entry-1",
+            "box": [1537, 495, 2031, 567],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:1",
+            "label": "选择 1",
+            "path": "ui/motion-lab-v2/tech-cut/entry-1.png",
+            "caption": {
+              "x": 49.400000000000006,
+              "y": 36.0,
+              "size": 28,
+              "color": "#ecf9ff"
+            }
+          },
+          {
+            "name": "entry-2",
+            "box": [1537, 567, 2031, 636],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:2",
+            "label": "选择 2",
+            "path": "ui/motion-lab-v2/tech-cut/entry-2.png"
+          },
+          {
+            "name": "entry-3",
+            "box": [1537, 636, 2031, 706],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:3",
+            "label": "选择 3",
+            "path": "ui/motion-lab-v2/tech-cut/entry-3.png"
+          },
+          {
+            "name": "entry-4",
+            "box": [1534, 706, 2034, 779],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:4",
+            "label": "选择 4",
+            "path": "ui/motion-lab-v2/tech-cut/entry-4.png"
+          },
+          {
+            "name": "entry-5",
+            "box": [1537, 779, 2031, 849],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:5",
+            "label": "选择 5",
+            "path": "ui/motion-lab-v2/tech-cut/entry-5.png"
+          },
+          {
+            "name": "entry-6",
+            "box": [1537, 849, 2031, 921],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:6",
+            "label": "选择 6",
+            "path": "ui/motion-lab-v2/tech-cut/entry-6.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/tech-cut/directory.png"
+      },
+      {
+        "name": "directory-heading",
+        "box": [1537, 447, 1951, 486],
+        "group": "directory",
+        "children": [],
+        "path": "ui/motion-lab-v2/tech-cut/directory-heading.png"
+      }
+    ],
+    "name": "科技切角",
+    "verification": {
+      "previewSha256": "b5fe54bcb36c8bb5bf5bed86f45072053ca54e1c70bff9cef7d25d020e0b7527",
+      "size": [2048, 1152]
+    }
+  },
+  {
+    "source": "neutral-ui-components",
+    "locked": 4,
+    "task": 2,
+    "card": 2,
+    "ink": "#f7e8bd",
+    "hot": "#f1c377",
+    "font": "serif",
+    "id": "ribbon-gold",
+    "size": [2048, 1152],
+    "backdrop": "ui/motion-lab-v2/ribbon-gold/backdrop.png",
+    "nodes": [
+      {
+        "name": "header-back",
+        "box": [0, 0, 289, 70],
+        "group": "header-back",
+        "children": [],
+        "control": "shell:back",
+        "label": "返回示例",
+        "path": "ui/motion-lab-v2/ribbon-gold/header-back.png"
+      },
+      {
+        "name": "header-title",
+        "box": [758, 0, 1299, 70],
+        "group": "header-title",
+        "children": [],
+        "path": "ui/motion-lab-v2/ribbon-gold/header-title.png"
+      },
+      {
+        "name": "header-sequence",
+        "box": [1607, 0, 1926, 70],
+        "group": "header-sequence",
+        "children": [],
+        "control": "shell:sequence",
+        "label": "顺序体验 33 项",
+        "path": "ui/motion-lab-v2/ribbon-gold/header-sequence.png",
+        "caption": {
+          "x": 159.5,
+          "y": 35.7,
+          "size": 25,
+          "width": 252.01000000000002,
+          "color": "#f7e8bd"
+        }
+      },
+      {
+        "name": "header-close",
+        "box": [1973, 8, 2027, 61],
+        "group": "header-close",
+        "children": [],
+        "control": "shell:close",
+        "label": "关闭动效工坊",
+        "path": "ui/motion-lab-v2/ribbon-gold/header-close.png"
+      },
+      {
+        "name": "replay",
+        "box": [1298, 94, 1494, 159],
+        "group": "replay",
+        "children": [],
+        "control": "shell:replay",
+        "label": "重播",
+        "path": "ui/motion-lab-v2/ribbon-gold/replay.png"
+      },
+      {
+        "name": "home",
+        "box": [1563, 1042, 2002, 1123],
+        "group": "home",
+        "children": [],
+        "control": "shell:home",
+        "label": "回到主界面",
+        "path": "ui/motion-lab-v2/ribbon-gold/home.png"
+      },
+      {
+        "name": "primary",
+        "box": [32, 251, 341, 358],
+        "group": "primary",
+        "children": [],
+        "control": "ui:feedback",
+        "label": "开始",
+        "path": "ui/motion-lab-v2/ribbon-gold/primary.png"
+      },
+      {
+        "name": "secondary",
+        "box": [338, 265, 531, 346],
+        "group": "secondary",
+        "children": [],
+        "control": "ui:secondary",
+        "label": "确认",
+        "path": "ui/motion-lab-v2/ribbon-gold/secondary.png",
+        "caption": {
+          "x": 101.325,
+          "y": 40.5,
+          "size": 27,
+          "color": "#292739"
+        }
+      },
+      {
+        "name": "back",
+        "box": [532, 265, 739, 346],
+        "group": "back",
+        "children": [],
+        "control": "ui:outline",
+        "label": "返回",
+        "path": "ui/motion-lab-v2/ribbon-gold/back.png"
+      },
+      {
+        "name": "toast",
+        "box": [943, 175, 1226, 246],
+        "group": "toast",
+        "children": [],
+        "control": "ui:toast",
+        "label": "已保存提示",
+        "path": "ui/motion-lab-v2/ribbon-gold/toast.png",
+        "caption": {
+          "x": 172.63,
+          "y": 35.5,
+          "size": 20,
+          "color": "#f7e8bd",
+          "width": 155.65
+        }
+      },
+      {
+        "name": "banner",
+        "box": [1242, 174, 1494, 246],
+        "group": "banner",
+        "children": [],
+        "control": "ui:banner",
+        "label": "任务更新通知",
+        "path": "ui/motion-lab-v2/ribbon-gold/banner.png",
+        "caption": {
+          "x": 153.72,
+          "y": 36.0,
+          "size": 17,
+          "color": "#f7e8bd",
+          "width": 138.60000000000002
+        }
+      },
+      {
+        "name": "tab-1",
+        "box": [774, 258, 968, 356],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:1",
+        "label": "切换标签 1",
+        "path": "ui/motion-lab-v2/ribbon-gold/tab-1.png"
+      },
+      {
+        "name": "tab-2",
+        "box": [954, 258, 1116, 356],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:2",
+        "label": "切换标签 2",
+        "path": "ui/motion-lab-v2/ribbon-gold/tab-2.png"
+      },
+      {
+        "name": "tab-3",
+        "box": [1115, 258, 1289, 356],
+        "group": "tabs",
+        "children": [],
+        "control": "ui:tab:3",
+        "label": "切换标签 3",
+        "path": "ui/motion-lab-v2/ribbon-gold/tab-3.png"
+      },
+      {
+        "name": "tab-4",
+        "box": [1289, 267, 1488, 344],
+        "group": "tabs",
+        "children": [],
+        "path": "ui/motion-lab-v2/ribbon-gold/tab-4.png"
+      },
+      {
+        "name": "list",
+        "box": [30, 439, 473, 770],
+        "group": "list",
+        "children": [
+          {
+            "name": "task-1",
+            "box": [57, 473, 452, 557],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:1",
+            "label": "选择任务 1",
+            "path": "ui/motion-lab-v2/ribbon-gold/task-1.png"
+          },
+          {
+            "name": "task-2",
+            "box": [57, 563, 452, 647],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:2",
+            "label": "选择任务 2",
+            "path": "ui/motion-lab-v2/ribbon-gold/task-2.png"
+          },
+          {
+            "name": "task-3",
+            "box": [57, 653, 452, 737],
+            "group": "list",
+            "children": [],
+            "control": "ui:task:3",
+            "label": "选择任务 3",
+            "path": "ui/motion-lab-v2/ribbon-gold/task-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/ribbon-gold/list.png"
+      },
+      {
+        "name": "modal",
+        "box": [477, 436, 1004, 777],
+        "group": "modal",
+        "children": [
+          {
+            "name": "cancel",
+            "box": [521, 666, 733, 747],
+            "group": "modal",
+            "children": [],
+            "control": "ui:cancel",
+            "label": "取消",
+            "path": "ui/motion-lab-v2/ribbon-gold/cancel.png"
+          },
+          {
+            "name": "confirm",
+            "box": [740, 664, 970, 747],
+            "group": "modal",
+            "children": [],
+            "control": "ui:confirm",
+            "label": "确认操作",
+            "path": "ui/motion-lab-v2/ribbon-gold/confirm.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/ribbon-gold/modal.png"
+      },
+      {
+        "name": "card-1",
+        "box": [1015, 469, 1177, 741],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:1",
+        "label": "选择选项 1",
+        "path": "ui/motion-lab-v2/ribbon-gold/card-1.png"
+      },
+      {
+        "name": "card-2",
+        "box": [1170, 462, 1345, 750],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:2",
+        "label": "选择选项 2",
+        "path": "ui/motion-lab-v2/ribbon-gold/card-2.png"
+      },
+      {
+        "name": "card-3",
+        "box": [1334, 469, 1496, 741],
+        "group": "items",
+        "children": [],
+        "control": "ui:card:3",
+        "label": "选择选项 3",
+        "path": "ui/motion-lab-v2/ribbon-gold/card-3.png"
+      },
+      {
+        "name": "badge",
+        "box": [1196, 414, 1344, 487],
+        "group": "items",
+        "children": [],
+        "path": "ui/motion-lab-v2/ribbon-gold/badge.png"
+      },
+      {
+        "name": "dialogue",
+        "box": [29, 853, 828, 1086],
+        "group": "dialogue",
+        "children": [
+          {
+            "name": "portrait",
+            "box": [37, 856, 230, 1079],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/ribbon-gold/portrait.png"
+          },
+          {
+            "name": "dialogue-text",
+            "box": [260, 965, 561, 1005],
+            "group": "dialogue",
+            "children": [],
+            "path": "ui/motion-lab-v2/ribbon-gold/dialogue-text.png",
+            "caption": {
+              "x": 0,
+              "y": 20.0,
+              "size": 27,
+              "color": "#292739",
+              "width": 301
+            }
+          }
+        ],
+        "control": "ui:dialogue",
+        "label": "继续对话",
+        "path": "ui/motion-lab-v2/ribbon-gold/dialogue.png"
+      },
+      {
+        "name": "reward",
+        "box": [848, 835, 1392, 1110],
+        "group": "reward",
+        "children": [
+          {
+            "name": "claim",
+            "box": [968, 1021, 1276, 1097],
+            "group": "reward",
+            "children": [],
+            "control": "ui:claim",
+            "label": "领取奖励",
+            "path": "ui/motion-lab-v2/ribbon-gold/claim.png",
+            "caption": {
+              "x": 154.0,
+              "y": 38.0,
+              "size": 30,
+              "color": "#f7e8bd"
+            }
+          },
+          {
+            "name": "prize-1",
+            "box": [943, 907, 1057, 1017],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:1",
+            "label": "奖励详情 1",
+            "path": "ui/motion-lab-v2/ribbon-gold/prize-1.png",
+            "caption": {
+              "x": 57.0,
+              "y": 49.5,
+              "size": 30,
+              "color": "#292739",
+              "width": 94
+            }
+          },
+          {
+            "name": "prize-2",
+            "box": [1066, 907, 1184, 1017],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:2",
+            "label": "奖励详情 2",
+            "path": "ui/motion-lab-v2/ribbon-gold/prize-2.png"
+          },
+          {
+            "name": "prize-3",
+            "box": [1191, 907, 1306, 1017],
+            "group": "reward",
+            "children": [],
+            "control": "ui:prize:3",
+            "label": "奖励详情 3",
+            "path": "ui/motion-lab-v2/ribbon-gold/prize-3.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/ribbon-gold/reward.png"
+      },
+      {
+        "name": "auto",
+        "box": [1389, 999, 1500, 1069],
+        "group": "auto",
+        "children": [],
+        "control": "ui:auto",
+        "label": "自动领取",
+        "path": "ui/motion-lab-v2/ribbon-gold/auto.png"
+      },
+      {
+        "name": "setting",
+        "box": [1404, 902, 1484, 981],
+        "group": "setting",
+        "children": [],
+        "control": "ui:settings",
+        "label": "设置",
+        "path": "ui/motion-lab-v2/ribbon-gold/setting.png"
+      },
+      {
+        "name": "category-1",
+        "box": [1532, 170, 1786, 254],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:1",
+        "label": "动效分类 1",
+        "path": "ui/motion-lab-v2/ribbon-gold/category-1.png"
+      },
+      {
+        "name": "category-2",
+        "box": [1780, 169, 2035, 255],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:2",
+        "label": "动效分类 2",
+        "path": "ui/motion-lab-v2/ribbon-gold/category-2.png"
+      },
+      {
+        "name": "category-3",
+        "box": [1532, 253, 1786, 333],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:3",
+        "label": "动效分类 3",
+        "path": "ui/motion-lab-v2/ribbon-gold/category-3.png"
+      },
+      {
+        "name": "category-4",
+        "box": [1780, 253, 2035, 333],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:4",
+        "label": "动效分类 4",
+        "path": "ui/motion-lab-v2/ribbon-gold/category-4.png"
+      },
+      {
+        "name": "category-5",
+        "box": [1532, 333, 1786, 414],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:5",
+        "label": "动效分类 5",
+        "path": "ui/motion-lab-v2/ribbon-gold/category-5.png"
+      },
+      {
+        "name": "category-6",
+        "box": [1780, 333, 2035, 414],
+        "group": "directory",
+        "children": [],
+        "control": "shell:category:6",
+        "label": "动效分类 6",
+        "path": "ui/motion-lab-v2/ribbon-gold/category-6.png"
+      },
+      {
+        "name": "directory",
+        "box": [1534, 479, 2028, 910],
+        "group": "directory",
+        "children": [
+          {
+            "name": "entry-1",
+            "box": [1545, 480, 2025, 549],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:1",
+            "label": "选择 1",
+            "path": "ui/motion-lab-v2/ribbon-gold/entry-1.png",
+            "caption": {
+              "x": 48.0,
+              "y": 34.5,
+              "size": 28,
+              "color": "#292739"
+            }
+          },
+          {
+            "name": "entry-2",
+            "box": [1545, 549, 2025, 620],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:2",
+            "label": "选择 2",
+            "path": "ui/motion-lab-v2/ribbon-gold/entry-2.png"
+          },
+          {
+            "name": "entry-3",
+            "box": [1545, 620, 2025, 687],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:3",
+            "label": "选择 3",
+            "path": "ui/motion-lab-v2/ribbon-gold/entry-3.png"
+          },
+          {
+            "name": "entry-4",
+            "box": [1534, 687, 2028, 766],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:4",
+            "label": "选择 4",
+            "path": "ui/motion-lab-v2/ribbon-gold/entry-4.png"
+          },
+          {
+            "name": "entry-5",
+            "box": [1545, 766, 2025, 838],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:5",
+            "label": "选择 5",
+            "path": "ui/motion-lab-v2/ribbon-gold/entry-5.png"
+          },
+          {
+            "name": "entry-6",
+            "box": [1545, 838, 2025, 909],
+            "group": "directory",
+            "children": [],
+            "control": "shell:entry:6",
+            "label": "选择 6",
+            "path": "ui/motion-lab-v2/ribbon-gold/entry-6.png"
+          }
+        ],
+        "path": "ui/motion-lab-v2/ribbon-gold/directory.png"
+      },
+      {
+        "name": "directory-heading",
+        "box": [1535, 422, 2025, 478],
+        "group": "directory",
+        "children": [],
+        "path": "ui/motion-lab-v2/ribbon-gold/directory-heading.png"
+      }
+    ],
+    "name": "典雅绶带",
+    "verification": {
+      "previewSha256": "071416eacfbaab517928bdcfe5886eb4bea8bb4ce08f6f36a7c99de662e3d5c7",
+      "size": [2048, 1152]
+    }
+  }
+]

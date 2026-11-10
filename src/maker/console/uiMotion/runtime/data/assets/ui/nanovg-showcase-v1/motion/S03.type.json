@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "id": "S03.type",
+  "name": "对话逐字",
+  "category": "interaction",
+  "duration": 1.35,
+  "nodes": [
+    {
+      "id": "dialogue-text",
+      "name": "对白逐字",
+      "transform": {
+        "textProgress": 0
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "dialogue-text",
+      "prop": "textProgress",
+      "at": 0,
+      "duration": 1.35,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    }
+  ]
+}

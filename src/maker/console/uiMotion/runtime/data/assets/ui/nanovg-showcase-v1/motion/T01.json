@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "id": "T01",
+  "name": "斜面菜单揭幕",
+  "category": "transition",
+  "duration": 1.24,
+  "nodes": [
+    {
+      "id": "wipe",
+      "name": "完整遮场",
+      "transform": {
+        "dx": -1920
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "wipe",
+      "prop": "dx",
+      "at": 0,
+      "duration": 0.44,
+      "from": -1920,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "wipe",
+      "prop": "dx",
+      "at": 0.72,
+      "duration": 0.52,
+      "from": 0,
+      "to": 1920,
+      "ease": "inOutCubic"
+    }
+  ],
+  "source": "S01",
+  "target": "S02",
+  "style": "slab",
+  "swapAt": 0.56,
+  "covered": [0.44, 0.72]
+}

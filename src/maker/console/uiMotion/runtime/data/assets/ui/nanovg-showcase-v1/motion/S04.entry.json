@@ -1,0 +1,225 @@
+{
+  "version": 1,
+  "id": "S04.entry",
+  "name": "剧院开演",
+  "category": "entry",
+  "duration": 1.5,
+  "nodes": [
+    {
+      "id": "actor",
+      "name": "魔术师入场",
+      "transform": {
+        "dx": 65,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "heading",
+      "name": "剧名落位",
+      "transform": {
+        "dy": -28,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "curtain-left",
+      "name": "左幕开启",
+      "transform": {
+        "dx": 88
+      }
+    },
+    {
+      "id": "curtain-right",
+      "name": "右幕开启",
+      "transform": {
+        "dx": -88
+      }
+    },
+    {
+      "id": "rabbit-action",
+      "name": "兔子道具",
+      "transform": {
+        "dy": 35,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "clapper",
+      "name": "场记板入场",
+      "transform": {
+        "dy": 38,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "theater1",
+      "name": "剧院菜单 1",
+      "transform": {
+        "dx": -60,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "theater2",
+      "name": "剧院菜单 2",
+      "transform": {
+        "dx": -60,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "theater3",
+      "name": "剧院菜单 3",
+      "transform": {
+        "dx": -60,
+        "opacity": 0
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "actor",
+      "prop": "dx",
+      "at": 0.08,
+      "duration": 0.9,
+      "from": 65,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "actor",
+      "prop": "opacity",
+      "at": 0.08,
+      "duration": 0.9,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "heading",
+      "prop": "dy",
+      "at": 0.05,
+      "duration": 0.7,
+      "from": -28,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "heading",
+      "prop": "opacity",
+      "at": 0.05,
+      "duration": 0.7,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "curtain-left",
+      "prop": "dx",
+      "at": 0,
+      "duration": 0.95,
+      "from": 88,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "curtain-right",
+      "prop": "dx",
+      "at": 0,
+      "duration": 0.95,
+      "from": -88,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "rabbit-action",
+      "prop": "dy",
+      "at": 0.55,
+      "duration": 0.6,
+      "from": 35,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "rabbit-action",
+      "prop": "opacity",
+      "at": 0.55,
+      "duration": 0.6,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "clapper",
+      "prop": "dy",
+      "at": 0.7,
+      "duration": 0.6,
+      "from": 38,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "clapper",
+      "prop": "opacity",
+      "at": 0.7,
+      "duration": 0.6,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "theater1",
+      "prop": "dx",
+      "at": 0.25,
+      "duration": 0.55,
+      "from": -60,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "theater1",
+      "prop": "opacity",
+      "at": 0.25,
+      "duration": 0.55,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "theater2",
+      "prop": "dx",
+      "at": 0.37,
+      "duration": 0.55,
+      "from": -60,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "theater2",
+      "prop": "opacity",
+      "at": 0.37,
+      "duration": 0.55,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "theater3",
+      "prop": "dx",
+      "at": 0.49,
+      "duration": 0.55,
+      "from": -60,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "theater3",
+      "prop": "opacity",
+      "at": 0.49,
+      "duration": 0.55,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    }
+  ]
+}

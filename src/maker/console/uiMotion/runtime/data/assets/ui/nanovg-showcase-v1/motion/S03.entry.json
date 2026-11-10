@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "id": "S03.entry",
+  "name": "港口对话入场",
+  "category": "entry",
+  "duration": 1.25,
+  "nodes": [
+    {
+      "id": "actor",
+      "name": "NOVA 入场",
+      "transform": {
+        "dx": -55,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "dialogue",
+      "name": "对话框展开",
+      "transform": {
+        "dy": 38,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "auto",
+      "name": "自动按钮",
+      "transform": {
+        "opacity": 0
+      }
+    },
+    {
+      "id": "skip",
+      "name": "跳过按钮",
+      "transform": {
+        "opacity": 0
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "actor",
+      "prop": "dx",
+      "at": 0,
+      "duration": 0.8,
+      "from": -55,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "actor",
+      "prop": "opacity",
+      "at": 0,
+      "duration": 0.8,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "dialogue",
+      "prop": "dy",
+      "at": 0.2,
+      "duration": 0.6,
+      "from": 38,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "dialogue",
+      "prop": "opacity",
+      "at": 0.2,
+      "duration": 0.6,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "auto",
+      "prop": "opacity",
+      "at": 0.55,
+      "duration": 0.35,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "skip",
+      "prop": "opacity",
+      "at": 0.6,
+      "duration": 0.35,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    }
+  ]
+}

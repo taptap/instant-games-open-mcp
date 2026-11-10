@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "id": "S02.entry",
+  "name": "同行者入场",
+  "category": "entry",
+  "duration": 1.3,
+  "nodes": [
+    {
+      "id": "heading",
+      "name": "界面标题",
+      "transform": {
+        "dy": -18,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "actor",
+      "name": "角色入场",
+      "transform": {
+        "dx": -52,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "stats",
+      "name": "属性卡",
+      "transform": {
+        "dx": 60,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "portrait1",
+      "name": "同行者 1",
+      "transform": {
+        "dx": -55,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "portrait2",
+      "name": "同行者 2",
+      "transform": {
+        "dx": -55,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "portrait3",
+      "name": "同行者 3",
+      "transform": {
+        "dx": -55,
+        "opacity": 0
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "heading",
+      "prop": "dy",
+      "at": 0,
+      "duration": 0.6,
+      "from": -18,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "heading",
+      "prop": "opacity",
+      "at": 0,
+      "duration": 0.6,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "actor",
+      "prop": "dx",
+      "at": 0.08,
+      "duration": 0.85,
+      "from": -52,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "actor",
+      "prop": "opacity",
+      "at": 0.08,
+      "duration": 0.85,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "stats",
+      "prop": "dx",
+      "at": 0.22,
+      "duration": 0.8,
+      "from": 60,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "stats",
+      "prop": "opacity",
+      "at": 0.22,
+      "duration": 0.8,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "portrait1",
+      "prop": "dx",
+      "at": 0.13,
+      "duration": 0.55,
+      "from": -55,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "portrait1",
+      "prop": "opacity",
+      "at": 0.13,
+      "duration": 0.55,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "portrait2",
+      "prop": "dx",
+      "at": 0.25,
+      "duration": 0.55,
+      "from": -55,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "portrait2",
+      "prop": "opacity",
+      "at": 0.25,
+      "duration": 0.55,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    },
+    {
+      "node": "portrait3",
+      "prop": "dx",
+      "at": 0.37,
+      "duration": 0.55,
+      "from": -55,
+      "to": 0,
+      "ease": "outCubic"
+    },
+    {
+      "node": "portrait3",
+      "prop": "opacity",
+      "at": 0.37,
+      "duration": 0.55,
+      "from": 0,
+      "to": 1,
+      "ease": "outCubic"
+    }
+  ]
+}

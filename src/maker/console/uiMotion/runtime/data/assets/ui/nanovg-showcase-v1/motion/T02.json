@@ -1,0 +1,292 @@
+{
+  "version": 1,
+  "id": "T02",
+  "name": "必杀斜刃",
+  "category": "transition",
+  "duration": 0.7,
+  "source": "S02",
+  "target": "S03",
+  "style": "slash",
+  "covered": [0.38, 0.43],
+  "swapAt": 0.405,
+  "nodes": [
+    {
+      "id": "blade-glow",
+      "name": "橙金外晕",
+      "transform": {
+        "opacity": 0,
+        "revealY": 0.00033,
+        "dy": 899.703
+      }
+    },
+    {
+      "id": "blade-edge",
+      "name": "暖金剑沿",
+      "transform": {
+        "opacity": 0,
+        "revealY": 0.00017,
+        "dy": 899.847
+      }
+    },
+    {
+      "id": "blade-core",
+      "name": "白芯光剑",
+      "transform": {
+        "opacity": 0,
+        "revealY": 0.0001,
+        "dy": 899.91
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "blade-glow",
+      "prop": "revealY",
+      "at": 0,
+      "duration": 0.1,
+      "from": 0.00033,
+      "to": 0.059399999999999994,
+      "ease": "outCubic"
+    },
+    {
+      "node": "blade-glow",
+      "prop": "dy",
+      "at": 0,
+      "duration": 0.1,
+      "from": 899.703,
+      "to": 846.54,
+      "ease": "outCubic"
+    },
+    {
+      "node": "blade-glow",
+      "prop": "revealY",
+      "at": 0.26,
+      "duration": 0.12,
+      "from": 0.059399999999999994,
+      "to": 1,
+      "ease": "inQuad"
+    },
+    {
+      "node": "blade-glow",
+      "prop": "dy",
+      "at": 0.26,
+      "duration": 0.12,
+      "from": 846.54,
+      "to": 0,
+      "ease": "inQuad"
+    },
+    {
+      "node": "blade-glow",
+      "prop": "revealY",
+      "at": 0.43,
+      "duration": 0.2,
+      "from": 1,
+      "to": 0.0066,
+      "ease": "outCubic"
+    },
+    {
+      "node": "blade-glow",
+      "prop": "dy",
+      "at": 0.43,
+      "duration": 0.2,
+      "from": 0,
+      "to": 894.06,
+      "ease": "outCubic"
+    },
+    {
+      "node": "blade-glow",
+      "prop": "opacity",
+      "at": 0,
+      "duration": 0.025,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "blade-glow",
+      "prop": "opacity",
+      "at": 0.63,
+      "duration": 0.07,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    },
+    {
+      "node": "blade-edge",
+      "prop": "revealY",
+      "at": 0,
+      "duration": 0.1,
+      "from": 0.00017,
+      "to": 0.030599999999999995,
+      "ease": "outCubic"
+    },
+    {
+      "node": "blade-edge",
+      "prop": "dy",
+      "at": 0,
+      "duration": 0.1,
+      "from": 899.847,
+      "to": 872.46,
+      "ease": "outCubic"
+    },
+    {
+      "node": "blade-edge",
+      "prop": "revealY",
+      "at": 0.26,
+      "duration": 0.12,
+      "from": 0.030599999999999995,
+      "to": 1,
+      "ease": "inQuad"
+    },
+    {
+      "node": "blade-edge",
+      "prop": "dy",
+      "at": 0.26,
+      "duration": 0.12,
+      "from": 872.46,
+      "to": 0,
+      "ease": "inQuad"
+    },
+    {
+      "node": "blade-edge",
+      "prop": "revealY",
+      "at": 0.43,
+      "duration": 0.2,
+      "from": 1,
+      "to": 0.0034,
+      "ease": "outCubic"
+    },
+    {
+      "node": "blade-edge",
+      "prop": "dy",
+      "at": 0.43,
+      "duration": 0.2,
+      "from": 0,
+      "to": 896.94,
+      "ease": "outCubic"
+    },
+    {
+      "node": "blade-edge",
+      "prop": "opacity",
+      "at": 0,
+      "duration": 0.025,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "blade-edge",
+      "prop": "opacity",
+      "at": 0.63,
+      "duration": 0.07,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    },
+    {
+      "node": "blade-core",
+      "prop": "revealY",
+      "at": 0,
+      "duration": 0.1,
+      "from": 0.0001,
+      "to": 0.018,
+      "ease": "outCubic"
+    },
+    {
+      "node": "blade-core",
+      "prop": "dy",
+      "at": 0,
+      "duration": 0.1,
+      "from": 899.91,
+      "to": 883.8,
+      "ease": "outCubic"
+    },
+    {
+      "node": "blade-core",
+      "prop": "revealY",
+      "at": 0.26,
+      "duration": 0.12,
+      "from": 0.018,
+      "to": 1,
+      "ease": "inQuad"
+    },
+    {
+      "node": "blade-core",
+      "prop": "dy",
+      "at": 0.26,
+      "duration": 0.12,
+      "from": 883.8,
+      "to": 0,
+      "ease": "inQuad"
+    },
+    {
+      "node": "blade-core",
+      "prop": "revealY",
+      "at": 0.43,
+      "duration": 0.2,
+      "from": 1,
+      "to": 0.002,
+      "ease": "outCubic"
+    },
+    {
+      "node": "blade-core",
+      "prop": "dy",
+      "at": 0.43,
+      "duration": 0.2,
+      "from": 0,
+      "to": 898.2,
+      "ease": "outCubic"
+    },
+    {
+      "node": "blade-core",
+      "prop": "opacity",
+      "at": 0,
+      "duration": 0.025,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "blade-core",
+      "prop": "opacity",
+      "at": 0.63,
+      "duration": 0.07,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    }
+  ],
+  "thumbnailAt": 0.18,
+  "cues": [
+    {
+      "time": 0.1,
+      "label": "白芯光剑成形"
+    },
+    {
+      "time": 0.26,
+      "label": "光剑开始拓宽"
+    },
+    {
+      "time": 0.38,
+      "label": "光剑完全遮场"
+    },
+    {
+      "time": 0.405,
+      "label": "S02 → S03 · 白光中换页"
+    },
+    {
+      "time": 0.43,
+      "label": "光带收窄"
+    },
+    {
+      "time": 0.63,
+      "label": "细残线消散"
+    }
+  ],
+  "reference": {
+    "source": "neonangel",
+    "frames": [233, 251],
+    "fps": 30,
+    "mechanism": "white blade / pink edge / perpendicular expansion / thin afterimage"
+  }
+}

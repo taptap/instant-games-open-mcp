@@ -1,0 +1,58 @@
+[
+  {
+    "id": "S01",
+    "name": "主菜单",
+    "kind": "scene",
+    "summary": "Signal Runner · NanoVG",
+    "entry": "/ui-motion/vector-sample?scene=S01"
+  },
+  {
+    "id": "S02",
+    "name": "同行者选择",
+    "kind": "scene",
+    "summary": "Signal Runner · NanoVG",
+    "entry": "/ui-motion/vector-sample?scene=S02"
+  },
+  {
+    "id": "S03",
+    "name": "港口对话",
+    "kind": "scene",
+    "summary": "Signal Runner · NanoVG",
+    "entry": "/ui-motion/vector-sample?scene=S03"
+  },
+  {
+    "id": "S04",
+    "name": "发条剧院",
+    "kind": "scene",
+    "summary": "Clockwork Theater · NanoVG",
+    "entry": "/ui-motion/vector-sample?scene=S04"
+  },
+  {
+    "id": "S05",
+    "name": "今夜演出",
+    "kind": "scene",
+    "summary": "Clockwork Theater · NanoVG",
+    "entry": "/ui-motion/vector-sample?scene=S05"
+  },
+  {
+    "id": "T01",
+    "name": "斜面菜单揭幕",
+    "kind": "transition",
+    "summary": "S01 → S02",
+    "entry": "/ui-motion/vector-sample?scene=S01&clip=T01"
+  },
+  {
+    "id": "T02",
+    "name": "必杀斜刃",
+    "kind": "transition",
+    "summary": "S02 → S03",
+    "entry": "/ui-motion/vector-sample?scene=S02&clip=T02"
+  },
+  {
+    "id": "T03",
+    "name": "扑克牌遮场",
+    "kind": "transition",
+    "summary": "S04 → S05",
+    "entry": "/ui-motion/vector-sample?scene=S04&clip=T03"
+  }
+]

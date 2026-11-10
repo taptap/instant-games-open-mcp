@@ -18,6 +18,7 @@ const types = {
   '.jpeg': 'image/jpeg',
   '.mp4': 'video/mp4',
   '.mdl': 'application/octet-stream',
+  '.ttf': 'font/ttf',
 };
 function save() {
   fs.writeFileSync(manifestPath + '.tmp', JSON.stringify(manifest, null, 2) + '\n');
@@ -29,7 +30,7 @@ function checkLocal() {
 function add(filename) {
   const bytes = fs.readFileSync(filename),
     ext = path.extname(filename).toLowerCase();
-  if (!types[ext]) throw new Error('仅支持 PNG/JPEG/MP4/MDL 素材');
+  if (!types[ext]) throw new Error('仅支持 PNG/JPEG/MP4/MDL/TTF 素材');
   const id = hash(bytes),
     file = id + ext;
   fs.mkdirSync(directory, { recursive: true });
@@ -42,6 +43,11 @@ function add(filename) {
   return id;
 }
 const VERIFY_ATTEMPTS = 3;
+export function registerDemoResources(filenames) {
+  const entries = filenames.map((filename) => ({ path: filename, resourceId: add(filename) }));
+  save();
+  return entries;
+}
 const VERIFY_TIMEOUT_MS = 60000;
 
 function downloadErrorDetail(error) {
@@ -69,7 +75,6 @@ function isTransientDownloadError(error, status) {
     )
   );
 }
-
 
 async function cancelResponseBody(response) {
   try {
@@ -179,6 +184,14 @@ function currentTemplateResources() {
   const templates = TEMPLATE_DATA.map((name) =>
     JSON.parse(fs.readFileSync(path.join(root, 'src/maker/canvas', name), 'utf8'))
   );
+  templates.push(
+    JSON.parse(
+      fs.readFileSync(
+        path.join(root, 'src/maker/console/uiMotion/runtime/resourceMap.json'),
+        'utf8'
+      )
+    )
+  );
   const ids = referencedDemoResourceIds(manifest.resources, templates);
   return Object.values(manifest.resources).filter((entry) => ids.has(entry.sha256));
 }
@@ -193,127 +206,128 @@ const isDirectRun =
   process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (!isDirectRun) {
   /* Imported by tests. */
-} else try {
-  const [command, input, extra] = process.argv.slice(2);
-  if (command === 'add' && input) {
-    const id = add(path.resolve(input));
-    if (extra) manifest.resources[id].thumbnail = add(path.resolve(extra));
-    save();
-    console.log(JSON.stringify({ resourceId: id, ...manifest.resources[id] }));
-  } else if (command === 'optimize') {
-    execFileSync('python3', [path.join(root, 'scripts/optimize-maker-demo.py')], {
-      stdio: 'inherit',
-    });
-  } else if (command === 'check') {
-    if ((input && input !== '--release') || extra) throw new Error('用法：check [--release]');
-    checkDemoResources(root, { requireCdn: input === '--release' });
-    console.log('本地资源与无损压缩记录校验通过');
-  } else if (command === 'pending') {
-    checkLocal();
-    console.log(
-      JSON.stringify(
-        {
-          uploadPage: 'https://tap-android-dev.tapsvc.com/v3/tools/upload',
-          files: Object.values(manifest.resources)
-            .filter((e) => !e.cdn)
-            .map((e) => path.join(directory, e.file)),
-        },
-        null,
-        2
-      )
-    );
-  } else if (command === 'upload') {
-    if ((input && input !== '--retry-unknown') || extra)
-      throw new Error('用法：upload [--retry-unknown]；默认 4 个文件并发。');
-    checkLocal();
-    const result = await uploadDemoResources({
-      entries: Object.values(manifest.resources),
-      directory,
-      journalPath: path.join(root, '.maker/demo-resource-upload.json'),
-      retryUnknown: input === '--retry-unknown',
-      verify: (entry) => verify(entry, 'cdn'),
-      onVerified: (entry, url) => {
-        entry.cdn = url;
-        try {
-          save();
-        } catch (error) {
-          delete entry.cdn;
-          throw error;
-        }
-      },
-      onProgress: ({ file, verified }) => console.log('已校验并登记 ' + verified + '：' + file),
-    });
-    console.log(JSON.stringify(result));
-  } else if (command === 'record' && input) {
-    checkLocal();
-    const records = JSON.parse(fs.readFileSync(input, 'utf8'));
-    for (const record of records) {
-      // Accept either explicit mappings or the upload page's per-file success records.
-      const file = record.file || record.files?.[0];
-      const url = record.url || (record.result?.success && record.result?.data);
-      const entry = Object.values(manifest.resources).find((e) => e.file === file);
-      if (!entry || !url || new URL(url).origin !== 'https://app-res.tapimg.com')
-        throw new Error('无效的上传结果：' + file);
-      await verify({ ...entry, cdn: url }, 'cdn');
-      entry.cdn = url;
-    }
-    save();
-    console.log('已登记 ' + records.length + ' 个 CDN 地址');
-  } else if (command === 'verify') {
-    checkLocal();
-    const args = process.argv.slice(3);
-    const source = args.find((arg) => arg === 'cdn' || arg === 'github') || 'cdn';
-    const currentOnly = args.includes('--current');
-    const allowUnreachable = args.includes('--allow-unreachable');
-    const known = new Set(['cdn', 'github', '--current', '--allow-unreachable']);
-    if (args.some((arg) => !known.has(arg)))
-      throw new Error('用法：verify [cdn|github] [--current] [--allow-unreachable]');
-    const queue = currentOnly ? currentTemplateResources() : Object.values(manifest.resources);
-    if (currentOnly)
+} else
+  try {
+    const [command, input, extra] = process.argv.slice(2);
+    if (command === 'add' && input) {
+      const id = add(path.resolve(input));
+      if (extra) manifest.resources[id].thumbnail = add(path.resolve(extra));
+      save();
+      console.log(JSON.stringify({ resourceId: id, ...manifest.resources[id] }));
+    } else if (command === 'optimize') {
+      execFileSync('python3', [path.join(root, 'scripts/optimize-maker-demo.py')], {
+        stdio: 'inherit',
+      });
+    } else if (command === 'check') {
+      if ((input && input !== '--release') || extra) throw new Error('用法：check [--release]');
+      checkDemoResources(root, { requireCdn: input === '--release' });
+      console.log('本地资源与无损压缩记录校验通过');
+    } else if (command === 'pending') {
+      checkLocal();
       console.log(
-        '只校验当前模板引用的 ' + queue.length + ' 个资源，跳过已发布但模板不再使用的历史资源'
+        JSON.stringify(
+          {
+            uploadPage: 'https://tap-android-dev.tapsvc.com/v3/tools/upload',
+            files: Object.values(manifest.resources)
+              .filter((e) => !e.cdn)
+              .map((e) => path.join(directory, e.file)),
+          },
+          null,
+          2
+        )
       );
-    const total = queue.length;
-    let complete = 0;
-    let unreachable = 0;
-    let stop = false;
-    await Promise.all(
-      Array.from({ length: 4 }, async () => {
-        while (!stop) {
-          const entry = queue.shift();
-          if (!entry) return;
+    } else if (command === 'upload') {
+      if ((input && input !== '--retry-unknown') || extra)
+        throw new Error('用法：upload [--retry-unknown]；默认 4 个文件并发。');
+      checkLocal();
+      const result = await uploadDemoResources({
+        entries: Object.values(manifest.resources),
+        directory,
+        journalPath: path.join(root, '.maker/demo-resource-upload.json'),
+        retryUnknown: input === '--retry-unknown',
+        verify: (entry) => verify(entry, 'cdn'),
+        onVerified: (entry, url) => {
+          entry.cdn = url;
           try {
-            await verify(entry, source);
+            save();
           } catch (error) {
-            if (allowUnreachable && isUnreachableDownloadError(error)) {
-              unreachable += 1;
-              console.error(error.message);
-              if (unreachable >= 3) stop = true;
-              continue;
-            }
-            stop = true;
+            delete entry.cdn;
             throw error;
           }
-          complete += 1;
-          if (complete % 50 === 0 || complete === total)
-            console.log('已校验 ' + complete + '/' + total + ' 个 ' + source + ' 文件');
-        }
-      })
-    );
-    if (unreachable)
-      console.error(
-        source +
-          ' 有 ' +
-          unreachable +
-          ' 个连接失败。上传时已校验 CDN；Runner 不可达时不阻断发布，内容不匹配仍会失败。'
+        },
+        onProgress: ({ file, verified }) => console.log('已校验并登记 ' + verified + '：' + file),
+      });
+      console.log(JSON.stringify(result));
+    } else if (command === 'record' && input) {
+      checkLocal();
+      const records = JSON.parse(fs.readFileSync(input, 'utf8'));
+      for (const record of records) {
+        // Accept either explicit mappings or the upload page's per-file success records.
+        const file = record.file || record.files?.[0];
+        const url = record.url || (record.result?.success && record.result?.data);
+        const entry = Object.values(manifest.resources).find((e) => e.file === file);
+        if (!entry || !url || new URL(url).origin !== 'https://app-res.tapimg.com')
+          throw new Error('无效的上传结果：' + file);
+        await verify({ ...entry, cdn: url }, 'cdn');
+        entry.cdn = url;
+      }
+      save();
+      console.log('已登记 ' + records.length + ' 个 CDN 地址');
+    } else if (command === 'verify') {
+      checkLocal();
+      const args = process.argv.slice(3);
+      const source = args.find((arg) => arg === 'cdn' || arg === 'github') || 'cdn';
+      const currentOnly = args.includes('--current');
+      const allowUnreachable = args.includes('--allow-unreachable');
+      const known = new Set(['cdn', 'github', '--current', '--allow-unreachable']);
+      if (args.some((arg) => !known.has(arg)))
+        throw new Error('用法：verify [cdn|github] [--current] [--allow-unreachable]');
+      const queue = currentOnly ? currentTemplateResources() : Object.values(manifest.resources);
+      if (currentOnly)
+        console.log(
+          '只校验当前模板引用的 ' + queue.length + ' 个资源，跳过已发布但模板不再使用的历史资源'
+        );
+      const total = queue.length;
+      let complete = 0;
+      let unreachable = 0;
+      let stop = false;
+      await Promise.all(
+        Array.from({ length: 4 }, async () => {
+          while (!stop) {
+            const entry = queue.shift();
+            if (!entry) return;
+            try {
+              await verify(entry, source);
+            } catch (error) {
+              if (allowUnreachable && isUnreachableDownloadError(error)) {
+                unreachable += 1;
+                console.error(error.message);
+                if (unreachable >= 3) stop = true;
+                continue;
+              }
+              stop = true;
+              throw error;
+            }
+            complete += 1;
+            if (complete % 50 === 0 || complete === total)
+              console.log('已校验 ' + complete + '/' + total + ' 个 ' + source + ' 文件');
+          }
+        })
       );
-    console.log('已校验 ' + complete + ' 个 ' + source + ' 文件（大小与 SHA-256 一致）');
-  } else {
-    throw new Error(
-      '用法：node scripts/maker-demo-resources.mjs add <文件> [缩略图] | optimize | check [--release] | pending | upload [--retry-unknown] | record <结果.json> | verify [cdn|github] [--current] [--allow-unreachable]'
-    );
+      if (unreachable)
+        console.error(
+          source +
+            ' 有 ' +
+            unreachable +
+            ' 个连接失败。上传时已校验 CDN；Runner 不可达时不阻断发布，内容不匹配仍会失败。'
+        );
+      console.log('已校验 ' + complete + ' 个 ' + source + ' 文件（大小与 SHA-256 一致）');
+    } else {
+      throw new Error(
+        '用法：node scripts/maker-demo-resources.mjs add <文件> [缩略图] | optimize | check [--release] | pending | upload [--retry-unknown] | record <结果.json> | verify [cdn|github] [--current] [--allow-unreachable]'
+      );
+    }
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
   }
-} catch (error) {
-  console.error(error.message);
-  process.exitCode = 1;
-}

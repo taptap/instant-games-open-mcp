@@ -1,0 +1,16 @@
+{
+  "images": [
+    "ui/nanovg-showcase-v1/images/companion-harbor.png",
+    "ui/nanovg-showcase-v1/images/moss-portrait.png",
+    "ui/signal-menu-v1/images/nova.png",
+    "ui/nanovg-showcase-v1/images/nova-portrait.png",
+    "ui/nanovg-showcase-v1/images/nova-open.png",
+    "ui/nanovg-showcase-v1/images/moss-open.png",
+    "ui/nanovg-showcase-v1/images/sol-portrait.png",
+    "ui/nanovg-showcase-v1/images/magician.png",
+    "ui/nanovg-showcase-v1/images/sol-open.png",
+    "ui/signal-menu-v1/images/harbor.png",
+    "ui/nanovg-showcase-v1/images/sunset-harbor.png"
+  ],
+  "fonts": ["Fonts/SignalMenu-Title.ttf", "Fonts/SignalMenu-Serif.ttf", "Fonts/Showcase-Serif.ttf"]
+}
