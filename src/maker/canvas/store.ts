@@ -303,6 +303,8 @@ export function createBrowserCanvasDocumentStore(
       '/canvas-media?path=' +
       encodeURIComponent(assetPath) +
       (mediaVersions.has(assetPath) ? '&version=' + mediaVersions.get(assetPath) : ''),
+    previewMediaUrl: (assetPath: string) =>
+      base + '/canvas-media?path=' + encodeURIComponent(assetPath) + '&preview=1',
     imageInfo: (assetPath: string) =>
       request('/canvases/image-info?path=' + encodeURIComponent(assetPath)),
     getActiveCanvasId: async () =>

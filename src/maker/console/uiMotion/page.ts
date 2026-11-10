@@ -1,21 +1,99 @@
 import { consoleThemeScript, consoleThemeStyles } from '../../webTheme.js';
+import { motionContract, motionExamples } from './catalog.js';
+import { motionDemoScript } from './demo.js';
+import { getOriginalMotionExamples } from './originals.js';
+import { getUiMotionLab, getUiMotionSampleCatalog, getUiMotionSampleFile } from './sample.js';
 import { uiMotionScript } from './script.js';
 import { uiMotionStyles } from './styles.js';
 
-/** Bundled, local-only demonstrations. No game files or generation APIs are accessed. */
-export function getUiMotionHtml(): string {
+function scriptJSON(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+/** Local, bundled examples. The same HTML also runs offline without game files. */
+export function getUiMotionHtml(initialId = '', standalone = false): string {
+  const localSamples = standalone ? [] : getUiMotionSampleCatalog();
+  const motionLab = standalone ? undefined : getUiMotionLab();
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>UI 动效库</title><style>${consoleThemeStyles}${uiMotionStyles}</style></head><body>
-<main><div id="library"><div class="page-heading"><div><p class="eyebrow">让界面动起来</p><h1>UI 动效库</h1><p>先看效果，再让 AI 用到你的界面。</p></div><a href="#catalog" class="button">直接挑选动效 ↓</a></div>
-<section class="hero"><div class="hero-preview"><canvas id="hero-canvas" width="1120" height="630" aria-label="星屿冒险完整 UI 动效示例"></canvas><span class="scene-tag">可交互示例 / 星屿冒险</span><div class="hero-status" id="hero-status" role="status">主界面 · 点右侧按钮试一试</div></div><div class="hero-controls"><p class="eyebrow">先玩一下</p><h2>效果放进界面，<br>才知道好不好用。</h2><p>试着打开背包、领取奖励。<br>喜欢当前效果，就加入选择。</p><div class="scene-actions"><button data-scene="list">▤ 打开背包</button><button data-scene="reward">✦ 领取奖励</button><button data-scene="modal">▣ 打开弹窗</button><button data-scene="spotlight">◎ 新手引导</button></div><div class="hero-bottom"><button id="hero-pick" class="primary">选用当前效果</button><button id="hero-home">回到主界面</button><button id="autoplay">顺序演示</button></div><small>演示操作不发奖、不扣费。<br>网页模拟 LuaTween 配方，非引擎实机。</small></div></section>
-<section id="catalog"><div class="catalog-heading"><div><p class="eyebrow">按用途挑选</p><h2>你想让哪里动起来？</h2></div><span id="visible-count">14 个效果</span></div><div id="filters" class="filters" aria-label="用途筛选"></div><div id="cards" class="cards"></div></section>
-<div class="selection"><div><strong id="count">尚未选择动效</strong><p id="selected-label">点「播放」看效果，点「选用」加入清单。</p></div><button id="clear">清空</button><button id="generate" class="primary" disabled>生成 AI 指令 →</button></div><p class="footer">Lua-Tween 的 14 个配方分别演示；应用到游戏时需在 UrhoX 中验证布局与点击。</p></div></main>
-<dialog id="viewer"><div class="dialog-head"><div><p class="eyebrow">放大体验</p><h2 id="viewer-title"></h2></div><button id="close-viewer">关闭 ×</button></div><canvas id="viewer-canvas" width="1120" height="630"></canvas><p id="viewer-desc"></p><div class="dialog-actions"><button id="viewer-play">重播效果</button><button id="viewer-dismiss">关闭演示弹窗</button><button id="viewer-pick" class="primary">选用这个效果</button></div><details><summary>AI 实现参考</summary><p id="recipe"></p></details></dialog>
-<dialog id="handoff"><div class="dialog-head"><div><p class="eyebrow">最后一步 · 交给 AI</p><h2>用到你的哪个界面？</h2></div><button id="close-handoff">关闭 ×</button></div><label for="target">界面名称</label><input id="target" placeholder="例如：背包界面" maxlength="60"><p>AI 会读取真实界面，再决定每个效果放在哪里。</p><textarea id="prompt" readonly aria-label="给 AI 的实现指令"></textarea><button id="copy" class="primary">复制给 AI</button><p id="copy-status" role="status"></p></dialog>
-
+<title>UI 动效</title><style>${consoleThemeStyles}${uiMotionStyles}</style></head><body>
+<main>
+  <header class="page-heading"><div><h1>UI 动效</h1><p>选一个界面，点开试试。</p></div><span class="index">04 SCENES / 03 TRANSITIONS</span></header>
+  <nav class="library-variants" aria-label="演示类型"><button data-library="vector" aria-pressed="true">NanoVG 绘制</button><button data-library="original" aria-pressed="false">图片 UI</button></nav>
+  <div id="original-library" hidden>
+    <section aria-labelledby="original-scenes-title"><div class="section-heading"><h2 id="original-scenes-title">界面</h2><span>05</span></div><div id="original-scenes" class="scene-grid"></div></section>
+    <section aria-labelledby="original-transitions-title"><div class="section-heading"><h2 id="original-transitions-title">转场</h2><span>03</span></div><div id="original-transitions" class="transition-grid"></div></section>
+    <p class="page-note" id="original-note">独立 PNG · 可编辑 UI · 原生 Lua</p>
+  </div>
+  <div id="vector-library">
+  ${!standalone && !localSamples.length && getUiMotionSampleFile() ? `<article class="example-card local-sample"><a class="example-open" href="/ui-motion/vector-sample" target="_blank" rel="noopener"><div class="example-media"><iframe src="/ui-motion/vector-sample?thumbnail=1" title="主菜单新设计样板" loading="lazy" tabindex="-1"></iframe><span class="example-play">查看样板 ↗</span></div><div class="example-body"><h3>主菜单 · 新设计样板</h3><p>独立背景与角色 · NanoVG UI</p></div></a></article>` : ''}
+  <section aria-labelledby="scenes-title"><div class="section-heading"><h2 id="scenes-title">完整界面</h2><span>04</span></div><div id="scenes" class="scene-grid"></div></section>
+  <section aria-labelledby="transitions-title"><div class="section-heading"><h2 id="transitions-title">转场</h2><span>03</span></div><div id="transitions" class="transition-grid"></div></section>
+  ${motionLab ? `<section class="more-motion" aria-label="更多 UI 动效"><button id="open-motion-lab"><span class="more-motion-mark" aria-hidden="true">◇</span><span><strong>更多动效</strong><small>7 套界面风格 · 43 项交互与动效</small></span><span class="more-motion-action">进入动效工坊 ↗</span></button></section>` : ''}
+  <p class="page-note">NanoVG 绘制 · 可交互演示</p>
+  </div>
+</main>
+<dialog id="local-viewer" class="viewer original-viewer local-viewer" aria-labelledby="local-title"><header class="viewer-head"><h2 id="local-title"></h2><span class="viewer-tag">NanoVG</span><button id="close-local">关闭 ×</button></header><iframe id="local-frame" title="NanoVG 动效交互演示"></iframe><div class="original-actions"><button id="use-local" class="primary">选用 · 交给 AI</button><a id="open-local" target="_blank" rel="noopener">打开独立演示 ↗</a></div></dialog>
+<dialog id="original-viewer" class="viewer original-viewer" aria-labelledby="original-title">
+  <header class="viewer-head"><h2 id="original-title"></h2><span class="viewer-tag">图片 UI</span><button id="close-original" aria-label="关闭图片 UI 演示">关闭 ×</button></header>
+  <iframe id="original-frame" title="图片 UI 动效演示"></iframe>
+  <div class="original-actions"><button id="original-assets">素材原图</button><button id="use-original" class="primary">选用 · 交给 AI</button><a id="open-original" target="_blank" rel="noopener">打开独立演示 ↗</a></div>
+</dialog>
+<dialog id="asset-viewer" class="viewer" aria-labelledby="asset-title"><header class="viewer-head"><h2 id="asset-title">独立素材</h2><button id="close-assets">关闭 ×</button></header><p id="asset-status" class="scene-summary" role="status"></p><div id="asset-grid" class="asset-grid"></div></dialog>
+<dialog id="viewer" class="viewer" aria-labelledby="viewer-title">
+  <header class="viewer-head"><button id="back" hidden>← 返回</button><h2 id="viewer-title"></h2><span id="viewer-tag" class="viewer-tag"></span><button id="close-viewer" aria-label="关闭演示">关闭 ×</button></header>
+  <div class="viewer-content"><div class="demo-column">
+    <div id="stage" class="stage" tabindex="0" role="region" aria-label="交互演示，方向键逐帧，空格播放暂停"><canvas id="stage-canvas" width="1280" height="720" aria-label="UI 动效演示"></canvas><div id="hotspots" class="hotspots"></div></div>
+    <div id="touch-actions" class="touch-actions" aria-label="演示操作"></div>
+    <div class="player-controls"><button id="play" aria-pressed="false">播放</button><button id="replay">重播</button><button id="previous-frame" aria-label="上一帧">← 帧</button><button id="next-frame" aria-label="下一帧">帧 →</button><button id="timeline-unit">秒 → 帧</button><output id="time"></output><select id="speed" aria-label="播放速度"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></div>
+    <div class="keyframe-timeline" aria-label="动效关键帧"><div id="keyframe-tracks"></div><p id="keyframe-detail"></p></div><p id="viewer-summary" class="scene-summary"></p>
+  </div><aside class="demo-rail"><div><p class="rail-label">分段体验</p><div id="clips" class="clips"></div></div><div class="reference-actions"><button id="use" class="primary">选用 · 交给 AI</button><a id="download" class="download-link" href="/ui-motion/demo">下载完整示例 ↗</a></div></aside></div>
+  <details class="reference-details"><summary>交互与实现参考</summary><p id="interaction"></p><p id="source-note"></p><pre id="reference-json"></pre></details>
+</dialog>
+<dialog id="handoff" class="handoff" aria-labelledby="handoff-title"><header class="viewer-head"><h2 id="handoff-title">交给你的 AI</h2><button id="close-handoff" aria-label="关闭 AI 指令">关闭 ×</button></header><textarea id="prompt" readonly aria-label="AI 实现指令"></textarea><button id="copy" class="primary">复制指令</button><p id="copy-status" role="status"></p></dialog>
 <script>${consoleThemeScript}
-(function () {${uiMotionScript}
+(function () {
+const localSamples = ${scriptJSON(localSamples)};
+const motionLab = ${scriptJSON(motionLab ?? null)};
+const examples = ${scriptJSON(motionExamples)};
+const contract = ${scriptJSON(motionContract)};
+const originals = ${scriptJSON(getOriginalMotionExamples())};
+const initialExample = ${scriptJSON(initialId)};
+const standalone = ${standalone};
+${motionDemoScript}
+${uiMotionScript}
 })();</script></body></html>`;
+}
+
+export function getUiMotionReference(id: string) {
+  const example = motionExamples.find((item) => item.id === id);
+  if (!example) return null;
+  return {
+    version: 1,
+    variant: 'vector-candidate',
+    example,
+    contract: motionContract,
+    files: [
+      { path: 'demo.html', content: getUiMotionHtml(id, true) },
+      {
+        path: 'motion.json',
+        content: JSON.stringify({ contract: motionContract, examples: motionExamples }, null, 2),
+      },
+      {
+        path: 'README.md',
+        content: [
+          '# Maker UI 动效参考 / ' + example.id + ' ' + example.name,
+          '直接打开 demo.html 即可运行；不需要安装依赖、启动服务或连接账号。',
+          'HTML 内含完整渲染、按钮热区、播放控制和宿主交互代码。motion.json 与内置预览共用数据。',
+          '示例包包含关联场景，默认打开所选示例；不会写入游戏或调用生成接口。',
+          '时间线只采样姿态；当前台词、选中角色与切页由演示宿主控制。Seek 取消完成回调。',
+          motionContract.provenance,
+          motionContract.boundary,
+          ...Object.entries(motionContract.native).map(([key, value]) => key + ': ' + value),
+          'Maker 原生接入后另行验证打开关闭、连点、重入、不同分辨率的布局和命中。',
+        ].join('\n'),
+      },
+    ],
+  };
 }

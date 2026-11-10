@@ -22,17 +22,17 @@ Maker CLI/bundle, not an unversioned package or another installation's documenta
 Read only the matching section or guide. An unavailable provider, blocked card or missing
 template search result does not establish that the whole feature is unsupported.
 
-| User goal                                                | UI / CLI support                                                             | Read next                                       |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------- |
-| Create/edit a canvas or custom workflow                  | Both; CLI supports advertised card types and editable fields                 | [Canvas editing](#canvas-editing)               |
-| Reuse templates, save personal templates                 | Both add copies; library save/replace and ZIP exchange are UI-only           | [Templates](#templates)                         |
-| Import/replace images, set references, generate images   | Both, subject to the selected provider                                       | [Images and references](#images-and-references) |
-| First-frame / first-last-frame / multi-reference video   | Both; mode and source order matter                                           | [Canvas Video](canvas-video.md)                 |
-| Extract frames, configure and export animation           | Both for advertised settings/export; brush and per-frame editing are UI-only | [Sequences](#sequences)                         |
-| Slice an atlas and export PNG resources                  | Both through existing resource cards; review before confirmation             | [Atlases and UI](#atlases-and-ui)               |
-| Recognize UI, prepare Bbox batches, assemble editable UI | Existing Bbox workflow and CLI; follow linked Skills                         | [Atlases and UI](#atlases-and-ui)               |
-| Character views and 3D generation                        | Both; review before model confirmation                                       | [Models](#models)                               |
-| Query tasks, recover saving, export results              | CLI supports these; no generic task/draft unlock                             | [Recovery and delivery](#recovery-and-delivery) |
+| User goal                                                | UI / CLI support                                                              | Read next                                       |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------- |
+| Create/edit a canvas or custom workflow                  | Both; CLI supports advertised card types and editable fields                  | [Canvas editing](#canvas-editing)               |
+| Reuse templates, save personal templates                 | Both add copies; CLI supports ZIP import/export, library save/replace uses UI | [Templates](#templates)                         |
+| Import/replace images, set references, generate images   | Both, subject to the selected provider                                        | [Images and references](#images-and-references) |
+| First-frame / first-last-frame / multi-reference video   | Both; mode and source order matter                                            | [Canvas Video](canvas-video.md)                 |
+| Extract frames, configure and export animation           | Both for advertised settings/export; brush and per-frame editing are UI-only  | [Sequences](#sequences)                         |
+| Slice an atlas and export PNG resources                  | Both through existing resource cards; review before confirmation              | [Atlases and UI](#atlases-and-ui)               |
+| Recognize UI, prepare Bbox batches, assemble editable UI | Existing Bbox workflow and CLI; follow linked Skills                          | [Atlases and UI](#atlases-and-ui)               |
+| Character views and 3D generation                        | Both; review before model confirmation                                        | [Models](#models)                               |
+| Query tasks, recover saving, export results              | CLI supports these; no generic task/draft unlock                              | [Recovery and delivery](#recovery-and-delivery) |
 
 ## Canvas editing
 
@@ -52,8 +52,11 @@ Copies can be edited independently. AI can also assemble custom workflows from s
 To save one to My Templates, select at least two cards with an internal connection and use
 the UI's Save as Template menu. External connections are excluded; unresolved tasks and
 missing dependencies can block saving. Personal templates belong to the current project.
-Library save/replace and ZIP import/export are UI-only; `canvas save` saves the canvas,
-not a template. Builtin templates cannot be overwritten. Do not write template JSON directly.
+Library save/replace uses the UI; `canvas save` saves the canvas, not a template. For ZIP
+exchange without a file picker, use `canvas import-template --target-dir PATH --file ABSOLUTE_ZIP`
+and `canvas export-template --target-dir PATH --id ID --revision N --output-dir EXISTING_DIRECTORY`.
+Import returns a new templateId for add-template; associated Skills are not installed automatically.
+Builtin templates cannot be overwritten. Do not write template JSON directly.
 
 ## Images and references
 

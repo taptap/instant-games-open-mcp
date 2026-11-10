@@ -16,7 +16,7 @@ let projectid = initialQuery.get('projectid') || '';
 let selected = initialQuery.get('project') || '';
 const hasExplicitProject = initialQuery.has('projectid') || initialQuery.has('project');
 let page = selected ? 'overview' : 'projects';
-let otherTab = 'architecture';
+let otherTab = 'motion';
 let motionFrame;
 let selectionEpoch = 0;
 let viewEpoch = 0;
@@ -2239,6 +2239,11 @@ function confirmAction(action, name, startAfterInstall = false) {
       '项目：' + name + '\n将下载并安装 Runtime。' + (startAfterInstall ? '完成后继续启动此项目预览。' : '完成后不会自动启动预览。') :
       '项目：' + name + '\n刷新会重启预览并丢失当前内存状态。';
     $('confirm-accept').textContent = actionLabels[action];
+    if (action === 'preview.configuration') {
+      $('confirm-title').textContent = '缺少发布配置';
+      $('confirm-message').textContent = '建议先生成一次测试二维码，补齐发布配置。直接预览需要复制项目到临时目录并补齐配置，等待时间可能较长。';
+      $('confirm-accept').textContent = '继续预览';
+    }
     if (action === 'console.shutdown') {
       $('confirm-title').textContent = '关闭Maker控制台？';
       $('confirm-message').textContent = '将关闭本机 Maker 控制台服务，所有已打开的控制台页面都会断开连接。不会删除项目文件；有正在运行的预览时，请先停止预览再关闭控制台。';
@@ -2336,6 +2341,11 @@ async function runAction(action, options = {}) {
   if (action === 'build' || action === 'lua-lsp.check') logView().tab = action === 'build' ? 'build' : 'lua';
   pending.add(key); pendingActions.set(key,action); updateChrome(); updateBuild();
   try {
+    if (project.missingPublicationConfig &&
+        (action === 'preview.start' || action === 'preview.refresh' ||
+          (action === 'preview.install' && options.startAfterInstall))) {
+      if (!await confirmAction('preview.configuration',project.name) || !selectionMatches(key,epoch)) return;
+    }
     if (action === 'qrcode') {
       const info = await api(projectPath(key,''));
       if (!selectionMatches(key,epoch)) return;
@@ -2802,7 +2812,7 @@ function renderCanvas() {
 ${modelSettingsScript}
 function setMotionVisible(visible) {
   architectureFrame?.contentWindow?.postMessage({type:'maker:architecture-visibility',visible:false},location.origin);
-  motionFrame?.contentWindow?.postMessage({type:'maker:motion-visibility',visible},location.origin);
+  motionFrame?.contentWindow?.postMessage({type:'maker:motion-visibility',visible:visible && !document.hidden},location.origin);
 }
 function renderOther() {
   const motion = otherTab === 'motion';
@@ -2815,7 +2825,7 @@ function renderOther() {
   if (motion) {
     if (!motionFrame) {
       motionFrame = node('iframe',undefined,'motion-library-frame');
-      motionFrame.title = 'UI 动效库';
+      motionFrame.title = 'UI 动效';
       motionFrame.src = '/ui-motion';
       motionFrame.addEventListener('load',() => setMotionVisible(page === 'other' && otherTab === 'motion'));
       $('other-motion').append(motionFrame);
@@ -2837,7 +2847,7 @@ function navigate(next) {
 }
 function render() {
   architecturePreview.suspend();
-  setMotionVisible(false);
+  setMotionVisible(page === 'other' && otherTab === 'motion');
   document.body.classList.toggle('canvas-mode', page === 'canvas' || page === 'ui-editor');
   $('close-canvas').hidden = true;
   syncValidationPolling();
@@ -3087,7 +3097,7 @@ document.addEventListener('DOMContentLoaded',async () => {
     tab.addEventListener('keydown',event => {
       if (!['ArrowUp','ArrowDown','Home','End'].includes(event.key)) return;
       event.preventDefault();
-      const next = event.key === 'Home' ? 'motion' : event.key === 'End' ? 'architecture'
+      const next = event.key === 'Home' ? 'architecture' : event.key === 'End' ? 'motion'
         : otherTab === 'motion' ? 'architecture' : 'motion';
       const target = document.querySelector('[data-other-tab="' + next + '"]');
       target.click(); target.focus();
@@ -3099,6 +3109,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   document.addEventListener('visibilitychange',() => {
     clearTimeout(pollTimer);
     syncValidationPolling();
+    setMotionVisible(page === 'other' && otherTab === 'motion');
     if (!document.hidden) { void sendActivity(); void poll(); }
   });
   render();

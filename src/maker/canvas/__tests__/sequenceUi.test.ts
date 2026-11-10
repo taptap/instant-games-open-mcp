@@ -105,6 +105,47 @@ describe('sequence workflow recovery', () => {
     };
   }
 
+  test('adaptive extraction scans the whole video at bounded output resolution and preserves full-video settings', async () => {
+    const { controller, node, options } = editorFixture();
+    delete node.assetPath;
+    delete node.frameSetInfo;
+    node.sequenceSettings = {
+      ...node.sequenceSettings!,
+      end: 0,
+      fps: 24,
+      sampling: 'adaptive',
+      cutout: false,
+      width: 384,
+      height: 216,
+    };
+    Object.assign(options.video, { duration: 10, videoWidth: 1536, videoHeight: 864 });
+    options.maxFrameCount = () => 120;
+    options.maxInputFrameCount = jest.fn(() => 120);
+    const extract = jest.fn(async () => [
+      { time: 0, blob: new Blob(['start']), duration: 9900 },
+      { time: 9.9, blob: new Blob(['end']), duration: 100 },
+    ]);
+    options.processor.extract = extract;
+    await controller.action(node.id, 'extract');
+    expect(extract).toHaveBeenCalledWith(
+      options.video,
+      0,
+      10,
+      24,
+      expect.any(AbortSignal),
+      expect.any(Function),
+      { capacity: 120, maxSide: 384 }
+    );
+    expect(options.maxInputFrameCount).toHaveBeenCalledWith(384, 216);
+    expect(controller.view(node.id).run?.stage).toBe('resize');
+    expect(controller.view(node.id).node?.sequenceSettings?.end).toBe(0);
+    expect(
+      controller
+        .view(node.id)
+        .run?.frames.reduce((total, frame) => total + (frame.duration || 0), 0)
+    ).toBe(10000);
+  });
+
   test('same-path content replacement reloads decoded video before capturing new frames', async () => {
     const { controller, document, node, options } = editorFixture();
     const globals = globalThis as { window?: unknown };

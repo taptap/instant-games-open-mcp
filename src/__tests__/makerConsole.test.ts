@@ -304,7 +304,7 @@ describe('Maker console project isolation', () => {
   });
 
   test.each([undefined, '', '   ', '<game title, required>', ' <game title, required> '])(
-    'uses the directory name with an unpublished label for title=%s',
+    'uses the directory name with a missing publication configuration label for title=%s',
     (title) => {
       const root = project('PixelShooter3D');
       const file = path.join(root, '.project/project.json');
@@ -313,7 +313,8 @@ describe('Maker console project isolation', () => {
       const original = JSON.stringify(config);
       fs.writeFileSync(file, original);
       const item = registry.add(root);
-      expect(item.name).toBe('PixelShooter3D（未发布）');
+      expect(item.name).toBe('PixelShooter3D（缺少发布配置）');
+      expect(item.missingPublicationConfig).toBe(true);
       expect(registry.list()[0].name).toBe(item.name);
       expect(registry.resolve(item.key).name).toBe(item.name);
       expect(fs.readFileSync(file, 'utf8')).toBe(original);
@@ -323,6 +324,7 @@ describe('Maker console project isolation', () => {
   test('preserves an actual project title', () => {
     const item = registry.add(project('我的游戏', 'real-project-id'));
     expect(item.name).toBe('我的游戏');
+    expect(item.missingPublicationConfig).toBe(false);
     expect(item.projectid).toBe('real-project-id');
   });
 

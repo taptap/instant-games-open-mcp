@@ -1538,7 +1538,7 @@ test('user template resolves the current connected image and reuses stored video
     ratio: '1:1',
   };
   options.store.listGeneration.mockResolvedValue([]);
-  expect(await ui.runTemplateVideo('video', 4)).toBe(true);
+  expect(await ui.runTemplateVideo('video', 4, true)).toBe(true);
   expect(options.store.createVideo).toHaveBeenCalledWith(
     'canvas',
     expect.objectContaining({
@@ -1570,10 +1570,52 @@ test('an already applied success is not reused as a new generation for a pending
     options.store.listGeneration.mockResolvedValue([next, attempt]);
     return next;
   });
-  expect(await ui.runTemplateVideo('video', 6)).toBe(true);
+  expect(await ui.runTemplateVideo('video', 6, true)).toBe(true);
   expect(options.store.createVideo).toHaveBeenCalledTimes(1);
   expect(options.store.createVideo.mock.calls[0][1].duration).toBe(6);
   expect(document.nodes[1].generation.attemptId).toBe('new-attempt');
+});
+
+test('a ten-second native video names its cost and cancellation submits nothing', async () => {
+  const { document, options, ui } = fixture();
+  delete document.templateFlow;
+  document.nodes[1].generation.parameters = { model: '2.0', duration: 10 };
+  options.store.listGeneration.mockResolvedValue([]);
+  const globals = globalThis as { window?: unknown };
+  const previous = globals.window;
+  const confirm = jest.fn(() => false);
+  globals.window = { confirm };
+  try {
+    expect(await ui.runTemplateVideo('video', 10)).toBe(false);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('2000'));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('实际以平台扣费为准'));
+    expect(options.store.createVideo).not.toHaveBeenCalled();
+  } finally {
+    if (previous === undefined) delete globals.window;
+    else globals.window = previous;
+  }
+});
+
+test('noninteractive video reports missing authorization without opening a confirmation dialog', async () => {
+  const { document, options, ui } = fixture();
+  delete document.templateFlow;
+  document.nodes[1].generation.parameters = { model: '2.0', duration: 10 };
+  options.store.listGeneration.mockResolvedValue([]);
+  const globals = globalThis as { window?: unknown };
+  const previous = globals.window;
+  const confirm = jest.fn(() => {
+    throw new Error('unexpected dialog');
+  });
+  globals.window = { confirm };
+  try {
+    expect(await ui.runTemplateVideo('video', 10, false, true)).toBe(false);
+    expect(options.setError).toHaveBeenCalledWith(expect.stringContaining('--allow-paid'));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(options.store.createVideo).not.toHaveBeenCalled();
+  } finally {
+    if (previous === undefined) delete globals.window;
+    else globals.window = previous;
+  }
 });
 
 test('changing the input never bypasses an unresolved task for the old input', async () => {

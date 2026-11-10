@@ -20,6 +20,84 @@ function gitignore(root: string): void {
 }
 
 describe('Maker canvas files', () => {
+  test.each([false, true])(
+    'retains missing saved images without admitting new missing references (resource=%s)',
+    async (resource) => {
+      const root = project('maker-canvas-moved-save-');
+      try {
+        const files = new MakerCanvasFiles(root);
+        let document = await files.create('moving', 'empty');
+        const { PNG } = require('pngjs');
+        const bytes = PNG.sync.write(new PNG({ width: 2, height: 2 }));
+        const imported = await files.importImage(bytes, resource ? document.id : undefined);
+        document.nodes.push({
+          id: createId(),
+          type: resource ? 'image-assets' : 'image',
+          title: 'original',
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+          ...(resource
+            ? {
+                imageAssetsInfo: {
+                  width: 2,
+                  height: 2,
+                  grid: { columns: 1, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
+                  items: [
+                    { name: 'item_001', width: 2, height: 2, assetPath: imported.relativePath },
+                  ],
+                },
+              }
+            : { assetPath: imported.relativePath }),
+        });
+        document = await files.save(document.id, document, document.revision);
+        const original = path.join(root, imported.relativePath);
+        const moved = path.join(root, 'moved.png');
+        fs.renameSync(original, moved);
+        const second = await files.importImage(bytes);
+        document.nodes.push({
+          type: 'image',
+          title: 'second',
+          x: 100,
+          y: 0,
+          width: 100,
+          height: 100,
+          id: createId(),
+          assetPath: second.relativePath,
+        });
+        document = await files.save(document.id, document, document.revision);
+        expect((await files.load(document.id)).nodes).toHaveLength(2);
+        expect(
+          resource
+            ? document.nodes[0].imageAssetsInfo!.items[0].assetPath
+            : document.nodes[0].assetPath
+        ).toBe(imported.relativePath);
+        fs.unlinkSync(moved);
+        document.title = 'still editable after deletion';
+        document = await files.save(document.id, document, document.revision);
+        const invalid = structuredClone(document);
+        invalid.nodes[1].assetPath = '.maker/canvases/images/canvas-' + createId() + '.png';
+        await expect(files.save(document.id, invalid, document.revision)).rejects.toMatchObject({
+          code: 'UNSAFE_PATH',
+        });
+        fs.symlinkSync(moved, original);
+        await expect(files.save(document.id, document, document.revision)).rejects.toMatchObject({
+          code: 'UNSAFE_PATH',
+        });
+        fs.unlinkSync(original);
+        const parent = path.dirname(original);
+        fs.renameSync(parent, parent + '-original');
+        fs.symlinkSync(path.join(root, 'missing-directory'), parent);
+        await expect(files.save(document.id, document, document.revision)).rejects.toMatchObject({
+          code: 'UNSAFE_PATH',
+        });
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    }
+  );
+
   test('retired demo references use verified cache bytes; missing media permits editing but not export', async () => {
     const root = project('maker-canvas-retired-demo-');
     const oldHome = process.env.TAPTAP_MAKER_HOME;
@@ -282,7 +360,7 @@ describe('Maker canvas files', () => {
           parameters:
             type === 'image'
               ? { model: 'gpt', resolution: '2K' }
-              : { model: '2.5', duration: 8, mode: 'first_frame' as const },
+              : { model: '2.5', duration: 10, mode: 'first_frame' as const },
         };
         document.nodes.push({
           id: createId(),
@@ -827,8 +905,14 @@ describe('Maker canvas files', () => {
     canvas = await files.save(canvas.id, canvas, canvas.revision);
     expect(canvas.nodes[1].sequenceSettings?.cutoutMode).toBeUndefined();
     canvas.nodes[1].sequenceSettings!.cutoutMode = 'chroma';
+    canvas.nodes[1].sequenceSettings!.sampling = 'adaptive';
+    canvas.nodes[1].sequenceSettings!.end = 0;
     canvas = await files.save(canvas.id, canvas, canvas.revision);
     expect((await files.load(canvas.id)).nodes[1].sequenceSettings?.cutoutMode).toBe('chroma');
+    expect((await files.load(canvas.id)).nodes[1].sequenceSettings).toMatchObject({
+      sampling: 'adaptive',
+      end: 0,
+    });
     await expect(
       files.save(
         canvas.id,

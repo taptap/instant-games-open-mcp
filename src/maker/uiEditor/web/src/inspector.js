@@ -26,6 +26,15 @@
       ],
     },
     {
+      id: "preview-mapping",
+      title: "页面预览映射",
+      open: true,
+      showIf: function (node, meta) { return node === meta.root; },
+      rows: [[{ key: "previewFit", label: "坐标映射", kind: "enum", emptyLabel: "引擎逻辑布局", options: [
+        { value: "contain", label: "设计坐标等比居中" },
+      ] }]],
+    },
+    {
       id: "nanovg",
       title: "NanoVG 绘图",
       open: true,
@@ -247,6 +256,12 @@
         return false;
       }
       control.setCustomValidity("");
+      if (node.previewFit && (field.key === "width" || field.key === "height")) {
+        var candidate = Object.assign({}, node);
+        applyField(candidate, field, raw);
+        var mappingError = root.UrhoxUICheck.previewFitError(candidate, true);
+        if (mappingError) { control.setCustomValidity(mappingError); return false; }
+      }
       applyField(node, field, raw);
       return true;
     }
@@ -279,6 +294,12 @@
       return;
     }
     control.addEventListener("change", function () {
+      if (field.key === "previewFit" && control.value) {
+        var candidate = Object.assign({}, node, { previewFit: control.value });
+        var mappingError = root.UrhoxUICheck.previewFitError(candidate, true);
+        control.setCustomValidity(mappingError || "");
+        if (mappingError) { control.reportValidity(); control.value = node.previewFit || ""; return; }
+      }
       emitChange(onChange, { phase: "start" });
       var raw = control.type === "checkbox" ? control.checked : control.value;
       applyField(node, field, raw);
@@ -338,7 +359,7 @@
       control = document.createElement("select");
       var empty = document.createElement("option");
       empty.value = "";
-      empty.textContent = "—";
+      empty.textContent = field.emptyLabel || "—";
       control.appendChild(empty);
       field.options.forEach(function (opt) {
         var option = document.createElement("option");
@@ -763,7 +784,7 @@
       container.appendChild(rep);
     }
     GROUPS.forEach(function (group) {
-      if (group.showIf && !group.showIf(node)) return;
+      if (group.showIf && !group.showIf(node, meta)) return;
       container.appendChild(renderGroup(group, node, onChange));
     });
   }

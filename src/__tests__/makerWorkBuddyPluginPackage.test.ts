@@ -62,6 +62,7 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
         skills: [
           './skills/maker-ui-workflow',
           './skills/maker-ui-bbox-workflow',
+          './skills/maker-scene-furniture-workflow',
           './skills/lua-ui-to-json',
           './skills/maker-project-check',
           './skills/taptap-maker-local',
@@ -119,6 +120,31 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     expect(bbox).toContain('node <同包maker-ui-workflow目录>/assemble-ui.mjs');
     expect(bbox).not.toContain('scripts/assemble-ui.mjs');
     expect(bbox).not.toMatch(/maker-ui-workflow\/(references|scripts)\//);
+  });
+
+  test('flattens the furniture workflow and preserves executable and reference paths', () => {
+    const skill = path.join(pluginRoot, 'skills/maker-scene-furniture-workflow');
+    for (const name of [
+      'scene_assets.py',
+      'royal-room-recipe.json',
+      'SceneFurniturePlayer.lua',
+      'recipe.md',
+      'game-integration.md',
+    ]) {
+      expect(fs.statSync(path.join(skill, name)).isFile()).toBe(true);
+    }
+    const entry = fs.readFileSync(path.join(skill, 'SKILL.md'), 'utf8');
+    expect(entry).toContain('<Skill目录>/scene_assets.py');
+    expect(entry).toContain('(royal-room-recipe.json)');
+    expect(entry).toContain('(recipe.md)');
+    expect(entry).toContain('(game-integration.md)');
+    expect(entry).not.toMatch(/(?:assets|references|scripts)\//);
+    expect(fs.readFileSync(path.join(skill, 'scene_assets.py'), 'utf8')).toContain(
+      "Path(__file__).parent/'game-integration.md'"
+    );
+    expect(fs.readFileSync(path.join(skill, 'game-integration.md'), 'utf8')).not.toContain(
+      'assets/SceneFurniturePlayer.lua'
+    );
   });
 
   test('launches the bundled runtime through WorkBuddy-provided Node', () => {

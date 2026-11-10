@@ -85,7 +85,15 @@
   });
   function openDeviceSettings() {
     var device = root.UrhoxPreview.getDevice();
+    var contained = root.UrhoxPreview.tree && root.UrhoxPreview.tree.previewFit === "contain";
     el("deviceError").textContent = device.prefab ? "组件使用自身尺寸；请打开页面文档调整设备预览。" : "";
+    if (contained) el("deviceError").textContent = "当前页面按设计坐标等比居中，缩放由屏幕与设计尺寸计算。";
+    el("designResolutionEnabled").checked = !!device.designResolution;
+    el("designResolutionEnabled").disabled = !!contained;
+    var tree = root.UrhoxPreview.tree || {};
+    el("designResolutionWidth").value = device.designResolution ? device.designResolution.width : typeof tree.width === "number" ? tree.width : 1080;
+    el("designResolutionHeight").value = device.designResolution ? device.designResolution.height : typeof tree.height === "number" ? tree.height : 1920;
+    syncScaleFields();
     el("deviceWidth").value = device.width; el("deviceHeight").value = device.height;
     el("deviceDpr").value = device.dpr; el("deviceScale").value = device.scale || "";
     el("nativeMenuBottom").value = device.nativeMenuBottom;
@@ -95,6 +103,16 @@
     });
     el("deviceDialog").showModal();
   }
+  function syncScaleFields() {
+    var contained = el("designResolutionEnabled").disabled;
+    var enabled = el("designResolutionEnabled").checked;
+    el("deviceScale").disabled = contained || enabled;
+    ["designResolutionWidth", "designResolutionHeight"].forEach(function (id) {
+      el(id).disabled = contained || !enabled;
+      el(id).required = !contained && enabled;
+    });
+  }
+  bind("designResolutionEnabled", "change", syncScaleFields);
   bind("deviceSwap", "click", function () {
     var w = el("deviceWidth").value; el("deviceWidth").value = el("deviceHeight").value; el("deviceHeight").value = w;
     var top = el("safeTop").value, right = el("safeRight").value, bottom = el("safeBottom").value, left = el("safeLeft").value;
@@ -109,8 +127,10 @@
       el("deviceError").textContent = "安全区边距必须小于预览尺寸"; return;
     }
     if (root.UrhoxPreview.configureDevice(width, height, el("safeAreaEnabled").checked ? area : null,
-      Number(el("deviceDpr").value), el("deviceScale").value === "" ? null : Number(el("deviceScale").value),
-      Number(el("nativeMenuBottom").value))) close("deviceDialog");
+      Number(el("deviceDpr").value), el("deviceScale").disabled || el("deviceScale").value === "" ? null : Number(el("deviceScale").value),
+      Number(el("nativeMenuBottom").value), el("designResolutionEnabled").checked ? {
+        width:Number(el("designResolutionWidth").value), height:Number(el("designResolutionHeight").value),
+      } : null)) close("deviceDialog");
     else el("deviceError").textContent = "请打开页面文档，尺寸范围为 240–4096";
   });
   root.UrhoxWorkbench = {

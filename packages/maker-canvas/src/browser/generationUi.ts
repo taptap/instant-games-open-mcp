@@ -1613,6 +1613,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       duration?: number;
       ratio?: string;
       userConfirmed?: boolean;
+      nonInteractive?: boolean;
       templateRun?: boolean;
       mode?: string;
     } = {}
@@ -1626,8 +1627,22 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     const inputKey = documentState && referenceKey(node);
     if (!documentState || inFlight.has(node.id)) return false;
     // The Web host runs its own cost confirmation before submitting, so only other hosts ask here.
-    if (settings.model === '2.5' && settings.userConfirmed !== true && !options.web) {
-      if (!window.confirm('按当前参数开始生成视频？')) return false;
+    const estimatedCredits = (settings.duration || 4) * (settings.model === '2.5' ? 300 : 200);
+    if (estimatedCredits > 1000 && settings.userConfirmed !== true && !options.web) {
+      if (settings.nonInteractive) {
+        options.setError(
+          '本次视频预计消耗 ' + estimatedCredits + ' 积分；请取得用户授权后通过 --allow-paid 执行。'
+        );
+        return false;
+      }
+      if (
+        !window.confirm(
+          '本次视频预计消耗 ' +
+            estimatedCredits +
+            ' 积分，实际以平台扣费为准。确认按当前参数开始生成？'
+        )
+      )
+        return false;
       settings.userConfirmed = true;
     }
     const prompt = videoPrompts.prepare(input.value);
@@ -1973,6 +1988,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
               : {}),
             templateRun: true,
             userConfirmed,
+            nonInteractive: useSavedInput,
           }
         )
       )
@@ -2579,10 +2595,22 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       videoResolution = selectControl('分辨率', ['720p', '480p'], saved?.resolution || '720p');
       videoDuration = selectControl(
         '时长（秒）',
-        ['4', '5', '6', '7', '8'],
+        Array.from({ length: saved?.model === '2.5' ? 27 : 12 }, (_, index) => String(index + 4)),
         String(saved?.duration || 4)
       );
       const durationSelect = videoDuration.querySelector('select');
+      videoModel.querySelector('select').addEventListener('change', () => {
+        const previous = Number(durationSelect.value);
+        const maximum = videoModel.value === '2.5' ? 30 : 15;
+        durationSelect.replaceChildren();
+        for (let seconds = 4; seconds <= maximum; seconds++) {
+          const option = document.createElement('option');
+          option.value = String(seconds);
+          option.textContent = String(seconds) + (options.web ? ' 秒' : '');
+          durationSelect.append(option);
+        }
+        durationSelect.value = String(Math.min(previous, maximum));
+      });
       durationSelect.style.color = Number(durationSelect.value) > 5 ? '#ef6464' : '';
       Array.from(durationSelect.options).forEach((option: any) => {
         if (Number(option.value) > 5) option.style.color = '#ef6464';

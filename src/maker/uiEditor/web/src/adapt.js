@@ -160,7 +160,7 @@
       }
     }
 
-    walk(ctx.tree, [1, 0, 0, 1, 0, 0], null);
+    walk(ctx.tree, [1, 0, 0, 1, ctx.offsetX || 0, ctx.offsetY || 0], null);
     return found;
   }
 

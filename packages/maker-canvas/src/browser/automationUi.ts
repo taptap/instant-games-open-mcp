@@ -194,7 +194,17 @@ export function createCanvasAutomationUiWithHost(options: {
       throw invalid('title 必须为 1～80 字符；省略时使用文件名。');
     const title =
       input.title ?? (segments[segments.length - 1].replace(/\.[^.]+$/, '') || '图片').slice(0, 80);
-    return { assetPath: path, kind, title };
+    if (
+      input.frameSetInfo !== undefined &&
+      (kind !== 'image' || input.prompt !== undefined || input.sourceId !== undefined)
+    )
+      throw invalid('动画图集不能与视频、prompt 或 sourceId 混用。');
+    return {
+      assetPath: path,
+      kind,
+      title,
+      ...(input.frameSetInfo === undefined ? {} : { frameSetInfo: input.frameSetInfo }),
+    };
   }
   /** Same generation shape the page writes, so Web treats the card as an AI slot with this prompt. */
   function recordAgentGeneration(current: CanvasDocument, target: CanvasNode, prompt: string) {
@@ -275,7 +285,7 @@ export function createCanvasAutomationUiWithHost(options: {
       'confirm-image-assets': ['id', 'reviewId'],
       stop: ['id'],
       query: ['id'],
-      import: ['assetPath', 'kind', 'title', 'prompt', 'sourceId'],
+      import: ['assetPath', 'kind', 'title', 'prompt', 'sourceId', 'frameSetInfo'],
       export: ['id', 'format', 'loop'],
       'set-references': ['id', 'sourceIds', 'includeSelf'],
       undo: [],
@@ -869,6 +879,8 @@ export function createCanvasAutomationUiWithHost(options: {
         const apply = fill ? options.fillSlot : options.replaceImage;
         if (!apply) throw invalid('当前宿主未接入图片原位回填。');
         await apply(target.id, input.assetPath);
+        // A supplied result completes this step; only its consumers need regeneration.
+        delete target.templatePending;
         if (typeof input.prompt === 'string') recordAgentGeneration(current, target, input.prompt);
         options.resetDraft(target.id);
         invalidateCanvasDependents(current, target.id);

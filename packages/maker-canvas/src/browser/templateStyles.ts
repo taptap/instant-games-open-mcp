@@ -52,6 +52,17 @@ export const TEMPLATE_LIBRARY_STYLES = `
 .template-card-heading { display:flex; align-items:center; gap:4px; min-width:0; }
 .template-card-heading strong { min-width:0; flex:1; font-size:17px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .template-description { display:block; font-size:13px; margin:0; align-self:center; max-height:100%; overflow:auto; overflow-wrap:anywhere; }
+.workflow-template-row.template-result-previews { gap:6px; padding:12px 12px 8px; }
+.template-result-previews .template-card-content { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) auto; gap:4px; }
+.template-result-previews .template-previews { display:grid; grid-template-columns:minmax(0,2.6fr) repeat(2,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(0,1fr)); }
+.template-result-previews .template-previews figure:first-child { grid-row:1/3; }
+.template-result-previews .template-previews figure { display:grid; grid-template-rows:minmax(0,1fr) auto; gap:3px; }
+.template-result-previews .template-previews figcaption { position:static; max-width:none; padding:0; background:none; line-height:14px; }
+.template-result-previews .template-animation-hint { display:none; }
+.template-result-previews .template-description { font-size:11px; line-height:15px; max-height:30px; }
+.template-result-previews .template-card-metadata { gap:2px 6px; }
+.template-result-previews .template-card-metadata small,.template-result-previews .template-card-metadata a { font-size:11px; line-height:15px; }
+@media(max-width:450px) { .workflow-template-row.template-result-previews { height:500px; } .template-result-previews .template-previews { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:minmax(0,2fr) repeat(2,minmax(0,1fr)); } .template-result-previews .template-previews figure:first-child { grid-column:1/3; grid-row:1; } }
 .template-card-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .template-card-actions small { font-size:12px; white-space:nowrap; }
 .template-card-metadata { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-right:auto; min-width:0; }

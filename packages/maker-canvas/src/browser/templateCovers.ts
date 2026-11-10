@@ -1,5 +1,6 @@
 import type { CanvasTemplateStore } from './store.js';
 import type { CanvasTemplateSummary, CanvasTemplateCoverAnimation } from '../contracts.js';
+import { templateCoverFrame } from './templates.js';
 
 export function createTemplateCovers(store: CanvasTemplateStore) {
   let stopped = false;
@@ -10,31 +11,45 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
   const visible = new Set<Element>();
   const cleanup: Array<() => void> = [];
   const models = new Map<Element, (visible: boolean) => void>();
-  let playing:
-    | {
-        container: HTMLElement;
-        draw(index: number): void;
-        animation: CanvasTemplateCoverAnimation;
-        started: number;
-      }
-    | undefined;
+  const playing = new Map<
+    HTMLElement,
+    {
+      target: HTMLElement;
+      draw(index: number): void;
+      reset(): void;
+      animation: CanvasTemplateCoverAnimation;
+      started: number;
+    }
+  >();
   let request = 0;
-  function stop(): void {
-    cancelAnimationFrame(request);
-    request = 0;
-    playing?.draw(0);
-    playing = undefined;
+  function stop(container?: HTMLElement): void {
+    for (const [element, playback] of playing) {
+      if (container && element !== container) continue;
+      playback.reset();
+      playing.delete(element);
+    }
+    if (!playing.size) {
+      cancelAnimationFrame(request);
+      request = 0;
+    }
   }
   function tick(now: number): void {
-    if (!playing || stopped || document.hidden || !visible.has(playing.container)) {
+    request = 0;
+    if (stopped || document.hidden) {
       stop();
       return;
     }
-    playing.draw(
-      Math.floor((Math.max(0, now - playing.started) * playing.animation.fps) / 1000) %
-        playing.animation.frames.length
-    );
-    request = requestAnimationFrame(tick);
+    for (const [container, playback] of playing) {
+      if (!visible.has(container)) {
+        stop(container);
+        continue;
+      }
+      playback.draw(
+        Math.floor((Math.max(0, now - playback.started) * playback.animation.fps) / 1000) %
+          playback.animation.frames.length
+      );
+    }
+    if (playing.size) request = requestAnimationFrame(tick);
   }
   function visibilityChanged(): void {
     if (document.hidden) stop();
@@ -56,7 +71,7 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
       models.get(entry.target)?.(entry.isIntersecting && !document.hidden);
       if (!entry.isIntersecting) {
         visible.delete(entry.target);
-        if (playing?.container === entry.target) stop();
+        stop(entry.target as HTMLElement);
         continue;
       }
       visible.add(entry.target);
@@ -83,25 +98,17 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
         canvas.height = Math.ceil(animation.frames.length / 8) * 128;
         const context = canvas.getContext('2d')!;
         const frames = animation.frames.map((frame, index) => {
-          const target = {
-            x: (index % 8) * 128,
-            y: Math.floor(index / 8) * 128,
-            width: 128,
-            height: 128,
-          };
-          const ratio = Math.min(128 / frame.width, 128 / frame.height);
-          const width = frame.width * ratio;
-          const height = frame.height * ratio;
+          const target = templateCoverFrame(frame, index);
           context.drawImage(
             bitmap,
             frame.x,
             frame.y,
             frame.width,
             frame.height,
-            target.x + (128 - width) / 2,
-            target.y + (128 - height) / 2,
-            width,
-            height
+            target.x,
+            target.y,
+            target.width,
+            target.height
           );
           return target;
         });
@@ -159,7 +166,13 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
       container.classList.add('cover-model');
       observer.observe(container);
     },
-    observe(container: HTMLElement, summary: CanvasTemplateSummary, slot = 0, target = container) {
+    observe(
+      container: HTMLElement,
+      summary: CanvasTemplateSummary,
+      slot = 0,
+      target = container,
+      showLastFrame = false
+    ) {
       if (!summary.hasCover) return;
       container.classList.add('cover-loading');
       waiting.set(container, async () => {
@@ -174,29 +187,32 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
             }
             bitmaps.add(bitmap);
             const canvas = document.createElement('canvas');
-            canvas.width = 128;
-            canvas.height = 128;
+            canvas.width = Math.round(Math.max(...animation.frames.map((frame) => frame.width)));
+            canvas.height = Math.round(Math.max(...animation.frames.map((frame) => frame.height)));
             canvas.tabIndex = 0;
             canvas.setAttribute('role', 'img');
             canvas.setAttribute('aria-label', summary.name + '动画结果预览，悬停或聚焦播放');
-            canvas.title = '悬停卡片播放动画';
             const context = canvas.getContext('2d')!;
             let current = -1;
+            const poster = showLastFrame ? animation.frames.length - 1 : 0;
             const draw = (index: number): void => {
               if (current === index) return;
               current = index;
               const frame = animation!.frames[index];
-              context.clearRect(0, 0, 128, 128);
+              const ratio = Math.min(canvas.width / frame.width, canvas.height / frame.height);
+              const width = frame.width * ratio;
+              const height = frame.height * ratio;
+              context.clearRect(0, 0, canvas.width, canvas.height);
               context.drawImage(
                 bitmap,
                 frame.x,
                 frame.y,
                 frame.width,
                 frame.height,
-                0,
-                0,
-                128,
-                128
+                (canvas.width - width) / 2,
+                (canvas.height - height) / 2,
+                width,
+                height
               );
             };
             const play = (): void => {
@@ -207,13 +223,22 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
                 matchMedia('(prefers-reduced-motion: reduce)').matches
               )
                 return;
-              if (playing?.container === container) return;
-              stop();
-              playing = { container, draw, animation: animation!, started: performance.now() };
-              request = requestAnimationFrame(tick);
+              if (playing.has(container)) return;
+              // Covers on the same card play together; other cards remain paused.
+              for (const [element, playback] of playing) {
+                if (playback.target !== target) stop(element);
+              }
+              playing.set(container, {
+                target,
+                draw,
+                reset: () => draw(poster),
+                animation: animation!,
+                started: performance.now(),
+              });
+              if (!request) request = requestAnimationFrame(tick);
             };
             const pause = (): void => {
-              if (playing?.container === container) stop();
+              stop(container);
             };
             const update = () => {
               if (target.matches(':hover') || target.contains(document.activeElement)) play();
@@ -239,7 +264,7 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
             hint.className = 'template-animation-hint';
             hint.textContent = '悬停卡片播放';
             container.replaceChildren(canvas, hint);
-            draw(0);
+            draw(poster);
             update();
             return;
           }

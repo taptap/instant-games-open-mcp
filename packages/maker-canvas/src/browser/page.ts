@@ -11,7 +11,10 @@ import {
   createResourceBundleZipWithHost,
 } from './resourceBundle.js';
 import { detectUiCutoutColorFromReader } from './uiCutout.js';
-import { prepareCanvasImportedNodeFromMedia } from './automationAssets.js';
+import {
+  prepareCanvasImportedNodeFromMedia,
+  validateImportedFrameSet,
+} from './automationAssets.js';
 import { canvasEditorLayout, restoreCanvasEditorDraft } from './editorLifecycle.js';
 import { canvasImageTool } from '../features/imageModels.js';
 import { createCanvasResourceExportWithHost } from './resourceExport.js';
@@ -82,7 +85,7 @@ import { uiRecognitionPreview } from '../features/uiRecognition.js';
 import { uiExtractionPlan } from '../features/uiRecognition.js';
 import { selectedUiExtraction } from '../features/uiRecognition.js';
 import { setUiRecognitionMode } from '../features/uiRecognition.js';
-import { createCanvasTemplateModel } from './templates.js';
+import { createCanvasTemplateModel, templateCoverFrame } from './templates.js';
 import { isBuiltinCanvasTemplate } from './templates.js';
 import { createCanvasTemplateUiWithHost } from './templateUi.js';
 import { openCanvasTemplatePreview } from './templatePreview.js';
@@ -1204,6 +1207,10 @@ function applyMissingMediaPatches(source: string): string {
     page = replaceCanvasPageText(page, search, replacement);
   };
   patch(
+    'img.src = media[node.assetPath];',
+    'img.src = store.previewMediaUrl ? store.previewMediaUrl(node.assetPath) : media[node.assetPath];'
+  );
+  patch(
     '  const media = {};\n',
     [
       '  const media = {};',
@@ -1228,7 +1235,7 @@ function applyMissingMediaPatches(source: string): string {
       '    if (!node || !node.assetPath || MEDIA_CARD_TYPES.indexOf(node.type) < 0) return null;',
       // Only the card's own file counts; e.g. a first-frame preview of another card is ignored.
       "    const src = element.getAttribute('src');",
-      '    if (!src || (src !== media[node.assetPath] && src !== store.mediaUrl(node.assetPath))) return null;',
+      '    if (!src || (src !== media[node.assetPath] && src !== store.mediaUrl(node.assetPath) && src !== (store.previewMediaUrl && store.previewMediaUrl(node.assetPath)))) return null;',
       '    return { card: card, node: node };',
       '  }',
       "  world.addEventListener('error', function (event) { const hit = mediaCard(event); if (!hit || missingMedia.has(hit.node.assetPath)) return; missingMedia.add(hit.node.assetPath); showMediaMissing(hit.card); }, true);",
@@ -2329,6 +2336,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     deliverCanvasImage.toString(),
     canvasEditorLayout.toString(),
     restoreCanvasEditorDraft.toString(),
+    validateImportedFrameSet.toString(),
     prepareCanvasImportedNodeFromMedia.toString(),
     detectUiCutoutColorFromReader.toString(),
     uiDataHash.toString(),
@@ -2458,6 +2466,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     isBuiltinCanvasTemplate.toString(),
     createCanvasTemplateUiWithHost.toString(),
     openCanvasTemplatePreview.toString(),
+    templateCoverFrame.toString(),
     createTemplateCovers.toString(),
     'const DEFAULT_SEQUENCE_FPS = ' + DEFAULT_SEQUENCE_FPS + ';',
     'const DEFAULT_SEQUENCE_DURATION = ' + DEFAULT_SEQUENCE_DURATION + ';',
@@ -3569,7 +3578,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    hasFailure: function (id) { return Boolean(generationUi.nodeState(id)) || sequenceUi.view(id).run?.status === "failed"; },',
       '    failure: function (id) { return generationUi.failure(id); },',
       '    completed: function (id) { if (groupQueue) groupQueue.completed(id); },',
-      '    video: function (id, duration, confirmed) { return generationUi.runTemplateVideo(id, duration, confirmed, canvasAutomationBusy); }, sequence: sequenceUi.runTemplate, importImage: requestImageImport,',
+      '    video: function (id, duration, confirmed) { return generationUi.runTemplateVideo(id, duration, confirmed || canvasAutomationBusy, canvasAutomationBusy); }, sequence: sequenceUi.runTemplate, importImage: requestImageImport,',
       '    image: function (id, automatic) { return uiRecognitionUi.runImage(id, function () { return generationUi.runTemplateImage(id); }, Boolean((groupQueue && groupQueue.isBusy) || canvasAutomationBusy), automatic); },',
       '    assets: function (id) { return uiRecognitionUi.runAssets(id, function () { return imageAssetsUi.runSavedGrid(id); }); },',
       '    refreshAnimation: function (id) { if (!refreshAnimationFromSource(documentState, id)) throw new Error("动画来源图集或连线尚未就绪。"); markDirty(); },',
@@ -3918,7 +3927,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      if (modelUi) modelUi.render(card, node);',
       '      if (node.type === "mark") renderCanvasMark(card, node); else decorateCanvasCard(card, node, title, showContextMenu);',
       '      if (node.type === "image-assets" && imageAssetsUi) { card.querySelector(".canvas-card-content")?.remove(); imageAssetsUi.render(card, node); }',
-      '      if (node.type === "resource-bundle") { card.querySelector(".canvas-card-content")?.remove(); renderResourceBundle(card, node, documentState, store.mediaUrl); }',
+      '      if (node.type === "resource-bundle") { card.querySelector(".canvas-card-content")?.remove(); renderResourceBundle(card, node, documentState, store.previewMediaUrl || store.mediaUrl); }',
       '      const templateStatus = templateWorkflow && templateWorkflow.status(node.id);',
       '      const creditsLabel = generationUi && generationUi.creditsLabel(node); if (creditsLabel) { const credits = document.createElement("small"); credits.className = "generation-credits"; credits.textContent = creditsLabel; credits.title = "当前结果的 MCP 返回积分，不是累计消耗或余额；未返回表示暂无数据。"; card.append(credits); }',
       '      const nodeBusy = Boolean((generationUi && generationUi.isNodeBusy(node.id)) || (templateWorkflow && templateWorkflow.isNodeLoading(node.id)) || (canvasCutoutBusy && canvasCutoutBusy.has(node.id)));',
@@ -3932,7 +3941,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '        card.querySelectorAll("button,input,select,textarea").forEach(function (control) { control.disabled = true; });',
       '        card.addEventListener("dblclick", function (event) { event.stopImmediatePropagation(); }, true);',
       '      }',
-      '      renderCanvasCardStatus(card, overlayState, { stopWaiting: generationUi.canStopWaiting(node.id) ? function () { generationUi.stopWaiting(node.id); } : undefined, waitingForSource: templateWorkflow.waitingForSource(node.id), adjust: templateWorkflow.canAdjust(node.id) ? function () { selected.clear(); selected.add(node.id); if (node.type === "sequence") { sequenceUi.beginEdit(node.id); sequenceEditor.open(node.id); } else if (node.type === "image-assets") { void imageAssetsUi.run(node.id).catch(function (caught) { setError(caught.message); }); } else { selectionAction = "workflow"; render(); } } : undefined, waitTimedOut: generationState && generationState.status === "timedout", resume: (!generationState || generationState.status !== "timedout") && templateWorkflow.canContinue(node.id) ? function () { selectionAction = ""; return templateWorkflow.runFrom(node.id); } : undefined, detail: templateWorkflow.failure(node.id) || sequenceState && sequenceState.error, stoppedWaiting: generationState && generationState.status === "canceled", query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
+      '      renderCanvasCardStatus(card, overlayState, { stopWaiting: generationUi.canStopWaiting(node.id) ? function () { generationUi.stopWaiting(node.id); } : undefined, waitingForSource: templateWorkflow.waitingForSource(node.id), adjust: (templateWorkflow.canAdjust(node.id) || node.type === "sequence" && !nodeBusy && !sequenceUi.isNodeBusy(node.id)) ? function () { selected.clear(); selected.add(node.id); if (node.type === "sequence") { sequenceUi.beginEdit(node.id); sequenceEditor.open(node.id); } else if (node.type === "image-assets") { void imageAssetsUi.run(node.id).catch(function (caught) { setError(caught.message); }); } else { selectionAction = "workflow"; render(); } } : undefined, waitTimedOut: generationState && generationState.status === "timedout", resume: (!generationState || generationState.status !== "timedout") && templateWorkflow.canContinue(node.id) ? function () { selectionAction = ""; return templateWorkflow.runFrom(node.id); } : undefined, detail: templateWorkflow.failure(node.id) || sequenceState && sequenceState.error, stoppedWaiting: generationState && generationState.status === "canceled", query: generationState && generationState.canQuery && !nodeBusy ? function () { return generationUi.queryNode(node.id); } : undefined });',
       '      world.append(card);',
     ].join('\n')
   );

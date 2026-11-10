@@ -627,8 +627,13 @@ export function createImageAssetsUiWithHost(options: {
       for (const item of items) {
         const figure = document.createElement('figure');
         const image = document.createElement('img');
-        image.src = options.store.mediaUrl(item.assetPath);
+        image.src = options.store.previewMediaUrl
+          ? options.store.previewMediaUrl(item.assetPath)
+          : options.store.mediaUrl(item.assetPath);
         image.alt = item.name;
+        image.addEventListener('error', () => {
+          image.alt = '图片丢失：' + item.name;
+        });
         image.loading = 'lazy';
         image.draggable = false;
         const name = document.createElement('figcaption');

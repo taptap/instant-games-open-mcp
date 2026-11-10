@@ -40,14 +40,15 @@
 
 ## 本地工具与诊断
 
-| 变量                                     | 默认值                            | 用途与边界                                                            |
-| ---------------------------------------- | --------------------------------- | --------------------------------------------------------------------- |
-| `TAPTAP_MAKER_GIT_BIN`                   | `git`                             | 覆盖 Git 可执行文件路径，主要用于 Windows、企业环境或非标准安装位置。 |
-| `TAPTAP_MAKER_PYTHON_BIN`                | 自动探测或 Maker 管理的 Python    | 覆盖 Python 可执行文件路径。仅在自动探测不能满足环境要求时设置。      |
-| `TAPTAP_MAKER_GIT_RETRY_DELAY_MS`        | `5000`                            | Git 临时网络错误的基础重试延迟，单位毫秒；`0` 只用于测试。            |
-| `TAPTAP_MAKER_CRASH_LOG_MAX_BYTES`       | `1048576`                         | `mcp-crash.log` 最大字节数；仅接受正整数。                            |
-| `TAPTAP_MAKER_CRASH_LOG_MAX_ENTRY_BYTES` | `16384`                           | 单条崩溃记录最大字节数；仅接受正整数，且不会超过日志总上限。          |
-| `TAPTAP_MAKER_VERSION_POLICY_URL`        | GitHub `main` 上的 Maker 版本策略 | 覆盖 npm 版本策略地址，供测试和发布联调使用。插件模式会跳过该检查。   |
+| 变量                                     | 默认值                            | 用途与边界                                                                                                                                 |
+| ---------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `TAPTAP_MAKER_GIT_BIN`                   | `git`                             | 覆盖 Git 可执行文件路径，主要用于 Windows、企业环境或非标准安装位置。                                                                      |
+| `TAPTAP_MAKER_PYTHON_BIN`                | 自动探测或 Maker 管理的 Python    | 覆盖 Python 可执行文件路径。仅在自动探测不能满足环境要求时设置。                                                                           |
+| `TAPTAP_MAKER_GIT_RETRY_DELAY_MS`        | `5000`                            | Git 临时网络错误的基础重试延迟，单位毫秒；`0` 只用于测试。                                                                                 |
+| `TAPTAP_MAKER_CRASH_LOG_MAX_BYTES`       | `1048576`                         | `mcp-crash.log` 最大字节数；仅接受正整数。                                                                                                 |
+| `TAPTAP_MAKER_CRASH_LOG_MAX_ENTRY_BYTES` | `16384`                           | 单条崩溃记录最大字节数；仅接受正整数，且不会超过日志总上限。                                                                               |
+| `TAPTAP_MAKER_VERSION_POLICY_URL`        | GitHub `main` 上的 Maker 版本策略 | 覆盖 npm 版本策略地址，供测试和发布联调使用。插件模式会跳过该检查。                                                                        |
+| `TAPTAP_MAKER_UI_MOTION_REFERENCE_DIR`   | 不设置                            | UI 动效参考游戏项目根目录，须含 `ui-motion-native/catalog.json`。仅提供清单列出的独立 PNG、UI.json、Lua 与预览文件，不自动复制或公开分发。 |
 
 以下变量仅由 Maker 内部进程启动器临时注入，不是用户配置接口，也不得持久化：
 

@@ -137,7 +137,8 @@
     if (!tree) return null;
     var config = Y.Config.create(), yn;
     try {
-      config.setPointScaleFactor(environment && environment.scale || 1);
+      // Zero preserves design coordinates when the game scales the drawing as a whole.
+      config.setPointScaleFactor(environment && environment.scale != null ? environment.scale : 1);
       yn = build(tree, environment, config);
       if (!validLength(tree.width)) yn.setWidth(width);
       if (!validLength(tree.height)) yn.setHeight(height);

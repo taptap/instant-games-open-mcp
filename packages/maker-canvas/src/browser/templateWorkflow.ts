@@ -446,7 +446,7 @@ export function createTemplateWorkflow(options: {
             !(await options.video(
               node.id,
               node.generation?.parameters?.duration || document.templateFlow?.duration || 4,
-              automatic
+              false
             ))
           )
             throw new Error(options.failure?.(node.id) || '视频处理未完成');

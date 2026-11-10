@@ -106,7 +106,7 @@ export function parseTemplateFlow(
     !['image', 'ready', 'video', 'sequence', 'animation', 'complete'].includes(flow.stage) ||
     !Number.isInteger(flow.duration) ||
     flow.duration < 4 ||
-    flow.duration > 8 ||
+    flow.duration > 30 ||
     !document.edges.some(
       (edge) =>
         edge.from === flow.imageId && edge.to === flow.videoId && edge.kind === 'image-to-video'

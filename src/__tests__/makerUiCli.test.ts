@@ -12,6 +12,43 @@ import {
 import { runUiCli } from '../maker/uiEditor/cli';
 import { saveUiFile } from '../maker/uiEditor/projectFiles';
 import { openUiEditorConsole } from '../maker/console/cli';
+import { uiRenderOptions } from '../maker/uiEditor/renderBridge';
+
+describe('UI engine design resolution preview', () => {
+  it('keeps physical device dimensions separate from the game design resolution', () => {
+    expect(
+      uiRenderOptions({
+        width: 1170,
+        height: 2532,
+        dpr: 3,
+        designResolution: { width: 1080, height: 1920 },
+      })
+    ).toMatchObject({
+      width: 1170,
+      height: 2532,
+      dpr: 3,
+      scale: null,
+      designResolution: { width: 1080, height: 1920 },
+    });
+    expect(uiRenderOptions({}).designResolution).toBeNull();
+  });
+  it('rejects incomplete, ambiguous and non-finite scale settings', () => {
+    for (const designResolution of [
+      null,
+      [],
+      {},
+      { width: 1080 },
+      { width: 0, height: 1920 },
+      { width: Infinity, height: 1920 },
+      { width: 1080, height: 1920, strategy: 'cover' },
+    ]) {
+      expect(() => uiRenderOptions({ designResolution })).toThrow(/designResolution/);
+    }
+    expect(() =>
+      uiRenderOptions({ scale: 1, designResolution: { width: 1080, height: 1920 } })
+    ).toThrow(/scale/);
+  });
+});
 
 jest.mock('../maker/console/cli', () => ({
   openUiEditorConsole: jest.fn(async (_root, file) => ({

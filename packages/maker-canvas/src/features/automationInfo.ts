@@ -11,7 +11,7 @@ export function canvasGenerationParameterChoices(image: boolean): Record<string,
     : {
         model: ['2.0', '2.5'],
         resolution: ['720p', '480p'],
-        duration: [4, 5, 6, 7, 8],
+        duration: Array.from({ length: 27 }, (_, index) => index + 4),
         ratio: ['adaptive', '1:1', '16:9', '9:16'],
         mode: ['first_frame', 'first_last_frame', 'multi_modal_reference'],
       };
@@ -84,7 +84,7 @@ export function canvasParameterSchema() {
     video: {
       ...generation(false),
       description:
-        'Model 2.5 with first_frame or first_last_frame requires ratio adaptive. Applies to effective execution settings, including inferred mode; multi_modal_reference permits all listed ratios.',
+        'Model 2.0 supports 4-15 seconds; model 2.5 supports 4-30 seconds. Model 2.5 with first_frame or first_last_frame requires ratio adaptive. Applies to effective execution settings, including inferred mode; multi_modal_reference permits all listed ratios.',
       allOf: [
         {
           if: {
@@ -105,8 +105,19 @@ export function canvasParameterSchema() {
         'Requires an existing sequence card with sequenceSettings. Numbers must be finite. Frame count, atlas capacity and source constraints are also checked during execution.',
       properties: {
         start: { type: 'number', minimum: 0, exclusiveMaximum: 86400 },
-        end: { type: 'number', exclusiveMinimum: 0, maximum: 86400 },
+        end: {
+          type: 'number',
+          minimum: 0,
+          maximum: 86400,
+          description: 'Zero selects the full remaining video.',
+        },
         fps: { type: 'number', minimum: 1, maximum: 30 },
+        sampling: {
+          type: 'string',
+          enum: ['uniform', 'adaptive'],
+          description:
+            'Adaptive scans up to 900 samples, removes near-static frames and reduces to output capacity while preserving endpoints and timing.',
+        },
         width: { type: 'integer', minimum: 1, maximum: 2048 },
         height: { type: 'integer', minimum: 1, maximum: 2048 },
         fit: { type: 'string', enum: ['contain', 'cover', 'stretch'] },
@@ -117,8 +128,12 @@ export function canvasParameterSchema() {
         tolerance: { type: 'number', minimum: 0, maximum: 255 },
       },
       'x-constraints': {
-        interval: { left: 'end', operator: '>', right: 'start' },
-        frameCount: { expression: 'ceil((end - start) * fps - 1e-8)', maximum: 120 },
+        interval: 'end === 0 || end > start',
+        frameCount: {
+          expression: 'ceil((resolvedEnd - start) * fps - 1e-8)',
+          uniformMaximum: 120,
+          adaptiveMaximum: 900,
+        },
       },
     },
   };

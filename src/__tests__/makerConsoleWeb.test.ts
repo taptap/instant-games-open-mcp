@@ -2038,6 +2038,44 @@ describe('Maker console standalone UI', () => {
     });
   });
 
+  it.each(['preview.start', 'preview.refresh', 'preview.install'])(
+    'cancels %s before starting work when the missing configuration prompt is dismissed',
+    async (action) => {
+      const { api, fetch } = harness();
+      const ui = hooks();
+      ui.confirm.mockResolvedValue(false);
+      api.setup([{ ...project, missingPublicationConfig: true }], ui);
+      await api.runAction(action, { startAfterInstall: true });
+      expect(ui.confirm).toHaveBeenCalledWith('preview.configuration', project.name);
+      expect(fetch).not.toHaveBeenCalled();
+      expect(api.busy('alpha')).toBe(false);
+    }
+  );
+
+  it('continues preview after accepting the missing configuration prompt without building or generating a QR code', async () => {
+    const { api, fetch } = harness();
+    const ui = hooks();
+    ui.confirm.mockResolvedValue(true);
+    api.setup([{ ...project, missingPublicationConfig: true }], ui);
+    fetch.mockResolvedValueOnce(
+      response({ process_alive: false, install_state: 'ready' }) as never
+    );
+    fetch.mockResolvedValueOnce(
+      response({
+        id: 'start',
+        projectKey: 'alpha',
+        action: 'preview.start',
+        status: 'succeeded',
+      }) as never
+    );
+    await api.runAction('preview.start');
+    expect(ui.confirm).toHaveBeenCalledWith('preview.configuration', project.name);
+    const actions = fetch.mock.calls
+      .filter(([url]) => url === '/api/tasks')
+      .map(([, options]) => JSON.parse(options.body!).action);
+    expect(actions).toEqual(['preview.start']);
+  });
+
   it('continues preview in the original project after installation and a project switch', async () => {
     const { api, fetch } = harness();
     const ui = hooks();

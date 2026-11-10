@@ -102,4 +102,17 @@ for (const mode of ["pointercancel", "lostpointercapture", "escape", "blur"]) {
   assert.equal(h.undoStack.length, 1, "normal release commits exactly once");
   assert.equal(h.undo(app.tree).tree.children[0].left, 30);
 }
+{
+  const { app, canvas, h } = setup();
+  // A wide screen adds a centered offset; both picking and dragging must invert it.
+  app.contentTransform = () => ({ x: 75, y: 10, scale: 0.5 });
+  app.selectedNodes = [app.selected];
+  canvas.fire("pointerdown", { clientX: 97.5, clientY: 32.5 });
+  canvas.fire("pointermove", { clientX: 107.5, clientY: 40.5 });
+  canvas.fire("pointerup");
+  assert.equal(app.tree.children[0].left, 50);
+  assert.equal(app.tree.children[0].top, 46);
+  assert.equal(h.undoStack.length, 1);
+  assert.equal(h.undo(app.tree).tree.children[0].left, 30);
+}
 console.log("gesture regression passed");

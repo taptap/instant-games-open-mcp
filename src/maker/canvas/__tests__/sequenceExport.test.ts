@@ -189,10 +189,18 @@ test('ZIP allows 120 frames plus Lua and README, but still caps entry count', as
   ).rejects.toThrow('文件数量');
 });
 
-test('refuses to discard per-frame timing in either export format', () => {
+test('preserves per-frame timing in both export formats', () => {
   const data = info();
   data.frames[0].duration = 100;
   data.frames[1].duration = 400;
-  expect(() => sequenceExportManifest(data, 64, 32)).toThrow('独立帧时长');
-  expect(() => sequenceExportLua(data, 'clip')).toThrow('独立帧时长');
+  expect(sequenceExportManifest(data, 64, 32).frames.map((frame) => frame.duration)).toEqual([
+    100, 400,
+  ]);
+  expect(sequenceExportLua(data, 'clip')).toContain('durationsMs = { 100, 400 }');
+});
+
+test.each([0, -1, NaN, Infinity])('rejects invalid frame duration %s', (duration) => {
+  const data = info();
+  data.frames[0].duration = duration;
+  expect(() => sequenceExportManifest(data, 64, 32)).toThrow();
 });

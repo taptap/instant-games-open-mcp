@@ -614,6 +614,53 @@ describe('CanvasGenerationService', () => {
     }
   );
 
+  test.each(['2.0', '2.5'])(
+    'accepts a confirmed 10-second native video and gates its estimated cost (%s)',
+    async (model) => {
+      const files = new MakerCanvasFiles(root);
+      const document = await files.create('房间入场', 'starter');
+      const source = document.nodes[0];
+      const service = new CanvasGenerationService(root, {} as any);
+      const request = {
+        canvasId: document.id,
+        prompt: '家具弹性入场',
+        sourceImageId: source.id,
+        sourceImagePath: source.assetPath!,
+        duration: 10,
+        model,
+      };
+      await expect(service.createVideo(request)).rejects.toThrow(model === '2.0' ? '2000' : '3000');
+      expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
+      callRemoteProxyToolMock.mockResolvedValue({
+        content: [
+          { type: 'text', text: JSON.stringify({ task_id: 'room-task', status: 'pending' }) },
+        ],
+      } as any);
+      const attempt = await service.createVideo({ ...request, userConfirmed: true });
+      expect(attempt.parameters).toMatchObject({ duration: 10, model, userConfirmed: true });
+      expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  test.each([
+    ['2.0', 16],
+    ['2.5', 31],
+  ])('rejects unsupported duration before submission (%s, %s)', async (model, duration) => {
+    const files = new MakerCanvasFiles(root);
+    const document = await files.create('时长校验', 'starter');
+    await expect(
+      new CanvasGenerationService(root, {} as any).createVideo({
+        canvasId: document.id,
+        prompt: 'room',
+        sourceImagePath: document.nodes[0].assetPath!,
+        model: String(model),
+        duration: Number(duration),
+        userConfirmed: true,
+      })
+    ).rejects.toThrow('时长');
+    expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
+  });
+
   test('retains returned video credits across completion, reload and queries without credits', async () => {
     const files = new MakerCanvasFiles(root);
     const document = await files.create('视频积分记录', 'starter');
@@ -818,7 +865,7 @@ describe('CanvasGenerationService', () => {
     expect(callRemoteProxyToolMock).not.toHaveBeenCalled();
   });
 
-  test.each([3, 9, 4.5])(
+  test.each([3, 16, 4.5])(
     'rejects video duration %s before submitting a paid task',
     async (duration) => {
       const files = new MakerCanvasFiles(root);
@@ -836,7 +883,7 @@ describe('CanvasGenerationService', () => {
     }
   );
 
-  test.each([4, 5, 6, 7, 8])(
+  test.each([4, 5, 6, 7, 8, 10, 15])(
     'accepts video duration %s and retains pending task provenance',
     async (duration) => {
       const files = new MakerCanvasFiles(root);
@@ -853,6 +900,7 @@ describe('CanvasGenerationService', () => {
         sourceImageId: document.nodes[0].id,
         sourceImagePath: document.nodes[0].assetPath!,
         duration,
+        userConfirmed: duration > 5,
       });
       expect(attempt.status).toBe('pending');
       expect(callRemoteProxyToolMock.mock.calls[0][0].args).toMatchObject({ duration });

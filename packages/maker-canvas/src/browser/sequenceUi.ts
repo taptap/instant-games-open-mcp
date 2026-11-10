@@ -113,6 +113,7 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
       settings?.start,
       settings?.end,
       settings?.fps,
+      settings?.sampling,
     ]);
   }
 
@@ -391,7 +392,7 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
         );
         node.sequenceSettings = {
           ...node.sequenceSettings,
-          end: node.sequenceSettings.end <= 0 ? defaults.end : node.sequenceSettings.end,
+          end: node.sequenceSettings.end < 0 ? defaults.end : node.sequenceSettings.end,
         };
       }
       const start = Math.min(node.sequenceSettings.start, video.duration);
@@ -400,17 +401,31 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
           ? video.duration
           : node.sequenceSettings.end;
       if (start >= video.duration) throw new Error('起始时间必须早于视频结束时间。');
-      if (start !== node.sequenceSettings.start || end !== node.sequenceSettings.end) {
+      const savedEnd = node.sequenceSettings.end === 0 ? 0 : end;
+      if (start !== node.sequenceSettings.start || savedEnd !== node.sequenceSettings.end) {
         if (!drafts.has(nodeId)) options.remember();
-        node.sequenceSettings = { ...node.sequenceSettings, start, end };
+        node.sequenceSettings = { ...node.sequenceSettings, start, end: savedEnd };
         if (!drafts.has(nodeId)) options.markDirty();
       }
       const settings = node.sequenceSettings;
-      const count = options.estimateFrameCount(settings.start, settings.end, settings.fps);
+      const adaptive = settings.sampling === 'adaptive';
+      const count = adaptive
+        ? Math.ceil((end - start) * settings.fps - 1e-8)
+        : options.estimateFrameCount(start, end, settings.fps);
       const atlasCapacity = options.maxFrameCount(settings.width, settings.height);
-      const inputCapacity = options.maxInputFrameCount(video.videoWidth, video.videoHeight);
+      const maxSide = Math.min(1024, Math.max(settings.width, settings.height));
+      const decodeScale = Math.min(1, maxSide / Math.max(video.videoWidth, video.videoHeight));
+      const inputCapacity = adaptive
+        ? Math.min(
+            options.maxInputFrameCount(
+              Math.round(video.videoWidth * decodeScale),
+              Math.round(video.videoHeight * decodeScale)
+            ),
+            Math.floor(48_000_000 / (settings.width * settings.height))
+          )
+        : options.maxInputFrameCount(video.videoWidth, video.videoHeight);
       const capacity = Math.min(atlasCapacity, inputCapacity);
-      if (count > capacity) {
+      if (!adaptive && count > capacity) {
         throw new Error(
           '当前视频尺寸与输出图集最多处理 ' + capacity + ' 帧；请缩短区间、降低帧率或缩小输出尺寸。'
         );
@@ -419,8 +434,8 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
       activeRun.extractionKey = extractionKey(node);
       activeRun.frames = await options.processor.extract(
         video,
-        settings.start,
-        settings.end,
+        start,
+        end,
         settings.fps,
         signal,
         (current, total, _time, preview) => {
@@ -428,13 +443,14 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
           activeRun.total = total;
           activeRun.previewFrame = preview;
           if (current === total || current % 3 === 0) refresh(nodeId);
-        }
+        },
+        adaptive ? { capacity, maxSide } : undefined
       );
       assertExtractionCurrent(node, activeRun);
       activeRun.sourceFrames = activeRun.frames.slice();
       activeRun.originalFrames = activeRun.frames.slice();
       activeRun.previewFrame = undefined;
-      activeRun.stage = 'cutout';
+      activeRun.stage = adaptive && !settings.cutout ? 'resize' : 'cutout';
     });
   }
 
@@ -481,6 +497,8 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
             : 'resize';
       run.status = 'ready';
       run.error = undefined;
+      run.atlas = undefined;
+      run.outputPath = undefined;
       refresh(nodeId);
       return;
     }
@@ -523,7 +541,7 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
     if (action === 'skip-cutout') {
       options.processor.dispose(run.sourceFrames);
       run.sourceFrames = [];
-      run.stage = 'dedupe';
+      run.stage = node.sequenceSettings?.sampling === 'adaptive' ? 'resize' : 'dedupe';
       run.status = 'ready';
       refresh(nodeId);
       return;
@@ -558,7 +576,7 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
           : undefined;
         options.processor.dispose(activeRun.sourceFrames);
         activeRun.sourceFrames = [];
-        activeRun.stage = 'dedupe';
+        activeRun.stage = node.sequenceSettings?.sampling === 'adaptive' ? 'resize' : 'dedupe';
       });
     }
     if (action === 'dedupe') {
@@ -745,6 +763,8 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
     node.sequenceSettings = { ...node.sequenceSettings, [key]: value };
     if (run && currentInput && key === 'fps' && run.stage === 'resize')
       run.extractionKey = extractionKey(node);
+    if (run && key === 'fps' && run.stage === 'resize')
+      run.frames = run.frames.map(({ duration: _duration, ...frame }) => frame);
     if (run && key === 'duplicateThreshold' && run.stage === 'dedupe-review') {
       run.candidates = [];
       run.removed = [];
@@ -789,10 +809,12 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
     const source = findSource(node);
     const limit = Math.min(
       options.maxFrameCount(settings.width, settings.height),
-      options.maxInputFrameCount(
-        source?.videoInfo?.width || settings.width,
-        source?.videoInfo?.height || settings.height
-      )
+      settings.sampling === 'adaptive'
+        ? Math.min(120, Math.floor(48_000_000 / (settings.width * settings.height)))
+        : options.maxInputFrameCount(
+            source?.videoInfo?.width || settings.width,
+            source?.videoInfo?.height || settings.height
+          )
     );
     if (frames.length > limit)
       throw new Error('帧数超过当前图集或处理容量上限（' + limit + ' 帧）。');
@@ -880,7 +902,7 @@ export function createSequenceUiControllerWithMedia(options: SequenceUiOptions) 
               'image/png'
             )
           );
-          frames.push({ time: frame.time, blob });
+          frames.push({ time: frame.time, blob, duration: frame.duration });
         }
       } finally {
         bitmap.close();

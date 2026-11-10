@@ -126,6 +126,8 @@ export interface CanvasDocumentStore {
   ): Promise<{ relativePath: string }>;
   importVideo(canvasId: string, file: Blob, contentType: string): Promise<{ relativePath: string }>;
   mediaUrl(assetPath: string): string;
+  /** Optional display-only URL; may relocate missing images without changing document references. */
+  previewMediaUrl?(assetPath: string): string;
   imageInfo?(assetPath: string): Promise<{ width: number; height: number } | undefined>;
   getActiveCanvasId(): Promise<string | undefined>;
   setActiveCanvasId(canvasId: string): Promise<void>;

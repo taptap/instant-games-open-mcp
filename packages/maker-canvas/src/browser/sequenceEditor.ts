@@ -332,6 +332,7 @@ export function createSequenceEditor(options: {
       ? node.frameSetInfo!.frames.map(() => undefined)
       : (run?.frames || []).map((frame) => frame.blob);
     if (!frames.length && run?.previewFrame) frames = [run.previewFrame.blob];
+    const timing = saved ? node.frameSetInfo!.frames : run?.frames || [];
     selectedFrame = Math.min(selectedFrame, Math.max(0, frames.length - 1));
     selected = new Set([...selected].filter((index) => index < frames.length));
     let comparing = false;
@@ -408,7 +409,9 @@ export function createSequenceEditor(options: {
         ' / ' +
         frames.length +
         ' 帧 · 输出 ' +
-        (frames.length / settings.fps).toFixed(2) +
+        (
+          timing.reduce((total, frame) => total + (frame.duration ?? 1000 / settings.fps), 0) / 1000
+        ).toFixed(2) +
         ' 秒';
       for (const tile of Array.from(strip.children))
         tile.classList.toggle('active', Number((tile as HTMLElement).dataset.index) === index);
@@ -517,10 +520,16 @@ export function createSequenceEditor(options: {
         return;
       }
       play.textContent = '暂停';
-      playback = setInterval(
-        () => selectFrame((selectedFrame + 1) % frames.length),
-        1000 / (settings.fps * speed)
-      );
+      const schedule = () => {
+        playback = setTimeout(
+          () => {
+            selectFrame((selectedFrame + 1) % frames.length);
+            schedule();
+          },
+          (timing[selectedFrame]?.duration ?? 1000 / settings.fps) / speed
+        );
+      };
+      schedule();
     });
     play.disabled = frames.length < 2 || busy;
     controls.append(play, frameLabel);
@@ -804,6 +813,17 @@ export function createSequenceEditor(options: {
       field('起始时间（秒）', 'start', 'number', 0, source?.videoInfo?.duration, '0.1');
       field('结束时间（0 = 全片）', 'end', 'number', 0, source?.videoInfo?.duration, '0.1');
       field('抽帧 FPS', 'fps', 'number', 1, 30);
+      check('全片去重减帧（保留首尾与原时长）', settings.sampling === 'adaptive', (checked) =>
+        options.controller.updateSetting(activeId!, 'sampling', checked ? 'adaptive' : 'uniform')
+      );
+      if (settings.sampling === 'adaptive') {
+        field('输出宽', 'width', 'number', 1, 2048);
+        field('输出高', 'height', 'number', 1, 2048);
+        const hint = document.createElement('p');
+        hint.textContent =
+          '先扫描完整区间，去掉静止重复画面，再均匀减至图集容量内（最多 120 帧）。FPS 是扫描精度，播放沿用原时间；建议 384×216、24 FPS。';
+        panel.append(hint);
+      }
     } else if (stage === 'cutout') {
       const hint = document.createElement('p');
       hint.textContent =
@@ -835,7 +855,15 @@ export function createSequenceEditor(options: {
       advanced.append(panel.lastElementChild!);
       panel.append(advanced);
     } else if (stage === 'resize') {
-      field('播放 FPS', 'fps', 'number', 1, 30);
+      field(
+        timing.some((frame) => frame.duration !== undefined)
+          ? '改为固定播放 FPS（会替换原时长）'
+          : '播放 FPS',
+        'fps',
+        'number',
+        1,
+        30
+      );
       field('输出宽', 'width', 'number', 1, 2048);
       field('输出高', 'height', 'number', 1, 2048);
       check('保持当前比例', lockRatio, (checked) => {

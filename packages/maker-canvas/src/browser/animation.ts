@@ -17,6 +17,7 @@ export function createAnimationCards(
     play?: HTMLButtonElement;
     card?: HTMLElement;
     version: number;
+    visible: boolean;
   };
   const playing = new Set<string>();
   const mounted = new Map<
@@ -26,25 +27,52 @@ export function createAnimationCards(
       fps: number;
       count: number;
       started: number;
+      previewTick: number;
       /** Cumulative end times (ms) when frames carry their own duration. */
       ends?: number[];
     }
   >();
   // Kept inside the factory (not a page global) so the helper still works when injected via toString().
   const reused = new Map<string, Reused>();
+  const observed = new Map<Element, string>();
+  const observer =
+    typeof IntersectionObserver === 'undefined'
+      ? undefined
+      : new IntersectionObserver((entries) => {
+          for (const entry of entries) {
+            const id = observed.get(entry.target);
+            const item = id && reused.get(id);
+            if (item) item.visible = entry.isIntersecting;
+          }
+          schedule();
+        });
   let request = 0;
   let generation = 0;
   // Host panel closed: stop the frame loop entirely (document.hidden stays false in an iframe the
   // host only hides with CSS).
   let paused = false;
+  function active() {
+    return [...playing].some((id) => reused.get(id)?.visible && (mounted.get(id)?.count || 0) > 1);
+  }
+  function schedule() {
+    if (paused || document.hidden || !active()) {
+      cancelAnimationFrame(request);
+      request = 0;
+    } else if (!request) request = requestAnimationFrame(tick);
+  }
+  document.addEventListener('visibilitychange', schedule);
   function tick(now: number) {
     request = 0;
     if (paused) return;
     if (!document.hidden) {
       for (const id of playing) {
         const item = mounted.get(id);
-        if (!item) continue;
+        if (!item || !reused.get(id)?.visible || item.count < 2) continue;
         const elapsed = Math.max(0, now - item.started);
+        // Card previews draw at most 12 times per second without slowing the source timeline.
+        const previewTick = Math.floor((elapsed * 12) / 1000);
+        if (item.previewTick === previewTick) continue;
+        item.previewTick = previewTick;
         if (item.ends) {
           const at = elapsed % item.ends[item.ends.length - 1];
           let index = 0;
@@ -53,23 +81,19 @@ export function createAnimationCards(
         } else item.draw(Math.floor((elapsed * item.fps) / 1000) % item.count);
       }
     }
-    if ([...playing].some((id) => mounted.has(id))) request = requestAnimationFrame(tick);
-  }
-  function start() {
-    if (!paused && !request) request = requestAnimationFrame(tick);
+    schedule();
   }
   return {
     setPaused(value: boolean) {
       paused = value;
-      if (paused) {
-        cancelAnimationFrame(request);
-        request = 0;
-      } else if ([...playing].some((id) => mounted.has(id))) start();
+      schedule();
     },
     beginRender(nodes: CanvasNode[]) {
       generation += 1;
       cancelAnimationFrame(request);
       request = 0;
+      observer?.disconnect();
+      observed.clear();
       mounted.clear();
       for (const id of playing)
         if (!nodes.some((node) => node.id === id && node.type === 'animation')) playing.delete(id);
@@ -101,6 +125,8 @@ export function createAnimationCards(
           .join(';'),
       ].join('|');
       let entry = reused.get(node.id);
+      // Playback preference is local to this opened canvas, never part of exported assets.
+      if (!entry && info.frames.length > 1) playing.add(node.id);
       if (!entry || entry.key !== key || entry.failed) {
         const canvas = document.createElement('canvas');
         canvas.className = 'animation-preview checkerboard';
@@ -116,12 +142,17 @@ export function createAnimationCards(
           current: -1,
           started: performance.now(),
           version: generation,
+          visible: !observer,
         };
         reused.set(node.id, entry);
       }
       const item = entry;
       item.version = generation;
       item.card = card;
+      if (observer) {
+        observed.set(card, node.id);
+        observer.observe(card);
+      }
       const canvas = item.canvas;
       const label = document.createElement('span');
       label.className = 'animation-caption';
@@ -188,7 +219,8 @@ export function createAnimationCards(
       };
       const mount = () => {
         if (item.play) item.play.disabled = info.frames.length < 2;
-        if (item.current < 0) draw(0);
+        // Arrival animations often begin transparent; keep a settled poster before playback.
+        if (item.current < 0) draw(info.frames.length - 1);
         else caption(item.current);
         let total = 0;
         const ends = info.frames.some((frame) => frame.duration)
@@ -199,10 +231,11 @@ export function createAnimationCards(
           fps: info.fps,
           count: info.frames.length,
           started: item.started,
+          previewTick: -1,
           ends,
         };
         mounted.set(node.id, timing);
-        if (playing.has(node.id)) start();
+        schedule();
       };
       if (info.missingPages?.length) {
         label.textContent = '图集缺失，无法完整播放';
@@ -252,9 +285,12 @@ export function createAnimationCards(
           play.textContent = '暂停';
           item.started = performance.now();
           const timing = mounted.get(node.id);
-          if (timing) timing.started = item.started;
-          start();
+          if (timing) {
+            timing.started = item.started;
+            timing.previewTick = -1;
+          }
         }
+        schedule();
       });
     },
   };

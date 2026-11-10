@@ -163,6 +163,16 @@ test('archives recognition and resource snapshots independently of the canvas, p
     document = await files.save(document.id, document, document.revision);
     await files.archiveUi(document.id);
     expect(fs.statSync(path.join(root, resource.bindingsPath!)).mtimeMs).toBe(before);
+    const imageFile = files.readMedia(imported.relativePath).file;
+    fs.renameSync(imageFile, imageFile + '.moved');
+    document.title = 'editable after moving a UI image';
+    document = await files.save(document.id, document, document.revision);
+    expect(
+      files.listUiArchives(document.id).filter((record) => record.stage === 'resources')
+    ).toHaveLength(1);
+    await expect(files.archiveUi(document.id)).rejects.toMatchObject({ code: 'UNSAFE_PATH' });
+    fs.renameSync(imageFile + '.moved', imageFile);
+    document.title = 'inventory';
     const missing = structuredClone(document);
     missing.nodes.find(
       (node) => node.type === 'image-assets'
