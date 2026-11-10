@@ -98,6 +98,7 @@ references/workflow.md 的「图集合批」。已有结果保留，不为了合
 布局字段、坐标依据、冗余资源和双重对位契约见 [workflow.md](references/workflow.md)。
 生成完整 UI 或修复分辨率适配时，读取[多分辨率适配](references/responsive.md)，确定逻辑单位、
 页面/组件及分组约束；新全屏组装显式提供 adaptation，不能只交付固定坐标截图式布局。
+调整贴边、居中、拉伸或列表伸缩时，读取[排版参数](references/layout.md)。只改该文件列出的字段，不替用户决定构图，也不新造对齐模式。
 
 1. 官方合批模板与历史分类模板都先准备原稿与去文字稿，再分别识别去文字稿 UI 与原稿文字。
    两条流程都保存同格式 Bbox JSON，按设置使用识图来源。

@@ -177,6 +177,28 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     }
   });
 
+  test('keeps shared UI layout guidance reachable after flattening', () => {
+    const layoutPath = path.join(pluginRoot, 'skills/maker-ui-workflow/layout.md');
+    expect(fs.readFileSync(layoutPath, 'utf8')).toBe(
+      fs.readFileSync(
+        path.join(projectRoot, 'skills/maker-ui-workflow/references/layout.md'),
+        'utf8'
+      )
+    );
+    for (const relativePath of [
+      'maker-ui-workflow/SKILL.md',
+      'maker-ui-workflow/responsive.md',
+      'maker-ui-bbox-workflow/SKILL.md',
+      'lua-ui-to-json/SKILL.md',
+    ]) {
+      const entryPath = path.join(pluginRoot, 'skills', relativePath);
+      const entry = fs.readFileSync(entryPath, 'utf8');
+      const link = entry.match(/\]\(([^)]*layout\.md)\)/);
+      expect(link).not.toBeNull();
+      expect(path.resolve(path.dirname(entryPath), link![1])).toBe(layoutPath);
+    }
+  });
+
   test('contains the runtime, cross-platform CLI, skills, commands, icon, and docs', () => {
     const requiredPaths = [
       'skills/lua-ui-to-json/SKILL.md',

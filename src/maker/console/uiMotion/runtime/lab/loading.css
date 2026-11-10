@@ -1,0 +1,7 @@
+#lab-loading{position:absolute;inset:0 30px 34px;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;background:#10171cee;color:#f2eedb;font:14px/1.6 system-ui,sans-serif;text-align:center;overflow-wrap:anywhere}
+#lab-loading[hidden]{display:none}
+#lab-loading::before{content:'';width:28px;height:28px;border:3px solid #42515b;border-top-color:#d6bf80;border-radius:50%;animation:lab-loading-spin .8s linear infinite}
+#lab-loading[data-state=error]::before{display:none}
+#lab-loading button{padding:8px 16px;border:1px solid #52646d;border-radius:6px;background:#263740;color:inherit}
+@keyframes lab-loading-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){#lab-loading::before{animation:none}}

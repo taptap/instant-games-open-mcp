@@ -7,5 +7,9 @@ export { imageEditSources } from '../../../packages/maker-canvas/src/browser/gen
 export type { CanvasWorkflowEdit } from '../../../packages/maker-canvas/src/browser/generationUi.js';
 export type CanvasGenerationUiOptions = Omit<SharedOptions, 'detectUiCutoutColor'>;
 export function createCanvasGenerationUi(options: CanvasGenerationUiOptions) {
-  return createCanvasGenerationUiWithHost({ ...options, detectUiCutoutColor });
+  return createCanvasGenerationUiWithHost({
+    videoDurationOptions: [4, 5, 6, 7, 8],
+    ...options,
+    detectUiCutoutColor,
+  });
 }

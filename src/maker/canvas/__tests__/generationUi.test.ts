@@ -1,5 +1,6 @@
 import { imageModelsFixture } from '../__fixtures__/imageModels.js';
 import { createCanvasGenerationUi } from '../generationUi.js';
+import { createCanvasGenerationUiWithHost } from '../../../../packages/maker-canvas/src/browser/generationUi.js';
 import { snapshotCanvasSource } from '../dependencies.js';
 import { canvasNeedsProcessing } from '../templateWorkflow.js';
 import { configureMergeIcons, mergeIconPrompt } from '../mergeIcons.js';
@@ -850,7 +851,7 @@ test('automation query reports request errors while the existing UI keeps its er
   expect(options.setError).toHaveBeenCalledWith('network down');
 });
 
-describe('image reference drafts and refresh', () => {
+describe('generation panels, reference drafts and refresh', () => {
   const globals = globalThis as any;
   const originalDocument = globals.document;
   let elements: any[];
@@ -862,6 +863,8 @@ describe('image reference drafts and refresh', () => {
         const element: any = {
           tag,
           value: '',
+          style: {},
+          dataset: {},
           events: {},
           children: [],
           isConnected: true,
@@ -926,6 +929,90 @@ describe('image reference drafts and refresh', () => {
   function displayedPaths() {
     return elements.filter((element) => element.tag === 'img').map((element) => element.src);
   }
+
+  function selectFor(label: string) {
+    return elements
+      .find((element) => element.tag === 'label' && element.children[0]?.textContent === label)
+      .querySelector('select');
+  }
+
+  test.each(['2.0', '2.5'])(
+    'local video duration choices stay at 4–8 seconds after switching model %s',
+    (model) => {
+      const { document, ui } = fixture();
+      document.nodes[1].generation.parameters = { model };
+      ui.render({ append: jest.fn() }, document.nodes[1], document.nodes);
+      const duration = selectFor('时长（秒）');
+      expect(duration.options.map((option: any) => option.value)).toEqual([
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+      ]);
+      expect(duration.value).toBe('4');
+      duration.value = '8';
+      const modelSelect = selectFor('模型');
+      modelSelect.value = model === '2.0' ? '2.5' : '2.0';
+      modelSelect.events.change();
+      expect(duration.options.map((option: any) => option.value)).toEqual([
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+      ]);
+      expect(duration.value).toBe('8');
+      expect(duration.options[4].style.color).toBe('#ef6464');
+    }
+  );
+
+  test.each(['generation', 'generationDraft'])(
+    'local duration choices preserve an explicit long video in %s',
+    (source) => {
+      const { document, ui } = fixture();
+      document.nodes[1][source] = {
+        prompt: '家具入场',
+        parameters: { model: '2.0', duration: 10 },
+      };
+      ui.render({ append: jest.fn() }, document.nodes[1], document.nodes);
+      const duration = selectFor('时长（秒）');
+      expect(duration.options.map((option: any) => option.value)).toEqual([
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+        '10',
+      ]);
+      expect(duration.value).toBe('10');
+      const model = selectFor('模型');
+      model.value = '2.5';
+      model.events.change();
+      expect(duration.value).toBe('10');
+      expect(duration.options.map((option: any) => option.value)).not.toContain('9');
+    }
+  );
+
+  test.each([{ videoDurationOptions: undefined }, { videoDurationOptions: [4, 5, 6, 7, 8] }])(
+    'shared video duration choices follow the host options: %j',
+    ({ videoDurationOptions }) => {
+      const { document, options } = fixture();
+      document.nodes[1].generation.parameters = { model: '2.5' };
+      const ui = createCanvasGenerationUiWithHost({
+        ...options,
+        web: true,
+        videoDurationOptions,
+        detectUiCutoutColor: jest.fn(),
+      });
+      ui.render({ append: jest.fn() }, document.nodes[1], document.nodes);
+      const duration = selectFor('时长（秒）');
+      expect(duration.options.map((option: any) => option.value)).toEqual(
+        (videoDurationOptions || Array.from({ length: 27 }, (_, index) => index + 4)).map(String)
+      );
+      expect(duration.value).toBe('4');
+    }
+  );
 
   test.each([true, false])(
     'only an explicit unsubmitted rejection clears unknown state (%s)',
@@ -1574,6 +1661,18 @@ test('an already applied success is not reused as a new generation for a pending
   expect(options.store.createVideo).toHaveBeenCalledTimes(1);
   expect(options.store.createVideo.mock.calls[0][1].duration).toBe(6);
   expect(document.nodes[1].generation.attemptId).toBe('new-attempt');
+});
+
+test('an explicitly authorized long video is not shortened by local duration choices', async () => {
+  const { document, options, ui } = fixture();
+  delete document.templateFlow;
+  options.store.listGeneration.mockResolvedValue([]);
+  expect(await ui.runTemplateVideo('video', 10, true, true)).toBe(true);
+  expect(options.store.createVideo).toHaveBeenCalledWith(
+    'canvas',
+    expect.objectContaining({ duration: 10, userConfirmed: true }),
+    expect.any(AbortSignal)
+  );
 });
 
 test('a ten-second native video names its cost and cancellation submits nothing', async () => {

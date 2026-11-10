@@ -6,6 +6,13 @@ canvas{display:block;width:100%;height:auto;background:#050409;outline-offset:3p
 button,select{font:inherit;color:inherit;background:transparent;border:1px solid #746957;border-radius:6px;padding:8px 13px;cursor:pointer}
 button:hover,button:focus-visible{border-color:#eee4c7}button:disabled{opacity:.45;cursor:default}
 .viewport{position:relative}.hotspots{position:absolute;inset:0;pointer-events:none}
+.loading-panel{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;background:#100e12;color:#d5c9a3;font:14px/1.6 system-ui,sans-serif;text-align:center;overflow-wrap:anywhere}
+.loading-panel::before{content:'';width:24px;height:24px;border:2px solid #746957;border-top-color:#eee4c7;border-radius:50%;animation:loading-spin .8s linear infinite}
+.loading-panel[data-state=error]::before{display:none}
+.loading-panel[hidden],.loading-panel button[hidden],.embedded .loading-panel,.thumbnail .loading-panel{display:none}
+.loading .timeline{pointer-events:none}
+@keyframes loading-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.loading-panel::before{animation:none}}
 .hotspots button{position:absolute;border:2px solid transparent;border-radius:0;padding:0;background:transparent;pointer-events:auto;font-size:0}
 .hotspots button:hover,.hotspots button:focus-visible,.hotspots button:active,.hotspots button[aria-pressed=true]{background:transparent;border-color:transparent;outline:none}
 .hotspots button:disabled{pointer-events:none;opacity:0}

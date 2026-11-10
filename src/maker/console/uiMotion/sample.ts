@@ -130,6 +130,10 @@ export function upgradeMotionSample(html: string, variant: 'showcase' | 'lab'): 
       assets['lab/bridge.bundle.js'].replace(/<\/script/gi, '<\\/script') +
       '</script>' +
       html.slice(player.index + player[0].length);
+    html = html.replace(
+      /<\/head\s*>/i,
+      () => '<style>' + assets['lab/loading.css'] + '</style></head>'
+    );
     return html.replace(
       match[0],
       () => '<script>const DATA=' + JSON.stringify(data).replace(/</g, '\\u003c') + ';</script>'
