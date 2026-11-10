@@ -69,6 +69,8 @@ export function imageEditSources(
 export interface CanvasGenerationUiOptions {
   /** Web composer: drops explanatory hints and adds the game-asset constraint pill. */
   web?: boolean;
+  /** Ordinary duration choices in seconds; explicit saved durations still follow model limits. */
+  videoDurationOptions?: readonly number[];
   detectUiCutoutColor(paths: string[], mediaUrl: (path: string) => string): Promise<UiCutoutColor>;
   videoPrompts?: ReturnType<typeof createVideoPrompts>;
   store: {
@@ -2593,9 +2595,20 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         option.textContent = modeLabels[option.value];
       videoModel = selectControl('模型', ['2.0', '2.5'], saved?.model || '2.0');
       videoResolution = selectControl('分辨率', ['720p', '480p'], saved?.resolution || '720p');
+      const durationValues = (model: string, current: number): string[] => {
+        const maximum = model === '2.5' ? 30 : 15;
+        const values =
+          options.videoDurationOptions ||
+          Array.from({ length: maximum - 3 }, (_, index) => index + 4);
+        // Preserve an explicit long duration when reopening a saved card or switching models.
+        return [...new Set([...values, current])]
+          .filter((value) => Number.isInteger(value) && value >= 4 && value <= maximum)
+          .sort((left, right) => left - right)
+          .map(String);
+      };
       videoDuration = selectControl(
         '时长（秒）',
-        Array.from({ length: saved?.model === '2.5' ? 27 : 12 }, (_, index) => String(index + 4)),
+        durationValues(videoModel.value, saved?.duration || 4),
         String(saved?.duration || 4)
       );
       const durationSelect = videoDuration.querySelector('select');
@@ -2603,13 +2616,16 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         const previous = Number(durationSelect.value);
         const maximum = videoModel.value === '2.5' ? 30 : 15;
         durationSelect.replaceChildren();
-        for (let seconds = 4; seconds <= maximum; seconds++) {
+        const current = Math.min(previous, maximum);
+        for (const seconds of durationValues(videoModel.value, current)) {
           const option = document.createElement('option');
-          option.value = String(seconds);
-          option.textContent = String(seconds) + (options.web ? ' 秒' : '');
+          option.value = seconds;
+          option.textContent = seconds + (options.web ? ' 秒' : '');
+          option.style.color = Number(seconds) > 5 ? '#ef6464' : '';
           durationSelect.append(option);
         }
-        durationSelect.value = String(Math.min(previous, maximum));
+        durationSelect.value = String(current);
+        durationSelect.style.color = current > 5 ? '#ef6464' : '';
       });
       durationSelect.style.color = Number(durationSelect.value) > 5 ? '#ef6464' : '';
       Array.from(durationSelect.options).forEach((option: any) => {
