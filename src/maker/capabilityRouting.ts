@@ -27,7 +27,7 @@ function formatMakerCapabilityRoutingIndex(options: { includeFeedback: boolean }
     '- Canvas templates (UI/切图/动画/角色/道具/3D): active CLI canvas templates --target-dir PATH --q "keyword".',
     '  Search names/descriptions before declaring a workflow unsupported; read only matching descriptions and Skills.',
     '- 游戏UI/设计稿还原/切图/拼装UI.json: read maker-ui-workflow (path in status).',
-    '- UI 动效/LuaTween/选用交给 AI: follow the LuaTween UI Integration link in taptap-maker-local; reuse the original Lua library, not JS easing.',
+    '- UI 动效/LuaTween/选用交给 AI: taptap-maker-local → references/ui-motion.md; original Lua only, not JS easing.',
     '- Bbox预排/uiAtlasPrelayout: read maker-ui-bbox-workflow; keep reference chain.',
     '- Lua UI提取/转JSON/UI.json检查: read lua-ui-to-json (path in status); preserve gameplay and edits.',
     '  Existing UI edits do not restart generation.',

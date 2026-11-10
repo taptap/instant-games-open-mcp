@@ -578,6 +578,9 @@ describe('maker MCP version status integration', () => {
     expect(instructions).toContain('canvas capabilities');
     expect(instructions).toContain('canvas templates');
     expect(instructions).toContain('canvas-video.md');
+    expect(instructions).toContain('UI 动效/LuaTween/选用交给 AI');
+    expect(instructions).toContain('references/ui-motion.md');
+    expect(instructions).toContain('original Lua only, not JS easing');
     expect((instructions as string).length).toBeLessThanOrEqual(2200);
     expect(instructions).not.toMatch(
       /agents update|global memory|~\/.(?:codex|claude|workbuddy)/iu

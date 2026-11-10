@@ -1,6 +1,6 @@
 ---
 name: taptap-maker-local
-description: Initialize, clone, inspect, preview, sync or submit a TapTap Maker game; open its local console (打开make mcp控制台), create/edit canvas workflows (画布、首尾帧视频、自定义模板), or diagnose Maker MCP. Not for unrelated code edits or maintenance of the Maker MCP repository itself.
+description: Initialize, clone, inspect, preview, sync or submit a TapTap Maker game; open its local console, integrate selected LuaTween UI effects (UI 动效、选用交给 AI), create/edit canvas workflows, or diagnose Maker MCP. Not for unrelated code edits or maintenance of the Maker MCP repository itself.
 ---
 
 # TapTap Maker Local Workflow
@@ -40,6 +40,7 @@ workflow then. Do not preload other Maker or ai-dev-kit Skills just because they
 | status / workspace selection / resume after upgrade               | [Project Context](references/project.md); maker://status or maker_status_lite.                                                                    |
 | missing/outdated AI dev kit                                       | [AI Dev Kit Preparation](references/dev-kit.md); existing dev-kit update workflow.                                                                |
 | open console / 打开make mcp控制台                                 | [Local Web Console](references/console.md); active CLI console open --target-dir <PROJECT> --json; omit target-dir only to show the project list. |
+| selected UI motion / LuaTween / 选用交给 AI                       | [LuaTween UI Integration](references/ui-motion.md); reuse the selected effect and the original Lua library in the user's game.                    |
 | canvas capabilities / custom workflows / templates / 画布         | [Canvas Capability Guide](references/canvas.md); query active CLI canvas capabilities, then read only the matching feature section.               |
 | canvas video / first-last frames / 首尾帧视频                     | [Canvas Video](references/canvas-video.md); inspect mode and blockers before editing references or running.                                       |
 | local preview / refresh / stop / preview task iteration           | [Local Window Preview](references/preview.md); CLI preview, never remote build.                                                                   |
