@@ -14,8 +14,8 @@ export type {
 export { UI_ELEMENT_CATEGORIES } from '../contracts.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import { canvasDependents, canvasReferences } from '../core/dependencies.js';
-import { scaleCutElements, validateUiBboxStructure } from './uiBbox.js';
-import type { UiBboxDocument } from '../contracts.js';
+import { scaleCutElements, validateUiBboxImageStructure, validateUiBboxStructure } from './uiBbox.js';
+import type { UiBboxDocument, UiRecognitionWorkImage } from '../contracts.js';
 import { hasImageFeature } from './imageFeatures.js';
 
 export function bboxRecognitionElements(bbox: UiBboxDocument): UiElement[] {
@@ -105,6 +105,16 @@ export function validateUiRecognitionStructure(value: unknown): UiRecognitionSet
   )
     throw new Error('识图配置无效；每张原稿最多保留 12 次识别结果。');
   const ids = new Set<string>();
+  let workImage: UiRecognitionWorkImage | undefined;
+  if (input.workImage !== undefined) {
+    const candidate = input.workImage as Partial<UiRecognitionWorkImage>;
+    if (candidate.mode !== 'black_scene' || !candidate.raw)
+      throw new Error('识图工作底图状态无效。');
+    workImage = {
+      mode: 'black_scene',
+      raw: validateUiBboxImageStructure(candidate.raw),
+    };
+  }
   const results = input.results.map((result): UiRecognitionResult => {
     if (
       !result ||
@@ -165,6 +175,7 @@ export function validateUiRecognitionStructure(value: unknown): UiRecognitionSet
     ...(input.inputRole ? { inputRole: input.inputRole } : {}),
     ...(input.model ? { model: input.model } : {}),
     ...(input.pendingId ? { pendingId: input.pendingId } : {}),
+    ...(workImage ? { workImage } : {}),
     ...(input.selectedId ? { selectedId: input.selectedId } : {}),
     results,
   };
@@ -281,6 +292,7 @@ export function uiRecognitionSource(
 }
 
 export function uiRecognitionNote(result: UiRecognitionResult): string {
+  const scene = result.bbox?.sceneType;
   return [
     result.model +
       ' · ' +
@@ -289,6 +301,7 @@ export function uiRecognitionNote(result: UiRecognitionResult): string {
       (result.durationMs > 0 ? ' · ' + (result.durationMs / 1000).toFixed(1) + ' 秒' : '') +
       (result.credits !== undefined ? ' · ' + result.credits + ' 积分' : ''),
     '坐标为识别输入图像素 [x, y, 宽, 高]；模型识别结果仍需核对。',
+    ...(scene ? ['场景判定：' + scene] : []),
     ...result.elements.map(
       (item) =>
         item.id +

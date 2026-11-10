@@ -78,6 +78,7 @@ export {
   validateCutElements,
   validateBboxTexts,
   parseUiScreenName,
+  parseUiSceneType,
   scaleCutElements,
   validateUiBboxStructure,
   // Compatibility name: structure validation only; hosts validate media access.

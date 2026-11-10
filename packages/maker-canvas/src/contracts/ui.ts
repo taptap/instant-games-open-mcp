@@ -47,10 +47,21 @@ export interface UiScreenName {
   key: string;
 }
 
+/** How much of the recognition input belongs to the UI versus an environment scene. */
+export type UiSceneType = 'ui_only' | 'scene_with_ui' | 'uncertain';
+
+/** The original text-free image kept when a scene-specific work image is derived. */
+export interface UiRecognitionWorkImage {
+  mode: 'black_scene';
+  raw: UiBboxImage;
+}
+
 export interface UiBboxDocument {
   version: 1;
   coordinateSpace: 'design-pixels';
   bboxFormat: 'xywh';
+  /** Model classification used to decide whether a black scene work image is needed. */
+  sceneType?: UiSceneType;
   screen?: UiScreenName;
   design: UiBboxImage;
   cutSource: UiBboxImage;
@@ -107,6 +118,8 @@ export interface UiRecognitionSettings {
   model?: string;
   selectedId?: string;
   pendingId?: string;
+  /** Source identity is retained when the visible cut card is replaced by a work image. */
+  workImage?: UiRecognitionWorkImage;
   results: UiRecognitionResult[];
 }
 

@@ -5,6 +5,7 @@ import {
   validateCutElements,
   validateBboxTexts,
   parseUiScreenName,
+  parseUiSceneType,
 } from './uiBbox.js';
 
 export const CANVAS_VISION_MODEL = 'gpt-6.1-sol';
@@ -40,6 +41,7 @@ export function uiRecognitionPrompt(width: number, height: number): string {
       '×' +
       height +
       '。只根据这张图里看得见的内容作答，不根据文件名、旧清单或上一张稿的数量猜测。',
+    '先判断 sceneType：ui_only 表示整张图都是 UI 或已有透明/纯色工作底；scene_with_ui 表示 UI 叠在游戏场景、人物、天空、地图或其它环境画面上；uncertain 表示无法可靠判断。不要把 UI 面板内部的纹理、渐变或半透明底色当成场景。',
     '列出可独立切图、可独立拼装的最小 UI 单位。type 只用 icon、frame、panel、button、tab、title。',
     'icon 包括图标、箭头、叉号、加号、星星、物品图、人物。frame 包括槽位格、进度条、头像框、细底条。panel 是大面板，button 是按钮底板，tab 是页签底板，title 是标题底板。',
     '必须分开按钮底板和符号、物品格和物品图、每颗星星、进度条底槽和填充、头像和头像框。不要拆开底板的边框和内部底色，不要拆插画内部纹理。',
@@ -50,6 +52,7 @@ export function uiRecognitionPrompt(width: number, height: number): string {
     '只输出一个 JSON，不要 Markdown，不要解释：' +
       JSON.stringify({
         pass: 'cut',
+        sceneType: 'ui_only',
         image: { width, height },
         elements: [
           { id: 'E001', name: '中文短名', type: 'icon', bbox: ['x', 'y', 'w', 'h'], parent: null },
@@ -153,7 +156,8 @@ export async function runCanvasServerRecognition(
     const cutSource = state.cut.image;
     const design = state.design;
     const cutElements = validateCutElements(cut.elements, cutSource.width, cutSource.height);
-    attempt.cut = { image: cutSource, elements: cutElements };
+    const sceneType = parseUiSceneType(cut.sceneType);
+    attempt.cut = { image: cutSource, elements: cutElements, sceneType };
     attempt.phase = 'text';
     const elements = scaleCutElements(cutElements, cutSource, design);
     if (!state.text || (!state.text.submittedAt && !state.text.requestId))
@@ -173,6 +177,7 @@ export async function runCanvasServerRecognition(
       version: 1 as const,
       coordinateSpace: 'design-pixels' as const,
       bboxFormat: 'xywh' as const,
+      sceneType,
       ...(screen ? { screen } : {}),
       design,
       cutSource,

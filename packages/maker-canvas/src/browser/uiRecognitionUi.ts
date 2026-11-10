@@ -2,7 +2,12 @@ import { refreshCanvasMedia } from './mediaVersions.js';
 import { canvasCapabilityReason } from './capabilities.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import type { CanvasDocumentStore } from '../browser/store.js';
-import { canvasDependents, canvasReferences, snapshotCanvasSource } from '../core/dependencies.js';
+import {
+  canvasDependents,
+  canvasReferences,
+  isCanvasSourceCurrent,
+  snapshotCanvasSource,
+} from '../core/dependencies.js';
 import { invalidateCanvasDependents } from '../features/templateWorkflow.js';
 import {
   selectedUiRecognition,
@@ -135,6 +140,12 @@ export function createUiRecognitionUiWithHost(options: {
     for (const node of canvasDependents(current, source.id)) {
       const input = node.generationDraft || node.generation;
       if (input && node.uiBaselinePrompt) input.prompt = node.uiBaselinePrompt;
+      if (node.uiRecognition?.inputRole === 'text-free') {
+        node.uiRecognition.results = [];
+        delete node.uiRecognition.selectedId;
+        delete node.uiRecognition.pendingId;
+        delete node.uiRecognition.workImage;
+      }
       delete node.uiEmpty;
     }
     delete source.templatePending;
@@ -346,12 +357,80 @@ export function createUiRecognitionUiWithHost(options: {
     const node = current?.nodes.find((item) => item.id === id);
     if (!current || !node) return false;
     if (node.uiRecognition?.enabled && node.uiRecognition.inputRole !== 'design') {
+      if (node.uiRecognition.workImage) {
+        const references = canvasReferences(current, node.id).filter(
+          (source) => source.type === 'image' && source.assetPath
+        );
+        const snapshots = node.sourceSnapshots?.length
+          ? node.sourceSnapshots
+          : node.sourceSnapshot
+            ? [node.sourceSnapshot]
+            : [];
+        const sourceChanged =
+          snapshots.length !== references.length ||
+          snapshots.some(
+            (snapshot) =>
+              !isCanvasSourceCurrent(
+                snapshot,
+                references.find((source) => source.id === snapshot.nodeId)
+              )
+          );
+        if (sourceChanged) {
+          node.uiRecognition.results = [];
+          delete node.uiRecognition.selectedId;
+          delete node.uiRecognition.pendingId;
+          delete node.uiRecognition.workImage;
+        }
+      }
       if (node.templatePending || !node.assetPath) {
         const generated = await fallback();
         if (!generated || !completeRecognition) return generated;
         if (options.current() !== current || node.templatePending || !node.assetPath) return false;
       }
-      if (selectedUiRecognition(node)) return true;
+      const selected = selectedUiRecognition(node);
+      if (selected) {
+        // A scene classification is produced by the first cut pass. Derive one black-scene
+        // work image at most once, while retaining the original text-free asset identity.
+        if (
+          completeRecognition &&
+          selected.bbox?.sceneType === 'scene_with_ui' &&
+          !node.uiRecognition.workImage
+        ) {
+          const raw = {
+            path: selected.sourcePath,
+            sha256: selected.sourceSha256,
+            width: selected.width,
+            height: selected.height,
+          };
+          const basePrompt = node.generationDraft?.prompt || node.generation?.prompt || '';
+          if (!basePrompt.trim()) {
+            options.error('已识别到游戏场景，但去文字卡没有可复用的提示词，未自动重做工作底图。');
+            return true;
+          }
+          options.remember();
+          node.uiRecognition.workImage = { mode: 'black_scene', raw };
+          node.uiRecognition.results = [];
+          delete node.uiRecognition.selectedId;
+          node.uiBaselinePrompt ??= basePrompt;
+          const workPrompt =
+            basePrompt +
+            '\n工作底图约定：保留原 UI 面板、按钮、图标、文字位置、半透明边缘和渐变材质；将 UI 之外的游戏场景、人物、天空、地图和环境画面替换为均匀纯黑 RGB(0,0,0)。保持原图尺寸、UI 位置和比例，不新增或重排 UI，不把黑色填入 UI 内部。';
+          if (node.generation) node.generation.prompt = workPrompt;
+          else if (node.generationDraft) node.generationDraft.prompt = workPrompt;
+          else {
+            options.error('已识别到游戏场景，但去文字卡生成状态不完整，未自动重做工作底图。');
+            return true;
+          }
+          node.templatePending = true;
+          options.changed();
+          if (!(await options.save())) throw new Error('工作底图状态尚未保存，请保存画布后继续。');
+          const generated = await fallback();
+          if (!generated || options.current() !== current) return generated;
+          if (node.templatePending || !node.assetPath) return false;
+          return runImage(id, fallback, confirmed, completeRecognition);
+        }
+        return true;
+      }
       if (node.uiRecognition.optional) {
         try {
           await recognize(node, confirmed);
@@ -363,7 +442,15 @@ export function createUiRecognitionUiWithHost(options: {
         }
         return options.current() === current && !node.templatePending && Boolean(node.assetPath);
       }
-      return recognize(node, confirmed, !confirmed);
+      const recognized = await recognize(node, confirmed, !confirmed);
+      if (
+        recognized &&
+        completeRecognition &&
+        selectedUiRecognition(node)?.bbox?.sceneType === 'scene_with_ui' &&
+        !node.uiRecognition.workImage
+      )
+        return runImage(id, fallback, confirmed, completeRecognition);
+      return recognized;
     }
     if (node.uiRecognition?.inputRole === 'design') {
       const references = canvasReferences(current, node.id);
@@ -380,6 +467,7 @@ export function createUiRecognitionUiWithHost(options: {
         node.sourceSnapshots = [node.sourceSnapshot!];
         node.uiRecognition.results = [];
         delete node.uiRecognition.selectedId;
+        delete node.uiRecognition.workImage;
         invalidate(node);
         return options.save();
       }

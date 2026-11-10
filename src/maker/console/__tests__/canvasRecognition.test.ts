@@ -35,6 +35,13 @@ function modelResponse(data: unknown) {
 }
 const cutResponse = () =>
   modelResponse({ pass: 'cut', image: { width: 1, height: 1 }, elements: [element] });
+const sceneCutResponse = () =>
+  modelResponse({
+    pass: 'cut',
+    image: { width: 1, height: 1 },
+    sceneType: 'scene_with_ui',
+    elements: [element],
+  });
 const textResponse = () =>
   modelResponse({
     pass: 'text',
@@ -210,6 +217,20 @@ test('persists results, binds image identity and deduplicates concurrent request
   expect(await service.modelsForDisplay()).toEqual([
     { id: 'vision-a', model: 'test-vision', source: 'custom' },
   ]);
+});
+
+test('persists the scene classification alongside Bbox coordinates', async () => {
+  const { canvasId, input } = await setup();
+  const fetcher = jest
+    .fn()
+    .mockResolvedValueOnce(sceneCutResponse())
+    .mockResolvedValueOnce(textResponse());
+  const result = await new CanvasRecognitionService(root, models, fetcher).run(canvasId, input);
+  expect(result.result?.bbox?.sceneType).toBe('scene_with_ui');
+  expect(result.cut?.sceneType).toBe('scene_with_ui');
+  expect(JSON.parse(fetcher.mock.calls[0][1].body).messages[0].content[0].text).toContain(
+    'sceneType'
+  );
 });
 
 test('a lost response stays unknown and reusing the ID never repeats a paid request', async () => {

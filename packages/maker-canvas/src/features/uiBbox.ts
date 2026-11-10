@@ -7,6 +7,12 @@ import type {
 } from '../contracts.js';
 import { UI_CUT_TYPES } from '../contracts.js';
 
+export function parseUiSceneType(value: unknown): import('../contracts.js').UiSceneType {
+  return value === 'ui_only' || value === 'scene_with_ui' || value === 'uncertain'
+    ? value
+    : 'uncertain';
+}
+
 export function validateBboxRect(
   value: unknown,
   width: number,
@@ -44,6 +50,9 @@ export function validateBboxImageStructure(value: UiBboxImage): UiBboxImage {
     throw new Error('识图图片身份或尺寸无效。');
   return { path: value.path, sha256: value.sha256, width: value.width, height: value.height };
 }
+
+/** Explicit UI-prefixed alias for callers that validate a work-image identity. */
+export const validateUiBboxImageStructure = validateBboxImageStructure;
 
 export function validateCutElements(
   value: unknown,
@@ -194,6 +203,7 @@ export function validateUiBboxStructure(value: UiBboxDocument): UiBboxDocument {
     version: 1,
     coordinateSpace: 'design-pixels',
     bboxFormat: 'xywh',
+    ...(value.sceneType !== undefined ? { sceneType: parseUiSceneType(value.sceneType) } : {}),
     ...(screen ? { screen } : {}),
     design,
     cutSource,

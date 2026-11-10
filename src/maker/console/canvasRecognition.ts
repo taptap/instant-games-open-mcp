@@ -20,6 +20,7 @@ import {
   validateCutElements,
   validateBboxTexts,
   validateBboxImage,
+  parseUiSceneType,
   type UiBboxImage,
 } from '../canvas/uiBbox.js';
 import {
@@ -471,7 +472,8 @@ export class CanvasRecognitionService {
         const cut = await request(prompt, bytes, media.type, 'cut', cutSize);
         if (!cut) return attempt;
         const cutElements = validateCutElements(cut.elements, cutSize.width, cutSize.height);
-        attempt.cut = { image: cutSource, elements: cutElements };
+        const sceneType = parseUiSceneType(cut.sceneType);
+        attempt.cut = { image: cutSource, elements: cutElements, sceneType };
         attempt.phase = 'text';
         this.write(attempt);
         const elements = scaleCutElements(cutElements, cutSize, design);
@@ -483,6 +485,7 @@ export class CanvasRecognitionService {
           version: 1 as const,
           coordinateSpace: 'design-pixels' as const,
           bboxFormat: 'xywh' as const,
+          sceneType,
           ...(screen ? { screen } : {}),
           design,
           cutSource,

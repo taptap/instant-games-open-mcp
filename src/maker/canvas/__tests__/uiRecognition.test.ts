@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { emptyDocument, type CanvasNode } from '../model.js';
 import { canvasNeedsProcessing, createTemplateWorkflow } from '../templateWorkflow.js';
 import { createUiRecognitionUi } from '../uiRecognitionUi.js';
@@ -119,6 +119,170 @@ test('server credits survive result validation and appear once in the note', () 
   expect(() =>
     validateUiRecognition({ enabled: true, results: [{ ...record, credits: -1 }] })
   ).toThrow('识图记录');
+});
+
+test('scene-backed recognition derives one black work image and keeps the original identity', async () => {
+  const document = emptyDocument();
+  const design: CanvasNode = {
+    id: 'design',
+    type: 'image',
+    title: '设计稿',
+    x: 0,
+    y: 0,
+    width: 400,
+    height: 300,
+    assetPath: 'design.png',
+    uiRecognition: { enabled: false, inputRole: 'design', results: [] },
+  };
+  const cut: CanvasNode = {
+    id: 'cut',
+    type: 'image',
+    title: '去文字',
+    x: 500,
+    y: 0,
+    width: 400,
+    height: 300,
+    assetPath: 'cut-0.png',
+    templatePending: true,
+    generation: { operation: 'variant', prompt: '保留 UI 结构' },
+    sourceSnapshots: [snapshotCanvasSource(design)!],
+    uiRecognition: { enabled: true, inputRole: 'text-free', results: [] },
+  };
+  document.nodes.push(design, cut);
+  document.edges.push({ id: 'edge', from: design.id, to: cut.id, kind: 'image-variant' });
+  const designImage = {
+    path: 'design.png',
+    sha256: createHash('sha256').update('design').digest('hex'),
+    width: 400,
+    height: 300,
+  };
+  const cutImage = (path: string, sha256: string) => ({ path, sha256, width: 400, height: 300 });
+  const makeResult = (
+    id: string,
+    sourcePath: string,
+    sourceSha256: string,
+    sceneType: 'ui_only' | 'scene_with_ui'
+  ) => ({
+    id,
+    model: 'custom',
+    prompt: 'recognition',
+    createdAt: new Date().toISOString(),
+    durationMs: 1,
+    sourcePath,
+    sourceSha256,
+    width: 400,
+    height: 300,
+    elements: [element('E001')],
+    bbox: {
+      version: 1 as const,
+      coordinateSpace: 'design-pixels' as const,
+      bboxFormat: 'xywh' as const,
+      sceneType,
+      design: designImage,
+      cutSource: cutImage(sourcePath, sourceSha256),
+      elements: [
+        {
+          id: 'E001',
+          name: '按钮',
+          type: 'button' as const,
+          bbox: [10, 20, 100, 50],
+          parent: null,
+        },
+      ],
+      texts: [],
+    },
+  });
+  const first = makeResult(
+    '00000000-0000-4000-8000-000000000001',
+    'cut-1.png',
+    '1'.repeat(64),
+    'scene_with_ui'
+  );
+  const second = makeResult(
+    '00000000-0000-4000-8000-000000000002',
+    'cut-2.png',
+    '2'.repeat(64),
+    'ui_only'
+  );
+  const recognizeUi = jest
+    .fn()
+    .mockResolvedValueOnce({ status: 'succeeded', result: first })
+    .mockResolvedValueOnce({ status: 'succeeded', result: second });
+  const previous = {
+    fetch: globalThis.fetch,
+    createImageBitmap: (globalThis as any).createImageBitmap,
+    document: (globalThis as any).document,
+  };
+  globalThis.fetch = jest.fn(async () => ({
+    ok: true,
+    blob: async () => new Blob(['design']),
+  })) as any;
+  (globalThis as any).createImageBitmap = jest.fn(async () => ({
+    width: 400,
+    height: 300,
+    close() {},
+  }));
+  (globalThis as any).document = {
+    createElement: () => ({
+      width: 0,
+      height: 0,
+      getContext: () => ({
+        scale() {},
+        drawImage() {},
+        strokeRect() {},
+        fillText() {},
+        fillRect() {},
+        measureText: () => ({ width: 10 }),
+      }),
+    }),
+  };
+  try {
+    const controller = createUiRecognitionUi({
+      current: () => document,
+      store: {
+        mediaUrl: (path: string) => path,
+        recognitionModels: async () => [{ id: 'custom', model: 'custom', source: 'custom' }],
+        recognizeUi,
+      } as any,
+      save: async () => true,
+      remember() {},
+      changed() {},
+      render() {},
+      blocked: () => false,
+      error() {},
+      loadMedia: async () => {},
+      openCanvas: async () => {},
+      readSource: async () => new Blob(['image']),
+    });
+    let generationCount = 0;
+    const result = await controller.runImage(
+      cut.id,
+      async () => {
+        generationCount++;
+        cut.assetPath = 'cut-' + generationCount + '.png';
+        delete cut.templatePending;
+        cut.sourceSnapshots = [snapshotCanvasSource(design)!];
+        return true;
+      },
+      true,
+      true
+    );
+    expect(result).toBe(true);
+    expect(generationCount).toBe(2);
+    expect(recognizeUi).toHaveBeenCalledTimes(2);
+    expect(cut.uiRecognition?.workImage).toEqual({
+      mode: 'black_scene',
+      raw: cutImage('cut-1.png', '1'.repeat(64)),
+    });
+    expect(cut.uiRecognition?.selectedId).toBe(second.id);
+    expect(cut.uiRecognition?.results[0].sourcePath).toBe('cut-2.png');
+    expect(cut.uiRecognition?.results[0].bbox?.design.path).toBe('design.png');
+    expect(cut.generation?.prompt).toContain('均匀纯黑 RGB(0,0,0)');
+  } finally {
+    globalThis.fetch = previous.fetch;
+    (globalThis as any).createImageBitmap = previous.createImageBitmap;
+    (globalThis as any).document = previous.document;
+  }
 });
 
 test.each([true, false])(

@@ -137,7 +137,11 @@ export interface CanvasRecognitionAttempt {
   /** Original dimensions supplied by the host for recovery; status and confirmation still apply. */
   recovery?: CanvasImageInfo;
   phase?: 'cut' | 'text';
-  cut?: { image: UiBboxImage; elements: UiBboxElement[] };
+  cut?: {
+    image: UiBboxImage;
+    elements: UiBboxElement[];
+    sceneType?: import('./ui.js').UiSceneType;
+  };
   status: 'running' | 'succeeded' | 'failed' | 'unknown';
   result?: UiRecognitionResult;
   error?: string;
