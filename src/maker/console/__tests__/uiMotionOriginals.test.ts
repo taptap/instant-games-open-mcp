@@ -117,12 +117,22 @@ describe('original UI motion reference limits', () => {
   });
 
   test.each(['lab', 'showcase'] as const)(
-    'upgrades mixed-case script tags and whitespace in %s samples',
+    'upgrades mixed-case script tags with browser-accepted endings in %s samples',
     (variant) => {
-      for (const whitespace of ['', ' ', '\t', '\n', '\r\n', '\f']) {
+      for (const ending of [
+        '',
+        ' ',
+        '\t',
+        '\n',
+        '\r\n',
+        '\f',
+        '\t\n bar',
+        '/',
+        ' data-old="yes"',
+      ]) {
         const html =
-          `<ScRiPt>const DATA={"lua":"legacy lua"};</sCrIpT${whitespace}>` +
-          `<SCRIPT>legacyPlayer();</SCRIPT${whitespace}><footer>retained</footer>`;
+          `<ScRiPt>const DATA={"lua":"legacy lua"};</sCrIpT${ending}>` +
+          `<SCRIPT>legacyPlayer();</SCRIPT${ending}><footer>retained</footer>`;
         const upgraded = upgradeMotionSample(html, variant);
         expect(upgraded).not.toContain('legacyPlayer()');
         if (variant === 'lab') expect(upgraded).not.toContain('legacy lua');

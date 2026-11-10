@@ -110,7 +110,7 @@ export function serveUiMotionSample(
 export function upgradeMotionSample(html: string, variant: 'showcase' | 'lab'): string {
   const assets = motionAssets();
   if (variant === 'lab') {
-    const match = /<script>const DATA=([\s\S]*?);<\/script\s*>/i.exec(html);
+    const match = /<script>const DATA=([\s\S]*?);<\/script\b[^>]*>/i.exec(html);
     if (!match) throw new ConsoleError('动效工坊素材格式不匹配，请更新参考素材。', 409);
     const data = JSON.parse(match[1]);
     const sources = motionLuaSources();
@@ -121,7 +121,7 @@ export function upgradeMotionSample(html: string, variant: 'showcase' | 'lab'): 
             'package.preload[' + JSON.stringify(name) + ']=function()\n' + sources[name] + '\nend\n'
         )
         .join('') + sources.MotionLab;
-    const scripts = [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi)];
+    const scripts = [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi)];
     const player = scripts.at(-1);
     if (!player || player.index === undefined) throw new ConsoleError('动效工坊入口不完整。', 409);
     html =
@@ -135,7 +135,7 @@ export function upgradeMotionSample(html: string, variant: 'showcase' | 'lab'): 
       () => '<script>const DATA=' + JSON.stringify(data).replace(/</g, '\\u003c') + ';</script>'
     );
   }
-  const scripts = [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi)];
+  const scripts = [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi)];
   const player = scripts.at(-1);
   if (!player || player.index === undefined || !html.includes('const DATA='))
     throw new ConsoleError('完整界面素材格式不匹配，请更新参考素材。', 409);
