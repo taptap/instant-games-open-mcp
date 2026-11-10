@@ -28,7 +28,7 @@ import { validateImageAssetsInfoStructure } from '../features/imageAssets.js';
 import { imageAssetsBindingPlanStructure } from '../features/imageAssets.js';
 import { applyImageAssetsToDocument } from '../features/imageAssets.js';
 import { validateBboxImageStructure } from '../features/uiBbox.js';
-import { parseUiScreenName, validateUiBboxStructure } from '../features/uiBbox.js';
+import { parseUiSceneType, parseUiScreenName, validateUiBboxStructure } from '../features/uiBbox.js';
 import { validateUiRecognitionStructure } from '../features/uiRecognition.js';
 import { validateUiAtlasPlanStructure } from '../features/uiAssetBindings.js';
 import { collectImageAssetEntriesFromReader } from './imageAssets.js';
@@ -2366,6 +2366,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     applyImageAssetsToDocument.toString(),
     collectImageAssetEntriesFromReader.toString(),
     validateBboxImageStructure.toString(),
+    parseUiSceneType.toString(),
     parseUiScreenName.toString(),
     validateUiBboxStructure.toString(),
     validateUiRecognitionStructure.toString(),
