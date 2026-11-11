@@ -68,6 +68,9 @@
   config.readText = function (url) {
     return host.readText(url);
   };
+  config.draftFor = function (url) {
+    return host.draftFor ? host.draftFor(url) : null;
+  };
   /** path: decoded project path such as assets/ui/main.ui.json. */
   config.save = function (path, text, expectedText) {
     return host.save(path, text, expectedText);

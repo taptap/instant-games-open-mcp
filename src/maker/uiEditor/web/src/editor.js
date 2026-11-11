@@ -707,8 +707,8 @@
         window.UrhoxPreview.loadTree(json, opts);
       }
     }
-    loadedText[file.path] = text;
-    setDirty(file.path, false);
+    loadedText[file.path] = extra && typeof extra.baselineText === 'string' ? extra.baselineText : text;
+    setDirty(file.path, !!(extra && extra.draft));
     hideExternalChange();
     updateDirtyUi();
     promptLegacyAdaptation();
@@ -1011,7 +1011,11 @@
           throw new Error('找不到指定的 UI 文档：' + window.UrhoxConfig.displayPath(requested));
         setOpening(true);
         try {
-          await loadUiFile(first || project.files[0]);
+          var selected = first || project.files[0];
+          var draft = selected && window.UrhoxConfig.draftFor ? await window.UrhoxConfig.draftFor(selected.path) : null;
+          if (draft && typeof draft.text === 'string')
+            await loadUiFile(selected, undefined, { text: draft.text, baselineText: draft.baselineText, draft: true });
+          else await loadUiFile(selected);
         } finally {
           setOpening(false);
         }
