@@ -533,6 +533,7 @@
     rebuildPreview();
     if (previousMode !== app.editMode) resizeCanvas();
     if (opts.live) {
+      renderTreePanel();
       draw();
     } else {
       refresh();
