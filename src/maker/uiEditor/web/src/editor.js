@@ -715,6 +715,7 @@
       }
     }
     loadedText[file.path] = extra && typeof extra.baselineText === 'string' ? extra.baselineText : text;
+    if (extra && extra.draft && window.UrhoxConfig.forgetDraft) window.UrhoxConfig.forgetDraft(file.path);
     setDirty(file.path, !!(extra && extra.draft));
     hideExternalChange();
     updateDirtyUi();
