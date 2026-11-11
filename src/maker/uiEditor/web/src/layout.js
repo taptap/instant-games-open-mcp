@@ -22,6 +22,7 @@
   var rightVisible = true;
   var bottomVisible = true;
   var zoom = 0.5;
+  var drawnZoom = null;
   var panX = 24;
   var panY = 24;
   var spaceDown = false;
@@ -83,7 +84,6 @@
 
   function applyView() {
     if (!stageWrap) return;
-    var previousZoom = zoom;
     stageWrap.style.transform = "translate(" + panX + "px," + panY + "px) scale(" + zoom + ")";
     var label = document.getElementById("artboardLabel");
     if (label && canvas) {
@@ -96,7 +96,11 @@
       preview.style.setProperty("--grid-y", (panY % GRID) + "px");
     }
     if (window.UrhoxComparison) window.UrhoxComparison.syncView();
-    if (window.UrhoxPreview && window.UrhoxPreview.draw && (zoom !== previousZoom || window.UrhoxPreview.hasMarquee && window.UrhoxPreview.hasMarquee())) window.UrhoxPreview.draw();
+    var zoomChanged = zoom !== drawnZoom;
+    if (window.UrhoxPreview && window.UrhoxPreview.draw && (zoomChanged || window.UrhoxPreview.hasMarquee && window.UrhoxPreview.hasMarquee())) {
+      drawnZoom = zoom;
+      window.UrhoxPreview.draw();
+    }
     if (zoomLabel) zoomLabel.textContent = Math.round(zoom * 100) + "%";
   }
 

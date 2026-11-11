@@ -646,7 +646,7 @@
       if (restoredDraft)
         await loadUiFile(file, undefined, { text: draft.text, baselineText: draft.baselineText, draft: true });
       else await loadUiFile(file);
-      if (oldPath !== file.path || !restoredDraft) setDirty(oldPath, false);
+      setDirty(oldPath, false);
       return true;
     } catch (err) {
       notify('无法打开「' + file.name + '」：' + (err.message || String(err)));
@@ -722,12 +722,12 @@
   }
 
   async function readDesignDraft(filePath) {
+    if (!window.UrhoxConfig.readDesignDraft) return null;
     var layoutPath = String(filePath || '').replace(/[^/]+$/, 'layout.json');
     if (!layoutPath || layoutPath === filePath) return null;
     try {
-      var res = await fetch(layoutPath);
-      if (!res.ok) return null;
-      var data = await res.json();
+      var data = await window.UrhoxConfig.readDesignDraft(layoutPath);
+      if (!data) return null;
       var design = data && data.design;
       if (!design || !(design.width > 0) || !(design.height > 0)) return null;
       var adaptation =

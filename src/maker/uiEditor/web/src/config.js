@@ -100,6 +100,10 @@
         if (!res.ok) throw new Error('读取失败（HTTP ' + res.status + '）');
         return res.text();
       },
+      readDesignDraft: async function (url) {
+        var res = await fetch(url);
+        return res.ok ? res.json() : null;
+      },
       save: async function (path, text, expectedText) {
         var response = await fetch(apiRoot + 'save', {
           method: 'POST',
