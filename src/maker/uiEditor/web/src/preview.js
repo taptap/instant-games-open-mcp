@@ -1199,6 +1199,7 @@
     assetUrl: function (path) { return window.UrhoxAssets.resolve(path); },
     bindImage: function (img, path) { window.UrhoxAssets.bindSrc(img, path); },
     contentTransform: contentTransform,
+    draw: draw,
     markClean: markClean,
     getCleanJSON: function () { return JSON.parse(app.cleanState || "{}"); },
     getDevice: function () { return { width:app.screen.width, height:app.screen.height, safeArea:app.safeArea || null,

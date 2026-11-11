@@ -706,6 +706,9 @@
       } else {
         window.UrhoxPreview.loadTree(json, opts);
       }
+      if (extra && extra.draft && typeof extra.baselineText === 'string' && window.UrhoxPreview.markClean) {
+        try { window.UrhoxPreview.markClean(JSON.parse(extra.baselineText)); } catch (_) { /* keep the draft dirty */ }
+      }
     }
     loadedText[file.path] = extra && typeof extra.baselineText === 'string' ? extra.baselineText : text;
     setDirty(file.path, !!(extra && extra.draft));
@@ -718,9 +721,10 @@
     var layoutPath = String(filePath || '').replace(/[^/]+$/, 'layout.json');
     if (!layoutPath || layoutPath === filePath) return null;
     try {
-      var res = await fetch(layoutPath);
-      if (!res.ok) return null;
-      var data = await res.json();
+      var data = window.UrhoxConfig.readDesignDraft
+        ? await window.UrhoxConfig.readDesignDraft(layoutPath)
+        : null;
+      if (!data) return null;
       var design = data && data.design;
       if (!design || !(design.width > 0) || !(design.height > 0)) return null;
       var adaptation =
