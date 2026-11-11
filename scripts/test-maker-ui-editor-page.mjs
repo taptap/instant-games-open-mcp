@@ -33,7 +33,7 @@ window.UrhoxHost = {
   },
 };`;
 const html = await buildUiEditorPageHtml({ hostScript, themeStyles: ':root{--bg:#121516}' });
-for (const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) new Script(match[1]);
+for (const match of html.matchAll(/<script>([\s\S]*?)<\/script>/gi)) new Script(match[1]);
 assert.doesNotMatch(html, /type="module"|<script src=|href="src\//);
 assert.doesNotMatch(html, /console-theme/);
 
