@@ -641,11 +641,12 @@
     try {
       if (!(await allowLeave())) return false;
       var oldPath = currentFilePath();
-      var draft = window.UrhoxConfig.draftFor ? await window.UrhoxConfig.draftFor(file.path) : null;
-      if (draft && typeof draft.text === 'string')
+      var draft = !reload && window.UrhoxConfig.draftFor ? await window.UrhoxConfig.draftFor(file.path) : null;
+      var restoredDraft = !!(draft && typeof draft.text === 'string');
+      if (restoredDraft)
         await loadUiFile(file, undefined, { text: draft.text, baselineText: draft.baselineText, draft: true });
       else await loadUiFile(file);
-      setDirty(oldPath, false);
+      if (!restoredDraft) setDirty(oldPath, false);
       return true;
     } catch (err) {
       notify('无法打开「' + file.name + '」：' + (err.message || String(err)));
@@ -724,10 +725,9 @@
     var layoutPath = String(filePath || '').replace(/[^/]+$/, 'layout.json');
     if (!layoutPath || layoutPath === filePath) return null;
     try {
-      var data = window.UrhoxConfig.readDesignDraft
-        ? await window.UrhoxConfig.readDesignDraft(layoutPath)
-        : null;
-      if (!data) return null;
+      var res = await fetch(layoutPath);
+      if (!res.ok) return null;
+      var data = await res.json();
       var design = data && data.design;
       if (!design || !(design.width > 0) || !(design.height > 0)) return null;
       var adaptation =

@@ -83,6 +83,7 @@
 
   function applyView() {
     if (!stageWrap) return;
+    var previousZoom = zoom;
     stageWrap.style.transform = "translate(" + panX + "px," + panY + "px) scale(" + zoom + ")";
     var label = document.getElementById("artboardLabel");
     if (label && canvas) {
@@ -95,7 +96,7 @@
       preview.style.setProperty("--grid-y", (panY % GRID) + "px");
     }
     if (window.UrhoxComparison) window.UrhoxComparison.syncView();
-    if (window.UrhoxPreview && window.UrhoxPreview.hasMarquee && window.UrhoxPreview.hasMarquee()) window.UrhoxPreview.draw();
+    if (window.UrhoxPreview && window.UrhoxPreview.draw && (zoom !== previousZoom || window.UrhoxPreview.hasMarquee && window.UrhoxPreview.hasMarquee())) window.UrhoxPreview.draw();
     if (zoomLabel) zoomLabel.textContent = Math.round(zoom * 100) + "%";
   }
 
