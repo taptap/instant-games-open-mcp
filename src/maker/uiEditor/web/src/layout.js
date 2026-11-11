@@ -95,7 +95,7 @@
       preview.style.setProperty("--grid-y", (panY % GRID) + "px");
     }
     if (window.UrhoxComparison) window.UrhoxComparison.syncView();
-    if (window.UrhoxPreview && window.UrhoxPreview.draw) window.UrhoxPreview.draw();
+    if (window.UrhoxPreview && window.UrhoxPreview.hasMarquee && window.UrhoxPreview.hasMarquee()) window.UrhoxPreview.draw();
     if (zoomLabel) zoomLabel.textContent = Math.round(zoom * 100) + "%";
   }
 

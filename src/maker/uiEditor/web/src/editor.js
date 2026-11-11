@@ -641,7 +641,10 @@
     try {
       if (!(await allowLeave())) return false;
       var oldPath = currentFilePath();
-      await loadUiFile(file);
+      var draft = window.UrhoxConfig.draftFor ? await window.UrhoxConfig.draftFor(file.path) : null;
+      if (draft && typeof draft.text === 'string')
+        await loadUiFile(file, undefined, { text: draft.text, baselineText: draft.baselineText, draft: true });
+      else await loadUiFile(file);
       setDirty(oldPath, false);
       return true;
     } catch (err) {
