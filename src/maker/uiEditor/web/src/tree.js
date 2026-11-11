@@ -33,7 +33,7 @@
     row.classList.toggle("search-match", !!opts.searching && opts.searchMatches.has(node));
     var modified = !!opts.modifiedNodes && opts.modifiedNodes.has(key);
     row.classList.toggle("modified-node", modified);
-    row.style.paddingLeft = (6 + depth * 14) + "px";
+    row.style.setProperty("--tree-depth", String(depth));
 
     var vis = document.createElement("input");
     vis.type = "checkbox";
@@ -84,13 +84,15 @@
       window.UrhoxUiTools.highlight(extraEl, "  " + label.extra, opts.query || "");
       row.appendChild(extraEl);
     }
-    if (selected) {
+    {
       if (opts.onAdd) {
         var add = document.createElement("button");
         add.type = "button";
         add.className = "tree-add";
         add.textContent = "+";
         add.title = "添加子节点";
+        add.setAttribute("aria-label", add.title);
+        add.dataset.action = "add";
         add.addEventListener("click", function (event) {
           event.preventDefault();
           event.stopPropagation();
@@ -104,6 +106,8 @@
         del.className = "tree-add";
         del.textContent = "×";
         del.title = "删除节点";
+        del.setAttribute("aria-label", del.title);
+        del.dataset.action = "delete";
         del.addEventListener("click", function (event) {
           event.preventDefault();
           event.stopPropagation();

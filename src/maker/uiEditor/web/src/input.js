@@ -33,6 +33,17 @@
     for (var i = 0; i < list.length; i++) {
       if (Math.abs(x - list[i].x) <= pad && Math.abs(y - list[i].y) <= pad) return list[i];
     }
+    // Keep point handles first so corners and rotation retain their gestures.
+    var nw = list.filter(function (h) { return h.id === "nw"; })[0];
+    var se = list.filter(function (h) { return h.id === "se"; })[0];
+    if (!nw || !se) return null;
+    for (var j = 0; j < list.length; j++) {
+      var edge = list[j];
+      if ((edge.id === "n" || edge.id === "s") &&
+          x >= nw.x && x <= se.x && Math.abs(y - edge.y) <= pad) return edge;
+      if ((edge.id === "w" || edge.id === "e") &&
+          y >= nw.y && y <= se.y && Math.abs(x - edge.x) <= pad) return edge;
+    }
     return null;
   }
 
@@ -238,12 +249,15 @@
         if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
       }
       function onImageDrop(event) {
-        var raw = event.dataTransfer && event.dataTransfer.getData("text/plain");
-        if (!raw || raw.indexOf("urhox-image:") !== 0) return;
+        var project = window.UrhoxProject;
+        var ref = project && project.dropImageRef ? project.dropImageRef(event.dataTransfer) : "";
+        if (!ref) return;
         event.preventDefault();
         event.stopPropagation();
         var p = canvasPoint(app, event);
-        window.UrhoxCommands.createImageFromAsset(app, raw.slice("urhox-image:".length), Math.round(p.x), Math.round(p.y));
+        window.UrhoxCommands.createImageFromAsset(app, ref, Math.round(p.x), Math.round(p.y));
+        // Images dropped from a host browser may be newer than the file listing.
+        if (window.UrhoxHost && project.findAsset && !project.findAsset(ref) && project.refreshFiles) project.refreshFiles();
       }
       previewEl.addEventListener("dragover", onImageDragOver);
       previewEl.addEventListener("drop", onImageDrop);

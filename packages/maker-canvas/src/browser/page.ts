@@ -1,3 +1,4 @@
+import { installWebToolbarDrag } from './webToolbar.js';
 import { canvasMediaSources, refreshCanvasMedia } from './mediaVersions.js';
 import { canvasCapabilityReason, canvasFeatureEnabled } from './capabilities.js';
 import { canvasSupportsPlatform, validateCanvasPlatforms } from '../contracts/platform.js';
@@ -2452,6 +2453,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasPngPlan.toString(),
     canvasPngStill.toString(),
     createCanvasMarks.toString(),
+    installWebToolbarDrag.toString(),
     createCanvasWorkspace.toString(),
     createCanvasLog.toString(),
     canvasLogLevel.toString(),

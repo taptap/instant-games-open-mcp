@@ -1,3 +1,6 @@
+import { webToolbarStyles } from './webToolbar.js';
+import { canvasWebTooltipStyles } from './webTooltip.js';
+
 // The :not(#id) term adds ID weight so this opt-in skin wins over host theme CSS appended later.
 const M = ':root.canvas-appearance-web:not(#canvas-web-scope)';
 const L = ':root.canvas-appearance-web[data-theme="light"]:not(#canvas-web-scope)';
@@ -136,16 +139,7 @@ ${L} {
   --web-scrim: rgba(255,255,255,.94);
 }
 
-${M} .workspace-toolbar { width: 48px; padding: 7px 5px; gap: 0; border: 1px solid var(--web-line); border-radius: 24px; background: var(--web-panel); box-shadow: var(--web-shadow); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-${M} .workspace-toolbar .workspace-toolbar-grip { display: flex; align-items: center; justify-content: center; height: 16px; min-height: 16px; margin-bottom: 2px; background: transparent; color: var(--web-muted); font-size: 0; line-height: 0; }
-${M} .workspace-toolbar .workspace-toolbar-grip:hover { color: var(--web-text); }
-${M} .workspace-toolbar .workspace-toolbar-grip svg { display: block; }
-${M} .workspace-actions { gap: 0; align-items: center; }
-${M} .workspace-actions > * + * { margin-top: 4px; }
-${M} .workspace-actions > button, ${M} .workspace-actions summary { box-sizing: border-box; width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--web-muted); font-weight: 400; }
-${M} .workspace-actions > button:hover:not(:disabled), ${M} .workspace-actions summary:hover { background: var(--web-wash); color: var(--web-text); }
-${M} .workspace-actions > button[aria-pressed="true"], ${M} .workspace-actions > button[aria-pressed="true"]:hover:not(:disabled), ${M} .workspace-actions .workspace-add[open] > summary { background: var(--web-text); color: var(--web-panel); }
-${M} .workspace-tool-sep { width: 20px; height: 1px; margin: 6px auto; background: var(--web-line); }
+${webToolbarStyles(M)}
 /* The save button carries saved/unsaved/saving/failed; the status text stays for screen readers only. */
 ${M} .workspace-toolbar #status { position: absolute; width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden; clip: rect(0 0 0 0); border: 0; white-space: nowrap; }
 ${M} .workspace-actions > #save { position: relative; }
@@ -393,15 +387,7 @@ ${M} .workspace-tabs-row > #workspace-new::before { content: ''; display: block;
 ${M} .workspace-tabs-row > button:hover:not(:disabled), ${M} .workspace-library > summary:hover, ${M} .workspace-library[open] > summary { background: var(--web-wash); color: var(--web-text); }
 ${M} .workspace-tab button:focus-visible, ${M} .workspace-tabs-row > button:focus-visible, ${M} .workspace-library > summary:focus-visible { outline: 2px solid var(--web-accent); outline-offset: -2px; }
 ${M} .workspace-tabs-row > button:disabled { opacity: .45; }
-/* Tooltip = Mivo .canvas-tooltip-host bubble: small dark pill above the target, shown by JS after 150ms. */
-${M} .web-tooltip { position: fixed; left: 0; top: 0; z-index: 2147483000; box-sizing: border-box; max-width: 220px; padding: 5px 9px; border: 1px solid rgba(255,250,240,.1); border-radius: 7px; background: rgba(28,28,27,.98); color: #fffaf0; box-shadow: 0 10px 24px rgba(0,0,0,.28); font-size: 12px; font-weight: 600; line-height: 1.35; text-align: center; white-space: nowrap; pointer-events: none; opacity: 0; -webkit-transform: translateY(3px); transform: translateY(3px); transition: opacity .12s ease, transform .12s ease; }
-${M} .web-tooltip[data-open="true"] { opacity: 1; -webkit-transform: none; transform: none; }
-${M} .web-tooltip[hidden] { display: none; }
-${M} .web-tooltip::after { content: ''; position: absolute; left: var(--web-tip-arrow, 50%); top: 100%; width: 8px; height: 8px; margin: -4px 0 0 -4px; box-sizing: border-box; border-right: 1px solid rgba(255,250,240,.1); border-bottom: 1px solid rgba(255,250,240,.1); background: inherit; -webkit-transform: rotate(45deg); transform: rotate(45deg); }
-${M} .web-tooltip[data-side="below"]::after { top: 0; -webkit-transform: rotate(225deg); transform: rotate(225deg); }
-${L} .web-tooltip { border-color: rgba(37,46,41,.9); background: rgba(37,46,41,.96); color: #ffffff; box-shadow: 0 8px 20px rgba(35,35,35,.16); }
-${L} .web-tooltip::after { border-color: rgba(37,46,41,.9); }
-@media (prefers-reduced-motion: reduce) { ${M} .web-tooltip { transition: none; } }
+${canvasWebTooltipStyles(M, L)}
 
 /* Video slot and video result = image card: bare title row over a shadowed frame, same selection outline, ring and corner handles. */
 ${M} .card.video.canvas-card, ${M} .card.video-source.canvas-card { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
