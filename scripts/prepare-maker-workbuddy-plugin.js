@@ -332,6 +332,7 @@ async function main() {
   renameSync(join(uiSkill, 'scripts/assemble-ui.mjs'), join(uiSkill, 'assemble-ui.mjs'));
   renameSync(join(uiSkill, 'references/workflow.md'), join(uiSkill, 'workflow.md'));
   renameSync(join(uiSkill, 'references/responsive.md'), join(uiSkill, 'responsive.md'));
+  renameSync(join(uiSkill, 'references/layout.md'), join(uiSkill, 'layout.md'));
   renameSync(join(uiSkill, 'references/chatgpt-web.md'), join(uiSkill, 'chatgpt-web.md'));
   for (const directory of ['scripts', 'references'])
     rmSync(join(uiSkill, directory), { recursive: true });
@@ -343,6 +344,7 @@ async function main() {
         .replaceAll('scripts/assemble-ui.mjs', 'assemble-ui.mjs')
         .replaceAll('references/workflow.md', 'workflow.md')
         .replaceAll('references/responsive.md', 'responsive.md')
+        .replaceAll('references/layout.md', 'layout.md')
         .replaceAll('references/chatgpt-web.md', 'chatgpt-web.md')
     );
   }
@@ -375,6 +377,7 @@ async function main() {
           '../maker-ui-workflow/references/responsive.md',
           '../maker-ui-workflow/responsive.md'
         )
+        .replaceAll('../maker-ui-workflow/references/layout.md', '../maker-ui-workflow/layout.md')
     );
   }
 
