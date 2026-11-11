@@ -50,12 +50,6 @@ export interface UiScreenName {
 /** How much of the recognition input belongs to the UI versus an environment scene. */
 export type UiSceneType = 'ui_only' | 'scene_with_ui' | 'uncertain';
 
-/** The original text-free image kept when a scene-specific work image is derived. */
-export interface UiRecognitionWorkImage {
-  mode: 'black_scene';
-  raw: UiBboxImage;
-}
-
 export interface UiBboxDocument {
   version: 1;
   coordinateSpace: 'design-pixels';
@@ -114,12 +108,10 @@ export interface UiRecognitionSettings {
   /** Supplementary Bbox data; does not drive generation or invalidate its outputs. */
   optional?: boolean;
   enabled: boolean;
-  inputRole?: 'design' | 'text-free';
+  inputRole?: 'design' | 'work-image' | 'text-free';
   model?: string;
   selectedId?: string;
   pendingId?: string;
-  /** Source identity is retained when the visible cut card is replaced by a work image. */
-  workImage?: UiRecognitionWorkImage;
   results: UiRecognitionResult[];
 }
 

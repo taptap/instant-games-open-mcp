@@ -164,7 +164,7 @@ export function openImageAtlasDialogWithHost(
   );
   if (bindingPlan)
     confirm.parentElement.lastChild.textContent =
-      '我已核对各格编号、名称及状态与素材一致，没有遗漏或误切';
+      '我已核对各格编号、名称及状态与素材一致，没有遗漏或误切；如有半透明区域，深浅底显示也正确';
   const status = dialog.querySelector('[data-atlas-status]');
   const preview = dialog.querySelector('[data-atlas-preview]');
   const editor = dialog.querySelector('[data-atlas-content]');

@@ -17,6 +17,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { selectedUiRecognition, uiRecognitionSource } from '../canvas/uiRecognition.js';
 import {
   canvasOriginalImage,
+  preservesUiDesignPixels,
   imageRatioInfo,
   resolveImageSize,
   imageResultWarning,
@@ -240,9 +241,17 @@ export class CanvasGenerationService {
         (requestedPixels
           ? imageRatioInfo({ width: requestedPixels[0], height: requestedPixels[1] }).ratio
           : '1:1');
-      const size = resolveImageSize(requestedRatio, options.resolution, originalInfo);
+      const preserveOriginalPixels = preservesUiDesignPixels(document, target);
+      const size = resolveImageSize(
+        requestedRatio,
+        options.resolution,
+        originalInfo,
+        preserveOriginalPixels
+      );
       const targetSize =
-        options.aspectRatio === 'source' ? size.targetSize : options.targetSize || size.targetSize;
+        preserveOriginalPixels || options.aspectRatio === 'source'
+          ? size.targetSize
+          : options.targetSize || size.targetSize;
       const [targetWidth, targetHeight] = targetSize.split('x').map(Number);
       if (
         uiAtlasPlan?.nativeLayout &&
@@ -278,11 +287,13 @@ export class CanvasGenerationService {
           operation === 'outpaint' ||
           remoteReferences.length !== 1 ||
           remoteReferences[0] !==
-            (uiAtlasPlan.slots.every((slot) => slot.role === 'text')
+            (uiAtlasPlan.slots.every((slot) => slot.role === 'text' || slot.role === 'background')
               ? uiAtlasPlan.bbox.design.path
               : uiAtlasPlan.bbox.cutSource.path)
         )
-          throw new Error('Bbox 预排必须仅引用当前去文字图，不能混入其它参考图或扩图。');
+          throw new Error(
+            'Bbox 预排必须引用对应来源：美术字和环境背景使用原稿，UI 素材使用工作图。'
+          );
         preparedPath = await prepareUiAtlasReference(
           files,
           uiAtlasPlan,
@@ -347,6 +358,8 @@ export class CanvasGenerationService {
       );
       let model: string | undefined;
       let remoteAspectRatio: string | undefined;
+      let quality: string | undefined;
+      let thinkingLevel: string | undefined;
       if (!localPrelayout) {
         if (provider.source === 'local')
           throw new ConsoleError(
@@ -375,6 +388,21 @@ export class CanvasGenerationService {
         if (canvasImageProviderIdentity() !== canvasImageProviderIdentity(provider))
           throw new ConsoleError('生图来源或模型配置已变化，请重新确认后提交。', 409);
         if (provider.source === 'maker') {
+          // Keep the tested scene/HUD extraction settings scoped to four-card 015 groups.
+          // Ordinary UI templates and other image operations retain provider defaults.
+          const sceneWork =
+            target &&
+            (preservesUiDesignPixels(document, target) ||
+              (uiAtlasPlan &&
+                document.nodes.some(
+                  (node) =>
+                    node.sectionId === target.sectionId &&
+                    node.uiRecognition?.inputRole === 'work-image'
+                )));
+          if (sceneWork) {
+            if (available.quality?.includes('high')) quality = 'high';
+            if (available.thinkingLevel?.includes('high')) thinkingLevel = 'high';
+          }
           const ratio = available.aspectRatio;
           if (ratio) {
             const [ratioWidth, ratioHeight] = size.aspectRatio.split(':').map(Number);
@@ -438,8 +466,11 @@ export class CanvasGenerationService {
         document.nodes.find((node) => node.id === options.targetNodeId)?.assetPath || '';
       attempt.parameters = {
         model: provider.source === 'custom' ? provider.profile?.model : model,
+        ...(quality ? { quality } : {}),
+        ...(thinkingLevel ? { thinkingLevel } : {}),
         resolution: options.resolution,
         targetSize,
+        preserveOriginalPixels,
         aspectRatio: requestedRatio,
       };
       attempt.provider = localPrelayout ? 'local' : provider.source;
@@ -490,6 +521,8 @@ export class CanvasGenerationService {
           args: {
             prompt: attempt.submittedPrompt,
             name: options.name || 'canvas-image',
+            ...(quality ? { quality } : {}),
+            ...(thinkingLevel ? { thinking_level: thinkingLevel } : {}),
             target_size: targetSize,
             ...(remoteAspectRatio ? { aspect_ratio: remoteAspectRatio } : {}),
             ...(model ? { model } : {}),
@@ -1092,7 +1125,11 @@ export class CanvasGenerationService {
     }
     attempt.resultImageInfo = files.imageInfo(attempt.resultAssetPath);
     const warning = attempt.resultImageInfo
-      ? imageResultWarning(attempt.resultImageInfo, attempt.parameters?.targetSize)
+      ? imageResultWarning(
+          attempt.resultImageInfo,
+          attempt.parameters?.targetSize,
+          attempt.parameters?.preserveOriginalPixels
+        )
       : '生成图片尺寸暂无法读取，请核对实际文件。';
     if (warning) attempt.warnings = [...new Set([...(attempt.warnings || []), warning])];
     attempt.status = 'succeeded';

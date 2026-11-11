@@ -14,8 +14,8 @@ export type {
 export { UI_ELEMENT_CATEGORIES } from '../contracts.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import { canvasDependents, canvasReferences } from '../core/dependencies.js';
-import { scaleCutElements, validateUiBboxImageStructure, validateUiBboxStructure } from './uiBbox.js';
-import type { UiBboxDocument, UiRecognitionWorkImage } from '../contracts.js';
+import { scaleCutElements, validateUiBboxStructure } from './uiBbox.js';
+import type { UiBboxDocument } from '../contracts.js';
 import { hasImageFeature } from './imageFeatures.js';
 
 export function bboxRecognitionElements(bbox: UiBboxDocument): UiElement[] {
@@ -97,7 +97,8 @@ export function validateUiRecognitionStructure(value: unknown): UiRecognitionSet
     !input ||
     typeof input.enabled !== 'boolean' ||
     (input.optional !== undefined && typeof input.optional !== 'boolean') ||
-    (input.inputRole !== undefined && !['design', 'text-free'].includes(input.inputRole)) ||
+    (input.inputRole !== undefined &&
+      !['design', 'work-image', 'text-free'].includes(input.inputRole)) ||
     !Array.isArray(input.results) ||
     input.results.length > 12 ||
     (input.model !== undefined &&
@@ -105,16 +106,6 @@ export function validateUiRecognitionStructure(value: unknown): UiRecognitionSet
   )
     throw new Error('识图配置无效；每张原稿最多保留 12 次识别结果。');
   const ids = new Set<string>();
-  let workImage: UiRecognitionWorkImage | undefined;
-  if (input.workImage !== undefined) {
-    const candidate = input.workImage as Partial<UiRecognitionWorkImage>;
-    if (candidate.mode !== 'black_scene' || !candidate.raw)
-      throw new Error('识图工作底图状态无效。');
-    workImage = {
-      mode: 'black_scene',
-      raw: validateUiBboxImageStructure(candidate.raw),
-    };
-  }
   const results = input.results.map((result): UiRecognitionResult => {
     if (
       !result ||
@@ -145,7 +136,7 @@ export function validateUiRecognitionStructure(value: unknown): UiRecognitionSet
         bbox.cutSource.width !== result.width ||
         bbox.cutSource.height !== result.height)
     )
-      throw new Error('识图 Bbox 与去文字图片身份不一致。');
+      throw new Error('识图 Bbox 与 UI 工作图身份不一致。');
     return {
       id: result.id,
       model: result.model,
@@ -175,7 +166,6 @@ export function validateUiRecognitionStructure(value: unknown): UiRecognitionSet
     ...(input.inputRole ? { inputRole: input.inputRole } : {}),
     ...(input.model ? { model: input.model } : {}),
     ...(input.pendingId ? { pendingId: input.pendingId } : {}),
-    ...(workImage ? { workImage } : {}),
     ...(input.selectedId ? { selectedId: input.selectedId } : {}),
     results,
   };
@@ -193,32 +183,105 @@ export function uiRecognitionInputs(document: CanvasDocument, node: CanvasNode) 
       )
     : [node];
   if (cut.length !== 1 || !cut[0].assetPath || cut[0].templatePending)
-    throw new Error('请先准备一张去文字稿，并从原 UI 设计稿连线到它，再执行识别。');
-  const originals = canvasReferences(document, cut[0].id).filter(
-    (source) => source.type === 'image' && source.assetPath
+    throw new Error('请先准备一张 UI 工作图（去文字稿），并从原 UI 设计稿连线到它，再执行识别。');
+  const originals: CanvasNode[] = [];
+  const visited = new Set<string>();
+  const pending = [cut[0].id];
+  while (pending.length) {
+    const id = pending.shift()!;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const current = document.nodes.find((item) => item.id === id);
+    if (current?.uiRecognition?.inputRole === 'design') {
+      if (current.type === 'image' && current.assetPath) originals.push(current);
+      continue;
+    }
+    pending.push(...canvasReferences(document, id).map((source) => source.id));
+  }
+  // Older canvases use one direct original image without a role marker.
+  // Do not interpret an explicitly typed work image or multiple inputs as that original.
+  if (!originals.length) {
+    const direct = canvasReferences(document, cut[0].id).filter(
+      (source) => source.type === 'image' && source.assetPath
+    );
+    if (direct.length === 1 && !direct[0].uiRecognition?.inputRole) originals.push(direct[0]);
+  }
+  const unique = [...new Map(originals.map((source) => [source.id, source])).values()];
+  if (unique.length !== 1 || unique[0].templatePending)
+    throw new Error('UI 工作图需要沿连线引用唯一的原 UI 设计稿。');
+  return { design: unique[0], cut: cut[0] };
+}
+
+/** Element recognition uses the background-removed image; the cut card stays the slicing source. */
+export function uiElementRecognitionInput(document: CanvasDocument, cut: CanvasNode): CanvasNode {
+  const work = canvasReferences(document, cut.id).filter(
+    (source) => source.type === 'image' && source.uiRecognition?.inputRole === 'work-image'
   );
-  if (originals.length !== 1 || originals[0].templatePending)
-    throw new Error('去文字稿需要连线引用唯一的原 UI 设计稿。');
-  return { design: originals[0], cut: cut[0] };
+  if (!work.length) return cut; // Historical workflows have no separate background-removal card.
+  if (work.length !== 1 || !work[0].assetPath || work[0].templatePending)
+    throw new Error('元素识别需要唯一且已完成的去背景图。');
+  return work[0];
 }
 
 export function uiRecognitionPreview(document: CanvasDocument, node: CanvasNode) {
   const direct = selectedUiRecognition(node);
-  if (
-    node.uiRecognition?.inputRole === 'design' &&
-    direct?.bbox &&
-    direct.bbox.design.path === node.assetPath
-  )
-    return { source: node, result: direct };
-  try {
-    const inputs = uiRecognitionInputs(document, node);
-    const result = selectedUiRecognition(inputs.cut);
+  if (direct?.bbox) {
+    try {
+      const inputs = uiRecognitionInputs(document, node);
+      if (direct.bbox.design.path === inputs.design.assetPath)
+        return { source: node, result: direct };
+    } catch {
+      // The card can still be a valid preview source when its relation is resolved below.
+    }
+  }
+
+  const role = node.uiRecognition?.inputRole;
+  const candidates = document.nodes.filter(
+    (candidate) =>
+      candidate.type === 'image' &&
+      candidate.uiRecognition?.inputRole === 'text-free' &&
+      (!node.sectionId || candidate.sectionId === node.sectionId)
+  );
+  for (const candidate of candidates) {
+    let inputs: { design: CanvasNode; cut: CanvasNode };
+    try {
+      inputs = uiRecognitionInputs(document, candidate);
+    } catch {
+      continue;
+    }
+    const related =
+      candidate.id === node.id ||
+      inputs.design.id === node.id ||
+      (role === 'work-image' &&
+        canvasReferences(document, candidate.id).some((source) => source.id === node.id)) ||
+      (node.uiBackground &&
+        canvasReferences(document, node.id).some((source) => source.id === inputs.design.id));
+    if (!related) continue;
+    const result = selectedUiRecognition(candidate);
     if (result?.bbox && result.bbox.design.path === inputs.design.assetPath)
-      return { source: inputs.cut, result };
-  } catch {
-    return undefined;
+      return { source: candidate, result };
   }
   return undefined;
+}
+
+/**
+ * The 015 work-image card is the visible recognition control, while the text-free card keeps
+ * the two-pass result and remains the slicing source. Older workflows without a work-image card
+ * continue to use their own recognition card.
+ */
+export function uiRecognitionControlTarget(
+  document: CanvasDocument,
+  node: CanvasNode
+): CanvasNode | undefined {
+  if (node.uiRecognition?.inputRole !== 'work-image') return node;
+  const candidates = document.nodes.filter(
+    (candidate) =>
+      candidate.type === 'image' &&
+      candidate.uiRecognition?.inputRole === 'text-free' &&
+      (!node.sectionId || candidate.sectionId === node.sectionId) &&
+      canvasReferences(document, candidate.id).some((source) => source.id === node.id)
+  );
+  return candidates.length === 1 ? candidates[0] : node;
 }
 
 export function setUiRecognitionMode(
@@ -245,7 +308,7 @@ export function selectedUiExtraction(document: CanvasDocument, node: CanvasNode)
   if (source?.uiRecognition?.optional) return;
   if (!source?.uiRecognition?.enabled) return;
   const result = selectedUiRecognition(source);
-  if (!result) throw new Error('请先完成当前去文字图的识图，再拆图。');
+  if (!result) throw new Error('请先完成当前 UI 工作图的识图，再拆图。');
   if (
     result.bbox &&
     uiRecognitionInputs(document, source).design.assetPath !== result.bbox.design.path
@@ -273,15 +336,21 @@ export function uiRecognitionSource(
     if (visited.has(id)) continue;
     visited.add(id);
     const current = document.nodes.find((item) => item.id === id);
-    if (node.uiArtTextId && current?.uiRecognition?.inputRole === 'design') {
+    if (
+      (node.uiArtTextId || node.uiAtlasGroup === 'background') &&
+      current?.uiRecognition?.inputRole === 'design'
+    ) {
       const sources = document.nodes.filter(
         (candidate) =>
           candidate.sectionId === node.sectionId &&
           candidate.uiRecognition?.inputRole === 'text-free' &&
-          document.edges.some(
-            (edge) =>
-              edge.from === current.id && edge.to === candidate.id && edge.kind === 'image-variant'
-          )
+          (() => {
+            try {
+              return uiRecognitionInputs(document, candidate).design.id === current.id;
+            } catch {
+              return false;
+            }
+          })()
       );
       if (sources.length === 1) return sources[0];
     }
@@ -345,12 +414,12 @@ export function uiRecognitionStatus(source?: CanvasNode) {
     return {
       status: 'not-ready',
       label: 'Bbox 可选',
-      text: 'Bbox 尚未生成，不影响拆图与资源包。可从去文字卡菜单选择“生成 / 重试 Bbox”。',
+      text: 'Bbox 尚未生成，不影响拆图与资源包。可从识图工作卡菜单选择“生成 / 重试 Bbox”。',
     };
   return {
     status: 'not-ready',
     label: '尚未完成',
-    text: '当前去文字图尚无已选用的识图清单。请通过 Server API 或自定义 API 识图；接口未就绪时检查设置，恢复后继续。旧图片结果不可用于当前拆图。',
+    text: '当前 UI 工作图尚无已选用的识图清单。请通过 Server API 或自定义 API 识图；接口未就绪时检查设置，恢复后继续。旧图片结果不可用于当前拆图。',
   };
 }
 

@@ -94,6 +94,7 @@ export function createCanvasAutomationUiWithHost(options: {
     inspect(groupId: string): { stage: string; message: string } | undefined;
     /** True while one start is still driving the group (queue, retries or assembly). */
     active?(groupId: string): boolean;
+    stop?(groupId: string): void;
     /** Final result of the run once it has finished. */
     outcome?(groupId: string): { status: string; stage: string; message: string } | undefined;
   };
@@ -322,8 +323,11 @@ export function createCanvasAutomationUiWithHost(options: {
     }
     if (command.action === 'stop') {
       const target = node(input.id, current);
-      if (target.type === 'section') options.queue.stop(target.id);
-      else if (options.canStop(target.id)) options.stop(target.id);
+      if (target.type === 'section') {
+        if (options.ui015?.isWorkflowGroup(target.id) && options.ui015.stop)
+          options.ui015.stop(target.id);
+        else options.queue.stop(target.id);
+      } else if (options.canStop(target.id)) options.stop(target.id);
       else throw invalid('此卡片当前没有可停止的本地视频等待。');
       return { requested: true, remoteCanceled: false, snapshot: snapshot() };
     }

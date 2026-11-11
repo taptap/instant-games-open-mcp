@@ -30,6 +30,7 @@ let root: string;
 let files: MakerCanvasFiles;
 let plan: UiAtlasPlan;
 beforeEach(async () => {
+  jest.mocked(callRemoteProxyTool).mockReset();
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-ui-prelayout-'));
   jest
     .spyOn(imageModelDiscovery, 'canvasImageModels')
@@ -99,120 +100,132 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('local preparation works without an image provider and records a visible reusable result', async () => {
-  jest
-    .spyOn(settings, 'generationProvider')
-    .mockReturnValue({ source: 'local', profile: undefined });
-  jest.spyOn(bindings, 'selectedUiAtlasPlan').mockImplementation(() => plan);
-  const remote = jest
-    .spyOn(globalThis, 'fetch')
-    .mockRejectedValue(new Error('must not call network'));
-  let doc = await files.create('local step', 'empty');
-  const source: CanvasNode = {
-    id: createId(),
-    type: 'image',
-    title: 'source',
-    x: 0,
-    y: 0,
-    width: 200,
-    height: 200,
-    assetPath: plan.bbox.cutSource.path,
-  };
-  const target: CanvasNode = {
-    ...source,
-    id: createId(),
-    title: 'prelayout',
-    assetPath: undefined,
-    uiAtlasPrelayout: true,
-    generationDraft: { operation: 'variant', prompt: 'prepare', sourceImageId: source.id },
-  };
-  doc.nodes = [source, target];
-  doc.edges = [{ id: createId(), from: source.id, to: target.id, kind: 'image-variant' }];
-  doc = await files.save(doc.id, doc, doc.revision);
-  const service = new CanvasGenerationService(root, {} as any);
-  const input = {
-    canvasId: doc.id,
-    targetNodeId: target.id,
-    sourceImageId: source.id,
-    sourceImagePath: source.assetPath,
-    resolution: '1K',
-    aspectRatio: '1:1',
-    prompt: uiAtlasOrderPrompt(plan),
-  };
-  const result = await service.generateImage(input);
-  expect(result).toMatchObject({
-    provider: 'local',
-    toolName: 'prepare_ui_atlas',
-    status: 'succeeded',
-    resultImageInfo: { width: 1024, height: 1024 },
-  });
-  expect(result.sourceSnapshot?.nodeId).toBe(source.id);
-  expect(result.uiAtlasPlan).toEqual(plan);
-  expect(files.readMedia(result.resultAssetPath!).type).toBe('image/png');
-  expect(remote).not.toHaveBeenCalled();
-  target.assetPath = result.resultAssetPath;
-  target.generation = {
-    prompt: result.prompt,
-    operation: 'variant',
-    uiAtlasPlan: plan,
-    sourceImageId: source.id,
-    sourceImageIds: [source.id],
-    attemptId: result.id,
-  };
-  target.sourceSnapshot = result.sourceSnapshot;
-  delete target.generationDraft;
-  const consumer: CanvasNode = {
-    id: createId(),
-    type: 'image',
-    title: 'separate',
-    x: 500,
-    y: 0,
-    width: 200,
-    height: 200,
-    referenceInput: { includeSelf: false },
-    generationDraft: { operation: 'variant', sourceImageId: target.id, prompt: 'separate' },
-  };
-  doc.nodes = [source, target, consumer];
-  doc.edges.push({ id: createId(), from: target.id, to: consumer.id, kind: 'image-variant' });
-  doc = await files.save(doc.id, doc, doc.revision);
-  jest.mocked(settings.generationProvider).mockReturnValue({ source: 'maker', profile: undefined });
-  const submit = jest.mocked(callRemoteProxyTool);
-  const generatedPath = 'assets/image/generated.png';
-  fs.mkdirSync(path.join(root, 'assets/image'), { recursive: true });
-  fs.copyFileSync(files.readMedia(target.assetPath!).file, path.join(root, generatedPath));
-  submit.mockResolvedValue({ structuredContent: { localPath: generatedPath } } as any);
-  const next = {
-    ...input,
-    targetNodeId: consumer.id,
-    sourceImageId: target.id,
-    sourceImagePath: target.assetPath,
-    prompt: uiAtlasOrderPrompt(plan, 1, true),
-  };
-  await expect(service.generateImage({ ...next, aspectRatio: '16:9' })).rejects.toThrow(
-    '输出比例与预排图不一致'
-  );
-  expect(submit).not.toHaveBeenCalled();
-  const separated = await service.generateImage(next);
-  expect(separated.status).toBe('succeeded');
-  expect(separated.referenceImages?.map((image) => image.assetPath)).toEqual([target.assetPath]);
-  const reference = files.readMedia(target.assetPath!);
-  expect(submit.mock.calls[0][0].args?.reference_images).toEqual([
-    'data:' + reference.type + ';base64,' + fs.readFileSync(reference.file).toString('base64'),
-  ]);
-  plan.bbox.cutSource.sha256 = '0'.repeat(64);
-  const stale = service.generateImage(next);
-  await expect(stale).rejects.toThrow('预排');
-  await expect(stale).rejects.toMatchObject({
-    code: 'CANVAS_IMAGE_NOT_SUBMITTED',
-    executionState: 'not_executed',
-  });
-  expect(submit).toHaveBeenCalledTimes(1);
-  jest.mocked(settings.generationProvider).mockReturnValue({ source: 'local', profile: undefined });
-  await expect(
-    service.generateImage({ ...input, prompt: uiAtlasOrderPrompt(plan) })
-  ).rejects.toThrow('来源已变化');
-  expect(remote).not.toHaveBeenCalled();
-});
+test.each(['element', 'background'] as const)(
+  'local %s preparation validates its source and records a reusable result',
+  async (role) => {
+    if (role === 'background') {
+      plan.grid = { columns: 1, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 };
+      plan.slots = [{ elementIds: [], state: 'normal', role }];
+    }
+    jest
+      .spyOn(settings, 'generationProvider')
+      .mockReturnValue({ source: 'local', profile: undefined });
+    jest.spyOn(bindings, 'selectedUiAtlasPlan').mockImplementation(() => plan);
+    const remote = jest
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('must not call network'));
+    let doc = await files.create('local step', 'empty');
+    const source: CanvasNode = {
+      id: createId(),
+      type: 'image',
+      title: 'source',
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 200,
+      assetPath: role === 'background' ? plan.bbox.design.path : plan.bbox.cutSource.path,
+    };
+    const target: CanvasNode = {
+      ...source,
+      id: createId(),
+      title: 'prelayout',
+      assetPath: undefined,
+      uiAtlasPrelayout: true,
+      generationDraft: { operation: 'variant', prompt: 'prepare', sourceImageId: source.id },
+    };
+    doc.nodes = [source, target];
+    doc.edges = [{ id: createId(), from: source.id, to: target.id, kind: 'image-variant' }];
+    doc = await files.save(doc.id, doc, doc.revision);
+    const service = new CanvasGenerationService(root, {} as any);
+    const input = {
+      canvasId: doc.id,
+      targetNodeId: target.id,
+      sourceImageId: source.id,
+      sourceImagePath: source.assetPath,
+      resolution: '1K',
+      aspectRatio: role === 'background' ? '2:1' : '1:1',
+      prompt: uiAtlasOrderPrompt(plan),
+    };
+    const result = await service.generateImage(input);
+    expect(result).toMatchObject({
+      provider: 'local',
+      toolName: 'prepare_ui_atlas',
+      status: 'succeeded',
+      resultImageInfo:
+        role === 'background' ? { width: 40, height: 20 } : { width: 1024, height: 1024 },
+    });
+    expect(result.sourceSnapshot?.nodeId).toBe(source.id);
+    expect(result.uiAtlasPlan).toEqual(plan);
+    expect(files.readMedia(result.resultAssetPath!).type).toBe('image/png');
+    expect(remote).not.toHaveBeenCalled();
+    target.assetPath = result.resultAssetPath;
+    target.generation = {
+      prompt: result.prompt,
+      operation: 'variant',
+      uiAtlasPlan: plan,
+      sourceImageId: source.id,
+      sourceImageIds: [source.id],
+      attemptId: result.id,
+    };
+    target.sourceSnapshot = result.sourceSnapshot;
+    delete target.generationDraft;
+    const consumer: CanvasNode = {
+      id: createId(),
+      type: 'image',
+      title: 'separate',
+      x: 500,
+      y: 0,
+      width: 200,
+      height: 200,
+      referenceInput: { includeSelf: false },
+      generationDraft: { operation: 'variant', sourceImageId: target.id, prompt: 'separate' },
+    };
+    doc.nodes = [source, target, consumer];
+    doc.edges.push({ id: createId(), from: target.id, to: consumer.id, kind: 'image-variant' });
+    doc = await files.save(doc.id, doc, doc.revision);
+    jest
+      .mocked(settings.generationProvider)
+      .mockReturnValue({ source: 'maker', profile: undefined });
+    const submit = jest.mocked(callRemoteProxyTool);
+    const generatedPath = 'assets/image/generated.png';
+    fs.mkdirSync(path.join(root, 'assets/image'), { recursive: true });
+    fs.copyFileSync(files.readMedia(target.assetPath!).file, path.join(root, generatedPath));
+    submit.mockResolvedValue({ structuredContent: { localPath: generatedPath } } as any);
+    const next = {
+      ...input,
+      targetNodeId: consumer.id,
+      sourceImageId: target.id,
+      sourceImagePath: target.assetPath,
+      prompt: uiAtlasOrderPrompt(plan, 1, true),
+    };
+    await expect(service.generateImage({ ...next, aspectRatio: '16:9' })).rejects.toThrow(
+      '输出比例与预排图不一致'
+    );
+    expect(submit).not.toHaveBeenCalled();
+    const separated = await service.generateImage(next);
+    expect(separated.status).toBe('succeeded');
+    expect(separated.referenceImages?.map((image) => image.assetPath)).toEqual([target.assetPath]);
+    const reference = files.readMedia(target.assetPath!);
+    expect(submit.mock.calls[0][0].args?.reference_images).toEqual([
+      'data:' + reference.type + ';base64,' + fs.readFileSync(reference.file).toString('base64'),
+    ]);
+    plan.bbox.cutSource.sha256 = '0'.repeat(64);
+    const stale = service.generateImage(next);
+    await expect(stale).rejects.toThrow('预排');
+    await expect(stale).rejects.toMatchObject({
+      code: 'CANVAS_IMAGE_NOT_SUBMITTED',
+      executionState: 'not_executed',
+    });
+    expect(submit).toHaveBeenCalledTimes(1);
+    jest
+      .mocked(settings.generationProvider)
+      .mockReturnValue({ source: 'local', profile: undefined });
+    await expect(
+      service.generateImage({ ...input, prompt: uiAtlasOrderPrompt(plan) })
+    ).rejects.toThrow('来源已变化');
+    expect(remote).not.toHaveBeenCalled();
+  }
+);
 
 test('scales design Bboxes to cut-source pixels, fits wide/tall crops and leaves reserve cells empty', async () => {
   const result = await prepareUiAtlasReference(files, plan, 128, 128);
@@ -313,4 +326,29 @@ test('personal-template save, instantiate and continuation batches preserve the 
   expect(upstream.id).not.toBe(seed.id);
   expect(upstream.assetPath).toBe(seed.assetPath);
   await expect(files.save(doc.id, doc, doc.revision)).resolves.toMatchObject({ id: doc.id });
+});
+
+test('environment prelayout uses the original, fills the frame and rejects a stale original', async () => {
+  const original = new PNG({ width: 40, height: 20 });
+  for (let offset = 0; offset < original.data.length; offset += 4) {
+    original.data[offset + 1] = 190;
+    original.data[offset + 3] = 255;
+  }
+  const bytes = PNG.sync.write(original);
+  plan.bbox.design = {
+    path: (await files.importImage(bytes)).relativePath,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    width: 40,
+    height: 20,
+  };
+  plan.grid = { columns: 1, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 };
+  plan.slots = [{ elementIds: [], state: 'normal', role: 'background' }];
+  const output = await prepareUiAtlasReference(files, plan, 80, 40);
+  expect(output).toBe(plan.bbox.design.path);
+  const image = PNG.sync.read(fs.readFileSync(files.readMedia(output).file));
+  expect([image.width, image.height]).toEqual([40, 20]);
+  for (const index of [0, (10 * 40 + 20) * 4, image.data.length - 4])
+    expect([...image.data.subarray(index, index + 4)]).toEqual([0, 190, 0, 255]);
+  plan.bbox.design.sha256 = '0'.repeat(64);
+  await expect(prepareUiAtlasReference(files, plan, 80, 40)).rejects.toThrow('来源已变化');
 });

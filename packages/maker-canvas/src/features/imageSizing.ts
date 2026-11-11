@@ -40,8 +40,21 @@ export function imageRatioInfo(info: CanvasImageInfo) {
 export function resolveImageSize(
   aspectRatio = '1:1',
   resolution = '1K',
-  original?: CanvasImageInfo
+  original?: CanvasImageInfo,
+  preserveOriginalPixels = false
 ) {
+  if (preserveOriginalPixels) {
+    if (!original) throw new Error('UI 原尺寸处理需要唯一且尺寸明确的原稿。');
+    const aspectRatio = imageRatioInfo(original).ratio;
+    if (original.width > 9999 || original.height > 9999)
+      throw new Error('UI 原稿尺寸超出当前接口范围；不会自动缩放或提交生图。');
+    return {
+      aspectRatio,
+      width: original.width,
+      height: original.height,
+      targetSize: original.width + 'x' + original.height,
+    };
+  }
   let ratio = aspectRatio;
   if (ratio === 'source') {
     if (!original) throw new Error('跟随原稿需要一张尺寸明确的原图；多原稿时请手动选择输出比例。');
@@ -80,12 +93,33 @@ export function canvasOriginalImage(
   return roots.size === 1 ? [...roots.values()][0] : undefined;
 }
 
+/** Whole-screen UI preparation keeps the original coordinate space; atlases keep their own layout. */
+export function preservesUiDesignPixels(document: CanvasDocument, node?: CanvasNode): boolean {
+  if (!node || node.type !== 'image' || node.uiAtlasPrelayout) return false;
+  if (node.uiBackground || node.uiRecognition?.inputRole === 'work-image') return true;
+  return (
+    node.uiRecognition?.inputRole === 'text-free' &&
+    canvasOriginalImage(document, node)?.uiRecognition?.inputRole === 'design'
+  );
+}
+
 export function imageResultWarning(
   actual: CanvasImageInfo,
-  targetSize?: string
+  targetSize?: string,
+  exactPixels = false
 ): string | undefined {
   const [width, height] = (targetSize || '').split('x').map(Number);
   if (!width || !height) return;
+  if (exactPixels && (actual.width !== width || actual.height !== height))
+    return (
+      '生成结果像素尺寸与原稿不一致：实际 ' +
+      actual.width +
+      '×' +
+      actual.height +
+      '，请求 ' +
+      targetSize +
+      '；已保留图片，停止后续识图与切图，不会自动缩放或重新付费生成。'
+    );
   if (Math.abs(actual.width / actual.height / (width / height) - 1) > 0.01)
     return (
       '生成结果比例与请求不一致：实际 ' +

@@ -79,14 +79,20 @@ test('official Bbox preset preserves tested prompts, media and final export layo
     }
     expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
     expect(prepared.cliOnly).toBe(true);
-    expect(prepared.nodes).toHaveLength(3);
+    expect(prepared.nodes).toHaveLength(4);
+    const preparedBackground = prepared.nodes.find((node) => node.uiBackground)!;
+    expect(preparedBackground.title).toBe('④ 独立背景图');
+    expect(preparedBackground.uiAtlasGroup).toBe('background');
+    expect(preparedBackground.generationDraft?.parameters?.aspectRatio).toBe('source');
+    expect(preparedBackground.width).toBe(prepared.nodes[0].width);
+    expect(preparedBackground.height).toBe(prepared.nodes[0].height);
     expect(prepared.nodes.flatMap((node) => node.imageAssetsInfo?.items || [])).toHaveLength(0);
     const instance = createCanvasTemplateModel(createId).instantiate(prepared, { x: 0, y: 0 });
     canvas.nodes = instance.nodes;
     canvas.edges = instance.edges;
     await files.save(canvas.id, canvas, canvas.revision);
     const reopened = await files.load(canvas.id);
-    expect(reopened.nodes).toHaveLength(4);
+    expect(reopened.nodes).toHaveLength(5);
     expect(reopened.nodes.find((node) => node.type === 'section')?.templateCliOnly).toBe(true);
     const snapshot = createCanvasTemplateModel().snapshot(reopened, [instance.section.id], 'copy');
     expect(snapshot.cliOnly).toBe(true);

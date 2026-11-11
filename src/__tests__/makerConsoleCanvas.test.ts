@@ -12,6 +12,7 @@ import { createLocalCanvasHost } from '../maker/canvas/localBrowserHost';
 import { createBrowserCanvasDocumentStore } from '../maker/canvas/store';
 import { sequenceActionsForCard } from '../maker/canvas/sequence';
 import { imageFeatures, imageAllowsOutpaint } from '../maker/canvas/imageFeatures';
+import { uiRecognitionControlTarget, uiRecognitionPreview } from '../maker/canvas/uiRecognition';
 import { canvasFeatureEnabled } from '../../packages/maker-canvas/src/browser/capabilities';
 import { canvasComposerKey } from '../../packages/maker-canvas/src/browser/webChrome';
 import { canvasParameterSchema } from '../maker/canvas/automationInfo';
@@ -256,6 +257,8 @@ describe('Maker console canvas', () => {
         positionSelectionToolbar: jest.fn(),
         imageFeatures,
         imageAllowsOutpaint,
+        uiRecognitionControlTarget,
+        uiRecognitionPreview,
       });
       expect(selectionMenu.hidden).toBe(!assetPath || Boolean(blocked));
       expect(selectionMenu.append).toHaveBeenCalledTimes(blocked ? 0 : 1);

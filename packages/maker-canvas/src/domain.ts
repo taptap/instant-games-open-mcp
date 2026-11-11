@@ -42,6 +42,7 @@ export {
   imageRatioInfo,
   resolveImageSize,
   canvasOriginalImage,
+  preservesUiDesignPixels,
   imageResultWarning,
 } from './features/imageSizing.js';
 
@@ -114,7 +115,9 @@ export {
   // Compatibility name: structure validation only; hosts validate media access.
   validateUiRecognitionStructure as validateUiRecognition,
   uiRecognitionInputs,
+  uiElementRecognitionInput,
   uiRecognitionPreview,
+  uiRecognitionControlTarget,
   setUiRecognitionMode,
   selectedUiExtraction,
   selectedUiRecognition,

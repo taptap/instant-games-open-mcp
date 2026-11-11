@@ -174,12 +174,9 @@ export function uiBatchAtlasPlan(bbox: UiBboxDocument, group: UiAtlasGroup): UiA
 export function uiNativeAtlasPlans(bbox: UiBboxDocument, group: UiAtlasGroup): UiAtlasPlan[] {
   const slots = uiAtlasElementSlots(bbox, group);
   if (slots.length > 120) throw new Error('此分类超过 120 个素材，请先拆分清单。');
-  if (!slots.length && group === 'background') {
-    if (bbox.design.width <= 2048 && bbox.design.height <= 2048)
-      slots.push({ elementIds: [], state: 'normal', role: 'background' });
-    // Full-screen backgrounds can follow the source ratio at 2K without dropping the branch.
-    else return uiBatchAtlasPlans(bbox, group);
-  }
+  // A synthetic environment is one full-screen image, not a packed atlas tile.
+  // Preserve its source ratio and original bytes instead of adding transparent atlas margins.
+  if (!slots.length && group === 'background') return uiBatchAtlasPlans(bbox, group);
   return uiNativeSlotPlans(bbox, slots);
 }
 
@@ -303,6 +300,7 @@ export function uiNativeAtlasPrompt(): string {
     '任务：在预排参考图上逐项清理 UI 素材，输出尺寸与参考图完全相同，不重新排版。',
     '保留：每个主体的像素位置、宽高、轮廓、颜色和细节，包括最细小的分隔线。只处理清单指定的矩形区域，不移动、不缩放、不拉伸、不旋转，不省略任何一项。',
     '移除：前景素材背后的底板、槽框和背景；底板上覆盖的图标、人物、物品和文字。保留底板本体、边框和底纹为一体，并补齐遮挡。',
+    '透明范围：工作图的黑底不是素材。刻度、细线、空心框、准星和指示线之间的空白必须透明，不为这些线条添加矩形底板、填充或黑色描边。只有原图真实存在的面板才保留内部底色；半透明面板与渐变也必须用半透明 Alpha 表达，不能变成不透明色块。半透明面板内部应能透出后方任意场景，不能用接近不透明的 Alpha=253/254 或画云雾纹理伪装透明；不额外添加原图没有的纹理。',
     '状态：正常态保持原样；按下态只改变明暗，不改变尺寸或位置。环境背景只补全场景，不保留界面控件。',
     '输出：保持原尺寸坐标布局，输出带真实 Alpha 通道的透明背景 PNG，所有主体外背景与间隔为 Alpha=0；保留主体的半透明边缘，不填充纯色底或绘制棋盘格。不是等分网格，不添加编号、分割线或清单外素材。',
   ].join('\n');
@@ -444,9 +442,28 @@ export function uiWorkflowAtlasPlans(
   const native =
     group?.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
     (group?.templateCliOnly && group.templateSkills?.includes('maker-ui-bbox-workflow'));
-  const planned = native
+  let planned = native
     ? uiNativeAtlasPlans(bbox, node.uiAtlasGroup!)
     : uiBatchAtlasPlans(bbox, node.uiAtlasGroup!);
+  if (
+    node.uiAtlasGroup === 'background' &&
+    current.nodes.some((item) => item.sectionId === node.sectionId && item.uiBackground) &&
+    !planned.some((plan) => plan.slots.some((slot) => slot.role === 'background'))
+  ) {
+    // The fixed background card is an independent layer even when Bbox also contains a
+    // full-screen UI panel. Keep this synthetic plan in the shared planner so sync and
+    // selectedUiAtlasPlan resolve the same batch on every run. Groups without that card
+    // keep their previous batches.
+    planned = [
+      ...planned,
+      {
+        version: 1,
+        bbox,
+        grid: { columns: 1, rows: 1, marginX: 0, marginY: 0, gapX: 0, gapY: 0 },
+        slots: [{ elementIds: [], state: 'normal', role: 'background' }],
+      },
+    ];
+  }
   const sourceId = uiRecognitionSource(current, node)?.id;
   const recorded = current.nodes
     .filter(
@@ -603,7 +620,9 @@ export function uiAtlasOrderPrompt(plan: UiAtlasPlan, outputAspect = 1, prelayou
                     ? '仅保留全长的空轨道及边框。轨道内部从左到右均为空槽的底色和纹理，不得出现任何彩色进度填充。彻底移除覆盖其上的彩色填充、数值和图标；填充已在其它矩形单独输出，不能再烘焙到底槽里。'
                     : region.height <= 16 || region.width <= 16
                       ? '保留此项完整的细线或装饰，包括深色细线；不要将它当作背景删除。'
-                      : '此项要的是空底板，不是其上的物品。保留完整外边框和内部底色、底纹为一体；清空覆盖其上的子控件、槽框、按钮、图标、人物、物品和文字，补齐被遮住的底板。禁止用前景物品代替空底板。') +
+                      : element?.type === 'frame'
+                        ? '此项是框线或槽框，不自动视为有底色的面板。只保留参考图真实存在的框线与底槽；空心锁定框、准星框内部必须 Alpha=0，不能把黑色工作底或其它面板的青绿色底色填入。只有参考图确实有内部底色时才保留，并保留真实半透明度。移除覆盖的文字、图标与其它独立子层。'
+                        : '此项要的是空底板，不是其上的物品。保留完整外边框和内部底色、底纹为一体；清空覆盖其上的子控件、槽框、按钮、图标、人物、物品和文字，补齐被遮住的底板。禁止用前景物品代替空底板。') +
           (children?.length
             ? '必须删除的独立子层：' +
               children.map((child) => child.id + ' ' + child.name).join('、') +

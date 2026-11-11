@@ -46,8 +46,12 @@ export interface CanvasGenerationAttempt {
   sourceSnapshots?: CanvasSourceSnapshot[];
   parameters?: {
     model?: string;
+    quality?: string;
+    thinkingLevel?: string;
     resolution?: string;
     targetSize?: string;
+    /** Whole-screen UI preparation must match the original pixel dimensions. */
+    preserveOriginalPixels?: boolean;
     aspectRatio?: string;
     duration?: number;
     ratio?: string;
@@ -111,6 +115,9 @@ export interface CanvasImageModels {
   defaultModel?: string;
   /** Constraints of the MCP aspect_ratio argument, when the tool declares it. */
   aspectRatio?: { required: boolean; values?: string[] };
+  /** Precision controls advertised by the active image tool. */
+  quality?: string[];
+  thinkingLevel?: string[];
   models: Array<{ id: string; label: string; maxReferenceImages?: number }>;
 }
 

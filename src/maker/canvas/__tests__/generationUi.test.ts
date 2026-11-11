@@ -651,6 +651,21 @@ test('image query refreshes a formerly running local record without submitting a
   expect(options.store.generationAction).not.toHaveBeenCalled();
 });
 
+test.each(['succeeded', 'unknown'])(
+  'an agent replacement supersedes only a completed image attempt (%s)',
+  async (status) => {
+    const { options, target, completed, ui } = imageRecoveryFixture();
+    target.assetPath = 'reviewed-work-image.png';
+    target.generation = { prompt: 'reuse reviewed image', origin: 'agent' };
+    delete target.templatePending;
+    options.store.listGeneration.mockResolvedValue([{ ...completed, status }] as any);
+    await ui.restore();
+    expect(target.assetPath).toBe('reviewed-work-image.png');
+    expect(ui.nodeState(target.id)?.status).toBe(status === 'succeeded' ? undefined : 'unknown');
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+  }
+);
+
 test.each([
   [{ status: 'failed', executionState: 'not_executed' }, true],
   [{ status: 'failed', remoteStatus: 'failed' }, true],
@@ -2045,4 +2060,53 @@ test('overlay queries an existing video task without submitting generation', asy
   expect(options.store.generationAction).toHaveBeenCalledWith('canvas', 'attempt', 'query');
   expect(options.store.createVideo).not.toHaveBeenCalled();
   expect(ui.nodeState('video')).toBeUndefined();
+});
+
+test.each([
+  { status: 'unknown', executionState: 'unknown', expected: 'blocked' },
+  { status: 'failed', executionState: 'unknown', expected: 'blocked' },
+  { status: 'failed', executionState: 'not_executed', expected: 'released' },
+  { status: 'running', executionState: undefined, expected: 'blocked' },
+])(
+  '015 forced recovery never replays an uncertain paid image: %j',
+  async ({ status, executionState, expected }) => {
+    const { document, options } = fixture();
+    const attempt = {
+      id: 'uncertain-image',
+      canvasId: document.id,
+      targetNodeId: 'image',
+      kind: 'image',
+      status,
+      executionState,
+      createdAt: new Date().toISOString(),
+      error: 'upstream result unknown',
+    };
+    options.store.listGeneration.mockResolvedValue([attempt] as any);
+    const ui = createCanvasGenerationUi(options);
+    expect(await ui.recoverForRetry('image', true)).toBe(expected);
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+    if (status === 'running') expect(await ui.recoverForRetry('image')).toBe('waiting');
+    else if (expected === 'blocked') expect(ui.queueBlockReason('image')).toBeTruthy();
+  }
+);
+
+test('a succeeded original-pixel UI result with the wrong size blocks recovery without regeneration', async () => {
+  const { document, options } = fixture();
+  const wrong = {
+    id: 'wrong-ui-pixels',
+    kind: 'image',
+    canvasId: document.id,
+    targetNodeId: 'head',
+    status: 'succeeded',
+    createdAt: new Date().toISOString(),
+    resultAssetPath: 'assets/image/wrong.png',
+    resultImageInfo: { width: 2048, height: 1152 },
+    parameters: { targetSize: '1920x1080', preserveOriginalPixels: true },
+    uiAtlasPlan: { slots: [{ role: 'background' }] },
+  };
+  options.store.listGeneration.mockResolvedValue([wrong] as any);
+  const ui = createCanvasGenerationUi(options);
+  expect(await ui.recoverForRetry('head')).toBe('blocked');
+  expect(options.store.generateImage).not.toHaveBeenCalled();
+  expect(options.setError).toHaveBeenCalledWith(expect.stringContaining('像素尺寸与原稿不一致'));
 });

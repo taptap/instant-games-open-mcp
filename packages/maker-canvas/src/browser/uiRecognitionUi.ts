@@ -2,12 +2,7 @@ import { refreshCanvasMedia } from './mediaVersions.js';
 import { canvasCapabilityReason } from './capabilities.js';
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
 import type { CanvasDocumentStore } from '../browser/store.js';
-import {
-  canvasDependents,
-  canvasReferences,
-  isCanvasSourceCurrent,
-  snapshotCanvasSource,
-} from '../core/dependencies.js';
+import { canvasDependents, canvasReferences, snapshotCanvasSource } from '../core/dependencies.js';
 import { invalidateCanvasDependents } from '../features/templateWorkflow.js';
 import {
   selectedUiRecognition,
@@ -101,20 +96,23 @@ export function createUiRecognitionUiWithHost(options: {
   }
   async function checkDesign(result: UiRecognitionResult, source: CanvasNode) {
     if (!result.bbox) return;
-    if (source.uiRecognition?.inputRole === 'design') {
-      if (result.bbox.design.path !== source.assetPath)
-        throw new Error('识图结果与当前 UI 设计稿不匹配，请重新识别。');
-    } else {
-      const originals = canvasReferences(options.current()!, source.id).filter(
-        (node) => node.type === 'image' && node.assetPath
+    const current = options.current();
+    if (!current) throw new Error('画布已关闭，无法校验识图原稿。');
+    const design =
+      source.uiRecognition?.inputRole === 'design'
+        ? source
+        : uiRecognitionInputs(current, source).design;
+    if (
+      design.type !== 'image' ||
+      design.templatePending ||
+      !design.assetPath ||
+      design.assetPath !== result.bbox.design.path
+    )
+      throw new Error(
+        source.uiRecognition?.inputRole === 'design'
+          ? '识图结果与当前 UI 设计稿不匹配，请重新识别。'
+          : '原 UI 设计稿已变化，请重新运行两次识图。'
       );
-      if (
-        originals.length !== 1 ||
-        originals[0].templatePending ||
-        originals[0].assetPath !== result.bbox.design.path
-      )
-        throw new Error('原 UI 设计稿已变化，请重新运行两次识图。');
-    }
     const image = await sourceBlob(result.bbox.design.path);
     await drawUiRecognition(
       image,
@@ -144,7 +142,6 @@ export function createUiRecognitionUiWithHost(options: {
         node.uiRecognition.results = [];
         delete node.uiRecognition.selectedId;
         delete node.uiRecognition.pendingId;
-        delete node.uiRecognition.workImage;
       }
       delete node.uiEmpty;
     }
@@ -199,7 +196,7 @@ export function createUiRecognitionUiWithHost(options: {
       if (configured) model = configured;
     }
     if (source.templatePending && !settings.pendingId)
-      throw new Error('请先完成去文字，再识别当前去文字图。');
+      throw new Error('请先准备 UI 工作图，再执行识别。');
     if (settings.results.length >= 12 && !settings.pendingId)
       throw new Error('已保存 12 次识别结果，请新建对照画布继续测试。');
     if (!settings.enabled) {
@@ -351,84 +348,29 @@ export function createUiRecognitionUiWithHost(options: {
     id: string,
     fallback: () => Promise<boolean>,
     confirmed = false,
-    completeRecognition = false
+    completeRecognition = false,
+    shouldContinue: () => boolean = () => true
   ): Promise<boolean> {
+    if (!shouldContinue()) return false;
     const current = options.current();
     const node = current?.nodes.find((item) => item.id === id);
     if (!current || !node) return false;
+    // New 015 groups recognise the background-removed work image feeding this card.
+    const hasWorkInput = canvasReferences(current, node.id).some(
+      (source) => source.uiRecognition?.inputRole === 'work-image'
+    );
+    const sceneRemains = () =>
+      hasWorkInput && selectedUiRecognition(node)?.bbox?.sceneType === 'scene_with_ui';
+    const sceneMessage = '工作图仍包含游戏场景，未进入素材提取。请修正场景去除后重新识别。';
     if (node.uiRecognition?.enabled && node.uiRecognition.inputRole !== 'design') {
-      if (node.uiRecognition.workImage) {
-        const references = canvasReferences(current, node.id).filter(
-          (source) => source.type === 'image' && source.assetPath
-        );
-        const snapshots = node.sourceSnapshots?.length
-          ? node.sourceSnapshots
-          : node.sourceSnapshot
-            ? [node.sourceSnapshot]
-            : [];
-        const sourceChanged =
-          snapshots.length !== references.length ||
-          snapshots.some(
-            (snapshot) =>
-              !isCanvasSourceCurrent(
-                snapshot,
-                references.find((source) => source.id === snapshot.nodeId)
-              )
-          );
-        if (sourceChanged) {
-          node.uiRecognition.results = [];
-          delete node.uiRecognition.selectedId;
-          delete node.uiRecognition.pendingId;
-          delete node.uiRecognition.workImage;
-        }
-      }
       if (node.templatePending || !node.assetPath) {
         const generated = await fallback();
         if (!generated || !completeRecognition) return generated;
         if (options.current() !== current || node.templatePending || !node.assetPath) return false;
       }
-      const selected = selectedUiRecognition(node);
-      if (selected) {
-        // A scene classification is produced by the first cut pass. Derive one black-scene
-        // work image at most once, while retaining the original text-free asset identity.
-        if (
-          completeRecognition &&
-          selected.bbox?.sceneType === 'scene_with_ui' &&
-          !node.uiRecognition.workImage
-        ) {
-          const raw = {
-            path: selected.sourcePath,
-            sha256: selected.sourceSha256,
-            width: selected.width,
-            height: selected.height,
-          };
-          const basePrompt = node.generationDraft?.prompt || node.generation?.prompt || '';
-          if (!basePrompt.trim()) {
-            options.error('已识别到游戏场景，但去文字卡没有可复用的提示词，未自动重做工作底图。');
-            return true;
-          }
-          options.remember();
-          node.uiRecognition.workImage = { mode: 'black_scene', raw };
-          node.uiRecognition.results = [];
-          delete node.uiRecognition.selectedId;
-          node.uiBaselinePrompt ??= basePrompt;
-          const workPrompt =
-            basePrompt +
-            '\n工作底图约定：保留原 UI 面板、按钮、图标、文字位置、半透明边缘和渐变材质；将 UI 之外的游戏场景、人物、天空、地图和环境画面替换为均匀纯黑 RGB(0,0,0)。保持原图尺寸、UI 位置和比例，不新增或重排 UI，不把黑色填入 UI 内部。';
-          if (node.generation) node.generation.prompt = workPrompt;
-          else if (node.generationDraft) node.generationDraft.prompt = workPrompt;
-          else {
-            options.error('已识别到游戏场景，但去文字卡生成状态不完整，未自动重做工作底图。');
-            return true;
-          }
-          node.templatePending = true;
-          options.changed();
-          if (!(await options.save())) throw new Error('工作底图状态尚未保存，请保存画布后继续。');
-          const generated = await fallback();
-          if (!generated || options.current() !== current) return generated;
-          if (node.templatePending || !node.assetPath) return false;
-          return runImage(id, fallback, confirmed, completeRecognition);
-        }
+      if (!shouldContinue()) return false;
+      if (selectedUiRecognition(node)) {
+        if (sceneRemains()) throw new Error(sceneMessage);
         return true;
       }
       if (node.uiRecognition.optional) {
@@ -436,20 +378,15 @@ export function createUiRecognitionUiWithHost(options: {
           await recognize(node, confirmed);
         } catch (error) {
           options.error(
-            'Bbox 暂未生成，继续拆图；可在去文字卡菜单手动重试。' +
+            'Bbox 暂未生成，继续拆图；可在识图工作卡菜单手动重试。' +
               (error instanceof Error ? error.message : String(error))
           );
         }
         return options.current() === current && !node.templatePending && Boolean(node.assetPath);
       }
       const recognized = await recognize(node, confirmed, !confirmed);
-      if (
-        recognized &&
-        completeRecognition &&
-        selectedUiRecognition(node)?.bbox?.sceneType === 'scene_with_ui' &&
-        !node.uiRecognition.workImage
-      )
-        return runImage(id, fallback, confirmed, completeRecognition);
+      if (!shouldContinue()) return false;
+      if (recognized && sceneRemains()) throw new Error(sceneMessage);
       return recognized;
     }
     if (node.uiRecognition?.inputRole === 'design') {
@@ -467,7 +404,6 @@ export function createUiRecognitionUiWithHost(options: {
         node.sourceSnapshots = [node.sourceSnapshot!];
         node.uiRecognition.results = [];
         delete node.uiRecognition.selectedId;
-        delete node.uiRecognition.workImage;
         invalidate(node);
         return options.save();
       }
@@ -692,7 +628,7 @@ export function createUiRecognitionUiWithHost(options: {
       renderCanvasCardStatus(card, 'paused', {
         title: pending ? 'Bbox 结果待确认' : '等待 Bbox 数据',
         hint:
-          '去文字图片已保留；Bbox 完成后才能预排、分离和切图。' +
+          'UI 工作图已保留；Bbox 完成后才能预排、分离和切图。' +
           (pending
             ? '请查询原识图请求，不要重复提交。'
             : '请使用识图 API；接口未就绪时检查设置，恢复后继续原卡片。') +

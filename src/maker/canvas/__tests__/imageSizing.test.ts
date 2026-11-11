@@ -5,6 +5,7 @@ import {
   imageRatioInfo,
   resolveImageSize,
   canvasOriginalImage,
+  preservesUiDesignPixels,
   imageResultWarning,
 } from '../imageSizing.js';
 import { readImageDimensions } from '../imageDimensions.js';
@@ -146,4 +147,61 @@ test('header dimensions handle PNG, rotated JPEG and WebP, and stored imageInfo 
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('UI preparation preserves exact source pixels rather than a 2K long edge', () => {
+  for (const original of [
+    { width: 1920, height: 1080 },
+    { width: 1080, height: 1920 },
+    { width: 1919, height: 1080 },
+    { width: 2560, height: 1440 },
+  ]) {
+    expect(resolveImageSize('source', '2K', original, true)).toMatchObject({
+      ...original,
+      targetSize: original.width + 'x' + original.height,
+    });
+  }
+  expect(() => resolveImageSize('source', '2K', undefined, true)).toThrow('唯一');
+  expect(imageResultWarning({ width: 2048, height: 1152 }, '1920x1080', true)).toContain(
+    '像素尺寸'
+  );
+  expect(imageResultWarning({ width: 1920, height: 1080 }, '1920x1080', true)).toBeUndefined();
+  expect(imageResultWarning({ width: 2048, height: 1152 }, '1920x1080')).toBeUndefined();
+});
+
+test('pixel preservation is limited to whole-screen UI preparation, never atlas layouts', () => {
+  const doc = emptyDocument();
+  const design: CanvasNode = {
+    id: 'design',
+    type: 'image',
+    title: 'design',
+    x: 0,
+    y: 0,
+    width: 200,
+    height: 200,
+    assetPath: 'design.png',
+    uiRecognition: { enabled: false, inputRole: 'design', results: [] },
+  };
+  const work: CanvasNode = {
+    ...design,
+    id: 'work',
+    uiRecognition: { enabled: false, inputRole: 'work-image', results: [] },
+  };
+  const cut: CanvasNode = {
+    ...design,
+    id: 'cut',
+    uiRecognition: { enabled: true, inputRole: 'text-free', results: [] },
+  };
+  doc.nodes = [design, work, cut];
+  doc.edges = [
+    { id: 'a', from: design.id, to: work.id, kind: 'image-variant' },
+    { id: 'b', from: work.id, to: cut.id, kind: 'image-variant' },
+  ];
+  expect(preservesUiDesignPixels(doc, design)).toBe(false);
+  expect(preservesUiDesignPixels(doc, work)).toBe(true);
+  expect(preservesUiDesignPixels(doc, cut)).toBe(true);
+  expect(preservesUiDesignPixels(doc, { ...work, uiAtlasPrelayout: true })).toBe(false);
+  expect(
+    preservesUiDesignPixels(doc, { ...design, uiRecognition: undefined, uiAtlasGroup: 'icons' })
+  ).toBe(false);
 });

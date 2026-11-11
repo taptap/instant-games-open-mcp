@@ -28,7 +28,11 @@ import { validateImageAssetsInfoStructure } from '../features/imageAssets.js';
 import { imageAssetsBindingPlanStructure } from '../features/imageAssets.js';
 import { applyImageAssetsToDocument } from '../features/imageAssets.js';
 import { validateBboxImageStructure } from '../features/uiBbox.js';
-import { parseUiSceneType, parseUiScreenName, validateUiBboxStructure } from '../features/uiBbox.js';
+import {
+  parseUiSceneType,
+  parseUiScreenName,
+  validateUiBboxStructure,
+} from '../features/uiBbox.js';
 import { validateUiRecognitionStructure } from '../features/uiRecognition.js';
 import { validateUiAtlasPlanStructure } from '../features/uiAssetBindings.js';
 import { collectImageAssetEntriesFromReader } from './imageAssets.js';
@@ -82,6 +86,7 @@ import { uiRecognitionNote } from '../features/uiRecognition.js';
 import { uiRecognitionStatus } from '../features/uiRecognition.js';
 import { uiRecognitionInputs } from '../features/uiRecognition.js';
 import { uiRecognitionPreview } from '../features/uiRecognition.js';
+import { uiRecognitionControlTarget } from '../features/uiRecognition.js';
 import { uiExtractionPlan } from '../features/uiRecognition.js';
 import { selectedUiExtraction } from '../features/uiRecognition.js';
 import { setUiRecognitionMode } from '../features/uiRecognition.js';
@@ -228,7 +233,7 @@ import { IMAGE_OUTPUT_RATIOS } from '../features/imageSizing.js';
 import { IMAGE_COMMON_RATIOS } from '../features/imageSizing.js';
 import { imageRatioInfo } from '../features/imageSizing.js';
 import { resolveImageSize } from '../features/imageSizing.js';
-import { canvasOriginalImage } from '../features/imageSizing.js';
+import { canvasOriginalImage, preservesUiDesignPixels } from '../features/imageSizing.js';
 import { imageResultWarning } from '../features/imageSizing.js';
 import { createImageEditing } from './imageEditing.js';
 import { applyLocalImageResult } from '../features/localImageResult.js';
@@ -2359,6 +2364,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     resetImageFeatureCopy.toString(),
     uiRecognitionInputs.toString(),
     uiRecognitionPreview.toString(),
+    uiRecognitionControlTarget.toString(),
     openUiBboxPreview.toString(),
     'const UI_CUT_TYPES = ' + JSON.stringify(UI_CUT_TYPES) + ';',
     validateImageAssetsInfoStructure.toString(),
@@ -2582,6 +2588,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     imageRatioInfo.toString(),
     resolveImageSize.toString(),
     canvasOriginalImage.toString(),
+    preservesUiDesignPixels.toString(),
     imageResultWarning.toString(),
     imageCardSize.toString(),
     fitImageCard.toString(),
@@ -3758,10 +3765,18 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       "      const actions = document.createElement('div'); actions.className = 'selection-actions';",
       "      function actionButton(text, action, active, unavailable) { const button = document.createElement('button'); button.type = 'button'; button.textContent = text; if (active) button.className = 'active'; if (unavailable) { button.disabled = true; button.title = unavailable; } button.addEventListener('click', function (event) { event.stopPropagation(); action(); }); actions.append(button); return button; }",
       "      if (node.type === 'image' && !emptyImage) {",
+      '        const ui015Section = node.sectionId && documentState.nodes.find(function (item) { return item.id === node.sectionId && item.type === "section"; });',
+      '        const ui015 = Boolean(ui015Section && (ui015Section.templateId === "7e1cb6ad-732f-4dc3-a951-000000000015" || ui015Section.templateCliOnly && ui015Section.templateSkills && ui015Section.templateSkills.includes("maker-ui-bbox-workflow")));',
+      '        const has015Work = Boolean(ui015 && documentState.nodes.some(function (item) { return item.sectionId === node.sectionId && item.uiRecognition && item.uiRecognition.inputRole === "work-image"; }));',
+      '        const recognitionTarget = uiRecognitionControlTarget(documentState, node);',
+      '        const showRecognition = !ui015 || (has015Work ? node.uiRecognition && node.uiRecognition.inputRole === "work-image" : node.uiRecognition && node.uiRecognition.inputRole === "text-free");',
+      '        const annotationPreview = uiRecognitionPreview(documentState, node);',
+      '        let annotationButtonAdded = false;',
       '        for (const feature of canvasFeatureEnabled(host, "uiRecognition") ? imageFeatures(node) : []) for (const action of feature.actions) {',
-      '          if (action === "recognize-ui") { const button = actionButton(node.uiRecognition?.pendingId ? "查询识图" : node.uiRecognition?.optional ? "生成 / 重试 Bbox" : "识别 UI", function () { void uiRecognitionUi.runRecognition(node).catch(function (error) { setError(error.message); }); }, false, (!node.uiRecognition?.pendingId && canvasCapabilityReason(store, "recognition")) || (uiRecognitionUi.isBusy ? "识图进行中" : undefined)); if (!node.uiRecognition?.optional && !node.uiRecognition?.pendingId && !canvasCapabilityReason(store, "recognition")) { button.hidden = true; if (store.recognitionModels) void store.recognitionModels().then(function (models) { if (!button.isConnected) return; button.hidden = !models.some(function (model) { return model.source === "custom" || model.source === "server"; }); positionSelectionToolbar(); }).catch(function (error) { if (button.isConnected) setError(error.message); }); } }',
-      '          if (action === "view-bbox" && uiRecognitionPreview(documentState, node)) actionButton("查看标注", function () { void uiRecognitionUi.openPreview(node).catch(function (error) { setError(error.message); }); });',
+      '          if (action === "recognize-ui" && showRecognition && recognitionTarget) { const button = actionButton(recognitionTarget.uiRecognition?.pendingId ? "查询识图" : recognitionTarget.uiRecognition?.optional ? "生成 / 重试 Bbox" : "识别 UI", function () { void uiRecognitionUi.runRecognition(recognitionTarget).catch(function (error) { setError(error.message); }); }, false, (!recognitionTarget.uiRecognition?.pendingId && canvasCapabilityReason(store, "recognition")) || (uiRecognitionUi.isBusy ? "识图进行中" : undefined)); if (!recognitionTarget.uiRecognition?.optional && !recognitionTarget.uiRecognition?.pendingId && !canvasCapabilityReason(store, "recognition")) { button.hidden = true; if (store.recognitionModels) void store.recognitionModels().then(function (models) { if (!button.isConnected) return; button.hidden = !models.some(function (model) { return model.source === "custom" || model.source === "server"; }); positionSelectionToolbar(); }).catch(function (error) { if (button.isConnected) setError(error.message); }); } }',
+      '          if (action === "view-bbox" && annotationPreview) { actionButton("查看标注", function () { void uiRecognitionUi.openPreview(node).catch(function (error) { setError(error.message); }); }); annotationButtonAdded = true; }',
       '        }',
+      '        if (canvasFeatureEnabled(host, "uiRecognition") && annotationPreview && !annotationButtonAdded) actionButton("查看标注", function () { void uiRecognitionUi.openPreview(node).catch(function (error) { setError(error.message); }); });',
       "        if (templateWorkflow.canEditImage(node.id)) actionButton('替换图片', function () { requestImageImport(node.id); });",
       "        if (canvasFeatureEnabled(host, 'imageEditing')) actionButton('快速编辑', function () { selectionAction = selectionAction === 'image' ? '' : 'image'; render(); }, selectionAction === 'image');",
       "        if (canvasFeatureEnabled(host, 'video')) actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video');",
@@ -4360,7 +4375,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    },',
       '    query: async function (id) { const node = documentState.nodes.find(function (item) { return item.id === id; }); if (node && node.uiRecognition?.pendingId) await uiRecognitionUi.query(id); else if (node && ["model", "model-views"].includes(node.type)) await modelUi.execute(id, "query"); else await generationUi.queryNode(id, true); },',
       '    error: function () { return error.textContent; }, clearError: function () { error.textContent = ""; }, queue: groupQueue,',
-      '    ui015: { isWorkflowGroup: function (id) { return ui015Workflow.isWorkflowGroup(id); }, advance: function (id, input) { return ui015Workflow.advance(id, input || {}); }, inspect: function (id) { const view = ui015Workflow.inspect(id); return view && { stage: view.stage, message: view.message }; }, active: function (id) { return ui015Workflow.isActive(id); }, outcome: function (id) { return ui015Workflow.outcome(id); } },',
+      '    ui015: { isWorkflowGroup: function (id) { return ui015Workflow.isWorkflowGroup(id); }, advance: function (id, input) { return ui015Workflow.advance(id, input || {}); }, inspect: function (id) { const view = ui015Workflow.inspect(id); return view && { stage: view.stage, message: view.message }; }, active: function (id) { return ui015Workflow.isActive(id); }, stop: function (id) { ui015Workflow.stop(id); }, outcome: function (id) { return ui015Workflow.outcome(id); } },',
       '    busyChanged: function (busy) { canvasAutomationBusy = busy; publishDirty(); }',
       '  });',
       '  document.getElementById("refresh-media").addEventListener("click", function () { const reason = hostEditBlocked(); if (reason) { setError(reason); return; } pendingExports++; publishDirty(); void refreshSources().then(function () { const unknown = documentState.nodes.some(function (node) { return node.assetPath && !node.assetVersion; }); setError(unknown ? "素材已刷新；旧结果未记录内容版本，来源待核实，不会自动重新生成。" : "素材已刷新，来源变化的结果需要重新处理。", "info"); }).catch(function (caught) { setError(caught.message); }).finally(function () { pendingExports--; publishDirty(); }); });',
@@ -4558,7 +4573,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  });',
       '  ui015Workflow = createUi015Workflow({ current: function () { return documentState; }, store: store,',
       '    needs: function (id) { return templateWorkflow.status(id) === "pending"; }, problem: function (id) { return generationUi.queueBlockReason(id); },',
-      '    runImage: function (id) { return uiRecognitionUi.runImage(id, function () { return generationUi.runTemplateImage(id); }, true, true); },',
+      '    runImage: function (id, shouldContinue) { return uiRecognitionUi.runImage(id, function () { return generationUi.runTemplateImage(id); }, true, true, shouldContinue); },',
       '    recognize: function (id, recover) { const node = documentState.nodes.find(function (item) { return item.id === id; }); return node ? uiRecognitionUi.runRecognition(node, true, recover) : Promise.resolve(false); },',
       '    recoverImage: function (id, force) { return generationUi.recoverForRetry(id, force); },',
       '    recoverRecognition: function (id, force) { return uiRecognitionUi.recoverForRetry(id, force); },',

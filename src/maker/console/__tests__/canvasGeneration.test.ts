@@ -100,6 +100,143 @@ describe('CanvasGenerationService', () => {
   const customPng =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=';
 
+  test.each(['work-image', 'text-free', 'background'] as const)(
+    'whole-screen %s requests original pixels and preserves a mismatched returned image',
+    async (role) => {
+      const files = new MakerCanvasFiles(root);
+      let doc = await files.create('original pixels', 'empty');
+      const imported = await files.importImage(Buffer.from(customPng, 'base64'));
+      const source: CanvasNode = {
+        id: createId(),
+        type: 'image',
+        title: 'design',
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        assetPath: imported.relativePath,
+        uiRecognition: { enabled: false, inputRole: 'design', results: [] },
+      };
+      const target: CanvasNode = {
+        id: createId(),
+        type: 'image',
+        title: 'prepare',
+        x: 200,
+        y: 0,
+        width: 100,
+        height: 100,
+        referenceInput: { includeSelf: false },
+        ...(role === 'background'
+          ? { uiBackground: true }
+          : { uiRecognition: { enabled: false, inputRole: role, results: [] } }),
+      };
+      doc.nodes = [source, target];
+      doc.edges = [{ id: createId(), from: source.id, to: target.id, kind: 'image-variant' }];
+      doc = await files.save(doc.id, doc, doc.revision);
+      jest.mocked(imageModelDiscovery.canvasImageModels).mockResolvedValue({
+        ...imageModelsFixture('edit_image'),
+        quality: ['high'],
+        thinkingLevel: ['high'],
+      });
+      const { PNG } = require('pngjs');
+      fs.writeFileSync(
+        path.join(root, 'assets/image/generated.png'),
+        PNG.sync.write(new PNG({ width: 2, height: 2 }))
+      );
+      callRemoteProxyToolMock.mockResolvedValue(successfulImageResult());
+      const result = await new CanvasGenerationService(root, {} as any).generateImage({
+        canvasId: doc.id,
+        targetNodeId: target.id,
+        prompt: 'preserve UI',
+        sourceImageIds: [source.id],
+        sourceImagePaths: [source.assetPath!],
+        resolution: '2K',
+        aspectRatio: 'source',
+      });
+      expect(callRemoteProxyToolMock.mock.calls[0][0].args).toMatchObject({
+        target_size: '1x1',
+        quality: 'high',
+        thinking_level: 'high',
+      });
+      expect(result.parameters).toMatchObject({ targetSize: '1x1', preserveOriginalPixels: true });
+      expect(result.status).toBe('succeeded');
+      expect(result.resultAssetPath).toBeTruthy();
+      expect(result.warnings?.join(' ')).toContain('像素尺寸与原稿不一致');
+      expect(callRemoteProxyToolMock).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  test.each([
+    { ui: true, scene: true, supported: true },
+    { ui: true, scene: false, supported: true },
+    { ui: true, scene: true, supported: false },
+    { ui: false, scene: false, supported: true },
+  ])(
+    'uses declared high precision only for whole-screen 015 preparation: %j',
+    async ({ ui, scene, supported }) => {
+      const files = new MakerCanvasFiles(root);
+      let doc = await files.create('precision', 'empty');
+      const imported = await files.importImage(Buffer.from(customPng, 'base64'));
+      const source: CanvasNode = {
+        id: createId(),
+        type: 'image',
+        title: 'source',
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        assetPath: imported.relativePath,
+        // Only a typed original design makes its text-removal card a whole-screen 015 step.
+        ...(scene
+          ? { uiRecognition: { enabled: false, inputRole: 'design' as const, results: [] } }
+          : {}),
+      };
+      const target: CanvasNode = {
+        id: createId(),
+        type: 'image',
+        title: 'cleanup',
+        referenceInput: { includeSelf: false },
+        x: 200,
+        y: 0,
+        width: 100,
+        height: 100,
+        ...(ui
+          ? {
+              uiRecognition: {
+                enabled: true,
+                inputRole: 'text-free' as const,
+                results: [],
+              },
+            }
+          : {}),
+      };
+      doc.nodes = [source, target];
+      doc.edges = [{ id: createId(), from: source.id, to: target.id, kind: 'image-variant' }];
+      doc = await files.save(doc.id, doc, doc.revision);
+      const discovery = jest.mocked(imageModelDiscovery.canvasImageModels);
+      discovery.mockResolvedValue({
+        ...imageModelsFixture('edit_image'),
+        ...(supported ? { quality: ['medium', 'high'], thinkingLevel: ['minimal', 'high'] } : {}),
+      });
+      fs.writeFileSync(
+        path.join(root, 'assets/image/generated.png'),
+        Buffer.from(customPng, 'base64')
+      );
+      callRemoteProxyToolMock.mockResolvedValue(successfulImageResult());
+      const result = await new CanvasGenerationService(root, {} as any).generateImage({
+        canvasId: doc.id,
+        targetNodeId: target.id,
+        prompt: 'preserve UI',
+        sourceImageIds: [source.id],
+        sourceImagePaths: [source.assetPath!],
+      });
+      const args = callRemoteProxyToolMock.mock.calls[0][0].args;
+      expect(args.quality).toBe(ui && scene && supported ? 'high' : undefined);
+      expect(args.thinking_level).toBe(ui && scene && supported ? 'high' : undefined);
+      expect(result.parameters?.quality).toBe(args.quality);
+    }
+  );
+
   test.each([
     { resolution: 'invalid' },
     { operation: 'variant' as const },

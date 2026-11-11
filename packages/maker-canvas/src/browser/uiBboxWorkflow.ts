@@ -29,6 +29,9 @@ export function syncUiBboxWorkflow(
   const sources = members.filter((node) => node.uiRecognition?.inputRole === 'text-free');
   if (sources.length !== 1) throw new Error('分组需要唯一的去文字识图输入。');
   const source = sources[0];
+  const fixedBackground = members.filter((node) => node.type === 'image' && node.uiBackground);
+  if (fixedBackground.length > 1) throw new Error('分组只能有一张固定独立背景图。');
+  const backgroundSource = fixedBackground[0];
   const result = selectedUiRecognition(source);
   const bbox = result?.bbox;
   if (!bbox) throw new Error('请先完成当前设计稿的识图，再同步批次。');
@@ -80,6 +83,47 @@ export function syncUiBboxWorkflow(
     card('resource-bundle', 'UI 资源包', 2, 0);
   let row = 0;
   for (const category of Object.keys(labels) as UiAtlasGroup[]) {
+    if (category === 'background' && backgroundSource) {
+      // The fixed background is already the final source image, but its resource card still
+      // needs the same single-slot plan as a normal background batch so preview/confirm can
+      // derive a 1×1 full-image crop without asking the user to invent grid parameters.
+      const backgroundProbe: CanvasNode = {
+        ...backgroundSource,
+        id: 'bbox-background-plan-probe',
+        uiAtlasGroup: 'background',
+      };
+      const backgroundPlans = uiWorkflowAtlasPlans(current, backgroundProbe, bbox);
+      const backgroundIndex = backgroundPlans.findIndex((plan) =>
+        plan.slots.every((slot) => slot.role === 'background')
+      );
+      const backgroundPlan = backgroundPlans[backgroundIndex];
+      if (backgroundPlan) {
+        backgroundSource.uiAtlasBatch = backgroundIndex;
+        backgroundSource.generation ??= {
+          prompt: '固定独立背景图资源',
+          operation: 'variant',
+          parameters: { aspectRatio: 'source' },
+        };
+        backgroundSource.generation = {
+          ...backgroundSource.generation,
+          uiAtlasPlan: backgroundPlan,
+        };
+        backgroundSource.uiBaselineGrid = { ...backgroundPlan.grid };
+      }
+      const existing = members.find(
+        (node) =>
+          node.type === 'image-assets' &&
+          current.edges.some(
+            (edge) =>
+              edge.from === backgroundSource.id &&
+              edge.to === node.id &&
+              edge.kind === 'image-assets'
+          )
+      );
+      const assets = existing || card('image-assets', labels.background + ' · 1', 2, row++);
+      connect(backgroundSource, assets, 'image-assets');
+      connect(assets, bundle, 'resource-bundle');
+    }
     if (
       category === 'background' &&
       !background &&
@@ -98,11 +142,19 @@ export function syncUiBboxWorkflow(
     };
     const plans = uiWorkflowAtlasPlans(planning, probe, bbox);
     for (const [batch, plan] of plans.entries()) {
+      if (
+        backgroundSource &&
+        category === 'background' &&
+        plan.slots.every((slot) => slot.role === 'background')
+      )
+        continue;
       if (plan.slots.every((slot) => slot.role === 'reserve')) continue;
+      const reference = plan.slots.every((slot) => slot.role === 'background') ? design : source;
       const existing = members.find(
         (node) =>
           node.type === 'image' &&
           !node.uiAtlasPrelayout &&
+          !node.uiBackground &&
           node.uiAtlasGroup === category &&
           (node.uiAtlasBatch ?? 0) === batch
       );
@@ -111,11 +163,41 @@ export function syncUiBboxWorkflow(
           .filter((edge) => edge.to === existing.id)
           .map((edge) => members.find((node) => node.id === edge.from && node.uiAtlasPrelayout))
           .filter((node): node is CanvasNode => Boolean(node));
+        const incoming =
+          prelayout.length === 1
+            ? current.edges.filter(
+                (edge) => edge.to === prelayout[0].id && edge.kind === 'image-variant'
+              )
+            : [];
+        const legacyBackground =
+          category === 'background' &&
+          !backgroundSource &&
+          plan.slots.every((slot) => slot.role === 'background') &&
+          incoming.length === 1 &&
+          incoming[0].from === source.id;
         if (
           prelayout.length !== 1 ||
-          !current.edges.some((edge) => edge.from === source.id && edge.to === prelayout[0].id)
+          (!current.edges.some(
+            (edge) => edge.from === reference.id && edge.to === prelayout[0].id
+          ) &&
+            !legacyBackground)
         )
           throw new Error('已有批次预排连线不完整，请修复后继续：' + existing.title);
+        if (legacyBackground) {
+          const prior = prelayout[0];
+          // Only migrate untouched placeholders. Completed results retain their lineage.
+          if (
+            prior.templatePending &&
+            !prior.generation?.attemptId &&
+            !prior.generation?.uiAtlasPlan &&
+            !prior.sourceSnapshot &&
+            !prior.sourceSnapshots?.length
+          ) {
+            incoming[0].from = design.id;
+            prior.assetPath = design.assetPath;
+            prior.imageInfo = design.imageInfo ? { ...design.imageInfo } : undefined;
+          }
+        }
         const assets = current.edges
           .filter((edge) => edge.from === existing.id && edge.kind === 'image-assets')
           .map((edge) =>
@@ -159,9 +241,9 @@ export function syncUiBboxWorkflow(
       prelayout.uiAtlasPrelayout = true;
       prelayout.generation = { ...prelayout.generationDraft!, prompt };
       delete prelayout.generationDraft;
-      prelayout.assetPath = source.assetPath;
-      prelayout.imageInfo = source.imageInfo ? { ...source.imageInfo } : undefined;
-      connect(source, prelayout, 'image-variant');
+      prelayout.assetPath = reference.assetPath;
+      prelayout.imageInfo = reference.imageInfo ? { ...reference.imageInfo } : undefined;
+      connect(reference, prelayout, 'image-variant');
       connect(prelayout, image, 'image-variant');
       connect(image, assets, 'image-assets');
       connect(assets, bundle, 'resource-bundle');
@@ -258,7 +340,11 @@ export function syncUiBboxWorkflow(
       node.type === 'image' &&
       (node.uiArtTextId || node.uiAtlasGroup === 'background')
   )) {
-    const active = image.uiArtTextId ? wantedArtText.includes(image.uiArtTextId) : backgroundActive;
+    const active = image.uiBackground
+      ? true
+      : image.uiArtTextId
+        ? wantedArtText.includes(image.uiArtTextId)
+        : backgroundActive;
     const branch = [
       image,
       ...current.nodes.filter(
@@ -332,15 +418,32 @@ export function layoutUiWorkflowGroup(document: CanvasDocument, groupId: string)
     }
     return bottom;
   }
-  const inputs = ['design', 'text-free'].flatMap((role) =>
-    visible.filter((node) => node.uiRecognition?.inputRole === role)
+  const inputs = visible.filter(
+    (node) =>
+      node.uiRecognition?.inputRole === 'design' ||
+      node.uiRecognition?.inputRole === 'work-image' ||
+      node.uiRecognition?.inputRole === 'text-free' ||
+      node.uiBackground
   );
   const designs = inputs.flatMap((input) =>
     canvasReferences(document, input.id).filter(
       (node) => node.sectionId === groupId && node.type === 'image' && !inputs.includes(node)
     )
   );
-  y = row([...new Set([...designs, ...inputs])]) + 80;
+  const firstRow = [...new Set([...designs, ...inputs])];
+  const design = firstRow.find((node) => node.uiRecognition?.inputRole === 'design');
+  if (design) {
+    // Keep all four first-row cards visually comparable. The generated images are required to
+    // follow the source ratio; using the design card's frame also prevents a stale 1:1 card
+    // size from hiding a correct 16:9 result.
+    for (const node of firstRow) {
+      if (node.type === 'image') {
+        node.width = design.width;
+        node.height = design.height;
+      }
+    }
+  }
+  y = row(firstRow) + 80;
   const categories = ['controls', 'icons', 'equipment', 'panels', 'artwork', 'background'];
   const rank = (node: CanvasNode) =>
     categories.indexOf(node.uiAtlasGroup || '') < 0 ? 6 : categories.indexOf(node.uiAtlasGroup!);

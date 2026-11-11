@@ -782,3 +782,104 @@ test('invalid server Bbox preserves charged result without generating again', as
     credential.mockRestore();
   }
 });
+
+test.each(['custom', 'server'] as const)(
+  '%s recognizes elements from the background-removed image while preserving design text and slicing identities',
+  async (source) => {
+    const { canvasId, input } = await setup();
+    const files = new MakerCanvasFiles(root);
+    let doc = await files.load(canvasId);
+    const cut = doc.nodes.find((node) => node.id === input.nodeId)!;
+    const design = doc.nodes.find((node) => node.id !== cut.id)!;
+    design.uiRecognition = { enabled: false, inputRole: 'design', results: [] };
+    const { PNG } = require('pngjs');
+    const image = new PNG({ width: 2, height: 2 });
+    image.data.fill(255);
+    const black = await files.importImage(PNG.sync.write(image));
+    const work = {
+      ...design,
+      id: randomUUID(),
+      title: 'background removed',
+      assetPath: black.relativePath,
+      uiRecognition: { enabled: false, inputRole: 'work-image' as const, results: [] },
+    };
+    doc.nodes.push(work);
+    doc.edges[0].from = work.id;
+    doc.edges.push({ id: randomUUID(), from: design.id, to: work.id, kind: 'image-variant' });
+    doc = await files.save(canvasId, doc, doc.revision);
+    const cutData = {
+      pass: 'cut',
+      sceneType: 'ui_only',
+      image: { width: 2, height: 2 },
+      elements: [{ ...element, bbox: [0, 0, 2, 2] }],
+    };
+    const textData = JSON.parse((await textResponse().json()).choices[0].message.content);
+    const fetcher = jest.fn();
+    let service: CanvasRecognitionService;
+    let restore: (() => void) | undefined;
+    if (source === 'server') {
+      saveProjectConfig(root, { project_id: randomUUID() } as any);
+      const patMock = jest.spyOn(pat, 'requireMakerPat').mockReturnValue({ token: 'fixture-pat' });
+      const baseMock = jest
+        .spyOn(config, 'getMakerApiBaseUrl')
+        .mockReturnValue('https://maker.invalid');
+      restore = () => {
+        patMock.mockRestore();
+        baseMock.mockRestore();
+      };
+      fetcher
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              request_id: 'cut-id',
+              status: 'succeeded',
+              model: 'gpt-6.1-sol',
+              reasoning_effort: 'low',
+              output_format: 'json_object',
+              output: cutData,
+            })
+          )
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              request_id: 'text-id',
+              status: 'succeeded',
+              model: 'gpt-6.1-sol',
+              reasoning_effort: 'low',
+              output_format: 'json_object',
+              output: textData,
+            })
+          )
+        );
+      service = new CanvasRecognitionService(root, [{ ...models[0], source: 'server' }], fetcher);
+    } else {
+      fetcher
+        .mockResolvedValueOnce(modelResponse(cutData))
+        .mockResolvedValueOnce(modelResponse(textData));
+      service = new CanvasRecognitionService(root, models, fetcher);
+    }
+    try {
+      const response = await service.run(canvasId, { ...input, revision: doc.revision });
+      expect(response.status).toBe('succeeded');
+      const requests = fetcher.mock.calls.map((call) => JSON.parse(call[1].body));
+      const imageBytes = (body: any) =>
+        source === 'server'
+          ? body.image.data
+          : body.messages[0].content[1].image_url.url.split(',')[1];
+      expect(imageBytes(requests[0])).toBe(
+        fs.readFileSync(files.readMedia(work.assetPath!).file).toString('base64')
+      );
+      expect(imageBytes(requests[1])).toBe(
+        fs.readFileSync(files.readMedia(design.assetPath!).file).toString('base64')
+      );
+      expect(response.cut?.image.path).toBe(work.assetPath);
+      expect(response.result?.bbox?.cutSource.path).toBe(cut.assetPath);
+      expect(response.result?.sourcePath).toBe(cut.assetPath);
+      expect(response.result?.bbox?.elements[0].bbox).toEqual([0, 0, 1, 1]);
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    } finally {
+      restore?.();
+    }
+  }
+);
