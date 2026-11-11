@@ -646,7 +646,7 @@
       if (restoredDraft)
         await loadUiFile(file, undefined, { text: draft.text, baselineText: draft.baselineText, draft: true });
       else await loadUiFile(file);
-      if (!restoredDraft) setDirty(oldPath, false);
+      if (oldPath !== file.path || !restoredDraft) setDirty(oldPath, false);
       return true;
     } catch (err) {
       notify('无法打开「' + file.name + '」：' + (err.message || String(err)));
