@@ -321,7 +321,10 @@
         if (!already) app.selectNode(hit, false, true);
       } else if (!already) app.selectNode(hit, false);
       beginMoveOrResize(app, hit, "move", p, event);
-      if (app.drag && additive && already) app.drag.toggleIfUnmoved = hit;
+      if (app.drag && additive && already) {
+        var toggleSource = app.sourceNode ? app.sourceNode(hit) : hit;
+        app.drag.toggleIfUnmoved = root.UrhoxDoc.getEditorId(toggleSource);
+      }
       canvas.setPointerCapture(event.pointerId);
     });
 
@@ -428,10 +431,10 @@
         if (marquee) app.setSelection(drag.seed);
         else if (app.cancelHistory) app.cancelHistory(drag.selectionIds);
       } else if (toggle) {
-        var toggleId = root.UrhoxDoc.getEditorId(drag.toggleIfUnmoved);
+        var toggleId = drag.toggleIfUnmoved;
         if (app.cancelHistory) app.cancelHistory(drag.selectionIds);
-        var restored = root.UrhoxDoc.findByEditorId(app.sourceTree || app.tree, toggleId) || drag.toggleIfUnmoved;
-        app.selectNode(restored, false, true);
+        var restored = root.UrhoxDoc.findByEditorId(app.sourceTree || app.tree, toggleId);
+        if (restored) app.selectNode(restored, false, true);
       } else if (!marquee && app.commitHistory) app.commitHistory();
       if (canvas.hasPointerCapture && canvas.hasPointerCapture(drag.pointerId)) {
         canvas.releasePointerCapture(drag.pointerId);

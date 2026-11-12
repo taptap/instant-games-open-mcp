@@ -179,4 +179,27 @@ for (const mode of ["pointercancel", "lostpointercapture", "escape", "blur"]) {
   assert.equal(app.drag.additive, true, "cmd marquee appends");
   assert.equal(app.selectedNodes.length, 1, "cmd marquee keeps the current selection until the box updates");
 }
+
+{
+  const { app, canvas } = setup();
+  const source = app.tree.children[0];
+  const generated = {
+    type: "Panel", _generated: true, _editorId: "gen", position: "absolute",
+    left: 30, top: 30, width: 50, height: 50, _layout: { x: 30, y: 30, w: 50, h: 50 },
+  };
+  app.tree = {
+    type: "Panel", width: 400, height: 400, _editorId: "preview",
+    _layout: { x: 0, y: 0, w: 400, h: 400 }, children: [generated],
+  };
+  app.sourceNode = (node) => (node === generated || node === source ? source : node);
+  app.isSelected = function (node) {
+    const src = this.sourceNode(node);
+    return this.selectedNodes.includes(src) || this.selectedNodes.includes(node);
+  };
+  app.setSelection([source]);
+  canvas.fire("pointerdown", { clientX: 45, clientY: 45, metaKey: true });
+  canvas.fire("pointerup", { clientX: 45, clientY: 45, metaKey: true });
+  assert.equal(app.selectedNodes.includes(app.sourceTree), false, "generated toggle must not select the document root");
+  assert.equal(app.selectedNodes.length, 0, "modifier click on a generated child toggles its source node");
+}
 console.log("gesture regression passed");
