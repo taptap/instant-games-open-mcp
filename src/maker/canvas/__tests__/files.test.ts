@@ -944,6 +944,46 @@ describe('Maker canvas files', () => {
     expect((await files.load(first.id)).title).toBe('一改');
   });
 
+  test('rejects the same revision when file content changed', async () => {
+    const root = project('maker-canvas-content-conflict-');
+    gitignore(root);
+    const files = new MakerCanvasFiles(root);
+    const created = await files.create('内容');
+    const saved = await files.save(created.id, { ...created, title: '已保存' }, created.revision);
+    const rest = { ...saved } as { revision?: number };
+    delete rest.revision;
+    const baseline = JSON.stringify(Object.fromEntries(Object.entries(rest).reverse()));
+    const next = await files.save(
+      saved.id,
+      { ...saved, title: '继续', baseLayout: baseline },
+      saved.revision
+    );
+    expect(next).toMatchObject({ title: '继续', revision: saved.revision + 1 });
+    expect(next).not.toHaveProperty('baseLayout');
+    const file = path.join(root, '.maker', 'canvases', saved.id + '.json');
+    const stored = JSON.parse(fs.readFileSync(file, 'utf8')) as { title: string; revision: number };
+    stored.title = '别人写的';
+    fs.writeFileSync(file, JSON.stringify(stored));
+    const latest = { ...next } as { revision?: number };
+    delete latest.revision;
+    const changedBaseline = JSON.stringify(latest);
+    await expect(
+      files.save(
+        saved.id,
+        { ...next, title: '我的修改', baseLayout: changedBaseline },
+        next.revision
+      )
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    expect((await files.load(saved.id)).title).toBe('别人写的');
+    const overwritten = await files.save(
+      saved.id,
+      { ...next, title: '覆盖', baseLayout: changedBaseline, overwrite: true },
+      next.revision
+    );
+    expect(overwritten).toMatchObject({ title: '覆盖', revision: next.revision + 1 });
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).not.toHaveProperty('baseLayout');
+  });
+
   test('rejects duplicate node ids and malformed edge ids', async () => {
     const root = project('maker-canvas-identities-');
     gitignore(root);

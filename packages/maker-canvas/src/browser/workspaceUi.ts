@@ -1,3 +1,6 @@
+import type { CanvasWorkspaceState } from './pageHost.js';
+import type { CanvasWheelMode } from './wheel.js';
+
 export function createCanvasWorkspace(options: {
   current(): {
     id: string;
@@ -8,6 +11,10 @@ export function createCanvasWorkspace(options: {
   create(): Promise<boolean>;
   zoom(factor: number): void;
   error(message: string): void;
+  getState?(): CanvasWorkspaceState | undefined;
+  saveState?(state: CanvasWorkspaceState): void;
+  getWheelMode?(): CanvasWheelMode;
+  setWheelMode?(mode: CanvasWheelMode): void;
 }) {
   const select = document.getElementById('canvases') as HTMLSelectElement;
   const header = document.querySelector('header')!;
@@ -20,6 +27,13 @@ export function createCanvasWorkspace(options: {
   let switching = false;
   let activeId: string | undefined;
   let signature = '';
+  let restored = false;
+  const loading = document.createElement('div');
+  loading.className = 'workspace-loading';
+  loading.hidden = true;
+  loading.setAttribute('role', 'status');
+  loading.setAttribute('aria-live', 'polite');
+  board.after(loading);
   const tabsRow = document.createElement('div');
   tabsRow.className = 'workspace-tabs-row';
   const tabs = document.createElement('div');
@@ -61,6 +75,30 @@ export function createCanvasWorkspace(options: {
   }
   const more = menu('···', 'workspace-more');
   more.root.querySelector('summary')!.setAttribute('aria-label', '更多画布操作');
+  const wheelMode = document.createElement('select');
+  wheelMode.id = 'canvas-wheel-mode';
+  wheelMode.setAttribute('aria-label', '滚轮与触摸板');
+  for (const [value, title] of [
+    ['auto', '自动识别'],
+    ['mouse', '鼠标：滚轮缩放'],
+    ['trackpad', '触摸板：双指平移'],
+  ]) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = title;
+    wheelMode.append(option);
+  }
+  wheelMode.value = options.getWheelMode?.() || 'auto';
+  wheelMode.addEventListener('change', () =>
+    options.setWheelMode?.(wheelMode.value as CanvasWheelMode)
+  );
+  const wheelLabel = document.createElement('label');
+  wheelLabel.textContent = '滚轮与触摸板';
+  wheelLabel.style.display = 'grid';
+  wheelLabel.style.gap = '6px';
+  wheelLabel.style.padding = '8px';
+  wheelLabel.append(wheelMode);
+  more.panel.append(wheelLabel);
   const template = document.getElementById('add-template')!;
   const save = document.getElementById('save')!;
   iconButton(add.root.querySelector('summary')!, '添加节点', '<path d="M12 5v14M5 12h14"/>');
@@ -442,18 +480,24 @@ export function createCanvasWorkspace(options: {
     root.append(summary, panel);
     return { root, panel };
   }
-  async function transition(action: () => Promise<boolean>) {
+  async function transition(action: () => Promise<boolean>, id?: string) {
     if (switching) return;
     switching = true;
     board.inert = header.inert = controls.inert = true;
     videoHistory.inert = true;
+    const name = Array.from(select.options).find((item) => item.value === id)?.textContent;
+    loading.textContent = name ? '正在打开「' + name + '」…' : '正在切换画布…';
+    loading.hidden = false;
     sync();
     try {
+      // Let the loading state paint before document decoding or media preparation starts.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
       await action();
     } catch (error) {
       options.error(error instanceof Error ? error.message : '画布切换失败，请重试。');
     } finally {
       switching = false;
+      loading.hidden = true;
       board.inert = header.inert = controls.inert = false;
       videoHistory.inert = false;
       select.value = options.current()?.id || '';
@@ -482,7 +526,7 @@ export function createCanvasWorkspace(options: {
       const choice = button(
         item.textContent || '未命名画布',
         item.textContent || '未命名画布',
-        () => transition(() => options.activate(item.value))
+        () => transition(() => options.activate(item.value), item.value)
       );
       choice.disabled = switching;
       choice.setAttribute('aria-current', String(item.value === options.current()?.id));
@@ -511,6 +555,13 @@ export function createCanvasWorkspace(options: {
     const nextSignature = JSON.stringify([opened, current?.id, current?.title, switching]);
     if (signature === nextSignature) return;
     signature = nextSignature;
+    if (restored && current) {
+      try {
+        options.saveState?.({ openedIds: [...opened], activeId: current.id });
+      } catch {
+        /* Tab preference is optional; a full or disabled store must not freeze the canvas. */
+      }
+    }
     tabs.replaceChildren();
     for (const id of opened) {
       const name =
@@ -520,7 +571,7 @@ export function createCanvasWorkspace(options: {
       const tab = document.createElement('div');
       tab.className = 'workspace-tab';
       tab.dataset.active = String(id === current?.id);
-      const choice = button(name, name, () => transition(() => options.activate(id)));
+      const choice = button(name, name, () => transition(() => options.activate(id), id));
       choice.setAttribute('role', 'tab');
       choice.setAttribute('aria-selected', String(id === current?.id));
       choice.disabled = switching;
@@ -560,10 +611,32 @@ export function createCanvasWorkspace(options: {
       height: height / view.scale,
     };
   }
-  return { sync, placeMark, activate: (id: string) => transition(() => options.activate(id)) };
+  function restore() {
+    const state = options.getState?.();
+    const available = new Set(Array.from(select.options).map((item) => item.value));
+    opened.splice(
+      0,
+      opened.length,
+      ...Array.from(new Set(state?.openedIds || [])).filter((id) => available.has(id))
+    );
+    restored = true;
+    return state?.activeId && available.has(state.activeId) ? state.activeId : undefined;
+  }
+  return {
+    sync,
+    restore,
+    placeMark,
+    wheelMode: () => wheelMode.value as CanvasWheelMode,
+    activate: (id: string) => transition(() => options.activate(id), id),
+  };
 }
 
 export const CANVAS_WORKSPACE_STYLES = `
+.workspace-loading { position:absolute; z-index:70; top:64px; left:50%; transform:translateX(-50%); box-sizing:border-box; max-width:calc(100% - 32px); padding:12px 18px; border:1px solid var(--canvas-line); border-radius:10px; background:var(--canvas-panel); color:var(--canvas-text); box-shadow:0 4px 20px #0003; font-size:13px; overflow-wrap:anywhere; }
+.workspace-loading[hidden] { display:none; }
+.workspace-loading::before { content:''; display:inline-block; width:12px; height:12px; margin-right:8px; border:2px solid var(--canvas-line); border-top-color:var(--canvas-accent); border-radius:50%; vertical-align:-3px; animation:workspace-loading-spin .8s linear infinite; }
+@keyframes workspace-loading-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .workspace-loading::before { animation:none; } }
 body {
   height: 100dvh;
   min-height: 0;

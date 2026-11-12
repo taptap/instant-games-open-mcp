@@ -305,7 +305,7 @@ try {
   assert.equal(await logs.locator('.canvas-log-list .canvas-log-info').count(), 0);
   assert.equal(await page.evaluate(() => window.logInjection), undefined);
   assert.equal(await logs.locator('img').count(), 0);
-  await logs.getByRole('button', { name: '清空显示' }).click();
+  await logs.getByRole('button', { name: '清空记录' }).click();
   assert.match(await logs.locator('.canvas-log-list').textContent(), /暂无/);
   if (process.env.MAKER_WORKFLOW_ACTIONS_SCREENSHOT) {
     await logs.locator('summary').click();
