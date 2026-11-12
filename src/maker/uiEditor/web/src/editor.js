@@ -349,10 +349,6 @@
     return openUiFile(file);
   }
 
-  function imageHasMeta(file) {
-    return !file || file.hasMeta !== false;
-  }
-
   function applyReplace(file) {
     if (!validateImageTarget() || !file || file.kind !== 'image') return false;
     var target = replaceTarget;
@@ -360,14 +356,6 @@
     if (target.node[target.key] === ref) {
       cancelReplaceImage();
       return true;
-    }
-    if (!imageHasMeta(file)) {
-      notify(
-        '这张图没有 .meta（' +
-          file.name +
-          '.meta），已写入路径，但运行时可能加载失败。请先在项目里生成 meta 再引用。',
-        'warning'
-      );
     }
     var cb = target.onChange;
     if (cb) cb({ phase: 'start' });
