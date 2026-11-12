@@ -100,4 +100,29 @@ describe('CanvasDocumentStore port', () => {
     expect(overwritten).not.toHaveProperty('overwrite');
     expect((await store.load(created.id)).title).toBe('覆盖');
   });
+
+  test('rejects the same revision when the saved content changed', async () => {
+    const store = new MemoryCanvasDocumentStore();
+    const created = await store.create('内容');
+    const saved = await store.save({ ...created, title: '已保存' });
+    const rest = { ...saved } as { revision?: number; title: string; id: string };
+    delete rest.revision;
+    const baseline = JSON.stringify(Object.fromEntries(Object.entries(rest).reverse()));
+    const next = await store.save({ ...saved, title: '继续', baseLayout: baseline });
+    expect(next).toMatchObject({ title: '继续', revision: 2 });
+    expect(next).not.toHaveProperty('baseLayout');
+    await expect(
+      store.save({ ...next, title: '基于旧内容', baseLayout: baseline })
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    expect((await store.load(created.id)).title).toBe('继续');
+    const overwritten = await store.save({
+      ...saved,
+      title: '覆盖',
+      baseLayout: baseline,
+      overwrite: true,
+    });
+    expect(overwritten).toMatchObject({ title: '覆盖', revision: 3 });
+    expect(overwritten).not.toHaveProperty('baseLayout');
+    expect(overwritten).not.toHaveProperty('overwrite');
+  });
 });

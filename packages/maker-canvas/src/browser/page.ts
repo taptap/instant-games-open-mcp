@@ -4808,14 +4808,27 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       "    setError('');",
       '    if (!canvasConflictDialog.open) canvasConflictDialog.showModal();',
       '  }',
+      '  function sameSavedCanvas(loaded, baseline) {',
+      '    const current = layout(loaded);',
+      '    if (current === baseline) return true;',
+      '    if (!host.readOnly) return false;',
+      '    try {',
+      '      const left = JSON.parse(current);',
+      '      const right = JSON.parse(baseline);',
+      '      if (!left || !right || !right.viewport) return false;',
+      '      left.viewport = right.viewport;',
+      '      return JSON.stringify(left) === JSON.stringify(right);',
+      '    } catch (caught) { return false; }',
+      '  }',
       '  async function reconcileCanvasFile() {',
       '    if (!documentState || dirty() || saveConflict || hostEditBlocked() || peerReason) return;',
       '    const id = documentState.id;',
       '    const revision = documentState.revision;',
+      '    const baseline = savedKey;',
       '    let loaded;',
       "    try { loaded = await request('/canvases/' + id); } catch (caught) { return; }",
-      '    if (!documentState || documentState.id !== id || documentState.revision !== revision || dirty() || saveConflict || peerReason || hostEditBlocked()) return;',
-      '    if (!loaded || loaded.revision === revision) return;',
+      '    if (!documentState || documentState.id !== id || documentState.revision !== revision || savedKey !== baseline || dirty() || saveConflict || peerReason || hostEditBlocked()) return;',
+      '    if (!loaded || (loaded.revision === revision && sameSavedCanvas(loaded, baseline))) return;',
       '    await loadCanvasDocument(id, loaded);',
       '  }',
       '  function markDirty() {',
@@ -4834,7 +4847,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     "    setStatus('保存中…');\n    try {\n      const saved = await request('/canvases/' + submittedId, {\n        method: 'PUT',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify(snapshot),\n      });",
-    "    setStatus('保存中…');\n    try {\n      const saveBody = saveOverwrite ? Object.assign({}, snapshot, { overwrite: true }) : snapshot;\n      saveOverwrite = false;\n      const saved = await request('/canvases/' + submittedId, {\n        method: 'PUT',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify(saveBody),\n      });"
+    "    setStatus('保存中…');\n    try {\n      const saveBody = Object.assign({}, snapshot, { baseLayout: savedKey }); if (saveOverwrite) saveBody.overwrite = true;\n      saveOverwrite = false;\n      const saved = await request('/canvases/' + submittedId, {\n        method: 'PUT',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify(saveBody),\n      });"
   );
   page = replaceCanvasPageText(
     page,
