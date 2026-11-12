@@ -644,11 +644,17 @@
     }
   }
 
+  function decodedPath(value) {
+    return String(value || '').replace(/^\/+/, '').split('/').map(function (part) {
+      try { return decodeURIComponent(part); } catch (err) { return part; }
+    }).join('/');
+  }
+
   function openUiPath(ref) {
     if (!ref) return false;
-    var normalized = String(ref).replace(/^\/+/, '');
+    var normalized = decodedPath(ref);
     var file = project.files.find(function (entry) {
-      var path = String(entry.path || '').replace(/^\/+/, '');
+      var path = decodedPath(entry.path);
       return (
         path === normalized ||
         path.endsWith('/' + normalized) ||
