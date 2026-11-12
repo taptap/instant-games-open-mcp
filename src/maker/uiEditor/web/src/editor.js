@@ -652,14 +652,16 @@
 
   function openUiPath(ref) {
     if (!ref) return false;
-    var normalized = String(ref).replace(/^\/+/, '');
+    var raw = String(ref).replace(/^\/+/, '');
     var file = project.files.find(function (entry) {
-      var path = decodedPath(entry.path);
+      var listed = String(entry.path || '').replace(/^\/+/, '');
+      if (listed === raw || listed.endsWith('/' + raw)) return true;
+      var path = decodedPath(listed);
       return (
-        path === normalized ||
-        path.endsWith('/' + normalized) ||
-        path.endsWith('/assets/' + normalized) ||
-        path === 'assets/' + normalized
+        path === raw ||
+        path.endsWith('/' + raw) ||
+        path.endsWith('/assets/' + raw) ||
+        path === 'assets/' + raw
       );
     });
     if (!file) {
