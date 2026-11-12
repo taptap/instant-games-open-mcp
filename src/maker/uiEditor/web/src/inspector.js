@@ -32,6 +32,25 @@
       ],
     },
     {
+      id: 'preview-mapping',
+      title: '页面预览映射',
+      open: true,
+      showIf: function (node, meta) {
+        return node === (meta && meta.root);
+      },
+      rows: [
+        [
+          {
+            key: 'previewFit',
+            label: '坐标映射',
+            kind: 'enum',
+            emptyLabel: '引擎逻辑布局',
+            options: [{ value: 'contain', label: '设计坐标等比居中' }],
+          },
+        ],
+      ],
+    },
+    {
       id: 'nanovg',
       title: 'NanoVG 绘图',
       open: true,
@@ -160,14 +179,6 @@
       title: 'Rect Transform',
       open: true,
       rows: [
-        [
-          {
-            key: 'previewFit',
-            label: '预览适应',
-            kind: 'enum',
-            options: [{ value: 'contain', label: '适应 Contain' }],
-          },
-        ],
         [{ key: 'position', label: '定位', kind: 'enum', options: ['relative', 'absolute'] }],
         [
           { key: 'left', label: '相对父级 X', kind: 'length' },
@@ -467,6 +478,19 @@
         );
         return false;
       }
+      if (
+        node.previewFit &&
+        (field.key === 'width' || field.key === 'height') &&
+        root.UrhoxUICheck
+      ) {
+        var candidate = Object.assign({}, node);
+        applyField(candidate, field, raw);
+        var mappingError = root.UrhoxUICheck.previewFitError(candidate, true);
+        if (mappingError) {
+          control.setCustomValidity(mappingError);
+          return false;
+        }
+      }
       control.setCustomValidity('');
       applyField(node, field, raw);
       return true;
@@ -506,6 +530,16 @@
       return;
     }
     control.addEventListener('change', function () {
+      if (field.key === 'previewFit' && control.value && root.UrhoxUICheck) {
+        var candidate = Object.assign({}, node, { previewFit: control.value });
+        var mappingError = root.UrhoxUICheck.previewFitError(candidate, true);
+        control.setCustomValidity(mappingError || '');
+        if (mappingError) {
+          control.reportValidity();
+          control.value = node.previewFit || '';
+          return;
+        }
+      }
       emitChange(onChange, { phase: 'start' });
       var raw = control.type === 'checkbox' ? control.checked : control.value;
       applyField(node, field, raw);
@@ -633,7 +667,7 @@
       control = document.createElement('select');
       var empty = document.createElement('option');
       empty.value = '';
-      empty.textContent = '—';
+      empty.textContent = field.emptyLabel || '—';
       control.appendChild(empty);
       field.options.forEach(function (opt) {
         var option = document.createElement('option');
@@ -1126,7 +1160,7 @@
       container.appendChild(rep);
     }
     GROUPS.forEach(function (group) {
-      if (group.showIf && !group.showIf(node)) return;
+      if (group.showIf && !group.showIf(node, meta)) return;
       var block = renderGroup(group, node, onChange);
       if (transforms && group.id === 'rect')
         block.querySelector('.insp-body').appendChild(transforms);

@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { Script } from 'node:vm';
 import { pathToFileURL } from 'node:url';
@@ -36,6 +37,23 @@ const html = await buildUiEditorPageHtml({ hostScript, themeStyles: ':root{--bg:
 for (const match of html.matchAll(/<script>([\s\S]*?)<\/script>/gi)) new Script(match[1]);
 assert.doesNotMatch(html, /type="module"|<script src=|href="src\//);
 assert.doesNotMatch(html, /console-theme/);
+
+{
+  const buildSource = readFileSync(new URL('./build-maker-ui-editor-page.mjs', import.meta.url), 'utf8');
+  const match = /prototype\.roundRect = function \(x, y, w, h, r\) \{(.*?)return this;/.exec(buildSource);
+  assert.ok(match, 'roundRect polyfill');
+  const calls = [];
+  const ctx = {
+    moveTo() { calls.push(['moveTo', ...arguments]); },
+    arcTo() { calls.push(['arcTo', ...arguments]); },
+    closePath() { calls.push(['close']); },
+  };
+  new Function('x', 'y', 'w', 'h', 'r', match[1]).call(ctx, 0, 0, 30, 20, 100);
+  assert.deepEqual(calls[0], ['moveTo', 10, 0]);
+  assert.equal(calls[1][5], 10);
+  assert.equal(calls[4][5], 10);
+}
+
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
