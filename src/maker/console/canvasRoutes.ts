@@ -660,14 +660,14 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     if (one && method === 'PUT') {
+      // baseLayout repeats the previous content for the revision check. The stored
+      // document is still capped by CANVAS_JSON_LIMIT after that field is removed.
       const input = JSON.parse(
         (
           await readBytes(
             request,
-            CANVAS_JSON_LIMIT,
-            '画布文档超过 ' +
-              CANVAS_JSON_LIMIT / 1024 / 1024 +
-              ' MiB，无法保存。请把部分分组复制到新画布后删除，再保存。'
+            CANVAS_JSON_LIMIT * 4,
+            '画布保存请求过大，未保存。请把部分分组复制到新画布后删除，再保存。'
           )
         ).toString('utf8')
       );

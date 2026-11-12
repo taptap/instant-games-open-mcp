@@ -385,7 +385,9 @@ export class MemoryCanvasDocumentStore implements CanvasDocumentStore {
     this.documents.set(document.id, document);
     return cloneDocument(document);
   }
-  async save(document: CanvasDocument): Promise<CanvasDocument> {
+  async save(
+    document: CanvasDocument & { overwrite?: boolean; baseLayout?: string }
+  ): Promise<CanvasDocument> {
     const submitted = document as CanvasDocument & { overwrite?: boolean; baseLayout?: unknown };
     const overwrite = submitted.overwrite === true;
     const baseLayout =
