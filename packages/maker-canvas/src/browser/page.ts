@@ -4827,7 +4827,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    const baseline = fileBaseline;',
       '    let loaded;',
       "    try { loaded = await request('/canvases/' + id); } catch (caught) { return; }",
-      '    if (!documentState || documentState.id !== id || documentState.revision !== revision || savedKey !== baseline || dirty() || saveConflict || peerReason || hostEditBlocked()) return;',
+      '    if (!documentState || documentState.id !== id || documentState.revision !== revision || fileBaseline !== baseline || dirty() || saveConflict || peerReason || hostEditBlocked()) return;',
       '    if (!loaded || (loaded.revision === revision && sameSavedCanvas(loaded, baseline))) return;',
       '    await loadCanvasDocument(id, loaded);',
       '  }',
