@@ -148,7 +148,11 @@ export function syncUiBboxWorkflow(
               Math.max(plan.nativeLayout.width, plan.nativeLayout.height) <= 1024
                 ? '1K'
                 : '2K',
-            aspectRatio: plan.nativeLayout ? imageRatioInfo(plan.nativeLayout).common! : '1:1',
+            aspectRatio: plan.nativeLayout
+              ? imageRatioInfo(plan.nativeLayout).common!
+              : category === 'background'
+                ? 'source'
+                : '1:1',
           },
         };
       }

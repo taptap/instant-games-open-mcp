@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "id": "S03.next",
+  "name": "继续提示",
+  "category": "interaction",
+  "duration": 0.42,
+  "nodes": [
+    {
+      "id": "continue",
+      "name": "继续箭头",
+      "transform": {
+        "scale": 1
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "continue",
+      "prop": "scale",
+      "at": 0,
+      "duration": 0.14,
+      "from": 1,
+      "to": 1.08,
+      "ease": "outCubic"
+    },
+    {
+      "node": "continue",
+      "prop": "scale",
+      "at": 0.14,
+      "duration": 0.28,
+      "from": 1.08,
+      "to": 1,
+      "ease": "outCubic"
+    }
+  ]
+}

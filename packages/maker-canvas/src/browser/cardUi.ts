@@ -56,7 +56,8 @@ export function decorateCanvasCard(
           node.mergeIcons.stageCount +
           '阶段'
         : kinds[node.type];
-  heading.append(title, metadata);
+  heading.append(title);
+  if (node.type !== 'note') heading.append(metadata);
   const more = document.createElement('button');
   more.type = 'button';
   more.className = 'canvas-card-menu';
@@ -119,7 +120,8 @@ export function refreshCanvasGroupHeaders(
       card,
     ])
   );
-  for (const group of nodes.filter((node) => node.type === 'section')) {
+  // Sprite groups show sprite-gen's stage instead; the page writes their badge.
+  for (const group of nodes.filter((node) => node.type === 'section' && !node.spriteGen)) {
     const badge = cards.get(group.id)?.querySelector<HTMLElement>('.canvas-group-state');
     if (!badge) continue;
     const members = nodes.filter(

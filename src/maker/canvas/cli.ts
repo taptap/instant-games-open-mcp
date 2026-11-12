@@ -1,6 +1,12 @@
 import fs from 'node:fs';
+import { validateImportedFrameSet } from '../../../packages/maker-canvas/src/browser/automationAssets.js';
 import { resolvedModelSettingsForDisplay } from '../console/canvasRecognition.js';
-import { canvasExportDirectory, readCanvasImport, writeCanvasExport } from './automationFiles.js';
+import {
+  canvasExportDirectory,
+  readCanvasImport,
+  readCanvasTemplateImport,
+  writeCanvasExport,
+} from './automationFiles.js';
 import { selectCanvasSnapshot } from './automationInfo.js';
 import { randomUUID } from 'node:crypto';
 import { canvasConsoleConnection } from '../console/cli.js';
@@ -15,13 +21,102 @@ import { webRecognitionInput } from './webRecognition.js';
 
 export async function runCanvasCli(
   action: string | undefined,
-  options: Record<string, string | boolean>
+  options: Record<string, string | boolean>,
+  positionals: string[] = []
 ) {
   const print = (value: unknown) =>
     process.stdout.write(JSON.stringify(value) + String.fromCharCode(10));
+  if (positionals.length)
+    throw new Error('canvas 命令请使用命名参数；用 canvas capabilities 查看格式。');
+  const localOptions: Record<string, string[]> = {
+    capabilities: [],
+    'model-settings': [],
+    'recognition-input': ['canvas_id', 'id', 'input', 'input_file'],
+    'recognition-result': ['canvas_id', 'id', 'input', 'input_file'],
+    'assemble-ui': ['canvas_id', 'id', 'new_version', 'ui_name', 'ui_title', 'design_png'],
+    'ui-delivery': ['canvas_id', 'id'],
+    'ui-archives': ['canvas_id'],
+    'archive-ui': ['canvas_id'],
+    list: [],
+    templates: ['page', 'q'],
+    'export-template': ['id', 'revision', 'output_dir'],
+    'import-template': ['file'],
+    pages: [],
+    sessions: [],
+    status: ['operation_id', 'timeout'],
+    wait: ['operation_id', 'timeout'],
+    download: ['operation_id', 'output_dir'],
+    models: ['canvas_id'],
+  };
+  const automationAction = canvasAutomationCapabilities().actions.includes(action || '');
+  if (!action || (!automationAction && !Object.hasOwn(localOptions, action)))
+    throw new Error('未知画布命令，请运行 canvas capabilities。');
+  const allowed = new Set([
+    'target_dir',
+    'session_id',
+    'json',
+    'env',
+    ...(automationAction
+      ? ['page_id', 'canvas_id', 'revision', 'request_id', 'input', 'input_file']
+      : localOptions[action]),
+    ...(['run', 'recognize-ui', 'confirm-model'].includes(action) ? ['allow_paid'] : []),
+    ...(action === 'inspect' ? ['saved', 'id'] : []),
+    ...(['import', 'fill-slot', 'replace-image'].includes(action) ? ['file'] : []),
+    ...(action === 'export' ? ['output_dir'] : []),
+  ]);
+  for (const key of Object.keys(options))
+    if (!allowed.has(key))
+      throw new Error(action + ' 不支持 --' + key.replace(/_/g, '-') + '，命令未执行。');
+  let input: Record<string, unknown> = {};
+  if (options.input !== undefined || options.input_file !== undefined) {
+    if (options.input !== undefined && options.input_file !== undefined)
+      throw new Error('--input 与 --input-file 不能同时使用。');
+    const limit = action.startsWith('recognition-') ? 2 * 1024 * 1024 : 128 * 1024;
+    let content: string;
+    if (options.input !== undefined) {
+      if (typeof options.input !== 'string') throw new Error('--input 缺少 JSON 内容。');
+      content = options.input;
+    } else {
+      if (typeof options.input_file !== 'string') throw new Error('--input-file 缺少文件路径。');
+      const stat = fs.statSync(options.input_file);
+      if (!stat.isFile() || stat.size > limit) throw new Error('input 文件超过大小限制。');
+      content = fs.readFileSync(options.input_file, 'utf8');
+    }
+    if (Buffer.byteLength(content) > limit) throw new Error('input 超过大小限制。');
+    input = JSON.parse(content.replace(/^\uFEFF/, ''));
+    if (!input || typeof input !== 'object' || Array.isArray(input))
+      throw new Error('input 必须是 JSON 对象。');
+  }
+  if (action === 'inspect') {
+    if (options.id !== undefined) {
+      if (typeof options.id !== 'string') throw new Error('--id 缺少卡片或分组 ID。');
+      if (input.id !== undefined && input.id !== options.id)
+        throw new Error('--id 与 input.id 不一致。');
+      input.id = options.id;
+    }
+    if (
+      Object.keys(input).some((key) => key !== 'id') ||
+      (input.id !== undefined && typeof input.id !== 'string')
+    )
+      throw new Error('inspect input 只接受可选的卡片或分组 id。');
+  }
   if (action === 'capabilities') {
     print(canvasAutomationCapabilities());
     return;
+  }
+  let sessionConnection: Awaited<ReturnType<typeof canvasConsoleConnection>> | undefined;
+  if (options.session_id !== undefined) {
+    if (
+      typeof options.session_id !== 'string' ||
+      !/^[a-zA-Z0-9._:-]{1,128}$/.test(options.session_id)
+    )
+      throw new Error('--session-id 必须为 1～128 位字母、数字或 . _ : -。');
+    if (typeof options.target_dir !== 'string')
+      throw new Error('会话登记必须显式传入 --target-dir 项目绝对路径。');
+    sessionConnection = await canvasConsoleConnection(options.target_dir);
+    // Record the invocation once, not each wait poll; reading the register never updates it.
+    if (action !== 'sessions')
+      await sessionConnection.request('/automation/sessions', { sessionId: options.session_id });
   }
   if (action === 'model-settings') {
     const root =
@@ -36,15 +131,6 @@ export async function runCanvasCli(
   if (action === 'recognition-input' || action === 'recognition-result') {
     if (typeof options.canvas_id !== 'string' || typeof options.id !== 'string')
       throw new Error('缺少 --canvas-id 或 --id 识图卡片 ID。');
-    let input: Record<string, any> = {};
-    if (typeof options.input_file === 'string') {
-      const stat = fs.statSync(options.input_file);
-      if (!stat.isFile() || stat.size > 2 * 1024 * 1024)
-        throw new Error('识图 JSON 文件必须小于 2 MiB。');
-      input = JSON.parse(fs.readFileSync(options.input_file, 'utf8'));
-      if (!input || typeof input !== 'object' || Array.isArray(input))
-        throw new Error('识图输入必须是 JSON 对象。');
-    }
     print(
       await webRecognitionInput(
         options.target_dir,
@@ -63,6 +149,9 @@ export async function runCanvasCli(
     const { UiDeliveryService } = await import('./uiDelivery.js');
     const files = new MakerCanvasFiles(options.target_dir);
     const service = new UiDeliveryService(files.root);
+    const hasName = options.ui_name !== undefined || options.ui_title !== undefined;
+    if (hasName && (typeof options.ui_name !== 'string' || typeof options.ui_title !== 'string'))
+      throw new Error('请同时提供 --ui-title 中文界面名和 --ui-name 英文文件标识。');
     // A user-provided PNG inside the project; read here so the service only sees bytes.
     const designPng =
       typeof options.design_png === 'string' ? files.readProjectPng(options.design_png) : undefined;
@@ -72,6 +161,9 @@ export async function runCanvasCli(
         : await service.assemble(options.canvas_id, options.id, {
             newVersion: options.new_version === true || options.new_version === 'true',
             source: 'cli',
+            ...(hasName
+              ? { screen: { name: options.ui_title as string, key: options.ui_name as string } }
+              : {}),
             ...(designPng ? { designPng } : {}),
           })
     );
@@ -89,19 +181,44 @@ export async function runCanvasCli(
     });
     return;
   }
-  const known = [
-    'list',
-    'templates',
-    'pages',
-    'status',
-    'wait',
-    'download',
-    'models',
-    ...canvasAutomationCapabilities().actions,
-  ];
-  if (!action || !known.includes(action))
-    throw new Error('未知画布命令，请运行 canvas capabilities。');
-  const connection = await canvasConsoleConnection(options.target_dir);
+  if (action === 'import-template') {
+    const bytes = readCanvasTemplateImport(options.file);
+    const connection = sessionConnection || (await canvasConsoleConnection(options.target_dir));
+    const response = await connection.transfer('/templates/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/zip' },
+      body: new Uint8Array(bytes),
+    });
+    const template = await response.json();
+    print({
+      templateId: template.id,
+      revision: template.revision,
+      name: template.name,
+      skills: template.skills || [],
+    });
+    return;
+  }
+  if (action === 'export-template') {
+    if (typeof options.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(options.id))
+      throw new Error('缺少有效 --id 模板 ID；请先用 canvas templates 查询。');
+    const revision = Number(options.revision);
+    if (!Number.isSafeInteger(revision) || revision < 1)
+      throw new Error('缺少有效 --revision 模板版本；请先用 canvas templates 查询。');
+    const directory = canvasExportDirectory(options.output_dir);
+    const connection = sessionConnection || (await canvasConsoleConnection(options.target_dir));
+    const response = await connection.transfer(
+      '/templates/' + encodeURIComponent(options.id) + '/export?revision=' + revision
+    );
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const outputPath = writeCanvasExport(directory, 'template.zip', bytes);
+    print({ templateId: options.id, revision, outputPath, size: bytes.byteLength });
+    return;
+  }
+  const connection = sessionConnection || (await canvasConsoleConnection(options.target_dir));
+  if (action === 'sessions') {
+    print({ sessions: await connection.request('/automation/sessions') });
+    return;
+  }
   const outputDirectory =
     ['export', 'download'].includes(action) && options.output_dir !== undefined
       ? canvasExportDirectory(options.output_dir)
@@ -175,7 +292,7 @@ export async function runCanvasCli(
           ...canvasAutomationSnapshot(saved as CanvasDocument),
           executionState: 'unavailable',
         },
-        typeof options.id === 'string' ? options.id : undefined
+        input.id as string | undefined
       )
     );
     return;
@@ -202,16 +319,6 @@ export async function runCanvasCli(
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
-  let input: unknown = {};
-  if (options.input !== undefined && options.input_file !== undefined)
-    throw new Error('--input 与 --input-file 不能同时使用。');
-  if (typeof options.input === 'string') input = JSON.parse(options.input);
-  if (typeof options.input_file === 'string') {
-    const stat = fs.statSync(options.input_file);
-    if (!stat.isFile() || stat.size > 128 * 1024) throw new Error('input 文件必须小于 128 KiB。');
-    const content = fs.readFileSync(options.input_file, 'utf8');
-    input = JSON.parse(content.charCodeAt(0) === 0xfeff ? content.slice(1) : content);
-  }
   const command = validateCanvasCommand({
     requestId: typeof options.request_id === 'string' ? options.request_id : randomUUID(),
     pageId: options.page_id,
@@ -221,15 +328,43 @@ export async function runCanvasCli(
     ...(options.revision !== undefined ? { revision: Number(options.revision) } : {}),
     allowPaid: options.allow_paid === true,
   });
-  if (action === 'import') {
-    if (typeof options.file !== 'string') throw new Error('import 需要 --file 本地素材绝对路径。');
+  const replacesImage = action === 'replace-image' || action === 'fill-slot';
+  if (options.file !== undefined && action !== 'import' && !replacesImage)
+    throw new Error('--file 仅支持 import、fill-slot 或 replace-image。');
+  if (replacesImage && options.file !== undefined && 'assetPath' in command.input)
+    throw new Error('--file 与 input.assetPath 不能同时使用，请只指定一个图片来源。');
+  if (
+    replacesImage &&
+    options.file === undefined &&
+    (typeof command.input.assetPath !== 'string' || !command.input.assetPath.trim())
+  )
+    throw new Error(
+      action + ' 需要 --file 本地图片绝对路径，或 input.assetPath 已有画布图片路径。'
+    );
+  if (action === 'import' || (replacesImage && options.file !== undefined)) {
+    if (typeof options.file !== 'string')
+      throw new Error(action + ' 需要 --file 本地素材绝对路径。');
     if (
       !input ||
       typeof input !== 'object' ||
       Array.isArray(input) ||
-      Object.keys(input).some((key) => !['title', 'prompt', 'sourceId'].includes(key))
+      Object.keys(input).some(
+        (key) =>
+          !(
+            replacesImage ? ['id', 'prompt'] : ['title', 'prompt', 'sourceId', 'frameSetInfo']
+          ).includes(key)
+      )
     )
-      throw new Error('import input 只接受可选 title、prompt、sourceId；素材由 --file 指定。');
+      throw new Error(
+        replacesImage
+          ? action + ' 使用 --file 时 input 只接受 id 和可选 prompt。'
+          : 'import input 支持 title、prompt、sourceId，或动画图集的 frameSetInfo；素材由 --file 指定。'
+      );
+    if (
+      replacesImage &&
+      (!('id' in input) || typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.id))
+    )
+      throw new Error('id 必须是当前画布中已有图片卡的 ID。');
     if (
       'title' in input &&
       (typeof input.title !== 'string' || !input.title.trim() || input.title.length > 80)
@@ -257,6 +392,13 @@ export async function runCanvasCli(
       if (exists) throw new Error('原 request-id 已有记录，请用 status 查询，不要再次导入。');
     }
     const asset = readCanvasImport(options.file);
+    if ('frameSetInfo' in input) {
+      if (asset.kind !== 'image' || 'prompt' in input || 'sourceId' in input)
+        throw new Error('动画图集不能与视频、prompt 或 sourceId 混用。');
+      command.input.frameSetInfo = validateImportedFrameSet(input.frameSetInfo);
+    }
+    if (replacesImage && asset.kind !== 'image')
+      throw new Error(action + ' 只接受 PNG、JPEG 或 WebP 图片。');
     if (asset.kind !== 'image' && ('prompt' in input || 'sourceId' in input))
       throw new Error('prompt、sourceId 只能用于导入图片。');
     const response = await connection.transfer(
@@ -270,8 +412,7 @@ export async function runCanvasCli(
     const saved = (await response.json()) as { relativePath: string };
     command.input = {
       ...command.input,
-      title: command.input.title || asset.title,
-      kind: asset.kind,
+      ...(!replacesImage ? { title: command.input.title || asset.title, kind: asset.kind } : {}),
       assetPath: saved.relativePath,
     };
   }

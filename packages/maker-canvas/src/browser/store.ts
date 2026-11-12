@@ -48,6 +48,19 @@ export interface CanvasTemplateStore {
 }
 
 export interface CanvasDocumentStore {
+  /**
+   * Optional: fetches media bytes so mediaUrl(path) can serve them (`refresh` re-reads changed
+   * bytes). Rejects when the file is missing or not readable. The sprite mirror calls it for
+   * `.build/sprite-gen/...`, `assets/sprites/...` and Agent candidate paths before showing a card.
+   */
+  prepareMedia?(path: string, refresh?: boolean): Promise<void>;
+  /**
+   * Optional, read-only: parsed JSON of a workspace-relative project file. Rejects with an Error
+   * whose `status` is 404 when the file does not exist. Used by features.spriteGen for
+   * `.build/sprite-gen/<name>/_progress.json`, `assets/sprites/<name>/sprite.json` and
+   * `assets/sprites/<name>/<animId>/spritesheet.json`; the page never writes those trees.
+   */
+  readProjectJson?(path: string): Promise<unknown>;
   platform?: CanvasPlatform;
   /** Local UI delivery for a 015 resource bundle. Hosts without project files omit these. */
   uiDelivery?(canvasId: string, nodeId: string): Promise<CanvasUiDeliveryStatus>;
@@ -113,6 +126,8 @@ export interface CanvasDocumentStore {
   ): Promise<{ relativePath: string }>;
   importVideo(canvasId: string, file: Blob, contentType: string): Promise<{ relativePath: string }>;
   mediaUrl(assetPath: string): string;
+  /** Optional display-only URL; may relocate missing images without changing document references. */
+  previewMediaUrl?(assetPath: string): string;
   imageInfo?(assetPath: string): Promise<{ width: number; height: number } | undefined>;
   getActiveCanvasId(): Promise<string | undefined>;
   setActiveCanvasId(canvasId: string): Promise<void>;

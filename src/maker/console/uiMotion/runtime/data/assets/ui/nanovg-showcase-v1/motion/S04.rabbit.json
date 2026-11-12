@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "id": "S04.rabbit",
+  "name": "礼帽兔子",
+  "category": "interaction",
+  "duration": 0.95,
+  "nodes": [
+    {
+      "id": "rabbit",
+      "name": "兔子弹出",
+      "transform": {
+        "dy": 0
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "rabbit",
+      "prop": "dy",
+      "at": 0,
+      "duration": 0.24,
+      "from": 0,
+      "to": -56,
+      "ease": "outCubic"
+    },
+    {
+      "node": "rabbit",
+      "prop": "dy",
+      "at": 0.55,
+      "duration": 0.4,
+      "from": -56,
+      "to": 0,
+      "ease": "outCubic"
+    }
+  ]
+}

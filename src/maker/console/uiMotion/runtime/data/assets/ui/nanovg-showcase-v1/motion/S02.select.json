@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "id": "S02.select",
+  "name": "同行者确认",
+  "category": "interaction",
+  "duration": 0.42,
+  "nodes": [
+    {
+      "id": "actor",
+      "name": "选中反馈",
+      "transform": {
+        "scale": 1
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "actor",
+      "prop": "scale",
+      "at": 0,
+      "duration": 0.14,
+      "from": 1,
+      "to": 1.025,
+      "ease": "outCubic"
+    },
+    {
+      "node": "actor",
+      "prop": "scale",
+      "at": 0.14,
+      "duration": 0.28,
+      "from": 1.025,
+      "to": 1,
+      "ease": "outCubic"
+    }
+  ]
+}

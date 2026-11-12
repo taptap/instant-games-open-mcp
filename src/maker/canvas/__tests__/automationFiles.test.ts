@@ -1,13 +1,29 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { canvasExportDirectory, readCanvasImport, writeCanvasExport } from '../automationFiles.js';
+import {
+  canvasExportDirectory,
+  readCanvasImport,
+  readCanvasTemplateImport,
+  writeCanvasExport,
+} from '../automationFiles.js';
 
 let directory: string;
 beforeEach(() => {
   directory = fs.mkdtempSync(path.join(os.tmpdir(), 'canvas-files-'));
 });
 afterEach(() => fs.rmSync(directory, { recursive: true, force: true }));
+
+test('template ZIP imports reject empty, oversized and non-file inputs', () => {
+  const filename = path.join(directory, 'template.zip');
+  fs.writeFileSync(filename, '');
+  expect(() => readCanvasTemplateImport(filename)).toThrow('128 MiB');
+  fs.truncateSync(filename, 128 * 1024 * 1024 + 1);
+  expect(() => readCanvasTemplateImport(filename)).toThrow('128 MiB');
+  const folder = path.join(directory, 'folder.zip');
+  fs.mkdirSync(folder);
+  expect(() => readCanvasTemplateImport(folder)).toThrow('128 MiB');
+});
 
 test('local imports require bounded regular files with supported extensions', () => {
   const filename = path.join(directory, '角色 图.PNG');

@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { checkDemoResources } from './maker-demo-resource-check.mjs';
+import motionAssets from './maker-ui-motion-assets.cjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -118,6 +119,7 @@ const __MAKER_BUNDLE_URL__ = import.meta.url;
       __MAKER_DEMO_BUNDLED__: 'true',
       __MAKER_UI_EDITOR_ASSETS__: JSON.stringify(editorAssets()),
       __MAKER_MODEL_PREVIEW_SCRIPT__: JSON.stringify(preview.outputFiles[0].text),
+      __MAKER_UI_MOTION_ASSETS__: JSON.stringify(motionAssets(projectRoot)),
       __MAKER_VERSION__: `"${VERSION}"`,
     },
     minify: false,

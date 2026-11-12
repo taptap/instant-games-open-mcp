@@ -6,7 +6,13 @@
   var SNAP = 4;
 
   function pickHits(app, x, y) {
-    return window.UrhoxDoc.pickAt(app.tree, x, y, { includeLocked: false, designMode: true }) || [];
+    return (window.UrhoxDoc.pickAt(app.tree, x, y, { includeLocked: false, designMode: true }) || []).filter(function (node) {
+      return root.UrhoxDoc.ancestors(app.tree, node).every(function (parent) {
+        if (parent.type !== "ScrollView") return true;
+        var box = parent._layout;
+        return x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h;
+      });
+    });
   }
 
   function pickNodeAt(app, x, y, skip) {
@@ -160,6 +166,20 @@
 
   function bind(app) {
     var canvas = app.canvas;
+    canvas.addEventListener("wheel", function (event) {
+      if (event.ctrlKey || event.metaKey || !app.tree) return;
+      var point = canvasPoint(app, event);
+      var target = pickHits(app, point.x, point.y).find(function (node) {
+        return node.type === "ScrollView" && node._scrollMaxY > 0;
+      });
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      var delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? target._layout.h : 1);
+      target._scrollY = Math.max(0, Math.min(target._scrollMaxY, (target._scrollY || 0) + delta));
+      app.layout();
+      app.draw();
+    }, { passive: false });
     var previewEl = document.getElementById("preview");
     if (previewEl) previewEl.addEventListener("contextmenu", function (event) {
       if (event.target !== previewEl || !root.UrhoxContextMenu || !app.tree) return;

@@ -109,6 +109,8 @@ export interface CanvasImageModels {
   label: string;
   description?: string;
   defaultModel?: string;
+  /** Constraints of the MCP aspect_ratio argument, when the tool declares it. */
+  aspectRatio?: { required: boolean; values?: string[] };
   models: Array<{ id: string; label: string; maxReferenceImages?: number }>;
 }
 
@@ -168,6 +170,8 @@ export type CanvasWorkflowPauseReason = 'prelayout-review';
 /** One local UI delivery assembled from a confirmed resource archive version. */
 export interface CanvasUiDelivery {
   id: string;
+  screen?: { name: string; key: string };
+  designSha256?: string;
   archiveRevision: string;
   uiId: string;
   /** Project-relative folder holding images/, reserve/, source/ and ui/ of this version. */

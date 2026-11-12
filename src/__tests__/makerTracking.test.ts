@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { CLIENT_MODEL_TIMEOUT_MS } from '../maker/clientModel/limits';
 import {
   buildMakerMcpTrackingPayload,
   isMakerBuildActivitySuccessful,
@@ -7,7 +8,109 @@ import {
   sanitizeMakerMcpTrackingError,
 } from '../maker/tracking';
 
+jest.mock('../maker/clientModel', () => ({
+  resolveMakerClientModel: jest.fn().mockResolvedValue({}),
+}));
+
 describe('maker MCP tracking', () => {
+  afterEach(() => jest.useRealTimers());
+
+  test.each(['reject', 'hang'])(
+    'sends the business event even when its model snapshot %s fails',
+    async (mode) => {
+      jest.useFakeTimers();
+      let reject!: (error: Error) => void;
+      const snapshot = new Promise<never>((_, fail) => {
+        reject = fail;
+      });
+      const fetchImpl = jest.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+      const pending = reportMakerMcpActivity({
+        context: {
+          userId: 'user',
+          projectId: 'project',
+          clientInfo: { name: 'Cindy', version: '1' },
+          modelSnapshot: snapshot,
+        },
+        toolName: 'maker_status_lite',
+        success: true,
+        fetchImpl,
+      });
+      if (mode === 'reject') reject(new Error('lookup failed'));
+      await jest.advanceTimersByTimeAsync(CLIENT_MODEL_TIMEOUT_MS + 1);
+      await expect(pending).resolves.toBeUndefined();
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      const args = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).args;
+      expect(args).toMatchObject({ client_name: 'Cindy', success: true });
+      expect(args).not.toHaveProperty('client_model_id');
+      reject(new Error('late failure'));
+      await jest.advanceTimersByTimeAsync(0);
+    }
+  );
+
+  test.each(['fetch', 'body'])(
+    'bounds a stuck tracking %s even if it ignores abort',
+    async (phase) => {
+      jest.useFakeTimers();
+      let reject!: (error: Error) => void;
+      const stuck = new Promise<never>((_, fail) => {
+        reject = fail;
+      });
+      const fetchImpl = jest.fn<typeof fetch>(async () => {
+        if (phase === 'fetch') return stuck;
+        return { ok: true, body: { cancel: () => stuck } } as unknown as Response;
+      });
+      const pending = reportMakerMcpActivity({
+        context: { userId: 'user', projectId: 'project', resolvedModel: {} },
+        toolName: 'maker_status_lite',
+        fetchImpl,
+        timeoutMs: 20,
+      });
+      await jest.advanceTimersByTimeAsync(21);
+      await expect(pending).resolves.toBeUndefined();
+      expect(fetchImpl.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+      reject(new Error('late network failure'));
+      await jest.advanceTimersByTimeAsync(0);
+    }
+  );
+
+  test('sends the entry snapshot without reading the model again when reporting completes', async () => {
+    const { resolveMakerClientModel } = await import('../maker/clientModel');
+    jest.mocked(resolveMakerClientModel).mockClear();
+    const fetchImpl = jest.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+    await reportMakerMcpActivity({
+      context: {
+        userId: 'user',
+        projectId: 'project',
+        modelSnapshot: Promise.resolve({ client_model_id: 'at-entry', client_ide_name: 'Cindy' }),
+      },
+      toolName: 'maker_status_lite',
+      fetchImpl,
+    });
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).args).toMatchObject({
+      client_model_id: 'at-entry',
+      client_ide_name: 'Cindy',
+    });
+    expect(resolveMakerClientModel).not.toHaveBeenCalled();
+  });
+
+  test('preserves IDE when the entry snapshot has no model, without looking up a later model', async () => {
+    const { resolveMakerClientModel } = await import('../maker/clientModel');
+    jest.mocked(resolveMakerClientModel).mockClear();
+    const fetchImpl = jest.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+    await reportMakerMcpActivity({
+      context: {
+        userId: 'user',
+        projectId: 'project',
+        modelSnapshot: Promise.resolve({ client_ide_name: 'Cindy' }),
+      },
+      toolName: 'maker_status_lite',
+      fetchImpl,
+    });
+    const args = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).args;
+    expect(args.client_ide_name).toBe('Cindy');
+    expect(args).not.toHaveProperty('client_model_id');
+    expect(resolveMakerClientModel).not.toHaveBeenCalled();
+  });
   test('builds a local MCP event with the configured identity and source', () => {
     expect(
       buildMakerMcpTrackingPayload({

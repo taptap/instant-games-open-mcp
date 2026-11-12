@@ -1,6 +1,7 @@
 import { createCanvasAutomationUiWithHost as createCanvasAutomationUi } from '../../../../packages/maker-canvas/src/browser/automationUi.js';
 import { prepareCanvasNodeUpdates } from '../automation.js';
 import { emptyDocument } from '../model.js';
+import { canvasNeedsProcessing } from '../../../../packages/maker-canvas/src/features/templateWorkflow.js';
 
 const globals = globalThis as any;
 const previousDocument = globals.document;
@@ -63,6 +64,56 @@ test('live snapshots do not change before acknowledgement when a person edits la
   const result = (await ui.execute(command)) as any;
   current.nodes[0].generation!.prompt = 'later input';
   expect(result.nodes[0].generation.prompt).toBe('old prompt');
+});
+
+test.each(['fill-slot', 'replace-image'])(
+  '%s completes the supplied image but invalidates downstream output',
+  async (action) => {
+    const { current, options, ui, command } = fixture();
+    const target = current.nodes[0];
+    target.sectionId = 'group';
+    target.templatePending = true;
+    if (action === 'fill-slot') delete target.assetPath;
+    const downstream = {
+      ...target,
+      id: 'consumer',
+      assetPath: 'old-result.png',
+      templatePending: undefined,
+    };
+    current.nodes.push(downstream);
+    current.edges.push({ id: 'input', from: target.id, to: downstream.id, kind: 'image-variant' });
+    const apply = jest.fn(async (_id: string, path: string) => {
+      target.assetPath = path;
+    });
+    Object.assign(options, { fillSlot: apply, replaceImage: apply });
+    await ui.execute({ ...command, action, input: { id: target.id, assetPath: 'new-result.png' } });
+    expect(canvasNeedsProcessing(current, target)).toBe(false);
+    expect(canvasNeedsProcessing(current, downstream)).toBe(true);
+    expect(downstream.assetPath).toBe('old-result.png');
+    expect(current.edges).toHaveLength(1);
+    expect(options.save).toHaveBeenCalledTimes(1);
+  }
+);
+
+test('failed image replacement retains the original pending state and output', async () => {
+  const { current, options, ui, command } = fixture();
+  const target = current.nodes[0];
+  target.templatePending = true;
+  Object.assign(options, {
+    replaceImage: jest.fn(async () => {
+      throw new Error('decode failed');
+    }),
+  });
+  await expect(
+    ui.execute({
+      ...command,
+      action: 'replace-image',
+      input: { id: target.id, assetPath: 'broken.png' },
+    })
+  ).rejects.toThrow('decode failed');
+  expect(target.templatePending).toBe(true);
+  expect(target.assetPath).toBe('image.png');
+  expect(options.save).not.toHaveBeenCalled();
 });
 
 test('CLI recognition toggle preserves history and restores the baseline downstream prompt', async () => {

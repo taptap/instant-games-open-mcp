@@ -6,6 +6,21 @@ import {
 } from '../store.js';
 
 describe('CanvasDocumentStore port', () => {
+  test('only display URLs opt into relocation; processing URLs keep their content versions', async () => {
+    const hash = 'a'.repeat(64);
+    const store = createBrowserCanvasDocumentStore(
+      'project',
+      async () => new Response(JSON.stringify({ version: hash }))
+    );
+    const reference = 'assets/image/canvas-00000000-0000-4000-8000-000000000000.png';
+    await store.mediaVersions!([reference]);
+    const display = new URL(store.previewMediaUrl!(reference), 'http://localhost');
+    const processing = new URL(store.mediaUrl(reference), 'http://localhost');
+    expect(display.searchParams.get('path')).toBe(reference);
+    expect(display.searchParams.get('preview')).toBe('1');
+    expect(processing.searchParams.has('preview')).toBe(false);
+    expect(processing.searchParams.get('version')).toBe(hash);
+  });
   test('resolves model settings using the canvas project', async () => {
     const fetcher = jest.fn(
       async () => new Response(JSON.stringify({ vision: { source: 'server' } }))

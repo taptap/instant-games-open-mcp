@@ -9,6 +9,7 @@ export {
   uiTextRecognitionPrompt,
 } from '../../../packages/maker-canvas/src/features/serverRecognition.js';
 import type { CanvasRecognitionAttempt } from '../../../packages/maker-canvas/src/contracts.js';
+import { parseUiScreenName } from '../../../packages/maker-canvas/src/domain.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
@@ -477,10 +478,12 @@ export class CanvasRecognitionService {
         const textPrompt = uiTextRecognitionPrompt(design.width, design.height, elements);
         const text = await request(textPrompt, originalBytes, originalMedia.type, 'text', design);
         if (!text) return attempt;
+        const screen = parseUiScreenName(text.screen);
         const bbox = {
           version: 1 as const,
           coordinateSpace: 'design-pixels' as const,
           bboxFormat: 'xywh' as const,
+          ...(screen ? { screen } : {}),
           design,
           cutSource,
           elements,

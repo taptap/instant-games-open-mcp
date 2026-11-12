@@ -69,6 +69,8 @@ export function imageEditSources(
 export interface CanvasGenerationUiOptions {
   /** Web composer: drops explanatory hints and adds the game-asset constraint pill. */
   web?: boolean;
+  /** Ordinary duration choices in seconds; explicit saved durations still follow model limits. */
+  videoDurationOptions?: readonly number[];
   detectUiCutoutColor(paths: string[], mediaUrl: (path: string) => string): Promise<UiCutoutColor>;
   videoPrompts?: ReturnType<typeof createVideoPrompts>;
   store: {
@@ -242,6 +244,10 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   const abandonedAttempts = new Set<string>();
   function imageSizeBlockReason(attempt: any): string | undefined {
     if (!attempt?.resultImageInfo) return;
+    const plan = attempt.uiAtlasPlan;
+    // An extra full-screen background has no pixel-bound slots; assembly fits it with cover.
+    if (!plan?.nativeLayout && plan?.slots.length === 1 && plan.slots[0].role === 'background')
+      return;
     const current = options.getDocument();
     if (
       attempt.cutoutColor &&
@@ -1609,6 +1615,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       duration?: number;
       ratio?: string;
       userConfirmed?: boolean;
+      nonInteractive?: boolean;
       templateRun?: boolean;
       mode?: string;
     } = {}
@@ -1622,8 +1629,22 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     const inputKey = documentState && referenceKey(node);
     if (!documentState || inFlight.has(node.id)) return false;
     // The Web host runs its own cost confirmation before submitting, so only other hosts ask here.
-    if (settings.model === '2.5' && settings.userConfirmed !== true && !options.web) {
-      if (!window.confirm('按当前参数开始生成视频？')) return false;
+    const estimatedCredits = (settings.duration || 4) * (settings.model === '2.5' ? 300 : 200);
+    if (estimatedCredits > 1000 && settings.userConfirmed !== true && !options.web) {
+      if (settings.nonInteractive) {
+        options.setError(
+          '本次视频预计消耗 ' + estimatedCredits + ' 积分；请取得用户授权后通过 --allow-paid 执行。'
+        );
+        return false;
+      }
+      if (
+        !window.confirm(
+          '本次视频预计消耗 ' +
+            estimatedCredits +
+            ' 积分，实际以平台扣费为准。确认按当前参数开始生成？'
+        )
+      )
+        return false;
       settings.userConfirmed = true;
     }
     const prompt = videoPrompts.prepare(input.value);
@@ -1969,6 +1990,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
               : {}),
             templateRun: true,
             userConfirmed,
+            nonInteractive: useSavedInput,
           }
         )
       )
@@ -2057,14 +2079,26 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     return true;
   }
 
-  async function recoverLocalImageDownload(attempt: any, list: any[]): Promise<any | false> {
+  /**
+   * Retry only the local download/import of an image the server already generated.
+   * `download`: the import failed again; `changed`: the canvas or card inputs moved on and the
+   * result was not applied; `save`: the result is on the card but the canvas save failed.
+   */
+  async function recoverLocalImageDownload(
+    attempt: any,
+    list: any[]
+  ): Promise<
+    | { ok: true; attempt: any }
+    | { ok: false; reason: 'download' | 'changed' | 'save'; error?: string }
+  > {
     const documentState = options.getDocument();
     const next = await options.store.generationAction(attempt.canvasId, attempt.id, 'retry');
     attempts.set(next.id, next);
-    if (options.getDocument() !== documentState) return false;
-    if (next.status !== 'succeeded') return false;
-    if (!recoverImage(next, [...list.filter((item) => item.id !== next.id), next])) return false;
-    return (await options.flush()) ? next : false;
+    if (next.status !== 'succeeded') return { ok: false, reason: 'download', error: next.error };
+    if (options.getDocument() !== documentState) return { ok: false, reason: 'changed' };
+    if (!recoverImage(next, [...list.filter((item) => item.id !== next.id), next]))
+      return { ok: false, reason: 'changed' };
+    return (await options.flush()) ? { ok: true, attempt: next } : { ok: false, reason: 'save' };
   }
 
   async function action(
@@ -2107,16 +2141,25 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         const current = options.getDocument();
         const list = current ? await options.store.listGeneration(current.id) : [];
         const recovered = await recoverLocalImageDownload(attempt, list);
-        if (!recovered) {
-          options.setError('图片已取回，但卡片或输入已变化，未覆盖当前内容。', 'info');
-        } else {
+        if (recovered.ok) {
           imageFailures.delete(attempt.targetNodeId);
           retryableImages.delete(attempt.targetNodeId);
           const result = options
             .getDocument()
-            ?.nodes.find((node: any) => node.generation?.attemptId === recovered.id);
+            ?.nodes.find((node: any) => node.generation?.attemptId === recovered.attempt.id);
           if (result) await options.onGenerated?.(result.id, 'image');
+        } else if (recovered.reason === 'download') {
+          // The server error already says the image will not be regenerated and how to retry.
+          options.setError(
+            recovered.error
+              ? '本地导入仍未完成：' + recovered.error
+              : '本地导入仍未完成；原图片已生成，不会重新生成，可稍后再点“重试本地导入”。',
+            'warning'
+          );
+        } else if (recovered.reason === 'changed') {
+          options.setError('图片已取回，但卡片或输入已变化，未覆盖当前内容。', 'info');
         }
+        // `save`: the page already reports why saving failed; keep that message visible.
         options.render();
         return;
       }
@@ -2552,12 +2595,38 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         option.textContent = modeLabels[option.value];
       videoModel = selectControl('模型', ['2.0', '2.5'], saved?.model || '2.0');
       videoResolution = selectControl('分辨率', ['720p', '480p'], saved?.resolution || '720p');
+      const durationValues = (model: string, current: number): string[] => {
+        const maximum = model === '2.5' ? 30 : 15;
+        const values =
+          options.videoDurationOptions ||
+          Array.from({ length: maximum - 3 }, (_, index) => index + 4);
+        // Preserve an explicit long duration when reopening a saved card or switching models.
+        return [...new Set([...values, current])]
+          .filter((value) => Number.isInteger(value) && value >= 4 && value <= maximum)
+          .sort((left, right) => left - right)
+          .map(String);
+      };
       videoDuration = selectControl(
         '时长（秒）',
-        ['4', '5', '6', '7', '8'],
+        durationValues(videoModel.value, saved?.duration || 4),
         String(saved?.duration || 4)
       );
       const durationSelect = videoDuration.querySelector('select');
+      videoModel.querySelector('select').addEventListener('change', () => {
+        const previous = Number(durationSelect.value);
+        const maximum = videoModel.value === '2.5' ? 30 : 15;
+        durationSelect.replaceChildren();
+        const current = Math.min(previous, maximum);
+        for (const seconds of durationValues(videoModel.value, current)) {
+          const option = document.createElement('option');
+          option.value = seconds;
+          option.textContent = seconds + (options.web ? ' 秒' : '');
+          option.style.color = Number(seconds) > 5 ? '#ef6464' : '';
+          durationSelect.append(option);
+        }
+        durationSelect.value = String(current);
+        durationSelect.style.color = current > 5 ? '#ef6464' : '';
+      });
       durationSelect.style.color = Number(durationSelect.value) > 5 ? '#ef6464' : '';
       Array.from(durationSelect.options).forEach((option: any) => {
         if (Number(option.value) > 5) option.style.color = '#ef6464';
@@ -2709,7 +2778,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       if (node.type === 'video' && !node.draftSourceId && !workflow) {
         const importVideo = button('导入视频', () => options.requestVideoImport(node.id), {
           className: 'generation-action',
-          title: '从本地项目导入视频到当前视频卡片',
+          title: '导入视频；选图片时这张卡改为图片卡',
           disabled: busy,
         });
         if (options.web) canvasWebIconAction(importVideo, 'upload');
@@ -3182,7 +3251,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         latest.failureStage === 'download'
       ) {
         try {
-          if (!(await recoverLocalImageDownload(latest, list))) {
+          if (!(await recoverLocalImageDownload(latest, list)).ok) {
             options.render();
             return 'blocked';
           }

@@ -21,10 +21,29 @@ type Entry = {
 export class CanvasAutomationBridge {
   private pages = new Map<string, Page>();
   private operations = new Map<string, Entry>();
+  // Session-long receipts prevent replay after terminal entries leave the working set.
+  private receipts = new Map<string, Omit<Entry, 'command'>>();
   private exports = new Map<string, { bytes: Buffer; expiresAt: number }>();
   /** Newest revision any page reported per project canvas; kept after the page goes away. */
   private revisions = new Map<string, number>();
+  private sessions = new Map<string, Map<string, string>>();
   constructor(private now = Date.now) {}
+
+  listSessions(project: string) {
+    return [...(this.sessions.get(project) || [])]
+      .map(([sessionId, lastOperationAt]) => ({ sessionId, lastOperationAt }))
+      .sort((a, b) => b.lastOperationAt.localeCompare(a.lastOperationAt));
+  }
+
+  recordSession(project: string, sessionId: unknown) {
+    if (typeof sessionId !== 'string' || !/^[a-zA-Z0-9._:-]{1,128}$/.test(sessionId))
+      throw new Error('sessionId 必须为 1～128 位字母、数字或 . _ : -。');
+    const lastOperationAt = new Date(this.now()).toISOString();
+    const sessions = this.sessions.get(project) || new Map<string, string>();
+    sessions.set(sessionId, lastOperationAt);
+    this.sessions.set(project, sessions);
+    return { sessionId, lastOperationAt };
+  }
 
   list(project: string) {
     return [...this.pages.values()]
@@ -35,7 +54,7 @@ export class CanvasAutomationBridge {
   submit(project: string, value: unknown): CanvasOperation {
     const command = validateCanvasCommand(value);
     const fingerprint = createHash('sha256').update(JSON.stringify(command)).digest('hex');
-    const previous = this.operations.get(command.requestId);
+    const previous = this.entry(command.requestId);
     if (previous) {
       if (previous.project !== project || previous.fingerprint !== fingerprint)
         throw new Error('requestId 已用于其他命令，请勿复用。');
@@ -44,14 +63,15 @@ export class CanvasAutomationBridge {
     const page = this.list(project).find((page) => page.id === command.pageId);
     if (!page) throw new Error('画布页面未连接。请打开序列帧动画并重新查询 pages。');
     if (page.canvasId !== command.canvasId) throw new Error('页面已切换画布，请重新 inspect。');
-    if (this.operations.size >= 1000)
-      throw new Error('本次控制台会话命令记录已满，请完成任务后重启控制台。');
-    const active = [...this.operations.values()].some(
+    const active = [...this.operations.values()].filter(
       ({ operation }) =>
-        operation.pageId === page.id && ['queued', 'running'].includes(operation.status)
+        operation.pageId === page.id &&
+        ['queued', 'running'].includes(this.status(project, operation.id).status)
     );
-    if (active && !['inspect', 'stop'].includes(command.action))
+    if (active.length && !['inspect', 'stop'].includes(command.action))
       throw new Error('此页面有 AI 操作未完成，请先查询原 operationId。');
+    if (active.some((entry) => entry.action === command.action))
+      throw new Error('此页面已有同类操作未完成，请先查询原 operationId。');
     const operation: CanvasOperation = {
       id: command.requestId,
       pageId: page.id,
@@ -67,12 +87,33 @@ export class CanvasAutomationBridge {
       fingerprint,
       operation,
     });
+    this.archiveCompleted();
     return operation;
+  }
+
+  private entry(id: string): Entry | undefined {
+    return this.operations.get(id) || this.receipts.get(id);
+  }
+
+  private archiveCompleted() {
+    this.expireExports();
+    for (const [id, entry] of this.operations) {
+      if (this.operations.size <= 1000) break;
+      if (
+        !['succeeded', 'failed'].includes(entry.operation.status) ||
+        entry.operation.result !== undefined ||
+        this.exports.has(id)
+      )
+        continue;
+      const { command: _command, ...receipt } = entry;
+      this.receipts.set(id, receipt);
+      this.operations.delete(id);
+    }
   }
 
   status(project: string, id: string): CanvasOperation {
     this.expireExports();
-    const entry = this.operations.get(id);
+    const entry = this.entry(id);
     if (!entry || entry.project !== project) throw new Error('操作记录不存在；不会自动重发。');
     const operation = entry.operation;
     const page = this.pages.get(operation.pageId);
@@ -95,7 +136,7 @@ export class CanvasAutomationBridge {
   }
 
   checkExport(project: string, id: string, pageId?: string) {
-    const entry = this.operations.get(id);
+    const entry = this.entry(id);
     if (!entry || entry.project !== project || entry.action !== 'export')
       throw new Error('导出操作不存在。');
     if (
@@ -201,7 +242,7 @@ export class CanvasAutomationBridge {
       throw new Error('无效的操作结果。');
     const acknowledged: string[] = [];
     for (const result of body.results || []) {
-      const entry = this.operations.get(result.id);
+      const entry = this.entry(result.id);
       if (
         !entry ||
         entry.project !== project ||
@@ -241,12 +282,19 @@ export class CanvasAutomationBridge {
       entry.command = undefined;
     }
     const retained = [...this.operations.values()]
-      .filter((entry) => entry.operation.result !== undefined)
+      .filter(
+        (entry) =>
+          entry.project === project &&
+          ['succeeded', 'failed'].includes(entry.operation.status) &&
+          entry.operation.result !== undefined &&
+          !this.exports.has(entry.operation.id)
+      )
       .sort((left, right) => right.operation.updatedAt - left.operation.updatedAt);
     for (const entry of retained.slice(20)) {
       delete entry.operation.result;
       entry.operation.resultExpired = true;
     }
+    this.archiveCompleted();
     // Other tabs on the same canvas: a newer saved revision or a busy peer means this page's
     // view is stale or read-only. The page shows that instead of a snapshot that looks live.
     const busyPeers = this.list(project).filter(

@@ -95,16 +95,46 @@
     return nodes;
   }
 
-  function applyRect(node, x, y, w, h) {
+  function applyRect(node, x, y, w, h, parent, previous) {
     w = Math.max(1, Math.round(w));
     h = Math.max(1, Math.round(h));
-    node.position = node.position || "absolute";
-    node.left = Math.round(x);
-    node.top = Math.round(y);
-    node.width = w;
-    node.height = h;
-    delete node.right;
-    delete node.bottom;
+    if (!previous) {
+      node.position = node.position || "absolute";
+      node.left = Math.round(x); node.top = Math.round(y);
+      node.width = w; node.height = h;
+      return;
+    }
+    var bounds = parent && parent._layout || { w: w, h: h };
+    function change(key, delta, basis, initial) {
+      if (Math.abs(delta) < 0.001) return;
+      var value = node[key];
+      if (typeof value === "string" && value.endsWith("%") && basis > 0) {
+        node[key] = Math.round((parseFloat(value) + delta / basis * 100) * 10000) / 10000 + "%";
+      } else {
+        node[key] = Math.round(((Number(value) || initial || 0) + delta) * 1000) / 1000;
+      }
+    }
+    function axis(start, end, size, delta, growth, basis, oldSize, marginStart, marginEnd) {
+      var absolute = node.position === "absolute";
+      var hasStart = node[start] != null, hasEnd = node[end] != null;
+      var centered = node[marginStart] === "auto" && node[marginEnd] === "auto";
+      if (hasStart || !hasEnd || !absolute) change(start, delta, basis);
+      if (absolute && hasEnd) change(end, -delta - (centered ? 0 : growth), basis);
+      if (!(absolute && hasStart && hasEnd && node[size] == null)) {
+        if (!(node.aspectRatio > 0 && node[size] == null)) change(size, growth, basis, oldSize);
+      }
+    }
+    if (node.aspectRatio > 0) {
+      if (node.width != null && node.height == null) {
+        if (Math.abs(w - previous.w) < 0.001) w = h * node.aspectRatio;
+        h = w / node.aspectRatio;
+      } else if (node.height != null && node.width == null) {
+        if (Math.abs(h - previous.h) < 0.001) h = w / node.aspectRatio;
+        w = h * node.aspectRatio;
+      }
+    }
+    axis("left", "right", "width", x - previous.x, w - previous.w, bounds.w, previous.w, "marginLeft", "marginRight");
+    axis("top", "bottom", "height", y - previous.y, h - previous.h, bounds.h, previous.h, "marginTop", "marginBottom");
   }
 
   function getWorldRect(rootNode, node) {
@@ -150,7 +180,8 @@
   function setWorldRect(rootNode, node, worldRect) {
     var parent = parentOf(rootNode, node);
     var local = worldToParentRect(rootNode, parent, worldRect);
-    applyRect(node, local.x, local.y, local.w, local.h);
+    var previous = worldToParentRect(rootNode, parent, getWorldRect(rootNode, node));
+    applyRect(node, local.x, local.y, local.w, local.h, parent, previous);
     if (node._layout) {
       node._layout.x = worldRect.x;
       node._layout.y = worldRect.y;
@@ -443,6 +474,10 @@
       }
       if (node.children != null && !Array.isArray(node.children)) {
         throw new Error(path + ".children 必须是数组");
+      }
+      if (root.UrhoxUICheck) {
+        var mappingError = root.UrhoxUICheck.previewFitError(node, path === "root");
+        if (mappingError) throw new Error(path + ": " + mappingError);
       }
       (node.children || []).forEach(function (child, i) { visit(child, path + ".children[" + i + "]"); });
     }

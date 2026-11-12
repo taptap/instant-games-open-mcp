@@ -1,0 +1,601 @@
+{
+  "size": [1536, 864],
+  "reference": "source/full.png",
+  "background": "source/empty.png",
+  "objects": [
+    {
+      "id": "cabinet",
+      "label": "书柜",
+      "bbox": [18, 148, 299, 451],
+      "source": "source/room-furniture-v2_20261106072404.png",
+      "extractRect": [90, 20, 435, 530],
+      "parent": null,
+      "motion": "rock",
+      "start": 4.2,
+      "duration": 1.5,
+      "pivot": [0.5, 1],
+      "zIndex": 9,
+      "category": "furniture",
+      "speed": 1
+    },
+    {
+      "id": "plant",
+      "label": "盆栽",
+      "bbox": [428, 316, 162, 162],
+      "source": "source/room-furniture-v2_20261106072404.png",
+      "extractRect": [540, 65, 990, 525],
+      "parent": null,
+      "motion": "spring",
+      "start": 4.4,
+      "duration": 1.2,
+      "pivot": [0.5, 1],
+      "zIndex": 10,
+      "category": "furniture",
+      "speed": 1
+    },
+    {
+      "id": "chair",
+      "label": "红椅",
+      "bbox": [276, 419, 194, 279],
+      "source": "source/room-furniture-v2_20261106072404.png",
+      "extractRect": [1110, 30, 1510, 532],
+      "parent": null,
+      "motion": "spring",
+      "start": 5.1,
+      "duration": 1.2,
+      "pivot": [0.5, 1],
+      "zIndex": 14,
+      "category": "furniture",
+      "speed": 1
+    },
+    {
+      "id": "sofa",
+      "label": "沙发",
+      "bbox": [1045, 369, 485, 305],
+      "source": "source/room-furniture-v2_20261106072404.png",
+      "extractRect": [15, 580, 550, 964],
+      "parent": null,
+      "motion": "spring",
+      "start": 5.5,
+      "duration": 1.2,
+      "pivot": [0.5, 1],
+      "zIndex": 15,
+      "category": "furniture",
+      "speed": 1
+    },
+    {
+      "id": "tea_table",
+      "label": "茶几",
+      "bbox": [1027, 591, 346, 188],
+      "source": "source/room-furniture-v2_20261106072404.png",
+      "extractRect": [575, 650, 1070, 928],
+      "parent": null,
+      "motion": "spring",
+      "start": 5.7,
+      "duration": 1.2,
+      "pivot": [0.5, 1],
+      "zIndex": 22,
+      "category": "furniture",
+      "speed": 1
+    },
+    {
+      "id": "side_table",
+      "label": "金边桌",
+      "bbox": [875, 395, 99, 73],
+      "source": "source/room-furniture-v2_20261106072404.png",
+      "extractRect": [1105, 610, 1460, 960],
+      "parent": null,
+      "motion": "spring",
+      "start": 3.6,
+      "duration": 1.2,
+      "pivot": [0.5, 1],
+      "zIndex": 12,
+      "category": "furniture",
+      "speed": 1
+    },
+    {
+      "id": "pillow_left",
+      "label": "左靠垫",
+      "bbox": [1167, 427, 120, 91],
+      "source": "source/room-props-v2_20261106072526.png",
+      "extractRect": [20, 100, 485, 455],
+      "parent": "sofa",
+      "motion": "spring",
+      "start": 6.8,
+      "duration": 1.0,
+      "pivot": [0.5, 1],
+      "zIndex": 16,
+      "category": "props",
+      "speed": 1
+    },
+    {
+      "id": "pillow_right",
+      "label": "右靠垫",
+      "bbox": [1320, 445, 105, 91],
+      "parent": "sofa",
+      "start": 6.95,
+      "zIndex": 17,
+      "reuseOf": "pillow_left",
+      "reuseReason": "同造型资源共用；位置、尺寸、层级和入场时间独立保存。",
+      "category": "props",
+      "speed": 1
+    },
+    {
+      "id": "teapot",
+      "label": "茶壶",
+      "bbox": [1147, 527, 151, 113],
+      "source": "source/room-props-v2_20261106072526.png",
+      "extractRect": [1036, 85, 1520, 468],
+      "parent": "tea_table",
+      "motion": "spring",
+      "start": 7.0,
+      "duration": 1.0,
+      "pivot": [0.5, 1],
+      "zIndex": 23,
+      "category": "props",
+      "speed": 1
+    },
+    {
+      "id": "cup_left",
+      "label": "左茶杯",
+      "bbox": [1090, 594, 77, 53],
+      "source": "source/room-props-v2_20261106072526.png",
+      "extractRect": [30, 592, 488, 944],
+      "parent": "tea_table",
+      "motion": "spring",
+      "start": 7.2,
+      "duration": 1.0,
+      "pivot": [0.5, 1],
+      "zIndex": 24,
+      "category": "props",
+      "speed": 1
+    },
+    {
+      "id": "cup_right",
+      "label": "右茶杯",
+      "bbox": [1233, 614, 73, 48],
+      "parent": "tea_table",
+      "start": 7.4,
+      "zIndex": 25,
+      "reuseOf": "cup_left",
+      "reuseReason": "同造型资源共用；位置、尺寸、层级和入场时间独立保存。",
+      "category": "props",
+      "speed": 1
+    },
+    {
+      "id": "fruit",
+      "label": "果盘",
+      "bbox": [889, 344, 70, 61],
+      "source": "source/room-props-v2_20261106072526.png",
+      "extractRect": [1040, 550, 1514, 986],
+      "parent": "side_table",
+      "motion": "spring",
+      "start": 4.9,
+      "duration": 1.0,
+      "pivot": [0.5, 1],
+      "zIndex": 13,
+      "category": "props",
+      "speed": 1
+    },
+    {
+      "id": "curtain_left",
+      "label": "左窗帘",
+      "bbox": [42, 0, 342, 446],
+      "source": "source/room-decor-v2_20261106072802.png",
+      "extractRect": [62, 15, 452, 546],
+      "parent": null,
+      "motion": "unfurl",
+      "start": 0,
+      "duration": 1.4,
+      "pivot": [0.5, 0],
+      "zIndex": 1,
+      "category": "decor",
+      "speed": 1
+    },
+    {
+      "id": "curtain_right",
+      "label": "右窗帘",
+      "bbox": [1146, 0, 354, 492],
+      "source": "source/room-decor-v2_20261106072802.png",
+      "extractRect": [570, 15, 965, 546],
+      "parent": null,
+      "motion": "unfurl",
+      "start": 0.12,
+      "duration": 1.4,
+      "pivot": [0.5, 0],
+      "zIndex": 2,
+      "category": "decor",
+      "speed": 1
+    },
+    {
+      "id": "drape_left",
+      "label": "左柱帘",
+      "bbox": [611, 182, 62, 254],
+      "source": "source/room-decor-v2_20261106072802.png",
+      "extractRect": [1205, 15, 1338, 546],
+      "parent": null,
+      "motion": "unfurl",
+      "start": 0.24,
+      "duration": 1.4,
+      "pivot": [0.5, 0],
+      "zIndex": 3,
+      "category": "decor",
+      "speed": 1
+    },
+    {
+      "id": "drape_right",
+      "label": "右柱帘",
+      "bbox": [868, 182, 62, 254],
+      "parent": null,
+      "start": 0.36,
+      "zIndex": 4,
+      "reuseOf": "drape_left",
+      "reuseReason": "同造型资源共用；位置、尺寸、层级和入场时间独立保存。",
+      "category": "decor",
+      "speed": 1
+    },
+    {
+      "id": "banner_left",
+      "label": "左挂旗",
+      "bbox": [380, 102, 66, 227],
+      "source": "source/room-decor-v2_20261106072802.png",
+      "extractRect": [176, 585, 333, 1090],
+      "parent": null,
+      "motion": "unfurl",
+      "start": 0.48,
+      "duration": 1.4,
+      "pivot": [0.5, 0],
+      "zIndex": 5,
+      "clipPolygon": [
+        [0.04, 0.02],
+        [0.96, 0.02],
+        [0.96, 0.64],
+        [0.5, 0.97],
+        [0.04, 0.64]
+      ],
+      "category": "decor",
+      "speed": 1
+    },
+    {
+      "id": "banner_right",
+      "label": "右挂旗",
+      "bbox": [1094, 102, 64, 227],
+      "parent": null,
+      "start": 0.6,
+      "zIndex": 6,
+      "reuseOf": "banner_left",
+      "reuseReason": "同造型资源共用；位置、尺寸、层级和入场时间独立保存。",
+      "category": "decor",
+      "speed": 1
+    },
+    {
+      "id": "chandelier",
+      "label": "吊灯",
+      "bbox": [663, 0, 204, 153],
+      "source": "source/room-decor-v2_20261106072802.png",
+      "extractRect": [996, 618, 1528, 1085],
+      "parent": null,
+      "motion": "hang",
+      "start": 0.8,
+      "duration": 1.2,
+      "pivot": [0.5, 0],
+      "zIndex": 7,
+      "category": "decor",
+      "speed": 1
+    },
+    {
+      "id": "throne",
+      "label": "王座",
+      "bbox": [674, 264, 194, 203],
+      "source": "source/room-arrival-separated-v1_20261106062202.png",
+      "extractRect": [50, 70, 450, 500],
+      "parent": null,
+      "motion": "spring",
+      "start": 3.4,
+      "duration": 1.2,
+      "pivot": [0.5, 1],
+      "zIndex": 11,
+      "category": "furniture",
+      "speed": 1
+    },
+    {
+      "id": "rug",
+      "label": "地毯",
+      "bbox": [506, 449, 562, 407],
+      "source": "source/room-arrival-separated-v1_20261106062202.png",
+      "extractRect": [500, 65, 1024, 500],
+      "parent": null,
+      "motion": "sequence",
+      "start": 1.8,
+      "duration": 2.0,
+      "pivot": [0.5, 1],
+      "zIndex": 8,
+      "category": "furniture",
+      "speed": 1,
+      "sequence": {
+        "image": "source/rug-unroll.png",
+        "frames": [
+          {
+            "rect": [0, 0, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [570, 0, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1140, 0, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1710, 0, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [2280, 0, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [0, 455, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [570, 455, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1140, 455, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1710, 455, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [2280, 455, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [0, 910, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [570, 910, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1140, 910, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1710, 910, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [2280, 910, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [0, 1365, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [570, 1365, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1140, 1365, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1710, 1365, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [2280, 1365, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [0, 1820, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [570, 1820, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1140, 1820, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1710, 1820, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [2280, 1820, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [0, 2275, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [570, 2275, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1140, 2275, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1710, 2275, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [2280, 2275, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [0, 2730, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [570, 2730, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1140, 2730, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1710, 2730, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [2280, 2730, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [0, 3185, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [570, 3185, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1140, 3185, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [1710, 3185, 570, 455],
+            "durationMs": 50
+          },
+          {
+            "rect": [2280, 3185, 570, 455],
+            "durationMs": 50
+          }
+        ]
+      },
+      "animationBox": [506, 405, 562, 451]
+    },
+    {
+      "id": "desk",
+      "label": "书桌",
+      "bbox": [92, 566, 484, 261],
+      "source": "source/room-arrival-separated-v1_20261106062202.png",
+      "extractRect": [1025, 165, 1535, 470],
+      "parent": null,
+      "motion": "slide",
+      "start": 5.3,
+      "duration": 1.2,
+      "pivot": [0.5, 1],
+      "zIndex": 18,
+      "category": "furniture",
+      "speed": 1
+    },
+    {
+      "id": "globe",
+      "label": "地球仪",
+      "bbox": [183, 466, 137, 187],
+      "source": "source/room-arrival-separated-v1_20261106062202.png",
+      "extractRect": [90, 565, 410, 970],
+      "parent": "desk",
+      "motion": "spring",
+      "start": 6.7,
+      "duration": 1.2,
+      "pivot": [0.5, 1],
+      "zIndex": 19,
+      "category": "props",
+      "speed": 1
+    },
+    {
+      "id": "book",
+      "label": "书本",
+      "bbox": [304, 568, 150, 87],
+      "source": "source/room-arrival-separated-v1_20261106062202.png",
+      "extractRect": [550, 650, 960, 940],
+      "parent": "desk",
+      "motion": "spring",
+      "start": 6.9,
+      "duration": 1.2,
+      "pivot": [0.5, 1],
+      "zIndex": 20,
+      "category": "props",
+      "speed": 1
+    },
+    {
+      "id": "quill",
+      "label": "羽毛笔",
+      "bbox": [455, 486, 93, 145],
+      "source": "source/room-arrival-separated-v1_20261106062202.png",
+      "extractRect": [1170, 560, 1420, 950],
+      "parent": "desk",
+      "motion": "spring",
+      "start": 7.1,
+      "duration": 1.2,
+      "pivot": [0.5, 1],
+      "zIndex": 21,
+      "category": "props",
+      "speed": 1
+    }
+  ],
+  "reuseReview": {
+    "stage": "识别清单之后、拆件生成之前",
+    "policy": "先归一化尺寸核对轮廓、纹样、朝向和光照；镜像仅在视觉复核后复用。不同造型保留变体。",
+    "retainedVariants": [
+      {
+        "ids": ["curtain_left", "curtain_right"],
+        "reason": "大窗帘的布片与束带数量不同，不能直接镜像复用。"
+      }
+    ]
+  },
+  "version": 1,
+  "playback": {
+    "speed": 1
+  },
+  "sources": {
+    "source/empty.png": {
+      "resourceId": "73f68c27813a42dc8a14e815556fb0af2a86a8b3903b8a7b9598f675eb8c433b",
+      "sha256": "73f68c27813a42dc8a14e815556fb0af2a86a8b3903b8a7b9598f675eb8c433b",
+      "cdn": "https://app-res.tapimg.com/img/2026-11-06/fb44f702f7fcf751551bbbd6d94ab5f8.png",
+      "github": "https://raw.githubusercontent.com/taptap/instant-games-open-mcp/main/resources/maker-demo/73f68c27813a42dc8a14e815556fb0af2a86a8b3903b8a7b9598f675eb8c433b.png"
+    },
+    "source/full.png": {
+      "resourceId": "b9131c763719336e70120aedb793b43784f855205003c0047e4f318e0abd59ba",
+      "sha256": "b9131c763719336e70120aedb793b43784f855205003c0047e4f318e0abd59ba",
+      "cdn": "https://app-res.tapimg.com/img/2026-11-06/dbc33465441f6efa42c2105becdcf443.png",
+      "github": "https://raw.githubusercontent.com/taptap/instant-games-open-mcp/main/resources/maker-demo/b9131c763719336e70120aedb793b43784f855205003c0047e4f318e0abd59ba.png"
+    },
+    "source/room-arrival-separated-v1_20261106062202.png": {
+      "resourceId": "2aa94cee022e6ec2bbe88672f8884318e2ac89c8e37751f7fe557d8ebf702d0a",
+      "sha256": "2aa94cee022e6ec2bbe88672f8884318e2ac89c8e37751f7fe557d8ebf702d0a",
+      "cdn": "https://app-res.tapimg.com/img/2026-11-06/4bdba689d169d8e906769e91b99cd40c.png",
+      "github": "https://raw.githubusercontent.com/taptap/instant-games-open-mcp/main/resources/maker-demo/2aa94cee022e6ec2bbe88672f8884318e2ac89c8e37751f7fe557d8ebf702d0a.png"
+    },
+    "source/room-decor-v2_20261106072802.png": {
+      "resourceId": "8676a2056426d68503cb9ad545e2370621887718a307ad0bf01f3f876a3303b1",
+      "sha256": "8676a2056426d68503cb9ad545e2370621887718a307ad0bf01f3f876a3303b1",
+      "cdn": "https://app-res.tapimg.com/img/2026-11-06/d6b99ae070fc8703a97a62fbf00e7d73.png",
+      "github": "https://raw.githubusercontent.com/taptap/instant-games-open-mcp/main/resources/maker-demo/8676a2056426d68503cb9ad545e2370621887718a307ad0bf01f3f876a3303b1.png"
+    },
+    "source/room-furniture-v2_20261106072404.png": {
+      "resourceId": "20117a9eb8829c41bf86fd88b9c7a6acd140537c8f54ead7b510b575068341f6",
+      "sha256": "20117a9eb8829c41bf86fd88b9c7a6acd140537c8f54ead7b510b575068341f6",
+      "cdn": "https://app-res.tapimg.com/img/2026-11-06/4b14663a4d17171f6cf862f2ab1af0e2.png",
+      "github": "https://raw.githubusercontent.com/taptap/instant-games-open-mcp/main/resources/maker-demo/20117a9eb8829c41bf86fd88b9c7a6acd140537c8f54ead7b510b575068341f6.png"
+    },
+    "source/room-props-v2_20261106072526.png": {
+      "resourceId": "806904094734c855b151fbe7cd8af7d480e65ce730f43e5b267d53d941135b23",
+      "sha256": "806904094734c855b151fbe7cd8af7d480e65ce730f43e5b267d53d941135b23",
+      "cdn": "https://app-res.tapimg.com/img/2026-11-06/9e0c627785454fde7d161f2a8cb3704d.png",
+      "github": "https://raw.githubusercontent.com/taptap/instant-games-open-mcp/main/resources/maker-demo/806904094734c855b151fbe7cd8af7d480e65ce730f43e5b267d53d941135b23.png"
+    },
+    "source/rug-unroll.png": {
+      "resourceId": "d5aee21197404c7b80cfd0b3692349dd833dbf014db1000914dcf6accec1af8c",
+      "sha256": "d5aee21197404c7b80cfd0b3692349dd833dbf014db1000914dcf6accec1af8c",
+      "cdn": "https://app-res.tapimg.com/img/2026-11-06/2d722935443ead8dbb61c00d3a346ec1.png",
+      "github": "https://raw.githubusercontent.com/taptap/instant-games-open-mcp/main/resources/maker-demo/d5aee21197404c7b80cfd0b3692349dd833dbf014db1000914dcf6accec1af8c.png"
+    }
+  }
+}

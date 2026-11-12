@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "designSize": [1280, 720],
+  "fps": 60,
+  "scenes": [
+    {
+      "id": "S01",
+      "name": "主菜单",
+      "game": "Signal Runner",
+      "ui": "ui/nanovg-showcase-v1/S01.ui.json",
+      "entry": "S01.entry",
+      "clips": ["S01.entry", "S01.focus"]
+    },
+    {
+      "id": "S02",
+      "name": "同行者选择",
+      "game": "Signal Runner",
+      "ui": "ui/nanovg-showcase-v1/S02.ui.json",
+      "entry": "S02.entry",
+      "clips": ["S02.entry", "S02.skill1", "S02.skill2", "S02.skill3", "S02.select"]
+    },
+    {
+      "id": "S03",
+      "name": "港口对话",
+      "game": "Signal Runner",
+      "ui": "ui/nanovg-showcase-v1/S03.ui.json",
+      "entry": "S03.entry",
+      "clips": ["S03.entry", "S03.type", "S03.next"]
+    },
+    {
+      "id": "S04",
+      "name": "发条剧院",
+      "game": "Clockwork Theater",
+      "ui": "ui/nanovg-showcase-v1/S04.ui.json",
+      "entry": "S04.entry",
+      "clips": ["S04.entry", "S04.rabbit", "S04.clap"]
+    },
+    {
+      "id": "S05",
+      "name": "今夜演出",
+      "game": "Clockwork Theater",
+      "ui": "ui/nanovg-showcase-v1/S05.ui.json",
+      "entry": "S05.entry",
+      "clips": ["S05.entry", "S05.select", "S05.select2", "S05.select3"]
+    }
+  ],
+  "clips": {
+    "S01.entry": "ui/nanovg-showcase-v1/motion/S01.entry.json",
+    "S01.focus": "ui/nanovg-showcase-v1/motion/S01.focus.json",
+    "S02.entry": "ui/nanovg-showcase-v1/motion/S02.entry.json",
+    "S02.skill1": "ui/nanovg-showcase-v1/motion/S02.skill1.json",
+    "S02.skill2": "ui/nanovg-showcase-v1/motion/S02.skill2.json",
+    "S02.skill3": "ui/nanovg-showcase-v1/motion/S02.skill3.json",
+    "S02.select": "ui/nanovg-showcase-v1/motion/S02.select.json",
+    "S03.entry": "ui/nanovg-showcase-v1/motion/S03.entry.json",
+    "S03.type": "ui/nanovg-showcase-v1/motion/S03.type.json",
+    "S03.next": "ui/nanovg-showcase-v1/motion/S03.next.json",
+    "S04.entry": "ui/nanovg-showcase-v1/motion/S04.entry.json",
+    "S04.rabbit": "ui/nanovg-showcase-v1/motion/S04.rabbit.json",
+    "S04.clap": "ui/nanovg-showcase-v1/motion/S04.clap.json",
+    "S05.entry": "ui/nanovg-showcase-v1/motion/S05.entry.json",
+    "S05.select": "ui/nanovg-showcase-v1/motion/S05.select.json",
+    "T01": "ui/nanovg-showcase-v1/motion/T01.json",
+    "T02": "ui/nanovg-showcase-v1/motion/T02.json",
+    "T03": "ui/nanovg-showcase-v1/motion/T03.json",
+    "S05.select2": "ui/nanovg-showcase-v1/motion/S05.select2.json",
+    "S05.select3": "ui/nanovg-showcase-v1/motion/S05.select3.json"
+  },
+  "overlay": "ui/nanovg-showcase-v1/transition.ui.json",
+  "transitions": [
+    {
+      "id": "T01",
+      "name": "斜面菜单揭幕",
+      "source": "S01",
+      "target": "S02"
+    },
+    {
+      "id": "T02",
+      "name": "必杀斜刃",
+      "source": "S02",
+      "target": "S03"
+    },
+    {
+      "id": "T03",
+      "name": "扑克牌遮场",
+      "source": "S04",
+      "target": "S05"
+    }
+  ],
+  "characters": [
+    {
+      "name": "NOVA",
+      "role": "先锋 / 突进",
+      "image": "ui/nanovg-showcase-v1/images/nova-open.png",
+      "stats": [230, 181, 197]
+    },
+    {
+      "name": "MOSS",
+      "role": "守望 / 支援",
+      "image": "ui/nanovg-showcase-v1/images/moss-open.png",
+      "stats": [178, 200, 250]
+    },
+    {
+      "name": "SOL",
+      "role": "逐光 / 侦察",
+      "image": "ui/nanovg-showcase-v1/images/sol-open.png",
+      "stats": [201, 260, 165]
+    }
+  ],
+  "dialogue": [
+    "港口的灯亮了。准备好了吗？",
+    "向着灯塔出发吧。每一道信号，都藏着新的故事。",
+    "旅程才刚刚开始。下一站，我们一起去看看。"
+  ],
+  "chapters": ["月光来信", "齿轮之心", "最后的魔术"]
+}

@@ -83,6 +83,9 @@ export function renderResourceBundle(
     for (const [index, item] of (member.imageAssetsInfo?.items || []).entries()) {
       const preview = document.createElement('img');
       preview.src = mediaUrl(item.assetPath);
+      preview.addEventListener('error', () => {
+        preview.alt = '图片丢失：' + item.name;
+      });
       preview.alt = item.name;
       preview.loading = 'lazy';
       (index < 4 ? previews : remaining).append(preview);

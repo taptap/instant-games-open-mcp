@@ -161,6 +161,39 @@ export interface CanvasNode {
   uiAtlasPlan?: UiAtlasPlan;
   /** Screenshot-style overlay. Not a generation card. */
   mark?: CanvasMark;
+  /** On a section: the sprite-gen run it mirrors. Progress stays in sprite-gen's own files. */
+  spriteGen?: CanvasSpriteGen;
+  /** Read-only card mirrored from an external producer; sync owns its asset and edges. */
+  mirror?: CanvasMirror;
+}
+export interface CanvasSpriteGen {
+  /** sprite-gen sprite name; files live in .build/sprite-gen/<name>/ and assets/sprites/<name>/. */
+  name: string;
+  type: 'character' | 'generic';
+  /** Host chat that runs sprite-gen for this group (set when the host reports it). */
+  chatId?: string;
+  /** Source image card the run started from. */
+  sourceId: string;
+  /** Epoch milliseconds when 生成精灵 was started from the canvas. */
+  startedAt: number;
+  /** Mirror keys the user deleted; sync never re-adds them. */
+  dismissed: string[];
+}
+export interface CanvasMirror {
+  source: 'sprite-gen';
+  name: string;
+  /**
+   * Position the last sync laid the card out at. While the card still sits there it follows the
+   * tree layout; once the user moves it, sync leaves it where it is.
+   */
+  placed?: { x: number; y: number };
+  /**
+   * Sync has linked this card to the card it came from. Sync never rewires or re-adds that link,
+   * so lines the user removed or redrew stay as they are.
+   */
+  linked?: boolean;
+  /** Stable per-output key, e.g. ready, viewpoint:<path>, video:<animId>. */
+  key: string;
 }
 
 export interface CanvasEdge {

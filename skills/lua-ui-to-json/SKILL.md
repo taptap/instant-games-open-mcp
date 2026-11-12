@@ -16,6 +16,8 @@ description: 将 UrhoX Lua UI 提取为 .ui.json，检查已有导出文件，�
 - [转换规范与用例](references/conversion.md)：转换或接入游戏前读取。
 - [检查与排错](references/diagnostics.md)：已有 JSON 检查、预览异常时读取。
 - [NanoVG 提取与回放](references/nanovg.md)：原始 nvg 自绘、曲线、渐变图层的提取、编辑与引擎接入。
+- [多分辨率适配](../maker-ui-workflow/references/responsive.md)：保留或修复全屏、贴边、安全区和比例布局时读取；引擎 Skill 的指导缺口在 Maker 侧补齐。
+- [排版参数](../maker-ui-workflow/references/layout.md)：调整贴边、居中、拉伸或列表伸缩时读取；只使用其中列出的字段。
 - [检查命令](scripts/check-ui.cjs) 与 [共享规则](scripts/ui-json-check.cjs)：两个脚本随包提供。
 
 检查脚本要求 Node.js 22，无需安装依赖。直接运行提供的脚本，不另写一份近似检查器。
@@ -66,6 +68,8 @@ description: 将 UrhoX Lua UI 提取为 .ui.json，检查已有导出文件，�
 - 不为填满预览而展开存档驱动列表、强制 `visible: true` 或给透明根加底色。
 - 不忽略项目横竖屏配置，也不把方向错误造成的留白或白屏归因于 JSON 缺失；先检查设计分辨率、设备选择和适应视图。
 - 不把百分比/flex/相对定位全部冻结成某个屏幕上的坐标。
+- 普通转换保留源布局意图；用户要求修适配时，追踪视口根、父容器及 UI.Init，修复最终 JSON 中的约束，
+  不仅写建议，也不把独立组件全屏化。已有 Lua 数值是逻辑单位时不要再次按设计稿缩放。
 - 不统一强制某个项目的设计分辨率、图片路径、主题颜色或九宫格参数。
 - 不将 `onClick`、函数、事件订阅或业务状态序列化成字符串。
 - 不把编辑器 `$repeat` 或预览参数回写成引擎已经支持的事实。

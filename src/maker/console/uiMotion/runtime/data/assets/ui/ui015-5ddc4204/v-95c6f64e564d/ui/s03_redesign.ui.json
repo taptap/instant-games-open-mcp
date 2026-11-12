@@ -1,0 +1,213 @@
+{
+  "type": "Panel",
+  "id": "root",
+  "width": 2048,
+  "height": 1152,
+  "children": [
+    {
+      "backgroundFit": "cover",
+      "type": "Panel",
+      "id": "background",
+      "width": 2048,
+      "height": 1152,
+      "position": "absolute",
+      "left": 0,
+      "top": 0,
+      "backgroundImage": "ui/s03-redesign-v1/images/background/asset_1839dd70-771f-4db5-b663-7d74a724cd05_item_001.png"
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Panel",
+      "id": "E001",
+      "width": 510,
+      "height": 93,
+      "position": "absolute",
+      "left": 15,
+      "top": 19,
+      "backgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_001.png",
+      "children": [
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "T001",
+          "width": 347,
+          "height": 38,
+          "position": "absolute",
+          "left": 33,
+          "top": 25,
+          "backgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_8f1a7571-e2ac-4259-8df7-3f09bacde522_item_001.png"
+        }
+      ]
+    },
+    {
+      "backgroundFit": "contain",
+      "type": "Panel",
+      "id": "E002",
+      "width": 652,
+      "height": 1057,
+      "position": "absolute",
+      "left": 194,
+      "top": 95,
+      "backgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_01ced7b8-b0c5-420a-8828-36b9fd627dca_item_001.png"
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Button",
+      "id": "E003",
+      "width": 185,
+      "height": 57,
+      "position": "absolute",
+      "left": 1674,
+      "top": 27,
+      "backgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_003.png",
+      "pressedBackgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_004.png",
+      "children": [
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E004",
+          "width": 19,
+          "height": 20,
+          "position": "absolute",
+          "left": 46,
+          "top": 17,
+          "backgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_004.png"
+        },
+        {
+          "text": "AUTO",
+          "textAlign": "center",
+          "verticalAlign": "middle",
+          "fontSize": 21,
+          "fontWeight": "normal",
+          "fontColor": [248, 245, 255, 255],
+          "type": "Label",
+          "id": "T002",
+          "width": 64,
+          "height": 21,
+          "position": "absolute",
+          "left": 76,
+          "top": 17
+        }
+      ]
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Button",
+      "id": "E005",
+      "width": 185,
+      "height": 57,
+      "position": "absolute",
+      "left": 1848,
+      "top": 27,
+      "backgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_003.png",
+      "pressedBackgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_004.png",
+      "children": [
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E006",
+          "width": 27,
+          "height": 23,
+          "position": "absolute",
+          "left": 48,
+          "top": 16,
+          "backgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_003.png"
+        },
+        {
+          "text": "SKIP",
+          "textAlign": "center",
+          "verticalAlign": "middle",
+          "fontSize": 21,
+          "fontWeight": "normal",
+          "fontColor": [248, 245, 255, 255],
+          "type": "Label",
+          "id": "T003",
+          "width": 51,
+          "height": 21,
+          "position": "absolute",
+          "left": 86,
+          "top": 17
+        }
+      ]
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Panel",
+      "id": "E007",
+      "width": 1347,
+      "height": 274,
+      "position": "absolute",
+      "left": 350,
+      "top": 801,
+      "backgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_47993c62-3bfb-4ed6-aac8-1b64d1afc1ab_item_001.png",
+      "children": [
+        {
+          "backgroundFit": "fill",
+          "type": "Panel",
+          "id": "E008",
+          "width": 224,
+          "height": 73,
+          "position": "absolute",
+          "left": 31,
+          "top": -36,
+          "backgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_002.png",
+          "children": [
+            {
+              "text": "RIN",
+              "textAlign": "left",
+              "verticalAlign": "middle",
+              "fontSize": 34,
+              "fontWeight": "bold",
+              "fontColor": [255, 255, 255, 255],
+              "type": "Label",
+              "id": "T004",
+              "width": 75,
+              "height": 34,
+              "position": "absolute",
+              "left": 70,
+              "top": 17
+            }
+          ]
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E009",
+          "width": 49,
+          "height": 27,
+          "position": "absolute",
+          "left": 1267,
+          "top": 22,
+          "backgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_002.png"
+        },
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E010",
+          "width": 49,
+          "height": 49,
+          "position": "absolute",
+          "left": 1270,
+          "top": 197,
+          "backgroundImage": "ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_001.png"
+        },
+        {
+          "text": "The last train left us a signal.",
+          "textAlign": "left",
+          "verticalAlign": "middle",
+          "fontSize": 38,
+          "fontWeight": "bold",
+          "fontColor": [247, 247, 248, 255],
+          "type": "Label",
+          "id": "T005",
+          "width": 733,
+          "height": 53,
+          "position": "absolute",
+          "left": 120,
+          "top": 74
+        }
+      ]
+    }
+  ],
+  "name": "S03 original redesign"
+}

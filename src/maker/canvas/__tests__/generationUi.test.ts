@@ -1,5 +1,6 @@
 import { imageModelsFixture } from '../__fixtures__/imageModels.js';
 import { createCanvasGenerationUi } from '../generationUi.js';
+import { createCanvasGenerationUiWithHost } from '../../../../packages/maker-canvas/src/browser/generationUi.js';
 import { snapshotCanvasSource } from '../dependencies.js';
 import { canvasNeedsProcessing } from '../templateWorkflow.js';
 import { configureMergeIcons, mergeIconPrompt } from '../mergeIcons.js';
@@ -432,7 +433,7 @@ function imageRecoveryFixture(legacy = false) {
 test.each([
   [1920, 1080, '1024x576'],
   [1080, 1920, '576x1024'],
-  [1700, 1000, null],
+  [1700, 1000, '1024x602'],
 ])('template image sizing handles %ix%i before submitting', async (width, height, targetSize) => {
   const { document, options, target, ui } = imageRecoveryFixture();
   document.nodes[0].imageInfo = { width, height };
@@ -445,16 +446,11 @@ test.each([
     error: 'fixture failure',
   });
   await ui.runTemplateImage(target.id);
-  if (targetSize)
-    expect(options.store.generateImage).toHaveBeenCalledWith(
-      document.id,
-      expect.objectContaining({ aspectRatio: 'source', targetSize }),
-      expect.anything()
-    );
-  else {
-    expect(options.store.generateImage).not.toHaveBeenCalled();
-    expect(options.setError).toHaveBeenCalledWith(expect.stringContaining('尚未提交'));
-  }
+  expect(options.store.generateImage).toHaveBeenCalledWith(
+    document.id,
+    expect.objectContaining({ aspectRatio: 'source', targetSize }),
+    expect.anything()
+  );
 });
 
 test.each(['restore', 'query', 'run', 'legacy'])(
@@ -855,7 +851,7 @@ test('automation query reports request errors while the existing UI keeps its er
   expect(options.setError).toHaveBeenCalledWith('network down');
 });
 
-describe('image reference drafts and refresh', () => {
+describe('generation panels, reference drafts and refresh', () => {
   const globals = globalThis as any;
   const originalDocument = globals.document;
   let elements: any[];
@@ -867,10 +863,17 @@ describe('image reference drafts and refresh', () => {
         const element: any = {
           tag,
           value: '',
+          style: {},
+          dataset: {},
           events: {},
           children: [],
           isConnected: true,
           append(...children: any[]) {
+            if (tag === 'select') {
+              const selected = children.find((child) => child.selected);
+              if (selected) this.value = selected.value;
+              else if (!this.children.length && children.length) this.value = children[0].value;
+            }
             this.children.push(...children);
           },
           replaceChildren(...children: any[]) {
@@ -926,6 +929,90 @@ describe('image reference drafts and refresh', () => {
   function displayedPaths() {
     return elements.filter((element) => element.tag === 'img').map((element) => element.src);
   }
+
+  function selectFor(label: string) {
+    return elements
+      .find((element) => element.tag === 'label' && element.children[0]?.textContent === label)
+      .querySelector('select');
+  }
+
+  test.each(['2.0', '2.5'])(
+    'local video duration choices stay at 4–8 seconds after switching model %s',
+    (model) => {
+      const { document, ui } = fixture();
+      document.nodes[1].generation.parameters = { model };
+      ui.render({ append: jest.fn() }, document.nodes[1], document.nodes);
+      const duration = selectFor('时长（秒）');
+      expect(duration.options.map((option: any) => option.value)).toEqual([
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+      ]);
+      expect(duration.value).toBe('4');
+      duration.value = '8';
+      const modelSelect = selectFor('模型');
+      modelSelect.value = model === '2.0' ? '2.5' : '2.0';
+      modelSelect.events.change();
+      expect(duration.options.map((option: any) => option.value)).toEqual([
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+      ]);
+      expect(duration.value).toBe('8');
+      expect(duration.options[4].style.color).toBe('#ef6464');
+    }
+  );
+
+  test.each(['generation', 'generationDraft'])(
+    'local duration choices preserve an explicit long video in %s',
+    (source) => {
+      const { document, ui } = fixture();
+      document.nodes[1][source] = {
+        prompt: '家具入场',
+        parameters: { model: '2.0', duration: 10 },
+      };
+      ui.render({ append: jest.fn() }, document.nodes[1], document.nodes);
+      const duration = selectFor('时长（秒）');
+      expect(duration.options.map((option: any) => option.value)).toEqual([
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+        '10',
+      ]);
+      expect(duration.value).toBe('10');
+      const model = selectFor('模型');
+      model.value = '2.5';
+      model.events.change();
+      expect(duration.value).toBe('10');
+      expect(duration.options.map((option: any) => option.value)).not.toContain('9');
+    }
+  );
+
+  test.each([{ videoDurationOptions: undefined }, { videoDurationOptions: [4, 5, 6, 7, 8] }])(
+    'shared video duration choices follow the host options: %j',
+    ({ videoDurationOptions }) => {
+      const { document, options } = fixture();
+      document.nodes[1].generation.parameters = { model: '2.5' };
+      const ui = createCanvasGenerationUiWithHost({
+        ...options,
+        web: true,
+        videoDurationOptions,
+        detectUiCutoutColor: jest.fn(),
+      });
+      ui.render({ append: jest.fn() }, document.nodes[1], document.nodes);
+      const duration = selectFor('时长（秒）');
+      expect(duration.options.map((option: any) => option.value)).toEqual(
+        (videoDurationOptions || Array.from({ length: 27 }, (_, index) => index + 4)).map(String)
+      );
+      expect(duration.value).toBe('4');
+    }
+  );
 
   test.each([true, false])(
     'only an explicit unsubmitted rejection clears unknown state (%s)',
@@ -1031,6 +1118,60 @@ describe('image reference drafts and refresh', () => {
       expect(options.store.generationAction).toHaveBeenCalledWith(document.id, attempt.id, 'retry');
       expect(options.store.generateImage).not.toHaveBeenCalled();
       if (!mergeIcons) expect(options.onGenerated).toHaveBeenCalledWith(image.id, 'image');
+    }
+  );
+
+  test.each(['download', 'save'] as const)(
+    'local image retry reports the real reason when recovery does not finish: %s',
+    async (failure) => {
+      const { document, options, ui, image } = imageFixture();
+      const attempt: any = {
+        id: 'delivered-image',
+        canvasId: document.id,
+        kind: 'image',
+        targetNodeId: image.id,
+        prompt: image.generation.prompt,
+        sourceImageId: image.id,
+        sourceImagePath: image.assetPath,
+        sourceImageIds: [image.id],
+        sourceImagePaths: [image.assetPath],
+        sourceSnapshots: [snapshotCanvasSource(image)],
+        targetAssetPath: image.assetPath,
+        status: 'failed',
+        remoteStatus: 'succeeded',
+        failureStage: 'download',
+        remoteAssetUrl: 'https://cdn.example/generated.png',
+        updatedAt: new Date().toISOString(),
+      };
+      options.store.listGeneration.mockResolvedValue([attempt]);
+      options.store.generationAction.mockResolvedValue(
+        failure === 'download'
+          ? {
+              ...attempt,
+              error:
+                'fetch failed 图片请求已返回，不会重新生成；已保留原图片地址，可重试本地下载。',
+            }
+          : { ...attempt, status: 'succeeded', resultAssetPath: 'assets/image/recovered.png' }
+      );
+      await ui.restore();
+      ui.render({ append: jest.fn() }, image, document.nodes);
+      if (failure === 'save') options.flush.mockResolvedValue(false);
+      elements
+        .find((element) => element.textContent === '重试本地导入')
+        .events.click({ stopPropagation() {} });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(options.store.generationAction).toHaveBeenCalledWith(document.id, attempt.id, 'retry');
+      expect(options.store.generateImage).not.toHaveBeenCalled();
+      expect(options.onGenerated).not.toHaveBeenCalled();
+      const messages = options.setError.mock.calls.map(([message]: [string]) => message);
+      expect(messages).not.toContain('图片已取回，但卡片或输入已变化，未覆盖当前内容。');
+      if (failure === 'download')
+        expect(options.setError).toHaveBeenCalledWith(
+          '本地导入仍未完成：fetch failed 图片请求已返回，不会重新生成；已保留原图片地址，可重试本地下载。',
+          'warning'
+        );
+      // A failed save keeps the page's own save error instead of overwriting it.
+      else expect(options.setError).not.toHaveBeenCalled();
     }
   );
 
@@ -1484,7 +1625,7 @@ test('user template resolves the current connected image and reuses stored video
     ratio: '1:1',
   };
   options.store.listGeneration.mockResolvedValue([]);
-  expect(await ui.runTemplateVideo('video', 4)).toBe(true);
+  expect(await ui.runTemplateVideo('video', 4, true)).toBe(true);
   expect(options.store.createVideo).toHaveBeenCalledWith(
     'canvas',
     expect.objectContaining({
@@ -1516,10 +1657,64 @@ test('an already applied success is not reused as a new generation for a pending
     options.store.listGeneration.mockResolvedValue([next, attempt]);
     return next;
   });
-  expect(await ui.runTemplateVideo('video', 6)).toBe(true);
+  expect(await ui.runTemplateVideo('video', 6, true)).toBe(true);
   expect(options.store.createVideo).toHaveBeenCalledTimes(1);
   expect(options.store.createVideo.mock.calls[0][1].duration).toBe(6);
   expect(document.nodes[1].generation.attemptId).toBe('new-attempt');
+});
+
+test('an explicitly authorized long video is not shortened by local duration choices', async () => {
+  const { document, options, ui } = fixture();
+  delete document.templateFlow;
+  options.store.listGeneration.mockResolvedValue([]);
+  expect(await ui.runTemplateVideo('video', 10, true, true)).toBe(true);
+  expect(options.store.createVideo).toHaveBeenCalledWith(
+    'canvas',
+    expect.objectContaining({ duration: 10, userConfirmed: true }),
+    expect.any(AbortSignal)
+  );
+});
+
+test('a ten-second native video names its cost and cancellation submits nothing', async () => {
+  const { document, options, ui } = fixture();
+  delete document.templateFlow;
+  document.nodes[1].generation.parameters = { model: '2.0', duration: 10 };
+  options.store.listGeneration.mockResolvedValue([]);
+  const globals = globalThis as { window?: unknown };
+  const previous = globals.window;
+  const confirm = jest.fn(() => false);
+  globals.window = { confirm };
+  try {
+    expect(await ui.runTemplateVideo('video', 10)).toBe(false);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('2000'));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('实际以平台扣费为准'));
+    expect(options.store.createVideo).not.toHaveBeenCalled();
+  } finally {
+    if (previous === undefined) delete globals.window;
+    else globals.window = previous;
+  }
+});
+
+test('noninteractive video reports missing authorization without opening a confirmation dialog', async () => {
+  const { document, options, ui } = fixture();
+  delete document.templateFlow;
+  document.nodes[1].generation.parameters = { model: '2.0', duration: 10 };
+  options.store.listGeneration.mockResolvedValue([]);
+  const globals = globalThis as { window?: unknown };
+  const previous = globals.window;
+  const confirm = jest.fn(() => {
+    throw new Error('unexpected dialog');
+  });
+  globals.window = { confirm };
+  try {
+    expect(await ui.runTemplateVideo('video', 10, false, true)).toBe(false);
+    expect(options.setError).toHaveBeenCalledWith(expect.stringContaining('--allow-paid'));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(options.store.createVideo).not.toHaveBeenCalled();
+  } finally {
+    if (previous === undefined) delete globals.window;
+    else globals.window = previous;
+  }
 });
 
 test('changing the input never bypasses an unresolved task for the old input', async () => {

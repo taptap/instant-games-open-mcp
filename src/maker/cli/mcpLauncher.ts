@@ -54,7 +54,9 @@ const PUBLISHED_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-
 const SELF_RUNTIME_DIRECTORIES = [
   'skills/maker-ui-workflow',
   'skills/maker-ui-bbox-workflow',
+  'skills/maker-scene-furniture-workflow',
   'skills/lua-ui-to-json',
+  'skills/maker-project-check',
   'skills/taptap-maker-local',
   'skills/taptap-maker-dev-kit-guide',
   'skills/update-taptap-mcp',
@@ -74,6 +76,21 @@ export function resolveMakerPackageSpec(packageName: string, currentVersion: str
     : packageName;
 }
 
+function stableHomebrewNode(execPath: string): string {
+  if (process.platform !== 'darwin') return execPath;
+  const match = /^(.*)\/Cellar\/(node(?:@\d+)?)\/[^/]+\/bin\/node$/.exec(execPath);
+  if (!match) return execPath;
+  const candidate = path.join(match[1], 'opt', match[2], 'bin', 'node');
+  try {
+    // Keep the same formula and executable; never switch to a different Node on PATH.
+    fs.accessSync(candidate, fs.constants.X_OK);
+    if (fs.realpathSync(candidate) === fs.realpathSync(execPath)) return candidate;
+  } catch {
+    // An unlinked Homebrew keg still works through its original absolute path.
+  }
+  return execPath;
+}
+
 export function materializeMakerSelfLauncher(options: {
   version: string;
   bundleUrl: string;
@@ -84,7 +101,7 @@ export function materializeMakerSelfLauncher(options: {
     throw new Error(`Invalid Maker runtime version: ${options.version}`);
   }
 
-  const execPath = options.execPath ?? process.execPath;
+  const execPath = stableHomebrewNode(options.execPath ?? process.execPath);
   if (!path.isAbsolute(execPath) || !fs.existsSync(execPath)) {
     throw new Error('Maker self launcher requires an existing absolute Node executable.');
   }

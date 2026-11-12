@@ -76,8 +76,26 @@ test.each([true, false])('choices match update validation and schema (image=%s)'
   ]);
   expect(schema.additionalProperties).toBe(false);
   for (const [name, values] of Object.entries(choices)) {
-    expect(schema.properties[name].enum).toEqual(values);
-    for (const value of values) {
+    const supported = image && name === 'aspectRatio' ? [...values, '17:10'] : values;
+    if (image && name === 'aspectRatio') {
+      expect(schema.properties[name].enum).toBeUndefined();
+      for (const value of supported)
+        expect(value).toMatch(new RegExp(schema.properties[name].pattern));
+    } else expect(schema.properties[name].enum).toEqual(values);
+    for (const value of supported) {
+      if (!image && name === 'duration' && Number(value) > 15) {
+        expect(() =>
+          prepareCanvasNodeUpdates(document, {
+            nodes: [{ id: 'target', parameters: { duration: value } }],
+          })
+        ).toThrow('时长');
+        expect(
+          prepareCanvasNodeUpdates(document, {
+            nodes: [{ id: 'target', parameters: { model: '2.5', duration: value } }],
+          })[0].node.generationDraft?.parameters
+        ).toEqual({ model: '2.5', duration: value });
+        continue;
+      }
       const updates = prepareCanvasNodeUpdates(document, {
         nodes: [{ id: 'target', parameters: { [name]: value } }],
       });
@@ -100,7 +118,10 @@ test('schema documents the execution combination without widening CLI choices', 
   const { image, video } = canvasParameterSchema();
   expect(image.properties.model).toMatchObject({ type: 'string', minLength: 1, maxLength: 200 });
   expect(image.properties.model.enum).toBeUndefined();
-  expect(video.properties.duration).toEqual({ type: 'integer', enum: [4, 5, 6, 7, 8] });
+  expect(video.properties.duration).toEqual({
+    type: 'integer',
+    enum: Array.from({ length: 27 }, (_, index) => index + 4),
+  });
   expect(video.properties.ratio.enum).toEqual(['adaptive', '1:1', '16:9', '9:16']);
   expect(video.allOf).toEqual([
     {
@@ -128,8 +149,12 @@ test('sequence schema exposes exactly editable fields and cross-field limits', (
   expect(sequence.properties.height).toEqual(sequence.properties.width);
   expect(sequence.properties.tolerance).toEqual({ type: 'number', minimum: 0, maximum: 255 });
   expect(sequence['x-constraints']).toEqual({
-    interval: { left: 'end', operator: '>', right: 'start' },
-    frameCount: { expression: 'ceil((end - start) * fps - 1e-8)', maximum: 120 },
+    interval: 'end === 0 || end > start',
+    frameCount: {
+      expression: 'ceil((resolvedEnd - start) * fps - 1e-8)',
+      uniformMaximum: 120,
+      adaptiveMaximum: 900,
+    },
   });
   expect(new RegExp(sequence.properties.backgroundColor.pattern).test('#aBcD09')).toBe(true);
   expect(new RegExp(sequence.properties.backgroundColor.pattern).test('#abc')).toBe(false);
@@ -140,7 +165,11 @@ test.each([
   [{ start: 86399, end: 86400, fps: 1, tolerance: 0 }, true],
   [{ fps: 1.5, tolerance: 0.5 }, true],
   [{ start: -0.1 }, false],
-  [{ end: 0 }, false],
+  [{ end: 0 }, true],
+  [{ end: 10, fps: 24, sampling: 'adaptive' }, true],
+  [{ end: 0, fps: 24, sampling: 'adaptive' }, true],
+  [{ end: 31, fps: 30, sampling: 'adaptive' }, false],
+  [{ sampling: 'other' }, false],
   [{ start: 86399, end: 86400.1, fps: 1 }, false],
   [{ end: 4.01, fps: 30 }, false],
   [{ fps: 0.99 }, false],

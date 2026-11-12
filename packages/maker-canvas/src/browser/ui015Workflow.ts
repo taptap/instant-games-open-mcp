@@ -425,18 +425,21 @@ export function createUi015Workflow(options: {
         await prepare(groupId);
         view = inspect(groupId)!;
       }
-      const found = cards(document, groupId)!;
-      const synced = Boolean(bundleOf(members(document, groupId)));
+      const live = options.current();
+      if (!live) throw new Error('画布已关闭，无法继续。');
+      const found = cards(live, groupId)!;
+      const synced = Boolean(bundleOf(members(live, groupId)));
       const derived = synced
-        ? currentChoice(document, members(document, groupId), found.cut)
+        ? currentChoice(live, members(live, groupId), found.cut)
         : defaultChoice(found.cut);
       const choice: Ui015Choice = {
         artText: input.artText ?? derived.artText,
         background: input.background ?? derived.background,
       };
-      // Re-planning also picks up batches added by a new recognition result.
-      await applyChoice(document, groupId, choice);
+      await applyChoice(live, groupId, choice);
       view = inspect(groupId)!;
+      if (view.stage === 'choice')
+        throw new Error('识图已完成，但没有拆出后续批次。请点继续重试。');
       outcomes.delete(groupId);
       if (view.stage === 'generation') {
         autoRuns.set(groupId, { waits: 0, ...autoRuns.get(groupId), cli: input.cli === true });
@@ -456,7 +459,13 @@ export function createUi015Workflow(options: {
       const message = error instanceof Error ? error.message : String(error);
       options.error(message);
       options.log('015 · ' + message, 'error');
-      return { status: 'failed', stage: inspect(groupId)?.stage || 'invalid', message };
+      const result = {
+        status: 'failed' as const,
+        stage: inspect(groupId)?.stage || 'invalid',
+        message,
+      };
+      outcomes.set(groupId, result);
+      return result;
     } finally {
       running = '';
       options.render();
@@ -536,7 +545,10 @@ export function createUi015Workflow(options: {
         }
         if (result === 'blocked') {
           autoRuns.delete(groupId);
-          options.log('015 · 原图片已生成但本地导入仍失败，停止自动流程以避免重复付费', 'error');
+          options.log(
+            '015 · 原图片已生成但未能放入卡片（本地导入失败、卡片已变化或保存失败），停止自动流程以避免重复付费',
+            'error'
+          );
           finalResult(groupId, await assemble(groupId, false, true, run.cli));
           return;
         }
@@ -638,7 +650,8 @@ export function createUi015Workflow(options: {
       '2. 缺少素材的元素：在 inspect 中找到其所在分离卡，按第 1 步补画并确认。识图本身漏项或分类错误时才 recognize-ui 重新识图（会让下游批次失效）。',
       '3. 所有批次确认后 canvas assemble-ui --new-version 生成新版本；新版本的 review 三个列表都应为空，meta done，引用检查 0 错误。',
       '4. ui open 打开新 UI，对照同名参考图检查位置、尺寸、层级、字号、颜色、美术字、背景和按钮状态；偏差用 ui inspect / patch（先 dry-run 再带 revision）修正。',
-      '5. 完成标准：全部批次已确认、review 列表为空、引用检查 0 错误、编辑器对照无明显偏差。达不到时报告具体剩余项，不要把部分结果报为完成。',
+      '5. 按 maker-ui-workflow/references/responsive.md 复核多分辨率：读取 assembly-map.json 的 adaptation，检查自动推断的锚点和分组；切换 720p、1080p、iPhone 18 Pro、iPad Pro 及横竖屏，修复贴边、居中、安全区、溢出和字号。拖动并保存重开后约束仍应保留。接入前核对 UI.Init 缩放策略。',
+      '6. 完成标准：全部批次已确认、review 列表为空、引用检查 0 错误、设计稿对照及多分辨率预览通过。达不到时报告具体剩余项，不要把部分结果报为完成；编辑器通过不代表引擎已验证。',
       '分离卡：' +
         (found
           ? separations(found.members)
@@ -654,6 +667,7 @@ export function createUi015Workflow(options: {
     const dialog = dialogShell('UI 已生成');
     dialog.dataset.ui015Delivery = 'true';
     const rows: Array<[string, string]> = [
+      ['界面名称', value.screen?.name || '未命名界面'],
       ['UI 文件', value.uiFile],
       ['参考图', value.referenceFile],
       ['素材目录', value.directory],
@@ -794,7 +808,10 @@ export function createUi015Workflow(options: {
       if (!status.ready || !status.delivery) throw new Error(status.reason || '资源包尚未完整。');
       const issue = status.delivery.issue;
       options.log(
-        '015 · UI 已生成：' + status.delivery.uiFile + (issue ? '；未完成：' + issue : ''),
+        '015 · UI 已生成：' +
+          (status.delivery.screen ? status.delivery.screen.name + ' · ' : '') +
+          status.delivery.uiFile +
+          (issue ? '；未完成：' + issue : ''),
         issue ? 'warning' : 'info'
       );
       // An unattended run ends on the header buttons; a modal would block CLI automation
@@ -832,6 +849,7 @@ export function createUi015Workflow(options: {
       invalid: '流程结构异常',
       design: '1 设计稿',
       prepare: '2 去文字与识图',
+      choice: '2 去文字与识图',
       generation: '3 预排、分离与切图',
       assemble: '4 组装 UI',
       running: '执行中',
@@ -860,6 +878,18 @@ export function createUi015Workflow(options: {
           extra,
           hint: state.message,
         };
+      case 'choice': {
+        const failed = outcomes.get(groupId);
+        return {
+          stage,
+          primary: run('继续自动生成', go, '识图已完成，按默认选择拆分批次并继续预排、分离和切图'),
+          extra,
+          hint:
+            failed && failed.status === 'failed'
+              ? failed.message
+              : '识图已完成。点继续后按默认选择拆分批次，不再停在这一步。',
+        };
+      }
       case 'generation':
         return { stage, primary: run('继续自动生成', go), extra, hint: state.message };
       case 'assemble': {

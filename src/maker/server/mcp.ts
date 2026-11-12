@@ -136,6 +136,10 @@ import {
   type MakerMcpTrackingContext,
 } from '../tracking.js';
 import { MAKER_CAPABILITY_ROUTING_INDEX } from '../capabilityRouting.js';
+import {
+  createMakerClientModelResolver,
+  extractMakerClientModelRequest,
+} from '../clientModel/index.js';
 import { generateResourceMeta, RESOURCE_META_TOOL } from '../resourceMeta.js';
 import {
   MAKER_ADS_INTEGRATION_GUIDE_URI,
@@ -690,17 +694,37 @@ export async function startMakerMcpServer(): Promise<void> {
   const listClientRoots = createServerClientRootsProvider(server);
   const remoteProxyManager: MakerRemoteProxyManager = createMakerRemoteProxyManager();
   const startupReportedProjects = new Set<string>();
+  const collectClientModel = createMakerClientModelResolver();
+  const resolveTrackingContext = async (
+    options: Parameters<typeof resolveMakerMcpTrackingContext>[0]
+  ) => {
+    const context = await resolveMakerMcpTrackingContext(options);
+    if (context) {
+      context.modelSnapshot = collectClientModel({
+        clientName: options.clientInfo?.name,
+        projectDir: context.projectDir,
+        requestModel: options.requestModel,
+      }).catch(() => ({}));
+    }
+    return context;
+  };
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const accessState = await accessStatePromise;
     if (accessState.blocked) {
       return { tools: [tools[0]] };
     }
-    const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
+    const contextPromise = resolveTrackingContext({
+      listClientRoots,
+      clientInfo: server.getClientVersion(),
+    });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
     return listMakerTools();
   });
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
-    const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
+    const contextPromise = resolveTrackingContext({
+      listClientRoots,
+      clientInfo: server.getClientVersion(),
+    });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
     return { resources };
   });
@@ -724,7 +748,10 @@ export async function startMakerMcpServer(): Promise<void> {
     }
 
     const startedAt = Date.now();
-    const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
+    const contextPromise = resolveTrackingContext({
+      listClientRoots,
+      clientInfo: server.getClientVersion(),
+    });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
     try {
       const result = {
@@ -769,7 +796,12 @@ export async function startMakerMcpServer(): Promise<void> {
     }
 
     const startedAt = Date.now();
-    const rawArgs = (request.params.arguments || {}) as Record<string, unknown>;
+    const modelRequest = extractMakerClientModelRequest(
+      request.params.arguments,
+      request.params._meta
+    );
+    const rawArgs = modelRequest.arguments;
+    request.params.arguments = rawArgs;
     const hasInvalidTargetDir =
       rawArgs.target_dir !== undefined &&
       (typeof rawArgs.target_dir !== 'string' || !rawArgs.target_dir.trim());
@@ -780,8 +812,15 @@ export async function startMakerMcpServer(): Promise<void> {
         : undefined;
     const contextPromise = hasInvalidTargetDir
       ? Promise.resolve(null)
-      : resolveMakerMcpTrackingContext({ targetDir, listClientRoots });
-    void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
+      : resolveTrackingContext({
+          targetDir,
+          listClientRoots,
+          clientInfo: server.getClientVersion(),
+          requestModel: modelRequest.model,
+        });
+    if (name !== 'maker_status_lite') {
+      void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
+    }
 
     try {
       if (name === 'maker_status_lite') {
@@ -790,17 +829,40 @@ export async function startMakerMcpServer(): Promise<void> {
           skip_remote_sync?: boolean;
           detail?: boolean;
         };
+        const trackingContext = await contextPromise;
+        const model = await (trackingContext?.modelSnapshot ??
+          collectClientModel({
+            clientName: server.getClientVersion()?.name,
+            requestModel: modelRequest.model,
+          }));
+        if (trackingContext) trackingContext.resolvedModel = model;
+        void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
         const toolResult = {
           content: [
             {
               type: 'text',
-              text: await formatStatus({
-                targetDir: args.target_dir,
-                skipRemoteSync: args.skip_remote_sync,
-                detail: args.detail,
-                listClientRoots,
-                remoteProxyManager,
-              }),
+              text:
+                (await formatStatus({
+                  targetDir: args.target_dir,
+                  skipRemoteSync: args.skip_remote_sync,
+                  detail: args.detail,
+                  listClientRoots,
+                  remoteProxyManager,
+                })) +
+                '\n\nClient model reporting\n\n' +
+                JSON.stringify(
+                  {
+                    status:
+                      model.client_model_id || model.resolved_model ? 'detected' : 'unavailable',
+                    client_name: server.getClientVersion()?.name,
+                    ...model,
+                    tracking: trackingContext
+                      ? 'scheduled_best_effort'
+                      : 'skipped_missing_project_identity',
+                  },
+                  null,
+                  2
+                ),
             },
           ],
         };
@@ -1026,6 +1088,8 @@ export async function resolveMakerMcpAccessState(
 async function resolveMakerMcpTrackingContext(options: {
   targetDir?: string;
   listClientRoots?: MakerClientRootsProvider;
+  clientInfo?: MakerMcpTrackingContext['clientInfo'];
+  requestModel?: MakerMcpTrackingContext['requestModel'];
 }): Promise<MakerMcpTrackingContext | null> {
   try {
     const context = await resolveMakerProjectContext({
@@ -1040,7 +1104,13 @@ async function resolveMakerMcpTrackingContext(options: {
     if (!userId || !projectId) {
       return null;
     }
-    return { userId, projectId };
+    return {
+      userId,
+      projectId,
+      clientInfo: options.clientInfo,
+      projectDir: identify.projectRoot,
+      requestModel: options.requestModel,
+    };
   } catch {
     return null;
   }
@@ -1076,7 +1146,14 @@ async function reportMakerMcpStartupFromPromise(
     }
     reportedProjects.add(key);
     await reportMakerMcpActivity({
-      context,
+      context: {
+        ...context,
+        requestModel: undefined,
+        resolvedModel: context.requestModel ? undefined : context.resolvedModel,
+        modelSnapshot: context.requestModel
+          ? context.modelSnapshot?.then(({ client_ide_name }) => ({ client_ide_name }))
+          : context.modelSnapshot,
+      },
       toolName: `@taptap/maker@${VERSION}`,
       success: true,
     });
@@ -3847,7 +3924,7 @@ function pushRecoveryUserMessage(failure?: MakerGitFailure): string {
     case 'remote_transient':
       return '本地提交已经保留，但还没推送到 Maker 远端；远端临时异常恢复后，直接重试 Maker 提交/构建工具即可。';
     case 'cloud_workspace_blocked':
-      return '本地提交已经保留，但 Maker 云端工作区有未提交改动，推送被拒绝且自动修复未完成；按 failure.next_action 处理后，再重试 Maker 提交/构建工具。';
+      return '本地提交已经保留，但 Maker 云端工作区有未提交改动，推送被拒绝且自动修复未完成；请把 failure 中的远端报错原文告诉用户，按 failure.next_action 处理（若疑似 Git 锁，多半是塔拉拉在云端同时开发，建议让塔拉拉先处理），再重试 Maker 提交/构建工具。';
     case 'merge_conflict':
       return '本地提交已经保留；合并 Maker 远端 main 时有冲突，已自动取消合并。请按 failure.conflict_files 处理冲突后，再重试 Maker 提交/构建工具。';
     default:
@@ -4099,7 +4176,9 @@ export function formatToolException(toolName: string, error: unknown): string {
       '',
       formatRemoteProxyToolResult(displayResult),
       '',
-      'next_action: 远端 proxy tool 已返回失败结果；请把完整、已脱敏的 remote_result 反馈给开发者，方便排查 server 返回内容。',
+      'next_action: ' +
+        (error.recoveryHint ||
+          '远端 proxy tool 已返回失败结果；请把完整、已脱敏的 remote_result 反馈给开发者，方便排查 server 返回内容。'),
     ].join('\n');
   }
 
@@ -4120,7 +4199,9 @@ export function formatToolException(toolName: string, error: unknown): string {
       'debug:',
       sanitizedStack ? indent(sanitizedStack) : indent(sanitizedMessage),
       '',
-      'next_action: 请根据上面的简化 message 判断失败原因；参数或能力不支持时不要重复调用，并保留 error_details/debug 反馈给开发者。',
+      'next_action: ' +
+        ((error instanceof RemoteProxyToolCallError && error.recoveryHint) ||
+          '请根据上面的简化 message 判断失败原因；参数或能力不支持时不要重复调用，并保留 error_details/debug 反馈给开发者。'),
     ].join('\n');
   }
 

@@ -15,7 +15,7 @@ import {
   pushMakerProject,
   syncMakerProject,
 } from '../maker/git';
-import { classifyGitFailure } from '../maker/git/failure';
+import { classifyGitFailure, createGitFailure } from '../maker/git/failure';
 import { saveProjectConfig } from '../maker/storage';
 
 function git(cwd: string, args: string[]): string {
@@ -155,6 +155,7 @@ describe('Maker cloud workspace push repair', () => {
       ' ! [remote rejected] HEAD -> main (Working directory has unstaged changes)',
       ' ! [remote rejected] HEAD -> main (Working directory has staged changes)',
       ' ! [remote rejected] HEAD -> main (Could not update working tree to new HEAD)',
+      'remote: [pre-receive] 推送被拒：本次推送要修改的路径在云端工作区有未提交改动或未跟踪文件：',
     ]) {
       expect(isCloudWorkspaceBlockedMessage(message)).toBe(true);
       expect(classifyGitFailure(`${message}\nerror: failed to push some refs`)).toBe(
@@ -162,6 +163,18 @@ describe('Maker cloud workspace push repair', () => {
       );
     }
     expect(classifyGitFailure(' ! [rejected] HEAD -> main (fetch first)')).toBe('remote_rejected');
+  });
+
+  test('adds 塔拉拉 guidance when the error looks like a git lock', () => {
+    const failure = createGitFailure({
+      stage: 'push',
+      stderr: "fatal: Unable to create '/repo/.git/index.lock': File exists.",
+    });
+    expect(failure.nextAction).toContain('塔拉拉');
+    expect(failure.nextAction).toContain('不要手动删除锁文件');
+    expect(
+      createGitFailure({ stage: 'push', stderr: 'rejected (fetch first)' }).nextAction
+    ).not.toContain('疑似云端 Git 锁');
   });
 
   test('commits cloud changes, merges them and pushes local work', async () => {

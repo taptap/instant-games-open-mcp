@@ -51,7 +51,24 @@ export class MakerGitError extends Error {
  * when the cloud workspace has uncommitted changes and cannot accept a push.
  */
 const CLOUD_WORKSPACE_BLOCKED_PATTERN =
-  /Working directory has (?:unstaged|staged) changes|Could not update working tree to new HEAD/i;
+  /Working directory has (?:unstaged|staged) changes|Could not update working tree to new HEAD|\[pre-receive\][^\n]*云端工作区有未提交改动/i;
+
+/**
+ * Git lock signals from the cloud repository or the cloud git API. A lock usually
+ * means another writer (typically 塔拉拉, the Maker web agent) is touching the same repo.
+ */
+const GIT_LOCK_PATTERN =
+  /index\.lock|Unable to create '[^']*\.lock'|another git process|Git\s*锁|锁(?:冲突|定|住)|仓库.{0,6}被锁/i;
+
+export function isGitLockMessage(message: string): boolean {
+  return GIT_LOCK_PATTERN.test(message);
+}
+
+/** Extra guidance when the error text looks like a cloud git lock. Empty when it does not. */
+export function gitLockGuidance(message: string): string {
+  if (!isGitLockMessage(message)) return '';
+  return ' 错误疑似云端 Git 锁：常见原因是塔拉拉（Maker 网页端 Agent）正在云端同时开发/提交或构建，与本地推送冲突。请把 failure.stderr/stdout 原文告诉用户，建议用户让塔拉拉先处理（完成或停止当前任务、提交云端改动），本地稍后再重试；不要手动删除锁文件，不要反复 push/sync/cloud-commit，本地提交已保留。';
+}
 
 export function isCloudWorkspaceBlockedMessage(message: string): boolean {
   return CLOUD_WORKSPACE_BLOCKED_PATTERN.test(message);
@@ -100,7 +117,7 @@ export function createGitFailure(input: {
     classification,
     retryable: retryDecision.retry,
     retryReason: retryDecision.reason,
-    nextAction: nextActionForFailure(classification),
+    nextAction: nextActionForFailure(classification) + gitLockGuidance(text),
   };
 }
 
@@ -211,6 +228,8 @@ function isNonRetryableGitFailure(message: string): boolean {
 }
 
 export function nextActionForFailure(classification: MakerGitFailure['classification']): string {
+  const remoteDiagnosis =
+    '先把 failure.stderr/stdout 的远端报错原文如实告诉用户，并据此判断原因；原因不明确时，用 `taptap-maker git cloud-status --target-dir <项目目录>` 查看云端状态、`taptap-maker git cloud-diff --target-dir <项目目录>` 查看差异（不含未跟踪文件内容）。若确认需要提交云端改动以完成用户要求的推送，可用 `taptap-maker git cloud-commit --target-dir <项目目录> --message MSG --all`（仅项目 owner；协作者无权提交云端改动，请告知用户联系项目所有者或让塔拉拉在 Maker 网页端提交），再用 `taptap-maker git sync --target-dir <项目目录>` 合并并重试原提交/构建操作。云端干净或错误另有原因时按实际原因处理，不要反复 sync 或提交；若此前 cloud-commit 超时或结果未知，先查状态，不要盲目重试。';
   switch (classification) {
     case 'git_missing':
       return '本机未检测到可用的 Git。请用户自行安装 Git，并在 `git --version` 可用后重启 MCP 客户端再重试；安装前不要执行 clone、fetch、commit 或 push。';
@@ -223,15 +242,15 @@ export function nextActionForFailure(classification: MakerGitFailure['classifica
     case 'forbidden_path':
       return '本地 commit 包含 Maker 远端禁止提交的路径或目录。远端 pre-receive hook 已返回具体 forbidden pattern；这不是鉴权问题，不要刷新 Maker PAT。请按 stderr 中的 pattern 找到对应文件，把这些路径从本地 commit 移除（例如保留工作区文件但取消跟踪后修正当前未推送 commit），确认 git status 不再包含这些路径后，再重试 maker_build_current_directory。';
     case 'cloud_workspace_blocked':
-      return 'Maker 云端工作区有未提交改动，远端拒绝了本次推送，自动提交云端改动未完成。请按 failure 信息处理，或运行 `taptap-maker git cloud-status --target-dir <项目目录>` 查看云端改动后重试 maker_build_current_directory。';
+      return `云端工作区阻塞推送，自动恢复未完成。${remoteDiagnosis}`;
     case 'merge_conflict':
       return '合并 Maker 远端 main 时发生冲突，已自动取消合并，本地提交和文件保持原样。请读取 failure.conflict_files 中文件的本地内容和 origin/main 的对应版本，确认保留方案后修改并提交，再重试 maker_build_current_directory。';
     case 'remote_rejected':
-      return '远端拒绝了本次推送。运行 `taptap-maker git sync --target-dir <项目目录>` 拉取并合并远端 main 后，再重试 maker_build_current_directory；不要新建分支。';
+      return `远端拒绝了本次推送，本地提交已保留。${remoteDiagnosis}`;
     case 'local':
       return '本地目录或权限异常。检查当前目录是否是 Maker git repo，以及 AI 客户端是否有目录写权限。';
     default:
-      return '保留本地提交，不要重复提交；把错误详情反馈给用户，并在确认后重试 maker_build_current_directory。';
+      return `保留本地提交，先根据原始错误判断失败原因。若涉及远端 Git：${remoteDiagnosis}`;
   }
 }
 

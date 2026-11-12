@@ -1,0 +1,281 @@
+{
+  "type": "Panel",
+  "id": "root",
+  "width": 2048,
+  "height": 1152,
+  "children": [
+    {
+      "backgroundFit": "fill",
+      "type": "Panel",
+      "id": "E001",
+      "width": 2048,
+      "height": 1152,
+      "position": "absolute",
+      "left": 0,
+      "top": 0,
+      "backgroundImage": "ui/s01-redesign-v1/images/background/E001-normal.png",
+      "children": []
+    },
+    {
+      "backgroundFit": "contain",
+      "type": "Panel",
+      "id": "E002",
+      "width": 577,
+      "height": 1100,
+      "position": "absolute",
+      "left": 205,
+      "top": 52,
+      "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_3f47c1b1-1109-4add-8b12-a4d5d29ff9b5_item_001.png"
+    },
+    {
+      "backgroundFit": "contain",
+      "type": "Panel",
+      "id": "E003",
+      "width": 560,
+      "height": 1080,
+      "position": "absolute",
+      "left": 1305,
+      "top": 72,
+      "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_3f47c1b1-1109-4add-8b12-a4d5d29ff9b5_item_002.png"
+    },
+    {
+      "backgroundFit": "contain",
+      "type": "Panel",
+      "id": "E004",
+      "width": 714,
+      "height": 423,
+      "position": "absolute",
+      "left": 702,
+      "top": 21,
+      "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_001.png"
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Button",
+      "id": "E005",
+      "width": 503,
+      "height": 103,
+      "position": "absolute",
+      "left": 796,
+      "top": 510,
+      "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_001.png",
+      "pressedBackgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_002.png",
+      "children": [
+        {
+          "backgroundFit": "contain",
+          "type": "Panel",
+          "id": "E006",
+          "width": 85,
+          "height": 100,
+          "position": "absolute",
+          "left": -21,
+          "top": 2,
+          "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_002.png"
+        },
+        {
+          "text": "START GAME",
+          "textAlign": "center",
+          "verticalAlign": "middle",
+          "fontSize": 44,
+          "fontWeight": "bold",
+          "fontColor": [255, 247, 237, 255],
+          "type": "Label",
+          "id": "T003",
+          "width": 313,
+          "height": 44,
+          "position": "absolute",
+          "left": 85,
+          "top": 29
+        }
+      ]
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Button",
+      "id": "E007",
+      "width": 486,
+      "height": 96,
+      "position": "absolute",
+      "left": 790,
+      "top": 620,
+      "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_003.png",
+      "pressedBackgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_004.png",
+      "children": [
+        {
+          "text": "SETTINGS",
+          "textAlign": "center",
+          "verticalAlign": "middle",
+          "fontSize": 41,
+          "fontWeight": "bold",
+          "fontColor": [245, 243, 239, 255],
+          "type": "Label",
+          "id": "T004",
+          "width": 208,
+          "height": 41,
+          "position": "absolute",
+          "left": 139,
+          "top": 24
+        }
+      ]
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Button",
+      "id": "E008",
+      "width": 486,
+      "height": 96,
+      "position": "absolute",
+      "left": 790,
+      "top": 724,
+      "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_003.png",
+      "pressedBackgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_004.png",
+      "children": [
+        {
+          "text": "GALLERY",
+          "textAlign": "center",
+          "verticalAlign": "middle",
+          "fontSize": 41,
+          "fontWeight": "bold",
+          "fontColor": [245, 243, 239, 255],
+          "type": "Label",
+          "id": "T005",
+          "width": 201,
+          "height": 41,
+          "position": "absolute",
+          "left": 142,
+          "top": 26
+        }
+      ]
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Button",
+      "id": "E009",
+      "width": 486,
+      "height": 96,
+      "position": "absolute",
+      "left": 790,
+      "top": 829,
+      "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_003.png",
+      "pressedBackgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_004.png",
+      "children": [
+        {
+          "text": "ONLINE MODE",
+          "textAlign": "center",
+          "verticalAlign": "middle",
+          "fontSize": 41,
+          "fontWeight": "bold",
+          "fontColor": [245, 243, 239, 255],
+          "type": "Label",
+          "id": "T006",
+          "width": 297,
+          "height": 41,
+          "position": "absolute",
+          "left": 97,
+          "top": 25
+        }
+      ]
+    },
+    {
+      "backgroundFit": "fill",
+      "type": "Panel",
+      "id": "E010",
+      "width": 550,
+      "height": 77,
+      "position": "absolute",
+      "left": 755,
+      "top": 972,
+      "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_005.png",
+      "children": [
+        {
+          "backgroundFit": "fill",
+          "type": "Button",
+          "id": "E011",
+          "width": 53,
+          "height": 53,
+          "position": "absolute",
+          "left": 26,
+          "top": 11,
+          "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_006.png",
+          "pressedBackgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_007.png",
+          "children": [
+            {
+              "backgroundFit": "contain",
+              "type": "Panel",
+              "id": "E012",
+              "width": 33,
+              "height": 33,
+              "position": "absolute",
+              "left": 10,
+              "top": 10,
+              "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_003.png"
+            }
+          ]
+        },
+        {
+          "backgroundFit": "fill",
+          "type": "Button",
+          "id": "E013",
+          "width": 53,
+          "height": 53,
+          "position": "absolute",
+          "left": 474,
+          "top": 11,
+          "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_006.png",
+          "pressedBackgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_007.png",
+          "children": [
+            {
+              "backgroundFit": "contain",
+              "type": "Panel",
+              "id": "E014",
+              "width": 33,
+              "height": 33,
+              "position": "absolute",
+              "left": 10,
+              "top": 10,
+              "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_003.png"
+            }
+          ]
+        },
+        {
+          "text": "PRESS ANY BUTTON",
+          "textAlign": "left",
+          "verticalAlign": "middle",
+          "fontSize": 35,
+          "fontWeight": "bold",
+          "fontColor": [245, 243, 239, 255],
+          "type": "Label",
+          "id": "T007",
+          "width": 347,
+          "height": 35,
+          "position": "absolute",
+          "left": 106,
+          "top": 20
+        }
+      ]
+    },
+    {
+      "backgroundFit": "contain",
+      "type": "Panel",
+      "id": "T001",
+      "width": 359,
+      "height": 124,
+      "position": "absolute",
+      "left": 685,
+      "top": 207,
+      "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_ca87904a-e955-42ae-9b3f-ab3d0a20be30_item_001.png"
+    },
+    {
+      "backgroundFit": "contain",
+      "type": "Panel",
+      "id": "T002",
+      "width": 401,
+      "height": 188,
+      "position": "absolute",
+      "left": 1038,
+      "top": 187,
+      "backgroundImage": "ui/s01-redesign-v1/assembled-v1/images/asset_282ca9cd-f040-4ebf-8a19-42ecc159c823_item_001.png"
+    }
+  ],
+  "name": "S01 original redesign"
+}

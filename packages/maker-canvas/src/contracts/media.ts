@@ -2,6 +2,7 @@ export interface SequenceSettings {
   start: number;
   end: number;
   fps: number;
+  sampling?: 'uniform' | 'adaptive';
   cutout: boolean;
   cutoutMode?: 'connected' | 'chroma';
   backgroundColor: string;
@@ -20,12 +21,23 @@ export interface VideoInfo {
 }
 
 export interface FrameSetFrame {
+  atlasPath?: string;
   index: number;
   time: number;
   x: number;
   y: number;
   width: number;
   height: number;
+  /**
+   * Trimmed atlas frames (TexturePacker sourceSize / spriteSourceSize): the untrimmed frame
+   * size and where this rect sits inside it. Absent means the rect is the whole frame.
+   */
+  sourceWidth?: number;
+  sourceHeight?: number;
+  offsetX?: number;
+  offsetY?: number;
+  /** Per-frame display time in milliseconds; absent plays at FrameSetInfo.fps. */
+  duration?: number;
 }
 
 export interface FrameSetInfo {
@@ -36,6 +48,11 @@ export interface FrameSetInfo {
   columns: number;
   rows: number;
   frames: FrameSetFrame[];
+  /** Full project paths for all atlas textures, in page order. */
+  atlasPaths?: string[];
+  missingPages?: string[];
+  /** Atlas page count. */
+  pages?: number;
 }
 
 export interface CanvasImageInfo {

@@ -140,7 +140,9 @@ describe('Maker MCP launcher', () => {
       for (const skill of [
         'maker-ui-workflow',
         'maker-ui-bbox-workflow',
+        'maker-scene-furniture-workflow',
         'lua-ui-to-json',
+        'maker-project-check',
         'taptap-maker-local',
         'taptap-maker-dev-kit-guide',
         'update-taptap-mcp',
@@ -169,10 +171,12 @@ describe('Maker MCP launcher', () => {
       const stableBundle = path.join(makerHome, 'mcp-runtime', '0.0.30-beta.2', 'dist', 'maker.js');
       expect(launcher).toEqual({
         kind: 'self_runtime',
-        command: process.execPath,
+        command: launcher.command,
         args: [stableBundle],
-        commandAndArgs: [process.execPath, stableBundle],
+        commandAndArgs: [launcher.command, stableBundle],
       });
+      expect(path.isAbsolute(launcher.command)).toBe(true);
+      expect(fs.realpathSync(launcher.command)).toBe(fs.realpathSync(process.execPath));
       expect(fs.readFileSync(stableBundle, 'utf8')).toBe('// maker bundle');
       for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
         expect(
@@ -321,7 +325,9 @@ describe('Maker MCP launcher', () => {
       for (const skill of [
         'maker-ui-workflow',
         'maker-ui-bbox-workflow',
+        'maker-scene-furniture-workflow',
         'lua-ui-to-json',
+        'maker-project-check',
         'taptap-maker-local',
         'taptap-maker-dev-kit-guide',
         'update-taptap-mcp',
@@ -380,7 +386,9 @@ function createSelfRuntimeFixture(prefix: string): {
   for (const skill of [
     'maker-ui-workflow',
     'maker-ui-bbox-workflow',
+    'maker-scene-furniture-workflow',
     'lua-ui-to-json',
+    'maker-project-check',
     'taptap-maker-local',
     'taptap-maker-dev-kit-guide',
     'update-taptap-mcp',

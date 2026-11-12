@@ -5,6 +5,7 @@ import type { prepareCanvasNodeUpdatesWithValidation } from '../features/automat
 import type { CanvasDocument, CanvasEdge, CanvasNode } from '../contracts.js';
 import {
   canvasAutomationSnapshot,
+  canvasNodeGeometryValue,
   validateCanvasCommandStructure,
 } from '../features/automation.js';
 import { invalidateCanvasDependents } from '../features/templateWorkflow.js';
@@ -193,7 +194,17 @@ export function createCanvasAutomationUiWithHost(options: {
       throw invalid('title 必须为 1～80 字符；省略时使用文件名。');
     const title =
       input.title ?? (segments[segments.length - 1].replace(/\.[^.]+$/, '') || '图片').slice(0, 80);
-    return { assetPath: path, kind, title };
+    if (
+      input.frameSetInfo !== undefined &&
+      (kind !== 'image' || input.prompt !== undefined || input.sourceId !== undefined)
+    )
+      throw invalid('动画图集不能与视频、prompt 或 sourceId 混用。');
+    return {
+      assetPath: path,
+      kind,
+      title,
+      ...(input.frameSetInfo === undefined ? {} : { frameSetInfo: input.frameSetInfo }),
+    };
   }
   /** Same generation shape the page writes, so Web treats the card as an AI slot with this prompt. */
   function recordAgentGeneration(current: CanvasDocument, target: CanvasNode, prompt: string) {
@@ -274,7 +285,7 @@ export function createCanvasAutomationUiWithHost(options: {
       'confirm-image-assets': ['id', 'reviewId'],
       stop: ['id'],
       query: ['id'],
-      import: ['assetPath', 'kind', 'title', 'prompt', 'sourceId'],
+      import: ['assetPath', 'kind', 'title', 'prompt', 'sourceId', 'frameSetInfo'],
       export: ['id', 'format', 'loop'],
       'set-references': ['id', 'sourceIds', 'includeSelf'],
       undo: [],
@@ -756,24 +767,39 @@ export function createCanvasAutomationUiWithHost(options: {
           current.nodes.push(node);
           options.select([node.id]);
           options.changed();
-        } else if (input.type === 'model' || input.type === 'model-views') {
-          const source = node(input.sourceId, current);
-          if (options.nodeBlocked(source.id)) throw invalid('来源卡片正在执行，请稍后创建。');
-          options.addDerived(input.type, source.id);
-        } else if (input.type === 'sequence' || input.type === 'animation') {
-          const source = node(input.sourceId, current);
-          if (
-            options.nodeBlocked(source.id) ||
-            source.templatePending ||
-            !source.assetPath ||
-            source.type !== (input.type === 'sequence' ? 'video-source' : 'sequence')
-          )
-            throw invalid('派生卡片需要已就绪且类型匹配的来源。');
-          options.addDerived(input.type, source.id);
-          if (options.error()) throw new Error(options.error());
         } else {
-          if (input.sourceId !== undefined) throw invalid('此卡片不接受 sourceId。');
-          options.add(String(input.type));
+          const layout: Partial<Pick<CanvasNode, 'x' | 'y' | 'width' | 'height'>> = {};
+          for (const key of Object.keys(input)) {
+            if (key === 'x' || key === 'y' || key === 'width' || key === 'height')
+              layout[key] = validated(() =>
+                canvasNodeGeometryValue(input.type as CanvasNode['type'], key, input[key])
+              );
+            else if (key !== 'type' && key !== 'sourceId')
+              throw invalid(key + ' 仅适用于标注卡片。');
+          }
+          if (input.type === 'model' || input.type === 'model-views') {
+            const source = node(input.sourceId, current);
+            if (options.nodeBlocked(source.id)) throw invalid('来源卡片正在执行，请稍后创建。');
+            options.addDerived(input.type, source.id);
+          } else if (input.type === 'sequence' || input.type === 'animation') {
+            const source = node(input.sourceId, current);
+            if (
+              options.nodeBlocked(source.id) ||
+              source.templatePending ||
+              !source.assetPath ||
+              source.type !== (input.type === 'sequence' ? 'video-source' : 'sequence')
+            )
+              throw invalid('派生卡片需要已就绪且类型匹配的来源。');
+            options.addDerived(input.type, source.id);
+            if (options.error()) throw new Error(options.error());
+          } else {
+            if (input.sourceId !== undefined) throw invalid('此卡片不接受 sourceId。');
+            options.add(String(input.type));
+          }
+          if (options.error()) throw new Error(options.error());
+          const created = node(options.selected()[0], current);
+          Object.assign(created, layout);
+          options.changed();
         }
       } else if (command.action === 'update-nodes') {
         const updates = validated(() => options.prepareNodeUpdates(current, input));
@@ -853,6 +879,8 @@ export function createCanvasAutomationUiWithHost(options: {
         const apply = fill ? options.fillSlot : options.replaceImage;
         if (!apply) throw invalid('当前宿主未接入图片原位回填。');
         await apply(target.id, input.assetPath);
+        // A supplied result completes this step; only its consumers need regeneration.
+        delete target.templatePending;
         if (typeof input.prompt === 'string') recordAgentGeneration(current, target, input.prompt);
         options.resetDraft(target.id);
         invalidateCanvasDependents(current, target.id);

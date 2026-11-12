@@ -4,7 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { MakerCanvasFiles } from '../files.js';
 import { createId, emptyDocument } from '../model.js';
-import { createCanvasTemplateModel, isBuiltinCanvasTemplate } from '../templates.js';
+import {
+  createCanvasTemplateModel,
+  isBuiltinCanvasTemplate,
+  templateCoverAnimation,
+  templateCoverNode,
+} from '../templates.js';
 import { isCanvasNodeStale } from '../dependencies.js';
 import { canvasNeedsProcessing, invalidateCanvasDependents } from '../templateWorkflow.js';
 import { canvasPresets, builtinCanvasTemplates } from '../presets.js';
@@ -40,8 +45,8 @@ test('lists portable presets without importing assets or creating a canvas', asy
     '二合图标生成 · 风格参考→升级图集→游戏资产',
     'UI风格裂变 · 同一界面→三种风格',
     '角色概念设计 · 角色参考→完整展示图',
-    '游戏UI制作',
-    '游戏UI制作 · Bbox预排参考图（实验）',
+    '游戏UI制作 · Bbox预排参考图',
+    '场景家具 · 独立入场动画',
   ]);
   expect(templates.every((template) => template.builtin && !('assets' in template))).toBe(true);
   expect(await files.list()).toEqual([]);
@@ -267,58 +272,6 @@ test('crop preset contains five aligned transparent stages whose pixels match th
   expect(prompt).toContain('排列：5列×1行');
 });
 
-test('new game UI workflow keeps examples but starts every downstream step pending', async () => {
-  const canvas = await files.create('新游戏UI流程');
-  const preset = canvasPresets().find((item) => item.name === '游戏UI制作')!;
-  const prepared = await files.prepareTemplate(preset.id, canvas.id);
-  const before = JSON.stringify(prepared);
-  const instance = model.instantiate(prepared, { x: 0, y: 0 });
-  canvas.nodes = instance.nodes;
-  canvas.edges = instance.edges;
-  const source = canvas.nodes.find(
-    (node) => node.type === 'image' && !canvas.edges.some((edge) => edge.to === node.id)
-  )!;
-  expect(source.assetPath).toBeTruthy();
-  expect(source.uiRecognition).toMatchObject({ inputRole: 'design', optional: true });
-  const design = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
-  const clean = canvas.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free')!;
-  expect(design.id).toBe(source.id);
-  expect(design.uiRecognition?.results).toEqual([]);
-  expect(clean.uiRecognition?.results).toEqual([]);
-  expect(canvasNeedsProcessing(canvas, source)).toBe(false);
-  const atlases = canvas.nodes.filter((node) => node.uiAtlasGroup);
-  const background = canvas.nodes.find((node) => node.title.includes('背景准备'))!;
-  expect(canvas.edges).toContainEqual(
-    expect.objectContaining({ from: clean.id, to: background.id, kind: 'image-variant' })
-  );
-  expect(atlases).toHaveLength(6);
-  for (const atlas of atlases)
-    expect(canvas.edges).toContainEqual(
-      expect.objectContaining({
-        from: ['panels', 'background'].includes(atlas.uiAtlasGroup!) ? background.id : clean.id,
-        to: atlas.id,
-        kind: 'image-variant',
-      })
-    );
-  const downstream = canvas.nodes.filter((node) =>
-    canvas.edges.some((edge) => edge.to === node.id)
-  );
-  expect(downstream).toHaveLength(19);
-  for (const node of downstream) {
-    expect(Boolean(node.templatePending)).toBe(node.type !== 'resource-bundle');
-    expect(canvasNeedsProcessing(canvas, node)).toBe(true);
-    if (node.type === 'image') expect(node.assetPath).toBeTruthy();
-    if (node.type === 'image-assets') expect(node.imageAssetsInfo?.items.length).toBeGreaterThan(0);
-  }
-  expect(clean.templatePending).toBe(true);
-  const saved = await files.save(canvas.id, canvas, canvas.revision);
-  const reopened = await files.load(saved.id);
-  expect(reopened.nodes.filter((node) => node.templatePending)).toHaveLength(
-    downstream.filter((node) => node.type !== 'resource-bundle').length
-  );
-  expect(JSON.stringify(prepared)).toBe(before);
-});
-
 test.each([4, 5, 6])(
   'asset preset %i starts pending and preserves completed state until reference changes',
   async (index) => {
@@ -480,6 +433,98 @@ test('protects builtins and rejects invalid preparation before importing media',
     code: 'NOT_FOUND',
   });
   expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+});
+
+test('furniture preset previews the full result and restores portable independent instances', async () => {
+  const preset = presetByNumber(16);
+  const listed = (await files.listTemplates()).find((item) => item.id === preset.id)!;
+  expect(listed.skills).toEqual(['maker-scene-furniture-workflow']);
+  expect(listed.platforms).toEqual(['local']);
+  expect(listed.cliOnly).toBe(true);
+  const cover = templateCoverNode(listed)!;
+  expect(cover.type).toBe('animation');
+  expect(listed.revision).toBe(5);
+  expect(
+    listed.nodes
+      .filter((node) => node.type === 'image')
+      .slice(0, 2)
+      .every((node) => node.title.includes('欧卡皇室'))
+  ).toBe(true);
+  expect(cover.frameSetInfo?.frames).toHaveLength(120);
+  const preview = templateCoverAnimation(listed)!;
+  expect(preview.frames).toHaveLength(120);
+  expect(preview.fps).toBeLessThanOrEqual(12);
+  expect(preview.frames.length / preview.fps).toBeCloseTo(10.125);
+  expect(templateCoverNode(listed, 1)?.title).toBe('示例 · 王座');
+  expect(templateCoverNode(listed, 2)?.title).toBe('示例 · 地毯');
+  expect(templateCoverNode(listed, 3)?.title).toBe('示例 · 书桌');
+  expect(templateCoverNode(listed, 4)?.title).toBe('示例 · 书柜');
+  expect(templateCoverNode(listed, 5)).toBeUndefined();
+  for (const localMarker of ['/Users/', '.maker/', 'cgt-202611', 'new-user-seaside'])
+    expect(JSON.stringify(preset)).not.toContain(localMarker);
+  expect(Object.values(preset.assets).every((asset) => asset.resourceId)).toBe(true);
+
+  const recipe = JSON.parse(
+    fs.readFileSync('skills/maker-scene-furniture-workflow/assets/royal-room-recipe.json', 'utf8')
+  );
+  expect(Object.keys(recipe.sources)).toHaveLength(7);
+  expect(recipe.objects).toHaveLength(25);
+  expect(recipe.objects.filter((item: { reuseOf?: string }) => !item.reuseOf)).toHaveLength(21);
+  for (const source of Object.values(recipe.sources) as Array<{
+    resourceId: string;
+    sha256: string;
+    cdn: string;
+  }>) {
+    expect(
+      Object.values(preset.assets).some((asset) => asset.resourceId === source.resourceId)
+    ).toBe(true);
+    expect(source.sha256).toBe(source.resourceId);
+    expect(source.cdn.startsWith('https://')).toBe(true);
+  }
+
+  const canvas = await files.create('官方家具模板');
+  const prepared = await files.prepareTemplate(preset.id, canvas.id);
+  const first = model.instantiate(prepared, { x: 0, y: 0 });
+  const second = model.instantiate(prepared, { x: 5000, y: 0 });
+  expect(first.nodes.every((node) => !second.nodes.some((other) => node.id === other.id))).toBe(
+    true
+  );
+  expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+  const video = first.nodes.find((node) => node.type === 'video-source')!;
+  expect(video.videoInputMode).toBe('first_last_frame');
+  expect(
+    first.edges
+      .filter((edge) => edge.to === video.id)
+      .map((edge) => edge.kind)
+      .sort()
+  ).toEqual(['frame-first', 'frame-last']);
+  expect(
+    video.generation?.sourceImageIds?.every((id) => first.nodes.some((node) => node.id === id))
+  ).toBe(true);
+  expect(first.nodes.filter((node) => node.type === 'animation')).toHaveLength(22);
+  const instance = { ...canvas, nodes: first.nodes, edges: first.edges };
+  const sequence = first.nodes.find((node) => node.type === 'sequence')!;
+  const animation = first.nodes.find((node) => node.type === 'animation')!;
+  expect(canvasNeedsProcessing(instance, sequence)).toBe(false);
+  expect(canvasNeedsProcessing(instance, animation)).toBe(false);
+  const changed = structuredClone(instance);
+  const reference = changed.nodes.find((node) => node.type === 'image')!;
+  reference.assetPath = '.maker/canvases/images/canvas-' + createId() + '.png';
+  invalidateCanvasDependents(changed, reference.id);
+  expect(
+    canvasNeedsProcessing(changed, changed.nodes.find((node) => node.id === sequence.id)!)
+  ).toBe(true);
+  expect(
+    canvasNeedsProcessing(changed, changed.nodes.find((node) => node.id === animation.id)!)
+  ).toBe(true);
+  const custom = model.instantiate({ ...prepared, builtin: false }, { x: 0, y: 0 });
+  expect(custom.nodes.find((node) => node.type === 'sequence')?.templatePending).toBe(true);
+  const saved = await files.save(
+    canvas.id,
+    { ...canvas, nodes: first.nodes, edges: first.edges },
+    canvas.revision
+  );
+  expect((await files.load(canvas.id)).nodes).toEqual(saved.nodes);
 });
 
 test('four directions preserve distinct neutral examples and keep outputs explicitly pending', async () => {

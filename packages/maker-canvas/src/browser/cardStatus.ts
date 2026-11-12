@@ -1,4 +1,5 @@
-export type CanvasCardStatus = 'loading' | 'waiting' | 'paused' | 'failed' | 'unknown';
+/** `missing` is set by the page when a card's file can't be read; canvasCardStatus never returns it. */
+export type CanvasCardStatus = 'loading' | 'waiting' | 'paused' | 'failed' | 'unknown' | 'missing';
 
 export function canvasCardStatus(input: {
   busy?: boolean;
@@ -48,6 +49,7 @@ export function renderCanvasCardStatus(
     paused: ['等待继续', '选择卡片，继续处理或调整参数'],
     failed: ['处理失败', '本次未完成，可查看原因后重试'],
     unknown: ['结果待确认', '请先查询原任务，确认结果后再决定是否重新生成'],
+    missing: ['素材丢失', '无法加载图片或视频；文件可能已删除、归档或移出项目，恢复后刷新重试'],
   };
   const overlay = document.createElement('div');
   overlay.className = 'card-state-overlay card-state-' + state;

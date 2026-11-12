@@ -33,7 +33,9 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 const SHARED_SKILLS = [
   'maker-ui-workflow',
   'maker-ui-bbox-workflow',
+  'maker-scene-furniture-workflow',
   'lua-ui-to-json',
+  'maker-project-check',
   'taptap-maker-local',
   'taptap-maker-dev-kit-guide',
 ];
@@ -303,9 +305,34 @@ async function main() {
   rmSync(join(localSkill, 'references'), { recursive: true });
   const localEntry = join(localSkill, 'SKILL.md');
   writeFileSync(localEntry, readFileSync(localEntry, 'utf8').replaceAll('(references/', '('));
+  const furnitureSkill = join(pluginRoot, 'skills/maker-scene-furniture-workflow');
+  for (const directory of ['assets', 'references', 'scripts']) {
+    for (const name of readdirSync(join(furnitureSkill, directory))) {
+      renameSync(join(furnitureSkill, directory, name), join(furnitureSkill, name));
+    }
+    rmSync(join(furnitureSkill, directory), { recursive: true });
+  }
+  for (const name of ['SKILL.md', 'game-integration.md', 'scene_assets.py']) {
+    const file = join(furnitureSkill, name);
+    writeFileSync(
+      file,
+      readFileSync(file, 'utf8')
+        .replaceAll(
+          "Path(__file__).parent.parent/'references/game-integration.md'",
+          "Path(__file__).parent/'game-integration.md'"
+        )
+        .replaceAll('assets/royal-room-recipe.json', 'royal-room-recipe.json')
+        .replaceAll('assets/SceneFurniturePlayer.lua', 'SceneFurniturePlayer.lua')
+        .replaceAll('references/recipe.md', 'recipe.md')
+        .replaceAll('references/game-integration.md', 'game-integration.md')
+        .replaceAll('scripts/scene_assets.py', 'scene_assets.py')
+    );
+  }
   const uiSkill = join(pluginRoot, 'skills/maker-ui-workflow');
   renameSync(join(uiSkill, 'scripts/assemble-ui.mjs'), join(uiSkill, 'assemble-ui.mjs'));
   renameSync(join(uiSkill, 'references/workflow.md'), join(uiSkill, 'workflow.md'));
+  renameSync(join(uiSkill, 'references/responsive.md'), join(uiSkill, 'responsive.md'));
+  renameSync(join(uiSkill, 'references/layout.md'), join(uiSkill, 'layout.md'));
   renameSync(join(uiSkill, 'references/chatgpt-web.md'), join(uiSkill, 'chatgpt-web.md'));
   for (const directory of ['scripts', 'references'])
     rmSync(join(uiSkill, directory), { recursive: true });
@@ -316,6 +343,8 @@ async function main() {
       readFileSync(file, 'utf8')
         .replaceAll('scripts/assemble-ui.mjs', 'assemble-ui.mjs')
         .replaceAll('references/workflow.md', 'workflow.md')
+        .replaceAll('references/responsive.md', 'responsive.md')
+        .replaceAll('references/layout.md', 'layout.md')
         .replaceAll('references/chatgpt-web.md', 'chatgpt-web.md')
     );
   }
@@ -340,6 +369,15 @@ async function main() {
         .replaceAll('references/diagnostics.md', 'diagnostics.md')
         .replaceAll('references/nanovg.md', 'nanovg.md')
         .replaceAll('../runtime/MakerNanoVG.lua', 'MakerNanoVG.lua')
+        .replaceAll(
+          '../../maker-ui-workflow/references/responsive.md',
+          '../maker-ui-workflow/responsive.md'
+        )
+        .replaceAll(
+          '../maker-ui-workflow/references/responsive.md',
+          '../maker-ui-workflow/responsive.md'
+        )
+        .replaceAll('../maker-ui-workflow/references/layout.md', '../maker-ui-workflow/layout.md')
     );
   }
 

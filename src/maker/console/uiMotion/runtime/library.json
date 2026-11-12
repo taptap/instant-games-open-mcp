@@ -1,0 +1,11 @@
+{
+  "name": "LuaTween",
+  "source": "https://github.com/529951164/Lua-Tween",
+  "commit": "a2eedd07e4b06c681ee3d2386d2e3c72c0582479",
+  "upstreamSha256": "36d6fbdccc8be2b2d96797192c323b4b285ab4b72558e7c5fb467f557d9f7767",
+  "sha256": "73c03fb707f550f677adcf240d6bd5c3eef8b42c47a0fd6ca952cdfa9ba499a0",
+  "path": "scripts/LuaTween.lua",
+  "readme": "docs/luatween/README.md",
+  "api": "docs/luatween/LuaTween.md",
+  "integration": "docs/LuaTween-integration.md"
+}

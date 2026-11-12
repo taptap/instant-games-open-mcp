@@ -13,6 +13,8 @@ import {
 } from './documents.js';
 import { MAX_UI_JSON, uiEditorManifest } from './projectFiles.js';
 import { readUiEditorAsset } from './assets.js';
+import { uiPreviewDevices, uiRenderOptions } from './renderBridge.js';
+import { renderUiDocument } from './renderCli.js';
 
 export const uiCliCapabilities = {
   version: 1,
@@ -22,6 +24,8 @@ export const uiCliCapabilities = {
     'create',
     'patch',
     'check',
+    'preview',
+    'layout',
     'open',
     'capabilities',
     'nanovg-adapter',
@@ -34,7 +38,19 @@ export const uiCliCapabilities = {
   concurrency:
     'patch requires --revision <SHA-256 from inspect>. All operations validate before one atomic save.',
   dryRun: 'create and patch support --dry-run. No project files or directories are written.',
-  open: 'Opens the integrated console editor; --no-open returns the URL only. Other commands need no running browser or server.',
+  open: 'Opens the integrated console editor; --no-open returns the URL only. preview/layout require a connected editor page for the same project; document commands need no browser.',
+  rendering: {
+    designMapping:
+      'Root previewFit=contain with positive numeric width/height declares a verified game-side centered design-coordinate mapping. It overrides DEFAULT and explicit UI scale for preview only; physicalBounds include centering, while layout/visualBounds retain design coordinates. Does not install a runtime transform.',
+    commands:
+      'ui preview|layout --target-dir PATH --file assets/ui/screen.ui.json [--device ID] [--orientation portrait|landscape] [--width N --height N] [--component-preview] [--id ID | --pointer POINTER]',
+    options:
+      'Optional --input/--input-file JSON: {device,orientation,width,height,dpr,scale,designResolution:{width,height},safeArea:{top,right,bottom,left},nativeMenuBottom,componentPreview,id,pointer}. Do not repeat fields in flags and JSON. Dimensions and insets are physical pixels; custom width/height are used as supplied. designResolution simulates UI.Scale.DESIGN_RESOLUTION across devices and cannot be combined with scale; CLI does not inherit browser preferences.',
+    output:
+      'preview writes a clean PNG to Maker home/ui-previews or --output-file ABSOLUTE.png (exclusive, never overwrite). Both return saved revision, viewport, expanded nodes with logical layout, transformed visualBounds and physicalBounds, and warnings. Pointers in results address the expanded tree; input selectors address the saved tree.',
+    boundary:
+      'A detached renderer reuses the editor Yoga and Canvas implementation without touching live drafts or preview settings. Not headless; keep the project editor open. Missing assets are warnings. Not engine validation. Components retain natural size unless --component-preview is set. Jobs expire; closing the editor may require retrying this read-only operation.',
+  },
   operations: [
     { op: 'set', id: 'title', props: { text: 'Title', left: 24 }, unset: ['right'] },
     {
@@ -107,23 +123,51 @@ export async function runUiCli(
       create: ['target_dir', 'file', 'input', 'input_file', 'dry_run'],
       patch: ['target_dir', 'file', 'revision', 'input', 'input_file', 'dry_run'],
       check: ['target_dir', 'file'],
+      preview: [
+        'target_dir',
+        'file',
+        'device',
+        'orientation',
+        'width',
+        'height',
+        'component_preview',
+        'id',
+        'pointer',
+        'input',
+        'input_file',
+        'output_file',
+      ],
+      layout: [
+        'target_dir',
+        'file',
+        'device',
+        'orientation',
+        'width',
+        'height',
+        'component_preview',
+        'id',
+        'pointer',
+        'input',
+        'input_file',
+      ],
       open: ['target_dir', 'file', 'no_open'],
     };
     if (!action || !Object.hasOwn(allowed, action))
       throw new ConsoleError(
-        '使用 ui list|inspect|create|patch|check|open|capabilities|nanovg-adapter。'
+        '使用 ui list|inspect|create|patch|check|preview|layout|open|capabilities|nanovg-adapter。'
       );
     for (const key of Object.keys(options)) {
-      if (!['json', 'maker_env', ...allowed[action]].includes(key))
+      if (!['json', 'env', ...allowed[action]].includes(key))
         throw new ConsoleError('不支持的参数：--' + key.replace(/_/g, '-'));
     }
-    for (const flag of ['json', 'dry_run', 'no_open']) {
+    for (const flag of ['json', 'dry_run', 'no_open', 'component_preview']) {
       if (options[flag] !== undefined && typeof options[flag] !== 'boolean')
         throw new ConsoleError('--' + flag.replace(/_/g, '-') + ' 不接受字符串值。');
     }
     if (action === 'capabilities') {
       print({
         ...uiCliCapabilities,
+        devices: uiPreviewDevices(),
         nanovg: {
           ...uiCliCapabilities.nanovg,
           commands: nanoVGOperations(),
@@ -169,6 +213,47 @@ export async function runUiCli(
     if (typeof options.file !== 'string')
       throw new ConsoleError('需要 --file 指定 assets 内的 .ui.json 文档。');
     const file = options.file;
+    if (action === 'preview' || action === 'layout') {
+      const input =
+        options.input !== undefined || options.input_file !== undefined
+          ? await readInput(options)
+          : {};
+      if (!input || typeof input !== 'object' || Array.isArray(input))
+        throw new ConsoleError('预览参数必须是 JSON 对象。');
+      const renderOptions = { ...input } as Record<string, unknown>;
+      for (const key of [
+        'device',
+        'orientation',
+        'width',
+        'height',
+        'component_preview',
+        'id',
+        'pointer',
+      ]) {
+        if (options[key] === undefined) continue;
+        const field = key === 'component_preview' ? 'componentPreview' : key;
+        if (Object.prototype.hasOwnProperty.call(renderOptions, field))
+          throw new ConsoleError('重复指定预览参数：' + field);
+        if (key !== 'component_preview' && typeof options[key] !== 'string')
+          throw new ConsoleError('--' + key + ' 缺少值。');
+        renderOptions[field] = ['width', 'height'].includes(key)
+          ? Number(options[key])
+          : options[key];
+      }
+      uiRenderOptions(renderOptions);
+      if (options.output_file !== undefined && typeof options.output_file !== 'string')
+        throw new ConsoleError('--output-file 缺少值。');
+      print(
+        await renderUiDocument(
+          root,
+          file,
+          action,
+          renderOptions,
+          options.output_file as string | undefined
+        )
+      );
+      return;
+    }
     if (action === 'create' || action === 'patch') {
       if (action === 'patch' && typeof options.revision !== 'string')
         throw new ConsoleError('patch 需要 inspect 返回的 --revision。');

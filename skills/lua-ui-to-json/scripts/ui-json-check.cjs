@@ -1,6 +1,6 @@
 (function (root) {
   "use strict";
-  var previewTypes = new Set(["Panel", "Label", "Button", "NanoVG"]);
+  var previewTypes = new Set(["Panel", "Label", "Button", "NanoVG", "SafeAreaView", "ScrollView"]);
   // An allowlist shared by the browser, CLI and standalone document checker.
   var nanoOps = {
     save: "", restore: "", beginPath: "", closePath: "", fill: "", stroke: "",
@@ -73,7 +73,7 @@
     "left", "right", "top", "bottom", "padding", "paddingLeft", "paddingRight",
     "paddingTop", "paddingBottom", "paddingHorizontal", "paddingVertical",
     "margin", "marginLeft", "marginRight", "marginTop", "marginBottom",
-    "marginHorizontal", "marginVertical", "gap", "flexBasis"];
+    "marginHorizontal", "marginVertical", "gap", "rowGap", "columnGap", "flexBasis"];
   var enums = {
     position: ["relative", "absolute"],
     backgroundFit: ["fill", "contain", "cover", "sliced"],
@@ -81,11 +81,20 @@
     flexDirection: ["row", "column", "row-reverse", "column-reverse"],
     textAlign: ["left", "center", "right"],
     verticalAlign: ["top", "middle", "bottom"],
+    whiteSpace: ["nowrap", "normal"],
   };
   function token(value) { return typeof value === "string" && value.charAt(0) === "$"; }
   function length(value) {
     return typeof value === "number" && Number.isFinite(value) ||
       typeof value === "string" && /^(auto|-?\d+(?:\.\d+)?%?)$/.test(value);
+  }
+  function previewFitError(node, isRoot) {
+    if (node.previewFit === undefined) return null;
+    if (!isRoot || node.previewFit !== "contain") return "previewFit 仅允许在文档根节点声明 contain。";
+    if (!(Number.isFinite(node.width) && node.width > 0 && Number.isFinite(node.height) && node.height > 0)) {
+      return "设计坐标等比居中需要根节点 width、height 为正数；百分比布局应移除 previewFit。";
+    }
+    return null;
   }
   function checkDocument(options) {
     var diagnostics = [], ids = new Map(), count = 0, limited = false, parameterized = false;
@@ -119,6 +128,8 @@
       if (!node || typeof node !== "object" || Array.isArray(node)) {
         issue("UI_NODE", "error", pointer, "节点必须是对象。"); return;
       }
+      var mappingError = previewFitError(node, depth === 0);
+      if (mappingError) issue("UI_PREVIEW_FIT", "error", pointer + "/previewFit", mappingError);
       if (typeof node.type !== "string" || !node.type.trim()) {
         issue("UI_NODE_TYPE", "error", pointer + "/type", "每个节点都需要非空 type。");
       } else if (!previewTypes.has(node.type)) {
@@ -133,6 +144,19 @@
             "；首次出现于 " + ids.get(node.id));
         } else ids.set(node.id, pointer + "/id");
       }
+      if (node.aspectRatio != null && !token(node.aspectRatio) &&
+          !(typeof node.aspectRatio === "number" && Number.isFinite(node.aspectRatio) && node.aspectRatio > 0)) {
+        issue("UI_ASPECT_RATIO", "error", pointer + "/aspectRatio", "宽高比必须是正数。");
+      }
+      if (node.type === "SafeAreaView") {
+        if (node.nativeMenuInset != null && !token(node.nativeMenuInset) && typeof node.nativeMenuInset !== "boolean")
+          issue("UI_SAFE_AREA", "error", pointer + "/nativeMenuInset", "胶囊避让必须是布尔值。");
+        if (node.edges != null && !token(node.edges) && !["all", "none", "horizontal", "vertical"].includes(node.edges) &&
+            !(Array.isArray(node.edges) && node.edges.every(function (edge) { return ["top", "right", "bottom", "left"].includes(edge); })))
+          issue("UI_SAFE_AREA", "error", pointer + "/edges", "安全区方向应为 all/none/horizontal/vertical 或方向数组。");
+        if (node.mode != null && !token(node.mode) && !["padding", "margin"].includes(node.mode))
+          issue("UI_SAFE_AREA", "error", pointer + "/mode", "安全区避让方式应为 padding 或 margin。");
+      }
       Object.keys(node).forEach(function (key) {
         var value = node[key], at = pointer + "/" + key.replace(/~/g, "~0").replace(/\//g, "~1");
         if (key.charAt(0) === "_") issue("UI_INTERNAL_FIELD", "error", at, "导出含编辑器内部字段。");
@@ -140,6 +164,15 @@
         if (token(value)) { parameterized = true; return; }
         if (typeof value === "number" && !Number.isFinite(value)) {
           issue("UI_NUMBER", "error", at, "数值必须有限。"); return;
+        }
+        if (key === "lineHeight" && (typeof value !== "number" || value <= 0)) {
+          issue("UI_LINE_HEIGHT", "error", at, "行高倍数必须是大于 0 的有限数值。");
+        }
+        if (key === "letterSpacing" && typeof value !== "number") {
+          issue("UI_LETTER_SPACING", "error", at, "字间距必须是有限数值。");
+        }
+        if (key === "backgroundImageOpacity" && (typeof value !== "number" || value < 0 || value > 1)) {
+          issue("UI_OPACITY", "error", at, "图片透明度应为 0 到 1 的数值。");
         }
         if (lengths.includes(key) && !length(value)) {
           issue("UI_LENGTH", "error", at, "尺寸/位置必须是有限数值、百分比或受支持的 auto。");
@@ -150,7 +183,7 @@
         if (enums[key] && !enums[key].includes(value)) {
           issue("UI_ENUM", "error", at, "不支持的枚举值：" + String(value));
         }
-        if (["visible", "disabled", "locked"].includes(key) && typeof value !== "boolean") {
+        if (["visible", "disabled", "locked", "scrollY", "showScrollbar"].includes(key) && typeof value !== "boolean") {
           issue("UI_BOOLEAN", "error", at, "此字段必须是布尔值。");
         }
         if (key === "opacity" && (typeof value !== "number" || value < 0 || value > 1)) {
@@ -200,7 +233,7 @@
         .concat(options.resourceExists ? [] : ["resource-existence"]),
     };
   }
-  var api = { checkDocument: checkDocument, checkNanoVG: checkNanoVG, nanoOps: nanoOps };
+  var api = { checkDocument: checkDocument, checkNanoVG: checkNanoVG, nanoOps: nanoOps, previewFitError: previewFitError };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.UrhoxUICheck = api;
 })(typeof window !== "undefined" ? window : globalThis);

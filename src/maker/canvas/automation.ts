@@ -17,6 +17,18 @@ export {
 } from '../../../packages/maker-canvas/src/features/automation.js';
 export function canvasAutomationCapabilities() {
   return {
+    guides: {
+      overview: 'skills/taptap-maker-local/references/canvas.md',
+      video: 'skills/taptap-maker-local/references/canvas-video.md',
+      instruction:
+        'Paths are relative to the active Maker distribution. Prefer the guide links in the installed taptap-maker-local SKILL.md (locate it via status); plugin layouts such as WorkBuddy place these guides beside SKILL.md instead of under references. Read only the matching feature section. actions lists page automation actions, not every CLI query. unsupported describes CLI limits, not all UI capabilities. A blocked card is not proof that a feature is unsupported.',
+    },
+    multiProject: {
+      pages: 'canvas pages --target-dir PATH',
+      sessions: 'canvas sessions --target-dir PATH',
+      policy:
+        'Different projects share one compatible console service and use their own canvases. Pass --session-id ID with project-scoped canvas CLI calls, reusing the same conversation ID across canvases. If unavailable, generate one ID for the conversation. The service stores only sessionId and lastOperationAt per project, using server UTC time at invocation; this does not require a browser. sessions is read-only, even with --session-id. capabilities is project-independent and does not register. Calls without --session-id keep existing behavior and are not recorded. Entries last until the service restarts; no occupancy, timeout or access decisions are made. Agents read the records and decide whether to proceed. Existing command execution requirements still apply. Do not stop the shared service when your task ends.',
+    },
     modelSettings: {
       command: 'canvas model-settings --target-dir PATH',
       policy:
@@ -29,7 +41,24 @@ export function canvasAutomationCapabilities() {
         'Recognition and completed resource bundles are archived locally on save. Commands work without a browser or model. ui-archives is read-only; archive-ui snapshots saved data, never unsaved drafts. Use bboxPath and bindingsPath from the same revision; never guess the latest file.',
     },
     actions: [...CANVAS_COMMAND_ACTIONS],
+    limits: { updateNodesPerCommand: 100 },
+    templateDiscovery: {
+      search: 'canvas templates --target-dir PATH --q "keyword" [--page N]',
+      import: 'canvas import-template --target-dir PATH --file ABSOLUTE_TEMPLATE_ZIP',
+      importPolicy:
+        'Imports a ZIP as a new template through the existing archive validation service, without a browser or file picker. Returns templateId for add-template; does not create a canvas, install Skills or generate media. Never overwrites an existing template. On interrupted response, inspect templates before retrying to avoid duplicate imports.',
+      export:
+        'canvas export-template --target-dir PATH --id TEMPLATE_ID --revision N --output-dir EXISTING_ABSOLUTE_DIRECTORY',
+      exportPolicy:
+        'Exports the saved template through the existing archive service without opening a browser or save dialog. Requires the revision returned by templates; stale revisions fail. Never overwrites existing output files. Template ZIP includes prompts, connections and media; canvas export produces game resources instead.',
+      results:
+        'presets contains matching builtin templates; items contains matching user templates. total counts user templates only; total=0 does not mean no builtin matches. Check both arrays.',
+      instruction:
+        'Search existing template names and descriptions for the requested workflow (for example UI, 动画, 角色, 道具, 作物 or 3D) before declaring it unsupported or constructing it from scratch. Results contain compact summaries, builtin descriptions and associated skills, not full node graphs. Read only matched Skills; use the returned id with add-template. No result for one keyword is not proof of missing capability: try a shorter or alternate keyword. Search does not run or pay for generation.',
+    },
     recovery: {
+      longTasks:
+        'Keep project path, canvasId, node/group ID and operationId. queued means awaiting page dispatch, not a durable background queue. Use status/wait on the original operation; keep the page open during execution. After closing or reloading, reopen the same canvas, refresh pages/inspect and query the original pending task where supported; do not submit run again blindly. Closing a page does not cancel an already submitted remote task. Operation records are in memory and do not survive console restart; then use saved canvas state and original task/history IDs. unknown is not failed.',
       save: 'save with empty input retries saving the current page without rerunning tasks. Requires the current revision; does not bypass active tasks, dialogs, or uncommitted editor drafts.',
       recognition:
         'recognize-ui with input {id: recognition card ID} and --allow-paid generates Bbox only, preserving existing images. For pending requests it queries the original request; query is also available without --allow-paid. To resume Server API work, pass recover:true with --allow-paid; this reuses the original request and skips completed passes without a browser dialog. If an older client cleared pendingId, also pass the original attemptId. Recovery never creates a new attempt when the original is missing. Local or web recognition remains an external Agent workflow.',
@@ -37,6 +66,14 @@ export function canvasAutomationCapabilities() {
         'status, wait and export --output-dir exit nonzero for failed or unknown operations. Unknown does not mean failed; inspect the original card and request before any retry. A failed operation with code INVALID_ARGS (arguments or page state) or NOT_FOUND (canvas, card or edge missing) was refused before any change: fix the cause and submit with a new request-id. A failed operation without code may have started work (for example a 015 run or a save after an edit): inspect before deciding; never resubmit paid steps blindly.',
     },
     nodeTypes: ['image', 'video', 'note', 'mark', 'sequence', 'animation', 'model-views', 'model'],
+    videoWorkflow: {
+      modes:
+        'first_frame: 1 image; first_last_frame: 2 ordered images; multi_modal_reference: model-dependent limit.',
+      setup:
+        'Inspect first. For first/last-frame video, update-nodes parameters.mode=first_last_frame before set-references sourceIds=[firstImageId,lastImageId]; model 2.5 also requires ratio=adaptive. Wait for the edit to succeed and inspect the new revision before setting references. Both images must be saved and ready. These edits do not generate or pay.',
+      boundary:
+        'A saved first_frame mode still limits references to one image after changing the model. Ordinary video cards support first/last frames through parameters.mode and ordered references; fixed first/last-frame templates preserve their frame roles. Do not infer support from edge kind alone. Follow guides.video for execution and recovery; query checks the original task, not a generic unlock.',
+    },
     editable: [
       'title',
       'text',
@@ -80,13 +117,13 @@ export function canvasAutomationCapabilities() {
       bboxWorkflow:
         'For the 015 Bbox template (and copies linked to maker-ui-bbox-workflow), one run of the section with --allow-paid drives the whole group without stopping: text removal, both recognition passes, batches, prelayout, separation, cutting, then assembly, resource meta and the reference check. It returns only when the run has finished: workflow.status=ready with workflow.current.stage=assemble, or the operation fails with the reason. Defaults: Bbox texts with role=title become art text, and the environment background is restored when recognition found none; pass input.artText (text IDs, [] for none) and input.background to choose otherwise. Each failing step is retried at most twice in total (recognition reuses its original request; an image result is queried first, a task still running on the server is waited for, and only an unknown or failed one is resubmitted, which may cost one extra generation). Cuts are assembled unreviewed; canvas ui-delivery reports delivery.review (unreviewed, missing, unbound). Then review every batch with preview-image-assets / confirm-image-assets, repair as the Skill describes and run canvas assemble-ui --new-version.',
       assembleUi:
-        'canvas assemble-ui --target-dir PATH --canvas-id ID --id BUNDLE_ID [--new-version] imports the confirmed resources archive of the saved canvas into assets/ui/<ui>/<version>/ (images, reserve, source, ui), assembles assembled.ui.json with Label text, art text images, background and button states, then explicitly generates resource meta and runs ui check. The same archive returns the existing delivery or resumes meta/check; --new-version writes another folder. Existing files are never overwritten. canvas ui-delivery reads the status. ASSETS_UNCONFIRMED and ASSEMBLY_BUSY are not failures of generation.',
+        'canvas assemble-ui --target-dir PATH --canvas-id ID --id BUNDLE_ID [--new-version] imports the confirmed resources archive of the saved canvas into assets/ui/<ui>/<version>/ (images, reserve, source, ui), assembles <screen-key>.ui.json and its matching reference PNG with Label text, art text images, background and button states, then explicitly generates resource meta and runs ui check. The same archive returns the existing delivery or resumes meta/check; --new-version writes another folder. Existing files are never overwritten. Names come from bbox.screen {name, key}; --ui-title TITLE --ui-name KEY overrides them without recognition. Use --new-version to name a previously delivered UI. Read delivery.uiFile instead of assuming a filename. canvas ui-delivery reads the status. ASSETS_UNCONFIRMED and ASSEMBLY_BUSY are not failures of generation.',
       syncBboxBatches:
         'sync-ui-batches input: {id: section ID, artText: string[] | boolean, background: boolean}. Bbox experimental template only; run with artText/background does the same. Pass Bbox text IDs for all required art text (one PNG per ID); [] means none, true retains the legacy main-title branch. Unselected art text and the extra background are retired (kept, excluded from export) and restored when selected again. Requires current validated recognition and revision. Creates missing batch cards and links without model calls, preserves existing work. Reinspect after saving; never replay submitted jobs.',
       skill: 'maker-ui-workflow',
       prelayoutSkill: 'maker-ui-bbox-workflow',
       imageSizing:
-        'imageInfo reports actual image pixels and ratio, not card geometry. originalImage traces the unique original through existing references. Use parameters.aspectRatio=source for full-screen processing, or a supported fixed ratio for atlases. Uncommon input ratios carry warnings; unsupported source ratios stop before submission. Generation history separates referenceImages, originalImage, parameters.targetSize, resultImageInfo and submittedPrompt. Never infer actual dimensions from requested size.',
+        'imageInfo reports actual image pixels and ratio, not card geometry. originalImage traces the unique original through existing references. Use parameters.aspectRatio=source to preserve the exact original ratio, or a positive integer width:height ratio for atlases. Preset choices are examples, not a whitelist. Uncommon ratios carry warnings; actual provider constraints are checked before submission. Generation history separates referenceImages, originalImage, parameters.targetSize, resultImageInfo and submittedPrompt. Never infer actual dimensions from requested size.',
       recognition:
         'Vision uses Server API by default or the selected custom API. Local AI and website recognition are retired; do not use them as fallbacks. If an API is unavailable, report the error and restore the API configuration. Use existing task authorization for both recognition passes. CLI run enables recognition for text-free cards; input.recognition=false disables it. Two-pass API recognition requires a text-free image linked from the original design: detect UI elements first, then original text. Export version=1 Bbox JSON with coordinateSpace=design-pixels, bboxFormat=xywh, design/cutSource identities, elements and texts. Submitted and unknown requests must be queried, never replayed or switched to another provider.',
       steps:
@@ -122,7 +159,7 @@ export function canvasAutomationCapabilities() {
       },
       'update-nodes': {
         nodes:
-          'Array of patches with id and editable fields. width/height resize only the card, not the image or viewport (width 48..2000, height 36..1600; sections up to 100000; marks 8..8000). For image cards with known pixels, set width OR height and the other axis follows the image ratio including the header; if both are supplied they must match. Layout-only changes do not invalidate generated results. mark patches accept shape ellipse/arrow, color #RRGGBB, stroke 1..8, and paired from/to {x,y} endpoints in local coordinates for arrows.',
+          'Array of 1..100 explicit patches with id and editable fields. A group move counts as one patch regardless of member count. Split larger explicit edits into batches and inspect the new revision after each saved batch. x/y are absolute canvas coordinates; moving a section (including a template group) translates all its members by the same delta. An explicitly supplied member x or y overrides the group translation on that axis, regardless of patch order. width/height resize only the card or group frame, not its members, image or viewport (width 48..2000, height 36..1600; sections up to 100000; marks 8..8000). For image cards with known pixels, set width OR height and the other axis follows the image ratio including the header; if both are supplied they must match. Layout-only changes do not invalidate generated results. mark patches accept shape ellipse/arrow, color #RRGGBB, stroke 1..8, and paired from/to {x,y} endpoints in local coordinates for arrows.',
       },
       'preview-image-assets': {
         id: 'image-assets card ID; read-only preview, no final files',
@@ -136,12 +173,16 @@ export function canvasAutomationCapabilities() {
       'preview-model': {
         id: 'completed model card ID; opens read-only rotation preview, no generation request',
       },
-      inspect: { id: 'optional node or group ID; includes direct upstream' },
+      inspect: {
+        id: 'optional node or group ID; includes direct upstream. CLI accepts --id or input.id for both live and --saved inspection; conflicting IDs are rejected.',
+      },
       'confirm-model': {
         id: 'model card ID',
         reviewId: 'current review token; requires explicit user approval of all returned previews',
       },
       import: {
+        frameSetInfo:
+          'Optional fixed-cell image atlas metadata: fps, frameCount (1..120), width/height (up to 4096), columns, rows, frames[{index,time,x,y,width,height,duration?}]. Creates an animation card. duration is milliseconds; time is seconds. Actual image dimensions must match. Cannot combine with video, prompt or sourceId. No generation or file dialog.',
         file: 'CLI --file: absolute local path; page hosts pass assetPath (project-relative, any Unicode file name)',
         kind: 'optional image/video; default image',
         title: 'optional 1..80 chars; default the file name without extension',
@@ -152,7 +193,8 @@ export function canvasAutomationCapabilities() {
       },
       'set-references': {
         id: 'target image/video ID',
-        sourceIds: 'ordered image IDs; [] clears',
+        sourceIds:
+          'ordered saved image IDs; [] clears. For video, the current input mode limits the count. Set parameters.mode with update-nodes first; in first_last_frame mode use [firstImageId,lastImageId]. See videoWorkflow.',
         includeSelf: 'optional boolean, image only; default false',
       },
       connect: {
@@ -169,12 +211,14 @@ export function canvasAutomationCapabilities() {
       redo: { note: 'empty input; reapplies the latest undone edit' },
       'fill-slot': {
         id: 'empty image card (slot) ID',
+        file: 'CLI --file: absolute local PNG/JPEG/WebP path, up to 20 MiB; uploads to canvas cache and fills in place without a file picker or extra card. Use either --file or input.assetPath, never both; file is a CLI flag, not an input field.',
         assetPath:
-          'assetPath of an image already on this canvas (local hosts accept canvas images only: assets/image/canvas-<id>.png or .maker/canvases/images/canvas-<id>.png, as returned by import); this command does not upload, so bring other files in with import --file first. Fills the slot in place, keeping id, position, width and edges. No generation.',
+          'Existing canvas image path, used instead of --file (local hosts accept assets/image/canvas-<id>.* or .maker/canvases/images/canvas-<id>.*). Fills the slot in place, keeping id, position, width and edges. No generation.',
         prompt: 'optional; same as import prompt',
       },
       'replace-image': {
         id: 'image card ID that already has an image; empty slots use fill-slot',
+        file: 'CLI --file: absolute local PNG/JPEG/WebP path, up to 20 MiB; same upload rules as fill-slot. Replaces directly without a file picker or extra card; mutually exclusive with input.assetPath.',
         assetPath:
           'canvas image path, same rule as fill-slot; replaces the image in place, keeping id, position, width, title and edges; height follows the image ratio. Undoable; downstream results become stale like a manual image change. No generation.',
         prompt:
@@ -183,10 +227,10 @@ export function canvasAutomationCapabilities() {
       'add-node': {
         type: 'image/video/note/mark/sequence/animation/model-views/model',
         shape: 'ellipse or arrow when type is mark',
-        x: 'optional mark origin; omitted marks use a visible default in the current view',
-        y: 'optional mark origin',
-        width: 'optional mark width, 8..8000',
-        height: 'optional mark height, 8..8000',
+        x: 'optional absolute canvas x, -100000..100000; defaults to normal page placement',
+        y: 'optional absolute canvas y, -100000..100000',
+        width: 'optional width, 48..2000; marks 8..8000',
+        height: 'optional height, 36..1600; marks 8..8000',
         color: 'optional #RRGGBB; default #ff4d4f',
         stroke: 'optional integer 1..8; default 3',
         point: 'legacy arrow head corner nw/ne/sw/se; not accepted by ellipse',

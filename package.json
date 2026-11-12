@@ -32,8 +32,10 @@
     "maker:resources:prepare": "node scripts/maker-demo-resources.mjs optimize && node scripts/maker-demo-resources.mjs check",
     "docker:npm": "cd docker/npm && docker-compose -p taptap-mcp up -d",
     "test": "jest",
+    "test:maker:model": "jest src/__tests__/makerClientModel.test.ts --runInBand && tsx scripts/test-maker-client-model.ts",
     "test:maker:canvas-ui": "node scripts/test-maker-canvas-ui.mjs",
     "test:maker:sequence-ui": "node scripts/test-maker-sequence-ui.mjs",
+    "test:maker:ui-motion": "node --test scripts/test-maker-ui-motion-runtime.mjs",
     "lint": "eslint \"src/**/*.ts\" \"packages/maker-canvas/src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\"",
@@ -77,6 +79,7 @@
     "yauzl": "3.4.0"
   },
   "devDependencies": {
+    "fengari": "0.1.5",
     "@commitlint/cli": "^18.4.3",
     "@commitlint/config-conventional": "^18.4.3",
     "@semantic-release/changelog": "^6.0.3",

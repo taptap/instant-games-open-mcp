@@ -35,6 +35,22 @@ export function sequenceExportManifest(
     info.fps > 30
   )
     throw new Error('图集尺寸、帧数或帧率无效，请重新保存序列帧后导出。');
+  // Sprite-gen sheets (trimmed frames, extra pages) are already game-ready files; re-exporting
+  // them here would drop the offsets, so refuse instead of writing a wrong sheet.
+  if (
+    (info.pages !== undefined && info.pages > 1) ||
+    info.frames.some(
+      (frame) =>
+        frame &&
+        (frame.sourceWidth !== undefined ||
+          frame.sourceHeight !== undefined ||
+          frame.offsetX !== undefined ||
+          frame.offsetY !== undefined)
+    )
+  )
+    throw new Error(
+      '这组帧来自带裁边偏移或多页的精灵表，画布暂不支持重新导出；请直接使用项目中的精灵表文件。'
+    );
   const first = info.frames[0];
   for (const frame of info.frames) {
     if (
@@ -50,7 +66,8 @@ export function sequenceExportManifest(
       !Number.isSafeInteger(frame.index) ||
       frame.index < 0 ||
       !Number.isFinite(frame.time) ||
-      frame.time < 0
+      frame.time < 0 ||
+      (frame.duration !== undefined && (!Number.isFinite(frame.duration) || frame.duration <= 0))
     )
       throw new Error('帧坐标或尺寸超出图集范围，未导出文件。');
     if (frame.width !== first.width || frame.height !== first.height)
@@ -70,7 +87,7 @@ export function sequenceExportManifest(
     spriteSourceSize: { x: 0, y: 0, w: frame.width, h: frame.height },
     trimmed: false,
     rotated: false,
-    duration: 1000 / info.fps,
+    duration: frame.duration ?? 1000 / info.fps,
   }));
   return {
     frames,
@@ -100,6 +117,13 @@ export function sequenceExportLua(
     '    framePattern = "image/' + folder + '/frames/frame_%04d.png",',
     '    frameCount = ' + info.frames.length + ',',
     '    fps = ' + info.fps + ',',
+    ...(info.frames.some((frame) => frame.duration !== undefined)
+      ? [
+          '    durationsMs = { ' +
+            info.frames.map((frame) => frame.duration ?? 1000 / info.fps).join(', ') +
+            ' },',
+        ]
+      : []),
     '    loop = ' + String(playback.loop) + ',',
     '    width = ' + info.frames[0].width + ',',
     '    height = ' + info.frames[0].height + ',',
@@ -158,7 +182,7 @@ export function sequenceExportInstructions(
       '    local clip = require("animations.' + folder + '")',
       '    local firstFrame = string.format(clip.framePattern, 1)',
       '',
-      '把 clip 接入现有动画目录；播放器按 fps 计时、frameCount 控制帧数、loop 控制循环。',
+      '把 clip 接入现有动画目录；若有 durationsMs，播放器必须按 durationsMs[frameIndex] 毫秒计时，否则按 fps。frameCount 控制帧数、loop 控制循环。',
       '帧号从 1 开始，使用 string.format(clip.framePattern, frameIndex) 获取图片路径。',
       '也可用 clip.width/height 设置显示尺寸。首次播放前复用游戏现有资源预加载，避免图片尚未加载时出现空白。'
     );

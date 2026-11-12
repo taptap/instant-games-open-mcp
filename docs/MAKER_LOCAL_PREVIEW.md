@@ -75,9 +75,10 @@ Runtime，也不运行旧 dist。
 
 ## run-lua-validate 本地接入
 
-验证方法、报告判读、视觉检查及修复复测使用 UrhoX ai-dev-kit 的 `run-lua-validate` Skill。
-Maker 只负责本地执行适配：复用预览的 Runtime 安装、项目分类、准备与资源加载，收集本轮证据。
-仅支持单机；不修改引擎、不提交或远端构建、不改写游戏代码和发布配置。
+验证方法、报告判读、视觉检查及修复复测沿用 UrhoX ai-dev-kit 的 `run-lua-validate` Skill。
+Maker 负责本地执行适配：复用预览的 Runtime 安装、项目分类、准备与资源加载，收集本轮证据。
+单机项目沿用 Skill 的本地 Validate；联网/server 项目使用 Maker 的显式 `--network` 路径，
+申请测试服并让本地客户端通过 WebSocket 直连。不修改引擎、不提交或远端构建、不改写游戏代码和发布配置。
 
 插件用户使用 `taptap-maker-local` 指定的当前插件 CLI；不要切换另一份全局 CLI。
 先执行 `preview status`，有活动预览须经用户同意停止，验证不会自动接管窗口。
@@ -94,6 +95,9 @@ Skill 分发由 UrhoX ai-dev-kit 维护。Maker 在安装 Skill 及执行验证�
 不会把修正名单当作 Skill 已安装，不自动下载升级。配置损坏或不可写时保留告警，
 不因此阻断 Runtime 验证。
 本地调用映射由 `taptap-maker-local` 和项目 Maker 指引提供。
+准备副本失败或 Runtime 创建失败时，验证结果返回 `runtime_started: false` 和
+`failure_stage: preparation | runtime_start`，保留原始错误，不追加尚不应存在的报告/截图缺失
+错误。`.cleanup-unverified` 仍阻止准备，不自动删除；资源索引失败会附带首条脱敏来源诊断。
 用户请求 Validate 但 AI 尚不可用该 Skill 时，由 AI 按 `taptap-maker-local` 先检查本地
 `skills/` 或 `.installer/skills/` 原文件，告知并解除当前平台排除，再运行项目原安装脚本。
 旧安装器未提供 Codex `.agents/skills` 时，AI 仅补齐该 Skill 的完整目录，不覆盖已有文件；
@@ -104,9 +108,16 @@ Skill 分发由 UrhoX ai-dev-kit 维护。Maker 在安装 Skill 及执行验证�
 
 ```sh
 taptap-maker preview validate --target-dir "/absolute/game" --json
+taptap-maker preview validate --target-dir "/absolute/network-game" --network --json
 taptap-maker preview validate --target-dir "/absolute/game" --mode both --screenshot-frame 600 --json
 taptap-maker preview validate --target-dir "/absolute/game" --validate-test check.lua --json
 ```
+
+联网项目必须显式传 `--network`。不传时不会启动 Runtime，返回 `UNSUPPORTED` 并提示使用该路径；
+传入后会沿用联网预览的 PAT 鉴权、测试服分配和 `directConnectParams`，测试服服务端运行已提交的
+远端构建版本，本地 server 修改不会自动生效。该流程会产生真实测试服存档等业务副作用，且验证结果
+只代表本地客户端在测试服上的运行结果，不能单独证明服务端源码已通过。鉴权、测试版本、连接信息
+或 Runtime 网络能力缺失时直接失败，不降级为单机。
 
 | 本地参数                                      | 对应原有 Skill / Runtime 能力                                                        |
 | --------------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -150,7 +161,8 @@ scene_stalled/update_defined 需结合入口判断，纯 UI 或事件驱动程�
 或截图时已观察到 Bootstrap 开始但尚未完成，标为 `screenshot_assessment.status=NOT_READY`，
 本轮 PNG 保留但不作为有效视觉证据；不修改原始游戏报告。
 仅本轮进程及证据收集正常、且没有实际运行错误时，等待 3 秒后用更晚的截图帧重新启动验证，
-最多自动重试 2 次。后续截图帧参考已观察到的加载完成帧，并增大原截图帧；
+仅单机模式最多自动重试 2 次；联网模式保留证据并停止，避免重新分配测试服和重复业务操作，
+检查证据后须明确请求才能再次运行。后续截图帧参考已观察到的加载完成帧，并增大原截图帧；
 both 模式同时延长验证帧数，不改变入口或断言。未显式指定超时时，重试按帧数比例增加预算，
 最多 580 秒；显式 `--validate-timeout` 保持不变。按上一轮 Runtime 实际耗时估算后续所需时间，
 若已达到预算则不启动重试，保留证据并提示调整超时；估算不保证下一轮的加载速度。
@@ -311,6 +323,8 @@ AI 调试 -> 前台 Node 会话 -> Runtime -> 收集日志 -> 停止本轮游戏
   仅在持有互斥且确认记录的进程不存在时回收。进程存活、权限未知或锁内容损坏时不自动删除，
   不按文件年龄抢占；退出只删除本次创建的锁。升级前应结束旧版预览命令，不与旧版并行恢复。
   Runtime 安装锁仍沿用原有保护，不凭主进程退出推断下载辅助进程已清理。
+  互斥端口因 `EACCES` 被拒绝且现有候选均不可用时，保留原始权限错误，不误报为其它操作正在运行；
+  `EADDRINUSE` 仍按占用阻断，不跳过可能由同一锁持有者使用的端口。
 - 新启动携带会话 ID 和 30 秒控制通道发布期限；发布前后均校验，迟到的启动进程不能接管
   替换后的会话。尚未发布 PID/端口的启动记录过期后可重新点击本地预览，状态查询不修改记录。
   旧版零 PID 启动记录缺少此校验信息，不能仅凭零 PID 判定进程已结束；

@@ -1,0 +1,852 @@
+{
+  "version": 1,
+  "id": "T03",
+  "name": "扑克牌遮场",
+  "category": "transition",
+  "duration": 1.7,
+  "source": "S04",
+  "target": "S05",
+  "style": "cards",
+  "covered": [0.84, 0.94],
+  "swapAt": 0.89,
+  "nodes": [
+    {
+      "id": "hero-card",
+      "name": "近景红桃 A",
+      "transform": {
+        "dx": -980,
+        "dy": 840,
+        "scale": 0.2,
+        "rotation": -36,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "chapter-curtain-left",
+      "name": "章节左幕",
+      "transform": {
+        "dx": 0,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "chapter-curtain-right",
+      "name": "章节右幕",
+      "transform": {
+        "dx": 0,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "flying-card-1",
+      "name": "飞牌 1",
+      "transform": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 0.16,
+        "rotation": -35,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "flying-card-2",
+      "name": "飞牌 2",
+      "transform": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 0.16,
+        "rotation": -18,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "flying-card-3",
+      "name": "飞牌 3",
+      "transform": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 0.16,
+        "rotation": -1,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "flying-card-4",
+      "name": "飞牌 4",
+      "transform": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 0.16,
+        "rotation": 16,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "flying-card-5",
+      "name": "飞牌 5",
+      "transform": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 0.16,
+        "rotation": 33,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "flying-card-6",
+      "name": "飞牌 6",
+      "transform": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 0.16,
+        "rotation": 50,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "flying-card-7",
+      "name": "飞牌 7",
+      "transform": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 0.16,
+        "rotation": 67,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "flying-card-8",
+      "name": "飞牌 8",
+      "transform": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 0.16,
+        "rotation": 84,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "flying-card-9",
+      "name": "飞牌 9",
+      "transform": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 0.16,
+        "rotation": 101,
+        "opacity": 0
+      }
+    },
+    {
+      "id": "flying-card-10",
+      "name": "飞牌 10",
+      "transform": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 0.16,
+        "rotation": 118,
+        "opacity": 0
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "hero-card",
+      "prop": "opacity",
+      "at": 0.62,
+      "duration": 0.025,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "hero-card",
+      "prop": "dx",
+      "at": 0.62,
+      "duration": 0.22,
+      "from": -980,
+      "to": 0,
+      "ease": "inQuad"
+    },
+    {
+      "node": "hero-card",
+      "prop": "dy",
+      "at": 0.62,
+      "duration": 0.22,
+      "from": 840,
+      "to": 0,
+      "ease": "inQuad"
+    },
+    {
+      "node": "hero-card",
+      "prop": "scale",
+      "at": 0.62,
+      "duration": 0.22,
+      "from": 0.2,
+      "to": 8.8,
+      "ease": "inQuad"
+    },
+    {
+      "node": "hero-card",
+      "prop": "rotation",
+      "at": 0.62,
+      "duration": 0.22,
+      "from": -36,
+      "to": -20,
+      "ease": "inQuad"
+    },
+    {
+      "node": "hero-card",
+      "prop": "scale",
+      "at": 0.84,
+      "duration": 0.1,
+      "from": 8.8,
+      "to": 9.6,
+      "ease": "linear"
+    },
+    {
+      "node": "hero-card",
+      "prop": "rotation",
+      "at": 0.84,
+      "duration": 0.1,
+      "from": -20,
+      "to": -15,
+      "ease": "linear"
+    },
+    {
+      "node": "hero-card",
+      "prop": "dx",
+      "at": 0.94,
+      "duration": 0.19,
+      "from": 0,
+      "to": 2200,
+      "ease": "inQuad"
+    },
+    {
+      "node": "hero-card",
+      "prop": "dy",
+      "at": 0.94,
+      "duration": 0.19,
+      "from": 0,
+      "to": -1500,
+      "ease": "inQuad"
+    },
+    {
+      "node": "hero-card",
+      "prop": "opacity",
+      "at": 1.13,
+      "duration": 0.02,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    },
+    {
+      "node": "chapter-curtain-left",
+      "prop": "opacity",
+      "at": 0.85,
+      "duration": 0.01,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "chapter-curtain-left",
+      "prop": "dx",
+      "at": 1.07,
+      "duration": 0.6,
+      "from": 0,
+      "to": -680,
+      "ease": "inOutCubic"
+    },
+    {
+      "node": "chapter-curtain-right",
+      "prop": "opacity",
+      "at": 0.85,
+      "duration": 0.01,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "chapter-curtain-right",
+      "prop": "dx",
+      "at": 1.07,
+      "duration": 0.6,
+      "from": 0,
+      "to": 680,
+      "ease": "inOutCubic"
+    },
+    {
+      "node": "flying-card-1",
+      "prop": "opacity",
+      "at": 0.0,
+      "duration": 0.05,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-1",
+      "prop": "dx",
+      "at": 0.0,
+      "duration": 0.7,
+      "from": 0,
+      "to": -1115,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-1",
+      "prop": "dy",
+      "at": 0.0,
+      "duration": 0.7,
+      "from": 0,
+      "to": -382,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-1",
+      "prop": "scale",
+      "at": 0.0,
+      "duration": 0.7,
+      "from": 0.16,
+      "to": 1.9,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-1",
+      "prop": "rotation",
+      "at": 0.0,
+      "duration": 0.7,
+      "from": -35,
+      "to": -95,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-1",
+      "prop": "opacity",
+      "at": 0.84,
+      "duration": 0.03,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-2",
+      "prop": "opacity",
+      "at": 0.035,
+      "duration": 0.05,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-2",
+      "prop": "dx",
+      "at": 0.035,
+      "duration": 0.7,
+      "from": 0,
+      "to": -659,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-2",
+      "prop": "dy",
+      "at": 0.035,
+      "duration": 0.7,
+      "from": 0,
+      "to": -490,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-2",
+      "prop": "scale",
+      "at": 0.035,
+      "duration": 0.7,
+      "from": 0.16,
+      "to": 2.5999999999999996,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-2",
+      "prop": "rotation",
+      "at": 0.035,
+      "duration": 0.7,
+      "from": -18,
+      "to": -56,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-2",
+      "prop": "opacity",
+      "at": 0.84,
+      "duration": 0.03,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-3",
+      "prop": "opacity",
+      "at": 0.07,
+      "duration": 0.05,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-3",
+      "prop": "dx",
+      "at": 0.07,
+      "duration": 0.7,
+      "from": 0,
+      "to": -143,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-3",
+      "prop": "dy",
+      "at": 0.07,
+      "duration": 0.7,
+      "from": 0,
+      "to": -518,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-3",
+      "prop": "scale",
+      "at": 0.07,
+      "duration": 0.7,
+      "from": 0.16,
+      "to": 3.3,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-3",
+      "prop": "rotation",
+      "at": 0.07,
+      "duration": 0.7,
+      "from": -1,
+      "to": -17,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-3",
+      "prop": "opacity",
+      "at": 0.84,
+      "duration": 0.03,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-4",
+      "prop": "opacity",
+      "at": 0.10500000000000001,
+      "duration": 0.05,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-4",
+      "prop": "dx",
+      "at": 0.10500000000000001,
+      "duration": 0.7,
+      "from": 0,
+      "to": 715,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-4",
+      "prop": "dy",
+      "at": 0.10500000000000001,
+      "duration": 0.7,
+      "from": 0,
+      "to": -476,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-4",
+      "prop": "scale",
+      "at": 0.10500000000000001,
+      "duration": 0.7,
+      "from": 0.16,
+      "to": 1.9,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-4",
+      "prop": "rotation",
+      "at": 0.10500000000000001,
+      "duration": 0.7,
+      "from": 16,
+      "to": 22,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-4",
+      "prop": "opacity",
+      "at": 0.84,
+      "duration": 0.03,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-5",
+      "prop": "opacity",
+      "at": 0.14,
+      "duration": 0.05,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-5",
+      "prop": "dx",
+      "at": 0.14,
+      "duration": 0.7,
+      "from": 0,
+      "to": 711,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-5",
+      "prop": "dy",
+      "at": 0.14,
+      "duration": 0.7,
+      "from": 0,
+      "to": 8,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-5",
+      "prop": "scale",
+      "at": 0.14,
+      "duration": 0.7,
+      "from": 0.16,
+      "to": 2.5999999999999996,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-5",
+      "prop": "rotation",
+      "at": 0.14,
+      "duration": 0.7,
+      "from": 33,
+      "to": 61,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-5",
+      "prop": "opacity",
+      "at": 0.84,
+      "duration": 0.03,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-6",
+      "prop": "opacity",
+      "at": 0.0,
+      "duration": 0.05,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-6",
+      "prop": "dx",
+      "at": 0.0,
+      "duration": 0.7,
+      "from": 0,
+      "to": 657,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-6",
+      "prop": "dy",
+      "at": 0.0,
+      "duration": 0.7,
+      "from": 0,
+      "to": 670,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-6",
+      "prop": "scale",
+      "at": 0.0,
+      "duration": 0.7,
+      "from": 0.16,
+      "to": 3.3,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-6",
+      "prop": "rotation",
+      "at": 0.0,
+      "duration": 0.7,
+      "from": 50,
+      "to": 100,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-6",
+      "prop": "opacity",
+      "at": 0.84,
+      "duration": 0.03,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-7",
+      "prop": "opacity",
+      "at": 0.035,
+      "duration": 0.05,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-7",
+      "prop": "dx",
+      "at": 0.035,
+      "duration": 0.7,
+      "from": 0,
+      "to": 385,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-7",
+      "prop": "dy",
+      "at": 0.035,
+      "duration": 0.7,
+      "from": 0,
+      "to": 792,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-7",
+      "prop": "scale",
+      "at": 0.035,
+      "duration": 0.7,
+      "from": 0.16,
+      "to": 1.9,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-7",
+      "prop": "rotation",
+      "at": 0.035,
+      "duration": 0.7,
+      "from": 67,
+      "to": 139,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-7",
+      "prop": "opacity",
+      "at": 0.84,
+      "duration": 0.03,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-8",
+      "prop": "opacity",
+      "at": 0.07,
+      "duration": 0.05,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-8",
+      "prop": "dx",
+      "at": 0.07,
+      "duration": 0.7,
+      "from": 0,
+      "to": -429,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-8",
+      "prop": "dy",
+      "at": 0.07,
+      "duration": 0.7,
+      "from": 0,
+      "to": 744,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-8",
+      "prop": "scale",
+      "at": 0.07,
+      "duration": 0.7,
+      "from": 0.16,
+      "to": 2.5999999999999996,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-8",
+      "prop": "rotation",
+      "at": 0.07,
+      "duration": 0.7,
+      "from": 84,
+      "to": 178,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-8",
+      "prop": "opacity",
+      "at": 0.84,
+      "duration": 0.03,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-9",
+      "prop": "opacity",
+      "at": 0.10500000000000001,
+      "duration": 0.05,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-9",
+      "prop": "dx",
+      "at": 0.10500000000000001,
+      "duration": 0.7,
+      "from": 0,
+      "to": -1183,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-9",
+      "prop": "dy",
+      "at": 0.10500000000000001,
+      "duration": 0.7,
+      "from": 0,
+      "to": 588,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-9",
+      "prop": "scale",
+      "at": 0.10500000000000001,
+      "duration": 0.7,
+      "from": 0.16,
+      "to": 3.3,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-9",
+      "prop": "rotation",
+      "at": 0.10500000000000001,
+      "duration": 0.7,
+      "from": 101,
+      "to": 217,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-9",
+      "prop": "opacity",
+      "at": 0.84,
+      "duration": 0.03,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-10",
+      "prop": "opacity",
+      "at": 0.14,
+      "duration": 0.05,
+      "from": 0,
+      "to": 1,
+      "ease": "linear"
+    },
+    {
+      "node": "flying-card-10",
+      "prop": "dx",
+      "at": 0.14,
+      "duration": 0.7,
+      "from": 0,
+      "to": -1035,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-10",
+      "prop": "dy",
+      "at": 0.14,
+      "duration": 0.7,
+      "from": 0,
+      "to": 30,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-10",
+      "prop": "scale",
+      "at": 0.14,
+      "duration": 0.7,
+      "from": 0.16,
+      "to": 1.9,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-10",
+      "prop": "rotation",
+      "at": 0.14,
+      "duration": 0.7,
+      "from": 118,
+      "to": 256,
+      "ease": "inQuad"
+    },
+    {
+      "node": "flying-card-10",
+      "prop": "opacity",
+      "at": 0.84,
+      "duration": 0.03,
+      "from": 1,
+      "to": 0,
+      "ease": "linear"
+    }
+  ],
+  "thumbnailAt": 0.5,
+  "cues": [
+    {
+      "time": 0,
+      "label": "多张扑克牌飞散"
+    },
+    {
+      "time": 0.62,
+      "label": "红桃 A 向镜头逼近"
+    },
+    {
+      "time": 0.84,
+      "label": "红桃 A 完全遮场"
+    },
+    {
+      "time": 0.89,
+      "label": "S04 → S05 · 牌下换页"
+    },
+    {
+      "time": 0.94,
+      "label": "同一张红桃 A 离场"
+    },
+    {
+      "time": 1.07,
+      "label": "章节双侧幕布打开"
+    }
+  ],
+  "reference": {
+    "source": "clockwork",
+    "frames": [194, 243],
+    "fps": 30,
+    "mechanism": "independent flying cards / near ace of hearts / same-card reveal / split curtains"
+  }
+}

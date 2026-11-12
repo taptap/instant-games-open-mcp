@@ -16,7 +16,7 @@ export function checkDemoResources(root, { requireCdn = false } = {}) {
     if (
       !/^[a-f0-9]{64}$/.test(id) ||
       entry.sha256 !== id ||
-      !['.png', '.jpg', '.jpeg', '.mp4', '.mdl'].some((ext) => entry.file === id + ext)
+      !['.png', '.jpg', '.jpeg', '.mp4', '.mdl', '.ttf'].some((ext) => entry.file === id + ext)
     )
       throw new Error('资源身份或文件名无效：' + id);
     const bytes = fs.readFileSync(path.join(directory, entry.file));
@@ -32,6 +32,7 @@ export function checkDemoResources(root, { requireCdn = false } = {}) {
         throw new Error('图片尚未无损压缩与像素验证，请先运行 optimize：' + entry.file);
     } else if (
       !(entry.type === 'video/mp4' && entry.file.endsWith('.mp4')) &&
+      !(entry.type === 'font/ttf' && entry.file.endsWith('.ttf')) &&
       !(entry.type === 'application/octet-stream' && entry.file.endsWith('.mdl'))
     ) {
       throw new Error('不支持的示例媒体类型：' + entry.file);
@@ -57,5 +58,13 @@ export function checkDemoResources(root, { requireCdn = false } = {}) {
   }
   for (const name of ['presetData', 'assetPresetData', 'modelPresetData', 'templateModelData'])
     walk(JSON.parse(fs.readFileSync(path.join(root, 'src/maker/canvas', name + '.json'), 'utf8')));
+  walk(
+    JSON.parse(
+      fs.readFileSync(
+        path.join(root, 'src/maker/console/uiMotion/runtime/resourceMap.json'),
+        'utf8'
+      )
+    )
+  );
   return { resources: Object.keys(resources).length };
 }

@@ -62,7 +62,9 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
         skills: [
           './skills/maker-ui-workflow',
           './skills/maker-ui-bbox-workflow',
+          './skills/maker-scene-furniture-workflow',
           './skills/lua-ui-to-json',
+          './skills/maker-project-check',
           './skills/taptap-maker-local',
           './skills/taptap-maker-dev-kit-guide',
           './skills/taptap-maker-plugin-lifecycle',
@@ -120,6 +122,31 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     expect(bbox).not.toMatch(/maker-ui-workflow\/(references|scripts)\//);
   });
 
+  test('flattens the furniture workflow and preserves executable and reference paths', () => {
+    const skill = path.join(pluginRoot, 'skills/maker-scene-furniture-workflow');
+    for (const name of [
+      'scene_assets.py',
+      'royal-room-recipe.json',
+      'SceneFurniturePlayer.lua',
+      'recipe.md',
+      'game-integration.md',
+    ]) {
+      expect(fs.statSync(path.join(skill, name)).isFile()).toBe(true);
+    }
+    const entry = fs.readFileSync(path.join(skill, 'SKILL.md'), 'utf8');
+    expect(entry).toContain('<Skill目录>/scene_assets.py');
+    expect(entry).toContain('(royal-room-recipe.json)');
+    expect(entry).toContain('(recipe.md)');
+    expect(entry).toContain('(game-integration.md)');
+    expect(entry).not.toMatch(/(?:assets|references|scripts)\//);
+    expect(fs.readFileSync(path.join(skill, 'scene_assets.py'), 'utf8')).toContain(
+      "Path(__file__).parent/'game-integration.md'"
+    );
+    expect(fs.readFileSync(path.join(skill, 'game-integration.md'), 'utf8')).not.toContain(
+      'assets/SceneFurniturePlayer.lua'
+    );
+  });
+
   test('launches the bundled runtime through WorkBuddy-provided Node', () => {
     const mcpText = fs.readFileSync(path.join(pluginRoot, '.mcp.json'), 'utf8');
     const mcp = JSON.parse(mcpText);
@@ -147,6 +174,28 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
       expect(fs.readFileSync(path.join(localSkill, name), 'utf8')).toBe(
         fs.readFileSync(path.join(references, name), 'utf8')
       );
+    }
+  });
+
+  test('keeps shared UI layout guidance reachable after flattening', () => {
+    const layoutPath = path.join(pluginRoot, 'skills/maker-ui-workflow/layout.md');
+    expect(fs.readFileSync(layoutPath, 'utf8')).toBe(
+      fs.readFileSync(
+        path.join(projectRoot, 'skills/maker-ui-workflow/references/layout.md'),
+        'utf8'
+      )
+    );
+    for (const relativePath of [
+      'maker-ui-workflow/SKILL.md',
+      'maker-ui-workflow/responsive.md',
+      'maker-ui-bbox-workflow/SKILL.md',
+      'lua-ui-to-json/SKILL.md',
+    ]) {
+      const entryPath = path.join(pluginRoot, 'skills', relativePath);
+      const entry = fs.readFileSync(entryPath, 'utf8');
+      const link = entry.match(/\]\(([^)]*layout\.md)\)/);
+      expect(link).not.toBeNull();
+      expect(path.resolve(path.dirname(entryPath), link![1])).toBe(layoutPath);
     }
   });
 

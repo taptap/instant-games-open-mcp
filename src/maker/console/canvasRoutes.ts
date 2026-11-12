@@ -1,4 +1,5 @@
 import { readCanvasMedia } from './canvasMedia.js';
+import { canvasImagePreview } from './canvasImagePreview.js';
 import { canvasImageModels } from './canvasImageModels.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createReadStream, statSync } from 'node:fs';
@@ -172,6 +173,14 @@ export async function handleCanvasProjectRoute(options: {
     if (suffix.startsWith('canvases/automation/')) {
       if (!options.automation) throw new ConsoleError('画布 CLI 桥接未启动。', 503);
       const action = suffix.slice('canvases/automation/'.length);
+      if (action === 'sessions') {
+        if (method === 'GET') send(response, 200, options.automation.listSessions(key));
+        else if (method === 'POST') {
+          const body = JSON.parse((await readBytes(request, 1024)).toString('utf8'));
+          send(response, 200, options.automation.recordSession(key, body?.sessionId));
+        } else throw new ConsoleError('Unknown canvas session method.', 405);
+        return true;
+      }
       const exported = action.match(/^exports\/([a-zA-Z0-9-]{1,80})$/);
       if (exported) {
         if (method === 'POST') {
@@ -314,7 +323,7 @@ export async function handleCanvasProjectRoute(options: {
       const revision = Number(searchParams.get('revision'));
       if (!Number.isSafeInteger(revision) || revision < 1) throw new ConsoleError('模板版本无效。');
       const slot = Number(searchParams.get('slot') || 0);
-      if (slot !== 0 && slot !== 1) throw new ConsoleError('预览位置无效。');
+      if (!Number.isInteger(slot) || slot < 0 || slot > 4) throw new ConsoleError('预览位置无效。');
       if (method === 'GET') {
         const result = await files.readTemplateCover(cover[1], revision, slot);
         response.writeHead(200, {
@@ -331,7 +340,7 @@ export async function handleCanvasProjectRoute(options: {
         files.saveTemplateCover(
           cover[1],
           revision,
-          await readBytes(request, 2 * 1024 * 1024),
+          await readBytes(request, 10 * 1024 * 1024),
           slot
         );
         send(response, 200, { ok: true });
@@ -355,12 +364,16 @@ export async function handleCanvasProjectRoute(options: {
       return true;
     }
     if (method === 'GET' && suffix === 'canvas-media') {
-      const media = await files.loadMedia(searchParams.get('path') || '');
+      const reference = searchParams.get('path') || '';
+      const media: { file: string; type: string; bytes?: Buffer } =
+        searchParams.get('preview') === '1'
+          ? await canvasImagePreview(files).read(reference)
+          : await files.loadMedia(reference);
       response.setHeader('Content-Type', media.type);
       response.setHeader('X-Content-Type-Options', 'nosniff');
       response.setHeader('Cache-Control', 'no-store');
       const expected = searchParams.get('version');
-      let pinned: Buffer | undefined;
+      let pinned: Buffer | undefined = media.bytes;
       if (expected) {
         if (!/^[a-f0-9]{64}$/.test(expected)) throw new ConsoleError('素材版本无效。', 400);
         const content = await readCanvasMedia(media.file);

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "id": "S01.focus",
+  "name": "菜单焦点确认",
+  "category": "interaction",
+  "duration": 0.42,
+  "nodes": [
+    {
+      "id": "menu1",
+      "name": "开始旅程",
+      "transform": {
+        "scale": 1
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "node": "menu1",
+      "prop": "scale",
+      "at": 0,
+      "duration": 0.14,
+      "from": 1,
+      "to": 1.045,
+      "ease": "outCubic"
+    },
+    {
+      "node": "menu1",
+      "prop": "scale",
+      "at": 0.14,
+      "duration": 0.28,
+      "from": 1.045,
+      "to": 1,
+      "ease": "outCubic"
+    }
+  ]
+}

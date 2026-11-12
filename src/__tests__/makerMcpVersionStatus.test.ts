@@ -4,6 +4,20 @@ const mockServers: Array<{
 }> = [];
 const mockRemoteProxyCallTool = jest.fn();
 
+jest.mock('../maker/clientModel', () => ({
+  ...jest.requireActual('../maker/clientModel'),
+  resolveMakerClientModel: jest.fn().mockResolvedValue({}),
+  createMakerClientModelResolver: jest.fn(
+    () => (context: unknown) =>
+      jest.requireMock('../maker/clientModel').resolveMakerClientModel(context)
+  ),
+}));
+
+jest.mock('../maker/tracking', () => ({
+  ...jest.requireActual('../maker/tracking'),
+  reportMakerMcpActivity: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('../maker/resourceMeta', () => ({
   ...jest.requireActual('../maker/resourceMeta'),
   generateResourceMeta: jest.fn(),
@@ -29,6 +43,10 @@ jest.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
 
     getClientCapabilities(): undefined {
       return undefined;
+    }
+
+    getClientVersion() {
+      return { name: 'codex', version: 'test' };
     }
 
     async listRoots(): Promise<{ roots: [] }> {
@@ -191,6 +209,152 @@ describe('maker MCP version status integration', () => {
       process.env.TAPTAP_MAKER_DISTRIBUTION = originalDistribution;
     }
   });
+
+  test('empty status requests display the same model snapshot passed to tracking', async () => {
+    const { startMakerMcpServer } = await import('../maker/server/mcp');
+    const { resolveMakerClientModel } = await import('../maker/clientModel');
+    const { reportMakerMcpActivity } = await import('../maker/tracking');
+    const { identifyMakerProject } = await import('../maker/server/identify');
+    const { loadProjectConfig } = await import('../maker/storage');
+    const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+    const originalIdentify = jest.mocked(identifyMakerProject).getMockImplementation();
+    const originalConfig = jest.mocked(loadProjectConfig).getMockImplementation();
+    const model = {
+      client_model_id: 'grok-4.7',
+      client_ide_name: 'Cindy',
+      model_lookup_source: 'local_session' as const,
+      model_lookup_scope: 'current_session' as const,
+    };
+    try {
+      jest.mocked(identifyMakerProject).mockReturnValue({
+        source: 'cwd',
+        projectRoot: process.cwd(),
+        projectId: 'project',
+      } as ReturnType<typeof identifyMakerProject>);
+      jest.mocked(loadProjectConfig).mockReturnValue({ user_id: 'user', project_id: 'project' });
+      jest.mocked(resolveMakerClientModel).mockResolvedValue(model);
+      await startMakerMcpServer();
+      const result = await mockServers[0].handlers.get(CallToolRequestSchema)!(
+        { params: { name: 'maker_status_lite', arguments: {} } },
+        { requestId: 'model-status' }
+      );
+      const diagnostic = JSON.parse(result.content[0].text.split('Client model reporting\n\n')[1]);
+      expect(diagnostic).toMatchObject({ ...model, client_name: 'codex', status: 'detected' });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(reportMakerMcpActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolName: 'maker_status_lite',
+          context: expect.objectContaining({ resolvedModel: model }),
+        })
+      );
+    } finally {
+      jest.mocked(resolveMakerClientModel).mockResolvedValue({});
+      jest.mocked(identifyMakerProject).mockImplementation(originalIdentify!);
+      jest.mocked(loadProjectConfig).mockImplementation(originalConfig || (() => null));
+    }
+  });
+
+  test('starts a non-status model snapshot before business completion and reuses it', async () => {
+    const { startMakerMcpServer } = await import('../maker/server/mcp');
+    const { resolveMakerClientModel } = await import('../maker/clientModel');
+    const { reportMakerMcpActivity } = await import('../maker/tracking');
+    const { identifyMakerProject } = await import('../maker/server/identify');
+    const { loadProjectConfig } = await import('../maker/storage');
+    const { generateResourceMeta } = await import('../maker/resourceMeta');
+    const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+    const originalIdentify = jest.mocked(identifyMakerProject).getMockImplementation();
+    const originalConfig = jest.mocked(loadProjectConfig).getMockImplementation();
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    try {
+      jest.mocked(identifyMakerProject).mockReturnValue({
+        source: 'cwd',
+        projectRoot: process.cwd(),
+        projectId: 'project',
+      } as ReturnType<typeof identifyMakerProject>);
+      jest.mocked(loadProjectConfig).mockReturnValue({ user_id: 'user', project_id: 'project' });
+      jest
+        .mocked(resolveMakerClientModel)
+        .mockResolvedValue({ client_model_id: 'at-entry', client_ide_name: 'Cindy' });
+      jest.mocked(generateResourceMeta).mockImplementation(async () => {
+        await pending;
+        return { success: true, results: [], generatorCommit: 'test' };
+      });
+      await startMakerMcpServer();
+      const result = mockServers[0].handlers.get(CallToolRequestSchema)!(
+        { params: { name: 'generate_resource_meta', arguments: {} } },
+        { requestId: 'long-tool', signal: new AbortController().signal }
+      );
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(resolveMakerClientModel).toHaveBeenCalledTimes(1);
+      jest.mocked(resolveMakerClientModel).mockResolvedValue({ client_model_id: 'after-entry' });
+      finish();
+      await result;
+      await new Promise((resolve) => setImmediate(resolve));
+      const event = jest
+        .mocked(reportMakerMcpActivity)
+        .mock.calls.find(([event]) => event.toolName === 'generate_resource_meta')?.[0];
+      expect(event).toBeDefined();
+      await expect(event!.context.modelSnapshot).resolves.toMatchObject({
+        client_model_id: 'at-entry',
+      });
+      expect(resolveMakerClientModel).toHaveBeenCalledTimes(1);
+    } finally {
+      finish();
+      jest.mocked(resolveMakerClientModel).mockResolvedValue({});
+      jest.mocked(identifyMakerProject).mockImplementation(originalIdentify!);
+      jest.mocked(loadProjectConfig).mockImplementation(originalConfig || (() => null));
+    }
+  });
+
+  test.each(['hang', 'reject'])(
+    'non-status business completes when model collection %s fails',
+    async (mode) => {
+      const { startMakerMcpServer } = await import('../maker/server/mcp');
+      const { resolveMakerClientModel } = await import('../maker/clientModel');
+      const { identifyMakerProject } = await import('../maker/server/identify');
+      const { loadProjectConfig } = await import('../maker/storage');
+      const { generateResourceMeta } = await import('../maker/resourceMeta');
+      const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+      const originalIdentify = jest.mocked(identifyMakerProject).getMockImplementation();
+      const originalConfig = jest.mocked(loadProjectConfig).getMockImplementation();
+      let reject!: (error: Error) => void;
+      try {
+        jest.mocked(identifyMakerProject).mockReturnValue({
+          source: 'cwd',
+          projectRoot: process.cwd(),
+          projectId: 'project',
+        } as ReturnType<typeof identifyMakerProject>);
+        jest.mocked(loadProjectConfig).mockReturnValue({ user_id: 'user', project_id: 'project' });
+        jest.mocked(resolveMakerClientModel).mockImplementation(() => {
+          if (mode === 'reject') return Promise.reject(new Error('model access denied'));
+          return new Promise((_, fail) => {
+            reject = fail;
+          });
+        });
+        jest
+          .mocked(generateResourceMeta)
+          .mockResolvedValue({ success: true, results: [], generatorCommit: 'test' });
+        await startMakerMcpServer();
+        const result = await mockServers[0].handlers.get(CallToolRequestSchema)!(
+          { params: { name: 'generate_resource_meta', arguments: {} } },
+          { requestId: 'model-failure', signal: new AbortController().signal }
+        );
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(resolveMakerClientModel).toHaveBeenCalledTimes(1);
+        expect(generateResourceMeta).toHaveBeenCalledTimes(1);
+        expect(result.isError).not.toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ success: true });
+      } finally {
+        reject?.(new Error('late model failure'));
+        jest.mocked(resolveMakerClientModel).mockResolvedValue({});
+        jest.mocked(identifyMakerProject).mockImplementation(originalIdentify!);
+        jest.mocked(loadProjectConfig).mockImplementation(originalConfig || (() => null));
+      }
+    }
+  );
 
   test.each([true, false])(
     'dispatches explicit meta calls locally and returns success=%s',
@@ -411,7 +575,14 @@ describe('maker MCP version status integration', () => {
     expect(instructions).toContain('image, video, music, sound-effect');
     expect(instructions).toContain('generate_resource_meta');
     expect(instructions).toContain('maker-ui-workflow');
-    expect((instructions as string).length).toBeLessThanOrEqual(1600);
+    expect(instructions).toContain('canvas capabilities');
+    expect(instructions).toContain('canvas templates');
+    expect(instructions).toContain('canvas-video.md');
+    expect(instructions).toContain('UI 动效/LuaTween/选用交给 AI');
+    expect(instructions).toContain('taptap-maker-local → LuaTween UI Integration link');
+    expect(instructions).not.toContain('references/ui-motion.md');
+    expect(instructions).toContain('original Lua, not JS easing');
+    expect((instructions as string).length).toBeLessThanOrEqual(2200);
     expect(instructions).not.toMatch(
       /agents update|global memory|~\/.(?:codex|claude|workbuddy)/iu
     );

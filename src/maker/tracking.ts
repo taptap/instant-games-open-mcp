@@ -3,6 +3,9 @@
  */
 
 import { getMakerApiBaseUrl } from './config.js';
+import { resolveMakerClientModel, type MakerClientModel } from './clientModel/index.js';
+import { CLIENT_MODEL_TIMEOUT_MS } from './clientModel/limits.js';
+import { bestEffort } from './system/bestEffort.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 
@@ -18,6 +21,13 @@ const TRACKING_ERROR_MAX_LENGTH = 500;
 export interface MakerMcpTrackingContext {
   userId: string;
   projectId: string;
+  clientInfo?: { name: string; version: string };
+  projectDir?: string;
+  requestModel?: MakerClientModel;
+  /** Per-call snapshot shared with status diagnostics, including an unavailable empty result. */
+  resolvedModel?: MakerClientModel;
+  /** Started at tool entry; reporting awaits the same lookup rather than rereading later. */
+  modelSnapshot?: Promise<MakerClientModel>;
 }
 
 export interface MakerMcpActivityEvent {
@@ -36,12 +46,14 @@ export interface MakerMcpActivityEvent {
 export interface MakerMcpTrackingPayload {
   action: typeof MAKER_MCP_TRACKING_ACTION;
   user_agent?: string;
-  args: {
+  args: MakerClientModel & {
     user_id: string;
     project_id: string;
     tool_name: string;
     source: typeof MAKER_MCP_TRACKING_SOURCE;
     mcp_version: string;
+    client_name?: string;
+    client_version?: string;
     tool_id?: string;
     duration_ms?: number;
     success?: boolean;
@@ -70,6 +82,13 @@ export function buildMakerMcpTrackingPayload(
     source: MAKER_MCP_TRACKING_SOURCE,
     mcp_version: MAKER_MCP_VERSION,
   };
+
+  if (event.context.clientInfo?.name.trim()) {
+    args.client_name = event.context.clientInfo.name.trim();
+  }
+  if (event.context.clientInfo?.version.trim()) {
+    args.client_version = event.context.clientInfo.version.trim();
+  }
 
   if (event.requestId !== undefined && String(event.requestId).trim()) {
     args.tool_id = String(event.requestId);
@@ -130,27 +149,37 @@ export async function reportMakerMcpActivity(event: MakerMcpActivityEvent): Prom
     return;
   }
 
-  const fetchImpl = event.fetchImpl || fetch;
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    event.timeoutMs ?? MAKER_MCP_TRACKING_TIMEOUT_MS
+  Object.assign(
+    payload.args,
+    await bestEffort(
+      async () =>
+        event.context.resolvedModel ??
+        (await event.context.modelSnapshot) ??
+        (await resolveMakerClientModel({
+          clientName: event.context.clientInfo?.name,
+          projectDir: event.context.projectDir,
+          requestModel: event.context.requestModel,
+        })),
+      CLIENT_MODEL_TIMEOUT_MS,
+      {}
+    )
   );
 
-  try {
-    const response = await fetchImpl(`${getMakerApiBaseUrl()}/tracking`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    await response.body?.cancel();
-    if (!response.ok) {
-      throw new Error(`tracking request failed with HTTP ${response.status}`);
-    }
-  } catch {
-    // Tracking is intentionally best-effort. Never surface its failures to MCP users.
-  } finally {
-    clearTimeout(timeout);
-  }
+  const fetchImpl = event.fetchImpl || fetch;
+  await bestEffort(
+    async (signal) => {
+      const response = await fetchImpl(`${getMakerApiBaseUrl()}/tracking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal,
+      });
+      await response.body?.cancel();
+      if (!response.ok) {
+        throw new Error(`tracking request failed with HTTP ${response.status}`);
+      }
+    },
+    event.timeoutMs ?? MAKER_MCP_TRACKING_TIMEOUT_MS,
+    undefined
+  );
 }

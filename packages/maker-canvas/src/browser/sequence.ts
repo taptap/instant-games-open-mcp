@@ -20,6 +20,7 @@ export type { FrameSetFrame, FrameSetInfo, SequenceSettings, VideoInfo } from '.
 export interface SequenceFrame {
   time: number;
   blob: Blob;
+  duration?: number;
 }
 
 export interface SequenceRunView {
@@ -488,8 +489,15 @@ export function renderSequenceCard(
     info.textContent =
       node.frameSetInfo.frameCount +
       ' 帧 · ' +
-      node.frameSetInfo.fps +
-      ' FPS · ' +
+      (node.frameSetInfo.frames.some((frame) => frame.duration !== undefined)
+        ? (
+            node.frameSetInfo.frames.reduce(
+              (total, frame) => total + (frame.duration ?? 1000 / node.frameSetInfo!.fps),
+              0
+            ) / 1000
+          ).toFixed(2) + ' 秒 · 原时长'
+        : node.frameSetInfo.fps + ' FPS') +
+      ' · ' +
       node.frameSetInfo.width +
       '×' +
       node.frameSetInfo.height;
@@ -652,7 +660,15 @@ export function hasOpaqueBoundary(data: Uint8ClampedArray, width: number, height
 
 export function createSequenceProcessor(options: SequenceProcessorOptions) {
   function delayFrame(): Promise<void> {
-    return new Promise((resolve) => window.setTimeout(resolve, 0));
+    return new Promise((resolve) => {
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => {
+        channel.port1.close();
+        channel.port2.close();
+        resolve();
+      };
+      channel.port2.postMessage(null);
+    });
   }
 
   async function seek(video: HTMLVideoElement, time: number, signal: AbortSignal): Promise<void> {
@@ -699,7 +715,8 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
     end: number,
     fps: number,
     signal: AbortSignal,
-    onProgress: (current: number, total: number, time: number, preview: SequenceFrame) => void
+    onProgress: (current: number, total: number, time: number, preview?: SequenceFrame) => void,
+    adaptive?: { capacity: number; maxSide: number }
   ): Promise<SequenceFrame[]> {
     if (
       !Number.isFinite(video.duration) ||
@@ -712,11 +729,27 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
       throw new Error(
         '视频没有有效画面或时长；请检查视频轨道，或转为 MP4（H.264、yuv420p）后重新导入。'
       );
-    const count = options.estimateFrameCount(start, end, fps);
+    const count = adaptive
+      ? Math.ceil((end - start) * fps - 1e-8)
+      : options.estimateFrameCount(start, end, fps);
+    if (
+      adaptive &&
+      (![start, end, fps].every(Number.isFinite) ||
+        start < 0 ||
+        end <= start ||
+        fps < 1 ||
+        fps > 30 ||
+        count < 1 ||
+        count > 900 ||
+        adaptive.capacity < 2)
+    )
+      throw new Error(
+        '全片去重减帧最多扫描 900 帧，输出至少需容纳 2 帧；请降低扫描 FPS 或输出尺寸。'
+      );
     const canvas = document.createElement('canvas');
     const scale = Math.min(
       1,
-      options.maxSourceSide / Math.max(video.videoWidth, video.videoHeight)
+      (adaptive?.maxSide || options.maxSourceSide) / Math.max(video.videoWidth, video.videoHeight)
     );
     canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
     canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
@@ -725,9 +758,62 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
     const frames: SequenceFrame[] = [];
     video.pause();
     try {
-      for (let index = 0; index < count; index += 1) {
+      let times = Array.from({ length: count }, (_, index) => start + index / fps);
+      if (adaptive) {
+        // Scan small signatures first; only encode selected frames at output resolution.
+        const probe = document.createElement('canvas');
+        probe.width = 160;
+        probe.height = 90;
+        const probeContext = probe.getContext('2d', { willReadFrequently: true });
+        if (!probeContext) throw new Error('无法分析视频帧。');
+        const candidates = [start];
+        let anchor: Uint8ClampedArray | undefined;
+        const lastTime = Math.max(start, end - Math.min(0.001, (end - start) / 2));
+        times = times.filter((time) => time < lastTime);
+        times.push(lastTime);
+        for (let index = 0; index < times.length; index++) {
+          await seek(video, times[index], signal);
+          probeContext.drawImage(video, 0, 0, 160, 90);
+          const pixels = probeContext.getImageData(0, 0, 160, 90).data;
+          let total = 0;
+          let maxTile = 0;
+          if (anchor) {
+            for (let y = 0; y < 90; y += 10) {
+              for (let x = 0; x < 160; x += 10) {
+                let tile = 0;
+                for (let dy = 0; dy < 10; dy++) {
+                  for (let dx = 0; dx < 10; dx++) {
+                    const offset = ((y + dy) * 160 + x + dx) * 4;
+                    for (let channel = 0; channel < 3; channel++)
+                      tile += Math.abs(pixels[offset + channel] - anchor[offset + channel]);
+                  }
+                }
+                total += tile;
+                maxTile = Math.max(maxTile, tile / 300);
+              }
+            }
+          }
+          if (
+            !anchor ||
+            total / (160 * 90 * 3) >= 0.3 ||
+            maxTile >= 1.5 ||
+            index === times.length - 1
+          ) {
+            if (index > 0) candidates.push(times[index]);
+            anchor = pixels;
+          }
+          onProgress(index + 1, times.length, times[index]);
+          await delayFrame();
+        }
+        const limit = Math.min(candidates.length, adaptive.capacity);
+        times = Array.from(
+          { length: limit },
+          (_, index) => candidates[Math.round((index * (candidates.length - 1)) / (limit - 1))]
+        );
+      }
+      for (let index = 0; index < times.length; index += 1) {
         if (signal.aborted) throw new DOMException('处理已取消。', 'AbortError');
-        const time = start + index / fps;
+        const time = times[index];
         await seek(video, time, signal);
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -737,9 +823,10 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
             'image/png'
           );
         });
-        const frame = { time, blob };
+        const frame: SequenceFrame = { time, blob };
+        if (adaptive) frame.duration = ((times[index + 1] ?? end) - time) * 1000;
         frames.push(frame);
-        onProgress(index + 1, count, time, frame);
+        onProgress(index + 1, times.length, time, frame);
         await delayFrame();
       }
       return frames;
@@ -872,7 +959,7 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
             'image/png'
           );
         });
-        output.push({ time: frames[index].time, blob });
+        output.push({ ...frames[index], blob });
         onProgress(index + 1, frames.length);
       } finally {
         source.close();
@@ -958,7 +1045,7 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
             'image/png'
           );
         });
-        output.push({ time: frames[index].time, blob });
+        output.push({ ...frames[index], blob });
         onProgress(index + 1, frames.length);
       } finally {
         source.close();
@@ -1024,7 +1111,15 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
       } finally {
         bitmap.close();
       }
-      metadata.push({ index, time: frame.time, x, y, width: frameWidth, height: frameHeight });
+      metadata.push({
+        index,
+        time: frame.time,
+        x,
+        y,
+        width: frameWidth,
+        height: frameHeight,
+        ...(frame.duration === undefined ? {} : { duration: frame.duration }),
+      });
       onProgress?.(index + 1, frames.length);
       if (index % 4 === 3) await delayFrame();
     }
@@ -1034,6 +1129,10 @@ export function createSequenceProcessor(options: SequenceProcessorOptions) {
         'image/png'
       );
     });
+    if (blob.size > 20 * 1024 * 1024)
+      throw new Error(
+        '图集超过 20 MiB 保存上限。请返回尺寸调整，降低输出宽高后重新保存；当前帧仍保留。'
+      );
     return {
       blob,
       info: { fps, frameCount: frames.length, width, height, columns, rows, frames: metadata },

@@ -18,12 +18,12 @@ export function templateCoverNode(
   template: CanvasWorkflowTemplate,
   slot = 0
 ): CanvasNode | undefined {
-  if (slot !== 0 && slot !== 1) return;
+  if (!Number.isInteger(slot) || slot < 0 || slot > 4) return;
   const previews = template.builtin ? templatePresentation(template.id).previews : undefined;
   if (previews) {
     const preview = previews[slot];
     return preview
-      ? template.nodes.filter((node) => node.type === 'image')[preview.index]
+      ? template.nodes.filter((node) => node.type === (preview.type || 'image'))[preview.index]
       : undefined;
   }
   if (slot !== 0) return;
@@ -47,6 +47,19 @@ export function templateCoverSource(
   return templateCoverNode(template, slot)?.assetPath;
 }
 
+export function templateCoverFrame(frame: { width: number; height: number }, index: number) {
+  const ratio = Math.min(128 / frame.width, 128 / frame.height);
+  const width = frame.width * ratio;
+  const height = frame.height * ratio;
+  // Keep the cached square atlas cells, but sample only their original image area.
+  return {
+    x: (index % 8) * 128 + (128 - width) / 2,
+    y: Math.floor(index / 8) * 128 + (128 - height) / 2,
+    width,
+    height,
+  };
+}
+
 export function templateCoverAnimation(
   template: CanvasWorkflowTemplate,
   compact = false,
@@ -54,14 +67,22 @@ export function templateCoverAnimation(
 ): CanvasTemplateCoverAnimation | undefined {
   const info = templateCoverNode(template, slot)?.frameSetInfo;
   if (!info?.frames.length) return;
-  const count = Math.min(32, info.frames.length);
+  let durationMs = 0;
+  const ends = info.frames.map((frame) => (durationMs += frame.duration ?? 1000 / info.fps));
+  // Sample elapsed time, not frame indices: deduplicated frames may have long holds.
+  const count = Math.min(
+    128,
+    info.frames.length,
+    Math.max(1, Math.floor((durationMs * 12) / 1000))
+  );
+  let sourceIndex = 0;
   return {
-    fps: (info.fps * count) / info.frames.length,
+    fps: (1000 * count) / durationMs,
     frames: Array.from({ length: count }, (_, index) => {
-      if (compact)
-        return { x: (index % 8) * 128, y: Math.floor(index / 8) * 128, width: 128, height: 128 };
-      const frame =
-        info.frames[count === 1 ? 0 : Math.round((index * (info.frames.length - 1)) / (count - 1))];
+      const at = (index * durationMs) / count;
+      while (sourceIndex < ends.length - 1 && at >= ends[sourceIndex]) sourceIndex++;
+      const frame = info.frames[index === count - 1 && count > 1 ? ends.length - 1 : sourceIndex];
+      if (compact) return templateCoverFrame(frame, index);
       return { x: frame.x, y: frame.y, width: frame.width, height: frame.height };
     }),
   };
@@ -197,6 +218,9 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
   }
   function instantiate(template: CanvasWorkflowTemplate, position: { x: number; y: number }) {
     const nodes: CanvasNode[] = JSON.parse(JSON.stringify(template.nodes));
+    // This official workflow ships usable results; changing inputs still invalidates dependents.
+    const reuseFurnitureSample =
+      template.builtin && template.id === '7e1cb6ad-732f-4dc3-a951-000000000016';
     const modelWorkflow = nodes.some((node) => node.type === 'model-views');
     const ids = new Map(nodes.map((node) => [node.id, createId()]));
     for (const node of nodes) {
@@ -228,6 +252,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
         node.generation.sourceImageIds = node.generation.sourceImageIds.map((id) => ids.get(id)!);
       if (
         !['model', 'model-views', 'resource-bundle', 'mark'].includes(node.type) &&
+        !(reuseFurnitureSample && node.assetPath) &&
         template.edges.some((edge) => ids.get(edge.to) === node.id)
       )
         node.templatePending = true;

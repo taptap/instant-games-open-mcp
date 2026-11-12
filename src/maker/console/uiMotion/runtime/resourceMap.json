@@ -1,0 +1,2369 @@
+{
+  "assets/Fonts/Menu-Black.ttf": {
+    "resourceId": "2e4413c405bdf804f26571579b9b2dd8ea4732ea57a3b034f2467cad45a886e0"
+  },
+  "assets/Fonts/NotoSerifSC-Regular.ttf": {
+    "resourceId": "e4f7fa45933254257f7859022a627c6898494a43e5056d6d91d1a65031a6439d"
+  },
+  "assets/ui/motion-lab-v1/fonts/Bold.ttf": {
+    "resourceId": "13e42f4970641ce4f4a297215bbcbbc76c835169e365c1f81e009ade521bfa4d"
+  },
+  "assets/ui/motion-lab-v1/fonts/Serif.ttf": {
+    "resourceId": "391921225564498d53b0457c3eb796bdae248baaa2a76c581b0bbe12e0313d92"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/auto-off.png": {
+    "resourceId": "35b5188f2399b5018d0b57a16bce676a7fe939b274c5c49545e6677eb1461cf2"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/auto.png": {
+    "resourceId": "3fdc8afe4b72787a1045f32b7954c2d2e5d2abfb793d277eef8cec5250701d7a"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/back-floating.png": {
+    "resourceId": "805d5ca8fe11e76d7f32b1788f0575b0250557ac969209eb9ef11de54b7f6406"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/back.png": {
+    "resourceId": "d79d72751b7b4a01140e61fa13f6b92937bad4a6fed6a3af3024bffbd833e2df"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/backdrop.png": {
+    "resourceId": "070d68baba15144a533415632c293b8d73e0e0463190049babfce604361eebcd"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/badge.png": {
+    "resourceId": "28f5a2e6016d5e56153a7b25c2de89d27506d7c1da1d6f0a07340e36eb7be636"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/banner-blank.png": {
+    "resourceId": "f30f427b131e8f672a46c6596a1fe6a286dddd4e5b4274393eaa0e9fe1ebd2a9"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/banner.png": {
+    "resourceId": "574b939aa716be898392a44f5cf4a8c4299efd608a032c00f2d1304a765e49cf"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/cancel.png": {
+    "resourceId": "08f49fe4725fb9811ea074d7a800f735a85be2e6d2194af7d85d9c6df7c3bca7"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/card-1-blank.png": {
+    "resourceId": "550939a4cc4a4b8d015276e403dcfd29dfd7632a2f2234b83c5c4dd093466c18"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/card-1-off.png": {
+    "resourceId": "0f4de65d12307ebf8232643365b3a4226418ec5d3b29988fe408ab4b533b9ab1"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/card-1.png": {
+    "resourceId": "d35ba1151cac785d288b33b13a14fd1928301664b505cdd26397d6eaf8e06bee"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/card-2-blank.png": {
+    "resourceId": "885ce281a628cec885cbcfbc14bf721181fbfd6d1f40bf2f6e5df2dd62d76a52"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/card-2.png": {
+    "resourceId": "113576c1fa34433b71fc5b4105d3bca2ac592137f0883c9a7b0f6770e2955e80"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/card-3-blank.png": {
+    "resourceId": "6ebca78038bd0582d8850c14a76a8752fb7ae420fc82b63a2bf236a5aa65bfd6"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/card-3.png": {
+    "resourceId": "c11b586a60908fd180ea84761d95a90d5ab8ae35affd8399bc461ae07e770555"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/category-1.png": {
+    "resourceId": "37d1d9718f82d790e0cb603fb77c0e3cff7503e956face3446dfb3c2ce1f496f"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/category-2-off.png": {
+    "resourceId": "f680ffced523104bbc28306800f0f5eee8e95bcecec8588a681f85e4cdd780f9"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/category-2.png": {
+    "resourceId": "3ab22c56494dc0282684cff921c4cd4fc8d554474921167e3b28ada245dc0e35"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/category-3.png": {
+    "resourceId": "5b684c508f97f10e58f330c8a6ed58b9dc16b3c67e1cb6cdf8b13fe362ed60a3"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/category-4.png": {
+    "resourceId": "f50f42415a911fe8ca1115cc73f4775e1c08881dd5b43c33018e3efb6e578179"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/category-5.png": {
+    "resourceId": "68c84bbafeb18d34e57924d509c6749f63d12cd3950404274ce9e321f85f1db3"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/category-6.png": {
+    "resourceId": "f2e431b4f49374ae759e29cab3b2bd94139eeec649233bf2fb69bede89b31066"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/claim-blank.png": {
+    "resourceId": "6bf2d933ce16d9ffb586281b4f27e73390890f0949d26f2f865790364a906d14"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/claim.png": {
+    "resourceId": "6990370bbe121be91ad32e1f5d3b73022906175c9e04d94141af4c0e35b5af8b"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/confirm.png": {
+    "resourceId": "4a5183244b617010548d6117508bf3b2e47a1050f4826c6f5f7deeb8c81016b8"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/dialogue-text.png": {
+    "resourceId": "5e3cb15002093975ba52cf8e0c57edd932224de1a6d7ac12e5f70ea9aa539a63"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/dialogue.png": {
+    "resourceId": "a24e59a53f7a9e9cac7ca1658fbe9a73b78b050553e271aece687480b2a80aec"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/directory.png": {
+    "resourceId": "07bb07c1040ef0e92a477e428b30b66fbe011ad7e93c0dce8b43a32e6b4cc5d3"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/entry-1-blank.png": {
+    "resourceId": "515a4cba6410d5426f8ea82b73ff5e2125cf88e21b85991a7cffe02a93980e86"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/entry-1.png": {
+    "resourceId": "1c7f4184392e92fd2ec1ce26a27a4eee0c9ea814c832a8639778ca78be673f79"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/entry-2.png": {
+    "resourceId": "6929df4d022b822b3be75be42b02bbc381bd79ed37d403a1a2b8109bdf35dd07"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/entry-3.png": {
+    "resourceId": "6f354e0250497a9d42ff1264dd5db666427d33299496d91e1c430df3cb226630"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/entry-4-off.png": {
+    "resourceId": "f91c3ddf759e475ced7e75bf0d6b79f59b8a74463061b869252abdfd2c3d152f"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/entry-4.png": {
+    "resourceId": "afe4e4be3541931e0541b2f09ddc9ce10fbc9d465516a5a49f4cc2576e7ecf1d"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/entry-5.png": {
+    "resourceId": "0e9612f48aac81e8a5f5b72d97f3e70f81c5717a18cb5a7faf1b9fbb2671b753"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/entry-6.png": {
+    "resourceId": "ed91f779c9b337f4e07a870bf9101b5a128c3c5730a4f95e3a01462d438acc53"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/focus-card.png": {
+    "resourceId": "ae6db4fa08796c56042e65aa264f30029c0e4bb13a6d3f35dbde81c96b1c9d27"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/focus-category.png": {
+    "resourceId": "f2b3cf655b484629b883b2c18e1d170e271334b8d87e55e06c249c5eb92b9fb1"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/focus-entry.png": {
+    "resourceId": "3ab8afceff7aba8eb30f1e056cadca7c6ac5f65cfca527f8bb703488d012c9c5"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/focus-primary.png": {
+    "resourceId": "2c8a45cb7086e0186800a0dded993d912de06b35b644411a1a314e1b08bdc2f0"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/focus-tab.png": {
+    "resourceId": "e73e865f6bcff8010e9e1299f62e7dc0a68f17d0f831af8b5569f30f26ff5393"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/focus-task.png": {
+    "resourceId": "1e2a31b8c3b9344f0d30da562092008ca14d81fa2611499f929a870d276dd894"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/header-back.png": {
+    "resourceId": "cf0614ce02bb293b6bd30b385136bb1c37063bf4b46045a233dd43dc51c819c1"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/header-close.png": {
+    "resourceId": "1270da8a0fb52af3b1f2081143175c5006b0108148531165532e51dc1a722368"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/header-sequence-blank.png": {
+    "resourceId": "f59c081101f1c1b94e06ecdcb5c59aea38a55a0386dc0fd1e849d35338af11d0"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/header-sequence.png": {
+    "resourceId": "b6fd0afc705b946979733c18f818c1a27de18ea6afa11162062edfc2043c8cea"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/header-title.png": {
+    "resourceId": "bbc69b1403e29b630075e3c02e08fbc877778f0542f55159d0c94bf4f4694a6e"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/home.png": {
+    "resourceId": "ae24d1cf789a2218afc862e318beaa31d9c2f3b0c67680759de86e5e981587f2"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/list.png": {
+    "resourceId": "dc097f952d2e79aa98a064270b619d25fcbd71642c5d0e51aeb08bba2f71a154"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/modal-blank.png": {
+    "resourceId": "9abeae9f28cf99fce01989d40b104eb55a7dbd3f8628a3a6495888b56a495982"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/modal.png": {
+    "resourceId": "00e1892bd58f748d5b95896ca42be3830e91bf3e0f6cdc41ad6e873a323b7d5a"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/portrait.png": {
+    "resourceId": "0b10bf589aac0df731b59bd484f28ea29f0f47edf65c8d7eef920dbb6580840c"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/primary-blank.png": {
+    "resourceId": "c9fb15e2c5fb48c61fd31e899a5a48b2d427728bf4b6b5987a49add9d11d0899"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/primary.png": {
+    "resourceId": "a174b275388ce067a82e2eef51bba29edc59dd07e24a2a970deaf888384602ed"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/prize-1-count.png": {
+    "resourceId": "8222e6fa3c0869a6406e3e2e1dfedbacd2a8b4ab513a6f69241310c0a8c94543"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/prize-1.png": {
+    "resourceId": "4c187d52a8da922ec0eb04aaa32ea39d5d8c8a573dff609227442580b69bf1b7"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/prize-2.png": {
+    "resourceId": "1537c27e92cad9c8982ae467312e9da2e9e138b0cca92f3eb509dd54079b5c5b"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/prize-3.png": {
+    "resourceId": "26a73ad632411caacb8e6efd41929bca5aa206cf94633e96d9d71bf243a27110"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/replay.png": {
+    "resourceId": "c2c20d619c4576590e7670d16fde7faf6b493b467208bba16248e7c1777cb67f"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/reward.png": {
+    "resourceId": "d78b0bef474a6ec753eca762530eb770caf4279a6d64f602503d433b630ee10a"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/secondary-blank.png": {
+    "resourceId": "fe7347a836bbeefda2355c4d31ae2d1bbe9f699efee841536678c74736c1e959"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/secondary-floating.png": {
+    "resourceId": "185fa556d325381e1e1f06c05591faf9f4d19d07531138dc9bcec47533f2bf66"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/secondary.png": {
+    "resourceId": "478cf78b09a1b0bf099270655b602a33512da3f71a7e188d1c36b969be515918"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/section-label-1.png": {
+    "resourceId": "4a64f7fb58b8c5f3e4d83befabc8166be917efdff2b2de40b2b930c7de9fc8c8"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/section-label-2.png": {
+    "resourceId": "20091f38c8a549408adc5e7bcb35a664b1209a2bc8db2cc868feb4cf2219be23"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/section-label-3.png": {
+    "resourceId": "0fdfe45de90a4faf127eadd2772a991c73463c3ae058102450a423b4675f9ced"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/section-label-4.png": {
+    "resourceId": "3e5c8c0bc73de12d68175d8d948ad6084a4d58f7a9c8f4ccc8d071c483760a46"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/setting.png": {
+    "resourceId": "56a9f100375b04544ad621e6c9a76577c09ca36fa662428b74538a4f5f985904"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/tab-1-active.png": {
+    "resourceId": "469589eda36fb51637506a8facd1b17a034981b825e813de3f23f386c74064ab"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/tab-1-off.png": {
+    "resourceId": "5f3ad673e31e23939cfe06075c999842bc94ff905e8824d7e45bc21528aadd7a"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/tab-1.png": {
+    "resourceId": "d7fc9ed1bd2c9ca121d582944637b75029bea412d41bd0f9d21c2cf8560f3283"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/tab-2-active.png": {
+    "resourceId": "c5a239871f82ad3aec9c3730b4e68da33ad967279c76e367b62a9656afebf8c5"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/tab-2.png": {
+    "resourceId": "d8670d6c8a7ffcd35275eef2e6cfa06f8852824691542203038d5d5962782cf3"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/tab-3-active.png": {
+    "resourceId": "a5f8ee9b598bea370f6dedc18e1b8275a540acd0f2f34d62a0dc2ad198758279"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/tab-3.png": {
+    "resourceId": "6acdb897132eba1d876056ef1373a0a509610235adbf1824835878f096bc898b"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/tab-4.png": {
+    "resourceId": "f0df3cbc40c46dd07523033a5a5df2a8962650719f7f09c15219a0156dc74a14"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/tab-plate-selected.png": {
+    "resourceId": "41f341be263f4051fe3be9f4cb655a152d9eef65963ddbdbd17213666dae7bd8"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/tab-plate.png": {
+    "resourceId": "0f386157ac049ca1d0c2619954f3966f33e038a9feff3d2d89b0e3b8ed657f72"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/tab-row-selected.png": {
+    "resourceId": "d34ab6dcd9c1382ec3d167f672c7273ac366065a6bc300699e3cce1110983172"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/tab-row.png": {
+    "resourceId": "737c2c026fac1e6e95d2fdad2d1b40900211b1b6cb6d55ca656025fb42d783ac"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/task-1-active.png": {
+    "resourceId": "8c5a29babd872e397506413f629f5642dc88488694896cef63d35f72d54db029"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/task-1-off.png": {
+    "resourceId": "f373cee89afe6358ff9b39f73d6b92527ed06e02ecb8846e82f2a1a8f5728e00"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/task-1.png": {
+    "resourceId": "5647f251230bb89148505d77d9f68c998baea05f6147c00aa6461838ac789fb0"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/task-2-active.png": {
+    "resourceId": "406d4c1d2a60ba96077e5dac815f8d9a00ca44c39488004a705818e062c3dd70"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/task-2.png": {
+    "resourceId": "9d5ae0f6fd8ac060cbe33f83c32f0f71902a6a0c74c3c2f9d649f0d98a9a4ac2"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/task-3-active.png": {
+    "resourceId": "9311b6f3c81901067c470a4e30e41546aa5f41a669b27f06515e25372cb2321b"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/task-3.png": {
+    "resourceId": "7795b6f019c5857d411c935b7912e86bf5e40582f8b0e4f9bacc6e8e8d049f73"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/task-plate-selected.png": {
+    "resourceId": "4c21f2fd9553ee815d10f7bc9382abc0fea584c4586821605c7dbe06a250a5f4"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/task-plate.png": {
+    "resourceId": "1387fd71c0e8f3772c07910cfea0c3a67427ba85296e0c6a9a4dd1c8c9354e64"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/task-row-selected.png": {
+    "resourceId": "eedeb55ac176023a31c7cefa2ec79464fb762a28e855393817f7e469ba7f4ccc"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/task-row.png": {
+    "resourceId": "26143a9558b4508a7ac2e018dbb8a82f15074f1da5591a2c0135cae5de3ff7f2"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/toast-blank.png": {
+    "resourceId": "37997d1f5da099198de56e42109e85cefc0510396dd3bbab8fedaa3ed0ee8731"
+  },
+  "assets/ui/motion-lab-v2/brass-frame/toast.png": {
+    "resourceId": "8cbc088086ea613944406372a11a7a434687c0db430b9bb74d812c3140b1740b"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/auto-off.png": {
+    "resourceId": "de0c7705e93cf1a7975b1b51abd2ea2a08465e468dffed52dc8228a01273847c"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/auto.png": {
+    "resourceId": "8686755e7536c66f3c6a82b1d85b8fc0d0d87b60008b0bf88925dcdabe17c6b2"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/back-floating.png": {
+    "resourceId": "a2056d52de573ec2cc0d19772929e380efcde563d068a76ce16ea44b02c4b811"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/back.png": {
+    "resourceId": "20e9e3fdb19625007e9ad56ee7e467db474f76114b718919642998a7ee653816"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/backdrop.png": {
+    "resourceId": "8e2c478370faaa04385b3074b7cfc991b7d326d91c8e52291b123af60452a392"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/badge.png": {
+    "resourceId": "7e9381617c72e2bd3635dae7898302c774174171de14cea0f59478d3633f0302"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/banner-blank.png": {
+    "resourceId": "7789a027f24da654dbae814c97d59b9fe77d174a36353ac662f71d535d2e399e"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/banner.png": {
+    "resourceId": "35688991baeca084779a89e0b71256f98353b160bfd2e82a92e7ba827b7e40a8"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/cancel.png": {
+    "resourceId": "b36982c638adc24d6899ae3d5cdeaed0163303e0dbc209a38dccd71b3f4b2fe5"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/card-1-blank.png": {
+    "resourceId": "c84007fe9b581d4ac998eec515696da98f43a8f53b9289885456b2f185e62bc3"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/card-1.png": {
+    "resourceId": "1f39d6370e2dc31f659496ceb6cc1402b8c54fbc00cba4f216b283add2931462"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/card-2-blank.png": {
+    "resourceId": "feb923a8c72f79f1dd04c5a8e7f2831a6c88bd7e01b7607e554ef9523002d699"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/card-2-off.png": {
+    "resourceId": "357067921fb7c8aff2caf719521036713a3437789a56e4859c64a83a44f15c26"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/card-2.png": {
+    "resourceId": "aa0fe7920970c4c66d7eca7c3162729d4ad0795d36af302a4d6e0b8a4190c1b7"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/card-3-blank.png": {
+    "resourceId": "9f1eb8cb1ff320e90dad0b96953b20c46da10b009ae818f24c816df698599c00"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/card-3.png": {
+    "resourceId": "1315ff92acb877f60835fd2588e398fa87ce94fcd2b96b032ce5f0b86b69fc22"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/category-1.png": {
+    "resourceId": "65f62c2512c2791313477d5ebdd881426f2786e57e7e391b8744470f6f2b0303"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/category-2-off.png": {
+    "resourceId": "9232020d6f4edc6ae689394754898d14d997bb3c3b5d4a9cac6c8a0d92e005b9"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/category-2.png": {
+    "resourceId": "6b1130bd9c4ebd13d0920c67c547292fe70fd2472572f9d4c889336ae73ac6bb"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/category-3.png": {
+    "resourceId": "5c8d737229ff9aa3483c7dd85ec50c11436e3719cd7444da502746c598793889"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/category-4.png": {
+    "resourceId": "41c269ed3fcc7d04b6de119abc41712029f25031c47e7b24ce607f440824ada4"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/category-5.png": {
+    "resourceId": "d8ad770e8f835acfbb53d7b9d9e09dc415f0fdff47624941ad35aa13a1154846"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/category-6.png": {
+    "resourceId": "4f98e7cc1c8d9c09939862d48b46dd75df8fb52f3831426a39698134790274e0"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/claim-blank.png": {
+    "resourceId": "578fbc407f6e4f1ae4e1a51ef0345ef862a48295b822d118d6a193d7e70afe0a"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/claim.png": {
+    "resourceId": "021646ea93d5054fe30014ac72f69a1fd27904f6d77eecef9017d455b94d7f57"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/confirm.png": {
+    "resourceId": "8ce427c6cf6b45e4f43a87f65befde71431bd193cfe26a104d37e2fdd9e1a4ea"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/dialogue-text.png": {
+    "resourceId": "271a6ffac410b96b27ed019e05644a7adb6a12b395a7e71b377706e5ebf6875a"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/dialogue.png": {
+    "resourceId": "30b7d4b76d4970811cc0954cd79bcad144363f5c661e41925cdaa0f9301e75a0"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/directory.png": {
+    "resourceId": "42155c25b1c87dfdde00c00153397622371f0b174db502f0efe7e9fb2f00f071"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/entry-1-blank.png": {
+    "resourceId": "84ed94ed2e5c8018eb2a982dfde21e8b77799e1950630466c814d17c7055f876"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/entry-1.png": {
+    "resourceId": "acd20d6fe0e862ae26b5820ccd0d5ca48fe15acb76ad6498692f7473a41422d0"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/entry-2.png": {
+    "resourceId": "633bdb56550a88aea14a881e5cf3d18fd44c3cfd79ea77de5479d208842b865d"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/entry-3.png": {
+    "resourceId": "b02f1f15697d14bc3cb4f50ebaf4b733ac874e4929d656c882d56ada9b2eb59f"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/entry-4-off.png": {
+    "resourceId": "bdf28b327b46d09b7c306a0e5557e5fe9138a06a29a79b6a2b5ec29135745589"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/entry-4.png": {
+    "resourceId": "5ea90ec54e02af7231d8f1295e8e0665a440b33047e2ef79fce033759c17776a"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/entry-5.png": {
+    "resourceId": "7b09ca18adabd1bbdd1d730fac257c181a6c7cdfd308b56db86d5c525a1dfd47"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/entry-6.png": {
+    "resourceId": "7a0e92bc20f1916bc06aa34aad37c799bcdb0732e11103e995e294c27d4c28b0"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/focus-card.png": {
+    "resourceId": "f00d17365aa21dab315308d9b7300067796925f07a27c1d9b68f07ee45953455"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/focus-category.png": {
+    "resourceId": "d53abd962e3d9157c0d84d85ecd64b6dbc0b19777974dc280cea515b1be7a702"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/focus-entry.png": {
+    "resourceId": "8d96ca267577bd85816e833f8deb57f075a0d02ad93d386235d5e191f2421951"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/focus-primary.png": {
+    "resourceId": "553e6a7c6ec92cb2c7b9876a515c4d5ceb2ddda7271db8cec01ef47791d623c1"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/focus-tab.png": {
+    "resourceId": "4e5d8f259eb97f9bcc83b6bb9fca6c8fa56d67b7b59b6d9238067bbe30672ceb"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/focus-task.png": {
+    "resourceId": "79fcf82af888b9c52efd0fc3a22c12f1bd58a1e727bc16dcb33392b4e38346b1"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/header-back.png": {
+    "resourceId": "88b5c2fbc80bd9ca8c2e7c7e801ca6536f4c84d7bc24416308365dc80908193f"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/header-close.png": {
+    "resourceId": "3f4b6655fe9e7f5591d9537e70bf9a8514376d55c9d22ad0e02728901aa9c0b9"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/header-sequence-blank.png": {
+    "resourceId": "f1192e79c5ae6717aac1d21fbf450d8cd386910775f2aa03882ac845ff342170"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/header-sequence.png": {
+    "resourceId": "f59255cfe59fd55b1598eb4dbf9bb94d661405b2c3298f29b2074df1c0ea8c64"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/header-title.png": {
+    "resourceId": "059c844b1b136a8bbcf507a944f9d0006e62bd3cbaca658fc795bfb18711558a"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/home.png": {
+    "resourceId": "69a49d16ea5f4b0f0082e1e45e64d58ec9702916d9655a99e36678eaa8aa92c2"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/list.png": {
+    "resourceId": "5fadf21a4e2d7ec2bd7f14637f53e76d8f336d21e8a7ea003f5e8547d2f16f60"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/modal-blank.png": {
+    "resourceId": "e98003c96d3ccabd01d0c0fab58d095ff29a9f7d1d1b06684221c07bd6413d6b"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/modal.png": {
+    "resourceId": "973b2e7bf2398c6e53610d9fff2433824e630392763906037958142bfb15686d"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/portrait.png": {
+    "resourceId": "746fa54c9537bd6a429db397c0671bce6310b0bbbb2ae4347312b362ef7faf76"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/primary-blank.png": {
+    "resourceId": "cac5c0ebb2a9e2680f0f2abbce243ef7f4efc12b375629b0b6f32490ff335062"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/primary.png": {
+    "resourceId": "a3fc0bfc43ade2b9c23e17413a069d10bd7eb1a0b1ba80dd5b33184a10342310"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/prize-1-count.png": {
+    "resourceId": "14d9409a65db7eaee9e6de516557674ff6f9ef5185f850ef7ffd9326ce67bdcf"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/prize-1.png": {
+    "resourceId": "5dcc3fd0a9e312247931afa23fd754d102253624c4cc86e26e7f1603156d19ed"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/prize-2.png": {
+    "resourceId": "787553853799ec7aaf87b8985abc6fad06e2e56a3bd3e8fb75787112a9a6e4cd"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/prize-3.png": {
+    "resourceId": "8d8ab5bf96b7b52912d1d213c76b1ee1c6f30d22b21941763148511c8aefce3a"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/replay.png": {
+    "resourceId": "676314b3f4ee3127f97b512b7a0a04700118c9c3f42505bea054850fbafc4ffc"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/reward.png": {
+    "resourceId": "5ba4b9da4e5defbbe941fa813681723506b173b3690068e81488e3e8d76072b2"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/secondary-blank.png": {
+    "resourceId": "b3882b214cae02a2167845c85b2dc3660c2c0bcb72b22dae5de2133e52496b2c"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/secondary-floating.png": {
+    "resourceId": "a9cddb0b76baff2a9c10c964261f830ba476f9e1d70b01f52620cbcc6cd63a74"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/secondary.png": {
+    "resourceId": "2e4865e8798ce0c37dee6b23fcf9d7864e5f81c5cb1b6747c23a3c8fae09d593"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/section-label-1.png": {
+    "resourceId": "08d4bb7a2e54f92a0d60ccb3ec2045dd493597014a047be5240c47184dda4fed"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/section-label-2.png": {
+    "resourceId": "5191d75567885ec1629a11f368b5265dfb776826bff4d7ccd30433ab71a89178"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/section-label-3.png": {
+    "resourceId": "ee6ee99ceabff7d59d7f0a0c638bbe58c1b7c64bee1543153ec6aaa17da43590"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/section-label-4.png": {
+    "resourceId": "a370ab4de8ed97c9edb7d760f647ef6b4830255720c6817dab9d8c6ce33cad47"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/section-label-5.png": {
+    "resourceId": "7bf666a429c33fd64e7bb964155034c47f66f67fb7fa65c72c0a968490247bae"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/setting.png": {
+    "resourceId": "780dd16aa7874606e6f33b4987b7f0730af31d543218dce579d0b14308e6b129"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/tab-1-active.png": {
+    "resourceId": "d8fa147aa2a7d22e23daad661d742f0ce2d638b7d995619a29166fa08e930166"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/tab-1-off.png": {
+    "resourceId": "7c332d6eec73b38c8ce02fdc4f89e1c2711c7153de10ea18d15c2bbbad09d337"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/tab-1.png": {
+    "resourceId": "0d81fcd79f4dd9f1cd2fb0eee31234f5e9b5699fce8c2ad32b6034475ca0886c"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/tab-2-active.png": {
+    "resourceId": "716a583caa625b612d84edf483090dc5b22a5d5ec7c76c8b045674b2eab297cb"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/tab-2.png": {
+    "resourceId": "aa68bbe032f5f117c3326b08eec69cac7b48d959e41e2b8c61c2e5cf298bb4f5"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/tab-3-active.png": {
+    "resourceId": "8ac6c718536b0d87ad39ce2f3f5ddb80491b1f744ce9968867ddcd6484b3d72f"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/tab-3.png": {
+    "resourceId": "c376f59e39d600eac6c79b40496f7ac762dd8d866e42fb9a76462e7d85396292"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/tab-4.png": {
+    "resourceId": "c2dd85b57038fc0cb5c05172c8932fb5ff8835f56f51f1b1a3e83190abdf6b1c"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/tab-plate-selected.png": {
+    "resourceId": "ecd99ce3c31c5611ac705331e7a395e13a6b2cff3ffa14ffefe67da81ad8898c"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/tab-plate.png": {
+    "resourceId": "5f3b2abc18a7dd2ac7f6dc1038f78adaf942e6bf42909781ef07cc4cb903ea95"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/tab-row-selected.png": {
+    "resourceId": "d4269e7c50c068b3022fe55c288ed88da4058b18768807ba88f87ea8124a10dd"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/tab-row.png": {
+    "resourceId": "d699d1418f7e3cac73777587c72aad3c717be2571b160d121e24a6e1b51bc72f"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/task-1-active.png": {
+    "resourceId": "6ba6ea8f38d062c577255a0c7cb5258a76be0fb49a74506d3d6e4fbc85e6cbdf"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/task-1.png": {
+    "resourceId": "b6ebb26cf2e207af39635c86d6d7aec8671e752226f2f6f3ddcdc9e10394aa00"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/task-2-active.png": {
+    "resourceId": "8a3ff43556b2cd4bff5ae8832cd73d723a2db8c42ac0852d98612e3b19e13729"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/task-2-off.png": {
+    "resourceId": "012ac1348ac39343a52f262f063f9af7c84237c42f22df76fd52bdb1df50c92c"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/task-2.png": {
+    "resourceId": "33a4131cb95c790d789c1c8f77e48105a7084c82699e5937e566e911d08f0b32"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/task-3-active.png": {
+    "resourceId": "a12232004069b881490499494f9a0466a649bc967e48598c062315e5532123cc"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/task-3.png": {
+    "resourceId": "b2f26e70b4640d23541bfebd361da8f6cc9555f01c891bf3a26743ec69303d07"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/task-plate-selected.png": {
+    "resourceId": "e7398bdbb678b090ebfdd88c20ea5b2af01c036496f5ade49864879c9f7980c3"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/task-plate.png": {
+    "resourceId": "0b0a713bec387387cd6446260dc2f06cbad63ae1592938456483cdca2b2a11a5"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/task-row-selected.png": {
+    "resourceId": "3f54fda87a915ada4895c3f1577561a096e370f064b33db564a247750a612001"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/task-row.png": {
+    "resourceId": "68d2c1dd48bd9ec0a772b4038d576cb2ef4112078ae548a0310920bf78f9ade0"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/toast-blank.png": {
+    "resourceId": "3d18c59dca52519e25700a297118e1e16788cf1b82a9552ceb6f9c49fe6cf1e5"
+  },
+  "assets/ui/motion-lab-v2/neon-ink/toast.png": {
+    "resourceId": "38bcccfeef0a580773be3102ddfbeb8c78800f722bd0b637037014a339902224"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/auto-off.png": {
+    "resourceId": "b34cdfd6fc5b8b03d79ae4232a5ec11001050b9f064c87b2533e7ec145d4a211"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/auto.png": {
+    "resourceId": "86e160619ff25984e7ded034b7253a6057fa9316fb9c7703772a414bd2f69d65"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/back-floating.png": {
+    "resourceId": "33dd7a2e3af33f26932c8d1357cc018fb91ebe7ff43ae7719bf98e2d69f9afd8"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/back.png": {
+    "resourceId": "b5a1e0db281d57f6b3c2be455efe8b217495b1ab25890c26c1e1aa1e6851e0ce"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/backdrop.png": {
+    "resourceId": "488c6c160e51feee7a08e5bf226aee2711d15ea40a5dd195aaf2003d52b52095"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/badge.png": {
+    "resourceId": "f6fd1e21d6c29eb5967ea9b9f6b7e90b097728cf6318f44cf4544339088bd65f"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/banner-blank.png": {
+    "resourceId": "b733dc8af43cf3855e5db5dc247915cd254a2848cc5577d02341fe14f9ec84d8"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/banner.png": {
+    "resourceId": "efcd3a9ad3b7bb7c348e79bf29097e576852874f971b63a125c4057b38cbb676"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/cancel.png": {
+    "resourceId": "40ea6425d43b8913081670574497ced02d9a7479616125eae170afdab2e5585b"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/card-1-blank.png": {
+    "resourceId": "19f7dc4f6ab2d0e3f08562c30d3e3622fb7a1e4f1cff10cde17a770e331fa7be"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/card-1.png": {
+    "resourceId": "a678f68dde8db855821d86fc83cd0d0e32eea629d31f583054784d224aaf9f08"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/card-2-blank.png": {
+    "resourceId": "48e8a19ef3f3430a285270e95ca128cb1255d1a0cc8c8a184af895f12c2606c3"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/card-2-off.png": {
+    "resourceId": "96873dcdf384d1fd0171aa32ba6d840604c8b77f1b78de8479551f01393325a3"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/card-2.png": {
+    "resourceId": "d38f67ace8fad55bb05f05fde7e08293addc3b0da547d1d51a2fdecd05faac6d"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/card-3-blank.png": {
+    "resourceId": "444b547944acd1ee979f2dd15f7df79dfeb7c715a3671d3098238c5ca15e098f"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/card-3.png": {
+    "resourceId": "f9a692f1e41d6a41da1a09057eb5e21ad90dac7ee8952adb068d8d2f34ccefbd"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/category-1.png": {
+    "resourceId": "1c86b277dba847d836718c7c587e3c37d9f015308d22aeeaf351a7dd8642ab7e"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/category-2-off.png": {
+    "resourceId": "b26065190ce68ce8e910b4609465cfa684341fa1fcee16607d464bda30ec7d95"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/category-2.png": {
+    "resourceId": "ab6cc4e012c22670e82743a3721e9a79e60cc9b7c85f48deb0cb691e683a77f1"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/category-3.png": {
+    "resourceId": "d7fb1b2e2e8a816c0ed5980b2cf4f85a7c5bd8d39497c338f0412787f93d0014"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/category-4.png": {
+    "resourceId": "0a2533e2cab863bf1778a0db95ef64aff43e1b9e305c222b910b60223d7fc4ba"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/category-5.png": {
+    "resourceId": "1b5e9ba372453b01c599f6c64f811a8c0862cf98f7f2749137428a113ac3a911"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/category-6.png": {
+    "resourceId": "07583a6f07b701bfb1a65e9af4cdd70815029747d94bf56192ee2aabc64dd634"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/claim-blank.png": {
+    "resourceId": "4a2f30333bce71d90110e71bbd6d592b230fe571678626de2023ccc23ed6d5ca"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/claim.png": {
+    "resourceId": "95aec598be97509b35c79aa4339c40da5c1f48edbefd59b16f8261bf0b7c1327"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/confirm.png": {
+    "resourceId": "3cc65c1b38aac67261366d0bd21f7d6806b31c056b2ed09287cfc8c1be200840"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/dialogue-text.png": {
+    "resourceId": "9e2fb8a10bd19c3728ec4e2f5cd9878dc404727af900b9ce3c05f2a39d063b03"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/dialogue.png": {
+    "resourceId": "69ae8a4089b8f86960656d51893a20a347c82af029fc5d0a639a93d00f0150d6"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/directory.png": {
+    "resourceId": "18dec24661799b7f1c1acffd8945b5a15af384333e5dee65973e364c2ba43dc9"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/entry-1-blank.png": {
+    "resourceId": "fce4b3828a9a60013fed026e8884a3dbbf9043e5d00e8bb4bec1c6dcc3e34892"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/entry-1.png": {
+    "resourceId": "3596e843acee51776476b72bb376d3142ec6d36711c638ac404b7c52cb638bdd"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/entry-2.png": {
+    "resourceId": "a083e2f1e7ff1fa4f2c72d94d37be98dca9176ff951f7e32f90ca6ca572f329e"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/entry-3.png": {
+    "resourceId": "d2cff6c9b4c10baf7d6cc5823189d41a0825539f8ebd99c84d884e16488021ee"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/entry-4-off.png": {
+    "resourceId": "df98901a4fed1253cd5039ecf4e5b37552f97681e14cffa94abea20bc11e05b8"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/entry-4.png": {
+    "resourceId": "daafe803686c3197a1af994b3f0a9e2d6d21297518f29fbb699528475700b878"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/entry-5.png": {
+    "resourceId": "c807b94254f28a2bbe57cfa28e16749c87cfc265324951e310ab138a59511ef2"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/entry-6.png": {
+    "resourceId": "f6a073c4745fe4963e216cf87a3eaabe9bfd7641664769a8a1aa6245d5fc3961"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/focus-card.png": {
+    "resourceId": "e755b3bb2c1c32fa2bf2fe6fc4d345df210676e3b2c9f617b48cbe6842f252f5"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/focus-category.png": {
+    "resourceId": "6bd29bcd76f84ffe27c1ded6e06b8f1f8dd530427f94618f79c4aba3179f1618"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/focus-entry.png": {
+    "resourceId": "92a0a64d7dca9bf22f08563f44c6dc79cdb315f0f29f0c4323d61f1ebcfbf39b"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/focus-primary.png": {
+    "resourceId": "ffd6ca4486507d69921269249ae5fddfc17f0d2b827dab1e5afcf760c528afd7"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/focus-tab.png": {
+    "resourceId": "6c9402652348a262c3c08a699b84c3716b0641ce2ee7be9ddb0819975b2a0d98"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/focus-task.png": {
+    "resourceId": "4f7d57f148d847158e3567df7ca415ad95300643bfe9e9b0cc440d6130c6960e"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/header-back.png": {
+    "resourceId": "c651edf4f6e8ce0ead9ee5603f04d3a9303d1a29f6bf4487678281affb27b36c"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/header-close.png": {
+    "resourceId": "d4d2668d19ad7f27327bc30f13323b392b0b4b14edb00928ec7b9e53a7f5c6d4"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/header-sequence-blank.png": {
+    "resourceId": "c7fdb223d9c6eb69e7a311862adc95a1dea836b29ed1c388842192c9d60fc545"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/header-sequence.png": {
+    "resourceId": "fffa386e4860e19dc0d754424e1dd147b0c573133ce66684749a8cc93584d800"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/header-title.png": {
+    "resourceId": "2c6195998230885eaf0b987c29a1602935dfb52c33634bd6a36d5e055a5b7f80"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/home.png": {
+    "resourceId": "81704b5286b89064e992f66b7e85b2a879631704665c2f283d7b651f8824bf8a"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/list.png": {
+    "resourceId": "b75bc4e8f1723080adad428176c9cee808ca4912789a58ccbe3d9ddd35198337"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/modal-blank.png": {
+    "resourceId": "8ebce56e5c107811a56984139c72e47cb4073da9fc34bccc8798fb58098b3085"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/modal.png": {
+    "resourceId": "c7ec26dba74ab79df8731c6ab3c3d840104e039f799214e4e92a0ddba9b9155a"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/portrait.png": {
+    "resourceId": "81ec4b3b8a3aabae5ccc7d3e0a675970ab94210ec6c07196f1b17edebc6ab089"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/primary-blank.png": {
+    "resourceId": "0bdfd3cf8f0ae8a939ac1e861e6eee03e1013df792a8c8fdb1e99cb2cbf64fc2"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/primary.png": {
+    "resourceId": "b30db011221ab8bd04994a6c8ec59cd7628882dcd350c642dfef733ae1c4efb2"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/prize-1-count.png": {
+    "resourceId": "31d33cc8be6fc53573de9c7b859fd84a53492fb8e4077a3838687d6ab3cb617c"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/prize-1.png": {
+    "resourceId": "1fd943c1a795988cfd5eb1a337ac0ac9c8a1320082047ad13439dfb1830ad5d1"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/prize-2.png": {
+    "resourceId": "3ce5b2da5d175f4bdcd8e535f755f2edbb5346fd4c990f21c596054567c997b8"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/prize-3.png": {
+    "resourceId": "984cd2da36370d88334c341a7de00c78fb4824e04a8b883343a778b42ddfa5da"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/replay.png": {
+    "resourceId": "405d813481193544232d68afaa9ae8a20ba0dc3082e41e492619dcf5e91592c4"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/reward.png": {
+    "resourceId": "ca16f2471155389b61c2549e9754b8ee880efd984f51cc7a64a14f72c3e99d82"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/secondary-blank.png": {
+    "resourceId": "b79bcfd8fa0b5d5efeec4e486f60521f2cd0103957035922405ec81017bcdafd"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/secondary-floating.png": {
+    "resourceId": "cb55a33fab086e1685c495887a3ecdb51477e251e9adeb5d79a1c456344e6a79"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/secondary.png": {
+    "resourceId": "1fe570438060121c20554b0417977c14328a8ef57f9de9f62bfd4731eedd2d82"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/section-label-1.png": {
+    "resourceId": "dae9660c4b44bbe51ffd04c8619f1d0c2fb61d58c266e986bf24b5836ec5f2eb"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/section-label-2.png": {
+    "resourceId": "9cf7c50671d032e890afb51666ad7ca06ce4aff8d3f218a8087c44ec707bc72a"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/section-label-3.png": {
+    "resourceId": "d816474845afdb8333f8fd11986a90de5b167477534e3ba89b72bb3a67ce042f"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/section-label-4.png": {
+    "resourceId": "97fff531af7353ef967c01daf3c495225e0f09c3e308dc9fe13d7414d71ebd1a"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/section-label-5.png": {
+    "resourceId": "b0b0a8a88dc1324b57e7f31b9c63b6944dada2fe0d0cdf244f664001f15dbfb6"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/setting.png": {
+    "resourceId": "e6febfd6c5fdd871d2c0c4cb113218d36db5f1b5d3f5a478fa637328e894e805"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/tab-1-active.png": {
+    "resourceId": "60e11b22f64c76ef7be8886a89ed117f9cd2394634e6bbd54e276169c448f4a1"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/tab-1-off.png": {
+    "resourceId": "494a638db703e79688ec5dd41ba7676c825110b8f2972a81d2429ee56da6e36a"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/tab-1.png": {
+    "resourceId": "ea2c1502321b28cf3bb25ef9b03d86979da06e2ca619e38448fd6c55bc412b0d"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/tab-2-active.png": {
+    "resourceId": "bc1ddd2f05488b7913e7584fb798cc364d75492201c42747b82c1a6d3894b815"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/tab-2.png": {
+    "resourceId": "4fef2b1cd76fee5917e8c453a47ac9fed197030386748c55538fa443a1ade465"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/tab-3-active.png": {
+    "resourceId": "cc384615cbf47b9d7d7ea1029e3e642017901034aaedec5e7bac5f7b6ead0010"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/tab-3.png": {
+    "resourceId": "6ba67aa5d4e50f8b007d47ec3a17fc209d330640158d89b7ce4e8a5f76dcb812"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/tab-plate-selected.png": {
+    "resourceId": "136f94a8ef587174e33406c77fe1dffa9a17260d82f6a4a48b55eb85ac8e2963"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/tab-plate.png": {
+    "resourceId": "3af5704d559c7dfdb9efafc4efc67aac659e3711c65c8e23feade98ce5b5f0c0"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/tab-row-selected.png": {
+    "resourceId": "9ad1afad694b31fbe0356b6aa4e1d0e97469043faea4bd542c1065de9c22968d"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/tab-row.png": {
+    "resourceId": "1b4671c2dfb5effbcde38c1e9aea37c758af1aa439c5736e0f1258131d732f21"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/task-1-active.png": {
+    "resourceId": "ddc36439ec3fea6326f754edf943466edc654d1d27ed56f83a7d27b2b52a0e6f"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/task-1-off.png": {
+    "resourceId": "ed624001ce63289587d18cfea1b76c6e84ddbdeab4b7b225cf642a47353a76b2"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/task-1.png": {
+    "resourceId": "61ee1b98f4a36b49e2e535538b1e287b17541be111e2f71ac83273a63ac49d16"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/task-2-active.png": {
+    "resourceId": "459846ac00ffa32c151fc4d75d325e73b397d27d39003dbb89079ed1b3917359"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/task-2.png": {
+    "resourceId": "8e103cf2bd9a80c4a5091524eee3a230517c606f443a86ad4a899e00bc765ce4"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/task-3-active.png": {
+    "resourceId": "c484b85b240a74e677375b14e1c5a6815e13a7d7e3b0b2e28bc89cad44a3f2ab"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/task-3.png": {
+    "resourceId": "fb01b46b15ccea592b49f614cb25d9c9f7d67b03788c5aa86a5f9cc1e5380607"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/task-plate-selected.png": {
+    "resourceId": "46e027ec5afd54b6d49d447779c630054ff6d942c1d6d32b4c4f6654c5690e94"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/task-plate.png": {
+    "resourceId": "1701f83befffc4f645d2b63a3532db920ddd6af1cc5f03a8bc125d1cd39b7385"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/task-row-selected.png": {
+    "resourceId": "d83bcba48e43cebeece7397276982d6bfa514264880c4bfab7f6210f9ade0093"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/task-row.png": {
+    "resourceId": "e54784ee2ee1724c5e52139bbdcd00a26c37895f987dfd97df2821cc2392695c"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/toast-blank.png": {
+    "resourceId": "0f7f9ab25d71faced237504afd17d35573ae04ef0a83d654a5f62f89618d30fe"
+  },
+  "assets/ui/motion-lab-v2/paper-stitch/toast.png": {
+    "resourceId": "88490c907d83b46ee8cf6c8959d374db0c733367ce6410f4b2cbec3262d14934"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/auto-off.png": {
+    "resourceId": "313725ad7eef112a358e61f1891f932779606937f698dbe9be2782595c5e9774"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/auto.png": {
+    "resourceId": "a1cbba42a110464560d2dbfcd977aeb800e73c5b3c134ca39c785ee7b5fbc739"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/back-floating.png": {
+    "resourceId": "ea5633ddfeaa4f80bd6a7a632c74d55df96dc4b85c22284a03e7df94bfa31b18"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/back.png": {
+    "resourceId": "fee7ff92c03d74624568c3138e353b240c3ade1cfc5a5a3b669b075c0dd77603"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/backdrop.png": {
+    "resourceId": "dee7731326aee72ff6d4e9f740f0b3f0210578a205a7c628a3f3ff0e783a80aa"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/badge.png": {
+    "resourceId": "9adc2378f3c438d509e8f147da5fca9e7f8ee02f87d504f7126aede6645cf235"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/banner-blank.png": {
+    "resourceId": "3a3c5b105d85d7a66f0d622ba68bef5d0323dcc5f75ddfc45f0c6ef9a563e4ce"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/banner.png": {
+    "resourceId": "6640aea19e1673e6ed27ee67bace1fda05ae63c17264065cf1e35b990b5cf433"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/cancel.png": {
+    "resourceId": "4e0ccd95522c6ffac12c6b52f61ccb20b2f87f13ab16f985169e95c1a7853624"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/card-1-blank.png": {
+    "resourceId": "88f2c27a4e5d0afb9cfa41ae544a960cfe4549e3dce2bf82378bc00f1b66cf9b"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/card-1.png": {
+    "resourceId": "b05a5933ca383a5016a4dc0f3e5d920545cc970da9dbec3d99c4a426f0385b7f"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/card-2-blank.png": {
+    "resourceId": "23119b5151905e88bf964c3b6ca44dbfc7a7d7f04fa161d8575f659c02238101"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/card-2-off.png": {
+    "resourceId": "730e991010e87b40625dd170b37bc864902770647e97f879be76b9de1fed2252"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/card-2.png": {
+    "resourceId": "989f6ab511187c2a9296a4888456562cd16edcde037bb4fd2d7de3fdf3893f6e"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/card-3-blank.png": {
+    "resourceId": "53737da348f139ed477e792af0bffd879b7ecf1c9df93d2f7898c3744aa9abcc"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/card-3.png": {
+    "resourceId": "e4f15da4ddc9d6401a5ed41eac2a985c68de8f14e60fc9c9078b1436198a5c78"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/category-1.png": {
+    "resourceId": "7cc22172524d20bf13b6bb52209f7faf4c7dff98c137ef4c3d0d4dc3e4599dfb"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/category-2-off.png": {
+    "resourceId": "ef9143e4b77f08603066a1b848e957651625d24c753b3f77737741155a24b182"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/category-2.png": {
+    "resourceId": "295bb41ae6000a472a6f49b232d4e0fb635dcbb1abdf7e05848a773362176901"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/category-3.png": {
+    "resourceId": "8db328e72d08d6e60fb622b25c1c0e366c084ed3a35749fe7ccc80570bd43e58"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/category-4.png": {
+    "resourceId": "2623f5d4cf6f3523297726b1c2e540554e24317baa379f48ebf62f64124d0149"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/category-5.png": {
+    "resourceId": "67079a69da1e40b553433b74bae792a1572e54e0b51ef63f5c2fe2ddf6d40ab0"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/category-6.png": {
+    "resourceId": "bdb24b89abe667e5aff2604fd33fee31ac97ff0e3273f1b9a4d7d6c30ffe2c35"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/claim-blank.png": {
+    "resourceId": "5bdf616a54972062019e277df558edf15a1dbf022ddbc232ddb672b7b0b847d2"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/claim.png": {
+    "resourceId": "85d47d81f733a560c7b30d9df11f7b4659b1b44e0f2d931e8d8f484db4a99cd7"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/confirm.png": {
+    "resourceId": "b3ce486d2f13d3523932db5b317f32910a2aa2b8ace5197e9f2c37d41c9ac047"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/dialogue-text.png": {
+    "resourceId": "1076b947df6cee6743e7c572c9f0a49090edfc05f2cbd6baee10c7ab80e6b297"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/dialogue.png": {
+    "resourceId": "5a5fd377a77ccaad41fd07ff43a25a4f5a7b181cc33e682b84f8b9806c5e906e"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/directory.png": {
+    "resourceId": "340b5cedaf711c9fbff865fceaa15f3c08c152180fc97c994ce6c0f73eb32d05"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/entry-1-blank.png": {
+    "resourceId": "4535d8e30ff8fbf9ae1a6a46b2414d1eab82c604d3f5a245551445298805fa16"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/entry-1.png": {
+    "resourceId": "ca7840a8a9098bfd53faf7192c36e52af93c5c0322e5535b436164f03a7d25ab"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/entry-2.png": {
+    "resourceId": "e946010155c77d9a9260a8cc1182f04d2006e31ee1ec4d6b41be7a790d1f0469"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/entry-3.png": {
+    "resourceId": "38d22f65afae19de2757fa39a72a701ef5998db5da51461be40ba49fef068af8"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/entry-4-off.png": {
+    "resourceId": "23c160e8f9fef16dd581353c4e05984a2c3046dcaa9767ef613bb3ae4f2d81dd"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/entry-4.png": {
+    "resourceId": "4be1465950552219333887df4493e06a0bf211242bd8d2d6ae3654054f989e77"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/entry-5.png": {
+    "resourceId": "beb94264e793593c76fa557797650e2e13016295ec2a44e7642e869dc101cd8a"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/entry-6.png": {
+    "resourceId": "ff2d5632477510bdbdcb46e1b54f8bd1e0c80394a040ca60f352c9ff2b9ecc85"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/focus-card.png": {
+    "resourceId": "b62ec6fc9849265b832d1e0751dac840caa86b01d342c414c7d5a4ac142a2efd"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/focus-category.png": {
+    "resourceId": "7137a7ee59ec16b840edbe29970bf8be03971147dcabddfe60ec633f098d2b1c"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/focus-entry.png": {
+    "resourceId": "a93d22307346ba970c51df214e97fcf4a56571aa347de85885164ee049229374"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/focus-primary.png": {
+    "resourceId": "676821b9b346d5d926f1e5d1b5986935616cbde3e465c881020be5c99060b63f"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/focus-tab.png": {
+    "resourceId": "69b5603b296aecd75a8e20227768b33a8458bc040b63da19945ee3ce8352c3f3"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/focus-task.png": {
+    "resourceId": "9a7b7cec88689f9ff2536572973fa07c610ba7df2692c293e699b6eaa6df6613"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/header-back.png": {
+    "resourceId": "1a57fb0ac30e2ae2f82e021a23511bfb3753bcd2891108ce00ec1b35971b6a81"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/header-close.png": {
+    "resourceId": "343b377da4d5606d9334b52a1d1491f407c9837f3901e82f0b8561639941cf6f"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/header-sequence-blank.png": {
+    "resourceId": "6eb385797f918c6afb4315baefc449ab25d955b46d8e85cf57f1c055e4242032"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/header-sequence.png": {
+    "resourceId": "2a86ecccd17929a41583cfe0bbdd53bade4b6bc3116fae093d51ca48341bfa68"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/header-title.png": {
+    "resourceId": "dfa813c667f3842442635092c01f8787b73110d80830d35efd877e6d7b782bd9"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/home.png": {
+    "resourceId": "6e1979af3792e770e39d782d209d361db2045532c898afc94f4e6b5a5329ac02"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/list.png": {
+    "resourceId": "046d4480642daf722d8f7e1d06f29132f674814244cf1a820bab06606e84199b"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/modal-blank.png": {
+    "resourceId": "4f2f552851682f18d966d13b58f0d19da43f17fa3c6e23d45f9905effc047353"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/modal.png": {
+    "resourceId": "72a8ec475c8aa303f2da87985cc95644b9e64faae623a26502d45bbe6885801f"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/portrait.png": {
+    "resourceId": "e250401993af73a65faf10acfc98c285d11b3205363629c5cd0923f69ec8327d"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/primary-blank.png": {
+    "resourceId": "0a7cfff3d8d4d22b333aaf2ad2d3d04624a1660bc2f3ba49573c2842a83ef877"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/primary.png": {
+    "resourceId": "f202ef23cdccfcb3539914bc4f2dd94de32bdcb2d025b1c4ac87b3ba78fd8845"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/prize-1-count.png": {
+    "resourceId": "71957f54dc6c8cc43c5c8cb86d79aa4e057f56f07b15116e003b8706c9119fda"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/prize-1.png": {
+    "resourceId": "f6b2f5b7ec314dfb9ff28409d76190482dded33c70f2a8ff0c075724d84ef726"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/prize-2.png": {
+    "resourceId": "dec12e0847299223be0f8797045e3ca6f7c7e7132969a92ad8faada6b06fd68a"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/prize-3.png": {
+    "resourceId": "12a54a592021f0fd7d0b61c722f16dc79b62dbfc9c0b054d836a544474865854"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/replay.png": {
+    "resourceId": "fb8315aeb921746cd7eedbb0969c1cb03c5f61950e8a7d7ce6f5971ea9d4ee1c"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/reward.png": {
+    "resourceId": "9342175de8e6f12f9d8671bfe35f96b8630a21ee7375d40445a43b08507b3759"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/secondary-blank.png": {
+    "resourceId": "b022c6aaf1fd8a829b79f70d2490a1170109f50a7be428bb9491fba75e809ee2"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/secondary-floating.png": {
+    "resourceId": "c3cf8502e8a27a0d1e88743e94e3375394ec0dce7ed8c95f779bbf0e0b5074f0"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/secondary.png": {
+    "resourceId": "ec0ed630792acd1a47af3af95c925d034dfe4679d444baf963994031926dc846"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/section-label-1.png": {
+    "resourceId": "249c94988a135b46582e6f1336a4321f44bf407ba4b7c95c6ff650b4fb249fde"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/section-label-2.png": {
+    "resourceId": "7224b727ec571c870faef33e5981cace9a1600644ee54545c5221c5fab8402e0"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/setting.png": {
+    "resourceId": "d1500afdd971575f88a71054830f131442fd614ff28cabf943c34366a45f5602"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/tab-1-active.png": {
+    "resourceId": "9b851889a4dd3c5bb250041aa99791c91a27e2a475d4fd2001da8dea731836d6"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/tab-1-off.png": {
+    "resourceId": "d67534f9d8f972c6e029a9cd6789ab30363415c3dedb3bc3725e37befc99a1a5"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/tab-1.png": {
+    "resourceId": "7e060ca6d0b13f5697f5949f45f42370eef7a45efc66087942d1424f59f289d0"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/tab-2-active.png": {
+    "resourceId": "1b75688aaac7051352c84fee4b715076a4a529274e7c884dc8e944091f82c740"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/tab-2.png": {
+    "resourceId": "e94a539ced1d9fb86259771d8aaefd9ef1e40e92ba4704dc7362a58a47dc2dce"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/tab-3-active.png": {
+    "resourceId": "3b6a6277577a2c20810dd7413e8574905bda0d89a2c0b773b91068960a6f152c"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/tab-3.png": {
+    "resourceId": "3d37c311342b6f816075383d74a0fa3420a6d2bf415d17345b073e2c51f42289"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/tab-4.png": {
+    "resourceId": "6cad3a1071a79347701bd30d05a5759287003574038f649adf543d860f4a35e7"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/tab-plate-selected.png": {
+    "resourceId": "902931c96702291ba92d43e1d00233d21fe155c0c4e00037abd8f319c68de118"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/tab-plate.png": {
+    "resourceId": "3839067c3e21f4128d80c9b5dcb87c6d0e1b12f398977faef626c52f4c2a72ce"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/tab-row-selected.png": {
+    "resourceId": "e7422be35ce310380445d572debe8162be1aa88a89991a7b3004553d933468c0"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/tab-row.png": {
+    "resourceId": "8b44667c46d82f8c29c05c666405de24aa7d1addcc588fd0eb5098ce9a9e47ab"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/task-1-active.png": {
+    "resourceId": "6e0da26c3502bc3e32312b7ddfb43cd1f613d60cab9e0675b2a1eebfefbb1441"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/task-1-off.png": {
+    "resourceId": "6318af13143a0de9fd4213d5b6fdf23eddb0c8b1ec170da2852e23f62de9d6c9"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/task-1.png": {
+    "resourceId": "3516b81055d465ce106bf3217bb0271c1ace686ba4906776fcf271dfef9b5b61"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/task-2-active.png": {
+    "resourceId": "311fe1d69621766f6dfe325a70b75be679626c824e9f1272b0782b71975287c4"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/task-2.png": {
+    "resourceId": "5609c90349ad5dfeab87ca431218d548a5cc482ffd89c0f66f48e20d3610ad10"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/task-3-active.png": {
+    "resourceId": "7ac3b7580b6a1dd0d1318df2296280e06aff6bda63751a3ccd194116f5072eff"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/task-3.png": {
+    "resourceId": "05fe2d0272c82d657e7eec5b71b85b058f904e4b1e0200147fb4ccbda68ec44d"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/task-plate-selected.png": {
+    "resourceId": "c6f15ae24ebedc8faada84a21363939efd2ba51c49b6d198bce810bcb9d1d655"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/task-plate.png": {
+    "resourceId": "f399a8e024a874921f14acdb26be2715b75addb5ee907d7105c31e727c425c9c"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/task-row-selected.png": {
+    "resourceId": "895d1fd86b8a284d7f670b5f5fce4cb3d6bfeb1f169d67a898a04d0f5723737d"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/task-row.png": {
+    "resourceId": "9f67f7df4e2dca7fed34e136bde9aa5d186e30f33e6878808b5e288152cf197f"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/toast-blank.png": {
+    "resourceId": "6ba70715dbbe41dc893207fa6bfdc6d195baeae66ed1a3586f6e347fc9cec172"
+  },
+  "assets/ui/motion-lab-v2/pastel-round/toast.png": {
+    "resourceId": "6620b10e32b0d34e10676528121c9b9154ea4ea97cd88427bbdf8d4f2011af86"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/auto-off.png": {
+    "resourceId": "4670890e320e0f385ef2f1c6944b6ce88b5772ab3d2104bb8ead1ba28f80c5e6"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/auto.png": {
+    "resourceId": "34bce3e3f1a845119f5fd83074f99225abb1e9785574d54c34c6125da8ffa85b"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/back-floating.png": {
+    "resourceId": "d9919e9b86eb7990588c7d260171dca8b93e5a29838685aab18800433e891f1f"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/back.png": {
+    "resourceId": "030ae95e0436c6eec31b51a202641769f2fe97e1623aff3df5d31ac1b9b697a3"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/backdrop.png": {
+    "resourceId": "fb16a335fa82f1cee70c4cce31ec354242029b54423c52941478af76c6117ac9"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/badge.png": {
+    "resourceId": "515508638029da517871adf5210bdb29ff8ff1fc0234e5fd26800966aaa17ef1"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/banner-blank.png": {
+    "resourceId": "e834b0f2b3e70e12648817d95907cdea7723246358ad709dad69d15ad6fab437"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/banner.png": {
+    "resourceId": "f7248e70d91ca5b9f983572d11f11aba9ca24286cecd2083d28f74781fa8570d"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/cancel.png": {
+    "resourceId": "1a1d99945a135fab5bb121d7a7b55609953bef14053a81977201451f5d0886d0"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/card-1-blank.png": {
+    "resourceId": "294d4b1e1199fb29207224ef9ca3fcaf7607d1a461982af8642ffa310afb3d80"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/card-1.png": {
+    "resourceId": "48eb68b7bcff6a532480f4c6dafedffa64fe6e9f14770baf5abcfffa3dd4f71b"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/card-2-blank.png": {
+    "resourceId": "a4e20084c578973f7128d7e1d4164a802e3dfd8a6e518d298582b4ae838edcdb"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/card-2-off.png": {
+    "resourceId": "a572af178a6f398eebe266a02057ad16f85ab0388c3fbcd74ac72298cfec7123"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/card-2.png": {
+    "resourceId": "1b252ab8a27655624ff0125859a1c7e7212d826b3dce2c6f5838375765b6660f"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/card-3-blank.png": {
+    "resourceId": "aa35471ba23bd00f830cd9f6a3c879d9a5c0435fbd86117e086befbefcb6da72"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/card-3.png": {
+    "resourceId": "e2ce395f7b5d95ce1907f2a4feba07719e1fa7084d838724452af262d8b513f2"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/category-1.png": {
+    "resourceId": "5257e41c84189257a62d803eac16ce893d732c10ea322d87504340117fa096b8"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/category-2-off.png": {
+    "resourceId": "28081583111a2937ea20f7c132232971ec3e9d4495e3b228edd377ce09c8582f"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/category-2.png": {
+    "resourceId": "95ecce3c0e96ecd78d9c08961bb0c0747be31d014e324242fdbaa402d5801af7"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/category-3.png": {
+    "resourceId": "725dcb21335ea7f6bc1dcc0722d3d7c7db3aaf4d19159c734f2097d1145c83a9"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/category-4.png": {
+    "resourceId": "b7842002f52e7e501c64b4fb558e852603ded071aac2c9dd110a77c5a60592a9"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/category-5.png": {
+    "resourceId": "45cd8fe1a3c45a99e7644573c61ae223db224f7547a917bc16ec6cc553c5d1c1"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/category-6.png": {
+    "resourceId": "8ad3004faa9f8c8a67cac73246b36d2c3dc39726bf5883b29448dab96eab634e"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/claim-blank.png": {
+    "resourceId": "0592584adaad4fa6a262141cd801505f8bbba32398e36e34e24487dfff8f07a9"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/claim.png": {
+    "resourceId": "a9d532aec8b0958fcecde23d4d80129faf369ca3e55661f0ddd2bc16c3dc257a"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/confirm.png": {
+    "resourceId": "cae214f7b9cf386e5928909c629fc181d80acb3d88928dffb6986440fb35b886"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/dialogue-text.png": {
+    "resourceId": "43775425274f4293c8b3563d749012dcea8dae83c3a6b8b3841319e3e1d99865"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/dialogue.png": {
+    "resourceId": "a2685c650659e46091fadb7eb39758cb5c048374a9a352210532d1b81df30b42"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/directory-heading.png": {
+    "resourceId": "59a1afaf52f07aa81e07b1b39a7bc47b1b9b4e19fde9f5a1912ff90ff60d016e"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/directory.png": {
+    "resourceId": "e2790f2d6887134e821c23197919e21125697b345e349c7c2e4ff7abb74d8278"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/entry-1-blank.png": {
+    "resourceId": "7c537ed7fd718e85b4eb4fdbe66d165e1a086a7c9630e940346134ad81c96a02"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/entry-1.png": {
+    "resourceId": "e712474381c0a26d16af5731e50d0dd0993e86d61b8e72c0a95afd6d54616002"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/entry-2.png": {
+    "resourceId": "59cb4f33e099a47527c24823fe003699afcc06eade158b564751ed5481c439bf"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/entry-3.png": {
+    "resourceId": "fb0b05962817a75411f2f664ebb2eb2c6c459c8a9b281a02b592ce7691809cfc"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/entry-4-off.png": {
+    "resourceId": "851885422e3b81638484269ed7bdaacf9a85a495a14bb1fec0b57942598b6274"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/entry-4.png": {
+    "resourceId": "4889ee9a7cf6008c3c9c70f61b4a2df6f1348dba6b95a5bc9277f2b23b25b77a"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/entry-5.png": {
+    "resourceId": "47a89994579a7da4ae6c3691871e30ff5fa270c8d60409d6b537caa8c537f75f"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/entry-6.png": {
+    "resourceId": "492222daeb0ff45723b11d4bc2c98ca431f0f3f5ad943e543f860ff64053d270"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/focus-card.png": {
+    "resourceId": "a43190c3f973832c8a051525431401ac726c5abdd71c86fcb44a855f3d14f351"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/focus-category.png": {
+    "resourceId": "83876b7d23555b3a2730417ac035a64181b2a38c307ac9d278bfa94edaf24ae8"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/focus-entry.png": {
+    "resourceId": "6d2b52a70e2c8a071767a43bcd8e6ac77d429ee1693ed6e37c1cd914ec5cf28d"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/focus-primary.png": {
+    "resourceId": "1cdf1cdc1560ecb5986ffa29ba0647b63e205a5bbf022d88a6533ca39716d014"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/focus-tab.png": {
+    "resourceId": "3263173fa3f7ca2fdd6c9d62bb611dd2094c168c6bf9bc014622b1807f8365fb"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/focus-task.png": {
+    "resourceId": "aed7657d6b55f1f246646f8b360ceb4c86e64fc619f5048dd46eeba0a511e1fd"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/header-back.png": {
+    "resourceId": "c25621799a496ef68950526fea98b3fee48840b95de8ea5f630da7f535774035"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/header-close.png": {
+    "resourceId": "28b69708c1758a188eb4522ab36e4f6d0a39c14618338891e7d8bf6ddd2e9fbc"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/header-sequence-blank.png": {
+    "resourceId": "d013f1a080ec49062123423006ced70f4f0e51942823a1d260b209b0a80ea600"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/header-sequence.png": {
+    "resourceId": "3c13a51055a9f8234880a153530f656fbb37db5de9c4bf06c247af17913154dc"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/header-title.png": {
+    "resourceId": "537c09a359c272acabf1c98cf89d29d349d218d2108e4f407dd0dffc09cd267c"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/home.png": {
+    "resourceId": "98299a2d649e47b5d7ff0e92197fbfe7b403712793b66e1d6805d5e27bf90788"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/list.png": {
+    "resourceId": "303ac361ae778fadc72d634af63f63da5c1e9ac6a0a7a83660e88197b08f5ffa"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/modal-blank.png": {
+    "resourceId": "e3cb149681d62b341e5230de7fe903737c3f469766c9138cc2aa03b9b0102815"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/modal.png": {
+    "resourceId": "307851602606ffae295d0dd254e5ccc47462ed839e6427ad7390a36f4f71b447"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/portrait.png": {
+    "resourceId": "0e5732fc3491a8ff00bbe138c1f2b765037eeb8b6a5d0110817ed630e3f83853"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/primary-blank.png": {
+    "resourceId": "2104ae901090ca42b3b07448f8e03951476415f7809b269b3430a7a9e1101280"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/primary.png": {
+    "resourceId": "fdd0e5f40399d82673bccd85f1c8a3b4ffbfd1449b0e7cb016218dd271e0df6a"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/prize-1-count.png": {
+    "resourceId": "621142008cec4b2ceb31aa714c0f7feed112bdc207c8673b64e084fb43c68a51"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/prize-1.png": {
+    "resourceId": "9c270ccc2685d481dc211c4c061ac15ad44a337f14bc51c7fbd56d2d2cb76bc0"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/prize-2.png": {
+    "resourceId": "ba160629cf6feff64a4679ef46b37383ffad1ea34729784d8a1ce97e6a32bbe2"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/prize-3.png": {
+    "resourceId": "76bbce5758661d82776ac4932270c1656f96f0b043b6278bcc5cb687a81d9fca"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/replay.png": {
+    "resourceId": "49c432bfd140a98a5703cb815a6cef2581570ff2f374fe167befb56b7c4964c7"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/reward.png": {
+    "resourceId": "62f88089bc1d1cff97d063bcfa9ab656b49f4f483596450a3a9020f80072c43b"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/secondary-blank.png": {
+    "resourceId": "611010fa50b1de82123bdcd97e1b8f097ce62d0e3c1eb5502f6fbd9fb8da53f7"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/secondary-floating.png": {
+    "resourceId": "d608bc5492d8fd2457960bbbe5bd94f98f22a121530bdc1fd9a683f221f8e463"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/secondary.png": {
+    "resourceId": "5267bd879428c281433b21db3431209fb54dc742138fda46b3e6837f353ce9db"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/setting.png": {
+    "resourceId": "d1ea7ac2d5e51583a66a32040329b888fd5787c15b48eaf1ee4dd68caeaf0438"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/tab-1-active.png": {
+    "resourceId": "378f2ebc8c395eafd93e693199777f3e1d1ea22def47506eeffdf3121c8d2391"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/tab-1-off.png": {
+    "resourceId": "2582c2e882b1a768987af2e3d8ceca1a18fd61bcc0c521a3179e9d606a0be0e9"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/tab-1.png": {
+    "resourceId": "beb3c41bc78765199b3dfb56dbeeda5dc5bf571f0442a069d1a739233fb20e7a"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/tab-2-active.png": {
+    "resourceId": "af3b31a07becb4c13bcb36760def20c486b58be7a636d9640c29f27a3d1d2150"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/tab-2.png": {
+    "resourceId": "ecc14509fd0f7ab41797162adbd31e23912b1e1d01e99c33b26f23411c5ae108"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/tab-3-active.png": {
+    "resourceId": "a997b4ddb23f0f167df8d8d083397d7b55b5f8b972b20a4761e5f0ef5f5a6b18"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/tab-3.png": {
+    "resourceId": "e67808e70bbcfc1b312f612be647e899465035e1729782df18ccd149cca84de1"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/tab-4.png": {
+    "resourceId": "e77aa785e07cb5e59ab8920d9c90e8e5f7d71707a84206378525b87a3c4c35bc"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/tab-plate-selected.png": {
+    "resourceId": "c5dc8fff8fc91b076889778e903b8bd4d831fc94714a8a1fb6a40babf9e4c2b1"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/tab-plate.png": {
+    "resourceId": "be6db853b994bd3523df59d37bea422c98d6a2e5eb75012a61adca23ad1cd7ed"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/tab-row-selected.png": {
+    "resourceId": "8c6017195a7e7ce3b40e8a620304aacd8752a4a46db78a9dceab3d840984cc88"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/tab-row.png": {
+    "resourceId": "e830a685ca376d8fcf511a16869ce404fba7992604c99a7d7c5427121275cb93"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/task-1-active.png": {
+    "resourceId": "a3bfd8629654c48c3c0875b46f5a02984fb00e93fe4420cb0fb0e36e0c26de2b"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/task-1.png": {
+    "resourceId": "6fc38cde2965759e9866acf992327f976c97d53bea5dab720c9688ee4044ca5f"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/task-2-active.png": {
+    "resourceId": "06ed8616dbdcba9f32867becffa53e234b02432efc9cf2f78cd2941ff87f4075"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/task-2-off.png": {
+    "resourceId": "5423f2ba2bcc0b0cd66dda78e29526c978e15fb339891100e5023afeea9c7a9c"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/task-2.png": {
+    "resourceId": "db179876ff47b7ce18228dfc9781f27b2f109ebff0a1070c8d054bd3290d7e80"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/task-3-active.png": {
+    "resourceId": "0c7a17cb88d40310fcdd4424d253e0de6dbf79bec4da6b525c04bf0224ee1f91"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/task-3.png": {
+    "resourceId": "fd90ca7453cb1857dc09a3f4bf6602721ae2f69f7a8ed67b1fb0bdc6d213ca58"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/task-plate-selected.png": {
+    "resourceId": "0950c5795b2bd78b5672b595b67466862888e6e0242e2effb1cacece47b95080"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/task-plate.png": {
+    "resourceId": "01d3ce1c1a9ff29f9125c700d91b71cef7e03111adf01d43ea7edb57ee791167"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/task-row-selected.png": {
+    "resourceId": "2dd878d4fc01ff63b9dc8fb0dce242ea424d720413ece76ff52286797293ef0c"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/task-row.png": {
+    "resourceId": "fde1efab6f77e7ec2f328bd3d5030b02f9c7eb13457b94ea75a22c1e31e3f1be"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/toast-blank.png": {
+    "resourceId": "59bc1cb71858db0f602ce4d6e23a468968a8b7ad51598ded78947b9ce7f1f162"
+  },
+  "assets/ui/motion-lab-v2/ribbon-gold/toast.png": {
+    "resourceId": "3d1a8984c6eee1860cede3f2bc858dae13cc4dcaa6d440f12e53cbc7e4427bcb"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/auto-off.png": {
+    "resourceId": "828c19f858dfb9c491c8767059c9b644d71f0a8fc766c0d8860c0cdaf490003c"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/auto.png": {
+    "resourceId": "f8a2a59c374239e23c143fde9d5e1187df63b02587d8abad2f324d9b5fc144de"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/back-floating.png": {
+    "resourceId": "06ef7b9f32af78364276d254865f63bad54e5fa83611ffe33f0f6b71c6516fa1"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/back.png": {
+    "resourceId": "96fbc7f303acdd7a5cbc6892463b2b78474884f7e1132b6eb6e8ee03064ab8f7"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/backdrop.png": {
+    "resourceId": "eadc662ff6955942ff720259a3d1cc9a1c209c29d92409cdaa595fda646399a9"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/badge.png": {
+    "resourceId": "9971ae0fbd9c47cef5135084ec8e08b8ce88abf0fc8a1c11ef2ac09ae0a8252f"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/banner-blank.png": {
+    "resourceId": "d64dee4997c1b418a00edfa1613d1fbfc90dec3a54e455b6c0f0fdd5a2ad287f"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/banner.png": {
+    "resourceId": "3fe412913207c6b71d0bdccdee374f542f523f9135952904dc2cde4b73a7ab6c"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/cancel.png": {
+    "resourceId": "beb786aa8d9e60dfa273bfafdc67ff327addd39d39dbd3e09d11a9c4202ede8b"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/card-1-blank.png": {
+    "resourceId": "39eb1623e855503af2d2565b47e4387746ea16c6623b6b9cec27253a9341db80"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/card-1.png": {
+    "resourceId": "3585a2701ae8f75c978e374a9a652f96789645a6c1d0439bab07491e1f766655"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/card-2-blank.png": {
+    "resourceId": "11b43efc73cb6eefd1a819a902133292477ab864579cc234b016e2b9d2659ce9"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/card-2-off.png": {
+    "resourceId": "3d05ae0e1e256922a663b5f29abf8373fcab18fe1225b0481e35da4bb8b2d8fa"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/card-2.png": {
+    "resourceId": "f7dacd527205363eed1b1964bce7db123c13223969caa03556c964a350d9a59c"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/card-3-blank.png": {
+    "resourceId": "4010c21192f007c225077cd8915c9ef76fd337fb72f1496c2f28aeb1c7366cf7"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/card-3.png": {
+    "resourceId": "44ab485d2d2c049068bde0a1585bf8f74227091608f2563052319aa1440bd052"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/category-1.png": {
+    "resourceId": "be30fb1057c545840d3c774a30e4ee5063d2257a7dd09ce3c60374325212bd56"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/category-2-off.png": {
+    "resourceId": "4bed08788d1ebccd585643483bec48c6c838cf83bdf40a615bbf5813529f2e26"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/category-2.png": {
+    "resourceId": "57c9c7e608facc1e99da24a0f621998f44c535ca523c00fe99cf53c13ff2f446"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/category-3.png": {
+    "resourceId": "c9548db07e38a4822fbcb9bd8d70909606e0440ef6c256b7c88464eaa20f8730"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/category-4.png": {
+    "resourceId": "5cb94cffc882005a84baab3ed568fb854b8652068157782d3e6cb10202af6022"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/category-5.png": {
+    "resourceId": "1e2290aed8ce434f9b5af1225e20c2d160b851480e86e2c1d6dfa233e5aaf182"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/category-6.png": {
+    "resourceId": "cdf2f7f544ddf41496fdaaef55643d7362ee5614f7621a75927ae4b5506f237f"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/claim-blank.png": {
+    "resourceId": "05af49ae3ff10b6d68b4f8254a57fabe0f81b2bc36072d880c81c7f0d65fb32f"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/claim.png": {
+    "resourceId": "cd1e29c330c8ab62235921504f40f547d411764111a81231931bf1068882ce98"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/confirm.png": {
+    "resourceId": "bd070fba44a9b639abea6f1e18a35f204f6329fafaabaa3b63cbaf2f5c1dfda6"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/dialogue-text.png": {
+    "resourceId": "e84e3c3cceb70f35a524d13c479a2cc24c4d300d61d9b75ae972b008563ed624"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/dialogue.png": {
+    "resourceId": "6302116c22776db225e73bf661bc2f348bd6b479e223f008d2426792674be990"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/directory-heading.png": {
+    "resourceId": "5a5901f8b56e5757ea0cbb1e9940126f6c8f550cffa2cdb10bbc25ff18ad245a"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/directory.png": {
+    "resourceId": "8e28397ae4d5dcd7ca3889484c5d564d7834f8dcea6a31f9b2460f63ad853ff0"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/entry-1-blank.png": {
+    "resourceId": "0751ddbb252f2c6eb110b40c05090714f1ca53820ba4b1e6137b93e4f59f2803"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/entry-1.png": {
+    "resourceId": "eb6ecb8f3f8961b9931462f8d080f3f20c3b3bfb8027e3be1621b5a6ceb21371"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/entry-2.png": {
+    "resourceId": "eb2ddc3cfb3667595c656e8c210637908c6ae3c6d17fa6794d0ef46c78bb70bc"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/entry-3.png": {
+    "resourceId": "ab989d22412dee18c9a8d2172e6ee9d56c4795e0fd3fad95de22b73afb2a8f65"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/entry-4-off.png": {
+    "resourceId": "8b189299c78446ed30d526215a1b31ac1a8b9a91434a63e260f29277e12d2f87"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/entry-4.png": {
+    "resourceId": "c8d24b84dc4a8cf0b263d0f6a4cabe50109f8046a9d38cd89a50c133d06cc15a"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/entry-5.png": {
+    "resourceId": "e3a1cb50cbfbaaa88a2f05aa8bd5690016cad3f1db24dd7f8ff2272c82801e37"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/entry-6.png": {
+    "resourceId": "4aeecba83cf8e27ef9176031abab30f14fbee5dd249c1a9cc7fa20e0ff291e48"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/focus-card.png": {
+    "resourceId": "8a7648fff1548d8ab09c8c9b7c32a77e9ea54d64a65caeea2dcd8dda9572f038"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/focus-category.png": {
+    "resourceId": "40f38436e1efc1ae34bdded2692e7dc84b74af465281d6e372ff0f832016aa4d"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/focus-entry.png": {
+    "resourceId": "5c23fee6c07a884cf06eae88585c2b87330ff5ddcc1639a6cf2ca53ebf056134"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/focus-primary.png": {
+    "resourceId": "8e7c86f3f66c9a8f7b50c78a0b3ea9cb0141f95d004d557cbe3c4897126c10a9"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/focus-tab.png": {
+    "resourceId": "81a51fd6a403e9692bc7be147bbc07a30b8ebbca168d633efe8b6d538e20e9e0"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/focus-task.png": {
+    "resourceId": "d6d0da96542cb78ab8d377fe18227bc6eef7bc5788bd85085e363dd730d07dab"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/header-back.png": {
+    "resourceId": "d175813eaa7dc0f1328775699f9fcf3e5363ce65aa4c319d1d6e332099f4dc95"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/header-close.png": {
+    "resourceId": "d75216833f94982ec4aab70c39b74cf8c9d0e70f5dff680ee416ada2d64cde64"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/header-sequence-blank.png": {
+    "resourceId": "3d658ceac09d0e63fd99dd34f411724e592a07f4715f16d519879f791d87c2e0"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/header-sequence.png": {
+    "resourceId": "0141c65bae1783de5d8e3ef0b13fe574f5960e081491c80797a88ccc23a4bb91"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/header-title.png": {
+    "resourceId": "17cef0eba8f926cf612251ac664ac31a2d0f8cd128d26b8ced1014703bb38d3d"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/home.png": {
+    "resourceId": "74c6225069bf563d9c6efdfe7060933320aa9555cd28f6ed724d94832bccb4e1"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/list.png": {
+    "resourceId": "3ae7a7320d27d8cf3d5cba1fd13d6cdde9b7338a5ccf3ef3a17671face6fb259"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/modal-blank.png": {
+    "resourceId": "9634b0d579805c4caa9ac783d157fba06342fb8b85bbc352973e7b9f1a0010ac"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/modal.png": {
+    "resourceId": "869ce8cce5056543b92115d9d52e397fc03e65dbeaa4aa5a88607c29add36e1a"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/portrait.png": {
+    "resourceId": "eca23b7ad259699bd32e14d263579382f997e8cb6d635b77c9f3b703a1e0c8b6"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/primary-blank.png": {
+    "resourceId": "066f3ec8cd74d988574f62dd662abc391613287695cadd95885074ea3d7eadb6"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/primary.png": {
+    "resourceId": "a4819f5941ba6b9b716f9bc3dd49c43ba4d2af8b8faa0d4a9cba27523ef04953"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/prize-1-count.png": {
+    "resourceId": "274e6f4cdbe874d7cf4e9a1b8694543eb633eed228cc5c9e30898e76d1b5575f"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/prize-1.png": {
+    "resourceId": "dee53cec7282393885f8220a4c5bff81ce21a92d8c0005497221764f3301b2df"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/prize-2.png": {
+    "resourceId": "20573188207b66e07d342f412be8fb30b8d1de49ca86b97ca5629dac01ed430d"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/prize-3.png": {
+    "resourceId": "6780cc82cf2cfeb8fe9ffc1cf299ffa41b6727502b7a59b5a5971752835400ca"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/replay.png": {
+    "resourceId": "95d608066f50eb5ae2b944f1e55a69f02b827a19ca5466736682ccba27bb8aa5"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/reward.png": {
+    "resourceId": "c31fae3c801aeabb1b3ed76cf5ab251b56be34f75a8bb3450ba0d962c3153106"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/secondary-blank.png": {
+    "resourceId": "9308d22cc55e8bf04b9a7ca2398ee274f8996484092e87182dedb1efbae8a9ea"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/secondary-floating.png": {
+    "resourceId": "edf2c6fa55fc23a8545f456d22e776c1d8f01d7c4842b4894b811f57abaa205d"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/secondary.png": {
+    "resourceId": "2ab337831d24f2c858deb79e879e8401165a5efe3e465dca8b622c46e5ed9608"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/setting.png": {
+    "resourceId": "261ab1f0c1c2fa5b559b89ba009b02301628f51417d716df070849423694ce98"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/tab-1-active.png": {
+    "resourceId": "a5f95c2b2f5c31d41d5ef05d2800a1e6a5d4ae5c73e8fca799ba392041c681a1"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/tab-1-off.png": {
+    "resourceId": "90b181416445de6d48609533741d61a5e8cafeb24ca092f2cc21866657070e9c"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/tab-1.png": {
+    "resourceId": "8da3673a6aacdfcfbc8fa8f8f6bc1a61bdaa189a10b514aeff40214943c01003"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/tab-2-active.png": {
+    "resourceId": "f5de5dbedbb90fe45e341e21043b4d9bd92a0a333f18212805f6c08bb7effcac"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/tab-2.png": {
+    "resourceId": "91f25fc0f50670dd7a0222b2375815a70bf382cb54b204db748f1af9f9e1ce73"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/tab-3-active.png": {
+    "resourceId": "f67e44022c92da897b102e160372ad0987fe203b5631ea9e6bbb1875faeb9d99"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/tab-3.png": {
+    "resourceId": "f823d3a71eae7ed3e971280b130f26b07fab291add957aec80eb9c493ff398b5"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/tab-plate-selected.png": {
+    "resourceId": "2fad9cb435226e6decac841eb5c039df6de42b02ab9358e89c1bf7a0b93fa9f4"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/tab-plate.png": {
+    "resourceId": "d58e0657071972b58690fbf3e729e9f6239b92a335b77da4572681300d7ca96b"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/tab-row-selected.png": {
+    "resourceId": "33619049194f4e0cf81a96b2631559a59c7f75aa960d449bb5fa9d709b9d6f20"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/tab-row.png": {
+    "resourceId": "4de716cb6994f6a8789328be09373c05e4e2eafc2d5a1ca27750f0eec7577e74"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/task-1-active.png": {
+    "resourceId": "64473f078bba82c8f49bfcf92aad7aef5dbc5cbc6d629a0353473e2ec83451a5"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/task-1-off.png": {
+    "resourceId": "de54b86140ef660ab80dbe973a13fa43f8074587e63589e8528d74f1024484bf"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/task-1.png": {
+    "resourceId": "ea44d07c7f5900af977649f104490ad3d62cd9ec4cee6b64034b6df266840535"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/task-2-active.png": {
+    "resourceId": "cce51f67f36b849401428660956c99127351cff87e3386935307f19e53ccc604"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/task-2.png": {
+    "resourceId": "6c19f3e5d5ee8ab3f3d631c695a83591b774435fa74d701f1ae30a4e0e55ea13"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/task-3-active.png": {
+    "resourceId": "bd431590107187c25beadb2b3cf09cd33248cd114e11aec55ba24c8e6dce6870"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/task-3.png": {
+    "resourceId": "2231a4f98f1e7461254bfe747b9e522200f917005844ef870684bcfbc316363a"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/task-plate-selected.png": {
+    "resourceId": "cd313f439b43f0f0db9ccac8e1bfb329bea8604be705f736f1eccfe0c38d716c"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/task-plate.png": {
+    "resourceId": "275e2c16fe28c2818a5481325fa6c42f0b77b75d24f5c41b6de76054291a833e"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/task-row-selected.png": {
+    "resourceId": "00542950b325e198ae84aa1f1c060ece8daf71c27b5c78be361bb065beb3c372"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/task-row.png": {
+    "resourceId": "6c2cf9a217edbc3d0d7af8179f74f0e3e36cf647dfe8df155b3f8421e2174be2"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/toast-blank.png": {
+    "resourceId": "f00c3411170052542a91b0d7af86d9e65b36e5628089643fc3ccceccdee157d7"
+  },
+  "assets/ui/motion-lab-v2/teal-gold/toast.png": {
+    "resourceId": "b9854f6bd455c4bab7d24fc5d06b0dddaebb22fa4c66536bb397929188c4ec64"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/auto-off.png": {
+    "resourceId": "87b32984c6e7048ad196d23d70c793f7096815ad051cda63d4a8db1842132ccd"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/auto.png": {
+    "resourceId": "917c91210ed20b4302386e83a9075a9bfae333b6a289776472e8fc2730b384d3"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/back-floating.png": {
+    "resourceId": "07f4ed8fdee7b0fe6b26426dcae93aaa93e9a8c00368d4b46a4d14564a68a894"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/back.png": {
+    "resourceId": "9997b6a2786a691bb91ca0e3cd3769aa7c3014f01a4a42c9ab7baf6d930a1aae"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/backdrop.png": {
+    "resourceId": "66e1f6e4adfd32600578d5cd2dc632e99a4fbc2c20560b56891b13185457c03d"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/badge.png": {
+    "resourceId": "00312840217a84959b39fe031c209d51e964d216c19bdf9dbc50fbf28df57c58"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/banner-blank.png": {
+    "resourceId": "6c816b740006ea1b0be916fad4eec6328c8336a165c8b4929d484dcc710ee719"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/banner.png": {
+    "resourceId": "4fe55b7d1f9b496c5c92d9e2fe02c90b1c974d03cb4a05ce8b3b7fbd33dfd1a4"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/cancel.png": {
+    "resourceId": "b1e7b986c6acdb42961a5ffdce0dc40efe5eaf39cbc9df7b2f188d1182bd1f91"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/card-1-blank.png": {
+    "resourceId": "4f3311cc4999f73bcd5a2b3ca29ef6b444cb984c3ab19f900c199229cafbcb15"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/card-1.png": {
+    "resourceId": "d15968539435b2efc10c47535c261d832122fead4f94f8435e73c81669990442"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/card-2-blank.png": {
+    "resourceId": "fdee16df77aba9fa6cc363c6647b66a9c720faadfa068fad5c5dfb533393f3cc"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/card-2-off.png": {
+    "resourceId": "fae8690d1125854f39080ee087150203085d16dd117abdf278cf4a946c9cf734"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/card-2.png": {
+    "resourceId": "cf99f784773c4d41bd854a9881a0fd863117871053c66b143954548661e0a323"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/card-3-blank.png": {
+    "resourceId": "6a5336b941f616fbf3f364895660ec78606da2df4360b3ae5020216fde52c849"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/card-3.png": {
+    "resourceId": "b9a81c04031caa5ec2d9fde78c480f27b50ae7e6e1ba64d5458263bcd7eaf440"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/category-1.png": {
+    "resourceId": "d41ee4ff7f4b7a58d82040750195a1fba9b5fb587cc6508bc102f599e490edc4"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/category-2-off.png": {
+    "resourceId": "d477e77c7ca0ed7a8d48d7c8a7496ec1c9b3c9972b7b8b9439e5ebaddb29f83a"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/category-2.png": {
+    "resourceId": "68271abc031e21991ed2def67ffee8cad6cacf35fade65fbe29a08448464111e"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/category-3.png": {
+    "resourceId": "e51b2753f109bc91934bf5894aa9f5e48d6996156ab896ff7a39b6ba5229c848"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/category-4.png": {
+    "resourceId": "9c4bace22287cb8e2fef0d416c77b60ff308707645c7dac609843958688b0e69"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/category-5.png": {
+    "resourceId": "8c077e9f3abc2c5f216989a169c18dd483e2690de329adf9e5e282b0637fc1b9"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/category-6.png": {
+    "resourceId": "21d37d94cfbd9bee492d1584b77492a13dc213327f471f214c075a4f7cd42ba1"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/claim-blank.png": {
+    "resourceId": "4e33a24a0071d1e24b90d7e84fef3b30b9c5435da7abcfe2738397ee8e1edff7"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/claim.png": {
+    "resourceId": "35e31d54e7b0ac6cfa346bf58971cdf2567cfc07acd7baa0924d1944fa185807"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/confirm.png": {
+    "resourceId": "348554948dcb4485471dace7aee01f2d37f443f756f5dd6ccca7e0d833be5e19"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/dialogue-text.png": {
+    "resourceId": "7d8b0bb195feb27d092d63bc4f8f94c79be8aa3cf12bc11d389b5802ae0ae85b"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/dialogue.png": {
+    "resourceId": "28549fe7a96d06a92e3cc1be161501cf0ec25479a51e831763795e306b25055b"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/directory-heading.png": {
+    "resourceId": "24cdfd8040b5458828969b7c7e7240c16b5b427ec1028c29237fb7ff89be7a76"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/directory.png": {
+    "resourceId": "e6bf56f1daed527070cec2e5ded53a3199c1cc53e2f6504b6bf18c1aff37c857"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/entry-1-blank.png": {
+    "resourceId": "124aca37a3e076c95d8066c8ad09e1f0c8d01b92dc4b5104b6c18ac0b142291f"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/entry-1.png": {
+    "resourceId": "02a537e79d07ffa51396eef34c92582d0c2ab033f8b12baa12071734d77f10f2"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/entry-2.png": {
+    "resourceId": "6902cf75f1e12a0e6dd4120034a0c90e5723ed7cd0d82a471d222ec929139610"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/entry-3.png": {
+    "resourceId": "90ea14566b5d1482eb8c7f412a0af72e03575a476f3783ca208fc55ac800bcb3"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/entry-4-off.png": {
+    "resourceId": "e27c04e6b6816f877d8a41387d3ab490400e776074f5e69995124dcc079db0a7"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/entry-4.png": {
+    "resourceId": "5df2a8c6d3ac3dcd12ec999cfb112b934a1b680449248d6a7a6ddb16aab0f6a7"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/entry-5.png": {
+    "resourceId": "b64cd97aff5389bc204c0046c2d477afc18d7a25c5a9acb43710c9ad30e86c83"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/entry-6.png": {
+    "resourceId": "e97a97112733c7bd522c5b2699ee616cf150afc03499bb928c90ff4fca18f91d"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/focus-card.png": {
+    "resourceId": "fe26a046a437d7c1e6171607a286883b733d5bd06c6d55c108693c58f2206918"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/focus-category.png": {
+    "resourceId": "21dc73b7e34009653bcfd02b5eccac6e576c8512266773ed620bed2b4e512ab9"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/focus-entry.png": {
+    "resourceId": "c0f8ab95ff69ea4cb3b6194491950fb8bc79544e45668858d79e09097e7741b2"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/focus-primary.png": {
+    "resourceId": "1bd3000f1d74ee1084d1e74c0851285b55ecc812aaa5b9ab78e0b3678abc2b75"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/focus-tab.png": {
+    "resourceId": "5bb1ed02dd6304798556ddd13a62556c10eb4dbdd3bcf46293ef66f26aa8a9dd"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/focus-task.png": {
+    "resourceId": "93554439ffc075bac6c52922d7e1884364819cfd65a5dd1dff64e784d362cc72"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/header-back.png": {
+    "resourceId": "45a1beac2389cbbfb52825c7bc9a32159e819cbb1057c74f77aeee2f13151038"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/header-close.png": {
+    "resourceId": "6ec761b5b2f0d531ccdb8becd0bfa4600aba28ecc9f4093860cfab8ffb4253a9"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/header-sequence-blank.png": {
+    "resourceId": "d1aaf39f2d02b39bcb808e4f9bcaa8dbf59248460de3f483aa9265a5ea82972d"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/header-sequence.png": {
+    "resourceId": "faa178ff737d658457667ce1e72c39a87b42dc0aeb5f8c1c3896f7e7792e2242"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/header-title.png": {
+    "resourceId": "dc5eafa54659ebdbeed795a2daba9049ff524bd82c157fe64d295ff65eab346c"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/home.png": {
+    "resourceId": "c836585751ed3b8bc61bdfc5d53028e7fed28f26709095e19a662fd7e8efa751"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/list.png": {
+    "resourceId": "82280a475687a8542ed5e2580a6db3d7b110b9a0629d8838e5380c57b550a522"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/modal-blank.png": {
+    "resourceId": "5d781a3c30469175775f13a051d70a09ba1b7efbff09b49d3a4157517eed8b28"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/modal.png": {
+    "resourceId": "8fdc66b71d0d4512be458654b68d94b69c0fdc0723809306a5a0557be0fd9387"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/portrait.png": {
+    "resourceId": "a0617db201064fa973e8af7e657e63f2662fbcdff1f32f665855b44d337a9822"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/primary-blank.png": {
+    "resourceId": "34caebbe4dfab91bce35e8c74910dda3c419f93e1b28381dd2f7cca24f9ac7d5"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/primary.png": {
+    "resourceId": "bbcb5a7e6439b99d83a21da182e802da0967009b0b7964099c7cd123c8ff8082"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/prize-1-count.png": {
+    "resourceId": "0c3c9f169688e876f93dacc8ea2aa2cfcf4ba4961f32ffb1d7dd360606b38c96"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/prize-1.png": {
+    "resourceId": "a36bf1aa6ae807d7e1ad48e907944ed7292284eb69c20cbb8edd827c96e3d7ee"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/prize-2.png": {
+    "resourceId": "98e4f73f2f6e10358e18e2d10c8b548218c35e0622e239afd77eb3868ef59da5"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/prize-3.png": {
+    "resourceId": "dbf40665b06358bad954471e0c1105bd5341a22321af78b4705994d9ea42a88a"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/replay.png": {
+    "resourceId": "2c270223ce0e904594abdcbc097a3973e35e161e681888a949f580f94e27403f"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/reward.png": {
+    "resourceId": "e5c095c596575e00f086c78cc25708c320793770cd823d3e291b45f47cbbf53f"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/secondary-blank.png": {
+    "resourceId": "cbb5f9663f6b6e35ff1ac310f39537e248c5ad7852e62316bbe9ed5ba5a39368"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/secondary-floating.png": {
+    "resourceId": "a842b28e60f0753a49146f73d904f5e495fbfed5c915eb800716dd604a6f8d1d"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/secondary.png": {
+    "resourceId": "a3f496dfc8928593a992b166fb20210817314f299126ef195d2d3e754fc5f935"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/setting.png": {
+    "resourceId": "35dd695289e504c72a7536c89f238f0ded3747f0951097c8a4203b7350a0ac5f"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/tab-1-active.png": {
+    "resourceId": "14445c43a2a22a3184285588ffe267c53252f5932d43f4a32c3fbcfe75f6b384"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/tab-1-off.png": {
+    "resourceId": "4df2847563836acff0992860619cf3da36ba3f2f251ac386f1c959aab6b15ecf"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/tab-1.png": {
+    "resourceId": "7070196c801b0e411ab9467655cfdb0f233a1095649ba4b07f13a50186006acf"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/tab-2-active.png": {
+    "resourceId": "8d49c827bb053dadc17927a663b8ab20ce07515a819017abdbe65aec96e15329"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/tab-2.png": {
+    "resourceId": "15e44654f4c215d5bdd47295fc47aa46f0d52ed203a4275296806e12266740e7"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/tab-3-active.png": {
+    "resourceId": "98d6f5e891da4eb70c22d69b48e245c0732dd50cd1d5622129700b68bb040d78"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/tab-3.png": {
+    "resourceId": "4b83b99ac917b8b191feab02b59bdb0e39fd300b181e84864d5a521e1fd6092f"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/tab-4.png": {
+    "resourceId": "dc6c17ced4869febadb1d44be25ad4b771bb460bcdfef23cf34b99edf5efa6af"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/tab-plate-selected.png": {
+    "resourceId": "f305413f06b91c62427a69391a83a2954fd5b8c985bc95bb14ed3b5c4ea4c638"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/tab-plate.png": {
+    "resourceId": "dfbd8904f2631f94a21a406059aeb19994ea190dff3d7bdab4c92075753d1b9d"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/tab-row-selected.png": {
+    "resourceId": "d4c025d0bed7c0c4c6fc1179fa0cc8f11a91d46c75681e2e6b24516e8aba66f9"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/tab-row.png": {
+    "resourceId": "852910ce201fe87767d4fc81bf0d50a7363ff2da16e12ea25cec1c51d7ef3b0a"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/task-1-active.png": {
+    "resourceId": "6e3df928f9bfbfd0fc6bb117284bfc018227379de0ccaadbdeb8e58b39062e0d"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/task-1-off.png": {
+    "resourceId": "6f3698a880db63caad3cd56c5c952a9990cc44f864fb87c21219673706fd17c1"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/task-1.png": {
+    "resourceId": "e7f9e1667b13fd5ff1aae47e8cb6ac6227b75c079dc89b63b6da683ac7bc5b40"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/task-2-active.png": {
+    "resourceId": "df7411e5f518c1d9111c73ec9aea01a16f40732e86e7be58e30d0e870b73bc2d"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/task-2.png": {
+    "resourceId": "d9bc5110447fee3f4bcc9a34b78986fc1aad447c231169cdb3d37c05d14bfa87"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/task-3-active.png": {
+    "resourceId": "f4599c8cb3e2e00be59a9611d57a12c271dabd31289e57a720fded7cfd1cf671"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/task-3.png": {
+    "resourceId": "4408b5d6ef968f116e509a351c2186e0baf37a64fb96c969be6c1918f27ea309"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/task-plate-selected.png": {
+    "resourceId": "1998eb66e5f165d12a7006bdcb1c82411ed39a7ff3d4a39870322a2d17bc119c"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/task-plate.png": {
+    "resourceId": "77d0cf245fb92b42b0426594c178dced8afccc5aba827b1bc07ebf094b5e372e"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/task-row-selected.png": {
+    "resourceId": "bea98520ed9fbfddd77969dfc4f0e3843585e08fdecd62e5cb46fb1503c9ca33"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/task-row.png": {
+    "resourceId": "d7bdbd60e89d920700da1eaffa16b742ca5872e09ab539882eefc113a40f6464"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/toast-blank.png": {
+    "resourceId": "dbdcccdd34aadc19f3ba5666a1cb19141e4865172ee06a93a71dca4dc9dee62c"
+  },
+  "assets/ui/motion-lab-v2/tech-cut/toast.png": {
+    "resourceId": "fbfc2cf0bfddef2ca97b070b6ab7fc302c2a1923333495559ebf853019a15bfd"
+  },
+  "assets/ui/nanovg-showcase-v1/images/companion-harbor.png": {
+    "resourceId": "043b5d12e143bee7bd547e601d0ec23f8d5de7e478426e9f7917745612788988"
+  },
+  "assets/ui/nanovg-showcase-v1/images/magician.png": {
+    "resourceId": "6c32c0d03d3073dcf97e5959ba114716b6d2ed69f003f96bcf62a7e7adeb8e44"
+  },
+  "assets/ui/nanovg-showcase-v1/images/moss-open.png": {
+    "resourceId": "ef25842a76f652c9bf1c974bd8f88cada3e230779a98d8ec8e4541b0a5fcb619"
+  },
+  "assets/ui/nanovg-showcase-v1/images/moss-portrait.png": {
+    "resourceId": "909693ce380a9ce5b6a1a90803ca58e65ea18d43073bc76f104e3a94f1c1e087"
+  },
+  "assets/ui/nanovg-showcase-v1/images/nova-open.png": {
+    "resourceId": "da439d9e44131246fbcb1929252288a13b996e43a29b6c981d21448115d2b5b0"
+  },
+  "assets/ui/nanovg-showcase-v1/images/nova-portrait.png": {
+    "resourceId": "2df1c930e8898f9c6f4b782bcceb3a3286eeb2c13b6ee2992dbd05049644ffab"
+  },
+  "assets/ui/nanovg-showcase-v1/images/sol-open.png": {
+    "resourceId": "a0b9d0a8363a1e90ecf66b4c5bdd6aa183e9434dd2573c7edc60a3fd70d3e463"
+  },
+  "assets/ui/nanovg-showcase-v1/images/sol-portrait.png": {
+    "resourceId": "13f9e33a8ac79decb899e8515d5df3780f5b82b1273911f67757bad0ad5d6ca4"
+  },
+  "assets/ui/nanovg-showcase-v1/images/sunset-harbor.png": {
+    "resourceId": "bd8b9a62fda8f2a4b7620897304c8d76088865908acd4e4774244d2de1e87084"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_282ca9cd-f040-4ebf-8a19-42ecc159c823_item_001.png": {
+    "resourceId": "43ffa955bf023db99ddbd8c70ba9d513a27bcd18d4b2dad2b5f611715ce5409b"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_3f47c1b1-1109-4add-8b12-a4d5d29ff9b5_item_001.png": {
+    "resourceId": "9ae0b5e991982661cc7e876b8ab43c45dd63659021a7d69e2f5342587bec38a9"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_3f47c1b1-1109-4add-8b12-a4d5d29ff9b5_item_002.png": {
+    "resourceId": "4bd2ddf8399a9244c733d58c87bf9bb7725f2113efa27d86b71bb4f2ddb0beb2"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_001.png": {
+    "resourceId": "81fbddab18cf014b78b58966dca58a2b724966cf64134717953f8b6969d31507"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_002.png": {
+    "resourceId": "15c652b64576484a89bfcc88e61b5790a7f27f61d467a6db9dc1cecb41500047"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_b7f877a7-ff5e-40c1-9fa0-b6ac919bddc4_item_003.png": {
+    "resourceId": "be82091436bb55f32c2ef3141c93cd8ba937267a7794903384342a601c26f1d4"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_ca87904a-e955-42ae-9b3f-ab3d0a20be30_item_001.png": {
+    "resourceId": "82b86868d36a20838263a6d1820923eef7dac0430907ee9a3745373a3e413b12"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_001.png": {
+    "resourceId": "86803478947b1df1766987347b4d4e855a95a027bb7471d8c2876fc86dc855ad"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_002.png": {
+    "resourceId": "0b9d924a3700660c6fc5c21dfa228dc9d914e0f78206bd05f647aac1cfab1c9b"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_003.png": {
+    "resourceId": "5a2f62d7dbed3f13ee1cda098883e4c8c4f2212a347347551147bce7d1dcfd22"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_004.png": {
+    "resourceId": "7904ea804919d80837a31390a3c8110ba0a42e70d22fe1395dede581170793c1"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_005.png": {
+    "resourceId": "b439b680556f9ac55103e38ae9f5ef1d498e873bd47bbfee108adb4b02c5855a"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_006.png": {
+    "resourceId": "bd070ae78926edf31aaaa223c7a77a3a9360dc9e67634b096335865aa1f61749"
+  },
+  "assets/ui/s01-redesign-v1/assembled-v1/images/asset_e09b71c6-3bda-4072-93d4-64e75b0965c4_item_007.png": {
+    "resourceId": "8236ab377fe349d2921d4dc31122759e4a0848ccd10476cade1dc77c9c38720c"
+  },
+  "assets/ui/s01-redesign-v1/images/background/E001-normal.png": {
+    "resourceId": "df2394fc7facdc39f20f641af218876f696ded91773349f67cdbe0890a497e46"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_190eb20b-7bf8-48f0-a628-9ba04b258a00_item_001.png": {
+    "resourceId": "189f02cabe34146ba9b8aa2f7b51de48f3ead65a76fa3de04ca19d0bdad7b0d0"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_2fcaed82-cdb7-4355-b198-61209c21fcf0_item_001.png": {
+    "resourceId": "7db0f1b3b074cb2805593cf52c36e01a8ad4b9fccb50bcba066090c1da62179d"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_001.png": {
+    "resourceId": "70dae54fcc5943e3b686ae56a4abea66b9245794086ae37ee0258c56d3298c94"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_002.png": {
+    "resourceId": "08b8a1f26a9a0b342407093f8113ec6bc89fc931b97d5044ce5557662db21398"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_003.png": {
+    "resourceId": "635e296fe42a41f934df5b2184d7f8d7a8dd32c4e67425301211b0bd971e7c27"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_004.png": {
+    "resourceId": "5df873a371984c399c70a1d3d890106a9968f6b43272d46359fae6f5ae94feed"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_005.png": {
+    "resourceId": "238d41f170967884aa0d7d82ee3ed8342b1d93d1b55154bfb68cda1802da960b"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_006.png": {
+    "resourceId": "5e5cc7a59406b05f4ab3beef61c4bf3ada7e3ca3827ab827cd77e3f270ef010c"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_007.png": {
+    "resourceId": "dfa735641d3ce5d6656bc6a6315c11ac62d454d2234b45623420235b30d36abc"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_008.png": {
+    "resourceId": "b7d17e6dfd677e22c3f655ad5736c505e5f88c980aa930c3f017e461703eb8a1"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_009.png": {
+    "resourceId": "19a978e62288ee1b6b98057a873a4ea54c1df5673130421b34a88b66f6ac454c"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_010.png": {
+    "resourceId": "45e4b3f9c65a30e8042a5eddaae2d0da987efc84bdc36e7bbe3a8c363163b8dc"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_011.png": {
+    "resourceId": "c132970fc9d3eb2513d243d726c69d8160c700414ec38b505fdec454614cbfde"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_012.png": {
+    "resourceId": "4e316cb90d4d324694c359a321c993c0059969918b429e690b90d3ea55169555"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_013.png": {
+    "resourceId": "9a23d3b417f39e5721b5f8400cd6a56400114e480a326113e440697f779d43ce"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_69081b77-b842-41d3-b901-89cbd83e51e7_item_014.png": {
+    "resourceId": "f3e5a464d4261e73ebd065ff78bb18bf5c6537e3553599acebed446a2ee84e6a"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_001.png": {
+    "resourceId": "93b994d3667ca106522cf1ffd42ba9f7a8bdea651ff95a1fd923d9fa60572534"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_002.png": {
+    "resourceId": "917a9bc3e7de03985f63a006153b973301c78d2bbfc67acf183ee9f2d861c972"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_003.png": {
+    "resourceId": "1e30d6a470acd66486f031891cee71671da28bc042461e4d2b23bd7d17e4d6d6"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_004.png": {
+    "resourceId": "37700531ea3bf7f0a9c4114743512a9326451381b2189c9d1f454214a91e8433"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_005.png": {
+    "resourceId": "3ea6096fbc2d5290bf1bec9205cf6497aab471c4c54b4f796cc990947e28aab9"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_6a86f765-0312-44b3-ac2a-fa8f981dacc7_item_006.png": {
+    "resourceId": "0d51c8bedd1d2d5c84f759eae63965b173a61c18b635b5831009c73549c68e80"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_81c18dd2-d1d7-478f-8d46-647ad4616c72_item_001.png": {
+    "resourceId": "2391b9518bec39b8afed5845951a60fb0525467b4f650ef697f72472b123cece"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_81c18dd2-d1d7-478f-8d46-647ad4616c72_item_002.png": {
+    "resourceId": "4eadd71c91b8c678a9cfd10d3c01c0570d5bead82a7108f07f532155fa93cecc"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_81c18dd2-d1d7-478f-8d46-647ad4616c72_item_003.png": {
+    "resourceId": "494de8b6d96e7c2599861cc790e704bcfdd7663380426f73180d446c23ed39a8"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_001.png": {
+    "resourceId": "52e4589b2f1d9c2eb312e4e7e211793c6a742a82a2ec4f1ae0b82e570f51d976"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_002.png": {
+    "resourceId": "2ead0c2452ec525db344e0ffd9d01a88c56b9174276a1b4ac4f156d138116598"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_003.png": {
+    "resourceId": "363df0f8a7c84ec65f1822efb00775e03e4a7d2c37d0f2e7fcfb4371bc2c44dd"
+  },
+  "assets/ui/s02-redesign-v1/assembled-v1/images/asset_ed1d395b-5d12-4d87-942f-6f6b8f1413cc_item_004.png": {
+    "resourceId": "9405e11dd98e299129acee240fc33ce0ca436594fd6ceef4e5bd05c6c991ba56"
+  },
+  "assets/ui/s02-redesign-v1/images/artwork/E004-normal.png": {
+    "resourceId": "587fa98101f125ab299752e439ed96a7617f577f948091cc08ab1bf578d76aac"
+  },
+  "assets/ui/s02-redesign-v1/images/background/asset_120f9667-612e-4372-90ce-2770ce959705_item_001.png": {
+    "resourceId": "179aa157e79bc6da4d1694e99cd62850fa6419021ad1c941529d5742c1953387"
+  },
+  "assets/ui/s02-redesign-v1/images/characters/mica.png": {
+    "resourceId": "f43bcdace724158610995efe4c2a8ea21dda0c3e772b06b99bd079b920f82690"
+  },
+  "assets/ui/s02-redesign-v1/images/characters/rin.png": {
+    "resourceId": "be716567c26b080b8557526ecd7a08f42f20c9fec3ffc902e6b2de0b8dd0d7b5"
+  },
+  "assets/ui/s02-redesign-v1/images/characters/sable.png": {
+    "resourceId": "14e06119b12a72d40497ba28f4141e7aeb528105f98b3e1ec84cd06e1554cb45"
+  },
+  "assets/ui/s02-redesign-v1/images/characters/vela.png": {
+    "resourceId": "893fd2e0b6d6b3eb6efb4a2f56b0a29fd2107c987480ddcfc461f053a86999d9"
+  },
+  "assets/ui/s02-redesign-v1/motion/poses/pose1.png": {
+    "resourceId": "f8f85c449f45d158d7d8eb785bb5631856c53ece31576ef4950e5a1403171b49"
+  },
+  "assets/ui/s02-redesign-v1/motion/poses/pose2.png": {
+    "resourceId": "54c50c1da1962d9579bf9fb9bc41fdd3cc2ebd452e573f5c08e3416f8b152c35"
+  },
+  "assets/ui/s02-redesign-v1/motion/poses/pose3.png": {
+    "resourceId": "4279bd6387b4f585f31c29ecb0b58faf7f3c42816bdeda2fcf40a289e44046ba"
+  },
+  "assets/ui/s02-redesign-v1/motion/poses/pose4.png": {
+    "resourceId": "fb0ecc8a4f7a3c6cd22b05bd166d8e80e6102565c92242d6af1f7dd01f9f9651"
+  },
+  "assets/ui/s02-redesign-v1/motion/poses/pose5.png": {
+    "resourceId": "0a2d9514346ad0d5ef68629b9fd461d63dc93cd5babec23b55f7e5bafe0c9422"
+  },
+  "assets/ui/s02-redesign-v1/motion/poses/pose6.png": {
+    "resourceId": "866ddb01501b31db0fe92f744bf8f4c4ff0c6c4ccd89127916f35dcfec22b7c0"
+  },
+  "assets/ui/s03-redesign-v1/assembled-v1/images/asset_01ced7b8-b0c5-420a-8828-36b9fd627dca_item_001.png": {
+    "resourceId": "7c71cb0bc46f28c4811ba1aa0482d31cbae9e8fdede2e444599629a3e58c7c97"
+  },
+  "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_001.png": {
+    "resourceId": "9f242ffc704c255896b91e0d80b007530dde9daa2658958f0f04b896d6126374"
+  },
+  "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_002.png": {
+    "resourceId": "44fa8671fcfd38e295621e282b45e5adf4bb813de0d5556a453d3f4f55711b38"
+  },
+  "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_003.png": {
+    "resourceId": "4e8af39e4723e7710ab161023a0db53372c24dfb76591e7b7a17f779969f84f9"
+  },
+  "assets/ui/s03-redesign-v1/assembled-v1/images/asset_0930aafb-ebfa-498a-800b-0648159bea79_item_004.png": {
+    "resourceId": "b6311b4732ee1c6e8b0af8791a1f2b16b32bc237fc9388deeb7c2d3a0a5ad5e0"
+  },
+  "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_001.png": {
+    "resourceId": "e4026e5d3b8c4a37b48488f8a8b813902175492904bf5f1a68f003c8d48cfcae"
+  },
+  "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_002.png": {
+    "resourceId": "5e10296eef5e6f95831d4014d9647e072b7173511ee9beb2e80fad7e69de8831"
+  },
+  "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_003.png": {
+    "resourceId": "2f752d986b829a4c0acec2b9debfa2a1e8870a557e18c77ad1ecc9fcd9bb4316"
+  },
+  "assets/ui/s03-redesign-v1/assembled-v1/images/asset_38a6b51b-301d-44b9-bb2e-df64205dddbc_item_004.png": {
+    "resourceId": "96e673e10a6adb8ec24db0211cc19e4aaa4e137743c715bc5988471ccc809277"
+  },
+  "assets/ui/s03-redesign-v1/assembled-v1/images/asset_47993c62-3bfb-4ed6-aac8-1b64d1afc1ab_item_001.png": {
+    "resourceId": "774bf8e329f78b193c5e1430802623c3c7c6860fe6fec7353215fea1e960c59e"
+  },
+  "assets/ui/s03-redesign-v1/assembled-v1/images/asset_8f1a7571-e2ac-4259-8df7-3f09bacde522_item_001.png": {
+    "resourceId": "7d34194f9f2045f2638bf8d16d0fbb15b8abe7358c51ffe33dac430f5984978c"
+  },
+  "assets/ui/s03-redesign-v1/images/background/asset_1839dd70-771f-4db5-b663-7d74a724cd05_item_001.png": {
+    "resourceId": "3605dde8b2cd3c307ef3c5de944de2da07dcd53d3187133c6bd5dd752cc51d2c"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_10dae5b5-320e-477b-9c34-f10f418c866e_item_001.png": {
+    "resourceId": "75fc470ef3a09bdea3bdb8238bd0445248d08a84d6b809017c5e432efd5574d5"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_10dae5b5-320e-477b-9c34-f10f418c866e_item_002.png": {
+    "resourceId": "ef473983c6b0b9fc2d152293ab442addc2491b057aeefabb781b7cb993f3a407"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_001.png": {
+    "resourceId": "04b6ec124b009ff061098d52b9b46fab3ed8841481dad6aff6286b0ca940f4d8"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_002.png": {
+    "resourceId": "d575f3237e0984f402deafc044435ce97aa6219439c68c84c37313ba714c07b0"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_003.png": {
+    "resourceId": "82af8433710f731047183782e04f702b381bdab1a12e04bd2cf38eab3ba5e7de"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_004.png": {
+    "resourceId": "58911e673b6a7444533d7d8aaf1c0996b92f2d313a895211cacd5ca23493f1ff"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_4091b8da-ded3-47a4-b7bc-94c834fb86c6_item_005.png": {
+    "resourceId": "045927ec2d61ba597ff0f64246b7c9112877dda59296caab525fb37f136aff96"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_7f16d4de-5b54-4fcf-a380-0f60e33dda9a_item_001.png": {
+    "resourceId": "5de3edd3adbad3f948a950e4ac5d57595b1c8e951da7ff79dd5251ef0149658a"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_001.png": {
+    "resourceId": "efcba0e1a5356a4a9677056cc362feb93cff91f1af73362778e0f0569b74783f"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_002.png": {
+    "resourceId": "085150204fac24b102fd6951ba033259dc3c51eba83c08d11614d5e5206745ef"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_003.png": {
+    "resourceId": "96a52520d3f8033ee5781fa7147c20ae02116ca311ca97036800d607b47f52a4"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_888b8cdb-07ad-4b5e-8a75-9b9f696339b7_item_004.png": {
+    "resourceId": "6815abf1877106f370d9311a9736e95a1635e53594c325cd38c4671cdc2118c5"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_e49c1c85-f860-41a2-8ecc-ed7b5e7ad80c_item_001.png": {
+    "resourceId": "aeb7c2bb32aabbf9d7574c700dfcbdb9a90c15d1da915adfb29bbbc5bfd74eea"
+  },
+  "assets/ui/s04-redesign-v1/assembled-v1/images/asset_f075d4ac-8f07-4991-a00a-fce9847e3fb0_item_001.png": {
+    "resourceId": "9965db5ff001096bd21000045df81a498ff4a59cc46c90dffe47395394e1cd33"
+  },
+  "assets/ui/s04-redesign-v1/images/background/asset_70ef0acb-87bd-49c0-ae46-59c19ab4e939_item_001.png": {
+    "resourceId": "dd5921a8fa609ac1348057050cff3903277bd33bbf22636910a1fedfc4444aad"
+  },
+  "assets/ui/s04-redesign-v1/images/effects/clapper-body.png": {
+    "resourceId": "281e93ceb1439983236e3805c579062ff1a8c63ad7b2ea2c26d8ff09022b0736"
+  },
+  "assets/ui/s04-redesign-v1/images/effects/clapper-top.png": {
+    "resourceId": "6f111b3bed0976f35626be45f37e54fb7873a1750e9d92f82525d99e5586ab3d"
+  },
+  "assets/ui/s04-redesign-v1/images/effects/hat-back.png": {
+    "resourceId": "996ad1d880283391009c0f0e51698a62bb4d56b98a0b6d700d54bd0bfbe3bbf8"
+  },
+  "assets/ui/s04-redesign-v1/images/effects/hat-front.png": {
+    "resourceId": "1ad20ba4101aa83a823159d603e19a13debdd0a7c874a555e4cc481f4b60a1bd"
+  },
+  "assets/ui/s04-redesign-v1/images/effects/orrery-star-card.png": {
+    "resourceId": "5b7b412252aca0d2e18e8713b19e3ce6d2e471f79d03bad022d24dddd959ab0d"
+  },
+  "assets/ui/s05-redesign-v1/images/artwork/asset_df41fc62-a3a1-4b3f-b4a3-4450126e3799_item_001.png": {
+    "resourceId": "bdf8bce1a1b271761d98d005f9de0b99bf06e9cf24095e7091b021af420c86d8"
+  },
+  "assets/ui/s05-redesign-v1/images/artwork/asset_df41fc62-a3a1-4b3f-b4a3-4450126e3799_item_002.png": {
+    "resourceId": "af9bb4c3712235eddc211af96f7a7faae2a0b8fd49eb60ba0b8825423cf06c40"
+  },
+  "assets/ui/s05-redesign-v1/images/background/asset_437ca95a-c49e-4b39-a557-c2ae48a7a9fa_item_001.png": {
+    "resourceId": "07ef42f82f70256fcb90294b62e60eb70400ff16c0b7d287a0b2c721a9457a2e"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_001.png": {
+    "resourceId": "08f69b6dca5cd2ac217e91067b92c9c4043390ac71e3fbacd699979d88cbe688"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_002.png": {
+    "resourceId": "9968a9b613c3caf96109042003b5ebf5c97e328e62bfaa84446f36b978c7f909"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_003.png": {
+    "resourceId": "1e73939af62e5f93168feb6ee1019bf348ef8519484e79f430692c3b5f70e904"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_004.png": {
+    "resourceId": "2dab30f4511394172f97b289cd0b8f21f232feda29a88fe4d8c9877aa48352d2"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_005.png": {
+    "resourceId": "8bbd895a327932da700a3db33dead2b3ba8c3e1dffacd4c94d47c2c00a60b853"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_006.png": {
+    "resourceId": "296a542ee6e2b69914700577db2e33115456cf74fbd5f0b94a5c9ae71acfd5f7"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_007.png": {
+    "resourceId": "989c5dfc65ddc720972bee166cb7f46189fcb467e0637bccffc30c0d2e5e84ef"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_008.png": {
+    "resourceId": "8af7c9979eff08f44ba6161229f63bc863604bdf80206053fd507b16ebbdf508"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_009.png": {
+    "resourceId": "64d80cd13c135f7f010d873ba2bd35728b9c22d9ef2d506ee55ff4c9633d217f"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_010.png": {
+    "resourceId": "69d81f613ad88b5c70dab5e4beae4be136b39046ea773008c9712e9fb69e92e8"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_011.png": {
+    "resourceId": "6bba905949a6428f3efd0dae9c41e3e2f94781035050d3a9f260406d2663f190"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_012.png": {
+    "resourceId": "0ab0755024aabcea6425d27b2cd260a829c38fc421223d355c9e3f6b98f4fef6"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_013.png": {
+    "resourceId": "50e25311e666cfa90185b6752d938f82eaca6d5963df12d30f3c8fa83e172053"
+  },
+  "assets/ui/s05-redesign-v1/images/controls/asset_d7e2e2f6-49eb-4002-ad65-af85389a53aa_item_014.png": {
+    "resourceId": "31f764d14e38ecd49e85309be6ede0c23916f1abe352281ebb8d00867f8dabf2"
+  },
+  "assets/ui/s05-redesign-v1/images/effects/opening-curtain-left.png": {
+    "resourceId": "4622c79f601ac7d10f29a5208c431f35d5ecbd5b7c16ca8a618b8d13b2dbf9c0"
+  },
+  "assets/ui/s05-redesign-v1/images/effects/opening-curtain-right.png": {
+    "resourceId": "84640e65b026efc0e41a42e070b835af967b8e9e1876fe1055e1f67547e5166d"
+  },
+  "assets/ui/s05-redesign-v1/images/equipment/asset_95f90e05-e1ed-448b-8768-aa27bd6845e3_item_001.png": {
+    "resourceId": "4e9a88756e7e6c517336f20d7cd73dc1c2bec1f5f94df204c5b0c4657228bb5e"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_001.png": {
+    "resourceId": "d0b34b3a615d95c665a517d9a9bd1308d1954c563aa93fb2dac667d756488f13"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_002.png": {
+    "resourceId": "e9e74f366b73757eec1015e46d5e496b4e1cb640c5ffa769836b3df3098ef98e"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_003.png": {
+    "resourceId": "5191c421405cd8eace47820f38dd9959a4c9d03354644d9bf0e48aea9f5ccc28"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_004.png": {
+    "resourceId": "c4fe54d9ddcae7dcfc23f8db062bcf53de22a94b24c6b0bb6185ee0efd540e7c"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_005.png": {
+    "resourceId": "c163d87718a479401e78e02cc773e077e1bfeea5e15299fc6f86e9452bf6b99c"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_006.png": {
+    "resourceId": "68b754438f1b15445e8218d88fb65012f196fc2bdb0dc9fa8a7318e138cb5143"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_007.png": {
+    "resourceId": "22859ba5628a9ab5b7ee81a1ee8abdcc1bc610a6ba25544d9302c084df6cc447"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_008.png": {
+    "resourceId": "dbd429b8149a2871518beb0360a94438d3e12976ab57881b0062f457c82753ea"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_009.png": {
+    "resourceId": "afa61a44eb7c95d31eb10624cc99e14980dbb5908fb5d2c5d8832656f6f103d8"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_010.png": {
+    "resourceId": "82bb94adfd3d4f2a1ebe8e71800245ad0d78a7ce2c00534c1794cf105b045442"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_011.png": {
+    "resourceId": "6d175759d70ea1cf90e66988767677ab745a8b2081bdabc79b5918c4a3b6ee8f"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_012.png": {
+    "resourceId": "b840115ea0114def938b5adeba33161cf1f114ac2107d8364e0ef9333fc379b6"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_013.png": {
+    "resourceId": "57084022ae3448e1ce9ab6257342c7c99a1c96862ae2a624ff40c1049037fb29"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_014.png": {
+    "resourceId": "cbb4db5969f7c4a662dfbf698509a5025fcc72cd66e1c37b6653507484b5035a"
+  },
+  "assets/ui/s05-redesign-v1/images/icons/asset_36a35f4e-775a-4e94-b9d3-293a792a4343_item_015.png": {
+    "resourceId": "9d9bb1c21848b48026550a0262c0efb846d8d351cf0e12ceea2de4e6174be08e"
+  },
+  "assets/ui/s05-redesign-v1/images/panels/asset_cc9fd04b-267f-4107-a0ed-c7648d8f94de_item_001.png": {
+    "resourceId": "f786a8404c5640b060859c2d443d3260e15eea9cd414c8f7c579d7f9882d83ae"
+  },
+  "assets/Fonts/SignalMenu-Title.ttf": {
+    "resourceId": "6c171106d6d284bdd97542275f55febb7f3ccd81be708bb80be87bfe175a7556"
+  },
+  "assets/Fonts/SignalMenu-Serif.ttf": {
+    "resourceId": "ae75f6d93060b642f3e98b2935caddd04bde59a9d072c333f790f80771dc226b"
+  },
+  "assets/Fonts/Showcase-Serif.ttf": {
+    "resourceId": "3fcf37d9ba9bc70799a48b60c998dafc799b0e886bc632fb4d37ab1cc64161cf"
+  },
+  "assets/ui/signal-menu-v1/images/nova.png": {
+    "resourceId": "6c93fc2e817bf750ee6806a7d16e3f9594a36e23fb5e1383b0c5756b80eafe19"
+  },
+  "assets/ui/signal-menu-v1/images/harbor.png": {
+    "resourceId": "e0ef748462aa2c37610b03816ca0ae4ddcdf6477a49f069cd33fa4ae18b04b46"
+  }
+}

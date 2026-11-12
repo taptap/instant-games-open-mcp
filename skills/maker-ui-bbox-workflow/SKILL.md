@@ -1,6 +1,6 @@
 ---
 name: maker-ui-bbox-workflow
-description: 执行或复核修复 Maker「游戏UI制作 · Bbox预排参考图（实验）」及其个人副本：一次 run 由画布程序自动跑完识图、预排、分离、切图、组装、meta 与检查，AI 再逐批看图、定向修复并在 UI 编辑器验收，直到交付完整。仅要求切图时交付 PNG 资源包；普通「游戏UI制作」使用 maker-ui-workflow。
+description: 执行或复核修复 Maker「游戏UI制作 · Bbox预排参考图」及其个人副本：一次 run 由画布程序自动跑完识图、预排、分离、切图、组装、meta 与检查，AI 再逐批看图、定向修复并在 UI 编辑器验收，直到交付完整。仅要求切图时交付 PNG 资源包；普通「游戏UI制作」使用 maker-ui-workflow。
 ---
 
 # Bbox 预排 UI 工作流
@@ -19,7 +19,9 @@ AI 负责最后的看图复核与定向修复，直到达到第 4 节的完成�
 
 1. 目标是完整执行、从中断继续、仅切图，还是**复核修复已有交付**（用户贴来复核修复提示词时直接到第 3 节）。
 2. 用 `canvas pages / inspect` 取得 page-id、canvas-id、分组 ID 与 revision。
-3. 用 `canvas ui-delivery --target-dir <项目> --canvas-id <ID> --id <UI 资源包卡ID>` 查看是否已有交付。
+3. 首次执行前提醒用户："015 模板里的 UI 设计稿是预制示例，请先把原设计稿卡替换成你要制作的界面图，或把图片发给我；如果只是体验流程，也可以明确告诉我使用示例图。"
+   尚未提供或确认原稿时，等待用户选择，不直接拆分预制示例。用户已提供目标设计稿、明确使用示例，或继续已确认原稿的任务时，不重复询问。
+4. 用 `canvas ui-delivery --target-dir <项目> --canvas-id <ID> --id <UI 资源包卡ID>` 查看是否已有交付。
 
 ## 2. 一次自动跑完
 
@@ -38,6 +40,11 @@ AI 负责最后的看图复核与定向修复，直到达到第 4 节的完成�
 
 ## 3. 复核修复（把结果修到完整）
 
+多分辨率适配按同包 [适配指引](../maker-ui-workflow/references/responsive.md) 执行。
+贴边、居中、拉伸和列表伸缩只按[排版参数](../maker-ui-workflow/references/layout.md)调整，不新造对齐字段。
+自动组装使用全屏、安全区和初拟锚点；先看 assembly-map.json 的 adaptation，按用途修正分组，
+不能把自动推断当成已验证布局，也不能把非全屏组件强制全屏。
+
 自动运行只保证流程走完；交付完整由这一节负责。先读 `ui-delivery` 的 `delivery.review`：
 `unreviewed`（切图未看过的元素）、`missing`（没有素材、未进入 UI 的元素）、`unbound`（未绑定的分类）。
 
@@ -51,13 +58,18 @@ AI 负责最后的看图复核与定向修复，直到达到第 4 节的完成�
    `recognize-ui` 重新识图（会让依赖的批次失效，需要重新 run 分组）。
 3. **重新组装**：`canvas assemble-ui --target-dir <项目> --canvas-id <ID> --id <UI 资源包卡ID> --new-version`。
    新版本的 `review` 三个列表应全部为空，meta `done`，引用检查 0 错误。
+   文件名取识图返回的中文功能名/英文标识；用户指定名称或旧结果缺名时，加
+   `--ui-title 装备详情 --ui-name equipment_detail`。读取交付的 `uiFile`，不假定固定文件名。
 4. **编辑器验收**：`taptap-maker ui open --target-dir <项目> --file <ui 文件> --no-open --json`，
    对照同名参考图检查位置、尺寸、层级、字号、颜色、美术字、背景与按钮状态；偏差用 `ui inspect / patch`
    （先 dry-run，再带 revision）修正。先确认文件是否已被用户手工修改，不覆盖重建用户编辑过的 UI。
+5. **多分辨率验收**：切换 720p、1080p、iPhone 18 Pro、iPad Pro 及项目支持的横竖屏，
+   检查贴边、居中、背景、安全区和文字溢出；保存重开后约束仍有效。接入时核对 UI.Init 的缩放策略，
+   引擎 Skill 未覆盖的适配指导由 Maker 指引补齐，不修改引擎 Skill。
 
 ## 4. 完成标准
 
-全部切图批次已确认、`delivery.review` 三个列表为空、meta `done`、引用检查 0 错误、编辑器对照无明显偏差。
+全部切图批次已确认、`delivery.review` 三个列表为空、meta `done`、引用检查 0 错误、编辑器对照及多分辨率预览通过。
 达到后交付 UI 文件、素材目录、编辑器入口和检查结果。达不到时报告具体剩余项和原因，不把部分结果报为完成；
 无法操作浏览器时注明"待编辑器验收"。静态 UI 不含游戏逻辑接入、构建或发布。
 

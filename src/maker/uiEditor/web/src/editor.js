@@ -257,6 +257,9 @@
           if (project === origin) return openUiFile(file, reload);
         } }];
       }
+      items.push({ label: "拷贝路径", run: function () {
+        return navigator.clipboard.writeText(window.UrhoxConfig.displayPath(file.path));
+      } });
       menu.open(items, event.clientX, event.clientY);
     });
   }
@@ -377,8 +380,15 @@
     var hasDocument = !!window.UrhoxPreview?.tree;
     if (documentNameEl) {
       var display = hasDocument ? window.UrhoxConfig.displayPath(currentFilePath()) : "尚未打开 UI 文档";
-      documentNameEl.textContent = display;
       documentNameEl.title = project.name + " · " + display;
+      // 路径太长时优先保留文件名，收起的是前面的目录。
+      var cut = hasDocument ? display.lastIndexOf("/") + 1 : 0;
+      if (cut > 0) {
+        var dir = document.createElement("span"), file = document.createElement("b");
+        dir.className = "doc-dir"; dir.textContent = display.slice(0, cut);
+        file.className = "doc-file"; file.textContent = display.slice(cut);
+        documentNameEl.replaceChildren(dir, file);
+      } else documentNameEl.textContent = display;
     }
     if (saveStatus) saveStatus.textContent = saving ? "正在保存…" : !hasDocument ? "" : dirty ? "未保存" : "已保存";
     renderAll();
@@ -531,6 +541,7 @@
         path: file.path,
         assetRoot: file.assetRoot || window.UrhoxConfig.DEFAULT_ASSET_ROOT,
         projectConfig: targetProject.config || null,
+        designDraft: await readDesignDraft(file.path),
         comparisonKey: targetProject.name + ':' + file.path,
         referenceImage: (function () {
           var companion = file.path.replace(/\.ui\.json$/i, '.reference.png');
@@ -549,6 +560,53 @@
     loadedText[file.path] = text;
     setDirty(file.path, false);
     updateDirtyUi();
+    promptLegacyAdaptation();
+  }
+
+  async function readDesignDraft(filePath) {
+    var layoutPath = String(filePath || "").replace(/[^/]+$/, "layout.json");
+    if (!layoutPath || layoutPath === filePath) return null;
+    try {
+      var res = await fetch(layoutPath);
+      if (!res.ok) return null;
+      var data = await res.json();
+      var design = data && data.design;
+      if (!design || !(design.width > 0) || !(design.height > 0)) return null;
+      var adaptation = data.adaptation && data.adaptation.mode === "screen" && data.adaptation.logicalShortSide > 0
+        ? { mode: "screen", logicalShortSide: data.adaptation.logicalShortSide } : null;
+      return { width: design.width, height: design.height, adaptation: adaptation };
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function usesDesignResolution() {
+    var config = project.config || {};
+    return config.designWidth > 0 && config.designHeight > 0;
+  }
+
+  function promptLegacyAdaptation() {
+    var preview = window.UrhoxPreview;
+    var dialog = document.getElementById("legacyAdaptDialog");
+    var info = preview && preview.legacyDesignInfo && preview.legacyDesignInfo();
+    var ok = document.getElementById("legacyAdaptOk");
+    if (!dialog || !info || (typeof location !== "undefined" && new URLSearchParams(location.search).has("render"))) return;
+    if (usesDesignResolution()) return;
+    document.getElementById("legacyAdaptText").textContent =
+      "这份界面根节点仍是固定设计尺寸 " + info.width + "×" + info.height +
+      "，尚未做多分辨率适配。确认后按新导出规则适配并保存：根节点改为 100%，坐标按短边 720 换算，并放入安全区。";
+    if (ok) ok.hidden = false;
+    if (!dialog.open) dialog.showModal();
+  }
+
+  async function confirmLegacyAdaptation() {
+    var dialog = document.getElementById("legacyAdaptDialog");
+    if (dialog) dialog.close();
+    var preview = window.UrhoxPreview;
+    if (!preview || !preview.applyLegacyAdaptation || usesDesignResolution()) return;
+    if (!preview.applyLegacyAdaptation()) return;
+    setDirty(preview.currentPath, true);
+    await saveCurrent();
   }
 
   openProjectBtn.addEventListener("click", function () { loadProjectFiles(false); });
@@ -590,6 +648,12 @@
   document.getElementById("saveDialogSave").addEventListener("click", function () {
     if (pendingFile) pendingFile.resolve("save");
     hideSaveDialog();
+  });
+  document.getElementById("legacyAdaptCancel").addEventListener("click", function () {
+    document.getElementById("legacyAdaptDialog").close();
+  });
+  document.getElementById("legacyAdaptOk").addEventListener("click", function () {
+    void confirmLegacyAdaptation();
   });
 
   window.addEventListener("beforeunload", function (event) {

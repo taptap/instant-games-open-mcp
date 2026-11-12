@@ -39,9 +39,11 @@ import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeL
 import { runPreviewCli } from './preview.js';
 import { runConsoleCli } from '../console/cli.js';
 import { runCanvasCli } from '../canvas/cli.js';
+import { runProjectCheckCli } from '../projectCheck/cli.js';
 import { runUiCli } from '../uiEditor/cli.js';
 import { runBuildCli } from './build.js';
 import { runQrcodeCli } from './qrcode.js';
+import { IMAGE_CLI_USAGE, runImageCli } from './image.js';
 import { createMakerProject, listMakerProjects } from './projects.js';
 import { cloneMakerProject, type MakerProjectProgress } from '../git/index.js';
 import { GIT_CLI_USAGE, runGitCli } from './git.js';
@@ -146,6 +148,8 @@ const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : '
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
 const TWO_PART_COMMANDS = new Set([
+  'project-check',
+  'image',
   'ui',
   'canvas',
   'console',
@@ -162,6 +166,7 @@ const TWO_PART_COMMANDS = new Set([
   'git',
 ]);
 const BOOLEAN_OPTIONS = new Set([
+  'component_preview',
   'dry_run',
   'saved',
   'allow_paid',
@@ -179,7 +184,12 @@ const BOOLEAN_OPTIONS = new Set([
   'consent',
   'confirm',
   'confirmed_build',
+  'network',
   'context_stdin',
+  'tail',
+  'update',
+  'legacy_wmi',
+  'nosound',
   'h',
   'help',
 ]);
@@ -300,9 +310,24 @@ export async function runMakerCli(argv: string[]): Promise<void> {
     printHelp();
     return;
   }
+  if (
+    parsed.options.dry_run !== undefined &&
+    !(command === 'ui' && (subcommand === 'create' || subcommand === 'patch'))
+  )
+    throw new Error('--dry-run 仅支持 ui create 和 ui patch；当前命令未执行。');
 
   if (command === 'init') {
     await runInit(parsed, ctx);
+    return;
+  }
+
+  if (command === 'project-check') {
+    await runProjectCheckCli(subcommand, parsed.options, parsed.positionals);
+    return;
+  }
+
+  if (command === 'image') {
+    await runImageCli(subcommand, parsed.options, parsed.positionals);
     return;
   }
 
@@ -317,7 +342,7 @@ export async function runMakerCli(argv: string[]): Promise<void> {
   }
 
   if (command === 'canvas') {
-    await runCanvasCli(subcommand, parsed.options);
+    await runCanvasCli(subcommand, parsed.options, parsed.positionals);
     return;
   }
 
@@ -510,10 +535,20 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (arg === '--') {
+      positionals.push(...argv.slice(index + 1));
+      break;
+    }
     if (arg.startsWith('--')) {
       const equalIndex = arg.indexOf('=');
       if (equalIndex > 0) {
-        options[toOptionKey(arg.slice(2, equalIndex))] = arg.slice(equalIndex + 1);
+        const key = toOptionKey(arg.slice(2, equalIndex));
+        const value = arg.slice(equalIndex + 1);
+        if (BOOLEAN_OPTIONS.has(key)) {
+          if (value !== 'true' && value !== 'false')
+            throw new Error('--' + key.replace(/_/g, '-') + ' 只接受 true 或 false。');
+          options[key] = value === 'true';
+        } else options[key] = value;
         continue;
       }
 
@@ -523,11 +558,11 @@ function parseArgs(argv: string[]): ParsedArgs {
         continue;
       }
       const next = argv[index + 1];
-      if (next && !next.startsWith('-')) {
+      if (next && (!next.startsWith('-') || /^-\d/.test(next))) {
         options[key] = next;
         index += 1;
       } else {
-        options[key] = true;
+        throw new Error('--' + key.replace(/_/g, '-') + ' 缺少参数值。');
       }
       continue;
     }
@@ -3173,10 +3208,14 @@ function parseDurationMs(value: string): number {
 }
 
 function makerEnvOption(parsed: ParsedArgs): MakerEnvironment {
+  if (parsed.options.target_dir !== undefined && !stringOption(parsed, 'target_dir')?.trim())
+    throw new Error('--target-dir 不能为空；不会回退到当前目录。');
   const env = stringOption(parsed, 'env');
   if (env === 'rnd' || env === 'production') {
     return env;
   }
+  if (parsed.options.env !== undefined)
+    throw new Error('--env 只接受 production 或 rnd；不会回退到其他环境。');
   const targetDir = stringOption(parsed, 'target_dir');
   return getMakerEnvironment(undefined, targetDir ? path.resolve(targetDir) : process.cwd());
 }
@@ -3250,14 +3289,21 @@ function printHelp(): void {
       '  taptap-maker console serve  # launch from outside the AI IDE on Windows',
       '  taptap-maker console open [--target-dir PROJECT_ABSOLUTE_PATH] [--no-open] [--json]',
       '  taptap-maker console status|stop [--json]',
+      '  taptap-maker project-check capabilities [--json]',
+      '  taptap-maker project-check collect|show --target-dir PATH [--json]',
+      '  taptap-maker project-check publish --target-dir PATH --input-file ANALYSIS.json [--json]',
       '  taptap-maker ui capabilities',
       '  taptap-maker ui nanovg-adapter [--json]',
       '  taptap-maker ui list --target-dir PROJECT_ABSOLUTE_PATH [--json]',
       '  taptap-maker ui inspect|check|open --target-dir PATH --file assets/ui/screen.ui.json',
+      '  taptap-maker ui preview|layout --target-dir PATH --file assets/ui/screen.ui.json --device iphone18',
       '  taptap-maker ui create --target-dir PATH --file assets/ui/new.ui.json --input-file FILE [--dry-run]',
       '  taptap-maker ui patch --target-dir PATH --file assets/ui/screen.ui.json --revision SHA256 --input-file FILE [--dry-run]',
       '  taptap-maker canvas capabilities',
+      `  ${IMAGE_CLI_USAGE}`,
       '  taptap-maker canvas list|pages|templates --target-dir PROJECT_ABSOLUTE_PATH',
+      '  taptap-maker canvas sessions --target-dir PATH',
+      '  taptap-maker canvas <action> --target-dir PATH --session-id CONVERSATION_ID [options]',
       '  taptap-maker canvas ui-archives --target-dir PATH [--canvas-id ID]',
       '  taptap-maker canvas model-settings',
       '  taptap-maker canvas recognition-input|recognition-result --target-dir PATH --canvas-id ID --id NODE_ID [--input-file FILE]',
@@ -3266,6 +3312,7 @@ function printHelp(): void {
       '  taptap-maker canvas <action> --target-dir PATH --page-id ID --canvas-id ID --revision N --input-file FILE',
       '  taptap-maker canvas status|wait --target-dir PATH --operation-id ID',
       '  taptap-maker canvas import --target-dir PATH --page-id ID --canvas-id ID --revision N --file ABSOLUTE_FILE',
+      '  taptap-maker canvas replace-image|fill-slot --target-dir PATH --page-id ID --canvas-id ID --revision N --input-file FILE --file ABSOLUTE_IMAGE',
       '  taptap-maker canvas export --target-dir PATH --page-id ID --canvas-id ID --revision N --input-file FILE --output-dir DIRECTORY',
       '  taptap-maker canvas download --target-dir PATH --operation-id ID --output-dir DIRECTORY',
       '  taptap-maker build --target-dir PROJECT_ABSOLUTE_PATH [--json]',
@@ -3276,6 +3323,7 @@ function printHelp(): void {
       '                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]',
       '                       [--cursor N --session-id ID --reload-id N] [--limit 1..500] [--tail]',
       '  preview validate: [--mode validate|screenshot|both] [--entry SCRIPT.lua]',
+      '                    [--network]  # required for network/server projects; allocates a test server',
       '                    [--screenshot-frame N] [--validate-frames N] [--validate-timeout 1..580]',
       '                    [--validate-test SCRIPT.lua] [--validate-spike-threshold MS] [--nosound]',
       '                    [--output-dir /absolute/acceptance-directory]',

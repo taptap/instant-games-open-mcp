@@ -29,7 +29,9 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 const REQUIRED_SKILLS = [
   'maker-ui-workflow',
   'maker-ui-bbox-workflow',
+  'maker-scene-furniture-workflow',
   'lua-ui-to-json',
+  'maker-project-check',
   'taptap-maker-local',
   'taptap-maker-dev-kit-guide',
   'taptap-maker-plugin-lifecycle',

@@ -11,12 +11,15 @@ export function templatePresentation(id: string) {
   const number = Number(id.slice(-3));
   const category = [5, 6, 9].includes(number)
     ? '道具与种植'
-    : [7, 10, 13, 15].includes(number)
+    : [7, 10, 15].includes(number)
       ? 'UI 设计'
       : number === 4
         ? '3D 模型'
         : '角色与动画';
-  const previews: Record<number, Array<{ index: number; label: string }>> = {
+  const previews: Record<
+    number,
+    Array<{ index: number; label: string; type?: 'image' | 'animation' }>
+  > = {
     4: [{ index: 0, label: '模型结果' }],
     5: [
       { index: 0, label: '游戏风格' },
@@ -40,11 +43,14 @@ export function templatePresentation(id: string) {
       { index: 0, label: '角色参考' },
       { index: 1, label: '概念展示' },
     ],
-    13: [
-      { index: 0, label: '角色装备 · 设计稿' },
-      { index: 2, label: '控件图集' },
-    ],
     15: [{ index: 2, label: 'UI 识别图' }],
+    16: [
+      { type: 'animation', index: 0, label: '欧卡皇室 · 完整入场' },
+      { type: 'animation', index: 16, label: '王座 · 弹性入场' },
+      { type: 'animation', index: 17, label: '地毯 · 卷展入场' },
+      { type: 'animation', index: 18, label: '书桌 · 侧滑回摆' },
+      { type: 'animation', index: 1, label: '书柜 · 左右摇摆' },
+    ],
   };
   return { category, previews: previews[number], modelPreview: number === 4 };
 }

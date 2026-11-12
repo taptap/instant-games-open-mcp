@@ -132,11 +132,13 @@ describe('Maker console canvas', () => {
       'createSequenceEditor({ maxFrames: MAX_SEQUENCE_FRAMES, controller: sequenceUi'
     );
     expect(script).toContain('let sequenceEditor');
-    expect(script).toContain('renderCard: renderSequenceResult');
+    expect(script).toContain(
+      'renderSequenceResult(card, node, source, run, url, onSetting, onAction, store.mediaUrl)'
+    );
     expect(script).not.toContain('function renderSequenceCard(');
     expect(script).toContain('sequenceUi.createFromVideo(node.id)');
     expect(script).toContain('maxSequenceFrameCount');
-    expect(script).not.toContain("board.addEventListener('drop'");
+    expect(script).toContain('if (canvasDropIgnored(event)) return;');
     expect(script).toContain('function nextPlacement(type)');
     expect(script).toContain("add('video', pendingPlacement || nextPlacement('video'))");
     expect(script).toContain("kind: 'image-variant'");
@@ -223,12 +225,17 @@ describe('Maker console canvas', () => {
       const document = {
         createElement: () => ({
           dataset: {},
-          append: jest.fn(),
+          children: [],
+          remove: jest.fn(),
+          append: jest.fn(function (this: { children: unknown[] }, child: unknown) {
+            this.children.push(child);
+          }),
           addEventListener: jest.fn(),
           setAttribute: jest.fn(),
         }),
       };
       new Script('(function () {' + handler![1] + '})();').runInNewContext({
+        canvasUploadingCards: new Set(),
         document,
         // Page-scope state the handler reads: default (local) host, no drag or cutout.
         host: {},

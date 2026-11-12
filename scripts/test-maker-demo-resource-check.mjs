@@ -21,6 +21,11 @@ function fixture(run) {
   const manifest = { resources: { [id]: entry } };
   fs.mkdirSync(path.join(root, 'resources/maker-demo'), { recursive: true });
   fs.mkdirSync(path.join(root, 'src/maker/canvas'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'src/maker/console/uiMotion/runtime'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'src/maker/console/uiMotion/runtime/resourceMap.json'),
+    JSON.stringify({ image: { resourceId: id } })
+  );
   const image = path.join(root, 'resources/maker-demo', entry.file);
   fs.writeFileSync(image, bytes);
   for (const name of ['presetData', 'assetPresetData', 'modelPresetData', 'templateModelData'])
@@ -84,4 +89,12 @@ test('a picture cannot bypass checks by claiming to be a video', () =>
     delete entry.lossless;
     save();
     assert.throws(() => checkDemoResources(root), /媒体类型/);
+  }));
+test('motion media must reference the checked registry', () =>
+  fixture(({ root }) => {
+    fs.writeFileSync(
+      path.join(root, 'src/maker/console/uiMotion/runtime/resourceMap.json'),
+      JSON.stringify({ image: { resourceId: 'missing' } })
+    );
+    assert.throws(() => checkDemoResources(root), /引用缺失/);
   }));
