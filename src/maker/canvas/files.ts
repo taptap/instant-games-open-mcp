@@ -753,10 +753,17 @@ export class MakerCanvasFiles {
     this.assertStorageShape();
     await this.assertIgnored();
     const current = this.read(id);
-    if (current.revision !== baseRevision) {
+    const submitted =
+      input && typeof input === 'object' && !Array.isArray(input)
+        ? { ...(input as Record<string, unknown>) }
+        : null;
+    const overwrite = submitted?.overwrite === true;
+    if (submitted) delete submitted.overwrite;
+    const base = overwrite ? current.revision : baseRevision;
+    if (current.revision !== base) {
       fail('画布已被其他保存更新。请保留当前编辑，刷新后再合并。', 409, 'CONFLICT');
     }
-    const next = this.parse(input, id);
+    const next = this.parse(submitted ?? input, id);
     next.revision = current.revision + 1;
     const unavailableImages = this.assertAssets(next, true, new Set(templateAssetPaths(current)));
     const archives =
@@ -767,7 +774,7 @@ export class MakerCanvasFiles {
             async (relative) => new Blob([fs.readFileSync(this.readMedia(relative).file)]),
             { skipUnavailableDemoResources: true, unavailableImages }
           );
-    if (this.read(id).revision !== baseRevision)
+    if (this.read(id).revision !== base)
       fail('画布已被其他保存更新。请保留当前编辑，刷新后再合并。', 409, 'CONFLICT');
     this.writeUiArchives(archives);
     this.write(next);

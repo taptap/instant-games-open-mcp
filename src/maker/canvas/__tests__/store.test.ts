@@ -95,5 +95,9 @@ describe('CanvasDocumentStore port', () => {
       code: 'CONFLICT',
     } satisfies Partial<CanvasStoreError>);
     expect((await store.load(created.id)).title).toBe('新版本');
+    const overwritten = await store.save({ ...created, title: '覆盖', overwrite: true });
+    expect(overwritten).toMatchObject({ title: '覆盖', revision: 2 });
+    expect(overwritten).not.toHaveProperty('overwrite');
+    expect((await store.load(created.id)).title).toBe('覆盖');
   });
 });

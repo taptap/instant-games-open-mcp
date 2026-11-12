@@ -4766,23 +4766,90 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   // Keep template anchors from rewriting function bodies inside injected helpers.
   page = replaceCanvasPageText(
     page,
-    ['  function markDirty() {', "    setStatus('未保存');", '    clearTimeout(timer);', '    timer = setTimeout(function () { void flush(); }, 800);', '  }'].join("\n"),
-    ["  const canvasConflictDialog = document.createElement('dialog');", "  canvasConflictDialog.id = 'canvas-conflict';", "  canvasConflictDialog.style.cssText = 'border:0;border-radius:12px;padding:20px;max-width:420px';", "  const canvasConflictText = document.createElement('p');", "  canvasConflictText.textContent = '画布已在另一处保存。重新加载会丢掉这次未保存的修改，覆盖会丢掉另一处的保存。';", "  const canvasConflictReload = document.createElement('button');", "  canvasConflictReload.type = 'button';", "  canvasConflictReload.textContent = '重新加载';", "  const canvasConflictOverwrite = document.createElement('button');", "  canvasConflictOverwrite.type = 'button';", "  canvasConflictOverwrite.textContent = '覆盖';", '  canvasConflictDialog.append(canvasConflictText, canvasConflictReload, canvasConflictOverwrite);', "  canvasConflictDialog.addEventListener('cancel', function (event) { event.preventDefault(); });", "  canvasConflictReload.addEventListener('click', function () {", '    const id = documentState && documentState.id;', '    saveConflict = false;', '    canvasConflictDialog.close();', '    if (id) void openDocument(id);', '  });', "  canvasConflictOverwrite.addEventListener('click', function () {", '    saveConflict = false;', '    saveOverwrite = true;', '    canvasConflictDialog.close();', '    void flush();', '  });', '  document.body.append(canvasConflictDialog);', '  function showCanvasConflict() {', '    saveConflict = true;', '    clearTimeout(timer);', '    canvasSaveFailed = true;', "    setStatus('未保存');", "    setError('');", '    if (!canvasConflictDialog.open) canvasConflictDialog.showModal();', '  }', '  async function reconcileCanvasFile() {', '    if (!documentState || dirty() || saveConflict || hostEditBlocked() || peerReason) return;', '    const id = documentState.id;', '    let loaded;', "    try { loaded = await request('/canvases/' + id); } catch (caught) { return; }", '    if (!documentState || documentState.id !== id || dirty() || saveConflict || loaded.revision === documentState.revision) return;', '    await openDocument(id);', '  }', '  function markDirty() {', "    setStatus('未保存');", '    if (saveConflict) return;', '    clearTimeout(timer);', '    timer = setTimeout(function () { void flush(); }, 800);', '  }'].join("\n"),
+    [
+      '  function markDirty() {',
+      "    setStatus('未保存');",
+      '    clearTimeout(timer);',
+      '    timer = setTimeout(function () { void flush(); }, 800);',
+      '  }',
+    ].join('\n'),
+    [
+      "  const canvasConflictDialog = document.createElement('dialog');",
+      "  canvasConflictDialog.id = 'canvas-conflict';",
+      "  canvasConflictDialog.style.cssText = 'border:0;border-radius:12px;padding:20px;max-width:420px';",
+      "  const canvasConflictText = document.createElement('p');",
+      "  canvasConflictText.textContent = '画布已在另一处保存。重新加载会丢掉这次未保存的修改，覆盖会丢掉另一处的保存。';",
+      "  const canvasConflictReload = document.createElement('button');",
+      "  canvasConflictReload.type = 'button';",
+      "  canvasConflictReload.textContent = '重新加载';",
+      "  const canvasConflictOverwrite = document.createElement('button');",
+      "  canvasConflictOverwrite.type = 'button';",
+      "  canvasConflictOverwrite.textContent = '覆盖';",
+      '  canvasConflictDialog.append(canvasConflictText, canvasConflictReload, canvasConflictOverwrite);',
+      "  canvasConflictDialog.addEventListener('cancel', function (event) { event.preventDefault(); });",
+      "  canvasConflictReload.addEventListener('click', function () {",
+      '    const id = documentState && documentState.id;',
+      '    saveConflict = false;',
+      '    canvasConflictDialog.close();',
+      '    if (id) void openDocument(id);',
+      '  });',
+      "  canvasConflictOverwrite.addEventListener('click', function () {",
+      '    saveConflict = false;',
+      '    saveOverwrite = true;',
+      '    canvasConflictDialog.close();',
+      '    void flush();',
+      '  });',
+      '  document.body.append(canvasConflictDialog);',
+      '  function showCanvasConflict() {',
+      '    saveConflict = true;',
+      '    clearTimeout(timer);',
+      '    canvasSaveFailed = true;',
+      "    setStatus('未保存');",
+      "    setError('');",
+      '    if (!canvasConflictDialog.open) canvasConflictDialog.showModal();',
+      '  }',
+      '  async function reconcileCanvasFile() {',
+      '    if (!documentState || dirty() || saveConflict || hostEditBlocked() || peerReason) return;',
+      '    const id = documentState.id;',
+      '    const revision = documentState.revision;',
+      '    let loaded;',
+      "    try { loaded = await request('/canvases/' + id); } catch (caught) { return; }",
+      '    if (!documentState || documentState.id !== id || documentState.revision !== revision || dirty() || saveConflict || peerReason || hostEditBlocked()) return;',
+      '    if (!loaded || loaded.revision === revision) return;',
+      '    await loadCanvasDocument(id, loaded);',
+      '  }',
+      '  function markDirty() {',
+      "    setStatus('未保存');",
+      '    if (saveConflict) return;',
+      '    clearTimeout(timer);',
+      '    timer = setTimeout(function () { void flush(); }, 800);',
+      '  }',
+    ].join('\n')
   );
   page = replaceCanvasPageText(
     page,
     "      if (!documentState || documentState.id !== submittedId) return false;\n      canvasSaveFailed = true; setStatus('未保存');\n      saveFailed = true; setError(caught.message || '保存失败');",
-    "      if (!documentState || documentState.id !== submittedId) return false;\n      if (caught && caught.status === 409) { showCanvasConflict(); return false; }\n      canvasSaveFailed = true; setStatus('未保存');\n      saveFailed = true; setError(caught.message || '保存失败');",
+    "      if (!documentState || documentState.id !== submittedId) return false;\n      if (caught && caught.status === 409) { showCanvasConflict(); return false; }\n      canvasSaveFailed = true; setStatus('未保存');\n      saveFailed = true; setError(caught.message || '保存失败');"
   );
   page = replaceCanvasPageText(
     page,
     "    setStatus('保存中…');\n    try {\n      const saved = await request('/canvases/' + submittedId, {\n        method: 'PUT',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify(snapshot),\n      });",
-    "    setStatus('保存中…');\n    try {\n      const saveBody = saveOverwrite ? Object.assign({}, snapshot, { overwrite: true }) : snapshot;\n      saveOverwrite = false;\n      const saved = await request('/canvases/' + submittedId, {\n        method: 'PUT',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify(saveBody),\n      });",
+    "    setStatus('保存中…');\n    try {\n      const saveBody = saveOverwrite ? Object.assign({}, snapshot, { overwrite: true }) : snapshot;\n      saveOverwrite = false;\n      const saved = await request('/canvases/' + submittedId, {\n        method: 'PUT',\n        headers: { 'content-type': 'application/json' },\n        body: JSON.stringify(saveBody),\n      });"
   );
   page = replaceCanvasPageText(
     page,
     'else void syncAllSprites(false);',
-    'else { void syncAllSprites(false); void reconcileCanvasFile(); }',
+    'else { void syncAllSprites(false); void reconcileCanvasFile(); }'
+  );
+  page = replaceCanvasPageText(
+    page,
+    "  async function loadCanvasDocument(id) {\n    const token = {};\n    opening = token;\n    const loaded = await request('/canvases/' + id);",
+    "  async function loadCanvasDocument(id, preloaded) {\n    const token = {};\n    opening = token;\n    const loaded = preloaded || await request('/canvases/' + id);"
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    const restored = restoreCanvasEditorDraft(loaded, recovered);\n    sequenceUi.clear();',
+    '    if (preloaded && (dirty() || saveConflict || peerReason || hostEditBlocked())) return;\n    const restored = restoreCanvasEditorDraft(loaded, recovered);\n    sequenceUi.clear();'
   );
   page = page.replace('/*__HELPERS__*/', () => helperSource);
   return page.replace(

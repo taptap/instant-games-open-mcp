@@ -363,12 +363,15 @@ export class MemoryCanvasDocumentStore implements CanvasDocumentStore {
     return cloneDocument(document);
   }
   async save(document: CanvasDocument): Promise<CanvasDocument> {
+    const submitted = document as CanvasDocument & { overwrite?: boolean };
+    const overwrite = submitted.overwrite === true;
     const current = this.documents.get(document.id);
     if (!current) throw new CanvasStoreError('画布不存在。', 404, 'NOT_FOUND');
-    if (current.revision !== document.revision)
+    if (!overwrite && current.revision !== document.revision)
       throw new CanvasStoreError('画布保存冲突。', 409, 'CONFLICT');
     const saved = cloneDocument(document);
-    saved.revision += 1;
+    delete (saved as { overwrite?: boolean }).overwrite;
+    saved.revision = current.revision + 1;
     this.documents.set(saved.id, saved);
     return cloneDocument(saved);
   }
