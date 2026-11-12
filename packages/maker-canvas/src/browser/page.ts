@@ -117,6 +117,7 @@ import { createCanvasLog } from './logUi.js';
 import { canvasLogLevel } from './logUi.js';
 import { CANVAS_LOG_STYLES } from './logUi.js';
 import { createCanvasWorkspace } from './workspaceUi.js';
+import { createCanvasWheelInput } from './wheel.js';
 import { CANVAS_WORKSPACE_STYLES } from './workspaceUi.js';
 import { CANVAS_MARK_COLORS } from '../core/marks.js';
 import { CANVAS_MARK_MIN } from '../core/marks.js';
@@ -502,6 +503,7 @@ function applyImageSlotPatches(source: string): string {
       '    delete slot.sourceSnapshot;',
       '    delete slot.sourceSnapshots;',
       '    fitImageCard(slot);',
+      '    canvasLogs.add((replace ? "替换图片：" : "回填图片：") + slot.title + " · " + prepared.assetPath, "info", current.id);',
       '  }',
       '  const automation = createCanvasAutomationUi({',
     ].join('\n')
@@ -586,14 +588,13 @@ function applyWebInteractionPatches(source: string): string {
     page = replaceCanvasPageText(page, search, replacement);
   };
   patch('  function startResize(event, id) {', '  function startResize(event, id, corner) {');
-  // Web wheel follows Mivo (useViewport handleWheel): two-finger trackpad scroll and the mouse wheel pan,
-  // Shift scrolls sideways; pinch (reported as Ctrl+wheel) and Ctrl/⌘+wheel zoom by exp(-deltaY * 0.002).
+  // Keep trackpad panning while discrete mouse-wheel events zoom around the cursor.
   patch(
     '    const next = Math.min(4, Math.max(0.15, before * (event.deltaY > 0 ? 0.9 : 1.1)));',
     [
       '    const wheelUnit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 800 : 1;',
       "    if (canvasWeb && typeof hideContextMenu === 'function') hideContextMenu();",
-      '    if (canvasWeb && !event.ctrlKey && !event.metaKey) {',
+      '    if (canvasWeb && canvasWheelInput(event, workspace ? workspace.wheelMode() : "auto") === "pan") {',
       // Shift+wheel on a mouse scrolls sideways; macOS already reports it as deltaX.
       '      const sideways = event.shiftKey && !event.deltaX;',
       '      documentState.viewport.x -= (sideways ? event.deltaY : event.deltaX) * wheelUnit;',
@@ -2453,6 +2454,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasPngStill.toString(),
     createCanvasMarks.toString(),
     createCanvasWorkspace.toString(),
+    createCanvasWheelInput.toString(),
     createCanvasLog.toString(),
     canvasLogLevel.toString(),
     canvasCardStatus.toString(),
@@ -3502,7 +3504,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = page.replace(
     'await openDocument(list[0].id);',
     [
-      'const activeId = await store.getActiveCanvasId();',
+      'const activeId = workspace.restore() || await store.getActiveCanvasId();',
       'const selectedId = list.some(function (item) { return item.id === activeId; }) ? activeId : list[0].id;',
       'await openDocument(selectedId);',
     ].join('\n')
@@ -3562,7 +3564,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    requestImageImport: requestImageImport,',
       '    requestVideoImport: requestVideoImport,',
       '    setError: setError,',
-      '    log: function (message, level) { canvasLogs.add(message, level); },',
+      '    log: function (message, level, canvasId) { canvasLogs.add(message, level, canvasId); },',
       '    createId: function () { return crypto.randomUUID(); },',
       '    resolveTarget: function (id, type, targetId) { return templateWorkflow.resolveTarget(id, type, targetId); },',
       '    onVideoCreated: function (id) { selected.clear(); selected.add(id); selectionAction = ""; },',
@@ -4113,7 +4115,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       "  const error = document.getElementById('error');",
       "  const videoHistoryButton = document.createElement('button');",
       "  videoHistoryButton.id = 'video-history'; videoHistoryButton.type = 'button'; videoHistoryButton.textContent = '视频历史';",
-      "  const canvasLogs = createCanvasLog(document.getElementById('canvas-log'), [videoHistoryButton]);",
+      "  const canvasLogs = createCanvasLog(document.getElementById('canvas-log'), [videoHistoryButton], { read: host.readLogs, write: host.writeLogs });",
     ].join('\n')
   );
   page = replaceCanvasPageText(
@@ -4234,6 +4236,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     '  void boot().catch',
     [
       '  workspace = createCanvasWorkspace({',
+      '    getState: host.getWorkspaceState, saveState: host.setWorkspaceState,',
+      '    getWheelMode: host.getWheelMode, setWheelMode: host.setWheelMode,',
       '    current: function () { return documentState; },',
       '    activate: async function (id) {',
       '      if (!documentState || documentState.id === id) return true;',
@@ -4279,6 +4283,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      const point = nextPlacement(node.type); node.x = point.x; node.y = point.y;',
       '      if (node.type === "image") await loadMedia(node.assetPath);',
       '      remember(); current.nodes.push(node); selected.clear(); selected.add(node.id); markDirty();',
+      '      canvasLogs.add((input.kind === "video" ? "导入视频：" : "导入图片：") + node.title + " · " + node.assetPath, "info", current.id);',
       '  }',
       '  const automation = createCanvasAutomationUi({',
       '    capabilities: store.capabilities, platform: store.platform,',
@@ -4609,7 +4614,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '  const host = createCanvasHost();',
-    "  const host = createCanvasHost();\n  const canvasWeb = host.appearance === 'web';\n  if (canvasWeb) document.documentElement.classList.add('canvas-appearance-web');"
+    "  const host = createCanvasHost();\n  const canvasWeb = host.appearance === 'web';\n  const canvasWheelInput = createCanvasWheelInput();\n  if (canvasWeb) document.documentElement.classList.add('canvas-appearance-web');"
   );
   // Web draws image references as side-to-side curves without arrowheads.
   page = replaceCanvasPageText(
@@ -4705,6 +4710,34 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = applyCardMenuPatches(page);
   page = applyMediaDropPatches(page);
   page = applyWebEditPatches(page);
+  for (const [method, next, label, canvasId] of [
+    ['importImageFile', 'file.addEventListener', '图片', 'request.canvasId'],
+    ['importVideoFile', 'videoFile.addEventListener', '视频', 'canvasId'],
+  ]) {
+    const start = page.indexOf('  async function ' + method + '(');
+    const end = page.indexOf('\n  ' + next, start);
+    if (start < 0 || end < 0) throw new Error('Missing media import log anchor: ' + method);
+    let body = page.slice(start, end);
+    body = replaceCanvasPageText(
+      body,
+      '    publishDirty();',
+      '    publishDirty();\n    canvasLogs.add("开始导入' +
+        label +
+        '：" + chosen.name, "info", ' +
+        canvasId +
+        ');'
+    );
+    body = replaceCanvasPageText(
+      body,
+      '      render();',
+      '      render();\n      canvasLogs.add("已导入' +
+        label +
+        '：" + chosen.name + " · " + saved.relativePath, "info", ' +
+        canvasId +
+        ');'
+    );
+    page = page.slice(0, start) + body + page.slice(end);
+  }
   // Copy guards must wrap the final function, including the async mirror-copy branch.
   page = replaceCanvasPageText(
     page,
