@@ -652,7 +652,7 @@
 
   function openUiPath(ref) {
     if (!ref) return false;
-    var normalized = decodedPath(ref);
+    var normalized = String(ref).replace(/^\/+/, '');
     var file = project.files.find(function (entry) {
       var path = decodedPath(entry.path);
       return (
