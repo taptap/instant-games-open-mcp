@@ -555,7 +555,13 @@ export function createCanvasWorkspace(options: {
     const nextSignature = JSON.stringify([opened, current?.id, current?.title, switching]);
     if (signature === nextSignature) return;
     signature = nextSignature;
-    if (restored && current) options.saveState?.({ openedIds: [...opened], activeId: current.id });
+    if (restored && current) {
+      try {
+        options.saveState?.({ openedIds: [...opened], activeId: current.id });
+      } catch {
+        /* Tab preference is optional; a full or disabled store must not freeze the canvas. */
+      }
+    }
     tabs.replaceChildren();
     for (const id of opened) {
       const name =
