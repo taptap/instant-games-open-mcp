@@ -653,10 +653,11 @@
   function openUiPath(ref) {
     if (!ref) return false;
     var raw = String(ref).replace(/^\/+/, '');
-    var file = project.files.find(function (entry) {
-      var listed = String(entry.path || '').replace(/^\/+/, '');
-      if (listed === raw || listed.endsWith('/' + raw)) return true;
-      var path = decodedPath(listed);
+    var exact = project.files.find(function (entry) {
+      return String(entry.path || '').replace(/^\/+/, '') === raw;
+    });
+    var file = exact || project.files.find(function (entry) {
+      var path = decodedPath(entry.path);
       return (
         path === raw ||
         path.endsWith('/' + raw) ||
