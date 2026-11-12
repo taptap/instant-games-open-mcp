@@ -1,4 +1,9 @@
 export type CanvasLogLevel = 'info' | 'warning' | 'error';
+export interface CanvasLogEntry {
+  message: string;
+  level: CanvasLogLevel;
+  time: string;
+}
 
 export function canvasLogLevel(message: string): CanvasLogLevel {
   if (/execution.state.{0,8}unknown|execution state is unknown|结果未知|结果待确认/i.test(message))
@@ -8,9 +13,17 @@ export function canvasLogLevel(message: string): CanvasLogLevel {
   return 'info';
 }
 
-export function createCanvasLog(root: HTMLElement, actions: HTMLElement[] = []) {
-  type Entry = { message: string; level: CanvasLogLevel; time: string };
-  const entries: Entry[] = [];
+export function createCanvasLog(
+  root: HTMLElement,
+  actions: HTMLElement[] = [],
+  storage: {
+    read?(canvasId: string): CanvasLogEntry[];
+    write?(canvasId: string, entries: CanvasLogEntry[]): void;
+  } = {}
+) {
+  type Entry = CanvasLogEntry;
+  let entries: Entry[] = [];
+  const histories = new Map<string, Entry[]>();
   const enabled = new Set<CanvasLogLevel>(['error', 'warning', 'info']);
   const labels = { error: '错误', warning: '警告', info: '普通' };
   let context: string | undefined;
@@ -42,9 +55,10 @@ export function createCanvasLog(root: HTMLElement, actions: HTMLElement[] = []) 
   }
   const clear = document.createElement('button');
   clear.type = 'button';
-  clear.textContent = '清空显示';
+  clear.textContent = '清空记录';
   clear.addEventListener('click', () => {
     entries.length = 0;
+    if (context) persist(context, entries);
     render();
   });
   const actionGroup = document.createElement('div');
@@ -68,7 +82,12 @@ export function createCanvasLog(root: HTMLElement, actions: HTMLElement[] = []) 
       );
     const message =
       compact && unknown ? '执行结果尚未确认，请核查原任务，不要重复生成。' : entry.message;
-    element.textContent = entry.time + ' [' + labels[entry.level] + '] ' + message;
+    element.textContent =
+      new Date(entry.time).toLocaleString('zh-CN', { hour12: false }) +
+      ' [' +
+      labels[entry.level] +
+      '] ' +
+      message;
     return element;
   }
   function render() {
@@ -87,27 +106,59 @@ export function createCanvasLog(root: HTMLElement, actions: HTMLElement[] = []) 
     list.scrollTop = follow ? list.scrollHeight : scrollTop;
   }
   render();
+  function history(id: string): Entry[] {
+    const cached = histories.get(id);
+    if (cached) return cached;
+    let saved: Entry[] = [];
+    try {
+      const raw = storage.read?.(id);
+      if (Array.isArray(raw))
+        saved = raw
+          .filter(
+            (entry) =>
+              entry &&
+              typeof entry.message === 'string' &&
+              typeof entry.time === 'string' &&
+              Number.isFinite(Date.parse(entry.time)) &&
+              ['info', 'warning', 'error'].includes(entry.level)
+          )
+          .slice(-200)
+          .map((entry) => ({ ...entry, message: entry.message.slice(0, 8000) }));
+    } catch {
+      /* Optional local history never blocks editing. */
+    }
+    histories.set(id, saved);
+    return saved;
+  }
+  function persist(id: string, value: Entry[]) {
+    try {
+      storage.write?.(id, value);
+    } catch {
+      /* Storage may be full or disabled. */
+    }
+  }
   return {
     setContext(id: string) {
-      if (context !== undefined && context !== id) {
-        entries.length = 0;
-        render();
-      }
+      if (context === id) return;
       context = id;
+      entries = history(id);
+      render();
     },
-    add(message: string, level = canvasLogLevel(message)) {
+    add(message: string, level = canvasLogLevel(message), canvasId = context) {
       if (!message.trim()) return;
-      const previous = entries[entries.length - 1];
+      const target = canvasId ? history(canvasId) : entries;
+      const previous = target[target.length - 1];
       const bounded =
         message.length > 8000 ? message.slice(0, 8000) + '\n…日志过长，已截断' : message;
       if (previous?.message === bounded && previous.level === level) return;
-      entries.push({
+      target.push({
         message: bounded,
         level,
-        time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+        time: new Date().toISOString(),
       });
-      if (entries.length > 200) entries.shift();
-      render();
+      if (target.length > 200) target.shift();
+      if (canvasId) persist(canvasId, target);
+      if (!canvasId || canvasId === context) render();
     },
   };
 }

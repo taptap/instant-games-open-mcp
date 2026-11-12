@@ -158,6 +158,7 @@ ${M} #board { background-image: radial-gradient(rgba(255,255,255,.12) 1px, trans
 ${L} #board { background-image: radial-gradient(rgba(0,0,0,.13) 1px, transparent 1.2px); }
 ${M} .workspace-menu-panel { padding: 6px; border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); box-shadow: var(--web-shadow); }
 ${M} .workspace-menu-panel button { border: 0; border-radius: 8px; background: transparent; color: var(--web-text); padding: 8px 10px; }
+${M} .workspace-menu-panel select { box-sizing: border-box; width: 100%; height: 32px; margin: 0; padding: 0 8px; border: 1px solid var(--web-line); border-radius: 8px; background: transparent; color: var(--web-text); font: inherit; font-size: 12px; line-height: 20px; }
 ${M} .workspace-menu-panel button:hover:not(:disabled) { background: var(--web-wash); }
 ${M} .workspace-view-controls { gap: 0; }
 ${M} .workspace-view-controls > * + * { margin-left: 4px; }
