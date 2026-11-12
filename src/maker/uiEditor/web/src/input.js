@@ -5,6 +5,10 @@
 
   var SNAP = 4;
 
+  function selectionModifier(event) {
+    return !!(event.shiftKey || event.metaKey || event.ctrlKey);
+  }
+
   function pickHits(app, x, y) {
     return (window.UrhoxDoc.pickAt(app.tree, x, y, { includeLocked: false, designMode: true }) || []).filter(function (node) {
       return root.UrhoxDoc.ancestors(app.tree, node).every(function (parent) {
@@ -115,6 +119,9 @@
     else app.pushHistory();
     app.drag = {
       pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      moved: false,
       selectionIds: (app.selectedNodes || []).map(root.UrhoxDoc.getEditorId),
       node: source,
       mode: mode,
@@ -210,8 +217,9 @@
     function beginMarquee(event) {
       var p = canvasPoint(app, event);
       var seed = (app.selectedNodes || []).slice();
-      if (!event.shiftKey) app.enterPickMode();
-      app.drag = { mode: "marquee", pointerId: event.pointerId, startX: p.x, startY: p.y, additive: event.shiftKey, seed: seed };
+      var additive = selectionModifier(event);
+      if (!additive) app.enterPickMode();
+      app.drag = { mode: "marquee", pointerId: event.pointerId, startX: p.x, startY: p.y, additive: additive, seed: seed };
       canvas.setPointerCapture(event.pointerId);
       event.preventDefault();
     }
@@ -287,12 +295,6 @@
       if (window.UrhoxView && window.UrhoxView.isSpaceDown()) return;
       event.preventDefault();
       var p = canvasPoint(app, event);
-      if (event.metaKey || event.ctrlKey) {
-        var all = pickHits(app,p.x,p.y);
-        var current = all.findIndex(function (n) { return app.isSelected(n); });
-        if (all.length) app.selectNode(all[(current+1)%all.length], false);
-        return;
-      }
       if (app.createKind) {
         window.UrhoxCommands.createNode(app, app.createKind, Math.round(p.x), Math.round(p.y));
         if (window.UrhoxPreview && window.UrhoxPreview.setCreateKind) window.UrhoxPreview.setCreateKind(null);
@@ -313,12 +315,13 @@
         app.selectNode(app.sourceNode ? app.sourceNode(hit) : hit, true);
         return;
       }
-      if (event.shiftKey) {
-        app.selectNode(hit, false, true);
-        if (!app.isSelected(hit)) return;
-      }
-      else if (!app.isSelected(hit)) app.selectNode(hit, false);
+      var additive = selectionModifier(event);
+      var already = app.isSelected(hit);
+      if (additive) {
+        if (!already) app.selectNode(hit, false, true);
+      } else if (!already) app.selectNode(hit, false);
       beginMoveOrResize(app, hit, "move", p, event);
+      if (app.drag && additive && already) app.drag.toggleIfUnmoved = hit;
       canvas.setPointerCapture(event.pointerId);
     });
 
@@ -327,6 +330,11 @@
       var p = canvasPoint(app, event);
       var dx = p.x - app.drag.startX;
       var dy = p.y - app.drag.startY;
+      if (app.drag.mode !== "marquee" && app.drag.clientX != null && !app.drag.moved &&
+          Math.hypot(event.clientX - app.drag.clientX, event.clientY - app.drag.clientY) > 3) {
+        app.drag.moved = true;
+        app.drag.toggleIfUnmoved = null;
+      }
       if (app.drag.mode === "marquee") {
         app.marquee = { x: app.drag.startX, y: app.drag.startY, w: dx, h: dy };
         var box = window.UrhoxGeom.rect(app.marquee.x, app.marquee.y, app.marquee.w, app.marquee.h);
@@ -415,9 +423,15 @@
       app.drag = null;
       app.marquee = null;
       app.guides = [];
+      var toggle = !cancel && drag.toggleIfUnmoved && !drag.moved;
       if (cancel) {
         if (marquee) app.setSelection(drag.seed);
         else if (app.cancelHistory) app.cancelHistory(drag.selectionIds);
+      } else if (toggle) {
+        var toggleId = root.UrhoxDoc.getEditorId(drag.toggleIfUnmoved);
+        if (app.cancelHistory) app.cancelHistory(drag.selectionIds);
+        var restored = root.UrhoxDoc.findByEditorId(app.sourceTree || app.tree, toggleId) || drag.toggleIfUnmoved;
+        app.selectNode(restored, false, true);
       } else if (!marquee && app.commitHistory) app.commitHistory();
       if (canvas.hasPointerCapture && canvas.hasPointerCapture(drag.pointerId)) {
         canvas.releasePointerCapture(drag.pointerId);

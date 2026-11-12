@@ -21,7 +21,7 @@
   var modLabel = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
   var groups = [
     ["视图操作", [["按住空格 + 拖动", "临时平移视图"], ["中键拖动", "平移视图"], ["Shift + 1 / Shift + 2", "适配画板 / 所选"], ["Shift + 0", "原始比例"], ["Mod + + / Mod + -", "放大 / 缩小"], ["Esc", "取消选择或替换图片"]]],
-    ["选择与排版", [["Shift + 点击 / 框选", "多选 / 追加选择"], ["Mod + 点击", "选择重叠节点"], ["Mod + A", "全选"], ["Mod + G / Mod + Shift + G", "分组 / 取消分组"], ["方向键 / Shift + 方向键", "移动 1 / 10 像素"], ["Enter / Shift + Enter", "选择子节点 / 父节点"], ["[ / ]", "下移 / 上移一层"], ["Alt + [ / Alt + ]", "置底 / 置顶"], ["Shift + 拖动", "约束水平或垂直移动"], ["Shift / Alt + 缩放", "等比 / 从中心缩放"], ["Shift + 旋转", "15° 步进旋转"]]],
+    ["选择与排版", [["Shift / Mod + 点击", "追加选择，拖动则一起移动"], ["Shift / Mod + 框选", "追加框选"], ["Mod + A", "全选"], ["Mod + G / Mod + Shift + G", "分组 / 取消分组"], ["方向键 / Shift + 方向键", "移动 1 / 10 像素"], ["Enter / Shift + Enter", "选择子节点 / 父节点"], ["[ / ]", "下移 / 上移一层"], ["Alt + [ / Alt + ]", "置底 / 置顶"], ["Shift + 拖动", "约束水平或垂直移动"], ["Shift / Alt + 缩放", "等比 / 从中心缩放"], ["Shift + 旋转", "15° 步进旋转"]]],
     ["编辑与保存", [["Mod + C / X / V", "复制 / 剪切 / 粘贴"], ["Mod + D / Alt + 拖动", "复制所选"], ["F2", "重命名"], ["Mod + Shift + H / L", "切换显隐 / 锁定"], ["Delete / Backspace", "删除所选"], ["Mod + Z", "撤销"], ["Mod + Shift + Z / Mod + Y", "重做"], ["Mod + S", "保存"]]],
   ];
   help.innerHTML = '<div class="shortcut-heading"><h2 id="editorShortcutsTitle">UI 编辑器快捷键</h2><button type="button" aria-label="关闭快捷键" autofocus>×</button></div>' +

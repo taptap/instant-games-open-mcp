@@ -85,6 +85,8 @@
       row.appendChild(extraEl);
     }
     {
+      var actions = document.createElement("span");
+      actions.className = "tree-actions";
       if (opts.onAdd) {
         var add = document.createElement("button");
         add.type = "button";
@@ -98,7 +100,7 @@
           event.stopPropagation();
           opts.onAdd(node);
         });
-        row.appendChild(add);
+        actions.appendChild(add);
       }
       if (opts.onDelete && parent) {
         var del = document.createElement("button");
@@ -113,8 +115,9 @@
           event.stopPropagation();
           opts.onDelete(node);
         });
-        row.appendChild(del);
+        actions.appendChild(del);
       }
+      if (actions.childNodes.length) row.appendChild(actions);
     }
 
     row.addEventListener("click", function (event) {

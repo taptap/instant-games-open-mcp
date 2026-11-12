@@ -446,8 +446,13 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
   font-size: 12px;
 }
 .add-pop button:hover { background: var(--selection); }
-.tree-row .tree-add {
+.tree-row .tree-actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.tree-row .tree-add {
   width: 18px;
   height: 18px;
   border: 0;
