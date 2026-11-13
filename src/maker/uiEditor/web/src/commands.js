@@ -287,12 +287,14 @@
     },
 
     rename: function (app) {
-      if (!app.selected) return;
-      var next = window.prompt("节点名称", app.selected.id || "");
-      if (next == null) return;
-      app.pushHistory();
-      app.selected.id = next;
-      afterChange(app);
+      var node = app.selected;
+      if (!node) return;
+      root.UrhoxDialogs.prompt({ title: "节点名称", value: node.id || "", confirmLabel: "重命名" }).then(function (next) {
+        if (next == null || app.selected !== node) return;
+        app.pushHistory();
+        node.id = next;
+        afterChange(app);
+      });
     },
 
     align: function (app, mode) {
@@ -468,14 +470,14 @@
             ["fillPaint", { kind: "linearGradient", args: [0, 0, 240, 160, "#164e63", "#22a899"] }],
             ["fill"], ["strokeColor", "#a7f3d0"], ["strokeWidth", 2], ["stroke"],
           ] };
-        var used = new Set(), suffix = 2;
-        Doc().walk(sourceRoot(app), function (item) { if (item.id) used.add(item.id); });
-        while (used.has(node.id)) node.id = "vector_" + suffix++;
       } else if (kind === "Image") {
         node = { type: "Panel", role: "Image", id: "image", position: "absolute", left: 0, top: 0, width: 160, height: 160, backgroundImage: "", backgroundFit: "contain", backgroundColor: "#CCCCCC55" };
       } else {
         node = { type: "Panel", id: "panel", position: "absolute", left: 0, top: 0, width: 240, height: 160, backgroundColor: "#FFFFFFCC", borderRadius: 16 };
       }
+      var used = new Set(), suffix = 2, baseId = node.id;
+      Doc().walk(sourceRoot(app), function (item) { if (item.id) used.add(item.id); });
+      while (used.has(node.id)) node.id = baseId + "_" + suffix++;
       Doc().ensureEditorIds(node);
       app.pushHistory();
       parent.children = parent.children || [];

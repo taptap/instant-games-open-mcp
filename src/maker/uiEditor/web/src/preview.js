@@ -603,6 +603,7 @@
     var eligible = window.UrhoxTransform && window.UrhoxTransform.capture(app).length;
     var allEligible = eligible > 0 && eligible === window.UrhoxTransform.targets(app).length &&
       window.UrhoxTransform.targets(app).length === count;
+    allEligible = allEligible || !!window.UrhoxTransform.hiddenTarget(app);
     if (rotation) {
       rotation.disabled = !allEligible;
       rotation.value = count === 1 ? (Number(window.UrhoxGeom.transformValue(app.selected,"rotate")) || 0) : 0;
@@ -615,7 +616,7 @@
       scale.title = count > 1 ? "相对当前选区等比缩放" : "相对原始尺寸的缩放比例";
     }
     var status = document.getElementById("transformStatus");
-    if (status) status.textContent = count && !allEligible ? "含根节点、锁定项、嵌套选区或动态变换" :
+    if (status) status.textContent = count && !allEligible ? window.UrhoxTransform.disabledReason(app) :
       count > 1 ? count + " 个节点 · 旋转为增量，缩放为相对比例" : "";
   }
 
@@ -696,9 +697,10 @@
       nodes.length + " 个节点（" + nodes.map(function (n) { return n.id || n.type || "节点"; }).join("、") + "）";
     if (text) text.textContent = "确定删除" + label + "及其子节点吗？此操作可用撤销恢复。";
     if (!dialog) {
-      if (window.confirm("确定删除" + label + "及其子节点吗？") && app.sourceTree === pending.tree) {
-        window.UrhoxCommands.remove(app, pending.nodes);
-      }
+      window.UrhoxDialogs.confirm({ title: "确定删除" + label + "及其子节点吗？", message: "此操作可用撤销恢复。", confirmLabel: "删除", danger: true })
+        .then(function (ok) {
+          if (ok && app.sourceTree === pending.tree) window.UrhoxCommands.remove(app, pending.nodes);
+        });
       return;
     }
     dialog.showModal();
@@ -739,6 +741,7 @@
     if (app.path && window.UrhoxProject) {
       window.UrhoxProject.setDirty(app.path, now !== app.cleanState);
     }
+    window.dispatchEvent(new Event("urhox:documentchange"));
   }
 
   function markClean(savedTree, savedNodes) {
@@ -814,10 +817,12 @@
       }
     }
     var root = (options && options.assetRoot) || DEFAULT_ASSET_ROOT;
-    if (root.indexOf('/api/projects/') === 0) {
+    if (CFG.ownsAssetRoot && CFG.ownsAssetRoot(root)) {
       var relative = rel.replace(/^assets\//, '');
-      var response = await fetch(root + relative.split('/').map(encodeURIComponent).join('/'));
-      return response.ok ? response.json() : null;
+      var text;
+      try { text = await CFG.readText(root + relative.split('/').map(encodeURIComponent).join('/')); }
+      catch (err) { return null; }
+      return JSON.parse(text);
     }
     var urls = keys.slice();
     if (root && rel.indexOf("ui/") === 0) urls.push(root + rel);
@@ -1194,6 +1199,8 @@
     assetUrl: function (path) { return window.UrhoxAssets.resolve(path); },
     bindImage: function (img, path) { window.UrhoxAssets.bindSrc(img, path); },
     contentTransform: contentTransform,
+    draw: draw,
+    hasMarquee: function () { return !!app.marquee; },
     markClean: markClean,
     getCleanJSON: function () { return JSON.parse(app.cleanState || "{}"); },
     getDevice: function () { return { width:app.screen.width, height:app.screen.height, safeArea:app.safeArea || null,
@@ -1274,8 +1281,7 @@
     },
     replaceSelectedImage: function (ref) {
       if (!Cmd.contextState(app).image || !window.UrhoxProject) return;
-      window.UrhoxProject.beginReplaceImage(app.selected, "backgroundImage", onInspectorChange);
-      window.UrhoxProject.assignImageByRef(ref);
+      window.UrhoxProject.assignImageTo(app.selected, "backgroundImage", onInspectorChange, ref);
     },
     selectDiagnosticNode: function (pointer) {
       var node = app.sourceTree, parts = pointer.split("/").slice(1);

@@ -2,6 +2,7 @@
   "use strict";
   var query = new URLSearchParams(location.search);
   var jobId = query.get("render");
+  if (!window.UrhoxConfig.API_ROOT) return;
   var api = window.UrhoxConfig.API_ROOT + "render/";
   async function request(route, body) {
     var response = await fetch(api + route, body === undefined ? {} : {

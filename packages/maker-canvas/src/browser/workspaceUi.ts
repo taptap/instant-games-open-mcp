@@ -1,5 +1,6 @@
 import type { CanvasWorkspaceState } from './pageHost.js';
 import type { CanvasWheelMode } from './wheel.js';
+import { installWebToolbarDrag } from './webToolbar.js';
 
 export function createCanvasWorkspace(options: {
   current(): {
@@ -22,7 +23,7 @@ export function createCanvasWorkspace(options: {
   const videoHistory = document.getElementById('video-history')!;
   const rename = document.getElementById('rename-canvas')!;
   (header.querySelector('.canvas-heading') as HTMLElement).hidden = true;
-  header.classList.add('workspace-toolbar');
+  header.classList.add('workspace-toolbar', 'maker-toolbar');
   const opened: string[] = [];
   let switching = false;
   let activeId: string | undefined;
@@ -181,7 +182,7 @@ export function createCanvasWorkspace(options: {
   toolSep.className = 'workspace-tool-sep';
   toolSep.setAttribute('aria-hidden', 'true');
   const actions = document.createElement('div');
-  actions.className = 'workspace-actions';
+  actions.className = 'workspace-actions maker-toolbar-actions';
   actions.append(
     selectTool,
     panTool,
@@ -205,69 +206,19 @@ export function createCanvasWorkspace(options: {
   stage.append(document.getElementById('error')!, board);
   const grip = document.createElement('button');
   grip.type = 'button';
-  grip.className = 'workspace-toolbar-grip';
+  grip.className = 'workspace-toolbar-grip maker-toolbar-grip';
   grip.textContent = '⠿';
   grip.title = '拖动工具条（方向键也可移动）';
   grip.setAttribute('aria-label', '移动工具条');
   header.prepend(grip);
-  let toolbarPosition: { x: number; y: number } | null = null;
-  let toolbarDrag: { id: number; x: number; y: number } | null = null;
-  function positionToolbar() {
-    if (toolbarPosition) {
-      const { x, y } = toolbarPosition;
-      const left = Math.max(0, Math.min(x, main.clientWidth - header.offsetWidth));
-      const top = Math.max(0, Math.min(y, main.clientHeight - header.offsetHeight));
-      header.style.left = left + 'px';
-      header.style.top = top + 'px';
-      header.style.transform = 'none';
-      toolbarPosition = { x: left, y: top };
-    }
-    for (const item of [add, more]) if (item.root.open) positionMenu(item);
-  }
-  grip.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    const rect = header.getBoundingClientRect();
-    toolbarDrag = {
-      id: event.pointerId,
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
-    };
-    for (const item of [add, more]) item.root.open = false;
-    grip.setPointerCapture(event.pointerId);
-    grip.classList.add('dragging');
+  installWebToolbarDrag(header, main, grip, {
+    onStart() {
+      for (const item of [add, more]) item.root.open = false;
+    },
+    onPosition() {
+      for (const item of [add, more]) if (item.root.open) positionMenu(item);
+    },
   });
-  grip.addEventListener('pointermove', (event) => {
-    if (!toolbarDrag || toolbarDrag.id !== event.pointerId) return;
-    const rect = main.getBoundingClientRect();
-    toolbarPosition = {
-      x: event.clientX - rect.left - toolbarDrag.x,
-      y: event.clientY - rect.top - toolbarDrag.y,
-    };
-    positionToolbar();
-  });
-  function stopToolbarDrag() {
-    toolbarDrag = null;
-    grip.classList.remove('dragging');
-  }
-  grip.addEventListener('pointerup', stopToolbarDrag);
-  grip.addEventListener('pointercancel', stopToolbarDrag);
-  grip.addEventListener('lostpointercapture', stopToolbarDrag);
-  grip.addEventListener('keydown', (event) => {
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-    event.preventDefault();
-    const rect = header.getBoundingClientRect();
-    const area = main.getBoundingClientRect();
-    toolbarPosition = {
-      x:
-        rect.left -
-        area.left +
-        (event.key === 'ArrowRight' ? 10 : event.key === 'ArrowLeft' ? -10 : 0),
-      y: rect.top - area.top + (event.key === 'ArrowDown' ? 10 : event.key === 'ArrowUp' ? -10 : 0),
-    };
-    positionToolbar();
-  });
-  new ResizeObserver(positionToolbar).observe(main);
   const bottom = document.createElement('footer');
   bottom.className = 'workspace-bottom';
   const controls = document.createElement('div');
@@ -409,6 +360,9 @@ export function createCanvasWorkspace(options: {
     return trigger;
   }
   const menus = [library, add, more];
+  for (const item of menus) item.panel.classList.add('maker-toolbar-menu');
+  add.root.classList.add('maker-toolbar-add');
+  toolSep.classList.add('maker-toolbar-sep');
   function positionMenu(item: ReturnType<typeof menu>) {
     const anchor = item.root.querySelector('summary')!.getBoundingClientRect();
     const origin = item.root.getBoundingClientRect();

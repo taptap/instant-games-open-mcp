@@ -46,7 +46,15 @@ function setup() {
       this.setSelection(ids.map(id => doc.findByEditorId(this.tree, id)).filter(Boolean));
       this.rebuildPreview();
     },
-    selectNode(n) { this.setSelection(n ? [n] : []); },
+    selectNode(n, _fromTree, additive) {
+      if (!n) { this.setSelection([]); return; }
+      if (additive) {
+        const next = this.isSelected(n) ? this.selectedNodes.filter(item => item !== n) : this.selectedNodes.concat(n);
+        this.setSelection(next);
+        return;
+      }
+      this.setSelection([n]);
+    },
     setSelection(nodes) { this.selectedNodes = nodes; this.selected = nodes[nodes.length - 1] || null; },
     enterPickMode() { this.setSelection([]); },
     rebuildPreview() { doc.walk(this.tree, n => { n._layout = { x: n.left || 0, y: n.top || 0, w: n.width, h: n.height }; }); },
@@ -114,5 +122,84 @@ for (const mode of ["pointercancel", "lostpointercapture", "escape", "blur"]) {
   assert.equal(app.tree.children[0].top, 46);
   assert.equal(h.undoStack.length, 1);
   assert.equal(h.undo(app.tree).tree.children[0].left, 30);
+}
+
+{
+  const { app, canvas, h } = setup();
+  const c = { type: "Panel", position: "absolute", left: 120, top: 40, width: 40, height: 40 };
+  app.tree.children.push(c);
+  app.ensureKeys();
+  app.rebuildPreview();
+  app.setSelection([app.tree.children[0]]);
+  canvas.fire("pointerdown", { clientX: 140, clientY: 60, metaKey: true });
+  canvas.fire("pointermove", { clientX: 160, clientY: 80, metaKey: true });
+  canvas.fire("pointerup", { clientX: 160, clientY: 80 });
+  assert.equal(app.selectedNodes.length, 2, "cmd click adds to the selection");
+  assert.equal(app.tree.children[0].left, 50, "original selection moves with the added node");
+  assert.equal(app.tree.children[2].left, 140, "cmd drag moves the newly added node");
+  assert.equal(h.undoStack.length, 1);
+}
+{
+  const { app, canvas, h } = setup();
+  const c = { type: "Panel", position: "absolute", left: 120, top: 40, width: 40, height: 40 };
+  app.tree.children.push(c);
+  app.ensureKeys();
+  app.rebuildPreview();
+  app.setSelection([app.tree.children[0], c]);
+  canvas.fire("pointerdown", { clientX: 45, clientY: 45, ctrlKey: true });
+  canvas.fire("pointermove", { clientX: 65, clientY: 45, ctrlKey: true });
+  canvas.fire("pointerup");
+  assert.equal(app.selectedNodes.length, 2, "modifier drag keeps the existing multi-selection");
+  assert.equal(app.tree.children[0].left, 50);
+  assert.equal(c.left, 140);
+  assert.equal(h.undoStack.length, 1);
+}
+{
+  const { app, canvas, h } = setup();
+  const c = { type: "Panel", position: "absolute", left: 120, top: 40, width: 40, height: 40 };
+  app.tree.children.push(c);
+  app.ensureKeys();
+  app.rebuildPreview();
+  const first = app.tree.children[0];
+  app.setSelection([first, c]);
+  canvas.fire("pointerdown", { clientX: 45, clientY: 45, shiftKey: true });
+  canvas.fire("pointerup", { clientX: 46, clientY: 46, shiftKey: true });
+  assert.equal(app.selectedNodes.length, 1, "modifier click without a drag toggles that node off");
+  assert.equal(app.selectedNodes[0]._editorId, c._editorId);
+  assert.equal(app.tree.children[0].left, 30, "toggle click does not move");
+  assert.equal(app.tree.children[2].left, 120);
+  assert.equal(h.undoStack.length, 0);
+  assert.equal(h.openTxn, null);
+}
+{
+  const { app, canvas } = setup();
+  app.setSelection([app.tree.children[0]]);
+  canvas.fire("pointerdown", { clientX: 300, clientY: 20, metaKey: true });
+  assert.equal(app.drag.mode, "marquee");
+  assert.equal(app.drag.additive, true, "cmd marquee appends");
+  assert.equal(app.selectedNodes.length, 1, "cmd marquee keeps the current selection until the box updates");
+}
+
+{
+  const { app, canvas } = setup();
+  const source = app.tree.children[0];
+  const generated = {
+    type: "Panel", _generated: true, _editorId: "gen", position: "absolute",
+    left: 30, top: 30, width: 50, height: 50, _layout: { x: 30, y: 30, w: 50, h: 50 },
+  };
+  app.tree = {
+    type: "Panel", width: 400, height: 400, _editorId: "preview",
+    _layout: { x: 0, y: 0, w: 400, h: 400 }, children: [generated],
+  };
+  app.sourceNode = (node) => (node === generated || node === source ? source : node);
+  app.isSelected = function (node) {
+    const src = this.sourceNode(node);
+    return this.selectedNodes.includes(src) || this.selectedNodes.includes(node);
+  };
+  app.setSelection([source]);
+  canvas.fire("pointerdown", { clientX: 45, clientY: 45, metaKey: true });
+  canvas.fire("pointerup", { clientX: 45, clientY: 45, metaKey: true });
+  assert.equal(app.selectedNodes.includes(app.sourceTree), false, "generated toggle must not select the document root");
+  assert.equal(app.selectedNodes.length, 0, "modifier click on a generated child toggles its source node");
 }
 console.log("gesture regression passed");
