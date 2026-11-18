@@ -87,6 +87,7 @@ export interface CanvasGenerationUiOptions {
       contentType: string
     ): Promise<{ relativePath: string }>;
     mediaUrl(path: string): string;
+    prepareMedia?(path: string, refresh?: boolean, timeoutMs?: number): Promise<void>;
     imageInfo?(path: string): Promise<{ width: number; height: number } | undefined>;
     listGeneration(canvasId: string): Promise<any[]>;
     videoHistory?(offset?: number, limit?: number): Promise<{ busy?: { reason?: string } }>;
@@ -703,35 +704,47 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       const tile = document.createElement('div');
       tile.className = 'generation-reference';
       const preview = document.createElement('img');
-      preview.src = options.store.mediaUrl(path);
-      if (source && options.referencePreview) {
-        const loading = document.createElement('span');
-        loading.textContent = '准备参考图…';
-        tile.append(loading);
-        preview.hidden = true;
-        void options.referencePreview(source).then(
-          (url) => {
-            if (!tile.isConnected) return;
-            if (url) {
-              preview.src = url;
-              tile.title = '包含图片区域内的标注';
-            }
-            preview.hidden = false;
-            loading.remove();
-          },
-          (error) => {
-            if (!tile.isConnected) return;
-            loading.textContent = '参考图未就绪';
-            tile.title = error instanceof Error ? error.message : '标注预览失败';
+      const status = document.createElement('span');
+      status.className = 'generation-reference-status';
+      status.setAttribute('role', 'status');
+      function showStatus(message: string) {
+        preview.style.display = message ? 'none' : '';
+        status.hidden = !message;
+        status.textContent = message;
+      }
+      function showUnavailable() {
+        showStatus('无法预览');
+        tile.title = '参考图无法预览，请检查素材文件后重新选择。';
+      }
+      preview.addEventListener('error', showUnavailable);
+      const cachedUrl = options.store.mediaUrl(path);
+      if (cachedUrl && !(source && options.referencePreview)) {
+        showStatus('');
+        preview.src = cachedUrl;
+      } else {
+        showStatus('加载中');
+        void (async () => {
+          if (!cachedUrl) await options.store.prepareMedia?.(path, false, 15000);
+          const annotatedUrl = source ? await options.referencePreview?.(source) : undefined;
+          const url = annotatedUrl || options.store.mediaUrl(path);
+          if (!tile.isConnected) return;
+          if (!url) {
+            showUnavailable();
+            return;
           }
-        );
+          if (annotatedUrl) tile.title = '包含图片区域内的标注';
+          showStatus('');
+          preview.src = url;
+        })().catch(() => {
+          if (tile.isConnected) showUnavailable();
+        });
       }
       preview.alt = labelText;
       const label = document.createElement('small');
       label.textContent = labelText;
       // Web hides the caption under 44px thumbnails, so video frames keep their role as a badge.
       if (options.web && node.type !== 'image') tile.dataset.role = labelText.split(' · ')[0];
-      tile.append(preview, label);
+      tile.append(preview, status, label);
       if (index !== undefined || source) {
         const removeLabel = source ? '移除' + labelText + '参考' : '移除参考图 ' + (index! + 1);
         const remove = button(

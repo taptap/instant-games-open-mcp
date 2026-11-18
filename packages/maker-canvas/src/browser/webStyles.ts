@@ -284,6 +284,7 @@ ${M} #selection-toolbar .generation-references > * { margin: 0 8px 0 0; }
 ${M} #selection-toolbar .generation-reference { position: relative; flex: 0 0 44px; width: 44px; height: 44px; }
 ${M} #selection-toolbar .generation-reference img { display: block; box-sizing: border-box; width: 44px; height: 44px; border: 1px solid var(--web-chip-line); border-radius: 10px; object-fit: cover; background: var(--web-chip-bg); }
 ${M} #selection-toolbar .generation-reference small { display: none; }
+${M} #selection-toolbar .generation-reference-status:not([hidden]) { display: grid; place-items: center; box-sizing: border-box; width: 44px; height: 44px; padding: 2px; border: 1px solid var(--web-chip-line); border-radius: 10px; background: var(--web-chip-bg); color: var(--web-composer-muted); font-size: 10px; }
 ${M} #selection-toolbar .generation-reference-remove { position: absolute; top: 2px; right: 2px; z-index: 2; display: none; align-items: center; justify-content: center; width: 18px; height: 18px; min-height: 18px; margin: 0; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--web-chip-x); font-size: 12px; line-height: 1; cursor: pointer; }
 ${M} #selection-toolbar .generation-reference:hover .generation-reference-remove, ${M} #selection-toolbar .generation-reference-remove:focus-visible { display: inline-flex; }
 ${M} #selection-toolbar .generation-reference-remove:hover { background: #332f2b; color: #fffdf8; }
