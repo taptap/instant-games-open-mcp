@@ -240,7 +240,7 @@ try {
   assert.equal(await editor.locator('#folderInput').count(), 0);
   assert.equal(await editor.locator('#permBadge').count(), 0);
   assert.equal(await editor.locator('.project-dirs').isVisible(), false);
-  assert.equal(await editor.locator('#currentDocument').innerText(), 'assets/ui/main.ui.json');
+  assert.equal(await editor.locator('#currentDocument').textContent(), 'assets/ui/main.ui.json');
   await editor.getByRole('button', { name: '设计稿对照', exact: true }).click();
   await frame.waitForFunction(() => document.getElementById('referenceCanvas').width > 0);
   // Use the same node/dirty/history APIs as the inspector; save is exercised through real controls.
@@ -271,7 +271,7 @@ try {
   await frame.evaluate(() => window.UrhoxPreview.redo());
   await editor.locator('.file-item').filter({ hasText: 'secondary.ui.json' }).click();
   await editor.locator('#saveDialogCancel').click();
-  assert.equal(await editor.locator('#currentDocument').innerText(), 'assets/ui/main.ui.json');
+  assert.equal(await editor.locator('#currentDocument').textContent(), 'assets/ui/main.ui.json');
   await editor.getByRole('button', { name: '项目资源', exact: true }).click();
   assert.equal(await editor.locator('.project-dirs').isVisible(), true);
   await editor.locator('.file-item').filter({ hasText: 'new #2.png' }).waitFor();

@@ -105,6 +105,29 @@ function text(value: unknown, max: number, label: string, fallback = ''): string
   return value;
 }
 
+function canvasContentLayout(document: unknown): string {
+  const copy = JSON.parse(JSON.stringify(document)) as {
+    revision?: unknown;
+    nodes?: Array<{ imageInfo?: unknown }>;
+  };
+  if (copy && typeof copy === 'object' && !Array.isArray(copy)) {
+    delete copy.revision;
+    if (Array.isArray(copy.nodes)) {
+      for (const node of copy.nodes) if (node && typeof node === 'object') delete node.imageInfo;
+    }
+  }
+  return JSON.stringify(sortCanvasContent(copy));
+}
+
+function sortCanvasContent(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortCanvasContent);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map((key) => [key, sortCanvasContent((value as Record<string, unknown>)[key])])
+  );
+}
 export class MakerCanvasFiles {
   readonly root: string;
 
@@ -749,14 +772,50 @@ export class MakerCanvasFiles {
     this.atomicWrite(this.canvasDir(true)!, 'active', Buffer.from(id));
   }
 
+  private baselineMatches(current: CanvasDocument, baseLayout: string): boolean {
+    let baseline: unknown;
+    try {
+      baseline = JSON.parse(baseLayout);
+    } catch {
+      return false;
+    }
+    if (!baseline || typeof baseline !== 'object' || Array.isArray(baseline)) return false;
+    try {
+      const normalized = this.parse(
+        { ...(baseline as Record<string, unknown>), id: current.id, revision: current.revision },
+        current.id,
+        false
+      );
+      return canvasContentLayout(normalized) === canvasContentLayout(current);
+    } catch {
+      return false;
+    }
+  }
   async save(id: string, input: unknown, baseRevision: number): Promise<CanvasDocument> {
     this.assertStorageShape();
     await this.assertIgnored();
     const current = this.read(id);
-    if (current.revision !== baseRevision) {
+    const submitted =
+      input && typeof input === 'object' && !Array.isArray(input)
+        ? { ...(input as Record<string, unknown>) }
+        : null;
+    const overwrite = submitted?.overwrite === true;
+    const baseLayout =
+      submitted && typeof submitted.baseLayout === 'string' && submitted.baseLayout
+        ? submitted.baseLayout
+        : undefined;
+    if (submitted) {
+      delete submitted.overwrite;
+      delete submitted.baseLayout;
+    }
+    const base = overwrite ? current.revision : baseRevision;
+    if (
+      current.revision !== base ||
+      (!overwrite && baseLayout !== undefined && !this.baselineMatches(current, baseLayout))
+    ) {
       fail('画布已被其他保存更新。请保留当前编辑，刷新后再合并。', 409, 'CONFLICT');
     }
-    const next = this.parse(input, id);
+    const next = this.parse(submitted ?? input, id);
     next.revision = current.revision + 1;
     const unavailableImages = this.assertAssets(next, true, new Set(templateAssetPaths(current)));
     const archives =
@@ -767,7 +826,11 @@ export class MakerCanvasFiles {
             async (relative) => new Blob([fs.readFileSync(this.readMedia(relative).file)]),
             { skipUnavailableDemoResources: true, unavailableImages }
           );
-    if (this.read(id).revision !== baseRevision)
+    const latest = this.read(id);
+    if (
+      latest.revision !== base ||
+      (!overwrite && baseLayout !== undefined && !this.baselineMatches(latest, baseLayout))
+    )
       fail('画布已被其他保存更新。请保留当前编辑，刷新后再合并。', 409, 'CONFLICT');
     this.writeUiArchives(archives);
     this.write(next);

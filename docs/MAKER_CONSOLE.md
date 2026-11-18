@@ -382,15 +382,15 @@ Ctrl/Mod+滚轮仍缩放画布。滚动位置仅用于预览，不保存进 UI.j
 
 保留的鼠标组合操作：
 
-| 操作                    | 创作画布                      | UI 编辑器                     |
-| ----------------------- | ----------------------------- | ----------------------------- |
-| Shift+点击 / Shift+框选 | 多选 / 追加框选；Mod 也可多选 | 多选 / 追加框选               |
-| Mod+点击                | 多选                          | 循环选择重叠节点              |
-| Alt+拖动                | —                             | 拖动复制节点                  |
-| Shift+拖动节点          | —                             | 约束水平或垂直移动            |
-| Shift+缩放 / Alt+缩放   | —                             | 普通节点等比缩放 / 从中心缩放 |
-| Shift+旋转              | —                             | 按 15° 步进旋转               |
-| Alt+悬停其他节点        | —                             | 查看与所选节点的间距          |
+| 操作                  | 创作画布             | UI 编辑器                     |
+| --------------------- | -------------------- | ----------------------------- |
+| Shift / Mod+点击      | 多选；拖动则一起移动 | 追加选择，拖动则一起移动      |
+| Shift / Mod+框选      | 追加框选             | 追加框选                      |
+| Alt+拖动              | —                    | 拖动复制节点                  |
+| Shift+拖动节点        | —                    | 约束水平或垂直移动            |
+| Shift+缩放 / Alt+缩放 | —                    | 普通节点等比缩放 / 从中心缩放 |
+| Shift+旋转            | —                    | 按 15° 步进旋转               |
+| Alt+悬停其他节点      | —                    | 查看与所选节点的间距          |
 
 ### UI 文档 CLI
 
@@ -513,8 +513,29 @@ Maker MCP 内置生成接口的默认落盘保持原样。
 保存串行互斥并原子替换，前后检查原文；这不是对任意外部编辑器的跨进程事务锁。
 编辑器独立 CSP 仅开放本机脚本和 WASM，不扩大控制台或画布脚本权限。
 
+其他宿主（Web）用 scripts/build-maker-ui-editor-page.mjs 生成单页 HTML，以 srcdoc 嵌入：
+脚本与 Yoga 内联并降级到 Chrome 74，宿主脚本先定义 window.UrhoxHost
+（fileRoot、initialUi、manifest、readText、save，可选 assetUrl、替换 AI 指引文案的 guidance（prompt、description、steps），以及 wheel: "pan"（双指滑动与滚轮平移、捏合或 Ctrl/⌘+滚轮缩放，同 Web 画布；默认滚轮缩放）），编辑器只经它读写文件；
+未定义时使用控制台路由。控制台仍按原目录提供，行为不变。
+宿主可设置 layout.inspectorTransforms: true，将现有选区旋转 / 缩放输入移入 Rect Transform；
+保留单选绝对值、多选增量和禁用条件，未设置时继续使用画布工具行。
+宿主可用 layout.maxRightWidth 限制右侧属性栏的最大拖动宽度，已有布局恢复时也会受此上限约束。
+单个隐藏节点也可直接修改旋转 / 缩放属性并撤销，不依赖可见布局；隐藏多选仍不提供画布变换，禁用时显示具体原因。
+宿主文档下拉使用 UrhoxProject.listDocuments() 的独立快照（path / displayPath / name / dirty / active），
+通过 urhox:documentschange 事件更新，切换继续走 openUiPath() 及未保存确认。
+宿主可提供 previewViewport({width,height})，返回预览区域内的可用矩形（left / top / width / height），
+适应整页和适应选区会使用该矩形避开浮动工具条。
+画布支持 `--editor-screen-bg`、`--editor-frame-line`、`--editor-frame-shadow`：页面及组件先画底色和固定屏幕像素大小的两层阴影，再画节点与细线；`--editor-bezel: 0` 关闭外圈设备框。未设置这些颜色变量时保留控制台原有透明底和白色轮廓。
+选框可通过 --editor-selection-width 设置屏幕像素线宽，默认 1px。框选矩形在预览区覆盖层绘制，不受页面画布四周 400px 留白边界裁剪。
+选框只显示四个角点和旋转手柄，四条边的任意位置均可拖动缩放，不绘制边中点；角点与旋转手柄优先命中。
+NanoVG 绘制指令默认折叠为条数摘要，坐标范围和指令失焦时先校验再提交；无效输入保留错误提示，
+有效修改形成一次撤销记录，Esc 放弃当前输入。
+文档修改及项目文件刷新后，静态检查延迟 250ms 更新检查按钮的错误标记和可访问名称；点击按钮打开完整报告。
+新增节点统一避开当前文档已有 ID，批量导入图片时依次生成 image、image_2 等名称；不修改已有节点 ID。
+保存状态元素通过 data-state 提供 empty / dirty / saving / clean / error，保存按钮通过 aria-busy 表示请求中；失败保留未保存内容并允许重试。
+
 验证：npx jest --runInBand src/**tests**/makerUiEditor.test.ts；
-node scripts/test-maker-ui-editor.mjs（Playwright 可用时）。
+node scripts/test-maker-ui-editor.mjs 与 npm run test:maker:ui-editor-page（Playwright 可用时）。
 
 所有页签的控制台标题和导航默认采用紧凑布局，切页不改变顶部尺寸；画布名称在顶部页签展示，当前页签的
 铅笔按钮用于改名。添加节点、模板、保存和更多操作位于画布左侧悬浮图标条，不占画布宽度，
@@ -1062,3 +1083,7 @@ Git 401/403 应检查凭证和项目权限，BLACKLISTED 需管理员解除账�
 Windows 正常预览由控制台或 Agent Node 直接持有 Runtime，旧 CIM 仅为显式兼容入口。
 最新实测和未覆盖边界见 [启动方式探针](MAKER_WINDOWS_RUNTIME_LAUNCH_PROBE.md) 的最新记录。
 历史 breakaway 与强制手动 Host 方案不是当前默认流程。
+
+Web UI 编辑器单页构建同时内联共享画布的 `webTooltip.ts`，宿主通过 `window.UrhoxWebTooltip` 复用工具提示交互和样式；本地控制台入口保持原样。
+
+Web Canvas 与 UI 编辑器共享 webToolbar.ts 的圆形按钮、菜单样式和指针／方向键拖动逻辑；宿主提供工具动作与移动边界。

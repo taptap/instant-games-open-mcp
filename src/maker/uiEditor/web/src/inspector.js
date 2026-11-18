@@ -1,194 +1,410 @@
 // inspector.js
 // 用途：对照 Unity UGUI。顶部只放身份和常改项，其余分组默认折叠。
 (function (root) {
-  "use strict";
+  'use strict';
 
   function isImageNode(node) {
     if (!node) return false;
-    if (node.role === "Image" || node._isImage) return true;
-    if (Object.prototype.hasOwnProperty.call(node, "backgroundImage")) return true;
-    return node.backgroundFit === "sliced";
+    if (node.role === 'Image' || node._isImage) return true;
+    if (Object.prototype.hasOwnProperty.call(node, 'backgroundImage')) return true;
+    return node.backgroundFit === 'sliced';
   }
 
   function isTextNode(node) {
-    return node.type === "Label" || node.type === "Button" || node.text != null;
+    return node.type === 'Label' || node.type === 'Button' || node.text != null;
   }
 
   // open: 默认展开。常改项展开，其余折叠。
   var GROUPS = [
     {
-      id: "identity",
-      title: "基本",
+      id: 'identity',
+      title: '基本',
       open: true,
       rows: [
-        [{ key: "type", label: "组件", kind: "readonly" }, { key: "id", label: "名称", kind: "text" }],
-        [{ key: "visible", label: "启用", kind: "bool", fallback: true }, { key: "locked", label: "锁定", kind: "bool" }],
+        [
+          { key: 'type', label: '组件', kind: 'readonly' },
+          { key: 'id', label: '名称', kind: 'text' },
+        ],
+        [
+          { key: 'visible', label: '启用', kind: 'bool', fallback: true },
+          { key: 'locked', label: '锁定', kind: 'bool' },
+        ],
       ],
     },
     {
-      id: "preview-mapping",
-      title: "页面预览映射",
+      id: 'preview-mapping',
+      title: '页面预览映射',
       open: true,
-      showIf: function (node, meta) { return node === meta.root; },
-      rows: [[{ key: "previewFit", label: "坐标映射", kind: "enum", emptyLabel: "引擎逻辑布局", options: [
-        { value: "contain", label: "设计坐标等比居中" },
-      ] }]],
-    },
-    {
-      id: "nanovg",
-      title: "NanoVG 绘图",
-      open: true,
-      showIf: function (node) { return node.type === "NanoVG"; },
+      showIf: function (node, meta) {
+        return node === (meta && meta.root);
+      },
       rows: [
-        [{ key: "opacity", label: "透明度", kind: "slider", min: 0, max: 1, step: 0.05 }],
-        [{ key: "viewBox", label: "绘图坐标范围", kind: "json" }],
-        [{ key: "commands", label: "绘制指令", kind: "json" }],
+        [
+          {
+            key: 'previewFit',
+            label: '坐标映射',
+            kind: 'enum',
+            emptyLabel: '引擎逻辑布局',
+            options: [{ value: 'contain', label: '设计坐标等比居中' }],
+          },
+        ],
       ],
     },
     {
-      id: "image",
-      title: "图片",
+      id: 'nanovg',
+      title: 'NanoVG 绘图',
+      open: true,
+      showIf: function (node) {
+        return node.type === 'NanoVG';
+      },
+      rows: [
+        [{ key: 'opacity', label: '透明度', kind: 'slider', min: 0, max: 1, step: 0.05 }],
+        [{ key: 'viewBox', label: '绘图坐标范围', kind: 'json' }],
+        [{ key: 'commands', label: '绘制指令', kind: 'json' }],
+      ],
+    },
+    {
+      id: 'image',
+      title: '图片',
       open: true,
       showIf: isImageNode,
       rows: [
-        [{ key: "backgroundImage", label: "Source Image", kind: "asset" }],
-        [{ key: "backgroundImageOpacity", label: "图片透明度", kind: "number", min: 0, max: 1, placeholder: "1" }],
-        [{ key: "backgroundFit", label: "Image Type", kind: "enum", options: [
-          { value: "fill", label: "拉伸 Fill" },
-          { value: "contain", label: "适应 Contain" },
-          { value: "cover", label: "裁切 Cover" },
-          { value: "sliced", label: "九宫格 Sliced" },
-        ] }, { key: "backgroundColor", label: "Color", kind: "color" }],
-        [{ key: "slice", label: "Border", kind: "slice" }],
+        [{ key: 'backgroundImage', label: 'Source Image', kind: 'asset' }],
+        [
+          {
+            key: 'backgroundImageOpacity',
+            label: '图片透明度',
+            kind: 'number',
+            min: 0,
+            max: 1,
+            placeholder: '1',
+          },
+        ],
+        [
+          {
+            key: 'backgroundFit',
+            label: 'Image Type',
+            kind: 'enum',
+            options: [
+              { value: 'fill', label: '拉伸 Fill' },
+              { value: 'contain', label: '适应 Contain' },
+              { value: 'cover', label: '裁切 Cover' },
+              { value: 'sliced', label: '九宫格 Sliced' },
+            ],
+          },
+          { key: 'backgroundColor', label: 'Color', kind: 'color' },
+        ],
+        [{ key: 'slice', label: 'Border', kind: 'slice' }],
       ],
     },
     {
-      id: "text",
-      title: "文本",
+      id: 'text',
+      title: '文本',
       open: true,
       showIf: isTextNode,
       rows: [
-        [{ key: "text", label: "Text", kind: "text", multiline: true }],
-        [{ key: "fontSize", label: "字号", kind: "number" }, { key: "fontColor", label: "颜色", kind: "color" }],
-        [{ key: "fontWeight", label: "粗细", kind: "enum", options: [
-          { value: "normal", label: "常规" },
-          { value: "bold", label: "加粗" },
-        ] }, { key: "letterSpacing", label: "字间距", kind: "number", placeholder: "0" }],
-        [{ key: "textAlign", label: "水平对齐", kind: "enum", options: [
-          { value: "left", label: "左" },
-          { value: "center", label: "中" },
-          { value: "right", label: "右" },
-        ] }, { key: "verticalAlign", label: "垂直对齐", kind: "enum", options: [
-          { value: "top", label: "上" },
-          { value: "middle", label: "中" },
-          { value: "bottom", label: "下" },
-        ] }],
+        [{ key: 'text', label: 'Text', kind: 'text', multiline: true }],
+        [
+          { key: 'fontSize', label: '字号', kind: 'number' },
+          { key: 'fontColor', label: '颜色', kind: 'color' },
+        ],
+        [
+          {
+            key: 'fontWeight',
+            label: '粗细',
+            kind: 'enum',
+            options: [
+              { value: 'normal', label: '常规' },
+              { value: 'bold', label: '加粗' },
+            ],
+          },
+          { key: 'letterSpacing', label: '字间距', kind: 'number', placeholder: '0' },
+        ],
+        [
+          {
+            key: 'textAlign',
+            label: '水平对齐',
+            kind: 'enum',
+            options: [
+              { value: 'left', label: '左' },
+              { value: 'center', label: '中' },
+              { value: 'right', label: '右' },
+            ],
+          },
+          {
+            key: 'verticalAlign',
+            label: '垂直对齐',
+            kind: 'enum',
+            options: [
+              { value: 'top', label: '上' },
+              { value: 'middle', label: '中' },
+              { value: 'bottom', label: '下' },
+            ],
+          },
+        ],
       ],
     },
     {
-      id: "text-layout",
-      title: "文本排版",
+      id: 'text-layout',
+      title: '文本排版',
       open: true,
-      showIf: function (node) { return node.type === "Label"; },
+      showIf: function (node) {
+        return node.type === 'Label';
+      },
       rows: [
-        [{ key: "lineHeight", label: "行高（倍数）", kind: "number", positive: true, placeholder: "默认 1.4" }],
-        [{ key: "whiteSpace", label: "换行方式", kind: "enum", options: [
-          { value: "nowrap", label: "不自动换行" },
-          { value: "normal", label: "自动换行" },
-        ] }],
+        [
+          {
+            key: 'lineHeight',
+            label: '行高（倍数）',
+            kind: 'number',
+            positive: true,
+            placeholder: '默认 1.4',
+          },
+        ],
+        [
+          {
+            key: 'whiteSpace',
+            label: '换行方式',
+            kind: 'enum',
+            options: [
+              { value: 'nowrap', label: '不自动换行' },
+              { value: 'normal', label: '自动换行' },
+            ],
+          },
+        ],
       ],
     },
     {
-      id: "rect",
-      title: "Rect Transform",
+      id: 'rect',
+      title: 'Rect Transform',
       open: true,
       rows: [
-        [{ key: "position", label: "定位", kind: "enum", options: ["relative", "absolute"] }],
-        [{ key: "left", label: "相对父级 X", kind: "length" }, { key: "top", label: "相对父级 Y", kind: "length" }],
-        [{ key: "width", label: "Width", kind: "length" }, { key: "height", label: "Height", kind: "length" }],
-        [{ key: "right", label: "右边距", kind: "length" }, { key: "bottom", label: "下边距", kind: "length" }],
-        [{ key: "maxWidth", label: "最大宽度", kind: "length" }, { key: "maxHeight", label: "最大高度", kind: "length" }],
-        [{ key: "minWidth", label: "最小宽度", kind: "length" }, { key: "minHeight", label: "最小高度", kind: "length" }],
-        [{ key: "aspectRatio", label: "宽高比", kind: "number" }],
+        [{ key: 'position', label: '定位', kind: 'enum', options: ['relative', 'absolute'] }],
+        [
+          { key: 'left', label: '相对父级 X', kind: 'length' },
+          { key: 'top', label: '相对父级 Y', kind: 'length' },
+        ],
+        [
+          { key: 'width', label: 'Width', kind: 'length' },
+          { key: 'height', label: 'Height', kind: 'length' },
+        ],
+        [
+          { key: 'right', label: '右边距', kind: 'length' },
+          { key: 'bottom', label: '下边距', kind: 'length' },
+        ],
+        [
+          { key: 'maxWidth', label: '最大宽度', kind: 'length' },
+          { key: 'maxHeight', label: '最大高度', kind: 'length' },
+        ],
+        [
+          { key: 'minWidth', label: '最小宽度', kind: 'length' },
+          { key: 'minHeight', label: '最小高度', kind: 'length' },
+        ],
+        [{ key: 'aspectRatio', label: '宽高比', kind: 'number' }],
       ],
     },
     {
-      id: "spacing", title: "内外边距", open: false,
-      rows: [
-        [{ key: "padding", label: "内边距", kind: "length" }],
-        [{ key: "paddingHorizontal", label: "水平内边距", kind: "length" }, { key: "paddingVertical", label: "垂直内边距", kind: "length" }],
-        [{ key: "paddingLeft", label: "左内边距", kind: "length" }, { key: "paddingRight", label: "右内边距", kind: "length" }],
-        [{ key: "paddingTop", label: "上内边距", kind: "length" }, { key: "paddingBottom", label: "下内边距", kind: "length" }],
-        [{ key: "margin", label: "外边距", kind: "length" }],
-        [{ key: "marginHorizontal", label: "水平外边距", kind: "length" }, { key: "marginVertical", label: "垂直外边距", kind: "length" }],
-        [{ key: "marginLeft", label: "左外边距", kind: "length" }, { key: "marginRight", label: "右外边距", kind: "length" }],
-        [{ key: "marginTop", label: "上外边距", kind: "length" }, { key: "marginBottom", label: "下外边距", kind: "length" }],
-      ],
-    },
-    {
-      id: "safe-area", title: "安全区", open: true,
-      showIf: function (node) { return node.type === "SafeAreaView"; },
-      rows: [
-        [{ key: "nativeMenuInset", label: "避让 Tap 胶囊", kind: "bool" }],
-        [{ key: "edges", label: "避让方向", kind: "json" }],
-        [{ key: "mode", label: "避让方式", kind: "enum", options: ["padding", "margin"] }],
-      ],
-    },
-    {
-      id: "scroll", title: "滚动", open: true,
-      showIf: function (node) { return node.type === "ScrollView"; },
-      rows: [
-        [{ key: "scrollY", label: "纵向滚动", kind: "bool", fallback: true },
-         { key: "showScrollbar", label: "显示滚动条", kind: "bool", fallback: true }],
-      ],
-    },
-    {
-      id: "appearance",
-      title: "外观",
-      open: false,
-      showIf: function (node) { return node.type !== "NanoVG"; },
-      rows: [
-        [{ key: "backgroundColor", label: "Color", kind: "color" }, { key: "opacity", label: "透明度", kind: "number" }],
-        [{ key: "borderRadius", label: "圆角", kind: "number" }, { key: "borderWidth", label: "描边", kind: "number" }],
-        [{ key: "borderColor", label: "边色", kind: "color" }],
-      ],
-    },
-    {
-      id: "flex",
-      title: "布局 (Flex)",
-      open: false,
-      rows: [
-        [{ key: "flexDirection", label: "方向", kind: "enum", options: ["column", "row", "column-reverse", "row-reverse"] }, { key: "gap", label: "Gap", kind: "length" }],
-        [{ key: "rowGap", label: "行间距", kind: "length" }, { key: "columnGap", label: "列间距", kind: "length" }],
-        [{ key: "justifyContent", label: "主轴对齐", kind: "enum", options: ["flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly"] },
-         { key: "alignItems", label: "交叉轴对齐", kind: "enum", options: ["flex-start", "center", "flex-end", "stretch", "baseline"] }],
-        [{ key: "alignSelf", label: "自身对齐", kind: "enum", options: ["auto", "flex-start", "center", "flex-end", "stretch", "baseline"] }],
-        [{ key: "flexWrap", label: "布局换行", kind: "enum", options: ["nowrap", "wrap", "wrap-reverse"] },
-         { key: "alignContent", label: "多行对齐", kind: "enum", options: ["flex-start", "center", "flex-end", "stretch", "space-between", "space-around"] }],
-        [{ key: "flexGrow", label: "扩展", kind: "number" }, { key: "flexShrink", label: "收缩", kind: "number" }],
-        [{ key: "flexBasis", label: "弹性基准尺寸", kind: "length" }],
-      ],
-    },
-    {
-      id: "button",
-      title: "按钮",
-      open: true,
-      showIf: function (node) { return node.type === "Button"; },
-      rows: [
-        [{ key: "disabled", label: "禁用", kind: "bool" }],
-        [{ key: "hoverOpacity", label: "鼠标悬停透明度", kind: "slider", min: 0, max: 1, step: 0.05 }],
-        [{ key: "pressedOpacity", label: "按下透明度", kind: "slider", min: 0, max: 1, step: 0.05 }],
-      ],
-    },
-    {
-      id: "advanced",
-      title: "更多",
+      id: 'spacing',
+      title: '内外边距',
       open: false,
       rows: [
-        [{ key: "zIndex", label: "Z", kind: "number" }, { key: "pointerEvents", label: "Raycast", kind: "enum", options: ["auto", "none", "box-none", "box-only"] }],
-        [{ key: "overflow", label: "Overflow", kind: "enum", options: ["visible", "hidden"] }],
-        [{ key: "borderColor", label: "边色", kind: "color" }],
-        [{ key: "locked", label: "锁定", kind: "bool" }],
+        [{ key: 'padding', label: '内边距', kind: 'length' }],
+        [
+          { key: 'paddingHorizontal', label: '水平内边距', kind: 'length' },
+          { key: 'paddingVertical', label: '垂直内边距', kind: 'length' },
+        ],
+        [
+          { key: 'paddingLeft', label: '左内边距', kind: 'length' },
+          { key: 'paddingRight', label: '右内边距', kind: 'length' },
+        ],
+        [
+          { key: 'paddingTop', label: '上内边距', kind: 'length' },
+          { key: 'paddingBottom', label: '下内边距', kind: 'length' },
+        ],
+        [{ key: 'margin', label: '外边距', kind: 'length' }],
+        [
+          { key: 'marginHorizontal', label: '水平外边距', kind: 'length' },
+          { key: 'marginVertical', label: '垂直外边距', kind: 'length' },
+        ],
+        [
+          { key: 'marginLeft', label: '左外边距', kind: 'length' },
+          { key: 'marginRight', label: '右外边距', kind: 'length' },
+        ],
+        [
+          { key: 'marginTop', label: '上外边距', kind: 'length' },
+          { key: 'marginBottom', label: '下外边距', kind: 'length' },
+        ],
+      ],
+    },
+    {
+      id: 'safe-area',
+      title: '安全区',
+      open: true,
+      showIf: function (node) {
+        return node.type === 'SafeAreaView';
+      },
+      rows: [
+        [{ key: 'nativeMenuInset', label: '避让 Tap 胶囊', kind: 'bool' }],
+        [{ key: 'edges', label: '避让方向', kind: 'json' }],
+        [{ key: 'mode', label: '避让方式', kind: 'enum', options: ['padding', 'margin'] }],
+      ],
+    },
+    {
+      id: 'scroll',
+      title: '滚动',
+      open: true,
+      showIf: function (node) {
+        return node.type === 'ScrollView';
+      },
+      rows: [
+        [
+          { key: 'scrollY', label: '纵向滚动', kind: 'bool', fallback: true },
+          { key: 'showScrollbar', label: '显示滚动条', kind: 'bool', fallback: true },
+        ],
+      ],
+    },
+    {
+      id: 'appearance',
+      title: '外观',
+      open: false,
+      showIf: function (node) {
+        return node.type !== 'NanoVG';
+      },
+      rows: [
+        [
+          { key: 'backgroundColor', label: 'Color', kind: 'color' },
+          { key: 'opacity', label: '透明度', kind: 'number' },
+        ],
+        [
+          { key: 'borderRadius', label: '圆角', kind: 'number' },
+          { key: 'borderWidth', label: '描边', kind: 'number' },
+        ],
+        [{ key: 'borderColor', label: '边色', kind: 'color' }],
+      ],
+    },
+    {
+      id: 'flex',
+      title: '布局 (Flex)',
+      open: false,
+      rows: [
+        [
+          {
+            key: 'flexDirection',
+            label: '方向',
+            kind: 'enum',
+            options: ['column', 'row', 'column-reverse', 'row-reverse'],
+          },
+          { key: 'gap', label: 'Gap', kind: 'length' },
+        ],
+        [
+          { key: 'rowGap', label: '行间距', kind: 'length' },
+          { key: 'columnGap', label: '列间距', kind: 'length' },
+        ],
+        [
+          {
+            key: 'justifyContent',
+            label: '主轴对齐',
+            kind: 'enum',
+            options: [
+              'flex-start',
+              'center',
+              'flex-end',
+              'space-between',
+              'space-around',
+              'space-evenly',
+            ],
+          },
+          {
+            key: 'alignItems',
+            label: '交叉轴对齐',
+            kind: 'enum',
+            options: ['flex-start', 'center', 'flex-end', 'stretch', 'baseline'],
+          },
+        ],
+        [
+          {
+            key: 'alignSelf',
+            label: '自身对齐',
+            kind: 'enum',
+            options: ['auto', 'flex-start', 'center', 'flex-end', 'stretch', 'baseline'],
+          },
+        ],
+        [
+          {
+            key: 'flexWrap',
+            label: '布局换行',
+            kind: 'enum',
+            options: ['nowrap', 'wrap', 'wrap-reverse'],
+          },
+          {
+            key: 'alignContent',
+            label: '多行对齐',
+            kind: 'enum',
+            options: [
+              'flex-start',
+              'center',
+              'flex-end',
+              'stretch',
+              'space-between',
+              'space-around',
+            ],
+          },
+        ],
+        [
+          { key: 'flexGrow', label: '扩展', kind: 'number' },
+          { key: 'flexShrink', label: '收缩', kind: 'number' },
+        ],
+        [{ key: 'flexBasis', label: '弹性基准尺寸', kind: 'length' }],
+      ],
+    },
+    {
+      id: 'button',
+      title: '按钮',
+      open: true,
+      showIf: function (node) {
+        return node.type === 'Button';
+      },
+      rows: [
+        [{ key: 'disabled', label: '禁用', kind: 'bool' }],
+        [
+          {
+            key: 'hoverOpacity',
+            label: '鼠标悬停透明度',
+            kind: 'slider',
+            min: 0,
+            max: 1,
+            step: 0.05,
+          },
+        ],
+        [
+          {
+            key: 'pressedOpacity',
+            label: '按下透明度',
+            kind: 'slider',
+            min: 0,
+            max: 1,
+            step: 0.05,
+          },
+        ],
+      ],
+    },
+    {
+      id: 'advanced',
+      title: '更多',
+      open: false,
+      rows: [
+        [
+          { key: 'zIndex', label: 'Z', kind: 'number' },
+          {
+            key: 'pointerEvents',
+            label: 'Raycast',
+            kind: 'enum',
+            options: ['auto', 'none', 'box-none', 'box-only'],
+          },
+        ],
+        [{ key: 'overflow', label: 'Overflow', kind: 'enum', options: ['visible', 'hidden'] }],
+        [{ key: 'borderColor', label: '边色', kind: 'color' }],
+        [{ key: 'locked', label: '锁定', kind: 'bool' }],
       ],
     },
   ];
@@ -196,45 +412,45 @@
   var openState = {};
 
   function formatValue(value) {
-    if (value === undefined || value === null) return "";
-    if (value === false) return "false";
-    if (typeof value === "object") return JSON.stringify(value);
+    if (value === undefined || value === null) return '';
+    if (value === false) return 'false';
+    if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   }
 
   function parseLength(raw) {
-    if (raw === "" || raw == null) return undefined;
-    if (raw === "auto" || raw === "false") return raw === "false" ? false : "auto";
+    if (raw === '' || raw == null) return undefined;
+    if (raw === 'auto' || raw === 'false') return raw === 'false' ? false : 'auto';
     if (/%$/.test(raw)) return raw;
     var n = Number(raw);
     return isNaN(n) ? raw : n;
   }
 
   function parseColor(raw) {
-    if (raw === "" || raw == null) return undefined;
-    if (raw === "false") return false;
+    if (raw === '' || raw == null) return undefined;
+    if (raw === 'false') return false;
     return raw;
   }
 
   function parseBool(raw, fallback) {
-    if (raw === "" || raw == null) return fallback;
-    return raw === true || raw === "true";
+    if (raw === '' || raw == null) return fallback;
+    return raw === true || raw === 'true';
   }
 
   function parseNumber(raw) {
-    if (raw === "" || raw == null) return undefined;
+    if (raw === '' || raw == null) return undefined;
     var n = Number(raw);
     return isNaN(n) ? undefined : n;
   }
 
   function applyField(node, field, raw) {
     var value;
-    if (field.kind === "readonly") return;
-    if (field.kind === "bool") value = parseBool(raw, field.fallback);
-    else if (field.kind === "number") value = parseNumber(raw);
-    else if (field.kind === "length") value = parseLength(raw);
-    else if (field.kind === "color") value = parseColor(raw);
-    else if (raw === "") value = undefined;
+    if (field.kind === 'readonly') return;
+    if (field.kind === 'bool') value = parseBool(raw, field.fallback);
+    else if (field.kind === 'number') value = parseNumber(raw);
+    else if (field.kind === 'length') value = parseLength(raw);
+    else if (field.kind === 'color') value = parseColor(raw);
+    else if (raw === '') value = undefined;
     else value = raw;
     if (value === undefined) delete node[field.key];
     else node[field.key] = value;
@@ -242,128 +458,220 @@
 
   function emitChange(onChange, extra) {
     extra = extra || {};
-    if (typeof onChange === "function") onChange(extra);
+    if (typeof onChange === 'function') onChange(extra);
   }
 
   function bindControl(control, node, field, onChange) {
     function apply() {
-      var raw = field.kind === "number" ? control.value.trim() : control.value;
-      var number = raw === "" ? undefined : Number(raw);
-      if (field.kind === "number" && number !== undefined &&
-          (!Number.isFinite(number) || field.positive && number <= 0 ||
-           field.min != null && number < field.min || field.max != null && number > field.max)) {
-        control.setCustomValidity(field.positive ? "请输入大于 0 的有限数值" : "请输入有效范围内的有限数值");
+      var raw = field.kind === 'number' ? control.value.trim() : control.value;
+      var number = raw === '' ? undefined : Number(raw);
+      if (
+        field.kind === 'number' &&
+        number !== undefined &&
+        (!Number.isFinite(number) ||
+          (field.positive && number <= 0) ||
+          (field.min != null && number < field.min) ||
+          (field.max != null && number > field.max))
+      ) {
+        control.setCustomValidity(
+          field.positive ? '请输入大于 0 的有限数值' : '请输入有效范围内的有限数值'
+        );
         return false;
       }
-      control.setCustomValidity("");
-      if (node.previewFit && (field.key === "width" || field.key === "height")) {
+      if (
+        node.previewFit &&
+        (field.key === 'width' || field.key === 'height') &&
+        root.UrhoxUICheck
+      ) {
         var candidate = Object.assign({}, node);
         applyField(candidate, field, raw);
         var mappingError = root.UrhoxUICheck.previewFitError(candidate, true);
-        if (mappingError) { control.setCustomValidity(mappingError); return false; }
+        if (mappingError) {
+          control.setCustomValidity(mappingError);
+          return false;
+        }
       }
+      control.setCustomValidity('');
       applyField(node, field, raw);
       return true;
     }
-    if (control.tagName === "TEXTAREA" || control.tagName === "INPUT" && control.type === "text") {
+    if (
+      control.tagName === 'TEXTAREA' ||
+      (control.tagName === 'INPUT' && control.type === 'text')
+    ) {
       var old = node[field.key];
-      control.addEventListener("focus", function () {
+      control.addEventListener('focus', function () {
         old = node[field.key];
-        emitChange(onChange, { phase: "start" });
+        emitChange(onChange, { phase: 'start' });
       });
-      control.addEventListener("input", function () {
+      control.addEventListener('input', function () {
         if (!apply()) return;
         emitChange(onChange, { live: true });
       });
-      control.addEventListener("change", function () {
-        if (!apply()) { control.reportValidity(); return; }
-        emitChange(onChange, { phase: "end" });
+      control.addEventListener('change', function () {
+        if (!apply()) {
+          control.reportValidity();
+          return;
+        }
+        emitChange(onChange, { phase: 'end' });
       });
-      control.addEventListener("blur", function () {
-        emitChange(onChange, { phase: "end", live: true });
+      control.addEventListener('blur', function () {
+        emitChange(onChange, { phase: 'end', live: true });
       });
-      control.addEventListener("keydown", function (event) {
-        if (event.key === "Escape") {
+      control.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
           if (old === undefined) delete node[field.key];
           else node[field.key] = old;
           control.value = formatValue(old);
-          control.setCustomValidity("");
+          control.setCustomValidity('');
           emitChange(onChange, { live: true });
         }
       });
       return;
     }
-    control.addEventListener("change", function () {
-      if (field.key === "previewFit" && control.value) {
+    control.addEventListener('change', function () {
+      if (field.key === 'previewFit' && control.value && root.UrhoxUICheck) {
         var candidate = Object.assign({}, node, { previewFit: control.value });
         var mappingError = root.UrhoxUICheck.previewFitError(candidate, true);
-        control.setCustomValidity(mappingError || "");
-        if (mappingError) { control.reportValidity(); control.value = node.previewFit || ""; return; }
+        control.setCustomValidity(mappingError || '');
+        if (mappingError) {
+          control.reportValidity();
+          control.value = node.previewFit || '';
+          return;
+        }
       }
-      emitChange(onChange, { phase: "start" });
-      var raw = control.type === "checkbox" ? control.checked : control.value;
+      emitChange(onChange, { phase: 'start' });
+      var raw = control.type === 'checkbox' ? control.checked : control.value;
       applyField(node, field, raw);
-      if (field.key === "backgroundFit" && raw === "sliced" && !node.backgroundSlice) {
+      if (field.key === 'backgroundFit' && raw === 'sliced' && !node.backgroundSlice) {
         node.backgroundSlice = [40, 40, 40, 40];
       }
-      emitChange(onChange, { phase: "end" });
+      emitChange(onChange, { phase: 'end' });
     });
   }
 
+  // One value per line for top-level arrays (e.g. one NanoVG command per line), each kept inline.
+  function inlineJson(value) {
+    if (Array.isArray(value)) return '[' + value.map(inlineJson).join(', ') + ']';
+    if (value && typeof value === 'object') {
+      return (
+        '{' +
+        Object.keys(value)
+          .map(function (key) {
+            return JSON.stringify(key) + ': ' + inlineJson(value[key]);
+          })
+          .join(', ') +
+        '}'
+      );
+    }
+    return JSON.stringify(value);
+  }
+  function formatJson(value) {
+    if (value == null) return '';
+    if (!Array.isArray(value)) return JSON.stringify(value, null, 2);
+    if (
+      !value.some(function (item) {
+        return item && typeof item === 'object';
+      })
+    )
+      return inlineJson(value);
+    return value.length
+      ? '[\n' +
+          value
+            .map(function (item) {
+              return '  ' + inlineJson(item);
+            })
+            .join(',\n') +
+          '\n]'
+      : '[]';
+  }
   function makeControl(node, field, onChange) {
     var value = node[field.key];
     var control;
-    if (field.kind === "json") {
-      var wrap = document.createElement("div");
-      wrap.className = "nanovg-field";
-      var input = document.createElement("textarea");
-      input.rows = field.key === "commands" ? 12 : 2;
-      input.value = value == null ? "" : JSON.stringify(value, null, 2);
-      if (field.key === "edges") input.placeholder = '"all" 或 ["top", "bottom"]';
-      input.setAttribute("aria-label", field.label);
-      var apply = document.createElement("button");
-      apply.type = "button"; apply.textContent = "应用";
-      var error = document.createElement("p"); error.setAttribute("role", "status");
-      apply.addEventListener("click", function () {
+    if (field.kind === 'json') {
+      var wrap = document.createElement('div');
+      wrap.className = 'nanovg-field';
+      var input = document.createElement('textarea');
+      input.rows = field.key === 'commands' ? 12 : 1;
+      input.value = formatJson(value);
+      if (field.key === 'edges') input.placeholder = '"all" 或 ["top", "bottom"]';
+      input.setAttribute('aria-label', field.label);
+      var error = document.createElement('p');
+      error.setAttribute('role', 'status');
+      function commit() {
         try {
-          var parsed = input.value.trim() === "" ? undefined : JSON.parse(input.value), candidate = Object.assign({}, node);
+          var parsed = input.value.trim() === '' ? undefined : JSON.parse(input.value),
+            candidate = Object.assign({}, node);
           if (parsed === undefined) delete candidate[field.key];
           else candidate[field.key] = parsed;
           var problems = [];
-          if (node.type === "NanoVG") {
-            root.UrhoxUICheck.checkNanoVG(candidate, function (at, message) { problems.push(at + ": " + message); }, function () {});
+          if (node.type === 'NanoVG') {
+            root.UrhoxUICheck.checkNanoVG(
+              candidate,
+              function (at, message) {
+                problems.push(at + ': ' + message);
+              },
+              function () {}
+            );
           } else {
-            root.UrhoxUICheck.checkDocument({ tree: candidate }).diagnostics.forEach(function (item) {
-              if (item.severity === "error" && item.pointer === "/" + field.key) problems.push(item.message);
-            });
+            root.UrhoxUICheck.checkDocument({ tree: candidate }).diagnostics.forEach(
+              function (item) {
+                if (item.severity === 'error' && item.pointer === '/' + field.key)
+                  problems.push(item.message);
+              }
+            );
           }
-          if (problems.length) throw new Error(problems.join("\n"));
-          emitChange(onChange, { phase: "start" });
+          if (problems.length) throw new Error(problems.join('\n'));
+          error.textContent = '';
+          if (JSON.stringify(parsed) === JSON.stringify(node[field.key])) return;
+          emitChange(onChange, { phase: 'start' });
           if (parsed === undefined) delete node[field.key];
           else node[field.key] = parsed;
-          emitChange(onChange, { phase: "end" });
-          error.textContent = "";
-        } catch (e) { error.textContent = "未应用：" + e.message; }
+          if (summary)
+            summary.textContent = (Array.isArray(parsed) ? parsed.length : 0) + ' 条指令';
+          input.value = formatJson(parsed);
+          // Keep pointer targets alive when blur comes from clicking another row or field.
+          emitChange(onChange, { phase: 'end', live: true });
+        } catch (e) {
+          error.textContent = '未应用：' + e.message;
+        }
+      }
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          input.value = formatJson(node[field.key]);
+          error.textContent = '';
+        }
       });
-      wrap.appendChild(input); wrap.appendChild(apply); wrap.appendChild(error);
+      if (field.key === 'commands') {
+        var details = document.createElement('details');
+        var summary = document.createElement('summary');
+        summary.textContent = (Array.isArray(value) ? value.length : 0) + ' 条指令';
+        details.appendChild(summary);
+        details.appendChild(input);
+        wrap.appendChild(details);
+      } else wrap.appendChild(input);
+      wrap.appendChild(error);
       return wrap;
-    } else if (field.kind === "readonly") {
-      control = document.createElement("input");
+    } else if (field.kind === 'readonly') {
+      control = document.createElement('input');
       control.disabled = true;
       control.value = formatValue(value);
-    } else if (field.kind === "bool") {
-      control = document.createElement("input");
-      control.type = "checkbox";
+    } else if (field.kind === 'bool') {
+      control = document.createElement('input');
+      control.type = 'checkbox';
       control.checked = value == null ? field.fallback === true : value === true;
-    } else if (field.kind === "enum") {
-      control = document.createElement("select");
-      var empty = document.createElement("option");
-      empty.value = "";
-      empty.textContent = field.emptyLabel || "—";
+    } else if (field.kind === 'enum') {
+      control = document.createElement('select');
+      var empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = field.emptyLabel || '—';
       control.appendChild(empty);
       field.options.forEach(function (opt) {
-        var option = document.createElement("option");
-        if (typeof opt === "object") {
+        var option = document.createElement('option');
+        if (typeof opt === 'object') {
           option.value = opt.value;
           option.textContent = opt.label;
         } else {
@@ -372,68 +680,70 @@
         }
         control.appendChild(option);
       });
-      control.value = value == null ? "" : String(value);
-    } else if (field.kind === "color") {
+      control.value = value == null ? '' : String(value);
+    } else if (field.kind === 'color') {
       return makeColorControl(node, field, onChange);
-    } else if (field.kind === "slider") {
+    } else if (field.kind === 'slider') {
       return makeSliderControl(node, field, onChange);
     } else {
-      control = document.createElement(field.multiline && node.type === "Label" ? "textarea" : "input");
-      if (control.tagName === "TEXTAREA") control.rows = 3;
-      else control.type = "text";
+      control = document.createElement(
+        field.multiline && node.type === 'Label' ? 'textarea' : 'input'
+      );
+      if (control.tagName === 'TEXTAREA') control.rows = 3;
+      else control.type = 'text';
       control.value = formatValue(value);
-      control.placeholder = field.placeholder || (field.kind === "length" ? "auto" : "");
-      if (field.kind === "number") control.inputMode = "decimal";
+      control.placeholder = field.placeholder || (field.kind === 'length' ? 'auto' : '');
+      if (field.kind === 'number') control.inputMode = 'decimal';
     }
-    control.setAttribute("aria-label", field.label);
+    control.setAttribute('aria-label', field.label);
     bindControl(control, node, field, onChange);
     return control;
   }
 
   function hex6(value) {
-    if (typeof value !== "string") return "#ffffff";
-    var hex = value.replace("#", "");
+    if (typeof value !== 'string') return '#ffffff';
+    var hex = value.replace('#', '');
     if (hex.length === 8) hex = hex.slice(0, 6);
     if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
-    if (hex.length !== 6) return "#ffffff";
-    return "#" + hex;
+    if (hex.length !== 6) return '#ffffff';
+    return '#' + hex;
   }
 
   function makeSliderControl(node, field, onChange) {
-    var wrap = document.createElement("div");
-    wrap.className = "slider-field";
-    var slider = document.createElement("input");
-    slider.type = "range";
+    var wrap = document.createElement('div');
+    wrap.className = 'slider-field';
+    var slider = document.createElement('input');
+    slider.type = 'range';
     slider.min = String(field.min == null ? 0 : field.min);
     slider.max = String(field.max == null ? 1 : field.max);
     slider.step = String(field.step == null ? 0.05 : field.step);
     var value = node[field.key];
     if (value == null) value = field.max == null ? 1 : field.max;
     slider.value = String(value);
-    var num = document.createElement("span");
-    num.className = "slider-value";
+    var num = document.createElement('span');
+    num.className = 'slider-value';
     num.textContent = Number(slider.value).toFixed(2);
     var editing = false;
     function start() {
       if (editing) return;
       editing = true;
-      emitChange(onChange, { phase: "start" });
+      emitChange(onChange, { phase: 'start' });
     }
-    slider.addEventListener("pointerdown", start);
-    slider.addEventListener("input", function () {
+    slider.addEventListener('pointerdown', start);
+    slider.addEventListener('input', function () {
       start();
       node[field.key] = Number(slider.value);
       num.textContent = node[field.key].toFixed(2);
       emitChange(onChange, { live: true });
     });
-    slider.addEventListener("change", function () {
+    slider.addEventListener('change', function () {
       node[field.key] = Number(slider.value);
       num.textContent = node[field.key].toFixed(2);
-      emitChange(onChange, { phase: "end" });
+      emitChange(onChange, { phase: 'end' });
       editing = false;
     });
-    slider.addEventListener("blur", function () {
-      if (editing) emitChange(onChange, { phase: "end", live: true });
+    slider.addEventListener('blur', function () {
+      if (editing) emitChange(onChange, { phase: 'end', live: true });
       editing = false;
     });
     wrap.appendChild(slider);
@@ -442,43 +752,43 @@
   }
 
   function makeColorControl(node, field, onChange) {
-    var wrap = document.createElement("div");
-    wrap.className = "color-field";
-    var picker = document.createElement("input");
-    picker.type = "color";
+    var wrap = document.createElement('div');
+    wrap.className = 'color-field';
+    var picker = document.createElement('input');
+    picker.type = 'color';
     picker.value = hex6(node[field.key]);
-    var text = document.createElement("input");
-    text.type = "text";
+    var text = document.createElement('input');
+    text.type = 'text';
     text.value = formatValue(node[field.key]);
     var editing = false;
     function start() {
       if (editing) return;
       editing = true;
-      emitChange(onChange, { phase: "start" });
+      emitChange(onChange, { phase: 'start' });
     }
-    picker.addEventListener("pointerdown", start);
-    picker.addEventListener("input", function () {
+    picker.addEventListener('pointerdown', start);
+    picker.addEventListener('input', function () {
       start();
       var hex = picker.value.toUpperCase();
-      var prev = typeof node[field.key] === "string" ? node[field.key] : "";
-      var alpha = prev.length === 9 ? prev.slice(7) : "";
+      var prev = typeof node[field.key] === 'string' ? node[field.key] : '';
+      var alpha = prev.length === 9 ? prev.slice(7) : '';
       node[field.key] = hex + alpha;
       text.value = node[field.key];
       emitChange(onChange, { live: true });
     });
-    picker.addEventListener("change", function () {
-      emitChange(onChange, { phase: "end" });
+    picker.addEventListener('change', function () {
+      emitChange(onChange, { phase: 'end' });
       editing = false;
     });
-    picker.addEventListener("blur", function () {
-      if (editing) emitChange(onChange, { phase: "end", live: true });
+    picker.addEventListener('blur', function () {
+      if (editing) emitChange(onChange, { phase: 'end', live: true });
       editing = false;
     });
-    text.addEventListener("change", function () {
-      emitChange(onChange, { phase: "start" });
+    text.addEventListener('change', function () {
+      emitChange(onChange, { phase: 'start' });
       applyField(node, field, text.value);
       picker.value = hex6(node[field.key]);
-      emitChange(onChange, { phase: "end" });
+      emitChange(onChange, { phase: 'end' });
     });
     wrap.appendChild(picker);
     wrap.appendChild(text);
@@ -486,12 +796,13 @@
   }
 
   function fieldCell(node, field, onChange) {
-    if (field.kind === "slice") return renderSliceField(node, onChange);
-    if (field.kind === "asset") return renderAssetField(node, field, onChange);
-    var wrap = document.createElement("label");
-    wrap.className = "insp-cell";
-    var name = document.createElement("span");
-    name.className = "insp-key";
+    if (field.kind === 'slice') return renderSliceField(node, onChange);
+    if (field.kind === 'asset') return renderAssetField(node, field, onChange);
+    var wrap = document.createElement('label');
+    wrap.className = 'insp-cell';
+    wrap.dataset.field = field.key;
+    var name = document.createElement('span');
+    name.className = 'insp-key';
     name.textContent = field.label;
     wrap.appendChild(name);
     wrap.appendChild(makeControl(node, field, onChange));
@@ -499,8 +810,8 @@
   }
 
   function renderRow(node, fields, onChange) {
-    var row = document.createElement("div");
-    row.className = "insp-line cols-" + fields.length;
+    var row = document.createElement('div');
+    row.className = 'insp-line cols-' + fields.length;
     fields.forEach(function (field) {
       row.appendChild(fieldCell(node, field, onChange));
     });
@@ -514,35 +825,40 @@
   }
 
   function renderSliceField(node, onChange) {
-    var wrap = document.createElement("div");
-    wrap.className = "slice-editor";
-    if (node.backgroundFit !== "sliced") {
+    var wrap = document.createElement('div');
+    wrap.className = 'slice-editor';
+    if (node.backgroundFit !== 'sliced') {
       wrap.hidden = true;
       return wrap;
     }
-    var hint = document.createElement("div");
-    hint.className = "slice-hint";
-    hint.textContent = "四角不拉伸 · 四边单向拉 · 中间双向拉";
+    var hint = document.createElement('div');
+    hint.className = 'slice-hint';
+    hint.textContent = '四角不拉伸 · 四边单向拉 · 中间双向拉';
     wrap.appendChild(hint);
-    var row = document.createElement("div");
-    row.className = "insp-line cols-4";
-    [["L", 3], ["T", 0], ["R", 1], ["B", 2]].forEach(function (pair) {
-      var cell = document.createElement("label");
-      cell.className = "insp-cell";
-      var name = document.createElement("span");
-      name.className = "insp-key";
+    var row = document.createElement('div');
+    row.className = 'insp-line cols-4';
+    [
+      ['L', 3],
+      ['T', 0],
+      ['R', 1],
+      ['B', 2],
+    ].forEach(function (pair) {
+      var cell = document.createElement('label');
+      cell.className = 'insp-cell';
+      var name = document.createElement('span');
+      name.className = 'insp-key';
       name.textContent = pair[0];
-      var input = document.createElement("input");
-      input.type = "number";
-      input.min = "0";
+      var input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
       input.value = String(sliceArray(node)[pair[1]] || 0);
-      input.addEventListener("change", function () {
-        emitChange(onChange, { phase: "start" });
+      input.addEventListener('change', function () {
+        emitChange(onChange, { phase: 'start' });
         var next = sliceArray(node);
         next[pair[1]] = Math.max(0, Number(input.value) || 0);
         node.backgroundSlice = next;
-        node.backgroundFit = "sliced";
-        emitChange(onChange, { phase: "end" });
+        node.backgroundFit = 'sliced';
+        emitChange(onChange, { phase: 'end' });
       });
       cell.appendChild(name);
       cell.appendChild(input);
@@ -553,20 +869,20 @@
   }
 
   function renderAssetField(node, field, onChange) {
-    var block = document.createElement("div");
-    block.className = "asset-block drop-image";
-    var path = node[field.key] || "";
-    var pathEl = document.createElement("div");
-    pathEl.className = "asset-path";
-    pathEl.textContent = path || "未选择图片，点「选择图片」";
-    pathEl.title = "在项目列表中定位该素材";
-    pathEl.addEventListener("click", function () {
+    var block = document.createElement('div');
+    block.className = 'asset-block drop-image';
+    var path = node[field.key] || '';
+    var pathEl = document.createElement('div');
+    pathEl.className = 'asset-path';
+    pathEl.textContent = path || '未选择图片，点「选择图片」';
+    pathEl.title = '定位该素材';
+    pathEl.addEventListener('click', function () {
       if (path && window.UrhoxProject) window.UrhoxProject.revealAsset(path);
     });
     block.appendChild(pathEl);
     if (path) {
-      var img = document.createElement("img");
-      img.className = "asset-thumb";
+      var img = document.createElement('img');
+      img.className = 'asset-thumb';
       img.alt = path;
       img.draggable = false;
       if (window.UrhoxProject && window.UrhoxProject.bindAssetThumb) {
@@ -578,50 +894,54 @@
       }
       block.appendChild(img);
     }
-    var actions = document.createElement("div");
-    actions.className = "asset-actions";
-    var pickBtn = document.createElement("button");
-    pickBtn.type = "button";
-    pickBtn.className = "ghost";
-    pickBtn.textContent = path ? "替换图片" : "选择图片";
-    pickBtn.addEventListener("click", function () {
+    var actions = document.createElement('div');
+    actions.className = 'asset-actions';
+    var pickBtn = document.createElement('button');
+    pickBtn.type = 'button';
+    pickBtn.className = 'ghost';
+    pickBtn.textContent = path ? '替换图片' : '选择图片';
+    pickBtn.addEventListener('click', function () {
       if (window.UrhoxProject) window.UrhoxProject.beginReplaceImage(node, field.key, onChange);
     });
-    var clearBtn = document.createElement("button");
-    clearBtn.type = "button";
-    clearBtn.className = "ghost";
-    clearBtn.textContent = "清除";
-    clearBtn.addEventListener("click", function () {
-      emitChange(onChange, { phase: "start" });
+    var clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'ghost';
+    clearBtn.textContent = '清除';
+    clearBtn.addEventListener('click', function () {
+      emitChange(onChange, { phase: 'start' });
       delete node[field.key];
-      emitChange(onChange, { phase: "end" });
+      emitChange(onChange, { phase: 'end' });
     });
     actions.appendChild(pickBtn);
     actions.appendChild(clearBtn);
     block.appendChild(actions);
-    var dropHint = document.createElement("div");
-    dropHint.className = "slice-hint";
-    dropHint.textContent = "可从底部 Assets 拖一张图到这里";
+    var dropHint = document.createElement('div');
+    dropHint.className = 'slice-hint';
+    dropHint.textContent = '可从资产列表拖一张图到这里';
     block.appendChild(dropHint);
     function takeRef(event) {
-      var raw = event.dataTransfer && event.dataTransfer.getData("text/plain");
-      if (raw && raw.indexOf("urhox-image:") === 0) return raw.slice("urhox-image:".length);
-      return "";
+      return window.UrhoxProject && window.UrhoxProject.dropImageRef
+        ? window.UrhoxProject.dropImageRef(event.dataTransfer)
+        : '';
     }
-    block.addEventListener("dragover", function (event) {
-      if (takeRef(event) || (event.dataTransfer && event.dataTransfer.types && event.dataTransfer.types.length)) {
+    block.addEventListener('dragover', function (event) {
+      if (
+        takeRef(event) ||
+        (event.dataTransfer && event.dataTransfer.types && event.dataTransfer.types.length)
+      ) {
         event.preventDefault();
-        block.classList.add("drop-over");
+        block.classList.add('drop-over');
       }
     });
-    block.addEventListener("dragleave", function () { block.classList.remove("drop-over"); });
-    block.addEventListener("drop", function (event) {
+    block.addEventListener('dragleave', function () {
+      block.classList.remove('drop-over');
+    });
+    block.addEventListener('drop', function (event) {
       event.preventDefault();
-      block.classList.remove("drop-over");
+      block.classList.remove('drop-over');
       var ref = takeRef(event);
-      if (ref && window.UrhoxProject && window.UrhoxProject.assignImageByRef) {
-        window.UrhoxProject.beginReplaceImage(node, field.key, onChange);
-        window.UrhoxProject.assignImageByRef(ref);
+      if (ref && window.UrhoxProject && window.UrhoxProject.assignImageTo) {
+        window.UrhoxProject.assignImageTo(node, field.key, onChange, ref);
       }
     });
     return block;
@@ -633,23 +953,29 @@
   }
 
   function renderGroup(group, node, onChange) {
-    var block = document.createElement("div");
-    block.className = "insp-group" + (isOpen(group) ? " open" : "");
-    var title = document.createElement("button");
-    title.type = "button";
-    title.className = "insp-fold";
-    title.textContent = (isOpen(group) ? "▾ " : "▸ ") + group.title;
-    var body = document.createElement("div");
-    body.className = "insp-body";
+    var block = document.createElement('div');
+    block.className = 'insp-group' + (isOpen(group) ? ' open' : '');
+    block.dataset.group = group.id;
+    var title = document.createElement('button');
+    title.type = 'button';
+    title.className = 'insp-fold';
+    var caret = document.createElement('span');
+    caret.className = 'insp-caret';
+    caret.setAttribute('aria-hidden', 'true');
+    caret.textContent = isOpen(group) ? '▾ ' : '▸ ';
+    title.appendChild(caret);
+    title.appendChild(document.createTextNode(group.title));
+    var body = document.createElement('div');
+    body.className = 'insp-body';
     body.hidden = !isOpen(group);
     (group.rows || []).forEach(function (fields) {
       body.appendChild(renderRow(node, fields, onChange));
     });
-    title.addEventListener("click", function () {
+    title.addEventListener('click', function () {
       openState[group.id] = !isOpen(group);
       body.hidden = !openState[group.id];
-      title.textContent = (openState[group.id] ? "▾ " : "▸ ") + group.title;
-      block.classList.toggle("open", openState[group.id]);
+      caret.textContent = openState[group.id] ? '▾ ' : '▸ ';
+      block.classList.toggle('open', openState[group.id]);
     });
     block.appendChild(title);
     block.appendChild(body);
@@ -657,101 +983,124 @@
   }
 
   function renderSelection(container, nodes, onChange, meta) {
-    var heading = document.createElement("p");
-    heading.className = "insp-note";
-    heading.textContent = "已选择 " + nodes.length + " 个节点";
+    var heading = document.createElement('p');
+    heading.className = 'insp-note';
+    heading.textContent = '已选择 ' + nodes.length + ' 个节点';
     container.appendChild(heading);
     if (meta.blocked) {
-      var note = document.createElement("p");
-      note.className = "muted insp-note";
-      note.textContent = "包含锁定或模板生成节点，无法批量编辑";
+      var note = document.createElement('p');
+      note.className = 'muted insp-note';
+      note.textContent = '包含锁定或模板生成节点，无法批量编辑';
       container.appendChild(note);
     }
     var fields = [
-      { key: "visible", label: "启用", type: "checkbox", fallback: true },
-      { key: "opacity", label: "透明度", type: "number", fallback: 1 },
+      { key: 'visible', label: '启用', type: 'checkbox', fallback: true },
+      { key: 'opacity', label: '透明度', type: 'number', fallback: 1 },
     ];
-    if (nodes.every(isTextNode)) fields.push({ key: "text", label: "Text", type: "text", fallback: "" });
+    if (nodes.every(isTextNode))
+      fields.push({ key: 'text', label: 'Text', type: 'text', fallback: '' });
     fields.forEach(function (field) {
-      var cell = document.createElement("label");
-      cell.className = "insp-cell";
-      var caption = document.createElement("span");
-      caption.className = "insp-key";
+      var cell = document.createElement('label');
+      cell.className = 'insp-cell';
+      var caption = document.createElement('span');
+      caption.className = 'insp-key';
       caption.textContent = field.label;
       cell.appendChild(caption);
-      var input = document.createElement("input");
+      var input = document.createElement('input');
       input.type = field.type;
       input.disabled = !!meta.blocked;
-      var values = nodes.map(function (n) { return n[field.key] == null ? field.fallback : n[field.key]; });
-      var mixed = values.some(function (value) { return value !== values[0]; });
-      var initial = mixed ? "" : String(values[0]);
+      var values = nodes.map(function (n) {
+        return n[field.key] == null ? field.fallback : n[field.key];
+      });
+      var mixed = values.some(function (value) {
+        return value !== values[0];
+      });
+      var initial = mixed ? '' : String(values[0]);
       var cancelled = false;
-      if (field.type === "checkbox") {
+      if (field.type === 'checkbox') {
         input.checked = !mixed && values[0] === true;
         input.indeterminate = mixed;
       } else {
         input.value = initial;
-        input.placeholder = mixed ? "混合" : "";
-        if (field.type === "number") { input.min = "0"; input.max = "1"; input.step = "any"; }
+        input.placeholder = mixed ? '混合' : '';
+        if (field.type === 'number') {
+          input.min = '0';
+          input.max = '1';
+          input.step = 'any';
+        }
       }
-      input.addEventListener("keydown", function (event) {
-        if (event.key === "Escape" && field.type !== "checkbox") {
+      input.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && field.type !== 'checkbox') {
           input.value = initial;
           cancelled = true;
-          input.setCustomValidity("");
+          input.setCustomValidity('');
           event.preventDefault();
         }
       });
-      input.addEventListener("input", function () { cancelled = false; input.setCustomValidity(""); });
-      input.addEventListener("change", function () {
+      input.addEventListener('input', function () {
+        cancelled = false;
+        input.setCustomValidity('');
+      });
+      input.addEventListener('change', function () {
         if (cancelled || meta.blocked || (meta.isCurrent && !meta.isCurrent())) return;
-        var value = field.type === "checkbox" ? input.checked : input.value;
-        if (field.type === "number") {
-          value = input.value.trim() === "" ? undefined : Number(input.value);
-          if (input.validity && input.validity.badInput ||
-              value !== undefined && (!Number.isFinite(value) || value < 0 || value > 1)) {
-            input.setCustomValidity("透明度必须为 0 到 1");
+        var value = field.type === 'checkbox' ? input.checked : input.value;
+        if (field.type === 'number') {
+          value = input.value.trim() === '' ? undefined : Number(input.value);
+          if (
+            (input.validity && input.validity.badInput) ||
+            (value !== undefined && (!Number.isFinite(value) || value < 0 || value > 1))
+          ) {
+            input.setCustomValidity('透明度必须为 0 到 1');
             input.reportValidity();
             return;
           }
         }
-        if (nodes.every(function (n) { return n[field.key] === value; })) return;
-        emitChange(onChange, { phase: "start" });
+        if (
+          nodes.every(function (n) {
+            return n[field.key] === value;
+          })
+        )
+          return;
+        emitChange(onChange, { phase: 'start' });
         nodes.forEach(function (n) {
           if (value === undefined) delete n[field.key];
           else n[field.key] = value;
         });
-        emitChange(onChange, { phase: "end" });
+        emitChange(onChange, { phase: 'end' });
       });
       cell.appendChild(input);
-      var line = document.createElement("div");
-      line.className = "insp-line cols-1";
+      var line = document.createElement('div');
+      line.className = 'insp-line cols-1';
       line.appendChild(cell);
       container.appendChild(line);
     });
-    var list = document.createElement("p");
-    list.className = "muted selection-names";
-    list.textContent = nodes.map(function (n) { return n.id || n.type; }).join("、");
+    var list = document.createElement('p');
+    list.className = 'muted selection-names';
+    list.textContent = nodes
+      .map(function (n) {
+        return n.id || n.type;
+      })
+      .join('、');
     container.appendChild(list);
   }
 
   function renderComponentNote(container, meta) {
     if (!meta || !meta.componentRef) return;
-    var note = document.createElement("div");
-    note.className = "component-instance-note";
-    var title = document.createElement("strong");
-    title.textContent = "组件实例";
+    var note = document.createElement('div');
+    note.className = 'component-instance-note';
+    var title = document.createElement('strong');
+    title.textContent = '组件实例';
     note.appendChild(title);
-    var ref = document.createElement("code");
+    var ref = document.createElement('code');
     ref.textContent = meta.componentRef;
     note.appendChild(ref);
-    if (typeof meta.onOpenComponent === "function") {
-      var button = document.createElement("button");
-      button.type = "button";
-      button.className = "ghost";
-      button.textContent = "打开组件源文件";
-      button.title = "编辑这个组件会影响所有引用它的页面";
-      button.addEventListener("click", function () {
+    if (typeof meta.onOpenComponent === 'function') {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ghost';
+      button.textContent = '打开组件源文件';
+      button.title = '编辑这个组件会影响所有引用它的页面';
+      button.addEventListener('click', function () {
         meta.onOpenComponent(meta.componentRef);
       });
       note.appendChild(button);
@@ -759,33 +1108,63 @@
     container.appendChild(note);
   }
 
+  var selectionTransforms = null;
+  function inspectorTransforms() {
+    var layout = root.UrhoxHost && root.UrhoxHost.layout;
+    if (!layout || !layout.inspectorTransforms) return null;
+    if (!selectionTransforms) {
+      selectionTransforms = document.createElement('div');
+      selectionTransforms.className = 'inspector-transforms';
+      ['selectionRotation', 'selectionScale', 'transformStatus'].forEach(function (id) {
+        var field = document.getElementById(id);
+        if (field)
+          selectionTransforms.appendChild(id === 'transformStatus' ? field : field.parentNode);
+      });
+    }
+    return selectionTransforms;
+  }
+
   function render(container, node, onChange, meta) {
-    container.innerHTML = "";
+    // Preserve the original controls and listeners across inspector rebuilds. Park them where
+    // preview.updateMeta can still update selection state even when no node is selected.
+    var transforms = inspectorTransforms();
+    if (transforms) {
+      document.querySelector('.transform-toolbar').appendChild(transforms);
+    }
+    container.innerHTML = '';
     if (!node) {
-      container.innerHTML = "<p class=\"muted\">选中一个节点后显示属性</p>";
+      container.innerHTML = '<p class="muted">选中一个节点后显示属性</p>';
       return;
     }
     meta = meta || {};
     if (meta.selection && meta.selection.length > 1) {
       renderSelection(container, meta.selection, onChange, meta);
+      if (transforms) {
+        var group = renderGroup({ id: 'rect', title: 'Rect Transform', rows: [] }, node, onChange);
+        group.querySelector('.insp-body').appendChild(transforms);
+        container.appendChild(group);
+      }
       return;
     }
     renderComponentNote(container, meta);
     if (meta.generated) {
-      var gen = document.createElement("p");
-      gen.className = "muted insp-note";
-      gen.textContent = "此区域由模板生成，当前页面不可直接编辑实例。请打开对应模板文件。";
+      var gen = document.createElement('p');
+      gen.className = 'muted insp-note';
+      gen.textContent = '此区域由模板生成，当前页面不可直接编辑实例。请打开对应模板文件。';
       container.appendChild(gen);
     }
     if (meta.repeat) {
-      var rep = document.createElement("p");
-      rep.className = "muted insp-note";
-      rep.textContent = "动态列表容器：保存时会保留 $repeat，画布上的格子只是预览。";
+      var rep = document.createElement('p');
+      rep.className = 'muted insp-note';
+      rep.textContent = '动态列表容器：保存时会保留 $repeat，画布上的格子只是预览。';
       container.appendChild(rep);
     }
     GROUPS.forEach(function (group) {
       if (group.showIf && !group.showIf(node, meta)) return;
-      container.appendChild(renderGroup(group, node, onChange));
+      var block = renderGroup(group, node, onChange);
+      if (transforms && group.id === 'rect')
+        block.querySelector('.insp-body').appendChild(transforms);
+      container.appendChild(block);
     });
   }
 

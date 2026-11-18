@@ -13,6 +13,7 @@ import {
   validateCanvasMark,
 } from '../marks.js';
 import { createId, emptyDocument } from '../model.js';
+import { createCanvasMarks } from '../../../../packages/maker-canvas/src/browser/marks.js';
 
 test('mark style rejects unknown fields and arrow-only direction', () => {
   expect(validateCanvasMark({ shape: 'arrow' })).toEqual({
@@ -176,4 +177,107 @@ test('arrow endpoints and box edges adjust independently', () => {
   canvasMarkResizeEdge(box, 'left', 20, 0);
   expect(box.x).toBe(20);
   expect(box.x + box.width).toBe(160);
+});
+
+test('mark frames move from their border while the hollow center stays transparent', () => {
+  const page = getCanvasPageHtml();
+  expect(page).toContain(
+    '.card.canvas-mark .mark-box { box-sizing:border-box; width:100%; height:100%; background:transparent; border-radius:4px; pointer-events:none; }'
+  );
+  expect(page).toContain(
+    '.mark-edge[data-edge="top"], .mark-edge[data-edge="bottom"] { left:0; right:0; height:14px; cursor:move; }'
+  );
+  expect(page).toContain(
+    '.mark-edge[data-edge="left"], .mark-edge[data-edge="right"] { top:0; bottom:0; width:14px; cursor:move; }'
+  );
+  expect(page).not.toContain(
+    '.card.canvas-mark.selected .mark-box { pointer-events:auto; cursor:move; }'
+  );
+});
+
+test('dragging a frame border preserves its grab point, and corners still resize', () => {
+  const globals = globalThis as unknown as { document: unknown };
+  const previous = globals.document;
+  const down: Array<(event: PointerEvent) => void> = [];
+  const listeners = new Map<string, (event: PointerEvent) => void>();
+  const board = {
+    addEventListener: (type: string, handler: (event: PointerEvent) => void) => {
+      if (type === 'pointerdown') down.push(handler);
+    },
+    classList: { toggle: jest.fn(), remove: jest.fn() },
+    setPointerCapture: jest.fn(),
+  };
+  const node = {
+    id: 'box',
+    type: 'mark' as const,
+    title: 'frame',
+    x: 100,
+    y: 200,
+    width: 300,
+    height: 180,
+  };
+  const card = { getAttribute: () => node.id };
+  const hit = (kind: 'edge' | 'box' | 'corner') => ({
+    closest: (selector: string) => {
+      if (kind === 'edge' && selector === '.mark-edge') return { closest: () => card };
+      if (kind === 'box' && selector === '.mark-box') return { closest: () => card };
+      if (kind === 'corner' && selector === '.mark-corner')
+        return {
+          closest: () => card,
+          getAttribute: (name: string) => (name === 'data-corner' ? 'se' : null),
+        };
+      return null;
+    },
+  });
+  const pointer = (x: number, y: number, kind: 'edge' | 'box' | 'corner') =>
+    ({
+      target: hit(kind),
+      pointerId: 1,
+      button: 0,
+      clientX: x,
+      clientY: y,
+      preventDefault: jest.fn(),
+      stopImmediatePropagation: jest.fn(),
+    }) as unknown as PointerEvent;
+  const remember = jest.fn();
+  globals.document = {
+    getElementById: () => null,
+    querySelector: () => null,
+    addEventListener: (type: string, handler: (event: PointerEvent) => void) =>
+      listeners.set(type, handler),
+  };
+  try {
+    createCanvasMarks({
+      board: () => board as unknown as HTMLElement,
+      document: () => ({ nodes: [node] }),
+      worldPoint: (event) => ({ x: event.clientX / 2, y: event.clientY / 2 }),
+      navigation: () => false,
+      blocked: () => false,
+      remember,
+      changed: jest.fn(),
+      render: jest.fn(),
+      select: jest.fn(),
+    });
+    down.forEach((handler) => handler(pointer(300, 500, 'edge')));
+    listeners.get('pointermove')!(pointer(300, 500, 'edge'));
+    expect([node.x, node.y]).toEqual([100, 200]);
+    listeners.get('pointermove')!(pointer(340, 520, 'edge'));
+    expect([node.x, node.y, node.width, node.height]).toEqual([120, 210, 300, 180]);
+    listeners.get('pointerup')!(pointer(340, 520, 'edge'));
+    expect(remember).toHaveBeenCalledTimes(1);
+
+    const hollow = pointer(300, 500, 'box');
+    down.forEach((handler) => handler(hollow));
+    listeners.get('pointermove')!(pointer(400, 600, 'box'));
+    expect([node.x, node.y, node.width, node.height]).toEqual([120, 210, 300, 180]);
+    expect(hollow.preventDefault).not.toHaveBeenCalled();
+
+    down.forEach((handler) => handler(pointer(840, 780, 'corner')));
+    listeners.get('pointermove')!(pointer(900, 820, 'corner'));
+    expect([node.x, node.y, node.width, node.height]).toEqual([120, 210, 330, 200]);
+    listeners.get('pointerup')!(pointer(900, 820, 'corner'));
+    expect(remember).toHaveBeenCalledTimes(2);
+  } finally {
+    globals.document = previous;
+  }
 });

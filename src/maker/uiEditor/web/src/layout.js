@@ -10,22 +10,29 @@
   var zoomLabel = document.getElementById("zoomLabel");
   var fitBtn = document.getElementById("fitBtn");
 
+  // Hosts may set a default bottom panel height and their own storage key (UrhoxHost.layout),
+  // e.g. when they put taller content in the bottom panel.
+  var hostLayout = (window.UrhoxHost && window.UrhoxHost.layout) || {};
+  var DEFAULT_BOTTOM = Number.isFinite(hostLayout.bottom) && hostLayout.bottom > 0 ? hostLayout.bottom : 200;
   var leftW = 280;
   var rightW = 320;
-  var bottomH = 200;
+  var bottomH = DEFAULT_BOTTOM;
   var projLeftW = 240;
   var leftVisible = true;
   var rightVisible = true;
   var bottomVisible = true;
   var zoom = 0.5;
+  var drawnZoom = null;
   var panX = 24;
   var panY = 24;
   var spaceDown = false;
   var MIN_SIDE = 180;
+  var MAX_RIGHT = Number.isFinite(hostLayout.maxRightWidth) && hostLayout.maxRightWidth >= MIN_SIDE
+    ? hostLayout.maxRightWidth : Infinity;
   var MIN_BOTTOM = 120;
   var MIN_PREVIEW = 220;
   var GRID = 18;
-  var STORAGE = "urhox.panel-layout.v1";
+  var STORAGE = typeof hostLayout.storageKey === "string" && hostLayout.storageKey ? hostLayout.storageKey : "urhox.panel-layout.v1";
   try {
     var saved = JSON.parse(localStorage.getItem(STORAGE) || "null");
     if (saved && [saved.left,saved.right,saved.bottom,saved.project].every(function (n) { return Number.isFinite(n) && n>0; })) {
@@ -41,6 +48,7 @@
   }
 
   function applySizes() {
+    rightW = Math.min(rightW, MAX_RIGHT);
     var sideMax=Math.max(120,(window.innerWidth-MIN_PREVIEW-12)/2);
     root.style.setProperty("--left-w", leftVisible ? Math.min(leftW,sideMax) + "px" : "0px");
     root.style.setProperty("--right-w", rightVisible ? Math.min(rightW,sideMax) + "px" : "0px");
@@ -88,7 +96,23 @@
       preview.style.setProperty("--grid-y", (panY % GRID) + "px");
     }
     if (window.UrhoxComparison) window.UrhoxComparison.syncView();
+    var zoomChanged = zoom !== drawnZoom;
+    if (window.UrhoxPreview && window.UrhoxPreview.draw && (zoomChanged || window.UrhoxPreview.hasMarquee && window.UrhoxPreview.hasMarquee())) {
+      drawnZoom = zoom;
+      window.UrhoxPreview.draw();
+    }
     if (zoomLabel) zoomLabel.textContent = Math.round(zoom * 100) + "%";
+  }
+
+  // A host may reserve canvas space occupied by floating controls.
+  function fitViewport(width, height) {
+    var full = { left: 0, top: 0, width: preview.clientWidth, height: preview.clientHeight };
+    var host = window.UrhoxHost;
+    var area = host && typeof host.previewViewport === "function" ? host.previewViewport({ width: width, height: height }) : null;
+    if (!area || ![area.left, area.top, area.width, area.height].every(Number.isFinite) || area.width <= 0 || area.height <= 0) return full;
+    var left = Math.max(0, Math.min(full.width - 1, area.left));
+    var top = Math.max(0, Math.min(full.height - 1, area.top));
+    return { left: left, top: top, width: Math.min(area.width, full.width - left), height: Math.min(area.height, full.height - top) };
   }
 
   function fitPreview() {
@@ -97,13 +121,14 @@
     var originY = Number(canvas.dataset.originY || 0);
     var designW = canvas.width - originX * 2;
     var designH = canvas.height - originY * 2;
-    var margin = 72;
-    var sx = (preview.clientWidth - margin) / Math.max(1, designW);
-    var sy = (preview.clientHeight - margin) / Math.max(1, designH);
+    var area = fitViewport(designW, designH);
+    var margin = Math.min(72, area.width / 3, area.height / 3);
+    var sx = (area.width - margin) / Math.max(1, designW);
+    var sy = (area.height - margin) / Math.max(1, designH);
     var cap = designW < 480 || designH < 480 ? 4 : 1.5;
     zoom = Math.max(0.08, Math.min(sx, sy, cap));
-    panX = (preview.clientWidth - designW * zoom) / 2 - originX * zoom;
-    panY = (preview.clientHeight - designH * zoom) / 2 - originY * zoom;
+    panX = area.left + (area.width - designW * zoom) / 2 - originX * zoom;
+    panY = area.top + (area.height - designH * zoom) / 2 - originY * zoom;
     applyView();
   }
 
@@ -130,7 +155,7 @@
         if (kind === "left") {
           leftW = Math.max(MIN_SIDE, Math.min(window.innerWidth - rightW - MIN_PREVIEW, startLeft + (ev.clientX - startX)));
         } else if (kind === "right") {
-          rightW = Math.max(MIN_SIDE, Math.min(window.innerWidth - leftW - MIN_PREVIEW, startRight - (ev.clientX - startX)));
+          rightW = Math.max(MIN_SIDE, Math.min(MAX_RIGHT, window.innerWidth - leftW - MIN_PREVIEW, startRight - (ev.clientX - startX)));
         } else if (kind === "bottom") {
           bottomH = Math.max(MIN_BOTTOM, Math.min(window.innerHeight - 160, startBottom - (ev.clientY - startY)));
         } else if (kind === "project") {
@@ -195,7 +220,19 @@
       var mx = event.clientX - rect.left;
       var my = event.clientY - rect.top;
       var before = zoom;
-      var factor = event.deltaY < 0 ? 1.08 : 1 / 1.08;
+      var config = window.UrhoxConfig || {};
+      var unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 800 : 1;
+      if (config.WHEEL === "pan" && !event.ctrlKey && !event.metaKey) {
+        // Shift+wheel on a mouse scrolls sideways; trackpads already report deltaX.
+        var sideways = event.shiftKey && !event.deltaX;
+        panX -= (sideways ? event.deltaY : event.deltaX) * unit;
+        panY -= (sideways ? 0 : event.deltaY) * unit;
+        applyView();
+        return;
+      }
+      var factor = config.WHEEL === "pan"
+        ? Math.exp(-event.deltaY * unit * 0.002)
+        : event.deltaY < 0 ? 1.08 : 1 / 1.08;
       zoom = Math.max(0.08, Math.min(8, zoom * factor));
       panX = mx - (mx - panX) * (zoom / before);
       panY = my - (my - panY) * (zoom / before);
@@ -234,7 +271,7 @@
   if (fitBtn) fitBtn.addEventListener("click", fitPreview);
   var resetBtn=document.getElementById("resetLayoutBtn");
   if (resetBtn) resetBtn.addEventListener("click",function () {
-    leftW=280; rightW=320; bottomH=200; projLeftW=240; leftVisible=true; rightVisible=true; bottomVisible=true; persist(); applySizes(); fitPreview();
+    leftW=280; rightW=320; bottomH=DEFAULT_BOTTOM; projLeftW=240; leftVisible=true; rightVisible=true; bottomVisible=true; persist(); applySizes(); fitPreview();
   });
   window.addEventListener("resize", function () { applySizes(); });
 
@@ -245,6 +282,15 @@
   window.UrhoxView = {
     fit: fitPreview,
     getZoom: function () { return zoom; },
+    /** Pan and zoom, e.g. to restore them after reloading the same document. */
+    getView: function () { return { zoom: zoom, panX: panX, panY: panY }; },
+    setView: function (view) {
+      if (!view || !Number.isFinite(view.zoom)) return;
+      zoom = Math.max(0.08, Math.min(8, view.zoom));
+      panX = Number(view.panX) || 0;
+      panY = Number(view.panY) || 0;
+      applyView();
+    },
     setZoom: function (value) {
       if (!preview || !canvas) return;
       zoom = Math.max(0.08, Math.min(8, value));
@@ -266,11 +312,12 @@
       var sy = originY + fit.y + box.y * fit.scale;
       var sw = box.w * fit.scale;
       var sh = box.h * fit.scale;
-      var pad = 64;
-      var z = Math.min((preview.clientWidth - pad) / sw, (preview.clientHeight - pad) / sh, 8);
+      var area = fitViewport(sw, sh);
+      var pad = Math.min(64, area.width / 3, area.height / 3);
+      var z = Math.min((area.width - pad) / sw, (area.height - pad) / sh, 8);
       zoom = Math.max(0.08, z);
-      panX = (preview.clientWidth - sw * zoom) / 2 - sx * zoom;
-      panY = (preview.clientHeight - sh * zoom) / 2 - sy * zoom;
+      panX = area.left + (area.width - sw * zoom) / 2 - sx * zoom;
+      panY = area.top + (area.height - sh * zoom) / 2 - sy * zoom;
       applyView();
     },
     zoomBy: function (factor) {

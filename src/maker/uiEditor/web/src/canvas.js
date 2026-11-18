@@ -4,6 +4,73 @@
   "use strict";
 
   var BLUE = "#0D99FF";
+  // Hosts may restyle the overlay and device frame through CSS variables on :root:
+  // --editor-accent (selection colour), --editor-halo (contrast outline under accent strokes),
+  // --editor-handle (square | round), --editor-bezel and --editor-bezel-outline (px),
+  // --editor-screen-bg, --editor-frame-line and --editor-frame-shadow (optional colours).
+  var frame = { accent: BLUE, halo: "", round: false, bezel: null, outline: 4 };
+  var probes = {};
+  // Colours go through a probe element so any CSS colour syntax resolves to rgb() for canvas.
+  function resolveColor(name, fallback) {
+    var probe = probes[name];
+    if (!probe) {
+      probe = probes[name] = document.createElement("span");
+      probe.hidden = true;
+      probe.style.color = "var(" + name + ", " + fallback + ")";
+      (document.body || document.documentElement).appendChild(probe);
+    }
+    var color = getComputedStyle(probe).color;
+    // Older canvases reject newer syntaxes (color(), color-mix); fall back instead of keeping
+    // whatever colour was set last.
+    var test = probes.ctx || (probes.ctx = document.createElement("canvas").getContext("2d"));
+    test.fillStyle = "#010203";
+    test.fillStyle = color;
+    return test.fillStyle === "#010203" && color !== "rgb(1, 2, 3)" ? fallback : color;
+  }
+  function readFrameStyle() {
+    var style = getComputedStyle(document.documentElement);
+    var bezel = parseFloat(style.getPropertyValue("--editor-bezel"));
+    var outline = parseFloat(style.getPropertyValue("--editor-bezel-outline"));
+    var selectionWidth = parseFloat(style.getPropertyValue("--editor-selection-width"));
+    frame.selectionWidth = selectionWidth > 0 ? selectionWidth : 1;
+    frame.accent = resolveColor("--editor-accent", BLUE);
+    frame.halo = style.getPropertyValue("--editor-halo").trim() ? resolveColor("--editor-halo", "transparent") : "";
+    frame.round = style.getPropertyValue("--editor-handle").trim() === "round";
+    frame.bezel = bezel >= 0 ? bezel : null;
+    frame.outline = outline >= 0 ? outline : 4;
+    frame.screenBg = style.getPropertyValue("--editor-screen-bg").trim() ? resolveColor("--editor-screen-bg", "transparent") : "";
+    frame.line = style.getPropertyValue("--editor-frame-line").trim() ? resolveColor("--editor-frame-line", "transparent") : "";
+    frame.shadow = style.getPropertyValue("--editor-frame-shadow").trim() ? resolveColor("--editor-frame-shadow", "transparent") : "";
+  }
+  function strokeAccentRect(ctx, app, x, y, w, h, px) {
+    px = Math.max(px, frame.selectionWidth);
+    if (frame.halo) {
+      ctx.strokeStyle = frame.halo;
+      ctx.lineWidth = screenLine(app, px + 2);
+      ctx.strokeRect(x, y, w, h);
+    }
+    ctx.strokeStyle = frame.accent;
+    ctx.lineWidth = screenLine(app, px);
+    ctx.strokeRect(x, y, w, h);
+  }
+  function handlePath(ctx, x, y, hs) {
+    ctx.beginPath();
+    if (frame.round) ctx.arc(x, y, hs / 2, 0, Math.PI * 2);
+    else ctx.rect(x - hs / 2, y - hs / 2, hs, hs);
+  }
+  function drawHandle(ctx, app, x, y, hs) {
+    handlePath(ctx, x, y, hs);
+    if (frame.halo) {
+      ctx.strokeStyle = frame.halo;
+      ctx.lineWidth = screenLine(app, 3.25);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.strokeStyle = frame.accent;
+    ctx.lineWidth = screenLine(app, Math.max(1.25, frame.selectionWidth));
+    ctx.stroke();
+  }
   var PINK = "#F24822";
 
   function screenLine(app, px) {
@@ -155,7 +222,7 @@
     ctx.textBaseline = "middle";
     var w = ctx.measureText(text).width + 8 / zoom;
     var h = 16 / zoom;
-    ctx.fillStyle = BLUE;
+    ctx.fillStyle = frame.accent;
     ctx.fillRect(x - w / 2, y - h / 2, w, h);
     ctx.fillStyle = "#fff";
     ctx.fillText(text, x, y + 0.5 / zoom);
@@ -192,21 +259,13 @@
     var matrix = root.UrhoxGeom.worldMatrix(tree, node);
     ctx.transform.apply(ctx, matrix);
     if (kind === "selected") {
-      ctx.strokeStyle = BLUE;
-      ctx.lineWidth = screenLine(app, 1.5);
-      ctx.strokeRect(box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1));
+      strokeAccentRect(ctx, app, box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1), 1.5);
       var hs = handleSize(app);
       handlesFor(box).forEach(function (h) {
-        ctx.fillStyle = "#ffffff";
-        ctx.strokeStyle = BLUE;
-        ctx.lineWidth = screenLine(app, 1.25);
-        ctx.fillRect(h.x - hs / 2, h.y - hs / 2, hs, hs);
-        ctx.strokeRect(h.x - hs / 2, h.y - hs / 2, hs, hs);
+        if (h.id.length === 2) drawHandle(ctx, app, h.x, h.y, hs);
       });
     } else if (kind === "hover") {
-      ctx.strokeStyle = BLUE;
-      ctx.lineWidth = screenLine(app, 1);
-      ctx.strokeRect(box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1));
+      strokeAccentRect(ctx, app, box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1), 1);
     }
     ctx.restore();
   }
@@ -235,6 +294,41 @@
     ctx.restore();
   }
 
+  // Draw in viewport coordinates so the stage bitmap cannot clip a selection drag.
+  function drawMarquee(app, origin, fit) {
+    if (!app.marquee) {
+      if (app.marqueeLayer) app.marqueeLayer.style.display = "none";
+      return;
+    }
+    var preview = document.getElementById("preview");
+    if (!preview) return;
+    if (!app.marqueeLayer) {
+      var layer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      layer.setAttribute("aria-hidden", "true");
+      layer.setAttribute("class", "marquee-overlay");
+      layer.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:2";
+      var rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      rect.setAttribute("fill-opacity", "0.12");
+      layer.appendChild(rect);
+      preview.appendChild(layer);
+      app.marqueeLayer = layer;
+    }
+    var box = app.canvas.getBoundingClientRect();
+    var viewport = preview.getBoundingClientRect();
+    var scaleX = box.width / app.canvas.width;
+    var scaleY = box.height / app.canvas.height;
+    var mq = root.UrhoxGeom.rect(app.marquee.x, app.marquee.y, app.marquee.w, app.marquee.h);
+    var outline = app.marqueeLayer.firstChild;
+    outline.setAttribute("x", box.left - viewport.left + (origin.x + fit.x + mq.x * fit.scale) * scaleX);
+    outline.setAttribute("y", box.top - viewport.top + (origin.y + fit.y + mq.y * fit.scale) * scaleY);
+    outline.setAttribute("width", mq.w * fit.scale * scaleX);
+    outline.setAttribute("height", mq.h * fit.scale * scaleY);
+    outline.setAttribute("fill", frame.accent);
+    outline.setAttribute("stroke", frame.accent);
+    outline.setAttribute("stroke-width", frame.selectionWidth);
+    app.marqueeLayer.style.display = "block";
+  }
+
   function draw(app) {
     var canvas = app.canvas;
     var ctx = app.ctx;
@@ -242,12 +336,37 @@
     var screen = app.screen;
     var device = app.device;
     if (!canvas || !ctx || !tree) return;
+    readFrameStyle();
     var o = app.origin();
     var fit = app.contentTransform();
+    drawMarquee(app, o, fit);
     var prefab = !app.inViewport();
     var src = app.designSize();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    var frameWidth = prefab ? src.width : screen.width;
+    var frameHeight = prefab ? src.height : screen.height;
+    var zoom = root.UrhoxView ? root.UrhoxView.getZoom() : 1;
+    zoom = Math.max(0.01, zoom);
+    if (frame.screenBg) {
+      ctx.save();
+      ctx.fillStyle = frame.screenBg;
+      if (frame.shadow) {
+        // Canvas shadows ignore the context transform; CSS zoom still scales the bitmap.
+        ctx.shadowColor = frame.shadow;
+        ctx.globalAlpha = 0.6;
+        ctx.shadowBlur = 2 / zoom;
+        ctx.shadowOffsetY = 1 / zoom;
+      }
+      ctx.fillRect(o.x, o.y, frameWidth, frameHeight);
+      if (frame.shadow) {
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 24 / zoom;
+        ctx.shadowOffsetY = 8 / zoom;
+        ctx.fillRect(o.x, o.y, frameWidth, frameHeight);
+      }
+      ctx.restore();
+    }
     ctx.setTransform(1, 0, 0, 1, o.x, o.y);
     ctx.translate(fit.x, fit.y);
     ctx.scale(fit.scale, fit.scale);
@@ -256,25 +375,32 @@
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (!prefab) {
-      var bezel = device.bezel || 24;
+      var bezel = frame.bezel != null ? frame.bezel : device.bezel || 24;
       ctx.save();
-      ctx.fillStyle = "rgba(8, 10, 14, 0.55)";
-      ctx.beginPath();
-      ctx.rect(o.x - bezel, o.y - bezel, screen.width + bezel * 2, screen.height + bezel * 2);
-      ctx.rect(o.x, o.y, screen.width, screen.height);
-      ctx.fill("evenodd");
-      ctx.strokeStyle = "rgba(255,255,255,0.35)";
-      ctx.lineWidth = 4;
-      ctx.strokeRect(o.x - bezel + 2, o.y - bezel + 2, screen.width + bezel * 2 - 4, screen.height + bezel * 2 - 4);
-      ctx.strokeStyle = "rgba(255,255,255,0.7)";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(o.x + 0.5, o.y + 0.5, screen.width - 1, screen.height - 1);
+      if (bezel > 0) {
+        ctx.fillStyle = "rgba(8, 10, 14, 0.55)";
+        ctx.beginPath();
+        ctx.rect(o.x - bezel, o.y - bezel, screen.width + bezel * 2, screen.height + bezel * 2);
+        ctx.rect(o.x, o.y, screen.width, screen.height);
+        ctx.fill("evenodd");
+        ctx.strokeStyle = "rgba(255,255,255,0.35)";
+        var ring = Math.min(frame.outline, bezel);
+        if (ring > 0) {
+          ctx.lineWidth = ring;
+          ctx.strokeRect(o.x - bezel + ring / 2, o.y - bezel + ring / 2, screen.width + bezel * 2 - ring, screen.height + bezel * 2 - ring);
+        }
+      }
+      ctx.strokeStyle = frame.line || "rgba(255,255,255,0.7)";
+      ctx.lineWidth = frame.line ? 1 / zoom : 1.5;
+      var inset = frame.line ? ctx.lineWidth / 2 : 0.5;
+      ctx.strokeRect(o.x + inset, o.y + inset, screen.width - inset * 2, screen.height - inset * 2);
       ctx.restore();
     } else {
       ctx.save();
-      ctx.strokeStyle = "rgba(255,255,255,0.22)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(o.x + 0.5, o.y + 0.5, src.width - 1, src.height - 1);
+      ctx.strokeStyle = frame.line || "rgba(255,255,255,0.22)";
+      ctx.lineWidth = frame.line ? 1 / zoom : 1;
+      var prefabInset = frame.line ? ctx.lineWidth / 2 : 0.5;
+      ctx.strokeRect(o.x + prefabInset, o.y + prefabInset, src.width - prefabInset * 2, src.height - prefabInset * 2);
       ctx.restore();
     }
 
@@ -302,18 +428,23 @@
         var handles = transform.handles(app);
         if (bounds && handles.length) {
           ctx.save();
-          ctx.strokeStyle = BLUE;
-          ctx.lineWidth = screenLine(app, 1);
-          ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
+          strokeAccentRect(ctx, app, bounds.x, bounds.y, bounds.w, bounds.h, 1);
           handles.forEach(function (h) {
             var hs = handleSize(app);
-            ctx.fillStyle = h.id === "rotate" ? BLUE : "#fff";
             if (h.id === "rotate") {
+              if (frame.halo) {
+                ctx.strokeStyle = frame.halo;
+                ctx.lineWidth = screenLine(app, 3);
+                ctx.beginPath(); ctx.moveTo(h.x, bounds.y); ctx.lineTo(h.x, h.y); ctx.stroke();
+                ctx.beginPath(); ctx.arc(h.x, h.y, hs/2, 0, Math.PI*2); ctx.stroke();
+              }
+              ctx.strokeStyle = frame.accent;
+              ctx.fillStyle = frame.accent;
+              ctx.lineWidth = screenLine(app, 1);
               ctx.beginPath(); ctx.moveTo(h.x, bounds.y); ctx.lineTo(h.x, h.y); ctx.stroke();
               ctx.beginPath(); ctx.arc(h.x, h.y, hs/2, 0, Math.PI*2); ctx.fill();
-            } else {
-              ctx.fillRect(h.x-hs/2, h.y-hs/2, hs, hs);
-              ctx.strokeRect(h.x-hs/2, h.y-hs/2, hs, hs);
+            } else if (h.id.length === 2) {
+              drawHandle(ctx, app, h.x, h.y, hs);
             }
           });
           ctx.restore();
@@ -324,16 +455,6 @@
         var box = selected._layout;
         drawLabel(ctx, app, Math.round(box.w) + " × " + Math.round(box.h), box.x + box.w / 2, box.y + box.h + 12);
       }
-    }
-    if (app.marquee) {
-      var mq = window.UrhoxGeom.rect(app.marquee.x, app.marquee.y, app.marquee.w, app.marquee.h);
-      ctx.save();
-      ctx.fillStyle = "rgba(13, 153, 255, 0.12)";
-      ctx.strokeStyle = BLUE;
-      ctx.lineWidth = screenLine(app, 1);
-      ctx.fillRect(mq.x, mq.y, mq.w, mq.h);
-      ctx.strokeRect(mq.x + 0.5, mq.y + 0.5, Math.max(0, mq.w - 1), Math.max(0, mq.h - 1));
-      ctx.restore();
     }
     if (app.spacingTarget && selected && selected._layout && app.spacingTarget._layout) {
       var a = root.UrhoxGeom.visualBounds(app.sourceTree || app.tree,selected);
