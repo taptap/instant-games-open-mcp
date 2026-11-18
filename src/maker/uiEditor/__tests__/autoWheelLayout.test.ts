@@ -274,7 +274,6 @@ function emit(
     ...init,
   };
   event.target = target;
-  if (!event.closest) event.closest = () => null;
   if (target !== preview) {
     for (const fn of preview.listeners.capture[type] || []) {
       fn(event);
