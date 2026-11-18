@@ -266,6 +266,7 @@ import { uiAtlasOrderPrompt } from '../features/uiAssetBindings.js';
 import { uiBindingContentRect, validateUiNativeRegions } from '../features/uiAssetBindings.js';
 import { validateUiAtlasGroup } from '../features/uiAssetBindings.js';
 import { uiAtlasElementGroup } from '../features/uiAssetBindings.js';
+import { UI_ATLAS_GROUP_LABELS } from '../features/uiAssetBindings.js';
 import { uiAtlasElementSlots } from '../features/uiAssetBindings.js';
 import { uiAtlasSheet } from '../features/uiAssetBindings.js';
 import { cloneUiAtlasBatch } from './uiAssetBindings.js';
@@ -2427,6 +2428,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     selectCanvasSnapshot.toString(),
     canvasAutomationSnapshot.toString(),
     validateCanvasCommand.toString(),
+    'const UI_ATLAS_GROUP_LABELS = ' + JSON.stringify(UI_ATLAS_GROUP_LABELS) + ';',
     syncUiBboxWorkflow.toString(),
     layoutUiWorkflowGroup.toString(),
     createUi015Workflow.toString(),

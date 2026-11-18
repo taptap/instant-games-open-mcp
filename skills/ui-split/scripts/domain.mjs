@@ -437,6 +437,7 @@ else if (input.operation === "plans") {
     return plans.filter((plan) => plan.slots.some((slot) => slot.role !== "reserve" && slot.role !== "background")).map((plan) => ({
       columns: plan.grid.columns,
       rows: plan.grid.rows,
+      group,
       slots: plan.slots.map((slot) => ({ elementId: slot.elementIds[0], state: slot.state, reserve: slot.role === "reserve" })),
       prompt: uiBatchAtlasPrompt(group, true) + "\n" + uiAtlasOrderPrompt(plan, 1, true)
     }));

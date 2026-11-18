@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import unicodedata
 import subprocess
 from pathlib import Path
 from PIL import Image
@@ -171,6 +172,7 @@ def plan_batches(state, root):
                     rows=rows,
                     slots=chunk,
                     prompt=plan["prompt"],
+                    group=plan["group"],
                 )
             )
             state["artifacts"].append(
@@ -184,6 +186,20 @@ def plan_batches(state, root):
     state["phase"] = "separate" if batches else "review"
 
 
+
+def valid_task_name(name):
+    """Match the canvas rule: Unicode letters or numbers, plus underscore and hyphen."""
+    if not isinstance(name, str) or not 1 <= len(name) <= 40:
+        return False
+    for char in name:
+        if char in "_-":
+            continue
+        category = unicodedata.category(char)
+        if not (category.startswith("L") or category.startswith("N")):
+            return False
+    return True
+
+
 def record(state, root, args):
     """Accept only the pending action result and never reinterpret unknown as failure."""
     action = state.get("pending")
@@ -194,17 +210,9 @@ def record(state, root, args):
         raise ValueError("Original source changed")
     if phase != "remove_text" and identity(root, state["cut"]["path"]) != state["cut"]:
         raise ValueError("Text-free source changed")
-    if args.file:
+    if args.file and phase == "remove_text":
         original = project_file(root, args.file)
-        target = (
-            root
-            / state["directory"]
-            / (
-                "text-free.png"
-                if phase == "remove_text"
-                else f"separated-{state.get('batch', 0)}-g{state.get('generation', 0)}.png"
-            )
-        )
+        target = root / state["directory"] / "text-free.png"
         with Image.open(original) as image:
             image.convert("RGBA").save(target)
         args.file = target.relative_to(root).as_posix()
@@ -324,9 +332,14 @@ def record(state, root, args):
         state["phase"] = "recognize_elements"
     else:
         batch = state["batches"][state["batch"]]
-        image_id = identity(root, args.file)
+        separated = (
+            root
+            / state["directory"]
+            / f"separated-{state.get('batch', 0)}-g{state.get('generation', 0)}.png"
+        )
         with Image.open(project_file(root, args.file)) as sheet:
             sheet = sheet.convert("RGBA")
+            prepared = []
             for index, slot in enumerate(batch["slots"]):
                 if slot.get("reserve"):
                     continue
@@ -339,14 +352,20 @@ def record(state, root, args):
                         (row + 1) * sheet.height // batch["rows"],
                     )
                 )
-                if tile.getchannel("A").getextrema()[0] == 255:
+                # Background batches are prompted to fill the frame, so a fully opaque tile is valid.
+                if (
+                    batch.get("group") != "background"
+                    and tile.getchannel("A").getextrema()[0] == 255
+                ):
                     raise ValueError(
                         "Sheet has no transparent background; preserve original task and review"
                     )
                 content = tile.getbbox()
                 if not content:
                     raise ValueError("A required slot is empty")
-                tile = tile.crop(content)
+                prepared.append((slot, tile.crop(content)))
+            sheet.save(separated)
+            for slot, tile in prepared:
                 key = slot["elementId"] + "-" + slot["state"]
                 path = Path(state["directory"]) / (
                     key + "-g" + str(state.get("generation", 0)) + ".png"
@@ -376,7 +395,7 @@ def record(state, root, args):
                         path=path.as_posix(),
                     )
                 )
-        batch["result"] = image_id
+        batch["result"] = identity(root, separated.relative_to(root).as_posix())
         state["batch"] += 1
         if state["batch"] == len(state["batches"]) or state.pop("redo_only", False):
             (root / state["directory"] / "bindings.json").write_text(
@@ -408,7 +427,7 @@ def main():
     parser.add_argument("--redo-batch", type=int)
     parser.add_argument("--confirm-new-generation", action="store_true")
     args = parser.parse_args()
-    if not re.fullmatch(r"[^\W_][\w-]{0,39}", args.name, re.UNICODE):
+    if not valid_task_name(args.name):
         raise ValueError(
             "Name must contain 1 to 40 letters, digits, underscore or hyphen"
         )

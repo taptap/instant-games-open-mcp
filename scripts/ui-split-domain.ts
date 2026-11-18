@@ -27,6 +27,7 @@ else if (input.operation === 'plans') {
         .map((plan) => ({
           columns: plan.grid.columns,
           rows: plan.grid.rows,
+          group,
           slots: plan.slots.map((slot) => ({
             elementId: slot.elementIds[0],
             state: slot.state,
