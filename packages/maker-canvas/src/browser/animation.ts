@@ -125,8 +125,7 @@ export function createAnimationCards(
           .join(';'),
       ].join('|');
       let entry = reused.get(node.id);
-      // Playback preference is local to this opened canvas, never part of exported assets.
-      if (!entry && info.frames.length > 1) playing.add(node.id);
+      // A new card starts paused. Re-renders keep the playing set and the current frame.
       if (!entry || entry.key !== key || entry.failed) {
         const canvas = document.createElement('canvas');
         canvas.className = 'animation-preview checkerboard';
@@ -160,7 +159,7 @@ export function createAnimationCards(
       controls.className = 'animation-controls';
       const play = document.createElement('button');
       play.type = 'button';
-      play.textContent = playing.has(node.id) ? '暂停' : '播放动画';
+      play.textContent = playing.has(node.id) ? '暂停' : '播放';
       play.disabled = true;
       item.label = label;
       item.play = play;
@@ -219,8 +218,8 @@ export function createAnimationCards(
       };
       const mount = () => {
         if (item.play) item.play.disabled = info.frames.length < 2;
-        // Arrival animations often begin transparent; keep a settled poster before playback.
-        if (item.current < 0) draw(info.frames.length - 1);
+        // Opening or reopening starts on frame 0 while paused. A later render keeps item.current.
+        if (item.current < 0) draw(0);
         else caption(item.current);
         let total = 0;
         const ends = info.frames.some((frame) => frame.duration)
@@ -279,7 +278,7 @@ export function createAnimationCards(
         event.stopPropagation();
         if (playing.has(node.id)) {
           playing.delete(node.id);
-          play.textContent = '播放动画';
+          play.textContent = '播放';
         } else {
           playing.add(node.id);
           play.textContent = '暂停';

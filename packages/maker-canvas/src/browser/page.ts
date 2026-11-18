@@ -905,7 +905,7 @@ function applyWebMediaPatches(source: string): string {
     [
       "      if (canvasWeb && chosen.length === 1 && chosen[0].type === 'section' && canvasFeatureEnabled(host, 'sections')) {",
       "        selectionToolbar.hidden = true; selectionMenu.hidden = false; const actions = document.createElement('div'); actions.className = 'selection-actions';",
-      "        [['取消分组', 'ungroup', function () { ungroupSection(chosen[0].id); }], ['删除分组', 'trash', function () { deleteSection(chosen[0].id); }]].forEach(function (entry) { const button = document.createElement('button'); button.type = 'button'; button.textContent = entry[0]; button.addEventListener('click', function (event) { event.stopPropagation(); entry[2](); }); actions.append(canvasWebIconAction(button, entry[1])); });",
+      "        [['取消分组', 'ungroup', function () { ungroupSection(chosen[0].id); }], ['删除分组', 'trash', function () { deleteSection(chosen[0].id); }]].forEach(function (entry) { const button = document.createElement('button'); button.type = 'button'; button.textContent = entry[0]; button.disabled = Boolean(entry[3]); button.addEventListener('click', function (event) { event.stopPropagation(); if (button.disabled) return; entry[2](); }); actions.append(canvasWebIconAction(button, entry[1])); });",
       '        selectionMenu.append(actions); positionSelectionToolbar(); return;',
       '      }',
       '      if (chosen.length === 1 && chosen[0].type === "mark") {',
@@ -2300,7 +2300,7 @@ function applySpriteGenPatches(source: string): string {
   // 重新整理 on sprite groups: selection menu and right-click / header ··· menu.
   patch(
     "[['取消分组', 'ungroup', function () { ungroupSection(chosen[0].id); }], ['删除分组', 'trash', function () { deleteSection(chosen[0].id); }]].forEach(",
-    "(chosen[0].spriteGen && spriteSyncEnabled() ? [['重新整理', 'tidy', function () { void tidySpriteSection(chosen[0].id); }]] : []).concat([['取消分组', 'ungroup', function () { ungroupSection(chosen[0].id); }], ['删除分组', 'trash', function () { deleteSection(chosen[0].id); }]]).forEach("
+    "uiSplitSectionEntries(chosen[0]).concat(chosen[0].spriteGen && spriteSyncEnabled() ? [['重新整理', 'tidy', function () { void tidySpriteSection(chosen[0].id); }]] : []).concat([['取消分组', 'ungroup', function () { ungroupSection(chosen[0].id); }], ['删除分组', 'trash', function () { deleteSection(chosen[0].id); }]]).forEach("
   );
   patch(
     '<button type="button" data-canvas-action="web-ungroup" data-menu-scope="web" hidden>取消分组</button>',
@@ -4245,9 +4245,11 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      if (!(await leaveCurrent())) return false;',
       '      await openDocument(id); return documentState.id === id;',
       '    },',
-      '    create: async function () {',
+      '    create: async function (title) {',
       '      if (!(await leaveCurrent())) return false;',
-      '      const created = await request("/canvases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "空白画布", template: "empty" }) });',
+      '      const name = String(title || "").trim().slice(0, 80);',
+      '      if (!name) return false;',
+      '      const created = await request("/canvases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: name, template: "empty" }) });',
       '      const option = document.createElement("option"); option.value = created.id; option.textContent = created.title; select.append(option);',
       '      await openDocument(created.id); return documentState.id === created.id;',
       '    },',
@@ -4750,6 +4752,15 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     [
       createCanvasUiSplitController.toString(),
       '  var uiSplitController;',
+      '  function uiSplitSectionEntries(node) {',
+      '    if (!uiSplitController || !node || !node.uiSplit) return [];',
+      '    var state = uiSplitController.actions(node);',
+      '    if (!state) return [];',
+      '    var entries = [];',
+      '    if (state.tidy) entries.push(["重新整理", "tidy", function () { void uiSplitController.tidy(node.id); }, state.tidy.disabled]);',
+      '    if (state.editor) entries.push(["打开 UI 编辑器", "editor", function () { void uiSplitController.openEditor(node.id); }, state.editor.disabled]);',
+      '    return entries;',
+      '  }',
       '  function renderUiSplit() { if (documentState) documentState.nodes.forEach(function (node) { if (node.mirror && node.mirror.source === "ui-split" && node.assetPath) media[node.assetPath] = store.mediaUrl(node.assetPath); }); render(); }',
       '  function uiSplitSync() { if (!canvasWeb || host.readOnly || !host.startUiSplit || !store.readUiSplitProgress) return Promise.resolve(); if (!uiSplitController) uiSplitController = createCanvasUiSplitController({ current: function () { return documentState; }, blocked: function () { return Boolean(drag || canvasOpening); }, store: store, host: host, save: flush, changed: markDirty, render: renderUiSplit, remember: remember, createId: function () { return crypto.randomUUID(); }, error: setError }); return uiSplitController.sync().catch(function (error) { setError(error.message); }); }',
       '  setInterval(function () { if (!canvasPanelHidden && document.visibilityState === "visible" && documentState && ((uiSplitController && uiSplitController.needsSync()) || documentState.nodes.some(function (node) { return node.uiSplit && node.uiSplit.phase !== "已完成"; }))) void uiSplitSync(); }, 10000);',
