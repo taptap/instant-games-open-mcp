@@ -41,7 +41,7 @@ import type { CanvasModelSettings } from '../contracts.js';
 import { videoInputSources, videoAttemptMatchesSources } from '../features/videoInputs.js';
 import { withCanvasTimeout } from '../browser/requestTimeout.js';
 import { designPngData } from './designPng.js';
-import { canvasWebIconAction } from './webChrome.js';
+import { canvasWebIconAction, openCanvasWebSlotChooser } from './webChrome.js';
 import { isUiCutoutSource, uiCutoutPrompt, type UiCutoutColor } from '../features/uiCutout.js';
 
 export interface CanvasWorkflowEdit {
@@ -69,6 +69,9 @@ export function imageEditSources(
 export interface CanvasGenerationUiOptions {
   /** Web composer: drops explanatory hints and adds the game-asset constraint pill. */
   web?: boolean;
+  referencePreview?(source: CanvasNode): Promise<string | undefined>;
+  prepareReferencePaths?(sources: CanvasNode[], references: string[]): Promise<string[]>;
+  pickProjectImages?(): Promise<{ path: string; name: string; kind?: string }[]>;
   /** Ordinary duration choices in seconds; explicit saved durations still follow model limits. */
   videoDurationOptions?: readonly number[];
   detectUiCutoutColor(paths: string[], mediaUrl: (path: string) => string): Promise<UiCutoutColor>;
@@ -436,7 +439,16 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   }
 
   function referenceLimit(node: any): number {
-    if (node.type === 'image') return 14;
+    if (node.type === 'image') {
+      const available = displayedImageModels.get(referenceKey(node));
+      const settings =
+        imageSettings.get(referenceKey(node)) ||
+        node.generationDraft?.parameters ||
+        node.generation?.parameters;
+      const model =
+        !settings?.model || settings.model === 'auto' ? available?.defaultModel : settings.model;
+      return available?.models.find((item) => item.id === model)?.maxReferenceImages ?? 14;
+    }
     const mode = currentVideoMode(node);
     const model =
       videoSettings.get(referenceKey(node))?.model ||
@@ -519,6 +531,112 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     }
   }
 
+  async function addReferencePaths(
+    node: any,
+    paths: string[],
+    canvasId: string,
+    workflow?: CanvasWorkflowEdit
+  ) {
+    const current = options.getDocument();
+    if (
+      !current ||
+      current.id !== canvasId ||
+      !current.nodes.some((item: any) => item.id === (node.draftSourceId || node.id))
+    )
+      return;
+    const key = referenceKey(node);
+    if (importingReferences.has(key) || inFlight.has(node.id)) return;
+    const existing = referencePaths(node);
+    const sources = referenceSources(node, Boolean(workflow));
+    const added = [...new Set(paths)].filter(
+      (path) => !existing.includes(path) && !sources.some((source) => source.assetPath === path)
+    );
+    if (sources.length + existing.length + added.length > referenceLimit(node)) {
+      options.setError('参考图数量超过当前输入方式的上限，请先移除部分图片。');
+      return;
+    }
+    importingReferences.add(key);
+    options.render();
+    try {
+      for (const path of added) await options.loadMedia(path);
+      if (
+        options.getDocument() !== current ||
+        !current.nodes.some((item: any) => item.id === (node.draftSourceId || node.id))
+      )
+        return;
+      rememberInput(node);
+      references.set(key, [...existing, ...added]);
+      options.setError('');
+    } catch (error) {
+      options.setError(error instanceof Error ? error.message : '参考图读取失败。');
+    } finally {
+      importingReferences.delete(key);
+      options.render();
+    }
+  }
+  let cancelReferencePick: (() => void) | undefined;
+  function pickCanvasReference(node: any, canvasId: string, workflow?: CanvasWorkflowEdit) {
+    cancelReferencePick?.();
+    const hint = document.createElement('div');
+    hint.className = 'canvas-reference-pick-hint';
+    hint.setAttribute('role', 'status');
+    hint.textContent = '点击画布图片添加参考；Esc 或点击完成退出';
+    const done = button('完成', () => cancel());
+    hint.append(done);
+    document.body.append(hint);
+    function cancel() {
+      hint.remove();
+      document.removeEventListener('pointerdown', choose, true);
+      document.removeEventListener('keydown', key, true);
+      cancelReferencePick = undefined;
+      options.setError('');
+    }
+    const key = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      cancel();
+    };
+    let adding = false;
+    const choose = (event: PointerEvent) => {
+      if (event.button !== 0 || hint.contains(event.target as Node)) return;
+      const current = options.getDocument();
+      if (current?.id !== canvasId) {
+        cancel();
+        return;
+      }
+      const card = (event.target as Element)?.closest?.('.card[data-id]');
+      if (!card) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const source = current.nodes.find((item: any) => item.id === card.getAttribute('data-id'));
+      if (!source || source.type !== 'image' || !source.assetPath || source.id === node.id) {
+        options.setError('请选择另一张已有图片的卡片。');
+        return;
+      }
+      if (adding || inFlight.has(node.id)) {
+        options.setError('参考图处理中，请稍候再选下一张。');
+        return;
+      }
+      adding = true;
+      void (async () => {
+        try {
+          const paths = options.prepareReferencePaths
+            ? await options.prepareReferencePaths([source], [])
+            : [source.assetPath];
+          await addReferencePaths(node, paths, canvasId, workflow);
+        } catch (error) {
+          options.setError(error instanceof Error ? error.message : '参考图添加失败。');
+        } finally {
+          adding = false;
+        }
+      })();
+    };
+    cancelReferencePick = cancel;
+    document.addEventListener('pointerdown', choose, true);
+    document.addEventListener('keydown', key, true);
+  }
+
   function referenceSources(node: any, reuseTarget = false): any[] {
     const current = options.getDocument();
     const draftSourceIds = node.generationDraft?.sourceImageIds?.length
@@ -586,6 +704,28 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       tile.className = 'generation-reference';
       const preview = document.createElement('img');
       preview.src = options.store.mediaUrl(path);
+      if (source && options.referencePreview) {
+        const loading = document.createElement('span');
+        loading.textContent = '准备参考图…';
+        tile.append(loading);
+        preview.hidden = true;
+        void options.referencePreview(source).then(
+          (url) => {
+            if (!tile.isConnected) return;
+            if (url) {
+              preview.src = url;
+              tile.title = '包含图片区域内的标注';
+            }
+            preview.hidden = false;
+            loading.remove();
+          },
+          (error) => {
+            if (!tile.isConnected) return;
+            loading.textContent = '参考图未就绪';
+            tile.title = error instanceof Error ? error.message : '标注预览失败';
+          }
+        );
+      }
       preview.alt = labelText;
       const label = document.createElement('small');
       label.textContent = labelText;
@@ -725,14 +865,59 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       '+',
       () => {
         const canvasId = options.getDocument().id;
-        const picker = document.createElement('input');
-        picker.type = 'file';
-        picker.accept = 'image/png,image/jpeg,image/webp';
-        picker.multiple = true;
-        picker.addEventListener('change', () => {
-          void importReferences(node, Array.from(picker.files || []), canvasId, workflow);
+        const upload = () => {
+          const picker = document.createElement('input');
+          picker.type = 'file';
+          picker.accept = 'image/png,image/jpeg,image/webp';
+          picker.multiple = true;
+          picker.addEventListener('change', () => {
+            void importReferences(node, Array.from(picker.files || []), canvasId, workflow);
+          });
+          picker.click();
+        };
+        if (!options.web) {
+          upload();
+          return;
+        }
+        openCanvasWebSlotChooser({
+          anchor: add,
+          label: '添加参考图',
+          restoreFocus: () => add.focus(),
+          items: [
+            { label: '上传本地图片', icon: 'image', run: upload },
+            ...(options.pickProjectImages
+              ? [
+                  {
+                    label: '从素材库选择',
+                    icon: 'image' as const,
+                    run: () => {
+                      void options.pickProjectImages!()
+                        .then((items) =>
+                          addReferencePaths(
+                            node,
+                            items
+                              .filter((item) => !item.kind || item.kind === 'image')
+                              .map((item) => item.path),
+                            canvasId,
+                            workflow
+                          )
+                        )
+                        .catch((error) =>
+                          options.setError(
+                            error instanceof Error ? error.message : '素材库读取失败。'
+                          )
+                        );
+                    },
+                  },
+                ]
+              : []),
+            {
+              label: '从画布选择',
+              icon: 'image',
+              run: () => pickCanvasReference(node, canvasId, workflow),
+            },
+          ],
         });
-        picker.click();
       },
       {
         className: 'generation-reference-add',
@@ -1490,6 +1675,10 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         node.uiAtlasPrelayout && sourceNodes.length === 1 && sourceNodes[0].assetPath
           ? await designPngData(options.store, sourceNodes[0].assetPath)
           : undefined;
+      const referenceSnapshotPaths = options.prepareReferencePaths
+        ? await options.prepareReferencePaths(sourceNodes, [...referencePaths(node)])
+        : undefined;
+      if (options.getDocument() !== documentState) return;
       options.log?.(node.title + '：开始生成图片', 'info', documentState.id);
       requestStarted = Date.now();
       if (targetId) unconfirmedImages.set(requestKey, requestStarted);
@@ -1514,6 +1703,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
               aspectRatio: settings.aspectRatio,
               targetSize: outputSize.targetSize,
               referenceImagePaths: [...referencePaths(node)],
+              ...(referenceSnapshotPaths ? { referenceSnapshotPaths } : {}),
               ...(designPng ? { designPng } : {}),
               ...(!sourceNodes.length
                 ? {}
@@ -2411,6 +2601,17 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       details.append(summary, input);
       panel.append(details);
     } else panel.append(createPromptEditor(input));
+    if (options.web)
+      panel.addEventListener('paste', (event: ClipboardEvent) => {
+        const files = Array.from(event.clipboardData?.items || [])
+          .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+          .map((item) => item.getAsFile())
+          .filter((file): file is File => Boolean(file));
+        if (!files.length) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (!busy) void importReferences(node, files, options.getDocument().id, workflow);
+      });
     renderReferences(panel, node, busy, workflow);
     const unavailable =
       node.type === 'image'
@@ -3151,6 +3352,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     runTemplateVideo,
     runTemplateImage,
     hasInputDraft() {
+      if (cancelReferencePick) return true;
       const current = options.getDocument();
       return Boolean(
         current &&

@@ -1,3 +1,4 @@
+import { createCanvasReferenceImages } from './referenceImages.js';
 import { canvasMediaSources, refreshCanvasMedia } from './mediaVersions.js';
 import { canvasCapabilityReason, canvasFeatureEnabled } from './capabilities.js';
 import { canvasSupportsPlatform, validateCanvasPlatforms } from '../contracts/platform.js';
@@ -870,7 +871,7 @@ function applyWebMediaPatches(source: string): string {
   patch(
     "if (canvasFeatureEnabled(host, 'video')) actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video');",
     // Web pairs 图片生成 with 视频生成; it creates the same connected slot as the side + 「图片卡片」.
-    "if (canvasWeb) { const imageGenerate = actionButton('图片生成', function () { createLinkedSlot(node.id, false, true); }, false, canvasCapabilityReason(store, 'imageGeneration')); canvasWebIconAction(imageGenerate, 'image'); }\n        if (canvasFeatureEnabled(host, 'video')) { const video = actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video'); if (canvasWeb) canvasWebIconAction(video, 'video'); }"
+    "if (canvasWeb && canvasFeatureEnabled(host, 'model3d')) { const model = actionButton('生成3D模型', function () { createModelFlow(node); }, false, canvasCapabilityReason(store, 'model')); canvasWebIconAction(model, 'model'); }\n        if (canvasWeb) { const imageGenerate = actionButton('图片生成', function () { createLinkedSlot(node.id, false, true); }, false, canvasCapabilityReason(store, 'imageGeneration')); canvasWebIconAction(imageGenerate, 'image'); }\n        if (canvasFeatureEnabled(host, 'video')) { const video = actionButton('视频生成', function () { createVideoSlot(node); }, selectionAction === 'video'); if (canvasWeb) canvasWebIconAction(video, 'video'); }"
   );
   patch(
     "if (canvasFeatureEnabled(host, 'video')) actionButton(editingTemplateVideo ? '编辑视频' : '生成视频', function () { selectionAction = selectionAction === 'video' ? '' : 'video'; render(); }, selectionAction === 'video'); if (node.type === 'video-source' && node.assetPath && canvasFeatureEnabled(host, 'sequence')) actionButton('拆序列帧', function () { sequenceUi.createFromVideo(node.id); }); }",
@@ -1333,7 +1334,7 @@ function applyCardMenuPatches(source: string): string {
       '    if (!canvasWeb) return;',
       // Read-only mirrors: no 抠图 on the right-click menu either.
       "    if (contextNode && contextNode.mirror) contextMenu.querySelectorAll('[data-canvas-action=quick-cutout], [data-canvas-action=adjust-cutout]').forEach(function (item) { item.hidden = true; });",
-      "    const separators = contextMenu.querySelectorAll('.canvas-menu-separator[data-menu-scope=card-group]');",
+      "    const separators = contextMenu.querySelectorAll('.canvas-menu-separator[data-menu-scope=card-group], .canvas-menu-separator[data-menu-scope=model]');",
       '    separators.forEach(function (separator) {',
       // A visible entry anywhere on each side (empty groups in between are skipped).
       "      const visible = function (step) { let item = separator[step]; while (item) { if (!item.hidden && item.matches('button')) return true; item = item[step]; } return false; };",
@@ -1734,7 +1735,7 @@ function applyMediaDropPatches(source: string): string {
       '  const editorHandle = {',
       '    open: function (id) { return workspace.activate(id); },',
       '    setView: function (view) { if (!documentState || !view || ![view.x, view.y, view.scale].every(Number.isFinite)) return; documentState.viewport = { x: view.x, y: view.y, scale: Math.max(.05, Math.min(4, view.scale)) }; if (host.readOnly) { const saved = JSON.parse(savedKey); saved.viewport = { x: documentState.viewport.x, y: documentState.viewport.y, scale: documentState.viewport.scale }; savedKey = JSON.stringify(saved); } render(); },',
-      "    setAssetPanelOpen: function (open) { if (assetPanelButton) assetPanelButton.setAttribute('aria-pressed', String(Boolean(open))); },\n",
+      "    setAssetPanelOpen: function (open) { if (assetPanelButton) { assetPanelButton.setAttribute('aria-pressed', String(Boolean(open))); assetPanelButton.hidden = Boolean(open); } },\n",
     ].join('\n')
   );
   // The host saw the open canvas file change outside this page (e.g. an Agent wrote it): re-read
@@ -2450,6 +2451,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasMarkFromInput.toString(),
     renderCanvasMark.toString(),
     drawCanvasMark.toString(),
+    createCanvasReferenceImages.toString(),
     canvasPngPlan.toString(),
     canvasPngStill.toString(),
     createCanvasMarks.toString(),
@@ -3870,6 +3872,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    templateUi.context(contextMenu);',
       '    resourceExport.context(contextMenu, card && selected.size === 1 ? documentState.nodes.find(function (node) { return node.id === card.dataset.id; }) : undefined);',
       '    pendingPlacement = documentState ? worldPoint(event) : null;',
+      '    if (modelUi) modelUi.contextMenu(contextMenu, card && selected.size === 1 ? card : null);',
+      `    if (card && documentState.nodes.some(function (node) { return selected.has(node.id) && ["model", "model-views"].includes(node.type); })) contextMenu.querySelectorAll('[data-canvas-action="duplicate"]').forEach(function (item) { item.hidden = true; });`,
       '    contextMenu.hidden = false;',
       "    contextMenu.style.left = Math.min(position.clientX, window.innerWidth - 190) + 'px';",
       "    contextMenu.style.top = Math.min(position.clientY, window.innerHeight - 300) + 'px';",
@@ -4271,6 +4275,11 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     page,
     '  void boot().catch',
     [
+      '  function createModelFlow(source) {',
+      '    if (!source || !source.assetPath || localCanvasBusy() || modelUi.isBusy || generationUi.hasInputDraft()) { setError("请先完成当前编辑并选择已有图片。"); return; }',
+      '    remember(); const views = appendCanvasModelNode(documentState, "model-views", source.id); appendCanvasModelNode(documentState, "model", views.id);',
+      '    selected.clear(); selected.add(views.id); markDirty(); render();',
+      '  }',
       '  modelUi = createCanvasModelUi({ deliver: deliverExport, current: function () { return documentState; }, store: store, save: flush, render: render, error: setError, remember: remember, changed: markDirty,',
       '    blocked: function () { return canvasOpening || generationUi.isBusy || sequenceUi.isBusy || templateWorkflow.isBusy || groupQueue.isBusy || pendingAssetImports || Boolean(imageEditing && imageEditing.isBusy); },',
       '    sourceBlocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || generationUi.hasInputDraft() || sequenceUi.hasUnsavedFrames; } });',
@@ -4700,8 +4709,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   );
   page = replaceCanvasPageText(
     page,
-    'void boot().catch',
-    'void boot().then(function () { if (host.onReady && documentState) host.onReady(editorHandle); }).catch'
+    'void boot().catch(function (caught) { setError(caught.message); });',
+    'void boot().then(function () { if (host.onReady && documentState) host.onReady(editorHandle); }).catch(function (caught) { const message = caught.message || "画布初始化失败"; setError(message); if (host.loadFailed) host.loadFailed(message); });'
   );
   page = applyWebInteractionPatches(page);
   page = applyWebMediaPatches(page);
