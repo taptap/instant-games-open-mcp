@@ -28,6 +28,11 @@ export function renderImageInfo(
         (ratio.warning ? ' · 非常见比例，可能影响结果' : '');
     }
     label.title = label.textContent + (target ? '；请求：' + target : '');
+    if (node && (node.width < 180 || node.height < 160)) {
+      image.title = label.title;
+      label.hidden = true;
+      return;
+    }
     label.hidden = !label.textContent;
   };
   image.addEventListener('load', update, { once: true });

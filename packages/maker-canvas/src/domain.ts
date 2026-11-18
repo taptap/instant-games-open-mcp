@@ -148,6 +148,7 @@ export { CanvasStoreError } from './core/errors.js';
 export {
   validateUiAtlasGroup,
   uiAtlasElementGroup,
+  UI_ATLAS_GROUP_LABELS,
   UI_ATLAS_MAX_EDGE,
   UI_ATLAS_MAX_CELLS,
   uiAtlasElementSlots,

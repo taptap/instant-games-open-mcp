@@ -115,7 +115,7 @@ export interface CanvasGenerationUiOptions {
   requestImageImport(nodeId: string): void;
   requestVideoImport(nodeId: string): void;
   setError(message: string, level?: 'info' | 'warning' | 'error'): void;
-  log?(message: string, level: 'info' | 'warning' | 'error'): void;
+  log?(message: string, level: 'info' | 'warning' | 'error', canvasId?: string): void;
   createId(): string;
   resolveTarget?(
     sourceId: string,
@@ -1490,7 +1490,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         node.uiAtlasPrelayout && sourceNodes.length === 1 && sourceNodes[0].assetPath
           ? await designPngData(options.store, sourceNodes[0].assetPath)
           : undefined;
-      options.log?.(node.title + '：开始生成图片', 'info');
+      options.log?.(node.title + '：开始生成图片', 'info', documentState.id);
       requestStarted = Date.now();
       if (targetId) unconfirmedImages.set(requestKey, requestStarted);
       const imageKey = videoKey(documentState.id, node.id);
@@ -1536,7 +1536,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       if (options.getDocument()?.id !== documentState.id) return;
       if (attempt.status !== 'failed' || attempt.taskId) inputBaselines.delete(referenceKey(node));
       if (attempt.status === 'succeeded') {
-        options.log?.(node.title + '：图片生成完成', 'info');
+        options.log?.(node.title + '：图片生成完成 · ' + attempt.id, 'info', documentState.id);
         applyAttempt(attempt, true, Boolean(node.assetPath));
         for (const warning of attempt.warnings || []) options.log?.(warning, 'warning');
         const mismatch = imageSizeBlockReason(attempt);
@@ -1558,6 +1558,12 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
           );
           inFlight.delete(node.id);
           if (targetId) inFlight.delete(targetId);
+          if (result?.assetPath)
+            options.log?.(
+              node.title + '：图片已回填并保存 · ' + result.assetPath,
+              'info',
+              documentState.id
+            );
           if (result) await options.onGenerated?.(result.id, 'image');
         }
       } else {
@@ -1768,7 +1774,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         options.markDirty();
       if (!(await options.flush()) || options.getDocument()?.id !== documentState.id) return false;
       if (stoppedVideos.has(videoKey(documentState.id, node.id))) return false;
-      options.log?.(node.title + '：开始生成视频', 'info');
+      options.log?.(node.title + '：开始生成视频', 'info', documentState.id);
       const submittedAt = new Date(Date.now()).toISOString();
       const controller = new AbortController();
       const attempt = await waitVideoRequest(
@@ -1807,8 +1813,17 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       if ((attempt.status !== 'failed' || attempt.taskId) && inputKey)
         inputBaselines.delete(inputKey);
       if (attempt.status === 'succeeded') {
-        options.log?.(node.title + '：视频生成完成', 'info');
+        options.log?.(node.title + '：视频生成完成 · ' + attempt.id, 'info', documentState.id);
         if (await recoverVideo(attempt)) {
+          const result = documentState.nodes.find(
+            (item: CanvasNode) => item.generation?.attemptId === attempt.id
+          );
+          if (result?.assetPath)
+            options.log?.(
+              node.title + '：视频已回填并保存 · ' + result.assetPath,
+              'info',
+              documentState.id
+            );
           inFlight.delete(requesterId);
           inFlight.delete(node.id);
           await options.onGenerated?.(node.id, 'video');
