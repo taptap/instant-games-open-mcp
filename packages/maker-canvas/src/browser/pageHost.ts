@@ -11,11 +11,18 @@ import type { createCanvasAutomationUiWithHost } from './automationUi.js';
 import type { createSequenceUiControllerWithMedia } from './sequenceUi.js';
 import type { createCanvasResourceExportWithHost } from './resourceExport.js';
 import type { validateUiAtlasPlanStructure } from '../features/uiAssetBindings.js';
+import type { CanvasWheelMode } from './wheel.js';
+import type { CanvasLogEntry } from './logUi.js';
 
 /** Document-only draft; dialogs, frame buffers and active requests are not serialized. */
 export interface CanvasEditorDraft {
   document: CanvasDocument;
   savedLayout: string;
+}
+
+export interface CanvasWorkspaceState {
+  openedIds: string[];
+  activeId?: string;
 }
 
 export interface CanvasEditorHandle {
@@ -77,6 +84,13 @@ export interface CanvasPageHost {
   features?: CanvasPageFeatures;
   /** Visual skin only; absent or 'default' keeps the local console look. */
   appearance?: 'default' | 'web';
+  /** Browser-local tabs only; document authorization still goes through the store. */
+  getWorkspaceState?(): CanvasWorkspaceState | undefined;
+  setWorkspaceState?(state: CanvasWorkspaceState): void;
+  getWheelMode?(): CanvasWheelMode;
+  setWheelMode?(mode: CanvasWheelMode): void;
+  readLogs?(canvasId: string): CanvasLogEntry[];
+  writeLogs?(canvasId: string, entries: CanvasLogEntry[]): void;
   /** Optional: shows 「加入对话」 for selected image cards; absent hides the button. */
   addToChat?(items: { nodeId: string; assetPath: string }[]): Promise<void> | void;
   dragImagesToChat?(
@@ -102,6 +116,12 @@ export interface CanvasPageHost {
    * Resolves with the new chat's id once it exists (stored on the group for 「打开生成对话」).
    */
   startSpriteGen?(input: CanvasSpriteGenStart): Promise<{ chatId?: string } | void>;
+  startUiSplit?(input: {
+    canvasId: string;
+    nodeId: string;
+    name: string;
+    sourcePath: string;
+  }): Promise<{ chatId?: string }>;
   /** Optional: 「打开生成对话」 in a sprite group header switches to that chat. */
   openSpriteChat?(chatId: string): Promise<void> | void;
   onReady?(editor: CanvasEditorHandle): void;

@@ -17,6 +17,15 @@ import {
   uiRecognitionInputs,
 } from './uiRecognition.js';
 
+export const UI_ATLAS_GROUP_LABELS: Record<UiAtlasGroup, string> = {
+  controls: '控件与状态',
+  icons: '图标与背包',
+  equipment: '装备与槽框',
+  panels: '面板与长条',
+  artwork: '角色与插画',
+  background: '环境背景',
+};
+
 export function validateUiAtlasGroup(value: unknown): UiAtlasGroup {
   if (
     !['controls', 'icons', 'equipment', 'panels', 'artwork', 'background'].includes(value as string)

@@ -163,6 +163,15 @@ export interface CanvasNode {
   mark?: CanvasMark;
   /** On a section: the sprite-gen run it mirrors. Progress stays in sprite-gen's own files. */
   spriteGen?: CanvasSpriteGen;
+  uiSplit?: {
+    name: string;
+    sourcePath: string;
+    sourceId?: string;
+    chatId?: string;
+    dismissed: string[];
+    phase?: string;
+    revision?: number;
+  };
   /** Read-only card mirrored from an external producer; sync owns its asset and edges. */
   mirror?: CanvasMirror;
 }
@@ -180,7 +189,7 @@ export interface CanvasSpriteGen {
   dismissed: string[];
 }
 export interface CanvasMirror {
-  source: 'sprite-gen';
+  source: 'sprite-gen' | 'ui-split';
   name: string;
   /**
    * Position the last sync laid the card out at. While the card still sits there it follows the

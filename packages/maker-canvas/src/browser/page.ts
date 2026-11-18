@@ -1,4 +1,5 @@
 import { canvasMediaSources, refreshCanvasMedia } from './mediaVersions.js';
+import { createCanvasUiSplitController } from './uiSplit.js';
 import { canvasCapabilityReason, canvasFeatureEnabled } from './capabilities.js';
 import { canvasSupportsPlatform, validateCanvasPlatforms } from '../contracts/platform.js';
 import { installCanvasPolyfills } from './polyfills.js';
@@ -117,6 +118,7 @@ import { createCanvasLog } from './logUi.js';
 import { canvasLogLevel } from './logUi.js';
 import { CANVAS_LOG_STYLES } from './logUi.js';
 import { createCanvasWorkspace } from './workspaceUi.js';
+import { createCanvasWheelInput } from './wheel.js';
 import { CANVAS_WORKSPACE_STYLES } from './workspaceUi.js';
 import { CANVAS_MARK_COLORS } from '../core/marks.js';
 import { CANVAS_MARK_MIN } from '../core/marks.js';
@@ -502,6 +504,7 @@ function applyImageSlotPatches(source: string): string {
       '    delete slot.sourceSnapshot;',
       '    delete slot.sourceSnapshots;',
       '    fitImageCard(slot);',
+      '    canvasLogs.add((replace ? "替换图片：" : "回填图片：") + slot.title + " · " + prepared.assetPath, "info", current.id);',
       '  }',
       '  const automation = createCanvasAutomationUi({',
     ].join('\n')
@@ -586,14 +589,13 @@ function applyWebInteractionPatches(source: string): string {
     page = replaceCanvasPageText(page, search, replacement);
   };
   patch('  function startResize(event, id) {', '  function startResize(event, id, corner) {');
-  // Web wheel follows Mivo (useViewport handleWheel): two-finger trackpad scroll and the mouse wheel pan,
-  // Shift scrolls sideways; pinch (reported as Ctrl+wheel) and Ctrl/⌘+wheel zoom by exp(-deltaY * 0.002).
+  // Keep trackpad panning while discrete mouse-wheel events zoom around the cursor.
   patch(
     '    const next = Math.min(4, Math.max(0.15, before * (event.deltaY > 0 ? 0.9 : 1.1)));',
     [
       '    const wheelUnit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 800 : 1;',
       "    if (canvasWeb && typeof hideContextMenu === 'function') hideContextMenu();",
-      '    if (canvasWeb && !event.ctrlKey && !event.metaKey) {',
+      '    if (canvasWeb && canvasWheelInput(event, workspace ? workspace.wheelMode() : "auto") === "pan") {',
       // Shift+wheel on a mouse scrolls sideways; macOS already reports it as deltaX.
       '      const sideways = event.shiftKey && !event.deltaX;',
       '      documentState.viewport.x -= (sideways ? event.deltaY : event.deltaX) * wheelUnit;',
@@ -708,7 +710,7 @@ function applyWebInteractionPatches(source: string): string {
   // Web image-card menu mirrors the selection icons; hidden for other cards and the blank canvas.
   patch(
     '<button type="button" data-canvas-action="duplicate" data-menu-scope="card">复制卡片</button>',
-    '<button type="button" data-canvas-action="add-to-chat" data-menu-scope="image" hidden>加入对话</button><button type="button" data-canvas-action="quick-cutout" data-menu-scope="image" hidden>抠图</button><button type="button" data-canvas-action="adjust-cutout" data-menu-scope="image" hidden>调整抠图</button><button type="button" data-canvas-action="download-image" data-menu-scope="image" hidden>下载</button><button type="button" data-canvas-action="download-image-jpg" data-menu-scope="image" hidden>下载 JPG</button><button type="button" data-canvas-action="duplicate" data-menu-scope="card">复制卡片</button>'
+    '<button type="button" data-canvas-action="add-to-chat" data-menu-scope="image" hidden>加入对话</button><button type="button" data-canvas-action="quick-cutout" data-menu-scope="image" hidden>抠图</button><button type="button" data-canvas-action="adjust-cutout" data-menu-scope="image" hidden>调整抠图</button><button type="button" data-canvas-action="download-image" data-menu-scope="image" hidden>下载</button><button type="button" data-canvas-action="duplicate" data-menu-scope="card">复制卡片</button>'
   );
   patch(
     '    cardActions.forEach(function (item) { item.hidden = !card; });',
@@ -729,8 +731,7 @@ function applyWebInteractionPatches(source: string): string {
       "    if (value === 'add-to-chat') { if (contextImage && host.addToChat) void addSelectionToChat([contextImage]); return; }",
       "    if (value === 'quick-cutout') { if (contextImage) void quickCutout(contextImage); return; }",
       "    if (value === 'adjust-cutout') { if (contextImage) void adjustCutout(contextImage); return; }",
-      "    if (value === 'download-image') { if (contextImage) void resourceExport.download(contextImage, 'png'); return; }",
-      "    if (value === 'download-image-jpg') { if (contextImage) void resourceExport.download(contextImage, 'jpg'); return; }",
+      "    if (value === 'download-image' || value === 'download-image-jpg') { if (contextImage) void resourceExport.download(contextImage, value === 'download-image-jpg' ? 'jpg' : 'png'); return; }",
       "    if (value === 'duplicate') { duplicateSelected(); return; }",
     ].join('\n')
   );
@@ -929,7 +930,8 @@ function applyWebMediaPatches(source: string): string {
       '  function deleteSection(id) {',
       '    if (!documentState) return;',
       '    selected.clear(); selected.add(id);',
-      '    documentState.nodes.forEach(function (node) { if (node.sectionId === id) selected.add(node.id); });',
+      '    const section = documentState.nodes.find(function (node) { return node.id === id; });',
+      "    documentState.nodes.forEach(function (node) { if (node.sectionId === id && !(section && section.uiSplit && node.type === 'image' && !node.mirror && node.assetPath === section.uiSplit.sourcePath)) selected.add(node.id); });",
       '    deleteSelected();',
       '  }',
       '  function duplicateSelected() {',
@@ -1260,13 +1262,13 @@ function applyMissingMediaPatches(source: string): string {
 /**
  * Web card menus: the selection icons and the right-click menu list the same actions, in the same
  * order and with the same names, grouped 生成 / 编辑 / 对话 / 导出; the right-click menu adds the
- * group and card actions. Variants sit behind a chevron (抠图 ▸ 调整抠图, 下载 PNG ▸ 下载 JPG).
+ * JPG download and group and card actions. Variants sit behind a chevron (抠图 ▸ 调整抠图).
  */
 const CANVAS_CARD_ACTION_GROUPS = [
   ['图片生成', '视频生成', '生成精灵', '拆序列帧'],
   ['抠图', '调整抠图', '裁剪', '旋转 90°', '水平翻转', '垂直翻转'],
   ['加入对话'],
-  ['下载 PNG', '下载 JPG'],
+  ['下载 PNG'],
 ];
 const CANVAS_CARD_MENU_ORDER = [
   ['web-image-generate', 'web-video', 'web-sprite-gen', 'web-sequence'],
@@ -1283,7 +1285,7 @@ function applyCardMenuPatches(source: string): string {
   };
   patch(
     "        if (canvasWeb) canvasWebIconAction(actionButton('下载图片', function () { void resourceExport.download(node, 'png'); }), 'download'); else {",
-    "        if (canvasWeb) { canvasWebIconAction(actionButton('下载 PNG', function () { void resourceExport.download(node, 'png'); }), 'download'); const jpg = actionButton('下载 JPG', function () { void resourceExport.download(node, 'jpg'); }); jpg.classList.add('web-cutout-adjust'); canvasWebIconAction(jpg, 'chevron'); } else {"
+    "        if (canvasWeb) { canvasWebIconAction(actionButton('下载 PNG', function () { void resourceExport.download(node, 'png'); }), 'download'); } else {"
   );
   // Read-only mirrors keep 加入对话 / 下载; icons follow one order with dividers between groups; a
   // menu left with no action (e.g. a mirrored video) is hidden instead of showing an empty pill.
@@ -1291,7 +1293,7 @@ function applyCardMenuPatches(source: string): string {
     "      if (node.mirror) Array.from(actions.children).forEach(function (child) { if (['加入对话', '下载图片'].indexOf(child.getAttribute('aria-label') || child.textContent) < 0) child.remove(); });",
     [
       "      const actionLabel = function (child) { return child.getAttribute('aria-label') || child.textContent || ''; };",
-      "      if (node.mirror) Array.from(actions.children).forEach(function (child) { if (['加入对话', '下载 PNG', '下载 JPG'].indexOf(actionLabel(child)) < 0) child.remove(); });",
+      "      if (node.mirror) Array.from(actions.children).forEach(function (child) { if (['加入对话', '下载 PNG'].indexOf(actionLabel(child)) < 0) child.remove(); });",
       '      if (canvasWeb) {',
       '        const groupOf = function (child) { const label = actionLabel(child); for (let index = 0; index < CANVAS_CARD_ACTION_GROUPS.length; index++) { const at = CANVAS_CARD_ACTION_GROUPS[index].indexOf(label); if (at >= 0) return [index, at]; } return [CANVAS_CARD_ACTION_GROUPS.length, 0]; };',
       '        const ordered = Array.from(actions.children).map(function (child, index) { return { child: child, key: groupOf(child), index: index }; }).sort(function (a, b) { return a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.index - b.index; });',
@@ -1303,7 +1305,7 @@ function applyCardMenuPatches(source: string): string {
   );
   patch(
     '<button type="button" data-canvas-action="download-image" data-menu-scope="image" hidden>下载</button>',
-    '<button type="button" data-canvas-action="download-image" data-menu-scope="image" hidden>下载 PNG</button>'
+    '<button type="button" data-canvas-action="download-image" data-menu-scope="image" hidden>下载 PNG</button><button type="button" data-canvas-action="download-image-jpg" data-menu-scope="image" hidden>下载 JPG</button>'
   );
   patch(
     '<button type="button" data-canvas-action="web-video" data-menu-scope="web" hidden>视频生成</button>',
@@ -1392,8 +1394,8 @@ function applyCardMenuPatches(source: string): string {
   );
   // Menus offer the copy on mirrored images/videos under its own name (sequences/animations: none).
   patch(
-    "      if (node.mirror) Array.from(actions.children).forEach(function (child) { if (['加入对话', '下载 PNG', '下载 JPG'].indexOf(actionLabel(child)) < 0) child.remove(); });",
-    "      if (node.mirror) Array.from(actions.children).forEach(function (child) { if (['加入对话', '下载 PNG', '下载 JPG'].indexOf(actionLabel(child)) < 0) child.remove(); });\n      if (canvasWeb && node.mirror && (node.type === 'image' || node.type === 'video-source') && node.assetPath) { const copy = actionButton('复制为普通卡片', function () { selected.clear(); selected.add(node.id); duplicateSelected(); }); canvasWebIconAction(copy, 'copy'); }"
+    "      if (node.mirror) Array.from(actions.children).forEach(function (child) { if (['加入对话', '下载 PNG'].indexOf(actionLabel(child)) < 0) child.remove(); });",
+    "      if (node.mirror) Array.from(actions.children).forEach(function (child) { if (['加入对话', '下载 PNG'].indexOf(actionLabel(child)) < 0) child.remove(); });\n      if (canvasWeb && node.mirror && (node.type === 'image' || node.type === 'video-source') && node.assetPath) { const copy = actionButton('复制为普通卡片', function () { selected.clear(); selected.add(node.id); duplicateSelected(); }); canvasWebIconAction(copy, 'copy'); }"
   );
   patch(
     "    if (contextNode && contextNode.mirror) contextMenu.querySelectorAll('[data-canvas-action=quick-cutout], [data-canvas-action=adjust-cutout]').forEach(function (item) { item.hidden = true; });",
@@ -2453,6 +2455,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasPngStill.toString(),
     createCanvasMarks.toString(),
     createCanvasWorkspace.toString(),
+    createCanvasWheelInput.toString(),
     createCanvasLog.toString(),
     canvasLogLevel.toString(),
     canvasCardStatus.toString(),
@@ -3502,7 +3505,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = page.replace(
     'await openDocument(list[0].id);',
     [
-      'const activeId = await store.getActiveCanvasId();',
+      'const activeId = workspace.restore() || await store.getActiveCanvasId();',
       'const selectedId = list.some(function (item) { return item.id === activeId; }) ? activeId : list[0].id;',
       'await openDocument(selectedId);',
     ].join('\n')
@@ -3562,7 +3565,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    requestImageImport: requestImageImport,',
       '    requestVideoImport: requestVideoImport,',
       '    setError: setError,',
-      '    log: function (message, level) { canvasLogs.add(message, level); },',
+      '    log: function (message, level, canvasId) { canvasLogs.add(message, level, canvasId); },',
       '    createId: function () { return crypto.randomUUID(); },',
       '    resolveTarget: function (id, type, targetId) { return templateWorkflow.resolveTarget(id, type, targetId); },',
       '    onVideoCreated: function (id) { selected.clear(); selected.add(id); selectionAction = ""; },',
@@ -3661,7 +3664,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '    for (const node of documentState.nodes) {',
-    "    const orderedNodes = documentState.nodes.filter(function (node) { return !resourceBundleOwner(documentState, node.id) || selected.has(node.id); }).sort(function (left, right) { return (left.type === 'section' ? -1 : 0) - (right.type === 'section' ? -1 : 0); });\n    for (const node of orderedNodes) {\n      if (node.type === 'video-source') fitVideoCard(node);\n      if (fitImageCard(node)) { markDirty(); if (node.sectionId && layoutUiWorkflowGroup(documentState, node.sectionId)) requestAnimationFrame(render); }"
+    "    const orderedNodes = documentState.nodes.filter(function (node) { return !resourceBundleOwner(documentState, node.id) || selected.has(node.id); }).sort(function (left, right) { return (left.type === 'section' ? -1 : 0) - (right.type === 'section' ? -1 : 0); });\n    for (const node of orderedNodes) {\n      if (node.type === 'video-source') fitVideoCard(node);\n      if (!(node.mirror && node.mirror.source === \"ui-split\") && fitImageCard(node)) { markDirty(); if (node.sectionId && layoutUiWorkflowGroup(documentState, node.sectionId)) requestAnimationFrame(render); }"
   );
   page = replaceCanvasPageText(
     page,
@@ -3733,7 +3736,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      world.append(card);',
       '      if (node.type === "image" && node.assetPath) renderImageInfo(card, generationUi.imageTarget(node), node, function () {',
       '        if (!card.isConnected || !documentState || !documentState.nodes.includes(node)) return;',
-      '        if (fitImageCard(node)) { markDirty(); if (node.sectionId) layoutUiWorkflowGroup(documentState, node.sectionId); requestAnimationFrame(render); }',
+      '        if (!(node.mirror && node.mirror.source === "ui-split") && fitImageCard(node)) { markDirty(); if (node.sectionId) layoutUiWorkflowGroup(documentState, node.sectionId); requestAnimationFrame(render); }',
       '      });',
       '    }',
       '    function renderSelectionToolbar() {',
@@ -4113,7 +4116,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       "  const error = document.getElementById('error');",
       "  const videoHistoryButton = document.createElement('button');",
       "  videoHistoryButton.id = 'video-history'; videoHistoryButton.type = 'button'; videoHistoryButton.textContent = '视频历史';",
-      "  const canvasLogs = createCanvasLog(document.getElementById('canvas-log'), [videoHistoryButton]);",
+      "  const canvasLogs = createCanvasLog(document.getElementById('canvas-log'), [videoHistoryButton], { read: host.readLogs, write: host.writeLogs });",
     ].join('\n')
   );
   page = replaceCanvasPageText(
@@ -4234,6 +4237,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     '  void boot().catch',
     [
       '  workspace = createCanvasWorkspace({',
+      '    getState: host.getWorkspaceState, saveState: host.setWorkspaceState,',
+      '    getWheelMode: host.getWheelMode, setWheelMode: host.setWheelMode,',
       '    current: function () { return documentState; },',
       '    activate: async function (id) {',
       '      if (!documentState || documentState.id === id) return true;',
@@ -4279,6 +4284,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      const point = nextPlacement(node.type); node.x = point.x; node.y = point.y;',
       '      if (node.type === "image") await loadMedia(node.assetPath);',
       '      remember(); current.nodes.push(node); selected.clear(); selected.add(node.id); markDirty();',
+      '      canvasLogs.add((input.kind === "video" ? "导入视频：" : "导入图片：") + node.title + " · " + node.assetPath, "info", current.id);',
       '  }',
       '  const automation = createCanvasAutomationUi({',
       '    capabilities: store.capabilities, platform: store.platform,',
@@ -4609,7 +4615,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '  const host = createCanvasHost();',
-    "  const host = createCanvasHost();\n  const canvasWeb = host.appearance === 'web';\n  if (canvasWeb) document.documentElement.classList.add('canvas-appearance-web');"
+    "  const host = createCanvasHost();\n  const canvasWeb = host.appearance === 'web';\n  const canvasWheelInput = createCanvasWheelInput();\n  if (canvasWeb) document.documentElement.classList.add('canvas-appearance-web');"
   );
   // Web draws image references as side-to-side curves without arrowheads.
   page = replaceCanvasPageText(
@@ -4705,6 +4711,87 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = applyCardMenuPatches(page);
   page = applyMediaDropPatches(page);
   page = applyWebEditPatches(page);
+  for (const [method, next, label, canvasId] of [
+    ['importImageFile', 'file.addEventListener', '图片', 'request.canvasId'],
+    ['importVideoFile', 'videoFile.addEventListener', '视频', 'canvasId'],
+  ]) {
+    const start = page.indexOf('  async function ' + method + '(');
+    const end = page.indexOf('\n  ' + next, start);
+    if (start < 0 || end < 0) throw new Error('Missing media import log anchor: ' + method);
+    let body = page.slice(start, end);
+    body = replaceCanvasPageText(
+      body,
+      '    publishDirty();',
+      '    publishDirty();\n    canvasLogs.add("开始导入' +
+        label +
+        '：" + chosen.name, "info", ' +
+        canvasId +
+        ');'
+    );
+    body = replaceCanvasPageText(
+      body,
+      '      render();',
+      '      render();\n      canvasLogs.add("已导入' +
+        label +
+        '：" + chosen.name + " · " + saved.relativePath, "info", ' +
+        canvasId +
+        ');'
+    );
+    page = page.slice(0, start) + body + page.slice(end);
+  }
+  page = replaceCanvasPageText(
+    page,
+    '    syncSprites: function () { return syncAllSprites(true); },',
+    '    syncSprites: function () { return Promise.all([syncAllSprites(true), uiSplitController ? uiSplitController.sync() : Promise.resolve()]); },'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  function decorateWebCards() {',
+    [
+      createCanvasUiSplitController.toString(),
+      '  var uiSplitController;',
+      '  function renderUiSplit() { if (documentState) documentState.nodes.forEach(function (node) { if (node.mirror && node.mirror.source === "ui-split" && node.assetPath) media[node.assetPath] = store.mediaUrl(node.assetPath); }); render(); }',
+      '  function uiSplitSync() { if (!canvasWeb || host.readOnly || !host.startUiSplit || !store.readUiSplitProgress) return Promise.resolve(); if (!uiSplitController) uiSplitController = createCanvasUiSplitController({ current: function () { return documentState; }, blocked: function () { return Boolean(drag || canvasOpening); }, store: store, host: host, save: flush, changed: markDirty, render: renderUiSplit, remember: remember, createId: function () { return crypto.randomUUID(); }, error: setError }); return uiSplitController.sync().catch(function (error) { setError(error.message); }); }',
+      '  setInterval(function () { if (!canvasPanelHidden && document.visibilityState === "visible" && documentState && ((uiSplitController && uiSplitController.needsSync()) || documentState.nodes.some(function (node) { return node.uiSplit && node.uiSplit.phase !== "已完成"; }))) void uiSplitSync(); }, 10000);',
+      '  window.addEventListener("online", function () { if (!canvasPanelHidden && document.visibilityState === "visible") void uiSplitSync(); });',
+      '  function decorateWebCards() {',
+      '    if (uiSplitController) uiSplitController.decorate(world);',
+    ].join('\n')
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  function openSpriteGen(node) {',
+    [
+      '  function openUiSplit(node) {',
+      "    openCanvasSpriteGenDialog({ uiSplit: true, defaultName: 'ui_' + Date.now(), start: async function (input) {",
+      '      if (!uiSplitController) await uiSplitSync();',
+      "      if (!uiSplitController) return '当前无法开始 UI 切分。';",
+      '      await uiSplitController.start(node.id, input.name);',
+      '    } });',
+      '  }',
+      '  function openSpriteGen(node) {',
+    ].join('\n')
+  );
+  page = replaceCanvasPageText(
+    page,
+    '      const workflowMember = templateWorkflow.isMember(node.id);',
+    '      const workflowMember = templateWorkflow.isMember(node.id);'
+  );
+  page = replaceCanvasPageText(
+    page,
+    "        if (canvasWeb && canvasFeatureEnabled(host, 'spriteGen') && host.startSpriteGen && !node.mirror) { const sprite = actionButton('生成精灵', function () { openSpriteGen(node); }); canvasWebIconAction(sprite, 'sprite'); }",
+    "        if (canvasWeb && canvasFeatureEnabled(host, 'spriteGen') && host.startSpriteGen && !node.mirror) { const sprite = actionButton('生成精灵', function () { openSpriteGen(node); }); canvasWebIconAction(sprite, 'sprite'); }\n        if (canvasWeb && host.startUiSplit && !host.readOnly && !node.mirror) actionButton('UI 切分', function () { openUiSplit(node); });"
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    spriteStatus.clear(); spriteFiles.clear(); spriteSeen.clear(); void syncAllSprites(true);',
+    '    spriteStatus.clear(); spriteFiles.clear(); spriteSeen.clear(); void syncAllSprites(true); setTimeout(uiSplitSync, 0);'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    dismissSpriteMirrors(documentState, Array.from(selected));',
+    '    dismissSpriteMirrors(documentState, Array.from(selected)); if (uiSplitController) uiSplitController.dismiss(Array.from(selected));'
+  );
   // Copy guards must wrap the final function, including the async mirror-copy branch.
   page = replaceCanvasPageText(
     page,

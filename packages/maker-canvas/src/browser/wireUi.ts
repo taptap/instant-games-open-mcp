@@ -30,7 +30,11 @@ export function canvasWebCurve(p0: CanvasPoint, p1: CanvasPoint, dir: number, vi
     mid: points[12],
   };
 }
-type CanvasBox = CanvasPoint & { id?: string; width: number; height: number };
+type CanvasBox = CanvasPoint & {
+  id?: string;
+  width: number;
+  height: number;
+};
 /** Rendered image-frame box in world units; Mivo anchors to the frame, not the caption row above it. */
 export function canvasWebBox(node: CanvasBox): CanvasBox {
   const card =
