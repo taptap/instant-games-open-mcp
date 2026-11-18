@@ -358,6 +358,21 @@ test('UI style variants follow a portrait reference without applying atlas cutou
   }));
   const ui = createCanvasGenerationUi(options);
   expect(await ui.runTemplateImage(target.id)).toBe(true);
+  expect(options.log).toHaveBeenCalledWith(
+    expect.stringContaining('开始生成图片'),
+    'info',
+    document.id
+  );
+  expect(options.log).toHaveBeenCalledWith(
+    expect.stringContaining('图片生成完成'),
+    'info',
+    document.id
+  );
+  expect(options.log).toHaveBeenCalledWith(
+    expect.stringContaining('图片已回填并保存'),
+    'info',
+    document.id
+  );
   expect(options.store.generateImage).toHaveBeenCalledWith(
     document.id,
     expect.objectContaining({
@@ -738,10 +753,31 @@ function fixture(status = 'succeeded') {
     requestVideoImport: jest.fn(),
     onGenerated: jest.fn(async () => {}),
     setError: jest.fn(),
+    log: jest.fn(),
     createId: () => 'new-id',
   };
   return { document, attempt, options, ui: createCanvasGenerationUi(options) };
 }
+
+test('video logs distinguish generation from a saved canvas result and retain the canvas id', async () => {
+  const { document, options } = fixture();
+  delete document.templateFlow;
+  document.nodes[1].title = '测试视频';
+  options.store.listGeneration.mockResolvedValue([]);
+  const ui = createCanvasGenerationUi(options);
+  expect(await ui.runTemplateVideo('video', 4, true, true)).toBe(true);
+  expect(options.log).toHaveBeenCalledWith('测试视频：开始生成视频', 'info', 'canvas');
+  expect(options.log).toHaveBeenCalledWith(
+    expect.stringContaining('视频生成完成'),
+    'info',
+    'canvas'
+  );
+  expect(options.log).toHaveBeenCalledWith(
+    expect.stringContaining('视频已回填并保存'),
+    'info',
+    'canvas'
+  );
+});
 
 test('paired generation submits first then last and preserves the pair connection after recovery', async () => {
   const { document, attempt, options } = fixture();

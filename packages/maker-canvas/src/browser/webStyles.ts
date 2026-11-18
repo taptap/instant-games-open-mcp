@@ -164,6 +164,7 @@ ${M} #board { background-image: radial-gradient(rgba(255,255,255,.12) 1px, trans
 ${L} #board { background-image: radial-gradient(rgba(0,0,0,.13) 1px, transparent 1.2px); }
 ${M} .workspace-menu-panel { padding: 6px; border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); box-shadow: var(--web-shadow); }
 ${M} .workspace-menu-panel button { border: 0; border-radius: 8px; background: transparent; color: var(--web-text); padding: 8px 10px; }
+${M} .workspace-menu-panel select { box-sizing: border-box; width: 100%; height: 32px; margin: 0; padding: 0 8px; border: 1px solid var(--web-line); border-radius: 8px; background: transparent; color: var(--web-text); font: inherit; font-size: 12px; line-height: 20px; }
 ${M} .workspace-menu-panel button:hover:not(:disabled) { background: var(--web-wash); }
 ${M} .workspace-view-controls { gap: 0; }
 ${M} .workspace-view-controls > * + * { margin-left: 4px; }
@@ -436,6 +437,7 @@ ${M} .card.web-media .web-node-handle.is-group { width: calc(20px * var(--web-in
 ${M} .card.web-media .web-node-handle.is-group::after { display: none; }
 ${M} .card.web-media .web-node-handle.is-group:disabled { opacity: 0; }
 ${M} .card.web-media > .resize-handle { display: none; }
+${M} .card.sequence > .resize-handle, ${M} .card.animation > .resize-handle { display: block; z-index: 9; }
 /* Annotation frames: the same round corner dots once selected; corners resize both edges (diagonal drag). */
 ${M} .card.canvas-mark > .resize-handle { display: none; }
 ${M} .card.canvas-mark .mark-corner { width: calc(20px * var(--web-inv, 1)); height: calc(20px * var(--web-inv, 1)); margin: calc(-10px * var(--web-inv, 1)) 0 0 calc(-10px * var(--web-inv, 1)); }
@@ -459,6 +461,12 @@ ${M} .card.sequence.web-media .canvas-card-meta, ${M} .card.animation.web-media 
 ${M} .card.sequence .canvas-card-content, ${M} .card.animation .canvas-card-content { border: 1px solid var(--web-line); border-radius: 12px; background: var(--web-panel); box-shadow: 0 14px 32px rgba(35,35,35,.18); }
 ${M} .card.sequence.selected .canvas-card-content, ${M} .card.animation.selected .canvas-card-content { outline: calc(2px * var(--web-inv, 1)) solid var(--web-accent); outline-offset: 0; }
 ${M} .card.sequence.selected::before, ${M} .card.animation.selected::before { content: ''; position: absolute; left: 0; right: 0; top: 40px; bottom: 0; z-index: 0; border-radius: 12px; box-shadow: 0 0 0 calc(4px * var(--web-inv, 1)) var(--web-accent); opacity: .18; pointer-events: none; }
+/* Sprite/model cards share a subtle surface and selection border; task state does not add a glow. */
+${M} .card.model.canvas-card, ${M} .card.model-views.canvas-card,
+${M} .card.sequence .canvas-card-content, ${M} .card.animation .canvas-card-content { border-radius: 12px; box-shadow: 0 6px 16px rgba(0,0,0,.12); }
+${M} .card.model.canvas-card.selected, ${M} .card.model-views.canvas-card.selected,
+${M} .card.sequence.selected .canvas-card-content, ${M} .card.animation.selected .canvas-card-content { outline: calc(1px * var(--web-inv, 1)) solid var(--web-accent); outline-offset: 0; border-color: var(--web-accent); box-shadow: 0 6px 16px rgba(0,0,0,.12); }
+${M} .card.sequence.selected::before, ${M} .card.animation.selected::before { display: none; }
 ${M} .card.sequence .canvas-card-meta, ${M} .card.animation .canvas-card-meta, ${M} .sequence-source-label, ${M} .sequence-result-empty, ${M} .sequence-result-grid figure, ${M} .animation-caption { color: var(--web-muted); }
 ${M} .sequence-result-grid canvas, ${M} .card.animation .animation-preview { border-radius: 8px; background: repeating-conic-gradient(var(--web-soft) 0% 25%, var(--web-panel) 0% 50%) 0 / 16px 16px; }
 ${M} .sequence-edit-button, ${M} .sequence-animation-button, ${M} .animation-controls button { box-sizing: border-box; height: 28px; min-height: 28px; padding: 0 12px; border: 1px solid var(--web-pill-line); border-radius: 999px; background: var(--web-pill-bg); color: var(--web-pill-ink); box-shadow: 0 6px 18px rgba(35,35,35,.12); font: inherit; font-size: 12px; font-weight: 600; line-height: 26px; cursor: pointer; }
@@ -610,6 +618,10 @@ ${M} .workspace-view-controls button[aria-label="缩小画布"]::before { -webki
 ${M} .workspace-view-controls button[aria-label="放大画布"]::before { -webkit-mask: ${ADD_ICON} center / contain no-repeat; mask: ${ADD_ICON} center / contain no-repeat; }
 ${M} #canvas-context-menu .canvas-menu-separator { height: 1px; margin: 4px 10px; background: var(--web-line); }
 ${M} #canvas-context-menu .canvas-menu-separator[hidden] { display: none; }
+${M} #asset-panel[hidden] { display: none; }
+${M} .model-details-dialog .model-details-close { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; padding: 4px; border: 0; border-radius: 4px; background: transparent; color: var(--web-muted); line-height: 1; cursor: pointer; }
+${M} .model-details-dialog .model-details-close:hover { background: var(--web-line); color: var(--web-text); }
+${M} .model-details-dialog .model-details-close svg { display: block; flex: none; width: 16px; height: 16px; }
 
 /* Mark colour swatches: round chips with a hairline ring so the white swatch stays visible on the light menu. */
 ${M} #selection-menu .selection-label { margin: 0 6px 0 4px; color: var(--web-muted); font-size: 12px; font-weight: 500; }

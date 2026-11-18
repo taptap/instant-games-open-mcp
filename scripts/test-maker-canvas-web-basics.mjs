@@ -5369,7 +5369,7 @@ try {
     await settle();
     await blank();
     await waitMetadata(card(video.id).locator('video'));
-    // Ctrl+wheel zooms in Web (a plain wheel pans); several steps reach 放大 / 缩小.
+    // Ctrl+wheel always zooms in Web; several steps reach 放大 / 缩小.
     for (const wheel of [0, -10, 10]) {
       if (wheel) {
         const media = await card(video.id).locator('video').boundingBox();

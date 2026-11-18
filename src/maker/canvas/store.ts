@@ -340,6 +340,29 @@ export function createBrowserCanvasDocumentStore(
   };
 }
 
+function canvasContentLayout(document: unknown): string {
+  const copy = JSON.parse(JSON.stringify(document)) as {
+    revision?: unknown;
+    nodes?: Array<{ imageInfo?: unknown }>;
+  };
+  if (copy && typeof copy === 'object' && !Array.isArray(copy)) {
+    delete copy.revision;
+    if (Array.isArray(copy.nodes)) {
+      for (const node of copy.nodes) if (node && typeof node === 'object') delete node.imageInfo;
+    }
+  }
+  return JSON.stringify(sortCanvasContent(copy));
+}
+
+function sortCanvasContent(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortCanvasContent);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map((key) => [key, sortCanvasContent((value as Record<string, unknown>)[key])])
+  );
+}
 export class MemoryCanvasDocumentStore implements CanvasDocumentStore {
   private readonly documents = new Map<string, CanvasDocument>();
   private activeCanvasId?: string;
@@ -362,13 +385,32 @@ export class MemoryCanvasDocumentStore implements CanvasDocumentStore {
     this.documents.set(document.id, document);
     return cloneDocument(document);
   }
-  async save(document: CanvasDocument): Promise<CanvasDocument> {
+  async save(
+    document: CanvasDocument & { overwrite?: boolean; baseLayout?: string }
+  ): Promise<CanvasDocument> {
+    const submitted = document as CanvasDocument & { overwrite?: boolean; baseLayout?: unknown };
+    const overwrite = submitted.overwrite === true;
+    const baseLayout =
+      typeof submitted.baseLayout === 'string' && submitted.baseLayout
+        ? submitted.baseLayout
+        : undefined;
     const current = this.documents.get(document.id);
     if (!current) throw new CanvasStoreError('画布不存在。', 404, 'NOT_FOUND');
-    if (current.revision !== document.revision)
+    let contentMismatch = false;
+    if (!overwrite && baseLayout) {
+      try {
+        contentMismatch =
+          canvasContentLayout(current) !== canvasContentLayout(JSON.parse(baseLayout));
+      } catch {
+        contentMismatch = true;
+      }
+    }
+    if (!overwrite && (current.revision !== document.revision || contentMismatch))
       throw new CanvasStoreError('画布保存冲突。', 409, 'CONFLICT');
     const saved = cloneDocument(document);
-    saved.revision += 1;
+    delete (saved as { overwrite?: boolean }).overwrite;
+    delete (saved as { baseLayout?: unknown }).baseLayout;
+    saved.revision = current.revision + 1;
     this.documents.set(saved.id, saved);
     return cloneDocument(saved);
   }

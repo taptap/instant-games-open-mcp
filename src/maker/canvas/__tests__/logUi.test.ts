@@ -15,7 +15,7 @@ test('bundles an independent collapsible log and preserves the hidden compatibil
   const page = getCanvasPageHtml();
   expect(page).toContain(CANVAS_LOG_STYLES);
   expect(page).toContain(
-    "createCanvasLog(document.getElementById('canvas-log'), [videoHistoryButton])"
+    "createCanvasLog(document.getElementById('canvas-log'), [videoHistoryButton], { read: host.readLogs, write: host.writeLogs })"
   );
   expect(page).not.toContain('<button id="video-history"');
   expect(page).toContain('<p id="error" hidden aria-hidden="true">');

@@ -13,7 +13,7 @@ export function appendCanvasModelNode(
     type,
     title: type === 'model' ? '3D 模型' : '多视图确认',
     x: source.x + source.width + 80,
-    y: source.y,
+    y: source.y + (source.height - 360) / 2,
     width: type === 'model' ? 300 : 480,
     height: 360,
     ...(source.sectionId ? { sectionId: source.sectionId } : {}),

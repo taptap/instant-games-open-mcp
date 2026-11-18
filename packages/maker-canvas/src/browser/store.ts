@@ -118,7 +118,9 @@ export interface CanvasDocumentStore {
   list(): Promise<CanvasSummary[]>;
   load(canvasId: string): Promise<CanvasDocument>;
   create(title?: string, template?: CanvasCreateTemplate): Promise<CanvasDocument>;
-  save(document: CanvasDocument): Promise<CanvasDocument>;
+  save(
+    document: CanvasDocument & { overwrite?: boolean; baseLayout?: string }
+  ): Promise<CanvasDocument>;
   importImage(
     canvasId: string,
     bytes: ArrayBuffer,
@@ -151,6 +153,8 @@ export interface CanvasDocumentStore {
       sourceImagePaths?: string[];
       sourceImageIds?: string[];
       referenceImagePaths?: string[];
+      /** Web-only rasterized inputs; source paths still identify the editable image nodes. */
+      referenceSnapshotPaths?: string[];
       targetNodeId?: string;
       /** Base64 PNG of a non-PNG design, sent inline for art-text prelayout only. */
       designPng?: string;

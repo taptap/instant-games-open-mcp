@@ -37,7 +37,7 @@ function saveRuntime(document: CanvasDocument, request: (...args: unknown[]) => 
   return new Function(
     'runtime',
     'saveAcknowledgement',
-    'let documentState = runtime.document; let savedKey = ""; const groupQueue = null;' +
+    'let documentState = runtime.document; let savedKey = ""; let fileBaseline = ""; const groupQueue = null;' +
       'const layout = runtime.layout; const dirty = () => layout(documentState) !== savedKey;' +
       'const request = runtime.request; const setStatus = () => {}; const setError = () => {};' +
       'const peerBlock = () => "";' +
