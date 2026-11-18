@@ -104,6 +104,7 @@ export function createCanvasUiSplitController(options: {
   }
   async function apply(doc: any, tidyId: string | undefined, deadline: number) {
     let edited = false;
+    let layoutSaveFailed = false;
     try {
       for (const group of doc.nodes.filter(
         (item: any) =>
@@ -367,22 +368,22 @@ export function createCanvasUiSplitController(options: {
           );
           for (const card of cards.values()) delete card.mirror.linked;
         }
-        function layout(
+        const layout = (
           key: string,
           x: number,
           y: number,
           width: number,
           height: number,
           title?: string
-        ) {
+        ) => {
           const card = cards.get(key);
           if (!card) return;
           if (title) card.title = title;
           if (!tidyId && !auto.has(key)) return;
           Object.assign(card, { x: group.x + x, y: group.y + y, width, height });
           card.mirror.placed = { x: card.x, y: card.y };
-        }
-        function link(fromKey: string, toKey: string) {
+        };
+        const link = (fromKey: string, toKey: string) => {
           const from = fromKey === 'original' && source ? source : cards.get(fromKey);
           const to = cards.get(toKey);
           if (!from || !to || to.mirror.linked) return;
@@ -394,7 +395,7 @@ export function createCanvasUiSplitController(options: {
               kind: 'image-variant',
             });
           to.mirror.linked = true;
-        }
+        };
         const cutKey = cards.has('text-free') ? 'text-free' : 'cut';
         link('original', cutKey);
         const rows = new Map<number, string[]>();
@@ -501,10 +502,11 @@ export function createCanvasUiSplitController(options: {
       if (edited && options.current() === doc) {
         options.changed();
         if (!options.blocked?.()) options.render();
-        if (!(await options.save()) && tidyId)
-          throw new Error('Could not save the layout. Save the canvas and try again.');
+        if (!(await options.save()) && tidyId) layoutSaveFailed = true;
       }
     }
+    if (layoutSaveFailed)
+      throw new Error('Could not save the layout. Save the canvas and try again.');
   }
   const tidyBusy = new Set<string>();
   const editorBusy = new Set<string>();

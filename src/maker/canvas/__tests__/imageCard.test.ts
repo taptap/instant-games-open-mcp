@@ -146,7 +146,9 @@ test('page embeds sizing, decode notifications and proportional resize in its br
   const size = new Script('(' + imageCardSize.toString() + ')').runInNewContext();
   expect(size(400, 1920, 1080)).toEqual(imageCardSize(400, 1920, 1080));
   expect(html).toContain('function fitImageCard(');
-  expect(html).toContain('if (fitImageCard(node)) { markDirty();');
+  expect(html).toContain(
+    'if (!(node.mirror && node.mirror.source === "ui-split") && fitImageCard(node)) { markDirty();'
+  );
   expect(html).toContain('requestAnimationFrame(render)');
   expect(html).toContain("node.type === 'image' && node.assetPath ? node.imageInfo");
   expect(CANVAS_CARD_UI_STYLES).toContain(
