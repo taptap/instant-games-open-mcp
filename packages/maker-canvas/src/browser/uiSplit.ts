@@ -506,87 +506,146 @@ export function createCanvasUiSplitController(options: {
       }
     }
   }
+  const tidyBusy = new Set<string>();
+  const editorBusy = new Set<string>();
+  const downloadBusy = new Set<string>();
+  function actions(node: any) {
+    if (!node?.uiSplit) return undefined;
+    const done = node.uiSplit.phase === labels.done;
+    return {
+      tidy: { disabled: tidyBusy.has(node.id) },
+      editor:
+        options.host.openUiSplitEditor && done ? { disabled: editorBusy.has(node.id) } : undefined,
+    };
+  }
+  function tidy(id: string) {
+    const doc = options.current();
+    const group = doc?.nodes.find((item: any) => item.id === id && item.uiSplit);
+    if (!group || tidyBusy.has(id)) return;
+    tidyBusy.add(id);
+    options.render();
+    void (async () => {
+      if (running) await running.catch(() => undefined);
+      if (options.current() === doc) await sync(id);
+    })()
+      .catch((error: Error) => options.error(error.message))
+      .finally(() => {
+        tidyBusy.delete(id);
+        if (options.current() === doc) options.render();
+      });
+  }
+  async function openEditor(id: string) {
+    const doc = options.current();
+    const group = doc?.nodes.find((item: any) => item.id === id && item.uiSplit);
+    if (
+      !group ||
+      group.uiSplit.phase !== labels.done ||
+      !options.host.openUiSplitEditor ||
+      editorBusy.has(id)
+    )
+      return;
+    editorBusy.add(id);
+    options.render();
+    try {
+      await options.host.openUiSplitEditor(group.uiSplit.name, group.uiSplit.sourcePath);
+    } catch (error) {
+      options.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      editorBusy.delete(id);
+      if (options.current() === doc) options.render();
+    }
+  }
+  function resultButton(label: string, className: string, disabled: boolean, run: () => void) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = className;
+    button.textContent = label;
+    button.disabled = disabled;
+    button.addEventListener('pointerdown', (event) => event.stopPropagation());
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (!button.disabled) run();
+    });
+    return button;
+  }
   function decorate(world: HTMLElement) {
     const doc = options.current();
     if (!doc) return;
+    const paintIcon = (
+      globalThis as { canvasWebIconAction?: (button: HTMLElement, icon: string) => void }
+    ).canvasWebIconAction;
     for (const group of doc.nodes.filter((item: any) => item.uiSplit)) {
-      const header = world.querySelector(
+      const badge = world.querySelector(
         '.card[data-id="' + CSS.escape(group.id) + '"] .canvas-group-state'
-      );
-      if (!header) continue;
-      header.textContent = group.uiSplit.phase || '等待对话开始';
-      const tidy = document.createElement('button');
-      tidy.type = 'button';
-      tidy.className = 'canvas-sprite-chat canvas-ui-split-tidy';
-      tidy.textContent = '重新整理';
-      tidy.onclick = (event) => {
-        event.stopPropagation();
-        const target = doc;
-        tidy.disabled = true;
-        void (async () => {
-          if (running) await running.catch(() => undefined);
-          if (options.current() === target) await sync(group.id);
-        })()
-          .catch((error) => options.error(error.message))
-          .finally(() => {
-            tidy.disabled = false;
-          });
-      };
-      const open = document.createElement('button');
-      open.className = 'canvas-sprite-chat';
-      open.textContent = '打开切分对话';
-      open.disabled = !group.uiSplit.chatId;
-      open.onclick = (event) => {
-        event.stopPropagation();
-        void Promise.resolve(options.host.openSpriteChat?.(group.uiSplit.chatId)).catch((error) =>
-          options.error(error.message)
+      ) as HTMLElement | null;
+      if (!badge) continue;
+      const card = badge.closest('.card') as HTMLElement | null;
+      const row = badge.parentElement;
+      if (!card || !row) continue;
+      card.classList.add('canvas-sprite-group');
+      badge.classList.add('canvas-sprite-stage');
+      badge.textContent = group.uiSplit.phase || '等待对话开始';
+      row.querySelectorAll('.canvas-sprite-chat').forEach((button) => button.remove());
+      card.querySelectorAll(':scope > .ui-split-actions').forEach((node) => node.remove());
+      if (group.uiSplit.chatId && options.host.openSpriteChat) {
+        const open = document.createElement('button');
+        open.type = 'button';
+        open.className = 'canvas-sprite-chat';
+        open.textContent = '打开会话';
+        open.addEventListener('pointerdown', (event) => event.stopPropagation());
+        open.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const current = options
+            .current()
+            ?.nodes.find((item: any) => item.id === group.id && item.uiSplit);
+          if (!current?.uiSplit.chatId) return;
+          void Promise.resolve(options.host.openSpriteChat(current.uiSplit.chatId)).catch(
+            (error: Error) => options.error(error.message)
+          );
+        });
+        badge.after(open);
+        if (typeof paintIcon === 'function') paintIcon(open, 'openChat');
+      }
+      const done = group.uiSplit.phase === labels.done;
+      const showEditor = Boolean(options.host.openUiSplitEditor) && done;
+      const showDownload = Boolean(options.host.downloadUiSplit) && done;
+      if (!showEditor && !showDownload) continue;
+      const bar = document.createElement('div');
+      bar.className = 'group-queue ui-split-actions';
+      bar.dataset.workflow = 'true';
+      const actionsRow = document.createElement('div');
+      actionsRow.className = 'group-queue-row group-queue-head';
+      if (showEditor) {
+        actionsRow.append(
+          resultButton(
+            '打开 UI 编辑器',
+            'group-queue-primary',
+            editorBusy.has(group.id),
+            () => void openEditor(group.id)
+          )
         );
-      };
-      for (const button of header.parentElement?.querySelectorAll('.canvas-sprite-chat') || [])
-        button.remove();
-      tidy.addEventListener('pointerdown', (event) => event.stopPropagation());
-      open.addEventListener('pointerdown', (event) => event.stopPropagation());
-      header.after(tidy, open);
-      if (options.host.downloadUiSplit && group.uiSplit.phase === labels.done) {
-        const download = document.createElement('button');
-        download.type = 'button';
-        download.className = 'canvas-sprite-chat';
-        download.textContent = '下载 UI 资源包';
-        download.addEventListener('pointerdown', (event) => event.stopPropagation());
-        download.onclick = (event) => {
-          event.stopPropagation();
-          download.disabled = true;
-          void options.host
-            .downloadUiSplit(group.uiSplit.name, group.uiSplit.sourcePath, {
-              canvasId: doc.id,
-              groupId: group.id,
-              title: doc.title,
-            })
-            .catch((error: Error) => options.error(error.message))
-            .finally(() => {
-              download.disabled = false;
-            });
-        };
-        open.after(download);
       }
-      if (options.host.openUiSplitEditor && group.uiSplit.phase === labels.done) {
-        const editor = document.createElement('button');
-        editor.type = 'button';
-        editor.className = 'canvas-sprite-chat';
-        editor.textContent = '在 UI 编辑器打开';
-        editor.addEventListener('pointerdown', (event) => event.stopPropagation());
-        editor.onclick = (event) => {
-          event.stopPropagation();
-          editor.disabled = true;
-          void options.host
-            .openUiSplitEditor(group.uiSplit.name, group.uiSplit.sourcePath)
-            .catch((error: Error) => options.error(error.message))
-            .finally(() => {
-              editor.disabled = false;
-            });
-        };
-        open.after(editor);
+      if (showDownload) {
+        actionsRow.append(
+          resultButton('下载 UI 资源包', '', downloadBusy.has(group.id), () => {
+            downloadBusy.add(group.id);
+            options.render();
+            void options.host
+              .downloadUiSplit(group.uiSplit.name, group.uiSplit.sourcePath, {
+                canvasId: doc.id,
+                groupId: group.id,
+                title: doc.title,
+              })
+              .catch((error: Error) => options.error(error.message))
+              .finally(() => {
+                downloadBusy.delete(group.id);
+                if (options.current() === doc) options.render();
+              });
+          })
+        );
       }
+      bar.append(actionsRow);
+      card.append(bar);
     }
   }
   function dismiss(nodeIds: string[]) {
@@ -599,5 +658,5 @@ export function createCanvasUiSplitController(options: {
         group.uiSplit.dismissed.push(node.mirror.key);
     }
   }
-  return { start, sync, needsSync, decorate, dismiss };
+  return { start, sync, needsSync, decorate, dismiss, actions, tidy, openEditor };
 }
