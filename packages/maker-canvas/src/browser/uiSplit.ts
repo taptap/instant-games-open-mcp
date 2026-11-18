@@ -332,13 +332,6 @@ export function createCanvasUiSplitController(options: {
             auto.add(key);
           cards.set(key, card);
         }
-        if (tidyId) options.remember();
-        for (const [card, path] of updates) {
-          card.assetPath = path;
-          delete card.imageInfo;
-        }
-        if (source) source.sectionId = group.id;
-        doc.nodes.push(...additions);
         const nodes = doc.nodes.filter(
           (item: any) =>
             !(
@@ -347,6 +340,19 @@ export function createCanvasUiSplitController(options: {
               !keep.has(item.mirror.key)
             )
         );
+        if (nodes.length + additions.length > 400) {
+          const message = '画布容量不足（最多 400 张卡片），请清理卡片后重新同步 UI 切分。';
+          if (tidyId) throw new Error(message);
+          options.error(message);
+          continue;
+        }
+        if (tidyId) options.remember();
+        for (const [card, path] of updates) {
+          card.assetPath = path;
+          delete card.imageInfo;
+        }
+        if (source) source.sectionId = group.id;
+        nodes.push(...additions);
         doc.nodes = nodes;
         const ids = new Set(nodes.map((item: any) => item.id));
         if (source && original) {

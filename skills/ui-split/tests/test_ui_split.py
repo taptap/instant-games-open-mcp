@@ -224,3 +224,31 @@ def test_failed_slot_does_not_publish_partial_batch(tmp_path):
     progress = json.loads((tmp_path / "docs/.ui-split/inventory.json").read_text())
     assert all("-g1.png" not in entry["path"] for entry in progress["bindings"])
     assert not list((tmp_path / "assets/image/ui-split/inventory").glob("*-g1.png"))
+
+
+def test_rejected_initial_batch_can_retry_without_skipping_later_batches(tmp_path):
+    action, progress = prepare_separate(tmp_path, [
+        {"id": "E001", "name": "按钮", "type": "button", "bbox": [10, 10, 40, 20], "parent": None},
+        {"id": "E002", "name": "图标", "type": "icon", "bbox": [60, 60, 20, 20], "parent": None},
+    ])
+    assert len(progress["batches"]) > 1
+    redo = ("--redo-batch", "0", "--confirm-new-generation")
+    assert run(tmp_path, "next", "--name", "inventory", *redo).returncode != 0
+    assert call(tmp_path, "next")["action"]["kind"] == "unknown"
+
+    batch = progress["batches"][0]
+    fills = {index: "content" for index, slot in enumerate(batch["slots"]) if not slot.get("reserve")}
+    bad = {index: "empty" for index in fills}
+    paint(batch, bad).save(tmp_path / "assets/bad.png")
+    failed = run(tmp_path, "record", "--name", "inventory", "--action-id", action["id"], "--file", "assets/bad.png")
+    assert "A required slot is empty" in failed.stderr
+    assert call(tmp_path, "next")["action"]["kind"] == "rejected"
+    assert run(tmp_path, "next", "--name", "inventory", "--redo-batch", "0").returncode != 0
+    assert run(tmp_path, "next", "--name", "inventory", "--redo-batch", "1", "--confirm-new-generation").returncode != 0
+
+    retry = call(tmp_path, "next", *redo)["action"]
+    assert retry["id"] != action["id"]
+    paint(batch, fills).save(tmp_path / "assets/good.png")
+    result = call(tmp_path, "record", "--action-id", retry["id"], "--file", "assets/good.png")
+    assert result["phase"] == "separate"
+    assert call(tmp_path, "next")["action"]["tool"] == "edit_image"

@@ -29,6 +29,8 @@ function fixture(
     ],
   };
   const save = jest.fn(async () => true);
+  const remember = jest.fn();
+  const error = jest.fn();
   let id = 0;
   const controller = createCanvasUiSplitController({
     current: () => doc,
@@ -38,11 +40,11 @@ function fixture(
     save,
     changed: jest.fn(),
     render: jest.fn(),
-    remember: jest.fn(),
+    remember,
     createId: () => 'node-' + ++id,
-    error: jest.fn(),
+    error,
   });
-  return { doc, group, progress, controller, save };
+  return { doc, group, progress, controller, save, remember, error };
 }
 
 test('UI slicing sync keeps moved and dismissed results and does not write unchanged progress', async () => {
@@ -216,4 +218,26 @@ test('UI slicing still mirrors results when the host has no prepareMedia', async
   });
   await controller.sync();
   expect(doc.nodes.map((node: any) => node.mirror?.key)).toEqual([undefined, 'original', 'cut']);
+});
+
+test('UI slicing leaves a full canvas unchanged until a card slot is available', async () => {
+  const { doc, group, controller, save, remember, error } = fixture();
+  const original = { id: 'source', type: 'image', assetPath: group.uiSplit.sourcePath };
+  doc.nodes.push(original);
+  for (let i = doc.nodes.length; i < 400; i++)
+    doc.nodes.push({ type: 'image', id: 'existing-' + i });
+  const before = JSON.stringify(doc);
+
+  await controller.sync();
+  expect(error).toHaveBeenCalledWith(expect.stringContaining('400'));
+  expect(JSON.stringify(doc)).toBe(before);
+  await expect(controller.sync('group')).rejects.toThrow('400');
+  expect(remember).not.toHaveBeenCalled();
+  expect(save).not.toHaveBeenCalled();
+
+  doc.nodes.pop();
+  await controller.sync();
+  expect(doc.nodes).toHaveLength(400);
+  expect(original).toHaveProperty('sectionId', group.id);
+  expect(save).toHaveBeenCalledTimes(1);
 });

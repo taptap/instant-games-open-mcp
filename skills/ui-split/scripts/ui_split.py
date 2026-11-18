@@ -357,11 +357,13 @@ def record(state, root, args):
                     batch.get("group") != "background"
                     and tile.getchannel("A").getextrema()[0] == 255
                 ):
+                    action["rejected_result"] = True
                     raise ValueError(
                         "Sheet has no transparent background; preserve original task and review"
                     )
                 content = tile.getbbox()
                 if not content:
+                    action["rejected_result"] = True
                     raise ValueError("A required slot is empty")
                 prepared.append((slot, tile.crop(content)))
             sheet.save(separated)
@@ -467,18 +469,29 @@ def main():
     else:
         raise ValueError("Run not found; initialize it with the original image")
     if args.redo_batch is not None:
+        pending = state.get("pending")
+        retry_rejected = (
+            pending
+            and pending.get("rejected_result")
+            and state["phase"] == "separate"
+            and args.redo_batch == state["batch"]
+        )
+        redo_completed = not pending and state["phase"] in ("review", "done")
         if (
-            not args.confirm_new_generation
-            or state.get("pending")
-            or state["phase"] not in ("review", "done")
+            args.command != "next"
+            or not args.confirm_new_generation
+            or not (retry_rejected or redo_completed)
         ):
             raise ValueError(
                 "Redo requires explicit new-generation confirmation after the original action is settled"
             )
         if not 0 <= args.redo_batch < len(state.get("batches", [])):
             raise ValueError("Batch does not exist")
+        state.pop("pending", None)
+        state.pop("error", None)
         state["phase"], state["batch"] = "separate", args.redo_batch
-        state["redo_only"] = True
+        if redo_completed:
+            state["redo_only"] = True
         state["generation"] = state.get("generation", 0) + 1
     if args.command == "record":
         try:
@@ -505,7 +518,14 @@ def main():
             )
             state["pending"]["issued"] = False
         action = dict(state["pending"])
-        if action.get("issued"):
+        if action.get("rejected_result"):
+            action = dict(
+                id=action["id"],
+                kind="rejected",
+                batch=state["batch"],
+                message=state["error"],
+            )
+        elif action.get("issued"):
             if action.get("request_id"):
                 action = dict(
                     id=action["id"],
