@@ -251,10 +251,12 @@ export function createCanvasUiSplitController(options: {
               const budget = Math.min(12000, deadline - Date.now());
               if (budget <= 0) break;
               try {
-                await waitFor(
-                  options.store.prepareMedia(path, refresh, Math.max(1, budget - 100)),
-                  budget
-                );
+                if (typeof options.store.prepareMedia === 'function') {
+                  await waitFor(
+                    options.store.prepareMedia(path, refresh, Math.max(1, budget - 100)),
+                    budget
+                  );
+                }
                 ready.add(path);
               } catch {
                 failed.add(path);

@@ -176,3 +176,44 @@ test.each(['delete', 'drag'])(
     }
   }
 );
+
+test('UI slicing still mirrors results when the host has no prepareMedia', async () => {
+  const group = {
+    id: 'group',
+    type: 'section',
+    x: 0,
+    y: 0,
+    width: 360,
+    height: 420,
+    uiSplit: {
+      name: 'inventory',
+      sourcePath: 'assets/image/design.png',
+      dismissed: [] as string[],
+    },
+  };
+  const doc: any = { id: 'canvas', nodes: [group], edges: [] };
+  const controller = createCanvasUiSplitController({
+    current: () => doc,
+    store: {
+      readUiSplitProgress: async () => ({
+        version: 1,
+        name: 'inventory',
+        phase: 'review',
+        design: { path: group.uiSplit.sourcePath },
+        artifacts: [
+          { key: 'original', title: '原稿', path: group.uiSplit.sourcePath },
+          { key: 'cut', title: '去文字', path: 'assets/image/ui-split/inventory/cut.png' },
+        ],
+      }),
+    },
+    host: {},
+    save: jest.fn(async () => true),
+    changed: jest.fn(),
+    render: jest.fn(),
+    remember: jest.fn(),
+    createId: () => 'node-cut',
+    error: jest.fn(),
+  });
+  await controller.sync();
+  expect(doc.nodes.map((node: any) => node.mirror?.key)).toEqual([undefined, 'original', 'cut']);
+});

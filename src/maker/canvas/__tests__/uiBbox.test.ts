@@ -120,4 +120,5 @@ test('serialized browser validators include all Bbox dependencies', () => {
   expect(vm.runInNewContext(helpers + ';Object.keys(UI_ATLAS_GROUP_LABELS)', {})).toEqual(
     expect.arrayContaining(['controls', 'background'])
   );
+  expect(html).not.toContain('node.uiSplit.phase !== "已完成"');
 });
