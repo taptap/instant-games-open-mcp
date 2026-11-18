@@ -185,7 +185,7 @@
   function bind(app) {
     var canvas = app.canvas;
     canvas.addEventListener("wheel", function (event) {
-      if (event.ctrlKey || event.metaKey || !app.tree) return;
+      if (event.ctrlKey || event.metaKey || !app.tree || (root.UrhoxConfig.WHEEL === "auto" && !event.altKey)) return;
       var point = canvasPoint(app, event);
       var target = pickHits(app, point.x, point.y).find(function (node) {
         return node.type === "ScrollView" && node._scrollMaxY > 0;
@@ -446,6 +446,7 @@
       app.refreshInspector();
       app.updateMeta();
     }
+    canvas.addEventListener("maker-cancel-canvas-drag", function () { finishDrag(null, true); });
     canvas.addEventListener("pointerup", function (event) { finishDrag(event, false); });
     canvas.addEventListener("pointercancel", function (event) { finishDrag(event, true); });
     canvas.addEventListener("lostpointercapture", function (event) { finishDrag(event, true); });

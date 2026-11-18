@@ -650,13 +650,15 @@
     }).join('/');
   }
 
-  function openUiPath(ref) {
-    if (!ref) return false;
+  function findUiFile(ref) {
+    if (!ref) return null;
     var raw = String(ref).replace(/^\/+/, '');
+    var qualified = raw.startsWith('assets/') ? raw : 'assets/' + raw;
     var exact = project.files.find(function (entry) {
-      return String(entry.path || '').replace(/^\/+/, '') === raw;
+      return String(entry.path || '').replace(/^\/+/, '') === raw ||
+        (typeof entry.ref === 'string' && 'assets/' + entry.ref === qualified);
     });
-    var file = exact || project.files.find(function (entry) {
+    return exact || project.files.find(function (entry) {
       var path = decodedPath(entry.path);
       return (
         path === raw ||
@@ -665,6 +667,11 @@
         path === 'assets/' + raw
       );
     });
+  }
+
+  function openUiPath(ref) {
+    if (!ref) return false;
+    var file = findUiFile(ref);
     if (!file) {
       notify('找不到组件源文件：' + ref);
       return false;
@@ -970,8 +977,15 @@
     event.returnValue = '';
   });
 
-  async function loadProjectFiles(initial) {
-    if (opening || saving || refreshing) return;
+  var refreshTask = null;
+  function loadProjectFiles(initial) {
+    if (refreshTask) return refreshTask;
+    if (opening || saving) return Promise.resolve();
+    refreshTask = readProjectFiles(initial).finally(function () { refreshTask = null; });
+    return refreshTask;
+  }
+
+  async function readProjectFiles(initial) {
     refreshing = true;
     openProjectBtn.disabled = true;
     openProjectBtn.textContent = '刷新中…';
@@ -1008,11 +1022,7 @@
           status.textContent = '当前文件已不在项目列表中，编辑内容仍保留；请检查磁盘文件。';
       } else if (project.files.length) {
         var requested = initial ? window.UrhoxConfig.INITIAL_UI : '';
-        if (requested && requested.startsWith('assets/'))
-          requested = window.UrhoxConfig.fileUrl(requested);
-        var first = project.files.find(function (file) {
-          return file.path === requested;
-        });
+        var first = findUiFile(requested);
         if (requested && !first)
           throw new Error('找不到指定的 UI 文档：' + window.UrhoxConfig.displayPath(requested));
         setOpening(true);

@@ -214,6 +214,9 @@
   document.addEventListener("visibilitychange", function () { if (document.hidden) resetPan(); });
 
   if (preview) {
+    var autoWheel = window.UrhoxConfig.WHEEL === "auto" && window.UrhoxCanvasWheel
+      ? window.UrhoxCanvasWheel.createCanvasWheelInput()
+      : null;
     preview.addEventListener("wheel", function (event) {
       event.preventDefault();
       var rect = preview.getBoundingClientRect();
@@ -222,7 +225,7 @@
       var before = zoom;
       var config = window.UrhoxConfig || {};
       var unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 800 : 1;
-      if (config.WHEEL === "pan" && !event.ctrlKey && !event.metaKey) {
+      if (autoWheel ? autoWheel(event) === "pan" : config.WHEEL === "pan" && !event.ctrlKey && !event.metaKey) {
         // Shift+wheel on a mouse scrolls sideways; trackpads already report deltaX.
         var sideways = event.shiftKey && !event.deltaX;
         panX -= (sideways ? event.deltaY : event.deltaX) * unit;
@@ -230,7 +233,7 @@
         applyView();
         return;
       }
-      var factor = config.WHEEL === "pan"
+      var factor = autoWheel || config.WHEEL === "pan"
         ? Math.exp(-event.deltaY * unit * 0.002)
         : event.deltaY < 0 ? 1.08 : 1 / 1.08;
       zoom = Math.max(0.08, Math.min(8, zoom * factor));
@@ -260,6 +263,57 @@
       lastY = event.clientY;
       applyView();
     });
+    if (autoWheel) {
+      preview.style.touchAction = "none";
+      var fingers = new Map();
+      var touchPanning = false;
+      function midpoint() {
+        var pair = Array.from(fingers.values());
+        return pair.length === 2 ? { x: (pair[0].x + pair[1].x) / 2, y: (pair[0].y + pair[1].y) / 2 } : null;
+      }
+      function clearTouches() {
+        fingers.clear();
+        touchPanning = false;
+      }
+      function consumeTouch(event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      preview.addEventListener("pointerdown", function (event) {
+        if (event.pointerType !== "touch" || event.target.closest("button, input, select, textarea")) return;
+        fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (fingers.size < 2 && !touchPanning) return;
+        if (!touchPanning) {
+          touchPanning = true;
+          canvas.dispatchEvent(new Event("maker-cancel-canvas-drag"));
+        }
+        fingers.forEach(function (_, id) {
+          preview.setPointerCapture(id);
+        });
+        consumeTouch(event);
+      }, true);
+      preview.addEventListener("pointermove", function (event) {
+        if (!fingers.has(event.pointerId)) return;
+        var before = midpoint();
+        fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (!touchPanning) return;
+        var next = midpoint();
+        if (before && next) {
+          panX += next.x - before.x;
+          panY += next.y - before.y;
+          applyView();
+        }
+        consumeTouch(event);
+      }, true);
+      function finishTouch(event) {
+        if (!fingers.delete(event.pointerId)) return;
+        if (touchPanning) consumeTouch(event);
+        if (!fingers.size) clearTouches();
+      }
+      preview.addEventListener("pointerup", finishTouch, true);
+      preview.addEventListener("pointercancel", finishTouch, true);
+      window.addEventListener("blur", clearTouches);
+    }
     preview.addEventListener("pointerup", stopPan);
     preview.addEventListener("pointercancel", stopPan);
     preview.addEventListener("lostpointercapture", stopPan);
