@@ -14,6 +14,7 @@ export function createCanvasModelUiWithHost(options: {
   showDownload?: boolean;
   autoPoll?: boolean;
   confirm?(message: string): Promise<boolean>;
+  createModel?(viewsId: string): string;
   openImages?(images: string[], index: number): void;
   previewOrigin(url: string): string;
   deliver: CanvasExportDelivery;
@@ -36,6 +37,8 @@ export function createCanvasModelUiWithHost(options: {
   let controller: AbortController | undefined;
   let readVersion = 0;
   let activeViewsId: string | undefined;
+  let activeNodeId: string | undefined;
+  const stoppedViews = new Set<string>();
   let activeSourceId: string | undefined;
   let pollTimer: ReturnType<typeof setTimeout> | undefined;
   let pollController: AbortController | undefined;
@@ -44,18 +47,24 @@ export function createCanvasModelUiWithHost(options: {
     string,
     { key: string; node: CanvasNode; body: HTMLElement; state: string }
   >();
+  function pendingAttempt(value: CanvasModelAttempt, current: CanvasDocument) {
+    return (
+      !stoppedViews.has(value.nodeId) &&
+      current.nodes.some((node) => node.id === value.nodeId) &&
+      ['pending', 'running'].includes(value.status) &&
+      (value.assetId || value.taskId)
+    );
+  }
   function schedulePoll() {
     clearTimeout(pollTimer);
     if (!options.autoPoll || pollingPaused) return;
     if (
       waiting ||
       pollController ||
-      !attempts.some(
-        (value) =>
-          options.current()?.nodes.some((node) => node.id === value.nodeId) &&
-          ['pending', 'running'].includes(value.status) &&
-          (value.assetId || value.taskId)
-      )
+      !attempts.some((value) => {
+        const current = options.current();
+        return current && pendingAttempt(value, current);
+      })
     )
       return;
     pollTimer = setTimeout(() => {
@@ -68,23 +77,23 @@ export function createCanvasModelUiWithHost(options: {
       schedulePoll();
       return;
     }
-    const pending = attempts.filter(
-      (value) =>
-        current.nodes.some((node) => node.id === value.nodeId) &&
-        ['pending', 'running'].includes(value.status) &&
-        (value.assetId || value.taskId)
-    );
+    const pending = attempts.filter((value) => pendingAttempt(value, current));
     const abort = new AbortController();
     pollController = abort;
     try {
       for (const value of pending) {
         if (abort.signal.aborted || options.current()?.id !== current.id) break;
+        if (!pendingAttempt(value, current)) continue;
         const result = await options.store.modelAction(
           current.id,
           { nodeId: value.nodeId, action: 'query' },
           abort.signal
         );
-        if (!abort.signal.aborted && options.current()?.id === current.id) {
+        if (
+          !abort.signal.aborted &&
+          options.current()?.id === current.id &&
+          !stoppedViews.has(value.nodeId)
+        ) {
           attempts = [result, ...attempts.filter((item) => item.nodeId !== result.nodeId)];
           options.render();
         }
@@ -200,9 +209,13 @@ export function createCanvasModelUiWithHost(options: {
     return options.thumbnailUrl(options.store.modelPreviewUrl(current.id, id), value.id);
   }
   function showThumbnail(parent: HTMLElement, id: string, value: CanvasModelAttempt) {
-    const target = button(parent, '', () => {
-      preview(id);
-    });
+    const target = button(
+      parent,
+      '',
+      () => { preview(id); },
+      false,
+      options.store.platform === 'web'
+    );
     target.className = 'model-thumbnail';
     target.setAttribute('aria-label', '查看模型 · 旋转预览');
     const url = thumbnailUrl(id, value);
@@ -255,15 +268,40 @@ export function createCanvasModelUiWithHost(options: {
     return { opened: true, url: frame.src };
   }
   function canStop(id: string) {
-    if (!waiting || activeAction === 'query' || !options.current()) return false;
-    try {
-      return canvasModelInput(options.current()!, id).views.id === activeViewsId;
-    } catch {
-      return false;
+    if (waiting && activeAction !== 'query' && activeNodeId === id) return true;
+    const current = options.current();
+    const node = current?.nodes.find((item) => item.id === id);
+    const value = state(id);
+    return Boolean(
+      options.autoPoll &&
+        value &&
+        !stoppedViews.has(value.nodeId) &&
+        ['pending', 'running'].includes(value.status) &&
+        node?.type === (value.phase === 'views' ? 'model-views' : 'model')
+    );
+  }
+  function stop(id: string) {
+    if (!canStop(id)) return;
+    const current = options.current();
+    if (!current) return;
+    const { views } = canvasModelInput(current, id);
+    stoppedViews.add(views.id);
+    if (activeNodeId === id) controller?.abort();
+    else {
+      schedulePoll();
+      options.render();
     }
   }
   function protects(id: string) {
-    return waiting && (id === activeSourceId || canStop(id));
+    if (!waiting) return false;
+    if (id === activeSourceId) return true;
+    const current = options.current();
+    if (!current) return false;
+    try {
+      return canvasModelInput(current, id).views.id === activeViewsId;
+    } catch {
+      return false;
+    }
   }
   async function refresh() {
     const current = options.current();
@@ -322,6 +360,7 @@ export function createCanvasModelUiWithHost(options: {
     pollController?.abort();
     pollController = undefined;
     activeViewsId = input.views.id;
+    activeNodeId = id;
     activeSourceId = input.character.id;
     readVersion++;
     loading = false;
@@ -335,8 +374,7 @@ export function createCanvasModelUiWithHost(options: {
         if (options.current() !== current) throw new Error('画布已切换，未提交模型请求。');
       }
       if (controller.signal.aborted) throw new Error('已停止等待。');
-      if (!(await options.save())) throw new Error('画布未保存，不提交模型请求。');
-      if (options.current() !== current) throw new Error('画布已切换，请重新查询状态。');
+      let targetId = id;
       if (action === 'confirm') {
         const review = state(id);
         if (
@@ -374,12 +412,22 @@ export function createCanvasModelUiWithHost(options: {
               })
           )
         );
+        if (options.current() !== current || state(id)?.reviewId !== reviewId)
+          throw new Error('多视图已变化，请重新确认。');
+        if (input.target.type === 'model-views' && options.createModel) {
+          targetId = options.createModel(input.views.id);
+          activeNodeId = targetId;
+          options.render();
+        }
       }
+      if (controller.signal.aborted) throw new Error('已停止等待。');
+      if (!(await options.save())) throw new Error('画布未保存，不提交模型请求。');
+      if (options.current() !== current) throw new Error('画布已切换，请重新查询状态。');
       if (controller.signal.aborted) throw new Error('已停止等待。');
       const result = await options.store.modelAction(
         current.id,
         {
-          nodeId: id,
+          nodeId: targetId,
           action,
           revision: current.revision,
           ...(reviewId ? { reviewId } : {}),
@@ -389,6 +437,7 @@ export function createCanvasModelUiWithHost(options: {
       if (options.current()?.id === current.id) {
         readVersion++;
         loading = false;
+        stoppedViews.delete(input.views.id);
         attempts = [result, ...attempts.filter((item) => item.nodeId !== result.nodeId)];
       }
       if (result.error) throw new Error(result.error);
@@ -402,6 +451,7 @@ export function createCanvasModelUiWithHost(options: {
       waiting = false;
       activeAction = undefined;
       activeViewsId = undefined;
+      activeNodeId = undefined;
       activeSourceId = undefined;
       controller = undefined;
       schedulePoll();
@@ -412,13 +462,15 @@ export function createCanvasModelUiWithHost(options: {
     parent: HTMLElement,
     label: string,
     action: () => void | Promise<unknown>,
-    disabled = false
+    disabled = false,
+    allowCardDrag = false
   ) {
     const element = document.createElement('button');
     element.type = 'button';
     element.textContent = label;
     element.disabled = disabled;
-    element.addEventListener('pointerdown', (event) => event.stopPropagation());
+    if (!allowCardDrag)
+      element.addEventListener('pointerdown', (event) => event.stopPropagation());
     element.addEventListener('click', (event) => {
       event.stopPropagation();
       void Promise.resolve()
@@ -496,10 +548,23 @@ export function createCanvasModelUiWithHost(options: {
     const current = options.current();
     if (!current) return;
     const value = state(node.id);
+    let viewsId = node.id;
+    try {
+      viewsId = canvasModelInput(current, node.id).views.id;
+    } catch {
+      // A disconnected card can render its empty state without an upstream.
+    }
+    const stopped =
+      stoppedViews.has(viewsId) && (!value || ['running', 'pending', 'unknown'].includes(value.status));
+    const stoppedHere = stopped && node.type === (value?.phase === 'model' ? 'model' : 'model-views');
+    const active = waiting && activeAction !== 'query' && activeNodeId === node.id;
     const key = JSON.stringify([
       current.id,
       value && { ...value, updatedAt: undefined },
       canStop(node.id),
+      active,
+      stoppedHere,
+      waiting,
       loading,
       node.modelQuality,
       node.assetPath,
@@ -537,7 +602,9 @@ export function createCanvasModelUiWithHost(options: {
       node.type === 'model-views' &&
       Boolean(value?.previews.length) &&
       (value?.phase === 'model' || value?.status === 'review');
-    label.textContent = value?.stale
+    label.textContent = stoppedHere
+      ? '已停止等待 · 可查询原任务'
+      : value?.stale
       ? '角色或质量已变化 · 旧结果保留'
       : viewsReady
         ? value?.status === 'review'
@@ -577,9 +644,12 @@ export function createCanvasModelUiWithHost(options: {
     const footer = document.createElement('div');
     footer.className = 'model-footer';
     card.dataset.state =
-      !viewsReady &&
-      (node.type === 'model-views' || value?.phase === 'model') &&
-      (canStop(node.id) || (value && ['pending', 'running'].includes(value.status)))
+      !stoppedHere &&
+      (active ||
+        (!viewsReady &&
+          node.type === (value?.phase === 'model' ? 'model' : 'model-views') &&
+          value &&
+          ['pending', 'running'].includes(value.status)))
         ? 'loading'
         : value?.stale
           ? 'waiting'
@@ -625,6 +695,8 @@ export function createCanvasModelUiWithHost(options: {
       const gallery = document.createElement('div');
       gallery.className = 'model-views-gallery';
       for (const preview of value?.previews || []) {
+        const tile = document.createElement('figure');
+        tile.className = 'model-view-tile';
         const link = document.createElement('button');
         link.type = 'button';
         link.className = 'model-view';
@@ -640,12 +712,13 @@ export function createCanvasModelUiWithHost(options: {
         link.addEventListener('pointerdown', (event) => event.stopPropagation());
         const image = document.createElement('img');
         image.src = options.store.mediaUrl(preview.path);
-        image.alt = preview.view;
-        const caption = document.createElement('small');
+        image.alt = '';
+        const caption = document.createElement('figcaption');
         caption.textContent =
           ({ front: '正面', left: '左侧', back: '背面', right: '右侧' } as Record<string, string>)[
             preview.view
           ] || preview.view;
+        link.setAttribute('aria-label', '查看' + caption.textContent + '视图');
         const loading = document.createElement('small');
         loading.textContent = '正在加载视图…';
         const timer = setTimeout(() => {
@@ -659,8 +732,9 @@ export function createCanvasModelUiWithHost(options: {
           clearTimeout(timer);
           loading.textContent = '视图加载失败，请查询原任务';
         });
-        link.append(image, loading, caption);
-        gallery.append(link);
+        link.append(image, loading);
+        tile.append(link, caption);
+        gallery.append(tile);
       }
       body.append(gallery);
       if (!value && node.assetPath) {
@@ -682,12 +756,13 @@ export function createCanvasModelUiWithHost(options: {
         placeholder.textContent = '多视图预览';
         gallery.append(placeholder);
       }
-      if (!value || value.stale || value.retrySafe)
+      if (!stoppedHere && (!value || value.stale || value.retrySafe))
         button(
           footer,
-          '生成多视图',
+          value?.retrySafe ? '重试生成多视图' : '生成多视图',
           async () => {
             if (
+              !options.createModel &&
               !(await (options.confirm?.(
                 '确认以当前角色图生成多视图？生成后需检查预览，不会自动生成模型。'
               ) ?? Promise.resolve(window.confirm('确认生成多视图？'))))
@@ -735,12 +810,17 @@ export function createCanvasModelUiWithHost(options: {
         empty.classList.add('model-empty-loading');
       }
     }
-    if (node.type === 'model' && value?.status === 'review' && !value.stale)
+    if (
+      node.type === (options.createModel ? 'model-views' : 'model') &&
+      value?.status === 'review' &&
+      !value.stale
+    )
       button(
         footer,
-        '确认视图并生成',
+        options.createModel ? '确认并生成模型' : '确认视图并生成',
         async () => {
           if (
+            !options.createModel &&
             !(await (options.confirm?.(
               '已检查多视图卡中的全部图片并确认外观一致？确认后生成模型。'
             ) ?? Promise.resolve(window.confirm('确认生成模型？'))))
@@ -751,12 +831,18 @@ export function createCanvasModelUiWithHost(options: {
         Boolean(unavailable) || waiting || loading
       );
     if (value?.assetId || value?.taskId)
-      button(actions, '更新任务进度', () => execute(node.id, 'query'), waiting || loading);
+      button(
+        stoppedHere ? footer : actions,
+        stoppedHere ? '查询原任务' : '更新任务进度',
+        () => execute(node.id, 'query'),
+        waiting || loading
+      );
+    else if (stoppedHere) button(footer, '刷新本地状态', refresh, loading);
     button(actions, '刷新本地状态', refresh, loading);
     if (canStop(node.id)) {
-      const stop = button(footer, '停止本地等待', () => controller?.abort());
-      stop.dataset.modelStop = 'true';
-      if (options.store.platform === 'web') stop.hidden = true;
+      const control = button(footer, '停止等待', () => stop(node.id));
+      control.dataset.modelStop = 'true';
+      if (options.store.platform === 'web') control.hidden = true;
     }
     if (value?.error) {
       const error = document.createElement('p');
@@ -833,7 +919,7 @@ export function createCanvasModelUiWithHost(options: {
     execute,
     render,
     download,
-    stop: () => controller?.abort(),
+    stop,
     get isBusy() {
       return waiting;
     },
@@ -847,6 +933,6 @@ export const CANVAS_MODEL_STYLES =
   '.model-preview-dialog{width:min(960px,94vw);height:min(760px,90vh);max-width:none;max-height:none;padding:12px;border:1px solid #536367;border-radius:12px;background:#182022;color:#e3e9e8}.model-preview-dialog[open]{display:flex;flex-direction:column;gap:10px}.model-preview-dialog::backdrop{background:#000a}.model-preview-dialog>button{align-self:flex-end;background:#293739;color:inherit;border:1px solid #536367;border-radius:6px;padding:7px 14px;cursor:pointer}.model-preview-dialog iframe{border:0;width:100%;flex:1;min-height:0;border-radius:8px}' +
   '.model-content{height:100%;min-height:0;overflow:hidden;position:relative;box-sizing:border-box;padding:10px;display:flex;flex-direction:column;gap:10px}.model-content p{margin:0}.model-content button,.model-content select{border:1px solid var(--canvas-border,#454955);border-radius:6px;background:var(--canvas-panel,#242832);color:inherit;padding:5px 9px;font:inherit;font-size:11px;cursor:pointer}.model-content button:disabled{opacity:.5;cursor:default}' +
   '.model-toolbar{display:flex;align-items:center;gap:8px;min-height:24px}.model-toolbar .model-status{flex:1;font-size:11px;color:var(--canvas-muted,#a1a7b2);line-height:1.5}.model-menu{flex:none}.model-menu summary{list-style:none;cursor:pointer;border-radius:6px;padding:0 6px;font-size:20px;line-height:24px}.model-menu summary::-webkit-details-marker{display:none}.model-menu summary:hover,.model-menu[open] summary{background:var(--canvas-panel,#242832)}.model-menu-actions{position:absolute;z-index:5;right:10px;top:40px;width:min(240px,calc(100% - 20px));max-height:calc(100% - 50px);overflow:auto;box-sizing:border-box;padding:10px;display:flex;flex-direction:column;gap:8px;border:1px solid var(--canvas-border,#454955);border-radius:8px;background:var(--canvas-panel,#242832);box-shadow:0 10px 25px #0004}.model-menu-actions button{text-align:left}' +
-  '.model-views-gallery{display:grid;flex:1;min-height:0;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:8px}.model-views-gallery :is(a,.model-view){min-width:0;min-height:0;display:flex;flex-direction:column;color:inherit;text-decoration:none;border:1px solid var(--canvas-border,#454955);border-radius:8px;overflow:hidden;background:linear-gradient(145deg,#ffffff08,#00000008)}.card .model-views-gallery img{flex:1;min-height:0;height:0;width:100%;object-fit:contain}.model-views-gallery small{padding:4px 8px;color:var(--canvas-muted,#a1a7b2)}.model-content code,.model-content small{overflow-wrap:anywhere;font-size:11px}.model-error{color:#d9a167;font-size:11px;max-height:48px;overflow:auto}' +
+  '.model-views-gallery{display:grid;flex:1;min-height:0;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:8px}.model-view-tile{margin:0;min-width:0;min-height:0;display:flex;flex-direction:column;gap:4px}.model-content button.model-view{flex:1;padding:6px}.model-view-tile figcaption{text-align:center;color:var(--canvas-muted,#a1a7b2);font-size:11px;line-height:1.4}.model-views-gallery :is(a,.model-view){min-width:0;min-height:0;display:flex;flex-direction:column;color:inherit;text-decoration:none;border:1px solid var(--canvas-border,#454955);border-radius:8px;overflow:hidden;background:linear-gradient(145deg,#ffffff08,#00000008)}.card .model-views-gallery img{flex:1;min-height:0;height:0;width:100%;object-fit:contain}.model-views-gallery small{padding:4px 8px;color:var(--canvas-muted,#a1a7b2)}.model-content code,.model-content small{overflow-wrap:anywhere;font-size:11px}.model-error{color:#d9a167;font-size:11px;max-height:48px;overflow:auto}' +
   '.model-empty{flex:1;min-height:0;display:grid;place-items:center;color:var(--canvas-muted,#a1a7b2);font-size:12px;background:linear-gradient(145deg,#ffffff06,#00000006);border:1px dashed var(--canvas-border,#454955);border-radius:8px}.model-views-gallery>.model-empty{grid-column:1/-1;grid-row:1/-1}.model-footer{display:flex;flex-wrap:wrap;gap:6px}.model-footer:empty{display:none}' +
   '.model-content .model-thumbnail{position:relative;flex:1;min-height:0;width:100%;padding:0;border:0;overflow:hidden;border-radius:8px;background:radial-gradient(ellipse at 50% 35%,#29383a,#182022);color:#d4dfdf}.card .model-thumbnail img{width:100%;height:100%;object-fit:contain;display:block}.model-thumbnail span{position:absolute;bottom:10px;left:0;right:0;font-size:11px;text-align:center;pointer-events:none}.model-thumbnail:not([data-state=ready]) span{position:static;display:block;padding:12px}.model-thumbnail-worker{position:fixed;left:-2000px;top:0;width:360px;height:400px;border:0;pointer-events:none}';
