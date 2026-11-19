@@ -19,6 +19,7 @@ export function canvasWebIconAction(
     | 'download'
     | 'trash'
     | 'image'
+    | 'model'
     | 'video'
     | 'sequence'
     | 'upload'
@@ -35,6 +36,7 @@ export function canvasWebIconAction(
 ): HTMLElement {
   // Inlined here because helpers are injected into the page via toString().
   const paths = {
+    model: '<path d="m12 3 9 5v8l-9 5-9-5V8z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
     // lucide message-square-plus
     chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>',
     // lucide message-square-text
@@ -550,6 +552,33 @@ export function decorateCanvasWebCards(options: {
     overlay.querySelectorAll(':scope > .card-state-query').forEach((item) => tip.append(item));
     overlay.append(tip);
   });
+  // Model requests use the same zoom-invariant status pill as image/video generation.
+  world.querySelectorAll('.model-state-tip').forEach((item) => item.remove());
+  world
+    .querySelectorAll<HTMLElement>(':scope > .card.model, :scope > .card.model-views')
+    .forEach((card) => {
+      const source = card.querySelector<HTMLButtonElement>('[data-model-stop]');
+      if (!source || card.dataset.state !== 'loading') return;
+      const tip = document.createElement('div');
+      tip.className = 'web-state-tip model-state-tip';
+      const title = document.createElement('b');
+      title.textContent = card.querySelector('.model-status')?.textContent || '生成中';
+      const dots = document.createElement('span');
+      dots.className = 'web-state-dots';
+      dots.setAttribute('aria-hidden', 'true');
+      dots.textContent = '...';
+      const stop = document.createElement('button');
+      stop.type = 'button';
+      stop.className = 'card-state-query card-state-stop';
+      stop.textContent = '停止等待';
+      stop.addEventListener('pointerdown', (event) => event.stopPropagation());
+      stop.addEventListener('click', (event) => {
+        event.stopPropagation();
+        source.click();
+      });
+      tip.append(title, dots, stop);
+      card.append(tip);
+    });
   function handles(card: HTMLElement, node: CanvasNode, frame: HTMLElement | null, busy: boolean) {
     const box = frame
       ? { x: frame.offsetLeft, y: frame.offsetTop, w: frame.offsetWidth, h: frame.offsetHeight }
@@ -573,7 +602,7 @@ export function decorateCanvasWebCards(options: {
       card.append(handle);
     }
   }
-  // Video, video result, sequence, animation and group frames share the image selection chrome; sections frame the whole card.
+  // Video and group frames use corner handles; sprite cards retain their bottom-right grip.
   world
     .querySelectorAll(
       ':scope > .card.video[data-id], :scope > .card.video-source[data-id], :scope > .card.section[data-id], :scope > .card.sequence[data-id], :scope > .card.animation[data-id]'
@@ -584,6 +613,7 @@ export function decorateCanvasWebCards(options: {
       if (!node) return;
       card.classList.add('web-media');
       card.classList.toggle('web-empty', node.type === 'video' && !node.assetPath);
+      if (node.type === 'sequence' || node.type === 'animation') return;
       if (selected.size !== 1 || !selected.has(node.id)) return;
       const frame =
         node.type === 'section'
@@ -1073,6 +1103,7 @@ export function openCanvasWebSlotChooser(options: {
   anchor: HTMLElement;
   items: Array<{ label: string; icon: 'image' | 'video'; run(): void }>;
   restoreFocus(): void;
+  label?: string;
 }) {
   document.querySelector('.web-slot-chooser')?.remove();
   // lucide image / video, same strokes as the slot glyphs.
@@ -1085,7 +1116,7 @@ export function openCanvasWebSlotChooser(options: {
   const menu = document.createElement('div');
   menu.className = 'web-slot-chooser';
   menu.setAttribute('role', 'menu');
-  menu.setAttribute('aria-label', '新建卡片');
+  menu.setAttribute('aria-label', options.label || '新建卡片');
   const outside = (event: Event) => {
     if (!menu.contains(event.target as Node)) close(false);
   };

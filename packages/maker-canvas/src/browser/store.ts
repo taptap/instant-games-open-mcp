@@ -153,6 +153,8 @@ export interface CanvasDocumentStore {
       sourceImagePaths?: string[];
       sourceImageIds?: string[];
       referenceImagePaths?: string[];
+      /** Web-only rasterized inputs; source paths still identify the editable image nodes. */
+      referenceSnapshotPaths?: string[];
       targetNodeId?: string;
       /** Base64 PNG of a non-PNG design, sent inline for art-text prelayout only. */
       designPng?: string;

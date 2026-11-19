@@ -1,13 +1,36 @@
+import { installCanvasPolyfills } from '../../../packages/maker-canvas/src/browser/polyfills.js';
+installCanvasPolyfills();
+declare global {
+  interface Window {
+    makerCanvasModelPreviewHost?: {
+      manifest(): Promise<{
+        attemptId: string;
+        model: string;
+        files: Array<{ path: string; size: number }>;
+      }>;
+      read(path: string): Promise<Blob>;
+    };
+  }
+}
+const previewHost = window.makerCanvasModelPreviewHost;
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { readCanvasModelMesh } from './modelMesh.js';
 
 const status = document.getElementById('status')!;
 const host = document.getElementById('viewport')!;
-const thumbnail = new URLSearchParams(location.search).get('mode') === 'thumbnail';
-const templatePreview = new URLSearchParams(location.search).get('mode') === 'template';
+const thumbnail =
+  new URLSearchParams(location.search || location.hash.slice(1)).get('mode') === 'thumbnail';
+const templatePreview =
+  new URLSearchParams(location.search || location.hash.slice(1)).get('mode') === 'template';
 if (thumbnail) document.body.classList.add('thumbnail');
 if (templatePreview) document.body.classList.add('template');
+const close = document.getElementById('close')!;
+close.hidden =
+  window.parent === window || new URLSearchParams(location.hash.slice(1)).get('close') !== '1';
+close.addEventListener('click', () => {
+  window.parent.postMessage({ type: 'maker:model-close' }, location.origin);
+});
 function publishThumbnail(result: { image?: string; error?: string }) {
   if (thumbnail && window.parent !== window)
     window.parent.postMessage({ type: 'maker:model-thumbnail', ...result }, location.origin);
@@ -34,17 +57,18 @@ function dispose() {
 }
 window.addEventListener('pagehide', dispose, { once: true });
 async function main() {
-  const parameters = new URLSearchParams(location.search);
+  const parameters = new URLSearchParams(location.search || location.hash.slice(1));
   const project = parameters.get('project') || '';
   const canvas = parameters.get('canvas') || '';
   const node = parameters.get('node') || '';
   const template = parameters.get('template');
   const revision = Number(parameters.get('revision'));
   if (
-    !/^[a-f0-9]{64}$/.test(project) ||
-    (template
-      ? !/^[a-f0-9-]{36}$/i.test(template) || !Number.isSafeInteger(revision) || revision < 1
-      : !/^[a-f0-9-]{36}$/i.test(canvas) || !/^[a-f0-9-]{36}$/i.test(node))
+    !previewHost &&
+    (!/^[a-f0-9]{64}$/.test(project) ||
+      (template
+        ? !/^[a-f0-9-]{36}$/i.test(template) || !Number.isSafeInteger(revision) || revision < 1
+        : !/^[a-f0-9-]{36}$/i.test(canvas) || !/^[a-f0-9-]{36}$/i.test(node)))
   )
     throw new Error('模型预览参数无效。');
   const endpoint = template
@@ -56,11 +80,17 @@ async function main() {
       revision
     : '/api/projects/' + project + '/canvases/' + canvas + '/models/preview?nodeId=' + node;
   async function request(url: string) {
+    if (previewHost) {
+      if (abort.signal.aborted) throw new Error('模型加载已停止。');
+      return new Response(await previewHost.read(url));
+    }
     const response = await fetch(url, { signal: abort.signal });
     if (!response.ok) throw new Error((await response.json()).error || '模型文件读取失败。');
     return response;
   }
-  const manifest = (await (await request(endpoint)).json()) as {
+  const manifest = (
+    previewHost ? await previewHost.manifest() : await (await request(endpoint)).json()
+  ) as {
     attemptId?: string;
     model: string;
     files: Array<{ path: string; size: number }>;
@@ -70,6 +100,7 @@ async function main() {
     throw new Error('模型结果已变化，请刷新本地状态。');
   const fileUrl = (file: string) => {
     if (!allowed.has(file)) throw new Error('模型引用的文件未包含在交付包中：' + file);
+    if (previewHost) return file;
     return (
       endpoint +
       (manifest.attemptId ? '&attemptId=' + encodeURIComponent(manifest.attemptId) : '') +

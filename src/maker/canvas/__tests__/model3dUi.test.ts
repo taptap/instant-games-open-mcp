@@ -5,6 +5,15 @@ import { emptyDocument } from '../model.js';
 import type { CanvasDocumentStore } from '../store.js';
 import type { CanvasModelAttempt } from '../model3d.js';
 
+const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+beforeAll(() => {
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: new EventTarget() });
+});
+afterAll(() => {
+  if (windowDescriptor) Object.defineProperty(globalThis, 'window', windowDescriptor);
+  else Reflect.deleteProperty(globalThis, 'window');
+});
+
 function fixture() {
   const current = emptyDocument();
   const template = canvasPresets().find((item) => item.name.includes('角色模型'))!;
@@ -105,6 +114,29 @@ test('stop during save prevents dispatch without canceling a remote task', async
   await expect(first).rejects.toThrow('远端任务未取消');
   expect(ui.isBusy).toBe(false);
   expect(store.modelAction).not.toHaveBeenCalled();
+});
+
+test('query keeps the delivered result and does not advertise generation waiting', async () => {
+  const { ui, store, review, model } = fixture();
+  review.phase = 'model';
+  review.status = 'completed';
+  review.modelPath = 'assets/model/asset/Meshes/model.mdl';
+  await ui.refresh();
+  let release!: (value: CanvasModelAttempt) => void;
+  const response = new Promise<CanvasModelAttempt>((resolve) => {
+    release = resolve;
+  });
+  store.modelAction.mockImplementationOnce(() => response);
+  const query = ui.execute(model.id, 'query');
+  expect(ui.canStop(model.id)).toBe(false);
+  expect(ui.state(model.id)?.status).toBe('completed');
+  release(review);
+  await query;
+  expect(store.modelAction).toHaveBeenCalledWith(
+    expect.any(String),
+    expect.objectContaining({ action: 'query' }),
+    expect.any(AbortSignal)
+  );
 });
 
 test.each([true, false])(

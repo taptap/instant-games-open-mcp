@@ -186,3 +186,5 @@ export type {
   CanvasPageFeature,
   CanvasPageFeatures,
 } from './browser/capabilities.js';
+
+export { createCanvasReferenceImages } from './browser/referenceImages.js';

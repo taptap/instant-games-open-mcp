@@ -1,4 +1,5 @@
 import { installWebToolbarDrag } from './webToolbar.js';
+import { createCanvasReferenceImages } from './referenceImages.js';
 import { canvasMediaSources, refreshCanvasMedia } from './mediaVersions.js';
 import { createCanvasUiSplitController } from './uiSplit.js';
 import { canvasCapabilityReason, canvasFeatureEnabled } from './capabilities.js';
@@ -1026,15 +1027,15 @@ function applyMediaReusePatches(source: string): string {
   );
   patch(
     "  board.addEventListener('pointermove', function (event) {",
-    "  function canvasDragToChat(event, phase) { if (!host.dragImagesToChat || !drag || drag.kind !== 'move') return false; const ids = drag.positions.map(function (item) { return item.id; }); const items = documentState.nodes.filter(function (node) { return ids.indexOf(node.id) >= 0 && (node.type === 'image' || node.type === 'video-source') && node.assetPath; }).map(function (node) { return { nodeId: node.id, assetPath: node.assetPath }; }); if (!items.length) return false; return host.dragImagesToChat(items, { x: event.clientX, y: event.clientY }, phase); }\n  board.addEventListener('pointermove', function (event) {\n    if (drag && drag.kind === 'move' && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3 && canvasDragToChat(event, 'move')) return;"
+    "  function canvasDragToChat(event, phase) { if (!host.dragImagesToChat || !drag || drag.kind !== 'move') return false; const ids = drag.positions.map(function (item) { return item.id; }); const items = []; for (const node of documentState.nodes) { if (ids.indexOf(node.id) < 0) continue; let path; if (node.type === 'image' || node.type === 'video-source') path = node.assetPath; else if (canvasWeb && node.type === 'model' && modelUi) { const attempt = modelUi.state(node.id); if (attempt && attempt.status === 'completed') path = attempt.modelPath; } if (path) items.push({ nodeId: node.id, assetPath: path }); } if (!items.length) return false; return host.dragImagesToChat(items, { x: event.clientX, y: event.clientY }, phase); }\n  board.addEventListener('pointermove', function (event) {\n    if (drag && drag.kind === 'move') { const distance = Math.hypot(event.clientX - drag.x, event.clientY - drag.y); if (drag.clickTarget && distance > 3) drag.previewMoved = true; if (drag.clickTarget && !drag.previewMoved) return; if (distance > 3 && canvasDragToChat(event, 'move')) return; }"
   );
   patch(
     "  board.addEventListener('pointerup', function (event) {",
-    "  board.addEventListener('pointerup', function (event) {\n    if (drag && drag.kind === 'move' && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3 && canvasDragToChat(event, 'drop')) { for (const position of drag.positions) { const node = documentState.nodes.find(function (item) { return item.id === position.id; }); if (node) { node.x = position.x; node.y = position.y; } } if (drag.moved) past.pop(); drag = null; if (board.hasPointerCapture(event.pointerId)) board.releasePointerCapture(event.pointerId); markDirty(); render(); return; }"
+    "  board.addEventListener('pointerup', function (event) {\n    if (drag && drag.kind === 'move' && drag.clickTarget && !drag.previewMoved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) <= 3) { const target = drag.clickTarget; drag = null; target.click(); return; }\n    if (drag && drag.kind === 'move' && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 3 && canvasDragToChat(event, 'drop')) { for (const position of drag.positions) { const node = documentState.nodes.find(function (item) { return item.id === position.id; }); if (node) { node.x = position.x; node.y = position.y; } } if (drag.moved) past.pop(); drag = null; if (board.hasPointerCapture(event.pointerId)) board.releasePointerCapture(event.pointerId); markDirty(); render(); return; }"
   );
   patch(
     "  board.addEventListener('pointerdown', function (event) {",
-    "  board.addEventListener('pointercancel', function (event) { canvasDragToChat(event, 'cancel'); });\n  board.addEventListener('pointerdown', function (event) {"
+    "  board.addEventListener('pointercancel', function (event) { canvasDragToChat(event, 'cancel'); if (drag && drag.clickTarget) drag = null; });\n  board.addEventListener('pointerdown', function (event) {"
   );
   return page;
 }
@@ -1047,7 +1048,12 @@ function applyWebCardUxPatches(source: string): string {
   // Web video cards have no native controls, so pressing the video selects and drags the card.
   patch(
     "event.target.closest('textarea, input, select, button, video, details')",
-    "event.target.closest(canvasWeb ? 'textarea, input, select, button, details' : 'textarea, input, select, button, video, details')"
+    "event.target.closest(canvasWeb ? 'textarea, input, select, button:not(.model-thumbnail), details' : 'textarea, input, select, button, video, details')"
+  );
+  // Pointer capture routes the release to the board; forward stationary releases back to preview.
+  patch(
+    '        startDrag(event, node.id);',
+    "        startDrag(event, node.id);\n        if (canvasWeb && drag && drag.kind === 'move') drag.clickTarget = event.target.closest('.model-thumbnail');"
   );
   patch(
     "      if (canvasWeb && edge.kind === 'image-variant') path.setAttribute('d', canvasWebWire(from, to, view).d);",
@@ -1267,13 +1273,13 @@ function applyMissingMediaPatches(source: string): string {
  * JPG download and group and card actions. Variants sit behind a chevron (抠图 ▸ 调整抠图).
  */
 const CANVAS_CARD_ACTION_GROUPS = [
-  ['图片生成', '视频生成', '生成精灵', '拆序列帧'],
+  ['图片生成', '视频生成', '生成精灵', '3D模型生成', '拆序列帧'],
   ['抠图', '调整抠图', '裁剪', '旋转 90°', '水平翻转', '垂直翻转'],
   ['加入对话'],
   ['下载 PNG'],
 ];
 const CANVAS_CARD_MENU_ORDER = [
-  ['web-image-generate', 'web-video', 'web-sprite-gen', 'web-sequence'],
+  ['web-image-generate', 'web-video', 'web-sprite-gen', 'web-model-generate', 'web-sequence'],
   ['quick-cutout', 'adjust-cutout', 'web-crop', 'web-rotate', 'web-flip-x', 'web-flip-y'],
   ['add-to-chat'],
   ['download-image', 'download-image-jpg'],
@@ -1311,15 +1317,15 @@ function applyCardMenuPatches(source: string): string {
   );
   patch(
     '<button type="button" data-canvas-action="web-video" data-menu-scope="web" hidden>视频生成</button>',
-    '<button type="button" data-canvas-action="web-image-generate" data-menu-scope="web" hidden>图片生成</button><button type="button" data-canvas-action="web-video" data-menu-scope="web" hidden>视频生成</button><button type="button" data-canvas-action="web-sprite-gen" data-menu-scope="web" hidden>生成精灵</button>'
+    '<button type="button" data-canvas-action="web-image-generate" data-menu-scope="web" hidden>图片生成</button><button type="button" data-canvas-action="web-video" data-menu-scope="web" hidden>视频生成</button><button type="button" data-canvas-action="web-sprite-gen" data-menu-scope="web" hidden>生成精灵</button><button type="button" data-canvas-action="web-model-generate" data-menu-scope="web" hidden>3D模型生成</button>'
   );
   patch(
     "      const shown = { 'web-video': Boolean(one && one.type === 'image' && one.assetPath && !busy), 'web-sequence': Boolean(one && one.type === 'video-source' && one.assetPath && !busy),",
-    "      const editable = Boolean(one && one.assetPath && !busy && !one.mirror);\n      const shown = { 'web-image-generate': Boolean(editable && one.type === 'image' && !canvasCapabilityReason(store, 'imageGeneration')), 'web-sprite-gen': Boolean(editable && one.type === 'image' && canvasFeatureEnabled(host, 'spriteGen') && host.startSpriteGen), 'web-video': Boolean(editable && one.type === 'image'), 'web-sequence': Boolean(editable && one.type === 'video-source'),"
+    "      const editable = Boolean(one && one.assetPath && !busy && !one.mirror);\n      const shown = { 'web-image-generate': Boolean(editable && one.type === 'image' && !canvasCapabilityReason(store, 'imageGeneration')), 'web-sprite-gen': Boolean(editable && one.type === 'image' && canvasFeatureEnabled(host, 'spriteGen') && host.startSpriteGen), 'web-model-generate': Boolean(editable && one.type === 'image' && !host.readOnly && canvasFeatureEnabled(host, 'model3d') && !canvasCapabilityReason(store, 'model')), 'web-video': Boolean(editable && one.type === 'image'), 'web-sequence': Boolean(editable && one.type === 'video-source'),"
   );
   patch(
     "    if (value === 'web-video') {",
-    "    if (value === 'web-image-generate') { if (contextNode) createLinkedSlot(contextNode.id, false, true); return; }\n    if (value === 'web-sprite-gen') { if (contextNode) openSpriteGen(contextNode); return; }\n    if (value === 'web-video') {"
+    "    if (value === 'web-image-generate') { if (contextNode) createLinkedSlot(contextNode.id, false, true); return; }\n    if (value === 'web-sprite-gen') { if (contextNode) openSpriteGen(contextNode); return; }\n    if (value === 'web-model-generate') { if (contextNode) createModelFlow(contextNode); return; }\n    if (value === 'web-video') {"
   );
   // One-time order of the card entries, with group separators (shown only between visible entries).
   patch(
@@ -1336,7 +1342,7 @@ function applyCardMenuPatches(source: string): string {
       '    if (!canvasWeb) return;',
       // Read-only mirrors: no 抠图 on the right-click menu either.
       "    if (contextNode && contextNode.mirror) contextMenu.querySelectorAll('[data-canvas-action=quick-cutout], [data-canvas-action=adjust-cutout]').forEach(function (item) { item.hidden = true; });",
-      "    const separators = contextMenu.querySelectorAll('.canvas-menu-separator[data-menu-scope=card-group]');",
+      "    const separators = contextMenu.querySelectorAll('.canvas-menu-separator[data-menu-scope=card-group], .canvas-menu-separator[data-menu-scope=model]');",
       '    separators.forEach(function (separator) {',
       // A visible entry anywhere on each side (empty groups in between are skipped).
       "      const visible = function (step) { let item = separator[step]; while (item) { if (!item.hidden && item.matches('button')) return true; item = item[step]; } return false; };",
@@ -1737,7 +1743,7 @@ function applyMediaDropPatches(source: string): string {
       '  const editorHandle = {',
       '    open: function (id) { return workspace.activate(id); },',
       '    setView: function (view) { if (!documentState || !view || ![view.x, view.y, view.scale].every(Number.isFinite)) return; documentState.viewport = { x: view.x, y: view.y, scale: Math.max(.05, Math.min(4, view.scale)) }; if (host.readOnly) { const saved = JSON.parse(savedKey); saved.viewport = { x: documentState.viewport.x, y: documentState.viewport.y, scale: documentState.viewport.scale }; savedKey = JSON.stringify(saved); } render(); },',
-      "    setAssetPanelOpen: function (open) { if (assetPanelButton) assetPanelButton.setAttribute('aria-pressed', String(Boolean(open))); },\n",
+      "    setAssetPanelOpen: function (open) { if (assetPanelButton) { assetPanelButton.setAttribute('aria-pressed', String(Boolean(open))); assetPanelButton.hidden = Boolean(open); } },\n",
     ].join('\n')
   );
   // The host saw the open canvas file change outside this page (e.g. an Agent wrote it): re-read
@@ -1760,7 +1766,7 @@ function applyMediaDropPatches(source: string): string {
   );
   patch(
     '</style>',
-    ':root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel { display: inline-flex; flex: none; align-items: center; margin-right: 6px; padding: 0 10px 0 8px; } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel svg { flex: none; margin-right: 6px; } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel[aria-pressed="true"] { background: var(--web-wash); color: var(--web-text); } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel + * { margin-left: 0; padding-left: 8px; border-left: 1px solid var(--web-line); }\n</style>'
+    ':root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel { display: inline-flex; flex: none; align-items: center; margin-right: 6px; padding: 0 10px 0 8px; } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel svg { flex: none; margin-right: 6px; } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel[aria-pressed="true"] { background: var(--web-wash); color: var(--web-text); } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel:not([hidden]) + * { margin-left: 0; padding-left: 8px; border-left: 1px solid var(--web-line); }\n</style>'
   );
   return page;
 }
@@ -2454,6 +2460,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     canvasMarkFromInput.toString(),
     renderCanvasMark.toString(),
     drawCanvasMark.toString(),
+    createCanvasReferenceImages.toString(),
     canvasPngPlan.toString(),
     canvasPngStill.toString(),
     createCanvasMarks.toString(),
@@ -3875,6 +3882,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    templateUi.context(contextMenu);',
       '    resourceExport.context(contextMenu, card && selected.size === 1 ? documentState.nodes.find(function (node) { return node.id === card.dataset.id; }) : undefined);',
       '    pendingPlacement = documentState ? worldPoint(event) : null;',
+      '    if (modelUi) modelUi.contextMenu(contextMenu, card && selected.size === 1 ? card : null);',
+      `    if (card && documentState.nodes.some(function (node) { return selected.has(node.id) && ["model", "model-views"].includes(node.type); })) contextMenu.querySelectorAll('[data-canvas-action="duplicate"]').forEach(function (item) { item.hidden = true; });`,
       '    contextMenu.hidden = false;',
       "    contextMenu.style.left = Math.min(position.clientX, window.innerWidth - 190) + 'px';",
       "    contextMenu.style.top = Math.min(position.clientY, window.innerHeight - 300) + 'px';",
@@ -4278,7 +4287,21 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     page,
     '  void boot().catch',
     [
-      '  modelUi = createCanvasModelUi({ deliver: deliverExport, current: function () { return documentState; }, store: store, save: flush, render: render, error: setError, remember: remember, changed: markDirty,',
+      '  function createModelFlow(source) {',
+      '    if (host.readOnly || !source || source.type !== "image" || !source.assetPath || source.mirror || localCanvasBusy() || modelUi.isBusy || generationUi.hasInputDraft()) { setError("请先完成当前编辑并选择已有图片。"); return; }',
+      '    if (documentState.nodes.length >= 400) { setError("画布卡片已达到容量限制。"); return; }',
+      '    remember(); const views = appendCanvasModelNode(documentState, "model-views", source.id);',
+      '    selected.clear(); selected.add(views.id); markDirty();',
+      '    void modelUi.execute(views.id, "start").catch(function (error) { setError(error.message); render(); });',
+      '  }',
+      '  function ensureModelOutput(viewsId) {',
+      '    const existing = documentState.nodes.find(function (node) { return node.type === "model" && documentState.edges.some(function (edge) { return edge.kind === "views-model" && edge.from === viewsId && edge.to === node.id; }); });',
+      '    if (!existing && documentState.nodes.length >= 400) throw new Error("画布卡片已达到容量限制。");',
+      '    if (!existing) remember();',
+      '    const model = existing || appendCanvasModelNode(documentState, "model", viewsId);',
+      '    selected.clear(); selected.add(model.id); if (!existing) markDirty(); return model.id;',
+      '  }',
+      '  modelUi = createCanvasModelUi({ deliver: deliverExport, current: function () { return documentState; }, store: store, save: flush, render: render, error: setError, remember: remember, changed: markDirty, createModel: canvasWeb ? ensureModelOutput : undefined,',
       '    blocked: function () { return canvasOpening || generationUi.isBusy || sequenceUi.isBusy || templateWorkflow.isBusy || groupQueue.isBusy || pendingAssetImports || Boolean(imageEditing && imageEditing.isBusy); },',
       '    sourceBlocked: function (id) { return generationUi.isNodeBusy(id) || generationUi.hasUnsettledResult(id) || generationUi.hasInputDraft() || sequenceUi.hasUnsavedFrames; } });',
       '  async function importProjectAsset(input) {',
@@ -4352,7 +4375,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '      return { export: exported, canvasId: documentState.id, nodeId: node.id, revision: documentState.revision, ...(nextStep ? { nextStep: nextStep } : {}) };',
       '    },',
       '    addTemplate: templateUi.addById, deleteSelected: deleteSelected, duplicate: duplicateSelected, group: createSection, connect: connect,',
-      '    resetDraft: function (id) { generationUi.resetDraft(id); sequenceUi.discardEdit(id); }, stop: function (id) { if (modelUi.canStop(id)) modelUi.stop(); else generationUi.stopWaiting(id); }, canStop: function (id) { return modelUi.canStop(id) || generationUi.canStopWaiting(id); },',
+      '    resetDraft: function (id) { generationUi.resetDraft(id); sequenceUi.discardEdit(id); }, stop: function (id) { if (modelUi.canStop(id)) modelUi.stop(id); else generationUi.stopWaiting(id); }, canStop: function (id) { return modelUi.canStop(id) || generationUi.canStopWaiting(id); },',
       '    confirmModel: function (id, reviewId) { return modelUi.execute(id, "confirm", reviewId); },',
       '    previewModel: function (id) { return modelUi.preview(id); },',
       '    previewImageAssets: function (id, grid, cut) { return imageAssetsUi.preview(id, grid, cut); },',
@@ -4707,8 +4730,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   );
   page = replaceCanvasPageText(
     page,
-    'void boot().catch',
-    'void boot().then(function () { if (host.onReady && documentState) host.onReady(editorHandle); }).catch'
+    'void boot().catch(function (caught) { setError(caught.message); });',
+    'void boot().then(function () { if (host.onReady && documentState) host.onReady(editorHandle); }).catch(function (caught) { const message = caught.message || "画布初始化失败"; setError(message); if (host.loadFailed) host.loadFailed(message); });'
   );
   page = applyWebInteractionPatches(page);
   page = applyWebMediaPatches(page);
@@ -4798,7 +4821,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     "        if (canvasWeb && canvasFeatureEnabled(host, 'spriteGen') && host.startSpriteGen && !node.mirror) { const sprite = actionButton('生成精灵', function () { openSpriteGen(node); }); canvasWebIconAction(sprite, 'sprite'); }",
-    "        if (canvasWeb && canvasFeatureEnabled(host, 'spriteGen') && host.startSpriteGen && !node.mirror) { const sprite = actionButton('生成精灵', function () { openSpriteGen(node); }); canvasWebIconAction(sprite, 'sprite'); }\n        if (canvasWeb && host.startUiSplit && !host.readOnly && !node.mirror) actionButton('UI 切分', function () { openUiSplit(node); });"
+    "        if (canvasWeb && canvasFeatureEnabled(host, 'spriteGen') && host.startSpriteGen && !node.mirror) { const sprite = actionButton('生成精灵', function () { openSpriteGen(node); }); canvasWebIconAction(sprite, 'sprite'); }\n        if (canvasWeb && !host.readOnly && canvasFeatureEnabled(host, 'model3d')) { const model = actionButton('3D模型生成', function () { createModelFlow(node); }, false, canvasCapabilityReason(store, 'model')); canvasWebIconAction(model, 'model'); }\n        if (canvasWeb && host.startUiSplit && !host.readOnly && !node.mirror) actionButton('UI 切分', function () { openUiSplit(node); });"
   );
   page = replaceCanvasPageText(
     page,
