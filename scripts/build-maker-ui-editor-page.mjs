@@ -50,6 +50,17 @@ export async function buildUiEditorPageHtml({ hostScript, themeStyles, themeScri
     write: false,
     legalComments: 'none',
   });
+  const wheel = await build({
+    entryPoints: [
+      fileURLToPath(new URL('../packages/maker-canvas/src/browser/wheel.ts', import.meta.url)),
+    ],
+    bundle: true,
+    format: 'iife',
+    globalName: 'UrhoxCanvasWheel',
+    target,
+    write: false,
+    legalComments: 'none',
+  });
   const yoga = await build({
     stdin: {
       contents:
@@ -99,7 +110,7 @@ export async function buildUiEditorPageHtml({ hostScript, themeStyles, themeScri
     html,
     /<script type="module" src="src\/bootstrap\.js[^"]*"><\/script>/.exec(html)?.[0] ??
       '<script type="module" src="src/bootstrap.js',
-    [themeScript, tooltip.outputFiles[0].text, hostScript, yoga.outputFiles[0].text, main]
+    [themeScript, tooltip.outputFiles[0].text, wheel.outputFiles[0].text, hostScript, yoga.outputFiles[0].text, main]
       .map((code) => inline('script', code))
       .join('\n')
   );

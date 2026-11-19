@@ -139,7 +139,7 @@
   var pane = $("referencePane"), pan;
   pane.addEventListener("wheel", function (event) {
     event.preventDefault(); var a = pane.getBoundingClientRect(), b = $("preview").getBoundingClientRect();
-    $("preview").dispatchEvent(new WheelEvent("wheel", { deltaY: event.deltaY, clientX: b.left + event.clientX - a.left, clientY: b.top + event.clientY - a.top, cancelable: true }));
+    $("preview").dispatchEvent(new WheelEvent("wheel", { deltaX: event.deltaX, deltaY: event.deltaY, deltaMode: event.deltaMode, ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey, clientX: b.left + event.clientX - a.left, clientY: b.top + event.clientY - a.top, cancelable: true }));
   }, { passive: false });
   pane.addEventListener("pointerdown", function (event) { if (event.button > 1) return; pan = { x: event.clientX, y: event.clientY }; pane.setPointerCapture(event.pointerId); });
   pane.addEventListener("pointermove", function (event) {

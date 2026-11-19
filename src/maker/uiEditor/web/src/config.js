@@ -39,10 +39,12 @@
   config.API_ROOT = host.apiRoot || '';
   config.FILE_ROOT = host.fileRoot;
   config.DEFAULT_ASSET_ROOT = config.FILE_ROOT + 'assets/';
-  config.INITIAL_UI = typeof host.initialUi === 'string' ? host.initialUi : '';
-  // "pan": two-finger scroll / mouse wheel pans and pinch or Ctrl/⌘+wheel zooms, like the Web canvas.
+  Object.defineProperty(config, 'INITIAL_UI', {
+    get: function () { return typeof host.initialUi === 'string' ? host.initialUi : ''; },
+  });
+  // "auto" shares the Web canvas input classifier; "pan" keeps the fixed trackpad mode.
   // Default (local console): the wheel zooms.
-  config.WHEEL = host.wheel === 'pan' ? 'pan' : 'zoom';
+  config.WHEEL = host.wheel === 'auto' ? 'auto' : host.wheel === 'pan' ? 'pan' : 'zoom';
   // Optional host wording for the AI guide: { prompt, description, steps }.
   config.GUIDANCE = host.guidance && typeof host.guidance === 'object' ? host.guidance : {};
   config.displayPath = function (value) {
