@@ -280,8 +280,8 @@ export function createCanvasModelUiWithHost(options: {
         node?.type === (value.phase === 'views' ? 'model-views' : 'model')
     );
   }
-  function stop(id: string) {
-    if (!canStop(id)) return;
+  function stop(id = activeNodeId) {
+    if (!id || !canStop(id)) return;
     const current = options.current();
     if (!current) return;
     const { views } = canvasModelInput(current, id);
