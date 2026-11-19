@@ -797,6 +797,7 @@ export function createCanvasModelUiWithHost(options: {
           if (thumbnailJob?.frame.src === url) thumbnailJob.finish();
           thumbnails.delete(url);
         }
+        contents.delete(node.id);
         options.render();
       });
     } else {
