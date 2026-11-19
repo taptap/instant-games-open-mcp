@@ -212,7 +212,9 @@ export function createCanvasModelUiWithHost(options: {
     const target = button(
       parent,
       '',
-      () => { preview(id); },
+      () => {
+        preview(id);
+      },
       false,
       options.store.platform === 'web'
     );
@@ -469,8 +471,7 @@ export function createCanvasModelUiWithHost(options: {
     element.type = 'button';
     element.textContent = label;
     element.disabled = disabled;
-    if (!allowCardDrag)
-      element.addEventListener('pointerdown', (event) => event.stopPropagation());
+    if (!allowCardDrag) element.addEventListener('pointerdown', (event) => event.stopPropagation());
     element.addEventListener('click', (event) => {
       event.stopPropagation();
       void Promise.resolve()
@@ -486,7 +487,8 @@ export function createCanvasModelUiWithHost(options: {
     if (!card || !['model', 'model-views'].some((type) => card.classList.contains(type))) return;
     activeMenu = { element: menu, nodeId: card.dataset.id || '' };
     const entries = document.createDocumentFragment();
-    menu.querySelector('[data-resource-export]')?.remove();
+    if (card.classList.contains('model') && options.showDownload && options.store.exportModel)
+      menu.querySelector('[data-resource-export]')?.remove();
     const body = contents.get(card.dataset.id || '')?.body || card;
     body.querySelectorAll<HTMLButtonElement>('.model-menu-actions > button').forEach((source) => {
       const item = document.createElement('button');
@@ -555,8 +557,10 @@ export function createCanvasModelUiWithHost(options: {
       // A disconnected card can render its empty state without an upstream.
     }
     const stopped =
-      stoppedViews.has(viewsId) && (!value || ['running', 'pending', 'unknown'].includes(value.status));
-    const stoppedHere = stopped && node.type === (value?.phase === 'model' ? 'model' : 'model-views');
+      stoppedViews.has(viewsId) &&
+      (!value || ['running', 'pending', 'unknown'].includes(value.status));
+    const stoppedHere =
+      stopped && node.type === (value?.phase === 'model' ? 'model' : 'model-views');
     const active = waiting && activeAction !== 'query' && activeNodeId === node.id;
     const key = JSON.stringify([
       current.id,
@@ -605,18 +609,18 @@ export function createCanvasModelUiWithHost(options: {
     label.textContent = stoppedHere
       ? '已停止等待 · 可查询原任务'
       : value?.stale
-      ? '角色或质量已变化 · 旧结果保留'
-      : viewsReady
-        ? value?.status === 'review'
-          ? '请检查全部视图'
-          : '多视图已完成'
-        : node.type === 'model' && value?.phase === 'views'
-          ? '等待多视图确认'
-          : value
-            ? labels[value.status]
-            : node.type === 'model'
-              ? '等待多视图确认'
-              : '先完成角色图，再生成多视图';
+        ? '角色或质量已变化 · 旧结果保留'
+        : viewsReady
+          ? value?.status === 'review'
+            ? '请检查全部视图'
+            : '多视图已完成'
+          : node.type === 'model' && value?.phase === 'views'
+            ? '等待多视图确认'
+            : value
+              ? labels[value.status]
+              : node.type === 'model'
+                ? '等待多视图确认'
+                : '先完成角色图，再生成多视图';
     const toolbar = document.createElement('div');
     toolbar.className = 'model-toolbar';
     label.className = 'model-status';

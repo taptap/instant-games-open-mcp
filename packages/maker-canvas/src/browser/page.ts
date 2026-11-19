@@ -1766,7 +1766,7 @@ function applyMediaDropPatches(source: string): string {
   );
   patch(
     '</style>',
-    ':root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel { display: inline-flex; flex: none; align-items: center; margin-right: 6px; padding: 0 10px 0 8px; } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel svg { flex: none; margin-right: 6px; } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel[aria-pressed="true"] { background: var(--web-wash); color: var(--web-text); } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel:not([hidden]) + * { margin-left: 0; padding-left: 8px; border-left: 1px solid var(--web-line); }\n</style>'
+    ':root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel:not([hidden]) { display: inline-flex; flex: none; align-items: center; margin-right: 6px; padding: 0 10px 0 8px; } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel svg { flex: none; margin-right: 6px; } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel[aria-pressed="true"] { background: var(--web-wash); color: var(--web-text); } :root.canvas-appearance-web:not(#canvas-web-scope) .workspace-tabs-row > #asset-panel:not([hidden]) + * { margin-left: 0; padding-left: 8px; border-left: 1px solid var(--web-line); }\n</style>'
   );
   return page;
 }
@@ -3575,6 +3575,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    loadMedia: loadMedia,',
       '    requestImageImport: requestImageImport,',
       '    requestVideoImport: requestVideoImport,',
+      '    pickProjectImages: host.pickProjectImages ? function () { return host.pickProjectImages(); } : undefined,',
       '    setError: setError,',
       '    log: function (message, level, canvasId) { canvasLogs.add(message, level, canvasId); },',
       '    createId: function () { return crypto.randomUUID(); },',
