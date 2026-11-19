@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 
 class El {
   tag: string;
@@ -298,4 +299,39 @@ test('ui split header follows the sprite cluster and keeps the editor out of it'
   assert.equal(state.tidy.disabled, false);
   assert.equal(state.editor.disabled, false);
   assert.equal(renders, 0);
+});
+
+test('Web canvas syncs existing UI splits even when starting new runs is disabled', async () => {
+  const { getCanvasPageHtml } = await import('./src/browser/page.ts');
+  const html = getCanvasPageHtml({ hostScript: 'function createCanvasHost() {}' });
+  const sync = html.match(/function uiSplitSync\(\) \{[^\n]+/u)?.[0];
+  assert.ok(sync);
+  assert.match(html, /host\.startUiSplit && !host\.readOnly && !node\.mirror/u);
+
+  let syncs = 0;
+  const context = {
+    canvasWeb: true,
+    host: { readOnly: false },
+    store: { readUiSplitProgress() {} },
+    uiSplitController: undefined,
+    flush() {},
+    markDirty() {},
+    renderUiSplit() {},
+    remember() {},
+    setError(message: string) {
+      assert.fail(message);
+    },
+    createCanvasUiSplitController() {
+      return {
+        async sync() {
+          syncs++;
+        },
+      };
+    },
+  };
+  await runInNewContext(sync + '\nuiSplitSync();', context);
+  assert.equal(syncs, 1);
+  context.host.readOnly = true;
+  await runInNewContext(sync + '\nuiSplitSync();', context);
+  assert.equal(syncs, 1);
 });
