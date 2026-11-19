@@ -48,6 +48,7 @@ export interface CanvasTemplateStore {
 }
 
 export interface CanvasDocumentStore {
+  readUiSplitProgress?(name: string): Promise<unknown>;
   /**
    * Optional: fetches media bytes so mediaUrl(path) can serve them (`refresh` re-reads changed
    * bytes). Rejects when the file is missing or not readable. The sprite mirror calls it for

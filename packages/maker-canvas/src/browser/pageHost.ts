@@ -116,6 +116,12 @@ export interface CanvasPageHost {
    * Resolves with the new chat's id once it exists (stored on the group for 「打开生成对话」).
    */
   startSpriteGen?(input: CanvasSpriteGenStart): Promise<{ chatId?: string } | void>;
+  startUiSplit?(input: {
+    canvasId: string;
+    nodeId: string;
+    name: string;
+    sourcePath: string;
+  }): Promise<{ chatId?: string }>;
   /** Optional: 「打开生成对话」 in a sprite group header switches to that chat. */
   openSpriteChat?(chatId: string): Promise<void> | void;
   onReady?(editor: CanvasEditorHandle): void;

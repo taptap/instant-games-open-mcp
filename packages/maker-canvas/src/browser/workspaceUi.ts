@@ -9,7 +9,7 @@ export function createCanvasWorkspace(options: {
     viewport: { x: number; y: number; scale: number };
   } | null;
   activate(id: string): Promise<boolean>;
-  create(): Promise<boolean>;
+  create(title: string): Promise<boolean>;
   zoom(factor: number): void;
   error(message: string): void;
   getState?(): CanvasWorkspaceState | undefined;
@@ -41,7 +41,10 @@ export function createCanvasWorkspace(options: {
   tabs.className = 'workspace-tabs';
   tabs.setAttribute('role', 'tablist');
   tabs.setAttribute('aria-label', '已打开画布');
-  const create = button('+', '新建空白画布', () => transition(options.create));
+  const create = button('+', '新建空白画布', () => {
+    if (switching || !options.current()) return;
+    openCanvasCreateDialog();
+  });
   create.id = 'workspace-new';
   const library = menu('全部画布', 'workspace-library');
   const search = document.createElement('input');
@@ -405,6 +408,70 @@ export function createCanvasWorkspace(options: {
     },
     true
   );
+  function openCanvasCreateDialog() {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'sequence-editor video-history sprite-gen-dialog';
+    dialog.setAttribute('aria-label', '新建画布');
+    const heading = document.createElement('h2');
+    heading.textContent = '新建画布';
+    const nameLabel = document.createElement('label');
+    nameLabel.className = 'sprite-gen-field';
+    const nameText = document.createElement('span');
+    nameText.textContent = '画布名称';
+    const name = document.createElement('input');
+    name.type = 'text';
+    name.maxLength = 80;
+    name.autocomplete = 'off';
+    name.spellcheck = false;
+    name.value = '空白画布';
+    name.setAttribute('aria-label', '画布名称');
+    nameLabel.append(nameText, name);
+    const message = document.createElement('p');
+    message.className = 'sprite-gen-error';
+    message.setAttribute('role', 'alert');
+    const footer = document.createElement('footer');
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = '取消';
+    const confirm = document.createElement('button');
+    confirm.type = 'button';
+    confirm.className = 'primary';
+    confirm.textContent = '创建';
+    footer.append(cancel, confirm);
+    dialog.append(heading, nameLabel, message, footer);
+    const close = () => {
+      dialog.close();
+      dialog.remove();
+    };
+    const submit = () => {
+      const title = name.value.trim().slice(0, 80);
+      if (!title) {
+        message.textContent = '画布名称不能为空。';
+        name.focus();
+        return;
+      }
+      close();
+      void transition(() => options.create(title));
+    };
+    cancel.addEventListener('click', close);
+    confirm.addEventListener('click', submit);
+    name.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.isComposing) {
+        event.preventDefault();
+        submit();
+      }
+    });
+    dialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      close();
+    });
+    dialog.addEventListener('keydown', (event) => event.stopPropagation());
+    dialog.addEventListener('pointerdown', (event) => event.stopPropagation());
+    document.body.append(dialog);
+    dialog.showModal();
+    name.focus();
+    name.select();
+  }
   function button(label: string, name: string, action: () => unknown) {
     const element = document.createElement('button');
     element.type = 'button';

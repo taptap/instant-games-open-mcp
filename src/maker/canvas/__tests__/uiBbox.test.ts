@@ -113,4 +113,12 @@ test('serialized browser validators include all Bbox dependencies', () => {
   expect(
     vm.runInNewContext(helpers + ';validateUiBboxStructure(input)', { input: bbox }).elements[0].id
   ).toBe('E001');
+  expect(html.indexOf('const UI_ATLAS_GROUP_LABELS = ')).toBeGreaterThan(0);
+  expect(html.indexOf('const UI_ATLAS_GROUP_LABELS = ')).toBeLessThan(
+    html.indexOf('function syncUiBboxWorkflow')
+  );
+  expect(vm.runInNewContext(helpers + ';Object.keys(UI_ATLAS_GROUP_LABELS)', {})).toEqual(
+    expect.arrayContaining(['controls', 'background'])
+  );
+  expect(html).not.toContain('node.uiSplit.phase !== "已完成"');
 });

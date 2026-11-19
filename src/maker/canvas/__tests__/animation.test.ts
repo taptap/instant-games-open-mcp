@@ -90,8 +90,11 @@ describe('animation output cards', () => {
       };
       controller.beginRender([node]);
       controller.render(card, node);
-      expect(elements.find((element) => element.tag === 'button')!.textContent).toBe('暂停');
-      expect(elements.find((element) => element.tag === 'canvas')!.dataset.frameIndex).toBe('1');
+      const play = elements.find((element) => element.tag === 'button')!;
+      expect(play.textContent).toBe('播放');
+      expect(elements.find((element) => element.tag === 'canvas')!.dataset.frameIndex).toBe('0');
+      play.listeners.get('click')!({ stopPropagation() {} });
+      expect(play.textContent).toBe('暂停');
       expect(() => frame(now - 0.5)).not.toThrow();
       expect(elements.find((element) => element.tag === 'canvas')!.dataset.frameIndex).toBe('0');
       drawing.drawImage.mockClear();
@@ -200,7 +203,7 @@ describe('animation output cards', () => {
     expect(canvases().at(-1)!.dataset.frameIndex).toBe('0');
   });
 
-  test('autoplays visible cards, suspends hidden work and preserves manual pause across renders', () => {
+  test('starts paused, plays on request, suspends hidden work and preserves manual pause across renders', () => {
     const pending = new Map<number, (timestamp: number) => void>();
     let serial = 0;
     let visibilityChanged = () => {};
@@ -292,9 +295,13 @@ describe('animation output cards', () => {
       callbacks.forEach((callback) => callback(time));
     };
     render();
-    expect(canvases[0].dataset.frameIndex).toBe('1');
+    expect(canvases[0].dataset.frameIndex).toBe('0');
+    expect(buttons.at(-1)!.textContent).toBe('播放');
     expect(pending.size).toBe(0);
     visible(true);
+    expect(pending.size).toBe(0);
+    buttons.at(-1)!.click!();
+    expect(buttons.at(-1)!.textContent).toBe('暂停');
     expect(pending.size).toBe(1);
     tick(1025);
     expect(canvases[0].dataset.frameIndex).toBe('0');
@@ -318,7 +325,7 @@ describe('animation output cards', () => {
     expect(pending.size).toBe(0);
     render();
     visible(true);
-    expect(buttons.at(-1)!.textContent).toBe('播放动画');
+    expect(buttons.at(-1)!.textContent).toBe('播放');
     expect(pending.size).toBe(0);
     expect(canvases).toHaveLength(1);
     buttons.at(-1)!.click!();

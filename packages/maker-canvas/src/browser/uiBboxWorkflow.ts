@@ -8,6 +8,7 @@ import {
   uiBatchAtlasPrompt,
   uiNativeAtlasPrompt,
   uiAtlasElementGroup,
+  UI_ATLAS_GROUP_LABELS,
 } from '../features/uiAssetBindings.js';
 
 export function syncUiBboxWorkflow(
@@ -41,14 +42,6 @@ export function syncUiBboxWorkflow(
     throw new Error('美术字 ID 不在当前识图文字清单中。');
   const nodes: CanvasNode[] = [];
   const edges: CanvasEdge[] = [];
-  const labels: Record<UiAtlasGroup, string> = {
-    controls: '控件与状态',
-    icons: '图标与背包',
-    equipment: '装备与槽框',
-    panels: '面板与长条',
-    artwork: '角色与插画',
-    background: '环境背景',
-  };
   // Initial positions only; layoutUiWorkflowGroup places every card below.
   const baseY = group.y + 56;
   const baseX = group.x + 28;
@@ -79,7 +72,7 @@ export function syncUiBboxWorkflow(
     members.find((node) => node.type === 'resource-bundle') ||
     card('resource-bundle', 'UI 资源包', 2, 0);
   let row = 0;
-  for (const category of Object.keys(labels) as UiAtlasGroup[]) {
+  for (const category of Object.keys(UI_ATLAS_GROUP_LABELS) as UiAtlasGroup[]) {
     if (
       category === 'background' &&
       !background &&
@@ -127,7 +120,7 @@ export function syncUiBboxWorkflow(
         connect(assets[0], bundle, 'resource-bundle');
         continue;
       }
-      const title = labels[category] + ' · ' + (batch + 1);
+      const title = UI_ATLAS_GROUP_LABELS[category] + ' · ' + (batch + 1);
       const prelayout = card('image', '预排 · ' + title, 0, row);
       const image = card('image', '分离 · ' + title, 1, row);
       const assets = card('image-assets', title, 2, row++);

@@ -4,30 +4,35 @@
  * open, or undefined to close it.
  */
 export function openCanvasSpriteGenDialog(options: {
+  uiSplit?: boolean;
   defaultName: string;
   start(input: {
     name: string;
     type: 'character' | 'generic';
   }): Promise<string | undefined> | string | undefined;
 }): void {
+  const titleText = options.uiSplit ? 'UI 切分' : '生成精灵';
+  const nameTextLabel = options.uiSplit ? '任务名' : '精灵名';
   const dialog = document.createElement('dialog');
   dialog.className = 'sequence-editor video-history sprite-gen-dialog';
-  dialog.setAttribute('aria-label', '生成精灵');
+  dialog.setAttribute('aria-label', titleText);
   const heading = document.createElement('h2');
-  heading.textContent = '生成精灵';
+  heading.textContent = titleText;
   const intro = document.createElement('p');
-  intro.textContent = '会把这张图片放进分组「精灵：<名>」并在新对话里开始生成；进度同步回分组。';
+  intro.textContent = options.uiSplit
+    ? '将在新对话中预填切分指令和设计稿，发送后开始；进度会同步回画布。'
+    : '会把这张图片放进分组「精灵：<名>」并在新对话里开始生成；进度同步回分组。';
   const nameLabel = document.createElement('label');
   nameLabel.className = 'sprite-gen-field';
   const nameText = document.createElement('span');
-  nameText.textContent = '精灵名';
+  nameText.textContent = nameTextLabel;
   const name = document.createElement('input');
   name.type = 'text';
   name.name = 'sprite-name';
   name.maxLength = 40;
   name.autocomplete = 'off';
   name.spellcheck = false;
-  name.placeholder = '例如 hero_walk';
+  name.placeholder = options.uiSplit ? '例如 inventory_ui' : '例如 hero_walk';
   name.value = options.defaultName;
   nameLabel.append(nameText, name);
   const hint = document.createElement('small');
@@ -76,7 +81,9 @@ export function openCanvasSpriteGenDialog(options: {
   start.className = 'primary';
   start.textContent = '开始';
   footer.append(cancel, start);
-  dialog.append(heading, intro, nameLabel, hint, typeGroup, message, footer);
+  dialog.append(heading, intro, nameLabel, hint);
+  if (!options.uiSplit) dialog.append(typeGroup);
+  dialog.append(message, footer);
   let busy = false;
   const close = () => {
     if (busy) return;
@@ -88,14 +95,16 @@ export function openCanvasSpriteGenDialog(options: {
     const ok = valid();
     name.setAttribute('aria-invalid', String(!ok && name.value !== ''));
     message.textContent =
-      ok || name.value === '' ? '' : '精灵名只能包含中英文、数字、_ 或 -，最多 40 个字符。';
+      ok || name.value === ''
+        ? ''
+        : nameTextLabel + '只能包含中英文、数字、_ 或 -，最多 40 个字符。';
     return ok;
   };
   name.addEventListener('input', check);
   const submit = async () => {
     if (busy) return;
     if (!check()) {
-      if (!name.value) message.textContent = '请填写精灵名。';
+      if (!name.value) message.textContent = '请填写' + nameTextLabel + '。';
       name.focus();
       return;
     }
@@ -116,7 +125,7 @@ export function openCanvasSpriteGenDialog(options: {
       close();
     } catch (caught) {
       busy = false;
-      message.textContent = (caught as Error).message || '未能开始生成精灵。';
+      message.textContent = (caught as Error).message || '未能开始' + titleText + '。';
     } finally {
       start.disabled = false;
       cancel.disabled = false;
