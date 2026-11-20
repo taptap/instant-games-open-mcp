@@ -9,44 +9,41 @@ import {
   INTERSTITIAL_EXAMPLES,
   BANNER_EXAMPLES,
 } from './docs.js';
-import { getSpaceIdFromCache } from './handlers.js';
+import { getAdsActivation } from './handlers.js';
 import type { ResolvedContext } from '../../core/types/index.js';
 
 /**
  * 获取完整的广告接入指南
  * 默认重点展示激励视频广告，其他广告作为额外内容
  *
- * @param ctx - ResolvedContext（用于读取缓存的广告位ID）
+ * @param ctx - ResolvedContext（用于读取缓存的广告开通状态）
  * @returns 完整的广告接入指南文档
  */
 async function getAdIntegrationGuide(ctx: ResolvedContext): Promise<string> {
-  // 从缓存读取广告位 ID
-  const spaceId = getSpaceIdFromCache(ctx);
+  // 广告位由服务端下发，这里只需要确认广告功能已开通
+  const activation = getAdsActivation(ctx);
 
-  if (!spaceId) {
+  if (!activation.activated) {
     return `❌ **无法生成广告接入指南**
 
 请先完成以下步骤：
 
 1. 确保已选择应用（调用 \`get_current_app_info\` 检查）
 2. 调用 \`check_ads_status\` 检查广告功能状态
-3. 如果状态为"已生效"，广告位 ID 会自动缓存
-4. 然后再次调用本工具获取接入指南
+3. 状态为"已生效"后，再次调用本工具获取接入指南
 
-**当前问题：** 缓存中未找到有效的广告位 ID，可能原因：
+**当前问题：** 缓存中没有可用的广告状态，可能原因：
 - 广告功能尚未开通（状态非"已生效"）
 - 未调用 \`check_ads_status\` 工具
 - 应用未选择
-- 游戏横竖屏方向尚未设置
 
 **不要向开发者索要广告位 ID，也不要使用开发者手工提供的 ID。**
-广告位 ID 的唯一来源是当前选中应用的本次 \`check_ads_status\` 自动查询结果。
+广告位由平台按游戏实际方向自动下发，接入代码里不需要任何广告位 ID。
 
 请先调用 \`check_ads_status\` 工具。`;
   }
 
-  // 生成 AdManager 代码（使用实际的 space_id）
-  const adManagerCode = getAdManagerCode(spaceId);
+  const adManagerCode = getAdManagerCode();
 
   return `# 🎮 TapTap 小游戏广告接入指南
 
@@ -57,7 +54,7 @@ async function getAdIntegrationGuide(ctx: ResolvedContext): Promise<string> {
 - ✅ 使用封装好的 AdManager 工具类
 - ✅ 核心功能：激励视频广告（最常用）
 - ✅ 额外功能：插屏广告、Banner 广告（可选）
-- ✅ **你的广告位 ID：\`${spaceId}\`**（已自动配置到代码中）
+- ✅ **广告位由服务端按游戏方向自动下发**，源码里不需要填广告位 ID
 
 ---
 
@@ -69,14 +66,14 @@ async function getAdIntegrationGuide(ctx: ResolvedContext): Promise<string> {
 
 将下面的 AdManager.js 代码复制到你的项目中（如 \`js/AdManager.js\`）
 
-**注意：广告位 ID（${spaceId}）已经内置到代码中，无需手动修改。**
+**注意：代码里不需要填写广告位 ID，平台会在游戏启动时按实际方向下发对应广告位。**
 
 #### 步骤 2️⃣：在游戏启动时初始化
 
 \`\`\`javascript
 // main.js 或游戏入口文件
 async function initGame() {
-  // 初始化广告管理器（广告位配置已由 MCP 自动查询并注入）
+  // 初始化广告管理器（广告位由服务端下发，无需配置）
   await adManager.init();
   console.log('广告初始化完成');
 }
@@ -268,7 +265,7 @@ function showCoinsAd() {
 
 ### Q4: 如何预加载广告？
 
-**A**: MCP 会在生成代码前通过 \`check_ads_status\` 自动获取并注入广告位配置。AdManager 在 \`init()\`
+**A**: 广告位由服务端在游戏启动时下发，代码里不需要任何广告位 ID。AdManager 在 \`init()\`
 时预加载激励视频广告；如果显示时尚未就绪，会重新加载并只重试一次。
 
 ---
@@ -303,11 +300,11 @@ function getAdsIntegrationWorkflow(): string {
 
 **任何 TapTap 小游戏/H5 广告相关操作之前，必须先检查服务端广告变现状态与配置。**
 
-广告状态和广告位 ID 由 \`check_ads_status\` 从服务器自动查询并缓存。
-**不要向开发者索要广告位 ID，也不要使用开发者手工提供的 ID。**
-当前选中应用的本次 \`check_ads_status\` 查询结果是广告位 ID 的唯一来源。
-不得复用其他应用、历史输出或示例代码中的广告位 ID。不同应用返回相同 ID 时，只陈述服务端返回事实，
-不得据此推断广告位属于应用独享或开发者共享。
+广告状态由 \`check_ads_status\` 从服务器自动查询并缓存。
+当前选中应用的本次 \`check_ads_status\` 查询结果是广告配置的唯一来源。
+**广告位由平台按游戏实际方向自动下发，接入代码里不需要填写广告位 ID。**
+**不要向开发者索要广告位 ID，也不要让开发者手工填写 ID。**
+也不要把广告位 ID 写进示例代码或文档；开发者不需要知道它。
 
 ---
 
@@ -333,16 +330,13 @@ function getAdsIntegrationWorkflow(): string {
 | 状态码 | 状态 | AI 应执行的动作 |
 |--------|------|----------------|
 | 0 | 未开通 | 展示开通链接，**阻止**继续接入。告知用户开通后可再次调用 \`check_ads_status\` 刷新状态 |
-| 1 | 已生效 | ✅ 服务器返回 ad_spaces 数组（横屏 type=1 / 竖屏 type=2 各一个），工具会自动根据游戏横竖屏设置匹配对应广告位，满足条件后继续步骤 3 |
+| 1 | 已生效 | ✅ 服务器返回横/竖两个广告位配置，工具会缓存开通状态，可直接进入步骤 3 |
 | 2 | 已封禁 | 展示封禁警告，**立即阻止**所有后续操作 |
 
-**重要：** 状态为"已生效"时，工具会自动完成以下两步校验：
-1. ad_spaces 数组非空（否则提示服务端异常）
-2. 游戏已设置横竖屏方向（否则提示用户先调用 \`update_app_info\` 设置 screenOrientation）
+**重要：** 状态为"已生效"即可继续接入。**不需要**让开发者设置横竖屏、也**不需要**匹配或填写广告位 ID——
+广告位由平台在游戏启动时按实际方向自动下发。
 
-两步均通过后，自动匹配正确的广告位 ID 并缓存，然后引导调用 \`get_ad_integration_guide\`。
-
-**能力边界：** \`status=1\` 且广告位有效只表示可以生成接入代码，不代表 \`window.tap\` 已注入，
+**能力边界：** \`status=1\` 只表示可以生成接入代码，不代表 \`window.tap\` 已注入，
 不代表当前 ZIP 已正确上传，也不代表广告已在真机环境中成功播放。最终播放必须在 TapTap 小游戏/H5
 宿主环境中验证。
 
@@ -350,13 +344,10 @@ function getAdsIntegrationWorkflow(): string {
 
 **工具**：\`get_ad_integration_guide\`
 
-**前提条件（两个必须同时满足）：**
-1. ✅ 广告状态为"已生效"（status === 1）
-2. ✅ 广告位 ID（space_id）有效（非空字符串）
+**前提条件：** 广告状态为"已生效"（status === 1），且已调用过 \`check_ads_status\`。
 
 此工具会：
-- 从缓存读取 space_id
-- 生成带有真实广告位 ID 的完整 AdManager.js 源码
+- 生成**不含任何广告位 ID** 的完整 AdManager.js 源码（广告位由服务端下发）
 - 提供激励视频广告（核心）+ 插屏/Banner（可选）的接入代码和示例
 
 ---
@@ -381,9 +372,7 @@ AI 应再次调用 \`check_ads_status\` 工具（该工具会强制重新查询�
 [步骤2] 调用 check_ads_status 检查广告状态
     ↓
   状态 0 (未开通) → 展示开通链接，等待用户操作后主动刷新
-  状态 1 (已生效) → 检查 space_id 是否有效
-      ├── space_id 有效 → [步骤3] 调用 get_ad_integration_guide
-      └── space_id 无效 → 提示服务端异常，稍后重试
+  状态 1 (已生效) → [步骤3] 调用 get_ad_integration_guide
   状态 2 (已封禁) → 展示警告，阻止所有操作
 \`\`\`
 

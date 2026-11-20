@@ -6,19 +6,19 @@
 import type { Documentation } from '../../core/utils/docHelpers.js';
 
 /**
- * 生成 AdManager 代码（支持动态广告位 ID）
- * @param spaceId - 广告位ID（从服务器获取）
+ * 生成 AdManager 代码
+ * 广告位由服务端按游戏实际方向下发，源码里不再需要填写广告位 ID。
  * @returns AdManager 完整源码
  */
-export function getAdManagerCode(spaceId: string): string {
+export function getAdManagerCode(): string {
   return `/**
  * TapTap 广告管理器
  *
  * 核心功能：激励视频广告（Rewarded Video）
  * 额外功能：插屏广告（Interstitial）、Banner 广告（可选）
  *
- * 广告位 ID（由 check_ads_status 自动获取并注入）：
- * - 激励视频/插屏/Banner：${spaceId}
+ * 广告位：由 TapTap 服务端按游戏实际方向自动下发
+ * - 创建广告时不需要传入广告位 ID（传空字符串即可）
  *
  * 重要机制：
  * - 激励视频：启动时预加载；show() 因未就绪失败时会 load() 并重试一次
@@ -27,8 +27,7 @@ export function getAdManagerCode(spaceId: string): string {
 
 class TapAdManager {
   constructor() {
-    // 广告位 ID（由 check_ads_status 自动获取并注入）
-    this.spaceId = '${spaceId}';
+    // 广告位由服务端下发，这里不再保存任何广告位 ID
 
     // 广告实例
     this.rewardedVideoAd = null;
@@ -142,7 +141,8 @@ class TapAdManager {
     }
 
     this.bannerAd = tap.createBannerAd({
-      adUnitId: this.spaceId,
+      // 服务端下发广告位，不需要填写 ID
+      adUnitId: '',
       style: style,
       adIntervals: 30,  // 30 秒轮播
     });
@@ -228,11 +228,12 @@ class TapAdManager {
    * 初始化激励视频广告
    */
   _initRewardedVideo() {
-    console.log('[AdManager] 初始化激励视频，广告位 ID:', this.spaceId);
+    console.log('[AdManager] 初始化激励视频（广告位由服务端下发）');
 
     // 创建激励视频广告实例（只创建一次）
     this.rewardedVideoAd = tap.createRewardedVideoAd({
-      adUnitId: this.spaceId
+      // 服务端下发广告位，不需要填写 ID
+      adUnitId: ''
     });
 
     // 监听加载成功
@@ -282,11 +283,12 @@ class TapAdManager {
    * 初始化插屏广告
    */
   _initInterstitial() {
-    console.log('[AdManager] 初始化插屏广告，广告位 ID:', this.spaceId);
+    console.log('[AdManager] 初始化插屏广告（广告位由服务端下发）');
 
     // 创建插屏广告实例（只创建一次）
     this.interstitialAd = tap.createInterstitialAd({
-      adUnitId: this.spaceId
+      // 服务端下发广告位，不需要填写 ID
+      adUnitId: ''
     });
 
     // 监听加载成功
