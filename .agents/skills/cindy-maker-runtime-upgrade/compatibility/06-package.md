@@ -9,6 +9,10 @@
 | N2  | 仓库凭证/子进程契约；auth/PAT/MAC/spawn/eval/import                     | 新路径不泄露/复制/转存凭证，不把 token 放 argv/日志/URL；第三方 Runtime 自管凭证例外不扩到 Cindy 存储。新 spawn/exec/dynamic execution 核对固定入口、参数数组、所有权和信任输入；不以解码资产审查为由执行未知内容                               |
 | N3  | 0.0.37 UI 编码资源、0.0.39 canvas/Git 增量；base64/assets/tool snapshot | 新增/变化的编码脚本、UI 资产、二进制/下载目标对照源码或官方包，可解码比较但不直接执行；旧 assets/image 与新 .maker/canvases/images 路径及越界拒绝核对。新入口分析是否绕过工作区、媒体门禁、三态/重试与配置策略；未变内容不重新逐行审计          |
 
+LuaTween：2026-11-11 作者 liangdong 明确确认是其本人编写并按 MIT 授权；
+随插件保留作者说明和 MIT 全文。不因上游链接暂不可访问重复列为未知许可证；
+只有来源或授权范围发生变化才重新核对。该确认不扩展到其它依赖。
+
 本组验收：六项有证据，新增风险有处置；来源缺口、实际权限扩大、纯验证缺口分开。
 不得因为 vendor 路径或打包脚本类别自动升级风险，也不得仅凭哈希相等宣布内容安全。
 返回 [02 操作](../steps/02-compatibility/run.md) 完成最终 recipe/vendor/自动回归，
