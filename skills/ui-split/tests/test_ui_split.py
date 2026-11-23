@@ -252,3 +252,71 @@ def test_rejected_initial_batch_can_retry_without_skipping_later_batches(tmp_pat
     result = call(tmp_path, "record", "--action-id", retry["id"], "--file", "assets/good.png")
     assert result["phase"] == "separate"
     assert call(tmp_path, "next")["action"]["tool"] == "edit_image"
+
+
+def test_assemble_uses_shared_assembler_and_refuses_existing_output(tmp_path):
+    action, progress = prepare_separate(
+        tmp_path,
+        [
+            {
+                "id": "E001",
+                "name": "按钮",
+                "type": "button",
+                "bbox": [10, 10, 40, 20],
+                "parent": None,
+            }
+        ],
+    )
+    batch = progress["batches"][0]
+    fills = {
+        index: "content"
+        for index, slot in enumerate(batch["slots"])
+        if not slot.get("reserve")
+    }
+    paint(batch, fills).save(tmp_path / "assets/sheet.png")
+    call(tmp_path, "record", "--action-id", action["id"], "--file", "assets/sheet.png")
+    early = run(
+        tmp_path,
+        "assemble",
+        "--name",
+        "inventory",
+        "--screen-key",
+        "inventory",
+        "--screen-name",
+        "背包",
+    )
+    assert early.returncode != 0
+    assert "Assemble after review is approved" in early.stderr
+
+    call(tmp_path, "approve")
+    result = call(
+        tmp_path, "assemble", "--screen-key", "inventory", "--screen-name", "背包"
+    )
+    assert result["summary"]["screen"] == {"name": "背包", "key": "inventory"}
+    document = json.loads(
+        (tmp_path / "assets/ui/inventory/inventory.ui.json").read_text()
+    )
+    labels = []
+
+    def walk(node):
+        if node.get("type") == "Label":
+            labels.append(node)
+        for child in node.get("children", []):
+            walk(child)
+
+    walk(document)
+    image = next(child for child in document["children"] if child.get("id") == "E001")
+    assert image["width"] == 40 and image["height"] == 20
+    assert (tmp_path / "assets/ui/inventory/inventory.reference.png").is_file()
+
+    again = run(
+        tmp_path,
+        "assemble",
+        "--name",
+        "inventory",
+        "--screen-key",
+        "inventory",
+        "--screen-name",
+        "背包",
+    )
+    assert "already exists" in again.stderr

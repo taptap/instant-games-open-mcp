@@ -1,6 +1,6 @@
 ---
 name: ui-split
-description: 将游戏 UI 设计稿切分为独立透明素材，保留 Bbox、文字和素材绑定清单。用于拆界面、切按钮图标或在画布中启动 UI 切分；不自动组装 UI 或接入游戏逻辑。
+description: 将游戏 UI 设计稿切分为独立透明素材，保留 Bbox、文字和素材绑定清单，并在验收后按共享组装器生成可编辑 .ui.json。用于拆界面、切按钮图标或在画布中启动 UI 切分；不接入游戏逻辑。
 ---
 
 # UI 切分
@@ -22,6 +22,8 @@ description: 将游戏 UI 设计稿切分为独立透明素材，保留 Bbox、�
 
 每次外部动作完成后回到 `next`。需要选择或确认时使用环境提供的提问控件。未触发工具的费用确认门时不额外重复确认；工具要求付费确认时沿用原确认流程。
 
-产物固定在 `assets/image/ui-split/<名称>/`：`bbox.json`、`bindings.json`、去文字图、预排图、分离图和独立 PNG。权威进度在 `docs/.ui-split/<名称>.json`，由现有项目文档接口供画布读取；它只包含参数、阶段、请求编号和产物信息，不包含凭证或图片字节。画布不执行任何付费操作。普通文字保留在 bbox 清单，不烘焙进 PNG。最终回复提供素材目录和未完成事项；不声称已生成可编辑 UI。
+6. 需要可编辑 UI 时，approve 之后运行 `assemble --name <名称> --screen-key <snake_case> --screen-name <中文名>`。脚本调用内置的共享组装器 `scripts/assemble-ui.mjs`（与 `maker-ui-workflow` 同一实现），从 `bbox.json` 的文字框推算字号、生成节点坐标，输出到 `assets/ui/<key>/`。不要自己写组装脚本、不要额外整体缩放、不要对字号做 pt 换算；需要调整请改识别结果或组装器。输出目录已存在时命令会拒绝执行，请编辑已有文档而不是覆盖。
+
+产物固定在 `assets/image/ui-split/<名称>/`：`bbox.json`、`bindings.json`、去文字图、预排图、分离图和独立 PNG。组装产物在 `assets/ui/<key>/`：`<key>.ui.json`、`<key>.reference.png`、`assembly-map.json`。权威进度在 `docs/.ui-split/<名称>.json`，由现有项目文档接口供画布读取；它只包含参数、阶段、请求编号和产物信息，不包含凭证或图片字节。画布不执行任何付费操作。普通文字保留在 bbox 清单，不烘焙进 PNG。最终回复提供素材目录、UI 产物路径和未完成事项。
 
 **保留画布产物。** 不要自行清理任务产物目录。分离图（`separated-*.png`）是画布上的可见产物，即使不在 `bindings.json` 或 `artifacts` 中也不能删除或移走；其引用记录在进度的 `batches[].result.path`。验收前同时核对原稿、`artifacts[].path`、各批次预排图（`batches[].reference`）、`batches[].result.path` 和最终素材绑定。不要通过删掉引用来让核对通过。

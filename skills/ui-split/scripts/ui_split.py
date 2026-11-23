@@ -187,6 +187,97 @@ def plan_batches(state, root):
 
 
 
+def assemble_run(state, root, screen):
+    """Assemble an editable UI document from the approved Bbox and cut PNGs.
+
+    Font sizes and geometry come from the shared assembler, never from ad-hoc
+    agent arithmetic: the run only contributes recognized boxes and binds them
+    to the exported PNGs.
+    """
+    bbox = dict(state["bbox"])
+    if screen:
+        bbox["screen"] = screen
+    assets, bindings, art_texts = [], [], []
+    for binding in state["bindings"]:
+        element_id, slot_state = binding["elementId"], binding["state"]
+        path = binding["path"]
+        digest = identity(root, path)["sha256"]
+        asset_id = element_id + "_" + slot_state
+        assets.append(
+            dict(
+                id=asset_id,
+                role="bound",
+                path=path,
+                sha256=digest,
+                width=binding["width"],
+                height=binding["height"],
+            )
+        )
+        if slot_state == "pressed":
+            continue
+        entry = dict(elementId=element_id, assetId=asset_id, review="approved")
+        pressed = next(
+            (
+                item
+                for item in state["bindings"]
+                if item["elementId"] == element_id and item["state"] == "pressed"
+            ),
+            None,
+        )
+        if pressed:
+            entry["pressedAssetId"] = element_id + "_pressed"
+        bindings.append(entry)
+    bound = {entry["elementId"] for entry in bindings}
+    # Duplicate instances reuse the original element's PNG; the assembler still
+    # requires one explicit binding per element.
+    for element in bbox["elements"]:
+        source = element.get("duplicateOf")
+        if not source or element["id"] in bound:
+            continue
+        if source not in bound:
+            raise ValueError("重复实例缺少原始素材绑定：" + source)
+        original = next(entry for entry in bindings if entry["elementId"] == source)
+        bindings.append(dict(original, elementId=element["id"]))
+        bound.add(element["id"])
+    missing = sorted(
+        element["id"] for element in bbox["elements"] if element["id"] not in bound
+    )
+    if missing:
+        raise ValueError("缺少素材绑定：" + "、".join(missing))
+    request = dict(
+        bbox=bbox,
+        assets=assets,
+        bindings=bindings,
+        artTextBindings=art_texts,
+        confirmed=True,
+    )
+    (root / "assets/ui").mkdir(parents=True, exist_ok=True)
+    staging = root / state["directory"] / "assemble-input.json"
+    staging.write_text(json.dumps(request, ensure_ascii=False, indent=2))
+    result = subprocess.run(
+        [
+            "node",
+            str(Path(__file__).with_name("assemble-ui.mjs")),
+            str(root),
+            str(staging),
+            str(root / "assets/ui" / screen["key"]),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode:
+        raise ValueError("UI 组装失败：" + (result.stderr or result.stdout)[-1000:])
+    summary = json.loads(result.stdout)
+    state["artifacts"].append(
+        dict(
+            key="ui",
+            title="可编辑 UI",
+            path=(Path("assets/ui") / screen["key"] / summary["uiFileName"]).as_posix(),
+        )
+    )
+    return summary
+
+
 def valid_task_name(name):
     """Match the canvas rule: Unicode letters or numbers, plus underscore and hyphen."""
     if not isinstance(name, str) or not 1 <= len(name) <= 40:
@@ -419,7 +510,7 @@ def record(state, root, args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "command", choices=["init", "next", "record", "status", "approve"]
+        "command", choices=["init", "next", "record", "status", "approve", "assemble"]
     )
     parser.add_argument("--name", required=True)
     parser.add_argument("--source")
@@ -428,6 +519,8 @@ def main():
     parser.add_argument("--response")
     parser.add_argument("--redo-batch", type=int)
     parser.add_argument("--confirm-new-generation", action="store_true")
+    parser.add_argument("--screen-key")
+    parser.add_argument("--screen-name")
     args = parser.parse_args()
     if not valid_task_name(args.name):
         raise ValueError(
@@ -500,10 +593,25 @@ def main():
             state["error"] = str(error)
             save(path, state)
             raise
+    summary = None
     if args.command == "approve":
         if state["phase"] != "review":
             raise ValueError("Complete all batches before review")
         state["phase"] = "done"
+    if args.command == "assemble":
+        if state["phase"] != "done":
+            raise ValueError("Assemble after review is approved")
+        if not (args.screen_key and args.screen_name):
+            raise ValueError("Assemble needs --screen-key and --screen-name")
+        if not re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", args.screen_key):
+            raise ValueError("Screen key must be lowercase snake_case")
+        if (root / "assets/ui" / args.screen_key).exists():
+            raise ValueError("UI output already exists; edit that document instead")
+        summary = assemble_run(
+            state,
+            root,
+            dict(name=args.screen_name, key=args.screen_key),
+        )
     if args.command == "next" and state["phase"] not in ("review", "done"):
         if not state.get("pending"):
             state["pending"] = dict(
@@ -551,6 +659,7 @@ def main():
         json.dumps(
             dict(
                 action=action,
+                summary=summary,
                 phase=state["phase"],
                 directory=state["directory"],
                 error=state.get("error"),
