@@ -320,6 +320,10 @@
       if (additive) {
         if (!already) app.selectNode(hit, false, true);
       } else if (!already) app.selectNode(hit, false);
+      // Selecting may auto-open the inspector, which pans the canvas to keep the node visible.
+      // Re-read the pointer afterwards so the drag delta is measured in the current view; the
+      // pre-pan point would turn the pan itself into node movement.
+      p = canvasPoint(app, event);
       beginMoveOrResize(app, hit, "move", p, event);
       if (app.drag && additive && already) {
         var toggleSource = app.sourceNode ? app.sourceNode(hit) : hit;

@@ -225,6 +225,70 @@ try {
   }
   await loadingPage.close();
 
+  // Dragging must not count the auto-open pan as node movement: the pointerdown used to be
+  // measured before the inspector opened, so the first pointermove shifted the node by the pan.
+  const dragPage = await browser.newPage();
+  await dragPage.goto('http://127.0.0.1:' + server.address().port + '/?document-loading');
+  const dragLoading = dragPage.locator('#documentLoading');
+  await dragLoading.waitFor({ state: 'visible' });
+  await dragPage.evaluate(() => window.__finishManifest());
+  await dragLoading.waitFor({ state: 'hidden' });
+  await dragPage.waitForFunction(() => window.UrhoxPreview && window.UrhoxPreview.tree, null, {
+    timeout: 15000,
+  });
+  const dragDelta = await dragPage.evaluate(async () => {
+    const canvas = document.getElementById('stage');
+    const preview = document.getElementById('preview');
+    const view = window.UrhoxView;
+    const api = window.UrhoxPreview;
+    // Fixture geometry: the second element sits at design rect (120, 0, 100, 100).
+    const nodeLeft = 120;
+    const nodeTop = 0;
+    const nodeWidth = 100;
+    const nodeHeight = 100;
+    const originX = Number(canvas.dataset.originX || 0);
+    const originY = Number(canvas.dataset.originY || 0);
+    const fit = api.contentTransform();
+    // Park the node just inside the collapsed-inspector preview, then drop the selection.
+    view.setView({
+      zoom: 1,
+      panX: preview.clientWidth - 8 - (originX + fit.x + (nodeLeft + nodeWidth) * fit.scale),
+      panY: 24,
+    });
+    api.selectNode(null, true);
+    const v = view.getView();
+    const rect = canvas.getBoundingClientRect();
+    const screenScale = rect.width / canvas.width;
+    const startX = rect.left + (originX + fit.x + (nodeLeft + nodeWidth / 2) * fit.scale) * screenScale;
+    const startY = rect.top + (originY + fit.y + (nodeTop + nodeHeight / 2) * fit.scale) * screenScale;
+    const before = api.tree.children[1];
+    const beforeRect = { ...before._layout };
+    const capture = canvas.setPointerCapture;
+    canvas.setPointerCapture = () => {};
+    const fire = (type, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0,
+      buttons: type === 'pointerup' ? 0 : 1, pointerId: 1,
+    }));
+    fire('pointerdown', startX, startY);
+    const inspectorOpened = !document.querySelector('.inspector').classList.contains('hidden');
+    fire('pointermove', startX + 5, startY + 5);
+    fire('pointerup', startX + 5, startY + 5);
+    canvas.setPointerCapture = capture;
+    const node = before._layout || {};
+    return {
+      inspectorOpened,
+      dx: (node.x ?? 0) - (beforeRect.x ?? 0),
+      dy: (node.y ?? 0) - (beforeRect.y ?? 0),
+      zoom: v.zoom,
+    };
+  });
+  await dragPage.close();
+  assert.equal(dragDelta.inspectorOpened, true, "drag should auto-open the inspector");
+  assert.ok(
+    Math.abs(dragDelta.dx - 5 / dragDelta.zoom) < 2 && Math.abs(dragDelta.dy - 5 / dragDelta.zoom) < 2,
+    `drag delta should follow the pointer only, got ${JSON.stringify(dragDelta)}`
+  );
+
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
