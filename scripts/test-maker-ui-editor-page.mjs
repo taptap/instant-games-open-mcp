@@ -330,10 +330,12 @@ try {
     fire('pointermove', startX + 5, startY + 5, { altKey: true });
     fire('pointerup', startX + 5, startY + 5, { altKey: true });
     canvas.setPointerCapture = capture;
+    const openedAfterDrag = !document.documentElement.classList.contains('panel-right-hidden');
     const after = api.selectionBounds();
     return {
       collapsed,
       openedMidDrag,
+      openedAfterDrag,
       dx: after ? after.x - before.x : null,
       dy: after ? after.y - before.y : null,
     };
@@ -341,6 +343,7 @@ try {
   await altPage.close();
   assert.equal(altDrag.collapsed, true, "fixture should start with the inspector collapsed");
   assert.equal(altDrag.openedMidDrag, false, "the inspector must not open mid-drag");
+  assert.equal(altDrag.openedAfterDrag, true, "the inspector should open once the duplicate drag ends");
   assert.ok(
     Math.abs(altDrag.dx - 5) < 2 && Math.abs(altDrag.dy - 5) < 2,
     `duplicate should follow the pointer only, got ${JSON.stringify(altDrag)}`

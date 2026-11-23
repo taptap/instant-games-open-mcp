@@ -647,9 +647,10 @@
     app.hover = null;
     // Never expand mid-drag: panning then would move the drag origin out from under the pointer
     // (e.g. Alt-drag duplicates a selection while a collapsed inspector is waiting to open).
-    // Marquee re-opens on finish; other drags keep whatever the user had open.
-    if (!app.drag && app.selectedNodes.some(function (node) { return !previous.includes(node); })) {
-      window.UrhoxView?.setSelectionInspectorVisible(true);
+    // The open is deferred to the end of the drag, where the pan can no longer skew it.
+    if (app.selectedNodes.some(function (node) { return !previous.includes(node); })) {
+      if (app.drag) app.drag.pendingInspector = true;
+      else window.UrhoxView?.setSelectionInspectorVisible(true);
     }
     refresh();
   }

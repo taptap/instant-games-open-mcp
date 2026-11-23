@@ -444,6 +444,9 @@
           window.UrhoxView?.setSelectionInspectorVisible(true);
         }
       } else if (app.commitHistory) app.commitHistory();
+      // A drag that changed the selection (e.g. Alt-drag duplicate) deferred its inspector open
+      // until now, when panning can no longer move the drag origin.
+      if (!cancel && drag.pendingInspector) window.UrhoxView?.setSelectionInspectorVisible(true);
       if (canvas.hasPointerCapture && canvas.hasPointerCapture(drag.pointerId)) {
         canvas.releasePointerCapture(drag.pointerId);
       }
