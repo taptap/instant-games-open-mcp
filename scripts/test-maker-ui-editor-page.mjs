@@ -158,6 +158,56 @@ try {
   assert.equal(await inspector.isVisible(), false);
   await pick(1);
   assert.equal(await inspector.isVisible(), true);
+  // Auto-opening the inspector narrows the preview. Selecting a node near the old right edge
+  // must pan the canvas (without changing zoom) instead of leaving the node clipped.
+  const keepVisible = await loadingPage.evaluate(() => {
+    const preview = document.getElementById('preview');
+    const canvas = document.getElementById('stage');
+    const toggle = () => document.querySelector('[data-toggle="right"]').click();
+    const view = window.UrhoxView;
+    const api = window.UrhoxPreview;
+    const screenBox = () => {
+      const bounds = api.selectionBounds();
+      if (!bounds) return null;
+      const fit = api.contentTransform();
+      const v = view.getView();
+      const originX = Number(canvas.dataset.originX || 0);
+      return {
+        left: v.panX + (originX + fit.x + bounds.x * fit.scale) * v.zoom,
+        right: v.panX + (originX + fit.x + (bounds.x + bounds.w) * fit.scale) * v.zoom,
+        zoom: v.zoom,
+      };
+    };
+    // children[1] is selected and the inspector is open at this point.
+    toggle();
+    const wideWidth = preview.clientWidth;
+    const parked = screenBox();
+    // Park the node just inside the wide viewport, then clear the selection so the next pick
+    // counts as a new selection and re-opens the inspector.
+    view.panBy(wideWidth - 8 - parked.right, 0);
+    const parkedBox = screenBox();
+    api.selectNode(null, true);
+    api.selectNode(api.tree.children[1], true);
+    return {
+      wideWidth,
+      parkedRight: parkedBox.right,
+      parkedZoom: parkedBox.zoom,
+      after: screenBox(),
+      afterWidth: preview.clientWidth,
+      inspectorOpen: !document.querySelector('.inspector').classList.contains('hidden'),
+    };
+  });
+  assert.ok(
+    keepVisible.parkedRight > keepVisible.wideWidth - 40,
+    `fixture should park the node near the right edge, got ${String(keepVisible.parkedRight)}/${String(keepVisible.wideWidth)}`
+  );
+  assert.ok(keepVisible.afterWidth < keepVisible.wideWidth, "inspector should narrow the preview");
+  assert.ok(
+    keepVisible.after.right <= keepVisible.afterWidth,
+    `selected node stayed clipped: ${String(keepVisible.after.right)} > ${String(keepVisible.afterWidth)}`
+  );
+  assert.ok(keepVisible.after.left >= 0, "selected node left the canvas");
+  assert.equal(keepVisible.after.zoom, keepVisible.parkedZoom, "auto-opening must not reset zoom");
   for (const status of [500, 200]) {
     assert.equal(await loadingPage.evaluate(() => {
       const project = window.UrhoxProject;
