@@ -423,19 +423,23 @@
       var drag = app.drag;
       if (event && event.pointerId != null && event.pointerId !== drag.pointerId) return;
       var marquee = drag.mode === "marquee";
+      if (cancel && marquee) app.setSelection(drag.seed);
       app.drag = null;
       app.marquee = null;
       app.guides = [];
       var toggle = !cancel && drag.toggleIfUnmoved && !drag.moved;
       if (cancel) {
-        if (marquee) app.setSelection(drag.seed);
-        else if (app.cancelHistory) app.cancelHistory(drag.selectionIds);
+        if (!marquee && app.cancelHistory) app.cancelHistory(drag.selectionIds);
       } else if (toggle) {
         var toggleId = drag.toggleIfUnmoved;
         if (app.cancelHistory) app.cancelHistory(drag.selectionIds);
         var restored = root.UrhoxDoc.findByEditorId(app.sourceTree || app.tree, toggleId);
         if (restored) app.selectNode(restored, false, true);
-      } else if (!marquee && app.commitHistory) app.commitHistory();
+      } else if (marquee) {
+        if (app.selectedNodes.some(function (node) { return !drag.seed.includes(node); })) {
+          window.UrhoxView?.setSelectionInspectorVisible(true);
+        }
+      } else if (app.commitHistory) app.commitHistory();
       if (canvas.hasPointerCapture && canvas.hasPointerCapture(drag.pointerId)) {
         canvas.releasePointerCapture(drag.pointerId);
       }

@@ -676,8 +676,58 @@ body.picking-image #bottomListTitle { color: var(--accent); }
 }
 
 /* Comparison is an editor overlay, not a second selectable document. */
-.comparison-workspace { display: flex; flex: 1; min-height: 0; min-width: 0; }
+.comparison-workspace { position: relative; display: flex; flex: 1; min-height: 0; min-width: 0; }
 .comparison-workspace > .preview { flex: 1; min-width: 0; }
+.document-loading:not([hidden]) {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+/* Dim layer as a pseudo-element: color-mix() is unsupported on older canvases. */
+.document-loading:not([hidden])::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--bg);
+  opacity: .55;
+}
+.document-loading-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 32px);
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.document-loading-spinner {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: document-loading-spin .8s linear infinite;
+}
+@keyframes document-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .document-loading-spinner { animation: none; }
+}
 .reference-pane { flex: 1; min-width: 0; position: relative; overflow: hidden; border-right: 1px solid #35383c; background: #202225; cursor: grab; touch-action: none; }
 #referenceStage { position: absolute; transform-origin: 0 0; pointer-events: none; }
 #referenceCanvas { display: block; }

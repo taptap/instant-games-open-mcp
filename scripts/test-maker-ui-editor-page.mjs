@@ -10,7 +10,9 @@ import { pathToFileURL } from 'node:url';
 import { buildUiEditorPageHtml } from './build-maker-ui-editor-page.mjs';
 
 const hostScript = `
+var verifyDocumentLoading = new URLSearchParams(location.search).has("document-loading");
 window.UrhoxHost = {
+  layout: { inspectorOnSelection: verifyDocumentLoading },
   fileRoot: "/files?path=",
   initialUi: "assets/ui/main.ui.json",
   manifest: async function () {
@@ -19,11 +21,19 @@ window.UrhoxHost = {
         dir: p.split("/").slice(0, -1).join("/"), kind: kind, ref: p.replace(/^assets\\//, ""),
         assetRoot: "/files?path=assets/", hasMeta: true };
     }
-    return { name: "page", ui: [item("assets/ui/main.ui.json", "ui")],
+    var ui = [item("assets/ui/main.ui.json", "ui")];
+    if (verifyDocumentLoading) {
+      ui.push(item("assets/ui/next.ui.json", "ui"));
+      await new Promise(resolve => { window.__finishManifest = resolve; });
+    }
+    return { name: "page", ui: ui,
       assets: [item("assets/image/a b.png", "image"), item("assets/ui/main.reference.png", "image")],
       config: { orientation: "portrait" } };
   },
   readText: async function (url) {
+    if (verifyDocumentLoading && url.endsWith("next.ui.json")) {
+      return new Promise((resolve, reject) => { window.__finishDocument = { resolve, reject }; });
+    }
     var response = await fetch(url, { cache: "no-store" });
     if (!response.ok) throw new Error("HTTP " + response.status);
     return response.text();
@@ -128,6 +138,43 @@ const browser = await chromium.launch({
     : {}),
 });
 try {
+  const loadingPage = await browser.newPage();
+  const loading = loadingPage.locator('#documentLoading');
+  await loadingPage.goto('http://127.0.0.1:' + server.address().port + '/?document-loading');
+  await loading.waitFor({ state: 'visible' });
+  assert.match(await loading.textContent(), /正在查找 UI 文档/);
+  await loadingPage.evaluate(() => window.__finishManifest());
+  await loading.waitFor({ state: 'hidden' });
+  const inspector = loadingPage.locator('.inspector');
+  assert.equal(await inspector.isVisible(), false);
+  const pick = index => loadingPage.evaluate(index => {
+    const preview = window.UrhoxPreview;
+    preview.selectNode(preview.tree.children[index], true);
+  }, index);
+  await pick(0);
+  assert.equal(await inspector.isVisible(), true);
+  await loadingPage.locator('[data-toggle="right"]').click();
+  await pick(0);
+  assert.equal(await inspector.isVisible(), false);
+  await pick(1);
+  assert.equal(await inspector.isVisible(), true);
+  for (const status of [500, 200]) {
+    assert.equal(await loadingPage.evaluate(() => {
+      const project = window.UrhoxProject;
+      return project.openUiPath(project.listDocuments().find(file => file.name === 'next.ui.json').path);
+    }), true);
+    await loading.waitFor({ state: 'visible', timeout: 5000 });
+    assert.match(await loading.textContent(), /正在打开「next.ui.json」/);
+    await loadingPage.evaluate(({ status, documentText }) => {
+      if (status === 500) window.__finishDocument.reject(new Error('HTTP 500'));
+      else window.__finishDocument.resolve(documentText);
+    }, { status, documentText });
+    await loading.waitFor({ state: 'hidden' });
+    assert.equal(await inspector.isVisible(), status === 500);
+    assert.match(await loadingPage.locator('#currentDocument').textContent(), status === 500 ? /main.ui.json/ : /next.ui.json/);
+  }
+  await loadingPage.close();
+
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
@@ -449,7 +496,7 @@ try {
   assert.ok(requested.includes('assets/image/a b.png'), 'host asset URL resolves encoded paths');
   assert.ok(requested.includes('assets/ui/main.reference.png'), 'reference image loads');
   console.log(
-    'PASS: single-page host, document snapshots, inspector transforms, NanoVG blur/validation/undo, safe fit, asset URLs'
+    'PASS: single-page host, document loading and recovery, inspector visibility, document snapshots, inspector transforms, NanoVG blur/validation/undo, safe fit, asset URLs'
   );
 } finally {
   await browser.close();

@@ -19,7 +19,7 @@
   var bottomH = DEFAULT_BOTTOM;
   var projLeftW = 240;
   var leftVisible = true;
-  var rightVisible = true;
+  var rightVisible = !hostLayout.inspectorOnSelection;
   var bottomVisible = true;
   var zoom = 0.5;
   var drawnZoom = null;
@@ -38,7 +38,7 @@
     if (saved && [saved.left,saved.right,saved.bottom,saved.project].every(function (n) { return Number.isFinite(n) && n>0; })) {
       leftW=saved.left; rightW=saved.right; bottomH=saved.bottom; projLeftW=saved.project;
       leftVisible = saved.leftVisible !== false;
-      rightVisible = saved.rightVisible !== false;
+      if (!hostLayout.inspectorOnSelection) rightVisible = saved.rightVisible !== false;
       bottomVisible = saved.bottomVisible !== false;
     }
   } catch (_) {}
@@ -325,7 +325,7 @@
   if (fitBtn) fitBtn.addEventListener("click", fitPreview);
   var resetBtn=document.getElementById("resetLayoutBtn");
   if (resetBtn) resetBtn.addEventListener("click",function () {
-    leftW=280; rightW=320; bottomH=DEFAULT_BOTTOM; projLeftW=240; leftVisible=true; rightVisible=true; bottomVisible=true; persist(); applySizes(); fitPreview();
+    leftW=280; rightW=320; bottomH=DEFAULT_BOTTOM; projLeftW=240; leftVisible=true; rightVisible=!hostLayout.inspectorOnSelection; bottomVisible=true; persist(); applySizes(); fitPreview();
   });
   window.addEventListener("resize", function () { applySizes(); });
 
@@ -335,6 +335,11 @@
 
   window.UrhoxView = {
     fit: fitPreview,
+    setSelectionInspectorVisible: function (visible) {
+      if (!hostLayout.inspectorOnSelection || rightVisible === visible) return;
+      rightVisible = visible;
+      applySizes();
+    },
     getZoom: function () { return zoom; },
     /** Pan and zoom, e.g. to restore them after reloading the same document. */
     getView: function () { return { zoom: zoom, panX: panX, panY: panY }; },
