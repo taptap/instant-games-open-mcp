@@ -349,6 +349,62 @@ try {
     `duplicate should follow the pointer only, got ${JSON.stringify(altDrag)}`
   );
 
+  // Marquee keeps its own rule: an empty marquee must not open a collapsed inspector.
+  const marqueePage = await browser.newPage();
+  await marqueePage.goto('http://127.0.0.1:' + server.address().port + '/?document-loading');
+  const marqueeLoading = marqueePage.locator('#documentLoading');
+  await marqueeLoading.waitFor({ state: 'visible' });
+  await marqueePage.evaluate(() => window.__finishManifest());
+  await marqueeLoading.waitFor({ state: 'hidden' });
+  await marqueePage.waitForFunction(() => window.UrhoxPreview && window.UrhoxPreview.tree, null, {
+    timeout: 15000,
+  });
+  const marqueeResult = await marqueePage.evaluate(() => {
+    const canvas = document.getElementById('stage');
+    const api = window.UrhoxPreview;
+    const originX = Number(canvas.dataset.originX || 0);
+    const originY = Number(canvas.dataset.originY || 0);
+    window.UrhoxView.setView({ zoom: 1, panX: 24, panY: 24 });
+    api.selectNode(api.tree.children[1], true);
+    document.querySelector('[data-toggle="right"]').click();
+    const collapsedBefore = document.documentElement.classList.contains('panel-right-hidden');
+    const fit = api.contentTransform();
+    const rect = canvas.getBoundingClientRect();
+    const screenScale = rect.width / canvas.width;
+    const at = (x, y) => ({
+      x: rect.left + (originX + fit.x + x * fit.scale) * screenScale,
+      y: rect.top + (originY + fit.y + y * fit.scale) * screenScale,
+    });
+    const capture = canvas.setPointerCapture;
+    canvas.setPointerCapture = () => {};
+    const fire = (type, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0,
+      buttons: type === 'pointerup' ? 0 : 1, pointerId: 1,
+    }));
+    // Sweep over a node, then shrink back to empty and release. The final selection is empty,
+    // so a collapsed panel must stay collapsed even though an intermediate selection existed.
+    const from = at(250, 300);
+    const over = at(110, 0);
+    const back = at(240, 290);
+    fire('pointerdown', from.x, from.y);
+    fire('pointermove', over.x, over.y);
+    const pickedMidDrag = api.getSelection().length > 0;
+    fire('pointermove', back.x, back.y);
+    fire('pointerup', back.x, back.y);
+    canvas.setPointerCapture = capture;
+    return {
+      collapsedBefore,
+      pickedMidDrag,
+      emptySelection: api.getSelection().length === 0,
+      collapsedAfterEmpty: document.documentElement.classList.contains('panel-right-hidden'),
+    };
+  });
+  await marqueePage.close();
+  assert.equal(marqueeResult.collapsedBefore, true, "fixture should start with the inspector collapsed");
+  assert.equal(marqueeResult.pickedMidDrag, true, "fixture should sweep over a node first");
+  assert.equal(marqueeResult.emptySelection, true, "the empty marquee should clear the selection");
+  assert.equal(marqueeResult.collapsedAfterEmpty, true, "an empty marquee must not open the inspector");
+
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));

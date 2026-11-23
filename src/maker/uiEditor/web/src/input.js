@@ -444,9 +444,12 @@
           window.UrhoxView?.setSelectionInspectorVisible(true);
         }
       } else if (app.commitHistory) app.commitHistory();
-      // A drag that changed the selection (e.g. Alt-drag duplicate) deferred its inspector open
-      // until now, when panning can no longer move the drag origin.
-      if (!cancel && drag.pendingInspector) window.UrhoxView?.setSelectionInspectorVisible(true);
+      // A non-marquee drag that changed the selection (e.g. Alt-drag duplicate) deferred its
+      // inspector open until now, when panning can no longer move the drag origin. Marquee keeps
+      // its own rule above: it opens only when the final selection grew past the original seed.
+      if (!cancel && !marquee && drag.pendingInspector) {
+        window.UrhoxView?.setSelectionInspectorVisible(true);
+      }
       if (canvas.hasPointerCapture && canvas.hasPointerCapture(drag.pointerId)) {
         canvas.releasePointerCapture(drag.pointerId);
       }
