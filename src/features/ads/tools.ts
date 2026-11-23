@@ -14,10 +14,9 @@ import { checkAdsStatus } from './handlers.js';
 
 const AUTOMATIC_AD_SPACE_ID_RULES = `**AD SPACE ID OWNERSHIP:**
 - The latest check_ads_status result for the current selected app is the only source of its ad configuration.
-- Ad units are delivered by the TapTap server at runtime according to the game's actual orientation.
-- MUST NOT ask the user for an ad space ID; integration code must not contain one either.
-- MUST NOT accept a user-provided ID as a fallback.
-- MUST NOT write any numeric ad space id into generated code, docs, or examples.
+- Generate rewarded video code only with valid placements returned by that lookup.
+- MUST NOT ask the user for an ad space ID or reuse an ID from another app or example.
+- The game selects the placement for its window orientation when creating the ad.
 - Screen orientation is NOT a prerequisite for ad integration; do not ask the user to set it for ads.`;
 
 const H5_ONLY_SCOPE_RULES = `**MCP PRODUCT SCOPE:**
@@ -62,7 +61,7 @@ This tool has NO prerequisites - call it immediately for an in-scope or not-yet-
   {
     definition: {
       name: 'check_ads_status',
-      description: `[Step 2 of Ads Workflow] Check server-side ads monetization status and cache the current selected app's ad space ID.
+      description: `[Step 2 of Ads Workflow] Check server-side ads monetization status and cache the current selected app's rewarded video placements.
 
 **PREREQUISITE: An app MUST be selected first.**
 Before calling this tool, ALWAYS call get_current_app_info to verify
@@ -73,14 +72,14 @@ to refresh status after completing an activation step. Do not repeatedly poll it
 
 This tool queries the server, updates local cache, and returns:
 - Business status: 0=未开通 | 1=已生效 | 2=账号已被封禁
-- Server-side ad space readiness (orientation is resolved by the server at runtime)
+- Available rewarded video orientations for the current app
 - Guidance URL for activation (if needed)
 
-Status 1 allows code generation, but does not prove window.tap injection,
+Status 1 with a usable rewarded placement allows code generation, but does not prove window.tap injection,
 ad inventory, package upload correctness, or successful playback on a device.
 
-**CRITICAL - Single condition for proceeding to Step 3:**
-Status must be "已生效" (status === 1). No ad space ID and no screen orientation are required.
+If status is 1 but no valid placement is available, stop and check ad restrictions or configuration.
+If only one orientation has a placement, only that orientation is supported.
 
 ${H5_ONLY_SCOPE_RULES}
 
@@ -104,14 +103,14 @@ ${AUTOMATIC_AD_SPACE_ID_RULES}
       name: 'get_ad_integration_guide',
       description: `[Step 3 of Ads Workflow] Get the TapTap Minigame/H5 ads integration guide.
 
-**PREREQUISITE:** check_ads_status has been called and returned status "已生效" (1).
+**PREREQUISITE:** check_ads_status has been called and returned status "已生效" (1) with a usable rewarded placement.
 
 If the condition is not met, this tool will return an error with guidance.
 
 This tool generates:
-- Complete AdManager.js utility class (no ad space ID inside; the server delivers it at runtime)
+- Complete AdManager.js with the current app's rewarded video placements
 - Core focus: Rewarded Video ads (激励视频) - init() + onReward() + showRewardedVideo()
-- Optional: Interstitial and Banner ads examples
+- Interstitial and Banner ads are unsupported by this H5 guide
 - Code examples for all common scenarios
 
 ${H5_ONLY_SCOPE_RULES}

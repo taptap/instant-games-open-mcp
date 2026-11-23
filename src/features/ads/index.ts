@@ -1,6 +1,6 @@
 /**
  * Ads Feature Module
- * Provides tools and resources for TapTap Ads APIs (Rewarded Video, Interstitial, Banner)
+ * Provides tools and resources for TapTap Ads APIs (rewarded video)
  * Tools and resources use enhanced descriptions to guide AI to use local docs instead of web search
  */
 
