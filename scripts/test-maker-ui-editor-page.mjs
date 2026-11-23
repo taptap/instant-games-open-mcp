@@ -194,7 +194,6 @@ try {
       parkedZoom: parkedBox.zoom,
       after: screenBox(),
       afterWidth: preview.clientWidth,
-      inspectorOpen: !document.querySelector('.inspector').classList.contains('hidden'),
     };
   });
   assert.ok(
@@ -270,7 +269,7 @@ try {
       buttons: type === 'pointerup' ? 0 : 1, pointerId: 1,
     }));
     fire('pointerdown', startX, startY);
-    const inspectorOpened = !document.querySelector('.inspector').classList.contains('hidden');
+    const inspectorOpened = !document.documentElement.classList.contains('panel-right-hidden');
     fire('pointermove', startX + 5, startY + 5);
     fire('pointerup', startX + 5, startY + 5);
     canvas.setPointerCapture = capture;
@@ -287,6 +286,64 @@ try {
   assert.ok(
     Math.abs(dragDelta.dx - 5 / dragDelta.zoom) < 2 && Math.abs(dragDelta.dy - 5 / dragDelta.zoom) < 2,
     `drag delta should follow the pointer only, got ${JSON.stringify(dragDelta)}`
+  );
+
+  // Alt-drag duplicates an already-selected node without calling selectNode; the copy's
+  // setSelection must not expand the collapsed inspector mid-drag either.
+  const altPage = await browser.newPage();
+  await altPage.goto('http://127.0.0.1:' + server.address().port + '/?document-loading');
+  const altLoading = altPage.locator('#documentLoading');
+  await altLoading.waitFor({ state: 'visible' });
+  await altPage.evaluate(() => window.__finishManifest());
+  await altLoading.waitFor({ state: 'hidden' });
+  await altPage.waitForFunction(() => window.UrhoxPreview && window.UrhoxPreview.tree, null, {
+    timeout: 15000,
+  });
+  const altDrag = await altPage.evaluate(() => {
+    const canvas = document.getElementById('stage');
+    const api = window.UrhoxPreview;
+    const originX = Number(canvas.dataset.originX || 0);
+    const originY = Number(canvas.dataset.originY || 0);
+    const fit = api.contentTransform();
+    const nodeLeft = 120;
+    const nodeTop = 0;
+    const nodeWidth = 100;
+    const nodeHeight = 100;
+    // Pin the view so a screen delta maps 1:1 to design pixels.
+    window.UrhoxView.setView({ zoom: 1, panX: 24, panY: 24 });
+    api.selectNode(api.tree.children[1], true);
+    document.querySelector('[data-toggle="right"]').click();
+    const collapsed = document.documentElement.classList.contains('panel-right-hidden');
+    const rect = canvas.getBoundingClientRect();
+    const screenScale = rect.width / canvas.width;
+    const startX = rect.left + (originX + fit.x + (nodeLeft + nodeWidth / 2) * fit.scale) * screenScale;
+    const startY = rect.top + (originY + fit.y + (nodeTop + nodeHeight / 2) * fit.scale) * screenScale;
+    const before = api.selectionBounds();
+    const capture = canvas.setPointerCapture;
+    canvas.setPointerCapture = () => {};
+    const fire = (type, x, y, extra) => canvas.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0,
+      buttons: type === 'pointerup' ? 0 : 1, pointerId: 1, ...extra,
+    }));
+    fire('pointerdown', startX, startY, { altKey: true });
+    const openedMidDrag = !document.documentElement.classList.contains('panel-right-hidden');
+    fire('pointermove', startX + 5, startY + 5, { altKey: true });
+    fire('pointerup', startX + 5, startY + 5, { altKey: true });
+    canvas.setPointerCapture = capture;
+    const after = api.selectionBounds();
+    return {
+      collapsed,
+      openedMidDrag,
+      dx: after ? after.x - before.x : null,
+      dy: after ? after.y - before.y : null,
+    };
+  });
+  await altPage.close();
+  assert.equal(altDrag.collapsed, true, "fixture should start with the inspector collapsed");
+  assert.equal(altDrag.openedMidDrag, false, "the inspector must not open mid-drag");
+  assert.ok(
+    Math.abs(altDrag.dx - 5) < 2 && Math.abs(altDrag.dy - 5) < 2,
+    `duplicate should follow the pointer only, got ${JSON.stringify(altDrag)}`
   );
 
   const page = await browser.newPage();

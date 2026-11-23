@@ -645,7 +645,10 @@
     app.selected = app.selectedNodes.length ? app.selectedNodes[app.selectedNodes.length - 1] : null;
     app.lockedFromTree = false;
     app.hover = null;
-    if (app.drag?.mode !== "marquee" && app.selectedNodes.some(function (node) { return !previous.includes(node); })) {
+    // Never expand mid-drag: panning then would move the drag origin out from under the pointer
+    // (e.g. Alt-drag duplicates a selection while a collapsed inspector is waiting to open).
+    // Marquee re-opens on finish; other drags keep whatever the user had open.
+    if (!app.drag && app.selectedNodes.some(function (node) { return !previous.includes(node); })) {
       window.UrhoxView?.setSelectionInspectorVisible(true);
     }
     refresh();
