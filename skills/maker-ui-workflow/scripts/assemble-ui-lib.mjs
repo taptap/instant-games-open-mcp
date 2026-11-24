@@ -237,6 +237,61 @@ function unique(items, label) {
   return result;
 }
 
+// Glyph metrics of the runtime's default font (MiSans-Regular), in em.
+// A recognized text box hugs the ink, so its height is converted to a font
+// size through the ink height of the line's glyphs. CJK is the reference, so
+// CJK labels keep the box height as their font size.
+const CJK_INK = 0.92;
+const LATIN_INK = 0.75; // digits and capitals
+const ASCII_ADVANCE = {
+  1: 0.4,
+  '.': 0.24,
+  ',': 0.24,
+  ':': 0.24,
+  ';': 0.24,
+  '!': 0.3,
+  '|': 0.3,
+  ' ': 0.3,
+  '/': 0.4,
+  '-': 0.45,
+  '+': 0.61,
+  '%': 0.82,
+  i: 0.25,
+  l: 0.25,
+};
+
+function glyphAdvance(char) {
+  if (char.codePointAt(0) >= 128) return 1;
+  if (Object.prototype.hasOwnProperty.call(ASCII_ADVANCE, char)) return ASCII_ADVANCE[char];
+  if (/[0-9]/.test(char)) return 0.59;
+  if (/[A-Z]/.test(char)) return 0.65;
+  return 0.54;
+}
+
+function lineInk(line) {
+  let ink = 0;
+  for (const char of line) {
+    if (char.codePointAt(0) >= 0x2e80) return CJK_INK;
+    if (/[0-9A-Za-z]/.test(char)) ink = LATIN_INK;
+  }
+  return ink || CJK_INK;
+}
+
+/** Font size whose rendered ink fills a recognized text box. */
+export function labelFontSize(text, box) {
+  const lines = text.split('\n');
+  const ink = Math.max(...lines.map(lineInk));
+  // A multi-line box already spans the line gaps, so its per-line share is
+  // the line height; enlarging it by the ink ratio would push lines outside.
+  const byHeight =
+    lines.length === 1 && ink !== CJK_INK ? box[3] * (CJK_INK / ink) : box[3] / lines.length;
+  const advance = Math.max(
+    0.24,
+    ...lines.map((line) => Array.from(line).reduce((sum, char) => sum + glyphAdvance(char), 0))
+  );
+  return Math.max(1, Math.floor(Math.min(byHeight, box[2] / advance)));
+}
+
 export function readAsset(project, relative) {
   assert(
     typeof relative === 'string' &&
@@ -593,14 +648,6 @@ export function layoutFromBbox(input) {
     );
     checkRect(text.bbox, text.id);
     const color = text.color.slice(1);
-    // Ink-box height alone can overflow narrow labels. Final font metrics are checked in the editor.
-    const lines = text.text.split('\n');
-    const widthUnits = Math.max(
-      1,
-      ...lines.map((line) =>
-        Array.from(line).reduce((sum, char) => sum + (char.codePointAt(0) < 128 ? 0.6 : 1), 0)
-      )
-    );
     const artText = artTextBindings.get(text.id);
     if (artText) {
       return {
@@ -623,10 +670,7 @@ export function layoutFromBbox(input) {
         text: text.text,
         textAlign: text.align,
         verticalAlign: 'middle',
-        fontSize: Math.max(
-          1,
-          Math.floor(Math.min(text.bbox[3] / lines.length, text.bbox[2] / widthUnits))
-        ),
+        fontSize: labelFontSize(text.text, text.bbox),
         fontWeight: text.bold ? 'bold' : 'normal',
         fontColor: [
           parseInt(color.slice(0, 2), 16),
