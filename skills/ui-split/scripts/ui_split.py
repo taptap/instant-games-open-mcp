@@ -684,6 +684,9 @@ def main():
                     action="query",
                     request_id=action["request_id"],
                 )
+            elif action["tool"] == "recognize_ui":
+                # Manager deduplicates by request_key, so resubmitting the same key never bills twice.
+                action = {k: v for k, v in action.items() if k != "issued"}
             else:
                 action = dict(
                     id=action["id"],

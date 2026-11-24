@@ -15,7 +15,7 @@ description: 将游戏 UI 设计稿切分为独立透明素材，保留 Bbox、�
 2. `next --name <名称>` 返回唯一待执行动作。只执行该动作；每次调用外部工具前，脚本已经持久化动作编号。
    返回对象中的 `tool` 用来选择工具，`id` 用于之后 record，`issued` 为内部状态；这三个字段不要作为工具参数发送。只把其余动作字段传给指定工具。
 3. `edit_image` 动作：严格使用返回的原图、提示词和尺寸。工具完成后 `record --name <名称> --action-id <编号> --file <实际结果路径>`。不要以原稿充当去文字图，不猜结果路径。若响应丢失，记录 `unknown`，核查原工具结果后才继续；不自动重新付费。
-4. `recognize_ui` 动作：使用返回的 action、request_key、image 和 prompt。把完整工具 JSON 保存到项目临时响应文件，再 `record --name <名称> --action-id <编号> --response <文件>`。running 时继续查询原 request_id；unknown 不生成新 key，已知 request_id 则查询；没有 request_id 时停下核对。
+4. `recognize_ui` 动作：只传返回的 action、request_key、image 和 prompt（query 时只传 action、request_id），不要补空的 request_id 等字段。把完整工具 JSON 保存到项目临时响应文件，再 `record --name <名称> --action-id <编号> --response <文件>`。running 时继续查询原 request_id。工具报错或响应丢失、没拿到 request_id 时，回到 `next`：它会返回同一 request_key 的原 submit，按原参数重发即可，服务端 24 小时内按 key 去重，不会重复调用模型或计费；不要自行生成新 key。
 5. 下一步预排和裁切由脚本在本地完成。对话中按批展示透明素材，检查粘连、缺失和文字残留。若经用户同意用同一张空槽或底板重建多个槽位，说明哪些素材被复用、哪些原稿差异没有保留，展示结果供复核。确认画布引用的产物都存在且可读，再在用户确认后运行 `approve --name <名称>`。文件缺失或视觉问题未验收时，保留原产物并报告具体批次。
 
 已完成批次需要重做，或 `next` 返回 `rejected` 时，先确认本次会重新生成，再用 `next --name <名称> --redo-batch <从0开始的批次> --confirm-new-generation`。已完成的任务只重做该批次，旧结果在新结果验收前保留；首次运行中重试被拒的批次后，继续处理剩余批次。不要对 unknown 请求使用这个入口。新素材仍需复核后 approve。
