@@ -58,6 +58,18 @@ def output_path(root, *parts):
     return path
 
 
+def image_descriptor(root, path):
+    """Describe an image this script produced; input size limits do not apply."""
+    with Image.open(path) as image:
+        width, height = image.size
+    return dict(
+        path=path.relative_to(root).as_posix(),
+        sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+        width=width,
+        height=height,
+    )
+
+
 def identity(root, value):
     """Return the original byte identity and actual pixel dimensions."""
     path = project_file(root, value)
@@ -208,9 +220,25 @@ def assemble_run(state, root, screen):
     agent arithmetic: the run only contributes recognized boxes and binds them
     to the exported PNGs.
     """
+    if state["bbox"]["design"] != state["design"]:
+        raise ValueError(
+            "bbox.json design no longer matches the run's original; "
+            "do not edit run artifacts by hand"
+        )
+    if identity(root, state["design"]["path"]) != state["design"]:
+        raise ValueError("Original source changed")
     bbox = dict(state["bbox"])
     if screen:
         bbox["screen"] = screen
+    # The assembler decodes the design as PNG and copies it as the reference
+    # image. Hand it a lossless PNG copy without touching the persisted run.
+    source = project_file(root, state["design"]["path"])
+    with Image.open(source) as image:
+        if image.format != "PNG":
+            design_png = output_path(root, state["directory"], "assemble-design.png")
+            mode = "RGBA" if "A" in image.getbands() else "RGB"
+            image.convert(mode).save(design_png, "PNG", optimize=True)
+            bbox["design"] = image_descriptor(root, design_png)
     assets, bindings, art_texts = [], [], []
     for binding in state["bindings"]:
         element_id, slot_state = binding["elementId"], binding["state"]
