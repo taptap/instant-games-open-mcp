@@ -147,6 +147,25 @@ test('generated foreground uses a supported image panel and narrow labels fit th
   assert.equal(icon.children[0].fontSize, 20);
 });
 
+test('digit and mixed labels size their ink to the box instead of the box height', () => {
+  const sizes = {};
+  for (const [text, bbox] of [
+    ['5', [50, 85, 50, 40]],
+    ['1.6秒', [45, 85, 90, 40]],
+    ['购买', [50, 90, 80, 30]],
+  ]) {
+    const input = bboxInput();
+    input.bbox.texts[0].text = text;
+    input.bbox.texts[0].bbox = bbox;
+    sizes[text] = assemble(layoutFromBbox(input)).ui.children[0].children[0].fontSize;
+  }
+  // Digit ink is about 0.75 em against 0.92 em for CJK.
+  assert.equal(sizes['5'], 49);
+  // Width-bound by real advances: 1 0.4 + . 0.24 + 6 0.59 + 秒 1.
+  assert.equal(sizes['1.6秒'], 40);
+  assert.equal(sizes['购买'], 30);
+});
+
 test('24 duplicate stars stay at 24 Bbox positions while sharing one image', () => {
   const input = bboxInput();
   input.bbox.texts = [];

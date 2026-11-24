@@ -2342,6 +2342,49 @@ function unique(items, label) {
   }
   return result;
 }
+var CJK_INK = 0.92;
+var LATIN_INK = 0.75;
+var ASCII_ADVANCE = {
+  1: 0.4,
+  ".": 0.24,
+  ",": 0.24,
+  ":": 0.24,
+  ";": 0.24,
+  "!": 0.3,
+  "|": 0.3,
+  " ": 0.3,
+  "/": 0.4,
+  "-": 0.45,
+  "+": 0.61,
+  "%": 0.82,
+  i: 0.25,
+  l: 0.25
+};
+function glyphAdvance(char) {
+  if (char.codePointAt(0) >= 128) return 1;
+  if (Object.prototype.hasOwnProperty.call(ASCII_ADVANCE, char)) return ASCII_ADVANCE[char];
+  if (/[0-9]/.test(char)) return 0.59;
+  if (/[A-Z]/.test(char)) return 0.65;
+  return 0.54;
+}
+function lineInk(line) {
+  let ink = 0;
+  for (const char of line) {
+    if (char.codePointAt(0) >= 11904) return CJK_INK;
+    if (/[0-9A-Za-z]/.test(char)) ink = LATIN_INK;
+  }
+  return ink || CJK_INK;
+}
+function labelFontSize(text, box) {
+  const lines = text.split("\n");
+  const ink = Math.max(...lines.map(lineInk));
+  const byHeight = ink === CJK_INK ? box[3] / lines.length : box[3] / lines.length * (CJK_INK / ink);
+  const advance = Math.max(
+    0.24,
+    ...lines.map((line) => Array.from(line).reduce((sum, char) => sum + glyphAdvance(char), 0))
+  );
+  return Math.max(1, Math.floor(Math.min(byHeight, box[2] / advance)));
+}
 function readAsset(project, relative) {
   assert(
     typeof relative === "string" && relative.startsWith("assets/") && !relative.includes(String.fromCharCode(92)),
@@ -2634,13 +2677,6 @@ function layoutFromBbox(input) {
     );
     checkRect(text.bbox, text.id);
     const color = text.color.slice(1);
-    const lines = text.text.split("\n");
-    const widthUnits = Math.max(
-      1,
-      ...lines.map(
-        (line) => Array.from(line).reduce((sum, char) => sum + (char.codePointAt(0) < 128 ? 0.6 : 1), 0)
-      )
-    );
     const artText = artTextBindings.get(text.id);
     if (artText) {
       return {
@@ -2663,10 +2699,7 @@ function layoutFromBbox(input) {
         text: text.text,
         textAlign: text.align,
         verticalAlign: "middle",
-        fontSize: Math.max(
-          1,
-          Math.floor(Math.min(text.bbox[3] / lines.length, text.bbox[2] / widthUnits))
-        ),
+        fontSize: labelFontSize(text.text, text.bbox),
         fontWeight: text.bold ? "bold" : "normal",
         fontColor: [
           parseInt(color.slice(0, 2), 16),
@@ -2819,6 +2852,7 @@ export {
   assemble,
   assembleUiInput,
   digest,
+  labelFontSize,
   layoutDigest,
   layoutFromBbox,
   readAsset,
