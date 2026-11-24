@@ -320,6 +320,10 @@
       if (additive) {
         if (!already) app.selectNode(hit, false, true);
       } else if (!already) app.selectNode(hit, false);
+      // Selecting may auto-open the inspector, which pans the canvas to keep the node visible.
+      // Re-read the pointer afterwards so the drag delta is measured in the current view; the
+      // pre-pan point would turn the pan itself into node movement.
+      p = canvasPoint(app, event);
       beginMoveOrResize(app, hit, "move", p, event);
       if (app.drag && additive && already) {
         var toggleSource = app.sourceNode ? app.sourceNode(hit) : hit;
@@ -423,19 +427,29 @@
       var drag = app.drag;
       if (event && event.pointerId != null && event.pointerId !== drag.pointerId) return;
       var marquee = drag.mode === "marquee";
+      if (cancel && marquee) app.setSelection(drag.seed);
       app.drag = null;
       app.marquee = null;
       app.guides = [];
       var toggle = !cancel && drag.toggleIfUnmoved && !drag.moved;
       if (cancel) {
-        if (marquee) app.setSelection(drag.seed);
-        else if (app.cancelHistory) app.cancelHistory(drag.selectionIds);
+        if (!marquee && app.cancelHistory) app.cancelHistory(drag.selectionIds);
       } else if (toggle) {
         var toggleId = drag.toggleIfUnmoved;
         if (app.cancelHistory) app.cancelHistory(drag.selectionIds);
         var restored = root.UrhoxDoc.findByEditorId(app.sourceTree || app.tree, toggleId);
         if (restored) app.selectNode(restored, false, true);
-      } else if (!marquee && app.commitHistory) app.commitHistory();
+      } else if (marquee) {
+        if (app.selectedNodes.some(function (node) { return !drag.seed.includes(node); })) {
+          window.UrhoxView?.setSelectionInspectorVisible(true);
+        }
+      } else if (app.commitHistory) app.commitHistory();
+      // A non-marquee drag that changed the selection (e.g. Alt-drag duplicate) deferred its
+      // inspector open until now, when panning can no longer move the drag origin. Marquee keeps
+      // its own rule above: it opens only when the final selection grew past the original seed.
+      if (!cancel && !marquee && drag.pendingInspector) {
+        window.UrhoxView?.setSelectionInspectorVisible(true);
+      }
       if (canvas.hasPointerCapture && canvas.hasPointerCapture(drag.pointerId)) {
         canvas.releasePointerCapture(drag.pointerId);
       }

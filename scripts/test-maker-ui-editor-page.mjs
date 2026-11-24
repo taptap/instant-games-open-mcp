@@ -10,7 +10,9 @@ import { pathToFileURL } from 'node:url';
 import { buildUiEditorPageHtml } from './build-maker-ui-editor-page.mjs';
 
 const hostScript = `
+var verifyDocumentLoading = new URLSearchParams(location.search).has("document-loading");
 window.UrhoxHost = {
+  layout: { inspectorOnSelection: verifyDocumentLoading },
   fileRoot: "/files?path=",
   initialUi: "assets/ui/main.ui.json",
   manifest: async function () {
@@ -19,11 +21,19 @@ window.UrhoxHost = {
         dir: p.split("/").slice(0, -1).join("/"), kind: kind, ref: p.replace(/^assets\\//, ""),
         assetRoot: "/files?path=assets/", hasMeta: true };
     }
-    return { name: "page", ui: [item("assets/ui/main.ui.json", "ui")],
+    var ui = [item("assets/ui/main.ui.json", "ui")];
+    if (verifyDocumentLoading) {
+      ui.push(item("assets/ui/next.ui.json", "ui"));
+      await new Promise(resolve => { window.__finishManifest = resolve; });
+    }
+    return { name: "page", ui: ui,
       assets: [item("assets/image/a b.png", "image"), item("assets/ui/main.reference.png", "image")],
       config: { orientation: "portrait" } };
   },
   readText: async function (url) {
+    if (verifyDocumentLoading && url.endsWith("next.ui.json")) {
+      return new Promise((resolve, reject) => { window.__finishDocument = { resolve, reject }; });
+    }
     var response = await fetch(url, { cache: "no-store" });
     if (!response.ok) throw new Error("HTTP " + response.status);
     return response.text();
@@ -128,6 +138,273 @@ const browser = await chromium.launch({
     : {}),
 });
 try {
+  const loadingPage = await browser.newPage();
+  const loading = loadingPage.locator('#documentLoading');
+  await loadingPage.goto('http://127.0.0.1:' + server.address().port + '/?document-loading');
+  await loading.waitFor({ state: 'visible' });
+  assert.match(await loading.textContent(), /正在查找 UI 文档/);
+  await loadingPage.evaluate(() => window.__finishManifest());
+  await loading.waitFor({ state: 'hidden' });
+  const inspector = loadingPage.locator('.inspector');
+  assert.equal(await inspector.isVisible(), false);
+  const pick = index => loadingPage.evaluate(index => {
+    const preview = window.UrhoxPreview;
+    preview.selectNode(preview.tree.children[index], true);
+  }, index);
+  await pick(0);
+  assert.equal(await inspector.isVisible(), true);
+  await loadingPage.locator('[data-toggle="right"]').click();
+  await pick(0);
+  assert.equal(await inspector.isVisible(), false);
+  await pick(1);
+  assert.equal(await inspector.isVisible(), true);
+  // Auto-opening the inspector narrows the preview. Selecting a node near the old right edge
+  // must pan the canvas (without changing zoom) instead of leaving the node clipped.
+  const keepVisible = await loadingPage.evaluate(() => {
+    const preview = document.getElementById('preview');
+    const canvas = document.getElementById('stage');
+    const toggle = () => document.querySelector('[data-toggle="right"]').click();
+    const view = window.UrhoxView;
+    const api = window.UrhoxPreview;
+    const screenBox = () => {
+      const bounds = api.selectionBounds();
+      if (!bounds) return null;
+      const fit = api.contentTransform();
+      const v = view.getView();
+      const originX = Number(canvas.dataset.originX || 0);
+      return {
+        left: v.panX + (originX + fit.x + bounds.x * fit.scale) * v.zoom,
+        right: v.panX + (originX + fit.x + (bounds.x + bounds.w) * fit.scale) * v.zoom,
+        zoom: v.zoom,
+      };
+    };
+    // children[1] is selected and the inspector is open at this point.
+    toggle();
+    const wideWidth = preview.clientWidth;
+    const parked = screenBox();
+    // Park the node just inside the wide viewport, then clear the selection so the next pick
+    // counts as a new selection and re-opens the inspector.
+    view.panBy(wideWidth - 8 - parked.right, 0);
+    const parkedBox = screenBox();
+    api.selectNode(null, true);
+    api.selectNode(api.tree.children[1], true);
+    return {
+      wideWidth,
+      parkedRight: parkedBox.right,
+      parkedZoom: parkedBox.zoom,
+      after: screenBox(),
+      afterWidth: preview.clientWidth,
+    };
+  });
+  assert.ok(
+    keepVisible.parkedRight > keepVisible.wideWidth - 40,
+    `fixture should park the node near the right edge, got ${String(keepVisible.parkedRight)}/${String(keepVisible.wideWidth)}`
+  );
+  assert.ok(keepVisible.afterWidth < keepVisible.wideWidth, "inspector should narrow the preview");
+  assert.ok(
+    keepVisible.after.right <= keepVisible.afterWidth,
+    `selected node stayed clipped: ${String(keepVisible.after.right)} > ${String(keepVisible.afterWidth)}`
+  );
+  assert.ok(keepVisible.after.left >= 0, "selected node left the canvas");
+  assert.equal(keepVisible.after.zoom, keepVisible.parkedZoom, "auto-opening must not reset zoom");
+  for (const status of [500, 200]) {
+    assert.equal(await loadingPage.evaluate(() => {
+      const project = window.UrhoxProject;
+      return project.openUiPath(project.listDocuments().find(file => file.name === 'next.ui.json').path);
+    }), true);
+    await loading.waitFor({ state: 'visible', timeout: 5000 });
+    assert.match(await loading.textContent(), /正在打开「next.ui.json」/);
+    await loadingPage.evaluate(({ status, documentText }) => {
+      if (status === 500) window.__finishDocument.reject(new Error('HTTP 500'));
+      else window.__finishDocument.resolve(documentText);
+    }, { status, documentText });
+    await loading.waitFor({ state: 'hidden' });
+    assert.equal(await inspector.isVisible(), status === 500);
+    assert.match(await loadingPage.locator('#currentDocument').textContent(), status === 500 ? /main.ui.json/ : /next.ui.json/);
+  }
+  await loadingPage.close();
+
+  // Dragging must not count the auto-open pan as node movement: the pointerdown used to be
+  // measured before the inspector opened, so the first pointermove shifted the node by the pan.
+  const dragPage = await browser.newPage();
+  await dragPage.goto('http://127.0.0.1:' + server.address().port + '/?document-loading');
+  const dragLoading = dragPage.locator('#documentLoading');
+  await dragLoading.waitFor({ state: 'visible' });
+  await dragPage.evaluate(() => window.__finishManifest());
+  await dragLoading.waitFor({ state: 'hidden' });
+  await dragPage.waitForFunction(() => window.UrhoxPreview && window.UrhoxPreview.tree, null, {
+    timeout: 15000,
+  });
+  const dragDelta = await dragPage.evaluate(async () => {
+    const canvas = document.getElementById('stage');
+    const preview = document.getElementById('preview');
+    const view = window.UrhoxView;
+    const api = window.UrhoxPreview;
+    // Fixture geometry: the second element sits at design rect (120, 0, 100, 100).
+    const nodeLeft = 120;
+    const nodeTop = 0;
+    const nodeWidth = 100;
+    const nodeHeight = 100;
+    const originX = Number(canvas.dataset.originX || 0);
+    const originY = Number(canvas.dataset.originY || 0);
+    const fit = api.contentTransform();
+    // Park the node just inside the collapsed-inspector preview, then drop the selection.
+    view.setView({
+      zoom: 1,
+      panX: preview.clientWidth - 8 - (originX + fit.x + (nodeLeft + nodeWidth) * fit.scale),
+      panY: 24,
+    });
+    api.selectNode(null, true);
+    const v = view.getView();
+    const rect = canvas.getBoundingClientRect();
+    const screenScale = rect.width / canvas.width;
+    const startX = rect.left + (originX + fit.x + (nodeLeft + nodeWidth / 2) * fit.scale) * screenScale;
+    const startY = rect.top + (originY + fit.y + (nodeTop + nodeHeight / 2) * fit.scale) * screenScale;
+    const before = api.tree.children[1];
+    const beforeRect = { ...before._layout };
+    const capture = canvas.setPointerCapture;
+    canvas.setPointerCapture = () => {};
+    const fire = (type, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0,
+      buttons: type === 'pointerup' ? 0 : 1, pointerId: 1,
+    }));
+    fire('pointerdown', startX, startY);
+    const inspectorOpened = !document.documentElement.classList.contains('panel-right-hidden');
+    fire('pointermove', startX + 5, startY + 5);
+    fire('pointerup', startX + 5, startY + 5);
+    canvas.setPointerCapture = capture;
+    const node = before._layout || {};
+    return {
+      inspectorOpened,
+      dx: (node.x ?? 0) - (beforeRect.x ?? 0),
+      dy: (node.y ?? 0) - (beforeRect.y ?? 0),
+      zoom: v.zoom,
+    };
+  });
+  await dragPage.close();
+  assert.equal(dragDelta.inspectorOpened, true, "drag should auto-open the inspector");
+  assert.ok(
+    Math.abs(dragDelta.dx - 5 / dragDelta.zoom) < 2 && Math.abs(dragDelta.dy - 5 / dragDelta.zoom) < 2,
+    `drag delta should follow the pointer only, got ${JSON.stringify(dragDelta)}`
+  );
+
+  // Alt-drag duplicates an already-selected node without calling selectNode; the copy's
+  // setSelection must not expand the collapsed inspector mid-drag either.
+  const altPage = await browser.newPage();
+  await altPage.goto('http://127.0.0.1:' + server.address().port + '/?document-loading');
+  const altLoading = altPage.locator('#documentLoading');
+  await altLoading.waitFor({ state: 'visible' });
+  await altPage.evaluate(() => window.__finishManifest());
+  await altLoading.waitFor({ state: 'hidden' });
+  await altPage.waitForFunction(() => window.UrhoxPreview && window.UrhoxPreview.tree, null, {
+    timeout: 15000,
+  });
+  const altDrag = await altPage.evaluate(() => {
+    const canvas = document.getElementById('stage');
+    const api = window.UrhoxPreview;
+    const originX = Number(canvas.dataset.originX || 0);
+    const originY = Number(canvas.dataset.originY || 0);
+    const fit = api.contentTransform();
+    const nodeLeft = 120;
+    const nodeTop = 0;
+    const nodeWidth = 100;
+    const nodeHeight = 100;
+    // Pin the view so a screen delta maps 1:1 to design pixels.
+    window.UrhoxView.setView({ zoom: 1, panX: 24, panY: 24 });
+    api.selectNode(api.tree.children[1], true);
+    document.querySelector('[data-toggle="right"]').click();
+    const collapsed = document.documentElement.classList.contains('panel-right-hidden');
+    const rect = canvas.getBoundingClientRect();
+    const screenScale = rect.width / canvas.width;
+    const startX = rect.left + (originX + fit.x + (nodeLeft + nodeWidth / 2) * fit.scale) * screenScale;
+    const startY = rect.top + (originY + fit.y + (nodeTop + nodeHeight / 2) * fit.scale) * screenScale;
+    const before = api.selectionBounds();
+    const capture = canvas.setPointerCapture;
+    canvas.setPointerCapture = () => {};
+    const fire = (type, x, y, extra) => canvas.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0,
+      buttons: type === 'pointerup' ? 0 : 1, pointerId: 1, ...extra,
+    }));
+    fire('pointerdown', startX, startY, { altKey: true });
+    const openedMidDrag = !document.documentElement.classList.contains('panel-right-hidden');
+    fire('pointermove', startX + 5, startY + 5, { altKey: true });
+    fire('pointerup', startX + 5, startY + 5, { altKey: true });
+    canvas.setPointerCapture = capture;
+    const openedAfterDrag = !document.documentElement.classList.contains('panel-right-hidden');
+    const after = api.selectionBounds();
+    return {
+      collapsed,
+      openedMidDrag,
+      openedAfterDrag,
+      dx: after ? after.x - before.x : null,
+      dy: after ? after.y - before.y : null,
+    };
+  });
+  await altPage.close();
+  assert.equal(altDrag.collapsed, true, "fixture should start with the inspector collapsed");
+  assert.equal(altDrag.openedMidDrag, false, "the inspector must not open mid-drag");
+  assert.equal(altDrag.openedAfterDrag, true, "the inspector should open once the duplicate drag ends");
+  assert.ok(
+    Math.abs(altDrag.dx - 5) < 2 && Math.abs(altDrag.dy - 5) < 2,
+    `duplicate should follow the pointer only, got ${JSON.stringify(altDrag)}`
+  );
+
+  // Marquee keeps its own rule: an empty marquee must not open a collapsed inspector.
+  const marqueePage = await browser.newPage();
+  await marqueePage.goto('http://127.0.0.1:' + server.address().port + '/?document-loading');
+  const marqueeLoading = marqueePage.locator('#documentLoading');
+  await marqueeLoading.waitFor({ state: 'visible' });
+  await marqueePage.evaluate(() => window.__finishManifest());
+  await marqueeLoading.waitFor({ state: 'hidden' });
+  await marqueePage.waitForFunction(() => window.UrhoxPreview && window.UrhoxPreview.tree, null, {
+    timeout: 15000,
+  });
+  const marqueeResult = await marqueePage.evaluate(() => {
+    const canvas = document.getElementById('stage');
+    const api = window.UrhoxPreview;
+    const originX = Number(canvas.dataset.originX || 0);
+    const originY = Number(canvas.dataset.originY || 0);
+    window.UrhoxView.setView({ zoom: 1, panX: 24, panY: 24 });
+    api.selectNode(api.tree.children[1], true);
+    document.querySelector('[data-toggle="right"]').click();
+    const collapsedBefore = document.documentElement.classList.contains('panel-right-hidden');
+    const fit = api.contentTransform();
+    const rect = canvas.getBoundingClientRect();
+    const screenScale = rect.width / canvas.width;
+    const at = (x, y) => ({
+      x: rect.left + (originX + fit.x + x * fit.scale) * screenScale,
+      y: rect.top + (originY + fit.y + y * fit.scale) * screenScale,
+    });
+    const capture = canvas.setPointerCapture;
+    canvas.setPointerCapture = () => {};
+    const fire = (type, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0,
+      buttons: type === 'pointerup' ? 0 : 1, pointerId: 1,
+    }));
+    // Sweep over a node, then shrink back to empty and release. The final selection is empty,
+    // so a collapsed panel must stay collapsed even though an intermediate selection existed.
+    const from = at(250, 300);
+    const over = at(110, 0);
+    const back = at(240, 290);
+    fire('pointerdown', from.x, from.y);
+    fire('pointermove', over.x, over.y);
+    const pickedMidDrag = api.getSelection().length > 0;
+    fire('pointermove', back.x, back.y);
+    fire('pointerup', back.x, back.y);
+    canvas.setPointerCapture = capture;
+    return {
+      collapsedBefore,
+      pickedMidDrag,
+      emptySelection: api.getSelection().length === 0,
+      collapsedAfterEmpty: document.documentElement.classList.contains('panel-right-hidden'),
+    };
+  });
+  await marqueePage.close();
+  assert.equal(marqueeResult.collapsedBefore, true, "fixture should start with the inspector collapsed");
+  assert.equal(marqueeResult.pickedMidDrag, true, "fixture should sweep over a node first");
+  assert.equal(marqueeResult.emptySelection, true, "the empty marquee should clear the selection");
+  assert.equal(marqueeResult.collapsedAfterEmpty, true, "an empty marquee must not open the inspector");
+
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
@@ -449,7 +726,7 @@ try {
   assert.ok(requested.includes('assets/image/a b.png'), 'host asset URL resolves encoded paths');
   assert.ok(requested.includes('assets/ui/main.reference.png'), 'reference image loads');
   console.log(
-    'PASS: single-page host, document snapshots, inspector transforms, NanoVG blur/validation/undo, safe fit, asset URLs'
+    'PASS: single-page host, document loading and recovery, inspector visibility, document snapshots, inspector transforms, NanoVG blur/validation/undo, safe fit, asset URLs'
   );
 } finally {
   await browser.close();

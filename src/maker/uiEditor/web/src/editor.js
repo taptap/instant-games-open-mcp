@@ -513,6 +513,24 @@
     updateDirtyUi();
   }
 
+  var documentLoadingTimer;
+  function showDocumentLoading(message) {
+    var overlay = document.getElementById('documentLoading');
+    if (!overlay) return;
+    if (!message) {
+      clearTimeout(documentLoadingTimer);
+      documentLoadingTimer = undefined;
+      overlay.hidden = true;
+      return;
+    }
+    document.getElementById('documentLoadingText').textContent = message;
+    if (!overlay.hidden || documentLoadingTimer !== undefined) return;
+    documentLoadingTimer = setTimeout(function () {
+      documentLoadingTimer = undefined;
+      overlay.hidden = false;
+    }, 150);
+  }
+
   function setOpening(value, message) {
     opening = value;
     if (openProjectBtn) openProjectBtn.disabled = value || refreshing || !!saving;
@@ -521,7 +539,8 @@
     if (projectFilesEl) projectFilesEl.inert = value;
     if (projectDirsEl) projectDirsEl.inert = value;
     var status = document.getElementById('sessionStatus');
-    if (status) status.textContent = value ? message || '正在打开文档…' : '';
+    if (status) status.textContent = value && message ? message : '';
+    showDocumentLoading(value ? message : '');
     updateDirtyUi();
   }
 
@@ -628,6 +647,7 @@
     setOpening(true);
     try {
       if (!(await allowLeave())) return false;
+      setOpening(true, '正在打开「' + file.name + '」…');
       var oldPath = currentFilePath();
       var draft = !reload && window.UrhoxConfig.draftFor ? await window.UrhoxConfig.draftFor(file.path) : null;
       var restoredDraft = !!(draft && typeof draft.text === 'string');
@@ -857,7 +877,7 @@
   }
   async function reloadFromDisk(file, text) {
     if (opening || saving) return false;
-    setOpening(true, '正在重新加载文档…');
+    setOpening(true, '正在重新加载「' + file.name + '」…');
     // Same document: keep the user's pan and zoom across the reload (loading refits the view).
     var view = window.UrhoxView && window.UrhoxView.getView ? window.UrhoxView.getView() : null;
     try {
@@ -990,7 +1010,9 @@
     openProjectBtn.disabled = true;
     openProjectBtn.textContent = '刷新中…';
     var status = document.getElementById('sessionStatus');
-    if (status) status.textContent = '';
+    var loadingFirstDocument = !window.UrhoxPreview?.tree;
+    if (status) status.textContent = loadingFirstDocument ? '正在查找 UI 文档…' : '';
+    if (loadingFirstDocument) showDocumentLoading('正在查找 UI 文档…');
     try {
       var data = await window.UrhoxConfig.loadManifest();
       if (!data || typeof data !== 'object') throw new Error('项目文件清单格式无效');
@@ -1025,9 +1047,9 @@
         var first = findUiFile(requested);
         if (requested && !first)
           throw new Error('找不到指定的 UI 文档：' + window.UrhoxConfig.displayPath(requested));
-        setOpening(true);
+        var selected = first || project.files[0];
+        setOpening(true, '正在打开「' + selected.name + '」…');
         try {
-          var selected = first || project.files[0];
           var draft = selected && window.UrhoxConfig.draftFor ? await window.UrhoxConfig.draftFor(selected.path) : null;
           if (draft && typeof draft.text === 'string')
             await loadUiFile(selected, undefined, { text: draft.text, baselineText: draft.baselineText, draft: true });
@@ -1035,11 +1057,15 @@
         } finally {
           setOpening(false);
         }
-      } else if (initial) showMissingUiGuide(project.name);
+      } else {
+        if (status) status.textContent = '';
+        if (initial) showMissingUiGuide(project.name);
+      }
       updateDirtyUi();
     } catch (error) {
       if (status) status.textContent = '文件列表加载失败：' + (error.message || String(error));
     } finally {
+      if (loadingFirstDocument) showDocumentLoading('');
       refreshing = false;
       openProjectBtn.disabled = opening || !!saving;
       openProjectBtn.textContent = '刷新文件';

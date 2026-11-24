@@ -19,7 +19,7 @@
   var bottomH = DEFAULT_BOTTOM;
   var projLeftW = 240;
   var leftVisible = true;
-  var rightVisible = true;
+  var rightVisible = !hostLayout.inspectorOnSelection;
   var bottomVisible = true;
   var zoom = 0.5;
   var drawnZoom = null;
@@ -38,7 +38,7 @@
     if (saved && [saved.left,saved.right,saved.bottom,saved.project].every(function (n) { return Number.isFinite(n) && n>0; })) {
       leftW=saved.left; rightW=saved.right; bottomH=saved.bottom; projLeftW=saved.project;
       leftVisible = saved.leftVisible !== false;
-      rightVisible = saved.rightVisible !== false;
+      if (!hostLayout.inspectorOnSelection) rightVisible = saved.rightVisible !== false;
       bottomVisible = saved.bottomVisible !== false;
     }
   } catch (_) {}
@@ -113,6 +113,43 @@
     var left = Math.max(0, Math.min(full.width - 1, area.left));
     var top = Math.max(0, Math.min(full.height - 1, area.top));
     return { left: left, top: top, width: Math.min(area.width, full.width - left), height: Math.min(area.height, full.height - top) };
+  }
+
+  // Bounding box of the current selection in preview coordinates (pan applied, zoom applied).
+  function selectionBox() {
+    if (!preview || !canvas || !window.UrhoxPreview) return null;
+    var bounds = window.UrhoxPreview.selectionBounds && window.UrhoxPreview.selectionBounds();
+    if (!bounds) return null;
+    var originX = Number(canvas.dataset.originX || 0);
+    var originY = Number(canvas.dataset.originY || 0);
+    var fit = window.UrhoxPreview.contentTransform ? window.UrhoxPreview.contentTransform() : { x: 0, y: 0, scale: 1 };
+    return {
+      left: panX + (originX + fit.x + bounds.x * fit.scale) * zoom,
+      top: panY + (originY + fit.y + bounds.y * fit.scale) * zoom,
+      width: bounds.w * fit.scale * zoom,
+      height: bounds.h * fit.scale * zoom,
+    };
+  }
+
+  // Pan only (never zoom) so the selected node stays inside a viewport that just changed size,
+  // e.g. when the inspector expands on selection. Shifts by the smallest amount needed.
+  function keepSelectionVisible() {
+    var box = selectionBox();
+    if (!box) return;
+    var pad = 24;
+    var maxX = preview.clientWidth - pad;
+    var maxY = preview.clientHeight - pad;
+    if (maxX <= pad || maxY <= pad) return;
+    var dx = 0;
+    var dy = 0;
+    if (box.left < pad) dx = pad - box.left;
+    else if (box.left + box.width > maxX) dx = maxX - (box.left + box.width);
+    if (box.top < pad) dy = pad - box.top;
+    else if (box.top + box.height > maxY) dy = maxY - (box.top + box.height);
+    if (!dx && !dy) return;
+    panX += dx;
+    panY += dy;
+    applyView();
   }
 
   function fitPreview() {
@@ -325,7 +362,7 @@
   if (fitBtn) fitBtn.addEventListener("click", fitPreview);
   var resetBtn=document.getElementById("resetLayoutBtn");
   if (resetBtn) resetBtn.addEventListener("click",function () {
-    leftW=280; rightW=320; bottomH=DEFAULT_BOTTOM; projLeftW=240; leftVisible=true; rightVisible=true; bottomVisible=true; persist(); applySizes(); fitPreview();
+    leftW=280; rightW=320; bottomH=DEFAULT_BOTTOM; projLeftW=240; leftVisible=true; rightVisible=!hostLayout.inspectorOnSelection; bottomVisible=true; persist(); applySizes(); fitPreview();
   });
   window.addEventListener("resize", function () { applySizes(); });
 
@@ -335,6 +372,13 @@
 
   window.UrhoxView = {
     fit: fitPreview,
+    setSelectionInspectorVisible: function (visible) {
+      if (!hostLayout.inspectorOnSelection || rightVisible === visible) return;
+      rightVisible = visible;
+      applySizes();
+      // The preview just changed width; shift the canvas so the node the user picked stays visible.
+      if (visible) keepSelectionVisible();
+    },
     getZoom: function () { return zoom; },
     /** Pan and zoom, e.g. to restore them after reloading the same document. */
     getView: function () { return { zoom: zoom, panX: panX, panY: panY }; },

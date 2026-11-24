@@ -636,6 +636,7 @@
   }
 
   function setSelection(nodes, fromTree) {
+    var previous = app.selectedNodes;
     app.selectedNodes = [];
     (nodes || []).forEach(function (node) {
       var src = sourceNode(node);
@@ -644,6 +645,13 @@
     app.selected = app.selectedNodes.length ? app.selectedNodes[app.selectedNodes.length - 1] : null;
     app.lockedFromTree = false;
     app.hover = null;
+    // Never expand mid-drag: panning then would move the drag origin out from under the pointer
+    // (e.g. Alt-drag duplicates a selection while a collapsed inspector is waiting to open).
+    // The open is deferred to the end of the drag, where the pan can no longer skew it.
+    if (app.selectedNodes.some(function (node) { return !previous.includes(node); })) {
+      if (app.drag) app.drag.pendingInspector = true;
+      else window.UrhoxView?.setSelectionInspectorVisible(true);
+    }
     refresh();
   }
 
@@ -661,6 +669,7 @@
       } else {
         app.selectedNodes.push(src);
         app.selected = src;
+        window.UrhoxView?.setSelectionInspectorVisible(true);
       }
       app.lockedFromTree = false;
       refresh();
@@ -911,7 +920,9 @@
       app.orientation = savedOrientation;
       setDevice(app.device.id || "1080p");
     }
-    app.path = options.path || DEFAULT_UI;
+    var nextPath = options.path || DEFAULT_UI;
+    if (app.path !== nextPath) window.UrhoxView?.setSelectionInspectorVisible(false);
+    app.path = nextPath;
     window.UrhoxAssets.setContext({
       assetRoot: options.assetRoot != null ? options.assetRoot : DEFAULT_ASSET_ROOT,
       handleMap: options.handleMap || {},
