@@ -125,7 +125,7 @@ def run(root, *args):
     )
 
 
-def prepare_separate(root, elements, name="inventory"):
+def prepare_separate(root, elements, name="inventory", texts=None):
     (root / "assets").mkdir()
     Image.new("RGB", (100, 100), "red").save(root / "assets/design.png")
     result = run(root, "init", "--name", name, "--source", "assets/design.png")
@@ -137,7 +137,7 @@ def prepare_separate(root, elements, name="inventory"):
     assert result.returncode == 0, result.stderr
     for phase, output in [
         ("cut", {"elements": elements}),
-        ("text", {"texts": []}),
+        ("text", {"texts": texts or []}),
     ]:
         action = json.loads(run(root, "next", "--name", name).stdout)["action"]
         (root / "response.json").write_text(json.dumps({
@@ -252,3 +252,132 @@ def test_rejected_initial_batch_can_retry_without_skipping_later_batches(tmp_pat
     result = call(tmp_path, "record", "--action-id", retry["id"], "--file", "assets/good.png")
     assert result["phase"] == "separate"
     assert call(tmp_path, "next")["action"]["tool"] == "edit_image"
+
+
+def test_assemble_uses_shared_assembler_and_refuses_existing_output(tmp_path):
+    action, progress = prepare_separate(
+        tmp_path,
+        [
+            {
+                "id": "E001",
+                "name": "按钮",
+                "type": "button",
+                "bbox": [10, 10, 40, 20],
+                "parent": None,
+            }
+        ],
+        texts=[
+            {
+                "id": "T001",
+                "text": "确定",
+                "bbox": [16, 14, 24, 12],
+                "parentId": "E001",
+                "role": "button",
+                "align": "center",
+                "color": "#ffffff",
+                "bold": False,
+                "cutout": False,
+            }
+        ],
+    )
+    batch = progress["batches"][0]
+    fills = {
+        index: "content"
+        for index, slot in enumerate(batch["slots"])
+        if not slot.get("reserve")
+    }
+    paint(batch, fills).save(tmp_path / "assets/sheet.png")
+    call(tmp_path, "record", "--action-id", action["id"], "--file", "assets/sheet.png")
+    early = run(
+        tmp_path,
+        "assemble",
+        "--name",
+        "inventory",
+        "--screen-key",
+        "inventory",
+        "--screen-name",
+        "背包",
+    )
+    assert early.returncode != 0
+    assert "Assemble after review is approved" in early.stderr
+
+    call(tmp_path, "approve")
+    result = call(
+        tmp_path, "assemble", "--screen-key", "inventory", "--screen-name", "背包"
+    )
+    assert result["summary"]["screen"] == {"name": "背包", "key": "inventory"}
+    document = json.loads(
+        (tmp_path / "assets/ui/inventory/inventory.ui.json").read_text()
+    )
+    labels = []
+
+    def walk(node):
+        if node.get("type") == "Label":
+            labels.append(node)
+        for child in node.get("children", []):
+            walk(child)
+
+    walk(document)
+    assert len(labels) == 1, "recognized text must survive assembly"
+    label = labels[0]
+    assert label["text"] == "确定"
+    # Font size comes from the box, not from the agent: floor(min(12/1 line, 24/2 chars)).
+    assert label["fontSize"] == 12
+    # Placement stays inside the bound button, expressed relative to it.
+    assert (label["left"], label["top"]) == (6, 4)
+    assert (label["width"], label["height"]) == (24, 12)
+    image = next(child for child in document["children"] if child.get("id") == "E001")
+    assert image["width"] == 40 and image["height"] == 20
+    assert (tmp_path / "assets/ui/inventory/inventory.reference.png").is_file()
+
+    again = run(
+        tmp_path,
+        "assemble",
+        "--name",
+        "inventory",
+        "--screen-key",
+        "inventory",
+        "--screen-name",
+        "背包",
+    )
+    assert "already exists" in again.stderr
+
+
+def test_assemble_refuses_output_crossing_a_symlink(tmp_path):
+    action, progress = prepare_separate(
+        tmp_path,
+        [
+            {
+                "id": "E001",
+                "name": "按钮",
+                "type": "button",
+                "bbox": [10, 10, 40, 20],
+                "parent": None,
+            }
+        ],
+    )
+    batch = progress["batches"][0]
+    fills = {
+        index: "content"
+        for index, slot in enumerate(batch["slots"])
+        if not slot.get("reserve")
+    }
+    paint(batch, fills).save(tmp_path / "assets/sheet.png")
+    call(tmp_path, "record", "--action-id", action["id"], "--file", "assets/sheet.png")
+    call(tmp_path, "approve")
+    outside = tmp_path.parent / (tmp_path.name + "-outside")
+    outside.mkdir()
+    (tmp_path / "assets/ui").symlink_to(outside, target_is_directory=True)
+    result = run(
+        tmp_path,
+        "assemble",
+        "--name",
+        "inventory",
+        "--screen-key",
+        "inventory",
+        "--screen-name",
+        "背包",
+    )
+    assert result.returncode != 0
+    assert "symlink" in result.stderr
+    assert not list(outside.iterdir())
