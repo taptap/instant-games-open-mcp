@@ -1,15 +1,15 @@
 ---
 name: ui-split
-description: 将游戏 UI 设计稿切分为独立透明素材，保留 Bbox、文字和素材绑定清单，并在验收后按共享组装器生成可编辑 .ui.json。用于拆界面、切按钮图标或在画布中启动 UI 切分；不接入游戏逻辑。
+description: 将游戏 UI 设计稿切分为独立透明素材，保留 Bbox、文字和素材绑定清单，并在验收后按共享组装器生成可编辑 .ui.json。用于拆界面、切按钮图标；画布会展示进度和产物。不接入游戏逻辑。
 ---
 
 # UI 切分
 
-对话执行流程，画布只读展示产物。用户已指定原稿和任务名时直接沿用，不重新询问是否新开会话。
+对话执行流程，画布只读展示产物。不需要检查、打开或操作画布，不调用 `canvas_operation`。用户已指定原稿和任务名时直接沿用，不重新询问是否新开会话。
 
 先确认当前环境有 `edit_image`、`recognize_ui`、Node.js 及 Python/Pillow。缺能力时说明缺项，保留原任务；不要调用浏览器模板，不把平台凭证写入脚本或项目。
 
-使用同包 `scripts/ui_split.py`，工作目录是当前项目。命令都返回 JSON。
+下文的 `init`、`next`、`record`、`approve`、`assemble` 都是同包脚本的子命令，用 Bash 在当前项目目录执行：`python3 <本 Skill 目录>/scripts/ui_split.py <子命令> ...`（本 Skill 目录即此 SKILL.md 所在目录）。它们不是 MCP 工具，不要用 `sprite_gen`、`canvas_operation` 或其他工具执行。命令都返回 JSON。只有 `next` 返回的 `edit_image`、`recognize_ui` 动作才调用 MCP 工具。
 
 1. `init --name <名称> --source <项目内原稿路径>` 创建独立进度；同名已有任务只恢复，不覆盖。
 2. `next --name <名称>` 返回唯一待执行动作。只执行该动作；每次调用外部工具前，脚本已经持久化动作编号。
