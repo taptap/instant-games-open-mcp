@@ -44,6 +44,20 @@ def project_file(root, value):
     return path
 
 
+def output_path(root, *parts):
+    """Return a project path for writing that cannot escape through a symlink."""
+    path = root
+    for part in parts:
+        path = path / part
+        if path.is_symlink():
+            raise ValueError(
+                "Output path crosses a symlink: " + path.relative_to(root).as_posix()
+            )
+        if path.exists() and not path.resolve().is_relative_to(root):
+            raise ValueError("Output path leaves the project")
+    return path
+
+
 def identity(root, value):
     """Return the original byte identity and actual pixel dimensions."""
     path = project_file(root, value)
@@ -251,8 +265,9 @@ def assemble_run(state, root, screen):
         artTextBindings=art_texts,
         confirmed=True,
     )
-    (root / "assets/ui").mkdir(parents=True, exist_ok=True)
-    staging = root / state["directory"] / "assemble-input.json"
+    target = output_path(root, "assets", "ui", screen["key"])
+    staging = output_path(root, state["directory"], "assemble-input.json")
+    target.parent.mkdir(parents=True, exist_ok=True)
     staging.write_text(json.dumps(request, ensure_ascii=False, indent=2))
     result = subprocess.run(
         [
@@ -260,7 +275,7 @@ def assemble_run(state, root, screen):
             str(Path(__file__).with_name("assemble-ui.mjs")),
             str(root),
             str(staging),
-            str(root / "assets/ui" / screen["key"]),
+            str(target),
         ],
         capture_output=True,
         text=True,
