@@ -260,15 +260,16 @@ export class ConsoleProjects {
     if (!Number.isSafeInteger(skip) || skip < 0 || skip > 100000)
       throw new ConsoleError('Invalid history offset.');
     const project = this.resolve(key);
-    const [branch, changes, shallow, head] = await Promise.all([
+    const [branch, changes, shallow] = await Promise.all([
       git(project.path, ['branch', '--show-current'], signal),
       this.changes(project.path, signal),
       git(project.path, ['rev-parse', '--is-shallow-repository'], signal),
-      git(project.path, ['rev-parse', '--verify', 'HEAD'], signal).then(
-        (value) => value.trim(),
-        () => ''
-      ),
     ]);
+    signal?.throwIfAborted();
+    const head = await git(project.path, ['rev-parse', '--verify', 'HEAD'], signal).then(
+      (value) => value.trim(),
+      () => ''
+    );
     signal?.throwIfAborted();
     const raw = head
       ? await git(
