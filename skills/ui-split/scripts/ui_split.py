@@ -334,16 +334,20 @@ def valid_task_name(name):
     return True
 
 
+def validate_saved_images(state, root):
+    if identity(root, state["design"]["path"]) != state["design"]:
+        raise ValueError("Original source changed")
+    if state["phase"] != "remove_text" and identity(root, state["cut"]["path"]) != state["cut"]:
+        raise ValueError("Text-free source changed")
+
+
 def record(state, root, args):
     """Accept only the pending action result and never reinterpret unknown as failure."""
     action = state.get("pending")
     if not action or args.action_id != action["id"]:
         raise ValueError("Action ID does not match the saved pending action")
     phase = state["phase"]
-    if identity(root, state["design"]["path"]) != state["design"]:
-        raise ValueError("Original source changed")
-    if phase != "remove_text" and identity(root, state["cut"]["path"]) != state["cut"]:
-        raise ValueError("Text-free source changed")
+    validate_saved_images(state, root)
     if args.file and phase == "remove_text":
         original = project_file(root, args.file)
         target = root / state["directory"] / "text-free.png"
@@ -685,6 +689,7 @@ def main():
                     request_id=action["request_id"],
                 )
             elif action["tool"] == "recognize_ui":
+                validate_saved_images(state, root)
                 # Manager deduplicates by request_key, so resubmitting the same key never bills twice.
                 action = {k: v for k, v in action.items() if k != "issued"}
             else:
