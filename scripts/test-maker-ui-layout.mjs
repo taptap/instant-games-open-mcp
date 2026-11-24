@@ -153,6 +153,7 @@ test('digit and mixed labels size their ink to the box instead of the box height
     ['5', [50, 85, 50, 40]],
     ['1.6秒', [45, 85, 90, 40]],
     ['购买', [50, 90, 80, 30]],
+    ['5\n5\n5', [40, 80, 100, 120]],
   ]) {
     const input = bboxInput();
     input.bbox.texts[0].text = text;
@@ -164,6 +165,8 @@ test('digit and mixed labels size their ink to the box instead of the box height
   // Width-bound by real advances: 1 0.4 + . 0.24 + 6 0.59 + 秒 1.
   assert.equal(sizes['1.6秒'], 40);
   assert.equal(sizes['购买'], 30);
+  // A multi-line box already spans the line gaps; keep its per-line share.
+  assert.equal(sizes['5\n5\n5'], 40);
 });
 
 test('24 duplicate stars stay at 24 Bbox positions while sharing one image', () => {

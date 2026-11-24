@@ -2378,7 +2378,7 @@ function lineInk(line) {
 function labelFontSize(text, box) {
   const lines = text.split("\n");
   const ink = Math.max(...lines.map(lineInk));
-  const byHeight = ink === CJK_INK ? box[3] / lines.length : box[3] / lines.length * (CJK_INK / ink);
+  const byHeight = lines.length === 1 && ink !== CJK_INK ? box[3] * (CJK_INK / ink) : box[3] / lines.length;
   const advance = Math.max(
     0.24,
     ...lines.map((line) => Array.from(line).reduce((sum, char) => sum + glyphAdvance(char), 0))
