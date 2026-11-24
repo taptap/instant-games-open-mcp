@@ -444,3 +444,44 @@ def test_assemble_refuses_hand_edited_bbox_design(tmp_path):
     assert result.returncode != 0
     assert "no longer matches" in result.stderr
     assert not (tmp_path / "assets/ui/inventory").exists()
+
+
+def test_assemble_refuses_changed_original(tmp_path):
+    approved_button_run(tmp_path)
+    Image.new("RGB", (100, 100), "blue").save(tmp_path / "assets/design.png")
+    result = run(
+        tmp_path,
+        "assemble",
+        "--name",
+        "inventory",
+        "--screen-key",
+        "inventory",
+        "--screen-name",
+        "背包",
+    )
+    assert result.returncode != 0
+    assert "Original source changed" in result.stderr
+    assert not (tmp_path / "assets/ui/inventory").exists()
+
+
+def test_generated_png_is_not_bound_by_input_limits(tmp_path):
+    import importlib.util
+    import os
+    import pytest
+
+    spec = importlib.util.spec_from_file_location("ui_split_under_test", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    (tmp_path / "assets").mkdir()
+    big = tmp_path / "assets/big.png"
+    Image.frombytes("RGB", (2048, 2048), os.urandom(2048 * 2048 * 3)).save(big)
+    assert big.stat().st_size > 10 * 1024 * 1024
+
+    with pytest.raises(ValueError, match="10 MiB"):
+        module.identity(tmp_path, "assets/big.png")
+
+    descriptor = module.image_descriptor(tmp_path, big)
+    assert descriptor["path"] == "assets/big.png"
+    assert descriptor["width"] == 2048 and descriptor["height"] == 2048
+    assert len(descriptor["sha256"]) == 64
