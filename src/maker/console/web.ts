@@ -2,7 +2,7 @@ import { consoleScript } from './webScript.js';
 import { consoleStyles } from './webStyles.js';
 import { consoleIconLicense } from './webIcons.js';
 import { MAKER_QR_CATEGORIES } from '../qrcodePreflight.js';
-import { MAKER_BRAND_ICON } from './brandIcon.js';
+import { MAKER_BRAND_LOGO_SVG, MAKER_BRAND_MARK_SVG } from './brandIcon.js';
 
 const categoryLabels: Record<(typeof MAKER_QR_CATEGORIES)[number], string> = {
   rpg: '角色扮演',
@@ -30,50 +30,80 @@ export function getConsoleHtml(): string {
 <meta name="referrer" content="no-referrer">
 <title>Maker 本地控制台</title><style>${consoleStyles}</style></head>
 <body class="compact-chrome">
-<header class="top">
-  <div class="brand"><button class="mark" id="maker-mark" type="button" aria-label="Maker 控制台品牌标记"><img src="${MAKER_BRAND_ICON}" alt="" aria-hidden="true"></button>Maker 控制台
-    <select id="maker-version-picker" aria-label="Maker MCP 版本" disabled><option>版本加载中</option></select>
-  </div>
-  <div class="toolbar">
-    <select id="project-picker" aria-label="当前项目" disabled><option value="">选择本地项目</option></select>
-    <button id="projects-button" class="icon-button" aria-label="本地项目列表" title="本地项目列表"></button>
-    <label class="theme">深色<input id="theme" type="checkbox" role="switch" checked aria-label="深色模式"></label>
-    <button id="settings-button" class="icon-button" aria-label="设置" title="设置"></button>
-  </div>
-</header>
-<div class="navigation">
-<nav aria-label="主导航">
-  <button data-page="overview">项目</button>
-  <button data-page="build">构建与测试</button>
-  <button data-page="git">Git</button>
-  <button data-page="documents" disabled>文档 / Skill</button>
-  <button data-page="canvas">自由画布</button>
-  <button data-page="ui-editor">UI 编辑器</button>
-  <button data-page="other">其他</button>
-  <span id="plugin-tabs" class="plugin-tabs"></span>
-</nav>
-<button id="close-canvas" type="button" hidden>关闭当前项目画布</button>
-<div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>
-</div>
-<div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>
-<main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
-<section id="other-view" class="other-workspace" aria-label="其他工具" hidden>
-  <aside class="other-tabs" role="tablist" aria-label="其他工具页签" aria-orientation="vertical">
-    <button id="other-architecture-tab" role="tab" aria-controls="other-architecture" data-other-tab="architecture">项目检查</button>
-    <button id="other-motion-tab" role="tab" aria-controls="other-motion" data-other-tab="motion">UI 动效</button>
+<div class="app-shell">
+  <aside class="sidebar" id="console-sidebar" aria-label="控制台侧边栏">
+    <header class="top">
+      <div class="brand">
+        <button class="mark" id="maker-mark" type="button" aria-label="TapTap 制造控制台品牌标记">${MAKER_BRAND_LOGO_SVG}${MAKER_BRAND_MARK_SVG}</button>
+        <div class="brand-meta">
+          <select id="maker-version-picker" aria-label="Maker MCP 版本" disabled><option>版本加载中</option></select>
+        </div>
+      </div>
+      <button id="sidebar-toggle" class="icon-button sidebar-toggle" type="button" aria-label="折叠侧边栏" title="折叠侧边栏" aria-pressed="false"></button>
+    </header>
+    <div class="toolbar project-switch">
+      <select id="project-picker" aria-label="当前项目" disabled><option value="">选择本地项目</option></select>
+      <button id="projects-button" class="icon-button" aria-label="本地项目列表" title="本地项目列表"></button>
+    </div>
+    <nav aria-label="主导航">
+      <div class="nav-group">
+        <span class="nav-group-label">工作区</span>
+        <button data-page="overview" data-nav-icon="layoutGrid" title="项目"><span class="nav-label">项目</span></button>
+        <button data-page="build" data-nav-icon="hammer" title="构建与测试"><span class="nav-label">构建与测试</span></button>
+        <button data-page="git" data-nav-icon="gitBranch" title="Git"><span class="nav-label">Git</span></button>
+      </div>
+      <div class="nav-group">
+        <span class="nav-group-label">创作台</span>
+        <button data-page="canvas" data-nav-icon="layers" title="自由画布"><span class="nav-label">自由画布</span></button>
+        <button data-page="ui-editor" data-nav-icon="layoutTemplate" title="UI 编辑器"><span class="nav-label">UI 编辑器</span></button>
+        <span id="plugin-tabs" class="plugin-tabs"></span>
+      </div>
+      <div class="nav-group">
+        <span class="nav-group-label">资料与工具</span>
+        <button data-page="documents" data-nav-icon="bookOpen" title="文档 / Skill" disabled><span class="nav-label">文档 / Skill</span></button>
+        <button data-page="other" data-nav-icon="compass" title="其他"><span class="nav-label">其他</span></button>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="theme-segmented" role="group" aria-label="外观主题">
+        <input id="theme" type="checkbox" role="switch" checked aria-label="深色模式" class="sr-only">
+        <button type="button" class="theme-option" data-theme-value="light" aria-pressed="false" title="浅色模式"><span class="theme-opt-label">浅色</span></button>
+        <button type="button" class="theme-option" data-theme-value="dark" aria-pressed="true" title="深色模式"><span class="theme-opt-label">深色</span></button>
+      </div>
+      <button id="settings-button" class="icon-button" aria-label="设置" title="设置"></button>
+    </div>
   </aside>
-  <div id="other-motion" role="tabpanel" aria-labelledby="other-motion-tab"></div>
-  <div id="other-architecture" role="tabpanel" aria-labelledby="other-architecture-tab" hidden></div>
-</section>
-<section id="plugin-views" aria-label="插件工作区" hidden></section>
-<section id="canvas-views" aria-label="自由画布" hidden></section>
-<section id="ui-editor-view" aria-label="UI 编辑器" hidden></section>
-<div id="announcement" role="status" aria-live="polite" class="context" hidden></div>
-<footer><div class="footer-start"><span id="version">Maker 本地服务</span>
-<section id="fortune-corner" aria-label="开发者日签" hidden>
-  <button id="fortune-toggle" type="button" aria-expanded="false" aria-controls="fortune-panel">独立游戏开发日签</button>
-</section>
-</div><span id="footer-path"></span></footer>
+  <div class="workspace-shell">
+    <div class="navigation">
+      <div class="stage-meta">
+        <span id="stage-title" class="stage-title"><span class="crumb-group">工作区</span><span class="crumb-sep" aria-hidden="true">/</span><span class="crumb-page">项目概览</span></span>
+        <button id="close-canvas" type="button" hidden>关闭当前项目画布</button>
+      </div>
+      <div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>
+    </div>
+    <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>
+    <div class="stage-scroll">
+      <main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
+      <section id="other-view" class="other-workspace" aria-label="其他工具" hidden>
+        <aside class="other-tabs" role="tablist" aria-label="其他工具页签" aria-orientation="horizontal">
+          <button id="other-architecture-tab" role="tab" aria-controls="other-architecture" data-other-tab="architecture">项目检查</button>
+          <button id="other-motion-tab" role="tab" aria-controls="other-motion" data-other-tab="motion">UI 动效</button>
+        </aside>
+        <div id="other-motion" role="tabpanel" aria-labelledby="other-motion-tab"></div>
+        <div id="other-architecture" role="tabpanel" aria-labelledby="other-architecture-tab" hidden></div>
+      </section>
+      <section id="plugin-views" aria-label="插件工作区" hidden></section>
+      <section id="canvas-views" aria-label="自由画布" hidden></section>
+      <section id="ui-editor-view" aria-label="UI 编辑器" hidden></section>
+    </div>
+    <div id="announcement" role="status" aria-live="polite" class="context" hidden></div>
+    <footer><div class="footer-start"><span id="version">Maker 本地服务</span>
+    <section id="fortune-corner" aria-label="开发者日签" hidden>
+      <button id="fortune-toggle" type="button" aria-expanded="false" aria-controls="fortune-panel">独立游戏开发日签</button>
+    </section>
+    </div><span id="footer-path"></span></footer>
+  </div>
+</div>
 <div id="fortune-panel" hidden>
   <iframe id="fortune-frame" title="gDEV日签 · 独立游戏开发者老黄历" sandbox="allow-scripts allow-same-origin" loading="eager" referrerpolicy="no-referrer"></iframe>
 </div>
