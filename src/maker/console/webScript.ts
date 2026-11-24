@@ -2179,9 +2179,11 @@ function renderBuild() {
   const build = node('section'); build.id = 'build-panel';
   const local = node('section'); local.id = 'preview-panel';
   columns.append(build,local);
+  const sidebar = node('div',undefined,'build-sidebar');
   const logs = node('section',undefined,'console-logs'); logs.id = 'console-logs';
   const history = node('section',undefined,'task-history'); history.id = 'task-history';
-  replace($('view'),[title,columns,logs,previewCachePanel(),history]);
+  sidebar.append(columns,previewCachePanel(),history);
+  replace($('view'),[title,sidebar,logs]);
   updateBuild();
   if (logView().tab === 'validate' && !validationView().initialized) void refreshValidation();
 }
@@ -2698,26 +2700,35 @@ function parseWorkingChanges(raw) {
     path: item.path,
   }));
 }
+function decodeGitPath(path) {
+  if (!path.startsWith('"') || !path.endsWith('"')) return path;
+  const escapes = { a:'\x07', b:'\b', t:'\t', n:'\n', v:'\v', f:'\f', r:'\r', '"':'"', '\\':'\\' };
+  return path.slice(1,-1).replace(/(?:\\[0-7]{3})+|\\([abtnvfr"\\])/g, (match, escape) => {
+    if (escape) return escapes[escape];
+    const bytes = match.slice(1).split('\\').map(byte => parseInt(byte,8));
+    return new TextDecoder('utf-8', {ignoreBOM:true}).decode(Uint8Array.from(bytes));
+  });
+}
 function parseCommitFiles(raw) {
   if (!raw || typeof raw !== 'string') return [];
-  return raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(line => {
+  return raw.split(/\r?\n/).filter(Boolean).map(line => {
     const parts = line.split('\t');
     if (parts.length < 2) return null;
     const rawCode = parts[0].trim();
     const letter = rawCode.charAt(0).toUpperCase();
     const status = normalizeGitStatus(rawCode);
-    const filePath = parts.length >= 3 && (letter === 'R' || letter === 'C')
-      ? parts[1] + ' → ' + parts[2]
-      : parts.slice(1).join('\t');
-    const diffKey = parts.length >= 3 && (letter === 'R' || letter === 'C') ? parts[2] : parts.slice(1).join('\t');
+    const renamed = parts.length >= 3 && (letter === 'R' || letter === 'C');
+    const diffKey = decodeGitPath(renamed ? parts[2] : parts.slice(1).join('\t'));
+    const filePath = renamed ? decodeGitPath(parts[1]) + ' → ' + diffKey : diffKey;
     return {status, rawCode, path: filePath, diffKey};
   }).filter(Boolean);
 }
 function buildFileTree(entries) {
   const root = {name: '', dirs: new Map(), files: []};
   entries.forEach(entry => {
-    const clean = entry.path.replace(/\\/g, '/').replace(/\/$/, '');
-    const isDirEntry = entry.path.endsWith('/') || entry.path.endsWith('\\');
+    const path = entry.diffKey === undefined ? entry.path.replace(/\\/g, '/') : entry.path;
+    const clean = path.replace(/\/$/, '');
+    const isDirEntry = path.endsWith('/');
     const arrow = clean.indexOf(' → ');
     const segments = arrow !== -1 ? [clean] : clean.split('/').filter(Boolean);
     if (!segments.length) return;
@@ -2827,7 +2838,7 @@ function renderUnifiedDiff(patchText) {
   const head = node('div', undefined, 'git-section-bar');
   head.append(node('h3', '代码变更'));
   section.append(head);
-  const clean = typeof patchText === 'string' ? patchText.trimEnd() : '';
+  const clean = typeof patchText === 'string' ? patchText.replace(/\r?\n$/, '') : '';
   if (!clean) {
     section.append(node('p', '无文本补丁', 'muted'));
     return section;
@@ -2843,16 +2854,18 @@ function renderUnifiedDiff(patchText) {
   let current = null;
   let totalAdded = 0, totalRemoved = 0;
   let oldLn = 0, newLn = 0;
+  let inHunk = false;
   const limit = Math.min(rawLines.length, MAX_DIFF_LINES);
   for (let i = 0; i < limit; i++) {
     const line = rawLines[i];
     if (line.startsWith('diff --git ')) {
-      const match = line.match(/^diff --git a\/(.+?) b\/(.+)$/);
-      const key = match ? match[2] : line.slice(11);
-      const title = match ? (match[1] === match[2] ? match[2] : match[1] + ' → ' + match[2]) : line.slice(11);
-      current = {key, title, added: 0, removed: 0, mode: '', lines: []};
+      const header = line.slice(11);
+      const match = header.match(/^a\/(.+) b\/\1$|^"a\/(.+)" "b\/\2"$/);
+      const key = match ? (match[1] ?? decodeGitPath('"' + match[2] + '"')) : '';
+      current = {key, title: key || header, added: 0, removed: 0, mode: '', lines: []};
       blocks.push(current);
       oldLn = 0; newLn = 0;
+      inHunk = false;
       continue;
     }
     if (!current) {
@@ -2861,7 +2874,7 @@ function renderUnifiedDiff(patchText) {
     }
     if (line.startsWith('new file mode ')) { current.mode = '新增'; continue; }
     if (line.startsWith('deleted file mode ')) { current.mode = '删除'; continue; }
-    if (line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ') ||
+    if (line.startsWith('index ') || (!inHunk && (line.startsWith('--- ') || line.startsWith('+++ '))) ||
       line.startsWith('similarity index ') || line.startsWith('rename from ') || line.startsWith('rename to ') ||
       line.startsWith('old mode ') || line.startsWith('new mode ')) {
       continue;
@@ -2871,6 +2884,7 @@ function renderUnifiedDiff(patchText) {
       continue;
     }
     if (line.startsWith('@@ ')) {
+      inHunk = true;
       const hm = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/);
       if (hm) { oldLn = Number(hm[1]); newLn = Number(hm[2]); }
       current.lines.push({kind: 'hunk', text: line});
@@ -3008,7 +3022,7 @@ function renderGit() {
     svg.append(dot);
   });
   const rows = node('div',undefined,'git-rows'); rows.style.paddingLeft = width + 'px';
-  commits.forEach((commit, idx) => {
+  commits.forEach(commit => {
     const active = commit.hash === selectedCommitHash;
     const r = node('div',undefined,'git-row' + (active ? ' is-selected' : ''));
     r.dataset.commitHash = commit.hash;
@@ -3017,7 +3031,7 @@ function renderGit() {
     const subject = button(text(commit.subject),() => void loadCommit(commit.hash),{className:'link subject'});
     subject.title = text(commit.subject);
     topRow.append(subject);
-    if (idx === 0 && git.branch) topRow.append(node('span', text(git.branch), 'git-head-pill'));
+    if (commit.hash === git.head && git.branch) topRow.append(node('span', text(git.branch), 'git-head-pill'));
     const metaRow = node('div',undefined,'git-row-meta');
     const metaStart = node('div',undefined,'git-row-meta-start');
     const hash = button(text(commit.hash).slice(0,8),() => void loadCommit(commit.hash),{className:'link git-row-hash'});

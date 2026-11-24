@@ -74,10 +74,14 @@ async function renderVisionSettings() {
         profiles.value=selection.profileId || '';
         const add=button('新增',()=>editProfile(null,kind));
         const edit=button('编辑',()=>{ const profile=settings.profiles.find(item=>item.id===profiles.value); if(profile) editProfile(profile,kind); });
-        const sync=()=>{custom.hidden=source.value!=='custom';edit.disabled=!profiles.value;};
+        const sync=()=>{
+          custom.hidden=source.value!=='custom';edit.disabled=profiles.disabled || !profiles.value;
+          syncCustomSelect(source);syncCustomSelect(profiles);
+        };
         const select = async () => {
           sync(); if(source.value==='custom' && !profiles.value) return;
           source.disabled=profiles.disabled=add.disabled=edit.disabled=true;
+          sync();
           try { await save({action:'select',kind,source:source.value,profileId:profiles.value}); renderChoices(); }
           catch(failure) { status.className='bad';status.textContent=failure.message; source.value=selection.source;profiles.value=selection.profileId || ''; }
           finally {source.disabled=profiles.disabled=add.disabled=false;sync();}

@@ -28,6 +28,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
   const context = {
     URL,
     URLSearchParams,
+    TextDecoder,
     AbortController,
     matchMedia: jest.fn(() => ({ matches: false, addEventListener: jest.fn() })),
     requestAnimationFrame: jest.fn(() => 0),
@@ -89,7 +90,8 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
       showQrcode: typeof showQrcode === 'function' ? showQrcode : undefined,
       handleQrcodeCompletion: typeof handleQrcodeCompletion === 'function' ? handleQrcodeCompletion : undefined,
       offerIssueReport, showPendingIssueReport,
-      poll, pollState, renderVisionSettings, sendActivity, startActivityLease, dispose, shutdownConsole, rememberTask, buildPresentation, buildFailureMessage,
+      poll, pollState, renderVisionSettings, customSelectMap, parseCommitFiles, renderUnifiedDiff,
+      sendActivity, startActivityLease, dispose, shutdownConsole, rememberTask, buildPresentation, buildFailureMessage,
       buildFailureDetails, luaLspPresentation, luaCheckBlocksBuild, runtimePresentation,
       previewPresentation: typeof previewPresentation === 'function' ? previewPresentation : undefined,
       previewStateLabel: typeof previewStateLabel === 'function' ? previewStateLabel : undefined,
@@ -359,6 +361,42 @@ describe('Maker console standalone UI', () => {
     expect(html).not.toContain('<button data-page="settings">');
   });
 
+  it('matches quoted Git paths and keeps hunk lines that look like file headers', () => {
+    const { api, context } = harness();
+    const created: Array<
+      ReturnType<typeof context.document.createElement> & { textContent?: string }
+    > = [];
+    const create = context.document.createElement;
+    context.document.createElement = (tag) => {
+      const element = create(tag);
+      created.push(element);
+      return element;
+    };
+    const encodedPath = 'dir/\\344\\270\\255\\346\\226\\207\\t space.lua ';
+    const path = 'dir/中文\t space.lua ';
+    expect(api.parseCommitFiles('M\t"' + encodedPath + '"\n')).toEqual([
+      { status: 'M', rawCode: 'M', path, diffKey: path },
+    ]);
+    api.renderUnifiedDiff(
+      [
+        'diff --git "a/' + encodedPath + '" "b/' + encodedPath + '"',
+        '--- "a/' + encodedPath + '"',
+        '+++ "b/' + encodedPath + '"',
+        '@@ -4,2 +6,2 @@',
+        '--- comment',
+        '+++ value',
+        ' context  ',
+        '',
+      ].join('\n')
+    );
+    expect(created.find((element) => element.className === 'git-diff-file')?.dataset).toEqual({
+      diffFile: path,
+    });
+    expect(created.map((element) => element.textContent)).toEqual(
+      expect.arrayContaining(['-- comment', '++ value', 'context  ', '5', '7', '+1', '-1'])
+    );
+  });
+
   it('renders the vision settings form without a selected project', async () => {
     const { api, fetch, context } = harness('', '?page=settings');
     api.setPage('settings');
@@ -483,6 +521,53 @@ describe('Maker console standalone UI', () => {
       expect(created.some((el) => el.type === 'password')).toBe(false);
     }
   );
+
+  it('disables custom model selects while saving and restores their label on failure', async () => {
+    const { api, fetch, context } = harness('', '?page=settings');
+    api.setPage('settings');
+    const view = { querySelectorAll: () => [], contains: () => false, replaceChildren: jest.fn() };
+    context.document.getElementById.mockImplementation(((id: string) =>
+      id === 'view' ? view : null) as any);
+    const selects: any[] = [];
+    const create = context.document.createElement;
+    const classList = { contains: () => false, toggle: jest.fn() };
+    context.document.createElement = (tag) => {
+      const element = create(tag);
+      if (tag === 'select') {
+        const options: unknown[] = [];
+        Object.assign(element, {
+          options,
+          classList,
+          getAttribute: () => null,
+          append: (...children: unknown[]) => options.push(...children),
+        });
+        selects.push(element);
+      }
+      return element;
+    };
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        vision: { source: 'server' },
+        generation: { source: 'maker' },
+        profiles: [],
+      }),
+    });
+    await api.renderVisionSettings();
+    const source = selects[2];
+    const trigger = { disabled: false, classList };
+    const labelEl = { textContent: 'Maker MCP 生图' };
+    api.customSelectMap.set(source, { trigger, labelEl });
+    fetch.mockRejectedValueOnce(new Error('save failed'));
+    source.value = 'local';
+    const save = source.onchange();
+    expect(trigger.disabled).toBe(true);
+    expect(labelEl.textContent).toContain('本地模型');
+    await save;
+    expect(trigger.disabled).toBe(false);
+    expect(labelEl.textContent).toBe('Maker MCP 生图');
+  });
 
   it('keeps settings open when a requested project is missing', async () => {
     const { api, fetch } = harness('', '?project=missing&page=settings');
@@ -1829,7 +1914,8 @@ describe('Maker console standalone UI', () => {
     const styles = getConsoleHtml().match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
     expect(source).toContain("const logs = node('section',undefined,'console-logs')");
     expect(source).toContain("['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志']");
-    expect(source).toContain("replace($('view'),[title,columns,logs,previewCachePanel(),history])");
+    expect(source).toContain('sidebar.append(columns,previewCachePanel(),history)');
+    expect(source).toContain("replace($('view'),[title,sidebar,logs])");
     expect(source).toContain("bar.setAttribute('aria-valuenow',String(info.percent))");
     expect(styles.indexOf('.build-progress.indeterminate span{width:35%}')).toBeGreaterThan(-1);
     expect(styles.indexOf('.build-progress.indeterminate span{width:35%}')).toBeLessThan(

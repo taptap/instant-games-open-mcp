@@ -284,14 +284,15 @@ main[data-view="overview"]{max-width:1440px;padding:36px 48px 56px;margin:0 auto
    VIEW 2: BUILD & TEST — Single-Viewport 2-Column Studio Workbench
    Left 400px Controls | Right Full-Height Terminal Pane (Zero Extra Scroll)
    ============================================================ */
-main[data-view="build"]{max-width:1520px;padding:22px 40px 22px;margin:0 auto;height:100%;min-height:0;overflow:hidden;display:grid;grid-template-columns:390px minmax(0,1fr);grid-template-rows:auto auto auto minmax(0,1fr);column-gap:36px;row-gap:18px;grid-template-areas:"head head" "ctrl logs" "cache logs" "hist logs";align-items:stretch}
+main[data-view="build"]{max-width:1520px;padding:22px 40px 22px;margin:0 auto;height:100%;min-height:0;overflow:hidden;display:grid;grid-template-columns:390px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);column-gap:36px;row-gap:18px;grid-template-areas:"head head" "sidebar logs";align-items:stretch}
 main[data-view="build"]>.heading{grid-area:head;margin:0;padding:0;border:0;align-items:center;background:transparent}
 main[data-view="build"]>.heading h1{font-size:24px}
-main[data-view="build"]>.build-columns{grid-area:ctrl;display:flex;flex-direction:column;gap:18px;background:transparent;min-height:0}
-main[data-view="build"]>.build-columns>section{padding:0 0 18px;border-bottom:1px solid var(--border)}
-main[data-view="build"]>.preview-cache-panel{grid-area:cache;margin:0;padding:0 0 18px;border:0;border-bottom:1px solid var(--border);background:transparent;font-size:12px}
-main[data-view="build"]>.preview-cache-panel p{font-size:12px;line-height:1.6}
-main[data-view="build"]>.task-history{grid-area:hist;margin:0;padding:0 4px 0 0;border:0;background:transparent;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+main[data-view="build"]>.build-sidebar{grid-area:sidebar;display:flex;flex-direction:column;gap:18px;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.build-sidebar>.build-columns{grid-area:ctrl;display:flex;flex-direction:column;gap:18px;background:transparent;min-height:0;flex-shrink:0}
+.build-sidebar>.build-columns>section{padding:0 0 18px;border-bottom:1px solid var(--border)}
+.build-sidebar>.preview-cache-panel{grid-area:cache;margin:0;padding:0 0 18px;border:0;border-bottom:1px solid var(--border);background:transparent;font-size:12px;flex-shrink:0}
+.build-sidebar>.preview-cache-panel p{font-size:12px;line-height:1.6}
+.build-sidebar>.task-history{grid-area:hist;margin:0;padding:0 4px 0 0;border:0;background:transparent;flex-shrink:0}
 main[data-view="build"]>.console-logs{grid-area:logs;margin:0;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--code);backdrop-filter:blur(10px);display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden}
 
 .lua-check-option{display:inline-flex;align-items:center;gap:8px;color:var(--muted);white-space:nowrap;font-size:12px;line-height:1;cursor:pointer;user-select:none}
@@ -596,7 +597,7 @@ body.canvas-mode .canvas-toolbar{display:flex;gap:8px;padding:10px 16px;backgrou
   .overview-body{grid-template-columns:1fr;gap:32px}
   .overview-aside{position:static;padding-left:0;padding-top:24px;border-left:0;border-top:1px solid var(--border)}
   main[data-view="build"]{height:auto;overflow:visible;grid-template-columns:1fr;grid-template-rows:auto;grid-template-areas:"head" "ctrl" "logs" "cache" "hist"}
-  main[data-view="build"]>.task-history{overflow:visible}
+  main[data-view="build"]>.build-sidebar{display:contents}
   main[data-view="build"]>.console-logs{height:520px}
   main[data-view="git"]{height:auto}
   .git-layout{grid-template-columns:1fr;min-height:0}
