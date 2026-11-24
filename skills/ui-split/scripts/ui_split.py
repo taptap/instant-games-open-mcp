@@ -208,9 +208,24 @@ def assemble_run(state, root, screen):
     agent arithmetic: the run only contributes recognized boxes and binds them
     to the exported PNGs.
     """
+    if state["bbox"]["design"] != state["design"]:
+        raise ValueError(
+            "bbox.json design no longer matches the run's original; "
+            "do not edit run artifacts by hand"
+        )
     bbox = dict(state["bbox"])
     if screen:
         bbox["screen"] = screen
+    # The assembler decodes the design as PNG and copies it as the reference
+    # image. Hand it a lossless PNG copy without touching the persisted run.
+    source = project_file(root, state["design"]["path"])
+    with Image.open(source) as image:
+        if image.format != "PNG":
+            design_png = output_path(root, state["directory"], "assemble-design.png")
+            image.convert("RGBA").save(design_png, "PNG")
+            bbox["design"] = identity(
+                root, design_png.relative_to(root).as_posix()
+            )
     assets, bindings, art_texts = [], [], []
     for binding in state["bindings"]:
         element_id, slot_state = binding["elementId"], binding["state"]

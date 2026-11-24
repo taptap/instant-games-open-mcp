@@ -125,15 +125,16 @@ def run(root, *args):
     )
 
 
-def prepare_separate(root, elements, name="inventory", texts=None):
+def prepare_separate(root, elements, name="inventory", texts=None, source="assets/design.png"):
     (root / "assets").mkdir()
-    Image.new("RGB", (100, 100), "red").save(root / "assets/design.png")
-    result = run(root, "init", "--name", name, "--source", "assets/design.png")
+    Image.new("RGB", (100, 100), "red").save(root / source)
+    Image.new("RGB", (100, 100), "red").save(root / "assets/text-free.png")
+    result = run(root, "init", "--name", name, "--source", source)
     assert result.returncode == 0, result.stderr
     nxt = run(root, "next", "--name", name)
     assert nxt.returncode == 0, nxt.stderr
     action = json.loads(nxt.stdout)["action"]
-    result = run(root, "record", "--name", name, "--action-id", action["id"], "--file", "assets/design.png")
+    result = run(root, "record", "--name", name, "--action-id", action["id"], "--file", "assets/text-free.png")
     assert result.returncode == 0, result.stderr
     for phase, output in [
         ("cut", {"elements": elements}),
@@ -381,3 +382,65 @@ def test_assemble_refuses_output_crossing_a_symlink(tmp_path):
     assert result.returncode != 0
     assert "symlink" in result.stderr
     assert not list(outside.iterdir())
+
+
+def approved_button_run(tmp_path, source="assets/design.png"):
+    action, progress = prepare_separate(
+        tmp_path,
+        [
+            {
+                "id": "E001",
+                "name": "按钮",
+                "type": "button",
+                "bbox": [10, 10, 40, 20],
+                "parent": None,
+            }
+        ],
+        source=source,
+    )
+    batch = progress["batches"][0]
+    fills = {
+        index: "content"
+        for index, slot in enumerate(batch["slots"])
+        if not slot.get("reserve")
+    }
+    paint(batch, fills).save(tmp_path / "assets/sheet.png")
+    call(tmp_path, "record", "--action-id", action["id"], "--file", "assets/sheet.png")
+    call(tmp_path, "approve")
+
+
+def test_assemble_accepts_jpeg_original_without_rewriting_the_run(tmp_path):
+    approved_button_run(tmp_path, source="assets/design.jpg")
+    call(tmp_path, "assemble", "--screen-key", "inventory", "--screen-name", "背包")
+    reference = tmp_path / "assets/ui/inventory/inventory.reference.png"
+    with Image.open(reference) as image:
+        assert image.format == "PNG"
+        assert image.size == (100, 100)
+    progress = json.loads((tmp_path / "docs/.ui-split/inventory.json").read_text())
+    assert progress["design"]["path"] == "assets/design.jpg"
+    assert progress["bbox"]["design"] == progress["design"]
+    bbox = json.loads(
+        (tmp_path / "assets/image/ui-split/inventory/bbox.json").read_text()
+    )
+    assert bbox["design"]["path"] == "assets/design.jpg"
+
+
+def test_assemble_refuses_hand_edited_bbox_design(tmp_path):
+    approved_button_run(tmp_path)
+    path = tmp_path / "docs/.ui-split/inventory.json"
+    progress = json.loads(path.read_text())
+    progress["bbox"]["design"] = dict(progress["design"], path="assets/other.png")
+    path.write_text(json.dumps(progress))
+    result = run(
+        tmp_path,
+        "assemble",
+        "--name",
+        "inventory",
+        "--screen-key",
+        "inventory",
+        "--screen-name",
+        "背包",
+    )
+    assert result.returncode != 0
+    assert "no longer matches" in result.stderr
+    assert not (tmp_path / "assets/ui/inventory").exists()
