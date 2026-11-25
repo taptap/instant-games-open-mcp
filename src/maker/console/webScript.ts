@@ -309,7 +309,6 @@ function renderVersionPicker() {
   picker.disabled = offline || updating || versionQuery || Boolean(managed);
   picker.className = newer ? 'pending' : 'muted';
   picker.title = managed ? '请通过对应客户端插件市场更新' : '选择 Maker MCP 版本';
-  syncCustomSelect(picker);
   const job = state.update;
   const notice = job && job.status + ':' + job.version;
   if (job?.message && notice !== updateNotice) {
@@ -1247,7 +1246,6 @@ function updateChrome() {
   }
   picker.value = currentProject() ? selected : '';
   picker.disabled = !loaded || offline;
-  syncCustomSelect(picker);
   $('context').textContent = currentProject() ? text(detail?.git?.branch, '分支未提供') : '本地项目';
   $('context').title = currentProject()?.name || '本地项目';
   const shutdownButton = $('console-shutdown');
@@ -2351,12 +2349,10 @@ function selectDialog(title, message, options) {
       element.value = String(option.value); picker.append(element);
     }
     picker.value = ''; accept.disabled = true;
-    syncCustomSelect(picker);
     const choice = () => options.find(option => String(option.value) === picker.value);
     picker.onchange = () => { accept.disabled = !choice(); };
     dialog.returnValue = 'cancel';
     dialog.addEventListener('close',() => {
-      closeActiveSelectMenu(false);
       resolve(dialog.returnValue === 'accept' ? choice()?.value ?? null : null);
     },{once:true});
     dialog.showModal();
@@ -2388,7 +2384,6 @@ function confirmQrcode(project, config = {}) {
     $('qrcode-fixed-orientation').textContent = configured ?
       '游戏方向：' + (orientation === 'portrait' ? '竖屏' : '横屏') : '此设置用于手机测试，与本地预览窗口方向无关。';
     picker.value = '';
-    syncCustomSelect(picker); syncCustomSelect(category);
     const validate = () => { $('qrcode-accept').disabled =
       (!configured && !['landscape','portrait'].includes(picker.value)) ||
       (needsTitle && (!title.value.trim() || /^[<{].*[>}]$/.test(title.value.trim()))) ||
@@ -2397,7 +2392,6 @@ function confirmQrcode(project, config = {}) {
     validate();
     dialog.returnValue = 'cancel';
     dialog.addEventListener('close',() => {
-      closeActiveSelectMenu(false);
       resolve(dialog.returnValue === 'accept' ?
         {confirmedOrientation:configured ? undefined : picker.value, confirmedBuild:needsSync,
           ...(needsTitle || needsCategory ? {publication:{
@@ -3336,7 +3330,6 @@ function render() {
   else if (page === 'build') renderBuild();
   else if (page === 'git') renderGit();
   else renderOverview();
-  syncAllCustomSelects();
 }
 async function loadProject(options = {}) {
   const key = selected, epoch = selectionEpoch;
@@ -3481,179 +3474,6 @@ onProjectChange(() => {
 ${architecturePreviewScript}
 ${assetCheckScript}
 ${assetLibraryScript}
-const customSelectMap = new WeakMap();
-let activeSelectMenu = null;
-function closeActiveSelectMenu(restoreFocus = false) {
-  if (!activeSelectMenu) return;
-  const {menu, trigger, cleanup} = activeSelectMenu;
-  activeSelectMenu = null;
-  cleanup();
-  menu.remove();
-  trigger.setAttribute('aria-expanded', 'false');
-  trigger.classList.remove('is-open');
-  if (restoreFocus && typeof trigger.focus === 'function') trigger.focus();
-}
-function syncCustomSelect(select) {
-  const entry = select && customSelectMap.get(select);
-  if (!entry) return;
-  const {trigger, labelEl} = entry;
-  const options = Array.from(select.options || []);
-  const chosen = options[select.selectedIndex] || options.find(opt => opt.value === select.value) || options[0];
-  const nextLabel = (chosen ? chosen.textContent : '') || '';
-  if (labelEl.textContent !== nextLabel) labelEl.textContent = nextLabel;
-  const nextDisabled = Boolean(select.disabled);
-  if (trigger.disabled !== nextDisabled) trigger.disabled = nextDisabled;
-  const nextTitle = select.title || nextLabel || '';
-  if (trigger.title !== nextTitle) trigger.title = nextTitle;
-  const ariaLabel = select.getAttribute('aria-label');
-  if (ariaLabel) {
-    const nextAria = ariaLabel + (nextLabel ? '：' + nextLabel : '');
-    if (trigger.getAttribute('aria-label') !== nextAria) trigger.setAttribute('aria-label', nextAria);
-  }
-  const isPending = select.classList.contains('pending');
-  if (trigger.classList.contains('is-pending') !== isPending) trigger.classList.toggle('is-pending', isPending);
-  const nextHidden = Boolean(select.hidden);
-  if (trigger.hidden !== nextHidden) trigger.hidden = nextHidden;
-}
-function syncAllCustomSelects() {
-  if (typeof document.querySelectorAll !== 'function' || typeof Element === 'undefined' || !Element.prototype.getBoundingClientRect) return;
-  document.querySelectorAll('select').forEach(select => {
-    if (!customSelectMap.has(select)) enhanceSelect(select);
-    else syncCustomSelect(select);
-  });
-}
-function enhanceSelect(select) {
-  if (!select || select.tagName !== 'SELECT' || select.multiple || (select.size && select.size > 1)) return;
-  if (customSelectMap.has(select) || typeof select.insertAdjacentElement !== 'function') return;
-  const trigger = node('button', undefined, 'ui-select-trigger');
-  trigger.type = 'button';
-  trigger.setAttribute('aria-haspopup', 'listbox');
-  trigger.setAttribute('aria-expanded', 'false');
-  if (select.id === 'project-picker') trigger.classList.add('is-project-picker');
-  if (select.id === 'maker-version-picker') trigger.classList.add('is-version-picker');
-  const labelEl = node('span', '', 'ui-select-label');
-  const chevron = svgNode('svg', {class: 'ui-select-chevron', viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': 'true'});
-  chevron.append(svgNode('path', {d: 'M4.25 6.25L8 10L11.75 6.25', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round'}));
-  trigger.append(labelEl, chevron);
-  select.dataset.customSelect = 'ready';
-  select.classList.add('ui-select-native');
-  select.tabIndex = -1;
-  select.setAttribute('aria-hidden', 'true');
-  select.insertAdjacentElement('afterend', trigger);
-  const openMenu = () => {
-    if (select.disabled) return;
-    if (activeSelectMenu?.select === select) { closeActiveSelectMenu(false); return; }
-    closeActiveSelectMenu(false);
-    syncCustomSelect(select);
-    const options = Array.from(select.options || []);
-    if (!options.length) return;
-    const menu = node('div', undefined, 'ui-select-menu');
-    menu.setAttribute('role', 'listbox');
-    const hostDialog = select.closest?.('dialog[open]');
-    const mount = hostDialog || document.body;
-    const itemButtons = [];
-    options.forEach((opt, index) => {
-      const selectedItem = index === select.selectedIndex;
-      const item = node('button', undefined, 'ui-select-option' + (selectedItem ? ' is-selected' : ''));
-      item.type = 'button';
-      item.setAttribute('role', 'option');
-      item.setAttribute('aria-selected', String(selectedItem));
-      item.disabled = Boolean(opt.disabled);
-      const textSpan = node('span', opt.textContent || '', 'ui-select-option-label');
-      item.append(textSpan);
-      if (selectedItem) {
-        const check = svgNode('svg', {class: 'ui-select-check', viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': 'true'});
-        check.append(svgNode('path', {d: 'M3.5 8.5L6.5 11.5L12.5 5', stroke: 'currentColor', 'stroke-width': '1.7', 'stroke-linecap': 'round', 'stroke-linejoin': 'round'}));
-        item.append(check);
-      }
-      item.addEventListener('click', () => {
-        if (opt.disabled) return;
-        const changed = select.selectedIndex !== index || select.value !== opt.value;
-        select.selectedIndex = index;
-        select.value = opt.value;
-        closeActiveSelectMenu(true);
-        syncCustomSelect(select);
-        if (changed) select.dispatchEvent(new Event('change', {bubbles: true}));
-      });
-      menu.append(item);
-      itemButtons.push({button: item, disabled: Boolean(opt.disabled), selected: selectedItem});
-    });
-    mount.append(menu);
-    const rect = trigger.getBoundingClientRect();
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const minW = select.id === 'maker-version-picker' ? Math.max(rect.width, 192) : Math.max(rect.width, 160);
-    const menuW = Math.min(Math.max(minW, rect.width), vw - 16);
-    menu.style.minWidth = Math.round(menuW) + 'px';
-    menu.style.maxWidth = Math.min(360, vw - 16) + 'px';
-    const spaceBelow = vh - rect.bottom - 10;
-    const spaceAbove = rect.top - 10;
-    const openUp = spaceBelow < 180 && spaceAbove > spaceBelow;
-    const maxH = Math.max(120, Math.min(280, openUp ? spaceAbove : spaceBelow));
-    menu.style.maxHeight = Math.round(maxH) + 'px';
-    const measured = menu.getBoundingClientRect();
-    let left = rect.left;
-    if (left + measured.width > vw - 8) left = Math.max(8, vw - measured.width - 8);
-    const top = openUp ? Math.max(8, rect.top - measured.height - 4) : Math.min(vh - measured.height - 8, rect.bottom + 4);
-    menu.style.left = Math.round(left) + 'px';
-    menu.style.top = Math.round(top) + 'px';
-    trigger.setAttribute('aria-expanded', 'true');
-    trigger.classList.add('is-open');
-    const onPointerDown = event => {
-      if (menu.contains(event.target) || trigger.contains(event.target)) return;
-      closeActiveSelectMenu(false);
-    };
-    const onKeyDown = event => {
-      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeActiveSelectMenu(true); return; }
-      const enabled = itemButtons.filter(x => !x.disabled);
-      if (!enabled.length) return;
-      const curIdx = enabled.findIndex(x => x.button === document.activeElement);
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        enabled[(curIdx + 1) % enabled.length].button.focus();
-      } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        enabled[(curIdx - 1 + enabled.length) % enabled.length].button.focus();
-      } else if (event.key === 'Home') {
-        event.preventDefault(); enabled[0].button.focus();
-      } else if (event.key === 'End') {
-        event.preventDefault(); enabled[enabled.length - 1].button.focus();
-      }
-    };
-    const onViewportChange = event => {
-      if (event && event.target && menu.contains(event.target)) return;
-      closeActiveSelectMenu(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown, true);
-    document.addEventListener('keydown', onKeyDown, true);
-    window.addEventListener('resize', onViewportChange);
-    window.addEventListener('scroll', onViewportChange, true);
-    activeSelectMenu = {
-      select, menu, trigger,
-      cleanup: () => {
-        document.removeEventListener('pointerdown', onPointerDown, true);
-        document.removeEventListener('keydown', onKeyDown, true);
-        window.removeEventListener('resize', onViewportChange);
-        window.removeEventListener('scroll', onViewportChange, true);
-      },
-    };
-    const initialFocus = itemButtons.find(x => x.selected && !x.disabled) || itemButtons.find(x => !x.disabled);
-    initialFocus?.button.focus({preventScroll: true});
-    initialFocus?.button.scrollIntoView?.({block: 'nearest'});
-  };
-  trigger.addEventListener('click', openMenu);
-  trigger.addEventListener('keydown', event => {
-    if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) {
-      event.preventDefault();
-      openMenu();
-    }
-  });
-  select.addEventListener('change', () => syncCustomSelect(select));
-  customSelectMap.set(select, {trigger, labelEl});
-  syncCustomSelect(select);
-}
-function initCustomSelects() {
-  syncAllCustomSelects();
-}
 onProjectChange(() => {
   document.querySelectorAll('dialog[data-project-key]').forEach(dialog => dialog.close());
 });
@@ -3790,9 +3610,7 @@ document.addEventListener('DOMContentLoaded',async () => {
     setMotionVisible(page === 'other' && otherTab === 'motion');
     if (!document.hidden) { void sendActivity(); void poll(); }
   });
-  initCustomSelects();
   render();
-  syncAllCustomSelects();
   startActivityLease();
   await sendActivity();
   await poll();

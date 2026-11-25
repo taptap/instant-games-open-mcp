@@ -76,7 +76,6 @@ async function renderVisionSettings() {
         const edit=button('编辑',()=>{ const profile=settings.profiles.find(item=>item.id===profiles.value); if(profile) editProfile(profile,kind); });
         const sync=()=>{
           custom.hidden=source.value!=='custom';edit.disabled=profiles.disabled || !profiles.value;
-          syncCustomSelect(source);syncCustomSelect(profiles);
         };
         const select = async () => {
           sync(); if(source.value==='custom' && !profiles.value) return;
@@ -95,7 +94,6 @@ async function renderVisionSettings() {
         // if(kind==='vision' && selection.source==='chatgpt-web') section.append(node('p','由当前 AI 使用已有浏览器完成 ChatGPT 网页识图，无需安装执行器。登录可选：未登录时可选择直接识图，或登录后识图；未登录无法选择模型，识别质量和 Bbox 准确度可能有偏差。已登录则沿用当前模型和思考程度。图片会上传至 ChatGPT，受网页额度限制。','muted'));
         body.append(section);sync();
       }
-      if (typeof syncAllCustomSelects === 'function') syncAllCustomSelects();
     };
     renderChoices();
   } catch(error) { status.className='bad';status.textContent=error.message;panel.append(status); }

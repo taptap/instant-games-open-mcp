@@ -1,7 +1,8 @@
 @font-face{font-family:MakerMenu;src:url("assets/Fonts/Menu-Black.ttf")}
 @font-face{font-family:"Fonts/NotoSerifSC-Regular.ttf";src:url("assets/Fonts/NotoSerifSC-Regular.ttf")}
-:root{color-scheme:dark;--bg:#111215;--surface:#18191e;--border:rgba(255,255,255,.08);--border-strong:rgba(255,255,255,.15);--text:#eceef2;--muted:#9398a4;--primary:#00b8a6;--soft:rgba(255,255,255,.055);--soft-hover:rgba(255,255,255,.10);--track-active:#262830;--code:#0e0f13;--focus-ring:rgba(255,255,255,.28);--scrollbar:rgba(255,255,255,.18);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:var(--text);background:var(--bg)}
-:root[data-theme="light"]{color-scheme:light;--bg:#f6f7f9;--surface:#ffffff;--border:rgba(15,23,42,.08);--border-strong:rgba(15,23,42,.16);--text:#14171f;--muted:#5c6473;--primary:#00b0a0;--soft:rgba(15,23,42,.045);--soft-hover:rgba(15,23,42,.09);--track-active:#ffffff;--code:#eef0f4;--focus-ring:rgba(15,23,42,.22);--scrollbar:rgba(15,23,42,.20)}
+/* __MAKER_MOTION_THEME__ */
+:root{--code:#0e0f13;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:var(--text);background:var(--bg)}
+:root[data-theme="light"]{--code:#eef0f4;}
 *{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--scrollbar) transparent}
 ::-webkit-scrollbar{width:7px;height:7px}
 ::-webkit-scrollbar-track{background:transparent}

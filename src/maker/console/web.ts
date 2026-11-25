@@ -2,7 +2,7 @@ import { consoleScript } from './webScript.js';
 import { consoleStyles } from './webStyles.js';
 import { consoleIconLicense } from './webIcons.js';
 import { MAKER_QR_CATEGORIES } from '../qrcodePreflight.js';
-import { MAKER_BRAND_LOGO_SVG, MAKER_BRAND_MARK_SVG } from './brandIcon.js';
+import { MAKER_BRAND_SVG } from './brandIcon.js';
 
 const categoryLabels: Record<(typeof MAKER_QR_CATEGORIES)[number], string> = {
   rpg: '角色扮演',
@@ -34,7 +34,7 @@ export function getConsoleHtml(): string {
   <aside class="sidebar" id="console-sidebar" aria-label="控制台侧边栏">
     <header class="top">
       <div class="brand">
-        <button class="mark" id="maker-mark" type="button" aria-label="TapTap 制造控制台品牌标记">${MAKER_BRAND_LOGO_SVG}${MAKER_BRAND_MARK_SVG}</button>
+        <button class="mark" id="maker-mark" type="button" aria-label="TapTap 制造控制台品牌标记">${MAKER_BRAND_SVG}</button>
         <div class="brand-meta">
           <select id="maker-version-picker" aria-label="Maker MCP 版本" disabled><option>版本加载中</option></select>
         </div>

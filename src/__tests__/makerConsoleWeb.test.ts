@@ -1,6 +1,18 @@
 import { Script, runInNewContext } from 'node:vm';
 import { marked } from 'marked';
 import { getConsoleHtml } from '../maker/console/web.js';
+import { consoleThemeStyles } from '../maker/webTheme.js';
+
+function luminance(hex: string): number {
+  const channels = hex
+    .slice(1)
+    .match(/../g)!
+    .map((pair) => {
+      const channel = parseInt(pair, 16) / 255;
+      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
 
 function script(): string {
   const html = getConsoleHtml();
@@ -90,7 +102,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
       showQrcode: typeof showQrcode === 'function' ? showQrcode : undefined,
       handleQrcodeCompletion: typeof handleQrcodeCompletion === 'function' ? handleQrcodeCompletion : undefined,
       offerIssueReport, showPendingIssueReport,
-      poll, pollState, renderVisionSettings, customSelectMap, parseCommitFiles, renderUnifiedDiff,
+      poll, pollState, renderVisionSettings, parseCommitFiles, renderUnifiedDiff,
       sendActivity, startActivityLease, dispose, shutdownConsole, rememberTask, buildPresentation, buildFailureMessage,
       canvasFrames, setUiEditorFrame: frame => { uiEditorFrame = frame; },
       buildFailureDetails, luaLspPresentation, luaCheckBlocksBuild, runtimePresentation,
@@ -141,6 +153,24 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
 }
 
 describe('Maker console standalone UI', () => {
+  it('keeps primary button text readable in both themes', () => {
+    const foreground = consoleThemeStyles.match(/--on-primary:(#[\da-f]{6})/i)![1];
+    const backgrounds = Array.from(consoleThemeStyles.matchAll(/--primary:(#[\da-f]{6})/gi));
+    expect(backgrounds).toHaveLength(2);
+    for (const [, background] of backgrounds) {
+      const colors = [luminance(background), luminance(foreground)];
+      expect((Math.max(...colors) + 0.05) / (Math.min(...colors) + 0.05)).toBeGreaterThanOrEqual(
+        4.5
+      );
+    }
+  });
+
+  it('reuses one brand shape across the two sidebar presentations', () => {
+    const html = getConsoleHtml();
+    expect(html.match(/id="maker-brand-shape"/g)).toHaveLength(1);
+    expect(html.match(/href="#maker-brand-shape"/g)).toHaveLength(2);
+  });
+
   it('checks only the current project with no additional scope selector', async () => {
     const { api, fetch, context } = harness();
     const created: any[] = [];
@@ -523,7 +553,7 @@ describe('Maker console standalone UI', () => {
     }
   );
 
-  it('disables custom model selects while saving and restores their label on failure', async () => {
+  it('disables model selects while saving and restores their value on failure', async () => {
     const { api, fetch, context } = harness('', '?page=settings');
     api.setPage('settings');
     const view = { querySelectorAll: () => [], contains: () => false, replaceChildren: jest.fn() };
@@ -557,17 +587,14 @@ describe('Maker console standalone UI', () => {
     });
     await api.renderVisionSettings();
     const source = selects[2];
-    const trigger = { disabled: false, classList };
-    const labelEl = { textContent: 'Maker MCP 生图' };
-    api.customSelectMap.set(source, { trigger, labelEl });
     fetch.mockRejectedValueOnce(new Error('save failed'));
     source.value = 'local';
     const save = source.onchange();
-    expect(trigger.disabled).toBe(true);
-    expect(labelEl.textContent).toContain('本地模型');
+    expect(source.disabled).toBe(true);
+    expect(source.value).toBe('local');
     await save;
-    expect(trigger.disabled).toBe(false);
-    expect(labelEl.textContent).toBe('Maker MCP 生图');
+    expect(source.disabled).toBe(false);
+    expect(source.value).toBe('maker');
   });
 
   it('keeps settings open when a requested project is missing', async () => {
