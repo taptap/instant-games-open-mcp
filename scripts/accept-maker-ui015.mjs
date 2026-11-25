@@ -294,8 +294,8 @@ try {
   await page
     .locator('text=Bbox预排参考图')
     .first()
-    .locator('xpath=ancestor::*[.//button[contains(., "添加")]][1]')
-    .locator('button', { hasText: '添加' })
+    .locator('xpath=ancestor::*[.//button[contains(@class, "template-add")]][1]')
+    .locator('button.template-add')
     .first()
     .evaluate((button) => button.click());
   await page.waitForTimeout(8000);

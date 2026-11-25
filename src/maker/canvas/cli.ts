@@ -59,7 +59,9 @@ export async function runCanvasCli(
     ...(automationAction
       ? ['page_id', 'canvas_id', 'revision', 'request_id', 'input', 'input_file']
       : localOptions[action]),
-    ...(['run', 'recognize-ui', 'confirm-model'].includes(action) ? ['allow_paid'] : []),
+    ...(['run', 'recognize-ui', 'confirm-model', 'retry-changed-image'].includes(action)
+      ? ['allow_paid']
+      : []),
     ...(action === 'inspect' ? ['saved', 'id'] : []),
     ...(['import', 'fill-slot', 'replace-image'].includes(action) ? ['file'] : []),
     ...(action === 'export' ? ['output_dir'] : []),
@@ -351,15 +353,25 @@ export async function runCanvasCli(
       Object.keys(input).some(
         (key) =>
           !(
-            replacesImage ? ['id', 'prompt'] : ['title', 'prompt', 'sourceId', 'frameSetInfo']
+            replacesImage
+              ? ['id', 'prompt']
+              : ['title', 'prompt', 'sourceId', 'frameSetInfo', 'targetId']
           ).includes(key)
       )
     )
       throw new Error(
         replacesImage
           ? action + ' 使用 --file 时 input 只接受 id 和可选 prompt。'
-          : 'import input 支持 title、prompt、sourceId，或动画图集的 frameSetInfo；素材由 --file 指定。'
+          : 'import input 支持 title、prompt、sourceId、frameSetInfo 或独立媒体的 targetId；素材由 --file 指定。'
       );
+    if (
+      'targetId' in input &&
+      (typeof input.targetId !== 'string' ||
+        !/^[a-f0-9-]{36}$/i.test(input.targetId) ||
+        'prompt' in input ||
+        'sourceId' in input)
+    )
+      throw new Error('targetId 必须是独立导入动画或视频的 ID，不能与 prompt 或 sourceId 混用。');
     if (
       replacesImage &&
       (!('id' in input) || typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.id))

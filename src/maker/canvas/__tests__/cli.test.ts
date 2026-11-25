@@ -6,6 +6,79 @@ import { canvasConsoleConnection } from '../../console/cli.js';
 
 jest.mock('../../console/cli.js', () => ({ canvasConsoleConnection: jest.fn() }));
 
+test('local media replacement forwards targetId and refuses generation inputs before upload', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'canvas-media-replace-'));
+  const file = path.join(root, 'local.png');
+  fs.writeFileSync(
+    file,
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==',
+      'base64'
+    )
+  );
+  const print = jest.spyOn(process.stdout, 'write').mockReturnValue(true);
+  const request = jest.fn(async () => ({ id: 'operation', status: 'queued' }));
+  const transfer = jest.fn(async () =>
+    Response.json({ relativePath: '.maker/canvases/images/local.png' })
+  );
+  jest.mocked(canvasConsoleConnection).mockResolvedValue({ request, transfer } as any);
+  const targetId = '33333333-3333-4333-8333-333333333333';
+  const options = {
+    target_dir: root,
+    page_id: '11111111-1111-4111-8111-111111111111',
+    canvas_id: '22222222-2222-4222-8222-222222222222',
+    revision: '1',
+    file,
+  };
+  try {
+    await runCanvasCli('import', { ...options, input: JSON.stringify({ targetId }) });
+    expect(request).toHaveBeenCalledWith(
+      '/automation/submit',
+      expect.objectContaining({
+        input: expect.objectContaining({ targetId, assetPath: '.maker/canvases/images/local.png' }),
+      })
+    );
+    transfer.mockClear();
+    await expect(
+      runCanvasCli('import', {
+        ...options,
+        input: JSON.stringify({ targetId, prompt: 'generate' }),
+      })
+    ).rejects.toThrow('targetId');
+    expect(transfer).not.toHaveBeenCalled();
+  } finally {
+    print.mockRestore();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('changed-image retry accepts explicit paid authorization and forwards one card command', async () => {
+  const print = jest.spyOn(process.stdout, 'write').mockReturnValue(true);
+  const request = jest.fn(async () => ({ id: 'operation', status: 'queued' }));
+  jest.mocked(canvasConsoleConnection).mockResolvedValue({ request } as any);
+  try {
+    await runCanvasCli('retry-changed-image', {
+      target_dir: '/tmp',
+      page_id: '11111111-1111-4111-8111-111111111111',
+      canvas_id: '22222222-2222-4222-8222-222222222222',
+      revision: '1',
+      input: JSON.stringify({ id: '33333333-3333-4333-8333-333333333333' }),
+      allow_paid: true,
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith(
+      '/automation/submit',
+      expect.objectContaining({
+        action: 'retry-changed-image',
+        allowPaid: true,
+        input: { id: '33333333-3333-4333-8333-333333333333' },
+      })
+    );
+  } finally {
+    print.mockRestore();
+  }
+});
+
 test('template import uses the archive service without a page and returns the new identity', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'canvas-template-import-'));
   const filename = path.join(root, 'template.zip');

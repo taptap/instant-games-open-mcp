@@ -252,7 +252,8 @@ export async function handleCanvasProjectRoute(options: {
         200,
         await files.listTemplatePage(
           Number(searchParams.get('page') || 1),
-          searchParams.get('q') || ''
+          searchParams.get('q') || '',
+          searchParams.get('category') || ''
         )
       );
       return true;

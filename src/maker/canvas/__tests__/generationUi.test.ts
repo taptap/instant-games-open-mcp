@@ -966,6 +966,105 @@ describe('generation panels, reference drafts and refresh', () => {
     return elements.filter((element) => element.tag === 'img').map((element) => element.src);
   }
 
+  function unknownImageFixture() {
+    const value = imageFixture();
+    const { document, image, source, options } = value;
+    const original: any = {
+      id: 'unknown-original',
+      canvasId: document.id,
+      kind: 'image',
+      status: 'unknown',
+      targetNodeId: image.id,
+      prompt: image.generation.prompt,
+      sourceImageIds: [source.id],
+      sourceImagePaths: ['assets/image/old.png'],
+      createdAt: '2026-11-12T00:00:00.000Z',
+    };
+    options.store.listGeneration.mockResolvedValue([original]);
+    return { ...value, original };
+  }
+
+  test.each([false, true])(
+    'automatic recovery never releases unknown images, even force=%s',
+    async (force) => {
+      const { ui, image, options } = unknownImageFixture();
+      expect(await ui.recoverForRetry(image.id, force)).toBe('unknown');
+      expect(await ui.runTemplateImage(image.id)).toBe(false);
+      expect(options.store.generateImage).not.toHaveBeenCalled();
+    }
+  );
+
+  test.each(['same-source', 'changed-prompt', 'task-id', 'active', 'unverifiable-source'])(
+    'explicit changed-image retry refuses %s',
+    async (reason) => {
+      const { ui, image, source, original, options } = unknownImageFixture();
+      if (reason === 'same-source') original.sourceImagePaths = [source.assetPath];
+      if (reason === 'changed-prompt') image.generation.prompt = 'different prompt';
+      if (reason === 'task-id') original.taskId = 'remote-task';
+      if (reason === 'unverifiable-source') delete original.sourceImagePaths;
+      if (reason === 'active')
+        options.store.listGeneration.mockResolvedValue([
+          original,
+          { ...original, id: 'running', status: 'running', createdAt: '2026-11-11T00:00:00.000Z' },
+        ]);
+      expect(await ui.retryChangedImageOnce(image.id)).toBe(false);
+      expect(options.store.generateImage).not.toHaveBeenCalled();
+    }
+  );
+
+  test('an explicit changed-image retry submits once; another unknown stops both repeated and automatic actions', async () => {
+    const { document, ui, image, source, original, options } = unknownImageFixture();
+    options.store.generateImage.mockImplementation(async (_canvasId, input) => {
+      const next = {
+        ...input,
+        id: 'unknown-retry',
+        canvasId: document.id,
+        kind: 'image',
+        status: 'unknown',
+        createdAt: '2026-11-12T01:00:00.000Z',
+        sourceSnapshots: [snapshotCanvasSource(source)],
+      };
+      options.store.listGeneration.mockResolvedValue([original, next]);
+      return next;
+    });
+    expect(await ui.retryChangedImageOnce(image.id)).toBe(false);
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+    expect(await ui.retryChangedImageOnce(image.id)).toBe(false);
+    expect(await ui.recoverForRetry(image.id, true)).toBe('unknown');
+    expect(await ui.runTemplateImage(image.id)).toBe(false);
+    const reopened = createCanvasGenerationUi(options);
+    expect(await reopened.retryChangedImageOnce(image.id)).toBe(false);
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+  });
+
+  test('failed preflight of an explicit retry does not release unknown to later automatic actions', async () => {
+    const { ui, image, options } = unknownImageFixture();
+    options.store.imageModels.mockRejectedValue(new Error('model unavailable'));
+    expect(await ui.retryChangedImageOnce(image.id)).toBe(false);
+    options.store.imageModels.mockResolvedValue(imageModelsFixture());
+    expect(await ui.runTemplateImage(image.id)).toBe(false);
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+  });
+
+  test('explicit changed-image retry installs a successful result without replaying the group', async () => {
+    const { document, ui, image, source, options } = unknownImageFixture();
+    options.store.generateImage.mockImplementation(async (_canvasId, input) => ({
+      ...input,
+      id: 'successful-retry',
+      canvasId: document.id,
+      kind: 'image',
+      status: 'succeeded',
+      createdAt: '2026-11-12T01:00:00.000Z',
+      sourceSnapshots: [snapshotCanvasSource(source)],
+      targetAssetPath: image.assetPath,
+      resultAssetPath: 'assets/image/new-result.png',
+    }));
+    expect(await ui.retryChangedImageOnce(image.id)).toBe(true);
+    expect(image.assetPath).toBe('assets/image/new-result.png');
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+    expect(options.onGenerated).toHaveBeenCalledWith(image.id, 'image');
+  });
+
   function selectFor(label: string) {
     return elements
       .find((element) => element.tag === 'label' && element.children[0]?.textContent === label)

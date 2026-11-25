@@ -2,7 +2,9 @@ import { runInNewContext } from 'node:vm';
 import {
   prepareCanvasImportedNodeFromMedia,
   validateImportedFrameSet,
+  importedCanvasMediaPatch,
 } from '../../../../packages/maker-canvas/src/browser/automationAssets.js';
+import { emptyDocument } from '../model.js';
 
 const atlas = () => ({
   fps: 20,
@@ -62,4 +64,53 @@ test('rejects out-of-bounds, trimmed and invalid timing data before import', () 
   const safe = validateImportedFrameSet(atlas());
   safe.frames[0].duration = 900;
   expect(atlas().frames[0].duration).toBe(50);
+});
+
+test('postprocessed standalone media keeps its card identity and geometry; tasks and edges reject', () => {
+  const doc = emptyDocument();
+  const target = {
+    id: 'original',
+    type: 'animation' as const,
+    title: 'keep',
+    x: 10,
+    y: 20,
+    width: 520,
+    height: 580,
+    sectionId: 'group',
+    assetPath: 'old.png',
+    frameSetInfo: atlas(),
+  };
+  doc.nodes.push(target);
+  const prepared = { ...target, id: 'discard-new-id', x: 0, y: 0, assetPath: 'new.png' };
+  const before = JSON.stringify(doc);
+  const patch = importedCanvasMediaPatch(doc, target, prepared);
+  expect(JSON.stringify(doc)).toBe(before);
+  expect(patch).toEqual({ assetPath: 'new.png', assetVersion: undefined, frameSetInfo: atlas() });
+  Object.assign(target, patch);
+  expect(target).toMatchObject({
+    id: 'original',
+    title: 'keep',
+    x: 10,
+    y: 20,
+    width: 520,
+    height: 580,
+    sectionId: 'group',
+  });
+  for (const state of [
+    { generation: { prompt: 'paid' } },
+    { templatePending: true },
+    { sourceSnapshot: { id: 'source' } },
+    { generationDraft: { operation: 'generate' } },
+  ]) {
+    const protectedTarget = { ...target, ...state } as typeof target;
+    doc.nodes[0] = protectedTarget;
+    expect(() => importedCanvasMediaPatch(doc, protectedTarget, prepared)).toThrow('无任务');
+  }
+  doc.nodes[0] = target;
+  doc.edges.push({ id: 'dep', from: 'source', to: target.id, kind: 'sequence-frames' });
+  expect(() => importedCanvasMediaPatch(doc, target, prepared)).toThrow('无依赖');
+  doc.edges = [];
+  expect(() =>
+    importedCanvasMediaPatch(doc, target, { ...prepared, type: 'video-source' })
+  ).toThrow();
 });

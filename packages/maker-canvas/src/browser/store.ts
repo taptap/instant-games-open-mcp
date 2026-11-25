@@ -27,7 +27,8 @@ export interface CanvasTemplateStore {
     itemIndex?: number
   ): Promise<Blob>;
   modelPreviewUrl?(id: string, revision: number): string;
-  listTemplatePage(page: number, query: string): Promise<CanvasTemplatePage>;
+  /** `category` limits user templates to one library filter; hosts that ignore it list them all. */
+  listTemplatePage(page: number, query: string, category?: string): Promise<CanvasTemplatePage>;
   getTemplate(id: string): Promise<CanvasWorkflowTemplate>;
   getCover(
     id: string,

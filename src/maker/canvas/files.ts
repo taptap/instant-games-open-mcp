@@ -48,6 +48,7 @@ import {
 } from './templates.js';
 import { builtinCanvasTemplates, canvasPresets } from './presets.js';
 import { readTemplatePage } from './templateCatalog.js';
+import { templateCategories } from './templatePresentation.js';
 import {
   canvasSupportsPlatform,
   validateCanvasPlatforms,
@@ -84,6 +85,11 @@ function templateSkills(value: unknown): string[] | undefined {
   )
     fail('模板 Skill 名称无效。', 400, 'INVALID_DOCUMENT');
   return [...new Set(value)] as string[];
+}
+
+/** A category this version lists; one saved by a newer version is ignored, not an error. */
+function templateCategory(value: string): string | undefined {
+  return (templateCategories.slice(1, -1) as readonly string[]).includes(value) ? value : undefined;
 }
 
 function inside(root: string, target: string): boolean {
@@ -290,10 +296,16 @@ export class MakerCanvasFiles {
     return { ...parsed, builtin: true };
   }
 
-  async listTemplatePage(page = 1, query = '') {
+  async listTemplatePage(page = 1, query = '', category = '') {
     this.assertStorageShape();
     const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'templates'));
-    return readTemplatePage(folder, (id) => this.readTemplate(id), page, query.slice(0, 80));
+    return readTemplatePage(
+      folder,
+      (id) => this.readTemplate(id),
+      page,
+      query.slice(0, 80),
+      templateCategory(category) || ''
+    );
   }
 
   getTemplate(id: string): CanvasWorkflowTemplate {
@@ -347,7 +359,7 @@ export class MakerCanvasFiles {
     if (!sourcePath) fail('模板没有此预览图片。', 404, 'NOT_FOUND');
     const animation = templateCoverAnimation(template, false, slot);
     const relative =
-      '.maker/canvases/templates/' + id + '-cover-v4-' + slot + '-' + revision + '.png';
+      '.maker/canvases/templates/' + id + '-cover-v5-' + slot + '-' + revision + '.png';
     if (fs.existsSync(path.join(this.root, relative))) {
       const file = this.safeProjectFile(relative);
       if (fs.statSync(file).size > 10 * 1024 * 1024) fail('缩略图过大。', 413, 'STORAGE_LIMIT');
@@ -395,12 +407,12 @@ export class MakerCanvasFiles {
     )
       fail('缩略图 PNG 尺寸或大小不符合预览规格。', 400, 'INVALID_IMAGE');
     const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'templates'));
-    this.atomicWrite(folder, id + '-cover-v4-' + slot + '-' + revision + '.png', bytes);
+    this.atomicWrite(folder, id + '-cover-v5-' + slot + '-' + revision + '.png', bytes);
   }
 
   private removeTemplateCover(id: string, revision: number): void {
     const markers = ['-cover-', '-cover-v2-'];
-    for (const version of [3, 4])
+    for (const version of [3, 4, 5])
       for (let slot = 0; slot < 5; slot++) markers.push('-cover-v' + version + '-' + slot + '-');
     for (const marker of markers) {
       const relative = '.maker/canvases/templates/' + id + marker + revision + '.png';
@@ -433,6 +445,13 @@ export class MakerCanvasFiles {
     const skills = templateSkills(input.skills);
     if (input.cliOnly !== undefined && typeof input.cliOnly !== 'boolean')
       fail('模板执行标识无效。', 400, 'INVALID_DOCUMENT');
+    const description = text(input.description, 120, '模板说明').trim();
+    const category = templateCategory(text(input.category, 20, '模板分类'));
+    if (
+      input.coverNodeId !== undefined &&
+      !template.nodes.some((node) => node.id === input.coverNodeId)
+    )
+      fail('模板封面卡片不存在，请重新选择。', 400, 'INVALID_DOCUMENT');
     return {
       ...template,
       id: input.id,
@@ -440,6 +459,9 @@ export class MakerCanvasFiles {
       ...(input.platforms ? { platforms: [...input.platforms] } : {}),
       ...(skills?.length ? { skills } : {}),
       ...(input.cliOnly ? { cliOnly: true } : {}),
+      ...(description ? { description } : {}),
+      ...(category ? { category } : {}),
+      ...(input.coverNodeId ? { coverNodeId: input.coverNodeId } : {}),
     };
   }
 

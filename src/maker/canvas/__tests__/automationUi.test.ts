@@ -66,6 +66,48 @@ test('live snapshots do not change before acknowledgement when a person edits la
   expect(result.nodes[0].generation.prompt).toBe('old prompt');
 });
 
+test('explicit import target is forwarded in place; blocked task and mixed prompt never import', async () => {
+  const { current, options, ui, command } = fixture();
+  const target = { ...current.nodes[0], type: 'video-source' as const };
+  delete target.generation;
+  current.nodes[0] = target;
+  const importAsset = jest.fn(async (_input: Record<string, unknown>) => {});
+  const nodeBlocked = jest.fn(() => false);
+  Object.assign(options, { importAsset, nodeBlocked });
+  const replace = {
+    ...command,
+    action: 'import',
+    input: { targetId: target.id, kind: 'video', assetPath: 'review.mp4' },
+  };
+  await ui.execute(replace);
+  expect(importAsset).toHaveBeenCalledWith(
+    expect.objectContaining({ targetId: target.id, assetPath: 'review.mp4' })
+  );
+  expect(current.nodes).toHaveLength(1);
+  nodeBlocked.mockReturnValue(true);
+  await expect(ui.execute(replace)).rejects.toThrow('未确认');
+  nodeBlocked.mockReturnValue(false);
+  await expect(
+    ui.execute({ ...replace, input: { ...replace.input, prompt: 'not allowed' } })
+  ).rejects.toThrow('不能与');
+  expect(importAsset).toHaveBeenCalledTimes(1);
+});
+
+test('explicit changed-image retry requires paid approval and only invokes the single-card hook', async () => {
+  const { current, options, ui, command } = fixture();
+  const retryChangedImageOnce = jest.fn(async () => true);
+  const run = jest.fn();
+  Object.assign(options, { retryChangedImageOnce, run });
+  const retry = { ...command, action: 'retry-changed-image', input: { id: 'image' } };
+  await expect(ui.execute(retry)).rejects.toThrow('--allow-paid');
+  expect(retryChangedImageOnce).not.toHaveBeenCalled();
+  await ui.execute({ ...retry, allowPaid: true });
+  expect(retryChangedImageOnce).toHaveBeenCalledTimes(1);
+  expect(retryChangedImageOnce).toHaveBeenCalledWith(current.nodes[0].id);
+  expect(run).not.toHaveBeenCalled();
+  expect(options.save).toHaveBeenCalledTimes(1);
+});
+
 test.each(['fill-slot', 'replace-image'])(
   '%s completes the supplied image but invalidates downstream output',
   async (action) => {

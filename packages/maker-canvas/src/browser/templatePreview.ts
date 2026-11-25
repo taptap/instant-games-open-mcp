@@ -2,7 +2,12 @@ import type { CanvasTemplateStore } from '../browser/templates.js';
 import { canvasWirePath } from '../core/wirePath.js';
 import { resourceBundleOwner } from '../features/resourceBundle.js';
 
-export function openCanvasTemplatePreview(store: CanvasTemplateStore, id: string, name: string) {
+export function openCanvasTemplatePreview(
+  store: CanvasTemplateStore,
+  id: string,
+  name: string,
+  use?: () => void
+) {
   const dialog = document.createElement('dialog');
   dialog.className = 'workflow-template-dialog template-workflow-preview';
   dialog.setAttribute('aria-label', '模板流程预览');
@@ -60,6 +65,14 @@ export function openCanvasTemplatePreview(store: CanvasTemplateStore, id: string
   });
   const close = button('关闭', () => dialog.close());
   close.className = 'template-preview-close';
+  if (use) {
+    // Adding stays with the library card, so its busy state and errors are the same ones.
+    const add = button('使用模板', () => {
+      dialog.close();
+      use();
+    });
+    add.className = 'template-add';
+  }
   // Keep the underlying canvas shortcuts from editing the document behind the modal.
   dialog.addEventListener('keydown', (event) => event.stopPropagation());
   dialog.addEventListener('keyup', (event) => event.stopPropagation());
@@ -110,6 +123,8 @@ export function openCanvasTemplatePreview(store: CanvasTemplateStore, id: string
         return;
       }
       status.textContent = '';
+      if (template.description)
+        help.textContent = template.description + ' · 只读预览，滚轮缩放，拖动查看';
       const nodes = template.nodes
         .filter((node) => !resourceBundleOwner(template, node.id))
         .map((node) =>
@@ -232,7 +247,40 @@ export function openCanvasTemplatePreview(store: CanvasTemplateStore, id: string
                 };
                 if (frameSet?.frames.length) {
                   img.onload = () => {
-                    const frame = frameSet.frames[0];
+                    // Keep a readable resting image instead of shrinking the whole atlas.
+                    // Score only tiny samples; never scan the original full-resolution frames.
+                    const probe = document.createElement('canvas');
+                    probe.width = probe.height = 32;
+                    const pixels = probe.getContext('2d', { willReadFrequently: true });
+                    const sx = img.naturalWidth / frameSet.width;
+                    const sy = img.naturalHeight / frameSet.height;
+                    let frame = frameSet.frames[0];
+                    let most = -1;
+                    if (pixels)
+                      for (const candidate of frameSet.frames) {
+                        pixels.clearRect(0, 0, 32, 32);
+                        pixels.drawImage(
+                          img,
+                          candidate.x * sx,
+                          candidate.y * sy,
+                          candidate.width * sx,
+                          candidate.height * sy,
+                          0,
+                          0,
+                          32,
+                          32
+                        );
+                        const data = pixels.getImageData(0, 0, 32, 32).data;
+                        let shown = 0;
+                        for (let offset = 0; offset < data.length; offset += 4)
+                          shown +=
+                            data[offset + 3] *
+                            (64 + Math.max(data[offset], data[offset + 1], data[offset + 2]));
+                        if (shown > most) {
+                          most = shown;
+                          frame = candidate;
+                        }
+                      }
                     const canvas = document.createElement('canvas');
                     canvas.width = frame.width;
                     canvas.height = frame.height;
@@ -242,8 +290,6 @@ export function openCanvasTemplatePreview(store: CanvasTemplateStore, id: string
                       return;
                     }
                     // Preview images may be scaled thumbnails of the original atlas.
-                    const sx = img.naturalWidth / frameSet.width;
-                    const sy = img.naturalHeight / frameSet.height;
                     context.drawImage(
                       img,
                       frame.x * sx,
@@ -273,7 +319,13 @@ export function openCanvasTemplatePreview(store: CanvasTemplateStore, id: string
             ['image', 'sequence', 'animation', 'model-views'].includes(node.type) &&
             store.getPreviewImage
           ) {
-            loadImage(content, node.id, node.title);
+            loadImage(
+              content,
+              node.id,
+              node.title,
+              undefined,
+              ['sequence', 'animation'].includes(node.type) ? node.frameSetInfo : undefined
+            );
           } else if (['video', 'video-source'].includes(node.type)) {
             const sequence = nodes.find(
               (source) =>

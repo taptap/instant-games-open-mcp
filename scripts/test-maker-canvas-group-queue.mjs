@@ -150,7 +150,7 @@ try {
   canvas = { ...canvas, nodes: [], edges: [], viewport: { x: 0, y: 0, scale: 1 } };
   await page.reload();
   await page.getByRole('button', { name: '添加模板', exact: true }).click();
-  await page.getByRole('button', { name: '添加', exact: true }).click();
+  await page.locator('.template-add').click();
   await page.getByRole('group', { name: '游戏UI制作执行队列', exact: true }).getByRole('button', { name: '▶ 完成剩余流程', exact: true }).waitFor();
   await page.getByText('已保存', { exact: true }).waitFor();
   assert.equal(canvas.nodes.filter(node => node.templatePending).length, 23);

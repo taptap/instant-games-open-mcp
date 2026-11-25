@@ -27,6 +27,14 @@ export function templateCoverNode(
       : undefined;
   }
   if (slot !== 0) return;
+  // An explicit choice wins when that card still holds something a cover can show.
+  const chosen = template.nodes.find((node) => node.id === template.coverNodeId);
+  if (
+    chosen?.assetPath &&
+    (chosen.type === 'image' ||
+      (['animation', 'sequence'].includes(chosen.type) && chosen.frameSetInfo?.frames.length))
+  )
+    return chosen;
   const results = template.nodes
     .filter((node) => node.assetPath && node.frameSetInfo?.frames.length)
     .sort((left, right) => left.x - right.x || left.y - right.y || left.id.localeCompare(right.id));
@@ -37,7 +45,20 @@ export function templateCoverNode(
   const images = template.nodes
     .filter((node) => node.type === 'image' && node.assetPath)
     .sort((left, right) => left.x - right.x || left.y - right.y || left.id.localeCompare(right.id));
-  return images.find((node) => !template.edges.some((edge) => edge.to === node.id)) || images[0];
+  // Show what the workflow produces: the largest saved image that no later image is made from.
+  const made = images.filter((node) => template.edges.some((edge) => edge.to === node.id));
+  const final = made.filter(
+    (node) =>
+      !template.edges.some(
+        (edge) => edge.from === node.id && made.some((next) => next.id === edge.to)
+      )
+  );
+  return (
+    (final.length ? final : made).reduce<CanvasNode | undefined>(
+      (best, node) => (best && best.width * best.height >= node.width * node.height ? best : node),
+      undefined
+    ) || images[0]
+  );
 }
 
 export function templateCoverSource(

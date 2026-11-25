@@ -165,7 +165,7 @@ try {
   console.log('PASS 真实拖出/拖入分组，保存后归属正确');
 
   await page.getByRole('button', { name: '添加模板', exact: true }).click();
-  await dialog.locator('.workflow-template-row').filter({ hasText: '游戏动作流程' }).getByRole('button', { name: '添加', exact: true }).click();
+  await dialog.locator('.workflow-template-row').filter({ hasText: '游戏动作流程' }).locator('.template-add').click();
   await until(
     async () => (await saved()).nodes.filter((node) => node.type === 'section').length === 2
   );
@@ -252,7 +252,7 @@ try {
     if (name === '首尾帧变身 · 灰狼→狼王')
       assert.equal(await row.locator('.template-description').textContent(), '首尾帧必填与对比 → 变身视频 → 抽帧 → 动画');
     assert.equal(await row.getByRole('button').count(), 1);
-    await row.getByRole('button', { name: '添加', exact: true }).click();
+    await row.locator('.template-add').click();
     await until(async () => (await saved()).nodes.filter(node => node.type === 'section').length === presetNames.indexOf(name) + 1);
     await until(() => page.locator('.card video').evaluateAll(videos => videos.every(video => video.readyState >= 1)));
     await until(() => page.evaluate(() => document.getElementById('status').textContent === '已保存' && !window.makerCanvasUnsaved));
@@ -416,17 +416,17 @@ try {
   await until(async () => await firstCover.evaluate(canvas => canvas.toDataURL()) !== still);
   await animationRow.locator('.template-description').hover();
   await until(async () => await firstCover.evaluate(canvas => canvas.toDataURL()) !== still);
-  await animationRow.getByRole('button', { name: '添加', exact: true }).hover();
+  await animationRow.locator('.template-add').hover();
   await until(async () => await firstCover.evaluate(canvas => canvas.toDataURL()) !== still);
-  await page.getByRole('heading', { name: '添加模板', exact: true }).hover();
+  await page.getByRole('heading', { name: '工作流模板', exact: true }).hover();
   await until(async () => await firstCover.evaluate(canvas => canvas.toDataURL()) === still);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await animationRow.locator('.template-card-heading').hover();
   await page.waitForTimeout(250);
   assert.equal(await firstCover.evaluate(canvas => canvas.toDataURL()), still);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.getByRole('heading', { name: '添加模板', exact: true }).hover();
-  await animationRow.getByRole('button', { name: '添加', exact: true }).focus();
+  await page.getByRole('heading', { name: '工作流模板', exact: true }).hover();
+  await animationRow.locator('.template-add').focus();
   await until(async () => await firstCover.evaluate(canvas => canvas.toDataURL()) !== still);
   await dialog.getByRole('searchbox', { name: '搜索模板' }).focus();
   await until(async () => await firstCover.evaluate(canvas => canvas.toDataURL()) === still);
@@ -519,7 +519,7 @@ try {
     assert.equal(await row.getByRole('button').count(), 1);
     const description = await row.locator('.template-description').textContent();
     assert(!description.includes('抽帧 → 动画'));
-    await row.getByRole('button', { name: '添加', exact: true }).click();
+    await row.locator('.template-add').click();
     added++;
     await until(async () => (await saved()).nodes.filter(node => node.type === 'section').length === added);
     await until(() => page.evaluate(() => document.getElementById('status').textContent === '已保存' && !window.makerCanvasUnsaved));

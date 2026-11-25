@@ -182,7 +182,8 @@ export function createTemplateWorkflow(options: {
   function resolveTarget(
     sourceId: string,
     type: CanvasNodeType,
-    preferredTargetId?: string
+    preferredTargetId?: string,
+    intent?: 'derive'
   ): TemplateOutputDecision | undefined {
     const document = options.getDocument();
     const flow = document?.templateFlow;
@@ -198,6 +199,7 @@ export function createTemplateWorkflow(options: {
       return blocked;
     if (
       type === 'image' &&
+      intent !== 'derive' &&
       canEditImage(sourceId) &&
       (!member || member.templatePending || !document.edges.some((edge) => edge.to === sourceId)) &&
       (!preferredTargetId || preferredTargetId === sourceId)

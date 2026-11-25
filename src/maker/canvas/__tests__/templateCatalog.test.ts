@@ -273,19 +273,150 @@ test('bad files and symbolic links do not break the library or expose outside te
   expect(result.presets).toHaveLength(builtinCanvasTemplates().length);
 });
 
-test('cover source chooses a starting image, falling back to a stable image or no cover', async () => {
+test('cover shows the workflow result, an explicit card when chosen, else a stable image or none', async () => {
   const template = (await files.listTemplates())[0];
-  const source = template.nodes[0];
+  const source = { ...template.nodes[0], builtin: undefined };
   const derived = { ...source, id: createId(), x: source.x - 300, assetPath: 'derived.png' };
+  const cropped = {
+    ...source,
+    id: createId(),
+    width: source.width / 2,
+    assetPath: 'cropped.png',
+  };
   const branch = { ...source, id: createId(), x: source.x + 300, assetPath: 'branch.png' };
   const workflow = {
     ...template,
+    builtin: undefined,
     nodes: [branch, derived, source],
     edges: [{ id: createId(), from: source.id, to: derived.id, kind: 'image-variant' as const }],
   };
-  expect(templateCoverSource(workflow)).toBe(source.assetPath);
+  // The made image represents the template, not the input it started from.
+  expect(templateCoverSource(workflow)).toBe('derived.png');
+  // A smaller crop made from the result is the last step, so it is the result.
+  const chained = {
+    ...workflow,
+    nodes: [...workflow.nodes, cropped],
+    edges: [
+      ...workflow.edges,
+      { id: createId(), from: derived.id, to: cropped.id, kind: 'image-variant' as const },
+    ],
+  };
+  expect(templateCoverSource(chained)).toBe('cropped.png');
+  // ...unless the author says the sheet it was cut from shows the template better.
+  expect(templateCoverSource({ ...chained, coverNodeId: derived.id })).toBe('derived.png');
+  // A chosen card that lost its image, or is gone, falls back instead of leaving no cover.
+  expect(
+    templateCoverSource({
+      ...chained,
+      coverNodeId: derived.id,
+      nodes: chained.nodes.map((node) =>
+        node.id === derived.id ? { ...node, assetPath: undefined } : node
+      ),
+    })
+  ).toBe('cropped.png');
+  expect(templateCoverSource({ ...workflow, coverNodeId: createId() })).toBe('derived.png');
+  expect(templateCoverSource({ ...workflow, edges: [] })).toBe(derived.assetPath);
   expect(templateCoverSource({ ...workflow, nodes: [derived] })).toBe('derived.png');
   expect(templateCoverSource({ ...workflow, nodes: [] })).toBeUndefined();
+});
+
+test('library card details survive save, rename, listing, search, category filter and archive', async () => {
+  const input = {
+    id: createId(),
+    type: 'image' as const,
+    title: '角色参考',
+    x: 0,
+    y: 0,
+    width: 200,
+    height: 120,
+  };
+  const output = {
+    ...input,
+    id: createId(),
+    type: 'image-assets' as const,
+    title: '设定稿',
+    x: 240,
+  };
+  const draft = {
+    id: createId(),
+    name: '角色设定',
+    revision: 0,
+    description: '  单张角色图 → 三视图与表情设定稿  ',
+    category: '角色与动画',
+    coverNodeId: output.id,
+    nodes: [input, output],
+    edges: [{ id: createId(), from: input.id, to: output.id, kind: 'image-assets' as const }],
+  };
+  const saved = await files.saveTemplate(draft);
+  expect(saved).toMatchObject({
+    description: '单张角色图 → 三视图与表情设定稿',
+    category: '角色与动画',
+    coverNodeId: output.id,
+  });
+  // Renaming sends the whole template back, as the library does.
+  const renamed = await files.saveTemplate({ ...files.getTemplate(saved.id), name: '角色设定稿' });
+  expect(files.getTemplate(renamed.id)).toMatchObject({
+    name: '角色设定稿',
+    description: saved.description,
+    category: saved.category,
+    coverNodeId: output.id,
+  });
+  const plain = await files.saveTemplate({
+    ...draft,
+    id: createId(),
+    name: '旧模板',
+    description: undefined,
+    category: undefined,
+    coverNodeId: undefined,
+  });
+  expect(plain).not.toHaveProperty('description');
+  expect(plain).not.toHaveProperty('category');
+  expect(plain).not.toHaveProperty('coverNodeId');
+
+  const all = await files.listTemplatePage();
+  expect(all.total).toBe(2);
+  expect(all.items.find((item) => item.id === saved.id)).toMatchObject({
+    description: saved.description,
+    category: '角色与动画',
+  });
+  expect(all.items.find((item) => item.id === plain.id)).not.toHaveProperty('category');
+  expect(all.presets.every((item) => typeof item.category === 'string')).toBe(true);
+  // Search reads the purpose line and the category, not only the name.
+  expect((await files.listTemplatePage(1, '三视图')).items.map((item) => item.id)).toEqual([
+    saved.id,
+  ]);
+  expect((await files.listTemplatePage(1, '角色与动画')).items.map((item) => item.id)).toEqual([
+    saved.id,
+  ]);
+  // A category lists only the user templates filed under it; uncategorised ones stay in 全部.
+  const filtered = await files.listTemplatePage(1, '', '角色与动画');
+  expect(filtered.items.map((item) => item.id)).toEqual([saved.id]);
+  expect(filtered.total).toBe(1);
+  expect((await files.listTemplatePage(1, '', 'UI 设计')).total).toBe(0);
+  expect((await files.listTemplatePage(1, '', '不存在的分类')).total).toBe(2);
+
+  const imported = await files.importTemplate(
+    await files.exportTemplate(renamed.id, renamed.revision)
+  );
+  expect(imported).toMatchObject({
+    description: saved.description,
+    category: saved.category,
+    coverNodeId: output.id,
+  });
+  expect(imported.nodes.some((node) => node.id === imported.coverNodeId)).toBe(true);
+
+  // Invalid details are refused; a category from a newer version is dropped, not fatal.
+  const next = { ...draft, id: createId() };
+  await expect(files.saveTemplate({ ...next, description: 'x'.repeat(121) })).rejects.toThrow(
+    '模板说明'
+  );
+  await expect(files.saveTemplate({ ...next, category: 7 as never })).rejects.toThrow('模板分类');
+  await expect(files.saveTemplate({ ...next, coverNodeId: createId() })).rejects.toThrow(
+    '封面卡片'
+  );
+  expect(await files.saveTemplate({ ...next, category: '未来分类' })).not.toHaveProperty(
+    'category'
+  );
 });
 
 test('covers prefer animation then saved frames, sampling the whole action within a bounded preview', async () => {
@@ -413,14 +544,14 @@ test('revision-bound thumbnails are small, isolated, invalidate on replace and r
       path.join(
         root,
         '.maker/canvases/templates',
-        replaced.id + '-cover-v4-0-' + replaced.revision + '.png'
+        replaced.id + '-cover-v5-0-' + replaced.revision + '.png'
       )
     )
   ).toBe(false);
   const cache = path.join(
     root,
     '.maker/canvases/templates',
-    builtin.id + '-cover-v4-0-' + builtin.revision + '.png'
+    builtin.id + '-cover-v5-0-' + builtin.revision + '.png'
   );
   fs.unlinkSync(cache);
   const external = path.join(root, 'outside.png');

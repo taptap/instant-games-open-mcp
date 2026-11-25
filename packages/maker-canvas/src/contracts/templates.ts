@@ -8,6 +8,12 @@ export interface CanvasWorkflowTemplate extends CanvasPlatformScope {
   builtin?: boolean;
   cliOnly?: boolean;
   skills?: string[];
+  /** One-line "input → output" purpose shown on the library card and matched by search. */
+  description?: string;
+  /** Library filter; templates without one remain visible under 全部 and 我的模板. */
+  category?: string;
+  /** Card whose saved result represents the template; falls back to the default cover choice. */
+  coverNodeId?: string;
   nodes: CanvasNode[];
   edges: CanvasEdge[];
 }
@@ -21,6 +27,7 @@ export interface CanvasTemplateSummary extends CanvasPlatformScope {
   id: string;
   name: string;
   description?: string;
+  category?: string;
   revision: number;
   builtin?: boolean;
   cliOnly?: boolean;

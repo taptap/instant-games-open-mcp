@@ -27,7 +27,8 @@ export interface Ui015Result {
 /**
  * Stage coordinator for the 015 Bbox template. One "开始" (or CLI `run`) drives the whole
  * group to an assembled UI: recognition, batches, prelayout, separation, cutting, assembly and
- * meta. Errors are retried (at most twice per step) and quality problems are recorded instead
+ * meta. Definite failures are retried (at most twice per step); unknown paid outcomes stop.
+ * Quality problems are recorded instead
  * of stopping; the final review prompt hands them to an AI with the Skill. It derives every
  * stage from the real cards, queue state and delivery record, and only calls existing actions.
  */
@@ -39,11 +40,11 @@ export function createUi015Workflow(options: {
   runImage(id: string): Promise<boolean>;
   /** Query or resume the card's original recognition request. */
   recognize(id: string, recover: boolean): Promise<boolean>;
-  /** Query an unknown/failed image result; keep it if it arrived, else allow a resubmission. */
+  /** Keep an existing result or release a definite failure; unknown outcomes always stop. */
   recoverImage(
     id: string,
     force?: boolean
-  ): Promise<'recovered' | 'released' | 'waiting' | 'blocked'>;
+  ): Promise<'recovered' | 'released' | 'waiting' | 'blocked' | 'unknown'>;
   /** Query a card's pending recognition request (not image history); see recoverImage. */
   recoverRecognition(id: string, force?: boolean): Promise<'released' | 'waiting' | 'abandoned'>;
   chooseDesign(id: string): void;
@@ -91,7 +92,7 @@ export function createUi015Workflow(options: {
 }) {
   const templateId = '7e1cb6ad-732f-4dc3-a951-000000000015';
   const executingPhases = ['queued', 'running', 'waiting'];
-  /** Automatic retries per failing step and per run. */
+  /** Maximum unattended attempts for definite failures. Unknown outcomes always stop for review. */
   const RETRIES = 2;
   let running = '';
   const deliveries = new Map<string, { key: string; value?: CanvasUiDeliveryStatus }>();
@@ -267,7 +268,7 @@ export function createUi015Workflow(options: {
       return {
         stage: 'generation' as const,
         message: autoRuns.has(groupId)
-          ? '自动处理中：失败或结果未知的步骤会自动重试，完成后组装 UI'
+          ? '自动处理中：明确失败的步骤会有限重试；结果未知时暂停核查'
           : queue?.phase === 'paused'
             ? '已暂停：点击继续，先核对原任务，再自动完成剩余步骤并组装 UI'
             : '下一步：预排、分离生图与切图，完成后自动组装 UI',
@@ -292,7 +293,7 @@ export function createUi015Workflow(options: {
   /**
    * Input, text removal and two-pass recognition with automatic retries. An unknown
    * recognition is resumed with its original request ID (no double charge); an unknown or
-   * failed image is queried first and only resubmitted when no result arrived.
+   * failed image is recovered locally when possible. Unknown images stop without resubmission.
    */
   async function prepare(groupId: string) {
     let waits = 0;
@@ -325,8 +326,12 @@ export function createUi015Workflow(options: {
             );
         } else
           for (const id of [found.input.id, found.cut.id])
-            if (options.needs(id) || options.problem?.(id))
-              pending ||= (await options.recoverImage(id, force)) === 'waiting';
+            if (options.needs(id) || options.problem?.(id)) {
+              const recovered = await options.recoverImage(id, force);
+              if (recovered === 'unknown')
+                throw new Error('原图片任务结果未知，已暂停015；请先核查原任务，不会自动重试。');
+              pending ||= recovered === 'waiting';
+            }
         if (pending) {
           // The original task is still running on the server: wait without spending a retry.
           waits++;
@@ -486,8 +491,8 @@ export function createUi015Workflow(options: {
     setTimeout(() => void finishRun(groupId), 0);
   }
   /**
-   * After the queue: retry failed or unknown steps (an image result is queried first and only
-   * resubmitted when none arrived; at most RETRIES times per card), then assemble whatever
+   * After the queue: recover existing image results and retry definite failures (at most
+   * RETRIES times per card). Unknown outcomes stop for review. Then assemble whatever
    * exists. Anything still missing is recorded in the delivery and the review prompt.
    */
   function finalResult(
@@ -526,8 +531,8 @@ export function createUi015Workflow(options: {
     if (queue && executingPhases.includes(queue.phase)) return;
     // One budget per card: the queue's counter holds both its own and these retries.
     const spent = (id: string) => queue?.retries?.[id] || 0;
-    const failed = Object.keys(queue?.failures || {}).filter(
-      (id) => spent(id) < RETRIES && document_.nodes.some((node) => node.id === id)
+    const failed = Object.keys(queue?.failures || {}).filter((id) =>
+      document_.nodes.some((node) => node.id === id)
     );
     if (failed.length) {
       for (const id of failed) {
@@ -543,6 +548,14 @@ export function createUi015Workflow(options: {
           setTimeout(() => void finishRun(groupId), 30000);
           return;
         }
+        if (result === 'unknown') {
+          autoRuns.delete(groupId);
+          const message = '原图片任务结果未知，已暂停015；请先核查原任务，不会自动重试。';
+          options.log('015 · ' + message, 'warning');
+          options.error(message);
+          outcomes.set(groupId, { status: 'failed', stage: 'generation', message });
+          return;
+        }
         if (result === 'blocked') {
           autoRuns.delete(groupId);
           options.log(
@@ -552,6 +565,7 @@ export function createUi015Workflow(options: {
           finalResult(groupId, await assemble(groupId, false, true, run.cli));
           return;
         }
+        if (spent(id) >= RETRIES) continue;
         const count = options.queue.spendRetry(groupId, id);
         options.log(
           '015 · 「' +

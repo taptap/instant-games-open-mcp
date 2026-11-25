@@ -31,6 +31,7 @@ import {
   type VisionSource,
 } from './visionSettings.js';
 import { ConsoleError } from './types.js';
+import { mediaInputRecoveryHint } from '../server/mediaInputRecovery.js';
 import {
   serverRecognitionContext,
   serverRecognitionAvailable,
@@ -252,7 +253,26 @@ export class CanvasRecognitionService {
     });
     active.set(filename, task);
     try {
-      return await task;
+      const result = await task;
+      const hint = mediaInputRecoveryHint(result.error || '', () => {
+        const image =
+          result.phase === 'text' ? result.server!.text?.image : result.server!.cut.image;
+        if (!image) return [];
+        const media = this.files.readMedia(image.path);
+        return [
+          {
+            bytes: fs.statSync(media.file).size,
+            mimeType: media.type,
+            width: image.width,
+            height: image.height,
+          },
+        ];
+      });
+      if (hint) {
+        result.error += '\n' + hint;
+        this.write(result);
+      }
+      return result;
     } finally {
       active.delete(filename);
     }

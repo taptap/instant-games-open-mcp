@@ -158,8 +158,10 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   hasUnsettledResult(nodeId: string): boolean;
   recoverForRetry(
     nodeId: string,
-    force?: boolean
-  ): Promise<'recovered' | 'released' | 'waiting' | 'blocked'>;
+    force?: boolean,
+    allowChangedUnknown?: boolean
+  ): Promise<'recovered' | 'released' | 'waiting' | 'blocked' | 'unknown'>;
+  retryChangedImageOnce(nodeId: string): Promise<boolean>;
   nodeState(nodeId: string): { status: string; canQuery: boolean } | undefined;
   queueBlockReason(nodeId: string): string | undefined;
   failure(nodeId: string): string | undefined;
@@ -275,6 +277,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       unconfirmedImages.delete(key);
   }
   const inFlight = new Set<string>();
+  const retryingImages = new Set<string>();
   const imageFailures = new Map<string, string>();
   const drafts = new Map<string, string>();
   const references = new Map<string, string[]>();
@@ -2120,6 +2123,102 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     );
   }
 
+  function changedUnknownRetryReason(nodeId: string, list: any[]): string | undefined {
+    const current = options.getDocument();
+    const node = current?.nodes.find((item: any) => item.id === nodeId);
+    if (!current || !node || node.type !== 'image') return '此操作只适用于图片卡。';
+    const latest = latestNodeAttempt(nodeId);
+    if (latest?.kind !== 'image' || latest.status !== 'unknown')
+      return '此图片没有待处理的 unknown 任务，不会重新生成。';
+    if (latest.taskId) return '原图片任务已有编号；请先查询原任务，不能用新请求覆盖。';
+    const prompt = node.generationDraft?.prompt || node.generation?.prompt;
+    if (!prompt || !samePrompt(prompt, latest.prompt))
+      return '图片提示词已变化；请先核对当前任务与新提示词，不自动重试。';
+    const upstream = canvasReferences(current, nodeId).filter(
+      (source) => source.type === 'image' && source.assetPath
+    );
+    const sources =
+      node.referenceInput || usesResultInputs(node)
+        ? referenceSources(node)
+        : upstream.length
+          ? upstream
+          : referenceSources(node, true);
+    const ids = latest.sourceImageIds || (latest.sourceImageId ? [latest.sourceImageId] : []);
+    const paths =
+      latest.sourceImagePaths || (latest.sourceImagePath ? [latest.sourceImagePath] : []);
+    const snapshots =
+      latest.sourceSnapshots || (latest.sourceSnapshot ? [latest.sourceSnapshot] : []);
+    const inputChanged =
+      ids.length > 0 &&
+      paths.length === ids.length &&
+      sources.length > 0 &&
+      (sources.length !== ids.length ||
+        sources.some(
+          (source: any, index: number) =>
+            source.id !== ids[index] || source.assetPath !== paths[index]
+        ) ||
+        snapshots.some(
+          (snapshot: any) =>
+            !isCanvasSourceCurrent(
+              snapshot,
+              sources.find((source: any) => source.id === snapshot.nodeId)
+            )
+        ));
+    if (!inputChanged)
+      return '原图片任务的输入没有变化或缺少可核实记录；请先更换或更新参考图片，再执行单次重试。';
+    if (
+      inFlight.has(nodeId) ||
+      list.some(
+        (attempt: any) =>
+          attempt.targetNodeId === nodeId && ['pending', 'running'].includes(attempt.status)
+      )
+    )
+      return '原图片任务仍在执行，未提交新请求。';
+  }
+
+  /** One explicit retry after an unknown result, allowed only after its source image changed. */
+  async function retryChangedImageOnce(nodeId: string): Promise<boolean> {
+    if (inFlight.has(nodeId) || retryingImages.has(nodeId)) {
+      options.setError('此图片正在执行，未提交新请求。');
+      return false;
+    }
+    retryingImages.add(nodeId);
+    const released: string[] = [];
+    try {
+      const current = options.getDocument();
+      if (!current) return false;
+      const list = await options.store.listGeneration(current.id);
+      if (options.getDocument() !== current) {
+        options.setError('画布已切换，请重新 inspect。');
+        return false;
+      }
+      for (const attempt of list) recordAttempt(attempt);
+      const reason = changedUnknownRetryReason(nodeId, list);
+      if (reason) {
+        options.setError(reason);
+        return false;
+      }
+      for (const attempt of attempts.values())
+        if (
+          attempt.canvasId === current.id &&
+          attempt.targetNodeId === nodeId &&
+          ['pending', 'running', 'unknown', 'canceled', 'failed'].includes(attempt.status)
+        )
+          if (!abandonedAttempts.has(attempt.id)) {
+            abandonedAttempts.add(attempt.id);
+            released.push(attempt.id);
+          }
+      unconfirmedImages.delete(current.id + ':' + nodeId);
+      imageFailures.delete(nodeId);
+      retryableImages.delete(nodeId);
+      return await runTemplateImage(nodeId);
+    } finally {
+      // The exception is scoped to this explicit submission, never to a later automatic run.
+      for (const id of released) abandonedAttempts.delete(id);
+      retryingImages.delete(nodeId);
+    }
+  }
+
   async function runTemplateVideo(
     nodeId: string,
     duration: number,
@@ -3364,6 +3463,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     },
     runTemplateVideo,
     runTemplateImage,
+    retryChangedImageOnce,
     hasInputDraft() {
       if (cancelReferencePick) return true;
       const current = options.getDocument();
@@ -3460,13 +3560,13 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
      * Automatic recovery for an unattended run: query the card's original task first and keep
      * a result that did arrive. A task the server still reports as pending/running is left
      * alone ('waiting') unless force is set, so it cannot be charged twice. Otherwise abandon
-     * its unknown or failed attempts so the next run of the card submits again. Nothing is
-     * submitted here.
+     * definite failures. Unknown paid outcomes always block automatic resubmission.
      */
     async recoverForRetry(
       nodeId: string,
-      force = false
-    ): Promise<'recovered' | 'released' | 'waiting' | 'blocked'> {
+      force = false,
+      allowChangedUnknown = false
+    ): Promise<'recovered' | 'released' | 'waiting' | 'blocked' | 'unknown'> {
       const documentState = options.getDocument();
       if (!documentState) return 'released';
       const list = await options.store.listGeneration(documentState.id);
@@ -3510,6 +3610,18 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         attempt.targetNodeId === nodeId &&
         !abandonedAttempts.has(attempt.id) &&
         ['pending', 'running'].includes(attempt.status);
+      if (
+        unconfirmedImages.has(documentState.id + ':' + nodeId) ||
+        [...attempts.values()].some(
+          (attempt) =>
+            attempt.canvasId === documentState.id &&
+            attempt.targetNodeId === nodeId &&
+            !abandonedAttempts.has(attempt.id) &&
+            attempt.status === 'unknown'
+        )
+      ) {
+        if (!allowChangedUnknown || changedUnknownRetryReason(nodeId, list)) return 'unknown';
+      }
       if (!force && [...attempts.values()].some(live)) return 'waiting';
       for (const attempt of attempts.values())
         if (

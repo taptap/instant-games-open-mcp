@@ -77,6 +77,7 @@ export function createCanvasAutomationUiWithHost(options: {
   ensureRecognitionNote?(node: CanvasNode): void;
   recognizeUi?(node: CanvasNode, recover: boolean, attemptId?: string): Promise<boolean>;
   run(id: string): Promise<boolean>;
+  retryChangedImageOnce?(id: string): Promise<boolean>;
   stop(id: string): void;
   canStop(id: string): boolean;
   query(id: string): Promise<void>;
@@ -204,6 +205,7 @@ export function createCanvasAutomationUiWithHost(options: {
       kind,
       title,
       ...(input.frameSetInfo === undefined ? {} : { frameSetInfo: input.frameSetInfo }),
+      ...(input.targetId === undefined ? {} : { targetId: input.targetId }),
     };
   }
   /** Same generation shape the page writes, so Web treats the card as an AI slot with this prompt. */
@@ -279,13 +281,14 @@ export function createCanvasAutomationUiWithHost(options: {
       connect: ['from', 'to'],
       disconnect: ['edgeId'],
       run: ['id', 'recognition', 'artText', 'background'],
+      'retry-changed-image': ['id'],
       'confirm-model': ['id', 'reviewId'],
       'preview-model': ['id'],
       'preview-image-assets': ['id', 'grid', 'cut'],
       'confirm-image-assets': ['id', 'reviewId'],
       stop: ['id'],
       query: ['id'],
-      import: ['assetPath', 'kind', 'title', 'prompt', 'sourceId', 'frameSetInfo'],
+      import: ['assetPath', 'kind', 'title', 'prompt', 'sourceId', 'frameSetInfo', 'targetId'],
       export: ['id', 'format', 'loop'],
       'set-references': ['id', 'sourceIds', 'includeSelf'],
       undo: [],
@@ -437,10 +440,13 @@ export function createCanvasAutomationUiWithHost(options: {
     }
     if (
       command.action === 'run' ||
+      command.action === 'retry-changed-image' ||
       command.action === 'query' ||
       command.action === 'confirm-model'
     ) {
       const target = node(input.id, current);
+      if (command.action === 'retry-changed-image' && command.allowPaid !== true)
+        throw invalid('执行单卡重试需传入 --allow-paid。');
       if (
         command.action !== 'query' &&
         command.allowPaid !== true &&
@@ -453,6 +459,15 @@ export function createCanvasAutomationUiWithHost(options: {
       options.busyChanged(true);
       try {
         if (command.action === 'run' && target.type === 'mark') throw invalid('标注不能执行生成。');
+        if (command.action === 'retry-changed-image') {
+          if (target.type !== 'image' || !options.retryChangedImageOnce)
+            throw invalid('此操作只适用于已有图片生成记录的图片卡。');
+          if (!(await options.retryChangedImageOnce(target.id)))
+            throw new Error(options.error() || '图片没有按当前输入完成一次受控重试。');
+          if (!(await options.save()))
+            throw new Error('结果已留在页面，但保存失败。请手动保存，不要重复生成。');
+          return snapshot();
+        }
         const bbox015 =
           target.type === 'section' &&
           (target.templateId === '7e1cb6ad-732f-4dc3-a951-000000000015' ||
@@ -620,7 +635,20 @@ export function createCanvasAutomationUiWithHost(options: {
           throw invalid('请选择导出 format，loop 必须为布尔值。');
         return await options.exportAsset(command, target);
       } else if (command.action === 'import') {
-        if (current.nodes.length >= 400) throw invalid('画布卡片已达到容量限制。');
+        if (input.targetId !== undefined) {
+          if (
+            typeof input.targetId !== 'string' ||
+            input.sourceId !== undefined ||
+            input.prompt !== undefined
+          )
+            throw invalid('targetId 只能用于独立导入动画或视频，不能与 sourceId 或 prompt 混用。');
+          const target = node(input.targetId, current);
+          if (
+            !['animation', 'video-source'].includes(target.type) ||
+            options.nodeBlocked(target.id)
+          )
+            throw invalid('目标不是独立导入动画/视频，或存在未确认任务和草稿。');
+        } else if (current.nodes.length >= 400) throw invalid('画布卡片已达到容量限制。');
         const asset = importInput(input);
         const source = input.sourceId === undefined ? undefined : node(input.sourceId, current);
         if (source) {

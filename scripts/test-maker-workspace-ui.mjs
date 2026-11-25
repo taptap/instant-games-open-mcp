@@ -378,7 +378,7 @@ try {
   await frame
     .locator('.workflow-template-row')
     .first()
-    .getByRole('button', { name: '添加', exact: true })
+    .locator('.template-add')
     .click();
   await frame.locator('.card.section').waitFor();
   assert.equal(await frame.locator('#canvas-title').textContent(), titleBeforeTemplate);
