@@ -40,12 +40,15 @@ async function helperStarted(): Promise<void> {
   const filename = path.join(root, 'helper.pid');
   for (let i = 0; i < 150; i++) {
     if (fs.existsSync(filename)) {
-      helperPid = Number(fs.readFileSync(filename, 'utf8'));
-      return;
+      const pid = Number(fs.readFileSync(filename, 'utf8'));
+      if (Number.isSafeInteger(pid) && pid > 0) {
+        helperPid = pid;
+        return;
+      }
     }
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
-  throw new Error('Helper did not start');
+  throw new Error('Helper did not publish a valid PID');
 }
 
 function expectProcessGone(pid: number): void {
