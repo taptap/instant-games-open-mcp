@@ -1250,6 +1250,8 @@ function updateChrome() {
   syncCustomSelect(picker);
   $('context').textContent = currentProject() ? text(detail?.git?.branch, '分支未提供') : '本地项目';
   $('context').title = currentProject()?.name || '本地项目';
+  const shutdownButton = $('console-shutdown');
+  if (shutdownButton) shutdownButton.disabled = !loaded || offline || shutdownPending;
   $('footer-path').textContent = currentProject()?.path || '';
   document.querySelectorAll('nav [data-page]').forEach(b => {
     b.disabled = !loaded || (!['documents','settings','other'].includes(b.dataset.page) && !currentProject()?.valid);
@@ -1726,33 +1728,47 @@ function renderOverview() {
     ['Git 分支',detail.git?.branch],['Git HEAD',detail.git?.head?.slice(0,10)],
     ['工作区变更',detail.git?.changeCount]
   ]));
-  const serviceActions = node('div',undefined,'console-service-actions');
-  serviceActions.append(button('关闭Maker控制台',() => void shutdownConsole(),{
-    className:'console-shutdown',disabled:offline || shutdownPending,focus:'console-shutdown'
-  }));
-  aside.append(configSection,gitSection,serviceActions);
+  aside.append(configSection,gitSection);
 
   const body = node('div',undefined,'overview-body');
   body.append(mainCol,aside);
   replace($('view'),[title,body]);
   ensureInitialContextCheck();
 }
+function shutdownBlocked() {
+  const editor = uiEditorState();
+  if (editor?.isDirty?.() || editor?.isBusy?.()) {
+    notify('请先保存 UI 编辑器的修改，并等待当前操作完成。','warning');
+    return true;
+  }
+  if (Array.from(canvasFrames.values()).some(frame => canvasUnsaved(frame) || canvasPending(frame))) {
+    notify('请先保存画布修改，并等待素材导入完成。','warning');
+    return true;
+  }
+  if (pending.size || state.tasks.some(task => task.status === 'running')) {
+    notify('仍有任务正在执行，请等待完成后再关闭控制台。','warning');
+    return true;
+  }
+  return false;
+}
 async function shutdownConsole() {
   if (shutdownPending || offline || disposed) return;
+  if (shutdownBlocked()) return;
   shutdownPending = true;
+  const shutdownButton = $('console-shutdown');
+  shutdownButton.disabled = true;
   try {
-    if (!await confirmAction('console.shutdown')) return;
-    if (pending.size || state.tasks.some(task => task.status === 'running')) {
-      notify('仍有任务正在执行，请等待完成后再关闭控制台。','warning');
-      return;
-    }
+    if (!await confirmAction('console.shutdown') || shutdownBlocked()) return;
     await api('/api/shutdown',{method:'POST',body:{}});
     dispose();
     updateChrome();
     $('connection').textContent = '正在关闭';
     $('connection').className = 'muted';
-    $('plugin-views').hidden = true;
-    $('view').replaceChildren(
+    for (const id of ['other-view','plugin-views','canvas-views','ui-editor-view']) $(id).hidden = true;
+    const view = $('view');
+    view.hidden = false;
+    view.dataset.view = '';
+    view.replaceChildren(
       node('h1','Maker 控制台正在关闭'),
       node('p','可以关闭此页面。再次使用时，请通过 Maker 重新打开控制台。','muted')
     );
@@ -1762,7 +1778,7 @@ async function shutdownConsole() {
       : error.message);
   } finally {
     shutdownPending = false;
-    if (!disposed) render();
+    shutdownButton.disabled = !loaded || offline;
   }
 }
 function luaLspPresentation(status) {
@@ -3744,6 +3760,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   document.addEventListener('keydown',event => { if (event.key === 'Escape') closeFortune(); });
   $('projects-button').addEventListener('click',() => navigate('projects'));
   $('settings-button').addEventListener('click',() => navigate('settings'));
+  $('console-shutdown').addEventListener('click',() => void shutdownConsole());
   $('close-canvas').addEventListener('click',closeCurrentCanvas);
   $('project-picker').addEventListener('change',event => chooseProject(event.target.value));
   $('maker-version-picker').addEventListener('change',selectMakerVersion);

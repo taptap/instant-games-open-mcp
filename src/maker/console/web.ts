@@ -79,7 +79,10 @@ export function getConsoleHtml(): string {
         <span id="stage-title" class="stage-title"><span class="crumb-group">工作区</span><span class="crumb-sep" aria-hidden="true">/</span><span class="crumb-page">项目概览</span></span>
         <button id="close-canvas" type="button" hidden>关闭当前项目画布</button>
       </div>
-      <div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>
+      <div class="context">
+        <span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span>
+        <button id="console-shutdown" type="button" class="console-shutdown" disabled>关闭控制台</button>
+      </div>
     </div>
     <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>
     <div class="stage-scroll">

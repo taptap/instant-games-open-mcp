@@ -92,6 +92,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
       offerIssueReport, showPendingIssueReport,
       poll, pollState, renderVisionSettings, customSelectMap, parseCommitFiles, renderUnifiedDiff,
       sendActivity, startActivityLease, dispose, shutdownConsole, rememberTask, buildPresentation, buildFailureMessage,
+      canvasFrames, setUiEditorFrame: frame => { uiEditorFrame = frame; },
       buildFailureDetails, luaLspPresentation, luaCheckBlocksBuild, runtimePresentation,
       previewPresentation: typeof previewPresentation === 'function' ? previewPresentation : undefined,
       previewStateLabel: typeof previewStateLabel === 'function' ? previewStateLabel : undefined,
@@ -816,19 +817,59 @@ describe('Maker console standalone UI', () => {
     expect(notify).toHaveBeenCalledWith(task.error);
   });
 
+  it('places the console shutdown control in the top bar after the connection status', () => {
+    const html = getConsoleHtml();
+    const bar = html.split('<div class="navigation">')[1]?.split('<div id="feedback"')[0];
+    expect(bar).toMatch(/id="connection"[\s\S]*id="console-shutdown"[^>]*disabled>/);
+    expect(bar).not.toMatch(/id="console-shutdown"[^>]*\bhidden\b/);
+    expect(html.match(/id="console-shutdown"/g)).toHaveLength(1);
+  });
+
   it.each([false, true])('only shuts down after confirmation=%s', async (confirmed) => {
     const { api, fetch } = harness();
     const confirm = jest.fn().mockResolvedValue(confirmed);
-    api.setup([], { render: jest.fn(), confirm, notify: jest.fn() });
+    const render = jest.fn();
+    api.setup([], { render, confirm, notify: jest.fn() });
+    api.setPage('settings');
     await api.shutdownConsole();
     expect(confirm).toHaveBeenCalledWith('console.shutdown');
     expect(fetch).toHaveBeenCalledTimes(confirmed ? 1 : 0);
     if (confirmed) {
       expect(fetch.mock.calls[0][0]).toBe('/api/shutdown');
       expect(fetch.mock.calls[0][1].method).toBe('POST');
-    }
+    } else expect(render).not.toHaveBeenCalled();
     expect(api.offline()).toBe(confirmed);
   });
+
+  it.each(['ui-dirty', 'ui-busy', 'canvas-dirty', 'canvas-import'])(
+    'protects open editors while shutting down from another page: %s',
+    async (blocker) => {
+      const { api, fetch } = harness();
+      const notify = jest.fn();
+      const confirm = jest.fn().mockResolvedValue(true);
+      api.setup([], { render: jest.fn(), confirm, notify });
+      api.setPage('settings');
+      api.setUiEditorFrame({
+        contentWindow: {
+          UrhoxProject: {
+            isDirty: () => blocker === 'ui-dirty',
+            isBusy: () => blocker === 'ui-busy',
+          },
+        },
+      });
+      api.canvasFrames.set('alpha', {
+        contentWindow: {
+          makerCanvasUnsaved: blocker === 'canvas-dirty',
+          makerCanvasPendingImport: blocker === 'canvas-import',
+        },
+      });
+      await api.shutdownConsole();
+      expect(notify).toHaveBeenCalledWith(expect.stringContaining('请先保存'), 'warning');
+      expect(confirm).not.toHaveBeenCalled();
+      expect(fetch).not.toHaveBeenCalled();
+      expect(api.offline()).toBe(false);
+    }
+  );
 
   it('keeps the console available if shutdown is rejected by active tasks', async () => {
     const { api, fetch } = harness();

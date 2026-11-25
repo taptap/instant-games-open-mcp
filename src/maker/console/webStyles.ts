@@ -161,16 +161,19 @@ body.sidebar-collapsed .theme-option{padding:0;width:30px;height:26px;justify-co
 .workspace-shell{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--bg)}
 .navigation{display:flex;align-items:center;justify-content:space-between;gap:16px;height:46px;padding:0 24px;border-bottom:1px solid var(--border);background:var(--bg);flex-shrink:0}
 .stage-meta{display:flex;align-items:center;gap:12px;min-width:0}
-.stage-title{display:inline-flex;align-items:center;font-size:13px;color:var(--text);white-space:nowrap;min-width:0}
+.stage-title{display:inline-flex;align-items:center;font-size:13px;color:var(--text);white-space:nowrap;min-width:0;overflow:hidden}
 .crumb-group{color:var(--muted);font-weight:500}
 .crumb-sep{color:var(--muted-dim);margin:0 7px;font-weight:400;user-select:none}
-.crumb-page{color:var(--text);font-weight:600}
+.crumb-page{color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis}
 .context{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);min-width:0}
-.navigation .context{justify-content:flex-end;flex-shrink:0;max-width:55%}
+.navigation .context{justify-content:flex-end;min-width:max-content}
+.navigation #connection{flex-shrink:0}
 .navigation #context{padding:2px 9px;border-radius:var(--radius-pill);background:var(--soft);border:1px solid var(--border);font:11px/1.6 "SFMono-Regular",Consolas,monospace;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
 #connection{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:var(--radius-pill);background:var(--soft);border:1px solid var(--border);font-size:11px;font-weight:500;white-space:nowrap}
 #connection.good{color:var(--green);background:color-mix(in srgb,var(--green) 10%,transparent);border-color:color-mix(in srgb,var(--green) 22%,transparent)}
 #connection.good::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green)}
+button.console-shutdown{flex-shrink:0;min-height:28px;padding:3px 10px;white-space:nowrap;background:transparent;color:var(--red);border-color:color-mix(in srgb,var(--red) 28%,var(--border));font-size:12px;border-radius:var(--radius-pill)}
+button.console-shutdown:hover:not(:disabled){background:color-mix(in srgb,var(--red) 12%,var(--soft));border-color:var(--red)}
 #close-canvas{flex-shrink:0;min-height:28px;padding:3px 10px;font-size:12px;color:var(--muted);background:var(--soft);border-color:var(--border)}
 #close-canvas:hover:not(:disabled){color:var(--text)}
 
@@ -259,7 +262,6 @@ main[data-view="overview"]{max-width:1440px;padding:36px 48px 56px;margin:0 auto
 .overview-aside{position:sticky;top:28px;display:flex;flex-direction:column;gap:24px;padding-left:32px;border-left:1px solid var(--border);background:transparent}
 .spec-group{padding:0}
 .spec-group+.spec-group{padding-top:20px;border-top:1px solid var(--border)}
-.overview-aside .console-service-actions{margin-top:4px;padding-top:20px;border-top:1px solid var(--border);justify-content:flex-start}
 
 /* Context Check */
 .context-check{font-size:13px;overflow-wrap:anywhere}
@@ -377,9 +379,6 @@ summary{cursor:pointer;overflow-wrap:anywhere}
 .task summary time{margin-left:auto;font-size:12px;font-variant-numeric:tabular-nums}
 .task .task-meta{font-size:12px;margin-top:8px}
 .status-line{min-height:44px;margin:0 0 14px;padding:10px 0;border-block:1px solid var(--border);overflow-wrap:anywhere}
-.console-service-actions{display:flex;justify-content:flex-end;margin-top:16px}
-button.console-shutdown{background:transparent;color:var(--red);border-color:color-mix(in srgb,var(--red) 28%,var(--border));font-size:12px;border-radius:var(--radius-pill)}
-button.console-shutdown:hover:not(:disabled){background:color-mix(in srgb,var(--red) 12%,var(--soft));border-color:var(--red)}
 
 /* ============================================================
    VIEW 3: GIT — Unified Tree & Code Review Workbench
@@ -639,6 +638,8 @@ body.canvas-mode .canvas-toolbar{display:flex;gap:8px;padding:10px 16px;backgrou
   footer{padding:6px 14px}
 }
 @media(max-width:520px){
+  .navigation,.stage-meta{gap:6px}
+  .stage-title .crumb-group,.stage-title .crumb-sep{display:none}
   .context-check-actions{width:100%}
   .context-source{grid-template-columns:minmax(0,1fr)}
   .context-source .actions{justify-content:flex-start}
