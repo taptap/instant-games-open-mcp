@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
-import { createCanvasWheelInput } from '../../../../packages/maker-canvas/src/browser/wheel.js';
+import {
+  canvasWheelZoomFactor,
+  createCanvasWheelInput,
+} from '../../../../packages/maker-canvas/src/browser/wheel.js';
 
 type Listener = (event: GestureEvent) => void;
 
@@ -240,7 +243,7 @@ function boot() {
   app.ensureKeys();
   app.rebuildPreview();
   context.UrhoxInput.bind(app);
-  context.UrhoxCanvasWheel = { createCanvasWheelInput };
+  context.UrhoxCanvasWheel = { createCanvasWheelInput, canvasWheelZoomFactor };
   vm.runInContext(source('layout.js'), context);
   return { app, preview, canvas, context };
 }
@@ -295,7 +298,10 @@ test('auto wheel pans trackpad input, zooms ctrl wheel, and a second touch cance
   expect(panned.panX).toBe(before.panX - 18);
   expect(panned.panY).toBe(before.panY - 2.5);
   emit(preview, preview, 'wheel', { deltaY: 80, ctrlKey: true, clientX: 30, clientY: 30 });
-  expect(view().zoom).not.toBe(panned.zoom);
+  expect(view().zoom).toBeCloseTo(panned.zoom * Math.exp(-80 * 0.002));
+  const notched = view().zoom;
+  emit(preview, preview, 'wheel', { deltaY: -4, ctrlKey: true, clientX: 30, clientY: 30 });
+  expect(view().zoom).toBeCloseTo(notched * Math.exp(4 * 0.005));
 
   emit(canvas, preview, 'pointerdown', {
     pointerType: 'touch',

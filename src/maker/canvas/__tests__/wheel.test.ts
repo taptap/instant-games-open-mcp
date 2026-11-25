@@ -1,4 +1,7 @@
-import { createCanvasWheelInput } from '../../../../packages/maker-canvas/src/browser/wheel.js';
+import {
+  canvasWheelZoomFactor,
+  createCanvasWheelInput,
+} from '../../../../packages/maker-canvas/src/browser/wheel.js';
 
 const wheel = { deltaX: 0, deltaY: 100, deltaMode: 0 };
 
@@ -19,4 +22,17 @@ test('manual device modes override heuristics, with pinch and Shift navigation p
   expect(input({ ...wheel, ctrlKey: true }, 'trackpad')).toBe('zoom');
   expect(input({ ...wheel, metaKey: true }, 'auto')).toBe('zoom');
   expect(input({ ...wheel, shiftKey: true }, 'mouse')).toBe('pan');
+});
+
+test('trackpad pinch zooms 2.5x faster than wheel notches', () => {
+  expect(canvasWheelZoomFactor({ deltaY: -4, deltaMode: 0, ctrlKey: true })).toBeCloseTo(
+    Math.exp(4 * 0.005)
+  );
+  expect(canvasWheelZoomFactor({ deltaY: 100, deltaMode: 0, ctrlKey: true })).toBeCloseTo(
+    Math.exp(-100 * 0.002)
+  );
+  expect(canvasWheelZoomFactor({ deltaY: -4, deltaMode: 0 })).toBeCloseTo(Math.exp(4 * 0.002));
+  expect(canvasWheelZoomFactor({ deltaY: 3, deltaMode: 1, ctrlKey: true })).toBeCloseTo(
+    Math.exp(-3 * 16 * 0.002)
+  );
 });

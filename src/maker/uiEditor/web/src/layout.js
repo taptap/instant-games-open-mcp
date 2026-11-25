@@ -270,9 +270,12 @@
         applyView();
         return;
       }
-      var factor = autoWheel || config.WHEEL === "pan"
-        ? Math.exp(-event.deltaY * unit * 0.002)
-        : event.deltaY < 0 ? 1.08 : 1 / 1.08;
+      var smooth = autoWheel || config.WHEEL === "pan";
+      var factor = !smooth
+        ? event.deltaY < 0 ? 1.08 : 1 / 1.08
+        : window.UrhoxCanvasWheel
+          ? window.UrhoxCanvasWheel.canvasWheelZoomFactor(event)
+          : Math.exp(-event.deltaY * unit * 0.002);
       zoom = Math.max(0.08, Math.min(8, zoom * factor));
       panX = mx - (mx - panX) * (zoom / before);
       panY = my - (my - panY) * (zoom / before);

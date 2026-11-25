@@ -120,7 +120,7 @@ import { createCanvasLog } from './logUi.js';
 import { canvasLogLevel } from './logUi.js';
 import { CANVAS_LOG_STYLES } from './logUi.js';
 import { createCanvasWorkspace } from './workspaceUi.js';
-import { createCanvasWheelInput } from './wheel.js';
+import { canvasWheelZoomFactor, createCanvasWheelInput } from './wheel.js';
 import { CANVAS_WORKSPACE_STYLES } from './workspaceUi.js';
 import { CANVAS_MARK_COLORS } from '../core/marks.js';
 import { CANVAS_MARK_MIN } from '../core/marks.js';
@@ -607,7 +607,7 @@ function applyWebInteractionPatches(source: string): string {
       '      render();',
       '      return;',
       '    }',
-      '    const wheelStep = canvasWeb ? Math.exp(-event.deltaY * wheelUnit * 0.002) : event.deltaY > 0 ? 0.9 : 1.1;',
+      '    const wheelStep = canvasWeb ? canvasWheelZoomFactor(event) : event.deltaY > 0 ? 0.9 : 1.1;',
       '    const next = Math.min(4, Math.max(0.15, before * wheelStep));',
     ].join('\n')
   );
@@ -2467,6 +2467,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     installWebToolbarDrag.toString(),
     createCanvasWorkspace.toString(),
     createCanvasWheelInput.toString(),
+    canvasWheelZoomFactor.toString(),
     createCanvasLog.toString(),
     canvasLogLevel.toString(),
     canvasCardStatus.toString(),
