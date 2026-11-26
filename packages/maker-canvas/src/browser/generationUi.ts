@@ -23,6 +23,7 @@ import { imageAllowsOutpaint } from '../features/imageFeatures.js';
 import {
   IMAGE_OUTPUT_RATIOS,
   canvasOriginalImage,
+  preservesUiDesignPixels,
   imageRatioInfo,
   resolveImageSize,
   imageResultWarning,
@@ -250,6 +251,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
   const abandonedAttempts = new Set<string>();
   function imageSizeBlockReason(attempt: any): string | undefined {
     if (!attempt?.resultImageInfo) return;
+    if (attempt.parameters?.preserveOriginalPixels)
+      return imageResultWarning(attempt.resultImageInfo, attempt.parameters.targetSize, true);
     const plan = attempt.uiAtlasPlan;
     // An extra full-screen background has no pixel-bound slots; assembly fits it with cover.
     if (!plan?.nativeLayout && plan?.slots.length === 1 && plan.slots[0].role === 'background')
@@ -263,7 +266,11 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       !isUiCutoutSource(current, attempt.targetNodeId)
     )
       return;
-    return imageResultWarning(attempt.resultImageInfo, attempt.parameters?.targetSize);
+    return imageResultWarning(
+      attempt.resultImageInfo,
+      attempt.parameters?.targetSize,
+      attempt.parameters?.preserveOriginalPixels
+    );
   }
   function recordAttempt(attempt: any) {
     attempts.set(attempt.id, attempt);
@@ -1405,7 +1412,11 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     );
     if (output && attempt.kind === 'image' && attempt.resultImageInfo) {
       output.imageInfo = attempt.resultImageInfo;
-      const warning = imageResultWarning(attempt.resultImageInfo, attempt.parameters?.targetSize);
+      const warning = imageResultWarning(
+        attempt.resultImageInfo,
+        attempt.parameters?.targetSize,
+        attempt.parameters?.preserveOriginalPixels
+      );
       if (warning) {
         if (imageSizeBlockReason(attempt)) {
           if (output.sectionId) output.templatePending = true;
@@ -1592,7 +1603,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       let outputSize = resolveImageSize(
         settings.aspectRatio || '1:1',
         settings.resolution,
-        originalInfo
+        originalInfo,
+        preservesUiDesignPixels(documentState, node)
       );
       if (options.getDocument() !== documentState) return;
       let cutoutColor: UiCutoutColor | undefined;
@@ -1618,7 +1630,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       }
       const usesPrelayout =
         !node.uiAtlasPrelayout && sourceNodes.some((source) => source.uiAtlasPrelayout);
-      if (atlasPlan && (node.uiAtlasGroup || atlasPlan.nativeLayout)) {
+      // The fixed 015 background card keeps its own prompt; only batch cards are rewritten.
+      if (atlasPlan && !node.uiBackground && (node.uiAtlasGroup || atlasPlan.nativeLayout)) {
         node.uiBaselinePrompt ??= prompt;
         prompt = atlasPlan.nativeLayout
           ? uiNativeAtlasPrompt() + (correction ? String.fromCharCode(10) + correction : '')
@@ -3247,7 +3260,11 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       applied &&
       (!target.templatePending ||
         !attempt.resultImageInfo ||
-        !imageResultWarning(attempt.resultImageInfo, attempt.parameters?.targetSize) ||
+        !imageResultWarning(
+          attempt.resultImageInfo,
+          attempt.parameters?.targetSize,
+          attempt.parameters?.preserveOriginalPixels
+        ) ||
         imageSizeBlockReason(attempt))
     )
       return false;
@@ -3373,6 +3390,17 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       return { status: 'unknown', canQuery: true };
     const attempt = latestNodeAttempt(nodeId);
     if (!attempt) return;
+    const target = options.getDocument()?.nodes.find((item: any) => item.id === nodeId);
+    // A result explicitly supplied through the canvas replaces the completed generation.
+    // Keep unresolved requests visible; importing pixels must not hide an unknown charge.
+    if (
+      attempt.kind === 'image' &&
+      attempt.status === 'succeeded' &&
+      target?.assetPath &&
+      target.generation?.origin === 'agent' &&
+      !target.generation.attemptId
+    )
+      return;
     const stopped =
       attempt.kind === 'video' &&
       Boolean(attempt.localWaitCanceledAt || stoppedAttempts.has(attempt.id));
@@ -3559,8 +3587,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     /**
      * Automatic recovery for an unattended run: query the card's original task first and keep
      * a result that did arrive. A task the server still reports as pending/running is left
-     * alone ('waiting') unless force is set, so it cannot be charged twice. Otherwise abandon
-     * definite failures. Unknown paid outcomes always block automatic resubmission.
+     * alone ('waiting'); force only ends the local wait. Unknown results remain blocked.
+     * Only a confirmed remote failure or pre-execution rejection permits another submission.
      */
     async recoverForRetry(
       nodeId: string,
@@ -3573,6 +3601,10 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       if (options.getDocument() !== documentState) return 'released';
       for (const item of list) recordAttempt(item);
       const latest = latestNodeAttempt(nodeId);
+      if (latest?.status === 'succeeded' && imageSizeBlockReason(latest)) {
+        options.setError(imageSizeBlockReason(latest)!);
+        return 'blocked';
+      }
       // The remote image already exists; retry only the local download/import path.
       if (
         latest?.kind === 'image' &&
@@ -3610,6 +3642,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         attempt.targetNodeId === nodeId &&
         !abandonedAttempts.has(attempt.id) &&
         ['pending', 'running'].includes(attempt.status);
+      let changedUnknown = false;
       if (
         unconfirmedImages.has(documentState.id + ':' + nodeId) ||
         [...attempts.values()].some(
@@ -3621,8 +3654,24 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         )
       ) {
         if (!allowChangedUnknown || changedUnknownRetryReason(nodeId, list)) return 'unknown';
+        changedUnknown = true;
       }
-      if (!force && [...attempts.values()].some(live)) return 'waiting';
+      if ([...attempts.values()].some(live)) {
+        if (!force) return 'waiting';
+        options.setError('原图片任务仍在执行，已停止本地等待；查询原结果后再继续，不会重新提交。');
+        return 'blocked';
+      }
+      if (
+        latest &&
+        !changedUnknown &&
+        !explicitPreExecutionRejection(latest) &&
+        latest.remoteStatus !== 'failed'
+      ) {
+        options.setError(
+          latest.error || '原图片结果尚未确认，已暂停；核对原任务后再继续，不会自动重新提交。'
+        );
+        return 'blocked';
+      }
       for (const attempt of attempts.values())
         if (
           attempt.canvasId === documentState.id &&

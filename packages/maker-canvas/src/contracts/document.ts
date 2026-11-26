@@ -153,6 +153,8 @@ export interface CanvasNode {
   uiBaselinePrompt?: string;
   uiBaselineGrid?: ImageAtlasGrid;
   uiAtlasGroup?: UiAtlasGroup;
+  /** Fixed 015 full-screen background output shown beside the three input cards. */
+  uiBackground?: boolean;
   /** Local Bbox crop/layout step; its output is a visible reference for downstream generation. */
   uiAtlasPrelayout?: boolean;
   uiArtTextId?: string;

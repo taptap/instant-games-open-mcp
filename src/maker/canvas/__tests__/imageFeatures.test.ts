@@ -8,6 +8,7 @@ import { MakerCanvasFiles } from '../files.js';
 import {
   uiRecognitionInputs,
   uiRecognitionPreview,
+  uiRecognitionControlTarget,
   selectedUiExtraction,
   validateUiRecognition,
 } from '../uiRecognition.js';
@@ -265,6 +266,37 @@ test('original and text-free cards share one result; replacing either input inva
   design.assetPath = originalPath;
   cut.assetPath = 'assets/image/replaced.png';
   expect(uiRecognitionPreview(document, design)).toBeUndefined();
+});
+
+test('015 first-row cards preview one result on the original design', () => {
+  const { document, design, cut, result } = fixture();
+  const work: CanvasNode = {
+    ...cut,
+    id: randomUUID(),
+    title: '② 去背景（黑底 UI）',
+    assetPath: 'assets/image/work.png',
+    uiRecognition: { enabled: false, inputRole: 'work-image', results: [] },
+  };
+  const background: CanvasNode = {
+    ...design,
+    id: randomUUID(),
+    title: '④ 独立背景图',
+    assetPath: 'assets/image/background.png',
+    uiRecognition: undefined,
+    uiBackground: true,
+    uiAtlasGroup: 'background',
+  };
+  document.nodes.push(work, background);
+  document.edges.push(
+    { id: randomUUID(), from: design.id, to: work.id, kind: 'image-variant' },
+    { id: randomUUID(), from: work.id, to: cut.id, kind: 'image-variant' },
+    { id: randomUUID(), from: design.id, to: background.id, kind: 'image-variant' }
+  );
+  expect(uiRecognitionPreview(document, design)?.result.id).toBe(result.id);
+  expect(uiRecognitionPreview(document, work)?.result.id).toBe(result.id);
+  expect(uiRecognitionPreview(document, cut)?.result.id).toBe(result.id);
+  expect(uiRecognitionPreview(document, background)?.result.id).toBe(result.id);
+  expect(uiRecognitionControlTarget(document, work)).toBe(cut);
 });
 
 test('API recognition requires a distinct ready text-free input, including for design cards', () => {

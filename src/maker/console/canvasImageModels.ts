@@ -66,6 +66,8 @@ export async function canvasImageModels(
   const properties = record(definition?.inputSchema.properties);
   const schema = record(properties.model);
   const ratio = record(properties.aspect_ratio);
+  const quality = record(properties.quality);
+  const thinking = record(properties.thinking_level);
   const ids = Array.isArray(schema.enum)
     ? schema.enum.filter((id): id is string => typeof id === 'string' && id.length > 0)
     : [];
@@ -76,6 +78,16 @@ export async function canvasImageModels(
     tool,
     origin: 'mcp',
     label: 'Maker MCP · ' + tool,
+    ...(Array.isArray(quality.enum)
+      ? { quality: quality.enum.filter((value): value is string => typeof value === 'string') }
+      : {}),
+    ...(Array.isArray(thinking.enum)
+      ? {
+          thinkingLevel: thinking.enum.filter(
+            (value): value is string => typeof value === 'string'
+          ),
+        }
+      : {}),
     ...(properties.aspect_ratio
       ? {
           aspectRatio: {

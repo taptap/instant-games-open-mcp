@@ -3,8 +3,13 @@ import { createCanvasTemplateModel } from '../templates.js';
 import { createId, emptyDocument, type CanvasDocument } from '../model.js';
 import { remapTemplateAssets, templateAssetPaths } from '../templateArchive.js';
 import { syncUiBboxWorkflow } from '../uiBboxWorkflow.js';
+import { createUi015Workflow } from '../../../../packages/maker-canvas/src/browser/ui015Workflow.js';
 import { bboxRecognitionElements } from '../uiRecognition.js';
-import { ensureUiAtlasBatchCards, selectedUiAtlasPlan } from '../uiAssetBindings.js';
+import {
+  ensureUiAtlasBatchCards,
+  selectedUiAtlasPlan,
+  uiAtlasOrderPrompt,
+} from '../uiAssetBindings.js';
 import { createCanvasGroupQueue } from '../groupQueue.js';
 import { createTemplateWorkflow, canvasNeedsProcessing } from '../templateWorkflow.js';
 import { canvasReferences, snapshotCanvasSource } from '../dependencies.js';
@@ -69,6 +74,109 @@ function fixture(simple = true) {
   for (const node of current.nodes) delete node.templatePending;
   return { current, group: copy.section, cut, media };
 }
+
+test.each([false, true])(
+  '015 preserves default background choice and full-screen UI panels: %s',
+  async (fullPanel) => {
+    const { current, group, cut } = fixture();
+    const bbox = cut.uiRecognition!.results[0].bbox!;
+    if (fullPanel) bbox.elements[0].bbox = [0, 0, bbox.design.width, bbox.design.height];
+    const workflow = createUi015Workflow({
+      current: () => current,
+      needs: () => false,
+      runImage: async () => true,
+      recognize: async () => true,
+      recoverImage: async () => 'recovered',
+      recoverRecognition: async () => 'released',
+      chooseDesign() {},
+      sync: syncUiBboxWorkflow,
+      queue: { start: () => true, spendRetry: () => 0, view: () => undefined, remaining: () => 1 },
+      focus() {},
+      remember() {},
+      save: async () => true,
+      changed() {},
+      render() {},
+      error: (message) => {
+        throw new Error(message);
+      },
+      log() {},
+      store: {},
+    });
+    const result = await workflow.advance(group.id);
+    expect(result.status).toBe('started');
+    // A full-screen UI panel already fills the background branch; nothing extra is added.
+    expect(result.choice?.background).toBe(!fullPanel);
+    const backgrounds = current.nodes.filter(
+      (node) => node.uiAtlasGroup === 'background' && !node.uiEmpty
+    );
+    expect(backgrounds.length > 0).toBe(true);
+    const prelayout = backgrounds.find((node) => node.uiAtlasPrelayout)!;
+    const backgroundPlan = selectedUiAtlasPlan(current, prelayout)!;
+    const references = canvasReferences(current, prelayout.id);
+    expect(references).toHaveLength(1);
+    expect(references[0].assetPath).toBe(fullPanel ? bbox.cutSource.path : bbox.design.path);
+    expect(backgroundPlan.slots[0].role).toBe(fullPanel ? 'element' : 'background');
+    if (fullPanel) expect(backgroundPlan.nativeLayout).toBeDefined();
+    else {
+      expect(backgroundPlan.nativeLayout).toBeUndefined();
+      expect(prelayout.generation?.parameters?.aspectRatio).toBe('source');
+    }
+    const ids = current.nodes
+      .filter(
+        (node) =>
+          node.type === 'image' && node.uiAtlasGroup && !node.uiAtlasPrelayout && !node.uiEmpty
+      )
+      .flatMap((node) =>
+        selectedUiAtlasPlan(current, node)!.slots.flatMap((slot) => slot.elementIds)
+      );
+    expect(ids).toContain('E001');
+    expect(ids).toContain('E002');
+  }
+);
+
+test('stopping during preparation prevents recovery, batch creation and queue start', async () => {
+  const { current, group, cut } = fixture();
+  delete cut.uiRecognition!.selectedId;
+  cut.uiRecognition!.results = [];
+  let finish!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const sync = jest.fn(syncUiBboxWorkflow);
+  const start = jest.fn(() => true);
+  const recoverImage = jest.fn(async () => 'recovered' as const);
+  const workflow = createUi015Workflow({
+    current: () => current,
+    needs: () => false,
+    runImage: async (_id, shouldContinue) => {
+      await pending;
+      return shouldContinue!();
+    },
+    recognize: async () => true,
+    recoverImage,
+    recoverRecognition: async () => 'released',
+    chooseDesign() {},
+    sync,
+    queue: { start, spendRetry: () => 0, view: () => undefined, remaining: () => 1 },
+    focus() {},
+    remember() {},
+    save: async () => true,
+    changed() {},
+    render() {},
+    error() {},
+    log() {},
+    store: {},
+  });
+  const run = workflow.advance(group.id);
+  expect(workflow.isActive(group.id)).toBe(true);
+  workflow.stop(group.id);
+  finish();
+  expect((await run).status).toBe('waiting');
+  expect(workflow.isActive(group.id)).toBe(false);
+  expect(sync).not.toHaveBeenCalled();
+  expect(start).not.toHaveBeenCalled();
+  expect(recoverImage).not.toHaveBeenCalled();
+});
 
 test('default complex design completes the real queue and export logic with simulated model and cutting results', async () => {
   const { current, group, cut, media } = fixture(false);
@@ -380,3 +488,173 @@ test('dynamic cards survive controlled canvas parsing and preserve the CLI marke
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('hollow frames never receive the filled-panel slot instruction', () => {
+  const { current, group, cut } = fixture();
+  cut.uiRecognition!.results[0].bbox!.elements = [
+    { id: 'E001', name: '目标锁定框', type: 'frame', bbox: [100, 100, 80, 80], parent: null },
+  ];
+  syncUiBboxWorkflow(current, group.id, [], false);
+  const image = current.nodes.find(
+    (node) => node.uiAtlasGroup === 'equipment' && !node.uiAtlasPrelayout
+  )!;
+  const prompt = uiAtlasOrderPrompt(selectedUiAtlasPlan(current, image)!);
+  expect(prompt).toContain('空心锁定框、准星框内部必须 Alpha=0');
+  expect(prompt).not.toContain('此项要的是空底板');
+});
+
+test('015 fixed background card is the sole background resource source', () => {
+  const { current, group, cut } = fixture();
+  const design = current.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
+  const background = {
+    id: createId(),
+    type: 'image' as const,
+    x: design.x + design.width * 3 + 60,
+    y: design.y,
+    width: design.width,
+    height: design.height,
+    title: '④ 独立背景图',
+    sectionId: group.id,
+    templatePending: true,
+    uiBackground: true,
+    uiAtlasGroup: 'background' as const,
+    uiAtlasBatch: 0,
+    referenceInput: { includeSelf: false },
+    generationDraft: {
+      operation: 'variant' as const,
+      prompt: '完整环境背景',
+      parameters: { resolution: '2K' as const, aspectRatio: 'source' as const },
+    },
+  };
+  current.nodes.push(background);
+  current.edges.push({
+    id: createId(),
+    from: design.id,
+    to: background.id,
+    kind: 'image-variant',
+  });
+  syncUiBboxWorkflow(current, group.id, [], false);
+  const backgroundAssets = current.nodes.filter(
+    (node) => node.type === 'image-assets' && node.title === '环境背景 · 1'
+  );
+  expect(backgroundAssets).toHaveLength(1);
+  expect(
+    current.edges.some(
+      (edge) =>
+        edge.from === background.id &&
+        edge.to === backgroundAssets[0].id &&
+        edge.kind === 'image-assets'
+    )
+  ).toBe(true);
+  expect(
+    current.nodes.some(
+      (node) => node.uiAtlasGroup === 'background' && node.uiAtlasPrelayout && !node.uiBackground
+    )
+  ).toBe(false);
+  expect(selectedUiAtlasPlan(current, background)!.slots[0].role).toBe('background');
+  expect(cut.uiRecognition?.results).toHaveLength(1);
+});
+
+test('an unresolved image stops 015 with its original error instead of attempting assembly', async () => {
+  const { current, group } = fixture();
+  let failedId = '';
+  const assembleUi = jest.fn();
+  const workflow = createUi015Workflow({
+    current: () => current,
+    needs: (id) => Boolean(current.nodes.find((n) => n.id === id)?.templatePending),
+    runImage: async () => true,
+    recognize: async () => true,
+    recoverImage: async () => 'blocked',
+    recoverRecognition: async () => 'released',
+    chooseDesign() {},
+    sync: syncUiBboxWorkflow,
+    queue: {
+      start: () => true,
+      spendRetry: () => 0,
+      remaining: () => 1,
+      view: () =>
+        failedId ? { phase: 'complete', failures: { [failedId]: 'upstream unknown' } } : undefined,
+    },
+    focus() {},
+    remember() {},
+    save: async () => true,
+    changed() {},
+    render() {},
+    error() {},
+    log() {},
+    failure: () => 'upstream unknown',
+    store: { assembleUi },
+  });
+  expect((await workflow.advance(group.id)).status).toBe('started');
+  failedId = current.nodes.find((n) => n.uiAtlasGroup && !n.uiAtlasPrelayout)!.id;
+  workflow.settled(group.id);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(workflow.outcome(group.id)).toMatchObject({
+    status: 'failed',
+    stage: 'generation',
+    message: 'upstream unknown',
+  });
+  expect(assembleUi).not.toHaveBeenCalled();
+});
+
+test('fixed environment and full-screen UI panel retain distinct plans and survive repeated sync', () => {
+  const { current, group, cut } = fixture();
+  const design = current.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
+  const bbox = cut.uiRecognition!.results[0].bbox!;
+  bbox.elements[0].bbox = [0, 0, bbox.design.width, bbox.design.height];
+  const background = {
+    ...design,
+    id: createId(),
+    title: 'environment',
+    sectionId: group.id,
+    uiRecognition: undefined,
+    uiBackground: true,
+    uiAtlasGroup: 'background' as const,
+    uiAtlasBatch: 0,
+    generation: undefined,
+    generationDraft: {
+      operation: 'variant' as const,
+      prompt: 'scene',
+      parameters: { aspectRatio: 'source' },
+    },
+  };
+  current.nodes.push(background);
+  current.edges.push({ id: createId(), from: design.id, to: background.id, kind: 'image-variant' });
+  syncUiBboxWorkflow(current, group.id, [], true);
+  expect(selectedUiAtlasPlan(current, background)!.slots).toEqual([
+    { elementIds: [], state: 'normal', role: 'background' },
+  ]);
+  const panel = current.nodes.find(
+    (node) => node.uiAtlasGroup === 'background' && node.uiAtlasPrelayout
+  )!;
+  expect(selectedUiAtlasPlan(current, panel)!.slots[0].elementIds).toEqual(['E001']);
+  expect(canvasReferences(current, panel.id).map((node) => node.id)).toEqual([cut.id]);
+  const count = current.nodes.length;
+  syncUiBboxWorkflow(current, group.id, [], true);
+  expect(current.nodes).toHaveLength(count);
+  expect(selectedUiAtlasPlan(current, background)!.slots[0].role).toBe('background');
+});
+
+test.each([false, true])(
+  'legacy background source is migrated only before generation: %s',
+  (completed) => {
+    const { current, group, cut } = fixture();
+    const design = current.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;
+    syncUiBboxWorkflow(current, group.id, [], true);
+    const prelayout = current.nodes.find(
+      (node) => node.uiAtlasGroup === 'background' && node.uiAtlasPrelayout
+    )!;
+    const edge = current.edges.find((edge) => edge.to === prelayout.id)!;
+    edge.from = cut.id;
+    prelayout.assetPath = cut.assetPath;
+    if (completed) {
+      delete prelayout.templatePending;
+      prelayout.generation!.attemptId = createId();
+      prelayout.sourceSnapshot = snapshotCanvasSource(cut);
+    }
+    const before = structuredClone(prelayout);
+    expect(() => syncUiBboxWorkflow(current, group.id, [], true)).not.toThrow();
+    expect(edge.from).toBe(completed ? cut.id : design.id);
+    if (completed) expect(prelayout).toEqual(before);
+  }
+);

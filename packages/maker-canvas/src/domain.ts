@@ -42,6 +42,7 @@ export {
   imageRatioInfo,
   resolveImageSize,
   canvasOriginalImage,
+  preservesUiDesignPixels,
   imageResultWarning,
 } from './features/imageSizing.js';
 
@@ -78,6 +79,7 @@ export {
   validateCutElements,
   validateBboxTexts,
   parseUiScreenName,
+  parseUiSceneType,
   scaleCutElements,
   validateUiBboxStructure,
   // Compatibility name: structure validation only; hosts validate media access.
@@ -113,7 +115,9 @@ export {
   // Compatibility name: structure validation only; hosts validate media access.
   validateUiRecognitionStructure as validateUiRecognition,
   uiRecognitionInputs,
+  uiElementRecognitionInput,
   uiRecognitionPreview,
+  uiRecognitionControlTarget,
   setUiRecognitionMode,
   selectedUiExtraction,
   selectedUiRecognition,
