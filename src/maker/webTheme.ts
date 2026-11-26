@@ -1,6 +1,14 @@
+import themeTokens from './webThemeTokens.json';
+
+function themeDeclarations(tokens: Record<string, string>): string {
+  return Object.entries(tokens)
+    .map(([name, value]) => `--${name}:${value};`)
+    .join('');
+}
+
 export const consoleThemeStyles = String.raw`
-:root{color-scheme:dark;--bg:#121516;--top:#181b1d;--border:#2d3335;--text:#e9eeec;--muted:#8f9a97;--primary:#00ad9d;--on-primary:#f2fffc;--accent:#2ab8ab;--warning:#f5dc56;--green:#78d4ad;--red:#f08b85;--soft:#23282a;--code:#0e1112;--selection:rgba(0,173,157,.14);--selection-soft:rgba(0,173,157,.06)}
-:root[data-theme="light"]{color-scheme:light;--bg:#fff;--top:#f3f5f4;--border:#dce2de;--text:#252e29;--muted:#64716a;--primary:#00dbc5;--on-primary:#06322e;--accent:#00a99d;--warning:#a87900;--green:#176c50;--red:#b3352c;--soft:#edf4ef;--code:#f5f7f6;--selection:rgba(0,169,157,.18);--selection-soft:rgba(0,169,157,.08)}
+:root{color-scheme:dark;${themeDeclarations(themeTokens.common)}${themeDeclarations(themeTokens.dark)}--surface:rgba(24,25,30,.74);--surface-alt:rgba(20,21,26,.68);--surface-solid:#1b1c21;--border-strong:rgba(255,255,255,.14);--accent:#22b8aa;--brand-maker:#8184e8;--ai:#8b8ff8;--warning:#e5a93c;--green:#38b882;--red:#e56b6f;--soft-hover:rgba(255,255,255,.095);--code:rgba(15,16,20,.92);--selection:rgba(255,255,255,.09);--selection-soft:rgba(255,255,255,.045);--scrollbar-thumb:rgba(255,255,255,.16);--scrollbar-thumb-hover:rgba(255,255,255,.30);--shadow-dialog:0 24px 64px rgba(0,0,0,.58);--shadow-menu:0 12px 32px rgba(0,0,0,.52);}
+:root[data-theme="light"]{color-scheme:light;${themeDeclarations(themeTokens.light)}--surface:rgba(255,255,255,.78);--surface-alt:rgba(248,249,251,.72);--surface-solid:#ffffff;--border-strong:rgba(15,23,42,.15);--accent:#0d8f82;--brand-maker:#4d4dad;--ai:#6366f1;--warning:#b87400;--green:#16805a;--red:#cf3644;--soft-hover:rgba(15,23,42,.08);--code:rgba(250,251,253,.94);--selection:rgba(15,23,42,.075);--selection-soft:rgba(15,23,42,.04);--scrollbar-thumb:rgba(15,23,42,.18);--scrollbar-thumb-hover:rgba(15,23,42,.34);--shadow-dialog:0 24px 60px rgba(15,23,42,.14);--shadow-menu:0 12px 30px rgba(15,23,42,.14);}
 `;
 
 export const consoleThemeScript = String.raw`

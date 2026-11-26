@@ -14,6 +14,22 @@ module.exports = function motionAssets(root) {
     }
   }
   visit('');
+  const theme = JSON.parse(
+    fs.readFileSync(path.join(root, 'src/maker/webThemeTokens.json'), 'utf8')
+  );
+  const motionTheme = ['dark', 'light']
+    .map((mode) => {
+      const selector = mode === 'light' ? ':root[data-theme="light"]' : ':root';
+      const tokens = { ...theme.common, ...theme[mode], ...theme.motion[mode] };
+      const declarations = Object.entries(tokens)
+        .map(([name, value]) => `--${name}:${value};`)
+        .join('');
+      return `${selector}{color-scheme:${mode};${declarations}}`;
+    })
+    .join('\n');
+  for (const name of ['native/player.css', 'showcase/template.html']) {
+    assets[name] = assets[name].replace('/* __MAKER_MOTION_THEME__ */', () => motionTheme);
+  }
   assets['integration.md'] = fs.readFileSync(
     path.join(root, 'skills/taptap-maker-local/references/ui-motion.md'),
     'utf8'

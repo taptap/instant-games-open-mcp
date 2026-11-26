@@ -931,6 +931,7 @@ let gitPull = null;
 let gitPulling = false;
 let gitPullRequest = 0;
 let commitRequest = 0;
+let selectedCommitHash = '';
 let pollTimer;
 let activityTimer;
 let polling = false;
@@ -1196,8 +1197,22 @@ function clearGitPullState() {
   gitPull = null;
   gitPulling = false;
   gitPullRequest++;
+  selectedCommitHash = '';
   const dialog = $('git-pull-conflict');
   if (dialog?.open) dialog.close();
+}
+function setStageBreadcrumb(group, label) {
+  const stageTitle = $('stage-title');
+  if (!stageTitle) return;
+  if (typeof stageTitle.replaceChildren === 'function') {
+    const groupNode = node('span', group, 'crumb-group');
+    const sepNode = node('span', '/', 'crumb-sep');
+    sepNode.setAttribute('aria-hidden', 'true');
+    const pageNode = node('span', label, 'crumb-page');
+    stageTitle.replaceChildren(groupNode, sepNode, pageNode);
+  } else {
+    stageTitle.textContent = group + ' / ' + label;
+  }
 }
 function chooseProject(key, updateUrl = true) {
   if (key !== selected && !leaveUiEditor()) {
@@ -1233,6 +1248,8 @@ function updateChrome() {
   picker.disabled = !loaded || offline;
   $('context').textContent = currentProject() ? text(detail?.git?.branch, '分支未提供') : '本地项目';
   $('context').title = currentProject()?.name || '本地项目';
+  const shutdownButton = $('console-shutdown');
+  if (shutdownButton) shutdownButton.disabled = !loaded || offline || shutdownPending;
   $('footer-path').textContent = currentProject()?.path || '';
   document.querySelectorAll('nav [data-page]').forEach(b => {
     b.disabled = !loaded || (!['documents','settings','other'].includes(b.dataset.page) && !currentProject()?.valid);
@@ -1240,6 +1257,23 @@ function updateChrome() {
     else b.removeAttribute('aria-current');
   });
   $('settings-button')?.setAttribute('aria-pressed',String(page === 'settings'));
+  const stageBreadcrumbs = {
+    overview: ['工作区', '项目概览'],
+    build: ['工作区', '构建与测试'],
+    git: ['工作区', 'Git 历史'],
+    documents: ['资料与工具', '文档 / Skill'],
+    canvas: ['创作台', '自由画布'],
+    'ui-editor': ['创作台', 'UI 编辑器'],
+    other: ['其他', otherTab === 'motion' ? 'UI 动效' : '项目检查'],
+    projects: ['工作区', '本地项目'],
+    settings: ['系统', '设置'],
+  };
+  const activePlugin = page.startsWith('plugin:') ? pluginDescriptors().find(item => 'plugin:' + item.id === page) : null;
+  if (activePlugin) setStageBreadcrumb('创作台', activePlugin.title);
+  else {
+    const [crumbGroup, crumbLabel] = stageBreadcrumbs[page] || ['工作区', 'Maker 控制台'];
+    setStageBreadcrumb(crumbGroup, crumbLabel);
+  }
   if ($('heading-actions')) replace($('heading-actions'),headingActionButtons());
   if ($('overview-task')) {
     replace($('overview-task'),overviewTasks());
@@ -1324,7 +1358,9 @@ function updatePluginTabs() {
   if (tabs.dataset.signature === signature) return;
   tabs.dataset.signature = signature;
   tabs.replaceChildren(...plugins.map(plugin => {
-    const tab = button(plugin.title,() => navigate('plugin:' + plugin.id));
+    const tab = button('',() => navigate('plugin:' + plugin.id),{icon:'blocks'});
+    tab.append(node('span',plugin.title,'nav-label'));
+    tab.title = plugin.title;
     tab.dataset.page = 'plugin:' + plugin.id;
     return tab;
   }));
@@ -1527,7 +1563,8 @@ function heading(title, subtitle, withActions = false) {
 }
 function row(label, value) {
   const r = node('div', undefined, 'row');
-  r.append(node('dt', label), node('dd', value));
+  const dd = node('dd', value, value === '未提供' || value === '未设置' ? 'is-empty' : undefined);
+  r.append(node('dt', label), dd);
   return r;
 }
 function fields(entries) {
@@ -1539,9 +1576,9 @@ let selectingProjectFolder = false;
 function renderProjects() {
   const view = $('view');
   const title = heading('本地项目', loaded ? state.projects.length + ' 个已登记项目' : '正在读取项目');
-  const list = node('section');
+  const list = node('section', undefined, 'project-list');
   state.projects.forEach(p => {
-    const r = node('div', undefined, 'project-row');
+    const r = node('div', undefined, 'project-row' + (p.key === selected ? ' is-current' : ''));
     const label = node('div');
     label.append(node('h2', p.name), node('div', p.path, 'path'));
     if (p.key === selected) label.append(node('span','当前项目','tag'));
@@ -1558,7 +1595,7 @@ function renderProjects() {
     r.append(label,actions); list.append(r);
   });
   if (loaded && !state.projects.length) list.append(node('p','尚未登记本地项目','empty'));
-  const controls = node('div', undefined, 'actions');
+  const controls = node('div', undefined, 'actions project-controls');
   const select = button(selectingProjectFolder ? '选择或扫描中…' : '打开本地文件夹', async () => {
     if (selectingProjectFolder) return;
     selectingProjectFolder = true;
@@ -1606,43 +1643,47 @@ ${contextCheckScript}
 function renderOverview() {
   const p = currentProject();
   const title = heading(p.name,p.path,true);
+  title.classList.add('overview-hero');
   if (!detail) { replace($('view'),[title,node('p','正在读取项目配置','empty')]); return; }
   const config = detail.config || {};
   const orientation = config.orientation === 'portrait' || config.orientation === 1 || config.orientation === '1' ? '竖屏' :
     config.orientation === 'landscape' || config.orientation === 2 || config.orientation === '2' ? '横屏' : text(config.orientation, '未设置');
-  const metrics = node('div',undefined,'metrics');
-  [['项目版本',config.version],['屏幕方向',orientation],['Git HEAD',detail.git?.head?.slice(0,10)],
-    ['本地预览',previewLabel()]].forEach(([name,value]) => {
-    const metric = node('div',undefined,'metric');
-    metric.append(node('div',name,'muted'),node('div',text(value),'value' +
-      (name === '本地预览' ? ' ' + previewPresentation(preview,previewError).tone : ''))); metrics.append(metric);
-  });
+  const pulse = node('div',undefined,'hero-pulse');
+  if (detail.git?.branch) pulse.append(node('span',detail.git.branch,'pulse-chip pulse-branch'));
+  if (detail.git?.head) pulse.append(node('span',detail.git.head.slice(0,8),'pulse-chip pulse-mono'));
+  if (typeof detail.git?.changeCount === 'number') {
+    pulse.append(node('span',detail.git.changeCount ? detail.git.changeCount + ' 项变更' : '工作区干净','pulse-chip' + (detail.git.changeCount ? ' pulse-dirty' : '')));
+  }
+  if (pulse.childNodes.length && title.firstChild) title.firstChild.append(pulse);
+  const metrics = node('div',undefined,'metrics env-strip');
+  const previewMetric = node('div',undefined,'metric env-slot');
+  const previewTone = previewPresentation(preview,previewError).tone;
+  previewMetric.append(node('div','本地预览','muted'),node('div',previewLabel(),'value status-dot ' + previewTone));
+  metrics.append(previewMetric);
   const runtime = runtimePresentation(preview,previewError);
-  const runtimeMetric = node('div',undefined,'metric runtime-metric');
-  runtimeMetric.append(node('div','本地 Runtime','muted'),node('div',runtime.label,'value ' + runtime.tone));
+  const runtimeMetric = node('div',undefined,'metric env-slot runtime-metric');
+  runtimeMetric.append(node('div','本地 Runtime','muted'),node('div',runtime.label,'value status-dot ' + runtime.tone));
   if (runtime.detail) runtimeMetric.append(node('div',runtime.detail,'runtime-detail muted'));
   if (runtime.action) runtimeMetric.append(button('安装 Runtime',() => void runProjectAction(runtime.action),{
     disabled:offline || busy(),focus:'overview-runtime-install'
   }));
   metrics.append(runtimeMetric);
   const lua = luaLspPresentation(state.luaLsp);
-  const luaMetric = node('div',undefined,'metric runtime-metric');
-  luaMetric.append(node('div','Lua LSP','muted'),node('div',lua.label,'value ' + lua.tone));
+  const luaMetric = node('div',undefined,'metric env-slot runtime-metric');
+  luaMetric.append(node('div','Lua LSP','muted'),node('div',lua.label,'value status-dot ' + lua.tone));
   if (lua.detail) luaMetric.append(node('div',lua.detail,'runtime-detail muted'));
   metrics.append(luaMetric);
-  const columns = node('div',undefined,'columns');
-  const configSection = node('section'); configSection.append(node('h2','项目配置'),fields([
-    ['入口脚本',config.entry],['引擎通道',config.engineTag],
-    ['多人模式',typeof config.multiplayer === 'boolean' ? (config.multiplayer ? '开启' : '关闭') : config.multiplayer],
-    ['应用 ID',config.appId],['Git 分支',detail.git?.branch],['工作区变更',detail.git?.changeCount]
-  ]));
-  const health = node('section'); health.append(node('h2','项目检查'));
+
+  const health = node('section',undefined,'workbench-section overview-health');
+  const healthHead = node('div',undefined,'section-heading');
   const healthStatus = detail.health;
-  health.append(node('p',healthLabel(healthStatus),
-    healthStatus?.status === 'ready' ? 'good' : healthStatus?.status === 'error' || healthStatus?.status === 'misplaced_config' ? 'bad' : 'muted'));
+  const healthTone = healthStatus?.status === 'ready' ? 'good' : healthStatus?.status === 'error' || healthStatus?.status === 'misplaced_config' ? 'bad' : 'muted';
+  healthHead.append(node('h2','项目检查'));
   if (typeof healthStatus?.canBuild === 'boolean') {
-    health.append(fields([['构建条件',healthStatus.canBuild ? '满足' : '存在阻塞问题']]));
+    healthHead.append(node('span',healthStatus.canBuild ? '构建条件满足' : '存在构建阻塞','status-pill ' + (healthStatus.canBuild ? 'good' : 'bad')));
   }
+  health.append(healthHead);
+  health.append(node('p',healthLabel(healthStatus),'health-summary ' + healthTone));
   if (Array.isArray(healthStatus?.issues)) {
     healthStatus.issues.forEach(issue => {
       const item = node('div',undefined,'health-issue');
@@ -1661,32 +1702,71 @@ function renderOverview() {
   if (latestBuild?.status === 'failed') {
     health.append(failureBanner('最近构建失败', buildFailureDetails(latestBuild) || buildFailureTitle(latestBuild)));
   }
-  columns.append(configSection,health);
-  const recent = node('section',undefined,'task-history'); recent.id = 'overview-task';
+
+  const contextSection = contextCheckSection();
+  contextSection.classList.add('workbench-section');
+  const recent = node('section',undefined,'task-history workbench-section'); recent.id = 'overview-task';
   recent.append(...overviewTasks());
-  const serviceActions = node('div',undefined,'console-service-actions');
-  serviceActions.append(button('关闭Maker控制台',() => void shutdownConsole(),{
-    className:'console-shutdown',disabled:offline || shutdownPending,focus:'console-shutdown'
-  }));
-  replace($('view'),[title,metrics,columns,contextCheckSection(),recent,serviceActions]);
+
+  const workbench = node('div',undefined,'overview-workbench');
+  workbench.append(health,contextSection,recent);
+  const mainCol = node('div',undefined,'overview-main');
+  mainCol.append(metrics,workbench);
+
+  const aside = node('aside',undefined,'overview-aside');
+  const configSection = node('section',undefined,'spec-group');
+  configSection.append(node('h2','项目规格'),fields([
+    ['项目版本',config.version],['屏幕方向',orientation],
+    ['入口脚本',config.entry],['引擎通道',config.engineTag],
+    ['多人模式',typeof config.multiplayer === 'boolean' ? (config.multiplayer ? '开启' : '关闭') : config.multiplayer],
+    ['应用 ID',config.appId]
+  ]));
+  const gitSection = node('section',undefined,'spec-group');
+  gitSection.append(node('h2','仓库状态'),fields([
+    ['Git 分支',detail.git?.branch],['Git HEAD',detail.git?.head?.slice(0,10)],
+    ['工作区变更',detail.git?.changeCount]
+  ]));
+  aside.append(configSection,gitSection);
+
+  const body = node('div',undefined,'overview-body');
+  body.append(mainCol,aside);
+  replace($('view'),[title,body]);
   ensureInitialContextCheck();
+}
+function shutdownBlocked() {
+  const editor = uiEditorState();
+  if (editor?.isDirty?.() || editor?.isBusy?.()) {
+    notify('请先保存 UI 编辑器的修改，并等待当前操作完成。','warning');
+    return true;
+  }
+  if (Array.from(canvasFrames.values()).some(frame => canvasUnsaved(frame) || canvasPending(frame))) {
+    notify('请先保存画布修改，并等待素材导入完成。','warning');
+    return true;
+  }
+  if (pending.size || state.tasks.some(task => task.status === 'running')) {
+    notify('仍有任务正在执行，请等待完成后再关闭控制台。','warning');
+    return true;
+  }
+  return false;
 }
 async function shutdownConsole() {
   if (shutdownPending || offline || disposed) return;
+  if (shutdownBlocked()) return;
   shutdownPending = true;
+  const shutdownButton = $('console-shutdown');
+  shutdownButton.disabled = true;
   try {
-    if (!await confirmAction('console.shutdown')) return;
-    if (pending.size || state.tasks.some(task => task.status === 'running')) {
-      notify('仍有任务正在执行，请等待完成后再关闭控制台。','warning');
-      return;
-    }
+    if (!await confirmAction('console.shutdown') || shutdownBlocked()) return;
     await api('/api/shutdown',{method:'POST',body:{}});
     dispose();
     updateChrome();
     $('connection').textContent = '正在关闭';
     $('connection').className = 'muted';
-    $('plugin-views').hidden = true;
-    $('view').replaceChildren(
+    for (const id of ['other-view','plugin-views','canvas-views','ui-editor-view']) $(id).hidden = true;
+    const view = $('view');
+    view.hidden = false;
+    view.dataset.view = '';
+    view.replaceChildren(
       node('h1','Maker 控制台正在关闭'),
       node('p','可以关闭此页面。再次使用时，请通过 Maker 重新打开控制台。','muted')
     );
@@ -1696,7 +1776,7 @@ async function shutdownConsole() {
       : error.message);
   } finally {
     shutdownPending = false;
-    if (!disposed) render();
+    shutdownButton.disabled = !loaded || offline;
   }
 }
 function luaLspPresentation(status) {
@@ -2066,7 +2146,7 @@ function renderWindowSettings() {
 }
 function previewCachePanel() {
   const key = selected, epoch = selectionEpoch;
-  const panel = node('section');
+  const panel = node('section',undefined,'preview-cache-panel');
   panel.append(node('h3','本机预览缓存'));
   const label = node('p','尚未统计 · 验证自动保留最近 3 次，运行中或状态不明的记录额外保留。','muted');
   const details = node('p',undefined,'muted');
@@ -2113,9 +2193,11 @@ function renderBuild() {
   const build = node('section'); build.id = 'build-panel';
   const local = node('section'); local.id = 'preview-panel';
   columns.append(build,local);
+  const sidebar = node('div',undefined,'build-sidebar');
   const logs = node('section',undefined,'console-logs'); logs.id = 'console-logs';
   const history = node('section',undefined,'task-history'); history.id = 'task-history';
-  replace($('view'),[title,columns,logs,previewCachePanel(),history]);
+  sidebar.append(columns,previewCachePanel(),history);
+  replace($('view'),[title,sidebar,logs]);
   updateBuild();
   if (logView().tab === 'validate' && !validationView().initialized) void refreshValidation();
 }
@@ -2309,11 +2391,13 @@ function confirmQrcode(project, config = {}) {
     picker.onchange = validate; title.oninput = validate; category.onchange = validate;
     validate();
     dialog.returnValue = 'cancel';
-    dialog.addEventListener('close',() => resolve(dialog.returnValue === 'accept' ?
-      {confirmedOrientation:configured ? undefined : picker.value, confirmedBuild:needsSync,
-        ...(needsTitle || needsCategory ? {publication:{
-          ...(needsTitle ? {title:title.value.trim()} : {}),
-          ...(needsCategory ? {category:category.value} : {})}} : {})} : null),{once:true});
+    dialog.addEventListener('close',() => {
+      resolve(dialog.returnValue === 'accept' ?
+        {confirmedOrientation:configured ? undefined : picker.value, confirmedBuild:needsSync,
+          ...(needsTitle || needsCategory ? {publication:{
+            ...(needsTitle ? {title:title.value.trim()} : {}),
+            ...(needsCategory ? {category:category.value} : {})}} : {})} : null);
+    },{once:true});
     dialog.showModal();
   });
 }
@@ -2587,6 +2671,309 @@ function showGitPullDialog(result) {
   $('git-pull-conflict-prompt').value = result.prompt;
   dialog.showModal();
 }
+const GIT_ROW_HEIGHT = 60;
+const GIT_LANE_COLORS = ['var(--primary)', 'var(--ai)', 'var(--warning)', 'var(--green)'];
+function formatGitDate(value) {
+  if (!value) return '未提供';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return text(value);
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+function normalizeGitStatus(raw) {
+  const code = String(raw || '').trim();
+  if (code === '??') return 'U';
+  const letter = (code.replace(/[^A-Za-z?]/g, '') || 'M').charAt(0).toUpperCase();
+  if (letter === '?') return 'U';
+  if (letter === 'C') return 'R';
+  return ['A','M','D','R','U'].includes(letter) ? letter : 'M';
+}
+function parseWorkingChanges(raw) {
+  let list = raw;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith('[')) {
+      try { list = JSON.parse(trimmed); } catch (_) { list = null; }
+    }
+    if (!Array.isArray(list)) {
+      return trimmed.split(/\r?\n/).filter(Boolean).map(line => {
+        const m = line.match(/^([ MADRCU?!]{1,2})\s+(.+)$/);
+        return m ? {status: normalizeGitStatus(m[1]), rawCode: m[1].trim(), path: m[2].trim()} : {status: 'M', rawCode: 'M', path: line.trim()};
+      });
+    }
+  }
+  if (!Array.isArray(list)) return [];
+  return list.filter(item => item && typeof item.path === 'string').map(item => ({
+    status: normalizeGitStatus(item.status),
+    rawCode: String(item.status || '').trim() || 'M',
+    path: item.path,
+  }));
+}
+function decodeGitPath(path) {
+  if (!path.startsWith('"') || !path.endsWith('"')) return path;
+  const escapes = { a:'\x07', b:'\b', t:'\t', n:'\n', v:'\v', f:'\f', r:'\r', '"':'"', '\\':'\\' };
+  return path.slice(1,-1).replace(/(?:\\[0-7]{3})+|\\([abtnvfr"\\])/g, (match, escape) => {
+    if (escape) return escapes[escape];
+    const bytes = match.slice(1).split('\\').map(byte => parseInt(byte,8));
+    return new TextDecoder('utf-8', {ignoreBOM:true}).decode(Uint8Array.from(bytes));
+  });
+}
+function parseCommitFiles(raw) {
+  if (!raw || typeof raw !== 'string') return [];
+  return raw.split(/\r?\n/).filter(Boolean).map(line => {
+    const parts = line.split('\t');
+    if (parts.length < 2) return null;
+    const rawCode = parts[0].trim();
+    const letter = rawCode.charAt(0).toUpperCase();
+    const status = normalizeGitStatus(rawCode);
+    const renamed = parts.length >= 3 && (letter === 'R' || letter === 'C');
+    const diffKey = decodeGitPath(renamed ? parts[2] : parts.slice(1).join('\t'));
+    const filePath = renamed ? decodeGitPath(parts[1]) + ' → ' + diffKey : diffKey;
+    return {status, rawCode, path: filePath, diffKey};
+  }).filter(Boolean);
+}
+function buildFileTree(entries) {
+  const root = {name: '', dirs: new Map(), files: []};
+  entries.forEach(entry => {
+    const path = entry.diffKey === undefined ? entry.path.replace(/\\/g, '/') : entry.path;
+    const clean = path.replace(/\/$/, '');
+    const isDirEntry = path.endsWith('/');
+    const arrow = clean.indexOf(' → ');
+    const segments = arrow !== -1 ? [clean] : clean.split('/').filter(Boolean);
+    if (!segments.length) return;
+    let cur = root;
+    const lastIdx = isDirEntry ? segments.length : segments.length - 1;
+    for (let i = 0; i < lastIdx; i++) {
+      const seg = segments[i];
+      if (!cur.dirs.has(seg)) cur.dirs.set(seg, {name: seg, dirs: new Map(), files: []});
+      cur = cur.dirs.get(seg);
+    }
+    if (isDirEntry) {
+      cur.dirEntry = entry;
+    } else {
+      cur.files.push({...entry, fileName: segments[segments.length - 1]});
+    }
+  });
+  const compact = treeNode => {
+    for (const [key, child] of Array.from(treeNode.dirs.entries())) {
+      compact(child);
+      if (!child.dirEntry && child.files.length === 0 && child.dirs.size === 1) {
+        const only = Array.from(child.dirs.values())[0];
+        only.name = child.name + '/' + only.name;
+        treeNode.dirs.delete(key);
+        treeNode.dirs.set(only.name, only);
+      }
+    }
+  };
+  compact(root);
+  return root;
+}
+function renderFileTreeList(entries, onSelectFile) {
+  const statusLabels = {A:'新增',M:'修改',D:'删除',R:'重命名',U:'未跟踪'};
+  const makeBadge = entry => {
+    const badge = node('span', entry.status, 'git-status-badge is-' + entry.status.toLowerCase());
+    badge.title = statusLabels[entry.status] || entry.rawCode;
+    badge.setAttribute('aria-label', badge.title);
+    return badge;
+  };
+  const renderBranch = (treeNode, isRoot) => {
+    const ul = node('ul', undefined, isRoot ? 'git-tree' : 'git-tree-children');
+    const dirs = Array.from(treeNode.dirs.values()).sort((a,b) => a.name.localeCompare(b.name));
+    dirs.forEach(dir => {
+      const li = node('li');
+      if (dir.dirEntry && !dir.dirs.size && !dir.files.length) {
+        const row = node('div', undefined, 'git-tree-file');
+        const left = node('span', undefined, 'git-tree-file-left');
+        left.append(node('span', '▸', 'git-tree-dir-icon'), node('span', dir.name + '/', 'git-tree-file-name'));
+        row.append(left, makeBadge(dir.dirEntry));
+        li.append(row);
+      } else {
+        const dirRow = node('div', undefined, 'git-tree-dir');
+        dirRow.append(node('span', '▾', 'git-tree-dir-icon'), node('span', dir.name + '/'));
+        li.append(dirRow, renderBranch(dir, false));
+      }
+      ul.append(li);
+    });
+    const files = [...treeNode.files].sort((a,b) => a.fileName.localeCompare(b.fileName));
+    files.forEach(file => {
+      const li = node('li');
+      const row = onSelectFile
+        ? button('', () => onSelectFile(file), {className: 'git-tree-file'})
+        : node('div', undefined, 'git-tree-file');
+      row.title = file.path;
+      const left = node('span', undefined, 'git-tree-file-left');
+      left.append(node('span', file.fileName, 'git-tree-file-name'));
+      row.replaceChildren(left, makeBadge(file));
+      li.append(row);
+      ul.append(li);
+    });
+    return ul;
+  };
+  return renderBranch(buildFileTree(entries), true);
+}
+function renderFilePathNode(filePath) {
+  const wrap = node('span', undefined, 'git-file-path');
+  const arrowIndex = filePath.indexOf(' → ');
+  if (arrowIndex !== -1) {
+    wrap.append(renderFilePathNode(filePath.slice(0, arrowIndex)), node('span', ' → ', 'git-file-arrow'), renderFilePathNode(filePath.slice(arrowIndex + 3)));
+    return wrap;
+  }
+  const slash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+  if (slash !== -1) {
+    wrap.append(node('span', filePath.slice(0, slash + 1), 'git-file-dir'), node('span', filePath.slice(slash + 1), 'git-file-name'));
+  } else {
+    wrap.append(node('span', filePath, 'git-file-name'));
+  }
+  return wrap;
+}
+function renderCommitFileList(raw, onSelectFile) {
+  const entries = parseCommitFiles(raw);
+  const section = node('div', undefined, 'git-files-section');
+  const head = node('div', undefined, 'git-section-bar');
+  head.append(node('h3', '变更文件树'));
+  if (entries.length) head.append(node('span', String(entries.length), 'git-count-badge'));
+  section.append(head);
+  if (!entries.length) {
+    section.append(node('p', text(raw, '无文件变更'), 'muted'));
+    return section;
+  }
+  const wrap = node('div', undefined, 'git-tree-wrap');
+  wrap.append(renderFileTreeList(entries, onSelectFile));
+  section.append(wrap);
+  return section;
+}
+function renderUnifiedDiff(patchText) {
+  const section = node('div', undefined, 'git-diff-section');
+  const head = node('div', undefined, 'git-section-bar');
+  head.append(node('h3', '代码变更'));
+  section.append(head);
+  const clean = typeof patchText === 'string' ? patchText.replace(/\r?\n$/, '') : '';
+  if (!clean) {
+    section.append(node('p', '无文本补丁', 'muted'));
+    return section;
+  }
+  const rawLines = clean.split(/\r?\n/);
+  const looksLikeDiff = rawLines.some(line => line.startsWith('diff --git ') || line.startsWith('@@ ') || line.startsWith('+++ ') || line.startsWith('--- '));
+  if (!looksLikeDiff) {
+    section.append(node('pre', clean, 'git-diff-plain'));
+    return section;
+  }
+  const MAX_DIFF_LINES = 2500;
+  const blocks = [];
+  let current = null;
+  let totalAdded = 0, totalRemoved = 0;
+  let oldLn = 0, newLn = 0;
+  let inHunk = false;
+  const limit = Math.min(rawLines.length, MAX_DIFF_LINES);
+  for (let i = 0; i < limit; i++) {
+    const line = rawLines[i];
+    if (line.startsWith('diff --git ')) {
+      const header = line.slice(11);
+      const match = header.match(/^a\/(.+) b\/\1$|^"a\/(.+)" "b\/\2"$/);
+      const key = match ? (match[1] ?? decodeGitPath('"' + match[2] + '"')) : '';
+      current = {key, title: key || header, added: 0, removed: 0, mode: '', lines: []};
+      blocks.push(current);
+      oldLn = 0; newLn = 0;
+      inHunk = false;
+      continue;
+    }
+    if (!current) {
+      current = {key: '', title: '补丁内容', added: 0, removed: 0, mode: '', lines: []};
+      blocks.push(current);
+    }
+    if (line.startsWith('new file mode ')) { current.mode = '新增'; continue; }
+    if (line.startsWith('deleted file mode ')) { current.mode = '删除'; continue; }
+    if (line.startsWith('index ') || (!inHunk && (line.startsWith('--- ') || line.startsWith('+++ '))) ||
+      line.startsWith('similarity index ') || line.startsWith('rename from ') || line.startsWith('rename to ') ||
+      line.startsWith('old mode ') || line.startsWith('new mode ')) {
+      continue;
+    }
+    if (line.startsWith('Binary files ')) {
+      current.lines.push({kind: 'meta', text: '二进制文件变更，不支持文本对比'});
+      continue;
+    }
+    if (line.startsWith('@@ ')) {
+      inHunk = true;
+      const hm = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/);
+      if (hm) { oldLn = Number(hm[1]); newLn = Number(hm[2]); }
+      current.lines.push({kind: 'hunk', text: line});
+    } else if (line.startsWith('+')) {
+      current.added++; totalAdded++;
+      current.lines.push({kind: 'add', oldN: '', newN: newLn ? String(newLn++) : '', sig: '+', code: line.slice(1)});
+    } else if (line.startsWith('-')) {
+      current.removed++; totalRemoved++;
+      current.lines.push({kind: 'del', oldN: oldLn ? String(oldLn++) : '', newN: '', sig: '-', code: line.slice(1)});
+    } else if (line.startsWith('\\')) {
+      current.lines.push({kind: 'meta', text: line});
+    } else {
+      const code = line.startsWith(' ') ? line.slice(1) : line;
+      current.lines.push({kind: 'ctx', oldN: oldLn ? String(oldLn++) : '', newN: newLn ? String(newLn++) : '', sig: ' ', code});
+    }
+  }
+  if (totalAdded || totalRemoved) {
+    const stats = node('span', undefined, 'git-diff-stats');
+    if (totalAdded) stats.append(node('span', '+' + totalAdded, 'git-stat-add'));
+    if (totalRemoved) stats.append(node('span', '-' + totalRemoved, 'git-stat-del'));
+    head.append(stats);
+  }
+  const container = node('div', undefined, 'git-diff-blocks');
+  blocks.forEach(block => {
+    const card = node('div', undefined, 'git-diff-file');
+    if (block.key) card.dataset.diffFile = block.key;
+    const fileHead = node('div', undefined, 'git-diff-file-head');
+    const titleWrap = node('div', undefined, 'git-row-meta-start');
+    if (block.mode) {
+      const badgeLetter = block.mode === '新增' ? 'A' : 'D';
+      titleWrap.append(node('span', badgeLetter, 'git-status-badge is-' + badgeLetter.toLowerCase()));
+    }
+    titleWrap.append(renderFilePathNode(block.title));
+    fileHead.append(titleWrap);
+    if (block.added || block.removed) {
+      const fileStats = node('span', undefined, 'git-diff-stats');
+      if (block.added) fileStats.append(node('span', '+' + block.added, 'git-stat-add'));
+      if (block.removed) fileStats.append(node('span', '-' + block.removed, 'git-stat-del'));
+      fileHead.append(fileStats);
+    }
+    const body = node('div', undefined, 'git-diff-lines');
+    block.lines.forEach(entry => {
+      if (entry.kind === 'hunk' || entry.kind === 'meta') {
+        body.append(node('div', entry.text, 'diff-row diff-' + entry.kind));
+      } else {
+        const row = node('div', undefined, 'diff-row diff-' + entry.kind);
+        row.append(
+          node('span', entry.oldN || '', 'diff-ln'),
+          node('span', entry.newN || '', 'diff-ln'),
+          node('span', entry.sig, 'diff-sig'),
+          node('span', entry.code === '' ? ' ' : entry.code, 'diff-code')
+        );
+        body.append(row);
+      }
+    });
+    card.append(fileHead, body);
+    container.append(card);
+  });
+  if (rawLines.length > MAX_DIFF_LINES) {
+    container.append(node('p', '补丁共 ' + rawLines.length + ' 行，已仅展示前 ' + MAX_DIFF_LINES + ' 行以保持界面流畅。', 'muted git-diff-truncated'));
+  }
+  section.append(container);
+  return section;
+}
+function syncSelectedGitRow() {
+  document.querySelectorAll('.git-row[data-commit-hash]').forEach(row => {
+    const active = row.dataset.commitHash === selectedCommitHash;
+    row.classList.toggle('is-selected', active);
+    if (active) row.setAttribute('aria-current', 'true');
+    else row.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('.git-graph circle[data-commit-hash]').forEach(circle => {
+    const active = circle.dataset.commitHash === selectedCommitHash;
+    const laneColor = circle.dataset.laneColor || 'var(--primary)';
+    circle.setAttribute('stroke', active ? 'var(--primary)' : laneColor);
+    circle.setAttribute('fill', active ? 'var(--primary)' : 'var(--bg)');
+    circle.setAttribute('r', active ? '4.5' : '3.5');
+  });
+}
 function renderGit() {
   const title = heading('Git 历史',currentProject().path);
   const actions = node('div',undefined,'actions');
@@ -2606,42 +2993,87 @@ function renderGit() {
   const meta = node('div',undefined,'git-meta');
   meta.append(node('span','分支：' + text(git.branch)),node('span',git.shallow ? '浅克隆 · 历史不完整' : '本地提交历史','muted'));
   elements.push(meta);
+  const wtEntries = parseWorkingChanges(git.changes);
   const changes = node('details'); changes.dataset.key = 'git-changes';
-  changes.append(node('summary','工作区变更'),node('pre',text(git.changes,'无变更数据'))); elements.push(changes);
+  const wtSummary = node('summary');
+  wtSummary.append(node('span', '工作区变更'), node('span', wtEntries.length ? String(wtEntries.length) + ' 项' : '干净', 'git-count-badge'));
+  changes.append(wtSummary);
+  const wtBody = node('div', undefined, 'git-wt-body');
+  if (wtEntries.length) wtBody.append(renderFileTreeList(wtEntries, null));
+  else wtBody.append(node('p', '当前工作区无未提交变更', 'muted'));
+  changes.append(wtBody);
+  elements.push(changes);
   const commits = git.commits || [];
   const graph = graphLayout(commits);
-  const width = Math.max(32,...graph.nodes.map(n => n.lane * 18 + 32),...graph.edges.map(e => e.toLane * 18 + 32));
+  const width = Math.max(30,...graph.nodes.map(n => n.lane * 16 + 30),...graph.edges.map(e => e.toLane * 16 + 30));
   const scroll = node('div',undefined,'git-scroll');
   const history = node('div',undefined,'git-history');
-  const svg = svgNode('svg',{width,height:commits.length * 76,class:'git-graph','aria-label':'Git 父提交关系图',role:'img'});
+  const midY = GIT_ROW_HEIGHT / 2;
+  const svg = svgNode('svg',{width,height:commits.length * GIT_ROW_HEIGHT,class:'git-graph','aria-label':'Git 父提交关系图',role:'img'});
   const byHash = new Map(graph.nodes.map(n => [n.hash,n]));
   graph.edges.forEach(edge => {
     const target = byHash.get(edge.to);
-    const x1 = 12 + edge.fromLane * 18, y1 = edge.fromIndex * 76 + 29;
-    const x2 = 12 + (target?.lane ?? edge.toLane) * 18;
-    const y2 = target ? target.index * 76 + 29 : commits.length * 76;
-    const line = svgNode('path',{d:'M ' + x1 + ' ' + y1 + ' C ' + x2 + ' ' + (y1 + 38) + ', ' +
-      x2 + ' ' + (y2 - 38) + ', ' + x2 + ' ' + y2,fill:'none',stroke:'var(--green)','stroke-width':1.5});
+    const x1 = 14 + edge.fromLane * 16, y1 = edge.fromIndex * GIT_ROW_HEIGHT + midY;
+    const x2 = 14 + (target?.lane ?? edge.toLane) * 16;
+    const y2 = target ? target.index * GIT_ROW_HEIGHT + midY : commits.length * GIT_ROW_HEIGHT;
+    const strokeColor = GIT_LANE_COLORS[(edge.toLane ?? edge.fromLane) % GIT_LANE_COLORS.length];
+    const line = svgNode('path',{d:'M ' + x1 + ' ' + y1 + ' C ' + x2 + ' ' + (y1 + midY) + ', ' +
+      x2 + ' ' + (y2 - midY) + ', ' + x2 + ' ' + y2,fill:'none',stroke:strokeColor,'stroke-width':1.6,'stroke-opacity':0.65});
     if (!target) line.setAttribute('stroke-dasharray','3 4');
     svg.append(line);
   });
-  graph.nodes.forEach(n => svg.append(svgNode('circle',{cx:12 + n.lane * 18,cy:n.index * 76 + 29,r:4,
-    fill:'var(--bg)',stroke:'var(--accent)','stroke-width':2})));
+  graph.nodes.forEach(n => {
+    const active = n.hash === selectedCommitHash;
+    const laneColor = GIT_LANE_COLORS[n.lane % GIT_LANE_COLORS.length];
+    const dot = svgNode('circle',{cx:14 + n.lane * 16,cy:n.index * GIT_ROW_HEIGHT + midY,r:active ? 4.5 : 3.5,
+      fill:active ? 'var(--primary)' : 'var(--bg)',stroke:active ? 'var(--primary)' : laneColor,'stroke-width':1.8});
+    dot.dataset.commitHash = n.hash;
+    dot.dataset.laneColor = laneColor;
+    svg.append(dot);
+  });
   const rows = node('div',undefined,'git-rows'); rows.style.paddingLeft = width + 'px';
   commits.forEach(commit => {
-    const r = node('div',undefined,'git-row');
-    const hash = button(text(commit.hash).slice(0,9),() => void loadCommit(commit.hash),{className:'link'});
-    hash.replaceChildren(node('code',text(commit.hash).slice(0,9)));
-    const subject = button(text(commit.subject),() => void loadCommit(commit.hash),{className:'link'});
-    subject.classList.add('subject');
-    const time = node('time',date(commit.date));
-    r.append(hash,subject,time); rows.append(r);
+    const active = commit.hash === selectedCommitHash;
+    const r = node('div',undefined,'git-row' + (active ? ' is-selected' : ''));
+    r.dataset.commitHash = commit.hash;
+    if (active) r.setAttribute('aria-current', 'true');
+    const topRow = node('div', undefined, 'git-row-top');
+    const subject = button(text(commit.subject),() => void loadCommit(commit.hash),{className:'link subject'});
+    subject.title = text(commit.subject);
+    topRow.append(subject);
+    if (commit.hash === git.head && git.branch) topRow.append(node('span', text(git.branch), 'git-head-pill'));
+    const metaRow = node('div',undefined,'git-row-meta');
+    const metaStart = node('div',undefined,'git-row-meta-start');
+    const hash = button(text(commit.hash).slice(0,8),() => void loadCommit(commit.hash),{className:'link git-row-hash'});
+    hash.replaceChildren(node('code',text(commit.hash).slice(0,8)));
+    hash.title = text(commit.hash);
+    metaStart.append(hash);
+    if (commit.author) metaStart.append(node('span',text(commit.author),'git-row-author'));
+    const time = node('time',formatGitDate(commit.date));
+    metaRow.append(metaStart,time);
+    r.append(topRow,metaRow);
+    r.addEventListener('click', event => {
+      if (event.target?.closest?.('button')) return;
+      void loadCommit(commit.hash);
+    });
+    rows.append(r);
   });
-  history.append(svg,rows); scroll.append(history); elements.push(scroll);
-  if (!commits.length) elements.push(node('p','暂无提交记录','empty'));
-  if (git.hasMore) elements.push(button(gitLoading ? '正在读取' : '加载更多提交',() => void loadGit(true),{disabled:gitLoading}));
+  history.append(svg,rows); scroll.append(history);
+  const gitLayout = node('div',undefined,'git-layout');
+  const gitListPane = node('div',undefined,'git-list-pane');
+  const listHead = node('div', undefined, 'git-pane-head');
+  listHead.append(node('span', '提交历史'), node('span', String(commits.length), 'git-count-badge'));
+  gitListPane.append(listHead, scroll);
+  if (!commits.length) gitListPane.append(node('p','暂无提交记录','empty'));
+  if (git.hasMore) gitListPane.append(button(gitLoading ? '正在读取' : '加载更多提交',() => void loadGit(true),{disabled:gitLoading,className:'git-more'}));
   const commitDetail = node('section',undefined,'git-detail'); commitDetail.id = 'commit-detail';
-  elements.push(commitDetail); replace($('view'),elements);
+  commitDetail.append(node('p', commits.length ? '正在加载提交详情…' : '暂无提交可查看','empty'));
+  gitLayout.append(gitListPane,commitDetail);
+  elements.push(gitLayout); replace($('view'),elements);
+  const autoHash = (selectedCommitHash && commits.some(c => c.hash === selectedCommitHash))
+    ? selectedCommitHash
+    : (commits[0]?.hash || '');
+  if (autoHash) void loadCommit(autoHash);
 }
 async function pullGit() {
   if (gitPulling || gitLoading || !currentProject()?.valid) return;
@@ -2688,16 +3120,39 @@ async function loadGit(more) {
 }
 async function loadCommit(hash) {
   const key = selected, epoch = selectionEpoch, view = viewEpoch, request = ++commitRequest;
+  selectedCommitHash = hash;
+  syncSelectedGitRow();
   replace($('commit-detail'),[node('p','正在读取提交详情','muted')]);
   try {
     const commit = await api(projectPath(key,'/git/' + encodeURIComponent(hash)));
     if (!selectionMatches(key,epoch) || view !== viewEpoch || request !== commitRequest) return;
-    const children = [node('h2',commit.subject),fields([['提交',commit.hash],['作者',commit.author],['时间',date(commit.date)]])];
-    if (commit.body) children.push(node('pre',commit.body));
-    children.push(node('h3','文件变更'),node('pre',text(commit.files,'无文件变更')));
-    children.push(node('h3','补丁'),node('pre',text(commit.patch,'无文本补丁')));
+    const header = node('div', undefined, 'git-commit-header');
+    header.append(node('h2', text(commit.subject)));
+    const meta = node('div', undefined, 'git-commit-meta');
+    const fullHash = text(commit.hash);
+    const shortHashBtn = button(fullHash.slice(0, 8), async () => {
+      try {
+        await navigator.clipboard.writeText(fullHash);
+        announce('提交哈希已复制');
+      } catch (_) {
+        notify('无法复制提交哈希');
+      }
+    }, {className: 'git-hash-chip', icon: 'copy'});
+    shortHashBtn.title = '点击复制完整哈希：' + fullHash;
+    meta.append(shortHashBtn);
+    if (commit.author) meta.append(node('span', text(commit.author), 'git-commit-author'));
+    meta.append(node('time', formatGitDate(commit.date), 'git-commit-time'));
+    header.append(meta);
+    if (commit.body && commit.body.trim()) header.append(node('pre', commit.body.trim(), 'git-commit-body'));
+    const diffSection = renderUnifiedDiff(commit.patch);
+    const fileTree = renderCommitFileList(commit.files, file => {
+      const targetBlock = Array.from(diffSection.querySelectorAll('.git-diff-file'))
+        .find(el => el.dataset.diffFile === file.diffKey || el.dataset.diffFile === file.path);
+      targetBlock?.scrollIntoView?.({behavior: 'smooth', block: 'start'});
+    });
+    const children = [header, fileTree, diffSection];
     const target = $('commit-detail'); replace(target,children);
-    target.tabIndex = -1; target.focus({preventScroll:true}); target.scrollIntoView({block:'nearest'});
+    target.tabIndex = -1;
   } catch (error) {
     if (selectionMatches(key,epoch) && view === viewEpoch && request === commitRequest) replace($('commit-detail'),[node('p',error.message,'bad')]);
   }
@@ -2816,6 +3271,7 @@ function setMotionVisible(visible) {
 }
 function renderOther() {
   const motion = otherTab === 'motion';
+  setStageBreadcrumb('其他', motion ? 'UI 动效' : '项目检查');
   $('other-motion').hidden = !motion;
   $('other-architecture').hidden = motion;
   document.querySelectorAll('[data-other-tab]').forEach(tab => {
@@ -2863,6 +3319,10 @@ function render() {
   if (page === 'canvas') { renderCanvas(); return; }
   if (page === 'ui-editor') { renderUiEditor(); return; }
   if (plugin) { renderPlugin(plugin); return; }
+  const activeView = page === 'documents' || page === 'settings' || page === 'other'
+    ? page
+    : (page === 'projects' || !currentProject()?.valid ? 'projects' : page);
+  if ($('view')?.dataset) $('view').dataset.view = activeView;
   if (page === 'documents') { void renderDocuments(); return; }
   if (page === 'settings') { void renderVisionSettings(); return; }
   if (page === 'other') { renderOther(); return; }
@@ -3050,11 +3510,27 @@ document.addEventListener('DOMContentLoaded',async () => {
   window.addEventListener('focus',() => { void sendActivity(); void poll(); });
   window.addEventListener('pagehide',dispose,{once:true});
   const theme = $('theme');
+  const syncThemeButtons = current => {
+    document.querySelectorAll('.theme-option[data-theme-value]').forEach(btn => {
+      btn.setAttribute('aria-pressed', String(btn.dataset.themeValue === current));
+    });
+  };
+  document.querySelectorAll('.theme-option[data-theme-value]').forEach(btn => {
+    const val = btn.dataset.themeValue;
+    btn.prepend(icon(val === 'light' ? 'sun' : 'moon'));
+    btn.addEventListener('click', () => {
+      if (!window.MakerConsole.setTheme(val)) notify('无法保存主题设置');
+      syncThemeButtons(window.MakerConsole.getTheme());
+    });
+  });
   theme.checked = window.MakerConsole.getTheme() === 'dark';
+  syncThemeButtons(window.MakerConsole.getTheme());
   theme.addEventListener('change',() => {
     if (!window.MakerConsole.setTheme(theme.checked ? 'dark' : 'light')) notify('无法保存主题设置');
+    syncThemeButtons(window.MakerConsole.getTheme());
   });
-  window.MakerConsole.onThemeChange(() => {
+  window.MakerConsole.onThemeChange(nextTheme => {
+    syncThemeButtons(nextTheme);
     pluginSessions.forEach(session => sendPluginTheme(session));
     if ($('fortune-frame').getAttribute('src')) {
       beginFortuneLoad(true);
@@ -3062,6 +3538,27 @@ document.addEventListener('DOMContentLoaded',async () => {
   });
   $('projects-button').append(icon('folder'));
   $('settings-button').append(icon('settings'));
+  const sidebarToggle = $('sidebar-toggle');
+  if (sidebarToggle) {
+    sidebarToggle.append(icon('panelLeft'));
+    const applySidebarCollapsed = collapsed => {
+      document.body.classList.toggle('sidebar-collapsed', collapsed);
+      sidebarToggle.setAttribute('aria-pressed', String(collapsed));
+      sidebarToggle.title = collapsed ? '展开侧边栏' : '折叠侧边栏';
+      sidebarToggle.setAttribute('aria-label', sidebarToggle.title);
+    };
+    try { applySidebarCollapsed(localStorage.getItem('maker-console-sidebar') === 'collapsed'); }
+    catch (_) { applySidebarCollapsed(false); }
+    sidebarToggle.addEventListener('click', () => {
+      const collapsed = !document.body.classList.contains('sidebar-collapsed');
+      applySidebarCollapsed(collapsed);
+      try { localStorage.setItem('maker-console-sidebar', collapsed ? 'collapsed' : 'expanded'); } catch (_) {}
+    });
+  }
+  document.querySelectorAll('nav [data-nav-icon]').forEach(b => {
+    const name = b.dataset.navIcon;
+    if (name && iconNodes[name]) b.prepend(icon(name));
+  });
   const fortunePanel = $('fortune-panel');
   const fortuneFrame = $('fortune-frame');
   fortunePanel.classList.add('fortune-preload');
@@ -3083,6 +3580,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   document.addEventListener('keydown',event => { if (event.key === 'Escape') closeFortune(); });
   $('projects-button').addEventListener('click',() => navigate('projects'));
   $('settings-button').addEventListener('click',() => navigate('settings'));
+  $('console-shutdown').addEventListener('click',() => void shutdownConsole());
   $('close-canvas').addEventListener('click',closeCurrentCanvas);
   $('project-picker').addEventListener('change',event => chooseProject(event.target.value));
   $('maker-version-picker').addEventListener('change',selectMakerVersion);
@@ -3095,7 +3593,7 @@ document.addEventListener('DOMContentLoaded',async () => {
       renderOther();
     });
     tab.addEventListener('keydown',event => {
-      if (!['ArrowUp','ArrowDown','Home','End'].includes(event.key)) return;
+      if (!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
       event.preventDefault();
       const next = event.key === 'Home' ? 'architecture' : event.key === 'End' ? 'motion'
         : otherTab === 'motion' ? 'architecture' : 'motion';
