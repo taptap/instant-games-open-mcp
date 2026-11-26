@@ -64,6 +64,20 @@ describe('canvas autosave cadence', () => {
     expect(canvas.saved).toEqual(['card+wire']);
   });
 
+  test('a plain edit after an immediate one keeps the next-tick save', () => {
+    const { canvas, schedule, type } = typingCanvas();
+    canvas.text = 'card';
+    schedule.schedule(true);
+    type('card+title');
+    jest.advanceTimersByTime(0);
+    expect(canvas.saved).toEqual(['card+title']);
+    type('card+title!');
+    jest.advanceTimersByTime(1999);
+    expect(canvas.saved).toEqual(['card+title']);
+    jest.advanceTimersByTime(1);
+    expect(canvas.saved).toEqual(['card+title', 'card+title!']);
+  });
+
   test('cancel drops the waiting save', () => {
     const { canvas, schedule, type } = typingCanvas();
     type('conflict');

@@ -34,10 +34,13 @@ export function createCanvasSaveScheduler(options: CanvasSaveScheduleOptions): C
   let timer: ReturnType<typeof setTimeout> | undefined;
   let firstEditAt = 0;
   let waiting = false;
+  // An immediate save stays due until it runs or is cancelled; later plain edits join it.
+  let immediateDue = false;
 
   function clear() {
     if (timer !== undefined) clearTimeout(timer);
     timer = undefined;
+    immediateDue = false;
   }
   function fire() {
     clear();
@@ -46,10 +49,12 @@ export function createCanvasSaveScheduler(options: CanvasSaveScheduleOptions): C
   }
   return {
     schedule(immediate?: boolean) {
+      if (immediateDue) return;
       const now = Date.now();
       if (!waiting) firstEditAt = now;
       waiting = true;
       clear();
+      immediateDue = Boolean(immediate);
       const delay = immediate ? 0 : Math.max(0, Math.min(idleMs, firstEditAt + maxWaitMs - now));
       timer = setTimeout(fire, delay);
     },
