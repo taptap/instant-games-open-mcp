@@ -1,6 +1,18 @@
 import { Script, runInNewContext } from 'node:vm';
 import { marked } from 'marked';
 import { getConsoleHtml } from '../maker/console/web.js';
+import { consoleThemeStyles } from '../maker/webTheme.js';
+
+function luminance(hex: string): number {
+  const channels = hex
+    .slice(1)
+    .match(/../g)!
+    .map((pair) => {
+      const channel = parseInt(pair, 16) / 255;
+      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
 
 function script(): string {
   const html = getConsoleHtml();
@@ -28,6 +40,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
   const context = {
     URL,
     URLSearchParams,
+    TextDecoder,
     AbortController,
     matchMedia: jest.fn(() => ({ matches: false, addEventListener: jest.fn() })),
     requestAnimationFrame: jest.fn(() => 0),
@@ -89,7 +102,9 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
       showQrcode: typeof showQrcode === 'function' ? showQrcode : undefined,
       handleQrcodeCompletion: typeof handleQrcodeCompletion === 'function' ? handleQrcodeCompletion : undefined,
       offerIssueReport, showPendingIssueReport,
-      poll, pollState, renderVisionSettings, sendActivity, startActivityLease, dispose, shutdownConsole, rememberTask, buildPresentation, buildFailureMessage,
+      poll, pollState, renderVisionSettings, parseCommitFiles, renderUnifiedDiff,
+      sendActivity, startActivityLease, dispose, shutdownConsole, rememberTask, buildPresentation, buildFailureMessage,
+      canvasFrames, setUiEditorFrame: frame => { uiEditorFrame = frame; },
       buildFailureDetails, luaLspPresentation, luaCheckBlocksBuild, runtimePresentation,
       previewPresentation: typeof previewPresentation === 'function' ? previewPresentation : undefined,
       previewStateLabel: typeof previewStateLabel === 'function' ? previewStateLabel : undefined,
@@ -138,6 +153,24 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
 }
 
 describe('Maker console standalone UI', () => {
+  it('keeps primary button text readable in both themes', () => {
+    const foreground = consoleThemeStyles.match(/--on-primary:(#[\da-f]{6})/i)![1];
+    const backgrounds = Array.from(consoleThemeStyles.matchAll(/--primary:(#[\da-f]{6})/gi));
+    expect(backgrounds).toHaveLength(2);
+    for (const [, background] of backgrounds) {
+      const colors = [luminance(background), luminance(foreground)];
+      expect((Math.max(...colors) + 0.05) / (Math.min(...colors) + 0.05)).toBeGreaterThanOrEqual(
+        4.5
+      );
+    }
+  });
+
+  it('reuses one brand shape across the two sidebar presentations', () => {
+    const html = getConsoleHtml();
+    expect(html.match(/id="maker-brand-shape"/g)).toHaveLength(1);
+    expect(html.match(/href="#maker-brand-shape"/g)).toHaveLength(2);
+  });
+
   it('checks only the current project with no additional scope selector', async () => {
     const { api, fetch, context } = harness();
     const created: any[] = [];
@@ -359,6 +392,42 @@ describe('Maker console standalone UI', () => {
     expect(html).not.toContain('<button data-page="settings">');
   });
 
+  it('matches quoted Git paths and keeps hunk lines that look like file headers', () => {
+    const { api, context } = harness();
+    const created: Array<
+      ReturnType<typeof context.document.createElement> & { textContent?: string }
+    > = [];
+    const create = context.document.createElement;
+    context.document.createElement = (tag) => {
+      const element = create(tag);
+      created.push(element);
+      return element;
+    };
+    const encodedPath = 'dir/\\344\\270\\255\\346\\226\\207\\t space.lua ';
+    const path = 'dir/中文\t space.lua ';
+    expect(api.parseCommitFiles('M\t"' + encodedPath + '"\n')).toEqual([
+      { status: 'M', rawCode: 'M', path, diffKey: path },
+    ]);
+    api.renderUnifiedDiff(
+      [
+        'diff --git "a/' + encodedPath + '" "b/' + encodedPath + '"',
+        '--- "a/' + encodedPath + '"',
+        '+++ "b/' + encodedPath + '"',
+        '@@ -4,2 +6,2 @@',
+        '--- comment',
+        '+++ value',
+        ' context  ',
+        '',
+      ].join('\n')
+    );
+    expect(created.find((element) => element.className === 'git-diff-file')?.dataset).toEqual({
+      diffFile: path,
+    });
+    expect(created.map((element) => element.textContent)).toEqual(
+      expect.arrayContaining(['-- comment', '++ value', 'context  ', '5', '7', '+1', '-1'])
+    );
+  });
+
   it('renders the vision settings form without a selected project', async () => {
     const { api, fetch, context } = harness('', '?page=settings');
     api.setPage('settings');
@@ -483,6 +552,50 @@ describe('Maker console standalone UI', () => {
       expect(created.some((el) => el.type === 'password')).toBe(false);
     }
   );
+
+  it('disables model selects while saving and restores their value on failure', async () => {
+    const { api, fetch, context } = harness('', '?page=settings');
+    api.setPage('settings');
+    const view = { querySelectorAll: () => [], contains: () => false, replaceChildren: jest.fn() };
+    context.document.getElementById.mockImplementation(((id: string) =>
+      id === 'view' ? view : null) as any);
+    const selects: any[] = [];
+    const create = context.document.createElement;
+    const classList = { contains: () => false, toggle: jest.fn() };
+    context.document.createElement = (tag) => {
+      const element = create(tag);
+      if (tag === 'select') {
+        const options: unknown[] = [];
+        Object.assign(element, {
+          options,
+          classList,
+          getAttribute: () => null,
+          append: (...children: unknown[]) => options.push(...children),
+        });
+        selects.push(element);
+      }
+      return element;
+    };
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        vision: { source: 'server' },
+        generation: { source: 'maker' },
+        profiles: [],
+      }),
+    });
+    await api.renderVisionSettings();
+    const source = selects[2];
+    fetch.mockRejectedValueOnce(new Error('save failed'));
+    source.value = 'local';
+    const save = source.onchange();
+    expect(source.disabled).toBe(true);
+    expect(source.value).toBe('local');
+    await save;
+    expect(source.disabled).toBe(false);
+    expect(source.value).toBe('maker');
+  });
 
   it('keeps settings open when a requested project is missing', async () => {
     const { api, fetch } = harness('', '?project=missing&page=settings');
@@ -731,19 +844,59 @@ describe('Maker console standalone UI', () => {
     expect(notify).toHaveBeenCalledWith(task.error);
   });
 
+  it('places the console shutdown control in the top bar after the connection status', () => {
+    const html = getConsoleHtml();
+    const bar = html.split('<div class="navigation">')[1]?.split('<div id="feedback"')[0];
+    expect(bar).toMatch(/id="connection"[\s\S]*id="console-shutdown"[^>]*disabled>/);
+    expect(bar).not.toMatch(/id="console-shutdown"[^>]*\bhidden\b/);
+    expect(html.match(/id="console-shutdown"/g)).toHaveLength(1);
+  });
+
   it.each([false, true])('only shuts down after confirmation=%s', async (confirmed) => {
     const { api, fetch } = harness();
     const confirm = jest.fn().mockResolvedValue(confirmed);
-    api.setup([], { render: jest.fn(), confirm, notify: jest.fn() });
+    const render = jest.fn();
+    api.setup([], { render, confirm, notify: jest.fn() });
+    api.setPage('settings');
     await api.shutdownConsole();
     expect(confirm).toHaveBeenCalledWith('console.shutdown');
     expect(fetch).toHaveBeenCalledTimes(confirmed ? 1 : 0);
     if (confirmed) {
       expect(fetch.mock.calls[0][0]).toBe('/api/shutdown');
       expect(fetch.mock.calls[0][1].method).toBe('POST');
-    }
+    } else expect(render).not.toHaveBeenCalled();
     expect(api.offline()).toBe(confirmed);
   });
+
+  it.each(['ui-dirty', 'ui-busy', 'canvas-dirty', 'canvas-import'])(
+    'protects open editors while shutting down from another page: %s',
+    async (blocker) => {
+      const { api, fetch } = harness();
+      const notify = jest.fn();
+      const confirm = jest.fn().mockResolvedValue(true);
+      api.setup([], { render: jest.fn(), confirm, notify });
+      api.setPage('settings');
+      api.setUiEditorFrame({
+        contentWindow: {
+          UrhoxProject: {
+            isDirty: () => blocker === 'ui-dirty',
+            isBusy: () => blocker === 'ui-busy',
+          },
+        },
+      });
+      api.canvasFrames.set('alpha', {
+        contentWindow: {
+          makerCanvasUnsaved: blocker === 'canvas-dirty',
+          makerCanvasPendingImport: blocker === 'canvas-import',
+        },
+      });
+      await api.shutdownConsole();
+      expect(notify).toHaveBeenCalledWith(expect.stringContaining('请先保存'), 'warning');
+      expect(confirm).not.toHaveBeenCalled();
+      expect(fetch).not.toHaveBeenCalled();
+      expect(api.offline()).toBe(false);
+    }
+  );
 
   it('keeps the console available if shutdown is rejected by active tasks', async () => {
     const { api, fetch } = harness();
@@ -1829,7 +1982,8 @@ describe('Maker console standalone UI', () => {
     const styles = getConsoleHtml().match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
     expect(source).toContain("const logs = node('section',undefined,'console-logs')");
     expect(source).toContain("['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志']");
-    expect(source).toContain("replace($('view'),[title,columns,logs,previewCachePanel(),history])");
+    expect(source).toContain('sidebar.append(columns,previewCachePanel(),history)');
+    expect(source).toContain("replace($('view'),[title,sidebar,logs])");
     expect(source).toContain("bar.setAttribute('aria-valuenow',String(info.percent))");
     expect(styles.indexOf('.build-progress.indeterminate span{width:35%}')).toBeGreaterThan(-1);
     expect(styles.indexOf('.build-progress.indeterminate span{width:35%}')).toBeLessThan(

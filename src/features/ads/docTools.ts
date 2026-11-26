@@ -1,52 +1,15 @@
-/**
- * TapTap Ads - 文档生成工具
- * 提供分层的广告接入指南（激励视频为核心，其他广告为额外内容）
- */
+import { getAdManagerCode, REWARDED_VIDEO_EXAMPLES } from './docs.js';
+import { getCachedPlacements } from './handlers.js';
+import type { ResolvedContext } from '../../core/types/context.js';
 
-import {
-  getAdManagerCode,
-  REWARDED_VIDEO_EXAMPLES,
-  INTERSTITIAL_EXAMPLES,
-  BANNER_EXAMPLES,
-} from './docs.js';
-import { getSpaceIdFromCache } from './handlers.js';
-import type { ResolvedContext } from '../../core/types/index.js';
-
-/**
- * 获取完整的广告接入指南
- * 默认重点展示激励视频广告，其他广告作为额外内容
- *
- * @param ctx - ResolvedContext（用于读取缓存的广告位ID）
- * @returns 完整的广告接入指南文档
- */
 async function getAdIntegrationGuide(ctx: ResolvedContext): Promise<string> {
-  // 从缓存读取广告位 ID
-  const spaceId = getSpaceIdFromCache(ctx);
-
-  if (!spaceId) {
+  const placements = getCachedPlacements(ctx);
+  if (!placements) {
     return `❌ **无法生成广告接入指南**
 
-请先完成以下步骤：
-
-1. 确保已选择应用（调用 \`get_current_app_info\` 检查）
-2. 调用 \`check_ads_status\` 检查广告功能状态
-3. 如果状态为"已生效"，广告位 ID 会自动缓存
-4. 然后再次调用本工具获取接入指南
-
-**当前问题：** 缓存中未找到有效的广告位 ID，可能原因：
-- 广告功能尚未开通（状态非"已生效"）
-- 未调用 \`check_ads_status\` 工具
-- 应用未选择
-- 游戏横竖屏方向尚未设置
-
-**不要向开发者索要广告位 ID，也不要使用开发者手工提供的 ID。**
-广告位 ID 的唯一来源是当前选中应用的本次 \`check_ads_status\` 自动查询结果。
-
-请先调用 \`check_ads_status\` 工具。`;
+请确认已选择应用，并调用 \`check_ads_status\`。广告已生效且服务端返回可用的国内激励位后再继续。
+如果已开通但没有可用广告位，请核查广告风控或广告位配置。不要向开发者索要广告位 ID。`;
   }
-
-  // 生成 AdManager 代码（使用实际的 space_id）
-  const adManagerCode = getAdManagerCode(spaceId);
 
   return `# 🎮 TapTap 小游戏广告接入指南
 
@@ -56,12 +19,11 @@ async function getAdIntegrationGuide(ctx: ResolvedContext): Promise<string> {
 
 - ✅ 使用封装好的 AdManager 工具类
 - ✅ 核心功能：激励视频广告（最常用）
-- ✅ 额外功能：插屏广告、Banner 广告（可选）
-- ✅ **你的广告位 ID：\`${spaceId}\`**（已自动配置到代码中）
+- ✅ MCP 自动写入本应用的激励位，创建广告时按游戏窗口方向选位
 
 ---
 
-## 🎯 第一部分：激励视频广告（核心，必读）
+## 🎯 激励视频广告
 
 ### 🚀 三步完成激励视频接入
 
@@ -69,16 +31,15 @@ async function getAdIntegrationGuide(ctx: ResolvedContext): Promise<string> {
 
 将下面的 AdManager.js 代码复制到你的项目中（如 \`js/AdManager.js\`）
 
-**注意：广告位 ID（${spaceId}）已经内置到代码中，无需手动修改。**
+请在游戏窗口尺寸就绪后初始化。如果服务端只返回一个方向的激励位，仅该方向可以加载。
+游戏切换方向后，可在广告关闭后调用 \`destroy()\` 再重新初始化。
 
 #### 步骤 2️⃣：在游戏启动时初始化
 
 \`\`\`javascript
 // main.js 或游戏入口文件
 async function initGame() {
-  // 初始化广告管理器（广告位配置已由 MCP 自动查询并注入）
   await adManager.init();
-  console.log('广告初始化完成');
 }
 
 initGame();
@@ -103,7 +64,7 @@ function onGetCoinsButtonClick() {
 ### 📦 AdManager.js 完整源码
 
 \`\`\`javascript
-${adManagerCode}
+${getAdManagerCode(placements)}
 \`\`\`
 
 ---
@@ -147,69 +108,6 @@ this.rewardedVideoAd.onClose((res) => {
 
 ---
 
-## 📦 第二部分：其他广告类型（可选，按需使用）
-
-> ⚠️ **注意**：插屏广告和 Banner 广告使用率较低，仅在用户明确需要时提供。
->
-> 如果你只需要激励视频广告，**可以跳过这部分**。
-
----
-
-### 插屏广告（Interstitial Ad）
-
-**使用场景：** 关卡结束、游戏暂停、返回主菜单等
-
-**特点：**
-- 无需预初始化
-- 每次创建新实例
-- 自动销毁
-
-**代码示例：**
-
-${INTERSTITIAL_EXAMPLES}
-
-**接口说明：**
-
-| 方法 | 说明 | 示例 |
-|------|------|------|
-| \`showInterstitial()\` | 显示插屏广告（无需预初始化） | \`adManager.showInterstitial();\` |
-
----
-
-### Banner 广告（Banner Ad）
-
-**使用场景：** 主菜单底部、游戏界面底部等
-
-**特点：**
-- 需要先调用 \`initBanner()\` 初始化
-- 可以显示/隐藏
-- 支持自定义位置和大小
-
-**代码示例：**
-
-${BANNER_EXAMPLES}
-
-**接口说明：**
-
-| 方法 | 说明 | 示例 |
-|------|------|------|
-| \`initBanner(options)\` | 初始化 Banner 广告 | \`adManager.initBanner({ position: 'bottom' });\` |
-| \`showBanner()\` | 显示 Banner 广告 | \`adManager.showBanner();\` |
-| \`hideBanner()\` | 隐藏 Banner 广告 | \`adManager.hideBanner();\` |
-| \`refreshBanner(options)\` | 刷新 Banner（销毁旧的并创建新的） | \`adManager.refreshBanner();\` |
-
-**配置选项：**
-
-\`\`\`javascript
-adManager.initBanner({
-  width: 320,              // 可选，默认：屏幕宽度
-  height: 100,             // 可选，默认：100
-  position: 'bottom'       // 可选，'top' | 'bottom'，默认：'bottom'
-});
-\`\`\`
-
----
-
 ## ✅ 完成！
 
 ### 快速回顾：
@@ -221,29 +119,11 @@ adManager.onReward(() => { giveReward(); });
 adManager.showRewardedVideo();
 \`\`\`
 
-**插屏广告（可选）：**
-\`\`\`javascript
-await adManager.init();
-adManager.showInterstitial();
-\`\`\`
-
-**Banner 广告（可选）：**
-\`\`\`javascript
-await adManager.init();
-adManager.initBanner();
-adManager.showBanner();
-adManager.hideBanner();
-\`\`\`
-
 ---
 
 ## 🔍 常见问题
 
-### Q1: 必须使用所有 3 种广告吗？
-
-**A**: 不需要！大部分游戏只使用激励视频广告就足够了。插屏和 Banner 广告是可选的。
-
-### Q2: 可以动态更改奖励回调吗？
+### Q1: 可以动态更改奖励回调吗？
 
 **A**: 可以！每次调用 \`onReward()\` 都会更新回调函数，适合多场景使用。
 
@@ -261,14 +141,14 @@ function showCoinsAd() {
 }
 \`\`\`
 
-### Q3: 广告加载失败怎么办？
+### Q2: 广告加载失败怎么办？
 
 **A**: AdManager 会在 \`show()\` 因广告未就绪而失败时调用 \`load()\`，并在加载完成后重试一次；
 重试仍失败时只记录错误，不发放奖励。你也可以通过监听 \`onError\` 回调补充业务提示。
 
-### Q4: 如何预加载广告？
+### Q3: 如何预加载广告？
 
-**A**: MCP 会在生成代码前通过 \`check_ads_status\` 自动获取并注入广告位配置。AdManager 在 \`init()\`
+**A**: AdManager 在 \`init()\`
 时预加载激励视频广告；如果显示时尚未就绪，会重新加载并只重试一次。
 
 ---
@@ -277,8 +157,6 @@ function showCoinsAd() {
 
 更多底层 API 细节，请参考 TapTap 官方文档：
 - **激励视频广告**: https://developer.taptap.cn/minigameapidoc/dev/tutorial/open-capabilities/ad/rewarded-video-ad/
-- **插屏广告**: https://developer.taptap.cn/minigameapidoc/dev/tutorial/open-capabilities/ad/interstitial-ad/
-- **Banner 广告**: https://developer.taptap.cn/minigameapidoc/dev/tutorial/open-capabilities/ad/banner-ad/
 `;
 }
 
@@ -303,11 +181,10 @@ function getAdsIntegrationWorkflow(): string {
 
 **任何 TapTap 小游戏/H5 广告相关操作之前，必须先检查服务端广告变现状态与配置。**
 
-广告状态和广告位 ID 由 \`check_ads_status\` 从服务器自动查询并缓存。
-**不要向开发者索要广告位 ID，也不要使用开发者手工提供的 ID。**
-当前选中应用的本次 \`check_ads_status\` 查询结果是广告位 ID 的唯一来源。
-不得复用其他应用、历史输出或示例代码中的广告位 ID。不同应用返回相同 ID 时，只陈述服务端返回事实，
-不得据此推断广告位属于应用独享或开发者共享。
+广告状态由 \`check_ads_status\` 从服务器自动查询并缓存。
+当前选中应用的本次 \`check_ads_status\` 查询结果是广告配置的唯一来源。
+MCP 将有效激励位写入接入代码，创建广告时按游戏窗口方向选位。后台横竖屏设置无需参与广告检查。
+**不要向开发者索要广告位 ID，也不要复用其他应用、历史输出或示例中的 ID。**
 
 ---
 
@@ -333,16 +210,10 @@ function getAdsIntegrationWorkflow(): string {
 | 状态码 | 状态 | AI 应执行的动作 |
 |--------|------|----------------|
 | 0 | 未开通 | 展示开通链接，**阻止**继续接入。告知用户开通后可再次调用 \`check_ads_status\` 刷新状态 |
-| 1 | 已生效 | ✅ 服务器返回 ad_spaces 数组（横屏 type=1 / 竖屏 type=2 各一个），工具会自动根据游戏横竖屏设置匹配对应广告位，满足条件后继续步骤 3 |
+| 1 | 已生效 | 有可用国内激励位时进入步骤 3；否则暂停，核查广告风控或广告位配置 |
 | 2 | 已封禁 | 展示封禁警告，**立即阻止**所有后续操作 |
 
-**重要：** 状态为"已生效"时，工具会自动完成以下两步校验：
-1. ad_spaces 数组非空（否则提示服务端异常）
-2. 游戏已设置横竖屏方向（否则提示用户先调用 \`update_app_info\` 设置 screenOrientation）
-
-两步均通过后，自动匹配正确的广告位 ID 并缓存，然后引导调用 \`get_ad_integration_guide\`。
-
-**能力边界：** \`status=1\` 且广告位有效只表示可以生成接入代码，不代表 \`window.tap\` 已注入，
+**能力边界：** \`status=1\` 且有可用激励位表示可以生成接入代码，不代表 \`window.tap\` 已注入，
 不代表当前 ZIP 已正确上传，也不代表广告已在真机环境中成功播放。最终播放必须在 TapTap 小游戏/H5
 宿主环境中验证。
 
@@ -350,14 +221,10 @@ function getAdsIntegrationWorkflow(): string {
 
 **工具**：\`get_ad_integration_guide\`
 
-**前提条件（两个必须同时满足）：**
-1. ✅ 广告状态为"已生效"（status === 1）
-2. ✅ 广告位 ID（space_id）有效（非空字符串）
+**前提条件：** 广告状态为"已生效"（status === 1），且本次 \`check_ads_status\` 已返回可用激励位。
 
 此工具会：
-- 从缓存读取 space_id
-- 生成带有真实广告位 ID 的完整 AdManager.js 源码
-- 提供激励视频广告（核心）+ 插屏/Banner（可选）的接入代码和示例
+- 生成带当前应用有效激励位的 AdManager.js 源码和激励视频示例。
 
 ---
 
@@ -381,9 +248,7 @@ AI 应再次调用 \`check_ads_status\` 工具（该工具会强制重新查询�
 [步骤2] 调用 check_ads_status 检查广告状态
     ↓
   状态 0 (未开通) → 展示开通链接，等待用户操作后主动刷新
-  状态 1 (已生效) → 检查 space_id 是否有效
-      ├── space_id 有效 → [步骤3] 调用 get_ad_integration_guide
-      └── space_id 无效 → 提示服务端异常，稍后重试
+  状态 1 (已生效) → 无可用激励位时暂停，有可用激励位时进入 [步骤3] 调用 get_ad_integration_guide
   状态 2 (已封禁) → 展示警告，阻止所有操作
 \`\`\`
 
@@ -393,7 +258,7 @@ AI 应再次调用 \`check_ads_status\` 工具（该工具会强制重新查询�
 - 不要搜索网页，所有文档由 \`get_ad_integration_guide\` 工具提供
 - 不要向开发者索要或接受手工提供的广告位 ID
 - SDK 事件使用回调；仅在 \`show/load\` 的一次恢复重试中使用 Promise 链
-- 核心关注激励视频广告，插屏和 Banner 为可选内容
+- H5 接入指南仅生成激励视频代码
 `;
 }
 

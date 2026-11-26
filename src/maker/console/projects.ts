@@ -265,12 +265,13 @@ export class ConsoleProjects {
       this.changes(project.path, signal),
       git(project.path, ['rev-parse', '--is-shallow-repository'], signal),
     ]);
-    const exists = await git(project.path, ['rev-parse', '--verify', 'HEAD'], signal).then(
-      () => true,
-      () => false
+    signal?.throwIfAborted();
+    const head = await git(project.path, ['rev-parse', '--verify', 'HEAD'], signal).then(
+      (value) => value.trim(),
+      () => ''
     );
     signal?.throwIfAborted();
-    const raw = exists
+    const raw = head
       ? await git(
           project.path,
           [
@@ -300,6 +301,7 @@ export class ConsoleProjects {
     return {
       commits: commits.slice(0, 50),
       branch: branch.trim(),
+      head,
       changes,
       hasMore: commits.length > 50,
       shallow: shallow.trim() === 'true',
@@ -329,6 +331,8 @@ export class ConsoleProjects {
           '--no-ext-diff',
           '--no-textconv',
           '--no-renames',
+          '--src-prefix=a/',
+          '--dst-prefix=b/',
           '--unified=3',
           hash,
           '--',

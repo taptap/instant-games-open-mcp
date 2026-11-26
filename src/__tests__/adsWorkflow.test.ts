@@ -1,3 +1,4 @@
+import { runInNewContext } from 'node:vm';
 import { HttpClient } from '../core/network/httpClient';
 import { ResolvedContext } from '../core/types/context';
 import * as cacheUtils from '../core/utils/cache';
@@ -5,7 +6,7 @@ import { clearAppCache, readAppCache, saveAppCache } from '../core/utils/cache';
 import { selectApp } from '../features/app/api';
 import { adsTools } from '../features/ads/docTools';
 import { getAdManagerCode } from '../features/ads/docs';
-import { checkAdsStatus, getSpaceIdFromCache } from '../features/ads/handlers';
+import { checkAdsStatus, getCachedPlacements } from '../features/ads/handlers';
 import { adsResources } from '../features/ads/resources';
 import { adsTools_Registration } from '../features/ads/tools';
 
@@ -24,6 +25,10 @@ function createContext(projectPath: string): ResolvedContext {
 
 function createProjectIdContext(projectId: string): ResolvedContext {
   return new ResolvedContext({ _project_id: projectId }, {});
+}
+
+function cachedSpaceIds(ctx: ResolvedContext): string[] {
+  return Object.values(getCachedPlacements(ctx) ?? {});
 }
 
 function loadIsolatedAdsProcess(): {
@@ -177,24 +182,26 @@ describe('H5 ads workflow contract', () => {
     expect(output).not.toMatch(/提供.{0,12}广告位 ID/u);
   });
 
-  test('does not guess an ad space when screen orientation is unknown', () => {
+  test('reports activation without requiring a screen orientation', () => {
     const projectPath = createProjectPath('orientation');
     cacheKeys.push(projectPath);
     saveAppCache(
       {
         developer_id: 100,
         app_id: 200,
+        ad_config_request_id: 'request-orientation',
         ad_config: {
           status: 1,
-          landscape_space_id: 'landscape-id',
-          portrait_space_id: 'portrait-id',
+          landscape_space_id: '71001',
+          portrait_space_id: '71002',
           updated_at: Date.now(),
+          request_id: 'request-orientation',
         },
       },
       projectPath
     );
 
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+    expect(cachedSpaceIds(createContext(projectPath))).toEqual(['71001', '71002']);
   });
 
   test('selects an ad space from one cache snapshot during an app switch', () => {
@@ -204,8 +211,8 @@ describe('H5 ads workflow contract', () => {
       ad_config_request_id: 'request-a',
       ad_config: {
         status: 1,
-        landscape_space_id: 'app-a-landscape',
-        portrait_space_id: 'app-a-portrait',
+        landscape_space_id: '11001',
+        portrait_space_id: '11002',
         updated_at: Date.now(),
         request_id: 'request-a',
       },
@@ -222,8 +229,8 @@ describe('H5 ads workflow contract', () => {
       ad_config_request_id: 'request-b',
       ad_config: {
         ...firstSnapshot.ad_config,
-        landscape_space_id: 'app-b-landscape',
-        portrait_space_id: 'app-b-portrait',
+        landscape_space_id: '12001',
+        portrait_space_id: '12002',
         request_id: 'request-b',
       },
       level: {
@@ -238,9 +245,10 @@ describe('H5 ads workflow contract', () => {
       .mockReturnValueOnce(firstSnapshot)
       .mockReturnValueOnce(secondSnapshot);
 
-    expect(getSpaceIdFromCache(createContext(createProjectPath('one-read')))).toBe(
-      'app-a-landscape'
-    );
+    expect(cachedSpaceIds(createContext(createProjectPath('one-read')))).toEqual([
+      '11001',
+      '11002',
+    ]);
     expect(readCache).toHaveBeenCalledTimes(1);
   });
 
@@ -268,14 +276,18 @@ describe('H5 ads workflow contract', () => {
     const output = await checkAdsStatus(createContext(projectPath));
 
     expect(output).toMatch(CHINESE_AUTOMATIC_ID_CONTRACT);
-    expect(output).toContain('稍后重新调用 `check_ads_status`');
+    expect(output).toContain('广告风控或广告位配置');
+    expect(output).not.toContain('get_ad_integration_guide');
+    expect(await adsTools.getAdIntegrationGuide(createContext(projectPath))).not.toContain(
+      'class TapAdManager'
+    );
   });
 
   test.each([
     ['not activated', { status: 0 }],
     ['banned', { status: 2 }],
     ['empty spaces', { status: 1, ad_spaces: [] }],
-    ['missing landscape space', { status: 1, ad_spaces: [{ id: 'portrait-id', type: 2 }] }],
+    ['missing landscape space', { status: 1, ad_spaces: [{ id: '71002', type: 2 }] }],
   ])('invalidates a stale cached ID when the latest status is %s', async (_, response) => {
     const projectPath = createProjectPath('stale-status');
     cacheKeys.push(projectPath);
@@ -292,9 +304,11 @@ describe('H5 ads workflow contract', () => {
             screen_orientation: 2,
           },
         },
+        ad_config_request_id: 'previous-request',
         ad_config: {
           status: 1,
-          landscape_space_id: 'stale-landscape-id',
+          request_id: 'previous-request',
+          landscape_space_id: '90901',
           updated_at: 123,
         },
       },
@@ -304,10 +318,8 @@ describe('H5 ads workflow contract', () => {
 
     await checkAdsStatus(createContext(projectPath));
 
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
-    expect(await adsTools.getAdIntegrationGuide(createContext(projectPath))).not.toContain(
-      'stale-landscape-id'
-    );
+    expect(cachedSpaceIds(createContext(projectPath))).not.toContain('90901');
+    expect(await adsTools.getAdIntegrationGuide(createContext(projectPath))).not.toContain('90901');
   });
 
   test('invalidates a stale cached ID when status lookup fails', async () => {
@@ -326,9 +338,11 @@ describe('H5 ads workflow contract', () => {
             screen_orientation: 2,
           },
         },
+        ad_config_request_id: 'previous-request',
         ad_config: {
           status: 1,
-          landscape_space_id: 'stale-landscape-id',
+          request_id: 'previous-request',
+          landscape_space_id: '90901',
           updated_at: 123,
         },
       },
@@ -338,7 +352,7 @@ describe('H5 ads workflow contract', () => {
 
     await checkAdsStatus(createContext(projectPath));
 
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+    expect(cachedSpaceIds(createContext(projectPath))).toEqual([]);
   });
 
   test('discards an ads response when the selected app changes during the request', async () => {
@@ -386,7 +400,7 @@ describe('H5 ads workflow contract', () => {
     );
     resolveRequest?.({
       status: 1,
-      ad_spaces: [{ id: 'app-200-landscape-id', type: 1 }],
+      ad_spaces: [{ id: '20001', type: 1 }],
     });
 
     const output = await pendingStatus;
@@ -428,20 +442,19 @@ describe('H5 ads workflow contract', () => {
       .spyOn(HttpClient.prototype, 'get')
       .mockImplementation((_path, options) => {
         requestStarted = true;
-        const appId = options.params?.app_id;
+        const appId = options?.params?.app_id;
         return Promise.resolve({
           status: 1,
-          ad_spaces: [{ id: `app-${appId}-landscape-id`, type: 1 }],
+          ad_spaces: [{ id: `${appId}01`, type: 1 }],
         });
       });
 
-    const output = await checkAdsStatus(context);
+    await checkAdsStatus(context);
 
     expect(getRequest).toHaveBeenCalledWith('/ad/v1/config', {
       params: { developer_id: '100', app_id: '200' },
     });
-    expect(output).toContain('app-200-landscape-id');
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBe('app-200-landscape-id');
+    expect(cachedSpaceIds(createContext(projectPath))).toContain('20001');
   });
 
   test('does not let an old process overwrite ads after an A-to-B-to-A switch', async () => {
@@ -468,7 +481,7 @@ describe('H5 ads workflow contract', () => {
     jest.spyOn(processA.HttpClient.prototype, 'get').mockReturnValue(olderRequest);
     jest.spyOn(processB.HttpClient.prototype, 'get').mockResolvedValue({
       status: 1,
-      ad_spaces: [{ id: 'newer-app-200-id', type: 1 }],
+      ad_spaces: [{ id: '20002', type: 1 }],
     });
 
     const olderStatus = processA.checkAdsStatus(createContext(projectPath));
@@ -487,10 +500,10 @@ describe('H5 ads workflow contract', () => {
     );
     saveAppCache(appA, projectPath);
     await processB.checkAdsStatus(createContext(projectPath));
-    resolveOlder?.({ status: 1, ad_spaces: [{ id: 'older-app-200-id', type: 1 }] });
+    resolveOlder?.({ status: 1, ad_spaces: [{ id: '20003', type: 1 }] });
     await olderStatus;
 
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBe('newer-app-200-id');
+    expect(cachedSpaceIds(createContext(projectPath))).toContain('20002');
   });
 
   test('does not publish an old process non-success status after a newer lookup', async () => {
@@ -519,7 +532,7 @@ describe('H5 ads workflow contract', () => {
     jest.spyOn(processA.HttpClient.prototype, 'get').mockReturnValue(olderRequest);
     jest.spyOn(processB.HttpClient.prototype, 'get').mockResolvedValue({
       status: 1,
-      ad_spaces: [{ id: 'newer-app-200-id', type: 1 }],
+      ad_spaces: [{ id: '20002', type: 1 }],
     });
 
     const olderStatus = processA.checkAdsStatus(createContext(projectPath));
@@ -530,7 +543,7 @@ describe('H5 ads workflow contract', () => {
 
     expect(olderOutput).toContain('已有更新的广告状态查询');
     expect(olderOutput).not.toContain('广告功能尚未开通');
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBe('newer-app-200-id');
+    expect(cachedSpaceIds(createContext(projectPath))).toContain('20002');
   });
 
   test('does not let an older successful lookup restore cache after a newer lookup fails', async () => {
@@ -561,12 +574,12 @@ describe('H5 ads workflow contract', () => {
 
     const olderStatus = checkAdsStatus(createContext(projectPath));
     await checkAdsStatus(createContext(projectPath));
-    resolveOlder?.({ status: 1, ad_spaces: [{ id: 'older-id', type: 1 }] });
+    resolveOlder?.({ status: 1, ad_spaces: [{ id: '81002', type: 1 }] });
 
     const olderOutput = await olderStatus;
 
     expect(olderOutput).toContain('已有更新的广告状态查询');
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+    expect(cachedSpaceIds(createContext(projectPath))).toEqual([]);
   });
 
   test('does not let an older response overwrite a newer successful lookup', async () => {
@@ -593,20 +606,20 @@ describe('H5 ads workflow contract', () => {
     jest
       .spyOn(HttpClient.prototype, 'get')
       .mockReturnValueOnce(olderRequest)
-      .mockResolvedValueOnce({ status: 1, ad_spaces: [{ id: 'newer-id', type: 1 }] });
+      .mockResolvedValueOnce({ status: 1, ad_spaces: [{ id: '81001', type: 1 }] });
 
     const olderStatus = checkAdsStatus(createContext(projectPath));
     await checkAdsStatus(createContext(projectPath));
-    resolveOlder?.({ status: 1, ad_spaces: [{ id: 'older-id', type: 1 }] });
+    resolveOlder?.({ status: 1, ad_spaces: [{ id: '81002', type: 1 }] });
 
     const olderOutput = await olderStatus;
 
     expect(olderOutput).toContain('已有更新的广告状态查询');
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBe('newer-id');
+    expect(cachedSpaceIds(createContext(projectPath))).toContain('81001');
   });
 
-  test('treats an unsupported screen orientation as unknown', async () => {
-    const projectPath = createProjectPath('invalid-orientation');
+  test('does not read or require screen orientation when generating ads config', async () => {
+    const projectPath = createProjectPath('no-orientation');
     cacheKeys.push(projectPath);
     saveAppCache(
       {
@@ -616,257 +629,31 @@ describe('H5 ads workflow contract', () => {
           app_id: 200,
           app_title: 'game-200',
           status: 4,
-          data: {
-            title: 'Game 200',
-            screen_orientation: 0,
-          },
+          data: { title: 'Game 200' },
         },
       },
       projectPath
     );
-    jest
-      .spyOn(HttpClient.prototype, 'get')
-      .mockResolvedValueOnce({
-        status: 1,
-        ad_spaces: [
-          { id: 'landscape-id', type: 1 },
-          { id: 'portrait-id', type: 2 },
-        ],
-      })
-      .mockResolvedValueOnce({
-        level: {
-          app_id: 200,
-          app_title: 'game-200',
-          developer_id: 100,
-          developer_name: 'developer-100',
-          status: 4,
-          data: {
-            title: 'Game 200',
-            screen_orientation: 0,
-          },
-        },
-      });
-
-    const output = await checkAdsStatus(createContext(projectPath));
-
-    expect(output).toContain('未检测到游戏横竖屏设置');
-    expect(output).not.toContain('游戏屏幕方向：** 竖屏');
-    expect(output).not.toContain('landscape-id');
-    expect(output).not.toContain('portrait-id');
-    expect(output).not.toContain('广告位信息：');
-    expect(output).toContain('请先询问用户选择游戏方向');
-    expect(output).toContain('调用 `update_app_info`');
-    expect(output).toContain('重新调用 `check_ads_status`');
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
-  });
-
-  test('refreshes app info before reporting that screen orientation is missing', async () => {
-    const projectPath = createProjectPath('stale-missing-orientation');
-    cacheKeys.push(projectPath);
-    saveAppCache(
-      {
-        developer_id: 100,
-        app_id: 200,
-        level: {
-          app_id: 200,
-          app_title: 'game-200',
-          status: 4,
-          data: {
-            title: 'Game 200',
-            screen_orientation: 0,
-          },
-        },
-      },
-      projectPath
-    );
-    const get = jest
-      .spyOn(HttpClient.prototype, 'get')
-      .mockResolvedValueOnce({
-        status: 1,
-        ad_spaces: [
-          { id: 'landscape-id', type: 1 },
-          { id: 'portrait-id', type: 2 },
-        ],
-      })
-      .mockResolvedValueOnce({
-        level: {
-          app_id: 200,
-          app_title: 'game-200',
-          developer_id: 100,
-          developer_name: 'developer-100',
-          status: 4,
-          data: {
-            title: 'Game 200',
-            screen_orientation: 2,
-          },
-        },
-      });
-
-    const output = await checkAdsStatus(createContext(projectPath));
-
-    expect(get).toHaveBeenCalledTimes(2);
-    expect(output).toContain('游戏屏幕方向：** 横屏');
-    expect(output).toContain('landscape-id');
-    expect(output).not.toContain('未检测到游戏横竖屏设置');
-  });
-
-  test('does not restore an old app when selection changes during orientation refresh', async () => {
-    const projectPath = createProjectPath('orientation-refresh-app-switch');
-    cacheKeys.push(projectPath);
-    saveAppCache(
-      {
-        developer_id: 100,
-        app_id: 200,
-        level: {
-          app_id: 200,
-          app_title: 'game-200',
-          status: 4,
-          data: { title: 'Game 200', screen_orientation: 0 },
-        },
-      },
-      projectPath
-    );
-
-    let resolveAppDetail: ((value: unknown) => void) | undefined;
-    const pendingAppDetail = new Promise((resolve) => {
-      resolveAppDetail = resolve;
-    });
-    const get = jest
-      .spyOn(HttpClient.prototype, 'get')
-      .mockResolvedValueOnce({
-        status: 1,
-        ad_spaces: [{ id: 'app-200-landscape-id', type: 1 }],
-      })
-      .mockReturnValueOnce(pendingAppDetail);
-
-    const pendingStatus = checkAdsStatus(createContext(projectPath));
-    await new Promise((resolve) => setImmediate(resolve));
-    expect(get).toHaveBeenCalledTimes(2);
-
-    saveAppCache(
-      {
-        developer_id: 100,
-        app_id: 300,
-        level: {
-          app_id: 300,
-          app_title: 'game-300',
-          status: 4,
-          data: { title: 'Game 300', screen_orientation: 2 },
-        },
-      },
-      projectPath
-    );
-    resolveAppDetail?.({
-      level: {
-        app_id: 200,
-        app_title: 'game-200',
-        developer_id: 100,
-        developer_name: 'developer-100',
-        status: 4,
-        data: { title: 'Game 200', screen_orientation: 2 },
-      },
-    });
-
-    const output = await pendingStatus;
-
-    expect(output).toContain('查询结果已丢弃');
-    expect(readAppCache(projectPath)?.app_id).toBe(300);
-    expect(readAppCache(projectPath)?.ad_config).toBeUndefined();
-  });
-
-  test('does not fall back to the published orientation when the upload orientation is invalid', async () => {
-    const projectPath = createProjectPath('invalid-upload-orientation');
-    cacheKeys.push(projectPath);
-    saveAppCache(
-      {
-        developer_id: 100,
-        app_id: 200,
-        upload_level: {
-          app_id: 200,
-          app_title: 'game-200',
-          status: 2,
-          form_data: {
-            info: { title: 'Game 200 draft', screen_orientation: 0 },
-          },
-        },
-        level: {
-          app_id: 200,
-          app_title: 'game-200',
-          status: 4,
-          data: { title: 'Game 200', screen_orientation: 2 },
-        },
-      },
-      projectPath
-    );
-    jest
-      .spyOn(HttpClient.prototype, 'get')
-      .mockResolvedValueOnce({
-        status: 1,
-        ad_spaces: [
-          { id: 'landscape-id', type: 1 },
-          { id: 'portrait-id', type: 2 },
-        ],
-      })
-      .mockResolvedValueOnce({
-        upload_level: {
-          app_id: 200,
-          app_title: 'game-200',
-          developer_id: 100,
-          developer_name: 'developer-100',
-          status: 2,
-          form_data: {
-            info: { title: 'Game 200 draft', screen_orientation: 0 },
-          },
-        },
-        level: {
-          app_id: 200,
-          app_title: 'game-200',
-          developer_id: 100,
-          developer_name: 'developer-100',
-          status: 4,
-          data: { title: 'Game 200', screen_orientation: 2 },
-        },
-      });
-
-    const output = await checkAdsStatus(createContext(projectPath));
-
-    expect(output).toContain('未检测到游戏横竖屏设置');
-    expect(output).not.toContain('landscape-id');
-    expect(output).not.toContain('portrait-id');
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
-  });
-
-  test('does not expose an unmatched ad space ID for the opposite orientation', async () => {
-    const projectPath = createProjectPath('missing-matched-orientation');
-    cacheKeys.push(projectPath);
-    saveAppCache(
-      {
-        developer_id: 100,
-        app_id: 200,
-        level: {
-          app_id: 200,
-          app_title: 'game-200',
-          status: 4,
-          data: { title: 'Game 200', screen_orientation: 2 },
-        },
-      },
-      projectPath
-    );
-    jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
+    const get = jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
       status: 1,
-      ad_spaces: [{ id: 'portrait-only-id', type: 2 }],
+      ad_spaces: [
+        { id: '71001', type: 1 },
+        { id: '71002', type: 2 },
+      ],
     });
 
     const output = await checkAdsStatus(createContext(projectPath));
 
-    expect(output).toContain('未返回与游戏方向（横屏）对应的广告位');
-    expect(output).not.toContain('portrait-only-id');
-    expect(output).not.toContain('广告位信息：');
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(output).not.toContain('横竖屏');
+    expect(output).not.toContain('update_app_info');
+    expect(output).not.toContain('71001');
+    expect(output).not.toContain('71002');
+    expect(output).toContain('可以生成接入代码');
+    expect(cachedSpaceIds(createContext(projectPath))).toEqual(['71001', '71002']);
   });
-
-  test('rejects blank ad space IDs returned by the server', async () => {
-    const projectPath = createProjectPath('blank-space');
+  test('does not refresh app detail for orientation before generating the guide', async () => {
+    const projectPath = createProjectPath('no-orientation-refresh');
     cacheKeys.push(projectPath);
     saveAppCache(
       {
@@ -876,62 +663,66 @@ describe('H5 ads workflow contract', () => {
           app_id: 200,
           app_title: 'game-200',
           status: 4,
-          data: {
-            title: 'Game 200',
-            screen_orientation: 2,
-          },
+          data: { title: 'Game 200' },
         },
       },
       projectPath
     );
-    jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
+    const get = jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
       status: 1,
-      ad_spaces: [{ id: '   ', type: 1 }],
+      ad_spaces: [{ id: '71001', type: 1 }],
     });
 
     const output = await checkAdsStatus(createContext(projectPath));
+    const guide = await adsTools.getAdIntegrationGuide(createContext(projectPath));
 
-    expect(output).not.toContain('匹配广告位 ID');
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(output).toContain('可以生成接入代码');
+    expect(output).toContain('仅有横屏激励位');
+    expect(guide).toContain('class TapAdManager');
+    expect(guide).toContain('71001');
   });
-
-  test('stores the latest valid matched ID and injects it into the generated guide', async () => {
-    const projectPath = createProjectPath('fresh-success');
+  test('only embeds the current app placements in the generated guide', async () => {
+    const projectPath = createProjectPath('no-id-exposure');
     cacheKeys.push(projectPath);
-    saveAppCache(
-      {
-        developer_id: 100,
-        app_id: 200,
-        level: {
-          app_id: 200,
-          app_title: 'game-200',
-          status: 4,
-          data: { title: 'Game 200', screen_orientation: 2 },
-        },
-        ad_config: {
-          status: 1,
-          landscape_space_id: 'stale-id',
-          updated_at: 123,
-        },
-      },
-      projectPath
-    );
+    saveAppCache({ developer_id: 100, app_id: 200 }, projectPath);
     jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
       status: 1,
       ad_spaces: [
-        { id: ' fresh-id ', type: 1 },
-        { id: 'opposite-orientation-id', type: 2 },
+        { id: '71001', type: 1 },
+        { id: '71002', type: 2 },
       ],
     });
 
     const output = await checkAdsStatus(createContext(projectPath));
     const guide = await adsTools.getAdIntegrationGuide(createContext(projectPath));
 
-    expect(output).toContain('fresh-id');
-    expect(output).not.toContain('opposite-orientation-id');
-    expect(getSpaceIdFromCache(createContext(projectPath))).toBe('fresh-id');
-    expect(guide).toContain("this.spaceId = 'fresh-id'");
-    expect(guide).not.toContain('stale-id');
+    expect(output).not.toContain('71001');
+    expect(output).not.toContain('71002');
+    expect(guide).toContain('71001');
+    expect(guide).toContain('71002');
+  });
+  test.each(
+    [
+      [{ id: '   ', type: 1 }],
+      [{ id: '0', type: 2 }],
+      [{ id: 'abc', type: 1 }],
+      [{ id: '9223372036854775808', type: 2 }],
+      [
+        { id: '71001', type: 1 },
+        { id: '71001', type: 2 },
+      ],
+    ].map((spaces) => [spaces])
+  )('rejects unusable placements %j', async (spaces) => {
+    const projectPath = createProjectPath('invalid-spaces');
+    cacheKeys.push(projectPath);
+    saveAppCache({ developer_id: 100, app_id: 200 }, projectPath);
+    jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({ status: 1, ad_spaces: spaces });
+
+    const ctx = createContext(projectPath);
+    await checkAdsStatus(ctx);
+    expect(getCachedPlacements(ctx)).toBeNull();
+    expect(await adsTools.getAdIntegrationGuide(ctx)).not.toContain('class TapAdManager');
   });
 
   test('uses projectId as the cache isolation key when projectPath is unavailable', async () => {
@@ -952,13 +743,13 @@ describe('H5 ads workflow contract', () => {
     );
     jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
       status: 1,
-      ad_spaces: [{ id: 'project-id-space', type: 1 }],
+      ad_spaces: [{ id: '72001', type: 1 }],
     });
 
     const context = createProjectIdContext(projectId);
     await checkAdsStatus(context);
 
-    expect(getSpaceIdFromCache(context)).toBe('project-id-space');
+    expect(cachedSpaceIds(context)).toContain('72001');
   });
 
   test('keeps select_app and ads lookup on the same projectId-only cache', async () => {
@@ -979,14 +770,14 @@ describe('H5 ads workflow contract', () => {
       })
       .mockResolvedValueOnce({
         status: 1,
-        ad_spaces: [{ id: 'selected-project-id-space', type: 1 }],
+        ad_spaces: [{ id: '72002', type: 1 }],
       });
 
     await selectApp(100, 200, undefined, context);
     await checkAdsStatus(context);
 
     expect(context.resolveApp()).toEqual(expect.objectContaining({ developerId: 100, appId: 200 }));
-    expect(getSpaceIdFromCache(context)).toBe('selected-project-id-space');
+    expect(cachedSpaceIds(context)).toContain('72002');
   });
 
   test('preserves cached ad configuration when refreshing the same app', async () => {
@@ -999,8 +790,8 @@ describe('H5 ads workflow contract', () => {
         app_title: 'game-200',
         ad_config: {
           status: 1,
-          landscape_space_id: 'landscape-id',
-          portrait_space_id: 'portrait-id',
+          landscape_space_id: '71001',
+          portrait_space_id: '71002',
           updated_at: 123,
         },
       },
@@ -1012,8 +803,8 @@ describe('H5 ads workflow contract', () => {
 
     expect(readAppCache(projectPath)?.ad_config).toEqual({
       status: 1,
-      landscape_space_id: 'landscape-id',
-      portrait_space_id: 'portrait-id',
+      landscape_space_id: '71001',
+      portrait_space_id: '71002',
       updated_at: 123,
     });
   });
@@ -1028,7 +819,7 @@ describe('H5 ads workflow contract', () => {
         app_title: 'game-200',
         ad_config: {
           status: 1,
-          landscape_space_id: 'old-landscape-id',
+          landscape_space_id: '90801',
           updated_at: 123,
         },
       },
@@ -1041,15 +832,52 @@ describe('H5 ads workflow contract', () => {
     expect(readAppCache(projectPath)?.ad_config).toBeUndefined();
   });
 
-  test('describes generated IDs as MCP-injected instead of manually retrieved', () => {
-    const code = getAdManagerCode('automatic-id');
-
-    expect(code).toContain('由 check_ads_status 自动获取并注入');
-    expect(code).not.toContain('从 TapTap 后台获取');
+  test.each([
+    { width: 800, height: 400, expected: { adUnitId: '71001', orientation: 'landscape' } },
+    { width: 400, height: 800, expected: { adUnitId: '71002', orientation: 'portrait' } },
+    {
+      width: 0,
+      height: 0,
+      info: { windowWidth: 800, windowHeight: 400 },
+      expected: { adUnitId: '71001', orientation: 'landscape' },
+    },
+    {
+      width: 0,
+      height: 0,
+      info: { screenWidth: 400, screenHeight: 800 },
+      expected: { adUnitId: '71002', orientation: 'portrait' },
+    },
+    { width: 0, height: 0, expected: null },
+    { width: 400, height: 800, onlyLandscape: true, expected: null },
+  ])('creates only a rewarded ad for the actual viewport: %j', async (scenario) => {
+    const ad = {
+      onLoad: jest.fn(),
+      onError: jest.fn(),
+      onClose: jest.fn(),
+      load: jest.fn().mockResolvedValue(undefined),
+    };
+    const createRewardedVideoAd = jest.fn().mockReturnValue(ad);
+    const code = getAdManagerCode({
+      landscape: '71001',
+      portrait: scenario.onlyLandscape ? undefined : '71002',
+    });
+    await runInNewContext(code + '\nadManager.init()', {
+      innerWidth: scenario.width,
+      innerHeight: scenario.height,
+      tap: { createRewardedVideoAd, getSystemInfoSync: () => scenario.info },
+      console: { log: jest.fn(), warn: jest.fn() },
+    });
+    if (scenario.expected) {
+      expect(createRewardedVideoAd).toHaveBeenCalledWith(scenario.expected);
+      expect(ad.load).toHaveBeenCalledTimes(1);
+    } else {
+      expect(createRewardedVideoAd).not.toHaveBeenCalled();
+    }
+    expect(code).not.toMatch(/createBannerAd|createInterstitialAd/u);
   });
 
   test('reloads and retries rewarded video once when show runs before the ad is ready', () => {
-    const code = getAdManagerCode('automatic-id');
+    const code = getAdManagerCode({ portrait: '71002' });
     const guideDescription =
       adsTools_Registration.find((tool) => tool.definition.name === 'get_ad_integration_guide')
         ?.definition.description || '';

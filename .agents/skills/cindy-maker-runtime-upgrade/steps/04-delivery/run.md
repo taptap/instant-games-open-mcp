@@ -46,8 +46,9 @@ node adapters、Manual/locales、LICENSE/NOTICE/TRADEMARKS/THIRD-PARTY-LICENSES�
 3. 核对安装文件与本包内容/哈希一致。检查与同机 standalone Maker MCP 的入口差别，
    通过真实 ghost_info/ghost_call 对已安装 taptap-maker 调用，避免测到同名独立 MCP。
    不为此卸载/禁用其他 Agent 的 MCP。
-4. Console 不因安装自动换进程。只关闭已确认属于本次的旧测试实例，确认退出/端口释放，
-   再通过新安装插件打开，核对新 instanceId/入口/版本，防止旧服务继续提供旧画布脚本。
+4. Console 不因安装自动换进程。核实旧实例归属；属于本轮测试或用户已明确授权关闭该实例时，
+   正常停止并确认端口释放。其余情况使用受支持的独立实例。通过新安装插件打开 Console，
+   核对新 instanceId/入口/版本，防止旧服务继续提供旧画布脚本。
 
 ## 3. 宿主中的功能验收
 

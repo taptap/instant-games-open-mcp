@@ -7,6 +7,21 @@ import fengari from 'fengari';
 import motionAssets from './maker-ui-motion-assets.cjs';
 
 const assets = motionAssets(fileURLToPath(new URL('..', import.meta.url)));
+test('standalone motion pages ship the shared theme without unresolved placeholders', () => {
+  const native = assets['native/player.css'];
+  const showcase = assets['showcase/template.html'];
+  const themeRules = (source) =>
+    source.match(/:root(?:\[data-theme="light"\])?\{color-scheme:[^}]+\}/g);
+  assert.equal(themeRules(native)?.length, 2);
+  assert.deepEqual(themeRules(showcase), themeRules(native));
+  for (const source of [native, showcase]) assert.doesNotMatch(source, /__MAKER_MOTION_THEME__/);
+  const catalog = JSON.parse(assets['data/ui-motion-native/catalog.json']);
+  assert.equal(
+    catalog.files.find(({ path }) => path === 'ui-motion-native/player.css').sha256,
+    createHash('sha256').update(native).digest('hex')
+  );
+});
+
 const sources = Object.fromEntries(
   Object.entries(assets)
     .filter(([name]) => name.startsWith('lua/'))

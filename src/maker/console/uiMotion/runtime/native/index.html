@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Maker UI 动效</title>
   <link rel="stylesheet" href="player.css">
+  <script>(function(){var apply=function(t){if(t==='light'||t==='dark')document.documentElement.dataset.theme=t};try{var h=window.parent!==window&&window.parent.location.origin===location.origin&&window.parent.MakerConsole;if(h){apply(h.getTheme());var u=h.onThemeChange(apply);window.addEventListener('pagehide',function(){u()});return}}catch(_){}try{apply(localStorage.getItem('maker-console-theme')||'dark');window.addEventListener('storage',function(e){if(e.key==='maker-console-theme'||e.key===null)apply(e.newValue||'dark')})}catch(_){}})();</script>
 </head>
 <body class="loading">
   <main>

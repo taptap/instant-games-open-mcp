@@ -825,8 +825,14 @@ describe('Maker console project isolation', () => {
     const detail = await registry.detail(item.key);
     expect(detail.config.version).toBe('1.2.3');
     expect(detail.git.branch).toBe('main');
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: item.path,
+      encoding: 'utf8',
+    }).trim();
     const history = await registry.git(item.key, 0);
     expect(history.commits).toHaveLength(1);
+    expect(history.head).toBe(head);
+    expect(history.commits[0].hash).toBe(head);
     expect(history.commits[0].subject).toBe('chore: first fixture');
     expect(history.commits[0].parents).toEqual([]);
     expect(() => registry.commit(item.key, '--help')).toThrow();

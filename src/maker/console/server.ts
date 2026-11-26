@@ -28,6 +28,7 @@ import { inspectContext } from './contextCheck.js';
 import { readProjectCheck, architectureView } from '../projectCheck/store.js';
 import { runAutoProjectCheck } from '../projectCheck/auto.js';
 import { getArchitectureHtml } from './architecture/page.js';
+import { CONSOLE_BG_PATTERN_DARK_JPEG, CONSOLE_BG_PATTERN_LIGHT_JPEG } from './bgPattern.js';
 import { projectCheckImage } from './projectCheckMedia.js';
 import { chooseProjectDirectory } from './folderPicker.js';
 import { discoverConsoleProjects } from './projectDiscovery.js';
@@ -277,6 +278,22 @@ export async function startConsoleServer(options: {
       if (request.method === 'GET' && url.pathname === '/console-theme.js') {
         response.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
         response.end(consoleThemeScript);
+        return;
+      }
+      if (
+        request.method === 'GET' &&
+        (url.pathname === '/console-bg-pattern.jpg' ||
+          url.pathname === '/console-bg-pattern-dark.jpg')
+      ) {
+        const payload =
+          url.pathname === '/console-bg-pattern-dark.jpg'
+            ? CONSOLE_BG_PATTERN_DARK_JPEG
+            : CONSOLE_BG_PATTERN_LIGHT_JPEG;
+        response.writeHead(200, {
+          'Content-Type': 'image/jpeg',
+          'Cache-Control': 'public, max-age=86400',
+        });
+        response.end(payload);
         return;
       }
       if (request.method === 'GET' && url.pathname.startsWith('/ui-editor/')) {
