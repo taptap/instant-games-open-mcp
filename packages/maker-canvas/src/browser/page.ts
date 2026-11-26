@@ -631,18 +631,17 @@ function applyWebInteractionPatches(source: string): string {
       '    if (!documentState) return;',
       '    const view = documentState.viewport;',
       "    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';",
-      // Wires and the selected-wire controls are drawn in board pixels for viewportDrawn;
-      // map both to the new view until settle.
+      // Wires are drawn in board pixels for viewportDrawn; map them to the new view until settle.
       '    if (viewportDrawn) {',
       '      const k = view.scale / viewportDrawn.scale;',
-      "      const mapped = 'translate(' + (view.x - viewportDrawn.x * k) + 'px,' + (view.y - viewportDrawn.y * k) + 'px) scale(' + k + ')';",
-      "      [wires, board.querySelector(':scope > .wire-controls')].forEach(function (layer) {",
-      '        if (!layer) return;',
-      "        layer.style.transformOrigin = '0 0';",
-      "        layer.style.overflow = 'visible';",
-      '        layer.style.transform = mapped;',
-      '      });',
+      "      wires.style.transformOrigin = '0 0';",
+      "      wires.style.overflow = 'visible';",
+      "      wires.style.transform = 'translate(' + (view.x - viewportDrawn.x * k) + 'px,' + (view.y - viewportDrawn.y * k) + 'px) scale(' + k + ')';",
       '    }',
+      // Selected-wire controls redraw on hover at the live view, so a mapping would apply twice;
+      // hide them for the gesture and let the settle render bring them back.
+      "    const wireControls = board.querySelector(':scope > .wire-controls');",
+      "    if (wireControls) wireControls.style.visibility = 'hidden';",
       "    if (typeof positionSelectionToolbar === 'function') positionSelectionToolbar();",
       '  }',
       '  function settleViewport() {',
@@ -656,7 +655,7 @@ function applyWebInteractionPatches(source: string): string {
   );
   patch(
     "    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';\n    ",
-    "    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';\n    viewportDrawn = { x: view.x, y: view.y, scale: view.scale };\n    [wires, board.querySelector(':scope > .wire-controls')].forEach(function (layer) { if (layer) layer.style.transform = ''; });\n    "
+    "    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';\n    viewportDrawn = { x: view.x, y: view.y, scale: view.scale };\n    wires.style.transform = '';\n    const settledWireControls = board.querySelector(':scope > .wire-controls');\n    if (settledWireControls) settledWireControls.style.visibility = '';\n    "
   );
   patch(
     '    documentState.viewport.y = point.y - worldY * next;\n    markDirty();\n    render();\n  }, { passive: false });',
