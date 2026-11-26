@@ -12,7 +12,9 @@
   MCP 模式是 node <插件仓>/taptap-maker/node/maker-mcp.cjs。先读当前入口确认参数；
   不自行发明包装器参数。直接运行 vendor CLI 只作定位对照，不能替代 adapter 验证。
 - 本地控制台/预览遵守独立入口和 TAPTAP_MAKER_HOME 隔离；当前运行服务不因换 bundle
-  自动更新。记录入口/PID/origin/instanceId，停止和重启只针对本次创建的实例。
+  自动更新。记录入口/PID/origin/instanceId。旧 Console 占用入口时，核实实例归属；
+  属于本轮测试或用户已明确授权关闭该实例时，正常停止后用本轮插件重新打开。
+  其余情况使用受支持的独立实例。
   需要时按 Maker 仓现有隔离开发 Skill 处理；不要整目录复制用户 home 或凭证。
 - 单纯 help/启动冒烟用隔离 home；真实账号只读状态可在已授权账号环境执行并记录
   边界，不为消除 warning 擅自登录、生成二维码、构建或切 PAT。
