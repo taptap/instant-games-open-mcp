@@ -6,6 +6,7 @@ import { canvasDependents, canvasReferences, snapshotCanvasSource } from '../cor
 import { invalidateCanvasDependents } from '../features/templateWorkflow.js';
 import {
   selectedUiRecognition,
+  uiRecognitionSceneError,
   selectedUiExtraction,
   setUiRecognitionMode,
   uiRecognitionInputs,
@@ -355,13 +356,10 @@ export function createUiRecognitionUiWithHost(options: {
     const current = options.current();
     const node = current?.nodes.find((item) => item.id === id);
     if (!current || !node) return false;
-    // New 015 groups recognise the background-removed work image feeding this card.
-    const hasWorkInput = canvasReferences(current, node.id).some(
-      (source) => source.uiRecognition?.inputRole === 'work-image'
-    );
-    const sceneRemains = () =>
-      hasWorkInput && selectedUiRecognition(node)?.bbox?.sceneType === 'scene_with_ui';
-    const sceneMessage = '工作图仍包含游戏场景，未进入素材提取。请修正场景去除后重新识别。';
+    function checkWorkImage() {
+      const error = uiRecognitionSceneError(current!, node!);
+      if (error) throw new Error(error);
+    }
     if (node.uiRecognition?.enabled && node.uiRecognition.inputRole !== 'design') {
       if (node.templatePending || !node.assetPath) {
         const generated = await fallback();
@@ -370,7 +368,7 @@ export function createUiRecognitionUiWithHost(options: {
       }
       if (!shouldContinue()) return false;
       if (selectedUiRecognition(node)) {
-        if (sceneRemains()) throw new Error(sceneMessage);
+        checkWorkImage();
         return true;
       }
       if (node.uiRecognition.optional) {
@@ -386,7 +384,7 @@ export function createUiRecognitionUiWithHost(options: {
       }
       const recognized = await recognize(node, confirmed, !confirmed);
       if (!shouldContinue()) return false;
-      if (recognized && sceneRemains()) throw new Error(sceneMessage);
+      if (recognized) checkWorkImage();
       return recognized;
     }
     if (node.uiRecognition?.inputRole === 'design') {

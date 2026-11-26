@@ -505,6 +505,36 @@ test('hollow frames never receive the filled-panel slot instruction', () => {
   expect(prompt).not.toContain('此项要的是空底板');
 });
 
+test('015 refuses to sync a selected scene result into resource batches', () => {
+  const { current, group, cut } = fixture();
+  const work = {
+    id: 'work-scene',
+    type: 'image',
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    title: 'work',
+    sectionId: group.id,
+    assetPath: 'work.png',
+    uiRecognition: { enabled: true, inputRole: 'work-image', results: [] },
+  } as any;
+  cut.uiRecognition!.results[0].bbox!.sceneType = 'scene_with_ui';
+  current.nodes.push(work);
+  current.edges = current.edges.filter((edge) => edge.to !== cut.id);
+  current.edges.push(
+    {
+      id: 'work-edge',
+      from: current.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!.id,
+      to: work.id,
+      kind: 'image-variant',
+    },
+    { id: 'cut-edge', from: work.id, to: cut.id, kind: 'image-variant' }
+  );
+
+  expect(() => syncUiBboxWorkflow(current, group.id, true)).toThrow('工作图仍包含游戏场景');
+});
+
 test('015 fixed background card is the sole background resource source', () => {
   const { current, group, cut } = fixture();
   const design = current.nodes.find((node) => node.uiRecognition?.inputRole === 'design')!;

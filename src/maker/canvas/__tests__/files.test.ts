@@ -422,10 +422,12 @@ describe('Maker canvas files', () => {
       const attemptId = createId();
       const saved = await files.save(
         document.id,
-        { ...document, deletedGenerationIds: [attemptId] },
+        { ...document, deletedGenerationIds: [attemptId], supersededImageAttemptIds: [attemptId] },
         document.revision
       );
-      expect((await files.load(document.id)).deletedGenerationIds).toEqual([attemptId]);
+      const loaded = await files.load(document.id);
+      expect(loaded.deletedGenerationIds).toEqual([attemptId]);
+      expect(loaded.supersededImageAttemptIds).toEqual([attemptId]);
       await expect(
         files.save(saved.id, { ...saved, deletedGenerationIds: ['bad-id'] }, saved.revision)
       ).rejects.toThrow('已删除生成记录');

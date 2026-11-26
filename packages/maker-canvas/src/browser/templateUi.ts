@@ -195,7 +195,6 @@ export function createCanvasTemplateUiWithHost(options: {
           if (current.description) draft.description = current.description;
           if (current.category) draft.category = current.category;
           if (current.previewChapters) draft.previewChapters = current.previewChapters;
-          if (current.workflowOverview) draft.workflowOverview = current.workflowOverview;
           if (!draft.coverNodeId && current.coverNodeId) {
             const previous = current.nodes.find((node) => node.id === current.coverNodeId);
             const sameAsset = draft.nodes.filter(

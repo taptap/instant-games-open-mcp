@@ -1496,6 +1496,13 @@ export class MakerCanvasFiles {
     ) {
       fail('已删除生成记录标识无效。', 400, 'INVALID_DOCUMENT');
     }
+    const superseded = input.supersededImageAttemptIds;
+    if (
+      superseded !== undefined &&
+      (!Array.isArray(superseded) ||
+        superseded.some((id) => typeof id !== 'string' || !ID.test(id)))
+    )
+      fail('被替代的图片任务标识无效。', 400, 'INVALID_DOCUMENT');
     const settings = input.settings as Record<string, unknown> | undefined;
     const constraintText = settings?.assetConstraintText;
     if (
@@ -1507,6 +1514,9 @@ export class MakerCanvasFiles {
     return {
       id,
       title: text(input.title, 80, '标题', '创作画布'),
+      ...(Array.isArray(superseded) && superseded.length
+        ? { supersededImageAttemptIds: [...new Set(superseded as string[])] }
+        : {}),
       ...(Array.isArray(input.deletedGenerationIds) && input.deletedGenerationIds.length
         ? { deletedGenerationIds: [...new Set(input.deletedGenerationIds as string[])] }
         : {}),

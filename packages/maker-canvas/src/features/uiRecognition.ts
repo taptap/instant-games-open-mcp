@@ -317,6 +317,19 @@ export function selectedUiExtraction(document: CanvasDocument, node: CanvasNode)
   return uiExtractionPlan(result, node.uiExtraction!);
 }
 
+export function uiRecognitionSceneError(
+  document: CanvasDocument,
+  node: CanvasNode
+): string | undefined {
+  if (
+    selectedUiRecognition(node)?.bbox?.sceneType === 'scene_with_ui' &&
+    canvasReferences(document, node.id).some(
+      (source) => source.uiRecognition?.inputRole === 'work-image'
+    )
+  )
+    return '工作图仍包含游戏场景，未进入素材提取。请修正场景去除后重新识别。';
+}
+
 export function selectedUiRecognition(node: CanvasNode): UiRecognitionResult | undefined {
   const settings = node.uiRecognition;
   if (!settings?.enabled || node.templatePending) return;

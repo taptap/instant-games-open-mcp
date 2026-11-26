@@ -104,3 +104,37 @@ test.each([0, 2])(
     }
   }
 );
+
+test('015 stops after recognizing a residual scene and stays blocked on continue', async () => {
+  const { document, options } = fixture();
+  const [, design, work, cut] = document.nodes;
+  design.sectionId = 'group';
+  design.uiRecognition = work.uiRecognition;
+  work.uiRecognition = { enabled: false, inputRole: 'work-image', results: [] };
+  options.needs = (id): id is 'cut' => id === cut.id && Boolean(cut.templatePending);
+  options.runImage.mockImplementation(async () => {
+    delete cut.templatePending;
+    cut.assetPath = 'cut.png';
+    Object.assign(cut.uiRecognition!, {
+      selectedId: 'bbox',
+      results: [
+        {
+          id: 'bbox',
+          sourcePath: 'cut.png',
+          bbox: { sceneType: 'scene_with_ui', texts: [], elements: [] },
+        },
+      ],
+    });
+    throw new Error('识图发现残留场景');
+  });
+  const ui = createUi015Workflow(options as any);
+  for (const cli of [true, false]) {
+    const result = await ui.advance('group', { cli });
+    expect(result.status).toBe('failed');
+    expect(result.message).toContain('工作图仍包含游戏场景');
+  }
+  expect(options.runImage).toHaveBeenCalledTimes(1);
+  expect(options.recoverImage).not.toHaveBeenCalled();
+  expect(options.sync).not.toHaveBeenCalled();
+  expect(options.queue.start).not.toHaveBeenCalled();
+});

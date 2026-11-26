@@ -1,5 +1,9 @@
 import type { CanvasDocument, CanvasNode, CanvasEdge, UiAtlasGroup } from '../contracts.js';
-import { selectedUiRecognition, uiRecognitionInputs } from '../features/uiRecognition.js';
+import {
+  selectedUiRecognition,
+  uiRecognitionInputs,
+  uiRecognitionSceneError,
+} from '../features/uiRecognition.js';
 import { imageRatioInfo } from '../features/imageSizing.js';
 import { canvasReferences, snapshotCanvasSource } from '../core/dependencies.js';
 import { resourceBundleOwner } from '../features/resourceBundle.js';
@@ -33,6 +37,8 @@ export function syncUiBboxWorkflow(
   const fixedBackground = members.filter((node) => node.type === 'image' && node.uiBackground);
   if (fixedBackground.length > 1) throw new Error('分组只能有一张固定独立背景图。');
   const backgroundSource = fixedBackground[0];
+  const sceneError = uiRecognitionSceneError(current, source);
+  if (sceneError) throw new Error(sceneError);
   const result = selectedUiRecognition(source);
   const bbox = result?.bbox;
   if (!bbox) throw new Error('请先完成当前设计稿的识图，再同步批次。');

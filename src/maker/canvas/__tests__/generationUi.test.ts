@@ -1062,7 +1062,7 @@ describe('generation panels, reference drafts and refresh', () => {
   });
 
   test('explicit changed-image retry installs a successful result without replaying the group', async () => {
-    const { document, ui, image, source, options } = unknownImageFixture();
+    const { document, ui, image, source, original, options } = unknownImageFixture();
     options.store.generateImage.mockImplementation(async (_canvasId, input) => ({
       ...input,
       id: 'successful-retry',
@@ -1076,8 +1076,29 @@ describe('generation panels, reference drafts and refresh', () => {
     }));
     expect(await ui.retryChangedImageOnce(image.id)).toBe(true);
     expect(image.assetPath).toBe('assets/image/new-result.png');
+    expect(document.supersededImageAttemptIds).toEqual([original.id]);
+    expect(ui.hasUnsettledResult(image.id)).toBe(false);
     expect(options.store.generateImage).toHaveBeenCalledTimes(1);
     expect(options.onGenerated).toHaveBeenCalledWith(image.id, 'image');
+
+    const replacement = await options.store.generateImage.mock.results[0].value;
+    options.store.listGeneration.mockResolvedValue([original, replacement]);
+    const reopened = createCanvasGenerationUi(options);
+    await reopened.restore();
+    expect(reopened.hasUnsettledResult(image.id)).toBe(false);
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+    options.store.listGeneration.mockResolvedValue([
+      original,
+      replacement,
+      {
+        ...original,
+        id: 'another-unknown',
+        createdAt: '2026-11-12T02:00:00.000Z',
+      },
+    ]);
+    expect(await reopened.runTemplateImage(image.id)).toBe(false);
+    expect(reopened.hasUnsettledResult(image.id)).toBe(true);
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
   });
 
   function selectFor(label: string) {

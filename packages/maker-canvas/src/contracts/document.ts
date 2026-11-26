@@ -225,6 +225,8 @@ export interface CanvasDocument {
   edges: CanvasEdge[];
   templateFlow?: CanvasTemplateFlow;
   deletedGenerationIds?: string[];
+  /** Unknown images explicitly retried with changed inputs and a saved replacement. */
+  supersededImageAttemptIds?: string[];
   /** Canvas-wide preferences; absent fields mean the built-in defaults. */
   settings?: CanvasDocumentSettings;
 }

@@ -4,7 +4,7 @@ import type {
   CanvasUiDelivery,
   CanvasUiDeliveryStatus,
 } from '../contracts.js';
-import { selectedUiRecognition } from '../features/uiRecognition.js';
+import { selectedUiRecognition, uiRecognitionSceneError } from '../features/uiRecognition.js';
 import { canvasReferences } from '../core/dependencies.js';
 import { designPngData } from './designPng.js';
 import { uiAtlasElementGroup } from '../features/uiAssetBindings.js';
@@ -303,6 +303,7 @@ export function createUi015Workflow(options: {
     if (
       (background && options.needs(background.id)) ||
       options.needs(work.id) ||
+      cut.uiRecognition?.pendingId ||
       needsCutPreparation(cut)
     ) {
       const blocked =
@@ -322,6 +323,8 @@ export function createUi015Workflow(options: {
         cut,
       };
     }
+    const sceneError = uiRecognitionSceneError(document, cut);
+    if (sceneError) return { stage: 'invalid' as const, message: sceneError };
     const bundle = bundleOf(list);
     if (!bundle)
       return {
@@ -375,6 +378,9 @@ export function createUi015Workflow(options: {
         return;
       } catch (error) {
         checkContinue(groupId);
+        const current = options.current();
+        const sceneError = current && uiRecognitionSceneError(current, found.cut);
+        if (sceneError) throw new Error(sceneError);
         if (round >= RETRIES) throw error;
         const message = error instanceof Error ? error.message : String(error);
         options.log(
@@ -448,6 +454,9 @@ export function createUi015Workflow(options: {
             '工作图或 Bbox 识图尚未完成；请检查识图 API 设置，恢复后点继续会先查询原请求。'
         );
     }
+    const current = options.current();
+    const sceneError = current && uiRecognitionSceneError(current, cut);
+    if (sceneError) throw new Error(sceneError);
     if (!selectedUiRecognition(cut)) throw new Error('Bbox 结果尚未生成，请检查识图服务后重试。');
   }
 

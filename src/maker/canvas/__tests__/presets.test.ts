@@ -87,7 +87,10 @@ test('new official templates follow UI slicing and can be reused in a fresh proj
 test('the art journal opens both skill examples with their native connections and finished media', () => {
   const template = presetByNumber(17);
   for (const builtin of [true, false]) {
-    const instance = model.instantiate({ ...template, builtin }, { x: 0, y: 0 });
+    const instance = model.instantiate(
+      { ...template, builtin, workflowOverview: builtin ? template.workflowOverview : undefined },
+      { x: 0, y: 0 }
+    );
     const byId = new Map(instance.nodes.map((node) => [node.id, node]));
     expect(instance.nodes.filter((node) => node.templatePending)).toHaveLength(0);
     expect(instance.edges.filter((edge) => edge.kind === 'workflow-step')).toHaveLength(16);

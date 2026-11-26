@@ -249,6 +249,13 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
    * for the same card may proceed (it can cost one extra generation). Session-only.
    */
   const abandonedAttempts = new Set<string>();
+  function isSupersededUnknown(attempt: any): boolean {
+    return (
+      attempt.kind === 'image' &&
+      attempt.status === 'unknown' &&
+      Boolean(options.getDocument()?.supersededImageAttemptIds?.includes(attempt.id))
+    );
+  }
   function imageSizeBlockReason(attempt: any): string | undefined {
     if (!attempt?.resultImageInfo) return;
     if (attempt.parameters?.preserveOriginalPixels)
@@ -971,6 +978,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         (attempt) =>
           attempt.canvasId === options.getDocument()?.id &&
           attempt.targetNodeId === nodeId &&
+          !isSupersededUnknown(attempt) &&
           !explicitPreExecutionRejection(attempt) &&
           ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status)
       )
@@ -1440,6 +1448,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       aspectRatio?: string;
       refreshSource?: boolean;
       templateRun?: boolean;
+      retryOf?: string;
     } = {}
   ): Promise<void> {
     const unavailable =
@@ -1765,7 +1774,13 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       if (attempt.status !== 'failed' || attempt.taskId) inputBaselines.delete(referenceKey(node));
       if (attempt.status === 'succeeded') {
         options.log?.(node.title + '：图片生成完成 · ' + attempt.id, 'info', documentState.id);
-        applyAttempt(attempt, true, Boolean(node.assetPath));
+        const applied = applyAttempt(attempt, true, Boolean(node.assetPath));
+        if (applied && settings.retryOf && attempt.targetNodeId === node.id) {
+          // Save the replacement and its explicit retry decision together.
+          documentState.supersededImageAttemptIds = [
+            ...new Set([...(documentState.supersededImageAttemptIds || []), settings.retryOf]),
+          ];
+        }
         for (const warning of attempt.warnings || []) options.log?.(warning, 'warning');
         const mismatch = imageSizeBlockReason(attempt);
         if (mismatch) {
@@ -2078,7 +2093,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
     return false;
   }
 
-  async function runTemplateImage(nodeId: string): Promise<boolean> {
+  async function runTemplateImage(nodeId: string, retryOf?: string): Promise<boolean> {
     imageFailures.delete(nodeId);
     retryableImages.delete(nodeId);
     const current = options.getDocument();
@@ -2093,6 +2108,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         (attempt: any) =>
           attempt.targetNodeId === nodeId &&
           !abandonedAttempts.has(attempt.id) &&
+          !isSupersededUnknown(attempt) &&
+          !(attempt.id === retryOf && attempt.status === 'unknown' && !attempt.taskId) &&
           ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status) &&
           !explicitPreExecutionRejection(attempt)
       )
@@ -2136,6 +2153,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       ...node.generationDraft?.parameters,
       refreshSource: true,
       templateRun: true,
+      retryOf,
     });
     return Boolean(
       !imageSizeBlockReason(attempts.get(node.generation?.attemptId)) &&
@@ -2218,7 +2236,6 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       return false;
     }
     retryingImages.add(nodeId);
-    const released: string[] = [];
     try {
       const current = options.getDocument();
       if (!current) return false;
@@ -2233,23 +2250,11 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         options.setError(reason);
         return false;
       }
-      for (const attempt of attempts.values())
-        if (
-          attempt.canvasId === current.id &&
-          attempt.targetNodeId === nodeId &&
-          ['pending', 'running', 'unknown', 'canceled', 'failed'].includes(attempt.status)
-        )
-          if (!abandonedAttempts.has(attempt.id)) {
-            abandonedAttempts.add(attempt.id);
-            released.push(attempt.id);
-          }
-      unconfirmedImages.delete(current.id + ':' + nodeId);
+      const original = latestNodeAttempt(nodeId);
       imageFailures.delete(nodeId);
       retryableImages.delete(nodeId);
-      return await runTemplateImage(nodeId);
+      return await runTemplateImage(nodeId, original.id);
     } finally {
-      // The exception is scoped to this explicit submission, never to a later automatic run.
-      for (const id of released) abandonedAttempts.delete(id);
       retryingImages.delete(nodeId);
     }
   }
@@ -3261,7 +3266,8 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
         (attempt) =>
           attempt.canvasId === canvasId &&
           attempt.targetNodeId === nodeId &&
-          !abandonedAttempts.has(attempt.id)
+          !abandonedAttempts.has(attempt.id) &&
+          !isSupersededUnknown(attempt)
       )
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
   }
@@ -3685,6 +3691,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
             attempt.canvasId === documentState.id &&
             attempt.targetNodeId === nodeId &&
             !abandonedAttempts.has(attempt.id) &&
+            !isSupersededUnknown(attempt) &&
             attempt.status === 'unknown'
         )
       ) {
@@ -3728,6 +3735,7 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
             attempt.canvasId === options.getDocument()?.id &&
             attempt.targetNodeId === nodeId &&
             !abandonedAttempts.has(attempt.id) &&
+            !isSupersededUnknown(attempt) &&
             !explicitPreExecutionRejection(attempt) &&
             attempt.kind !== 'video' &&
             ['pending', 'running', 'unknown', 'canceled'].includes(attempt.status)

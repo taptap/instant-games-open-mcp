@@ -243,7 +243,7 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
     const nodes: CanvasNode[] = JSON.parse(JSON.stringify(template.nodes));
     // Chaptered examples and the furniture demo ship ready-to-use results.
     const reuseSampleAssets =
-      Boolean(template.previewChapters?.length && template.workflowOverview) ||
+      Boolean(template.previewChapters?.length) ||
       (template.builtin && template.id === '7e1cb6ad-732f-4dc3-a951-000000000016');
     const modelWorkflow = nodes.some((node) => node.type === 'model-views');
     const ids = new Map(nodes.map((node) => [node.id, createId()]));

@@ -85,6 +85,7 @@ import { UI_ELEMENT_CATEGORIES } from '../contracts.js';
 import { bboxRecognitionElements } from '../features/uiRecognition.js';
 import { validateUiElements } from '../features/uiRecognition.js';
 import { selectedUiRecognition } from '../features/uiRecognition.js';
+import { uiRecognitionSceneError } from '../features/uiRecognition.js';
 import { uiRecognitionSource } from '../features/uiRecognition.js';
 import { uiRecognitionNote } from '../features/uiRecognition.js';
 import { uiRecognitionStatus } from '../features/uiRecognition.js';
@@ -2399,6 +2400,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     'const UI_ELEMENT_CATEGORIES = ' + JSON.stringify(UI_ELEMENT_CATEGORIES) + ';',
     validateUiElements.toString(),
     selectedUiRecognition.toString(),
+    uiRecognitionSceneError.toString(),
     uiRecognitionSource.toString(),
     uiRecognitionNote.toString(),
     uiRecognitionStatus.toString(),
