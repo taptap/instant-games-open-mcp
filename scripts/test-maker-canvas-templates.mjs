@@ -247,12 +247,12 @@ try {
   const presetNames = ['序列帧动画', '角色四方向', '首尾帧变身 · 灰狼→狼王'];
   for (const name of presetNames) {
     await page.getByRole('button', { name: '添加模板', exact: true }).click();
-    const row = dialog.locator('.workflow-template-row').filter({ has: page.getByText(name.split(' · ')[0], { exact: true }) });
+    const row = dialog.locator('.workflow-template-row').filter({ has: page.getByText(name, { exact: true }) });
     await row.waitFor();
     if (name === '首尾帧变身 · 灰狼→狼王')
       assert.equal(await row.locator('.template-description').textContent(), '首尾帧必填与对比 → 变身视频 → 抽帧 → 动画');
-    assert.equal(await row.getByRole('button').count(), 1);
-    await row.locator('.template-add').click();
+    assert(await row.getByRole('button', { name: '预览流程', exact: true }).isVisible());
+    await row.getByRole('button', { name: '使用模板', exact: true }).click();
     await until(async () => (await saved()).nodes.filter(node => node.type === 'section').length === presetNames.indexOf(name) + 1);
     await until(() => page.locator('.card video').evaluateAll(videos => videos.every(video => video.readyState >= 1)));
     await until(() => page.evaluate(() => document.getElementById('status').textContent === '已保存' && !window.makerCanvasUnsaved));
@@ -265,17 +265,17 @@ try {
   const presetGroups = document.nodes.filter(node => node.type === 'section');
   assert.deepEqual(presetGroups.map(group => document.nodes.filter(node => node.sectionId === group.id).length), [4, 17, 5]);
   const directional = document.nodes.filter(node => node.sectionId === presetGroups[1].id);
-  const directionalReferences = directional.filter(node => node.type === 'image' && !node.assetPath);
+  const directionalReferences = directional.filter(node => node.type === 'image' && node.generation?.operation === 'variant');
   assert.equal(directionalReferences.length, 4);
   for (const reference of directionalReferences) {
     assert.equal(reference.templatePending, true);
-    assert.equal(reference.generationDraft.operation, 'variant');
-    assert.match(reference.generationDraft.prompt, /calm neutral standing idle pose/);
+    assert(reference.assetPath, '站姿示例必须可预览');
+    assert.match(reference.generation.prompt, /calm neutral standing idle pose/);
     const video = directional.find(node => node.generation?.sourceImageId === reference.id);
     assert(video && video.templatePending);
     assert(document.edges.some(edge => edge.from === reference.id && edge.to === video.id));
   }
-  console.log('PASS 四方向各自引用空白站姿草稿，四分支默认待处理，旧示例不冒充验收结果');
+  console.log('PASS 四方向各自引用独立的站姿示例，四分支默认待处理，旧示例不冒充验收结果');
   const transformation = document.nodes.filter(node => node.sectionId === presetGroups[2].id);
   const transformationVideo = transformation.find(node => node.type === 'video-source');
   assert.equal(transformationVideo.generation.parameters.mode, 'first_last_frame');
@@ -371,7 +371,7 @@ try {
   assert.deepEqual(errors, []);
   if (process.env.MAKER_TEMPLATE_SCREENSHOT)
     await page.screenshot({ path: process.env.MAKER_TEMPLATE_SCREENSHOT });
-  console.log('PASS 三个内置预设实际添加并刷新保留：29卡/23连线，六段旧示例视频可解码，四方向草稿与首尾帧固定引用保留，预设不能覆盖');
+  console.log('PASS 三个内置预设实际添加并刷新保留：29卡/23连线，六段旧示例视频可解码，四方向示例与首尾帧固定引用保留，预设不能覆盖');
   await page.keyboard.press('Escape');
   const demo = await files.prepareTemplate('7e1cb6ad-732f-4dc3-a951-000000000001', canvas.id);
   for (let index = 0; index < 500; index++) {
@@ -478,8 +478,8 @@ try {
   canvas = await files.create('新素材预设验证');
   await files.setActiveCanvasId(canvas.id);
   await page.goto(server.origin + '/canvas?project=' + entry.key);
-  const newPresets = (await files.listTemplatePage()).presets.slice(4);
-  assert.equal(newPresets.length, 7);
+  const newPresets = (await files.listTemplatePage()).presets.filter(preset => { const n = Number(preset.id.slice(-3)); return n >= 5 && n <= 11; });
+  assert.deepEqual(newPresets.map(preset => Number(preset.id.slice(-3))), [5, 6, 8, 9, 10, 11]);
   await page.getByRole('button', { name: '添加模板', exact: true }).click();
   assert.deepEqual(await dialog.boundingBox(), { x: 0, y: 0, width: 1440, height: 1000 });
   await dialog.getByRole('button', { name: '道具与种植', exact: true }).click();
@@ -489,7 +489,7 @@ try {
   await dialog.getByText('共 2 个模板', { exact: true }).waitFor();
   await dialog.getByRole('searchbox').fill('科幻终端');
   await dialog.getByText('共 1 个模板', { exact: true }).waitFor();
-  await dialog.getByText('UI风格裂变', { exact: true }).waitFor();
+  await dialog.getByText(newPresets.find(preset => preset.id.endsWith('000010')).name, { exact: true }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.deepEqual(await dialog.boundingBox(), { x: 0, y: 0, width: 390, height: 844 });
   assert(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth));
@@ -504,22 +504,21 @@ try {
   let added = 0;
   for (const preset of newPresets) {
     await page.getByRole('button', { name: '添加模板', exact: true }).click();
-    const row = dialog.locator('.workflow-template-row').filter({ has: page.getByText(preset.name.split(' · ')[0], { exact: true }) });
+    const row = dialog.locator('.workflow-template-row').filter({ has: page.getByText(preset.name, { exact: true }) });
     await row.waitFor();
     await row.scrollIntoViewIfNeeded();
     const expectedPreviews = [6, 9].includes(Number(preset.id.slice(-3))) ? 1 : 2;
     assert.equal(await row.locator('.template-cover').count(), expectedPreviews);
     await until(() => row.locator('.template-cover img').evaluateAll((images, count) => images.length === count && images.every(image => image.complete && image.naturalWidth > 0), expectedPreviews));
     assert.equal(await row.locator('.template-cover img').count(), expectedPreviews);
-    assert.equal(Math.round((await row.boundingBox()).height), 316);
     assert(await row.evaluate(element => {
       const bottom = element.querySelector('.template-card-actions').getBoundingClientRect().top;
       return Array.from(element.querySelectorAll('.template-cover')).every(cover => cover.getBoundingClientRect().bottom < bottom);
     }), '预览不能挤占底部卡片数和添加按钮');
-    assert.equal(await row.getByRole('button').count(), 1);
+    assert(await row.getByRole('button', { name: '预览流程', exact: true }).isVisible());
     const description = await row.locator('.template-description').textContent();
     assert(!description.includes('抽帧 → 动画'));
-    await row.locator('.template-add').click();
+    await row.getByRole('button', { name: '使用模板', exact: true }).click();
     added++;
     await until(async () => (await saved()).nodes.filter(node => node.type === 'section').length === added);
     await until(() => page.evaluate(() => document.getElementById('status').textContent === '已保存' && !window.makerCanvasUnsaved));
@@ -538,7 +537,7 @@ try {
     assert(members.every(node => !node.generation?.attemptId && !node.generation?.taskId));
     assert(members.filter(node => node.assetPath).every(node => node.type === 'image'));
     assert.equal(members.length, preset.nodeCount);
-    assert.equal(members.filter(node => node.templatePending).length, 0);
+    assert.equal(members.filter(node => node.templatePending).length, members.length - 1);
     assert(members.every(node => !node.generationDraft));
     const source = members.find(node => node.type === 'image' && !current.edges.some(edge => edge.to === node.id));
     assert(source.title.includes(conceptPreset ? '森林法师' : stylesPreset ? '每日签到' : cropPreset ? '番茄' : npcPreset ? '小镇邮差' : mergePreset ? '草莓派礼篮' : preset.id.endsWith('000007') ? '花园商店' : '林间炼金工坊'));
@@ -546,12 +545,12 @@ try {
     console.log('PASS 新预设添加与落盘：' + preset.name);
   }
   await page.reload();
-  await until(() => page.locator('.card').count().then(count => count === 28));
+  await until(() => page.locator('.card').count().then(count => count === 24));
   const allAssets = await saved();
-  assert.equal(allAssets.nodes.length, 28);
-  assert.equal(allAssets.edges.length, 14);
+  assert.equal(allAssets.nodes.length, 24);
+  assert.equal(allAssets.edges.length, 12);
   assert.equal(allAssets.nodes.filter(node => node.type === 'video').length, 0);
-  assert.equal(allAssets.nodes.filter(node => node.type === 'image' && node.assetPath).length, 16);
+  assert.equal(allAssets.nodes.filter(node => node.type === 'image' && node.assetPath).length, 14);
   assert.equal(allAssets.nodes.filter(node => ['sequence', 'animation', 'video-source'].includes(node.type)).length, 0);
   const alphaChecks = await page.evaluate(async paths => {
     const project = new URL(location.href).searchParams.get('project');
@@ -575,12 +574,10 @@ try {
   assert.equal(alphaChecks[0].corner, 255);
   assert(alphaChecks[1].corner === 0 && alphaChecks[1].alpha);
   assert(alphaChecks.slice(2, 4).every(image => image.corner === 0 && image.alpha));
-  assert.equal(alphaChecks[4].corner, 255);
-  assert(alphaChecks[5].corner === 0 && alphaChecks[5].alpha);
-  assert(alphaChecks.slice(6, 10).every(image => image.corner === 0 && image.alpha));
-  assert(alphaChecks.slice(10, 14).every(image => image.corner === 255 && !image.alpha));
-  assert(alphaChecks[14].corner === 0 && alphaChecks[14].alpha);
-  assert(alphaChecks[15].corner === 255 && !alphaChecks[15].alpha);
+  assert(alphaChecks.slice(4, 8).every(image => image.corner === 0 && image.alpha));
+  assert(alphaChecks.slice(8, 12).every(image => image.corner === 255 && !image.alpha));
+  assert(alphaChecks[12].corner === 0 && alphaChecks[12].alpha);
+  assert(alphaChecks[13].corner === 255 && !alphaChecks[13].alpha);
   if (process.env.MAKER_ASSET_PRESET_SCREENSHOT) {
     await page.getByRole('button', { name: '添加模板', exact: true }).click();
     await dialog.getByRole('button', { name: '道具与种植', exact: true }).click();

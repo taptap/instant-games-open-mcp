@@ -3293,7 +3293,20 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       })
     )
       return false;
-    const sources = referenceSources(target);
+    // Template generation reads connected inputs, even while the target shows an old example.
+    // Match that same ordered input list before accepting its late receipt.
+    const upstream =
+      target.templatePending &&
+      !target.referenceInput &&
+      current.nodes.some((node: CanvasNode) => node.id === target.sectionId && node.templateId)
+        ? canvasReferences(current, target.id)
+        : [];
+    const sources = upstream.length
+      ? upstream.filter(
+          (source) =>
+            source.type === 'image' && source.assetPath && includesImageSource(target, source)
+        )
+      : referenceSources(target);
     const ids = attempt.sourceImageIds || (attempt.sourceImageId ? [attempt.sourceImageId] : []);
     const paths =
       attempt.sourceImagePaths || (attempt.sourceImagePath ? [attempt.sourceImagePath] : []);
