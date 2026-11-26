@@ -107,7 +107,8 @@ function projectCheckPrompt(hasResult) {
 function checkDialog(title,fill,wide=false) {
   const dialog = node('dialog',undefined,'check-dialog' + (wide ? ' check-dialog-wide' : ''));
   dialog.setAttribute('aria-label',title); dialog.dataset.projectKey=selected;
-  const head=node('div',undefined,'check-dialog-head'), close=button('关闭',()=>dialog.close());
+  const head=node('div',undefined,'check-dialog-head'), close=button('×',()=>dialog.close());
+  close.className='dialog-close-icon'; close.title='关闭'; close.setAttribute('aria-label','关闭');
   head.append(node('h2',title),close); const content=node('div',undefined,'check-dialog-content');
   dialog.append(head,content); fill(content,dialog);
   document.body.append(dialog); dialog.addEventListener('close',()=>dialog.remove(),{once:true});

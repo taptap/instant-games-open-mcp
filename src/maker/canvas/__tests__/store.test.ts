@@ -6,6 +6,33 @@ import {
 } from '../store.js';
 
 describe('CanvasDocumentStore port', () => {
+  test('template media end local waiting on timeout or cancellation without replay', async () => {
+    jest.useFakeTimers();
+    const fetcher = jest.fn(() => new Promise<Response>(() => undefined));
+    const store = createBrowserCanvasDocumentStore('project', fetcher);
+    try {
+      const get = store.templates.getCover('example', 1);
+      const failed = expect(get).rejects.toMatchObject({ code: 'CANVAS_REQUEST_TIMEOUT' });
+      await jest.advanceTimersByTimeAsync(60_000);
+      await failed;
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(fetcher.mock.calls[0][1]?.signal?.aborted).toBe(true);
+      const controller = new AbortController();
+      const cache = store.templates.saveCover('example', 1, new Blob(), controller.signal);
+      const cancelled = expect(cache).rejects.toMatchObject({ code: 'CANVAS_REQUEST_CANCELED' });
+      controller.abort();
+      await cancelled;
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      const preview = store.templates.getPreviewImage!('example', 1, 'result');
+      const timedOut = expect(preview).rejects.toMatchObject({ code: 'CANVAS_REQUEST_TIMEOUT' });
+      await jest.advanceTimersByTimeAsync(60_000);
+      await timedOut;
+      expect(fetcher).toHaveBeenCalledTimes(3);
+      expect(fetcher.mock.calls[2][1]?.signal?.aborted).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
   test('only display URLs opt into relocation; processing URLs keep their content versions', async () => {
     const hash = 'a'.repeat(64);
     const store = createBrowserCanvasDocumentStore(

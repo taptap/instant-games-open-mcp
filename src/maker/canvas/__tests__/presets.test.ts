@@ -45,12 +45,74 @@ test('lists portable presets without importing assets or creating a canvas', asy
     '二合图标生成 · 风格参考→升级图集→游戏资产',
     'UI风格裂变 · 同一界面→三种风格',
     '角色概念设计 · 角色参考→完整展示图',
-    '游戏UI制作 · Bbox预排参考图',
+    'UI拆分和拼装',
     '场景家具 · 独立入场动画',
+    '星潮绘卷：Cindy 与塔拉拉的游戏美术手记',
+    '多角色同框融合',
+    'UI交互标注',
+    '武器品级进阶',
+    'UI多语言翻译',
+    '角色光照调整',
+    '3D体素模型（Q版）',
+    '角色技能分离',
+    '角色三视图与表情',
+    '角色换装',
+    '角色技能设计',
   ]);
   expect(templates.every((template) => template.builtin && !('assets' in template))).toBe(true);
   expect(await files.list()).toEqual([]);
   expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
+});
+
+test('new official templates follow UI slicing and can be reused in a fresh project', async () => {
+  const catalog = (await files.listTemplatePage()).presets;
+  const additions = catalog.filter((item) => item.isNew);
+  expect(additions).toHaveLength(11);
+  expect(catalog[0].id).toBe(presetByNumber(15).id);
+  expect(catalog.slice(1, additions.length + 1)).toEqual(additions);
+  for (const item of additions) {
+    const canvas = await files.create(item.name);
+    const template = await files.prepareTemplate(item.id, canvas.id);
+    expect(templateCoverNode(template)?.assetPath).toMatch(/^maker-demo\//);
+    const instance = model.instantiate(template, { x: 0, y: 0 });
+    await files.save(
+      canvas.id,
+      { ...canvas, nodes: instance.nodes, edges: instance.edges },
+      canvas.revision
+    );
+    expect((await files.load(canvas.id)).nodes).toHaveLength(template.nodes.length + 1);
+  }
+});
+
+test('the art journal opens both skill examples with their native connections and finished media', () => {
+  const template = presetByNumber(17);
+  for (const builtin of [true, false]) {
+    const instance = model.instantiate(
+      { ...template, builtin, workflowOverview: builtin ? template.workflowOverview : undefined },
+      { x: 0, y: 0 }
+    );
+    const byId = new Map(instance.nodes.map((node) => [node.id, node]));
+    expect(instance.nodes.filter((node) => node.templatePending)).toHaveLength(0);
+    expect(instance.edges.filter((edge) => edge.kind === 'workflow-step')).toHaveLength(16);
+    for (const edge of instance.edges) {
+      expect(byId.get(edge.from)?.assetPath).toBeTruthy();
+      expect(byId.get(edge.to)?.assetPath).toBeTruthy();
+    }
+  }
+});
+
+test('teaching connections in a saved copy do not queue new generations', () => {
+  const template = presetByNumber(17);
+  const copy = {
+    ...template,
+    builtin: false,
+    previewChapters: undefined,
+    workflowOverview: undefined,
+    edges: template.edges.filter((edge) => edge.kind === 'workflow-step'),
+  };
+  const instance = model.instantiate(copy, { x: 0, y: 0 });
+  expect(instance.edges.length).toBeGreaterThan(0);
+  expect(instance.nodes.some((node) => node.templatePending)).toBe(false);
 });
 
 test.each(['005', '006', '008', '009', '010', '011'])(

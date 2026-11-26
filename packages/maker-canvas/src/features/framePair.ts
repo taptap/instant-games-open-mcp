@@ -16,7 +16,9 @@ export function videoFramePair(document: CanvasDocument, id: string): CanvasNode
 
 export function validateFramePairGraph(document: Pick<CanvasDocument, 'nodes' | 'edges'>): void {
   for (const video of document.nodes.filter((node) => node.videoInputMode === 'first_last_frame')) {
-    const edges = document.edges.filter((edge) => edge.to === video.id);
+    const edges = document.edges.filter(
+      (edge) => edge.to === video.id && edge.kind !== 'workflow-step'
+    );
     if (
       edges.some((edge) => !['frame-first', 'frame-last'].includes(edge.kind)) ||
       edges.length > 2 ||
@@ -68,7 +70,8 @@ export function setFramePairSource(
   const reachable = new Set([videoId]);
   for (let index = 0; index < document.nodes.length; index++) {
     const before = reachable.size;
-    for (const edge of document.edges) if (reachable.has(edge.from)) reachable.add(edge.to);
+    for (const edge of document.edges)
+      if (edge.kind !== 'workflow-step' && reachable.has(edge.from)) reachable.add(edge.to);
     if (before === reachable.size) break;
   }
   if (sourceId && reachable.has(sourceId)) throw new Error('参考关系不能形成循环。');

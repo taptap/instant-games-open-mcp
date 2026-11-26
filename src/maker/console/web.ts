@@ -77,14 +77,14 @@ export function getConsoleHtml(): string {
     <div class="navigation">
       <div class="stage-meta">
         <span id="stage-title" class="stage-title"><span class="crumb-group">工作区</span><span class="crumb-sep" aria-hidden="true">/</span><span class="crumb-page">项目概览</span></span>
-        <button id="close-canvas" type="button" hidden>关闭当前项目画布</button>
       </div>
       <div class="context">
         <span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span>
+        <button id="close-canvas" type="button" class="dialog-close-icon" aria-label="关闭当前项目画布" title="关闭当前项目画布" hidden>×</button>
         <button id="console-shutdown" type="button" class="console-shutdown" disabled>关闭控制台</button>
       </div>
     </div>
-    <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>
+    <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss" class="dialog-close-icon" aria-label="关闭提示" title="关闭提示">×</button></div>
     <div class="stage-scroll">
       <main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
       <section id="other-view" class="other-workspace" aria-label="其他工具" hidden>
@@ -145,16 +145,15 @@ export function getConsoleHtml(): string {
   </form>
 </dialog>
 <dialog id="git-pull-conflict" aria-labelledby="git-pull-conflict-title">
-  <h2 id="git-pull-conflict-title">这些文件两边都改过</h2>
+  <header class="dialog-title-row"><h2 id="git-pull-conflict-title">这些文件两边都改过</h2><form method="dialog"><button value="close" class="dialog-close-icon" aria-label="关闭" title="关闭">×</button></form></header>
   <p id="git-pull-conflict-summary"></p>
   <textarea id="git-pull-conflict-prompt" readonly aria-label="交给 AI 的提示词"></textarea>
   <div class="actions">
     <button id="git-pull-conflict-copy" type="button">复制给 AI</button>
-    <form method="dialog"><button value="close">关闭</button></form>
   </div>
 </dialog>
 <dialog id="qrcode-result" aria-labelledby="qrcode-result-title">
-  <h2 id="qrcode-result-title">扫码测试</h2>
+  <header class="dialog-title-row"><h2 id="qrcode-result-title">扫码测试</h2><form method="dialog"><button value="close" autofocus class="dialog-close-icon" aria-label="关闭" title="关闭">×</button></form></header>
   <p id="qrcode-result-project"></p>
   <div class="qrcode-scan-area"><img id="qrcode-result-image" alt="手机测试二维码" referrerpolicy="no-referrer"></div>
   <p id="qrcode-result-status" role="status"></p>
@@ -162,7 +161,6 @@ export function getConsoleHtml(): string {
   <div class="actions">
     <button id="qrcode-result-reload" type="button" hidden>重新加载图片</button>
     <a id="qrcode-result-original" class="preview-link" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">打开原图</a>
-    <form method="dialog"><button value="close" autofocus>关闭</button></form>
   </div>
 </dialog>
 <noscript>此控制台需要启用 JavaScript。</noscript>

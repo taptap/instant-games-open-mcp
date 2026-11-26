@@ -3408,7 +3408,7 @@ try {
         });
         await card(image.id).click({ button: 'right', position: { x: 100, y: 120 } });
         await contextMenu.waitFor();
-        // Same names and order as the selection icons: 编辑 / 对话 / 导出.
+        // The quick toolbar offers PNG; the context menu also offers JPG.
         assert.deepEqual(await imageItems(), [
           '抠图',
           '调整抠图',
@@ -3425,7 +3425,7 @@ try {
           iconOrder.filter((label) =>
             ['抠图', '调整抠图', '加入对话', '下载 PNG', '下载 JPG'].includes(label)
           ),
-          ['抠图', '调整抠图', '加入对话', '下载 PNG', '下载 JPG']
+          ['抠图', '调整抠图', '加入对话', '下载 PNG']
         );
         // One separator between each visible group, none around empty ones.
         const groups = await page.evaluate(() => {
@@ -3989,6 +3989,7 @@ try {
   await check('Web 外观：画布页签为圆角胶囊，关闭/重命名按悬停与激活显示（明暗）', async () => {
     const { page, errors, shoot } = await webPage();
     await page.locator('#workspace-new').click();
+    await page.getByRole('dialog', { name: '新建画布' }).getByRole('button', { name: '创建' }).click();
     await page.waitForFunction(() => document.querySelectorAll('.workspace-tab').length === 2);
     const tabs = page.locator('.workspace-tab');
     const active = page.locator('.workspace-tab[data-active="true"]');
@@ -4439,8 +4440,9 @@ try {
       await undo(id);
 
       await blank();
-      const box = await card(id).boundingBox();
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
+      // Marks pass clicks through their empty interiors; select the frame or arrowhead.
+      const hit = card(id).locator(shape === 'mark-ellipse' ? '.mark-edge' : 'polygon.mark-hit').first();
+      await hit.click({ button: 'right' });
       const context = page.locator('#canvas-context-menu');
       await context.waitFor();
       const labels = await context
@@ -4452,7 +4454,7 @@ try {
       await undo(id);
 
       await blank();
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await hit.click();
       assert.equal(await menu.getByRole('button', { name: '删除', exact: true }).count(), 1);
       await page.keyboard.press('Delete');
       assert.ok(!(await marks()).some((node) => node.id === id), shape + ' Delete 删除');
@@ -5444,7 +5446,7 @@ try {
       await page.keyboard.up('Control');
       const zoomed = await view();
       assert.ok(
-        zoomed.scale > now.scale * 1.1 && zoomed.scale < now.scale * 1.35,
+        zoomed.scale > now.scale * 1.5 && zoomed.scale < now.scale * 1.8,
         '捏合平滑放大：' + zoomed.scale
       );
       const worldAfter = {
@@ -5724,7 +5726,7 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   });
-  await check('Web 序列帧/动画卡：与图片卡同款（框外标题、圆角面板、选中四角手柄）', async () => {
+  await check('Web 序列帧/动画卡：与图片卡同款（框外标题、圆角面板、右下缩放手柄）', async () => {
     const atlas = 'assets/image/canvas/style-atlas.png';
     const frame = (index) => ({
       index,
@@ -5798,11 +5800,8 @@ try {
     for (const id of ['seq-s', 'anim-s']) {
       const card = page.locator('.card[data-id="' + id + '"]');
       await card.locator('.canvas-card-title').click();
-      await page.waitForFunction(
-        (id) =>
-          document.querySelectorAll('.card[data-id="' + id + '"] .web-node-handle').length === 4,
-        id
-      );
+      assert.equal(await card.locator('.web-node-handle').count(), 0);
+      await card.locator(':scope > .resize-handle').waitFor();
       const style = await card.evaluate((element) => {
         const css = (item) => getComputedStyle(item);
         const content = element.querySelector('.canvas-card-content');
@@ -5823,7 +5822,7 @@ try {
       assert.equal(style.headerBorder, '0px', id + ' 标题行无分隔线');
       assert.equal(style.radius, '12px', id + ' 内容圆角面板');
       assert.notEqual(style.meta, 'none', id + ' 保留帧数信息');
-      assert.equal(style.grip, 'none', id + ' 旧右下手柄隐藏');
+      assert.equal(style.grip, 'block', id + ' 右下手柄可用');
     }
     if (process.env.CANVAS_SCREENSHOT_DIR) {
       fs.mkdirSync(process.env.CANVAS_SCREENSHOT_DIR, { recursive: true });
@@ -6613,7 +6612,7 @@ try {
       await settle();
       await card(byKey.cutout_ref.id).click({ position: { x: 40, y: 80 } });
       await page.waitForFunction(() => !document.getElementById('selection-menu').hidden);
-      assert.deepEqual(await menuLabels(page), ['下载 PNG', '下载 JPG', '复制为普通卡片']);
+      assert.deepEqual(await menuLabels(page), ['下载 PNG', '复制为普通卡片']);
       assert.equal(await card(byKey.cutout_ref.id).locator('.canvas-port').count(), 0);
       assert.equal(await page.locator('#selection-toolbar .selection-panel').count(), 0);
       // 复制为普通卡片: the file is copied into the canvas folder; the copy sits outside the group.
@@ -7026,7 +7025,7 @@ try {
       );
       const first = await pixel();
       assert.deepEqual(first.rgba.slice(0, 3), [255, 0, 0], '首帧按偏移绘制且非空白');
-      await animation.getByRole('button', { name: '播放动画' }).click();
+      await animation.getByRole('button', { name: '播放', exact: true }).click();
       await page.waitForFunction(
         (id) =>
           document.querySelector('.card[data-id="' + id + '"] canvas.animation-preview')?.dataset
@@ -7108,7 +7107,8 @@ try {
     await panel.locator('textarea').first().fill('角色挥剑');
     await panel.locator('.generation-action-primary').click();
     for (let tries = 0; tries < 20 && !dialogs.length; tries++) await page.waitForTimeout(50);
-    assert.deepEqual(dialogs, ['按当前参数开始生成视频？']);
+    assert.equal(dialogs.length, 1);
+    assert.match(dialogs[0], /预计消耗 1200 积分.*确认/);
     assert.equal(await page.evaluate(() => window.__canvasCalls.video?.length || 0), 0);
     assert.deepEqual(errors, []);
     await page.close();

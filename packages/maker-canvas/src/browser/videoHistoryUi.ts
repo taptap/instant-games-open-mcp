@@ -44,7 +44,8 @@ export function createVideoHistoryUi(options: {
       previous.disabled = loading || querying || offset === 0;
       next.disabled = loading || querying || offset + 30 >= total;
       refresh.disabled = loading || querying;
-      close.textContent = querying ? '停止等待并关闭' : '关闭';
+      close.title = querying ? '停止等待并关闭' : '关闭';
+      close.setAttribute('aria-label', close.title);
       for (const item of Array.from(list.querySelectorAll<HTMLButtonElement>('button[data-query]')))
         item.disabled =
           loading ||
@@ -231,13 +232,17 @@ export function createVideoHistoryUi(options: {
       root.remove();
       dialog = undefined;
     }
-    const close = button(footer, '关闭', dismiss);
+    const header = document.createElement('header');
+    header.className = 'canvas-close-heading';
+    header.append(title);
+    const close = button(header, '×', dismiss);
+    close.className = 'canvas-close-icon';
     root.addEventListener('cancel', (event) => {
       event.preventDefault();
       dismiss();
     });
     root.addEventListener('keydown', (event) => event.stopPropagation());
-    root.append(title, hint, status, list, footer);
+    root.append(header, hint, status, list, footer);
     document.body.append(root);
     root.showModal();
     await load();

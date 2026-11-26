@@ -85,6 +85,8 @@ try {
       : {}),
   });
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
+  // Exercise the browser download path without opening the native save dialog.
+  await page.addInitScript(() => { window.showSaveFilePicker = undefined; });
   page.setDefaultTimeout(7000);
   page.on('pageerror', (error) => browserErrors.push(error.message));
   const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000015');
@@ -125,10 +127,18 @@ try {
   assert.equal(skillUrl.searchParams.get('page'), 'documents');
 
   await open(template.id);
-  assert.equal(await preview.locator('.template-preview-card').count(), template.nodes.length);
+  const panelBounds = await preview.boundingBox();
+  const close = preview.getByRole('button', { name: '关闭', exact: true });
+  assert.equal(await close.innerText(), '×');
+  const closeBounds = await close.boundingBox();
+  assert(closeBounds.y - panelBounds.y < 32);
+  assert(panelBounds.x + panelBounds.width - closeBounds.x - closeBounds.width < 32);
+  const bundled = template.edges.filter((edge) => edge.kind === 'resource-bundle');
+  assert.equal(await preview.locator('.template-preview-card').count(), template.nodes.length - bundled.length);
+  assert.equal(await preview.locator('.template-preview-category').count(), bundled.length);
   assert.equal(
     await preview.locator('.template-preview-wires path').count(),
-    template.edges.length
+    template.edges.length - bundled.length
   );
   assert.equal(
     await preview
@@ -137,12 +147,9 @@ try {
     0
   );
   await page.waitForFunction(() => {
-    const images = [...document.querySelectorAll('.template-workflow-preview img')];
-    return (
-      images.length > 0 &&
-      images.every((img) => img.complete && img.naturalWidth > 0) &&
-      !document.querySelector('.template-workflow-preview').textContent.includes('图片加载中')
-    );
+    const cards = [...document.querySelectorAll('.template-preview-content:not(.template-preview-assets)')];
+    return cards.length && cards.every((el) => el.querySelector('img')?.naturalWidth) &&
+      document.querySelector('.template-preview-asset img')?.naturalWidth;
   });
   const viewport = preview.locator('.template-preview-viewport');
   const transform = () =>
@@ -170,7 +177,11 @@ try {
   await preview.getByRole('button', { name: '关闭', exact: true }).click();
   await page.route('**/preview-image?**', (route) => route.fulfill({ status: 404 }));
   await open(custom.id);
-  await preview.getByText('图片不可用', { exact: true }).first().waitFor();
+  const retry = preview.getByRole('button', { name: '图片未能显示 · 重试' }).first();
+  await retry.waitFor();
+  await page.unroute('**/preview-image?**');
+  await retry.click();
+  await preview.locator('.template-preview-content img').first().waitFor();
   await preview.getByRole('button', { name: '关闭', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await open(custom.id);
@@ -225,9 +236,15 @@ try {
     '000009',
     '000010',
     '000011',
-    '000013',
+    '000014',
   ]) {
     await open('7e1cb6ad-732f-4dc3-a951-000000' + suffix);
+    // Additional cutouts load only after their category is expanded and scrolled into view.
+    for (const summary of await preview.locator('.template-preview-category summary').all()) await summary.click();
+    for (const asset of await preview.locator('.template-preview-asset').all()) {
+      await asset.scrollIntoViewIfNeeded();
+      await asset.locator('img').waitFor();
+    }
     if (suffix === '000004') {
       const frame = preview.locator('iframe');
       await frame.waitFor();
@@ -313,8 +330,8 @@ try {
   const cut = restored.nodes.find((node) => node.uiRecognition?.inputRole === 'text-free');
   assert.equal(cut.uiRecognition.results.length, 0);
   assert.equal(cut.templatePending, true);
-  assert.equal(restored.nodes.length, 4);
-  assert.equal(restored.nodes.filter((node) => node.uiAtlasGroup).length, 0);
+  assert.equal(restored.nodes.length, 5);
+  assert.deepEqual(restored.nodes.filter((node) => node.uiAtlasGroup).map((node) => node.uiAtlasGroup), ['background']);
   assert.equal(restored.nodes.find((node) => node.type === 'section').templateCliOnly, true);
   assert.equal(paidRequests, 0);
   assert.deepEqual(browserErrors, []);

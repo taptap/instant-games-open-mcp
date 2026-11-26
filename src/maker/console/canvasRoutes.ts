@@ -252,7 +252,8 @@ export async function handleCanvasProjectRoute(options: {
         200,
         await files.listTemplatePage(
           Number(searchParams.get('page') || 1),
-          searchParams.get('q') || ''
+          searchParams.get('q') || '',
+          searchParams.get('category') || ''
         )
       );
       return true;
@@ -301,7 +302,11 @@ export async function handleCanvasProjectRoute(options: {
       const current = files.getTemplate(templateModel[1]);
       if (current.revision !== Number(searchParams.get('revision')))
         throw new ConsoleError('模板已更新，请刷新列表。', 409);
-      const result = await readBuiltinTemplateModel(templateModel[1], searchParams.get('file'));
+      const result = await readBuiltinTemplateModel(
+        current.id,
+        searchParams.get('file'),
+        current.modelExample
+      );
       response.writeHead(200, {
         'Content-Type': result.type,
         'Content-Length': result.bytes.length,

@@ -31,6 +31,7 @@ export type CanvasNodeType =
   | 'mark';
 
 export type CanvasEdgeKind =
+  | 'workflow-step'
   | 'first-frame'
   | 'image-to-video'
   | 'image-variant'
@@ -153,6 +154,8 @@ export interface CanvasNode {
   uiBaselinePrompt?: string;
   uiBaselineGrid?: ImageAtlasGrid;
   uiAtlasGroup?: UiAtlasGroup;
+  /** Fixed 015 full-screen background output shown beside the three input cards. */
+  uiBackground?: boolean;
   /** Local Bbox crop/layout step; its output is a visible reference for downstream generation. */
   uiAtlasPrelayout?: boolean;
   uiArtTextId?: string;
@@ -222,6 +225,8 @@ export interface CanvasDocument {
   edges: CanvasEdge[];
   templateFlow?: CanvasTemplateFlow;
   deletedGenerationIds?: string[];
+  /** Unknown images explicitly retried with changed inputs and a saved replacement. */
+  supersededImageAttemptIds?: string[];
   /** Canvas-wide preferences; absent fields mean the built-in defaults. */
   settings?: CanvasDocumentSettings;
 }

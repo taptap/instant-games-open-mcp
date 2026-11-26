@@ -44,7 +44,8 @@ function assetImage(asset,saved,key) {
 function assetDetail(asset,item,group,saved,key) {
   const dialog = node('dialog',undefined,'asset-detail');
   dialog.setAttribute('aria-label','素材用途与关联'); dialog.dataset.projectKey=key;
-  const close = button('关闭',() => dialog.close());
+  const close = button('×',() => dialog.close());
+  close.className='dialog-close-icon'; close.title='关闭'; close.setAttribute('aria-label','关闭');
   const heading = node('div',undefined,'heading'); heading.append(node('h2',asset.path.split('/').pop()),close);
   dialog.append(heading);
   if (assetKind(asset) === '图片' && (Math.max(asset.width||0,asset.height||0)>2048 || ['待核对','仅同名线索'].includes(assetUsageState(asset)))) dialog.append(assetImage(asset,saved,key));

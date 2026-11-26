@@ -47,10 +47,15 @@ export interface UiScreenName {
   key: string;
 }
 
+/** How much of the recognition input belongs to the UI versus an environment scene. */
+export type UiSceneType = 'ui_only' | 'scene_with_ui' | 'uncertain';
+
 export interface UiBboxDocument {
   version: 1;
   coordinateSpace: 'design-pixels';
   bboxFormat: 'xywh';
+  /** Model classification used to decide whether a black scene work image is needed. */
+  sceneType?: UiSceneType;
   screen?: UiScreenName;
   design: UiBboxImage;
   cutSource: UiBboxImage;
@@ -103,7 +108,7 @@ export interface UiRecognitionSettings {
   /** Supplementary Bbox data; does not drive generation or invalidate its outputs. */
   optional?: boolean;
   enabled: boolean;
-  inputRole?: 'design' | 'text-free';
+  inputRole?: 'design' | 'work-image' | 'text-free';
   model?: string;
   selectedId?: string;
   pendingId?: string;

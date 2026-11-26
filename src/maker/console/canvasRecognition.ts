@@ -14,12 +14,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { MakerCanvasFiles } from '../canvas/files.js';
-import { bboxRecognitionElements, uiRecognitionInputs } from '../canvas/uiRecognition.js';
+import {
+  bboxRecognitionElements,
+  uiRecognitionInputs,
+  uiElementRecognitionInput,
+} from '../canvas/uiRecognition.js';
 import {
   scaleCutElements,
   validateCutElements,
   validateBboxTexts,
   validateBboxImage,
+  parseUiSceneType,
   type UiBboxImage,
 } from '../canvas/uiBbox.js';
 import {
@@ -31,6 +36,7 @@ import {
   type VisionSource,
 } from './visionSettings.js';
 import { ConsoleError } from './types.js';
+import { mediaInputRecoveryHint } from '../server/mediaInputRecovery.js';
 import {
   serverRecognitionContext,
   serverRecognitionAvailable,
@@ -229,12 +235,18 @@ export class CanvasRecognitionService {
         if (!node) throw new ConsoleError('识图输入卡片已变化，不能恢复原请求。');
         const inputs = uiRecognitionInputs(document, node);
         if (
-          inputs.cut.assetPath !== state.cut.image.path ||
+          inputs.cut.assetPath !== (state.cutSource || state.cut.image).path ||
+          (state.cutSource &&
+            uiElementRecognitionInput(document, inputs.cut).assetPath !== state.cut.image.path) ||
           inputs.design.assetPath !== state.design.path
         )
           throw new ConsoleError('识图输入图片已变化，不能恢复原请求。');
         await this.files.loadMedia(state.cut.image.path);
         await this.files.loadMedia(state.design.path);
+        if (state.cutSource) {
+          await this.files.loadMedia(state.cutSource.path);
+          serverRecognitionImage(this.files, state.cutSource);
+        }
         serverRecognitionImage(this.files, state.cut.image);
         serverRecognitionImage(this.files, state.design);
       },
@@ -252,7 +264,26 @@ export class CanvasRecognitionService {
     });
     active.set(filename, task);
     try {
-      return await task;
+      const result = await task;
+      const hint = mediaInputRecoveryHint(result.error || '', () => {
+        const image =
+          result.phase === 'text' ? result.server!.text?.image : result.server!.cut.image;
+        if (!image) return [];
+        const media = this.files.readMedia(image.path);
+        return [
+          {
+            bytes: fs.statSync(media.file).size,
+            mimeType: media.type,
+            width: image.width,
+            height: image.height,
+          },
+        ];
+      });
+      if (hint) {
+        result.error += '\n' + hint;
+        this.write(result);
+      }
+      return result;
     } finally {
       active.delete(filename);
     }
@@ -352,7 +383,18 @@ export class CanvasRecognitionService {
       width: cutSize.width,
       height: cutSize.height,
     };
-    const prompt = uiRecognitionPrompt(cutSize.width, cutSize.height);
+    const elementNode = uiElementRecognitionInput(document, node);
+    const elementMedia = await this.files.loadMedia(elementNode.assetPath!);
+    const elementBytes = fs.readFileSync(elementMedia.file);
+    const elementSize = this.files.imageInfo(elementNode.assetPath!);
+    if (!elementSize || elementBytes.length > 20 * 1024 * 1024)
+      throw new ConsoleError('元素识别去背景图尺寸无效或超过 20 MiB。');
+    const elementImage: UiBboxImage = {
+      path: elementNode.assetPath!,
+      sha256: createHash('sha256').update(elementBytes).digest('hex'),
+      ...elementSize,
+    };
+    const prompt = uiRecognitionPrompt(elementSize.width, elementSize.height);
     validateBboxImage(design);
     validateBboxImage(cutSource);
     const attempt: RecognitionAttempt = {
@@ -372,7 +414,8 @@ export class CanvasRecognitionService {
         ...serverRecognitionContext(this.files.root),
         startedAt: new Date().toISOString(),
         design,
-        cut: { key: input.id + ':cut', prompt, image: cutSource },
+        cut: { key: input.id + ':cut', prompt, image: elementImage },
+        cutSource,
       };
       serverRecognitionBody(this.files, attempt.server.cut);
       serverRecognitionBody(this.files, {
@@ -468,13 +511,18 @@ export class CanvasRecognitionService {
             return data;
           }
         };
-        const cut = await request(prompt, bytes, media.type, 'cut', cutSize);
+        const cut = await request(prompt, elementBytes, elementMedia.type, 'cut', elementSize);
         if (!cut) return attempt;
-        const cutElements = validateCutElements(cut.elements, cutSize.width, cutSize.height);
-        attempt.cut = { image: cutSource, elements: cutElements };
+        const cutElements = validateCutElements(
+          cut.elements,
+          elementSize.width,
+          elementSize.height
+        );
+        const sceneType = parseUiSceneType(cut.sceneType);
+        attempt.cut = { image: elementImage, elements: cutElements, sceneType };
         attempt.phase = 'text';
         this.write(attempt);
-        const elements = scaleCutElements(cutElements, cutSize, design);
+        const elements = scaleCutElements(cutElements, elementImage, design);
         const textPrompt = uiTextRecognitionPrompt(design.width, design.height, elements);
         const text = await request(textPrompt, originalBytes, originalMedia.type, 'text', design);
         if (!text) return attempt;
@@ -483,6 +531,7 @@ export class CanvasRecognitionService {
           version: 1 as const,
           coordinateSpace: 'design-pixels' as const,
           bboxFormat: 'xywh' as const,
+          sceneType,
           ...(screen ? { screen } : {}),
           design,
           cutSource,

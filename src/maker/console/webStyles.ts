@@ -148,8 +148,6 @@ body.sidebar-collapsed .theme-option{padding:0;width:30px;height:26px;justify-co
 #connection.good::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green)}
 button.console-shutdown{flex-shrink:0;min-height:28px;padding:3px 10px;white-space:nowrap;background:transparent;color:var(--red);border-color:color-mix(in srgb,var(--red) 28%,var(--border));font-size:12px;border-radius:var(--radius-pill)}
 button.console-shutdown:hover:not(:disabled){background:color-mix(in srgb,var(--red) 12%,var(--soft));border-color:var(--red)}
-#close-canvas{flex-shrink:0;min-height:28px;padding:3px 10px;font-size:12px;color:var(--muted);background:var(--soft);border-color:var(--border)}
-#close-canvas:hover:not(:disabled){color:var(--text)}
 
 .stage-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;background-color:var(--bg);background-image:var(--maker-bg-pattern);background-size:cover;background-position:center center;background-repeat:no-repeat;background-attachment:fixed}
 body.canvas-mode .stage-scroll{overflow:hidden;display:flex;flex-direction:column;background-image:none;background-color:var(--bg)}
@@ -185,6 +183,7 @@ pre{white-space:pre-wrap;tab-size:2;margin:10px 0 0;background:var(--code);paddi
 .feedback{margin:0;padding:10px 24px;border:0;border-bottom:1px solid var(--border);border-left:3px solid var(--red);background:var(--surface-solid);overflow-wrap:anywhere;display:flex;gap:14px;justify-content:space-between;align-items:center;flex-shrink:0;font-size:13px}
 .feedback p{margin:0;white-space:pre-wrap}
 .feedback button{flex-shrink:0;white-space:nowrap;min-height:28px;padding:3px 10px;font-size:12px}
+.dialog-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.dialog-title-row h2{margin:0}.feedback .dialog-close-icon{align-self:flex-start}button.dialog-close-icon{flex:none;width:32px;height:32px;min-height:32px;padding:0;border:0;background:transparent;color:var(--muted);font-size:24px;line-height:1}button.dialog-close-icon:hover{background:var(--soft)}
 .feedback[data-tone="warning"]{border-left-color:var(--warning)}
 .feedback[data-tone="success"]{border-left-color:var(--green)}
 

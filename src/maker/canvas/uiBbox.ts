@@ -3,6 +3,7 @@ export {
   validateCutElements,
   validateBboxTexts,
   scaleCutElements,
+  parseUiSceneType,
 } from '../../../packages/maker-canvas/src/domain.js';
 export type {
   UiBboxImage,

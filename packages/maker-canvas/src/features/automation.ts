@@ -40,6 +40,7 @@ export const CANVAS_COMMAND_ACTIONS = [
   'connect',
   'disconnect',
   'run',
+  'retry-changed-image',
   'stop',
   'query',
   'import',

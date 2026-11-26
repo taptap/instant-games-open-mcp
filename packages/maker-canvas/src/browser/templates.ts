@@ -22,11 +22,19 @@ export function templateCoverNode(
   const previews = template.builtin ? templatePresentation(template.id).previews : undefined;
   if (previews) {
     const preview = previews[slot];
-    return preview
+    return preview?.index !== undefined
       ? template.nodes.filter((node) => node.type === (preview.type || 'image'))[preview.index]
       : undefined;
   }
   if (slot !== 0) return;
+  // An explicit choice wins when that card still holds something a cover can show.
+  const chosen = template.nodes.find((node) => node.id === template.coverNodeId);
+  if (
+    chosen?.assetPath &&
+    (chosen.type === 'image' ||
+      (['animation', 'sequence'].includes(chosen.type) && chosen.frameSetInfo?.frames.length))
+  )
+    return chosen;
   const results = template.nodes
     .filter((node) => node.assetPath && node.frameSetInfo?.frames.length)
     .sort((left, right) => left.x - right.x || left.y - right.y || left.id.localeCompare(right.id));
@@ -37,13 +45,28 @@ export function templateCoverNode(
   const images = template.nodes
     .filter((node) => node.type === 'image' && node.assetPath)
     .sort((left, right) => left.x - right.x || left.y - right.y || left.id.localeCompare(right.id));
-  return images.find((node) => !template.edges.some((edge) => edge.to === node.id)) || images[0];
+  // Show what the workflow produces: the largest saved image that no later image is made from.
+  const made = images.filter((node) => template.edges.some((edge) => edge.to === node.id));
+  const final = made.filter(
+    (node) =>
+      !template.edges.some(
+        (edge) => edge.from === node.id && made.some((next) => next.id === edge.to)
+      )
+  );
+  return (
+    (final.length ? final : made).reduce<CanvasNode | undefined>(
+      (best, node) => (best && best.width * best.height >= node.width * node.height ? best : node),
+      undefined
+    ) || images[0]
+  );
 }
 
 export function templateCoverSource(
   template: CanvasWorkflowTemplate,
   slot = 0
 ): string | undefined {
+  const cover = template.builtin && templatePresentation(template.id).previews?.[slot]?.assetPath;
+  if (cover) return cover;
   return templateCoverNode(template, slot)?.assetPath;
 }
 
@@ -218,9 +241,10 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
   }
   function instantiate(template: CanvasWorkflowTemplate, position: { x: number; y: number }) {
     const nodes: CanvasNode[] = JSON.parse(JSON.stringify(template.nodes));
-    // This official workflow ships usable results; changing inputs still invalidates dependents.
-    const reuseFurnitureSample =
-      template.builtin && template.id === '7e1cb6ad-732f-4dc3-a951-000000000016';
+    // Chaptered examples and the furniture demo ship ready-to-use results.
+    const reuseSampleAssets =
+      Boolean(template.previewChapters?.length) ||
+      (template.builtin && template.id === '7e1cb6ad-732f-4dc3-a951-000000000016');
     const modelWorkflow = nodes.some((node) => node.type === 'model-views');
     const ids = new Map(nodes.map((node) => [node.id, createId()]));
     for (const node of nodes) {
@@ -252,8 +276,8 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
         node.generation.sourceImageIds = node.generation.sourceImageIds.map((id) => ids.get(id)!);
       if (
         !['model', 'model-views', 'resource-bundle', 'mark'].includes(node.type) &&
-        !(reuseFurnitureSample && node.assetPath) &&
-        template.edges.some((edge) => ids.get(edge.to) === node.id)
+        !(reuseSampleAssets && node.assetPath) &&
+        template.edges.some((edge) => edge.kind !== 'workflow-step' && ids.get(edge.to) === node.id)
       )
         node.templatePending = true;
       if (modelWorkflow && node.type === 'image' && !node.assetPath) node.templatePending = true;

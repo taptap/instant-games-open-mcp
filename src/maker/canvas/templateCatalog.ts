@@ -4,6 +4,7 @@ import { canvasSupportsPlatform } from '../../../packages/maker-canvas/src/contr
 import { setImmediate } from 'node:timers/promises';
 import { builtinCanvasTemplates } from './presets.js';
 import { builtinPresetDescriptions } from './presetDescriptions.js';
+import { templatePresentation } from './templatePresentation.js';
 import {
   isBuiltinCanvasTemplate,
   templateCoverSource,
@@ -18,9 +19,18 @@ function summarize(template: CanvasWorkflowTemplate, updatedAt: number): CanvasT
   return {
     id: template.id,
     name: template.name,
-    ...(template.builtin && builtinPresetDescriptions[template.id]
-      ? { description: builtinPresetDescriptions[template.id] }
-      : {}),
+    ...(template.builtin
+      ? {
+          ...(builtinPresetDescriptions[template.id]
+            ? { description: builtinPresetDescriptions[template.id] }
+            : {}),
+          category: template.category ?? templatePresentation(template.id).category,
+          ...(template.isNew ? { isNew: true } : {}),
+        }
+      : {
+          ...(template.description ? { description: template.description } : {}),
+          ...(template.category ? { category: template.category } : {}),
+        }),
     revision: template.revision,
     builtin: template.builtin,
     ...(template.platforms ? { platforms: template.platforms } : {}),
@@ -28,15 +38,22 @@ function summarize(template: CanvasWorkflowTemplate, updatedAt: number): CanvasT
     ...(template.skills?.length ? { skills: template.skills } : {}),
     nodeCount: template.nodes.length,
     hasCover: Boolean(templateCoverSource(template)),
+    ...(template.previewChapters?.length ? { hasChapterPreview: true } : {}),
     updatedAt,
   };
+}
+
+function presetPriority(template: CanvasTemplateSummary): number {
+  if (template.id === '7e1cb6ad-732f-4dc3-a951-000000000015') return 2;
+  return template.isNew ? 1 : 0;
 }
 
 export async function readTemplatePage(
   folder: string,
   read: (id: string) => CanvasWorkflowTemplate,
   page: number,
-  query: string
+  query: string,
+  category = ''
 ): Promise<CanvasTemplatePage> {
   let cache = catalogs.get(folder);
   if (!cache) cache = new Map();
@@ -77,11 +94,18 @@ export async function readTemplatePage(
     }
   }
   const matches = (summary: CanvasTemplateSummary) =>
-    (summary.name + ' ' + (summary.description || (summary.builtin ? '' : '自定义工作流')))
+    [
+      summary.name,
+      summary.description || (summary.builtin ? '' : '自定义工作流'),
+      summary.category || '',
+    ]
+      .join(' ')
       .toLocaleLowerCase()
       .includes(query.trim().toLocaleLowerCase());
+  // Presets are filtered by the page; user templates are paged here, so their filter is too.
   const filtered = summaries
     .filter((item) => canvasSupportsPlatform(item, 'local'))
+    .filter((item) => !category || item.category === category)
     .filter(matches)
     .sort((left, right) => right.updatedAt - left.updatedAt || left.id.localeCompare(right.id));
   const pageSize = 24;
@@ -93,7 +117,8 @@ export async function readTemplatePage(
     presets: builtinCanvasTemplates()
       .filter((item) => canvasSupportsPlatform(item, 'local'))
       .map((template) => summarize(template, 0))
-      .filter(matches),
+      .filter(matches)
+      .sort((left, right) => presetPriority(right) - presetPriority(left)),
     items: filtered.slice((current - 1) * pageSize, current * pageSize),
     page: current,
     pageSize,

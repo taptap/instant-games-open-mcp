@@ -20,7 +20,7 @@ test('official Bbox preset preserves tested prompts, media and final export layo
     const files = new MakerCanvasFiles(root);
     const preset = canvasPresets().find((item) => item.id === id)!;
     const original = presetData.find((item) => item.id === id)!;
-    expect(preset.name).toBe('游戏UI制作 · Bbox预排参考图');
+    expect(preset.name).toBe('UI拆分和拼装');
     expect(canvasPresets().some((item) => item.id.endsWith('000013'))).toBe(false);
     expect(preset.skills).toEqual(['maker-ui-bbox-workflow']);
     expect(formatMakerSkillStatus()).toContain('maker-ui-bbox-workflow');
@@ -41,27 +41,29 @@ test('official Bbox preset preserves tested prompts, media and final export layo
     }
     expect(templatePresentation(id).category).toBe('UI 设计');
     expect(templateCoverSource({ ...preset, builtin: true }, 0)).toBe(
-      preset.nodes.find((node) => node.title === '③ 去文字与元素识别')!.assetPath
+      'assets/image/preset-ui-bbox-cover.png'
     );
     expect(templateCoverSource({ ...preset, builtin: true }, 1)).toBeUndefined();
     const cover = templateCoverSource({ ...preset, builtin: true }, 0)!;
     const coverResource = demoResourceInfo(preset.assets[cover].resourceId);
-    expect(coverResource.thumbnail).toBeTruthy();
-    const preview = await files.readTemplatePreviewImage(
-      id,
-      preset.revision,
-      preset.nodes.find((node) => node.assetPath === cover)!.id
+    expect((await files.readTemplateCover(id, preset.revision)).bytes).toEqual(
+      fs.readFileSync(path.join(process.cwd(), 'resources/maker-demo', coverResource.file))
     );
+    expect(templateAssetPaths(preset)).not.toContain(cover);
+    const recognition = preset.nodes.find((node) => node.title === '③ 去文字与元素识别')!;
+    const recognitionImage = demoResourceInfo(preset.assets[recognition.assetPath!].resourceId);
+    const preview = await files.readTemplatePreviewImage(id, preset.revision, recognition.id);
     expect(preview.bytes).toEqual(
       fs.readFileSync(
         path.join(
           process.cwd(),
           'resources/maker-demo',
-          demoResourceInfo(coverResource.thumbnail!).file
+          demoResourceInfo(recognitionImage.thumbnail!).file
         )
       )
     );
     const bundle = preset.nodes.find((node) => node.type === 'resource-bundle')!;
+    expect(bundle).toMatchObject({ x: 0, width: 2000, height: 900 });
     const visibleNodes = preset.nodes.filter((node) => !resourceBundleOwner(preset, node.id));
     expect(visibleNodes).toHaveLength(16);
     expect(bundle.y).toBeGreaterThan(
@@ -79,14 +81,20 @@ test('official Bbox preset preserves tested prompts, media and final export layo
     }
     expect(fs.existsSync(path.join(root, 'assets'))).toBe(false);
     expect(prepared.cliOnly).toBe(true);
-    expect(prepared.nodes).toHaveLength(3);
+    expect(prepared.nodes).toHaveLength(4);
+    const preparedBackground = prepared.nodes.find((node) => node.uiBackground)!;
+    expect(preparedBackground.title).toBe('④ 独立背景图');
+    expect(preparedBackground.uiAtlasGroup).toBe('background');
+    expect(preparedBackground.generationDraft?.parameters?.aspectRatio).toBe('source');
+    expect(preparedBackground.width).toBe(prepared.nodes[0].width);
+    expect(preparedBackground.height).toBe(prepared.nodes[0].height);
     expect(prepared.nodes.flatMap((node) => node.imageAssetsInfo?.items || [])).toHaveLength(0);
     const instance = createCanvasTemplateModel(createId).instantiate(prepared, { x: 0, y: 0 });
     canvas.nodes = instance.nodes;
     canvas.edges = instance.edges;
     await files.save(canvas.id, canvas, canvas.revision);
     const reopened = await files.load(canvas.id);
-    expect(reopened.nodes).toHaveLength(4);
+    expect(reopened.nodes).toHaveLength(5);
     expect(reopened.nodes.find((node) => node.type === 'section')?.templateCliOnly).toBe(true);
     const snapshot = createCanvasTemplateModel().snapshot(reopened, [instance.section.id], 'copy');
     expect(snapshot.cliOnly).toBe(true);

@@ -83,6 +83,8 @@ try {
     viewport: { width: 1366, height: 768 },
     acceptDownloads: true,
   });
+  // Exercise the download fallback instead of opening an OS save dialog in headless Chromium.
+  await page.addInitScript(() => { delete window.showSaveFilePicker; });
   page.setDefaultTimeout(8000);
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/*', (route) =>
@@ -91,7 +93,7 @@ try {
   await page.goto(server.origin + '/?projectid=workspace-ui-test');
   await page.locator('[data-page="canvas"]').click();
   const frame = page.frameLocator('.canvas-frame');
-  await frame.locator('#canvas-title').filter({ hasText: initial.title }).waitFor();
+  await frame.getByRole('tab', { name: initial.title, exact: true, selected: true }).waitFor();
   await frame.locator('.card').first().waitFor();
   check('真实控制台与画布成功加载，无付费生成');
   await page.screenshot({ path: path.join(temporary, '01-layout-1366.png') });
@@ -102,13 +104,14 @@ try {
   await library.click();
   await frame.getByRole('searchbox', { name: '搜索画布' }).fill('第二张');
   await frame.locator('.workspace-library-list button').click();
-  await frame.locator('#canvas-title').filter({ hasText: second.title }).waitFor();
+  await frame.getByRole('tab', { name: second.title, exact: true, selected: true }).waitFor();
   assert.equal(await frame.locator('.workspace-tab').count(), 2);
   await frame.getByRole('tab', { name: initial.title, exact: true }).click();
-  await frame.locator('#canvas-title').filter({ hasText: initial.title }).waitFor();
+  await frame.getByRole('tab', { name: initial.title, exact: true, selected: true }).waitFor();
   check('全部画布搜索、打开页签、切换已打开页签');
   await frame.getByRole('button', { name: '新建空白画布', exact: true }).click();
-  await frame.locator('#canvas-title').filter({ hasText: '空白画布' }).waitFor();
+  await frame.getByRole('dialog', { name: '新建画布' }).getByRole('button', { name: '创建' }).click();
+  await frame.getByRole('tab', { name: '空白画布', exact: true, selected: true }).waitFor();
   assert.equal(await frame.locator('.card').count(), 0);
   const longName = '四方向角色动画画布名称很长也不能挤掉保存和工具按钮';
   page.once('dialog', (dialog) => dialog.accept(longName));
@@ -118,11 +121,11 @@ try {
   await frame.locator('#status[data-state="saved"]').waitFor();
   const savedCount = (await files.list()).length;
   await frame.getByRole('button', { name: '关闭页签：' + longName, exact: true }).click();
-  await frame.locator('#canvas-title').filter({ hasText: second.title }).waitFor();
+  await frame.getByRole('tab', { name: second.title, exact: true, selected: true }).waitFor();
   assert.equal((await files.list()).length, savedCount);
   check('新建为空白、重命名、真实保存、关闭页签不删除画布');
   await frame.getByRole('tab', { name: initial.title, exact: true }).click();
-  await frame.locator('#canvas-title').filter({ hasText: initial.title }).waitFor();
+  await frame.getByRole('tab', { name: initial.title, exact: true, selected: true }).waitFor();
   const scale = await frame.locator('#workspace-zoom').textContent();
   await frame.getByRole('button', { name: '放大画布', exact: true }).click();
   assert.notEqual(await frame.locator('#workspace-zoom').textContent(), scale);
@@ -250,7 +253,7 @@ try {
   await page.unroute(delayedUrl);
   check('慢请求期间禁重复切换；加载失败保持原画布和高亮');
   await frame.getByRole('tab', { name: second.title, exact: true }).click();
-  await frame.locator('#canvas-title').filter({ hasText: second.title }).waitFor();
+  await frame.getByRole('tab', { name: second.title, exact: true, selected: true }).waitFor();
   await frame.locator('.workspace-add summary').click();
   const [picker] = await Promise.all([
     page.waitForEvent('filechooser'),
@@ -369,7 +372,7 @@ try {
     }),
     true
   );
-  await frame.locator('#canvas-title').click();
+  await page.keyboard.press('Escape');
   check('画布平移、框选、选中卡片分区和右键菜单坐标');
   await frame.locator('#add-template').click();
   await frame.getByRole('dialog', { name: '工作流模板', exact: true }).waitFor();
@@ -378,7 +381,7 @@ try {
   await frame
     .locator('.workflow-template-row')
     .first()
-    .getByRole('button', { name: '添加', exact: true })
+    .locator('.template-add')
     .click();
   await frame.locator('.card.section').waitFor();
   assert.equal(await frame.locator('#canvas-title').textContent(), titleBeforeTemplate);
@@ -387,7 +390,8 @@ try {
   check('添加模板插入当前画布，保留原模板库和工作流');
   for (let index = 0; index < 8; index++) {
     await frame.getByRole('button', { name: '新建空白画布', exact: true }).click();
-    await frame.locator('#canvas-title').filter({ hasText: '空白画布' }).waitFor();
+    await frame.getByRole('dialog', { name: '新建画布' }).getByRole('button', { name: '创建' }).click();
+    await frame.getByRole('tab', { name: '空白画布', exact: true, selected: true }).waitFor();
     page.once('dialog', (dialog) => dialog.accept('长名称动画工作流页签-' + index));
     await frame.locator('#rename-canvas').click();
   }
@@ -431,13 +435,13 @@ try {
   }
   await page.reload();
   await page.locator('[data-page="canvas"]').click();
-  await frame.locator('#canvas-title').filter({ hasText: '长名称动画工作流页签-7' }).waitFor();
+  await frame.getByRole('tab', { name: '长名称动画工作流页签-7', exact: true, selected: true }).waitFor();
   assert.equal(await frame.locator('.workspace-tab').count(), 1);
   check('刷新仅恢复活动画布，不持久化临时页签列表');
   await page.locator('#close-canvas').click();
   assert.equal(await page.locator('.canvas-frame').count(), 0);
   await page.getByRole('button', { name: '打开当前项目画布', exact: true }).click();
-  await frame.locator('#canvas-title').filter({ hasText: '长名称动画工作流页签-7' }).waitFor();
+  await frame.getByRole('tab', { name: '长名称动画工作流页签-7', exact: true, selected: true }).waitFor();
   check('主导航次要关闭入口和重新打开保留已保存画布');
   assert.deepEqual(errors, []);
   assert.equal(paidRequests, 0);

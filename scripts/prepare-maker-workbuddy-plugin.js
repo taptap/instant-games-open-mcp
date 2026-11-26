@@ -16,7 +16,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bundleMakerUiSkill } from './bundle-maker-ui-skill.js';
 import { format } from 'prettier';
@@ -125,7 +125,10 @@ function copyRequiredDirectory(source, target, description) {
     throw new Error(`Missing ${description}: ${source}`);
   }
   mkdirSync(dirname(target), { recursive: true });
-  cpSync(source, target, { recursive: true });
+  cpSync(source, target, {
+    recursive: true,
+    filter: (entry) => !['.DS_Store', '__MACOSX'].includes(basename(entry)),
+  });
 }
 
 function copyVersionedRootSkill(source, target, pluginVersion, makerVersion) {

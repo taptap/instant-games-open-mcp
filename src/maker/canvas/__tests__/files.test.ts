@@ -7,7 +7,7 @@ import * as demoResources from '../../demoResources.js';
 import { MakerCanvasFiles } from '../files.js';
 import { CANVAS_JSON_LIMIT, CanvasStoreError, createId, emptyDocument } from '../model.js';
 import type { SequenceSettings } from '../sequenceModel.js';
-import { snapshotCanvasSource } from '../dependencies.js';
+import { canvasReferences, canvasDependents, snapshotCanvasSource } from '../dependencies.js';
 
 function project(name: string): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), name));
@@ -20,6 +20,37 @@ function gitignore(root: string): void {
 }
 
 describe('Maker canvas files', () => {
+  test('workflow wires persist two display inputs without changing generation dependencies', async () => {
+    const root = project('maker-canvas-workflow-wires-');
+    try {
+      const files = new MakerCanvasFiles(root);
+      const doc = await files.create('example', 'empty');
+      const [a, b, c] = ['A', 'B', 'composite'].map((title) => ({
+        id: createId(),
+        type: 'image' as const,
+        title,
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+      }));
+      doc.nodes.push(a, b, c);
+      for (const from of [a, b])
+        doc.edges.push({ id: createId(), kind: 'workflow-step', from: from.id, to: c.id });
+      const saved = await files.save(doc.id, doc, doc.revision);
+      const restored = await files.load(doc.id);
+      expect(restored.edges).toEqual(doc.edges);
+      expect(canvasReferences(restored, c.id)).toEqual([]);
+      expect(canvasDependents(restored, a.id)).toEqual([]);
+      restored.edges[0].from = createId();
+      await expect(files.save(doc.id, restored, saved.revision)).rejects.toMatchObject({
+        code: 'INVALID_EDGE',
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test.each([false, true])(
     'retains missing saved images without admitting new missing references (resource=%s)',
     async (resource) => {
@@ -391,10 +422,12 @@ describe('Maker canvas files', () => {
       const attemptId = createId();
       const saved = await files.save(
         document.id,
-        { ...document, deletedGenerationIds: [attemptId] },
+        { ...document, deletedGenerationIds: [attemptId], supersededImageAttemptIds: [attemptId] },
         document.revision
       );
-      expect((await files.load(document.id)).deletedGenerationIds).toEqual([attemptId]);
+      const loaded = await files.load(document.id);
+      expect(loaded.deletedGenerationIds).toEqual([attemptId]);
+      expect(loaded.supersededImageAttemptIds).toEqual([attemptId]);
       await expect(
         files.save(saved.id, { ...saved, deletedGenerationIds: ['bad-id'] }, saved.revision)
       ).rejects.toThrow('已删除生成记录');

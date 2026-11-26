@@ -46,6 +46,34 @@ test('falls back once after a CDN failure or mismatched contents', async () => {
     await downloadDemoResource(entry, [entry.cdn, 'https://github.example.test/demo.png'])
   ).toEqual(bytes);
 });
+test('continues a slow download while bytes keep arriving', async () => {
+  jest.useFakeTimers();
+  try {
+    let stream!: ReadableStreamDefaultController<Uint8Array>;
+    request.mockImplementation(
+      async (_url, options) =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              stream = controller;
+              options!.signal!.addEventListener('abort', () =>
+                controller.error(new Error('timeout'))
+              );
+            },
+          })
+        )
+    );
+    const download = downloadDemoResource(entry, [entry.cdn]);
+    await jest.advanceTimersByTimeAsync(10_000);
+    stream.enqueue(bytes.subarray(0, 1));
+    await jest.advanceTimersByTimeAsync(10_000);
+    stream.enqueue(bytes.subarray(1));
+    stream.close();
+    expect(await download).toEqual(bytes);
+  } finally {
+    jest.useRealTimers();
+  }
+});
 test('shares downloads, uses cache offline and repairs a corrupt cache', async () => {
   request.mockImplementation(async () => new Response(bytes));
   const results = await Promise.all([readDemoResource(id), readDemoResource(id)]);

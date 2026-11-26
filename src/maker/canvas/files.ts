@@ -47,7 +47,9 @@ import {
   type CanvasWorkflowTemplate,
 } from './templates.js';
 import { builtinCanvasTemplates, canvasPresets } from './presets.js';
+import { readVoxelExampleImage } from './templateModelPreview.js';
 import { readTemplatePage } from './templateCatalog.js';
+import { templateCategories } from './templatePresentation.js';
 import {
   canvasSupportsPlatform,
   validateCanvasPlatforms,
@@ -71,6 +73,95 @@ const VIDEO_RELATIVE =
   /^(?:\.maker\/canvases\/[0-9a-f-]{36}\/videos\/video-[0-9a-f-]{36}|maker-demo\/[a-f0-9]{64})\.(?:mp4|mov|webm)$/i;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
+const UI015_ID = '7e1cb6ad-732f-4dc3-a951-000000000015';
+
+/**
+ * Keep the published 015 preset compatible while removing its duplicate recognition-input
+ * image. The original is the only design card; the former copy becomes the black-background
+ * UI work image, and the existing text-free card remains the recognition input. The published
+ * background separation card is retained as the fourth fixed first-row output and is connected
+ * directly to the original design.
+ */
+function normalizeUi015Template(template: CanvasWorkflowTemplate): void {
+  if (template.id !== UI015_ID) return;
+  const design = template.nodes.find(
+    (node) => node.type === 'image' && node.title === '① 原始设计稿'
+  );
+  const work = template.nodes.find(
+    (node) => node.type === 'image' && node.uiRecognition?.inputRole === 'design'
+  );
+  const cut = template.nodes.find(
+    (node) => node.type === 'image' && node.uiRecognition?.inputRole === 'text-free'
+  );
+  const background = template.nodes.find(
+    (node) => node.type === 'image' && node.uiAtlasGroup === 'background' && !node.uiAtlasPrelayout
+  );
+  if (!design || !work || !cut || !background) return;
+  design.uiRecognition = { enabled: false, inputRole: 'design', results: [] };
+  work.title = '② 去背景（黑底 UI）';
+  work.assetPath = undefined;
+  work.imageInfo = undefined;
+  work.uiRecognition = { enabled: false, inputRole: 'work-image', results: [] };
+  work.referenceInput = { includeSelf: false };
+  delete work.generation;
+  work.generationDraft = {
+    operation: 'variant',
+    parameters: { resolution: '2K', aspectRatio: 'source' },
+    prompt:
+      '任务：把原始游戏界面中的游戏场景替换为均匀纯黑 RGB(0,0,0)，只保留二维 UI。保留所有 UI 面板、半透明底板、渐变、边框、图标、装备插画、准星、锁定框、血条、指示线及其原位置、大小和透明度；删除天空、地形、建筑、飞机、人物、烟雾和其它游戏世界像素。叠在飞机或人物上的目标框、目标血条、目标名称、距离、友军标记、虚线引导线与箭头都是二维 HUD，必须完整保留，不能因删除背后的场景物体而一起删除；框内只移除场景像素。UI 内的文字、数字和符号全部保留，下一步再去文字。不要新增、重绘、合并或重排任何 UI；输出与原稿同尺寸、同画幅、无裁切的完整黑底工作图。',
+  };
+  cut.title = '③ 去文字与元素识别';
+  cut.assetPath = undefined;
+  cut.imageInfo = undefined;
+  cut.uiRecognition = { enabled: true, inputRole: 'text-free', results: [] };
+  cut.referenceInput = { includeSelf: false };
+  delete cut.generation;
+  cut.generationDraft = {
+    operation: 'variant',
+    parameters: { resolution: '2K', aspectRatio: 'source' },
+    prompt:
+      '任务：在黑底纯 UI 工作图上精准去除全部文字、数字和字形，保持所有非文字 UI 像素、半透明 Alpha、渐变、边框、图标、装备插画、准星、锁定框、血条和指示线的原位置、大小、颜色与透明度。补齐被文字遮挡的 UI 底板；不要删除任何图标或面板，不新增、不重排、不裁切，输出与输入同尺寸的黑底 UI 图，供后续 Bbox 识别和切图使用。',
+  };
+  background.title = '④ 独立背景图';
+  background.x = cut.x + (work.x - design.x);
+  background.y = design.y;
+  background.width = design.width;
+  background.height = design.height;
+  background.assetPath = undefined;
+  background.imageInfo = undefined;
+  background.sourceSnapshot = undefined;
+  background.sourceSnapshots = undefined;
+  background.uiBaselinePrompt = undefined;
+  background.uiBaselineGrid = undefined;
+  background.uiAtlasPlan = undefined;
+  background.uiBackground = true;
+  background.uiAtlasGroup = 'background';
+  background.uiAtlasBatch = 0;
+  background.referenceInput = { includeSelf: false };
+  delete background.generation;
+  background.generationDraft = {
+    operation: 'variant',
+    parameters: { resolution: '2K', aspectRatio: 'source' },
+    prompt:
+      '任务：从原始游戏界面设计稿中提取完整环境背景，去除所有 UI 和文字，只保留游戏场景。删除全部面板、按钮、页签、边框、图标、装备、人物 HUD、准星、血条、指示线、数字和文字；在被 UI 遮挡的位置按周围场景的透视、材质、光影和颜色自然延展补全。完整保留游戏世界中的飞机、载具、人物、烟雾与光效，只删除其上叠加的二维 HUD；不要把准星引导虚线改画成曳光弹。保留原稿场景构图、视角、比例、位置和层次，不裁切、不拉伸、不重排；输出与原稿相同尺寸和相同画幅的完整背景图，作为 UI 编辑器最底层背景。',
+  };
+  const workEdge = template.edges.find((edge) => edge.to === work.id);
+  if (workEdge) workEdge.from = design.id;
+  const cutEdge = template.edges.find((edge) => edge.to === cut.id);
+  if (cutEdge) cutEdge.from = work.id;
+  for (let index = template.edges.length - 1; index >= 0; index--) {
+    const edge = template.edges[index];
+    if (edge.to === background.id || edge.from === background.id) template.edges.splice(index, 1);
+  }
+  template.edges.push({
+    id: randomUUID(),
+    from: design.id,
+    to: background.id,
+    kind: 'image-variant',
+  });
+  template.revision = Math.max(template.revision || 0, 14);
+}
+
 function fail(message: string, status: number, code: string): never {
   throw new CanvasStoreError(message, status, code);
 }
@@ -84,6 +175,11 @@ function templateSkills(value: unknown): string[] | undefined {
   )
     fail('模板 Skill 名称无效。', 400, 'INVALID_DOCUMENT');
   return [...new Set(value)] as string[];
+}
+
+/** A category this version lists; one saved by a newer version is ignored, not an error. */
+function templateCategory(value: string): string | undefined {
+  return (templateCategories.slice(1, -1) as readonly string[]).includes(value) ? value : undefined;
 }
 
 function inside(root: string, target: string): boolean {
@@ -243,13 +339,15 @@ export class MakerCanvasFiles {
     // Retired presets remain readable for existing references, but are absent from the catalog.
     const { assets: _assets, ...definition } = preset;
     const template: CanvasWorkflowTemplate = { ...structuredClone(definition), builtin: true };
+    normalizeUi015Template(template);
     if (!canvasSupportsPlatform(template, 'local'))
       fail('此模板不适用于本地端。', 400, 'UNSUPPORTED_PLATFORM');
     if (template.id === '7e1cb6ad-732f-4dc3-a951-000000000015') {
       template.nodes = template.nodes.filter(
         (node) =>
           (node.type === 'image' && !template.edges.some((edge) => edge.to === node.id)) ||
-          Boolean(node.uiRecognition)
+          Boolean(node.uiRecognition) ||
+          Boolean(node.uiBackground)
       );
       const kept = new Set(template.nodes.map((node) => node.id));
       template.edges = template.edges.filter((edge) => kept.has(edge.from) && kept.has(edge.to));
@@ -290,10 +388,16 @@ export class MakerCanvasFiles {
     return { ...parsed, builtin: true };
   }
 
-  async listTemplatePage(page = 1, query = '') {
+  async listTemplatePage(page = 1, query = '', category = '') {
     this.assertStorageShape();
     const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'templates'));
-    return readTemplatePage(folder, (id) => this.readTemplate(id), page, query.slice(0, 80));
+    return readTemplatePage(
+      folder,
+      (id) => this.readTemplate(id),
+      page,
+      query.slice(0, 80),
+      templateCategory(category) || ''
+    );
   }
 
   getTemplate(id: string): CanvasWorkflowTemplate {
@@ -308,14 +412,22 @@ export class MakerCanvasFiles {
     const template = this.getTemplate(id);
     if (template.revision !== revision) fail('模板已更新，请刷新列表。', 409, 'CONFLICT');
     const node = template.nodes.find((item) => item.id === nodeId);
+    if (
+      template.modelExample === 'voxel' &&
+      itemIndex === undefined &&
+      (node?.type === 'model-views' || node?.type === 'model')
+    )
+      return readVoxelExampleImage(node.type);
     const assetPath =
-      itemIndex === undefined
-        ? node && ['image', 'sequence', 'animation', 'model-views'].includes(node.type)
-          ? node.assetPath
-          : undefined
-        : node?.type === 'image-assets' && Number.isInteger(itemIndex) && itemIndex >= 0
-          ? node.imageAssetsInfo?.items[itemIndex]?.assetPath
-          : undefined;
+      nodeId === 'workflow-overview' && itemIndex === undefined
+        ? template.workflowOverview
+        : itemIndex === undefined
+          ? node && ['image', 'sequence', 'animation', 'model-views'].includes(node.type)
+            ? node.assetPath
+            : undefined
+          : node?.type === 'image-assets' && Number.isInteger(itemIndex) && itemIndex >= 0
+            ? node.imageAssetsInfo?.items[itemIndex]?.assetPath
+            : undefined;
     if (!assetPath) fail('模板没有此预览图片。', 404, 'NOT_FOUND');
     if (template.builtin) {
       const asset = canvasPresets().find((preset) => preset.id === id)!.assets[assetPath];
@@ -347,7 +459,7 @@ export class MakerCanvasFiles {
     if (!sourcePath) fail('模板没有此预览图片。', 404, 'NOT_FOUND');
     const animation = templateCoverAnimation(template, false, slot);
     const relative =
-      '.maker/canvases/templates/' + id + '-cover-v4-' + slot + '-' + revision + '.png';
+      '.maker/canvases/templates/' + id + '-cover-v5-' + slot + '-' + revision + '.png';
     if (fs.existsSync(path.join(this.root, relative))) {
       const file = this.safeProjectFile(relative);
       if (fs.statSync(file).size > 10 * 1024 * 1024) fail('缩略图过大。', 413, 'STORAGE_LIMIT');
@@ -395,12 +507,12 @@ export class MakerCanvasFiles {
     )
       fail('缩略图 PNG 尺寸或大小不符合预览规格。', 400, 'INVALID_IMAGE');
     const folder = this.ensureDir(path.join(this.root, '.maker', 'canvases', 'templates'));
-    this.atomicWrite(folder, id + '-cover-v4-' + slot + '-' + revision + '.png', bytes);
+    this.atomicWrite(folder, id + '-cover-v5-' + slot + '-' + revision + '.png', bytes);
   }
 
   private removeTemplateCover(id: string, revision: number): void {
     const markers = ['-cover-', '-cover-v2-'];
-    for (const version of [3, 4])
+    for (const version of [3, 4, 5])
       for (let slot = 0; slot < 5; slot++) markers.push('-cover-v' + version + '-' + slot + '-');
     for (const marker of markers) {
       const relative = '.maker/canvases/templates/' + id + marker + revision + '.png';
@@ -433,6 +545,28 @@ export class MakerCanvasFiles {
     const skills = templateSkills(input.skills);
     if (input.cliOnly !== undefined && typeof input.cliOnly !== 'boolean')
       fail('模板执行标识无效。', 400, 'INVALID_DOCUMENT');
+    const description = text(input.description, 120, '模板说明').trim();
+    if (
+      input.previewChapters !== undefined &&
+      (!Array.isArray(input.previewChapters) ||
+        input.previewChapters.length > 12 ||
+        input.previewChapters.some(
+          (label) => typeof label !== 'string' || !label.trim() || label.length > 24
+        ))
+    )
+      fail('模板预览章节无效。', 400, 'INVALID_DOCUMENT');
+    const category = templateCategory(text(input.category, 20, '模板分类'));
+    if (
+      input.workflowOverview !== undefined &&
+      (typeof input.workflowOverview !== 'string' ||
+        !isLocalCanvasImagePath(input.workflowOverview))
+    )
+      fail('模板流程总图路径无效。', 400, 'INVALID_DOCUMENT');
+    if (
+      input.coverNodeId !== undefined &&
+      !template.nodes.some((node) => node.id === input.coverNodeId)
+    )
+      fail('模板封面卡片不存在，请重新选择。', 400, 'INVALID_DOCUMENT');
     return {
       ...template,
       id: input.id,
@@ -440,6 +574,12 @@ export class MakerCanvasFiles {
       ...(input.platforms ? { platforms: [...input.platforms] } : {}),
       ...(skills?.length ? { skills } : {}),
       ...(input.cliOnly ? { cliOnly: true } : {}),
+      ...(description ? { description } : {}),
+      ...(category ? { category } : {}),
+      ...(input.coverNodeId ? { coverNodeId: input.coverNodeId } : {}),
+      ...(input.modelExample === 'voxel' ? { modelExample: input.modelExample } : {}),
+      ...(input.workflowOverview ? { workflowOverview: input.workflowOverview } : {}),
+      ...(input.previewChapters?.length ? { previewChapters: [...input.previewChapters] } : {}),
     };
   }
 
@@ -499,6 +639,8 @@ export class MakerCanvasFiles {
     if (revision !== template.revision)
       fail('模板已被修改或删除，请重新打开模板列表。', 409, 'CONFLICT');
     this.assertAssets({ nodes: template.nodes } as CanvasDocument);
+    if (template.workflowOverview && !this.imageInfo(template.workflowOverview))
+      fail('模板流程总图不可读。', 400, 'INVALID_IMAGE');
     const saved = { ...template, revision: revision + 1 };
     const bytes = Buffer.from(JSON.stringify(saved));
     if (bytes.length > CANVAS_JSON_LIMIT) fail('模板过大。', 413, 'STORAGE_LIMIT');
@@ -1330,7 +1472,13 @@ export class MakerCanvasFiles {
       edgeIds.add(edge.id);
       const connection = ['frame-first', 'frame-last'].includes(edge.kind)
         ? edge.to + ':' + edge.kind
-        : ['image-to-video', 'first-frame', 'image-variant', 'resource-bundle'].includes(edge.kind)
+        : [
+              'image-to-video',
+              'first-frame',
+              'image-variant',
+              'resource-bundle',
+              'workflow-step',
+            ].includes(edge.kind)
           ? edge.to + ':' + edge.from
           : edge.to;
       if (seen.has(connection)) fail('画布来源连线不能重复。', 400, 'INVALID_EDGE');
@@ -1348,6 +1496,13 @@ export class MakerCanvasFiles {
     ) {
       fail('已删除生成记录标识无效。', 400, 'INVALID_DOCUMENT');
     }
+    const superseded = input.supersededImageAttemptIds;
+    if (
+      superseded !== undefined &&
+      (!Array.isArray(superseded) ||
+        superseded.some((id) => typeof id !== 'string' || !ID.test(id)))
+    )
+      fail('被替代的图片任务标识无效。', 400, 'INVALID_DOCUMENT');
     const settings = input.settings as Record<string, unknown> | undefined;
     const constraintText = settings?.assetConstraintText;
     if (
@@ -1359,6 +1514,9 @@ export class MakerCanvasFiles {
     return {
       id,
       title: text(input.title, 80, '标题', '创作画布'),
+      ...(Array.isArray(superseded) && superseded.length
+        ? { supersededImageAttemptIds: [...new Set(superseded as string[])] }
+        : {}),
       ...(Array.isArray(input.deletedGenerationIds) && input.deletedGenerationIds.length
         ? { deletedGenerationIds: [...new Set(input.deletedGenerationIds as string[])] }
         : {}),
@@ -1613,6 +1771,11 @@ export class MakerCanvasFiles {
     }
     // A category has at most 120 slots; size grouping may place each slot in its own batch.
     if (node.uiAtlasBatch !== undefined) numberIn(node.uiAtlasBatch, 0, 119, '图集分批');
+    if (
+      node.uiBackground !== undefined &&
+      (node.type !== 'image' || typeof node.uiBackground !== 'boolean')
+    )
+      fail('独立背景标记只能用于图片卡。', 400, 'INVALID_DOCUMENT');
     if (skills && node.type !== 'section')
       fail('Skill 只能关联模板分组。', 400, 'INVALID_DOCUMENT');
     if (
@@ -1929,6 +2092,7 @@ export class MakerCanvasFiles {
       ...(node.uiAtlasGroup === undefined
         ? {}
         : { uiAtlasGroup: validateUiAtlasGroup(node.uiAtlasGroup) }),
+      ...(node.uiBackground === undefined ? {} : { uiBackground: node.uiBackground as boolean }),
       ...(node.uiAtlasPrelayout === undefined
         ? {}
         : { uiAtlasPrelayout: node.uiAtlasPrelayout as boolean }),
@@ -2110,7 +2274,8 @@ export class MakerCanvasFiles {
       edge.kind !== 'frame-first' &&
       edge.kind !== 'frame-last' &&
       edge.kind !== 'image-assets' &&
-      edge.kind !== 'resource-bundle'
+      edge.kind !== 'resource-bundle' &&
+      edge.kind !== 'workflow-step'
     ) {
       fail('画布连线类型无效。', 400, 'INVALID_EDGE');
     }
@@ -2125,6 +2290,11 @@ export class MakerCanvasFiles {
     if (edge.from === edge.to) fail('不能把卡片连到自身。', 400, 'INVALID_EDGE');
     const from = nodes.find((node) => node.id === edge.from);
     const to = nodes.find((node) => node.id === edge.to);
+    if (edge.kind === 'workflow-step') {
+      const media = ['image', 'video-source', 'animation'];
+      if (!from || !to || !media.includes(from.type) || !media.includes(to.type))
+        fail('流程线须连接素材卡。', 400, 'INVALID_EDGE');
+    }
     if (
       edge.kind === 'resource-bundle' &&
       (from?.type !== 'image-assets' || to?.type !== 'resource-bundle')

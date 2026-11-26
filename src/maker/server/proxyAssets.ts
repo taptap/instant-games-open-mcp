@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { extractZip } from '../cli/devKit.js';
 import { sanitizeRemoteDiagnosticValue } from './diagnosticRedaction.js';
-import { mediaInputRecoveryHint } from './mediaInputRecovery.js';
+import { embeddedMediaDiagnostics, mediaInputRecoveryHint } from './mediaInputRecovery.js';
 
 type RemoteProxyToolResult = Awaited<ReturnType<Client['callTool']>>;
 type RemoteProxyToolResultWithStructuredContent = RemoteProxyToolResult & {
@@ -76,9 +76,15 @@ export class RemoteProxyToolResultError extends Error {
   readonly result: RemoteProxyToolResult;
   readonly recoveryHint?: string;
 
-  constructor(toolName: string, result: RemoteProxyToolResult) {
+  constructor(
+    toolName: string,
+    result: RemoteProxyToolResult,
+    inputArgs?: Record<string, unknown>
+  ) {
     const remoteMessage = formatRemoteProxyToolResult(result);
-    const recoveryHint = mediaInputRecoveryHint(remoteMessage);
+    const recoveryHint = mediaInputRecoveryHint(remoteMessage, () =>
+      embeddedMediaDiagnostics(inputArgs || {})
+    );
     super(
       [
         `Remote proxy tool ${toolName} returned an error result.`,
@@ -101,10 +107,17 @@ export class RemoteProxyToolCallError extends Error {
   readonly originalError: unknown;
   readonly recoveryHint?: string;
 
-  constructor(toolName: string, executionState: RemoteProxyExecutionState, error: unknown) {
+  constructor(
+    toolName: string,
+    executionState: RemoteProxyExecutionState,
+    error: unknown,
+    inputArgs?: Record<string, unknown>
+  ) {
     const originalMessage = error instanceof Error ? error.message : String(error);
     const recoveryHint =
-      executionState === 'unknown' ? mediaInputRecoveryHint(originalMessage) : undefined;
+      executionState === 'unknown'
+        ? mediaInputRecoveryHint(originalMessage, () => embeddedMediaDiagnostics(inputArgs || {}))
+        : undefined;
     super(
       `Remote proxy tool ${toolName} failed with execution_state=${executionState}; ` +
         `automatic retry is disabled. ${originalMessage}` +
@@ -167,13 +180,15 @@ export async function materializeRemoteProxyToolAssets(options: {
   toolName: string;
   targetDir: string;
   result: RemoteProxyToolResult;
+  inputArgs?: Record<string, unknown>;
   now?: Date;
   fetchImpl?: RemoteProxyFetch;
 }): Promise<RemoteProxyToolResult> {
   if (isRemoteProxyToolErrorResult(options.result)) {
     throw new RemoteProxyToolResultError(
       options.toolName,
-      addRemoteProxyErrorExecutionState(options.result)
+      addRemoteProxyErrorExecutionState(options.result),
+      options.inputArgs
     );
   }
 

@@ -128,7 +128,7 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
       bitmap.close();
     }
     if (!stopped)
-      await store
+      void store
         .saveCover(summary.id, summary.revision, thumbnail, abort.signal, slot)
         .catch(() => undefined);
     return { blob: thumbnail, animation };
@@ -175,7 +175,23 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
     ) {
       if (!summary.hasCover) return;
       container.classList.add('cover-loading');
-      waiting.set(container, async () => {
+      const unavailable = () => {
+        if (stopped || !container.isConnected) return;
+        container.classList.remove('cover-loading');
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.textContent = '重试预览';
+        retry.onclick = (event) => {
+          event.stopPropagation();
+          retry.disabled = true;
+          container.classList.add('cover-loading');
+          container.textContent = '正在加载…';
+          queue.push(run);
+          pump();
+        };
+        container.replaceChildren(document.createTextNode('预览暂不可用 '), retry);
+      };
+      const run = async () => {
         try {
           const { blob, animation } = await load(summary, slot);
           if (stopped || !container.isConnected) return;
@@ -194,7 +210,36 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
             canvas.setAttribute('aria-label', summary.name + '动画结果预览，悬停或聚焦播放');
             const context = canvas.getContext('2d')!;
             let current = -1;
-            const poster = showLastFrame ? animation.frames.length - 1 : 0;
+            let poster = showLastFrame ? animation.frames.length - 1 : 0;
+            if (!summary.builtin) {
+              // Nobody curated a resting frame for a user template, and effects often start on
+              // an empty one: rest on the frame showing the most, counting bright pixels higher.
+              const probe = document.createElement('canvas');
+              probe.width = bitmap.width;
+              probe.height = bitmap.height;
+              const pixels = probe.getContext('2d', { willReadFrequently: true });
+              let most = -1;
+              if (pixels) {
+                pixels.drawImage(bitmap, 0, 0);
+                animation.frames.forEach((frame, index) => {
+                  const data = pixels.getImageData(
+                    Math.floor(frame.x),
+                    Math.floor(frame.y),
+                    Math.max(1, Math.floor(frame.width)),
+                    Math.max(1, Math.floor(frame.height))
+                  ).data;
+                  let shown = 0;
+                  for (let offset = 0; offset < data.length; offset += 4)
+                    shown +=
+                      data[offset + 3] *
+                      (64 + Math.max(data[offset], data[offset + 1], data[offset + 2]));
+                  if (shown > most) {
+                    most = shown;
+                    poster = index;
+                  }
+                });
+              }
+            }
             const draw = (index: number): void => {
               if (current === index) return;
               current = index;
@@ -275,16 +320,20 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
           image.decoding = 'async';
           image.onload = () => container.classList.remove('cover-loading');
           image.onerror = () => {
-            container.textContent = '预览暂不可用';
-            container.classList.remove('cover-loading');
+            unavailable();
           };
           image.src = url;
           container.replaceChildren(image);
         } catch {
-          container.classList.remove('cover-loading');
-          container.textContent = '预览暂不可用';
+          unavailable();
         }
-      });
+      };
+      if (summary.hasChapterPreview) {
+        queue.push(run);
+        pump();
+        return;
+      }
+      waiting.set(container, run);
       observer.observe(container);
     },
     warm: load,

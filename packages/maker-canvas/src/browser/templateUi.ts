@@ -60,7 +60,7 @@ export function createCanvasTemplateUiWithHost(options: {
       busy = true;
       element.disabled = true;
       const originalLabel = element.textContent;
-      if (label === '＋ 添加') element.textContent = '正在下载并添加…';
+      if (label === '使用模板') element.textContent = '正在添加…';
       void Promise.resolve()
         .then(action)
         .catch((error) => {
@@ -156,9 +156,24 @@ export function createCanvasTemplateUiWithHost(options: {
       platforms.append(option);
     }
     platforms.value = initialPlatforms?.length === 1 ? initialPlatforms[0] : 'both';
+    const cover = document.createElement('select');
+    cover.setAttribute('aria-label', '模板封面');
+    const automatic = document.createElement('option');
+    automatic.value = '';
+    automatic.textContent = replace ? '保留原封面' : '自动选择结果封面';
+    cover.append(automatic);
+    for (const node of nodes.filter(
+      (node) => node.assetPath && (node.type === 'image' || node.frameSetInfo?.frames.length)
+    )) {
+      const option = document.createElement('option');
+      option.value = node.id;
+      option.textContent = node.title;
+      cover.append(option);
+    }
     body.append(
       name,
       platforms,
+      cover,
       button(replace ? '确认替换' : '保存模板', async () => {
         if (!name.value.trim()) throw new Error('请输入模板名称。');
         guard(documentState, nodes);
@@ -169,11 +184,36 @@ export function createCanvasTemplateUiWithHost(options: {
         );
         draft.platforms =
           platforms.value === 'both' ? ['local', 'web'] : [platforms.value as CanvasPlatform];
+        if (cover.value) draft.coverNodeId = cover.value;
         if (replace) {
           if (!section?.templateId || !section.templateRevision)
             throw new Error('原模板不存在，请另存为新模板。');
           draft.id = section.templateId;
           draft.revision = section.templateRevision;
+          // A copy has new IDs; preserve the selected cover when its saved card still matches.
+          const current = await options.store!.getTemplate(section.templateId);
+          if (current.description) draft.description = current.description;
+          if (current.category) draft.category = current.category;
+          if (current.previewChapters) draft.previewChapters = current.previewChapters;
+          if (!draft.coverNodeId && current.coverNodeId) {
+            const previous = current.nodes.find((node) => node.id === current.coverNodeId);
+            const sameAsset = draft.nodes.filter(
+              (node) =>
+                previous?.assetPath &&
+                node.type === previous.type &&
+                node.assetPath === previous.assetPath
+            );
+            const matches =
+              sameAsset.length === 1
+                ? sameAsset
+                : draft.nodes.filter(
+                    (node) =>
+                      previous && node.type === previous.type && node.title === previous.title
+                  );
+            if (matches.length !== 1)
+              throw new Error('原封面卡无法唯一匹配，请在“模板封面”中选择要保留的结果。');
+            draft.coverNodeId = matches[0].id;
+          }
         }
         const saved = await options.store!.saveTemplate(draft);
         const preview = createTemplateCovers(options.store!);
@@ -263,7 +303,7 @@ export function createCanvasTemplateUiWithHost(options: {
       options.error('当前画布环境不支持模板库。');
       return;
     }
-    const body = open('添加模板', '选择一个模板，开始你的下一套工作流。');
+    const body = open('工作流模板', '按要做的内容选一个流程，先预览，再添加到画布替换成你的素材。');
     dialog.classList.add('template-library');
     const search = document.createElement('input');
     search.type = 'search';
@@ -361,11 +401,12 @@ export function createCanvasTemplateUiWithHost(options: {
       const card = document.createElement('article');
       card.className = 'workflow-template-row';
       card.dataset.templateId = summary.id;
+      if (summary.hasChapterPreview) card.classList.add('template-chapter-card');
       const previews = summary.builtin ? templatePresentation(summary.id).previews : undefined;
       if (previews?.length === 5) card.classList.add('template-result-previews');
       const media = document.createElement('div');
       media.className = 'template-previews';
-      for (const [slot, preview] of (previews || [{ label: '效果预览' }]).entries()) {
+      for (const [slot, preview] of (previews || [{ label: '示例结果' }]).entries()) {
         const figure = document.createElement('figure');
         const cover = document.createElement('div');
         cover.className = 'template-cover';
@@ -393,11 +434,18 @@ export function createCanvasTemplateUiWithHost(options: {
       name.textContent = summary.name;
       name.title = summary.name;
       heading.append(name);
+      if (summary.builtin && summary.isNew) {
+        const badge = document.createElement('span');
+        badge.className = 'template-new-badge';
+        badge.textContent = '新';
+        heading.append(badge);
+      }
       const description = document.createElement('small');
       description.className = 'template-description';
       description.textContent = summary.builtin
         ? builtinPresetDescriptions[summary.id] || '内置工作流'
-        : '自定义工作流';
+        : summary.description || '自定义工作流';
+      description.title = description.textContent;
       const actions = document.createElement('div');
       actions.className = 'template-card-actions';
       const count = document.createElement('small');
@@ -429,13 +477,12 @@ export function createCanvasTemplateUiWithHost(options: {
         }
         metadata.append(link);
       }
-      const addButton = button('＋ 添加', async () =>
+      const addButton = button('使用模板', async () =>
         add(await store!.getTemplate(summary.id), false)
       );
-      addButton.setAttribute('aria-label', '添加');
       addButton.className = 'template-add';
-      const previewButton = button('预览', () => {
-        openCanvasTemplatePreview(store!, summary.id, summary.name);
+      const previewButton = button('预览流程', () => {
+        openCanvasTemplatePreview(store!, summary.id, summary.name, () => addButton.click());
       });
       previewButton.className = 'template-preview';
       actions.append(metadata, previewButton, addButton);
@@ -503,28 +550,40 @@ export function createCanvasTemplateUiWithHost(options: {
           filter.setAttribute('aria-pressed', String(filter.textContent === category))
         );
       try {
-        const result = await store!.listTemplatePage(page, search.value);
+        const everything = category === '全部' || category === '我的模板';
+        const result = await store!.listTemplatePage(
+          page,
+          search.value,
+          everything ? undefined : category
+        );
         if (!isCurrent(version)) return;
         currentPage = result.page;
         covers = createTemplateCovers(store!);
         body.replaceChildren();
         body.scrollTop = 0;
-        const showCustom = category === '全部' || category === '我的模板';
         const presets = result.presets.filter(
           (item) =>
             canvasSupportsPlatform(item, options.platform) &&
-            (category === '全部' || templatePresentation(item.id).category === category)
+            (category === '全部' ||
+              (item.category ?? templatePresentation(item.id).category) === category)
         );
-        const count = presets.length + (showCustom ? result.total : 0);
+        // A host that ignores the category would otherwise list every user template under it.
+        const mine = everything
+          ? result.items
+          : result.items.filter((item) => item.category === category);
+        const mineTotal = mine.length === result.items.length ? result.total : mine.length;
+        const count = presets.length + mineTotal;
         total.textContent = '共 ' + count + ' 个模板';
         if (presets.length) section('预设模板', presets);
-        if (showCustom && result.items.length) section('我的模板 · ' + result.total, result.items);
+        if (mine.length) section('我的模板 · ' + mineTotal, mine);
         if (!count) {
           const empty = document.createElement('p');
           empty.className = 'template-empty';
           empty.textContent = search.value.trim()
             ? '没有匹配的模板，试试其他关键词或分类。'
-            : '框选相连卡片，右键「保存为模板」，就能在这里复用。';
+            : everything
+              ? '框选相连卡片，右键「保存为模板」，就能在这里复用。'
+              : '这个分类下还没有模板，可以看看「全部」。';
           body.append(empty);
         }
         const pages = Math.max(1, Math.ceil(result.total / result.pageSize));
@@ -536,7 +595,7 @@ export function createCanvasTemplateUiWithHost(options: {
         next.disabled = result.page >= pages;
         const label = document.createElement('span');
         label.textContent = result.page + ' / ' + pages;
-        if (showCustom && result.total > result.pageSize) pager.append(previous, label, next);
+        if (result.total > result.pageSize) pager.append(previous, label, next);
         const status = dialog.querySelector('[role=status]')!;
         status.textContent = result.skipped ? result.skipped + ' 个模板文件无法读取，已跳过。' : '';
       } catch (error) {

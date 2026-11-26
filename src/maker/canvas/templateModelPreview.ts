@@ -1,10 +1,20 @@
 import { readDemoResource, demoResourceInfo } from '../demoResources.js';
-import sample from './templateModelData.json';
+import samples from './templateModelData.json';
 import { CanvasStoreError } from './model.js';
 
-export async function readBuiltinTemplateModel(id: string, filename: string | null) {
-  if (id !== '7e1cb6ad-732f-4dc3-a951-000000000004')
+export async function readVoxelExampleImage(type: 'model-views' | 'model') {
+  const { resourceId } = type === 'model-views' ? samples.voxel.views : samples.voxel.poster;
+  return { bytes: await readDemoResource(resourceId), type: demoResourceInfo(resourceId).type };
+}
+
+export async function readBuiltinTemplateModel(
+  id: string,
+  filename: string | null,
+  example?: 'voxel'
+) {
+  if (example !== 'voxel' && id !== '7e1cb6ad-732f-4dc3-a951-000000000004')
     throw new CanvasStoreError('此模板没有模型预览。', 404, 'NOT_FOUND');
+  const sample = example === 'voxel' ? samples.voxel : samples.character;
   const files: Record<string, string | { resourceId: string }> = sample.files;
   if (filename !== null) {
     if (!Object.prototype.hasOwnProperty.call(files, filename))

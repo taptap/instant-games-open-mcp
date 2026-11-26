@@ -1,5 +1,5 @@
 import type { CanvasDocument, CanvasNode } from '../contracts.js';
-import { snapshotCanvasSource } from '../core/dependencies.js';
+import { isCanvasSourceCurrent, snapshotCanvasSource } from '../core/dependencies.js';
 
 export function applyLocalImageResult(
   document: CanvasDocument,
@@ -8,13 +8,25 @@ export function applyLocalImageResult(
   targetId: string | undefined,
   createId: () => string
 ): CanvasNode {
-  const saved = document.nodes.find((node) => node.type === 'image' && node.assetPath === path);
-  if (saved) return saved;
   const current = document.nodes.find((node) => node.id === source.id);
   if (!current || current.assetPath !== source.assetPath)
     throw new Error('来源图片已变更，未覆盖卡片；本地结果仍保留。');
   let target = targetId ? document.nodes.find((node) => node.id === targetId) : undefined;
   if (targetId && (!target || target.type !== 'image')) throw new Error('目标图片卡已变更。');
+  // A save retry may reuse this source's own result, never another instance's same-path card.
+  if (!targetId) {
+    const saved = document.nodes.find(
+      (node) =>
+        node.type === 'image' &&
+        node.assetPath === path &&
+        node.sectionId === current.sectionId &&
+        isCanvasSourceCurrent(node.sourceSnapshot, current) &&
+        document.edges.some(
+          (edge) => edge.from === current.id && edge.to === node.id && edge.kind === 'image-variant'
+        )
+    );
+    if (saved) return saved;
+  }
   if (!target) {
     target = {
       id: createId(),

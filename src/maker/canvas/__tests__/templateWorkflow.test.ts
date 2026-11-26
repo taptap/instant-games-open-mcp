@@ -122,6 +122,45 @@ test('blocks active or unknown outputs rather than creating another paid task', 
   expect(document.nodes).toHaveLength(4);
 });
 
+test('local cutout derives into its own pending output while selected-card edits stay in place', () => {
+  const { document, options } = fixture();
+  delete document.templateFlow;
+  const base = { type: 'image' as const, x: 0, y: 0, width: 300, height: 200 };
+  document.nodes = [
+    { ...base, id: 'section', type: 'section', title: 'T2', templateId: 'local-template' },
+    { ...base, id: 'source', title: '输入', sectionId: 'section', assetPath: 'input.png' },
+    { ...base, id: 'output', title: '抠图', sectionId: 'section', templatePending: true },
+    { ...base, id: 'other', title: '其它实例', sectionId: 'other-section', templatePending: true },
+  ];
+  document.edges = [
+    { id: 'own', from: 'source', to: 'output', kind: 'image-variant' },
+    { id: 'foreign', from: 'source', to: 'other', kind: 'image-variant' },
+  ];
+  const flow = createTemplateWorkflow(options);
+  expect(flow.resolveTarget('source', 'image', 'source')).toEqual({
+    kind: 'reuse',
+    nodeId: 'source',
+  });
+  expect(flow.resolveTarget('source', 'image', undefined, 'derive')).toEqual({
+    kind: 'reuse',
+    nodeId: 'output',
+  });
+  document.nodes.push({ ...document.nodes[2], id: 'branch' });
+  document.edges.push({ id: 'branch-wire', from: 'source', to: 'branch', kind: 'image-variant' });
+  expect(flow.resolveTarget('source', 'image', undefined, 'derive')?.kind).toBe('blocked');
+  expect(flow.resolveTarget('source', 'image', 'branch', 'derive')).toEqual({
+    kind: 'reuse',
+    nodeId: 'branch',
+  });
+  for (const blockedOption of ['isNodeBusy', 'hasUnsettledResult'] as const) {
+    const blocked = createTemplateWorkflow({
+      ...options,
+      [blockedOption]: (id: string) => id === 'output',
+    });
+    expect(blocked.resolveTarget('source', 'image', 'output', 'derive')?.kind).toBe('blocked');
+  }
+});
+
 test('manual sequence and animation completion advance only the remaining workflow', async () => {
   const { flow, document, options } = fixture();
   await flow.nodeChanged('sequence');

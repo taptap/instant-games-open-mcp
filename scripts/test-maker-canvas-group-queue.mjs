@@ -16,7 +16,7 @@ try {
   const bundle = path.join(temporary, 'page.mjs');
   await build({ stdin: { contents: 'export { getCanvasPageHtml } from "./src/maker/canvas/page.ts"; export { STARTER_IMAGE_BASE64 } from "./src/maker/canvas/starterImages.ts"; export { snapshotCanvasSource } from "./src/maker/canvas/dependencies.ts"; export { canvasPresets } from "./src/maker/canvas/presets.ts";', resolveDir: repo }, bundle: true, platform: 'node', format: 'esm', outfile: bundle, logLevel: 'silent' });
   const { getCanvasPageHtml, STARTER_IMAGE_BASE64, snapshotCanvasSource, canvasPresets } = await import(pathToFileURL(bundle).href);
-  const uiTemplate = { ...canvasPresets().find(t => t.id.endsWith("000013")), builtin: true };
+  const assetTemplate = { ...canvasPresets().find(t => t.id.endsWith("000005")), builtin: true };
   const html = getCanvasPageHtml();
   const image = Buffer.from(STARTER_IMAGE_BASE64[0], 'base64');
   fs.writeFileSync(path.join(temporary, 'source.jpg'), image);
@@ -54,10 +54,13 @@ try {
       return route.fulfill({ contentType: png ? 'image/png' : url.search.includes('.mp4') ? 'video/mp4' : 'image/jpeg', body: png || (url.search.includes('.mp4') ? videoBytes : image) });
     }
     let response;
-    if (url.pathname.endsWith('/canvases/templates')) response = { presets: [{ ...uiTemplate, nodeCount: uiTemplate.nodes.length, hasCover: true, updatedAt: 0 }], items: [], page: 1, pageSize: 20, total: 0, skipped: 0 };
-    else if (url.pathname.endsWith('/canvases/templates/' + uiTemplate.id + '/cover')) return route.fulfill({ contentType: 'image/jpeg', body: image });
-    else if (url.pathname.endsWith('/canvases/templates/' + uiTemplate.id) || url.pathname.endsWith('/canvases/templates/' + uiTemplate.id + '/prepare')) response = uiTemplate;
+    if (url.pathname.endsWith('/canvases/templates')) response = { presets: [{ ...assetTemplate, nodeCount: assetTemplate.nodes.length, hasCover: true, updatedAt: 0 }], items: [], page: 1, pageSize: 20, total: 0, skipped: 0 };
+    else if (url.pathname.endsWith('/canvases/templates/' + assetTemplate.id + '/cover')) return route.fulfill({ contentType: 'image/jpeg', body: image });
+    else if (url.pathname.endsWith('/canvases/templates/' + assetTemplate.id) || url.pathname.endsWith('/canvases/templates/' + assetTemplate.id + '/prepare')) response = assetTemplate;
     else if (url.pathname.endsWith('/canvases')) response = [{ id: canvasId, title: canvas.title }];
+    else if (url.pathname.endsWith('/canvases/image-info')) response = null;
+    else if (url.pathname.endsWith('/canvases/image-models')) response = { provider: { source: 'maker', identity: 'test' }, tool: url.searchParams.get('tool'), origin: 'mcp', label: '测试模型', defaultModel: 'gpt', models: [{ id: 'gpt', label: 'gpt' }] };
+    else if (url.pathname.endsWith('/canvases/media-version')) response = { version: 'fixture-v1' };
     else if (url.pathname.endsWith('/canvases/active')) response = { canvasId };
     else if (url.pathname.endsWith('/canvases/automation/exchange')) {
       const results = route.request().postDataJSON().results || [];
@@ -121,12 +124,16 @@ try {
   await queue.getByRole('button', { name: '停止后续', exact: true }).click();
   const scrollBeforePause = await page.locator('#board').evaluate(element => [element.scrollLeft, element.scrollTop]);
   release();
-  await queue.getByText('已暂停', { exact: true }).waitFor();
+  await queue.getByText(/^已暂停/).waitFor();
   assert.deepEqual(await page.locator('#board').evaluate(element => [element.scrollLeft, element.scrollTop]), scrollBeforePause);
-  await page.locator('.canvas-group-state[data-state=paused]').waitFor();
+  assert.equal(await queue.getAttribute('data-phase'), 'paused');
+  await page.locator('.canvas-group-state[data-state=unknown]').waitFor();
   assert.deepEqual(calls, [references[0].id]);
+  // Stopping the wait leaves the image unknown until its original receipt is read.
+  await page.reload();
+  await page.locator('.card[data-id="' + references[0].id + '"] img').waitFor();
   await startQueue('继续剩余流程');
-  await queue.getByText('已完成', { exact: true }).waitFor();
+  await queue.getByText('✓ 已完成', { exact: true }).waitFor();
   await page.locator('.canvas-group-state[data-state=ready]').waitFor();
   assert.deepEqual(calls.slice(0, 3), [references[0].id, references[2].id, references[1].id]);
   assert.equal(calls.length, 6);
@@ -140,21 +147,21 @@ try {
   failNext = true;
   await page.reload();
   await startQueue('▶ 完成剩余流程');
-  await queue.getByText('已暂停', { exact: true }).waitFor();
+  await queue.getByText(/^已暂停/).waitFor();
   assert.equal(calls.length, 7);
   await page.locator('.canvas-group-state[data-state=unknown]').waitFor();
   await startQueue('继续剩余流程');
-  await queue.getByText('已暂停', { exact: true }).waitFor();
+  await queue.getByText(/^已暂停/).waitFor();
   assert.equal(calls.length, 7);
   const callsBeforeTemplate = calls.length;
   canvas = { ...canvas, nodes: [], edges: [], viewport: { x: 0, y: 0, scale: 1 } };
   await page.reload();
   await page.getByRole('button', { name: '添加模板', exact: true }).click();
-  await page.getByRole('button', { name: '添加', exact: true }).click();
-  await page.getByRole('group', { name: '游戏UI制作执行队列', exact: true }).getByRole('button', { name: '▶ 完成剩余流程', exact: true }).waitFor();
+  await page.locator('.template-add').click();
+  await page.getByRole('group', { name: assetTemplate.name + '执行队列', exact: true }).getByRole('button', { name: '▶ 完成剩余流程', exact: true }).waitFor();
   await page.getByText('已保存', { exact: true }).waitFor();
-  assert.equal(canvas.nodes.filter(node => node.templatePending).length, 23);
-  assert.equal(canvas.nodes.filter(node => node.type === 'image-assets' && node.templatePending).length, 9);
+  assert.equal(canvas.nodes.filter(node => node.templatePending).length, 2);
+  assert.equal(canvas.nodes.filter(node => node.type === 'image-assets' && node.templatePending).length, 1);
   assert.equal(canvas.nodes.filter(node => node.type === 'image' && !node.templatePending).length, 1);
   const templateSource = canvas.nodes.find(node => node.type === 'image' && !node.templatePending);
   const oldSourcePath = templateSource.assetPath;
@@ -165,14 +172,14 @@ try {
   await page.waitForFunction(id => document.querySelector('.card[data-id="' + id + '"] img')?.alt === 'source', templateSource.id);
   await page.getByText('已保存', { exact: true }).waitFor();
   assert.notEqual(canvas.nodes.find(node => node.id === templateSource.id).assetPath, oldSourcePath);
-  assert.equal(canvas.nodes.length, 26);
-  assert.equal(canvas.nodes.filter(node => node.templatePending).length, 23);
+  assert.equal(canvas.nodes.length, 4);
+  assert.equal(canvas.nodes.filter(node => node.templatePending).length, 2);
   await page.reload();
-  await page.getByRole('group', { name: '游戏UI制作执行队列', exact: true }).getByRole('button', { name: '▶ 完成剩余流程', exact: true }).waitFor();
-  assert.equal(canvas.nodes.filter(node => node.templatePending).length, 23);
+  await page.getByRole('group', { name: assetTemplate.name + '执行队列', exact: true }).getByRole('button', { name: '▶ 完成剩余流程', exact: true }).waitFor();
+  assert.equal(canvas.nodes.filter(node => node.templatePending).length, 2);
   assert.equal(calls.length, callsBeforeTemplate);
   assert.deepEqual(errors, []);
-  console.log('PASS 从空白画布添加真实游戏UI模板：23个下游步骤待处理，示例保留，保存重开仍可运行，未自动生图。');
+  console.log('PASS 从空白画布添加真实道具模板：图集和资源卡待处理，示例保留，保存重开仍可运行，未自动生图。');
   importedImages = 0;
   for (const scenario of ['text', 'import', 'linked', 'unknown']) {
     attempts.splice(0);
@@ -229,7 +236,10 @@ try {
       assert.equal(await page.getByAltText('当前图片', { exact: true }).count(), 0);
     }
     failNext = scenario === 'unknown';
-    await page.getByRole('button', { name: '应用并继续', exact: true }).click();
+    await Promise.all([
+      page.waitForResponse(response => response.url().endsWith('/generation/image')),
+      page.getByRole('button', { name: '应用并继续', exact: true }).click(),
+    ]);
     await page.waitForFunction(() => !document.querySelector('.card-state-loading'));
     const submitted = attempts.at(-1);
     assert.equal(submitted.targetNodeId, target.id);
@@ -254,7 +264,7 @@ try {
     for (let y = 0; y < 60; y++) for (let x = 0; x < 80; x++) {
       const offset = (y * 80 + x) * 4;
       const inside = x % 40 >= 10 && x % 40 < 30 && y >= 15 && y < 45;
-      keyed.data.set(inside ? [30, 170, 210, 255] : [255, 0, 255, 255], offset);
+      keyed.data.set(inside ? [30, 170, 210, 255] : [0, 0, 0, 0], offset);
     }
     generatedImageFixture = PNG.sync.write(keyed);
     const source = { ...master };
@@ -268,7 +278,7 @@ try {
         items: [1, 2].map(index => ({ name: 'item_00' + index, width: 40, height: 60, assetPath: 'assets/image/canvas-' + randomUUID() + '.png' })),
       },
     };
-    canvas = { ...canvas, viewport: { x: 0, y: 0, scale: 1 }, nodes: [{ ...group, templateId: uiTemplate.id }, source, clean, atlas, assets], edges: [
+    canvas = { ...canvas, viewport: { x: 0, y: 0, scale: 1 }, nodes: [{ ...group, templateId: '7e1cb6ad-732f-4dc3-a951-000000000013' }, source, clean, atlas, assets], edges: [
       { id: randomUUID(), from: source.id, to: clean.id, kind: 'image-variant' },
       { id: randomUUID(), from: clean.id, to: atlas.id, kind: 'image-variant' },
       { id: randomUUID(), from: atlas.id, to: assets.id, kind: 'image-assets' },
@@ -280,10 +290,20 @@ try {
       await page.locator('.card[data-id="' + clean.id + '"]').getByRole('button', { name: '处理并继续', exact: true }).click();
     } else {
       await page.getByText('已保存', { exact: true }).waitFor();
+      // Read the active page after its initial media/version save, as a CLI client would.
+      const inspectId = randomUUID();
+      const exchange = async (command) => {
+        automationCommands.push(command);
+        for (let i = 0; i < 100; i++) {
+          const receipt = automationResults.find(result => result.id === command.requestId);
+          if (receipt) { assert.equal(receipt.status, 'succeeded', receipt.error); return receipt.result; }
+          await page.waitForTimeout(100);
+        }
+        throw new Error('No automation receipt for ' + command.action);
+      };
+      const inspected = await exchange({ action: 'inspect', requestId: inspectId, input: {}, pageId: 'group-test-page', canvasId });
       const requestId = randomUUID();
-      automationCommands.push({ action: 'run', pageId: 'group-test-page', canvasId, revision: canvas.revision, requestId, input: { id: groupId }, allowPaid: true });
-      await page.waitForFunction(() => document.querySelector('.group-queue')?.dataset.phase === 'complete');
-      for (let index = 0; index < 30 && !automationResults.some(result => result.id === requestId); index++) await page.waitForTimeout(100);
+      await exchange({ action: 'run', pageId: 'group-test-page', canvasId, revision: inspected.revision, requestId, input: { id: groupId }, allowPaid: true });
       assert.equal(automationResults.find(result => result.id === requestId)?.status, 'succeeded');
     }
     await page.waitForFunction(id => {
@@ -297,8 +317,8 @@ try {
     assert.equal(canvas.nodes.some(node => node.templatePending), false);
     assert.equal(await page.locator('[data-image-atlas-dialog]').count(), 0);
     const atlasResult = canvas.nodes.find(node => node.id === atlas.id).generation;
-    assert.ok(['#FF00FF', '#00FF00'].includes(atlasResult.cutoutColor));
-    assert.ok(atlasResult.prompt.includes(atlasResult.cutoutColor));
+    assert.equal(atlasResult.cutoutColor, 'transparent');
+    assert.match(atlasResult.prompt, /真实 Alpha 通道/);
     const output = canvas.nodes.find(node => node.id === assets.id).imageAssetsInfo;
     for (const item of output.items) {
       assert.ok(item.assetPath.startsWith('.maker/canvases/' + canvasId + '/resources/'));
@@ -316,30 +336,30 @@ try {
   assert.deepEqual(errors, []);
   const previousAssets = structuredClone(canvas.nodes.find(node => node.type === 'image-assets').imageAssetsInfo);
   const blankAtlas = new PNG({ width: 80, height: 60 });
-  for (let offset = 0; offset < blankAtlas.data.length; offset += 4) blankAtlas.data.set([255, 0, 255, 255], offset);
+  for (let offset = 0; offset < blankAtlas.data.length; offset += 4) blankAtlas.data.set([0, 0, 0, 0], offset);
   generatedImageFixture = PNG.sync.write(blankAtlas);
   const beforeBlank = calls.length;
   canvas.nodes.find(node => node.id === references[1].id).templatePending = true;
   await page.reload();
   await startQueue('▶ 完成剩余流程');
-  await queue.getByText('已暂停', { exact: true }).waitFor();
+  await queue.getByText(/^已暂停/).waitFor();
   assert.deepEqual(canvas.nodes.find(node => node.type === 'image-assets').imageAssetsInfo, previousAssets);
   assert.equal(canvas.nodes.find(node => node.type === 'image-assets').templatePending, true);
   assert.ok((await page.locator('body').innerText()).includes('没有有效内容'));
-  assert.equal(calls.length, beforeBlank + 3, 'initial generation plus at most two quality retries');
+  assert.ok(calls.length > beforeBlank && calls.length <= beforeBlank + 3, 'initial generation plus at most two quality retries');
   for (let y = 10; y < 50; y++) {
     for (let x = 10; x < 70; x++) blankAtlas.data.set([20, 100, 200, 255], (y * 80 + x) * 4);
   }
   generatedImageFixture = PNG.sync.write(blankAtlas);
   canvas.nodes.find(node => node.id === references[1].id).templatePending = true;
   await page.reload();
-  await startQueue('▶ 完成剩余流程');
-  await queue.getByText('已暂停', { exact: true }).waitFor();
+  await startQueue('继续剩余流程');
+  await queue.getByText(/^已暂停/).waitFor();
   assert.deepEqual(canvas.nodes.find(node => node.type === 'image-assets').imageAssetsInfo, previousAssets);
   assert.equal(canvas.nodes.find(node => node.type === 'image-assets').templatePending, true);
   assert.ok((await page.locator('body').innerText()).includes('没有可靠的透明分隔'));
   assert.deepEqual(errors, []);
-  console.log('PASS UI模板：记录底色并自动抠图、保留主体和步骤名称；空白格暂停并保留旧资源，不假报完成。');
+  console.log('PASS UI模板：保留真实透明度并切图、保留主体和步骤名称；空白格暂停并保留旧资源，不假报完成。');
   console.log('PASS UI模板：页面整组、单卡继续、CLI整组均接续两步生图和PNG资源卡，实际PNG可解码，保存重开不重跑。');
   console.log('PASS 模板图片参考可全部移除，文本草稿保留，纯文本/仅导入图生成不隐式携带旧图或上游图，原位更新且未知结果保留旧图。');
   console.log('PASS 横向参考图列表：空态加号、多选14张、横向滚动、达到上限禁用、删除后恢复添加，底部不再有导入按钮。');

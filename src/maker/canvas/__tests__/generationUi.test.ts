@@ -666,6 +666,21 @@ test('image query refreshes a formerly running local record without submitting a
   expect(options.store.generationAction).not.toHaveBeenCalled();
 });
 
+test.each(['succeeded', 'unknown'])(
+  'an agent replacement supersedes only a completed image attempt (%s)',
+  async (status) => {
+    const { options, target, completed, ui } = imageRecoveryFixture();
+    target.assetPath = 'reviewed-work-image.png';
+    target.generation = { prompt: 'reuse reviewed image', origin: 'agent' };
+    delete target.templatePending;
+    options.store.listGeneration.mockResolvedValue([{ ...completed, status }] as any);
+    await ui.restore();
+    expect(target.assetPath).toBe('reviewed-work-image.png');
+    expect(ui.nodeState(target.id)?.status).toBe(status === 'succeeded' ? undefined : 'unknown');
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+  }
+);
+
 test.each([
   [{ status: 'failed', executionState: 'not_executed' }, true],
   [{ status: 'failed', remoteStatus: 'failed' }, true],
@@ -965,6 +980,126 @@ describe('generation panels, reference drafts and refresh', () => {
   function displayedPaths() {
     return elements.filter((element) => element.tag === 'img').map((element) => element.src);
   }
+
+  function unknownImageFixture() {
+    const value = imageFixture();
+    const { document, image, source, options } = value;
+    const original: any = {
+      id: 'unknown-original',
+      canvasId: document.id,
+      kind: 'image',
+      status: 'unknown',
+      targetNodeId: image.id,
+      prompt: image.generation.prompt,
+      sourceImageIds: [source.id],
+      sourceImagePaths: ['assets/image/old.png'],
+      createdAt: '2026-11-12T00:00:00.000Z',
+    };
+    options.store.listGeneration.mockResolvedValue([original]);
+    return { ...value, original };
+  }
+
+  test.each([false, true])(
+    'automatic recovery never releases unknown images, even force=%s',
+    async (force) => {
+      const { ui, image, options } = unknownImageFixture();
+      expect(await ui.recoverForRetry(image.id, force)).toBe('unknown');
+      expect(await ui.runTemplateImage(image.id)).toBe(false);
+      expect(options.store.generateImage).not.toHaveBeenCalled();
+    }
+  );
+
+  test.each(['same-source', 'changed-prompt', 'task-id', 'active', 'unverifiable-source'])(
+    'explicit changed-image retry refuses %s',
+    async (reason) => {
+      const { ui, image, source, original, options } = unknownImageFixture();
+      if (reason === 'same-source') original.sourceImagePaths = [source.assetPath];
+      if (reason === 'changed-prompt') image.generation.prompt = 'different prompt';
+      if (reason === 'task-id') original.taskId = 'remote-task';
+      if (reason === 'unverifiable-source') delete original.sourceImagePaths;
+      if (reason === 'active')
+        options.store.listGeneration.mockResolvedValue([
+          original,
+          { ...original, id: 'running', status: 'running', createdAt: '2026-11-11T00:00:00.000Z' },
+        ]);
+      expect(await ui.retryChangedImageOnce(image.id)).toBe(false);
+      expect(options.store.generateImage).not.toHaveBeenCalled();
+    }
+  );
+
+  test('an explicit changed-image retry submits once; another unknown stops both repeated and automatic actions', async () => {
+    const { document, ui, image, source, original, options } = unknownImageFixture();
+    options.store.generateImage.mockImplementation(async (_canvasId, input) => {
+      const next = {
+        ...input,
+        id: 'unknown-retry',
+        canvasId: document.id,
+        kind: 'image',
+        status: 'unknown',
+        createdAt: '2026-11-12T01:00:00.000Z',
+        sourceSnapshots: [snapshotCanvasSource(source)],
+      };
+      options.store.listGeneration.mockResolvedValue([original, next]);
+      return next;
+    });
+    expect(await ui.retryChangedImageOnce(image.id)).toBe(false);
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+    expect(await ui.retryChangedImageOnce(image.id)).toBe(false);
+    expect(await ui.recoverForRetry(image.id, true)).toBe('unknown');
+    expect(await ui.runTemplateImage(image.id)).toBe(false);
+    const reopened = createCanvasGenerationUi(options);
+    expect(await reopened.retryChangedImageOnce(image.id)).toBe(false);
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+  });
+
+  test('failed preflight of an explicit retry does not release unknown to later automatic actions', async () => {
+    const { ui, image, options } = unknownImageFixture();
+    options.store.imageModels.mockRejectedValue(new Error('model unavailable'));
+    expect(await ui.retryChangedImageOnce(image.id)).toBe(false);
+    options.store.imageModels.mockResolvedValue(imageModelsFixture());
+    expect(await ui.runTemplateImage(image.id)).toBe(false);
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+  });
+
+  test('explicit changed-image retry installs a successful result without replaying the group', async () => {
+    const { document, ui, image, source, original, options } = unknownImageFixture();
+    options.store.generateImage.mockImplementation(async (_canvasId, input) => ({
+      ...input,
+      id: 'successful-retry',
+      canvasId: document.id,
+      kind: 'image',
+      status: 'succeeded',
+      createdAt: '2026-11-12T01:00:00.000Z',
+      sourceSnapshots: [snapshotCanvasSource(source)],
+      targetAssetPath: image.assetPath,
+      resultAssetPath: 'assets/image/new-result.png',
+    }));
+    expect(await ui.retryChangedImageOnce(image.id)).toBe(true);
+    expect(image.assetPath).toBe('assets/image/new-result.png');
+    expect(document.supersededImageAttemptIds).toEqual([original.id]);
+    expect(ui.hasUnsettledResult(image.id)).toBe(false);
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+    expect(options.onGenerated).toHaveBeenCalledWith(image.id, 'image');
+
+    const replacement = await options.store.generateImage.mock.results[0].value;
+    options.store.listGeneration.mockResolvedValue([original, replacement]);
+    const reopened = createCanvasGenerationUi(options);
+    await reopened.restore();
+    expect(reopened.hasUnsettledResult(image.id)).toBe(false);
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+    options.store.listGeneration.mockResolvedValue([
+      original,
+      replacement,
+      {
+        ...original,
+        id: 'another-unknown',
+        createdAt: '2026-11-12T02:00:00.000Z',
+      },
+    ]);
+    expect(await reopened.runTemplateImage(image.id)).toBe(false);
+    expect(reopened.hasUnsettledResult(image.id)).toBe(true);
+    expect(options.store.generateImage).toHaveBeenCalledTimes(1);
+  });
 
   function selectFor(label: string) {
     return elements
@@ -2081,4 +2216,53 @@ test('overlay queries an existing video task without submitting generation', asy
   expect(options.store.generationAction).toHaveBeenCalledWith('canvas', 'attempt', 'query');
   expect(options.store.createVideo).not.toHaveBeenCalled();
   expect(ui.nodeState('video')).toBeUndefined();
+});
+
+test.each([
+  { status: 'unknown', executionState: 'unknown', expected: 'unknown' },
+  { status: 'failed', executionState: 'unknown', expected: 'blocked' },
+  { status: 'failed', executionState: 'not_executed', expected: 'released' },
+  { status: 'running', executionState: undefined, expected: 'blocked' },
+])(
+  '015 forced recovery never replays an uncertain paid image: %j',
+  async ({ status, executionState, expected }) => {
+    const { document, options } = fixture();
+    const attempt = {
+      id: 'uncertain-image',
+      canvasId: document.id,
+      targetNodeId: 'image',
+      kind: 'image',
+      status,
+      executionState,
+      createdAt: new Date().toISOString(),
+      error: 'upstream result unknown',
+    };
+    options.store.listGeneration.mockResolvedValue([attempt] as any);
+    const ui = createCanvasGenerationUi(options);
+    expect(await ui.recoverForRetry('image', true)).toBe(expected);
+    expect(options.store.generateImage).not.toHaveBeenCalled();
+    if (status === 'running') expect(await ui.recoverForRetry('image')).toBe('waiting');
+    else if (expected !== 'released') expect(ui.queueBlockReason('image')).toBeTruthy();
+  }
+);
+
+test('a succeeded original-pixel UI result with the wrong size blocks recovery without regeneration', async () => {
+  const { document, options } = fixture();
+  const wrong = {
+    id: 'wrong-ui-pixels',
+    kind: 'image',
+    canvasId: document.id,
+    targetNodeId: 'head',
+    status: 'succeeded',
+    createdAt: new Date().toISOString(),
+    resultAssetPath: 'assets/image/wrong.png',
+    resultImageInfo: { width: 2048, height: 1152 },
+    parameters: { targetSize: '1920x1080', preserveOriginalPixels: true },
+    uiAtlasPlan: { slots: [{ role: 'background' }] },
+  };
+  options.store.listGeneration.mockResolvedValue([wrong] as any);
+  const ui = createCanvasGenerationUi(options);
+  expect(await ui.recoverForRetry('head')).toBe('blocked');
+  expect(options.store.generateImage).not.toHaveBeenCalled();
+  expect(options.setError).toHaveBeenCalledWith(expect.stringContaining('像素尺寸与原稿不一致'));
 });

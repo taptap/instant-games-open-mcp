@@ -170,21 +170,26 @@ export function createBrowserCanvasDocumentStore(
         encodeURIComponent(projectKey) +
         '&skill=' +
         encodeURIComponent(name),
-      getPreviewImage: async (id, revision, nodeId, signal, itemIndex) => {
-        const response = await fetcher(
-          base +
-            '/canvases/templates/' +
-            id +
-            '/preview-image?revision=' +
-            revision +
-            '&node=' +
-            encodeURIComponent(nodeId) +
-            (itemIndex === undefined ? '' : '&item=' + itemIndex),
-          { signal }
-        );
-        if (!response.ok) throw new Error('预览图片加载失败');
-        return response.blob();
-      },
+      getPreviewImage: (id, revision, nodeId, signal, itemIndex) =>
+        withCanvasTimeout(
+          async (waiting) => {
+            const response = await fetcher(
+              base +
+                '/canvases/templates/' +
+                id +
+                '/preview-image?revision=' +
+                revision +
+                '&node=' +
+                encodeURIComponent(nodeId) +
+                (itemIndex === undefined ? '' : '&item=' + itemIndex),
+              { signal: waiting }
+            );
+            if (!response.ok) throw new Error('预览图片加载失败');
+            return response.blob();
+          },
+          60_000,
+          signal
+        ),
       modelPreviewUrl: (id, revision) =>
         '/canvas-model-preview?project=' +
         encodeURIComponent(projectKey) +
@@ -199,32 +204,44 @@ export function createBrowserCanvasDocumentStore(
           body: JSON.stringify({ canvasId }),
           headers: { 'Content-Type': 'application/json' },
         }),
-      listTemplatePage: (page, query) =>
+      listTemplatePage: (page, query, category = '') =>
         request<CanvasTemplatePage>(
-          '/canvases/templates?page=' + page + '&q=' + encodeURIComponent(query)
+          '/canvases/templates?page=' +
+            page +
+            '&q=' +
+            encodeURIComponent(query) +
+            (category ? '&category=' + encodeURIComponent(category) : '')
         ),
       getTemplate: (id) => request<CanvasWorkflowTemplate>('/canvases/templates/' + id),
-      getCover: async (id, revision, signal, slot = 0) => {
-        const response = await fetcher(
-          base + '/canvases/templates/' + id + '/cover?revision=' + revision + '&slot=' + slot,
-          { signal }
-        );
-        if (!response.ok) throw new Error('缩略图加载失败');
-        return {
-          blob: await response.blob(),
-          source: response.headers.get('X-Template-Cover-Source') === '1',
-          animation:
-            JSON.parse(response.headers.get('X-Template-Cover-Animation') || 'null') || undefined,
-        };
-      },
+      getCover: (id, revision, signal, slot = 0) =>
+        withCanvasTimeout(
+          async (waiting) => {
+            const response = await fetcher(
+              base + '/canvases/templates/' + id + '/cover?revision=' + revision + '&slot=' + slot,
+              { signal: waiting }
+            );
+            if (!response.ok) throw new Error('缩略图加载失败');
+            return {
+              blob: await response.blob(),
+              source: response.headers.get('X-Template-Cover-Source') === '1',
+              animation:
+                JSON.parse(response.headers.get('X-Template-Cover-Animation') || 'null') ||
+                undefined,
+            };
+          },
+          60_000,
+          signal
+        ),
       saveCover: async (id, revision, blob, signal, slot = 0) => {
-        await request(
-          '/canvases/templates/' + id + '/cover?revision=' + revision + '&slot=' + slot,
-          {
-            method: 'PUT',
-            body: blob,
-            signal,
-          }
+        await withCanvasTimeout(
+          (waiting) =>
+            request('/canvases/templates/' + id + '/cover?revision=' + revision + '&slot=' + slot, {
+              method: 'PUT',
+              body: blob,
+              signal: waiting,
+            }),
+          60_000,
+          signal
         );
       },
       saveTemplate: (template) =>

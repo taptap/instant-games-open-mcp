@@ -519,7 +519,8 @@ export async function callRemoteProxyTool(options: {
           throw new RemoteProxyToolCallError(
             options.name,
             remoteProxyFailureState(dispatched, error),
-            error
+            error,
+            finalArgs
           );
         }
       }
@@ -556,7 +557,8 @@ export async function callRemoteProxyTool(options: {
           throw new RemoteProxyToolCallError(
             options.name,
             remoteProxyFailureState(dispatched, error),
-            error
+            error,
+            finalArgs
           );
         } finally {
           await client?.close().catch(() => {});
@@ -570,6 +572,7 @@ export async function callRemoteProxyTool(options: {
       toolName: options.name,
       targetDir: proxy.projectRoot,
       result,
+      inputArgs: finalArgs,
     });
   };
 

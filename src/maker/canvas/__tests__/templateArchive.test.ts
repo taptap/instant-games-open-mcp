@@ -66,6 +66,7 @@ async function fixture() {
   const template = await source.saveTemplate({
     id: createId(),
     name: '分享模板',
+    workflowOverview: input.relativePath,
     revision: 0,
     skills: ['maker-ui-workflow'],
     nodes: [first, second],
@@ -83,6 +84,7 @@ test('ZIP shares assets across projects, preserves skills and allows identical c
   const imported = await target.importTemplate(zip);
   expect(imported.id).not.toBe(template.id);
   expect(imported.skills).toEqual(template.skills);
+  expect(imported.workflowOverview).toBe(imported.nodes[0].assetPath);
   expect(imported.builtin).toBeUndefined();
   expect(templateAssetPaths(imported)).toHaveLength(2);
   for (const asset of templateAssetPaths(imported)) {

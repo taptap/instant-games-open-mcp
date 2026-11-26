@@ -1,4 +1,40 @@
-import type { CanvasNode, FrameSetInfo } from '../contracts.js';
+import type { CanvasDocument, CanvasNode, FrameSetInfo } from '../contracts.js';
+
+/** Local postprocessed imports can be replaced without rebuilding their cards or workflow. */
+export function importedCanvasMediaPatch(
+  document: CanvasDocument,
+  target: CanvasNode,
+  prepared: CanvasNode
+): Partial<CanvasNode> {
+  if (
+    !document.nodes.includes(target) ||
+    !['animation', 'video-source'].includes(target.type) ||
+    prepared.type !== target.type ||
+    !prepared.assetPath ||
+    target.generation ||
+    target.generationDraft ||
+    target.templateId ||
+    target.templatePending ||
+    target.sourceSnapshot ||
+    target.sourceSnapshots ||
+    target.mirror ||
+    document.edges.some((edge) => edge.from === target.id || edge.to === target.id)
+  )
+    throw new Error(
+      '只能原位更新无任务、无依赖连线的独立导入动画或视频；生成流程请使用原恢复入口。'
+    );
+  if (target.type === 'animation' && !prepared.frameSetInfo)
+    throw new Error('缺少已校验的动画图集。');
+  if (target.type === 'video-source' && !prepared.videoInfo)
+    throw new Error('缺少已解码的视频信息。');
+  return {
+    assetPath: prepared.assetPath,
+    assetVersion: prepared.assetVersion,
+    ...(target.type === 'animation'
+      ? { frameSetInfo: prepared.frameSetInfo }
+      : { videoInfo: prepared.videoInfo }),
+  };
+}
 
 /** Imported atlases use fixed, untrimmed cells; decoding checks the actual image size too. */
 export function validateImportedFrameSet(value: unknown): FrameSetInfo {

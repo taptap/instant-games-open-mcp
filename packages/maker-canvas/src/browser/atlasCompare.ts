@@ -16,7 +16,10 @@ export function openAtlasCompare(options: {
   title.textContent = '图集位置对比';
   const close = document.createElement('button');
   close.type = 'button';
-  close.textContent = '关闭';
+  close.textContent = '×';
+  close.className = 'canvas-close-icon';
+  close.setAttribute('aria-label', '关闭');
+  close.title = '关闭';
   header.append(title, close);
   const intro = document.createElement('p');
   intro.textContent =
