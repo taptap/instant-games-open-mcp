@@ -85,7 +85,9 @@ export function canvasOriginalImage(
     const current = queue.shift()!;
     if (visited.has(current.id)) continue;
     visited.add(current.id);
-    const ids = document.edges.filter((edge) => edge.to === current.id).map((edge) => edge.from);
+    const ids = document.edges
+      .filter((edge) => edge.to === current.id && edge.kind !== 'workflow-step')
+      .map((edge) => edge.from);
     const parents = document.nodes.filter((item) => ids.includes(item.id) && item.type === 'image');
     if (parents.length) queue.push(...parents);
     else if (current.type === 'image' && current.assetPath) roots.set(current.id, current);

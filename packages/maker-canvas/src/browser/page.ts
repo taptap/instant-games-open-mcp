@@ -98,6 +98,7 @@ import { createCanvasTemplateModel, templateCoverFrame } from './templates.js';
 import { isBuiltinCanvasTemplate } from './templates.js';
 import { createCanvasTemplateUiWithHost } from './templateUi.js';
 import { openCanvasTemplatePreview } from './templatePreview.js';
+import { mountTemplateReader } from './templateReader.js';
 import { isGameUiResource } from '../features/uiWorkflow.js';
 import { builtinPresetDescriptions } from '../features/presetDescriptions.js';
 import { templateCategories } from '../features/templatePresentation.js';
@@ -211,7 +212,7 @@ import { configureMergeIcons } from '../features/mergeIcons.js';
 import { editMergeIcons } from './mergeIconsUi.js';
 import { resourceBundleMembers } from '../features/resourceBundle.js';
 import { resourceBundleOwner } from '../features/resourceBundle.js';
-import { renderResourceBundle } from './resourceBundleUi.js';
+import { configureBundleGallery, renderResourceBundle } from './resourceBundleUi.js';
 import { addResourceBundle } from './resourceBundleUi.js';
 import { splitImageAtlas } from './imageAtlasExport.js';
 import { prepareImageAtlas } from './imageAtlasExport.js';
@@ -527,7 +528,7 @@ function applyImageSlotPatches(source: string): string {
     [
       '  function removeEdge(edge) {',
       '    if (!documentState || documentState.edges.indexOf(edge) < 0) return;',
-      "    if (['first-frame', 'image-variant'].indexOf(edge.kind) < 0) { setError('只能删除图片参考连线，派生产物来源请保留。'); return; }",
+      "    if (['first-frame', 'image-variant', 'workflow-step'].indexOf(edge.kind) < 0) { setError('只能删除图片参考连线，派生产物来源请保留。'); return; }",
       "    if ((groupQueue && (groupQueue.protects(edge.from) || groupQueue.protects(edge.to))) || (generationUi && (generationUi.isNodeBusy(edge.to) || generationUi.hasUnsettledResult(edge.to)))) { setError('引用卡片尚未就绪，请稍后再删除连线。'); return; }",
       '    remember();',
       '    unwireEdge(edge);',
@@ -538,6 +539,7 @@ function applyImageSlotPatches(source: string): string {
       // Shared by the wire UI and the Agent disconnect command so one host gives one result.
       '  function unwireEdge(edge) {',
       '    documentState.edges = documentState.edges.filter(function (item) { return item !== edge; });',
+      "    if (edge.kind === 'workflow-step') return;",
       '    const target = documentState.nodes.find(function (node) { return node.id === edge.to; });',
       '    const unwired = target && !documentState.edges.some(function (item) { return item.from === edge.from && item.to === edge.to; });',
       // A draft source would otherwise re-add the deleted reference on the next generation.
@@ -2490,6 +2492,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     isBuiltinCanvasTemplate.toString(),
     createCanvasTemplateUiWithHost.toString(),
     openCanvasTemplatePreview.toString(),
+    mountTemplateReader.toString(),
     templateCoverFrame.toString(),
     createTemplateCovers.toString(),
     'const DEFAULT_SEQUENCE_FPS = ' + DEFAULT_SEQUENCE_FPS + ';',
@@ -2592,6 +2595,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     validateUiNativeRegions.toString(),
     resourceBundleMembers.toString(),
     resourceBundleOwner.toString(),
+    configureBundleGallery.toString(),
     renderResourceBundle.toString(),
     addResourceBundle.toString(),
     createImageAssetsUiWithHost.toString(),

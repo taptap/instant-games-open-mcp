@@ -89,7 +89,8 @@ export function createCanvasWireUi(options: {
   let cutId = '';
   let hoverTimer = 0;
   const removable = (item: CanvasEdge) =>
-    Boolean(options.remove) && ['image-variant', 'first-frame'].includes(item.kind);
+    Boolean(options.remove) &&
+    ['image-variant', 'first-frame', 'workflow-step'].includes(item.kind);
   // Web draws every edge kind as the same curve; removable() alone decides which ones can be cut.
   const curved = (_item: CanvasEdge) => Boolean(options.web);
   function ends(doc: CanvasDocument, item: CanvasEdge) {
@@ -245,7 +246,7 @@ export function createCanvasWireUi(options: {
       options.render();
     });
     overlay.append(reset);
-    if (options.remove && ['image-variant', 'first-frame'].includes(item.kind)) {
+    if (options.remove && ['image-variant', 'first-frame', 'workflow-step'].includes(item.kind)) {
       const remove = document.createElement('button');
       remove.className = 'wire-reset wire-remove';
       remove.textContent = '删除连线';
@@ -407,7 +408,7 @@ export function createCanvasWireUi(options: {
         (event.key === 'Delete' || event.key === 'Backspace') &&
         options.remove &&
         item &&
-        ['image-variant', 'first-frame'].includes(item.kind) &&
+        ['image-variant', 'first-frame', 'workflow-step'].includes(item.kind) &&
         !target?.closest?.('textarea, input, select') &&
         !options.blocked()
       ) {

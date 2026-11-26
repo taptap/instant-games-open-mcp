@@ -20,7 +20,7 @@ test('official Bbox preset preserves tested prompts, media and final export layo
     const files = new MakerCanvasFiles(root);
     const preset = canvasPresets().find((item) => item.id === id)!;
     const original = presetData.find((item) => item.id === id)!;
-    expect(preset.name).toBe('游戏UI制作 · Bbox预排参考图');
+    expect(preset.name).toBe('UI拆分和拼装');
     expect(canvasPresets().some((item) => item.id.endsWith('000013'))).toBe(false);
     expect(preset.skills).toEqual(['maker-ui-bbox-workflow']);
     expect(formatMakerSkillStatus()).toContain('maker-ui-bbox-workflow');
@@ -41,27 +41,29 @@ test('official Bbox preset preserves tested prompts, media and final export layo
     }
     expect(templatePresentation(id).category).toBe('UI 设计');
     expect(templateCoverSource({ ...preset, builtin: true }, 0)).toBe(
-      preset.nodes.find((node) => node.title === '③ 去文字与元素识别')!.assetPath
+      'assets/image/preset-ui-bbox-cover.png'
     );
     expect(templateCoverSource({ ...preset, builtin: true }, 1)).toBeUndefined();
     const cover = templateCoverSource({ ...preset, builtin: true }, 0)!;
     const coverResource = demoResourceInfo(preset.assets[cover].resourceId);
-    expect(coverResource.thumbnail).toBeTruthy();
-    const preview = await files.readTemplatePreviewImage(
-      id,
-      preset.revision,
-      preset.nodes.find((node) => node.assetPath === cover)!.id
+    expect((await files.readTemplateCover(id, preset.revision)).bytes).toEqual(
+      fs.readFileSync(path.join(process.cwd(), 'resources/maker-demo', coverResource.file))
     );
+    expect(templateAssetPaths(preset)).not.toContain(cover);
+    const recognition = preset.nodes.find((node) => node.title === '③ 去文字与元素识别')!;
+    const recognitionImage = demoResourceInfo(preset.assets[recognition.assetPath!].resourceId);
+    const preview = await files.readTemplatePreviewImage(id, preset.revision, recognition.id);
     expect(preview.bytes).toEqual(
       fs.readFileSync(
         path.join(
           process.cwd(),
           'resources/maker-demo',
-          demoResourceInfo(coverResource.thumbnail!).file
+          demoResourceInfo(recognitionImage.thumbnail!).file
         )
       )
     );
     const bundle = preset.nodes.find((node) => node.type === 'resource-bundle')!;
+    expect(bundle).toMatchObject({ x: 0, width: 2000, height: 900 });
     const visibleNodes = preset.nodes.filter((node) => !resourceBundleOwner(preset, node.id));
     expect(visibleNodes).toHaveLength(16);
     expect(bundle.y).toBeGreaterThan(

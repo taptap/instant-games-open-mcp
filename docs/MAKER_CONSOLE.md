@@ -504,6 +504,8 @@ Lua 自绘逻辑不能直接作为普通 Panel 导入。随包 MakerNanoVG.lua �
 
 实现位于 src/maker/uiEditor/，由原 UrhoxUIEditor 代码迁入并在本仓库维护。
 浏览器代码和 Yoga WASM在构建时嵌入 dist/maker.js，npm/客户端插件随同一 bundle 分发。
+「UI拆分和拼装」固定显示在「全部」和「UI 设计」的首位。其余官方模板优先展示带有 isNew 标记的新增项，标题旁显示「新」。移除标记后恢复常规排序。
+
 官方画布模板媒体按需下载：已校验的本地缓存优先，其次 CDN，失败尝试 GitHub，
 通过大小和 SHA-256 校验后缓存；项目自己的图片不受影响。首次使用未缓存的示例需要联网。
 添加模板直接引用公共缓存，不复制示例到用户项目。画布制作中的图片保存在
@@ -561,7 +563,7 @@ node scripts/test-maker-ui-editor.mjs 与 npm run test:maker:ui-editor-page（Pl
 道具、种植、NPC、二合图标图集复用现有本地去底与网格切图，UI 风格裂变和角色概念设计保留完整背景；
 这些模板不增加识图或 Skill，历史画布不自动迁移。只有用户确认运行才生成，完成后使用原下载菜单。
 模板信息可通过 skills 关联 Skill，卡片数量后显示阅读链接，在新页打开控制台 Skill 阅读器。
-「游戏UI制作 · Bbox预排参考图」关联 maker-ui-bbox-workflow，完成去文字、Bbox 识图、
+「UI拆分和拼装」关联 maker-ui-bbox-workflow，完成去文字、Bbox 识图、
 原尺寸预排、分离切图和可编辑 UI 组装。原「游戏UI制作」已从官方模板库移除，
 已有画布和个人模板不改写。
 内置 Bbox 模板展示完整设计稿、识图与分类素材示例，

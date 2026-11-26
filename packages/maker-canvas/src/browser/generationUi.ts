@@ -1642,6 +1642,15 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
           prompt.split('UI 槽位绑定：')[0].trim() +
           '\n' +
           uiAtlasOrderPrompt(atlasPlan, outputSize.width / outputSize.height, usesPrelayout);
+      if (retryingImages.has(node.id) && atlasPlan?.nativeLayout && node.uiAtlasGroup) {
+        const original = latestNodeAttempt(node.id);
+        const baseline = node.generationDraft?.prompt || node.generation?.prompt;
+        const bound = [
+          baseline,
+          uiAtlasOrderPrompt(atlasPlan, outputSize.width / outputSize.height, usesPrelayout),
+        ].join(String.fromCharCode(10));
+        if (original?.status === 'unknown' && samePrompt(bound, original.prompt)) prompt = bound;
+      }
       if (targetId && isUiCutoutSource(documentState, targetId)) {
         cutoutColor = 'transparent';
         prompt = uiCutoutPrompt(prompt, cutoutColor);
@@ -2145,8 +2154,21 @@ export function createCanvasGenerationUiWithHost(options: CanvasGenerationUiOpti
       return '此图片没有待处理的 unknown 任务，不会重新生成。';
     if (latest.taskId) return '原图片任务已有编号；请先查询原任务，不能用新请求覆盖。';
     const prompt = node.generationDraft?.prompt || node.generation?.prompt;
-    if (!prompt || !samePrompt(prompt, latest.prompt))
-      return '图片提示词已变化；请先核对当前任务与新提示词，不自动重试。';
+    if (!prompt || !samePrompt(prompt, latest.prompt)) {
+      const plan = node.uiAtlasGroup && selectedUiAtlasPlan(current, node);
+      if (
+        !plan?.nativeLayout ||
+        !prompt ||
+        !samePrompt(
+          [
+            prompt,
+            uiAtlasOrderPrompt(plan, plan.nativeLayout.width / plan.nativeLayout.height, true),
+          ].join(String.fromCharCode(10)),
+          latest.prompt
+        )
+      )
+        return '图片提示词已变化；请先核对当前任务与新提示词，不自动重试。';
+    }
     const upstream = canvasReferences(current, nodeId).filter(
       (source) => source.type === 'image' && source.assetPath
     );

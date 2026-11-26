@@ -28,7 +28,7 @@ export function openGameUiHandoff(canvasId: string): void {
   title.textContent = '下一步：组装游戏 UI';
   const message = document.createElement('p');
   message.textContent =
-    '「Bbox 预排参考图」(015) 分组可直接在分组栏点「组装 UI」，由控制台导入素材、组装 UI、生成资源 meta 并检查引用；完成后可复制复核提示词交给 AI。其它模板到资源包结束，把原设计稿和含 bbox.json、bindings.json 的素材包交给接入 Maker MCP 的 AI 继续组装。';
+    '「UI拆分和拼装」(015) 分组可直接在分组栏点「组装 UI」，由控制台导入素材、组装 UI、生成资源 meta 并检查引用；完成后可复制复核提示词交给 AI。其它模板到资源包结束，把原设计稿和含 bbox.json、bindings.json 的素材包交给接入 Maker MCP 的 AI 继续组装。';
   const prompt = document.createElement('textarea');
   prompt.readOnly = true;
   prompt.rows = 9;
@@ -63,7 +63,10 @@ export function openGameUiHandoff(canvasId: string): void {
   };
   const close = document.createElement('button');
   close.type = 'button';
-  close.textContent = '关闭';
+  close.textContent = '×';
+  close.className = 'template-close';
+  close.setAttribute('aria-label', '关闭');
+  close.title = '关闭';
   close.onclick = () => dialog.close();
   const editor = document.createElement('button');
   editor.type = 'button';
@@ -78,7 +81,7 @@ export function openGameUiHandoff(canvasId: string): void {
   dialog.addEventListener('keydown', (event) => event.stopPropagation());
   dialog.addEventListener('keyup', (event) => event.stopPropagation());
   dialog.addEventListener('close', () => dialog.remove(), { once: true });
-  dialog.append(title, message, prompt, cli, privacy, editor, copy, close);
+  dialog.append(title, close, message, prompt, cli, privacy, editor, copy);
   document.body.append(dialog);
   dialog.showModal();
   copy.focus();

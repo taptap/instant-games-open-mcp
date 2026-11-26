@@ -110,7 +110,10 @@ export async function openUiBboxPreview(bbox: UiBboxDocument, source: Blob): Pro
   };
   const close = document.createElement('button');
   close.type = 'button';
-  close.textContent = '关闭';
+  close.textContent = '×';
+  close.className = 'canvas-close-icon';
+  close.setAttribute('aria-label', '关闭');
+  close.title = '关闭';
   close.onclick = () => dialog.close();
   controls.append(size, close);
   viewport.append(svg);

@@ -31,6 +31,7 @@ export type CanvasNodeType =
   | 'mark';
 
 export type CanvasEdgeKind =
+  | 'workflow-step'
   | 'first-frame'
   | 'image-to-video'
   | 'image-variant'

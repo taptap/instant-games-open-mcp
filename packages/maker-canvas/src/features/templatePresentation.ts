@@ -18,7 +18,12 @@ export function templatePresentation(id: string) {
         : '角色与动画';
   const previews: Record<
     number,
-    Array<{ index: number; label: string; type?: 'image' | 'animation' }>
+    Array<
+      { label: string; type?: 'image' | 'animation' } & (
+        | { index: number; assetPath?: never }
+        | { assetPath: string; index?: never }
+      )
+    >
   > = {
     4: [{ index: 0, label: '模型结果' }],
     5: [
@@ -43,7 +48,7 @@ export function templatePresentation(id: string) {
       { index: 0, label: '角色参考' },
       { index: 1, label: '概念展示' },
     ],
-    15: [{ index: 2, label: 'UI 识别图' }],
+    15: [{ assetPath: 'assets/image/preset-ui-bbox-cover.png', label: '原设计稿 → UI 切图' }],
     16: [
       { type: 'animation', index: 0, label: '欧卡皇室 · 完整入场' },
       { type: 'animation', index: 16, label: '王座 · 弹性入场' },

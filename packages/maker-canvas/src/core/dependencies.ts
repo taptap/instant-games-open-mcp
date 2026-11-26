@@ -81,7 +81,11 @@ export function isCanvasNodeStale(
 }
 
 export function canvasReferences(document: CanvasDocument, nodeId: string): CanvasNode[] {
-  const ids = new Set(document.edges.filter((edge) => edge.to === nodeId).map((edge) => edge.from));
+  const ids = new Set(
+    document.edges
+      .filter((edge) => edge.to === nodeId && edge.kind !== 'workflow-step')
+      .map((edge) => edge.from)
+  );
   return document.nodes.filter((node) => ids.has(node.id));
 }
 
@@ -90,7 +94,8 @@ export function canvasDependents(document: CanvasDocument, nodeId: string): Canv
   const queue = [nodeId];
   for (let index = 0; index < queue.length; index++) {
     for (const edge of document.edges) {
-      if (edge.from !== queue[index] || visited.has(edge.to)) continue;
+      if (edge.kind === 'workflow-step' || edge.from !== queue[index] || visited.has(edge.to))
+        continue;
       visited.add(edge.to);
       queue.push(edge.to);
     }

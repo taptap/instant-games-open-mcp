@@ -266,7 +266,9 @@ export function createSequenceEditor(options: {
     const subtitle = document.createElement('span');
     subtitle.textContent = '视频源：' + (source?.title || '已缺失');
     heading.append(eyebrow, title, subtitle);
-    const close = button('关闭', requestClose);
+    const close = button('×', requestClose, 'canvas-close-icon');
+    close.setAttribute('aria-label', '关闭');
+    close.title = '关闭';
     close.disabled = Boolean(run?.uploading);
     header.append(heading, close);
 

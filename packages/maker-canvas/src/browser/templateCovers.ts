@@ -328,6 +328,11 @@ export function createTemplateCovers(store: CanvasTemplateStore) {
           unavailable();
         }
       };
+      if (summary.hasChapterPreview) {
+        queue.push(run);
+        pump();
+        return;
+      }
       waiting.set(container, run);
       observer.observe(container);
     },

@@ -326,17 +326,13 @@ main {
   height: 100%;
   min-height: 0;
 }
-.local-viewer:not([data-kind='lab']) #close-lab { display: none; }
 .local-viewer[data-kind='lab'] {
   width: min(1740px, calc(100vw - 24px));
   height: min(calc(100dvh - 24px), max(480px, 70vw));
   max-width: none;
 }
-.local-viewer[data-kind='lab'][open] {
-  grid-template-rows: minmax(0, 1fr) auto;
-}
 .local-viewer[data-kind='lab'] > .viewer-head {
-  display: none;
+  padding-block: 6px;
 }
 .viewer::backdrop,
 .handoff::backdrop {
@@ -364,6 +360,7 @@ main {
   font-size: 12px;
 }
 .viewer-head > button:last-child {
+  width: 32px; height: 32px; padding: 0; border: 0; background: transparent; font-size: 24px; line-height: 1;
   margin-left: auto;
   flex-shrink: 0;
   align-self: flex-start;

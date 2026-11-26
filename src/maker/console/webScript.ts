@@ -2794,7 +2794,7 @@ function renderCanvas() {
     return;
   }
   if (canvasFrames.size >= CANVAS_FRAME_LIMIT && !canvasFrames.has(key)) {
-    notify('已打开 ' + CANVAS_FRAME_LIMIT + ' 个项目画布。请先打开其中一个并点击「关闭当前项目画布」。有未保存编辑时会先确认，不会静默丢掉。', 'warning');
+    notify('已打开 ' + CANVAS_FRAME_LIMIT + ' 个项目画布。请先打开其中一个，点击右上角的 × 关闭当前项目画布。有未保存编辑时会先确认，不会静默丢掉。', 'warning');
     return;
   }
   let frame = canvasFrames.get(key);

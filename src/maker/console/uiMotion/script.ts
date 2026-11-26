@@ -101,7 +101,6 @@ function renderLocalCards() {
 }
 function setupLocalViewer() {
   $('close-local').onclick = () => $('local-viewer').close();
-  $('close-lab').onclick = () => $('local-viewer').close();
   $('local-viewer').addEventListener('close',()=>{
     clearTimeout(labLoadTimer);
     $('local-loading').hidden = true;

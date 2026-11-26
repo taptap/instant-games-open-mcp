@@ -75,7 +75,8 @@ function valid(bytes: Buffer, entry: DemoResource): boolean {
 export async function downloadDemoResource(entry: DemoResource, urls: string[]): Promise<Buffer> {
   for (const url of urls) {
     const abort = new AbortController();
-    const timeout = setTimeout(() => abort.abort(), 15000);
+    const idleTimeout = setTimeout(() => abort.abort(), 15_000);
+    const deadline = setTimeout(() => abort.abort(), 60_000);
     try {
       if (new URL(url).protocol !== 'https:') throw new Error('需要 HTTPS 地址');
       const response = await fetch(url, { signal: abort.signal });
@@ -83,6 +84,7 @@ export async function downloadDemoResource(entry: DemoResource, urls: string[]):
       const chunks: Buffer[] = [];
       let size = 0;
       for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+        if (chunk.length) idleTimeout.refresh();
         size += chunk.length;
         if (size > entry.size) {
           abort.abort();
@@ -96,7 +98,8 @@ export async function downloadDemoResource(entry: DemoResource, urls: string[]):
     } catch {
       // Try the one configured fallback; never cache a partial or mismatched file.
     } finally {
-      clearTimeout(timeout);
+      clearTimeout(idleTimeout);
+      clearTimeout(deadline);
     }
   }
   throw new Error('示例资源下载失败，CDN 和 GitHub 均不可用或文件校验失败。请检查网络后重试。');

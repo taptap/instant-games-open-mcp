@@ -355,7 +355,11 @@ export function uiRecognitionSource(
       if (sources.length === 1) return sources[0];
     }
     if (current?.uiRecognition) return current;
-    pending.push(...document.edges.filter((edge) => edge.to === id).map((edge) => edge.from));
+    pending.push(
+      ...document.edges
+        .filter((edge) => edge.to === id && edge.kind !== 'workflow-step')
+        .map((edge) => edge.from)
+    );
   }
   return;
 }

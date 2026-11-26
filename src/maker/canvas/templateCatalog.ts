@@ -24,7 +24,8 @@ function summarize(template: CanvasWorkflowTemplate, updatedAt: number): CanvasT
           ...(builtinPresetDescriptions[template.id]
             ? { description: builtinPresetDescriptions[template.id] }
             : {}),
-          category: templatePresentation(template.id).category,
+          category: template.category ?? templatePresentation(template.id).category,
+          ...(template.isNew ? { isNew: true } : {}),
         }
       : {
           ...(template.description ? { description: template.description } : {}),
@@ -37,8 +38,14 @@ function summarize(template: CanvasWorkflowTemplate, updatedAt: number): CanvasT
     ...(template.skills?.length ? { skills: template.skills } : {}),
     nodeCount: template.nodes.length,
     hasCover: Boolean(templateCoverSource(template)),
+    ...(template.previewChapters?.length ? { hasChapterPreview: true } : {}),
     updatedAt,
   };
+}
+
+function presetPriority(template: CanvasTemplateSummary): number {
+  if (template.id === '7e1cb6ad-732f-4dc3-a951-000000000015') return 2;
+  return template.isNew ? 1 : 0;
 }
 
 export async function readTemplatePage(
@@ -110,7 +117,8 @@ export async function readTemplatePage(
     presets: builtinCanvasTemplates()
       .filter((item) => canvasSupportsPlatform(item, 'local'))
       .map((template) => summarize(template, 0))
-      .filter(matches),
+      .filter(matches)
+      .sort((left, right) => presetPriority(right) - presetPriority(left)),
     items: filtered.slice((current - 1) * pageSize, current * pageSize),
     page: current,
     pageSize,

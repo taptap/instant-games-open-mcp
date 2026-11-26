@@ -194,6 +194,8 @@ export function createCanvasTemplateUiWithHost(options: {
           const current = await options.store!.getTemplate(section.templateId);
           if (current.description) draft.description = current.description;
           if (current.category) draft.category = current.category;
+          if (current.previewChapters) draft.previewChapters = current.previewChapters;
+          if (current.workflowOverview) draft.workflowOverview = current.workflowOverview;
           if (!draft.coverNodeId && current.coverNodeId) {
             const previous = current.nodes.find((node) => node.id === current.coverNodeId);
             const sameAsset = draft.nodes.filter(
@@ -400,6 +402,7 @@ export function createCanvasTemplateUiWithHost(options: {
       const card = document.createElement('article');
       card.className = 'workflow-template-row';
       card.dataset.templateId = summary.id;
+      if (summary.hasChapterPreview) card.classList.add('template-chapter-card');
       const previews = summary.builtin ? templatePresentation(summary.id).previews : undefined;
       if (previews?.length === 5) card.classList.add('template-result-previews');
       const media = document.createElement('div');
@@ -432,6 +435,12 @@ export function createCanvasTemplateUiWithHost(options: {
       name.textContent = summary.name;
       name.title = summary.name;
       heading.append(name);
+      if (summary.builtin && summary.isNew) {
+        const badge = document.createElement('span');
+        badge.className = 'template-new-badge';
+        badge.textContent = '新';
+        heading.append(badge);
+      }
       const description = document.createElement('small');
       description.className = 'template-description';
       description.textContent = summary.builtin
@@ -556,7 +565,8 @@ export function createCanvasTemplateUiWithHost(options: {
         const presets = result.presets.filter(
           (item) =>
             canvasSupportsPlatform(item, options.platform) &&
-            (category === '全部' || templatePresentation(item.id).category === category)
+            (category === '全部' ||
+              (item.category ?? templatePresentation(item.id).category) === category)
         );
         // A host that ignores the category would otherwise list every user template under it.
         const mine = everything

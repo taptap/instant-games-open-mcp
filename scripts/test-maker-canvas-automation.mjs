@@ -14,7 +14,12 @@ let server;
 let browser;
 try {
   const bundle = path.join(temporary, 'harness.mjs');
+  const modelPreview = await build({
+    entryPoints: [path.join(repo, 'src/maker/canvas/modelPreviewClient.ts')],
+    bundle: true, platform: 'browser', format: 'iife', write: false,
+  });
   await build({
+    define: { __MAKER_MODEL_PREVIEW_SCRIPT__: JSON.stringify(modelPreview.outputFiles[0].text) },
     stdin: {
       contents: [
         'export { startConsoleServer } from "./src/maker/console/server.ts";',
@@ -115,6 +120,10 @@ try {
       : {}),
   });
   const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+  await page.route('**/canvases/image-models?*', (route) => route.fulfill({ json: {
+    provider: { source: 'maker', identity: 'test' }, tool: new URL(route.request().url()).searchParams.get('tool'),
+    origin: 'mcp', label: '测试模型', defaultModel: 'gpt', models: [{ id: 'gpt', label: 'gpt' }],
+  } }));
   const browserErrors = [];
   page.on('pageerror', (error) => browserErrors.push(error.message));
   page.on('dialog', (dialog) => {
@@ -124,6 +133,7 @@ try {
   async function cli(action, options = {}) {
     const chunks = [];
     const original = process.stdout.write;
+    const previousExitCode = process.exitCode;
     process.stdout.write = function (chunk) {
       chunks.push(String(chunk));
       return true;
@@ -140,6 +150,7 @@ try {
       ]);
     } finally {
       process.stdout.write = original;
+      process.exitCode = previousExitCode;
     }
     return JSON.parse(chunks.join('').trim());
   }
@@ -234,7 +245,7 @@ try {
     context.fillRect(0, 0, 64, 64);
     return canvas.toDataURL('image/png').split(',')[1];
   });
-  const media = await files.importImage(Buffer.from(bytes, 'base64'), 'image/png');
+  const media = await files.importImage(Buffer.from(bytes, 'base64'));
   await page.route('**/generation/image', async (route) => {
     simulated++;
     const input = route.request().postDataJSON();
@@ -290,8 +301,10 @@ try {
   await success('delete-nodes', { ids: [inputVideo, temporaryGroup] });
   const templates = await cli('templates');
   assert.ok(templates.presets.length);
-  assert.deepEqual(templates.presets.find(t => t.name === '游戏UI制作 · Bbox预排参考图').skills, ['maker-ui-bbox-workflow']);
-  await success('add-template', { id: templates.presets[0].id });
+  assert.deepEqual(templates.presets.find(t => t.name === 'UI拆分和拼装').skills, ['maker-ui-bbox-workflow']);
+  const sequenceTemplate = templates.presets.find((template) => template.name === '序列帧动画');
+  assert.ok(sequenceTemplate);
+  await success('add-template', { id: sequenceTemplate.id });
   assert.ok(current.nodes.some((node) => node.type === 'section'));
   const sequence = current.nodes.find((node) => node.type === 'sequence');
   await success('update-nodes', {
@@ -379,7 +392,7 @@ try {
   assert.equal(lastImageInput.sourceImagePaths, undefined);
   assert.deepEqual(lastImageInput.referenceImagePaths, []);
   const videoFile = path.join(temporary, '导入 视频.mp4');
-  fs.copyFileSync(path.join(project, video.assetPath), videoFile);
+  fs.copyFileSync((await files.loadMedia(video.assetPath)).file, videoFile);
   await success('import', { title: 'Imported video' }, { file: videoFile });
   const importedVideo = current.nodes.find((node) => node.id === current.selectedIds[0]);
   assert.equal(importedVideo.type, 'video-source');
@@ -447,7 +460,7 @@ try {
   assert.equal((await command('rename', { title: 'must not overwrite' })).status, 'failed');
   assert.equal(await page.evaluate(() => document.body.inert), false);
   await page.unroute(saveRoute);
-  await page.locator('#save').click();
+  await page.locator('#canvas-conflict').getByRole('button', { name: '覆盖', exact: true }).click();
   await page.waitForFunction(() => document.getElementById('status').textContent === '已保存');
   await success('inspect');
   await success('rename', { title: 'CLI test' });
@@ -475,13 +488,14 @@ try {
       return route.fulfill({ json: modelAttempt ? [modelAttempt] : [] });
     const input = route.request().postDataJSON();
     if (input.action === 'start') {
+      const saved = await files.load(canvas.id);
       modelSubmissions++;
       modelAttempt = {
         id: randomUUID(),
         canvasId: canvas.id,
         nodeId: views.id,
         sourceId: character.id,
-        sourceVersion: snapshotCanvasSource(current.nodes.find((node) => node.id === character.id))
+        sourceVersion: snapshotCanvasSource(saved.nodes.find((node) => node.id === character.id))
           .version,
         quality: 'high_quality',
         status: 'review',
@@ -534,21 +548,14 @@ try {
   const viewsCard = page.locator('[data-id="' + views.id + '"]');
   assert.equal(await viewsCard.getByRole('combobox', { name: '模型质量' }).isVisible(), false);
   await viewsCard.locator('.canvas-card-menu').click();
-  assert.equal(
-    await viewsCard.getByRole('combobox', { name: '模型质量' }).inputValue(),
-    'high_quality'
-  );
-  const transformBeforeMenuScroll = await page
-    .locator('#world')
-    .evaluate((world) => world.style.transform);
-  await viewsCard
-    .locator('.model-menu-actions')
-    .dispatchEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
-  assert.equal(
-    await page.locator('#world').evaluate((world) => world.style.transform),
-    transformBeforeMenuScroll
-  );
-  await viewsCard.locator('.canvas-card-menu').click();
+  const modelMenu = page.locator('#canvas-context-menu');
+  const transformBeforeMenuScroll = await page.locator('#world').evaluate((world) => world.style.transform);
+  await modelMenu.dispatchEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
+  assert.equal(await page.locator('#world').evaluate((world) => world.style.transform), transformBeforeMenuScroll);
+  await modelMenu.getByRole('button', { name: '详情', exact: true }).click();
+  const details = page.locator('.model-details-dialog[open]');
+  assert.equal(await details.getByRole('combobox', { name: '模型质量' }).inputValue(), 'high_quality');
+  await details.getByRole('button', { name: '关闭详情' }).click();
   let thumbnailLoads = 0;
   let thumbnailFails = false;
   await page.route('**/canvas-model-preview?*', async (route) => {
@@ -584,28 +591,28 @@ try {
   assert.equal(thumbnailLoads, 1);
   await modelCard.locator('.canvas-card-menu').click();
   assert.equal(
-    await modelCard.getByRole('button', { name: '查询原任务', exact: true }).isVisible(),
+    await modelMenu.getByRole('button', { name: '更新任务进度', exact: true }).isVisible(),
     true
   );
   thumbnailFails = true;
-  await modelCard.getByRole('button', { name: '重试预览', exact: true }).click();
+  await modelMenu.getByRole('button', { name: '重试预览', exact: true }).click();
   await modelCard.locator('.model-thumbnail[data-state="error"]').waitFor();
   assert.equal(await page.locator('.model-thumbnail-worker').count(), 0);
   thumbnailFails = false;
   await modelCard.locator('.canvas-card-menu').click();
-  await modelCard.getByRole('button', { name: '重试预览', exact: true }).click();
+  await modelMenu.getByRole('button', { name: '重试预览', exact: true }).click();
   await modelCard.locator('.model-thumbnail[data-state="ready"]').waitFor();
   assert.equal(thumbnailLoads, 3);
   assert.equal(modelSubmissions, 2);
   await modelCard.locator('.model-thumbnail').click();
   await page.locator('.model-preview-dialog[open]').waitFor();
-  await page.getByRole('button', { name: '关闭预览', exact: true }).click();
+  await page.frameLocator('.model-preview-dialog iframe').getByRole('button', { name: '关闭预览' }).click();
   const preview = await command('preview-model', { id: model.id });
   assert.equal(preview.status, 'succeeded', JSON.stringify(preview));
   assert.equal(preview.result.opened, true);
   assert.ok(preview.result.url.includes('/canvas-model-preview?'));
   await page.locator('.model-preview-dialog[open]').waitFor();
-  await page.getByRole('button', { name: '关闭预览', exact: true }).click();
+  await page.frameLocator('.model-preview-dialog iframe').getByRole('button', { name: '关闭预览' }).click();
   await page.locator('.model-preview-dialog').waitFor({ state: 'detached' });
   assert.equal(await page.locator('.model-preview-dialog').count(), 0);
   assert.equal(modelSubmissions, 2);
@@ -635,7 +642,7 @@ try {
     atlas.data[offset] = Math.floor(x / 20) * 60;
     atlas.data[offset + 1] = Math.floor(y / 20) * 80;
     atlas.data[offset + 2] = 100;
-    atlas.data[offset + 3] = x % 20 < 2 || y % 20 < 2 ? 0 : 255;
+    atlas.data[offset + 3] = x % 20 >= 2 && x % 20 < 18 && y % 20 >= 2 && y % 20 < 18 ? 255 : 0;
   }
   let atlasDocument = await files.create('CLI 图集确认');
   const importedAtlas = await files.importImage(PNG.sync.write(atlas));
@@ -652,6 +659,7 @@ try {
   assert.deepEqual((await success('inspect', { id: assetsId })).skills, ['maker-ui-workflow']);
   assert.equal((await command('confirm-image-assets', { id: assetsId, reviewId: 'missing' })).status, 'failed');
   assert.equal((await command('preview-image-assets', { id: assetsId, grid: { columns: 0 } })).status, 'failed');
+  await success('inspect');
   const firstReview = await success('run', { id: assetsId });
   assert.equal(firstReview.status, 'waiting_for_confirmation');
   assert.equal(await page.locator('dialog[open]').count(), 0);
@@ -679,7 +687,7 @@ try {
   assert.equal(assets.items.length, 12);
   for (let index = 0; index < assets.items.length; index++) {
     const item = assets.items[index];
-    const png = PNG.sync.read(fs.readFileSync(path.join(project, item.assetPath)));
+    const png = PNG.sync.read(fs.readFileSync((await files.loadMedia(item.assetPath)).file));
     assert.equal(png.width, 20); assert.equal(png.height, 20);
     assert.equal(png.data[3], 0);
     assert.deepEqual([...png.data.subarray((5 * 20 + 5) * 4, (5 * 20 + 5) * 4 + 4)],

@@ -843,10 +843,13 @@ export function createUi015Workflow(options: {
         copy.textContent = '请手动复制选中文字';
       }
     };
-    const close = element('button', '关闭');
+    const close = element('button', '×', 'template-close');
+    close.setAttribute('aria-label', '关闭');
+    close.title = '关闭';
     close.type = 'button';
     close.onclick = () => dialog.close();
-    actions.append(open, copy, close);
+    dialog.prepend(close);
+    actions.append(open, copy);
     dialog.append(prompt, actions);
     window.document.body.append(dialog);
     dialog.showModal();

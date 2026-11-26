@@ -47,6 +47,7 @@ import {
   type CanvasWorkflowTemplate,
 } from './templates.js';
 import { builtinCanvasTemplates, canvasPresets } from './presets.js';
+import { readVoxelExampleImage } from './templateModelPreview.js';
 import { readTemplatePage } from './templateCatalog.js';
 import { templateCategories } from './templatePresentation.js';
 import {
@@ -411,14 +412,22 @@ export class MakerCanvasFiles {
     const template = this.getTemplate(id);
     if (template.revision !== revision) fail('模板已更新，请刷新列表。', 409, 'CONFLICT');
     const node = template.nodes.find((item) => item.id === nodeId);
+    if (
+      template.modelExample === 'voxel' &&
+      itemIndex === undefined &&
+      (node?.type === 'model-views' || node?.type === 'model')
+    )
+      return readVoxelExampleImage(node.type);
     const assetPath =
-      itemIndex === undefined
-        ? node && ['image', 'sequence', 'animation', 'model-views'].includes(node.type)
-          ? node.assetPath
-          : undefined
-        : node?.type === 'image-assets' && Number.isInteger(itemIndex) && itemIndex >= 0
-          ? node.imageAssetsInfo?.items[itemIndex]?.assetPath
-          : undefined;
+      nodeId === 'workflow-overview' && itemIndex === undefined
+        ? template.workflowOverview
+        : itemIndex === undefined
+          ? node && ['image', 'sequence', 'animation', 'model-views'].includes(node.type)
+            ? node.assetPath
+            : undefined
+          : node?.type === 'image-assets' && Number.isInteger(itemIndex) && itemIndex >= 0
+            ? node.imageAssetsInfo?.items[itemIndex]?.assetPath
+            : undefined;
     if (!assetPath) fail('模板没有此预览图片。', 404, 'NOT_FOUND');
     if (template.builtin) {
       const asset = canvasPresets().find((preset) => preset.id === id)!.assets[assetPath];
@@ -537,7 +546,22 @@ export class MakerCanvasFiles {
     if (input.cliOnly !== undefined && typeof input.cliOnly !== 'boolean')
       fail('模板执行标识无效。', 400, 'INVALID_DOCUMENT');
     const description = text(input.description, 120, '模板说明').trim();
+    if (
+      input.previewChapters !== undefined &&
+      (!Array.isArray(input.previewChapters) ||
+        input.previewChapters.length > 12 ||
+        input.previewChapters.some(
+          (label) => typeof label !== 'string' || !label.trim() || label.length > 24
+        ))
+    )
+      fail('模板预览章节无效。', 400, 'INVALID_DOCUMENT');
     const category = templateCategory(text(input.category, 20, '模板分类'));
+    if (
+      input.workflowOverview !== undefined &&
+      (typeof input.workflowOverview !== 'string' ||
+        !isLocalCanvasImagePath(input.workflowOverview))
+    )
+      fail('模板流程总图路径无效。', 400, 'INVALID_DOCUMENT');
     if (
       input.coverNodeId !== undefined &&
       !template.nodes.some((node) => node.id === input.coverNodeId)
@@ -553,6 +577,9 @@ export class MakerCanvasFiles {
       ...(description ? { description } : {}),
       ...(category ? { category } : {}),
       ...(input.coverNodeId ? { coverNodeId: input.coverNodeId } : {}),
+      ...(input.modelExample === 'voxel' ? { modelExample: input.modelExample } : {}),
+      ...(input.workflowOverview ? { workflowOverview: input.workflowOverview } : {}),
+      ...(input.previewChapters?.length ? { previewChapters: [...input.previewChapters] } : {}),
     };
   }
 
@@ -612,6 +639,8 @@ export class MakerCanvasFiles {
     if (revision !== template.revision)
       fail('模板已被修改或删除，请重新打开模板列表。', 409, 'CONFLICT');
     this.assertAssets({ nodes: template.nodes } as CanvasDocument);
+    if (template.workflowOverview && !this.imageInfo(template.workflowOverview))
+      fail('模板流程总图不可读。', 400, 'INVALID_IMAGE');
     const saved = { ...template, revision: revision + 1 };
     const bytes = Buffer.from(JSON.stringify(saved));
     if (bytes.length > CANVAS_JSON_LIMIT) fail('模板过大。', 413, 'STORAGE_LIMIT');
@@ -1443,7 +1472,13 @@ export class MakerCanvasFiles {
       edgeIds.add(edge.id);
       const connection = ['frame-first', 'frame-last'].includes(edge.kind)
         ? edge.to + ':' + edge.kind
-        : ['image-to-video', 'first-frame', 'image-variant', 'resource-bundle'].includes(edge.kind)
+        : [
+              'image-to-video',
+              'first-frame',
+              'image-variant',
+              'resource-bundle',
+              'workflow-step',
+            ].includes(edge.kind)
           ? edge.to + ':' + edge.from
           : edge.to;
       if (seen.has(connection)) fail('画布来源连线不能重复。', 400, 'INVALID_EDGE');
@@ -2229,7 +2264,8 @@ export class MakerCanvasFiles {
       edge.kind !== 'frame-first' &&
       edge.kind !== 'frame-last' &&
       edge.kind !== 'image-assets' &&
-      edge.kind !== 'resource-bundle'
+      edge.kind !== 'resource-bundle' &&
+      edge.kind !== 'workflow-step'
     ) {
       fail('画布连线类型无效。', 400, 'INVALID_EDGE');
     }
@@ -2244,6 +2280,11 @@ export class MakerCanvasFiles {
     if (edge.from === edge.to) fail('不能把卡片连到自身。', 400, 'INVALID_EDGE');
     const from = nodes.find((node) => node.id === edge.from);
     const to = nodes.find((node) => node.id === edge.to);
+    if (edge.kind === 'workflow-step') {
+      const media = ['image', 'video-source', 'animation'];
+      if (!from || !to || !media.includes(from.type) || !media.includes(to.type))
+        fail('流程线须连接素材卡。', 400, 'INVALID_EDGE');
+    }
     if (
       edge.kind === 'resource-bundle' &&
       (from?.type !== 'image-assets' || to?.type !== 'resource-bundle')

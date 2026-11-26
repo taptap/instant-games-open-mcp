@@ -191,6 +191,8 @@ test('default complex design completes the real queue and export logic with simu
   expect(artIds.length).toBeGreaterThan(0);
   syncUiBboxWorkflow(current, group.id, artIds, true);
   const bundle = current.nodes.find((node) => node.type === 'resource-bundle')!;
+  expect(bundle).toMatchObject({ width: 2000, height: 900 });
+  expect(bundle.y + bundle.height).toBeLessThanOrEqual(group.y + group.height);
   const atlas = current.nodes.filter((node) => node.uiAtlasGroup && !node.uiAtlasPrelayout);
   const expected = bbox.elements
     .flatMap((element) => {

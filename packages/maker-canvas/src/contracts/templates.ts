@@ -6,6 +6,7 @@ export interface CanvasWorkflowTemplate extends CanvasPlatformScope {
   name: string;
   revision: number;
   builtin?: boolean;
+  isNew?: boolean;
   cliOnly?: boolean;
   skills?: string[];
   /** One-line "input → output" purpose shown on the library card and matched by search. */
@@ -14,6 +15,11 @@ export interface CanvasWorkflowTemplate extends CanvasPlatformScope {
   category?: string;
   /** Card whose saved result represents the template; falls back to the default cover choice. */
   coverNodeId?: string;
+  /** Optional reader labels for illustrated rows, ordered from top to bottom. */
+  previewChapters?: string[];
+  workflowOverview?: string;
+  /** Curated review views and final mesh shown only in the template preview. */
+  modelExample?: 'voxel';
   nodes: CanvasNode[];
   edges: CanvasEdge[];
 }
@@ -30,10 +36,12 @@ export interface CanvasTemplateSummary extends CanvasPlatformScope {
   category?: string;
   revision: number;
   builtin?: boolean;
+  isNew?: boolean;
   cliOnly?: boolean;
   skills?: string[];
   nodeCount: number;
   hasCover: boolean;
+  hasChapterPreview?: boolean;
   updatedAt: number;
 }
 

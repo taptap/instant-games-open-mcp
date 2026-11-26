@@ -160,6 +160,7 @@ dt{flex-shrink:0}dd{margin:0;text-align:right;min-width:0}
 code,pre{font:12px/1.65 "SFMono-Regular",Consolas,monospace;overflow-wrap:anywhere}
 pre{white-space:pre-wrap;tab-size:2;margin:10px 0 0;background:var(--code);padding:14px;max-height:440px;overflow:auto;border:1px solid var(--border);border-radius:4px}
 .feedback{margin:14px 28px 0;padding:10px 14px;border:1px solid var(--border);border-left:3px solid var(--red);overflow-wrap:anywhere;display:flex;gap:14px;justify-content:space-between;align-items:center}
+.dialog-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.dialog-title-row h2{margin:0}.feedback .dialog-close-icon{align-self:flex-start}button.dialog-close-icon{flex:none;width:32px;height:32px;min-height:32px;padding:0;border:0;background:transparent;color:var(--muted);font-size:24px;line-height:1}button.dialog-close-icon:hover{background:var(--soft)}
 .feedback p{margin:0;white-space:pre-wrap}
 .feedback[data-tone="warning"]{border-left-color:var(--warning)}
 .feedback[data-tone="success"]{border-left-color:var(--green)}
@@ -311,7 +312,6 @@ body.canvas-mode>.top,body.canvas-mode>.navigation,body.canvas-mode>.feedback,bo
 body.canvas-mode #canvas-views,body.canvas-mode #ui-editor-view{display:flex;flex-direction:column;flex:1;min-height:0}
 body.canvas-mode .canvas-frame{display:block;flex:1;width:100%;height:100%;min-height:0;border:0;background:var(--bg)}
 body.canvas-mode .canvas-toolbar{display:flex;gap:8px;padding:8px 12px;background:var(--top)}
-body.canvas-mode #close-canvas{flex-shrink:0;min-height:28px;padding:3px 8px;font-size:12px;color:var(--muted);background:transparent}
 body.compact-chrome>footer{padding-block:3px;gap:0 12px;font-size:11px;line-height:1.5}
 [hidden]{display:none!important}
 @media(max-width:720px){
@@ -324,7 +324,6 @@ body.compact-chrome .navigation{flex-wrap:nowrap;gap:8px}
 body.compact-chrome .navigation .context{width:auto;max-width:none;padding:0}
 body.compact-chrome .navigation #context{display:none}
 body.compact-chrome .navigation #connection{font-size:11px;white-space:nowrap}
-body.canvas-mode #close-canvas{max-width:85px;white-space:normal;font-size:10px}
 .navigation .context{max-width:none;width:100%;padding:8px 0;justify-content:space-between}
 .toolbar{width:100%}.toolbar select{flex:1;min-width:0;width:auto}.theme{margin-left:auto}
 .columns{grid-template-columns:1fr;gap:28px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}

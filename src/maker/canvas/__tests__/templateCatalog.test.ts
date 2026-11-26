@@ -138,7 +138,9 @@ test.each(
     const previews = templatePresentation(template.id).previews!;
     for (const [slot, preview] of previews.entries()) {
       const images = template.nodes.filter((node) => node.type === (preview.type || 'image'));
-      expect(templateCoverSource(template, slot)).toBe(images[preview.index].assetPath);
+      expect(templateCoverSource(template, slot)).toBe(
+        preview.assetPath ?? images[preview.index!].assetPath
+      );
       const wrong = PNG.sync.write(new PNG({ width: 2, height: 2 }));
       fs.writeFileSync(
         path.join(
@@ -219,6 +221,26 @@ test('model preview serves only the bundled mesh and its resources without task 
   await expect(
     readBuiltinTemplateModel('7e1cb6ad-732f-4dc3-a951-000000000005', null)
   ).rejects.toThrow('没有');
+});
+
+test('voxel workflow previews the approved views and final mesh without attaching a task to the template', async () => {
+  const template = files.getTemplate('7e1cb6ad-732f-4dc3-a951-000000000023');
+  const views = template.nodes.find((node) => node.type === 'model-views')!;
+  const model = template.nodes.find((node) => node.type === 'model')!;
+  expect(template.modelExample).toBe('voxel');
+  const images = await Promise.all(
+    [views, model].map((node) =>
+      files.readTemplatePreviewImage(template.id, template.revision, node.id)
+    )
+  );
+  expect(images.map((image) => PNG.sync.read(image.bytes).width)).toEqual([960, 480]);
+  expect(views.assetPath).toBeUndefined();
+  expect(model.assetPath).toBeUndefined();
+  const manifest = JSON.parse(
+    (await readBuiltinTemplateModel(template.id, null, template.modelExample)).bytes.toString()
+  );
+  const mesh = await readBuiltinTemplateModel(template.id, manifest.model, template.modelExample);
+  expect(readCanvasModelMesh(new Uint8Array(mesh.bytes).buffer).length).toBeGreaterThan(0);
 });
 
 test('500 templates use paged summaries, cached parsing, global search and no count limit', async () => {

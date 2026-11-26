@@ -1,6 +1,9 @@
 import type { CanvasTemplateStore } from '../browser/templates.js';
+import { renderCanvasMark } from './marks.js';
 import { canvasWirePath } from '../core/wirePath.js';
 import { resourceBundleOwner } from '../features/resourceBundle.js';
+import { configureBundleGallery } from './resourceBundleUi.js';
+import { mountTemplateReader } from './templateReader.js';
 
 export function openCanvasTemplatePreview(
   store: CanvasTemplateStore,
@@ -63,8 +66,14 @@ export function openCanvasTemplatePreview(
     expand.textContent = expanded ? '还原窗口' : '铺满窗口';
     fit();
   });
-  const close = button('关闭', () => dialog.close());
-  close.className = 'template-preview-close';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.textContent = '×';
+  close.className = 'template-close';
+  close.setAttribute('aria-label', '关闭');
+  close.title = '关闭';
+  close.onclick = () => dialog.close();
+  heading.after(close);
   if (use) {
     // Adding stays with the library card, so its busy state and errors are the same ones.
     const add = button('使用模板', () => {
@@ -89,7 +98,11 @@ export function openCanvasTemplatePreview(
   );
   let drag: { x: number; y: number; ox: number; oy: number } | undefined;
   viewport.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0) return;
+    if (
+      event.button !== 0 ||
+      (event.target instanceof Element && event.target.closest('button,summary'))
+    )
+      return;
     drag = { x: event.clientX, y: event.clientY, ox: x, oy: y };
     viewport.setPointerCapture(event.pointerId);
   });
@@ -125,6 +138,59 @@ export function openCanvasTemplatePreview(
       status.textContent = '';
       if (template.description)
         help.textContent = template.description + ' · 只读预览，滚轮缩放，拖动查看';
+      if (template.workflowOverview && store.getPreviewImage) {
+        const map = new Image();
+        map.alt = template.name + ' · 完整画布结构图';
+        map.draggable = false;
+        let started = false;
+        fit = () => {
+          if (!viewport.clientWidth || !viewport.clientHeight) return;
+          if (!started) void loadOverview();
+          if (!map.naturalWidth) return;
+          scale = Math.min(
+            1,
+            (viewport.clientWidth - 16) / map.naturalWidth,
+            (viewport.clientHeight - 16) / map.naturalHeight
+          );
+          x = (viewport.clientWidth - map.naturalWidth * scale) / 2;
+          y = (viewport.clientHeight - map.naturalHeight * scale) / 2;
+          paintPreview();
+        };
+        const loadOverview = async () => {
+          started = true;
+          status.textContent = '正在加载完整画布结构图…';
+          try {
+            const blob = await store.getPreviewImage!(
+              id,
+              template.revision,
+              'workflow-overview',
+              abort.signal
+            );
+            if (abort.signal.aborted) return;
+            const url = URL.createObjectURL(blob);
+            urls.add(url);
+            await new Promise<void>((resolve, reject) => {
+              map.onload = () => resolve();
+              map.onerror = () => reject(new Error('流程图不可用'));
+              map.src = url;
+            });
+            if (abort.signal.aborted) return;
+            previewWorld.append(map);
+            status.textContent = '';
+            fit();
+          } catch {
+            if (abort.signal.aborted) return;
+            const retry = document.createElement('button');
+            retry.textContent = '流程图未能加载 · 重试';
+            retry.onclick = () => void loadOverview();
+            status.replaceChildren(retry);
+          }
+        };
+        resize = new ResizeObserver(fit);
+        resize.observe(viewport);
+        mountTemplateReader(template, store, dialog, toolbar, viewport, help, abort.signal, fit);
+        return;
+      }
       const nodes = template.nodes
         .filter((node) => !resourceBundleOwner(template, node.id))
         .map((node) =>
@@ -132,16 +198,75 @@ export function openCanvasTemplatePreview(
             ? { ...node, width: Math.max(760, node.width), height: Math.max(520, node.height) }
             : node
         );
-      const left = Math.min(...nodes.map((node) => node.x));
-      const top = Math.min(...nodes.map((node) => node.y));
-      const width = Math.max(...nodes.map((node) => node.x + node.width)) - left;
-      const height = Math.max(...nodes.map((node) => node.y + node.height)) - top;
+      const guide = nodes.find((node) => node.type === 'note');
+      const cover = nodes.find(
+        (node) => node.id === template.coverNodeId && node.title === '示例封面'
+      );
+      const result = nodes.find((node) => node.id === template.edges[0]?.to);
+      const inputs = nodes.filter((node) => template.edges.some((edge) => edge.from === node.id));
+      const comparison =
+        !!guide &&
+        !!result?.imageInfo &&
+        inputs.length > 0 &&
+        inputs.every((node) => node.type === 'image' && node.imageInfo) &&
+        template.edges.every((edge) => edge.kind === 'image-variant' && edge.to === result.id) &&
+        nodes.every(
+          (node) => node === guide || node === cover || node === result || inputs.includes(node)
+        );
+      const voxel = template.modelExample === 'voxel';
+      const compact = comparison || voxel;
+      const cards = new Map<string, HTMLElement>();
+      const displayNodes = compact
+        ? nodes
+            .filter(
+              (node) =>
+                node !== cover &&
+                (!voxel ||
+                  node.type !== 'image' ||
+                  template.edges.some((edge) => edge.from === node.id || edge.to === node.id))
+            )
+            .map((node) => ({ ...node }))
+        : nodes;
+      const inputColumn = document.createElement('div');
+      const outputColumn = document.createElement('div');
+      if (compact) {
+        viewport.classList.add('template-comparison-viewport');
+        previewWorld.classList.add('template-comparison');
+        if (voxel) previewWorld.classList.add('template-voxel-flow');
+        else {
+          inputColumn.className = 'template-flow-inputs';
+          outputColumn.className = 'template-flow-result';
+          if (inputs.length >= 3) inputColumn.classList.add('multiple');
+          previewWorld.append(inputColumn, outputColumn);
+        }
+      }
       fit = () => {
+        if (!viewport.clientWidth || !viewport.clientHeight) return;
+        if (compact) {
+          for (const node of displayNodes) {
+            const card = cards.get(node.id)!;
+            Object.assign(node, {
+              x: card.offsetLeft,
+              y: card.offsetTop,
+              width: card.offsetWidth,
+              height: card.offsetHeight,
+            });
+          }
+          drawWires();
+        }
+        const left = Math.min(...displayNodes.map((node) => node.x));
+        const top = Math.min(...displayNodes.map((node) => node.y));
+        const width = Math.max(...displayNodes.map((node) => node.x + node.width)) - left;
+        const height = Math.max(...displayNodes.map((node) => node.y + node.height)) - top;
+        const padding = compact ? 28 : 64;
         scale = Math.min(
           1,
           Math.max(
             0.02,
-            Math.min((viewport.clientWidth - 64) / width, (viewport.clientHeight - 64) / height)
+            Math.min(
+              (viewport.clientWidth - padding) / width,
+              (viewport.clientHeight - padding) / height
+            )
           )
         );
         x = (viewport.clientWidth - width * scale) / 2 - left * scale;
@@ -150,19 +275,31 @@ export function openCanvasTemplatePreview(
       };
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.classList.add('template-preview-wires');
-      for (const edge of template.edges) {
-        if (resourceBundleOwner(template, edge.from)) continue;
-        const from = nodes.find((node) => node.id === edge.from);
-        const to =
-          resourceBundleOwner(template, edge.to) || nodes.find((node) => node.id === edge.to);
-        if (!from || !to) continue;
-        const path = document.createElementNS(svg.namespaceURI, 'path');
-        path.setAttribute(
-          'd',
-          canvasWirePath(from, to, nodes, { x: 0, y: 0, scale: 1 }, template.edges, edge.route)
-        );
-        svg.append(path);
+      function drawWires() {
+        svg.replaceChildren();
+        for (const edge of template.edges) {
+          if (resourceBundleOwner(template, edge.from)) continue;
+          const from = displayNodes.find((node) => node.id === edge.from);
+          const to =
+            resourceBundleOwner(template, edge.to) ||
+            displayNodes.find((node) => node.id === edge.to);
+          if (!from || !to) continue;
+          const path = document.createElementNS(svg.namespaceURI, 'path');
+          path.setAttribute(
+            'd',
+            canvasWirePath(
+              from,
+              to,
+              displayNodes,
+              { x: 0, y: 0, scale: 1 },
+              template.edges,
+              edge.route
+            )
+          );
+          svg.append(path);
+        }
       }
+      if (!compact) drawWires();
       previewWorld.append(svg);
       const queue: Array<() => Promise<void>> = [];
       const jobs = new Map<Element, () => Promise<void>>();
@@ -200,22 +337,54 @@ export function openCanvasTemplatePreview(
         'image-assets': 'PNG 资源',
         note: '便签',
       };
-      for (const node of nodes) {
+      for (const node of displayNodes) {
         const previewCard = document.createElement('article');
         previewCard.className =
           'template-preview-card' + (node.type === 'section' ? ' preview-section' : '');
-        Object.assign(previewCard.style, {
-          left: node.x + 'px',
-          top: node.y + 'px',
-          width: node.width + 'px',
-          height: node.height + 'px',
-        });
+        let parent = previewWorld;
+        if (compact) {
+          cards.set(node.id, previewCard);
+          if (voxel) {
+            const area =
+              node.type === 'model-views'
+                ? 'views'
+                : node.type === 'model'
+                  ? 'model'
+                  : node.type === 'note'
+                    ? 'guide'
+                    : node.id === result?.id
+                      ? 'style'
+                      : 'input';
+            previewCard.style.gridArea = area;
+          } else {
+            parent = node.id === result?.id || node.id === guide?.id ? outputColumn : inputColumn;
+            if (
+              parent === inputColumn &&
+              node.imageInfo &&
+              node.imageInfo.height > node.imageInfo.width
+            )
+              previewCard.classList.add('portrait-input');
+          }
+        } else
+          Object.assign(previewCard.style, {
+            left: node.x + 'px',
+            top: node.y + 'px',
+            width: node.width + 'px',
+            height: node.height + 'px',
+          });
+        if (node.type === 'mark' && node.mark) {
+          renderCanvasMark(previewCard, node);
+          previewWorld.append(previewCard);
+          continue;
+        }
         const title = document.createElement('strong');
         title.textContent = node.title;
         previewCard.append(title);
         if (node.type !== 'section') {
           const content = document.createElement('div');
           content.className = 'template-preview-content';
+          if (compact && node.imageInfo)
+            content.style.aspectRatio = node.imageInfo.width + ' / ' + node.imageInfo.height;
           content.textContent =
             node.type === 'note' ? node.text || '' : labels[node.type] || node.type;
           previewCard.append(content);
@@ -227,7 +396,19 @@ export function openCanvasTemplatePreview(
             frameSet?: (typeof node)['frameSetInfo']
           ) => {
             target.textContent = '图片加载中…';
-            jobs.set(target, async () => {
+            const retry = () => {
+              if (abort.signal.aborted) return;
+              const button = document.createElement('button');
+              button.type = 'button';
+              button.textContent = '图片未能显示 · 重试';
+              button.onclick = () => {
+                queue.push(load);
+                pump();
+              };
+              target.replaceChildren(button);
+            };
+            const load = async () => {
+              target.textContent = '图片加载中…';
               try {
                 const blob = await store.getPreviewImage!(
                   template.id,
@@ -242,9 +423,8 @@ export function openCanvasTemplatePreview(
                 const img = document.createElement('img');
                 img.alt = title;
                 img.draggable = false;
-                img.onerror = () => {
-                  target.textContent = '图片不可用';
-                };
+                img.onerror = retry;
+                img.onload = () => target.replaceChildren(img);
                 if (frameSet?.frames.length) {
                   img.onload = () => {
                     // Keep a readable resting image instead of shrinking the whole atlas.
@@ -307,14 +487,49 @@ export function openCanvasTemplatePreview(
                   };
                 }
                 img.src = url;
-                target.replaceChildren(img);
               } catch {
-                if (!abort.signal.aborted) target.textContent = '图片不可用';
+                retry();
               }
-            });
-            observer!.observe(target);
+            };
+            if (compact) {
+              queue.push(load);
+              pump();
+            } else {
+              jobs.set(target, load);
+              observer!.observe(target);
+            }
           };
           if (
+            voxel &&
+            (node.type === 'model-views' || node.type === 'model') &&
+            store.getPreviewImage
+          ) {
+            content.style.aspectRatio = node.type === 'model' ? '1' : '960 / 680';
+            loadImage(
+              content,
+              node.id,
+              node.type === 'model' ? '塔拉拉最终模型渲染' : '塔拉拉正面、背面、左侧和右侧审核图'
+            );
+            if (node.type === 'model' && store.modelPreviewUrl) {
+              const toggle = document.createElement('button');
+              toggle.type = 'button';
+              toggle.textContent = '旋转查看 3D 模型';
+              toggle.className = 'template-model-toggle';
+              toggle.onclick = () => {
+                const existing = previewCard.querySelector('iframe');
+                if (existing) existing.remove();
+                else {
+                  const frame = document.createElement('iframe');
+                  frame.title = '塔拉拉真实模型预览';
+                  frame.src = store.modelPreviewUrl!(template.id, template.revision);
+                  previewCard.insertBefore(frame, toggle);
+                }
+                content.hidden = !existing;
+                toggle.textContent = existing ? '旋转查看 3D 模型' : '返回模型渲染图';
+              };
+              previewCard.append(toggle);
+            }
+          } else if (
             node.assetPath &&
             ['image', 'sequence', 'animation', 'model-views'].includes(node.type) &&
             store.getPreviewImage
@@ -384,7 +599,9 @@ export function openCanvasTemplatePreview(
             content.textContent = items.length ? '' : '暂无 PNG 示例，完成上游后生成';
             if (items.length && store.getPreviewImage) {
               const summary = document.createElement('small');
-              summary.textContent = items.length + ' 个 PNG · 按分类展开查看全部';
+              const gallery = configureBundleGallery(content, node);
+              summary.textContent =
+                items.length + (gallery ? ' 个 PNG · 分类平铺' : ' 个 PNG · 按分类展开查看全部');
               previewCard.insertBefore(summary, content);
               content.classList.add('template-preview-assets');
               content.addEventListener('wheel', (event) => event.stopPropagation());
@@ -394,18 +611,19 @@ export function openCanvasTemplatePreview(
                   (candidate) => candidate.id === source.sourceSnapshot?.nodeId
                 );
                 const large = ['background', 'panels'].includes(origin?.uiAtlasGroup || '');
-                return { source, large };
+                return { source, large, group: origin?.uiAtlasGroup };
               });
               groups.sort((a, b) => Number(a.large) - Number(b.large));
-              for (const { source, large } of groups) {
+              for (const { source, large, group } of groups) {
                 const section = document.createElement('section');
                 section.className = 'template-preview-category' + (large ? ' large' : '');
+                section.dataset.group = group || '';
                 const entries = items.filter((entry) => entry.sourceId === source.id);
                 const label = document.createElement('strong');
                 label.textContent = source.title + ' · ' + entries.length;
                 section.append(label);
                 const grid = document.createElement('div');
-                grid.className = 'template-preview-asset-grid';
+                grid.className = 'template-preview-asset-grid bundle-tiles';
                 section.append(grid);
                 const more = document.createElement('details');
                 const toggle = document.createElement('summary');
@@ -417,10 +635,10 @@ export function openCanvasTemplatePreview(
                   const cell = document.createElement('div');
                   cell.className = 'template-preview-asset';
                   cell.title = entry.item.name;
-                  (index < 4 ? grid : remaining).append(cell);
+                  (gallery || index < 4 ? grid : remaining).append(cell);
                   loadImage(cell, entry.sourceId, entry.item.name, entry.index);
                 });
-                if (entries.length > 4) section.append(more);
+                if (!gallery && entries.length > 4) section.append(more);
                 content.append(section);
               }
             }
@@ -439,11 +657,12 @@ export function openCanvasTemplatePreview(
               '暂无' + (labels[node.type] || '结果') + '示例，添加后运行此步骤生成';
           }
         }
-        previewWorld.append(previewCard);
+        parent.append(previewCard);
       }
       resize = new ResizeObserver(() => fit());
       resize.observe(viewport);
       fit();
+      mountTemplateReader(template, store, dialog, toolbar, viewport, help, abort.signal, fit);
     })
     .catch((error) => {
       if (!abort.signal.aborted)

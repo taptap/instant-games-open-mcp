@@ -56,8 +56,8 @@ export function syncUiBboxWorkflow(
       sectionId: groupId,
       x: baseX + column * 360,
       y: baseY + row * 370,
-      width: 300,
-      height: 300,
+      width: type === 'resource-bundle' ? 2000 : 300,
+      height: type === 'resource-bundle' ? 900 : 300,
       templatePending: true,
     };
     nodes.push(node);

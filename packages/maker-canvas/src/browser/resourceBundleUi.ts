@@ -31,6 +31,14 @@ export function addResourceBundle(current: CanvasDocument, sectionId: string): C
   return node;
 }
 
+export function configureBundleGallery(list: HTMLElement, node: CanvasNode): boolean {
+  if (node.type !== 'resource-bundle' || node.width < 1200 || node.height < 700) return false;
+  list.classList.add('bundle-gallery');
+  list.style.setProperty('--tile', Math.min((node.height - 350) / 5.3, node.width / 15) + 'px');
+  list.style.maxHeight = node.height - 100 + 'px';
+  return true;
+}
+
 export function renderResourceBundle(
   card: HTMLElement,
   node: CanvasNode,
@@ -47,19 +55,21 @@ export function renderResourceBundle(
   card.append(summary);
   const list = document.createElement('div');
   list.className = 'resource-bundle-list';
+  const expanded = configureBundleGallery(list, node);
+  const previewLimit = expanded ? count : 4;
   list.addEventListener('wheel', (event) => event.stopPropagation());
   list.addEventListener('pointerdown', (event) => event.stopPropagation());
   const groups = members.map((member) => ({
     member,
-    large: ['background', 'panels'].includes(
-      current.nodes.find((source) => source.id === member.sourceSnapshot?.nodeId)?.uiAtlasGroup ||
-        ''
-    ),
+    group: current.nodes.find((source) => source.id === member.sourceSnapshot?.nodeId)
+      ?.uiAtlasGroup,
   }));
-  groups.sort((a, b) => Number(a.large) - Number(b.large));
-  for (const { member, large } of groups) {
+  const isLarge = (group?: string) => group === 'background' || group === 'panels';
+  groups.sort((a, b) => Number(isLarge(a.group)) - Number(isLarge(b.group)));
+  for (const { member, group } of groups) {
     const row = document.createElement('div');
-    row.className = 'resource-bundle-category' + (large ? ' large' : '');
+    row.className = 'resource-bundle-category' + (isLarge(group) ? ' large' : '');
+    row.dataset.group = group || '';
     const label = document.createElement('strong');
     label.textContent = member.title;
     const status = document.createElement('span');
@@ -73,25 +83,27 @@ export function renderResourceBundle(
     }
     row.append(label, status);
     const previews = document.createElement('div');
-    previews.className = 'resource-bundle-previews';
+    previews.className = 'resource-bundle-previews bundle-tiles';
     const more = document.createElement('details');
     const toggle = document.createElement('summary');
-    toggle.textContent = '查看全部 ' + (member.imageAssetsInfo?.items.length || 0) + ' 件';
+    const items = member.imageAssetsInfo?.items || [];
+    toggle.textContent = '再看 ' + (items.length - previewLimit) + ' 件';
     const remaining = document.createElement('div');
     remaining.className = 'resource-bundle-previews';
     more.append(toggle, remaining);
-    for (const [index, item] of (member.imageAssetsInfo?.items || []).entries()) {
+    for (const [index, item] of items.entries()) {
       const preview = document.createElement('img');
       preview.src = mediaUrl(item.assetPath);
       preview.addEventListener('error', () => {
         preview.alt = '图片丢失：' + item.name;
       });
       preview.alt = item.name;
+      preview.title = member.title + ' · ' + item.name;
       preview.loading = 'lazy';
-      (index < 4 ? previews : remaining).append(preview);
+      (index < previewLimit ? previews : remaining).append(preview);
     }
     row.append(previews);
-    if ((member.imageAssetsInfo?.items.length || 0) > 4) row.append(more);
+    if (items.length > previewLimit) row.append(more);
     list.append(row);
   }
   card.append(list);

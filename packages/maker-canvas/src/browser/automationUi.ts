@@ -924,7 +924,7 @@ export function createCanvasAutomationUiWithHost(options: {
         if (!edge) throw coded('NOT_FOUND', '引用连线不存在。');
         if (options.nodeBlocked(edge.from) || options.nodeBlocked(edge.to))
           throw invalid('引用卡片尚未就绪。');
-        if (!['first-frame', 'image-variant'].includes(edge.kind))
+        if (!['first-frame', 'image-variant', 'workflow-step'].includes(edge.kind))
           throw invalid('首版仅支持移除图片参考连线，派生产物来源请保留。');
         if (options.disconnect) {
           const reason = options.disconnect(edge);
@@ -932,9 +932,11 @@ export function createCanvasAutomationUiWithHost(options: {
         } else {
           options.remember();
           current.edges = current.edges.filter((item) => item !== edge);
-          const target = node(edge.to, current);
-          if (target.sectionId) target.templatePending = true;
-          invalidateCanvasDependents(current, edge.to);
+          if (edge.kind !== 'workflow-step') {
+            const target = node(edge.to, current);
+            if (target.sectionId) target.templatePending = true;
+            invalidateCanvasDependents(current, edge.to);
+          }
         }
         options.changed();
       }

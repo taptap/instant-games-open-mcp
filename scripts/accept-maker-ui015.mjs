@@ -289,10 +289,10 @@ try {
   await page.waitForTimeout(3000);
   await page.locator('#add-template').evaluate((button) => button.click());
   await page.waitForTimeout(2500);
-  await page.locator('input[placeholder*="搜索模板"]').fill('Bbox');
+  await page.locator('input[placeholder*="搜索模板"]').fill('UI拆分和拼装');
   await page.waitForTimeout(2000);
   await page
-    .locator('text=Bbox预排参考图')
+    .locator('text=UI拆分和拼装')
     .first()
     .locator('xpath=ancestor::*[.//button[contains(@class, "template-add")]][1]')
     .locator('button.template-add')

@@ -5,6 +5,11 @@ import { uiNativeAtlasPrompt } from './uiAssetBindings.js';
 export function createAssetPresets(): CanvasPreset[] {
   return (assetPresetData as unknown as CanvasPreset[]).map(({ assets, ...definition }) => {
     const template = structuredClone(definition);
+    if (template.id === '7e1cb6ad-732f-4dc3-a951-000000000015') {
+      const bundle = template.nodes.find((node) => node.type === 'resource-bundle')!;
+      Object.assign(bundle, { x: 0, width: 2000, height: 900 });
+      template.revision++;
+    }
     let correctedReferences = false;
     for (const node of template.nodes) {
       const usesPrelayout =

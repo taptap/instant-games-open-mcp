@@ -15,10 +15,13 @@ const invalid = (message: string): never => {
   throw new CanvasStoreError(message, 400, 'INVALID_TEMPLATE_ARCHIVE');
 };
 
-export function templateAssetPaths(template: Pick<CanvasWorkflowTemplate, 'nodes'>): string[] {
+export function templateAssetPaths(
+  template: Pick<CanvasWorkflowTemplate, 'nodes' | 'workflowOverview'>
+): string[] {
   return [
-    ...new Set(
-      template.nodes.flatMap((node) => [
+    ...new Set([
+      ...(template.workflowOverview ? [template.workflowOverview] : []),
+      ...template.nodes.flatMap((node) => [
         ...(node.assetPath ? [node.assetPath] : []),
         ...(node.generation?.referenceImagePaths || []),
         ...(node.uiRecognition?.results || []).flatMap((result) => [
@@ -29,8 +32,8 @@ export function templateAssetPaths(template: Pick<CanvasWorkflowTemplate, 'nodes
           plan ? [plan.bbox.design.path, plan.bbox.cutSource.path] : []
         ),
         ...(node.imageAssetsInfo?.items.map((item) => item.assetPath) || []),
-      ])
-    ),
+      ]),
+    ]),
   ];
 }
 
@@ -38,6 +41,7 @@ export function remapTemplateAssets(
   template: CanvasWorkflowTemplate,
   paths: Map<string, string>
 ): void {
+  if (template.workflowOverview) template.workflowOverview = paths.get(template.workflowOverview)!;
   const before = new Map(
     template.nodes.map((node) => [node.id, snapshotCanvasSource(node)?.version])
   );

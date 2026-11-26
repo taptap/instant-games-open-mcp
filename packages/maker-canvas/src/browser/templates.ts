@@ -22,7 +22,7 @@ export function templateCoverNode(
   const previews = template.builtin ? templatePresentation(template.id).previews : undefined;
   if (previews) {
     const preview = previews[slot];
-    return preview
+    return preview?.index !== undefined
       ? template.nodes.filter((node) => node.type === (preview.type || 'image'))[preview.index]
       : undefined;
   }
@@ -65,6 +65,8 @@ export function templateCoverSource(
   template: CanvasWorkflowTemplate,
   slot = 0
 ): string | undefined {
+  const cover = template.builtin && templatePresentation(template.id).previews?.[slot]?.assetPath;
+  if (cover) return cover;
   return templateCoverNode(template, slot)?.assetPath;
 }
 
@@ -239,9 +241,10 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
   }
   function instantiate(template: CanvasWorkflowTemplate, position: { x: number; y: number }) {
     const nodes: CanvasNode[] = JSON.parse(JSON.stringify(template.nodes));
-    // This official workflow ships usable results; changing inputs still invalidates dependents.
-    const reuseFurnitureSample =
-      template.builtin && template.id === '7e1cb6ad-732f-4dc3-a951-000000000016';
+    // Chaptered examples and the furniture demo ship ready-to-use results.
+    const reuseSampleAssets =
+      Boolean(template.previewChapters?.length && template.workflowOverview) ||
+      (template.builtin && template.id === '7e1cb6ad-732f-4dc3-a951-000000000016');
     const modelWorkflow = nodes.some((node) => node.type === 'model-views');
     const ids = new Map(nodes.map((node) => [node.id, createId()]));
     for (const node of nodes) {
@@ -273,8 +276,8 @@ export function createCanvasTemplateModel(createId: () => string = () => crypto.
         node.generation.sourceImageIds = node.generation.sourceImageIds.map((id) => ids.get(id)!);
       if (
         !['model', 'model-views', 'resource-bundle', 'mark'].includes(node.type) &&
-        !(reuseFurnitureSample && node.assetPath) &&
-        template.edges.some((edge) => ids.get(edge.to) === node.id)
+        !(reuseSampleAssets && node.assetPath) &&
+        template.edges.some((edge) => edge.kind !== 'workflow-step' && ids.get(edge.to) === node.id)
       )
         node.templatePending = true;
       if (modelWorkflow && node.type === 'image' && !node.assetPath) node.templatePending = true;
