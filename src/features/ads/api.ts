@@ -45,7 +45,7 @@ export interface AdConfigResponse {
 /**
  * 状态描述映射
  */
-export const STATUS_DESCRIPTIONS = {
+export const STATUS_DESCRIPTIONS: Partial<Record<number, string>> = {
   [AdsStatus.NotActivated]: '未开通',
   [AdsStatus.Activated]: '已生效',
   [AdsStatus.Banned]: '账号已被封禁',

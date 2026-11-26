@@ -13,12 +13,11 @@ import { adsTools } from './docTools.js';
 import { checkAdsStatus } from './handlers.js';
 
 const AUTOMATIC_AD_SPACE_ID_RULES = `**AD SPACE ID OWNERSHIP:**
-- The latest check_ads_status result for the current selected app is the only source of its ad space ID.
-- MUST NOT ask the user for an ad space ID or suggest manually copying one from a console.
-- MUST NOT accept a user-provided ID as a fallback.
-- MUST NOT reuse an ID from another app, previous output, or existing sample code.
-- If multiple apps return the same ID, report only that server fact; do not infer whether the ID is app-specific or shared.
-- If automatic lookup cannot return a usable ID, stop and follow the tool's recovery guidance.`;
+- The latest check_ads_status result for the current selected app is the only source of its ad configuration.
+- Generate rewarded video code only with valid placements returned by that lookup.
+- MUST NOT ask the user for an ad space ID or reuse an ID from another app or example.
+- The game selects the placement for its window orientation when creating the ad.
+- Screen orientation is NOT a prerequisite for ad integration; do not ask the user to set it for ads.`;
 
 const H5_ONLY_SCOPE_RULES = `**MCP PRODUCT SCOPE:**
 - This MCP only supports TapTap Minigame/H5 ad integration using the global tap JavaScript APIs.
@@ -62,7 +61,7 @@ This tool has NO prerequisites - call it immediately for an in-scope or not-yet-
   {
     definition: {
       name: 'check_ads_status',
-      description: `[Step 2 of Ads Workflow] Check server-side ads monetization status and cache the current selected app's ad space ID.
+      description: `[Step 2 of Ads Workflow] Check server-side ads monetization status and cache the current selected app's rewarded video placements.
 
 **PREREQUISITE: An app MUST be selected first.**
 Before calling this tool, ALWAYS call get_current_app_info to verify
@@ -73,27 +72,21 @@ to refresh status after completing an activation step. Do not repeatedly poll it
 
 This tool queries the server, updates local cache, and returns:
 - Business status: 0=未开通 | 1=已生效 | 2=账号已被封禁
-- Ad space ID (space_id) - cached when status is "已生效"
+- Available rewarded video orientations for the current app
 - Guidance URL for activation (if needed)
 
-Status 1 and a valid space_id allow code generation, but do not prove window.tap injection,
+Status 1 with a usable rewarded placement allows code generation, but does not prove window.tap injection,
 ad inventory, package upload correctness, or successful playback on a device.
 
-**CRITICAL - Dual condition for proceeding to Step 3:**
-Both conditions MUST be met simultaneously:
-1. Status must be "已生效" (status === 1)
-2. space_id must be valid (non-empty string)
-If status is 1 but space_id is empty → server-side issue, tell user to retry later.
+If status is 1 but no valid placement is available, stop and check ad restrictions or configuration.
+If only one orientation has a placement, only that orientation is supported.
 
 ${H5_ONLY_SCOPE_RULES}
 
 ${AUTOMATIC_AD_SPACE_ID_RULES}
 
 **Status 0:** Tell user they can say "重新检查广告状态" to refresh after completing activation.
-**Status 2 (已封禁):** DO NOT proceed with any integration steps. Immediately inform user.
-**Missing screen orientation:** Ask the user to choose 1 (portrait) or 2 (landscape), call
-update_app_info with the current developerId/appId and their chosen screenOrientation, then call
-check_ads_status again. DO NOT guess the orientation.`,
+**Status 2 (已封禁):** DO NOT proceed with any integration steps. Immediately inform user.`,
       inputSchema: {
         type: 'object',
         properties: {},
@@ -108,18 +101,16 @@ check_ads_status again. DO NOT guess the orientation.`,
   {
     definition: {
       name: 'get_ad_integration_guide',
-      description: `[Step 3 of Ads Workflow] Get the TapTap Minigame/H5 ads integration guide with the current selected app's automatically resolved ad space ID.
+      description: `[Step 3 of Ads Workflow] Get the TapTap Minigame/H5 ads integration guide.
 
-**PREREQUISITES (both MUST be met before calling):**
-1. check_ads_status has been called and returned status "已生效" (1)
-2. A valid space_id was cached by check_ads_status
+**PREREQUISITE:** check_ads_status has been called and returned status "已生效" (1) with a usable rewarded placement.
 
-If either condition is not met, this tool will return an error with guidance.
+If the condition is not met, this tool will return an error with guidance.
 
-This tool reads the cached space_id and generates:
-- Complete AdManager.js utility class (full source code with YOUR ad space_id)
+This tool generates:
+- Complete AdManager.js with the current app's rewarded video placements
 - Core focus: Rewarded Video ads (激励视频) - init() + onReward() + showRewardedVideo()
-- Optional: Interstitial and Banner ads examples
+- Interstitial and Banner ads are unsupported by this H5 guide
 - Code examples for all common scenarios
 
 ${H5_ONLY_SCOPE_RULES}
