@@ -631,12 +631,17 @@ function applyWebInteractionPatches(source: string): string {
       '    if (!documentState) return;',
       '    const view = documentState.viewport;',
       "    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';",
-      // Wires are drawn in board pixels for viewportDrawn; map them to the new view until settle.
+      // Wires and the selected-wire controls are drawn in board pixels for viewportDrawn;
+      // map both to the new view until settle.
       '    if (viewportDrawn) {',
       '      const k = view.scale / viewportDrawn.scale;',
-      "      wires.style.transformOrigin = '0 0';",
-      "      wires.style.overflow = 'visible';",
-      "      wires.style.transform = 'translate(' + (view.x - viewportDrawn.x * k) + 'px,' + (view.y - viewportDrawn.y * k) + 'px) scale(' + k + ')';",
+      "      const mapped = 'translate(' + (view.x - viewportDrawn.x * k) + 'px,' + (view.y - viewportDrawn.y * k) + 'px) scale(' + k + ')';",
+      "      [wires, board.querySelector(':scope > .wire-controls')].forEach(function (layer) {",
+      '        if (!layer) return;',
+      "        layer.style.transformOrigin = '0 0';",
+      "        layer.style.overflow = 'visible';",
+      '        layer.style.transform = mapped;',
+      '      });',
       '    }',
       "    if (typeof positionSelectionToolbar === 'function') positionSelectionToolbar();",
       '  }',
@@ -651,7 +656,7 @@ function applyWebInteractionPatches(source: string): string {
   );
   patch(
     "    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';\n    ",
-    "    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';\n    viewportDrawn = { x: view.x, y: view.y, scale: view.scale };\n    wires.style.transform = '';\n    "
+    "    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';\n    viewportDrawn = { x: view.x, y: view.y, scale: view.scale };\n    [wires, board.querySelector(':scope > .wire-controls')].forEach(function (layer) { if (layer) layer.style.transform = ''; });\n    "
   );
   patch(
     '    documentState.viewport.y = point.y - worldY * next;\n    markDirty();\n    render();\n  }, { passive: false });',
