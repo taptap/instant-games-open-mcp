@@ -175,7 +175,7 @@ npx -y @taptap/maker@beta init
   "mcpServers": {
     "taptap-maker-beta": {
       "command": "npx",
-      "args": ["-y", "@taptap/maker@beta", "mcp"],
+      "args": ["-y", "-p", "@taptap/maker@beta", "taptap-maker"],
       "env": {
         "TAPTAP_MCP_ENV": "rnd",
         "TAPTAP_MCP_CLIENT_ID": "your_rnd_client_id",
@@ -377,6 +377,8 @@ npx commitlint --from HEAD~1 --to HEAD
 6. 用 tarball 验证 `taptap-maker help`
 7. `npm publish` 前再次查询目标版本，避免审批等待期间同版本被抢先发布。
 8. 使用 `npm publish --provenance` 发布到指定 dist-tag。
+9. 发布成功后，推送指向本次打包提交（`GITHUB_SHA`）的 Git tag `maker-v<version>`，再更新 Maker 版本策略。
+   同一提交发布多个版本时，每个版本各有一个 tag。若推送失败，核对已发布版本对应的提交，再补 tag 并更新版本策略。
 
 **设计约束**：
 

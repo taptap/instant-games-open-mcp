@@ -150,6 +150,11 @@ jobs:
           MAKER_PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
           NPM_TAG: ${{ inputs.tag }}
 
+      - name: Tag published Maker commit
+        run: git push origin "$GITHUB_SHA:refs/tags/maker-v$MAKER_PACKAGE_VERSION"
+        env:
+          MAKER_PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+
       - name: Update Maker version policy
         id: version-policy
         run: |
