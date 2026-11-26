@@ -32,6 +32,13 @@ test('trackpad pinch zooms 2.5x faster than wheel notches', () => {
     Math.exp(-100 * 0.002)
   );
   expect(canvasWheelZoomFactor({ deltaY: -4, deltaMode: 0 })).toBeCloseTo(Math.exp(4 * 0.002));
+  // A caller-supplied rate only changes pinch; wheel notches keep the wheel rate.
+  expect(canvasWheelZoomFactor({ deltaY: -4, deltaMode: 0, ctrlKey: true }, 0.0065)).toBeCloseTo(
+    Math.exp(4 * 0.0065)
+  );
+  expect(canvasWheelZoomFactor({ deltaY: 100, deltaMode: 0, ctrlKey: true }, 0.0065)).toBeCloseTo(
+    Math.exp(-100 * 0.002)
+  );
   expect(canvasWheelZoomFactor({ deltaY: 3, deltaMode: 1, ctrlKey: true })).toBeCloseTo(
     Math.exp(-3 * 16 * 0.002)
   );

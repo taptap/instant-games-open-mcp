@@ -603,13 +603,63 @@ function applyWebInteractionPatches(source: string): string {
       '      const sideways = event.shiftKey && !event.deltaX;',
       '      documentState.viewport.x -= (sideways ? event.deltaY : event.deltaX) * wheelUnit;',
       '      documentState.viewport.y -= (sideways ? 0 : event.deltaY) * wheelUnit;',
-      '      markDirty();',
-      '      render();',
+      '      scheduleViewport();',
       '      return;',
       '    }',
-      '    const wheelStep = canvasWeb ? canvasWheelZoomFactor(event) : event.deltaY > 0 ? 0.9 : 1.1;',
+      // Canvas pinch is a bit quicker than the UI editor's default rate.
+      '    const wheelStep = canvasWeb ? canvasWheelZoomFactor(event, 0.008) : event.deltaY > 0 ? 0.9 : 1.1;',
       '    const next = Math.min(4, Math.max(0.15, before * wheelStep));',
     ].join('\n')
+  );
+  // Wheel, pinch and drag panning only move the view: a full render per event rebuilt every card,
+  // wire and the composer. Paint transforms once per frame; render and save once the gesture idles.
+  patch(
+    "  board.addEventListener('wheel', function (event) {",
+    [
+      // var: render() may run before this point in the page script and reads viewportDrawn.
+      '  var viewportFrame = 0;',
+      '  var viewportSettle = 0;',
+      '  var viewportDrawn = null;',
+      '  function scheduleViewport() {',
+      '    if (!canvasWeb) { markDirty(); render(); return; }',
+      '    if (!viewportFrame) viewportFrame = requestAnimationFrame(paintViewport);',
+      '    clearTimeout(viewportSettle);',
+      '    viewportSettle = setTimeout(settleViewport, 160);',
+      '  }',
+      '  function paintViewport() {',
+      '    viewportFrame = 0;',
+      '    if (!documentState) return;',
+      '    const view = documentState.viewport;',
+      "    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';",
+      // Wires are drawn in board pixels for viewportDrawn; map them to the new view until settle.
+      '    if (viewportDrawn) {',
+      '      const k = view.scale / viewportDrawn.scale;',
+      "      wires.style.transformOrigin = '0 0';",
+      "      wires.style.overflow = 'visible';",
+      "      wires.style.transform = 'translate(' + (view.x - viewportDrawn.x * k) + 'px,' + (view.y - viewportDrawn.y * k) + 'px) scale(' + k + ')';",
+      '    }',
+      "    if (typeof positionSelectionToolbar === 'function') positionSelectionToolbar();",
+      '  }',
+      '  function settleViewport() {',
+      '    viewportSettle = 0;',
+      '    if (viewportFrame) { cancelAnimationFrame(viewportFrame); viewportFrame = 0; }',
+      '    markDirty();',
+      '    render();',
+      '  }',
+      "  board.addEventListener('wheel', function (event) {",
+    ].join('\n')
+  );
+  patch(
+    "    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';\n    ",
+    "    world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';\n    viewportDrawn = { x: view.x, y: view.y, scale: view.scale };\n    wires.style.transform = '';\n    "
+  );
+  patch(
+    '    documentState.viewport.y = point.y - worldY * next;\n    markDirty();\n    render();\n  }, { passive: false });',
+    '    documentState.viewport.y = point.y - worldY * next;\n    scheduleViewport();\n  }, { passive: false });'
+  );
+  patch(
+    '      documentState.viewport.y = drag.oy + event.clientY - drag.y;\n      markDirty();\n      render();\n    }',
+    '      documentState.viewport.y = drag.oy + event.clientY - drag.y;\n      scheduleViewport();\n    }'
   );
   // Web: lucide download (stroke 2) on the image download menu; the default page keeps its glyph.
   patch(
@@ -4667,7 +4717,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '    function renderSelectionToolbar() {\n      selectionToolbar.replaceChildren();',
-    "    function renderSelectionToolbar() {\n      const previousComposer = composerHold || (drag && drag.moved && ['move', 'resize', 'pan'].includes(drag.kind)) ? selectionToolbar.querySelector(':scope > .selection-panel') : null;\n      selectionToolbar.replaceChildren();"
+    "    function renderSelectionToolbar() {\n      const openComposer = selectionToolbar.querySelector(':scope > .selection-panel');\n      const composerFocus = openComposer && openComposer.contains(document.activeElement) ? document.activeElement : null;\n      const previousComposer = composerHold || composerFocus || (drag && drag.moved && ['move', 'resize', 'pan'].includes(drag.kind)) ? openComposer : null;\n      if (composerFocus) Array.from(selectionToolbar.childNodes).forEach(function (child) { if (child !== openComposer) child.remove(); });\n      else selectionToolbar.replaceChildren();"
   );
   // Pressing the already-selected card starts a drag; its selection render must not rebuild the composer either.
   page = replaceCanvasPageText(
@@ -4678,12 +4728,38 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
   page = replaceCanvasPageText(
     page,
     '  let drag = null;',
-    '  let drag = null;\n  let composerHold = false;'
+    [
+      '  let drag = null;',
+      '  let composerHold = false;',
+      // A rebuild mid-IME drops the uncommitted text into the field, so wait for compositionend.
+      '  let composerComposing = false;',
+      '  let composerRenderPending = false;',
+      "  document.addEventListener('compositionstart', function (event) { if (selectionToolbar.contains(event.target)) composerComposing = true; }, true);",
+      "  document.addEventListener('compositionend', function () { if (!composerComposing) return; composerComposing = false; if (!composerRenderPending) return; composerRenderPending = false; setTimeout(render, 0); }, true);",
+      '  function restoreComposerFocus(panel, previous) {',
+      "    if (!previous.matches || !previous.matches('textarea, input') || !previous.classList.length) return;",
+      '    const selector = previous.tagName.toLowerCase() + "." + previous.classList[0];',
+      '    const start = previous.selectionStart;',
+      '    const end = previous.selectionEnd;',
+      // After the frame: the web mention wrapper moves new prompt fields in a MutationObserver.
+      '    requestAnimationFrame(function () {',
+      '      const next = panel.isConnected ? panel.querySelector(selector) : null;',
+      '      if (!next || (document.activeElement && document.activeElement !== document.body)) return;',
+      '      next.focus({ preventScroll: true });',
+      "      if (typeof start === 'number' && typeof end === 'number') { try { next.setSelectionRange(Math.min(start, next.value.length), Math.min(end, next.value.length)); } catch (error) { void error; } }",
+      '    });',
+      '  }',
+    ].join('\n')
   );
   page = replaceCanvasPageText(
     page,
     "      if (panelOpen) { const panel = document.createElement('div');",
-    "      const composerKey = panelOpen ? canvasComposerKey(documentState, node, [selectionAction, remoteState && remoteState.status, generationUi.isNodeBusy(node.id), restricted, adjusting]) : '';\n      if (panelOpen && previousComposer && previousComposer.dataset.composerKey === composerKey) { selectionToolbar.append(previousComposer); positionSelectionToolbar(); return; }\n      if (panelOpen) { const panel = document.createElement('div'); panel.dataset.composerKey = composerKey;"
+    "      const composerKey = panelOpen ? canvasComposerKey(documentState, node, [selectionAction, remoteState && remoteState.status, generationUi.isNodeBusy(node.id), restricted, adjusting]) : '';\n      if (panelOpen && previousComposer && (previousComposer.dataset.composerKey === composerKey || (composerFocus && composerComposing))) { if (previousComposer.dataset.composerKey !== composerKey) composerRenderPending = true; if (previousComposer.parentNode !== selectionToolbar) selectionToolbar.append(previousComposer); positionSelectionToolbar(); return; }\n      if (composerFocus) openComposer.remove();\n      if (panelOpen) { const panel = document.createElement('div'); panel.dataset.composerKey = composerKey;"
+  );
+  page = replaceCanvasPageText(
+    page,
+    'workflowEdit); selectionToolbar.append(panel); }',
+    'workflowEdit); selectionToolbar.append(panel); if (composerFocus) restoreComposerFocus(panel, composerFocus); }'
   );
   page = replaceCanvasPageText(
     page,
