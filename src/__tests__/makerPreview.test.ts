@@ -132,6 +132,11 @@ test('probe checks a file without executing it or requiring V1', async () => {
     runtime_version: 'unknown',
     capabilities: [],
   });
+  fs.writeFileSync(
+    path.join(path.dirname(executable), 'build.json'),
+    JSON.stringify({ product: 'UrhoXRuntime', version: '1.38' })
+  );
+  expect(await probeRuntime(executable)).toMatchObject({ runtime_version: '1.38' });
   await expect(probeRuntime(path.join(root, 'missing'))).rejects.toThrow();
   const abort = new AbortController();
   abort.abort();

@@ -14,10 +14,23 @@ import { selectWindowsBackgroundEnvironment } from '../system/backgroundProcess.
 import { preparePreviewServer, previewNetworkArgs } from './network.js';
 import { openPreviewDownloadCache, type PreviewDownloadCache } from './downloadCache.js';
 import { requirePlainPreviewSource } from './workspace.js';
+import { runtimeBuildVersion } from './runtimeRelease.js';
 export { previewWindow } from './windowSettings.js';
 
 export const PREVIEW_TIMEOUT_MS = 30000;
 const RUNTIME_STARTUP_SETTLE_MS = 3000;
+
+const IGNORED_RUNTIME_ERROR_LINES = [
+  'ERROR: Could not find resource Cube/Day/DaySpecularHDR.dds',
+  'ERROR: Can not load themis_x64.dll.',
+] as const;
+
+function isIgnoredRuntimeError(line: string): boolean {
+  const message = line.trim().replace(/^(?:\[[^\]]+\]\s*)+/, '');
+  return IGNORED_RUNTIME_ERROR_LINES.includes(
+    message as (typeof IGNORED_RUNTIME_ERROR_LINES)[number]
+  );
+}
 
 export async function probeRuntime(executable: string, signal?: AbortSignal): Promise<RuntimeInfo> {
   if (signal?.aborted) throw new Error('CANCELLED');
@@ -26,7 +39,7 @@ export async function probeRuntime(executable: string, signal?: AbortSignal): Pr
   fs.accessSync(executable, process.platform === 'win32' ? fs.constants.R_OK : fs.constants.X_OK);
   return {
     protocol_version: 0,
-    runtime_version: 'unknown',
+    runtime_version: runtimeBuildVersion(executable) ?? 'unknown',
     platform: process.platform,
     arch: 'unverified',
     capabilities: [],
@@ -277,6 +290,7 @@ export class PreviewRuntime {
   }
 
   private appendLog(line: string): void {
+    if (isIgnoredRuntimeError(line)) return;
     if (this.assets) line = line.split(this.assets.url).join('[local-preview]/');
     this.logs.append(line);
     if (/\bERROR:|stack traceback:/.test(line)) this.recordError(line);

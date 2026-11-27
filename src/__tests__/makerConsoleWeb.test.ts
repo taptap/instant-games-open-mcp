@@ -1545,6 +1545,13 @@ describe('Maker console standalone UI', () => {
     expect(api.previewActions({ process_alive: false, install_state: 'ready' })).toEqual([
       'preview.start',
     ]);
+    expect(
+      api.previewActions({
+        process_alive: false,
+        install_state: 'ready',
+        runtime_update_version: '1.40.1',
+      })
+    ).toEqual(['preview.start', 'preview.update']);
     expect(api.previewActions({ process_alive: null, install_state: 'ready' })).toEqual([]);
     expect(api.previewActions({ install_state: 'ready' })).toEqual([]);
     expect(api.previewActions({ process_alive: false, supported: false })).toEqual([]);
@@ -2300,6 +2307,24 @@ describe('Maker console standalone UI', () => {
     );
     await api.runAction('preview.install');
     expect(ui.confirm).toHaveBeenCalledWith('preview.install', project.name, false);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][1].method).toBe('GET');
+  });
+
+  it('requires Runtime update consent and performs no mutation when cancelled', async () => {
+    const { api, fetch } = harness();
+    const ui = hooks();
+    ui.confirm.mockResolvedValue(false);
+    api.setup([project], ui);
+    fetch.mockResolvedValueOnce(
+      response({
+        process_alive: false,
+        install_state: 'ready',
+        runtime_update_version: '1.40.1',
+      }) as never
+    );
+    await api.runAction('preview.update');
+    expect(ui.confirm).toHaveBeenCalledWith('preview.update', project.name, false);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch.mock.calls[0][1].method).toBe('GET');
   });

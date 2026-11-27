@@ -25,6 +25,11 @@ Runtime 按本机安装并由所有 Maker 项目共用，安装记录和新下�
 升级前已经安装在项目哈希目录中的有效 Runtime 会自动登记为本机 Runtime，不重复下载，
 也不会移动或删除可能仍在使用的旧文件。
 
+控制台服务每次启动时查一次当前平台的 Runtime 发布清单。总览和「构建与测试」显示已安装
+Runtime 的版本，旧包使用其构建号。发现可更新版本时，停止当前项目预览后可点击「更新 Runtime」。
+用户确认后才下载。安装和更新均使用发布清单指定的版本目录，校验归档 SHA-256 后登记。
+清单检查失败时，已有 Runtime 仍可用于预览。
+
 安装完成和每次启动已登记 Runtime 前，Maker 会补齐 `Data/LuaScripts`、`Data/Fonts`、
 `CoreData` 和 `Res/Fonts`。中文兜底字体放在引擎实际挂载的
 `Res/Fonts/MiSans-Regular.ttf`，优先复用旧 `Data/Fonts` 中的字体，否则从 macOS 或 Windows
@@ -43,6 +48,7 @@ Runtime 是独立产物，核对每轮 invocation.json 的 executable，不能�
 
 ```sh
 taptap-maker preview install --target-dir <PROJECT> --json
+taptap-maker preview install --update --target-dir <PROJECT> --json
 taptap-maker preview status --target-dir <PROJECT> --json
 taptap-maker preview start --target-dir <PROJECT> --json
 taptap-maker preview refresh --target-dir <PROJECT> --json
@@ -205,6 +211,9 @@ CLI 在准备开始前向 stderr 输出 `validation.started`，包含 `run_id`�
 归档失败仍保留本机缓存并明确报错。显式归档目录不参与自动清理。
 
 ## 联网项目
+
+如果显式设置了 `entry@server`，同时将 `@runtime.multiplayer.enabled` 设为 `false`，预览会在准备
+阶段之前报告源配置冲突。按项目的实际运行方式启用联机或移除服务端入口后再试。
 
 启动 Runtime 前，Maker 先分类项目：
 
@@ -381,6 +390,8 @@ DirectConnect/Ready，运行时配置虽已存在于 manifest，Ready 仍找不�
   普通预览证据保留最近 3 个会话、每会话 5 轮；validate 独立保留最近 3 次，见前文。
   活跃引用和清理未确认目录额外保留。
   这是数量限制，不是磁盘配额。
+- Windows 临时下载缓存如果缺少归属记录，预览会改用独立的短路径缓存，保留原目录。项目内
+  的 `.maker-preview/` 如果缺少归属记录，不会自动接管；停止该项目的预览和验证后，可将目录改名保留再重试。
 - 正常结束等待 Runtime 退出和资源清理；强杀 Node 时 Windows 子进程清理依赖 libuv Job 行为。
   特殊宿主限制、进程创建瞬间被强杀、非 Windows 强杀等边界不作绝对保证，临时下载缓存可能保留。
   未确认所有权或退出时不强行清理、不宣称无孤儿；安装器取消测试不替代实机进程回收测试。

@@ -54,6 +54,15 @@ test.each(['project', 'resources'])('server entry in %s selects network pipeline
   });
 });
 
+test.each(['project', 'resources'])('reports an explicitly disabled server entry in %s', (name) => {
+  fs.writeFileSync(path.join(root, 'scripts', 'server_main.lua'), 'function Start() end');
+  config(name, { 'entry@server': 'server_main.lua' });
+  config('settings', { '@runtime': { multiplayer: { enabled: false } } });
+  expect(() => classifyPreviewProject(root)).toThrow(
+    '项目配置了 entry@server，但 @runtime.multiplayer.enabled 为 false'
+  );
+});
+
 test('server files without configuration must not silently run as single player', () => {
   fs.writeFileSync(path.join(root, 'scripts', 'server_main.lua'), 'function Start() end');
   expect(classifyPreviewProject(root)).toMatchObject({

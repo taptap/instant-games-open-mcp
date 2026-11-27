@@ -17,6 +17,7 @@ export { openConsoleLog } from './processLauncher.js';
 import { startConsoleServer } from './server.js';
 import { ConsoleError } from './types.js';
 import { PreviewOwner } from '../preview/owner.js';
+import { fetchRuntimeRelease } from '../preview/runtimeRelease.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 
 declare const __MAKER_VERSION__: string | undefined;
@@ -96,24 +97,45 @@ function launcherIdentity(): string {
     mtimeMs: fs.statSync(entry).mtimeMs,
   });
 }
-function readSession(): Session | undefined {
-  if (!fs.existsSync(sessionPath())) return undefined;
-  const session = JSON.parse(fs.readFileSync(sessionPath(), 'utf8')) as Session;
+function readSession(allowInvalid = false): Session | undefined {
+  let contents: string;
+  try {
+    contents = fs.readFileSync(sessionPath(), 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
+  let session: Session | undefined;
+  try {
+    session = JSON.parse(contents) as Session;
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+  }
+  const port =
+    typeof session?.origin === 'string'
+      ? /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})$/.exec(session.origin)?.[1]
+      : undefined;
   if (
-    session.schema !== 1 ||
-    !/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(session.origin) ||
-    Number(new URL(session.origin).port) > 65535 ||
-    !/^[a-f0-9-]{36}$/.test(session.instanceId) ||
-    !Number.isInteger(session.pid) ||
-    session.pid <= 0 ||
-    typeof session.launcher !== 'string' ||
-    (session.draining !== undefined && typeof session.draining !== 'boolean') ||
-    (session.userHost !== undefined && typeof session.userHost !== 'boolean')
+    session?.schema === 1 &&
+    port &&
+    Number(port) <= 65535 &&
+    typeof session.instanceId === 'string' &&
+    /^[a-f0-9-]{36}$/.test(session.instanceId) &&
+    Number.isInteger(session.pid) &&
+    session.pid > 0 &&
+    typeof session.launcher === 'string' &&
+    (session.draining === undefined || typeof session.draining === 'boolean') &&
+    (session.userHost === undefined || typeof session.userHost === 'boolean')
   )
+    return session;
+  if (!allowInvalid) {
     throw new ConsoleError(
-      'Invalid local console session. Refusing to contact an unknown service.'
+      'Invalid local console session at ' +
+        sessionPath() +
+        '. Run console open to recover it after checking the console owner.'
     );
-  return session;
+  }
+  return undefined;
 }
 async function request(session: Session, route: string, body?: unknown, timeoutMs = 10000) {
   const response = await fetch(session.origin + route, {
@@ -136,10 +158,10 @@ async function request(session: Session, route: string, body?: unknown, timeoutM
     throw new ConsoleError(value.error || `Console HTTP ${response.status}`, response.status);
   return value;
 }
-async function activeSession(
-  timeoutMs = 10000
-): Promise<(Session & { draining: boolean; shutdownError?: string }) | undefined> {
-  const session = readSession();
+async function activeSession({ timeoutMs = 10000, allowInvalid = false } = {}): Promise<
+  (Session & { draining: boolean; shutdownError?: string }) | undefined
+> {
+  const session = readSession(allowInvalid);
   if (!session) return undefined;
   try {
     const state = await request(session, '/api/health', undefined, timeoutMs);
@@ -156,7 +178,7 @@ async function activeSession(
     } catch (cause) {
       if ((cause as NodeJS.ErrnoException).code === 'ESRCH') return undefined;
     }
-    const latest = readSession();
+    const latest = readSession(allowInvalid);
     if (
       latest?.draining &&
       latest.instanceId === session.instanceId &&
@@ -174,9 +196,10 @@ async function availableSession(): Promise<Session | undefined> {
   const deadline = performance.now() + 20000;
   while (performance.now() < deadline) {
     try {
-      const session = await activeSession(
-        Math.max(1, Math.min(10000, Math.floor(deadline - performance.now())))
-      );
+      const session = await activeSession({
+        allowInvalid: true,
+        timeoutMs: Math.max(1, Math.min(10000, Math.floor(deadline - performance.now()))),
+      });
       if (session?.shutdownError)
         throw new ConsoleError(
           `Console cleanup failed: ${session.shutdownError}. Run console stop to retry.`,
@@ -196,7 +219,8 @@ async function availableSession(): Promise<Session | undefined> {
 export async function runConsoleSupervisor(): Promise<void> {
   const release = await claimConsoleServerLock(home());
   try {
-    if (await activeSession()) throw new ConsoleError('A console service is already running.');
+    if (await activeSession({ allowInvalid: true }))
+      throw new ConsoleError('A console service is already running.');
     const { getConsoleHtml } = await import('./web.js');
     const registry = new ConsoleProjects(getMakerProjectRegistryPath(), {
       legacyFilename: getLegacyMakerProjectRegistryPath(),
@@ -208,6 +232,7 @@ export async function runConsoleSupervisor(): Promise<void> {
       registry,
       hasActivePreview: () => previewOwner.active,
       closePreviews: () => previewOwner.close(),
+      runtimeRelease: fetchRuntimeRelease().catch(() => undefined),
       html: getConsoleHtml(),
       version: VERSION,
       packageRoot: path.dirname(path.dirname(path.resolve(process.argv[1]))),
@@ -220,7 +245,7 @@ export async function runConsoleSupervisor(): Promise<void> {
         previewOwner,
       }),
       onDraining: () => {
-        const current = readSession();
+        const current = readSession(true);
         if (current?.instanceId === instanceId)
           writePrivateJson(sessionPath(), { ...current, draining: true });
       },
@@ -281,7 +306,7 @@ async function claimOwnedLock(filename: string): Promise<() => void> {
   const recoveryFilename = filename + '.recovery';
   const releaseMutex = await claimRecoveryMutex(filename);
   try {
-    claimRecoveryGuard(recoveryFilename, identity);
+    await claimRecoveryGuard(recoveryFilename, identity);
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         fs.writeFileSync(filename, identity, { flag: 'wx', mode: 0o600 });
@@ -294,31 +319,9 @@ async function claimOwnedLock(filename: string): Promise<() => void> {
         };
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-        let previous: string;
-        try {
-          previous = fs.readFileSync(filename, 'utf8');
-        } catch (cause) {
-          if ((cause as NodeJS.ErrnoException).code === 'ENOENT') continue;
-          throw cause;
-        }
-        const pid = Number(previous.split(':')[0]);
-        if (!Number.isInteger(pid) || pid <= 0)
-          throw new ConsoleError(
-            'Invalid console ownership lock; refusing to start another service.'
-          );
-        try {
-          process.kill(pid, 0);
-        } catch (cause) {
-          if ((cause as NodeJS.ErrnoException).code === 'ESRCH') {
-            try {
-              if (fs.readFileSync(filename, 'utf8') === previous) fs.unlinkSync(filename);
-            } catch (error) {
-              if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-            }
-            continue;
-          }
-        }
-        throw new ConsoleError('A console supervisor is already running.', 409);
+        const previous = readConsoleLock(filename);
+        if (!previous || (await reclaimStaleConsoleLock(filename, previous))) continue;
+        throw consoleLockConflict(filename, previous);
       }
     }
     throw new ConsoleError('Console ownership changed during startup. Try again.');
@@ -342,15 +345,16 @@ function claimRecoveryMutex(filename: string): Promise<() => Promise<void>> {
   );
 }
 
-function claimRecoveryGuard(filename: string, identity: string): void {
+async function claimRecoveryGuard(filename: string, identity: string): Promise<void> {
   for (let attempt = 0; attempt < 3; attempt++) {
     let descriptor: number;
     try {
       descriptor = fs.openSync(filename, 'wx', 0o600);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-      if (reclaimStaleRecoveryGuard(filename)) continue;
-      throw new ConsoleError('Console ownership recovery is already in progress.', 409);
+      const previous = readConsoleLock(filename);
+      if (!previous || (await reclaimStaleConsoleLock(filename, previous))) continue;
+      throw consoleLockConflict(filename, previous);
     }
     try {
       fs.writeFileSync(descriptor, identity, 'utf8');
@@ -365,34 +369,78 @@ function claimRecoveryGuard(filename: string, identity: string): void {
   throw new ConsoleError('Console ownership recovery changed during startup.', 409);
 }
 
+const EMPTY_CONSOLE_LOCK_GRACE_MS = 2000;
+type ConsoleLock = { content: string; modified: number; inode: number; device: number };
+
+function readConsoleLock(filename: string): ConsoleLock | undefined {
+  try {
+    const info = fs.lstatSync(filename);
+    if (!info.isFile()) throw new ConsoleError('Invalid console ownership lock at ' + filename);
+    return {
+      content: fs.readFileSync(filename, 'utf8'),
+      modified: info.mtimeMs,
+      inode: info.ino,
+      device: info.dev,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
+
+function lockOwnerPid(lock: ConsoleLock): number {
+  return Number(lock.content.split(':')[0]);
+}
+
+function isStaleConsoleLock(lock: ConsoleLock): boolean {
+  if (lock.content === '') return Date.now() - lock.modified >= EMPTY_CONSOLE_LOCK_GRACE_MS;
+  return processPresence(lockOwnerPid(lock)) === 'missing';
+}
+
+function consoleLockConflict(filename: string, lock: ConsoleLock): ConsoleError {
+  const pid = lockOwnerPid(lock);
+  if (Number.isInteger(pid) && pid > 0) {
+    return new ConsoleError(
+      'A console supervisor or launcher is already running, or its exit is unverified (PID ' +
+        pid +
+        ', lock ' +
+        filename +
+        ').',
+      409
+    );
+  }
+  return new ConsoleError(
+    'Invalid console ownership lock at ' + filename + '; owner could not be verified.'
+  );
+}
+
 // Only called while holding the publication/reclamation socket mutex.
-function reclaimStaleRecoveryGuard(filename: string): boolean {
-  let content: string;
-  let modified: number;
-  try {
-    content = fs.readFileSync(filename, 'utf8');
-    modified = fs.statSync(filename).mtimeMs;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'ENOENT';
-  }
-  const pid = Number(content.split(':')[0]);
-  const stale =
-    Number.isInteger(pid) && pid > 0
-      ? processPresence(pid) === 'missing'
-      : content === '' && Date.now() - modified >= 2000;
-  if (!stale) return false;
-  try {
-    if (
-      fs.readFileSync(filename, 'utf8') === content &&
-      fs.statSync(filename).mtimeMs === modified
-    ) {
-      fs.unlinkSync(filename);
-      return true;
+async function reclaimStaleConsoleLock(filename: string, previous: ConsoleLock): Promise<boolean> {
+  if (previous.content === '') {
+    const deadline = previous.modified + EMPTY_CONSOLE_LOCK_GRACE_MS;
+    for (;;) {
+      const remaining = Math.ceil(deadline - Date.now());
+      // File timestamps can include fractional milliseconds, while Date.now() cannot.
+      if (remaining <= 0 || remaining > EMPTY_CONSOLE_LOCK_GRACE_MS + 1) break;
+      await new Promise((resolve) => setTimeout(resolve, remaining));
     }
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'ENOENT';
   }
-  return false;
+  const current = readConsoleLock(filename);
+  if (!current) return true;
+  if (
+    current.content !== previous.content ||
+    current.modified !== previous.modified ||
+    current.inode !== previous.inode ||
+    current.device !== previous.device ||
+    !isStaleConsoleLock(current)
+  )
+    return false;
+  try {
+    fs.unlinkSync(filename);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  return true;
 }
 
 function removeOwnedFile(filename: string, identity: string): void {
@@ -412,12 +460,14 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
   }
   const lock = path.join(home(), 'launch.lock');
   let releaseLaunch: (() => void) | undefined;
+  let launchConflict: ConsoleError | undefined;
   for (let attempt = 0; attempt < 60; attempt++) {
     try {
       releaseLaunch = await claimOwnedLock(lock);
       break;
     } catch (error) {
       if (!(error instanceof ConsoleError) || error.status !== 409) throw error;
+      launchConflict = error;
       const launched = await availableSession();
       if (launched) {
         ensureSessionLauncher(launched);
@@ -427,26 +477,30 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
     }
   }
   if (!releaseLaunch)
-    throw new ConsoleError('Another console launch is in progress. Try again shortly.');
+    throw (
+      launchConflict ??
+      new ConsoleError('Another console launch is in progress. Try again shortly.', 409)
+    );
   try {
     const launched = await availableSession();
     if (launched) {
       ensureSessionLauncher(launched);
       return launched;
     }
+    const logFile = path.join(home(), 'server.log');
     const launch = await launchConsoleServerProcess({
       execPath: process.execPath,
       execArgv: process.execArgv,
       entry: process.argv[1],
       cwd: home(),
-      logFile: path.join(home(), 'server.log'),
+      logFile,
       env: process.env,
       legacy: allowLegacy,
     });
     for (let attempt = 0; attempt < 80; attempt++) {
       const failure = launch.failure();
       if (failure) throw failure;
-      const session = readSession();
+      const session = readSession(true);
       if (session && (!launch.expectedPid || session.pid === launch.expectedPid)) {
         const active = await availableSession();
         if (active) {
@@ -458,13 +512,22 @@ async function ensureSession(allowLegacy = false): Promise<Session> {
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
     // 只回收本次未发布的启动子进程。已发布的 session 可能正在服务其他调用方，
-    // 探测失败时不能终止它。Windows wrapper PID 不是 session.pid，已有 session.json 时不得回收。
-    const published = readSession();
-    if (!published || (launch.expectedPid && published.pid !== launch.expectedPid)) {
+    // 记录损坏时无法确认是否已发布；Windows wrapper PID 也不是 session.pid。
+    const published = readSession(true);
+    if (
+      published
+        ? launch.expectedPid && published.pid !== launch.expectedPid
+        : !fs.existsSync(sessionPath())
+    ) {
       launch.stopUnpublished();
     }
+    for (const name of ['server.lock.recovery', 'server.lock']) {
+      const filename = path.join(home(), name);
+      const owner = readConsoleLock(filename);
+      if (owner && !isStaleConsoleLock(owner)) throw consoleLockConflict(filename, owner);
+    }
     throw new ConsoleError(
-      'Console did not start. Inspect the Maker console server log and launcher exit. Normal launch uses Node directly; no WMI fallback was attempted.'
+      'Console did not start. Inspect ' + logFile + ' for the launcher error.'
     );
   } finally {
     releaseLaunch();

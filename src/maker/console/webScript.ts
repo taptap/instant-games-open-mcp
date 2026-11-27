@@ -1005,7 +1005,8 @@ function rememberTask(task) {
 }
 const actionLabels = {
   build: '构建', qrcode: '生成测试二维码', 'lua-lsp.check': 'Lua 检查', 'preview.start': '启动预览',
-  'preview.refresh': '刷新预览', 'preview.stop': '停止预览', 'preview.install': '安装 Runtime'
+  'preview.refresh': '刷新预览', 'preview.stop': '停止预览',
+  'preview.install': '安装 Runtime', 'preview.update': '更新 Runtime'
 };
 const statusLabels = {running: '运行中', succeeded: '已完成', failed: '失败', unknown: '结果未知'};
 const $ = (id) => document.getElementById(id);
@@ -1282,7 +1283,7 @@ function updateChrome() {
 function headingActionButtons() {
   const actions = previewActions(preview);
   const previewBusy = actionBusy('preview.start') || actionBusy('preview.refresh') ||
-    actionBusy('preview.install') || actionBusy('preview.stop');
+    actionBusy('preview.install') || actionBusy('preview.update') || actionBusy('preview.stop');
   const qrcodeBusy = actionBusy('qrcode');
   const local = button('本地预览',() => {
     const action = previewActions(preview)[0];
@@ -1664,8 +1665,9 @@ function renderOverview() {
   const runtimeMetric = node('div',undefined,'metric env-slot runtime-metric');
   runtimeMetric.append(node('div','本地 Runtime','muted'),node('div',runtime.label,'value status-dot ' + runtime.tone));
   if (runtime.detail) runtimeMetric.append(node('div',runtime.detail,'runtime-detail muted'));
-  if (runtime.action) runtimeMetric.append(button('安装 Runtime',() => void runProjectAction(runtime.action),{
-    disabled:offline || busy(),focus:'overview-runtime-install'
+  if (runtime.update) runtimeMetric.append(node('div',runtime.update,'runtime-detail pending'));
+  if (runtime.action) runtimeMetric.append(button(actionLabels[runtime.action],() => void runProjectAction(runtime.action),{
+    disabled:offline || busy(),focus:'overview-runtime-action'
   }));
   metrics.append(runtimeMetric);
   const lua = luaLspPresentation(state.luaLsp);
@@ -1923,7 +1925,8 @@ function previewActions(status) {
   if (status.process_alive === true) return ['preview.refresh','preview.stop'];
   if (status.process_alive !== false) return [];
   if (status.install_state === 'missing') return ['preview.install'];
-  if (status.install_state === 'ready') return ['preview.start'];
+  if (status.install_state === 'ready') return status.runtime_update_version ?
+    ['preview.start','preview.update'] : ['preview.start'];
   return [];
 }
 function previewStateLabel(value) {
@@ -1956,7 +1959,13 @@ function runtimePresentation(status, error = '') {
     const version = status.runtime?.runtime_version || status.runtime_version;
     const detail = version && version !== 'unknown' ? text(version) :
       status.installed_at ? date(status.installed_at) : '版本信息未提供';
-    return {label:'已安装',detail,tone:'good'};
+    const presentation = {label:'已安装',detail,tone:'good'};
+    if (status.runtime_update_version) {
+      presentation.update = '可更新至 ' + text(status.runtime_update_version);
+      if (previewActions(status).includes('preview.update')) presentation.action = 'preview.update';
+      else if (status.process_alive === true) presentation.update += '，停止预览后可更新';
+    }
+    return presentation;
   }
   return {label:'待检测',detail:'',tone:'muted'};
 }
@@ -2228,9 +2237,9 @@ function updateBuild() {
   replace($('build-panel'),buildChildren);
   const previewInfo = previewPresentation(preview,previewError);
   const summary = node('div',undefined,'preview-status-summary');
-  summary.append(node('span','Runtime · ' + (preview?.install_state === 'ready' ? '已安装' :
-    preview?.install_state === 'missing' ? '未安装' : '待检测'),
-    preview?.install_state === 'ready' ? 'good' : preview?.install_state === 'missing' ? 'pending' : 'muted'));
+  const runtime = runtimePresentation(preview,previewError);
+  summary.append(node('span','Runtime · ' + runtime.label + (runtime.detail && !previewError ? ' · ' + runtime.detail : ''),runtime.tone));
+  if (runtime.update) summary.append(node('span',runtime.update,'pending'));
   summary.append(node('span',previewLoading ? '检测中…' : previewError ? '检测失败' : previewInfo.stateLabel,
     previewLoading ? 'pending' : previewInfo.tone));
   if (previewInfo.errorCount) summary.append(button(previewInfo.errorCount + ' 条日志错误',
@@ -2321,6 +2330,10 @@ function confirmAction(action, name, startAfterInstall = false) {
       '项目：' + name + '\n将下载并安装 Runtime。' + (startAfterInstall ? '完成后继续启动此项目预览。' : '完成后不会自动启动预览。') :
       '项目：' + name + '\n刷新会重启预览并丢失当前内存状态。';
     $('confirm-accept').textContent = actionLabels[action];
+    if (action === 'preview.update') {
+      $('confirm-title').textContent = '更新本地 Runtime？';
+      $('confirm-message').textContent = '将下载最新发布的 Runtime。更新后，本机新启动的预览会使用新版本。';
+    }
     if (action === 'preview.configuration') {
       $('confirm-title').textContent = '缺少发布配置';
       $('confirm-message').textContent = '建议先生成一次测试二维码，补齐发布配置。直接预览需要复制项目到临时目录并补齐配置，等待时间可能较长。';
@@ -2476,11 +2489,11 @@ async function runAction(action, options = {}) {
     }
     if (action !== 'build' && action !== 'lua-lsp.check') {
       const checkServerChanges = action === 'preview.start' || action === 'preview.refresh';
-      preflight = ['preview.start','preview.refresh','preview.install'].includes(action);
+      preflight = ['preview.start','preview.refresh','preview.install','preview.update'].includes(action);
       const status = await api(projectPath(key,checkServerChanges ? '/preview?check_server_changes=1' : '/preview'));
       if (selectionMatches(key,epoch)) preview = status;
       if (!previewActions(status).includes(action)) throw new Error(text(status.error,'预览状态已改变，请重新检测后操作。'));
-      if (action === 'preview.install' || action === 'preview.refresh') {
+      if (action === 'preview.install' || action === 'preview.update' || action === 'preview.refresh') {
         if (!await confirmAction(action,project.name,options.startAfterInstall === true)) return;
       }
       if (selectionMatches(key,epoch) && checkServerChanges && status.server_changes?.changed) {

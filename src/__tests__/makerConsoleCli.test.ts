@@ -427,6 +427,76 @@ describe('Maker console CLI adapters', () => {
     release();
   });
 
+  test('reclaims an empty server lock without admitting a concurrent owner', async () => {
+    const filename = path.join(directory, 'server.lock');
+    fs.writeFileSync(filename, '');
+    const results = await Promise.allSettled([
+      claimConsoleServerLock(directory),
+      claimConsoleServerLock(directory),
+    ]);
+    try {
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.find((result) => result.status === 'rejected')).toMatchObject({
+        reason: { status: 409 },
+      });
+      expect(fs.readFileSync(filename, 'utf8')).toMatch(new RegExp('^' + process.pid + ':'));
+    } finally {
+      for (const result of results) if (result.status === 'fulfilled') result.value();
+    }
+  });
+
+  test.each(['', '{"schema":', 'null'])(
+    'replaces a malformed session %j only when the server lock can be acquired',
+    async (contents) => {
+      const oldHome = process.env.TAPTAP_MAKER_HOME;
+      process.env.TAPTAP_MAKER_HOME = directory;
+      const consoleDir = path.join(directory, 'console');
+      fs.mkdirSync(consoleDir);
+      const session = path.join(consoleDir, 'session.json');
+      fs.writeFileSync(session, contents);
+      let finishClosed!: () => void;
+      const closed = new Promise<void>((resolve) => {
+        finishClosed = resolve;
+      });
+      const start = jest.spyOn(consoleServer, 'startConsoleServer').mockResolvedValue({
+        origin: 'http://127.0.0.1:54321',
+        close: async () => finishClosed(),
+        closed,
+      } as Awaited<ReturnType<typeof consoleServer.startConsoleServer>>);
+      const network = jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+      const releaseOwner = await claimConsoleServerLock(consoleDir);
+      try {
+        await expect(runConsoleCli('status', { json: true })).rejects.toThrow(
+          'Invalid local console session'
+        );
+        await expect(runConsoleSupervisor()).rejects.toThrow('already running');
+        expect(fs.readFileSync(session, 'utf8')).toBe(contents);
+        expect(start).not.toHaveBeenCalled();
+        expect(network).not.toHaveBeenCalled();
+
+        releaseOwner();
+        await runConsoleSupervisor();
+        expect(start).toHaveBeenCalledTimes(1);
+        expect(
+          network.mock.calls.every(([address]) => !String(address).includes('127.0.0.1'))
+        ).toBe(true);
+        expect(JSON.parse(fs.readFileSync(session, 'utf8'))).toMatchObject({
+          schema: 1,
+          origin: 'http://127.0.0.1:54321',
+          pid: process.pid,
+        });
+      } finally {
+        releaseOwner();
+        finishClosed();
+        await new Promise((resolve) => setImmediate(resolve));
+        network.mockRestore();
+        start.mockRestore();
+        if (oldHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
+        else process.env.TAPTAP_MAKER_HOME = oldHome;
+      }
+    }
+  );
+
   test('reclaims a recovery guard whose recorded owner is absent', async () => {
     fs.writeFileSync(path.join(directory, 'server.lock.recovery'), '2147483647:abandoned');
 

@@ -10,6 +10,7 @@ export interface MakerGitEnvironment {
   installed: boolean;
   version?: string;
   error?: string;
+  spawnErrorCode?: string;
   verifyCommand: string;
   installGuide: string[];
 }
@@ -40,6 +41,7 @@ export function checkGitEnvironment(): MakerGitEnvironment {
   const error =
     result.error?.message ||
     (result.status && result.status !== 0 ? result.stderr?.trim() : undefined);
+  const spawnErrorCode = (result.error as NodeJS.ErrnoException | undefined)?.code;
 
   return {
     platform: process.platform,
@@ -47,8 +49,14 @@ export function checkGitEnvironment(): MakerGitEnvironment {
     installed: result.status === 0 && !!version,
     version: version || undefined,
     error: error || undefined,
+    spawnErrorCode,
     verifyCommand,
-    installGuide: createGitInstallGuide(process.platform),
+    installGuide: isGitSpawnDenied(spawnErrorCode)
+      ? [
+          '请用同一个 Node 在普通终端和当前客户端分别测试启动 Git，确认是否只有当前宿主限制子进程。',
+          '若普通终端成功、当前客户端仍返回 EPERM/EACCES，请检查工作区权限或联系管理员确认进程执行策略。无需重装 Git 或刷新 PAT。',
+        ]
+      : createGitInstallGuide(process.platform),
   };
 }
 
@@ -58,6 +66,10 @@ export function ensureGitAvailable(): MakerGitEnvironment {
     throw new MakerGitNotFoundError(environment);
   }
   return environment;
+}
+
+export function isGitSpawnDenied(code?: string): boolean {
+  return code === 'EPERM' || code === 'EACCES';
 }
 
 export function createGitInstallGuide(platform: NodeJS.Platform): string[] {
@@ -97,6 +109,7 @@ export function formatGitEnvironmentStatus(environment: MakerGitEnvironment): st
     `- git_command: ${environment.command}`,
     environment.version ? `- git_version: ${environment.version}` : '',
     environment.error ? `- git_error: ${environment.error}` : '',
+    environment.spawnErrorCode ? `- git_spawn_error_code: ${environment.spawnErrorCode}` : '',
     `- git_verify_command: ${environment.verifyCommand}`,
     environment.installed ? '' : formatGitInstallGuide(environment),
   ]
@@ -105,12 +118,17 @@ export function formatGitEnvironmentStatus(environment: MakerGitEnvironment): st
 }
 
 export function formatGitInstallGuide(environment: MakerGitEnvironment): string {
-  return ['Git 安装引导：', ...environment.installGuide.map((line) => `- ${line}`)].join('\n');
+  return [
+    isGitSpawnDenied(environment.spawnErrorCode) ? 'Git 启动权限排查：' : 'Git 安装引导：',
+    ...environment.installGuide.map((line) => `- ${line}`),
+  ].join('\n');
 }
 
 function formatGitMissingMessage(environment: MakerGitEnvironment): string {
   return [
-    '本机未检测到可用的 Git。Maker MCP 不会代替用户安装 Git。',
+    isGitSpawnDenied(environment.spawnErrorCode)
+      ? '当前 Maker 进程无权限启动 Git；这不表示 Git 未安装。'
+      : '本机未检测到可用的 Git。Maker MCP 不会代替用户安装 Git。',
     '',
     `- platform: ${environment.platform}`,
     `- git_command: ${environment.command}`,
@@ -118,7 +136,7 @@ function formatGitMissingMessage(environment: MakerGitEnvironment): string {
     '',
     formatGitInstallGuide(environment),
     '',
-    '在 Git 安装并可通过 `git --version` 验证之前，Maker MCP 不会执行 clone、fetch、commit 或 push。',
+    '在当前 Maker 进程可以启动 `git --version` 前，不会执行 clone、fetch、commit 或 push。',
   ]
     .filter(Boolean)
     .join('\n');

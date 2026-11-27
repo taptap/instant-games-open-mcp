@@ -802,7 +802,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
+  gap: 6px;
   flex: 1;
 }
 .workspace-tool-sep {

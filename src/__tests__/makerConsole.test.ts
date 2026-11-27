@@ -664,20 +664,30 @@ describe('Maker console project isolation', () => {
     const check = jest
       .spyOn(registry, 'previewServerChanges')
       .mockResolvedValue({ checked: true, changed: true });
+    let runtimeVersion = '1.38';
     const server = await startConsoleServer({
       registry,
       html: '',
       version: 'test',
-      execute: async () => ({ ok: true, install_state: 'ready', process_alive: false }),
+      runtimeRelease: Promise.resolve({ version: '1.40.1', sha256: '', url: '' }),
+      execute: async () => ({
+        ok: true,
+        install_state: 'ready',
+        process_alive: false,
+        runtime: { runtime_version: runtimeVersion },
+      }),
     });
     try {
       const headers = {};
       const url = server.origin + '/api/projects/' + item.key + '/preview';
-      await fetch(url, { headers });
+      const before = await (await fetch(url, { headers })).json();
+      expect(before.runtime_update_version).toBe('1.40.1');
       expect(check).not.toHaveBeenCalled();
+      runtimeVersion = '1.40.1';
       const result = await (await fetch(url + '?check_server_changes=1', { headers })).json();
       expect(result.server_changes).toEqual({ checked: true, changed: true });
       expect(result.install_state).toBe('ready');
+      expect(result.runtime_update_version).toBeUndefined();
     } finally {
       await server.close();
     }

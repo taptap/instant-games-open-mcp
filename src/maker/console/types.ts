@@ -20,6 +20,7 @@ export const CONSOLE_ACTIONS = [
   'preview.refresh',
   'preview.stop',
   'preview.install',
+  'preview.update',
 ] as const;
 export type ConsoleAction = (typeof CONSOLE_ACTIONS)[number];
 export interface ConsoleProgress {

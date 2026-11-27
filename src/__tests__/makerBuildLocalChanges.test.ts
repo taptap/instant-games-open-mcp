@@ -761,6 +761,35 @@ describe('maker build local-change guard', () => {
     );
   });
 
+  test('preserves Git inspection errors for an existing Maker repository', async () => {
+    const gitConfig = path.join(tempDir, '.git', 'config');
+    const head = readGit(['rev-parse', 'HEAD']);
+    const originalConfig = fs.readFileSync(gitConfig, 'utf8');
+    const invalidConfig = originalConfig + '\n[broken\n';
+    fs.writeFileSync(gitConfig, invalidConfig, 'utf8');
+    const submitLocalChanges = jest.fn();
+    const callRemoteBuild = jest.fn();
+
+    await expect(
+      buildCurrentDirectory({ targetDir: tempDir, submitLocalChanges, callRemoteBuild })
+    ).rejects.toThrow(/Git could not inspect[\s\S]+bad config line/i);
+    expect(submitLocalChanges).not.toHaveBeenCalled();
+    expect(callRemoteBuild).not.toHaveBeenCalled();
+
+    const summary = await formatStatus({ targetDir: tempDir, skipRemoteSync: true });
+    expect(summary).toContain('- git: git_inspection_failed');
+    expect(summary).toContain('请查看详细状态中的 Git 错误');
+    expect(summary).not.toContain('重新初始化');
+
+    const detail = await formatStatus({ targetDir: tempDir, detail: true, skipRemoteSync: true });
+    expect(detail).toContain('- status: git_inspection_failed');
+    expect(detail).toContain('git_error: fatal: bad config line');
+    expect(fs.readFileSync(gitConfig, 'utf8')).toBe(invalidConfig);
+
+    fs.writeFileSync(gitConfig, originalConfig, 'utf8');
+    expect(readGit(['rev-parse', 'HEAD'])).toBe(head);
+  });
+
   test('syncs local changes before remote build by default', async () => {
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
     const submitCwds: string[] = [];

@@ -4,7 +4,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { getProjectConfigPath, loadProjectConfig } from '../storage.js';
+import { GitCommandError } from './exec.js';
 import { readGit, readGitSync } from './run.js';
 
 export interface MakerDirectoryGitStatus {
@@ -16,13 +18,31 @@ export interface MakerDirectoryGitStatus {
   isGitWorkTree: boolean;
   isOwnGitRoot: boolean;
   isUsableMakerGitRepo: boolean;
-  issue?: 'inside_parent_git_repo' | 'missing_git_repo' | 'missing_maker_config';
+  issue?:
+    | 'inside_parent_git_repo'
+    | 'missing_git_repo'
+    | 'git_inspection_failed'
+    | 'missing_maker_config';
   message?: string;
 }
 
 export function inspectMakerDirectoryGitStatus(cwd: string): MakerDirectoryGitStatus {
   const targetDir = path.resolve(cwd);
-  const gitRoot = resolveGitRoot(targetDir);
+  let gitRoot: string | undefined;
+  let gitInspectionError: string | undefined;
+  try {
+    gitRoot = path.resolve(readGitSync(['-C', targetDir, 'rev-parse', '--show-toplevel']).trim());
+  } catch (error) {
+    // Both missing repositories and other fatal Git errors can return exit code 128.
+    const missingRepository =
+      error instanceof GitCommandError &&
+      error.exitCode === 128 &&
+      /^fatal: not a git repository \(or any\b/im.test(error.stderr);
+    if (!missingRepository) {
+      const detail = error instanceof Error ? error.message : String(error);
+      gitInspectionError = String(sanitizeDiagnosticValue(detail.trim())).slice(0, 4000);
+    }
+  }
   const gitDir = resolveGitDir(targetDir);
   const makerBinding = findMakerProjectBinding(targetDir);
   const isGitWorkTree = Boolean(gitRoot);
@@ -39,6 +59,13 @@ export function inspectMakerDirectoryGitStatus(cwd: string): MakerDirectoryGitSt
       `${makerBinding.projectRoot} contains Maker binding config, but Git root is ${gitRoot}.`,
       'The Maker directory must be an independent Git repository before build or submit.',
     ].join(' ');
+  } else if (makerBinding && gitInspectionError !== undefined) {
+    issue = 'git_inspection_failed';
+    message = [
+      'Git could not inspect the bound Maker project: ' + makerBinding.projectRoot,
+      'Resolve the Git error below before retrying. Keep the existing repository and project files.',
+      'git_error: ' + gitInspectionError,
+    ].join('\n');
   } else if (makerBinding && !gitRoot) {
     issue = 'missing_git_repo';
     message = `${makerBinding.projectRoot} is bound to Maker but is not a Git repository.`;
@@ -69,6 +96,9 @@ export function resolveUsableMakerGitWorkspace(cwd: string): {
   const status = inspectMakerDirectoryGitStatus(cwd);
   if (!status.makerProjectRoot || !status.configPath) {
     throw new Error(status.message || `${status.targetDir} is not bound to a Maker project.`);
+  }
+  if (status.issue === 'git_inspection_failed') {
+    throw new Error(status.message);
   }
   if (!status.gitRoot) {
     throw new Error(
@@ -125,14 +155,6 @@ function findMakerProjectBinding(
   }
 
   return null;
-}
-
-function resolveGitRoot(cwd: string): string | undefined {
-  try {
-    return path.resolve(readGitSync(['-C', cwd, 'rev-parse', '--show-toplevel']).trim());
-  } catch {
-    return undefined;
-  }
 }
 
 function resolveGitDir(cwd: string): string | undefined {
