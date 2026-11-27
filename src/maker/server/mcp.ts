@@ -65,6 +65,7 @@ import {
   MakerGitNotFoundError,
   checkGitEnvironment,
   formatGitEnvironmentStatus,
+  isGitSpawnDenied,
 } from '../system/git.js';
 import {
   checkMakerPythonEnvironment,
@@ -1520,7 +1521,9 @@ function formatMakerSummaryNextAction(options: {
     return '';
   }
   if (!options.git.installed) {
-    return '- next_action: Git 未安装。请先安装 Git，并执行 `git --version` 验证。';
+    return isGitSpawnDenied(options.git.spawnErrorCode)
+      ? '- next_action: 当前客户端无权限启动 Git。请先排查子进程执行权限，不要重装 Git 或刷新 PAT。'
+      : '- next_action: Git 未安装。请先安装 Git，并执行 `git --version` 验证。';
   }
   if (!options.gitDirectoryStatus.isUsableMakerGitRepo) {
     const nextAction =
@@ -4132,15 +4135,18 @@ export function formatToolException(toolName: string, error: unknown): string {
       ? ['', ...formatBuildLocalExecutionCheckLines()]
       : [];
   if (error instanceof MakerGitNotFoundError) {
+    const spawnDenied = isGitSpawnDenied(error.environment.spawnErrorCode);
     return [
       '✗ Maker MCP tool stopped',
       '',
       `- tool: ${toolName}`,
-      '- reason: git_missing',
+      spawnDenied ? '- reason: git_spawn_denied' : '- reason: git_missing',
       '',
       message,
       '',
-      'next_action: 请只引导用户安装 Git；在 `git --version` 可用之前，不要继续调用 clone、fetch、commit 或 push。',
+      spawnDenied
+        ? 'next_action: 请排查当前客户端的 Git 子进程启动权限，不要建议重装 Git 或刷新 PAT。'
+        : 'next_action: 请只引导用户安装 Git；在 `git --version` 可用之前，不要继续调用 clone、fetch、commit 或 push。',
       ...buildLocalExecutionCheckLines,
     ].join('\n');
   }

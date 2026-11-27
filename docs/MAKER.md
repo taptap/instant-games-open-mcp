@@ -877,6 +877,9 @@ Maker CLI/MCP 不负责给用户安装 Git，也不会自动调用 `brew`、`win
 1. 通过 `git --version` 检测当前 MCP 进程是否能找到 Git。
 2. 如果 Git 缺失，返回当前系统对应的安装引导。
 
+如果当前进程启动 Git 返回 `EPERM` 或 `EACCES`，会单独提示排查子进程执行权限，不会当作
+Git 未安装。用同一个 Node 在普通终端和当前客户端对比，不需要重装 Git 或刷新 PAT。
+
 如果 Git 缺失，必须遵守：
 
 - 不继续 clone。
