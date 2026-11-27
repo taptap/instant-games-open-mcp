@@ -146,7 +146,7 @@ test('Git excludes the complete cache and keeps the exclusion in project changes
 test('existing unowned directories and tracked cache files are never overwritten', async () => {
   const directory = project('occupied');
   write(path.join(previewWorkspace(directory), 'keep'), 'original');
-  await expect(ensurePreviewWorkspace(directory)).rejects.toThrow();
+  await expect(ensurePreviewWorkspace(directory)).rejects.toThrow('将该目录改名保留后重试');
   expect(fs.readFileSync(path.join(previewWorkspace(directory), 'keep'), 'utf8')).toBe('original');
   fs.rmSync(previewWorkspace(directory), { recursive: true });
   execFileSync('git', ['init', '-q', directory]);

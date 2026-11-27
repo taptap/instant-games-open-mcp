@@ -17,24 +17,19 @@ function requireDirectory(directory: string): void {
     throw new Error('Preview download cache ownership changed; refusing linked directories.');
 }
 
-/** Called under the existing project/session ownership guards, never shared across projects. */
-export function openPreviewDownloadCache(
-  storage: string,
-  gameUrl: string,
-  platform = process.platform
-): PreviewDownloadCache {
-  fs.mkdirSync(storage, { recursive: true, mode: 0o700 });
-  if (fs.lstatSync(storage).isSymbolicLink())
-    throw new Error('Preview download storage must not be a symbolic link.');
-  const owner = fs.realpathSync(storage);
-  // Keep Windows paths shallow; the project hash/session directories exceed some Runtime limits.
-  const root =
-    platform === 'win32'
-      ? path.join(
-          fs.realpathSync(os.tmpdir()),
-          'maker-cache-' + createHash('sha256').update(owner).digest('hex').slice(0, 16)
-        )
-      : path.join(owner, 'runtime-cache');
+function hasWindowsOwner(root: string, owner: string): boolean {
+  const filename = path.join(root, WINDOWS_CACHE_OWNER);
+  const stat = fs.lstatSync(filename, { throwIfNoEntry: false });
+  if (!stat) return false;
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096)
+    throw new Error('Invalid preview download cache owner.');
+  const saved = JSON.parse(fs.readFileSync(filename, 'utf8'));
+  if (saved.storage !== owner)
+    throw new Error('Preview download cache belongs to another project; refusing reuse.');
+  return true;
+}
+
+function initializeCacheRoot(root: string, windowsOwner?: string): void {
   let created = false;
   try {
     fs.mkdirSync(root, { mode: 0o700 });
@@ -43,25 +38,14 @@ export function openPreviewDownloadCache(
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
   }
   requireDirectory(root);
-  const requireOwner = (): void => {
-    requireDirectory(root);
-    if (platform !== 'win32') return;
-    const filename = path.join(root, WINDOWS_CACHE_OWNER);
-    const stat = fs.lstatSync(filename);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096)
-      throw new Error('Invalid preview download cache owner.');
-    const saved = JSON.parse(fs.readFileSync(filename, 'utf8'));
-    if (saved.storage !== owner)
-      throw new Error('Preview download cache belongs to another project; refusing reuse.');
-  };
-  if (platform === 'win32' && created) {
+  if (windowsOwner && created) {
     const filename = path.join(root, WINDOWS_CACHE_OWNER);
     let markerCreated = false;
     try {
       const descriptor = fs.openSync(filename, 'wx', 0o600);
       markerCreated = true;
       try {
-        fs.writeFileSync(descriptor, JSON.stringify({ storage: owner }));
+        fs.writeFileSync(descriptor, JSON.stringify({ storage: windowsOwner }));
       } finally {
         fs.closeSync(descriptor);
       }
@@ -76,8 +60,21 @@ export function openPreviewDownloadCache(
       throw error;
     }
   }
-  requireOwner();
+}
 
+function windowsCacheRoot(key: string): string {
+  return path.join(
+    fs.realpathSync(os.tmpdir()),
+    'maker-cache-' + createHash('sha256').update(key).digest('hex').slice(0, 16)
+  );
+}
+
+/** Called under the existing project/session ownership guards, never shared across projects. */
+export function openPreviewDownloadCache(
+  storage: string,
+  gameUrl: string,
+  platform = process.platform
+): PreviewDownloadCache {
   const url = new URL(gameUrl);
   if (
     url.protocol !== 'http:' ||
@@ -90,10 +87,27 @@ export function openPreviewDownloadCache(
     !/^\/[a-z0-9_-]+\/$/i.test(url.pathname)
   )
     throw new Error('Preview download cache requires the protected loopback project URL.');
+
+  fs.mkdirSync(storage, { recursive: true, mode: 0o700 });
+  if (fs.lstatSync(storage).isSymbolicLink())
+    throw new Error('Preview download storage must not be a symbolic link.');
+  const owner = fs.realpathSync(storage);
+  const windowsOwner = platform === 'win32' ? owner : undefined;
+  // Keep Windows paths shallow; the project hash/session directories exceed some Runtime limits.
+  let root = windowsOwner ? windowsCacheRoot(owner) : path.join(owner, 'runtime-cache');
+  initializeCacheRoot(root, windowsOwner);
+  if (windowsOwner && !hasWindowsOwner(root, windowsOwner)) {
+    root = windowsCacheRoot(owner + '\0recovery');
+    initializeCacheRoot(root, windowsOwner);
+  }
   const hostDirectory = path.join(root, url.host.replace(':', '_'));
   const projectDirectory = path.join(hostDirectory, url.pathname.slice(1, -1));
   const requireProjectDirectories = (): void => {
-    requireOwner();
+    requireDirectory(root);
+    if (windowsOwner && !hasWindowsOwner(root, windowsOwner))
+      throw new Error(
+        'Preview download cache owner is missing; refusing reuse or cleanup: ' + root
+      );
     for (const directory of [hostDirectory, projectDirectory]) {
       if (fs.existsSync(directory) || fs.lstatSync(directory, { throwIfNoEntry: false }))
         requireDirectory(directory);

@@ -2,7 +2,15 @@
  * Maker Git environment guidance tests.
  */
 
-import { createGitInstallGuide, getGitCommand } from '../maker/system/git';
+import { spawnSync } from 'node:child_process';
+import {
+  createGitInstallGuide,
+  ensureGitAvailable,
+  getGitCommand,
+  MakerGitNotFoundError,
+} from '../maker/system/git';
+
+jest.mock('node:child_process', () => ({ spawnSync: jest.fn() }));
 
 describe('maker git environment guidance', () => {
   const originalGitBin = process.env.TAPTAP_MAKER_GIT_BIN;
@@ -26,6 +34,37 @@ describe('maker git environment guidance', () => {
 
     expect(getGitCommand()).toBe('/opt/git/bin/git');
   });
+
+  test.each(['EPERM', 'EACCES', 'ENOENT'])(
+    'guides users based on the Git spawn code %s',
+    (code) => {
+      jest.mocked(spawnSync).mockReturnValueOnce({
+        error: Object.assign(new Error(`spawn git ${code}`), { code }),
+        status: null,
+        pid: 0,
+        output: [null, null, null],
+        stdout: '',
+        stderr: '',
+        signal: null,
+      });
+
+      try {
+        ensureGitAvailable();
+        throw new Error('Git availability unexpectedly passed');
+      } catch (error) {
+        expect(error).toBeInstanceOf(MakerGitNotFoundError);
+        const failure = error as MakerGitNotFoundError;
+        expect(failure.environment.spawnErrorCode).toBe(code);
+        expect(failure.message).toContain(`spawn git ${code}`);
+        if (code === 'ENOENT') {
+          expect(failure.message).toContain('Git 安装引导');
+        } else {
+          expect(failure.message).toContain('无权限启动 Git');
+          expect(failure.message).not.toContain('Git 安装引导');
+        }
+      }
+    }
+  );
 
   test('macOS guide only instructs the user and does not install automatically', () => {
     const guide = createGitInstallGuide('darwin').join('\n');

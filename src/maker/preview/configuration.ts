@@ -78,6 +78,10 @@ export function classifyPreviewProject(
   const resourcesConfig = readPreviewConfiguration(project, 'resources') || {};
   const settingsConfig = readPreviewConfiguration(project, 'settings') || {};
   const serverEntry = configuredServerEntry(project, projectConfig, resourcesConfig);
+  if (serverEntry && settingsConfig['@runtime']?.multiplayer?.enabled === false)
+    throw new Error(
+      '项目配置了 entry@server，但 @runtime.multiplayer.enabled 为 false。请启用联机或移除服务端入口后重试。'
+    );
   const detectedEntry = detectedServerEntry(project);
   const hasServer = Boolean(serverEntry) || Boolean(detectedEntry);
   const network = networkEnabled(settingsConfig);
