@@ -206,6 +206,9 @@ CLI 在准备开始前向 stderr 输出 `validation.started`，包含 `run_id`�
 
 ## 联网项目
 
+如果显式设置了 `entry@server`，同时将 `@runtime.multiplayer.enabled` 设为 `false`，预览会在准备
+阶段之前报告源配置冲突。按项目的实际运行方式启用联机或移除服务端入口后再试。
+
 启动 Runtime 前，Maker 先分类项目：
 
 - 标准配置且没有联机/server 特征、公共来源、非默认资源/构建规则和 Windows dist 冲突的项目：
