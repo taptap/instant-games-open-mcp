@@ -417,9 +417,13 @@ function consoleLockConflict(filename: string, lock: ConsoleLock): ConsoleError 
 // Only called while holding the publication/reclamation socket mutex.
 async function reclaimStaleConsoleLock(filename: string, previous: ConsoleLock): Promise<boolean> {
   if (previous.content === '') {
-    const remaining = Math.ceil(previous.modified + EMPTY_CONSOLE_LOCK_GRACE_MS - Date.now());
-    if (remaining > 0 && remaining <= EMPTY_CONSOLE_LOCK_GRACE_MS)
+    const deadline = previous.modified + EMPTY_CONSOLE_LOCK_GRACE_MS;
+    for (;;) {
+      const remaining = Math.ceil(deadline - Date.now());
+      // File timestamps can include fractional milliseconds, while Date.now() cannot.
+      if (remaining <= 0 || remaining > EMPTY_CONSOLE_LOCK_GRACE_MS + 1) break;
       await new Promise((resolve) => setTimeout(resolve, remaining));
+    }
   }
   const current = readConsoleLock(filename);
   if (!current) return true;
