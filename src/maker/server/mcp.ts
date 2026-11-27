@@ -1525,6 +1525,9 @@ function formatMakerSummaryNextAction(options: {
       ? '- next_action: 当前客户端无权限启动 Git。请先排查子进程执行权限，不要重装 Git 或刷新 PAT。'
       : '- next_action: Git 未安装。请先安装 Git，并执行 `git --version` 验证。';
   }
+  if (options.gitDirectoryStatus.issue === 'git_inspection_failed') {
+    return '- next_action: 请查看详细状态中的 Git 错误，修复后重试并保留现有仓库和项目文件。';
+  }
   if (!options.gitDirectoryStatus.isUsableMakerGitRepo) {
     const nextAction =
       options.gitDirectoryStatus.issue === 'inside_parent_git_repo'
@@ -4239,7 +4242,7 @@ function isKnownBuildContextError(error: unknown): boolean {
   }
 
   const message = error instanceof Error ? error.message : String(error);
-  return /target_dir must be a string when provided|is not bound to a Maker project|must be an independent Git repository before build or submit|is bound to a Maker project but is not a Git repository/iu.test(
+  return /target_dir must be a string when provided|is not bound to a Maker project|must be an independent Git repository before build or submit|is bound to a Maker project but is not a Git repository|^Git could not inspect the bound Maker project:/iu.test(
     message
   );
 }
