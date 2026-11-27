@@ -533,7 +533,8 @@
     rebuildPreview();
     if (previousMode !== app.editMode) resizeCanvas();
     if (opts.live) {
-      renderTreePanel();
+      // A blur commit can precede the click on a tree row. Keep its target attached.
+      if (opts.phase !== "end") renderTreePanel();
       draw();
     } else {
       refresh();
