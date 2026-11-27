@@ -20,7 +20,12 @@ export function consoleReportOffer(
     )
   )
     return;
-  const preview = ['preview.start', 'preview.refresh', 'preview.install'].includes(task.action);
+  const preview = [
+    'preview.start',
+    'preview.refresh',
+    'preview.install',
+    'preview.update',
+  ].includes(task.action);
   if (
     !preview &&
     !/timeout|timed out|HTTP 5\d\d|internal.*error|unverifiable|verifiable JSON|unexpected|connection closed/i.test(

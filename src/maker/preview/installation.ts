@@ -15,6 +15,7 @@ import { runPreviewInstaller } from './installerProcess.js';
 import { trimPreviewCache, UNVERIFIED_CLEANUP_MARKER } from './cache.js';
 import { claimRecoveryMutex } from '../system/recoveryMutex.js';
 import { processPresence } from '../system/processPresence.js';
+import { fetchRuntimeRelease, runtimeBuildVersion } from './runtimeRelease.js';
 
 export type PreviewInstallation = {
   install_state: 'missing' | 'ready';
@@ -36,6 +37,9 @@ function readInstallation(filename: string): PreviewInstallation | undefined {
       !fs.statSync(value.executable).isFile()
     ) {
       return undefined;
+    }
+    if (value.runtime && value.runtime.runtime_version === 'unknown') {
+      value.runtime.runtime_version = runtimeBuildVersion(value.executable) ?? 'unknown';
     }
     return value;
   } catch {
@@ -272,6 +276,8 @@ export async function installPreviewRuntime(
       'Runtime installation needs Python and curl. Run taptap-maker python setup with host approval, then retry.'
     );
   }
+  const release = await fetchRuntimeRelease(signal);
+  if (!release) throw new Error('No Runtime release is available for this platform.');
   const staging = path.join(directory, 'runtime-' + randomUUID());
   fs.mkdirSync(staging, { recursive: true, mode: 0o700 });
   const installer = path.join(staging, 'install-urhox-runtime.py');
@@ -280,7 +286,7 @@ export async function installPreviewRuntime(
   try {
     await runPreviewInstaller(
       python.python,
-      [installer, '--platform', platform, '--dest', staging],
+      [installer, '--platform', platform, '--dest', staging, '--url', release.url],
       {
         cwd: staging,
         timeoutMs: 300000,
@@ -291,16 +297,18 @@ export async function installPreviewRuntime(
     const executable = fs.realpathSync(
       path.join(staging, platform === 'win32' ? 'UrhoXRuntime.exe' : 'UrhoXRuntime')
     );
-    const resources = ensurePreviewRuntimeResources(executable);
-    const runtime = await probeRuntime(executable, signal);
     const archive = path.join(staging, 'UrhoXRuntime.zip');
     const hash = createHash('sha256');
     for await (const chunk of fs.createReadStream(archive)) hash.update(chunk);
+    const archiveSha256 = hash.digest('hex');
+    if (archiveSha256 !== release.sha256) throw new Error('Runtime archive checksum mismatch.');
+    const runtime = await probeRuntime(executable, signal);
+    const resources = ensurePreviewRuntimeResources(executable);
     const installation: PreviewInstallation = {
       install_state: 'ready',
       executable,
-      runtime,
-      archive_sha256: hash.digest('hex'),
+      runtime: { ...runtime, runtime_version: release.version },
+      archive_sha256: archiveSha256,
       installed_at: new Date().toISOString(),
       warnings: resources.warnings,
     };

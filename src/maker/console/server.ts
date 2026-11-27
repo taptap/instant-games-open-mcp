@@ -15,6 +15,8 @@ import { checkMakerLuaLspEnvironmentAsync } from '../system/luaLsp.js';
 import { ConsolePlugins, type ConsolePlugin } from './plugins.js';
 import { readPreviewWindowSettings, savePreviewWindowSettings } from '../preview/windowSettings.js';
 import { previewCacheUsage, clearPreviewCache } from '../preview/cacheManagement.js';
+import { runtimeUpdateVersion, type RuntimeRelease } from '../preview/runtimeRelease.js';
+import type { RuntimeInfo } from '../preview/protocol.js';
 import {
   listValidationRuns,
   readValidationRun,
@@ -85,6 +87,7 @@ export async function startConsoleServer(options: {
   drainMs?: number;
   onDraining?: () => void;
   closePreviews?: () => Promise<void>;
+  runtimeRelease?: Promise<RuntimeRelease | undefined>;
   plugins?: readonly ConsolePlugin[];
   remoteProxyManager?: MakerRemoteProxyManager;
 }) {
@@ -722,10 +725,19 @@ export async function startConsoleServer(options: {
               onOutput: () => {},
               signal: readAbort.signal,
             });
-            const result =
-              suffix === 'preview'
-                ? { ...status, window_settings: readPreviewWindowSettings(directory) }
-                : status;
+            if (suffix === 'preview/logs') return status;
+            const installedRuntime = status.runtime as RuntimeInfo | undefined;
+            const result = {
+              ...status,
+              window_settings: readPreviewWindowSettings(directory),
+              runtime_update_version:
+                status.install_state === 'ready'
+                  ? runtimeUpdateVersion(
+                      await options.runtimeRelease,
+                      installedRuntime?.runtime_version
+                    )
+                  : undefined,
+            };
             if (!checkServerChanges) return result;
             const server_changes = await options.registry.previewServerChanges(
               key,

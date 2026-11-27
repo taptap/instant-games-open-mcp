@@ -28,10 +28,16 @@ export function createConsoleExecutor(options: {
       throw new Error('Unsupported console CLI action.');
     if (action === 'issue.report' && !reportContext) throw new Error('Report context is required.');
     if (signal?.aborted) return { ok: false, error: 'Console query cancelled before launch.' };
+    const updateRuntime = action === 'preview.update';
+    const previewAction = updateRuntime ? 'install' : action.slice('preview.'.length);
     if (action.startsWith('preview.') && options.previewOwner) {
       const result = await executePreviewOperation(
-        action.slice('preview.'.length),
-        { target_dir: project, ...(action === 'preview.logs' ? { tail: true } : {}) },
+        previewAction,
+        {
+          target_dir: project,
+          ...(updateRuntime ? { update: true } : {}),
+          ...(action === 'preview.logs' ? { tail: true } : {}),
+        },
         signal,
         options.previewOwner
       );
@@ -51,7 +57,8 @@ export function createConsoleExecutor(options: {
         ? ['mcp', 'report', '--context-stdin', '--consent']
         : action === 'build' || action === 'qrcode'
           ? [action]
-          : ['preview', action.slice('preview.'.length)];
+          : ['preview', previewAction];
+    if (updateRuntime) command.push('--update');
     if (action === 'preview.start' && options.legacyPreviewLaunch) command.push('--legacy-wmi');
     if (action === 'preview.logs') command.push('--tail');
     if (action === 'qrcode' && confirmedOrientation)

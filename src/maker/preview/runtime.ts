@@ -14,6 +14,7 @@ import { selectWindowsBackgroundEnvironment } from '../system/backgroundProcess.
 import { preparePreviewServer, previewNetworkArgs } from './network.js';
 import { openPreviewDownloadCache, type PreviewDownloadCache } from './downloadCache.js';
 import { requirePlainPreviewSource } from './workspace.js';
+import { runtimeBuildVersion } from './runtimeRelease.js';
 export { previewWindow } from './windowSettings.js';
 
 export const PREVIEW_TIMEOUT_MS = 30000;
@@ -26,7 +27,7 @@ export async function probeRuntime(executable: string, signal?: AbortSignal): Pr
   fs.accessSync(executable, process.platform === 'win32' ? fs.constants.R_OK : fs.constants.X_OK);
   return {
     protocol_version: 0,
-    runtime_version: 'unknown',
+    runtime_version: runtimeBuildVersion(executable) ?? 'unknown',
     platform: process.platform,
     arch: 'unverified',
     capabilities: [],

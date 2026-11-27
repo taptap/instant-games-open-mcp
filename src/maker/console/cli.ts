@@ -17,6 +17,7 @@ export { openConsoleLog } from './processLauncher.js';
 import { startConsoleServer } from './server.js';
 import { ConsoleError } from './types.js';
 import { PreviewOwner } from '../preview/owner.js';
+import { fetchRuntimeRelease } from '../preview/runtimeRelease.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 
 declare const __MAKER_VERSION__: string | undefined;
@@ -208,6 +209,7 @@ export async function runConsoleSupervisor(): Promise<void> {
       registry,
       hasActivePreview: () => previewOwner.active,
       closePreviews: () => previewOwner.close(),
+      runtimeRelease: fetchRuntimeRelease().catch(() => undefined),
       html: getConsoleHtml(),
       version: VERSION,
       packageRoot: path.dirname(path.dirname(path.resolve(process.argv[1]))),

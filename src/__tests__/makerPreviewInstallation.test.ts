@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { runPreviewInstaller } from '../maker/preview/installerProcess.js';
 import {
   installPreviewRuntime,
@@ -23,7 +24,7 @@ jest.mock('../maker/system/python.js', () => ({ checkMakerPythonEnvironmentAsync
 
 const info = {
   protocol_version: 1,
-  runtime_version: 'fixture-1',
+  runtime_version: '1.40.1',
   platform: 'darwin',
   arch: process.arch,
   capabilities: [],
@@ -31,6 +32,7 @@ const info = {
 let root: string;
 let home: string | undefined;
 let platform: PropertyDescriptor;
+let fetchRelease: jest.SpiedFunction<typeof fetch>;
 
 beforeEach(() => {
   jest.resetAllMocks();
@@ -45,6 +47,18 @@ beforeEach(() => {
       ReturnType<typeof checkMakerPythonEnvironmentAsync>
     >);
   jest.mocked(probeRuntime).mockResolvedValue(info);
+  const release = {
+    version: info.runtime_version,
+    sha256: createHash('sha256').update('archive').digest('hex'),
+  };
+  fetchRelease = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      version: info.runtime_version,
+      macos_runtime: release,
+      windows_runtime: release,
+    }),
+  } as Response);
   jest.mocked(ensurePreviewRuntimeResources).mockReturnValue({
     fallbackFont: 'existing',
     warnings: [],
@@ -58,6 +72,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  fetchRelease.mockRestore();
   Object.defineProperty(process, 'platform', platform);
   if (home === undefined) delete process.env.TAPTAP_MAKER_HOME;
   else process.env.TAPTAP_MAKER_HOME = home;
@@ -87,6 +102,13 @@ test('installer is explicitly given a new managed destination and records valida
   const args = jest.mocked(runPreviewInstaller).mock.calls[0][1];
   expect(args).toContain('--dest');
   expect(args).toContain('darwin');
+  expect(fetchRelease).toHaveBeenCalledWith(
+    'https://urhox-demo-platform.spark.xd.com/runtime/macos/latest.json',
+    expect.anything()
+  );
+  expect(args[args.indexOf('--url') + 1]).toBe(
+    'https://urhox-demo-platform.spark.xd.com/runtime/macos/1.40.1/UrhoXRuntime.zip'
+  );
   expect(path.dirname(result.executable!)).toBe(args[args.indexOf('--dest') + 1]);
   expect(path.dirname(result.executable!).startsWith(runtimeDirectory() + path.sep)).toBe(true);
   expect(previewInstallation(root).executable).toBe(result.executable);
@@ -136,6 +158,19 @@ test('a compatible installation is reused without executing the installer', asyn
   expect((await installPreviewRuntime(root)).executable).toBe(previous);
   expect(runPreviewInstaller).not.toHaveBeenCalled();
   expect(ensurePreviewRuntimeResources).toHaveBeenCalledWith(previous);
+  expect(fetchRelease).not.toHaveBeenCalled();
+});
+
+test('a checksum mismatch never replaces the registered Runtime', async () => {
+  const previous = previousInstallation();
+  jest.mocked(runPreviewInstaller).mockImplementationOnce(async (_python, parameters) => {
+    const destination = parameters[parameters.indexOf('--dest') + 1];
+    fs.writeFileSync(path.join(destination, 'UrhoXRuntime'), 'binary');
+    fs.writeFileSync(path.join(destination, 'UrhoXRuntime.zip'), 'mismatched archive');
+    return { stdout: '', stderr: '' };
+  });
+  await expect(installPreviewRuntime(root, undefined, true)).rejects.toThrow('checksum mismatch');
+  expect(previewInstallation(root).executable).toBe(previous);
 });
 
 test('executable verification failure preserves the old installation and removes only new staging', async () => {
@@ -304,6 +339,9 @@ test('Windows installation selects the exe artifact and Windows CDN target', asy
   expect(result.executable?.endsWith('UrhoXRuntime.exe')).toBe(true);
   const args = jest.mocked(runPreviewInstaller).mock.calls[0][1];
   expect(args).toContain('win32');
+  expect(args[args.indexOf('--url') + 1]).toBe(
+    'https://urhox-demo-platform.spark.xd.com/runtime/windows/1.40.1/UrhoXRuntime.zip'
+  );
 });
 
 test('successful updates retain current and previous managed installations only', async () => {
