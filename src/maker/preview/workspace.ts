@@ -38,7 +38,12 @@ export function ownedPreviewWorkspace(project: string): string | undefined {
   if (!stat.isDirectory() || stat.isSymbolicLink() || fs.realpathSync.native(root) !== root)
     throw new Error('预览缓存目录异常，拒绝访问：' + root);
   const marker = path.join(root, OWNER);
-  const ownerStat = fs.lstatSync(marker);
+  const ownerStat = fs.lstatSync(marker, { throwIfNoEntry: false });
+  if (!ownerStat)
+    throw new Error(
+      '预览缓存缺少归属记录，未读取或清理。请停止此项目的预览和验证，将该目录改名保留后重试：' +
+        root
+    );
   if (!ownerStat.isFile() || ownerStat.isSymbolicLink() || ownerStat.size > 4096)
     throw new Error('预览缓存归属记录异常：' + root);
   const owner = JSON.parse(fs.readFileSync(marker, 'utf8'));

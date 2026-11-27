@@ -94,15 +94,33 @@ test.each([false, true])(
   }
 );
 
-test('refuses a Windows cache with a mismatched or missing owner without removing it', () => {
+test('refuses a Windows cache with a mismatched owner without removing it', () => {
   const cache = open();
   const marker = path.join(cache.root, '.maker-preview-owner.json');
   fs.writeFileSync(marker, '{"storage":"another project"}');
   expect(() => open()).toThrow(/belongs to another project/);
   expect(() => cache.clearProject()).toThrow(/belongs to another project/);
-  fs.unlinkSync(marker);
-  expect(() => open()).toThrow();
   expect(fs.existsSync(cache.root)).toBe(true);
+});
+
+test('reuses a separate short Windows cache when the original is missing its owner', () => {
+  const cache = open();
+  const marker = '.maker-preview-owner.json';
+  const sentinel = path.join(cache.root, 'unverified-user-file');
+  fs.writeFileSync(sentinel, 'keep');
+  fs.unlinkSync(path.join(cache.root, marker));
+  const recovered = open();
+  expect(recovered.root).not.toBe(cache.root);
+  expect(path.dirname(recovered.root)).toBe(path.dirname(cache.root));
+  expect(path.basename(recovered.root)).toMatch(/^maker-cache-[a-f0-9]{16}$/);
+  expect(open(nextUrl).root).toBe(recovered.root);
+  expect(() => cache.clearProject()).toThrow('owner is missing');
+  recovered.clearProject();
+  expect(fs.existsSync(path.join(cache.root, marker))).toBe(false);
+  expect(fs.readFileSync(sentinel, 'utf8')).toBe('keep');
+  fs.unlinkSync(path.join(recovered.root, marker));
+  expect(() => open()).toThrow('owner is missing');
+  expect(() => recovered.clearProject()).toThrow('owner is missing');
 });
 
 test.each<NodeJS.Platform>(['win32', 'darwin'])(
