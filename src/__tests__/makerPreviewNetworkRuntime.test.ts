@@ -167,6 +167,24 @@ test.each(['darwin', 'win32'])(
   }
 );
 
+test('filters known engine startup noise from preview logs and errors', async () => {
+  Object.defineProperty(process, 'platform', { value: 'darwin' });
+  jest.mocked(preparePreviewServer).mockResolvedValue(undefined);
+  const instance = runtime();
+  await instance.start('main.lua', root);
+  const child = jest.mocked(spawn).mock.results.at(-1)!.value as {
+    stdout: PassThrough;
+    stderr: PassThrough;
+  };
+  child.stderr.write('ERROR: Could not find resource Cube/Day/DaySpecularHDR.dds\n');
+  child.stdout.write('ERROR: Can not load themis_x64.dll.\n');
+  child.stderr.write('ERROR: project.lua failed\n');
+
+  expect(instance.logs.read().logs).toEqual([{ cursor: 1, text: 'ERROR: project.lua failed' }]);
+  expect(instance.errors).toEqual(['ERROR: project.lua failed']);
+  await instance.stop();
+});
+
 test.each(['win32', 'darwin'])(
   '%s simple single player launches from the original project',
   async (platform) => {
