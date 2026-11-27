@@ -221,7 +221,13 @@ describe('Maker console canvas', () => {
         isMember: jest.fn(() => false),
         locked: jest.fn(() => blocked === 'template-locked'),
       };
-      const selectionToolbar = { replaceChildren: jest.fn(), append: jest.fn(), hidden: true };
+      const selectionToolbar = {
+        replaceChildren: jest.fn(),
+        append: jest.fn(),
+        // No composer is open before this render.
+        querySelector: jest.fn(() => null),
+        hidden: true,
+      };
       const selectionMenu = { replaceChildren: jest.fn(), append: jest.fn(), hidden: true };
       const document = {
         createElement: () => ({
