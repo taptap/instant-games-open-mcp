@@ -43,6 +43,7 @@ import { collectImageAssetEntriesFromReader } from './imageAssets.js';
 import { nodesInMarquee } from '../core/edit.js';
 import { removeNodes } from '../core/edit.js';
 import { saveAcknowledgement } from '../core/edit.js';
+import { canvasStructureKey, createCanvasSaveScheduler } from './saveSchedule.js';
 import { canvasFlowDuration } from './workTiming.js';
 import { formatCanvasWorkDuration } from './workTiming.js';
 import { renderCanvasWorkTiming } from './workTiming.js';
@@ -2701,6 +2702,8 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
     uiCutoutPrompt.toString(),
     dispatchCanvasStoreRequest.toString(),
     saveAcknowledgement.toString(),
+    createCanvasSaveScheduler.toString(),
+    canvasStructureKey.toString(),
     nodesInMarquee.toString(),
     removeNodes.toString(),
   ].join('\n');
@@ -5010,7 +5013,7 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '  document.body.append(canvasConflictDialog);',
       '  function showCanvasConflict() {',
       '    saveConflict = true;',
-      '    clearTimeout(timer);',
+      '    canvasSaveSchedule.cancel();',
       '    canvasSaveFailed = true;',
       "    setStatus('未保存');",
       "    setError('');",
@@ -5039,13 +5042,47 @@ export function getCanvasPageHtml(integration: CanvasPageIntegration): string {
       '    if (!loaded || (loaded.revision === revision && sameSavedCanvas(loaded, baseline))) return;',
       '    await loadCanvasDocument(id, loaded);',
       '  }',
-      '  function markDirty() {',
+      // Every save uploads the whole canvas file: wait for 2s of quiet (at most 10s while edits
+      // keep coming). Cards or wires added or removed save on the next tick; text fields save on
+      // blur, and leaving the page saves what is waiting.
+      '  function markDirty(options) {',
       "    setStatus('未保存');",
       '    if (saveConflict) return;',
-      '    clearTimeout(timer);',
-      '    timer = setTimeout(function () { void flush(); }, 800);',
+      '    const canvasId = documentState ? documentState.id : null;',
+      '    const structure = canvasStructureKey(documentState);',
+      '    const structural = canvasId === canvasStructureId && structure !== canvasStructure;',
+      '    canvasStructureId = canvasId;',
+      '    canvasStructure = structure;',
+      '    canvasSaveSchedule.schedule(Boolean((options && options.immediate) || structural));',
       '  }',
+      '  function rememberCanvasStructure() {',
+      '    const canvasId = documentState ? documentState.id : null;',
+      '    if (canvasId === canvasStructureId) return;',
+      '    canvasStructureId = canvasId;',
+      '    canvasStructure = canvasStructureKey(documentState);',
+      '  }',
+      "  document.addEventListener('focusout', function (event) {",
+      '    const target = event.target;',
+      "    if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT')) canvasSaveSchedule.flushNow();",
+      '  });',
+      "  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') canvasSaveSchedule.flushNow(); });",
+      "  window.addEventListener('pagehide', function () { canvasSaveSchedule.flushNow(); });",
     ].join('\n')
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  let timer = 0;',
+    "  let timer = 0;\n  const canvasSaveSchedule = createCanvasSaveScheduler({ save: function () { void flush(); } });\n  let canvasStructureId = null;\n  let canvasStructure = '';"
+  );
+  page = replaceCanvasPageText(
+    page,
+    '  async function flush() {\n',
+    '  async function flush() {\n    canvasSaveSchedule.cancel();\n'
+  );
+  page = replaceCanvasPageText(
+    page,
+    '    if (wireUi) wireUi.sync();\n',
+    '    rememberCanvasStructure();\n    if (wireUi) wireUi.sync();\n'
   );
   page = replaceCanvasPageText(
     page,
